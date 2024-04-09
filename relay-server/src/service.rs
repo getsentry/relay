@@ -182,6 +182,7 @@ impl ServiceState {
                 #[cfg(feature = "processing")]
                 store_forwarder: store.clone(),
             },
+            #[cfg(feature = "processing")]
             metric_stats,
         )
         .spawn_handler(processor_rx);
