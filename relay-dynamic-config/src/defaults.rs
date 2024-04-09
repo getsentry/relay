@@ -30,6 +30,13 @@ const MONGODB_QUERIES: &[&str] = &["*\"$*", "{*", "*({*", "*[{*"];
 /// A list of patterns for resource span ops we'd like to ingest.
 const RESOURCE_SPAN_OPS: &[&str] = &["resource.script", "resource.css", "resource.img"];
 
+const CACHE_SPAN_OPS: &[&str] = &[
+    "cache.get_item",
+    "cache.save",
+    "cache.clear",
+    "cache.delete_item",
+];
+
 /// Adds configuration for extracting metrics from spans.
 ///
 /// This configuration is temporarily hard-coded here. It will later be provided by the upstream.
@@ -66,6 +73,8 @@ fn span_metrics() -> impl IntoIterator<Item = MetricSpec> {
             | RuleCondition::glob("span.op", DISABLED_DATABASES)
             | RuleCondition::glob("span.description", MONGODB_QUERIES));
     let is_resource = RuleCondition::glob("span.op", RESOURCE_SPAN_OPS);
+
+    let is_cache = RuleCondition::glob("span.op", CACHE_SPAN_OPS);
 
     let is_mobile_op = RuleCondition::glob("span.op", MOBILE_OPS);
 
@@ -208,6 +217,10 @@ fn span_metrics() -> impl IntoIterator<Item = MetricSpec> {
                 Tag::with_key("span.status_code")
                     .from_field("span.sentry_tags.status_code")
                     .when(is_http.clone()),
+                // Cache module
+                Tag::with_key("cache.hit")
+                    .from_field("span.sentry_tags.cache.hit")
+                    .when(is_cache.clone()),
             ],
         },
         MetricSpec {
@@ -263,6 +276,30 @@ fn span_metrics() -> impl IntoIterator<Item = MetricSpec> {
                 Tag::with_key("span.status_code")
                     .from_field("span.sentry_tags.status_code")
                     .when(is_http.clone()),
+                // Cache module
+                Tag::with_key("cache.hit")
+                    .from_field("span.sentry_tags.cache_hit")
+                    .when(is_cache.clone()),
+            ],
+        },
+        MetricSpec {
+            category: DataCategory::Span,
+            mri: "d:spans/cache.item_size@byte".into(),
+            field: Some("span.data.cache\\.item_size".into()),
+            condition: Some(is_cache.clone()),
+            tags: vec![
+                Tag::with_key("environment")
+                    .from_field("span.sentry_tags.environment")
+                    .always(), // already guarded by condition on metric
+                Tag::with_key("span.op")
+                    .from_field("span.sentry_tags.op")
+                    .always(), // already guarded by condition on metric
+                Tag::with_key("transaction")
+                    .from_field("span.sentry_tags.transaction")
+                    .always(), // already guarded by condition on metric
+                Tag::with_key("cache.hit")
+                    .from_field("span.sentry_tags.cache_hit")
+                    .always(), // already guarded by condition on metric
             ],
         },
         MetricSpec {
