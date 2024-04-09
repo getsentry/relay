@@ -22,7 +22,7 @@
 
 **Bug Fixes**:
 
-- Allow spans with no `exclusive_time`. ([#3385](https://github.com/getsentry/relay/pull/3385))
+- Allow spans with no `exclusive_time`. ([#3385](https://github.com/getsentry/relay/pull/3385), [#3401](https://github.com/getsentry/relay/pull/3401))
 
 **Internal**:
 
