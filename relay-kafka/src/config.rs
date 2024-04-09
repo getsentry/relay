@@ -53,6 +53,8 @@ pub enum KafkaTopic {
     MetricsSummaries,
     /// COGS measurements topic.
     Cogs,
+    /// Feedback events topic.
+    Feedback,
 }
 
 impl KafkaTopic {
@@ -60,7 +62,7 @@ impl KafkaTopic {
     /// It will have to be adjusted if the new variants are added.
     pub fn iter() -> std::slice::Iter<'static, Self> {
         use KafkaTopic::*;
-        static TOPICS: [KafkaTopic; 14] = [
+        static TOPICS: [KafkaTopic; 15] = [
             Events,
             Attachments,
             Transactions,
@@ -75,6 +77,7 @@ impl KafkaTopic {
             Spans,
             MetricsSummaries,
             Cogs,
+            Feedback,
         ];
         TOPICS.iter()
     }
@@ -124,6 +127,9 @@ pub struct TopicAssignments {
     /// COGS measurements.
     #[serde(alias = "shared-resources-usage")]
     pub cogs: TopicAssignment,
+    /// Feedback events topic name.
+    #[serde(alias = "ingest-feedback-events")]
+    pub feedback: TopicAssignment,
 }
 
 impl TopicAssignments {
@@ -145,6 +151,7 @@ impl TopicAssignments {
             KafkaTopic::Spans => &self.spans,
             KafkaTopic::MetricsSummaries => &self.metrics_summaries,
             KafkaTopic::Cogs => &self.cogs,
+            KafkaTopic::Feedback => &self.feedback,
         }
     }
 }
@@ -166,6 +173,7 @@ impl Default for TopicAssignments {
             spans: "snuba-spans".to_owned().into(),
             metrics_summaries: "snuba-metrics-summaries".to_owned().into(),
             cogs: "shared-resources-usage".to_owned().into(),
+            feedback: "ingest-feedback-events".to_owned().into(),
         }
     }
 }
