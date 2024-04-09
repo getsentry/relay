@@ -1,3 +1,9 @@
+//! Support for automatic hub binding for each request received by the Tower server.
+//!
+//! Vendored version `0.31.8` from
+//! [`sentry-tower`](https://github.com/getsentry/sentry-rust/blob/0.31.8/sentry-tower/src/lib.rs)
+//! with updated imports.
+
 use std::convert::TryInto;
 use std::future::Future;
 use std::marker::PhantomData;
