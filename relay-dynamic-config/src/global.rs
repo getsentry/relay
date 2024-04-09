@@ -162,6 +162,8 @@ pub struct Options {
     /// spans are extracted. It applies on top of [`crate::Feature::ExtractSpansAndSpanMetricsFromEvent`],
     /// so both feature flag and sample rate need to be enabled to get any spans extracted.
     ///
+    /// `None` is the default and interpreted as a value of 1.0 (extract everything).
+    ///
     /// Note: Any value below 1.0 will cause the product to break, so use with caution.
     #[serde(
         rename = "relay.span-extraction.sample-rate",
