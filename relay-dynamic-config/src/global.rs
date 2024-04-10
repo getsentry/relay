@@ -156,6 +156,17 @@ pub struct Options {
     )]
     pub metric_stats_rollout_rate: f32,
 
+    /// Rollout rate for producing to the ingest-feedback-events topic.
+    ///
+    /// Rate needs to be between `0.0` and `1.0`.
+    /// If set to `1.0` all organizations will ingest to the feedback topic.
+    #[serde(
+        rename = "feedback.ingest-topic.rollout-rate",
+        deserialize_with = "default_on_error",
+        skip_serializing_if = "is_default"
+    )]
+    pub feedback_ingest_topic_rollout_rate: f32,
+
     /// Overall sampling of span extraction.
     ///
     /// This number represents the fraction of transactions for which

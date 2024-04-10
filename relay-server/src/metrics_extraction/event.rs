@@ -429,7 +429,8 @@ mod tests {
                     "trace_id": "ff62a8b040f340bda5d830223def1d81",
                     "status": "ok",
                     "data": {
-                        "cache.hit": false
+                        "cache.hit": false,
+                        "cache.item_size": 8
                     }
                 },
                 {
@@ -906,7 +907,21 @@ mod tests {
                     "trace_id": "ff62a8b040f340bda5d830223def1d81",
                     "status": "ok",
                     "data": {
-                        "cache.hit": false
+                        "cache.hit": false,
+                        "cache.item_size": 10
+                    }
+                },
+                {
+                    "description": "GET cache:user:{456}",
+                    "op": "cache.get_item",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bb7af8b99e95af5f",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976302.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "status": "ok",
+                    "data": {
+                        "cache.hit": true
                     }
                 },
                 {
