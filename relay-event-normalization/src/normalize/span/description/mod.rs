@@ -174,9 +174,8 @@ fn scrub_http(string: &str) -> Option<String> {
     let scrubbed = match Url::parse(url) {
         Ok(url) => {
             let scheme = url.scheme();
-            let scrubbed_host = url.host().map(scrub_host).unwrap_or(String::from(""));
-
-            let domain = concatenate_host_and_port(Some(scrubbed_host.as_str()), url.port());
+            let scrubbed_host = url.host().map(scrub_host).unwrap_or(Cow::Borrowed(""));
+            let domain = concatenate_host_and_port(Some(scrubbed_host.as_ref()), url.port());
 
             format!("{method} {scheme}://{domain}")
         }
@@ -211,11 +210,11 @@ fn scrub_file(description: &str) -> Option<String> {
 /// # Returns
 ///
 /// A host `String`, or `None` if scrubbing fails.
-pub fn scrub_host(host: Host<&str>) -> String {
+pub fn scrub_host(host: Host<&str>) -> Cow<'static, str> {
     match host {
         Host::Ipv4(ip) => scrub_ipv4(ip),
         Host::Ipv6(ip) => scrub_ipv6(ip),
-        Host::Domain(domain) => scrub_domain_name(String::from(domain)),
+        Host::Domain(domain) => Cow::Owned(scrub_domain_name(String::from(domain))),
     }
 }
 
@@ -228,12 +227,12 @@ pub fn scrub_host(host: Host<&str>) -> String {
 /// # Returns
 ///
 /// Scrubbed string
-pub fn scrub_ipv4(ip: Ipv4Addr) -> String {
+pub fn scrub_ipv4(ip: Ipv4Addr) -> Cow<'static, str> {
     if IPV4_ALLOW_LIST.contains(&ip) {
-        return ip.to_string();
+        return Cow::Owned(ip.to_string());
     }
 
-    String::from("*.*.*.*")
+    Cow::Borrowed("*.*.*.*")
 }
 
 /// Scrub an IPV6 address. Allow well-known IPs like loopback, and fully scrub out all other IPs.
@@ -245,12 +244,12 @@ pub fn scrub_ipv4(ip: Ipv4Addr) -> String {
 /// # Returns
 ///
 /// Scrubbed string
-pub fn scrub_ipv6(ip: Ipv6Addr) -> String {
+pub fn scrub_ipv6(ip: Ipv6Addr) -> Cow<'static, str> {
     if IPV6_ALLOW_LIST.contains(&ip) {
-        return ip.to_string();
+        return Cow::Owned(ip.to_string());
     }
 
-    String::from("*:*:*:*:*:*:*:*")
+    Cow::Borrowed("*:*:*:*:*:*:*:*")
 }
 
 /// Sanitize a qualified domain string by replacing all but the last two segments with asterisks
@@ -350,8 +349,8 @@ fn scrub_resource(resource_type: &str, string: &str) -> Option<String> {
             return Some("browser-extension://*".to_owned());
         }
         scheme => {
-            let scrubbed_host = url.host().map(scrub_host).unwrap_or(String::from(""));
-            let domain = concatenate_host_and_port(Some(scrubbed_host.as_str()), url.port());
+            let scrubbed_host = url.host().map(scrub_host).unwrap_or(Cow::Borrowed(""));
+            let domain = concatenate_host_and_port(Some(scrubbed_host.as_ref()), url.port());
 
             let segment_count = url.path_segments().map(|s| s.count()).unwrap_or_default();
             let mut output_segments = vec![];
