@@ -447,17 +447,6 @@
 <a href="#445" id="445">445</a>
 <a href="#446" id="446">446</a>
 <a href="#447" id="447">447</a>
-<a href="#448" id="448">448</a>
-<a href="#449" id="449">449</a>
-<a href="#450" id="450">450</a>
-<a href="#451" id="451">451</a>
-<a href="#452" id="452">452</a>
-<a href="#453" id="453">453</a>
-<a href="#454" id="454">454</a>
-<a href="#455" id="455">455</a>
-<a href="#456" id="456">456</a>
-<a href="#457" id="457">457</a>
-<a href="#458" id="458">458</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Configuration primitives to configure the kafka producer and properly set up the connection.
 //!
 //! The configuration can be either;
@@ -543,98 +532,63 @@
     }
 }
 
-<span class="doccomment">/// Configuration for topics.
-</span><span class="attr">#[derive(Serialize, Deserialize, Debug)]
-#[serde(default)]
-</span><span class="kw">pub struct </span>TopicAssignments {
-    <span class="doccomment">/// Simple events topic name.
-    </span><span class="attr">#[serde(alias = <span class="string">"ingest-events"</span>)]
-    </span><span class="kw">pub </span>events: TopicAssignment,
-    <span class="doccomment">/// Events with attachments topic name.
-    </span><span class="attr">#[serde(alias = <span class="string">"ingest-attachments"</span>)]
-    </span><span class="kw">pub </span>attachments: TopicAssignment,
-    <span class="doccomment">/// Transaction events topic name.
-    </span><span class="attr">#[serde(alias = <span class="string">"ingest-transactions"</span>)]
-    </span><span class="kw">pub </span>transactions: TopicAssignment,
-    <span class="doccomment">/// Outcomes topic name.
-    </span><span class="kw">pub </span>outcomes: TopicAssignment,
-    <span class="doccomment">/// Outcomes topic name for billing critical outcomes. Defaults to the assignment of `outcomes`.
-    </span><span class="attr">#[serde(alias = <span class="string">"outcomes-billing"</span>)]
-    </span><span class="kw">pub </span>outcomes_billing: <span class="prelude-ty">Option</span>&lt;TopicAssignment&gt;,
-    <span class="doccomment">/// Topic name for metrics extracted from sessions, aka release health.
-    </span><span class="attr">#[serde(alias = <span class="string">"metrics"</span>, alias = <span class="string">"ingest-metrics"</span>)]
-    </span><span class="kw">pub </span>metrics_sessions: TopicAssignment,
-    <span class="doccomment">/// Topic name for all other kinds of metrics. Defaults to the assignment of `metrics`.
-    </span><span class="attr">#[serde(alias = <span class="string">"metrics_transactions"</span>, alias = <span class="string">"ingest-performance-metrics"</span>)]
-    </span><span class="kw">pub </span>metrics_generic: TopicAssignment,
-    <span class="doccomment">/// Stacktrace topic name
-    </span><span class="kw">pub </span>profiles: TopicAssignment,
-    <span class="doccomment">/// Replay Events topic name.
-    </span><span class="attr">#[serde(alias = <span class="string">"ingest-replay-events"</span>)]
-    </span><span class="kw">pub </span>replay_events: TopicAssignment,
-    <span class="doccomment">/// Recordings topic name.
-    </span><span class="attr">#[serde(alias = <span class="string">"ingest-replay-recordings"</span>)]
-    </span><span class="kw">pub </span>replay_recordings: TopicAssignment,
-    <span class="doccomment">/// Monitor check-ins.
-    </span><span class="attr">#[serde(alias = <span class="string">"ingest-monitors"</span>)]
-    </span><span class="kw">pub </span>monitors: TopicAssignment,
-    <span class="doccomment">/// Standalone spans without a transaction.
-    </span><span class="attr">#[serde(alias = <span class="string">"snuba-spans"</span>)]
-    </span><span class="kw">pub </span>spans: TopicAssignment,
-    <span class="doccomment">/// Summary for metrics collected during a span.
-    </span><span class="attr">#[serde(alias = <span class="string">"snuba-metrics-summaries"</span>)]
-    </span><span class="kw">pub </span>metrics_summaries: TopicAssignment,
-    <span class="doccomment">/// COGS measurements.
-    </span><span class="attr">#[serde(alias = <span class="string">"shared-resources-usage"</span>)]
-    </span><span class="kw">pub </span>cogs: TopicAssignment,
-    <span class="doccomment">/// Feedback events topic name.
-    </span><span class="attr">#[serde(alias = <span class="string">"ingest-feedback-events"</span>)]
-    </span><span class="kw">pub </span>feedback: TopicAssignment,
+<span class="macro">macro_rules! </span>define_topic_assignments {
+    (<span class="macro-nonterminal">$struct_name</span>:ident {
+        $(<span class="macro-nonterminal">$field_name</span>:ident : (<span class="macro-nonterminal">$kafka_topic</span>:path, <span class="macro-nonterminal">$default_topic</span>: literal, <span class="macro-nonterminal">$doc</span>: literal)),* $(,)<span class="question-mark">? </span>}) =&gt; {
+
+        <span class="doccomment">/// Configuration for topics.
+        </span><span class="attr">#[derive(Serialize, Deserialize, Debug)]
+        #[serde(default)]
+        </span><span class="kw">pub struct </span>TopicAssignments {
+            $(
+                <span class="attr">#[serde(alias = <span class="macro-nonterminal">$default_topic</span>)]
+                #[doc=<span class="macro-nonterminal">$doc</span>]
+                </span><span class="kw">pub </span><span class="macro-nonterminal">$field_name</span>: TopicAssignment,
+            )*
+        }
+
+        <span class="kw">impl </span>TopicAssignments{
+            <span class="doccomment">/// Get a topic assignment by [`KafkaTopic`] value
+            </span><span class="attr">#[must_use]
+            </span><span class="kw">pub fn </span>get(<span class="kw-2">&amp;</span><span class="self">self</span>, kafka_topic: KafkaTopic) -&gt; <span class="kw-2">&amp;</span>TopicAssignment {
+                <span class="kw">match </span>kafka_topic {
+                    $(
+                        <span class="macro-nonterminal">$kafka_topic </span>=&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="macro-nonterminal">$field_name</span>,
+                    )*
+                }
+            }
+        }
+
+        <span class="kw">impl </span>Default <span class="kw">for </span>TopicAssignments {
+            <span class="kw">fn </span>default() -&gt; <span class="self">Self </span>{
+                <span class="self">Self </span>{
+                    $(
+                        <span class="macro-nonterminal">$field_name</span>: <span class="macro-nonterminal">$default_topic</span>.to_owned().into(),
+                    )*
+
+                }
+            }
+        }
+    };
 }
 
-<span class="kw">impl </span>TopicAssignments {
-    <span class="doccomment">/// Get a topic assignment by [`KafkaTopic`] value
-    </span><span class="attr">#[must_use]
-    </span><span class="kw">pub fn </span>get(<span class="kw-2">&amp;</span><span class="self">self</span>, kafka_topic: KafkaTopic) -&gt; <span class="kw-2">&amp;</span>TopicAssignment {
-        <span class="kw">match </span>kafka_topic {
-            KafkaTopic::Attachments =&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.attachments,
-            KafkaTopic::Events =&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.events,
-            KafkaTopic::Transactions =&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.transactions,
-            KafkaTopic::Outcomes =&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.outcomes,
-            KafkaTopic::OutcomesBilling =&gt; <span class="self">self</span>.outcomes_billing.as_ref().unwrap_or(<span class="kw-2">&amp;</span><span class="self">self</span>.outcomes),
-            KafkaTopic::MetricsSessions =&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.metrics_sessions,
-            KafkaTopic::MetricsGeneric =&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.metrics_generic,
-            KafkaTopic::Profiles =&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.profiles,
-            KafkaTopic::ReplayEvents =&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.replay_events,
-            KafkaTopic::ReplayRecordings =&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.replay_recordings,
-            KafkaTopic::Monitors =&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.monitors,
-            KafkaTopic::Spans =&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.spans,
-            KafkaTopic::MetricsSummaries =&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.metrics_summaries,
-            KafkaTopic::Cogs =&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.cogs,
-            KafkaTopic::Feedback =&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.feedback,
-        }
-    }
-}
-
-<span class="kw">impl </span>Default <span class="kw">for </span>TopicAssignments {
-    <span class="kw">fn </span>default() -&gt; <span class="self">Self </span>{
-        <span class="self">Self </span>{
-            events: <span class="string">"ingest-events"</span>.to_owned().into(),
-            attachments: <span class="string">"ingest-attachments"</span>.to_owned().into(),
-            transactions: <span class="string">"ingest-transactions"</span>.to_owned().into(),
-            outcomes: <span class="string">"outcomes"</span>.to_owned().into(),
-            outcomes_billing: <span class="prelude-val">None</span>,
-            metrics_sessions: <span class="string">"ingest-metrics"</span>.to_owned().into(),
-            metrics_generic: <span class="string">"ingest-performance-metrics"</span>.to_owned().into(),
-            profiles: <span class="string">"profiles"</span>.to_owned().into(),
-            replay_events: <span class="string">"ingest-replay-events"</span>.to_owned().into(),
-            replay_recordings: <span class="string">"ingest-replay-recordings"</span>.to_owned().into(),
-            monitors: <span class="string">"ingest-monitors"</span>.to_owned().into(),
-            spans: <span class="string">"snuba-spans"</span>.to_owned().into(),
-            metrics_summaries: <span class="string">"snuba-metrics-summaries"</span>.to_owned().into(),
-            cogs: <span class="string">"shared-resources-usage"</span>.to_owned().into(),
-            feedback: <span class="string">"ingest-feedback-events"</span>.to_owned().into(),
-        }
+<span class="macro">define_topic_assignments! </span>{
+    TopicAssignments {
+        events: (KafkaTopic::Events, <span class="string">"ingest-events"</span>, <span class="string">"Simple events topic name."</span>),
+        attachments: (KafkaTopic::Attachments, <span class="string">"ingest-attachments"</span>, <span class="string">"Events with attachments topic name."</span>),
+        transactions: (KafkaTopic::Transactions, <span class="string">"ingest-transactions"</span>, <span class="string">"Transaction events topic name."</span>),
+        outcomes: (KafkaTopic::Outcomes, <span class="string">"outcomes"</span>, <span class="string">"Outcomes topic name."</span>),
+        outcomes_billing: (KafkaTopic::OutcomesBilling, <span class="string">"outcomes-billing"</span>, <span class="string">"Outcomes topic name for billing critical outcomes."</span>),
+        metrics_sessions: (KafkaTopic::MetricsSessions, <span class="string">"ingest-metrics"</span>, <span class="string">"Topic name for metrics extracted from sessions, aka release health."</span>),
+        metrics_generic: (KafkaTopic::MetricsGeneric, <span class="string">"ingest-performance-metrics"</span>, <span class="string">"Topic name for all other kinds of metrics."</span>),
+        profiles: (KafkaTopic::Profiles, <span class="string">"profiles"</span>, <span class="string">"Stacktrace topic name"</span>),
+        replay_events: (KafkaTopic::ReplayEvents, <span class="string">"ingest-replay-events"</span>, <span class="string">"Replay Events topic name."</span>),
+        replay_recordings: (KafkaTopic::ReplayRecordings, <span class="string">"ingest-replay-recordings"</span>, <span class="string">"Recordings topic name."</span>),
+        monitors: (KafkaTopic::Monitors, <span class="string">"ingest-monitors"</span>, <span class="string">"Monitor check-ins."</span>),
+        spans: (KafkaTopic::Spans, <span class="string">"snuba-spans"</span>, <span class="string">"Standalone spans without a transaction."</span>),
+        metrics_summaries: (KafkaTopic::MetricsSummaries, <span class="string">"snuba-metrics-summaries"</span>, <span class="string">"Summary for metrics collected during a span."</span>),
+        cogs: (KafkaTopic::Cogs, <span class="string">"shared-resources-usage"</span>, <span class="string">"COGS measurements."</span>),
+        feedback: (KafkaTopic::Feedback, <span class="string">"ingest-feedback-events"</span>, <span class="string">"Feedback events topic."</span>),
     }
 }
 
@@ -914,6 +868,30 @@ transactions: "ingest-transactions-kafka-topic"
             };
         <span class="macro">assert_eq!</span>(shards, <span class="number">65000</span>);
         <span class="macro">assert_eq!</span>(<span class="number">3</span>, mapping.len());
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_default_topic_is_valid() {
+        <span class="kw">let </span>topic_assignments = TopicAssignments::default();
+
+        <span class="comment">// A few topics are not defined currently, remove this once added to `sentry-kafka-schemas`.
+        </span><span class="kw">let </span>currrently_undefined_topics = [
+            <span class="string">"ingest-attachments"</span>.to_string(),
+            <span class="string">"ingest-transactions"</span>.to_string(),
+            <span class="string">"profiles"</span>.to_string(),
+            <span class="string">"ingest-monitors"</span>.to_string(),
+        ];
+
+        <span class="kw">for </span>topic <span class="kw">in </span>KafkaTopic::iter() {
+            <span class="kw">match </span>topic_assignments.get(<span class="kw-2">*</span>topic) {
+                TopicAssignment::Primary(logical_topic_name) =&gt; {
+                    <span class="kw">if </span>!currrently_undefined_topics.contains(logical_topic_name) {
+                        <span class="macro">assert!</span>(sentry_kafka_schemas::get_schema(logical_topic_name, <span class="prelude-val">None</span>).is_ok());
+                    }
+                }
+                <span class="kw">_ </span>=&gt; <span class="macro">panic!</span>(<span class="string">"invalid default"</span>),
+            }
+        }
     }
 }
 </code></pre></div></section></main></body></html>
