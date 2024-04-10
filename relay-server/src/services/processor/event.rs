@@ -236,17 +236,9 @@ pub fn finalize<G: EventProcessing>(
         }
     }
 
-    // TODO: Temporary workaround before processing. Experimental SDKs relied on a buggy
-    // clock drift correction that assumes the event timestamp is the sent_at time. This
-    // should be removed as soon as legacy ingestion has been removed.
-    let sent_at = match envelope.sent_at() {
-        Some(sent_at) => Some(sent_at),
-        None if is_transaction => event.timestamp.value().copied().map(Timestamp::into_inner),
-        None => None,
-    };
-
-    let mut processor = ClockDriftProcessor::new(sent_at, state.managed_envelope.received_at())
-        .at_least(MINIMUM_CLOCK_DRIFT);
+    let mut processor =
+        ClockDriftProcessor::new(envelope.sent_at(), state.managed_envelope.received_at())
+            .at_least(MINIMUM_CLOCK_DRIFT);
     processor::process_value(&mut state.event, &mut processor, ProcessingState::root())
         .map_err(|_| ProcessingError::InvalidTransaction)?;
 
