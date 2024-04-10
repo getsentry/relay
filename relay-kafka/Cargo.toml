@@ -25,6 +25,7 @@ sentry-kafka-schemas = { workspace = true, default_features = false, optional = 
 
 [dev-dependencies]
 serde_yaml = { workspace = true }
+sentry-kafka-schemas = { workspace = true }
 
 [features]
 default = []

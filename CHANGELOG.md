@@ -7,7 +7,7 @@
 - Fix performance regression in disk spooling by using page counts to estimate the spool size. ([#3379](https://github.com/getsentry/relay/pull/3379))
 
 **Features**:
-
+- **Breaking change:** Kafka topic configuration keys now support the default topic name. The previous aliases `metrics` and `metrics_transactions` are no longer supported if configuring topics manually. Use `ingest-metrics` or `metrics_sessions` instead of `metrics`, and `ingest-performance-metrics` or `metrics_generic` instead of `metrics_transactions`. ([#3361](https://github.com/getsentry/relay/pull/3361))
 - Add support for continuous profiling. ([#3270](https://github.com/getsentry/relay/pull/3270))
 - Add support for Reporting API for CSP reports ([#3277](https://github.com/getsentry/relay/pull/3277))
 - Extract op and description while converting opentelemetry spans to sentry spans. ([#3287](https://github.com/getsentry/relay/pull/3287))
