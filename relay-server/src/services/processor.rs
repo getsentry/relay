@@ -18,7 +18,7 @@ use fnv::FnvHasher;
 use relay_base_schema::project::{ProjectId, ProjectKey};
 use relay_cogs::{AppFeature, Cogs, FeatureWeights, ResourceId, Token};
 use relay_common::time::UnixTimestamp;
-use relay_config::{Config, HttpEncoding, NormalizeEvents, RelayMode};
+use relay_config::{Config, HttpEncoding, Normalize, RelayMode};
 use relay_dynamic_config::{ErrorBoundary, Feature};
 use relay_event_normalization::{
     normalize_event, validate_event_timestamps, validate_transaction, ClockDriftProcessor,
@@ -1213,12 +1213,12 @@ impl EnvelopeProcessorService {
         state: &mut ProcessEnvelopeState<G>,
     ) -> Result<(), ProcessingError> {
         let full_normalization = match self.inner.config.normalization() {
-            NormalizeEvents::Disabled => {
+            Normalize::Disabled => {
                 // We assume envelopes coming from an internal relay have
-                // already been normalized.  During incidents, envelopes can be
-                // routed differently, skipping some relays and reaching another
-                // internal one. Events should be fully normalized in all cases,
-                // so we force normalization even if it's disabled.
+                // already been normalized.  During incidents, like a PoP region
+                // not being available, envelopes can go to other PoP regions or
+                // directly to processing relays.  Events should be fully
+                // normalized, independently of the ingestion path.
                 if self.inner.config.processing_enabled()
                     && !state.envelope().meta().is_from_internal_relay()
                 {
@@ -1227,8 +1227,8 @@ impl EnvelopeProcessorService {
                     return Ok(());
                 }
             }
-            NormalizeEvents::Full => true,
-            NormalizeEvents::Default => self.inner.config.processing_enabled(),
+            Normalize::Full => true,
+            Normalize::Default => self.inner.config.processing_enabled(),
         };
 
         if let Some(sampling_state) = state.sampling_project_state.clone() {

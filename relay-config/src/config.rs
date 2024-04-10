@@ -1014,9 +1014,9 @@ pub struct Processing {
     /// Maximum rate limit to report to clients.
     #[serde(default = "default_max_rate_limit")]
     pub max_rate_limit: Option<u32>,
-    /// Granularity of normalization this event should do.
+    /// How much normalization this Relay should apply to incoming data.
     #[serde(default)]
-    pub normalize_events: NormalizeEvents,
+    pub normalize: Normalize,
 }
 
 impl Default for Processing {
@@ -1035,7 +1035,7 @@ impl Default for Processing {
             attachment_chunk_size: default_chunk_size(),
             projectconfig_cache_prefix: default_projectconfig_cache_prefix(),
             max_rate_limit: default_max_rate_limit(),
-            normalize_events: NormalizeEvents::Default,
+            normalize: Normalize::Default,
         }
     }
 }
@@ -1043,12 +1043,15 @@ impl Default for Processing {
 /// Configuration for the level of normalization this Relay should do.
 #[derive(Clone, Debug, Default, Serialize, Deserialize, Eq, PartialEq)]
 #[serde(rename_all = "lowercase")]
-pub enum NormalizeEvents {
-    /// Disables normalization for events coming from internal relays.
+pub enum Normalize {
+    /// Disables normalization for events coming from internal Relays.
+    ///
+    /// Processing relays still do full normalization for events coming from
+    /// non-internal Relays.
     Disabled,
     /// Runs normalization, excluding steps that break future compatibility.
     ///
-    /// Processing relays run [`NormalizeEvents::Full`] if this option is set.
+    /// Processing Relays run [`Normalize::Full`] if this option is set.
     #[default]
     Default,
     /// Run full normalization.
@@ -2185,9 +2188,9 @@ impl Config {
         self.values.processing.enabled
     }
 
-    /// Granularity of normalization this Relay should do.
-    pub fn normalization(&self) -> &NormalizeEvents {
-        &self.values.processing.normalize_events
+    /// How much normalization this Relay should apply to incoming data.
+    pub fn normalization(&self) -> &Normalize {
+        &self.values.processing.normalize
     }
 
     /// The path to the GeoIp database required for event processing.
