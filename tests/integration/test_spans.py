@@ -777,6 +777,7 @@ def test_span_extraction_with_metrics_summary(
             "platform": "other",
             "sdk.name": "raven-node",
             "sdk.version": "2.6.3",
+            "trace.status": "unknown",
             "transaction": "hi",
             "transaction.op": "hi",
         },
