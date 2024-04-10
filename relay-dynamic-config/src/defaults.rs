@@ -30,6 +30,13 @@ const MONGODB_QUERIES: &[&str] = &["*\"$*", "{*", "*({*", "*[{*"];
 /// A list of patterns for resource span ops we'd like to ingest.
 const RESOURCE_SPAN_OPS: &[&str] = &["resource.script", "resource.css", "resource.img"];
 
+const CACHE_SPAN_OPS: &[&str] = &[
+    "cache.get_item",
+    "cache.save",
+    "cache.clear",
+    "cache.delete_item",
+];
+
 /// Adds configuration for extracting metrics from spans.
 ///
 /// This configuration is temporarily hard-coded here. It will later be provided by the upstream.
@@ -66,6 +73,8 @@ fn span_metrics() -> impl IntoIterator<Item = MetricSpec> {
             | RuleCondition::glob("span.op", DISABLED_DATABASES)
             | RuleCondition::glob("span.description", MONGODB_QUERIES));
     let is_resource = RuleCondition::glob("span.op", RESOURCE_SPAN_OPS);
+
+    let is_cache = RuleCondition::glob("span.op", CACHE_SPAN_OPS);
 
     let is_mobile_op = RuleCondition::glob("span.op", MOBILE_OPS);
 
@@ -208,6 +217,10 @@ fn span_metrics() -> impl IntoIterator<Item = MetricSpec> {
                 Tag::with_key("span.status_code")
                     .from_field("span.sentry_tags.status_code")
                     .when(is_http.clone()),
+                // Cache module
+                Tag::with_key("cache.hit")
+                    .from_field("span.sentry_tags.cache.hit")
+                    .when(is_cache.clone()),
             ],
         },
         MetricSpec {
@@ -263,6 +276,30 @@ fn span_metrics() -> impl IntoIterator<Item = MetricSpec> {
                 Tag::with_key("span.status_code")
                     .from_field("span.sentry_tags.status_code")
                     .when(is_http.clone()),
+                // Cache module
+                Tag::with_key("cache.hit")
+                    .from_field("span.sentry_tags.cache_hit")
+                    .when(is_cache.clone()),
+            ],
+        },
+        MetricSpec {
+            category: DataCategory::Span,
+            mri: "d:spans/cache.item_size@byte".into(),
+            field: Some("span.data.cache\\.item_size".into()),
+            condition: Some(is_cache.clone()),
+            tags: vec![
+                Tag::with_key("environment")
+                    .from_field("span.sentry_tags.environment")
+                    .always(), // already guarded by condition on metric
+                Tag::with_key("span.op")
+                    .from_field("span.sentry_tags.op")
+                    .always(), // already guarded by condition on metric
+                Tag::with_key("transaction")
+                    .from_field("span.sentry_tags.transaction")
+                    .always(), // already guarded by condition on metric
+                Tag::with_key("cache.hit")
+                    .from_field("span.sentry_tags.cache_hit")
+                    .always(), // already guarded by condition on metric
             ],
         },
         MetricSpec {
@@ -365,40 +402,6 @@ fn span_metrics() -> impl IntoIterator<Item = MetricSpec> {
         },
         MetricSpec {
             category: DataCategory::Span,
-            mri: "c:spans/count_per_op@none".into(),
-            field: None,
-            condition: Some(duration_condition.clone()),
-            tags: vec![
-                Tag::with_key("span.category")
-                    .from_field("span.sentry_tags.category")
-                    .always(),
-                Tag::with_key("span.op")
-                    .from_field("span.sentry_tags.op")
-                    .always(),
-                Tag::with_key("span.system")
-                    .from_field("span.sentry_tags.system")
-                    .always(),
-            ],
-        },
-        MetricSpec {
-            category: DataCategory::Span,
-            mri: "c:spans/count_per_segment@none".into(),
-            field: None,
-            condition: Some(is_mobile_sdk.clone() & duration_condition.clone()),
-            tags: vec![
-                Tag::with_key("transaction.op")
-                    .from_field("span.sentry_tags.transaction.op")
-                    .always(),
-                Tag::with_key("transaction")
-                    .from_field("span.sentry_tags.transaction")
-                    .always(),
-                Tag::with_key("release")
-                    .from_field("span.sentry_tags.release")
-                    .always(), // mobile only - already guarded by condition on metric
-            ],
-        },
-        MetricSpec {
-            category: DataCategory::Span,
             mri: "d:spans/duration@millisecond".into(),
             field: Some("span.duration".into()),
             condition: None,
@@ -416,12 +419,12 @@ fn span_metrics() -> impl IntoIterator<Item = MetricSpec> {
                 Tag::with_key("transaction.op")
                     .from_field("span.sentry_tags.transaction.op")
                     .always(),
+                Tag::with_key("span.group")
+                    .from_field("span.sentry_tags.group")
+                    .when(know_modules_condition.clone() | app_start_condition.clone()),
                 // Mobile module:
                 Tag::with_key("span.description")
                     .from_field("span.sentry_tags.description")
-                    .when(app_start_condition.clone()),
-                Tag::with_key("span.group")
-                    .from_field("span.sentry_tags.group")
                     .when(app_start_condition.clone()),
                 Tag::with_key("device.class")
                     .from_field("span.sentry_tags.device.class")

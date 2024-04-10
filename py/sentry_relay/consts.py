@@ -28,6 +28,7 @@ class DataCategory(IntEnum):
     SPAN_INDEXED = 16
     PROFILE_DURATION = 17
     PROFILE_CHUNK = 18
+    METRIC_HOUR = 19
     UNKNOWN = -1
     # end generated
 
