@@ -1014,6 +1014,9 @@ pub struct Processing {
     /// Maximum rate limit to report to clients.
     #[serde(default = "default_max_rate_limit")]
     pub max_rate_limit: Option<u32>,
+    /// How much normalization this Relay should apply to incoming data.
+    #[serde(default)]
+    pub normalize: Normalize,
 }
 
 impl Default for Processing {
@@ -1032,8 +1035,30 @@ impl Default for Processing {
             attachment_chunk_size: default_chunk_size(),
             projectconfig_cache_prefix: default_projectconfig_cache_prefix(),
             max_rate_limit: default_max_rate_limit(),
+            normalize: Normalize::Default,
         }
     }
+}
+
+/// Configuration for the level of normalization this Relay should do.
+#[derive(Clone, Debug, Default, Serialize, Deserialize, Eq, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum Normalize {
+    /// Disables normalization for events coming from internal Relays.
+    ///
+    /// Processing relays still do full normalization for events coming from
+    /// non-internal Relays.
+    Disabled,
+    /// Runs normalization, excluding steps that break future compatibility.
+    ///
+    /// Processing Relays run [`Normalize::Full`] if this option is set.
+    #[default]
+    Default,
+    /// Run full normalization.
+    ///
+    /// It includes steps that break future compatibility and should only run in
+    /// the last layer of relays.
+    Full,
 }
 
 /// Configuration values for the outcome aggregator
@@ -2161,6 +2186,11 @@ impl Config {
     /// True if the Relay should do processing.
     pub fn processing_enabled(&self) -> bool {
         self.values.processing.enabled
+    }
+
+    /// How much normalization this Relay should apply to incoming data.
+    pub fn normalization(&self) -> &Normalize {
+        &self.values.processing.normalize
     }
 
     /// The path to the GeoIp database required for event processing.
