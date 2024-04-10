@@ -12,7 +12,7 @@ use relay_event_normalization::{nel, ClockDriftProcessor};
 use relay_event_schema::processor::{self, ProcessingState};
 use relay_event_schema::protocol::{
     Breadcrumb, Csp, Event, ExpectCt, ExpectStaple, Hpkp, LenientString, NetworkReportError,
-    OtelContext, RelayInfo, SecurityReportType, Timestamp, Values,
+    OtelContext, RelayInfo, SecurityReportType, Values,
 };
 use relay_pii::PiiProcessor;
 use relay_protocol::{Annotated, Array, Empty, FromValue, Object, Value};
@@ -139,7 +139,6 @@ pub fn finalize<G: EventProcessing>(
     state: &mut ProcessEnvelopeState<G>,
     config: &Config,
 ) -> Result<(), ProcessingError> {
-    let is_transaction = state.event_type() == Some(EventType::Transaction);
     let envelope = state.managed_envelope.envelope_mut();
 
     let event = match state.event.value_mut() {
