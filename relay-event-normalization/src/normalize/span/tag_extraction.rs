@@ -67,6 +67,7 @@ pub enum SpanTagKey {
     AppStartType,
     ReplayId,
     CacheHit,
+    TraceStatus,
 }
 
 impl SpanTagKey {
@@ -109,6 +110,7 @@ impl SpanTagKey {
             SpanTagKey::OsName => "os.name",
             SpanTagKey::AppStartType => "app_start_type",
             SpanTagKey::ReplayId => "replay_id",
+            SpanTagKey::TraceStatus => "trace.status",
         }
     }
 }
@@ -230,7 +232,7 @@ fn extract_shared_tags(event: &Event) -> BTreeMap<SpanTagKey, String> {
         }
 
         if let Some(status) = trace_context.status.value() {
-            tags.insert(SpanTagKey::StatusCode, status.to_string());
+            tags.insert(SpanTagKey::TraceStatus, status.to_string());
         }
     }
 
@@ -1640,27 +1642,46 @@ LIMIT 1
     }
 
     #[test]
-    fn test_extract_status() {
+    fn test_extract_trace_status() {
         let json = r#"
+
             {
-                "span_id": "bd429c44b67a3eb1",
-                "start_timestamp": 1597976300.0000000,
-                "timestamp": 1597976302.0000000,
-                "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                "type": "transaction",
+                "platform": "python",
+                "start_timestamp": "2021-04-26T07:59:01+0100",
+                "timestamp": "2021-04-26T08:00:00+0100",
+                "transaction": "foo",
                 "contexts": {
                     "trace": {
-                        "status": "ok",
-                    },
-                }
+                        "status": "ok"
+                    }
+                },
+                "spans": [
+                    {
+                        "op": "resource.script",
+                        "span_id": "bd429c44b67a3eb1",
+                        "start_timestamp": 1597976300.0000000,
+                        "timestamp": 1597976302.0000000,
+                        "trace_id": "ff62a8b040f340bda5d830223def1d81"
+                    }
+                ]
             }
         "#;
-        let span = Annotated::<Span>::from_json(json)
+
+        let mut event = Annotated::<Event>::from_json(json)
             .unwrap()
             .into_value()
             .unwrap();
-        let tags = extract_tags(&span, 200, None, None, false, None);
 
-        assert_eq!(tags.get(&SpanTagKey::StatusCode), Some(&"ok".to_string()));
+        extract_span_tags_from_event(&mut event, 200);
+
+        let span = &event.spans.value().unwrap()[0];
+        let tags = span.value().unwrap().sentry_tags.value().unwrap();
+
+        assert_eq!(
+            tags.get("trace.status"),
+            Some(&Annotated::new("ok".to_string()))
+        );
     }
 
     fn extract_tags_supabase(description: impl Into<String>) -> BTreeMap<SpanTagKey, String> {
