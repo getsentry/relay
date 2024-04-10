@@ -1651,7 +1651,7 @@ LIMIT 1
                     "trace": {
                         "status": "ok",
                     },
-                },
+                }
             }
         "#;
         let span = Annotated::<Span>::from_json(json)
