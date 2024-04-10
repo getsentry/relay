@@ -440,6 +440,7 @@ def test_span_ingestion(
     protobuf_span = Span(
         trace_id=bytes.fromhex("89143b0763095bd9c9955e8175d1fb24"),
         span_id=bytes.fromhex("f0b809703e783d00"),
+        parent_span_id=bytes.fromhex("f0f0f0abcdef1234"),
         name="my 3rd protobuf OTel span",
         start_time_unix_nano=int(start.timestamp() * 1e9),
         end_time_unix_nano=int(end.timestamp() * 1e9),
@@ -564,12 +565,11 @@ def test_span_ingestion(
             "description": "my 3rd protobuf OTel span",
             "duration_ms": 500,
             "exclusive_time_ms": 500.0,
-            "is_segment": True,
+            "is_segment": False,
             "organization_id": 1,
-            "parent_span_id": "",
+            "parent_span_id": "f0f0f0abcdef1234",
             "project_id": 42,
             "retention_days": 90,
-            "segment_id": "f0b809703e783d00",
             "sentry_tags": {"browser.name": "Python Requests", "op": "default"},
             "span_id": "f0b809703e783d00",
             "start_timestamp_ms": int(start.timestamp() * 1e3),
@@ -581,9 +581,7 @@ def test_span_ingestion(
 
     # If transaction extraction is enabled, expect transactions:
     if extract_transaction:
-        expected_transactions = (
-            6  # TODO: modify test input to make is_segment false for some
-        )
+        expected_transactions = 5
 
         transactions = [
             transactions_consumer.get_event()[0] for _ in range(expected_transactions)
@@ -764,7 +762,6 @@ def test_span_ingestion(
             ("d:transactions/duration@millisecond", "https://example.com/p/blah.js"),
             ("d:transactions/duration@millisecond", "my 1st OTel span"),
             ("d:transactions/duration@millisecond", "my 2nd OTel span"),
-            ("d:transactions/duration@millisecond", "my 3rd protobuf OTel span"),
             (
                 "d:transactions/duration@millisecond",
                 'test \\" with \\" escaped \\" chars',
