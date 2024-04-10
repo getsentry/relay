@@ -41,6 +41,7 @@
 - Tag span duration metric by group for all ops supporting description scrubbing. ([#3370](https://github.com/getsentry/relay/pull/3370))
 - Copy transaction tags to segment. ([#3386](https://github.com/getsentry/relay/pull/3386))
 - Route spans according to trace_id. ([#3387](https://github.com/getsentry/relay/pull/3387))
+- Log span when encountering a validation error. ([#3401](https://github.com/getsentry/relay/pull/3401))
 
 ## 24.3.0
 
