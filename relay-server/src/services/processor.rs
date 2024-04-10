@@ -572,7 +572,7 @@ struct ProcessEnvelopeState<'a, Group> {
     /// Track whether transaction metrics were already extracted.
     event_metrics_extracted: bool,
 
-    /// Track whether spans were already extracted.
+    /// Track whether spans and span metrics were already extracted.
     ///
     /// Only applies to envelopes with a transaction item.
     spans_extracted: bool,

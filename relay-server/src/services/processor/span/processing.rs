@@ -164,8 +164,8 @@ pub fn process(
         // Enqueue a full processing request for every extracted transaction item.
         match Envelope::try_from_event(state.envelope().headers().clone(), transaction) {
             Ok(mut envelope) => {
-                // We don't want to extract spans from a transaction extracted from spans, so
-                // set the spans_extracted flag:
+                // We don't want to extract spans or span metrics from a transaction extracted from spans,
+                // so set the spans_extracted flag:
                 for item in envelope.items_mut() {
                     item.set_spans_extracted(true);
                 }

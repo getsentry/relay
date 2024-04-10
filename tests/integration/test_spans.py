@@ -755,20 +755,26 @@ def test_span_ingestion(
     transaction_duration_metrics = [
         m for m in metrics if m["name"] == "d:transactions/duration@millisecond"
     ]
-    assert {
-        (m["name"], m["tags"]["transaction"]) for m in transaction_duration_metrics
-    } == {
-        ("d:transactions/duration@millisecond", "<unlabeled transaction>"),
-        ("d:transactions/duration@millisecond", "https://example.com/p/blah.js"),
-        ("d:transactions/duration@millisecond", "my 1st OTel span"),
-        ("d:transactions/duration@millisecond", "my 2nd OTel span"),
-        ("d:transactions/duration@millisecond", "my 3rd protobuf OTel span"),
-        ("d:transactions/duration@millisecond", 'test \\" with \\" escaped \\" chars'),
-    }
 
-    # Make sure we're not double-reporting:
-    for m in transaction_duration_metrics:
-        len(m["value"]) == 1
+    if extract_transaction:
+        assert {
+            (m["name"], m["tags"]["transaction"]) for m in transaction_duration_metrics
+        } == {
+            ("d:transactions/duration@millisecond", "<unlabeled transaction>"),
+            ("d:transactions/duration@millisecond", "https://example.com/p/blah.js"),
+            ("d:transactions/duration@millisecond", "my 1st OTel span"),
+            ("d:transactions/duration@millisecond", "my 2nd OTel span"),
+            ("d:transactions/duration@millisecond", "my 3rd protobuf OTel span"),
+            (
+                "d:transactions/duration@millisecond",
+                'test \\" with \\" escaped \\" chars',
+            ),
+        }
+        # Make sure we're not double-reporting:
+        for m in transaction_duration_metrics:
+            assert len(m["value"]) == 1
+    else:
+        assert len(transaction_duration_metrics) == 0
 
     metrics_consumer.assert_empty()
 

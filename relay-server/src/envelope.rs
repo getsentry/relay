@@ -558,7 +558,10 @@ pub struct ItemHeaders {
     #[serde(default, skip_serializing_if = "is_false")]
     transaction_extracted: bool,
 
-    /// Whether or not spans have been extracted from a transaction.
+    /// Whether or not spans and span metrics have been extracted from a transaction.
+    ///
+    /// This header is set to `true` after both span extraction and span metrics extraction,
+    /// and can be used to skip extraction.
     #[serde(default, skip_serializing_if = "is_false")]
     spans_extracted: bool,
 
