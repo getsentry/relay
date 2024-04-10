@@ -122,7 +122,7 @@ pub fn process(
         .ok();
 
         // Validate for kafka (TODO: this should be moved to kafka producer)
-        let annotated_span = match validate(annotated_span.clone()) {
+        match validate(&mut annotated_span) {
             Ok(res) => res,
             Err(err) => {
                 relay_log::error!(
@@ -176,8 +176,8 @@ pub fn extract_from_event(
         }
     }
 
-    let mut add_span = |span: Annotated<Span>| {
-        let span = match validate(span.clone()) {
+    let mut add_span = |mut span: Annotated<Span>| {
+        match validate(&mut span) {
             Ok(span) => span,
             Err(e) => {
                 relay_log::error!(
@@ -451,7 +451,7 @@ fn scrub(
 }
 
 /// We do not extract or ingest spans with missing fields if those fields are required on the Kafka topic.
-fn validate(mut span: Annotated<Span>) -> Result<Annotated<Span>, ValidationError> {
+fn validate(span: &mut Annotated<Span>) -> Result<(), ValidationError> {
     let inner = span
         .value_mut()
         .as_mut()
@@ -518,7 +518,7 @@ fn validate(mut span: Annotated<Span>) -> Result<Annotated<Span>, ValidationErro
         tags.retain(|_, value| !value.value().is_empty())
     }
 
-    Ok(span)
+    Ok(())
 }
 
 #[cfg(test)]
