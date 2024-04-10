@@ -3315,6 +3315,23 @@
 <a href="#3313" id="3313">3313</a>
 <a href="#3314" id="3314">3314</a>
 <a href="#3315" id="3315">3315</a>
+<a href="#3316" id="3316">3316</a>
+<a href="#3317" id="3317">3317</a>
+<a href="#3318" id="3318">3318</a>
+<a href="#3319" id="3319">3319</a>
+<a href="#3320" id="3320">3320</a>
+<a href="#3321" id="3321">3321</a>
+<a href="#3322" id="3322">3322</a>
+<a href="#3323" id="3323">3323</a>
+<a href="#3324" id="3324">3324</a>
+<a href="#3325" id="3325">3325</a>
+<a href="#3326" id="3326">3326</a>
+<a href="#3327" id="3327">3327</a>
+<a href="#3328" id="3328">3328</a>
+<a href="#3329" id="3329">3329</a>
+<a href="#3330" id="3330">3330</a>
+<a href="#3331" id="3331">3331</a>
+<a href="#3332" id="3332">3332</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
@@ -3335,7 +3352,7 @@
 <span class="kw">use </span>relay_base_schema::project::{ProjectId, ProjectKey};
 <span class="kw">use </span>relay_cogs::{AppFeature, Cogs, FeatureWeights, ResourceId, Token};
 <span class="kw">use </span>relay_common::time::UnixTimestamp;
-<span class="kw">use </span>relay_config::{Config, HttpEncoding, RelayMode};
+<span class="kw">use </span>relay_config::{Config, HttpEncoding, Normalize, RelayMode};
 <span class="kw">use </span>relay_dynamic_config::{ErrorBoundary, Feature};
 <span class="kw">use </span>relay_event_normalization::{
     normalize_event, validate_event_timestamps, validate_transaction, ClockDriftProcessor,
@@ -4527,6 +4544,25 @@
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;G&gt;,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ProcessingError&gt; {
+        <span class="kw">let </span>full_normalization = <span class="kw">match </span><span class="self">self</span>.inner.config.normalization() {
+            Normalize::Disabled =&gt; {
+                <span class="comment">// We assume envelopes coming from an internal relay have
+                // already been normalized. During incidents, like a PoP region
+                // not being available, envelopes can go to other PoP regions or
+                // directly to processing relays. Events should be fully
+                // normalized, independently of the ingestion path.
+                </span><span class="kw">if </span><span class="self">self</span>.inner.config.processing_enabled()
+                    &amp;&amp; !state.envelope().meta().is_from_internal_relay()
+                {
+                    <span class="bool-val">true
+                </span>} <span class="kw">else </span>{
+                    <span class="kw">return </span><span class="prelude-val">Ok</span>(());
+                }
+            }
+            Normalize::Full =&gt; <span class="bool-val">true</span>,
+            Normalize::Default =&gt; <span class="self">self</span>.inner.config.processing_enabled(),
+        };
+
         <span class="kw">if let </span><span class="prelude-val">Some</span>(sampling_state) = state.sampling_project_state.clone() {
             state
                 .envelope_mut()
@@ -4557,13 +4593,11 @@
                 is_validated: <span class="bool-val">false</span>,
             };
 
-            <span class="kw">let </span>is_last_relay_normalize = <span class="self">self</span>.inner.config.processing_enabled();
-
             <span class="kw">let </span>key_id = state
                 .project_state
                 .get_public_key_config()
                 .and_then(|key| <span class="prelude-val">Some</span>(key.numeric_id<span class="question-mark">?</span>.to_string()));
-            <span class="kw">if </span>is_last_relay_normalize &amp;&amp; key_id.is_none() {
+            <span class="kw">if </span>full_normalization &amp;&amp; key_id.is_none() {
                 <span class="macro">relay_log::error!</span>(
                     <span class="string">"project state for key {} is missing key id"</span>,
                     state.managed_envelope.envelope().meta().public_key()
@@ -4609,8 +4643,8 @@
                     .aggregator_config_for(MetricNamespace::Spans)
                     .max_tag_value_length,
                 is_renormalize: <span class="bool-val">false</span>,
-                remove_other: is_last_relay_normalize,
-                emit_event_errors: is_last_relay_normalize,
+                remove_other: full_normalization,
+                emit_event_errors: full_normalization,
                 span_description_rules: state.project_state.config.span_description_rules.as_ref(),
                 geoip_lookup: <span class="self">self</span>.inner.geoip_lookup.as_ref(),
                 enable_trimming: <span class="bool-val">true</span>,
@@ -4632,7 +4666,7 @@
                 validate_transaction(event, <span class="kw-2">&amp;</span>tx_validation_config)
                     .map_err(|<span class="kw">_</span>| ProcessingError::InvalidTransaction)<span class="question-mark">?</span>;
                 normalize_event(event, <span class="kw-2">&amp;</span>normalization_config);
-                <span class="kw">if </span>is_last_relay_normalize &amp;&amp; event::has_unprintable_fields(event) {
+                <span class="kw">if </span>full_normalization &amp;&amp; event::has_unprintable_fields(event) {
                     <span class="macro">metric!</span>(counter(RelayCounters::EventCorrupted) += <span class="number">1</span>);
                 }
                 <span class="prelude-ty">Result</span>::&lt;(), ProcessingError&gt;::Ok(())
