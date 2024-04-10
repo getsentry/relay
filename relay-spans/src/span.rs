@@ -66,24 +66,24 @@ fn otel_value_to_string(value: OtelValue) -> Option<String> {
 
 /// Transform an OtelSpan to a Sentry span.
 pub fn otel_to_sentry_span(otel_span: OtelSpan) -> EventSpan {
-    let mut exclusive_time_ms = 0f64;
-    let mut data = Object::new();
-    let start_timestamp = Utc.timestamp_nanos(otel_span.start_time_unix_nano as i64);
-    let end_timestamp = Utc.timestamp_nanos(otel_span.end_time_unix_nano as i64);
     let OtelSpan {
-        trace_id,
-        span_id,
-        parent_span_id,
-        name,
         attributes,
-        status,
+        end_time_unix_nano,
         kind,
+        name,
+        parent_span_id,
+        span_id,
+        start_time_unix_nano,
+        status,
+        trace_id,
         ..
     } = otel_span;
 
-    let span_id = hex::encode(span_id);
-    let trace_id = hex::encode(trace_id);
+    let end_timestamp = Utc.timestamp_nanos(end_time_unix_nano as i64);
     let parent_span_id = hex::encode(parent_span_id);
+    let span_id = hex::encode(span_id);
+    let start_timestamp = Utc.timestamp_nanos(start_time_unix_nano as i64);
+    let trace_id = hex::encode(trace_id);
 
     // TODO: This is wrong, a segment could still have a parent in the trace.
     let segment_id = if parent_span_id.is_empty() {
@@ -92,73 +92,79 @@ pub fn otel_to_sentry_span(otel_span: OtelSpan) -> EventSpan {
         Annotated::empty()
     };
 
-    let mut op = None;
+    let mut data = Object::new();
     let mut description = name;
+    let mut exclusive_time_ms = 0f64;
+    let mut grpc_status_code = None;
     let mut http_method = None;
     let mut http_route = None;
     let mut http_status_code = None;
-    let mut grpc_status_code = None;
+    let mut op = None;
+
     for attribute in attributes.into_iter() {
-        if let Some(value) = attribute.value.and_then(|v| v.value) {
-            let key: String = if let Some(key) = OTEL_TO_SENTRY_TAGS.get(attribute.key.as_str()) {
-                key.to_string()
+        let Some(value) = attribute.value.and_then(|v| v.value) else {
+            continue;
+        };
+        let key: String = if let Some(key) = OTEL_TO_SENTRY_TAGS.get(attribute.key.as_str()) {
+            key.to_string()
+        } else {
+            attribute.key
+        };
+        if key == "sentry.op" {
+            op = otel_value_to_string(value);
+        } else if key == "db.statement" {
+            op = if description == "prisma:engine:db_query" {
+                Some("db.sql.prisma".to_string())
             } else {
-                attribute.key
+                Some("db.sql.query".to_string())
             };
-            if key == "sentry.op" {
-                op = otel_value_to_string(value);
-            } else if key.starts_with("db") {
-                op = op.or(Some("db".to_string()));
-                if key == "db.statement" {
-                    if let Some(statement) = otel_value_to_string(value) {
-                        description = statement;
+            if let Some(statement) = otel_value_to_string(value) {
+                description = statement;
+            }
+        } else if key == "http.method" || key == "request.method" {
+            let http_op = match kind {
+                2 => "http.server",
+                3 => "http.client",
+                _ => "http",
+            };
+            op = op.or(Some(http_op.to_string()));
+            http_method = otel_value_to_string(value);
+        } else if key == "http.route" || key == "url.path" {
+            http_route = otel_value_to_string(value);
+        } else if key.contains("exclusive_time_ns") {
+            let value = match value {
+                OtelValue::IntValue(v) => v as f64,
+                OtelValue::DoubleValue(v) => v,
+                OtelValue::StringValue(v) => v.parse::<f64>().unwrap_or_default(),
+                _ => 0f64,
+            };
+            exclusive_time_ms = value / 1e6f64;
+        } else if key == "http.status_code" {
+            http_status_code = otel_value_to_i64(value);
+        } else if key == "rpc.grpc.status_code" {
+            grpc_status_code = otel_value_to_i64(value);
+        } else {
+            match value {
+                OtelValue::ArrayValue(_) => {}
+                OtelValue::BoolValue(v) => {
+                    data.insert(key, Annotated::new(v.into()));
+                }
+                OtelValue::BytesValue(v) => {
+                    if let Ok(v) = String::from_utf8(v) {
+                        data.insert(key, Annotated::new(v.into()));
                     }
                 }
-            } else if key == "http.method" || key == "request.method" {
-                let http_op = match kind {
-                    2 => "http.server",
-                    3 => "http.client",
-                    _ => "http",
-                };
-                op = op.or(Some(http_op.to_string()));
-                http_method = otel_value_to_string(value);
-            } else if key == "http.route" || key == "url.path" {
-                http_route = otel_value_to_string(value);
-            } else if key.contains("exclusive_time_ns") {
-                let value = match value {
-                    OtelValue::IntValue(v) => v as f64,
-                    OtelValue::DoubleValue(v) => v,
-                    OtelValue::StringValue(v) => v.parse::<f64>().unwrap_or_default(),
-                    _ => 0f64,
-                };
-                exclusive_time_ms = value / 1e6f64;
-            } else if key == "http.status_code" {
-                http_status_code = otel_value_to_i64(value);
-            } else if key == "rpc.grpc.status_code" {
-                grpc_status_code = otel_value_to_i64(value);
-            } else {
-                match value {
-                    OtelValue::ArrayValue(_) => {}
-                    OtelValue::BoolValue(v) => {
-                        data.insert(key, Annotated::new(v.into()));
-                    }
-                    OtelValue::BytesValue(v) => {
-                        if let Ok(v) = String::from_utf8(v) {
-                            data.insert(key, Annotated::new(v.into()));
-                        }
-                    }
-                    OtelValue::DoubleValue(v) => {
-                        data.insert(key, Annotated::new(v.into()));
-                    }
-                    OtelValue::IntValue(v) => {
-                        data.insert(key, Annotated::new(v.into()));
-                    }
-                    OtelValue::KvlistValue(_) => {}
-                    OtelValue::StringValue(v) => {
-                        data.insert(key, Annotated::new(v.into()));
-                    }
-                };
-            }
+                OtelValue::DoubleValue(v) => {
+                    data.insert(key, Annotated::new(v.into()));
+                }
+                OtelValue::IntValue(v) => {
+                    data.insert(key, Annotated::new(v.into()));
+                }
+                OtelValue::KvlistValue(_) => {}
+                OtelValue::StringValue(v) => {
+                    data.insert(key, Annotated::new(v.into()));
+                }
+            };
         }
     }
     if exclusive_time_ms == 0f64 {
@@ -346,7 +352,7 @@ mod tests {
         }"#;
         let otel_span: OtelSpan = serde_json::from_str(json).unwrap();
         let event_span: EventSpan = otel_to_sentry_span(otel_span);
-        assert_eq!(event_span.op, Annotated::new("db".into()));
+        assert_eq!(event_span.op, Annotated::new("db.sql.query".into()));
         assert_eq!(
             event_span.description,
             Annotated::new(
@@ -386,6 +392,48 @@ mod tests {
         assert_eq!(
             event_span.description,
             Annotated::new("GET /api/search?q=foobar".into())
+        );
+    }
+
+    #[test]
+    fn parse_prisma_db_span() {
+        let json = r#"{
+            "traceId": "89143b0763095bd9c9955e8175d1fb23",
+            "spanId": "e342abb1214ca181",
+            "parentSpanId": "0c7a7dea069bf5a6",
+            "name": "prisma:engine:db_query",
+            "kind": 3,
+            "startTimeUnixNano": 1697620454980000000,
+            "endTimeUnixNano": 1697620454980078800,
+            "attributes": [
+                {
+                    "key" : "db.name",
+                    "value": {
+                        "stringValue": "database"
+                    }
+                },
+                {
+                    "key" : "db.type",
+                    "value": {
+                        "stringValue": "sql"
+                    }
+                },
+                {
+                    "key" : "db.statement",
+                    "value": {
+                        "stringValue": "SELECT \"table\".\"col\" FROM \"table\" WHERE \"table\".\"col\" = %s"
+                    }
+                }
+            ]
+        }"#;
+        let otel_span: OtelSpan = serde_json::from_str(json).unwrap();
+        let event_span: EventSpan = otel_to_sentry_span(otel_span);
+        assert_eq!(event_span.op, Annotated::new("db.sql.prisma".into()));
+        assert_eq!(
+            event_span.description,
+            Annotated::new(
+                "SELECT \"table\".\"col\" FROM \"table\" WHERE \"table\".\"col\" = %s".into()
+            )
         );
     }
 }
