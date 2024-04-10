@@ -228,6 +228,10 @@ fn extract_shared_tags(event: &Event) -> BTreeMap<SpanTagKey, String> {
         if let Some(op) = extract_transaction_op(trace_context) {
             tags.insert(SpanTagKey::TransactionOp, op.to_lowercase().to_owned());
         }
+
+        if let Some(status) = trace_context.status.value() {
+            tags.insert(SpanTagKey::StatusCode, status.to_string());
+        }
     }
 
     if MOBILE_SDKS.contains(&event.sdk_name()) {
@@ -1633,6 +1637,30 @@ LIMIT 1
             tags.get(&SpanTagKey::BrowserName),
             Some(&"Chrome".to_string())
         );
+    }
+
+    #[test]
+    fn test_extract_status() {
+        let json = r#"
+            {
+                "span_id": "bd429c44b67a3eb1",
+                "start_timestamp": 1597976300.0000000,
+                "timestamp": 1597976302.0000000,
+                "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                "contexts": {
+                    "trace": {
+                        "status": "ok",
+                    },
+                },
+            }
+        "#;
+        let span = Annotated::<Span>::from_json(json)
+            .unwrap()
+            .into_value()
+            .unwrap();
+        let tags = extract_tags(&span, 200, None, None, false, None);
+
+        assert_eq!(tags.get(&SpanTagKey::StatusCode), Some(&"ok".to_string()));
     }
 
     fn extract_tags_supabase(description: impl Into<String>) -> BTreeMap<SpanTagKey, String> {
