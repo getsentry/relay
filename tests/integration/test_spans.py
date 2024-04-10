@@ -314,6 +314,12 @@ def envelope_with_spans(
                         "timestamp": end.timestamp() + 1,
                         "exclusive_time": 345.0,  # The SDK knows that this span has a lower exclusive time
                         "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                        "measurements": {
+                            "score.total": {"unit": "ratio", "value": 0.12121616},
+                        },
+                        "data": {
+                            "browser.name": "Chrome",
+                        },
                     },
                 ).encode()
             ),
@@ -401,7 +407,13 @@ def test_span_ingestion(
 
     # 1 - Send OTel span and sentry span via envelope
     envelope = envelope_with_spans(start, end)
-    relay.send_envelope(project_id, envelope)
+    relay.send_envelope(
+        project_id,
+        envelope,
+        headers={
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/111.0.0.0 Safari/537.36"
+        },
+    )
 
     # 2 - Send OTel json span via endpoint
     relay.send_otel_span(
@@ -463,7 +475,9 @@ def test_span_ingestion(
         headers={"Content-Type": "application/x-protobuf"},
     )
 
-    spans = list(spans_consumer.get_spans(timeout=10.0, max_attempts=7))
+    print("Waiting for spans..")
+    spans = list(spans_consumer.get_spans(timeout=10.0, max_attempts=6))
+    print("Done waiting for spans.")
 
     for span in spans:
         span.pop("received", None)
@@ -483,7 +497,7 @@ def test_span_ingestion(
             "retention_days": 90,
             "segment_id": "a342abb1214ca181",
             "sentry_tags": {
-                "browser.name": "Python Requests",
+                "browser.name": "Chrome",
                 "category": "db",
                 "op": "db.query",
             },
@@ -496,12 +510,13 @@ def test_span_ingestion(
             "duration_ms": 1500,
             "exclusive_time_ms": 345.0,
             "is_segment": True,
+            "measurements": {"score.total": {"value": 0.12121616}},
             "organization_id": 1,
             "project_id": 42,
             "retention_days": 90,
             "segment_id": "bd429c44b67a3eb1",
             "sentry_tags": {
-                "browser.name": "Python Requests",
+                "browser.name": "Chrome",
                 "category": "resource",
                 "description": "https://example.com/*/blah.js",
                 "domain": "example.com",
@@ -522,7 +537,7 @@ def test_span_ingestion(
             "project_id": 42,
             "retention_days": 90,
             "segment_id": "cd429c44b67a3eb1",
-            "sentry_tags": {"browser.name": "Python Requests", "op": "default"},
+            "sentry_tags": {"browser.name": "Chrome", "op": "default"},
             "span_id": "cd429c44b67a3eb1",
             "start_timestamp_ms": int(start.timestamp() * 1e3),
             "trace_id": "ff62a8b040f340bda5d830223def1d81",
@@ -554,7 +569,7 @@ def test_span_ingestion(
             "retention_days": 90,
             "segment_id": "ed429c44b67a3eb1",
             "sentry_tags": {
-                "browser.name": "Python Requests",
+                "browser.name": "Chrome",
                 "op": "default",
             },
             "span_id": "ed429c44b67a3eb1",
@@ -577,6 +592,7 @@ def test_span_ingestion(
         },
     ]
 
+    print("Asserting emptiness")
     spans_consumer.assert_empty()
 
     # If transaction extraction is enabled, expect transactions:
@@ -598,9 +614,12 @@ def test_span_ingestion(
             # No errors during normalization:
             assert not transaction.get("errors")
 
+    print("Asserting emptiness")
     transactions_consumer.assert_empty()
 
+    print("Waiting for metrics")
     metrics = [metric for (metric, _headers) in metrics_consumer.get_metrics()]
+    print("/Waiting for metrics")
     metrics.sort(key=lambda m: (m["name"], sorted(m["tags"].items()), m["timestamp"]))
     for metric in metrics:
         try:
@@ -747,6 +766,16 @@ def test_span_ingestion(
             "type": "d",
             "value": [500.0],
         },
+        {
+            "name": "d:spans/webvital.score.total@ratio",
+            "org_id": 1,
+            "project_id": 42,
+            "retention_days": 90,
+            "tags": {"span.op": "resource.script"},
+            "timestamp": expected_timestamp + 1,
+            "type": "d",
+            "value": [0.12121616],
+        },
     ]
     assert [m for m in metrics if ":spans/" in m["name"]] == expected_span_metrics
 
@@ -772,6 +801,15 @@ def test_span_ingestion(
             assert len(m["value"]) == 1
     else:
         assert len(transaction_duration_metrics) == 0
+
+    # Regardless of whether transactions are extracted, score.total is only converted to a transaction metric once:
+    score_total_metrics = [
+        m
+        for m in metrics
+        if m["name"] == "d:transactions/measurements.score.total@ratio"
+    ]
+    assert len(score_total_metrics) == 1, score_total_metrics
+    assert len(score_total_metrics[0]["value"]) == 1
 
     metrics_consumer.assert_empty()
 

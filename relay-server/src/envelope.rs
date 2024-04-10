@@ -1093,7 +1093,7 @@ impl Envelope {
         Box::new(Self { items, headers })
     }
 
-    /// Creates an envelope from an event, plus headers.
+    /// Creates an envelope from headers and an envelope.
     pub fn try_from_event(
         mut headers: EnvelopeHeaders,
         event: Event,
