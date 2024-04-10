@@ -64,6 +64,7 @@ mime_guess = { workspace = true, optional = true }
 minidump = { workspace = true, optional = true }
 multer = { workspace = true }
 once_cell = { workspace = true }
+pin-project-lite = { workspace = true }
 rand = { workspace = true }
 regex = { workspace = true }
 relay-auth = { workspace = true }
@@ -138,9 +139,7 @@ axum-extra = { workspace = true, features = ["protobuf"] }
 [dev-dependencies]
 tokio = { workspace = true, features = ['test-util'] }
 insta = { workspace = true }
-relay-event-schema = { workspace = true, features = [
-    "jsonschema",
-] }
+relay-event-schema = { workspace = true, features = ["jsonschema"] }
 relay-protocol = { workspace = true, features = ["test"] }
 relay-test = { workspace = true }
 similar-asserts = { workspace = true }

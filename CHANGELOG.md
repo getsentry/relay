@@ -14,10 +14,16 @@
 - Drop `event_id` and `remote_addr` from all outcomes. ([#3319](https://github.com/getsentry/relay/pull/3319))
 - Support for AI token metrics ([#3250](https://github.com/getsentry/relay/pull/3250))
 - Accept integers in `event.user.username`. ([#3328](https://github.com/getsentry/relay/pull/3328))
+- Produce user feedback to ingest-feedback-events topic, with rollout rate. ([#3344](https://github.com/getsentry/relay/pull/3344))
 - Extract `cache.item_size` and `cache.hit` data into span indexed ([#3367]https://github.com/getsentry/relay/pull/3367)
 - Allow IP addresses in metrics domain tag. ([#3365](https://github.com/getsentry/relay/pull/3365))
 - Support the full unicode character set via UTF-8 encoding for metric tags submitted via the statsd format. Certain restricted characters require escape sequences, see [docs](https://develop.sentry.dev/sdk/metrics/#normalization) for the precise rules. ([#3358](https://github.com/getsentry/relay/pull/3358))
 - Stop extracting count_per_segment and count_per_op metrics. ([#3380](https://github.com/getsentry/relay/pull/3380))
+- Extract `cache.item_size` and `cache.hit` metrics. ([#3371]https://github.com/getsentry/relay/pull/3371)
+
+**Bug Fixes**:
+
+- Allow spans with no `exclusive_time`. ([#3385](https://github.com/getsentry/relay/pull/3385))
 
 **Internal**:
 
@@ -38,6 +44,8 @@
 - Pass `retention_days` in the Kafka profile messages. ([#3362](https://github.com/getsentry/relay/pull/3362))
 - Support and expose namespaces for metric rate limit propagation via the `x-sentry-rate-limits` header. ([#3347](https://github.com/getsentry/relay/pull/3347))
 - Tag span duration metric by group for all ops supporting description scrubbing. ([#3370](https://github.com/getsentry/relay/pull/3370))
+- Copy transaction tags to segment. ([#3386](https://github.com/getsentry/relay/pull/3386))
+- Route spans according to trace_id. ([#3387](https://github.com/getsentry/relay/pull/3387))
 - Optionally skip normalization. ([#3377](https://github.com/getsentry/relay/pull/3377))
 
 ## 24.3.0
