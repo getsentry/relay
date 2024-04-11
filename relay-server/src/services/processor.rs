@@ -1225,11 +1225,12 @@ impl EnvelopeProcessorService {
                 // not being available, envelopes can go to other PoP regions or
                 // directly to processing relays. Events should be fully
                 // normalized, independently of the ingestion path.
-                if self.inner.config.processing_enabled()
-                    && !state.envelope().meta().is_from_internal_relay()
+                if dbg!(self.inner.config.processing_enabled())
+                    && (!dbg!(state.envelope().meta().is_from_internal_relay()))
                 {
                     true
                 } else {
+                    relay_log::trace!("Skipping event normalization");
                     return Ok(());
                 }
             }

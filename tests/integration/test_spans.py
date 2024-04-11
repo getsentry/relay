@@ -366,6 +366,38 @@ def envelope_with_spans(
     return envelope
 
 
+def make_otel_span(start, end):
+    return {
+        "resourceSpans": [
+            {
+                "scopeSpans": [
+                    {
+                        "spans": [
+                            {
+                                "traceId": "89143b0763095bd9c9955e8175d1fb24",
+                                "spanId": "d342abb1214ca182",
+                                "name": "my 2nd OTel span",
+                                "startTimeUnixNano": int(start.timestamp() * 1e9),
+                                "endTimeUnixNano": int(end.timestamp() * 1e9),
+                                "attributes": [
+                                    {
+                                        "key": "sentry.exclusive_time_ns",
+                                        "value": {
+                                            "intValue": int(
+                                                (end - start).total_seconds() * 1e9
+                                            ),
+                                        },
+                                    },
+                                ],
+                            },
+                        ],
+                    },
+                ],
+            },
+        ],
+    }
+
+
 @pytest.mark.parametrize("extract_transaction", [False, True])
 def test_span_ingestion(
     mini_sentry,
@@ -418,35 +450,7 @@ def test_span_ingestion(
     # 2 - Send OTel json span via endpoint
     relay.send_otel_span(
         project_id,
-        json={
-            "resourceSpans": [
-                {
-                    "scopeSpans": [
-                        {
-                            "spans": [
-                                {
-                                    "traceId": "89143b0763095bd9c9955e8175d1fb24",
-                                    "spanId": "d342abb1214ca182",
-                                    "name": "my 2nd OTel span",
-                                    "startTimeUnixNano": int(start.timestamp() * 1e9),
-                                    "endTimeUnixNano": int(end.timestamp() * 1e9),
-                                    "attributes": [
-                                        {
-                                            "key": "sentry.exclusive_time_ns",
-                                            "value": {
-                                                "intValue": int(
-                                                    duration.total_seconds() * 1e9
-                                                ),
-                                            },
-                                        },
-                                    ],
-                                },
-                            ],
-                        },
-                    ],
-                },
-            ],
-        },
+        json=make_otel_span(start, end),
     )
 
     protobuf_span = Span(
@@ -879,6 +883,60 @@ def test_span_extraction_with_metrics_summary(
     metrics_summary = metrics_summaries_consumer.get_metrics_summary()
 
     assert metrics_summary["mri"] == mri
+
+
+def test_extracted_transaction_gets_normalized(
+    mini_sentry, transactions_consumer, relay_with_processing, relay, relay_credentials
+):
+    """When normalization in processing relays has been disabled, an extracted
+    transaction still gets normalized.
+
+    This test was copied and adapted from test_store::test_relay_chain_normalization
+
+    """
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = [
+        "organizations:standalone-span-ingestion",
+        "projects:extract-transaction-from-segment-span",
+    ]
+
+    transactions_consumer = transactions_consumer()
+
+    credentials = relay_credentials()
+    processing = relay_with_processing(
+        static_relays={
+            credentials["id"]: {
+                "public_key": credentials["public_key"],
+                "internal": True,
+            },
+        },
+        options={"processing": {"normalize": "disabled"}},
+    )
+    relay = relay(
+        processing,
+        credentials=credentials,
+        options={
+            "processing": {
+                "normalize": "full",
+            }
+        },
+    )
+
+    duration = timedelta(milliseconds=500)
+    end = datetime.now(timezone.utc) - timedelta(seconds=1)
+    start = end - duration
+    otel_payload = make_otel_span(start, end)
+
+    # Unset name to validate transaction normalization
+    del otel_payload["resourceSpans"][0]["scopeSpans"][0]["spans"][0]["name"]
+
+    relay.send_otel_span(project_id, json=otel_payload)
+
+    ingested, _ = transactions_consumer.get_event(timeout=5)
+
+    # "<unlabeled transaction>" was set by normalization:
+    assert ingested["transaction"] == "<unlabeled transaction>"
 
 
 def test_span_no_extraction_with_metrics_summary(

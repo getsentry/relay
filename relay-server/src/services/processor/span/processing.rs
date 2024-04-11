@@ -190,6 +190,9 @@ pub fn process(
         // Enqueue a full processing request for every extracted transaction item.
         match Envelope::try_from_event(state.envelope().headers().clone(), transaction) {
             Ok(mut envelope) => {
+                // In order to force normalization, treat as external:
+                envelope.meta_mut().set_from_internal_relay(false);
+
                 // We don't want to extract spans or span metrics from a transaction extracted from spans,
                 // so set the spans_extracted flag:
                 for item in envelope.items_mut() {
