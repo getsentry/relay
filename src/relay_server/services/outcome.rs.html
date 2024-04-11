@@ -976,6 +976,7 @@
 <a href="#974" id="974">974</a>
 <a href="#975" id="975">975</a>
 <a href="#976" id="976">976</a>
+<a href="#977" id="977">977</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module contains the service that tracks outcomes.
 //!
 //! Outcomes describe the final "fate" of an envelope item. As such, for every item exactly one
@@ -1058,6 +1059,7 @@
     <span class="kw">const </span>INVALID: OutcomeId = OutcomeId(<span class="number">3</span>);
     <span class="kw">const </span>ABUSE: OutcomeId = OutcomeId(<span class="number">4</span>);
     <span class="kw">const </span>CLIENT_DISCARD: OutcomeId = OutcomeId(<span class="number">5</span>);
+    <span class="kw">const </span>CARDINALITY_LIMITED: OutcomeId = OutcomeId(<span class="number">6</span>);
 
     <span class="kw">pub fn </span>as_u8(<span class="self">self</span>) -&gt; u8 {
         <span class="self">self</span>.<span class="number">0
@@ -1080,6 +1082,7 @@
             OutcomeId::INVALID =&gt; <span class="string">"invalid"</span>,
             OutcomeId::ABUSE =&gt; <span class="string">"abuse"</span>,
             OutcomeId::CLIENT_DISCARD =&gt; <span class="string">"client_discard"</span>,
+            OutcomeId::CARDINALITY_LIMITED =&gt; <span class="string">"cardinality_limited"</span>,
             <span class="kw">_ </span>=&gt; <span class="string">"&lt;unknown&gt;"</span>,
         }
     }
@@ -1166,7 +1169,7 @@
             Outcome::Filtered(<span class="kw">_</span>) | Outcome::FilteredSampling(<span class="kw">_</span>) =&gt; OutcomeId::FILTERED,
             Outcome::RateLimited(<span class="kw">_</span>) =&gt; OutcomeId::RATE_LIMITED,
             <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-            </span>Outcome::CardinalityLimited =&gt; OutcomeId::RATE_LIMITED,
+            </span>Outcome::CardinalityLimited =&gt; OutcomeId::CARDINALITY_LIMITED,
             Outcome::Invalid(<span class="kw">_</span>) =&gt; OutcomeId::INVALID,
             Outcome::Abuse =&gt; OutcomeId::ABUSE,
             Outcome::ClientDiscard(<span class="kw">_</span>) =&gt; OutcomeId::CLIENT_DISCARD,
@@ -1175,17 +1178,16 @@
     }
 
     <span class="doccomment">/// Returns the `reason` code field of this outcome.
-    </span><span class="kw">pub fn </span>to_reason(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;Cow&lt;str&gt;&gt; {
+    </span><span class="kw">pub fn </span>to_reason(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;Cow&lt;<span class="lifetime">'_</span>, str&gt;&gt; {
         <span class="kw">match </span><span class="self">self </span>{
             Outcome::Invalid(discard_reason) =&gt; <span class="prelude-val">Some</span>(Cow::Borrowed(discard_reason.name())),
             Outcome::Filtered(filter_key) =&gt; <span class="prelude-val">Some</span>(filter_key.clone().name()),
             Outcome::FilteredSampling(rule_ids) =&gt; <span class="prelude-val">Some</span>(Cow::Owned(<span class="macro">format!</span>(<span class="string">"Sampled:{rule_ids}"</span>))),
-            <span class="comment">//TODO can we do better ? (not re copying the string )
-            </span>Outcome::RateLimited(code_opt) =&gt; code_opt
-                .as_ref()
-                .map(|code| Cow::Owned(code.as_str().into())),
+            Outcome::RateLimited(code_opt) =&gt; {
+                code_opt.as_ref().map(|code| Cow::Borrowed(code.as_str()))
+            }
             <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-            </span>Outcome::CardinalityLimited =&gt; <span class="prelude-val">Some</span>(Cow::Borrowed(<span class="string">"cardinality_limited"</span>)),
+            </span>Outcome::CardinalityLimited =&gt; <span class="prelude-val">None</span>,
             Outcome::ClientDiscard(<span class="kw-2">ref </span>discard_reason) =&gt; <span class="prelude-val">Some</span>(Cow::Borrowed(discard_reason)),
             Outcome::Abuse =&gt; <span class="prelude-val">None</span>,
             Outcome::Accepted =&gt; <span class="prelude-val">None</span>,
