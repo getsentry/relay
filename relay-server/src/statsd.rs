@@ -178,6 +178,9 @@ pub enum RelayHistograms {
     /// The distribution of buckets should be even.
     /// If it is not, this metric should expose it.
     PartitionKeys,
+
+    /// Measures how many transactions were created from segment spans in a single envelope.
+    TransactionsFromSpansPerEnvelope,
 }
 
 impl HistogramMetric for RelayHistograms {
@@ -211,6 +214,9 @@ impl HistogramMetric for RelayHistograms {
             RelayHistograms::UpstreamEnvelopeBodySize => "upstream.envelope.body_size",
             RelayHistograms::UpstreamMetricsBodySize => "upstream.metrics.body_size",
             RelayHistograms::PartitionKeys => "metrics.buckets.partition_keys",
+            RelayHistograms::TransactionsFromSpansPerEnvelope => {
+                "transactions_from_spans_per_envelope"
+            }
         }
     }
 }
@@ -382,9 +388,6 @@ pub enum RelayTimers {
     /// This metric is tagged with:
     ///  - `type`: The type of the health check, `liveness` or `readiness`.
     HealthCheckDuration,
-
-    /// Measurees how many transactions were created from segment spans in a single envelope.
-    TransactionsFromSpansPerEnvelope,
 }
 
 impl TimerMetric for RelayTimers {
@@ -423,7 +426,6 @@ impl TimerMetric for RelayTimers {
             RelayTimers::BufferMessageProcessDuration => "buffer.message.duration",
             RelayTimers::ProjectCacheTaskDuration => "project_cache.task.duration",
             RelayTimers::HealthCheckDuration => "health.message.duration",
-            RelayTimers::TransactionsFromSpansPerEnvelope => "transactions_from_spans_per_envelope",
         }
     }
 }
