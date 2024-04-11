@@ -382,6 +382,9 @@ pub enum RelayTimers {
     /// This metric is tagged with:
     ///  - `type`: The type of the health check, `liveness` or `readiness`.
     HealthCheckDuration,
+
+    /// Measurees how many transactions were created from segment spans in a single envelope.
+    TransactionsFromSpansPerEnvelope,
 }
 
 impl TimerMetric for RelayTimers {
@@ -420,6 +423,7 @@ impl TimerMetric for RelayTimers {
             RelayTimers::BufferMessageProcessDuration => "buffer.message.duration",
             RelayTimers::ProjectCacheTaskDuration => "project_cache.task.duration",
             RelayTimers::HealthCheckDuration => "health.message.duration",
+            RelayTimers::TransactionsFromSpansPerEnvelope => "transactions_from_spans_per_envelope",
         }
     }
 }

@@ -28,7 +28,7 @@ use crate::services::processor::{
     Addrs, ProcessEnvelope, ProcessEnvelopeState, ProcessingError, ProcessingGroup, SpanGroup,
     TransactionGroup,
 };
-use crate::statsd::RelayCounters;
+use crate::statsd::{RelayCounters, RelayHistograms};
 use crate::utils::{sample, ItemAction, ManagedEnvelope};
 use thiserror::Error;
 
@@ -170,6 +170,7 @@ pub fn process(
         ItemAction::Keep
     });
 
+    let mut transaction_count = 0;
     for mut transaction in extracted_transactions {
         // Give each transaction event a new random ID:
         transaction.id = EventId::new().into();
@@ -183,7 +184,7 @@ pub fn process(
                     item.set_spans_extracted(true);
                 }
 
-                relay_statsd::metric!(counter(RelayCounters::TransactionsFromSpans) += 1);
+                transaction_count += 1;
 
                 addrs.envelope_processor.send(ProcessEnvelope {
                     envelope: ManagedEnvelope::standalone(
@@ -201,6 +202,13 @@ pub fn process(
                 relay_log::error!("Failed to create event envelope: {e}");
             }
         }
+    }
+
+    if transaction_count > 0 {
+        relay_statsd::metric!(counter(RelayCounters::TransactionsFromSpans) += transaction_count);
+        relay_statsd::metric!(
+            histogram(RelayHistograms::TransactionsFromSpansPerEnvelope) = transaction_count as u64
+        );
     }
 }
 
