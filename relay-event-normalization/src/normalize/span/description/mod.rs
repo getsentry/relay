@@ -33,7 +33,7 @@ const MAX_EXTENSION_LENGTH: usize = 10;
 
 /// IP addresses that are preserved during scrubbing
 const IPV4_ALLOW_LIST: &[Ipv4Addr] = &[Ipv4Addr::LOCALHOST];
-const IPV6_ALLOW_LIST: &[Ipv6Addr] = [&Ipv6Addr::LOCALHOST];
+const IPV6_ALLOW_LIST: &[Ipv6Addr] = &[Ipv6Addr::LOCALHOST];
 
 /// Domain names that are preserved during scrubbing
 const DOMAIN_ALLOW_LIST: &[&str] = &["localhost"];
