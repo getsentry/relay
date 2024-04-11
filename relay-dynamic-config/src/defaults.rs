@@ -148,7 +148,7 @@ fn span_metrics(transaction_extraction_enabled: bool) -> impl IntoIterator<Item 
         & duration_condition.clone();
 
     let know_modules_condition =
-        (is_db.clone() | is_ai.clone() | is_resource.clone() | is_mobile.clone() | is_http.clone())
+        (is_db.clone() | is_resource.clone() | is_mobile.clone() | is_http.clone())
             & duration_condition.clone();
 
     [
@@ -456,7 +456,7 @@ fn span_metrics(transaction_extraction_enabled: bool) -> impl IntoIterator<Item 
         MetricSpec {
             category: DataCategory::Span,
             mri: "c:spans/ai.total_tokens.used@none".into(),
-            field: Some("span.data.ai\\.total_tokens\\.used".into()),
+            field: Some("span.measurements.ai_total_tokens_used.value".into()),
             condition: Some(is_ai.clone()),
             tags: vec![
                 Tag::with_key("span.op")

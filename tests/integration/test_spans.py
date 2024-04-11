@@ -847,8 +847,10 @@ def test_ai_span_metric_extraction(
             "start_timestamp": start.isoformat(),
             "timestamp": end.isoformat(),
             "trace_id": "ff62a8b040f340bda5d830223def1d81",
-            "data": {
-                "ai.total_tokens.used": 20,
+            "measurements": {
+                "ai_total_tokens_used": {
+                    "value": 20,
+                },
             },
         },
     ]

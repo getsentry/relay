@@ -300,7 +300,6 @@ pub struct SpanData {
 impl Getter for SpanData {
     fn get_value(&self, path: &str) -> Option<Val<'_>> {
         Some(match path {
-            "ai\\.total_tokens\\.used" => self.ai_total_tokens_used.value()?.into(),
             "app_start_type" => self.app_start_type.value()?.into(),
             "browser\\.name" => self.browser_name.value()?.into(),
             "code\\.filepath" => self.code_filepath.value()?.into(),
