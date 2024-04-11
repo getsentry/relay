@@ -1,4 +1,4 @@
-from datetime import timedelta, datetime
+from datetime import timedelta, datetime, timezone
 
 from sentry_sdk.envelope import Envelope
 
@@ -6,8 +6,8 @@ from sentry_sdk.envelope import Envelope
 def mock_transaction(timestamp):
     return {
         "type": "transaction",
-        "timestamp": timestamp.isoformat(),
-        "start_timestamp": (timestamp - timedelta(seconds=2)).isoformat(),
+        "timestamp": format_date(timestamp),
+        "start_timestamp": format_date(timestamp - timedelta(seconds=2)),
         "spans": [],
         "contexts": {
             "trace": {
@@ -20,17 +20,19 @@ def mock_transaction(timestamp):
     }
 
 
+def format_date(date):
+    return date.strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+
+
 def test_clock_drift_applied_when_timestamp_is_too_old(mini_sentry, relay):
     relay = relay(mini_sentry)
     project_id = 42
     mini_sentry.add_basic_project_config(project_id)
 
-    now = datetime.utcnow()
+    now = datetime.now(tz=timezone.utc)
     one_month_ago = now - timedelta(days=30)
 
-    envelope = Envelope(
-        headers={"sent_at": one_month_ago.strftime("%Y-%m-%dT%H:%M:%S.%fZ")}
-    )
+    envelope = Envelope(headers={"sent_at": format_date(one_month_ago)})
     envelope.add_transaction(mock_transaction(one_month_ago))
 
     relay.send_envelope(project_id, envelope, headers={"Accept-Encoding": "gzip"})
@@ -40,6 +42,7 @@ def test_clock_drift_applied_when_timestamp_is_too_old(mini_sentry, relay):
     ).get_transaction_event()
     error_name, error_metadata = transaction_event["_meta"]["timestamp"][""]["err"][0]
     assert error_name == "clock_drift"
+    assert transaction_event["timestamp"] > one_month_ago.timestamp()
 
 
 def test_clock_drift_not_applied_when_timestamp_is_recent(mini_sentry, relay):
@@ -47,12 +50,10 @@ def test_clock_drift_not_applied_when_timestamp_is_recent(mini_sentry, relay):
     project_id = 42
     mini_sentry.add_basic_project_config(project_id)
 
-    now = datetime.utcnow()
+    now = datetime.now(tz=timezone.utc)
     five_minutes_ago = now - timedelta(minutes=5)
 
-    envelope = Envelope(
-        headers={"sent_at": five_minutes_ago.strftime("%Y-%m-%dT%H:%M:%S.%fZ")}
-    )
+    envelope = Envelope(headers={"sent_at": format_date(five_minutes_ago)})
     envelope.add_transaction(mock_transaction(five_minutes_ago))
 
     relay.send_envelope(project_id, envelope, headers={"Accept-Encoding": "gzip"})
@@ -61,6 +62,7 @@ def test_clock_drift_not_applied_when_timestamp_is_recent(mini_sentry, relay):
         timeout=1
     ).get_transaction_event()
     assert "_meta" not in transaction_event
+    assert transaction_event["timestamp"] == five_minutes_ago.timestamp()
 
 
 def test_clock_drift_not_applied_when_sent_at_is_not_supplied(mini_sentry, relay):
@@ -68,7 +70,7 @@ def test_clock_drift_not_applied_when_sent_at_is_not_supplied(mini_sentry, relay
     project_id = 42
     mini_sentry.add_basic_project_config(project_id)
 
-    now = datetime.utcnow()
+    now = datetime.now(tz=timezone.utc)
     one_month_ago = now - timedelta(days=30)
 
     envelope = Envelope()
@@ -83,3 +85,4 @@ def test_clock_drift_not_applied_when_sent_at_is_not_supplied(mini_sentry, relay
     # In case clock drift is not run, we expect timestamps normalization to go into effect to mark timestamps as
     # past or future if they surpass a certain threshold.
     assert error_name == "past_timestamp"
+    assert transaction_event["timestamp"] > one_month_ago.timestamp()
