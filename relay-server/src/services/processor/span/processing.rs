@@ -28,6 +28,7 @@ use crate::services::processor::{
     Addrs, ProcessEnvelope, ProcessEnvelopeState, ProcessingError, ProcessingGroup, SpanGroup,
     TransactionGroup,
 };
+use crate::statsd::RelayCounters;
 use crate::utils::{sample, ItemAction, ManagedEnvelope};
 use thiserror::Error;
 
@@ -93,6 +94,15 @@ pub fn process(
             _ => return ItemAction::Keep,
         };
 
+        set_segment_attributes(&mut annotated_span);
+
+        if should_extract_transactions && !item.transaction_extracted() {
+            if let Some(transaction) = convert_to_transaction(&annotated_span) {
+                extracted_transactions.push(transaction);
+                item.set_transaction_extracted(true);
+            }
+        }
+
         if let Err(e) = normalize(
             &mut annotated_span,
             normalize_span_config.clone(),
@@ -102,13 +112,6 @@ pub fn process(
             relay_log::debug!("failed to normalize span: {}", e);
             return ItemAction::Drop(Outcome::Invalid(DiscardReason::Internal));
         };
-
-        if should_extract_transactions && !item.transaction_extracted() {
-            if let Some(transaction) = convert_to_transaction(&annotated_span) {
-                extracted_transactions.push(transaction);
-                item.set_transaction_extracted(true);
-            }
-        }
 
         if let Some(config) = span_metrics_extraction_config {
             let Some(span) = annotated_span.value_mut() else {
@@ -180,6 +183,8 @@ pub fn process(
                     item.set_spans_extracted(true);
                 }
 
+                relay_statsd::metric!(counter(RelayCounters::TransactionsFromSpans) += 1);
+
                 addrs.envelope_processor.send(ProcessEnvelope {
                     envelope: ManagedEnvelope::standalone(
                         envelope,
@@ -189,7 +194,7 @@ pub fn process(
                     ),
                     project_state: state.project_state.clone(),
                     sampling_project_state: state.sampling_project_state.clone(),
-                    reservoir_counters: state.reservoir.counters().clone(),
+                    reservoir_counters: state.reservoir.counters(),
                 });
             }
             Err(e) => {
@@ -366,6 +371,19 @@ fn get_normalize_span_config<'a>(
     }
 }
 
+fn set_segment_attributes(span: &mut Annotated<Span>) {
+    let Some(span) = span.value_mut() else { return };
+
+    // TODO: A span might be a segment span even if the parent_id is not empty
+    // (parent within a trace). I.e. do not overwrite here.
+    let is_segment = span.parent_span_id.is_empty();
+
+    span.is_segment = Annotated::new(is_segment);
+    if is_segment {
+        span.segment_id = span.span_id.clone();
+    }
+}
+
 /// Normalizes a standalone span.
 fn normalize(
     annotated_span: &mut Annotated<Span>,
@@ -433,13 +451,7 @@ fn normalize(
         );
     }
 
-    let is_segment = span.parent_span_id.is_empty();
-    span.is_segment = Annotated::new(is_segment);
     span.received = Annotated::new(received_at.into());
-
-    if is_segment {
-        span.segment_id = span.span_id.clone();
-    }
 
     if let Some(transaction) = span
         .data

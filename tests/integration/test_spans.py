@@ -410,7 +410,7 @@ def test_span_ingestion(
     relay.send_envelope(
         project_id,
         envelope,
-        headers={
+        headers={  # Set browser header to verify that `d:transactions/measurements.score.total@ratio` is extracted only once.
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/111.0.0.0 Safari/537.36"
         },
     )
@@ -475,9 +475,7 @@ def test_span_ingestion(
         headers={"Content-Type": "application/x-protobuf"},
     )
 
-    print("Waiting for spans..")
     spans = list(spans_consumer.get_spans(timeout=10.0, max_attempts=6))
-    print("Done waiting for spans.")
 
     for span in spans:
         span.pop("received", None)
@@ -592,7 +590,6 @@ def test_span_ingestion(
         },
     ]
 
-    print("Asserting emptiness")
     spans_consumer.assert_empty()
 
     # If transaction extraction is enabled, expect transactions:
@@ -614,12 +611,9 @@ def test_span_ingestion(
             # No errors during normalization:
             assert not transaction.get("errors")
 
-    print("Asserting emptiness")
     transactions_consumer.assert_empty()
 
-    print("Waiting for metrics")
     metrics = [metric for (metric, _headers) in metrics_consumer.get_metrics()]
-    print("/Waiting for metrics")
     metrics.sort(key=lambda m: (m["name"], sorted(m["tags"].items()), m["timestamp"]))
     for metric in metrics:
         try:

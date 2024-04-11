@@ -642,6 +642,8 @@ pub enum RelayCounters {
     /// This metric is tagged with:
     /// - `decision`: "drop" if dynamic sampling drops the envelope, else "keep".
     DynamicSamplingDecision,
+    /// Counts how many transactions were created from segment spans.
+    TransactionsFromSpans,
 }
 
 impl CounterMetric for RelayCounters {
@@ -680,6 +682,7 @@ impl CounterMetric for RelayCounters {
             RelayCounters::OpenTelemetryEvent => "event.opentelemetry",
             RelayCounters::GlobalConfigFetched => "global_config.fetch",
             RelayCounters::DynamicSamplingDecision => "dynamic_sampling_decision",
+            RelayCounters::TransactionsFromSpans => "transactions_from_spans",
         }
     }
 }
