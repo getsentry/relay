@@ -735,6 +735,11 @@
 <a href="#733" id="733">733</a>
 <a href="#734" id="734">734</a>
 <a href="#735" id="735">735</a>
+<a href="#736" id="736">736</a>
+<a href="#737" id="737">737</a>
+<a href="#738" id="738">738</a>
+<a href="#739" id="739">739</a>
+<a href="#740" id="740">740</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::convert::Infallible;
 <span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::net::{IpAddr, SocketAddr};
@@ -1052,6 +1057,11 @@
     <span class="doccomment">/// Whether the request is coming from a statically configured internal Relay.
     </span><span class="kw">pub fn </span>is_from_internal_relay(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
         <span class="self">self</span>.from_internal_relay
+    }
+
+    <span class="doccomment">/// Overwrite internal property.
+    </span><span class="kw">pub fn </span>set_from_internal_relay(<span class="kw-2">&amp;mut </span><span class="self">self</span>, value: bool) {
+        <span class="self">self</span>.from_internal_relay = value;
     }
 }
 

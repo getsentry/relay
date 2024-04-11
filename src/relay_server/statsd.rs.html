@@ -751,6 +751,19 @@
 <a href="#749" id="749">749</a>
 <a href="#750" id="750">750</a>
 <a href="#751" id="751">751</a>
+<a href="#752" id="752">752</a>
+<a href="#753" id="753">753</a>
+<a href="#754" id="754">754</a>
+<a href="#755" id="755">755</a>
+<a href="#756" id="756">756</a>
+<a href="#757" id="757">757</a>
+<a href="#758" id="758">758</a>
+<a href="#759" id="759">759</a>
+<a href="#760" id="760">760</a>
+<a href="#761" id="761">761</a>
+<a href="#762" id="762">762</a>
+<a href="#763" id="763">763</a>
+<a href="#764" id="764">764</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric, TimerMetric};
 
 <span class="doccomment">/// Gauge metrics used by Relay
@@ -931,6 +944,10 @@
     /// The distribution of buckets should be even.
     /// If it is not, this metric should expose it.
     </span>PartitionKeys,
+
+    <span class="doccomment">/// Measures how many transactions were created from segment spans in a single envelope.
+    </span><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
+    </span>TransactionsFromSpansPerEnvelope,
 }
 
 <span class="kw">impl </span>HistogramMetric <span class="kw">for </span>RelayHistograms {
@@ -964,6 +981,10 @@
             RelayHistograms::UpstreamEnvelopeBodySize =&gt; <span class="string">"upstream.envelope.body_size"</span>,
             RelayHistograms::UpstreamMetricsBodySize =&gt; <span class="string">"upstream.metrics.body_size"</span>,
             RelayHistograms::PartitionKeys =&gt; <span class="string">"metrics.buckets.partition_keys"</span>,
+            <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
+            </span>RelayHistograms::TransactionsFromSpansPerEnvelope =&gt; {
+                <span class="string">"transactions_from_spans_per_envelope"
+            </span>}
         }
     }
 }
@@ -1395,6 +1416,9 @@
     /// This metric is tagged with:
     /// - `decision`: "drop" if dynamic sampling drops the envelope, else "keep".
     </span>DynamicSamplingDecision,
+    <span class="doccomment">/// Counts how many transactions were created from segment spans.
+    </span><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
+    </span>TransactionsFromSpans,
 }
 
 <span class="kw">impl </span>CounterMetric <span class="kw">for </span>RelayCounters {
@@ -1433,6 +1457,8 @@
             RelayCounters::OpenTelemetryEvent =&gt; <span class="string">"event.opentelemetry"</span>,
             RelayCounters::GlobalConfigFetched =&gt; <span class="string">"global_config.fetch"</span>,
             RelayCounters::DynamicSamplingDecision =&gt; <span class="string">"dynamic_sampling_decision"</span>,
+            <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
+            </span>RelayCounters::TransactionsFromSpans =&gt; <span class="string">"transactions_from_spans"</span>,
         }
     }
 }

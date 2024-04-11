@@ -875,6 +875,11 @@
 <a href="#873" id="873">873</a>
 <a href="#874" id="874">874</a>
 <a href="#875" id="875">875</a>
+<a href="#876" id="876">876</a>
+<a href="#877" id="877">877</a>
+<a href="#878" id="878">878</a>
+<a href="#879" id="879">879</a>
+<a href="#880" id="880">880</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Evaluation of dynamic sampling rules.
 
 </span><span class="kw">use </span>std::collections::BTreeMap;
@@ -940,6 +945,11 @@
             </span>org_id_and_redis_pool: <span class="prelude-val">None</span>,
             _phantom: std::marker::PhantomData,
         }
+    }
+
+    <span class="doccomment">/// Gets shared ownership of the reservoir counters.
+    </span><span class="kw">pub fn </span>counters(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; ReservoirCounters {
+        Arc::clone(<span class="kw-2">&amp;</span><span class="self">self</span>.counters)
     }
 
     <span class="doccomment">/// Sets the Redis pool and organiation ID for the [`ReservoirEvaluator`].

@@ -567,6 +567,20 @@
 <a href="#565" id="565">565</a>
 <a href="#566" id="566">566</a>
 <a href="#567" id="567">567</a>
+<a href="#568" id="568">568</a>
+<a href="#569" id="569">569</a>
+<a href="#570" id="570">570</a>
+<a href="#571" id="571">571</a>
+<a href="#572" id="572">572</a>
+<a href="#573" id="573">573</a>
+<a href="#574" id="574">574</a>
+<a href="#575" id="575">575</a>
+<a href="#576" id="576">576</a>
+<a href="#577" id="577">577</a>
+<a href="#578" id="578">578</a>
+<a href="#579" id="579">579</a>
+<a href="#580" id="580">580</a>
+<a href="#581" id="581">581</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_base_schema::data_category::DataCategory;
 <span class="kw">use </span>relay_event_normalization::utils::MAX_DURATION_MOBILE_MS;
 <span class="kw">use </span>relay_protocol::RuleCondition;
@@ -627,7 +641,11 @@
         <span class="kw">return</span>;
     }
 
-    config.metrics.extend(span_metrics());
+    config.metrics.extend(span_metrics(
+        project_config
+            .features
+            .has(Feature::ExtractTransactionFromSegmentSpan),
+    ));
 
     config._span_metrics_extended = <span class="bool-val">true</span>;
     <span class="kw">if </span>config.version == <span class="number">0 </span>{
@@ -636,7 +654,13 @@
 }
 
 <span class="doccomment">/// Metrics with tags applied as required.
-</span><span class="kw">fn </span>span_metrics() -&gt; <span class="kw">impl </span>IntoIterator&lt;Item = MetricSpec&gt; {
+</span><span class="kw">fn </span>span_metrics(transaction_extraction_enabled: bool) -&gt; <span class="kw">impl </span>IntoIterator&lt;Item = MetricSpec&gt; {
+    <span class="kw">let </span>score_total_transaction_metric = <span class="kw">if </span>transaction_extraction_enabled {
+        RuleCondition::never()
+    } <span class="kw">else </span>{
+        RuleCondition::all()
+    };
+
     <span class="kw">let </span>is_db = RuleCondition::eq(<span class="string">"span.sentry_tags.category"</span>, <span class="string">"db"</span>)
         &amp; !(RuleCondition::eq(<span class="string">"span.system"</span>, <span class="string">"mongodb"</span>)
             | RuleCondition::glob(<span class="string">"span.op"</span>, DISABLED_DATABASES)
@@ -1040,7 +1064,11 @@
             mri: <span class="string">"d:transactions/measurements.score.total@ratio"</span>.into(),
             field: <span class="prelude-val">Some</span>(<span class="string">"span.measurements.score.total.value"</span>.into()),
             condition: <span class="prelude-val">Some</span>(
-                is_allowed_browser.clone() &amp; RuleCondition::eq(<span class="string">"span.was_transaction"</span>, <span class="bool-val">false</span>),
+                <span class="comment">// If transactions are extracted from spans, the transaction processing pipeline
+                // will take care of this metric.
+                </span>score_total_transaction_metric
+                    &amp; is_allowed_browser.clone()
+                    &amp; RuleCondition::eq(<span class="string">"span.was_transaction"</span>, <span class="bool-val">false</span>),
             ),
             tags: <span class="macro">vec!</span>[
                 Tag::with_key(<span class="string">"span.op"</span>)

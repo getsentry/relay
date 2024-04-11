@@ -3332,6 +3332,27 @@
 <a href="#3330" id="3330">3330</a>
 <a href="#3331" id="3331">3331</a>
 <a href="#3332" id="3332">3332</a>
+<a href="#3333" id="3333">3333</a>
+<a href="#3334" id="3334">3334</a>
+<a href="#3335" id="3335">3335</a>
+<a href="#3336" id="3336">3336</a>
+<a href="#3337" id="3337">3337</a>
+<a href="#3338" id="3338">3338</a>
+<a href="#3339" id="3339">3339</a>
+<a href="#3340" id="3340">3340</a>
+<a href="#3341" id="3341">3341</a>
+<a href="#3342" id="3342">3342</a>
+<a href="#3343" id="3343">3343</a>
+<a href="#3344" id="3344">3344</a>
+<a href="#3345" id="3345">3345</a>
+<a href="#3346" id="3346">3346</a>
+<a href="#3347" id="3347">3347</a>
+<a href="#3348" id="3348">3348</a>
+<a href="#3349" id="3349">3349</a>
+<a href="#3350" id="3350">3350</a>
+<a href="#3351" id="3351">3351</a>
+<a href="#3352" id="3352">3352</a>
+<a href="#3353" id="3353">3353</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
@@ -3416,6 +3437,8 @@
     SendRequest, UpstreamRelay, UpstreamRequest, UpstreamRequestError,
 };
 <span class="kw">use </span><span class="kw">crate</span>::statsd::{RelayCounters, RelayHistograms, RelayTimers};
+<span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
+</span><span class="kw">use </span><span class="kw">crate</span>::utils::BufferGuard;
 <span class="kw">use </span><span class="kw">crate</span>::utils::{
     <span class="self">self</span>, ExtractionMode, InvalidProcessingGroupType, ManagedEnvelope, SamplingResult,
     TypedEnvelope,
@@ -3906,6 +3929,11 @@
     <span class="doccomment">/// Track whether transaction metrics were already extracted.
     </span>event_metrics_extracted: bool,
 
+    <span class="doccomment">/// Track whether spans and span metrics were already extracted.
+    ///
+    /// Only applies to envelopes with a transaction item.
+    </span>spans_extracted: bool,
+
     <span class="doccomment">/// Partial metrics of the Event during construction.
     ///
     /// The pipeline stages can add to this metrics objects. In `finalize_event`, the metrics are
@@ -4245,6 +4273,7 @@
 
 <span class="doccomment">/// Contains the addresses of services that the processor publishes to.
 </span><span class="kw">pub struct </span>Addrs {
+    <span class="kw">pub </span>envelope_processor: Addr&lt;EnvelopeProcessor&gt;,
     <span class="kw">pub </span>project_cache: Addr&lt;ProjectCache&gt;,
     <span class="kw">pub </span>outcome_aggregator: Addr&lt;TrackOutcome&gt;,
     <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
@@ -4271,6 +4300,8 @@
     </span>cardinality_limiter: <span class="prelude-ty">Option</span>&lt;CardinalityLimiter&gt;,
     <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
     </span>metric_stats: MetricStats,
+    <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
+    </span>buffer_guard: Arc&lt;BufferGuard&gt;,
 }
 
 <span class="kw">impl </span>EnvelopeProcessorService {
@@ -4282,6 +4313,7 @@
         <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)] </span>redis: <span class="prelude-ty">Option</span>&lt;RedisPool&gt;,
         addrs: Addrs,
         <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)] </span>metric_stats: MetricStats,
+        <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)] </span>buffer_guard: Arc&lt;BufferGuard&gt;,
     ) -&gt; <span class="self">Self </span>{
         <span class="kw">let </span>geoip_lookup = config.geoip_path().and_then(|p| {
             <span class="kw">match </span>GeoIpLookup::open(p).context(ServiceError::GeoIp) {
@@ -4324,6 +4356,8 @@
             <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
             </span>metric_stats,
             config,
+            <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
+            </span>buffer_guard,
         };
 
         <span class="self">Self </span>{
@@ -4393,6 +4427,7 @@
         ProcessEnvelopeState {
             event: Annotated::empty(),
             event_metrics_extracted: <span class="bool-val">false</span>,
+            spans_extracted: <span class="bool-val">false</span>,
             metrics: Metrics::default(),
             sample_rates: <span class="prelude-val">None</span>,
             extracted_metrics: Default::default(),
@@ -4491,6 +4526,7 @@
             <span class="kw">if let </span><span class="prelude-val">Some</span>(config) = config {
                 <span class="kw">let </span>metrics = <span class="kw">crate</span>::metrics_extraction::event::extract_metrics(
                     event,
+                    state.spans_extracted,
                     config,
                     <span class="self">self</span>.inner
                         .config
@@ -4552,10 +4588,11 @@
                 // directly to processing relays. Events should be fully
                 // normalized, independently of the ingestion path.
                 </span><span class="kw">if </span><span class="self">self</span>.inner.config.processing_enabled()
-                    &amp;&amp; !state.envelope().meta().is_from_internal_relay()
+                    &amp;&amp; (!state.envelope().meta().is_from_internal_relay())
                 {
                     <span class="bool-val">true
                 </span>} <span class="kw">else </span>{
+                    <span class="macro">relay_log::trace!</span>(<span class="string">"Skipping event normalization"</span>);
                     <span class="kw">return </span><span class="prelude-val">Ok</span>(());
                 }
             }
@@ -4878,11 +4915,16 @@
         state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;SpanGroup&gt;,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ProcessingError&gt; {
         span::filter(state);
+
         <span class="macro">if_processing!</span>(<span class="self">self</span>.inner.config, {
+            <span class="kw">let </span>global_config = <span class="self">self</span>.inner.global_config.current();
+
             span::process(
                 state,
                 <span class="self">self</span>.inner.config.clone(),
-                <span class="kw-2">&amp;</span><span class="self">self</span>.inner.global_config.current(),
+                <span class="kw-2">&amp;</span>global_config,
+                <span class="kw-2">&amp;</span><span class="self">self</span>.inner.addrs,
+                <span class="kw-2">&amp;</span><span class="self">self</span>.inner.buffer_guard,
             );
             <span class="self">self</span>.enforce_quotas(state)<span class="question-mark">?</span>;
         });

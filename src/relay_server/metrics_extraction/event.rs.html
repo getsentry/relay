@@ -1519,6 +1519,16 @@
 <a href="#1517" id="1517">1517</a>
 <a href="#1518" id="1518">1518</a>
 <a href="#1519" id="1519">1519</a>
+<a href="#1520" id="1520">1520</a>
+<a href="#1521" id="1521">1521</a>
+<a href="#1522" id="1522">1522</a>
+<a href="#1523" id="1523">1523</a>
+<a href="#1524" id="1524">1524</a>
+<a href="#1525" id="1525">1525</a>
+<a href="#1526" id="1526">1526</a>
+<a href="#1527" id="1527">1527</a>
+<a href="#1528" id="1528">1528</a>
+<a href="#1529" id="1529">1529</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_common::time::UnixTimestamp;
 <span class="kw">use </span>relay_dynamic_config::MetricExtractionConfig;
 <span class="kw">use </span>relay_event_schema::protocol::{Event, Span};
@@ -1568,31 +1578,41 @@
 /// If this is a transaction event with spans, metrics will also be extracted from the spans.
 </span><span class="kw">pub fn </span>extract_metrics(
     event: <span class="kw-2">&amp;</span>Event,
+    spans_extracted: bool,
     config: <span class="kw-2">&amp;</span>MetricExtractionConfig,
     max_tag_value_size: usize,
     span_extraction_sample_rate: <span class="prelude-ty">Option</span>&lt;f32&gt;,
 ) -&gt; Vec&lt;Bucket&gt; {
     <span class="kw">let </span><span class="kw-2">mut </span>metrics = generic::extract_metrics(event, config);
 
-    <span class="kw">if </span>!sample(span_extraction_sample_rate.unwrap_or(<span class="number">1.0</span>)) {
-        <span class="kw">return </span>metrics;
+    <span class="comment">// If spans were already extracted for an event,
+    // we rely on span processing to extract metrics.
+    </span><span class="kw">if </span>!spans_extracted &amp;&amp; sample(span_extraction_sample_rate.unwrap_or(<span class="number">1.0</span>)) {
+        extract_span_metrics_for_event(event, config, max_tag_value_size, <span class="kw-2">&amp;mut </span>metrics);
     }
 
+    metrics
+}
+
+<span class="kw">fn </span>extract_span_metrics_for_event(
+    event: <span class="kw-2">&amp;</span>Event,
+    config: <span class="kw-2">&amp;</span>MetricExtractionConfig,
+    max_tag_value_size: usize,
+    output: <span class="kw-2">&amp;mut </span>Vec&lt;Bucket&gt;,
+) {
     <span class="macro">relay_statsd::metric!</span>(timer(RelayTimers::EventProcessingSpanMetricsExtraction), {
         <span class="kw">if let </span><span class="prelude-val">Some</span>(transaction_span) = extract_transaction_span(event, max_tag_value_size) {
-            metrics.extend(generic::extract_metrics(<span class="kw-2">&amp;</span>transaction_span, config));
+            output.extend(generic::extract_metrics(<span class="kw-2">&amp;</span>transaction_span, config));
         }
 
         <span class="kw">if let </span><span class="prelude-val">Some</span>(spans) = event.spans.value() {
             <span class="kw">for </span>annotated_span <span class="kw">in </span>spans {
                 <span class="kw">if let </span><span class="prelude-val">Some</span>(span) = annotated_span.value() {
-                    metrics.extend(generic::extract_metrics(span, config));
+                    output.extend(generic::extract_metrics(span, config));
                 }
             }
         }
     });
-
-    metrics
 }
 
 <span class="attr">#[cfg(test)]
@@ -2558,7 +2578,7 @@
         project.sanitize();
 
         <span class="kw">let </span>config = project.metric_extraction.ok().unwrap();
-        <span class="kw">let </span>metrics = extract_metrics(event.value().unwrap(), <span class="kw-2">&amp;</span>config, <span class="number">200</span>, <span class="prelude-val">None</span>);
+        <span class="kw">let </span>metrics = extract_metrics(event.value().unwrap(), <span class="bool-val">false</span>, <span class="kw-2">&amp;</span>config, <span class="number">200</span>, <span class="prelude-val">None</span>);
         <span class="macro">insta::assert_debug_snapshot!</span>(metrics);
     }
 
@@ -2693,7 +2713,7 @@
         project.sanitize();
 
         <span class="kw">let </span>config = project.metric_extraction.ok().unwrap();
-        <span class="kw">let </span>metrics = extract_metrics(event.value().unwrap(), <span class="kw-2">&amp;</span>config, <span class="number">200</span>, <span class="prelude-val">None</span>);
+        <span class="kw">let </span>metrics = extract_metrics(event.value().unwrap(), <span class="bool-val">false</span>, <span class="kw-2">&amp;</span>config, <span class="number">200</span>, <span class="prelude-val">None</span>);
         <span class="macro">insta::assert_debug_snapshot!</span>((<span class="kw-2">&amp;</span>event.value().unwrap().spans, metrics));
     }
 
@@ -2754,7 +2774,7 @@
         project.sanitize();
 
         <span class="kw">let </span>config = project.metric_extraction.ok().unwrap();
-        <span class="kw">let </span>metrics = extract_metrics(event.value().unwrap(), <span class="kw-2">&amp;</span>config, <span class="number">200</span>, <span class="prelude-val">None</span>);
+        <span class="kw">let </span>metrics = extract_metrics(event.value().unwrap(), <span class="bool-val">false</span>, <span class="kw-2">&amp;</span>config, <span class="number">200</span>, <span class="prelude-val">None</span>);
 
         <span class="comment">// When transaction.op:ui.load and mobile:true, HTTP spans still get both
         // exclusive_time metrics:
@@ -2790,7 +2810,7 @@
         project.sanitize();
 
         <span class="kw">let </span>config = project.metric_extraction.ok().unwrap();
-        <span class="kw">let </span>metrics = extract_metrics(event.value().unwrap(), <span class="kw-2">&amp;</span>config, <span class="number">200</span>, <span class="prelude-val">None</span>);
+        <span class="kw">let </span>metrics = extract_metrics(event.value().unwrap(), <span class="bool-val">false</span>, <span class="kw-2">&amp;</span>config, <span class="number">200</span>, <span class="prelude-val">None</span>);
 
         <span class="kw">let </span>usage_metrics = metrics
             .into_iter()
@@ -3016,7 +3036,7 @@
         project.sanitize();
 
         <span class="kw">let </span>config = project.metric_extraction.ok().unwrap();
-        <span class="kw">let </span>metrics = extract_metrics(event.value().unwrap(), <span class="kw-2">&amp;</span>config, <span class="number">200</span>, <span class="prelude-val">None</span>);
+        <span class="kw">let </span>metrics = extract_metrics(event.value().unwrap(), <span class="bool-val">false</span>, <span class="kw-2">&amp;</span>config, <span class="number">200</span>, <span class="prelude-val">None</span>);
 
         <span class="macro">assert_eq!</span>(metrics.len(), <span class="number">4</span>);
         <span class="macro">assert_eq!</span>(<span class="kw-2">&amp;*</span>metrics[<span class="number">0</span>].name, <span class="string">"c:spans/usage@none"</span>);

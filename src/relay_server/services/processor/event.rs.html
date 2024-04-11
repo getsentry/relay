@@ -866,6 +866,10 @@
 <a href="#864" id="864">864</a>
 <a href="#865" id="865">865</a>
 <a href="#866" id="866">866</a>
+<a href="#867" id="867">867</a>
+<a href="#868" id="868">868</a>
+<a href="#869" id="869">869</a>
+<a href="#870" id="870">870</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Event processor related code.
 
 </span><span class="kw">use </span>std::error::Error;
@@ -948,6 +952,7 @@
         <span class="macro">relay_log::trace!</span>(<span class="string">"processing json transaction"</span>);
         sample_rates = item.take_sample_rates();
         state.event_metrics_extracted = item.metrics_extracted();
+        state.spans_extracted = item.spans_extracted();
         <span class="macro">metric!</span>(timer(RelayTimers::EventProcessingDeserialize), {
             <span class="comment">// Transaction items can only contain transaction events. Force the event type to
             // hint to normalization that we're dealing with a transaction now.
@@ -1250,6 +1255,9 @@
 
     <span class="comment">// If transaction metrics were extracted, set the corresponding item header
     </span>event_item.set_metrics_extracted(state.event_metrics_extracted);
+
+    <span class="comment">// TODO: The state should simply maintain &amp; update an `ItemHeaders` object.
+    </span>event_item.set_spans_extracted(state.spans_extracted);
 
     <span class="comment">// If there are sample rates, write them back to the envelope. In processing mode, sample
     // rates have been removed from the state and burnt into the event via `finalize_event`.

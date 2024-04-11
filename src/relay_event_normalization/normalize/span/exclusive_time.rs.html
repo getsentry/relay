@@ -541,6 +541,11 @@
 <a href="#539" id="539">539</a>
 <a href="#540" id="540">540</a>
 <a href="#541" id="541">541</a>
+<a href="#542" id="542">542</a>
+<a href="#543" id="543">543</a>
+<a href="#544" id="544">544</a>
+<a href="#545" id="545">545</a>
+<a href="#546" id="546">546</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Span attribute materialization.
 
 </span><span class="kw">use </span>std::collections::HashMap;
@@ -584,6 +589,11 @@
     <span class="kw">let </span><span class="prelude-val">Some</span>(trace_context) = contexts.get_mut::&lt;TraceContext&gt;() <span class="kw">else </span>{
         <span class="kw">return</span>;
     };
+
+    <span class="kw">if </span>trace_context.exclusive_time.value().is_some() {
+        <span class="comment">// Exclusive time already set, respect it.
+        </span><span class="kw">return</span>;
+    }
 
     <span class="kw">let </span><span class="prelude-val">Some</span>(span_id) = trace_context.span_id.value() <span class="kw">else </span>{
         <span class="kw">return</span>;
