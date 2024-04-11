@@ -185,6 +185,7 @@ impl ServiceState {
             },
             #[cfg(feature = "processing")]
             metric_stats,
+            #[cfg(feature = "processing")]
             buffer_guard.clone(),
         )
         .spawn_handler(processor_rx);

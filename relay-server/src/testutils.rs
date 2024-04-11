@@ -21,6 +21,7 @@ use crate::services::outcome::TrackOutcome;
 use crate::services::processor::{self, EnvelopeProcessorService};
 use crate::services::project::ProjectState;
 use crate::services::test_store::TestStore;
+#[cfg(feature = "processing")]
 use crate::utils::BufferGuard;
 
 pub fn state_with_rule_and_condition(
@@ -152,6 +153,7 @@ pub fn create_test_processor(config: Config) -> EnvelopeProcessorService {
             GlobalConfigHandle::fixed(Default::default()),
             aggregator,
         ),
+        #[cfg(feature = "processing")]
         Arc::new(BufferGuard::new(usize::MAX)),
     )
 }

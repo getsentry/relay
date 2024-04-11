@@ -180,6 +180,7 @@ pub enum RelayHistograms {
     PartitionKeys,
 
     /// Measures how many transactions were created from segment spans in a single envelope.
+    #[cfg(feature = "processing")]
     TransactionsFromSpansPerEnvelope,
 }
 
@@ -214,6 +215,7 @@ impl HistogramMetric for RelayHistograms {
             RelayHistograms::UpstreamEnvelopeBodySize => "upstream.envelope.body_size",
             RelayHistograms::UpstreamMetricsBodySize => "upstream.metrics.body_size",
             RelayHistograms::PartitionKeys => "metrics.buckets.partition_keys",
+            #[cfg(feature = "processing")]
             RelayHistograms::TransactionsFromSpansPerEnvelope => {
                 "transactions_from_spans_per_envelope"
             }
@@ -649,6 +651,7 @@ pub enum RelayCounters {
     /// - `decision`: "drop" if dynamic sampling drops the envelope, else "keep".
     DynamicSamplingDecision,
     /// Counts how many transactions were created from segment spans.
+    #[cfg(feature = "processing")]
     TransactionsFromSpans,
 }
 
@@ -688,6 +691,7 @@ impl CounterMetric for RelayCounters {
             RelayCounters::OpenTelemetryEvent => "event.opentelemetry",
             RelayCounters::GlobalConfigFetched => "global_config.fetch",
             RelayCounters::DynamicSamplingDecision => "dynamic_sampling_decision",
+            #[cfg(feature = "processing")]
             RelayCounters::TransactionsFromSpans => "transactions_from_spans",
         }
     }

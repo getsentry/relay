@@ -345,6 +345,8 @@ pub fn extract_from_event(
     }
 
     add_span(transaction_span.into());
+
+    state.spans_extracted = true;
 }
 
 /// Removes the transaction in case the project has made the transition to spans-only.

@@ -82,8 +82,10 @@ use crate::services::upstream::{
     SendRequest, UpstreamRelay, UpstreamRequest, UpstreamRequestError,
 };
 use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
+#[cfg(feature = "processing")]
+use crate::utils::BufferGuard;
 use crate::utils::{
-    self, BufferGuard, ExtractionMode, InvalidProcessingGroupType, ManagedEnvelope, SamplingResult,
+    self, ExtractionMode, InvalidProcessingGroupType, ManagedEnvelope, SamplingResult,
     TypedEnvelope,
 };
 
@@ -999,6 +1001,7 @@ impl EnvelopeProcessorService {
             #[cfg(feature = "processing")]
             metric_stats,
             config,
+            #[cfg(feature = "processing")]
             buffer_guard,
         };
 

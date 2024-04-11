@@ -562,6 +562,9 @@ pub struct ItemHeaders {
     ///
     /// This header is set to `true` after both span extraction and span metrics extraction,
     /// and can be used to skip extraction.
+    ///
+    /// NOTE: This header is also set to `true` for transactions that are themselves extracted
+    /// from spans (the opposite direction), to prevent going in circles.
     #[serde(default, skip_serializing_if = "is_false")]
     spans_extracted: bool,
 

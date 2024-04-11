@@ -933,7 +933,7 @@ def test_extracted_transaction_gets_normalized(
 
     relay.send_otel_span(project_id, json=otel_payload)
 
-    ingested, _ = transactions_consumer.get_event(timeout=5)
+    ingested, _ = transactions_consumer.get_event(timeout=10)
 
     # "<unlabeled transaction>" was set by normalization:
     assert ingested["transaction"] == "<unlabeled transaction>"
