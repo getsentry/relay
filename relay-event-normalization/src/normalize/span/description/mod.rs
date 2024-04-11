@@ -32,11 +32,11 @@ const MAX_SEGMENT_LENGTH: usize = 25;
 const MAX_EXTENSION_LENGTH: usize = 10;
 
 /// IP addresses that are preserved during scrubbing
-const IPV4_ALLOW_LIST: [Ipv4Addr; 1] = [Ipv4Addr::LOCALHOST];
-const IPV6_ALLOW_LIST: [Ipv6Addr; 1] = [Ipv6Addr::LOCALHOST];
+const IPV4_ALLOW_LIST: &[Ipv4Addr] = &[Ipv4Addr::LOCALHOST];
+const IPV6_ALLOW_LIST: &[Ipv6Addr] = [&Ipv6Addr::LOCALHOST];
 
 /// Domain names that are preserved during scrubbing
-const DOMAIN_ALLOW_LIST: [&str; 1] = ["localhost"];
+const DOMAIN_ALLOW_LIST: &[&str] = &["localhost"];
 
 /// Attempts to replace identifiers in the span description with placeholders.
 ///
