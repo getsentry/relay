@@ -414,12 +414,13 @@ fn get_normalize_span_config<'a>(
 fn set_segment_attributes(span: &mut Annotated<Span>) {
     let Some(span) = span.value_mut() else { return };
 
-    // TODO: A span might be a segment span even if the parent_id is not empty
-    // (parent within a trace). I.e. do not overwrite here.
-    let is_segment = span.parent_span_id.is_empty();
+    let is_root = span.parent_span_id.is_empty();
 
-    span.is_segment = Annotated::new(is_segment);
-    if is_segment {
+    if is_root && span.is_segment.value().is_empty() {
+        span.is_segment = true.into();
+    }
+
+    if span.is_segment.value() == Some(&true) {
         span.segment_id = span.span_id.clone();
     }
 }
