@@ -65,7 +65,7 @@ impl<'a> ReservoirEvaluator<'a> {
         }
     }
 
-    /// Gets shared ownership of the reference counters.
+    /// Gets shared ownership of the reservoir counters.
     pub fn counters(&self) -> ReservoirCounters {
         Arc::clone(&self.counters)
     }
