@@ -78,6 +78,8 @@ fn span_metrics(transaction_extraction_enabled: bool) -> impl IntoIterator<Item 
         RuleCondition::all()
     };
 
+    let is_ai = RuleCondition::glob("span.op", "ai.*");
+
     let is_db = RuleCondition::eq("span.sentry_tags.category", "db")
         & !(RuleCondition::eq("span.system", "mongodb")
             | RuleCondition::glob("span.op", DISABLED_DATABASES)
@@ -136,8 +138,9 @@ fn span_metrics(transaction_extraction_enabled: bool) -> impl IntoIterator<Item 
         & RuleCondition::glob("span.op", "app.start.*")
         & RuleCondition::eq("span.description", APP_START_ROOT_SPAN_DESCRIPTIONS);
 
-    // `exclusive_time_light` is the metric with the most lenient condition.
+    // `exclusive_time_light` excludes transaction tags (and some others) to reduce cardinality.
     let exclusive_time_light_condition = (is_db.clone()
+        | is_ai.clone()
         | is_resource.clone()
         | is_mobile.clone()
         | is_interaction
@@ -145,7 +148,7 @@ fn span_metrics(transaction_extraction_enabled: bool) -> impl IntoIterator<Item 
         & duration_condition.clone();
 
     let know_modules_condition =
-        (is_db.clone() | is_resource.clone() | is_mobile.clone() | is_http.clone())
+        (is_db.clone() | is_ai.clone() | is_resource.clone() | is_mobile.clone() | is_http.clone())
             & duration_condition.clone();
 
     [
@@ -448,6 +451,26 @@ fn span_metrics(transaction_extraction_enabled: bool) -> impl IntoIterator<Item 
                 Tag::with_key("app_start_type")
                     .from_field("span.sentry_tags.app_start_type")
                     .when(app_start_condition.clone()),
+            ],
+        },
+        MetricSpec {
+            category: DataCategory::Span,
+            mri: "d:spans/ai.total_tokens.used@tokens".into(),
+            field: Some("span.data.ai\\.total_tokens\\.used".into()),
+            condition: Some(is_ai.clone()),
+            tags: vec![
+                Tag::with_key("span.op")
+                    .from_field("span.sentry_tags.op")
+                    .always(),
+                Tag::with_key("environment")
+                    .from_field("span.sentry_tags.environment")
+                    .always(),
+                Tag::with_key("release")
+                    .from_field("span.sentry_tags.release")
+                    .always(),
+                Tag::with_key("span.description")
+                    .from_field("span.sentry_tags.description")
+                    .always(), // already guarded by condition on metric
             ],
         },
         MetricSpec {
