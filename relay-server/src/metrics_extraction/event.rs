@@ -47,31 +47,41 @@ impl Extractable for Span {
 /// If this is a transaction event with spans, metrics will also be extracted from the spans.
 pub fn extract_metrics(
     event: &Event,
+    spans_extracted: bool,
     config: &MetricExtractionConfig,
     max_tag_value_size: usize,
     span_extraction_sample_rate: Option<f32>,
 ) -> Vec<Bucket> {
     let mut metrics = generic::extract_metrics(event, config);
 
-    if !sample(span_extraction_sample_rate.unwrap_or(1.0)) {
-        return metrics;
+    // If spans were already extracted for an event,
+    // we rely on span processing to extract metrics.
+    if !spans_extracted && sample(span_extraction_sample_rate.unwrap_or(1.0)) {
+        extract_span_metrics_for_event(event, config, max_tag_value_size, &mut metrics);
     }
 
+    metrics
+}
+
+fn extract_span_metrics_for_event(
+    event: &Event,
+    config: &MetricExtractionConfig,
+    max_tag_value_size: usize,
+    output: &mut Vec<Bucket>,
+) {
     relay_statsd::metric!(timer(RelayTimers::EventProcessingSpanMetricsExtraction), {
         if let Some(transaction_span) = extract_transaction_span(event, max_tag_value_size) {
-            metrics.extend(generic::extract_metrics(&transaction_span, config));
+            output.extend(generic::extract_metrics(&transaction_span, config));
         }
 
         if let Some(spans) = event.spans.value() {
             for annotated_span in spans {
                 if let Some(span) = annotated_span.value() {
-                    metrics.extend(generic::extract_metrics(span, config));
+                    output.extend(generic::extract_metrics(span, config));
                 }
             }
         }
     });
-
-    metrics
 }
 
 #[cfg(test)]
@@ -1037,7 +1047,7 @@ mod tests {
         project.sanitize();
 
         let config = project.metric_extraction.ok().unwrap();
-        let metrics = extract_metrics(event.value().unwrap(), &config, 200, None);
+        let metrics = extract_metrics(event.value().unwrap(), false, &config, 200, None);
         insta::assert_debug_snapshot!(metrics);
     }
 
@@ -1172,7 +1182,7 @@ mod tests {
         project.sanitize();
 
         let config = project.metric_extraction.ok().unwrap();
-        let metrics = extract_metrics(event.value().unwrap(), &config, 200, None);
+        let metrics = extract_metrics(event.value().unwrap(), false, &config, 200, None);
         insta::assert_debug_snapshot!((&event.value().unwrap().spans, metrics));
     }
 
@@ -1233,7 +1243,7 @@ mod tests {
         project.sanitize();
 
         let config = project.metric_extraction.ok().unwrap();
-        let metrics = extract_metrics(event.value().unwrap(), &config, 200, None);
+        let metrics = extract_metrics(event.value().unwrap(), false, &config, 200, None);
 
         // When transaction.op:ui.load and mobile:true, HTTP spans still get both
         // exclusive_time metrics:
@@ -1269,7 +1279,7 @@ mod tests {
         project.sanitize();
 
         let config = project.metric_extraction.ok().unwrap();
-        let metrics = extract_metrics(event.value().unwrap(), &config, 200, None);
+        let metrics = extract_metrics(event.value().unwrap(), false, &config, 200, None);
 
         let usage_metrics = metrics
             .into_iter()
@@ -1495,7 +1505,7 @@ mod tests {
         project.sanitize();
 
         let config = project.metric_extraction.ok().unwrap();
-        let metrics = extract_metrics(event.value().unwrap(), &config, 200, None);
+        let metrics = extract_metrics(event.value().unwrap(), false, &config, 200, None);
 
         assert_eq!(metrics.len(), 4);
         assert_eq!(&*metrics[0].name, "c:spans/usage@none");

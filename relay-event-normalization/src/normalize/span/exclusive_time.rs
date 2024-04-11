@@ -42,6 +42,11 @@ fn set_event_exclusive_time(
         return;
     };
 
+    if trace_context.exclusive_time.value().is_some() {
+        // Exclusive time already set, respect it.
+        return;
+    }
+
     let Some(span_id) = trace_context.span_id.value() else {
         return;
     };

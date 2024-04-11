@@ -316,6 +316,11 @@ impl<D> RequestMeta<D> {
     pub fn is_from_internal_relay(&self) -> bool {
         self.from_internal_relay
     }
+
+    /// Overwrite internal property.
+    pub fn set_from_internal_relay(&mut self, value: bool) {
+        self.from_internal_relay = value;
+    }
 }
 
 impl RequestMeta {

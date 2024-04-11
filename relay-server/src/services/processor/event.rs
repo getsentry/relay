@@ -80,6 +80,7 @@ pub fn extract<G: EventProcessing>(
         relay_log::trace!("processing json transaction");
         sample_rates = item.take_sample_rates();
         state.event_metrics_extracted = item.metrics_extracted();
+        state.spans_extracted = item.spans_extracted();
         metric!(timer(RelayTimers::EventProcessingDeserialize), {
             // Transaction items can only contain transaction events. Force the event type to
             // hint to normalization that we're dealing with a transaction now.
@@ -382,6 +383,9 @@ pub fn serialize<G: EventProcessing>(
 
     // If transaction metrics were extracted, set the corresponding item header
     event_item.set_metrics_extracted(state.event_metrics_extracted);
+
+    // TODO: The state should simply maintain & update an `ItemHeaders` object.
+    event_item.set_spans_extracted(state.spans_extracted);
 
     // If there are sample rates, write them back to the envelope. In processing mode, sample
     // rates have been removed from the state and burnt into the event via `finalize_event`.

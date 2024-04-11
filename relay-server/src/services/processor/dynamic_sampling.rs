@@ -497,6 +497,7 @@ mod tests {
                 profile_id: None,
                 event_metrics_extracted: false,
                 reservoir: dummy_reservoir(),
+                spans_extracted: false,
             }
         };
 
