@@ -649,6 +649,17 @@
 <a href="#647" id="647">647</a>
 <a href="#648" id="648">648</a>
 <a href="#649" id="649">649</a>
+<a href="#650" id="650">650</a>
+<a href="#651" id="651">651</a>
+<a href="#652" id="652">652</a>
+<a href="#653" id="653">653</a>
+<a href="#654" id="654">654</a>
+<a href="#655" id="655">655</a>
+<a href="#656" id="656">656</a>
+<a href="#657" id="657">657</a>
+<a href="#658" id="658">658</a>
+<a href="#659" id="659">659</a>
+<a href="#660" id="660">660</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Contains the processing-only functionality.
 
 </span><span class="kw">use </span>std::error::Error;
@@ -666,6 +677,7 @@
 };
 <span class="kw">use </span>relay_event_schema::processor::{process_value, ProcessingState};
 <span class="kw">use </span>relay_event_schema::protocol::{BrowserContext, Contexts, Event, Span, SpanData};
+<span class="kw">use </span>relay_log::protocol::{Attachment, AttachmentType};
 <span class="kw">use </span>relay_metrics::{aggregator::AggregatorConfig, MetricNamespace, UnixTimestamp};
 <span class="kw">use </span>relay_pii::PiiProcessor;
 <span class="kw">use </span>relay_protocol::{Annotated, Empty};
@@ -776,12 +788,23 @@
         </span><span class="kw">match </span>validate(<span class="kw-2">&amp;mut </span>annotated_span) {
             <span class="prelude-val">Ok</span>(res) =&gt; res,
             <span class="prelude-val">Err</span>(err) =&gt; {
-                <span class="macro">relay_log::error!</span>(
-                    error = <span class="kw-2">&amp;</span>err <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error,
-                    span = <span class="question-mark">?</span>annotated_span,
-                    source = <span class="string">"standalone"</span>,
-                    <span class="string">"invalid span"
-                </span>);
+                relay_log::with_scope(
+                    |scope| {
+                        scope.add_attachment(Attachment {
+                            buffer: annotated_span.to_json().unwrap_or_default().into(),
+                            filename: <span class="string">"span.json"</span>.to_owned(),
+                            content_type: <span class="prelude-val">Some</span>(<span class="string">"application/json"</span>.to_owned()),
+                            ty: <span class="prelude-val">Some</span>(AttachmentType::Attachment),
+                        })
+                    },
+                    || {
+                        <span class="macro">relay_log::error!</span>(
+                            error = <span class="kw-2">&amp;</span>err <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error,
+                            source = <span class="string">"standalone"</span>,
+                            <span class="string">"invalid span"
+                        </span>)
+                    },
+                );
                 <span class="kw">return </span>ItemAction::Drop(Outcome::Invalid(DiscardReason::InvalidSpan));
             }
         };
@@ -838,7 +861,6 @@
                     <span class="string">"invalid span"
                 </span>);
 
-                <span class="macro">relay_log::error!</span>(<span class="string">"Invalid span: {e}"</span>);
                 state.managed_envelope.track_outcome(
                     Outcome::Invalid(DiscardReason::InvalidSpan),
                     relay_quotas::DataCategory::SpanIndexed,
