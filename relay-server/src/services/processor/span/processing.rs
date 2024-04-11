@@ -29,6 +29,11 @@ use crate::services::processor::{
     TransactionGroup,
 };
 use crate::utils::{sample, ItemAction, ManagedEnvelope};
+use thiserror::Error;
+
+#[derive(Error, Debug)]
+#[error(transparent)]
+struct ValidationError(#[from] anyhow::Error);
 
 pub fn process(
     state: &mut ProcessEnvelopeState<SpanGroup>,
@@ -132,10 +137,15 @@ pub fn process(
         .ok();
 
         // Validate for kafka (TODO: this should be moved to kafka producer)
-        let annotated_span = match validate(annotated_span) {
+        match validate(&mut annotated_span) {
             Ok(res) => res,
             Err(err) => {
-                relay_log::error!("invalid span: {err}");
+                relay_log::error!(
+                    error = &err as &dyn Error,
+                    span = ?annotated_span,
+                    source = "standalone",
+                    "invalid span"
+                );
                 return ItemAction::Drop(Outcome::Invalid(DiscardReason::InvalidSpan));
             }
         };
@@ -216,10 +226,17 @@ pub fn extract_from_event(
         }
     }
 
-    let mut add_span = |span: Annotated<Span>| {
-        let span = match validate(span) {
+    let mut add_span = |mut span: Annotated<Span>| {
+        match validate(&mut span) {
             Ok(span) => span,
             Err(e) => {
+                relay_log::error!(
+                    error = &e as &dyn Error,
+                    span = ?span,
+                    source = "event",
+                    "invalid span"
+                );
+
                 relay_log::error!("Invalid span: {e}");
                 state.managed_envelope.track_outcome(
                     Outcome::Invalid(DiscardReason::InvalidSpan),
@@ -484,13 +501,13 @@ fn scrub(
 }
 
 /// We do not extract or ingest spans with missing fields if those fields are required on the Kafka topic.
-#[cfg(feature = "processing")]
-fn validate(mut span: Annotated<Span>) -> Result<Annotated<Span>, anyhow::Error> {
+fn validate(span: &mut Annotated<Span>) -> Result<(), ValidationError> {
     let inner = span
         .value_mut()
         .as_mut()
         .ok_or(anyhow::anyhow!("empty span"))?;
     let Span {
+        ref exclusive_time,
         ref mut tags,
         ref mut sentry_tags,
         ref mut start_timestamp,
@@ -510,18 +527,26 @@ fn validate(mut span: Annotated<Span>) -> Result<Annotated<Span>, anyhow::Error>
     match (start_timestamp.value(), timestamp.value()) {
         (Some(start), Some(end)) => {
             if end < start {
-                return Err(anyhow::anyhow!(
+                return Err(ValidationError(anyhow::anyhow!(
                     "end timestamp is smaller than start timestamp"
-                ));
+                )));
             }
         }
         (_, None) => {
-            return Err(anyhow::anyhow!("timestamp hard-required for spans"));
+            return Err(ValidationError(anyhow::anyhow!(
+                "timestamp hard-required for spans"
+            )));
         }
         (None, _) => {
-            return Err(anyhow::anyhow!("start_timestamp hard-required for spans"));
+            return Err(ValidationError(anyhow::anyhow!(
+                "start_timestamp hard-required for spans"
+            )));
         }
     }
+
+    exclusive_time
+        .value()
+        .ok_or(anyhow::anyhow!("missing exclusive_time"))?;
 
     if let Some(sentry_tags) = sentry_tags.value_mut() {
         sentry_tags.retain(|key, value| match value.value() {
@@ -543,7 +568,7 @@ fn validate(mut span: Annotated<Span>) -> Result<Annotated<Span>, anyhow::Error>
         tags.retain(|_, value| !value.value().is_empty())
     }
 
-    Ok(span)
+    Ok(())
 }
 
 fn convert_to_transaction(annotated_span: &Annotated<Span>) -> Option<Event> {
