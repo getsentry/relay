@@ -236,6 +236,7 @@ impl StoreService {
                     let global_config = self.global_config.current();
                     let feedback_ingest_topic_rollout_rate =
                         global_config.options.feedback_ingest_topic_rollout_rate;
+                    let remote_addr = envelope.meta().client_addr().map(|addr| addr.to_string());
 
                     self.produce_user_report_v2(
                         event_id.ok_or(StoreError::NoEventId)?,
@@ -243,8 +244,9 @@ impl StoreService {
                         scoping.project_id,
                         start_time,
                         item,
+                        remote_addr,
                         is_rolled_out(scoping.organization_id, feedback_ingest_topic_rollout_rate),
-                    );
+                    )?;
                 }
                 ItemType::Profile => self.produce_profile(
                     scoping.organization_id,
@@ -670,14 +672,17 @@ impl StoreService {
         project_id: ProjectId,
         start_time: Instant,
         item: &Item,
+        remote_addr: Option<String>,
         use_feedback_topic: bool,
     ) -> Result<(), StoreError> {
-        // TODO:
-        let message = KafkaMessage::UserReportV2(UserReportV2KafkaMessage {
+        // TODO: now that feedback is on its own topic, make it its own type of KafkaMessage
+        let message = KafkaMessage::Event(EventKafkaMessage {
             project_id,
             event_id,
             payload: item.payload(),
             start_time: UnixTimestamp::from_instant(start_time).as_secs(),
+            remote_addr,
+            attachments: vec![],
         });
 
         let topic = if use_feedback_topic {
@@ -1527,7 +1532,6 @@ enum KafkaMessage<'a> {
     Attachment(AttachmentKafkaMessage),
     AttachmentChunk(AttachmentChunkKafkaMessage),
     UserReport(UserReportKafkaMessage),
-    UserReportV2(UserReportV2KafkaMessage),
     Metric {
         #[serde(skip)]
         headers: BTreeMap<String, String>,
@@ -1556,8 +1560,6 @@ impl Message for KafkaMessage<'_> {
             KafkaMessage::Attachment(_) => "attachment",
             KafkaMessage::AttachmentChunk(_) => "attachment_chunk",
             KafkaMessage::UserReport(_) => "user_report",
-            KafkaMessage::UserReportV2(_) => "event",
-            /// TODO: give feedback its own type?
             KafkaMessage::Metric { message, .. } => match message.name.namespace() {
                 MetricNamespace::Sessions => "metric_sessions",
                 MetricNamespace::Transactions => "metric_transactions",
@@ -1585,7 +1587,6 @@ impl Message for KafkaMessage<'_> {
             Self::Attachment(message) => message.event_id.0,
             Self::AttachmentChunk(message) => message.event_id.0,
             Self::UserReport(message) => message.event_id.0,
-            Self::UserReportV2(message) => message.event_id.0,
             Self::ReplayEvent(message) => message.replay_id.0,
             Self::Span { message, .. } => message.trace_id.0,
 
