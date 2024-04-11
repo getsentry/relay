@@ -814,6 +814,60 @@ def test_span_ingestion(
     metrics_consumer.assert_empty()
 
 
+def test_ai_span_metric_extraction(
+    mini_sentry,
+    relay_with_processing,
+    spans_consumer,
+    metrics_consumer,
+):
+
+    relay = relay_with_processing(options=TEST_CONFIG)
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = [
+        "projects:span-metrics-extraction",
+    ]
+    project_config["config"]["transactionMetrics"] = {
+        "version": 3,
+    }
+
+    spans_consumer = spans_consumer()
+    metrics_consumer = metrics_consumer()
+
+    event = make_transaction({"event_id": "cbf6960622e14a45abc1f03b2055b186"})
+    end = datetime.now(timezone.utc) - timedelta(seconds=1)
+    duration = timedelta(milliseconds=500)
+    start = end - duration
+    event["spans"] = [
+        {
+            "description": "Autofix pipeline",
+            "op": "ai.langchain.run",
+            "parent_span_id": "aaaaaaaaaaaaaaaa",
+            "span_id": "bbbbbbbbbbbbbbbb",
+            "start_timestamp": start.isoformat(),
+            "timestamp": end.isoformat(),
+            "trace_id": "ff62a8b040f340bda5d830223def1d81",
+            "data": {
+                "ai.total_tokens.used": 20,
+            },
+        },
+    ]
+
+    relay.send_event(project_id, event)
+
+    spans = list(spans_consumer.get_spans(max_attempts=2))
+
+    assert len(spans) == 2
+    metrics = list(metrics_consumer.get_metrics())
+    span_metrics = [m.get("name") for (m, _) in metrics if ":spans/" in m["name"]]
+    assert "d:spans/exclusive_time@millisecond" in span_metrics
+    assert "c:spans/ai.total_tokens.used@none" in span_metrics
+    assert "d:spans/exclusive_time_light@millisecond" in span_metrics
+
+    spans_consumer.assert_empty()
+    metrics_consumer.assert_empty()
+
+
 def test_span_extraction_with_metrics_summary(
     mini_sentry,
     relay_with_processing,

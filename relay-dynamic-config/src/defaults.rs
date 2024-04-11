@@ -455,7 +455,7 @@ fn span_metrics(transaction_extraction_enabled: bool) -> impl IntoIterator<Item 
         },
         MetricSpec {
             category: DataCategory::Span,
-            mri: "d:spans/ai.total_tokens.used@tokens".into(),
+            mri: "c:spans/ai.total_tokens.used@none".into(),
             field: Some("span.data.ai\\.total_tokens\\.used".into()),
             condition: Some(is_ai.clone()),
             tags: vec![
@@ -470,6 +470,15 @@ fn span_metrics(transaction_extraction_enabled: bool) -> impl IntoIterator<Item 
                     .always(),
                 Tag::with_key("span.description")
                     .from_field("span.sentry_tags.description")
+                    .always(), // already guarded by condition on metric
+                Tag::with_key("span.domain")
+                    .from_field("span.sentry_tags.domain")
+                    .always(), // already guarded by condition on metric
+                Tag::with_key("span.group")
+                    .from_field("span.sentry_tags.group")
+                    .always(), // already guarded by condition on metric
+                Tag::with_key("span.op")
+                    .from_field("span.sentry_tags.op")
                     .always(), // already guarded by condition on metric
             ],
         },
