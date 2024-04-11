@@ -83,7 +83,7 @@ use crate::services::upstream::{
 };
 use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
 use crate::utils::{
-    self, ExtractionMode, InvalidProcessingGroupType, ManagedEnvelope, SamplingResult,
+    self, BufferGuard, ExtractionMode, InvalidProcessingGroupType, ManagedEnvelope, SamplingResult,
     TypedEnvelope,
 };
 
@@ -943,6 +943,8 @@ struct InnerProcessor {
     cardinality_limiter: Option<CardinalityLimiter>,
     #[cfg(feature = "processing")]
     metric_stats: MetricStats,
+    #[cfg(feature = "processing")]
+    buffer_guard: Arc<BufferGuard>,
 }
 
 impl EnvelopeProcessorService {
@@ -954,6 +956,7 @@ impl EnvelopeProcessorService {
         #[cfg(feature = "processing")] redis: Option<RedisPool>,
         addrs: Addrs,
         #[cfg(feature = "processing")] metric_stats: MetricStats,
+        #[cfg(feature = "processing")] buffer_guard: Arc<BufferGuard>,
     ) -> Self {
         let geoip_lookup = config.geoip_path().and_then(|p| {
             match GeoIpLookup::open(p).context(ServiceError::GeoIp) {
@@ -996,6 +999,7 @@ impl EnvelopeProcessorService {
             #[cfg(feature = "processing")]
             metric_stats,
             config,
+            buffer_guard,
         };
 
         Self {
@@ -1562,6 +1566,7 @@ impl EnvelopeProcessorService {
                 self.inner.config.clone(),
                 &global_config,
                 &self.inner.addrs,
+                &self.inner.buffer_guard,
             );
             self.enforce_quotas(state)?;
         });

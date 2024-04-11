@@ -108,7 +108,7 @@ impl ServiceState {
             _ => None,
         };
 
-        let buffer = Arc::new(BufferGuard::new(config.envelope_buffer_size()));
+        let buffer_guard = Arc::new(BufferGuard::new(config.envelope_buffer_size()));
 
         // Create an address for the `EnvelopeProcessor`, which can be injected into the
         // other services.
@@ -185,6 +185,7 @@ impl ServiceState {
             },
             #[cfg(feature = "processing")]
             metric_stats,
+            buffer_guard.clone(),
         )
         .spawn_handler(processor_rx);
 
@@ -201,7 +202,7 @@ impl ServiceState {
         let guard = runtimes.project.enter();
         ProjectCacheService::new(
             config.clone(),
-            buffer.clone(),
+            buffer_guard.clone(),
             project_cache_services,
             redis_pool,
         )
@@ -237,7 +238,7 @@ impl ServiceState {
         };
 
         let state = StateInner {
-            buffer_guard: buffer,
+            buffer_guard,
             config,
             registry,
         };

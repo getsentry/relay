@@ -30,7 +30,7 @@ use crate::services::processor::{
     TransactionGroup,
 };
 use crate::statsd::{RelayCounters, RelayHistograms};
-use crate::utils::{sample, ItemAction, ManagedEnvelope};
+use crate::utils::{sample, BufferGuard, ItemAction};
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -42,6 +42,7 @@ pub fn process(
     config: Arc<Config>,
     global_config: &GlobalConfig,
     addrs: &Addrs,
+    buffer_guard: &BufferGuard,
 ) {
     use relay_event_normalization::RemoveOtherProcessor;
 
@@ -201,20 +202,35 @@ pub fn process(
 
                 transaction_count += 1;
 
-                addrs.envelope_processor.send(ProcessEnvelope {
-                    envelope: ManagedEnvelope::standalone(
-                        envelope,
-                        addrs.outcome_aggregator.clone(),
-                        addrs.test_store.clone(),
-                        ProcessingGroup::Transaction,
-                    ),
-                    project_state: state.project_state.clone(),
-                    sampling_project_state: state.sampling_project_state.clone(),
-                    reservoir_counters: state.reservoir.counters(),
-                });
+                let managed_envelope = buffer_guard.enter(
+                    envelope,
+                    addrs.outcome_aggregator.clone(),
+                    addrs.test_store.clone(),
+                    ProcessingGroup::Transaction,
+                );
+
+                match managed_envelope {
+                    Ok(managed_envelope) => {
+                        addrs.envelope_processor.send(ProcessEnvelope {
+                            envelope: managed_envelope,
+                            project_state: state.project_state.clone(),
+                            sampling_project_state: state.sampling_project_state.clone(),
+                            reservoir_counters: state.reservoir.counters(),
+                        });
+                    }
+                    Err(e) => {
+                        relay_log::error!(
+                            error = &e as &dyn Error,
+                            "Failed to obtain permit for spinoff envelope:"
+                        );
+                    }
+                }
             }
             Err(e) => {
-                relay_log::error!("Failed to create event envelope: {e}");
+                relay_log::error!(
+                    error = &e as &dyn Error,
+                    "Failed to create spinoff envelope:"
+                );
             }
         }
     }
