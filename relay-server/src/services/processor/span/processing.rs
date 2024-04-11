@@ -15,6 +15,7 @@ use relay_event_normalization::{
 };
 use relay_event_schema::processor::{process_value, ProcessingState};
 use relay_event_schema::protocol::{BrowserContext, Contexts, Event, Span, SpanData};
+use relay_log::protocol::{Attachment, AttachmentType};
 use relay_metrics::{aggregator::AggregatorConfig, MetricNamespace, UnixTimestamp};
 use relay_pii::PiiProcessor;
 use relay_protocol::{Annotated, Empty};
@@ -28,6 +29,11 @@ use crate::services::processor::{
     ProcessEnvelopeState, ProcessingError, SpanGroup, TransactionGroup,
 };
 use crate::utils::{sample, ItemAction};
+use thiserror::Error;
+
+#[derive(Error, Debug)]
+#[error(transparent)]
+struct ValidationError(#[from] anyhow::Error);
 
 pub fn process(
     state: &mut ProcessEnvelopeState<SpanGroup>,
@@ -117,10 +123,26 @@ pub fn process(
         .ok();
 
         // Validate for kafka (TODO: this should be moved to kafka producer)
-        let annotated_span = match validate(annotated_span) {
+        match validate(&mut annotated_span) {
             Ok(res) => res,
             Err(err) => {
-                relay_log::error!("invalid span: {err}");
+                relay_log::with_scope(
+                    |scope| {
+                        scope.add_attachment(Attachment {
+                            buffer: annotated_span.to_json().unwrap_or_default().into(),
+                            filename: "span.json".to_owned(),
+                            content_type: Some("application/json".to_owned()),
+                            ty: Some(AttachmentType::Attachment),
+                        })
+                    },
+                    || {
+                        relay_log::error!(
+                            error = &err as &dyn Error,
+                            source = "standalone",
+                            "invalid span"
+                        )
+                    },
+                );
                 return ItemAction::Drop(Outcome::Invalid(DiscardReason::InvalidSpan));
             }
         };
@@ -166,11 +188,17 @@ pub fn extract_from_event(
         }
     }
 
-    let mut add_span = |span: Annotated<Span>| {
-        let span = match validate(span) {
+    let mut add_span = |mut span: Annotated<Span>| {
+        match validate(&mut span) {
             Ok(span) => span,
             Err(e) => {
-                relay_log::error!("Invalid span: {e}");
+                relay_log::error!(
+                    error = &e as &dyn Error,
+                    span = ?span,
+                    source = "event",
+                    "invalid span"
+                );
+
                 state.managed_envelope.track_outcome(
                     Outcome::Invalid(DiscardReason::InvalidSpan),
                     relay_quotas::DataCategory::SpanIndexed,
@@ -434,13 +462,13 @@ fn scrub(
 }
 
 /// We do not extract or ingest spans with missing fields if those fields are required on the Kafka topic.
-#[cfg(feature = "processing")]
-fn validate(mut span: Annotated<Span>) -> Result<Annotated<Span>, anyhow::Error> {
+fn validate(span: &mut Annotated<Span>) -> Result<(), ValidationError> {
     let inner = span
         .value_mut()
         .as_mut()
         .ok_or(anyhow::anyhow!("empty span"))?;
     let Span {
+        ref exclusive_time,
         ref mut tags,
         ref mut sentry_tags,
         ref mut start_timestamp,
@@ -460,18 +488,26 @@ fn validate(mut span: Annotated<Span>) -> Result<Annotated<Span>, anyhow::Error>
     match (start_timestamp.value(), timestamp.value()) {
         (Some(start), Some(end)) => {
             if end < start {
-                return Err(anyhow::anyhow!(
+                return Err(ValidationError(anyhow::anyhow!(
                     "end timestamp is smaller than start timestamp"
-                ));
+                )));
             }
         }
         (_, None) => {
-            return Err(anyhow::anyhow!("timestamp hard-required for spans"));
+            return Err(ValidationError(anyhow::anyhow!(
+                "timestamp hard-required for spans"
+            )));
         }
         (None, _) => {
-            return Err(anyhow::anyhow!("start_timestamp hard-required for spans"));
+            return Err(ValidationError(anyhow::anyhow!(
+                "start_timestamp hard-required for spans"
+            )));
         }
     }
+
+    exclusive_time
+        .value()
+        .ok_or(anyhow::anyhow!("missing exclusive_time"))?;
 
     if let Some(sentry_tags) = sentry_tags.value_mut() {
         sentry_tags.retain(|key, value| match value.value() {
@@ -493,7 +529,7 @@ fn validate(mut span: Annotated<Span>) -> Result<Annotated<Span>, anyhow::Error>
         tags.retain(|_, value| !value.value().is_empty())
     }
 
-    Ok(span)
+    Ok(())
 }
 
 #[cfg(test)]
