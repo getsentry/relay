@@ -210,7 +210,7 @@ fn scrub_file(description: &str) -> Option<String> {
 /// # Returns
 ///
 /// A host `String`, or `None` if scrubbing fails.
-pub fn scrub_host(host: Host<&str>) -> Cow<'static, str> {
+pub fn scrub_host(host: Host<&str>) -> Cow<'_, str> {
     match host {
         Host::Ipv4(ip) => scrub_ipv4(ip),
         Host::Ipv6(ip) => scrub_ipv6(ip),
