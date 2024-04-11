@@ -17,12 +17,12 @@ use sqlparser::ast::Visit;
 use sqlparser::ast::{ObjectName, Visitor};
 use url::Url;
 
-use crate::span::description::scrub_span_description;
+use crate::span::description::{
+    concatenate_host_and_port, scrub_domain_name, scrub_span_description,
+};
 use crate::utils::{
     extract_transaction_op, http_status_code_from_span, MAIN_THREAD_NAME, MOBILE_SDKS,
 };
-
-use super::description::{concatenate_host_and_port, scrub_domain_name};
 
 /// A list of supported span tags for tag extraction.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
