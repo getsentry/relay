@@ -43,7 +43,7 @@ fn set_event_exclusive_time(
     };
 
     if trace_context.exclusive_time.value().is_some() {
-        // Exclusive time already set, respect.
+        // Exclusive time already set, respect it.
         return;
     }
 
