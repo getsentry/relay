@@ -174,8 +174,8 @@ fn scrub_http(string: &str) -> Option<String> {
     let scrubbed = match Url::parse(url) {
         Ok(url) => {
             let scheme = url.scheme();
-            let scrubbed_host = url.host().map(scrub_host).unwrap_or(Cow::Borrowed(""));
-            let domain = concatenate_host_and_port(Some(scrubbed_host.as_ref()), url.port());
+            let scrubbed_host = url.host().map(scrub_host);
+            let domain = concatenate_host_and_port(scrubbed_host.as_deref(), url.port());
 
             format!("{method} {scheme}://{domain}")
         }
@@ -349,8 +349,8 @@ fn scrub_resource(resource_type: &str, string: &str) -> Option<String> {
             return Some("browser-extension://*".to_owned());
         }
         scheme => {
-            let scrubbed_host = url.host().map(scrub_host).unwrap_or(Cow::Borrowed(""));
-            let domain = concatenate_host_and_port(Some(scrubbed_host.as_ref()), url.port());
+            let scrubbed_host = url.host().map(scrub_host);
+            let domain = concatenate_host_and_port(scrubbed_host.as_deref(), url.port());
 
             let segment_count = url.path_segments().map(|s| s.count()).unwrap_or_default();
             let mut output_segments = vec![];
