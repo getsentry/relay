@@ -271,11 +271,11 @@ pub fn scrub_domain_name(domain: String) -> String {
     let domain = tokens.next();
     let prefix = tokens.next().map(|_| "*");
 
-    return prefix
+    prefix
         .iter()
         .chain(domain.iter())
         .chain(tld.iter())
-        .join(".");
+        .join(".")
 }
 
 /// Concatenate an optional host and port
