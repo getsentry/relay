@@ -4,7 +4,6 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write;
 use std::net::IpAddr;
 use std::ops::ControlFlow;
-use std::str::FromStr;
 
 use once_cell::sync::Lazy;
 use regex::Regex;
@@ -377,7 +376,7 @@ pub fn extract_tags(
                     };
 
                     // Leave IP addresses alone. Scrub qualified domain names
-                    let domain = if let Ok(address) = IpAddr::from_str(domain) {
+                    let domain = if let Ok(address) = domain.parse::<IpAddr>() {
                         address.to_string()
                     } else {
                         scrub_domain_name(domain.to_string())
