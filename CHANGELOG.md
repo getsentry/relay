@@ -2,10 +2,6 @@
 
 ## Unreleased
 
-**Bug fixes:**
-
-- Fix performance regression in disk spooling by using page counts to estimate the spool size. ([#3379](https://github.com/getsentry/relay/pull/3379))
-
 **Features**:
 
 - Add support for continuous profiling. ([#3270](https://github.com/getsentry/relay/pull/3270))
@@ -23,7 +19,9 @@
 
 **Bug Fixes**:
 
+- Fix performance regression in disk spooling by using page counts to estimate the spool size. ([#3379](https://github.com/getsentry/relay/pull/3379))
 - Allow spans with no `exclusive_time`. ([#3385](https://github.com/getsentry/relay/pull/3385))
+- Perform clock drift normalization only when `sent_at` is set in the `Envelope` headers. ([#3405](https://github.com/getsentry/relay/pull/3405))
 
 **Internal**:
 
