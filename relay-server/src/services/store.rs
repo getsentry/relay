@@ -33,7 +33,9 @@ use crate::services::global_config::GlobalConfigHandle;
 use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::services::processor::Processed;
 use crate::statsd::RelayCounters;
-use crate::utils::{self, ArrayEncoding, BucketEncoder, ExtractionMode, TypedEnvelope};
+use crate::utils::{
+    self, is_rolled_out, ArrayEncoding, BucketEncoder, ExtractionMode, TypedEnvelope,
+};
 
 /// Fallback name used for attachment items without a `filename` header.
 const UNNAMED_ATTACHMENT: &str = "Unnamed Attachment";
@@ -184,6 +186,7 @@ impl StoreService {
     ) -> Result<(), StoreError> {
         let retention = envelope.retention();
         let event_id = envelope.event_id();
+
         let event_item = envelope.as_mut().take_item_by(|item| {
             matches!(
                 item.ty(),
@@ -199,6 +202,17 @@ impl StoreService {
             KafkaTopic::Attachments
         } else if event_item.as_ref().map(|x| x.ty()) == Some(&ItemType::Transaction) {
             KafkaTopic::Transactions
+        } else if event_item.as_ref().map(|x| x.ty()) == Some(&ItemType::UserReportV2) {
+            let feedback_ingest_topic_rollout_rate = self
+                .global_config
+                .current()
+                .options
+                .feedback_ingest_topic_rollout_rate;
+            if is_rolled_out(scoping.organization_id, feedback_ingest_topic_rollout_rate) {
+                KafkaTopic::Feedback
+            } else {
+                KafkaTopic::Events
+            }
         } else {
             KafkaTopic::Events
         };
@@ -1350,7 +1364,6 @@ struct SpanKafkaMessage<'a> {
     start_timestamp: f64,
     #[serde(rename(deserialize = "timestamp"), skip_serializing)]
     end_timestamp: f64,
-
     #[serde(default, skip_serializing_if = "Option::is_none")]
     description: Option<&'a RawValue>,
     #[serde(default)]
@@ -1385,12 +1398,19 @@ struct SpanKafkaMessage<'a> {
     span_id: &'a str,
     #[serde(default)]
     start_timestamp_ms: u64,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "none_or_empty_object")]
     tags: Option<&'a RawValue>,
-    trace_id: &'a str,
+    trace_id: EventId,
 
     #[serde(borrow, default, skip_serializing)]
     platform: Cow<'a, str>, // We only use this for logging for now
+}
+
+fn none_or_empty_object(value: &Option<&RawValue>) -> bool {
+    match value {
+        None => true,
+        Some(raw) => raw.get() == "{}",
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -1427,7 +1447,7 @@ struct MetricsSummaryKafkaMessage<'a> {
     retention_days: u16,
     segment_id: &'a str,
     span_id: &'a str,
-    trace_id: &'a str,
+    trace_id: EventId,
 
     count: u64,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -1518,6 +1538,7 @@ impl Message for KafkaMessage<'_> {
             Self::AttachmentChunk(message) => message.event_id.0,
             Self::UserReport(message) => message.event_id.0,
             Self::ReplayEvent(message) => message.replay_id.0,
+            Self::Span { message, .. } => message.trace_id.0,
 
             // Monitor check-ins use the hinted UUID passed through from the Envelope.
             //
@@ -1528,7 +1549,6 @@ impl Message for KafkaMessage<'_> {
             // Random partitioning
             Self::Profile(_)
             | Self::ReplayRecordingNotChunked(_)
-            | Self::Span { .. }
             | Self::MetricsSummary(_)
             | Self::Cogs(_)
             | Self::ProfileChunk(_) => Uuid::nil(),

@@ -1390,6 +1390,82 @@ mod tests {
         assert_eq!(&second, &third, "idempotency check failed");
     }
 
+    /// Validate full normalization is idempotent.
+    ///
+    /// Both PoPs and processing relays will temporarily run full normalization
+    /// in events, during the rollout of running normalization once in internal
+    /// relays.
+    // TODO(iker): remove this test after the rollout is done.
+    #[test]
+    fn test_full_normalization_is_idempotent() {
+        let start = Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap();
+        let end = Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 10).unwrap();
+        let mut event = Annotated::new(Event {
+            ty: Annotated::new(EventType::Transaction),
+            transaction: Annotated::new("/".to_owned()),
+            timestamp: Annotated::new(end.into()),
+            start_timestamp: Annotated::new(start.into()),
+            contexts: {
+                let mut contexts = Contexts::new();
+                contexts.add(TraceContext {
+                    trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
+                    span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
+                    op: Annotated::new("http.server".to_owned()),
+                    ..Default::default()
+                });
+                Annotated::new(contexts)
+            },
+            spans: Annotated::new(vec![Annotated::new(Span {
+                timestamp: Annotated::new(
+                    Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 10).unwrap().into(),
+                ),
+                start_timestamp: Annotated::new(
+                    Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into(),
+                ),
+                trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
+                span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
+
+                ..Default::default()
+            })]),
+            ..Default::default()
+        });
+
+        fn remove_received_from_event(event: &mut Annotated<Event>) -> &mut Annotated<Event> {
+            relay_event_schema::processor::apply(event, |e, _m| {
+                e.received = Annotated::empty();
+                Ok(())
+            })
+            .unwrap();
+            event
+        }
+
+        let full_normalization_config = NormalizationConfig {
+            is_renormalize: false,
+            enable_trimming: true,
+            remove_other: true,
+            emit_event_errors: true,
+            ..Default::default()
+        };
+
+        normalize_event(&mut event, &full_normalization_config);
+        let first = remove_received_from_event(&mut event.clone())
+            .to_json()
+            .unwrap();
+        // Expected some fields (such as timestamps) exist after first normalization.
+
+        normalize_event(&mut event, &full_normalization_config);
+        let second = remove_received_from_event(&mut event.clone())
+            .to_json()
+            .unwrap();
+        assert_eq!(&first, &second, "idempotency check failed");
+
+        normalize_event(&mut event, &full_normalization_config);
+        let third = remove_received_from_event(&mut event.clone())
+            .to_json()
+            .unwrap();
+        assert_eq!(&second, &third, "idempotency check failed");
+    }
+
     #[test]
     fn test_normalize_validates_spans() {
         let event = Annotated::<Event>::from_json(
@@ -1452,7 +1528,7 @@ mod tests {
     }
 
     #[test]
-    fn test_light_normalization_respects_is_renormalize() {
+    fn test_normalization_respects_is_renormalize() {
         let mut event = Annotated::<Event>::from_json(
             r#"
             {

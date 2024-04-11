@@ -18,7 +18,7 @@ use fnv::FnvHasher;
 use relay_base_schema::project::{ProjectId, ProjectKey};
 use relay_cogs::{AppFeature, Cogs, FeatureWeights, ResourceId, Token};
 use relay_common::time::UnixTimestamp;
-use relay_config::{Config, HttpEncoding, RelayMode};
+use relay_config::{Config, HttpEncoding, Normalize, RelayMode};
 use relay_dynamic_config::{ErrorBoundary, Feature};
 use relay_event_normalization::{
     normalize_event, validate_event_timestamps, validate_transaction, ClockDriftProcessor,
@@ -909,18 +909,25 @@ pub struct EnvelopeProcessorService {
     inner: Arc<InnerProcessor>,
 }
 
+/// Contains the addresses of services that the processor publishes to.
+pub struct Addrs {
+    pub project_cache: Addr<ProjectCache>,
+    pub outcome_aggregator: Addr<TrackOutcome>,
+    #[cfg(feature = "processing")]
+    pub aggregator: Addr<Aggregator>,
+    pub upstream_relay: Addr<UpstreamRelay>,
+    pub test_store: Addr<TestStore>,
+    #[cfg(feature = "processing")]
+    pub store_forwarder: Option<Addr<Store>>,
+}
+
 struct InnerProcessor {
     config: Arc<Config>,
     global_config: GlobalConfigHandle,
     cogs: Cogs,
     #[cfg(feature = "processing")]
     redis_pool: Option<RedisPool>,
-    project_cache: Addr<ProjectCache>,
-    outcome_aggregator: Addr<TrackOutcome>,
-    #[cfg(feature = "processing")]
-    aggregator: Addr<Aggregator>,
-    upstream_relay: Addr<UpstreamRelay>,
-    test_store: Addr<TestStore>,
+    addrs: Addrs,
     #[cfg(feature = "processing")]
     rate_limiter: Option<RedisRateLimiter>,
     geoip_lookup: Option<GeoIpLookup>,
@@ -929,25 +936,17 @@ struct InnerProcessor {
     #[cfg(feature = "processing")]
     cardinality_limiter: Option<CardinalityLimiter>,
     #[cfg(feature = "processing")]
-    store_forwarder: Option<Addr<Store>>,
-    #[cfg(feature = "processing")]
     metric_stats: MetricStats,
 }
 
 impl EnvelopeProcessorService {
     /// Creates a multi-threaded envelope processor.
-    #[allow(clippy::too_many_arguments)]
     pub fn new(
         config: Arc<Config>,
         global_config: GlobalConfigHandle,
         cogs: Cogs,
         #[cfg(feature = "processing")] redis: Option<RedisPool>,
-        outcome_aggregator: Addr<TrackOutcome>,
-        project_cache: Addr<ProjectCache>,
-        upstream_relay: Addr<UpstreamRelay>,
-        test_store: Addr<TestStore>,
-        #[cfg(feature = "processing")] aggregator: Addr<Aggregator>,
-        #[cfg(feature = "processing")] store_forwarder: Option<Addr<Store>>,
+        addrs: Addrs,
         #[cfg(feature = "processing")] metric_stats: MetricStats,
     ) -> Self {
         let geoip_lookup = config.geoip_path().and_then(|p| {
@@ -969,13 +968,8 @@ impl EnvelopeProcessorService {
             rate_limiter: redis
                 .clone()
                 .map(|pool| RedisRateLimiter::new(pool).max_limit(config.max_rate_limit())),
-            project_cache,
-            outcome_aggregator,
-            upstream_relay,
-            test_store,
+            addrs,
             geoip_lookup,
-            #[cfg(feature = "processing")]
-            aggregator,
             #[cfg(feature = "processing")]
             metric_meta_store: redis.clone().map(|pool| {
                 RedisMetricMetaStore::new(pool, config.metrics_meta_locations_expiry())
@@ -993,8 +987,6 @@ impl EnvelopeProcessorService {
                     )
                 })
                 .map(CardinalityLimiter::new),
-            #[cfg(feature = "processing")]
-            store_forwarder,
             #[cfg(feature = "processing")]
             metric_stats,
             config,
@@ -1119,6 +1111,7 @@ impl EnvelopeProcessorService {
 
         if limits.is_limited() {
             self.inner
+                .addrs
                 .project_cache
                 .send(UpdateRateLimits::new(scoping.project_key, limits));
         }
@@ -1131,7 +1124,7 @@ impl EnvelopeProcessorService {
         enforcement.track_outcomes(
             state.envelope(),
             &state.managed_envelope.scoping(),
-            self.inner.outcome_aggregator.clone(),
+            self.inner.addrs.outcome_aggregator.clone(),
         );
 
         Ok(())
@@ -1169,6 +1162,11 @@ impl EnvelopeProcessorService {
                         .config
                         .aggregator_config_for(MetricNamespace::Spans)
                         .max_tag_value_length,
+                    self.inner
+                        .global_config
+                        .current()
+                        .options
+                        .span_extraction_sample_rate,
                 );
                 state.event_metrics_extracted |= !metrics.is_empty();
                 state.extracted_metrics.project_metrics.extend(metrics);
@@ -1212,6 +1210,25 @@ impl EnvelopeProcessorService {
         &self,
         state: &mut ProcessEnvelopeState<G>,
     ) -> Result<(), ProcessingError> {
+        let full_normalization = match self.inner.config.normalization() {
+            Normalize::Disabled => {
+                // We assume envelopes coming from an internal relay have
+                // already been normalized. During incidents, like a PoP region
+                // not being available, envelopes can go to other PoP regions or
+                // directly to processing relays. Events should be fully
+                // normalized, independently of the ingestion path.
+                if self.inner.config.processing_enabled()
+                    && !state.envelope().meta().is_from_internal_relay()
+                {
+                    true
+                } else {
+                    return Ok(());
+                }
+            }
+            Normalize::Full => true,
+            Normalize::Default => self.inner.config.processing_enabled(),
+        };
+
         if let Some(sampling_state) = state.sampling_project_state.clone() {
             state
                 .envelope_mut()
@@ -1242,13 +1259,11 @@ impl EnvelopeProcessorService {
                 is_validated: false,
             };
 
-            let is_last_relay_normalize = self.inner.config.processing_enabled();
-
             let key_id = state
                 .project_state
                 .get_public_key_config()
                 .and_then(|key| Some(key.numeric_id?.to_string()));
-            if is_last_relay_normalize && key_id.is_none() {
+            if full_normalization && key_id.is_none() {
                 relay_log::error!(
                     "project state for key {} is missing key id",
                     state.managed_envelope.envelope().meta().public_key()
@@ -1294,8 +1309,8 @@ impl EnvelopeProcessorService {
                     .aggregator_config_for(MetricNamespace::Spans)
                     .max_tag_value_length,
                 is_renormalize: false,
-                remove_other: is_last_relay_normalize,
-                emit_event_errors: is_last_relay_normalize,
+                remove_other: full_normalization,
+                emit_event_errors: full_normalization,
                 span_description_rules: state.project_state.config.span_description_rules.as_ref(),
                 geoip_lookup: self.inner.geoip_lookup.as_ref(),
                 enable_trimming: true,
@@ -1311,13 +1326,13 @@ impl EnvelopeProcessorService {
                     .and_then(|ctx| ctx.replay_id),
             };
 
-            metric!(timer(RelayTimers::EventProcessingLightNormalization), {
+            metric!(timer(RelayTimers::EventProcessingNormalization), {
                 validate_event_timestamps(event, &event_validation_config)
                     .map_err(|_| ProcessingError::InvalidTransaction)?;
                 validate_transaction(event, &tx_validation_config)
                     .map_err(|_| ProcessingError::InvalidTransaction)?;
                 normalize_event(event, &normalization_config);
-                if is_last_relay_normalize && event::has_unprintable_fields(event) {
+                if full_normalization && event::has_unprintable_fields(event) {
                     metric!(counter(RelayCounters::EventCorrupted) += 1);
                 }
                 Result::<(), ProcessingError>::Ok(())
@@ -1418,7 +1433,11 @@ impl EnvelopeProcessorService {
                 if state.has_event() {
                     event::scrub(state)?;
                     if_processing!(self.inner.config, {
-                        span::extract_from_event(state, &self.inner.config);
+                        span::extract_from_event(
+                            state,
+                            &self.inner.config,
+                            &self.inner.global_config.current(),
+                        );
                     });
                 }
 
@@ -1487,7 +1506,7 @@ impl EnvelopeProcessorService {
         report::process_client_reports(
             state,
             &self.inner.config,
-            self.inner.outcome_aggregator.clone(),
+            self.inner.addrs.outcome_aggregator.clone(),
         );
 
         Ok(())
@@ -1691,7 +1710,7 @@ impl EnvelopeProcessorService {
 
                         state.extracted_metrics.send_metrics(
                             state.managed_envelope.envelope(),
-                            self.inner.project_cache.clone(),
+                            self.inner.addrs.project_cache.clone(),
                         );
 
                         let envelope_response = if state.managed_envelope.envelope().is_empty() {
@@ -1814,6 +1833,7 @@ impl EnvelopeProcessorService {
 
         relay_log::trace!("merging metric buckets into project cache");
         self.inner
+            .addrs
             .project_cache
             .send(MergeBuckets::new(public_key, buckets));
     }
@@ -1864,6 +1884,7 @@ impl EnvelopeProcessorService {
 
             relay_log::trace!("merging metric buckets into project cache");
             self.inner
+                .addrs
                 .project_cache
                 .send(MergeBuckets::new(public_key, buckets));
         }
@@ -1890,6 +1911,7 @@ impl EnvelopeProcessorService {
                 Ok(meta) => {
                     relay_log::trace!("adding metric metadata to project cache");
                     self.inner
+                        .addrs
                         .project_cache
                         .send(AddMetricMeta { project_key, meta });
                 }
@@ -1924,7 +1946,7 @@ impl EnvelopeProcessorService {
 
         #[cfg(feature = "processing")]
         if self.inner.config.processing_enabled() {
-            if let Some(store_forwarder) = self.inner.store_forwarder.clone() {
+            if let Some(store_forwarder) = self.inner.addrs.store_forwarder.clone() {
                 relay_log::trace!("sending envelope to kafka");
                 store_forwarder.send(StoreEnvelope { envelope });
                 return;
@@ -1934,7 +1956,10 @@ impl EnvelopeProcessorService {
         // If we are in capture mode, we stash away the event instead of forwarding it.
         if Capture::should_capture(&self.inner.config) {
             relay_log::trace!("capturing envelope in memory");
-            self.inner.test_store.send(Capture::accepted(envelope));
+            self.inner
+                .addrs
+                .test_store
+                .send(Capture::accepted(envelope));
             return;
         }
 
@@ -1953,12 +1978,15 @@ impl EnvelopeProcessorService {
 
         match result {
             Ok(body) => {
-                self.inner.upstream_relay.send(SendRequest(SendEnvelope {
-                    envelope,
-                    body,
-                    http_encoding,
-                    project_cache: self.inner.project_cache.clone(),
-                }));
+                self.inner
+                    .addrs
+                    .upstream_relay
+                    .send(SendRequest(SendEnvelope {
+                        envelope,
+                        body,
+                        http_encoding,
+                        project_cache: self.inner.addrs.project_cache.clone(),
+                    }));
             }
             Err(error) => {
                 // Errors are only logged for what we consider an internal discard reason. These
@@ -1992,8 +2020,8 @@ impl EnvelopeProcessorService {
 
         let envelope = ManagedEnvelope::standalone(
             envelope,
-            self.inner.outcome_aggregator.clone(),
-            self.inner.test_store.clone(),
+            self.inner.addrs.outcome_aggregator.clone(),
+            self.inner.addrs.test_store.clone(),
             ProcessingGroup::ClientReport,
         );
         self.handle_submit_envelope(SubmitEnvelope {
@@ -2036,11 +2064,12 @@ impl EnvelopeProcessorService {
 
             if rate_limits.is_limited() {
                 let was_enforced = bucket_limiter
-                    .enforce_limits(&rate_limits, self.inner.outcome_aggregator.clone());
+                    .enforce_limits(&rate_limits, self.inner.addrs.outcome_aggregator.clone());
 
                 if was_enforced {
                     // Update the rate limits in the project cache.
                     self.inner
+                        .addrs
                         .project_cache
                         .send(UpdateRateLimits::new(scoping.project_key, rate_limits));
                 }
@@ -2052,6 +2081,7 @@ impl EnvelopeProcessorService {
 
         if !buckets.is_empty() {
             self.inner
+                .addrs
                 .aggregator
                 .send(MergeBuckets::new(project_key, buckets));
         }
@@ -2110,13 +2140,13 @@ impl EnvelopeProcessorService {
 
                 let reason_code = limits.longest().and_then(|limit| limit.reason_code.clone());
                 utils::reject_metrics(
-                    &self.inner.outcome_aggregator,
+                    &self.inner.addrs.outcome_aggregator,
                     quantities,
                     *item_scoping.scoping,
                     Outcome::RateLimited(reason_code),
                 );
 
-                self.inner.project_cache.send(UpdateRateLimits::new(
+                self.inner.addrs.project_cache.send(UpdateRateLimits::new(
                     item_scoping.scoping.project_key,
                     limits,
                 ));
@@ -2198,7 +2228,7 @@ impl EnvelopeProcessorService {
 
         // Log outcomes for rejected buckets.
         utils::reject_metrics(
-            &self.inner.outcome_aggregator,
+            &self.inner.addrs.outcome_aggregator,
             utils::extract_metric_quantities(limits.rejected(), mode),
             scoping,
             Outcome::CardinalityLimited,
@@ -2307,8 +2337,8 @@ impl EnvelopeProcessorService {
 
                     let mut envelope = ManagedEnvelope::standalone(
                         envelope,
-                        self.inner.outcome_aggregator.clone(),
-                        self.inner.test_store.clone(),
+                        self.inner.addrs.outcome_aggregator.clone(),
+                        self.inner.addrs.test_store.clone(),
                         ProcessingGroup::Metrics,
                     );
                     envelope.set_partition_key(partition_key).scope(scoping);
@@ -2353,10 +2383,10 @@ impl EnvelopeProcessorService {
             encoded,
             http_encoding,
             quantities,
-            outcome_aggregator: self.inner.outcome_aggregator.clone(),
+            outcome_aggregator: self.inner.addrs.outcome_aggregator.clone(),
         };
 
-        self.inner.upstream_relay.send(SendRequest(request));
+        self.inner.addrs.upstream_relay.send(SendRequest(request));
     }
 
     /// Serializes metric buckets to JSON and sends them to the upstream via the global endpoint.
@@ -2415,7 +2445,7 @@ impl EnvelopeProcessorService {
     fn handle_encode_metrics(&self, message: EncodeMetrics) {
         #[cfg(feature = "processing")]
         if self.inner.config.processing_enabled() {
-            if let Some(ref store_forwarder) = self.inner.store_forwarder {
+            if let Some(ref store_forwarder) = self.inner.addrs.store_forwarder {
                 return self.encode_metrics_processing(message, store_forwarder);
             }
         }
@@ -2449,8 +2479,8 @@ impl EnvelopeProcessorService {
 
         let envelope = ManagedEnvelope::standalone(
             envelope,
-            self.inner.outcome_aggregator.clone(),
-            self.inner.test_store.clone(),
+            self.inner.addrs.outcome_aggregator.clone(),
+            self.inner.addrs.test_store.clone(),
             ProcessingGroup::Metrics,
         );
         self.handle_submit_envelope(SubmitEnvelope {
