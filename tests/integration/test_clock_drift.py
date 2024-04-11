@@ -40,9 +40,14 @@ def test_clock_drift_applied_when_timestamp_is_too_old(mini_sentry, relay):
     transaction_event = mini_sentry.captured_events.get(
         timeout=1
     ).get_transaction_event()
+
     error_name, error_metadata = transaction_event["_meta"]["timestamp"][""]["err"][0]
     assert error_name == "clock_drift"
-    assert transaction_event["timestamp"] > one_month_ago.timestamp()
+    assert (
+        one_month_ago.timestamp()
+        < transaction_event["timestamp"]
+        < datetime.now(tz=timezone.utc).timestamp()
+    )
 
 
 def test_clock_drift_not_applied_when_timestamp_is_recent(mini_sentry, relay):
@@ -85,4 +90,8 @@ def test_clock_drift_not_applied_when_sent_at_is_not_supplied(mini_sentry, relay
     # In case clock drift is not run, we expect timestamps normalization to go into effect to mark timestamps as
     # past or future if they surpass a certain threshold.
     assert error_name == "past_timestamp"
-    assert transaction_event["timestamp"] > one_month_ago.timestamp()
+    assert (
+        one_month_ago.timestamp()
+        < transaction_event["timestamp"]
+        < datetime.now(tz=timezone.utc).timestamp()
+    )
