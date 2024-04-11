@@ -15,6 +15,7 @@ use relay_event_normalization::{
 };
 use relay_event_schema::processor::{process_value, ProcessingState};
 use relay_event_schema::protocol::{BrowserContext, Contexts, Event, Span, SpanData};
+use relay_log::protocol::{Attachment, AttachmentType};
 use relay_metrics::{aggregator::AggregatorConfig, MetricNamespace, UnixTimestamp};
 use relay_pii::PiiProcessor;
 use relay_protocol::{Annotated, Empty};
@@ -125,11 +126,22 @@ pub fn process(
         match validate(&mut annotated_span) {
             Ok(res) => res,
             Err(err) => {
-                relay_log::error!(
-                    error = &err as &dyn Error,
-                    span = ?annotated_span,
-                    source = "standalone",
-                    "invalid span"
+                relay_log::with_scope(
+                    |scope| {
+                        scope.add_attachment(Attachment {
+                            buffer: annotated_span.to_json().unwrap_or_default().into(),
+                            filename: "span.json".to_owned(),
+                            content_type: Some("application/json".to_owned()),
+                            ty: Some(AttachmentType::Attachment),
+                        })
+                    },
+                    || {
+                        relay_log::error!(
+                            error = &err as &dyn Error,
+                            source = "standalone",
+                            "invalid span"
+                        )
+                    },
                 );
                 return ItemAction::Drop(Outcome::Invalid(DiscardReason::InvalidSpan));
             }
@@ -187,7 +199,6 @@ pub fn extract_from_event(
                     "invalid span"
                 );
 
-                relay_log::error!("Invalid span: {e}");
                 state.managed_envelope.track_outcome(
                     Outcome::Invalid(DiscardReason::InvalidSpan),
                     relay_quotas::DataCategory::SpanIndexed,
