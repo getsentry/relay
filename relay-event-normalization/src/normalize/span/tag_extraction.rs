@@ -67,6 +67,8 @@ pub enum SpanTagKey {
     FileExtension,
     /// Span started on main thread.
     MainThread,
+    // The SDK integration (e.g., openai) that created the span. Not well supported by SDK.
+    SdkIntegration,
     /// The start type of the application when the span occurred.
     AppStartType,
     ReplayId,
@@ -112,6 +114,7 @@ impl SpanTagKey {
             SpanTagKey::MainThread => "main_thread",
             SpanTagKey::CacheHit => "cache.hit",
             SpanTagKey::OsName => "os.name",
+            SpanTagKey::SdkIntegration => "sdk_integration",
             SpanTagKey::AppStartType => "app_start_type",
             SpanTagKey::ReplayId => "replay_id",
             SpanTagKey::TraceStatus => "trace.status",
@@ -531,6 +534,14 @@ pub fn extract_tags(
 
     if let Some(status_code) = http_status_code_from_span(span) {
         span_tags.insert(SpanTagKey::StatusCode, status_code);
+    }
+
+    if let Some(sdk_integration) = span
+        .data
+        .value()
+        .and_then(|data| data.sdk_integration.as_str())
+    {
+        span_tags.insert(SpanTagKey::SdkIntegration, sdk_integration.into());
     }
 
     if is_mobile {

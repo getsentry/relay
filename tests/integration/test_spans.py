@@ -852,6 +852,9 @@ def test_ai_span_metric_extraction(
                     "value": 20,
                 },
             },
+            "data": {
+                "sdk.integration": "openai",
+            },
         },
     ]
 
@@ -861,10 +864,15 @@ def test_ai_span_metric_extraction(
 
     assert len(spans) == 2
     metrics = list(metrics_consumer.get_metrics())
-    span_metrics = [m.get("name") for (m, _) in metrics if ":spans/" in m["name"]]
-    assert "d:spans/exclusive_time@millisecond" in span_metrics
-    assert "c:spans/ai.total_tokens.used@none" in span_metrics
-    assert "d:spans/exclusive_time_light@millisecond" in span_metrics
+    span_metrics = [m for (m, _) in metrics if ":spans/" in m["name"]]
+    span_metric_names = [m.get("name") for m in span_metrics]
+    assert "d:spans/exclusive_time@millisecond" in span_metric_names
+    assert "c:spans/ai.total_tokens.used@none" in span_metric_names
+    assert "d:spans/exclusive_time_light@millisecond" in span_metric_names
+    total_tokens_used = next(
+        m for m in span_metrics if "ai.total_tokens.used" in m.get("name")
+    )
+    assert "span.sdk_integration" in total_tokens_used.get("tags")
 
     spans_consumer.assert_empty()
     metrics_consumer.assert_empty()
