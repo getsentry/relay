@@ -576,6 +576,14 @@ pub struct ItemHeaders {
     #[serde(default = "default_true", skip_serializing_if = "is_true")]
     pub sampled: bool,
 
+    /// The release, used by security reports.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sentry_release: Option<String>,
+
+    /// The environment, used by security reports.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sentry_environment: Option<String>,
+
     /// Other attributes for forward compatibility.
     #[serde(flatten)]
     other: BTreeMap<String, Value>,
@@ -645,6 +653,8 @@ impl Item {
                 transaction_extracted: false,
                 spans_extracted: false,
                 sampled: true,
+                sentry_release: None,
+                sentry_environment: None,
             },
             payload: Bytes::new(),
         }

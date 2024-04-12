@@ -1106,7 +1106,10 @@ impl EnvelopeProcessorService {
         if let Some(category) = event_category {
             envelope_limiter.assume_event(
                 category,
-                state.event_headers.map_or(false, |h| h.metrics_extracted),
+                state
+                    .event_headers
+                    .as_ref()
+                    .map_or(false, |h| h.metrics_extracted),
             );
         }
 

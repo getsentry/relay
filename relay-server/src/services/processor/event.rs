@@ -3,6 +3,7 @@
 use std::error::Error;
 use std::sync::OnceLock;
 
+use bytes::Bytes;
 use chrono::Duration as SignedDuration;
 use relay_auth::RelayVersion;
 use relay_base_schema::events::EventType;
@@ -15,12 +16,12 @@ use relay_event_schema::protocol::{
     OtelContext, RelayInfo, SecurityReportType, Timestamp, Values,
 };
 use relay_pii::PiiProcessor;
-use relay_protocol::{Annotated, Array, Empty, FromValue, Object, Value};
+use relay_protocol::{Annotated, Array, Empty, FromValue, Object};
 use relay_quotas::DataCategory;
 use relay_statsd::metric;
 use serde_json::Value as SerdeValue;
 
-use crate::envelope::{AttachmentType, ContentType, Item, ItemType};
+use crate::envelope::{AttachmentType, ContentType, Item, ItemHeaders, ItemType};
 use crate::extractors::RequestMeta;
 use crate::services::outcome::Outcome;
 use crate::services::processor::{
@@ -67,19 +68,18 @@ pub fn extract<G: EventProcessing>(
         return Err(ProcessingError::DuplicateItem(duplicate.ty().clone()));
     }
 
-    let mut sample_rates = None;
-    let (event, event_len) = if let Some(mut item) = event_item.or(security_item) {
+    let (event, event_len) = if let Some(item) = event_item.or(security_item) {
+        relay_log::trace!("processing json event");
         let (headers, payload) = item.into_parts();
         state.event_headers = Some(headers);
-        relay_log::trace!("processing json event");
         metric!(timer(RelayTimers::EventProcessingDeserialize), {
             // Event items can never include transactions, so retain the event type and let
             // inference deal with this during store normalization.
             event_from_json_payload(&payload, None)?
         })
     } else if let Some(item) = transaction_item {
-        let (headers, payload) = item.into_parts();
         relay_log::trace!("processing json transaction");
+        let (headers, payload) = item.into_parts();
         state.event_headers = Some(headers);
         metric!(timer(RelayTimers::EventProcessingDeserialize), {
             // Transaction items can only contain transaction events. Force the event type to
@@ -94,21 +94,25 @@ pub fn extract<G: EventProcessing>(
             return Err(ProcessingError::NoEventPayload);
         }
         event_from_json_payload(&item.payload, Some(EventType::UserReportV2))?
-    } else if let Some(mut item) = raw_security_item {
+    } else if let Some(item) = raw_security_item {
         relay_log::trace!("processing security report");
-        sample_rates = item.take_sample_rates();
-        event_from_security_report(item, envelope.meta()).map_err(|error| {
-            if !matches!(error, ProcessingError::UnsupportedSecurityType) {
-                relay_log::error!(
-                    error = &error as &dyn Error,
-                    "failed to extract security report"
-                );
-            }
-            error
-        })?
+        let (headers, payload) = item.into_parts();
+        let event =
+            event_from_security_report(payload, &headers, envelope.meta()).map_err(|error| {
+                if !matches!(error, ProcessingError::UnsupportedSecurityType) {
+                    relay_log::error!(
+                        error = &error as &dyn Error,
+                        "failed to extract security report"
+                    );
+                }
+                error
+            })?;
+        state.event_headers = Some(headers);
+
+        event
     } else if let Some(item) = nel_item {
         relay_log::trace!("processing nel report");
-        event_from_nel_item(item, envelope.meta()).map_err(|error| {
+        event_from_nel_item(&item.payload, envelope.meta()).map_err(|error| {
             relay_log::error!(error = &error as &dyn Error, "failed to extract NEL report");
             error
         })?
@@ -465,51 +469,47 @@ fn event_from_json_payload(
 }
 
 fn event_from_security_report(
-    item: Item,
+    payload: Bytes,
+    headers: &ItemHeaders,
     meta: &RequestMeta,
 ) -> Result<ExtractedEvent, ProcessingError> {
-    let len = item.len();
+    let len = payload.len();
     let mut event = Event::default();
 
-    let bytes = item.payload();
-    let data = &bytes;
     let Some(report_type) =
-        SecurityReportType::from_json(data).map_err(ProcessingError::InvalidJson)?
+        SecurityReportType::from_json(&payload).map_err(ProcessingError::InvalidJson)?
     else {
-        return Err(ProcessingError::InvalidSecurityType(bytes));
+        return Err(ProcessingError::InvalidSecurityType(payload));
     };
 
     let (apply_result, event_type) = match report_type {
-        SecurityReportType::Csp => (Csp::apply_to_event(data, &mut event), EventType::Csp),
+        SecurityReportType::Csp => (Csp::apply_to_event(&payload, &mut event), EventType::Csp),
         SecurityReportType::ExpectCt => (
-            ExpectCt::apply_to_event(data, &mut event),
+            ExpectCt::apply_to_event(&payload, &mut event),
             EventType::ExpectCt,
         ),
         SecurityReportType::ExpectStaple => (
-            ExpectStaple::apply_to_event(data, &mut event),
+            ExpectStaple::apply_to_event(&payload, &mut event),
             EventType::ExpectStaple,
         ),
-        SecurityReportType::Hpkp => (Hpkp::apply_to_event(data, &mut event), EventType::Hpkp),
+        SecurityReportType::Hpkp => (Hpkp::apply_to_event(&payload, &mut event), EventType::Hpkp),
         SecurityReportType::Unsupported => return Err(ProcessingError::UnsupportedSecurityType),
     };
 
     if let Err(json_error) = apply_result {
         // logged in extract_event
         relay_log::configure_scope(|scope| {
-            scope.set_extra("payload", String::from_utf8_lossy(data).into());
+            scope.set_extra("payload", String::from_utf8_lossy(&payload).into());
         });
 
         return Err(ProcessingError::InvalidSecurityReport(json_error));
     }
 
-    if let Some(release) = item.get_header("sentry_release").and_then(Value::as_str) {
+    if let Some(release) = headers.sentry_release.as_ref() {
         event.release = Annotated::from(LenientString(release.to_owned()));
     }
 
-    if let Some(env) = item
-        .get_header("sentry_environment")
-        .and_then(Value::as_str)
-    {
+    if let Some(env) = headers.sentry_environment.as_ref() {
         event.environment = Annotated::from(env.to_owned());
     }
 
@@ -529,16 +529,17 @@ fn event_from_security_report(
     Ok((Annotated::new(event), len))
 }
 
-fn event_from_nel_item(item: Item, _meta: &RequestMeta) -> Result<ExtractedEvent, ProcessingError> {
-    let len = item.len();
+fn event_from_nel_item(
+    payload: &[u8],
+    _meta: &RequestMeta,
+) -> Result<ExtractedEvent, ProcessingError> {
+    let len = payload.len();
     let mut event = Event {
         ty: Annotated::new(EventType::Nel),
         ..Default::default()
     };
-    let data: &[u8] = &item.payload();
-
     // Try to get the raw network report.
-    let report = Annotated::from_json_bytes(data).map_err(NetworkReportError::InvalidJson);
+    let report = Annotated::from_json_bytes(payload).map_err(NetworkReportError::InvalidJson);
 
     match report {
         // If the incoming payload could be converted into the raw network error, try
@@ -549,7 +550,7 @@ fn event_from_nel_item(item: Item, _meta: &RequestMeta) -> Result<ExtractedEvent
         Err(err) => {
             // logged in extract_event
             relay_log::configure_scope(|scope| {
-                scope.set_extra("payload", String::from_utf8_lossy(data).into());
+                scope.set_extra("payload", String::from_utf8_lossy(payload).into());
             });
             return Err(ProcessingError::InvalidNelReport(err));
         }

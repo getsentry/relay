@@ -253,7 +253,7 @@ pub fn extract_from_event(
         return;
     };
 
-    let Some(event_headers) = state.event_headers else {
+    let Some(event_headers) = state.event_headers.as_ref() else {
         return;
     };
 
@@ -350,7 +350,9 @@ pub fn extract_from_event(
 
     add_span(transaction_span.into());
 
-    state.spans_extracted = true;
+    if let Some(headers) = state.event_headers.as_mut() {
+        headers.spans_extracted = true;
+    };
 }
 
 /// Removes the transaction in case the project has made the transition to spans-only.
