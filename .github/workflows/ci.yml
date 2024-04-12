@@ -187,7 +187,7 @@ jobs:
           - target: aarch64-unknown-linux-gnu
             docker: linux/arm64
           - target: x86_64-unknown-linux-gnu
-            docker: linux/amd64
+            docker: local
         image:
           - name: relay
             features: "processing,crash-handler"
@@ -249,7 +249,6 @@ jobs:
           docker login --username '${{ github.actor }}' --password '${{ secrets.GITHUB_TOKEN }}' ghcr.io
           docker buildx build \
             --platform "${{ matrix.platform.docker }}" \
-            --provenance=false \
             --tag "${DOCKER_IMAGE}:${REVISION}" \
             $( [[ "${GITHUB_REF}" == "refs/heads/master" ]] && printf %s "--tag ${DOCKER_IMAGE}:nightly" ) \
             --file Dockerfile.release \
