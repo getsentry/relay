@@ -4,10 +4,6 @@
 
 **NOTE:** This applies only if you have an **ARM based Apple M1**!
 
-If you have another type of machine, please use
-[scripts/docker-build-linux.sh](scripts/docker-build-linux.sh) to compile
-`relay` for using it as an AWS Lambda extension.
-
 Follow these steps below on your Apple M1 machine to compile relay to be
 run in the AWS Lambda execution environment.
 
