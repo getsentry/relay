@@ -192,7 +192,7 @@ jobs:
           - name: relay
             features: "processing,crash-handler"
 
-    name: Build Docker Image
+    name: Build Relay Binary
     runs-on: ubuntu-latest
 
     if: "!startsWith(github.ref, 'refs/heads/release-library/')"
@@ -250,6 +250,9 @@ jobs:
   build-docker:
     timeout-minutes: 5
     needs: build
+
+    name: Build Docker Image
+    runs-on: ubuntu-latest
 
     strategy:
       matrix:
