@@ -187,7 +187,7 @@ jobs:
           - target: aarch64-unknown-linux-gnu
             docker: linux/arm64
           - target: x86_64-unknown-linux-gnu
-            docker: local
+            docker: linux/amd64
         image:
           - name: relay
             features: "processing,crash-handler"
@@ -238,7 +238,8 @@ jobs:
       - name: Prepare Artifacts
         run: |
           mkdir -p "${{ matrix.platform.docker }}"
-          cp "${RELAY_BIN}* ${{ matrix.platform.docker }}"
+          ls "${RELAY_BIN}*"
+          cp "${RELAY_BIN}"{,.debug.zip,.src.zip} "${{ matrix.platform.docker }}"
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
