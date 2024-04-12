@@ -1030,6 +1030,17 @@
 <a href="#1028" id="1028">1028</a>
 <a href="#1029" id="1029">1029</a>
 <a href="#1030" id="1030">1030</a>
+<a href="#1031" id="1031">1031</a>
+<a href="#1032" id="1032">1032</a>
+<a href="#1033" id="1033">1033</a>
+<a href="#1034" id="1034">1034</a>
+<a href="#1035" id="1035">1035</a>
+<a href="#1036" id="1036">1036</a>
+<a href="#1037" id="1037">1037</a>
+<a href="#1038" id="1038">1038</a>
+<a href="#1039" id="1039">1039</a>
+<a href="#1040" id="1040">1040</a>
+<a href="#1041" id="1041">1041</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Span description scrubbing logic.
 </span><span class="kw">mod </span>resource;
 <span class="kw">mod </span>sql;
@@ -1218,8 +1229,12 @@
     };
     <span class="kw">match </span>Path::new(filename).extension() {
         <span class="prelude-val">Some</span>(extension) =&gt; {
-            <span class="kw">let </span>ext = extension.to_str()<span class="question-mark">?</span>;
-            <span class="prelude-val">Some</span>(<span class="macro">format!</span>(<span class="string">"*.{ext}"</span>))
+            <span class="kw">let </span>ext = scrub_resource_file_extension(extension.to_str()<span class="question-mark">?</span>);
+            <span class="kw">if </span>ext != <span class="string">"*" </span>{
+                <span class="prelude-val">Some</span>(<span class="macro">format!</span>(<span class="string">"*.{ext}"</span>))
+            } <span class="kw">else </span>{
+                <span class="prelude-val">Some</span>(<span class="string">"*"</span>.to_string())
+            }
         }
         <span class="kw">_ </span>=&gt; <span class="prelude-val">Some</span>(<span class="string">"*"</span>.to_owned()),
     }
@@ -1808,6 +1823,13 @@
     <span class="macro">span_description_test!</span>(
         span_description_file_with_no_extension,
         <span class="string">"somefilenamewithnoextension"</span>,
+        <span class="string">"file.read"</span>,
+        <span class="string">"*"
+    </span>);
+
+    <span class="macro">span_description_test!</span>(
+        span_description_file_extension_with_numbers_only,
+        <span class="string">"backup.2024041101"</span>,
         <span class="string">"file.read"</span>,
         <span class="string">"*"
     </span>);
