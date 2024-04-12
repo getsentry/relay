@@ -3,6 +3,7 @@ use crate::protocol::{
     ContextInner, Contexts, DefaultContext, Event, ProfileContext, Span, TraceContext,
 };
 
+use relay_base_schema::events::EventType;
 use relay_protocol::Annotated;
 use std::collections::BTreeMap;
 
@@ -47,7 +48,7 @@ macro_rules! map_fields {
             $(span.$fixed_span_field:ident <= $fixed_span_value:expr), *
         }
         fixed_for_event {
-            $($fixed_event_value:expr => span.$fixed_event_field:ident), *
+            $($fixed_event_value:expr => event.$fixed_event_field:ident), *
         }
     ) => {
         #[allow(clippy::needless_update)]
@@ -78,9 +79,17 @@ macro_rules! map_fields {
         }
 
         #[allow(clippy::needless_update)]
-        impl From<&Span> for Event {
-            fn from(span: &Span) -> Self {
-                Self {
+        impl TryFrom<&Span> for Event {
+            type Error = ();
+
+            fn try_from(span: &Span) -> Result<Self, ()> {
+                use relay_protocol::Empty;
+
+                if !span.is_segment.value().unwrap_or(&false) {
+                    // Only segment spans can become transactions.
+                    return Err(());
+                }
+                let event = Self {
                     $(
                         $event_field: span.$span_field.clone().map_value(Into::into),
                     )*
@@ -88,21 +97,30 @@ macro_rules! map_fields {
                         $fixed_event_field: $fixed_event_value.into(),
                     )*
                     contexts: Annotated::new(
-                        Contexts(
-                            BTreeMap::from([
+                        Contexts({
+                            let mut contexts = BTreeMap::new();
+                            $(
+                                let mut context = $ContextType::default();
+                                let mut has_fields = false;
                                 $(
-                                    (<$ContextType as DefaultContext>::default_key().into(), ContextInner($ContextType {
-                                        $(
-                                            $context_field: span.$primary_span_field.clone(),
-                                        )*
-                                        ..Default::default()
-                                    }.into_context()).into()),
+                                    if !span.$primary_span_field.is_empty() {
+                                        context.$context_field = span.$primary_span_field.clone();
+                                        has_fields = true;
+                                    }
                                 )*
-                            ]),
-                        )
+                                if has_fields {
+                                    let context_key = <$ContextType as DefaultContext>::default_key().into();
+                                    contexts.insert(context_key, ContextInner(context.into_context()).into());
+                                }
+                            )*
+                            contexts
+                        })
                     ),
                     ..Default::default()
-                }
+                };
+
+
+                Ok(event)
             }
         }
     };
@@ -141,7 +159,7 @@ map_fields!(
         span.was_transaction <= true
     }
     fixed_for_event {
-        // nothing yet
+        EventType::Transaction => event.ty
     }
 );
 
@@ -155,6 +173,7 @@ mod tests {
     fn roundtrip() {
         let event = Annotated::<Event>::from_json(
             r#"{
+                "type": "transaction",
                 "contexts": {
                     "profile": {"profile_id": "a0aaaaaaaaaaaaaaaaaaaaaaaaaaaaab"},
                     "trace": {
@@ -253,7 +272,20 @@ mod tests {
         }
         "###);
 
-        let roundtripped = Event::from(&span_from_event);
+        let roundtripped = Event::try_from(&span_from_event).unwrap();
         assert_eq!(event, roundtripped);
+    }
+
+    #[test]
+    fn no_empty_profile_context() {
+        let span = Span {
+            is_segment: true.into(),
+            ..Default::default()
+        };
+        let event = Event::try_from(&span).unwrap();
+
+        // No profile context is set.
+        // profile_id is required on ProfileContext so we should not create an empty one.
+        assert!(event.context::<ProfileContext>().is_none());
     }
 }

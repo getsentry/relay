@@ -162,7 +162,7 @@ impl<'a> CardinalityScriptPipeline<'a> {
         keys: impl Iterator<Item = String>,
     ) -> &mut Self {
         let invocation = self.script.prepare_invocation(limit, expire, hashes, keys);
-        self.pipe.script(invocation);
+        self.pipe.invoke_script(&invocation);
         self
     }
 

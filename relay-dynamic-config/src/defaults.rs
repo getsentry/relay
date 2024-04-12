@@ -58,7 +58,11 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
         return;
     }
 
-    config.metrics.extend(span_metrics());
+    config.metrics.extend(span_metrics(
+        project_config
+            .features
+            .has(Feature::ExtractTransactionFromSegmentSpan),
+    ));
 
     config._span_metrics_extended = true;
     if config.version == 0 {
@@ -67,7 +71,13 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
 }
 
 /// Metrics with tags applied as required.
-fn span_metrics() -> impl IntoIterator<Item = MetricSpec> {
+fn span_metrics(transaction_extraction_enabled: bool) -> impl IntoIterator<Item = MetricSpec> {
+    let score_total_transaction_metric = if transaction_extraction_enabled {
+        RuleCondition::never()
+    } else {
+        RuleCondition::all()
+    };
+
     let is_db = RuleCondition::eq("span.sentry_tags.category", "db")
         & !(RuleCondition::eq("span.system", "mongodb")
             | RuleCondition::glob("span.op", DISABLED_DATABASES)
@@ -471,7 +481,11 @@ fn span_metrics() -> impl IntoIterator<Item = MetricSpec> {
             mri: "d:transactions/measurements.score.total@ratio".into(),
             field: Some("span.measurements.score.total.value".into()),
             condition: Some(
-                is_allowed_browser.clone() & RuleCondition::eq("span.was_transaction", false),
+                // If transactions are extracted from spans, the transaction processing pipeline
+                // will take care of this metric.
+                score_total_transaction_metric
+                    & is_allowed_browser.clone()
+                    & RuleCondition::eq("span.was_transaction", false),
             ),
             tags: vec![
                 Tag::with_key("span.op")

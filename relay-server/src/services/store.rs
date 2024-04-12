@@ -34,7 +34,7 @@ use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::services::processor::Processed;
 use crate::statsd::RelayCounters;
 use crate::utils::{
-    self, is_rolled_out, ArrayEncoding, BucketEncoder, ExtractionMode, TypedEnvelope,
+    self, is_rolled_out, ArrayEncoding, BucketEncoder, ExtractionMode, FormDataIter, TypedEnvelope,
 };
 
 /// Fallback name used for attachment items without a `filename` header.
@@ -302,10 +302,26 @@ impl StoreService {
                         .items()
                         .map(|item| item.ty().as_str())
                         .collect::<Vec<_>>();
+                    let attachment_types = envelope
+                        .items()
+                        .map(|item| {
+                            item.attachment_type()
+                                .map(|t| t.to_string())
+                                .unwrap_or_default()
+                        })
+                        .collect::<Vec<_>>();
 
                     relay_log::with_scope(
                         |scope| {
                             scope.set_extra("item_types", item_types.into());
+                            scope.set_extra("attachment_types", attachment_types.into());
+                            if other == &ItemType::FormData {
+                                let payload = item.payload();
+                                let form_data_keys = FormDataIter::new(&payload)
+                                    .map(|entry| entry.key())
+                                    .collect::<Vec<_>>();
+                                scope.set_extra("form_data_keys", form_data_keys.into());
+                            }
                         },
                         || {
                             relay_log::error!(

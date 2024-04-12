@@ -124,8 +124,8 @@ rand = "0.8.5"
 rand_pcg = "0.3.1"
 rdkafka = "0.29.0"
 rdkafka-sys = "4.3.0"
-# Fork until https://github.com/redis-rs/redis-rs/pull/1097 is merged.
-redis = { git = "https://github.com/getsentry/redis-rs.git", rev = "6201a8c9f8766c4e580deef6834365ec631ce9f8", default-features = false }
+# Git revision until https://github.com/redis-rs/redis-rs/pull/1097 is released (already merged).
+redis = { git = "https://github.com/redis-rs/redis-rs.git", rev = "7e79e3a380a07eb0c1e559d9afa9152a87d2e50c", default-features = false }
 regex = "1.10.2"
 reqwasm = "0.5.0"
 reqwest = "0.11.1"
@@ -134,7 +134,7 @@ rust-embed = "8.0.0"
 schemars = { version = "=0.8.10", features = ["uuid1", "chrono"] }
 sentry = "0.32.2"
 sentry-core = "0.32.2"
-sentry-kafka-schemas = { version = "0.1.64", default-features = false }
+sentry-kafka-schemas = { version = "0.1.66", default-features = false }
 sentry-release-parser = { version = "1.3.2", default-features = false }
 sentry-types = "0.32.2"
 sentry_usage_accountant = { version = "0.1.0", default-features = false }

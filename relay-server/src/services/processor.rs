@@ -18,7 +18,7 @@ use fnv::FnvHasher;
 use relay_base_schema::project::{ProjectId, ProjectKey};
 use relay_cogs::{AppFeature, Cogs, FeatureWeights, ResourceId, Token};
 use relay_common::time::UnixTimestamp;
-use relay_config::{Config, HttpEncoding, RelayMode};
+use relay_config::{Config, HttpEncoding, Normalize, RelayMode};
 use relay_dynamic_config::{ErrorBoundary, Feature};
 use relay_event_normalization::{
     normalize_event, validate_event_timestamps, validate_transaction, ClockDriftProcessor,
@@ -82,6 +82,8 @@ use crate::services::upstream::{
     SendRequest, UpstreamRelay, UpstreamRequest, UpstreamRequestError,
 };
 use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
+#[cfg(feature = "processing")]
+use crate::utils::BufferGuard;
 use crate::utils::{
     self, ExtractionMode, InvalidProcessingGroupType, ManagedEnvelope, SamplingResult,
     TypedEnvelope,
@@ -572,6 +574,11 @@ struct ProcessEnvelopeState<'a, Group> {
     /// Track whether transaction metrics were already extracted.
     event_metrics_extracted: bool,
 
+    /// Track whether spans and span metrics were already extracted.
+    ///
+    /// Only applies to envelopes with a transaction item.
+    spans_extracted: bool,
+
     /// Partial metrics of the Event during construction.
     ///
     /// The pipeline stages can add to this metrics objects. In `finalize_event`, the metrics are
@@ -911,6 +918,7 @@ pub struct EnvelopeProcessorService {
 
 /// Contains the addresses of services that the processor publishes to.
 pub struct Addrs {
+    pub envelope_processor: Addr<EnvelopeProcessor>,
     pub project_cache: Addr<ProjectCache>,
     pub outcome_aggregator: Addr<TrackOutcome>,
     #[cfg(feature = "processing")]
@@ -937,6 +945,8 @@ struct InnerProcessor {
     cardinality_limiter: Option<CardinalityLimiter>,
     #[cfg(feature = "processing")]
     metric_stats: MetricStats,
+    #[cfg(feature = "processing")]
+    buffer_guard: Arc<BufferGuard>,
 }
 
 impl EnvelopeProcessorService {
@@ -948,6 +958,7 @@ impl EnvelopeProcessorService {
         #[cfg(feature = "processing")] redis: Option<RedisPool>,
         addrs: Addrs,
         #[cfg(feature = "processing")] metric_stats: MetricStats,
+        #[cfg(feature = "processing")] buffer_guard: Arc<BufferGuard>,
     ) -> Self {
         let geoip_lookup = config.geoip_path().and_then(|p| {
             match GeoIpLookup::open(p).context(ServiceError::GeoIp) {
@@ -990,6 +1001,8 @@ impl EnvelopeProcessorService {
             #[cfg(feature = "processing")]
             metric_stats,
             config,
+            #[cfg(feature = "processing")]
+            buffer_guard,
         };
 
         Self {
@@ -1059,6 +1072,7 @@ impl EnvelopeProcessorService {
         ProcessEnvelopeState {
             event: Annotated::empty(),
             event_metrics_extracted: false,
+            spans_extracted: false,
             metrics: Metrics::default(),
             sample_rates: None,
             extracted_metrics: Default::default(),
@@ -1157,6 +1171,7 @@ impl EnvelopeProcessorService {
             if let Some(config) = config {
                 let metrics = crate::metrics_extraction::event::extract_metrics(
                     event,
+                    state.spans_extracted,
                     config,
                     self.inner
                         .config
@@ -1210,6 +1225,26 @@ impl EnvelopeProcessorService {
         &self,
         state: &mut ProcessEnvelopeState<G>,
     ) -> Result<(), ProcessingError> {
+        let full_normalization = match self.inner.config.normalization() {
+            Normalize::Disabled => {
+                // We assume envelopes coming from an internal relay have
+                // already been normalized. During incidents, like a PoP region
+                // not being available, envelopes can go to other PoP regions or
+                // directly to processing relays. Events should be fully
+                // normalized, independently of the ingestion path.
+                if self.inner.config.processing_enabled()
+                    && (!state.envelope().meta().is_from_internal_relay())
+                {
+                    true
+                } else {
+                    relay_log::trace!("Skipping event normalization");
+                    return Ok(());
+                }
+            }
+            Normalize::Full => true,
+            Normalize::Default => self.inner.config.processing_enabled(),
+        };
+
         if let Some(sampling_state) = state.sampling_project_state.clone() {
             state
                 .envelope_mut()
@@ -1240,13 +1275,11 @@ impl EnvelopeProcessorService {
                 is_validated: false,
             };
 
-            let is_last_relay_normalize = self.inner.config.processing_enabled();
-
             let key_id = state
                 .project_state
                 .get_public_key_config()
                 .and_then(|key| Some(key.numeric_id?.to_string()));
-            if is_last_relay_normalize && key_id.is_none() {
+            if full_normalization && key_id.is_none() {
                 relay_log::error!(
                     "project state for key {} is missing key id",
                     state.managed_envelope.envelope().meta().public_key()
@@ -1292,8 +1325,8 @@ impl EnvelopeProcessorService {
                     .aggregator_config_for(MetricNamespace::Spans)
                     .max_tag_value_length,
                 is_renormalize: false,
-                remove_other: is_last_relay_normalize,
-                emit_event_errors: is_last_relay_normalize,
+                remove_other: full_normalization,
+                emit_event_errors: full_normalization,
                 span_description_rules: state.project_state.config.span_description_rules.as_ref(),
                 geoip_lookup: self.inner.geoip_lookup.as_ref(),
                 enable_trimming: true,
@@ -1315,7 +1348,7 @@ impl EnvelopeProcessorService {
                 validate_transaction(event, &tx_validation_config)
                     .map_err(|_| ProcessingError::InvalidTransaction)?;
                 normalize_event(event, &normalization_config);
-                if is_last_relay_normalize && event::has_unprintable_fields(event) {
+                if full_normalization && event::has_unprintable_fields(event) {
                     metric!(counter(RelayCounters::EventCorrupted) += 1);
                 }
                 Result::<(), ProcessingError>::Ok(())
@@ -1527,11 +1560,16 @@ impl EnvelopeProcessorService {
         state: &mut ProcessEnvelopeState<SpanGroup>,
     ) -> Result<(), ProcessingError> {
         span::filter(state);
+
         if_processing!(self.inner.config, {
+            let global_config = self.inner.global_config.current();
+
             span::process(
                 state,
                 self.inner.config.clone(),
-                &self.inner.global_config.current(),
+                &global_config,
+                &self.inner.addrs,
+                &self.inner.buffer_guard,
             );
             self.enforce_quotas(state)?;
         });
