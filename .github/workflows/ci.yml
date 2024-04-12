@@ -324,6 +324,11 @@ jobs:
         run: |
           docker login --username '${{ github.actor }}' --password '${{ secrets.GITHUB_TOKEN }}' ghcr.io
 
+          ls -l
+          ls -l ./linux/
+          ls -l ./linux/amd64/
+          ls -l ./linux/arm64/
+
           docker buildx build \
             --platform "${PLATFORMS}" \
             --tag "${DOCKER_IMAGE}:${REVISION}" \

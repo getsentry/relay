@@ -23,8 +23,8 @@ WORKDIR /work
 EXPOSE 3000
 
 COPY ./$TARGETPLATFORM/relay /bin/relay
-COPY ./$TARGETPLATFORM/relay.debug.zip /opt/
-COPY ./$TARGETPLATFORM/relay.src.zip /opt/
+COPY ./$TARGETPLATFORM/relay.debug.zip /opt/relay.debug.zip
+COPY ./$TARGETPLATFORM/relay.src.zip /opt/relay.src.zip
 
 COPY ./docker-entrypoint.sh /
 ENTRYPOINT ["/bin/bash", "/docker-entrypoint.sh"]
