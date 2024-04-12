@@ -256,7 +256,7 @@ jobs:
 
     strategy:
       matrix:
-        image: [relay]
+        image_name: [relay]
 
     env:
       PLATFORMS: "linux/amd64,linux/arm64"
