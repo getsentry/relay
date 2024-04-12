@@ -469,7 +469,7 @@
         keys: <span class="kw">impl </span>Iterator&lt;Item = String&gt;,
     ) -&gt; <span class="kw-2">&amp;mut </span><span class="self">Self </span>{
         <span class="kw">let </span>invocation = <span class="self">self</span>.script.prepare_invocation(limit, expire, hashes, keys);
-        <span class="self">self</span>.pipe.script(invocation);
+        <span class="self">self</span>.pipe.invoke_script(<span class="kw-2">&amp;</span>invocation);
         <span class="self">self
     </span>}
 
