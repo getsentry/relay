@@ -201,7 +201,7 @@ fn scrub_file(description: &str) -> Option<String> {
     }
 }
 
-/// Scrub a [`Host`] object. 
+/// Scrub a [`Host`] object.
 ///
 /// Domain names are run through a scrubber. All IP addresses except well known ones are replaced with a scrubbed variant.
 /// Returns the scrubbed value as a string.
@@ -209,9 +209,12 @@ fn scrub_file(description: &str) -> Option<String> {
 /// # Examples
 ///
 /// ```
-/// assert_eq!(&scrub_host(Host::Domain("foo.bar.baz"), "expected value"));
-/// assert_eq!(&scrub_host(Host::Ipv4(Ipv4Addr::LOCALHOST), "127.0.0.1"));
-/// ...
+/// use url::{Host, Url};
+/// use std::net::{Ipv4Addr, Ipv6Addr};
+/// use relay_event_normalization::span::description::{scrub_host};
+///
+/// assert_eq!(scrub_host(Host::Domain("foo.bar.baz")), "*.bar.baz");
+/// assert_eq!(scrub_host(Host::Ipv4(Ipv4Addr::LOCALHOST)), "127.0.0.1");
 /// ```
 pub fn scrub_host(host: Host<&str>) -> Cow<'_, str> {
     match host {
@@ -221,15 +224,20 @@ pub fn scrub_host(host: Host<&str>) -> Cow<'_, str> {
     }
 }
 
-/// Scrub an IPV4 address. Allow well-known IPs like loopback, and fully scrub out all other IPs.
+/// Scrub an IPv4 address.
 ///
-/// # Arguments
+/// Allow well-known IPs like loopback, and fully scrub out all other IPs.
+/// Returns the scrubbed value as a string.
 ///
-/// * `ip` - IP to be scrubbed
+/// # Examples
 ///
-/// # Returns
+/// ```
+/// use std::net::{Ipv4Addr};
+/// use relay_event_normalization::span::description::{scrub_ipv4};
 ///
-/// Scrubbed string
+/// assert_eq!(scrub_ipv4(Ipv4Addr::LOCALHOST), "127.0.0.1");
+/// assert_eq!(scrub_ipv4(Ipv4Addr::new(8, 8, 8, 8)), String::from("*.*.*.*"));
+/// ```
 pub fn scrub_ipv4(ip: Ipv4Addr) -> Cow<'static, str> {
     if IPV4_ALLOW_LIST.contains(&ip) {
         return Cow::Owned(ip.to_string());
@@ -238,15 +246,20 @@ pub fn scrub_ipv4(ip: Ipv4Addr) -> Cow<'static, str> {
     Cow::Borrowed("*.*.*.*")
 }
 
-/// Scrub an IPV6 address. Allow well-known IPs like loopback, and fully scrub out all other IPs.
+/// Scrub an IPv6 address.
 ///
-/// # Arguments
+/// Allow well-known IPs like loopback, and fully scrub out all other IPs.
+/// Returns the scrubbed value as a string.
 ///
-/// * `ip` - IP to be scrubbed
+/// # Examples
 ///
-/// # Returns
+/// ```
+/// use std::net::{Ipv6Addr};
+/// use relay_event_normalization::span::description::{scrub_ipv6};
 ///
-/// Scrubbed string
+/// assert_eq!(scrub_ipv6(Ipv6Addr::LOCALHOST), "::1");
+/// assert_eq!(scrub_ipv6(Ipv6Addr::new(8, 8, 8, 8, 8, 8, 8, 8)), String::from("*:*:*:*:*:*:*:*"));
+/// ```
 pub fn scrub_ipv6(ip: Ipv6Addr) -> Cow<'static, str> {
     if IPV6_ALLOW_LIST.contains(&ip) {
         return Cow::Owned(ip.to_string());
@@ -255,15 +268,19 @@ pub fn scrub_ipv6(ip: Ipv6Addr) -> Cow<'static, str> {
     Cow::Borrowed("*:*:*:*:*:*:*:*")
 }
 
-/// Sanitize a qualified domain string by replacing all but the last two segments with asterisks
+/// Sanitize a qualified domain string.
 ///
-/// # Arguments
+/// Replace all but the last two segments with asterisks.
+/// Returns a string. In cases where the string is not domain-like, returns the original string.
 ///
-/// * `domain` - Domain name (e.g., "my.domain.com")
+/// # Examples
 ///
-/// # Returns
+/// ```
+/// use relay_event_normalization::span::description::{scrub_domain_name};
 ///
-/// The scrubbed domain as a `String`, or `None` if normalization fails.
+/// assert_eq!(scrub_domain_name(String::from("my.domain.com")), String::from("*.domain.com"));
+/// assert_eq!(scrub_domain_name(String::from("hello world")), String::from("hello world"));
+/// ```
 pub fn scrub_domain_name(domain: String) -> String {
     if DOMAIN_ALLOW_LIST.contains(&domain.as_str()) {
         return domain;
