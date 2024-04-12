@@ -116,7 +116,6 @@ impl KafkaClient {
     pub fn send_message(
         &self,
         topic: KafkaTopic,
-        organization_id: u64,
         message: &impl Message,
     ) -> Result<&str, ClientError> {
         let serialized = message.serialize()?;
@@ -128,7 +127,6 @@ impl KafkaClient {
         let key = message.key();
         self.send(
             topic,
-            organization_id,
             &key,
             message.headers(),
             message.variant(),
@@ -142,7 +140,6 @@ impl KafkaClient {
     pub fn send(
         &self,
         topic: KafkaTopic,
-        organization_id: u64,
         key: &[u8; 16],
         headers: Option<&BTreeMap<String, String>>,
         variant: &str,
@@ -154,7 +151,7 @@ impl KafkaClient {
             );
             ClientError::InvalidTopicName
         })?;
-        producer.send(organization_id, key, headers, variant, payload)
+        producer.send(key, headers, variant, payload)
     }
 }
 
@@ -266,7 +263,6 @@ impl Producer {
     /// Sends the payload to the correct producer for the current topic.
     fn send(
         &self,
-        _organization_id: u64,
         key: &[u8; 16],
         headers: Option<&BTreeMap<String, String>>,
         variant: &str,
