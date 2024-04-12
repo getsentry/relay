@@ -20,6 +20,7 @@
 - Support the full unicode character set via UTF-8 encoding for metric tags submitted via the statsd format. Certain restricted characters require escape sequences, see [docs](https://develop.sentry.dev/sdk/metrics/#normalization) for the precise rules. ([#3358](https://github.com/getsentry/relay/pull/3358))
 - Stop extracting count_per_segment and count_per_op metrics. ([#3380](https://github.com/getsentry/relay/pull/3380))
 - Extract `cache.item_size` and `cache.hit` metrics. ([#3371]https://github.com/getsentry/relay/pull/3371)
+- Remove `ShardedProducer`. ([#3415](https://github.com/getsentry/relay/pull/3415))
 
 **Internal**:
 
@@ -44,7 +45,6 @@
 - Route spans according to trace_id. ([#3387](https://github.com/getsentry/relay/pull/3387))
 - Log span when encountering a validation error. ([#3401](https://github.com/getsentry/relay/pull/3401))
 - Optionally skip normalization. ([#3377](https://github.com/getsentry/relay/pull/3377))
-- Remove `ShardedProducer`. ([#3415](https://github.com/getsentry/relay/pull/3415))
 
 ## 24.3.0
 
