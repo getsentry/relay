@@ -198,14 +198,14 @@ jobs:
         with:
           retention-days: 1
           name: foo@xxx
-          path: "foo/xxx"
+          path: "./*/foo/xxx"
 
       - name: Upload Artifacts 2
         uses: actions/upload-artifact@v4
         with:
           retention-days: 1
           name: foo@yyy
-          path: "foo/yyy"
+          path: "./*/foo/yyy"
 
   lsart:
     runs-on: ubuntu-latest
@@ -290,7 +290,7 @@ jobs:
         with:
           retention-days: 1
           name: ${{ matrix.image.name }}@${{ matrix.platform.target }}
-          path: "${{ matrix.platform.docker }}"
+          path: "./*/${{ matrix.platform.docker }}"
 
   build-docker:
     timeout-minutes: 5
