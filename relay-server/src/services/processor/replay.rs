@@ -28,8 +28,8 @@ pub fn process(
     let project_state = &state.project_state;
     let replays_enabled = project_state.has_feature(Feature::SessionReplay);
     let scrubbing_enabled = project_state.has_feature(Feature::SessionReplayRecordingScrubbing);
-    let mobile_replay_enabled = project_state.has_feature(Feature::SessionReplayVideo);
-    let mut contains_mobile_event = false;
+    let video_replay_enabled = project_state.has_feature(Feature::SessionReplayVideo);
+    let mut has_video_replay = false;
 
     let meta = state.envelope().meta().clone();
     let client_addr = meta.client_addr();
@@ -90,7 +90,7 @@ pub fn process(
                 item.set_payload(ContentType::OctetStream, replay_recording);
             }
             ItemType::ReplayVideo => {
-                contains_mobile_event = true;
+                has_video_replay = true;
 
                 let replay_video = handle_replay_video_item(
                     item.payload(),
@@ -111,7 +111,7 @@ pub fn process(
 
     // If the envelope contained a mobile event and mobile replay is disabled drop
     // the envelope.
-    if contains_mobile_event && !mobile_replay_enabled {
+    if has_video_replay && !video_replay_enabled {
         state.managed_envelope.drop_items_silently();
         return Ok(());
     }
