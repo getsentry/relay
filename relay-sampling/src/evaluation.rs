@@ -65,6 +65,11 @@ impl<'a> ReservoirEvaluator<'a> {
         }
     }
 
+    /// Gets shared ownership of the reservoir counters.
+    pub fn counters(&self) -> ReservoirCounters {
+        Arc::clone(&self.counters)
+    }
+
     /// Sets the Redis pool and organiation ID for the [`ReservoirEvaluator`].
     ///
     /// These values are needed to synchronize with Redis.

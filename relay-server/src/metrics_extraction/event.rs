@@ -7,6 +7,7 @@ use relay_quotas::DataCategory;
 use crate::metrics_extraction::generic::{self, Extractable};
 use crate::services::processor::extract_transaction_span;
 use crate::statsd::RelayTimers;
+use crate::utils::sample;
 
 impl Extractable for Event {
     fn category(&self) -> DataCategory {
@@ -46,26 +47,41 @@ impl Extractable for Span {
 /// If this is a transaction event with spans, metrics will also be extracted from the spans.
 pub fn extract_metrics(
     event: &Event,
+    spans_extracted: bool,
     config: &MetricExtractionConfig,
     max_tag_value_size: usize,
+    span_extraction_sample_rate: Option<f32>,
 ) -> Vec<Bucket> {
     let mut metrics = generic::extract_metrics(event, config);
 
+    // If spans were already extracted for an event,
+    // we rely on span processing to extract metrics.
+    if !spans_extracted && sample(span_extraction_sample_rate.unwrap_or(1.0)) {
+        extract_span_metrics_for_event(event, config, max_tag_value_size, &mut metrics);
+    }
+
+    metrics
+}
+
+fn extract_span_metrics_for_event(
+    event: &Event,
+    config: &MetricExtractionConfig,
+    max_tag_value_size: usize,
+    output: &mut Vec<Bucket>,
+) {
     relay_statsd::metric!(timer(RelayTimers::EventProcessingSpanMetricsExtraction), {
         if let Some(transaction_span) = extract_transaction_span(event, max_tag_value_size) {
-            metrics.extend(generic::extract_metrics(&transaction_span, config));
+            output.extend(generic::extract_metrics(&transaction_span, config));
         }
 
         if let Some(spans) = event.spans.value() {
             for annotated_span in spans {
                 if let Some(span) = annotated_span.value() {
-                    metrics.extend(generic::extract_metrics(span, config));
+                    output.extend(generic::extract_metrics(span, config));
                 }
             }
         }
     });
-
-    metrics
 }
 
 #[cfg(test)]
@@ -413,7 +429,8 @@ mod tests {
                     "trace_id": "ff62a8b040f340bda5d830223def1d81",
                     "status": "ok",
                     "data": {
-                        "cache.hit": false
+                        "cache.hit": false,
+                        "cache.item_size": 8
                     }
                 },
                 {
@@ -890,7 +907,21 @@ mod tests {
                     "trace_id": "ff62a8b040f340bda5d830223def1d81",
                     "status": "ok",
                     "data": {
-                        "cache.hit": false
+                        "cache.hit": false,
+                        "cache.item_size": 10
+                    }
+                },
+                {
+                    "description": "GET cache:user:{456}",
+                    "op": "cache.get_item",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bb7af8b99e95af5f",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976302.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "status": "ok",
+                    "data": {
+                        "cache.hit": true
                     }
                 },
                 {
@@ -989,7 +1020,6 @@ mod tests {
                         "ui.component_name": "my-component-name"
                     }
                 }
-
             ]
         }
         "#;
@@ -1016,7 +1046,7 @@ mod tests {
         project.sanitize();
 
         let config = project.metric_extraction.ok().unwrap();
-        let metrics = extract_metrics(event.value().unwrap(), &config, 200);
+        let metrics = extract_metrics(event.value().unwrap(), false, &config, 200, None);
         insta::assert_debug_snapshot!(metrics);
     }
 
@@ -1122,6 +1152,14 @@ mod tests {
                     "data": {
                         "app_start_type": "cold"
                     }
+                },
+                {
+                    "op": "file.read",
+                    "description": "somebackup.212321",
+                    "span_id": "bd429c44b67a3eb2",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976303.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81"
                 }
             ]
         }
@@ -1151,7 +1189,7 @@ mod tests {
         project.sanitize();
 
         let config = project.metric_extraction.ok().unwrap();
-        let metrics = extract_metrics(event.value().unwrap(), &config, 200);
+        let metrics = extract_metrics(event.value().unwrap(), false, &config, 200, None);
         insta::assert_debug_snapshot!((&event.value().unwrap().spans, metrics));
     }
 
@@ -1212,7 +1250,7 @@ mod tests {
         project.sanitize();
 
         let config = project.metric_extraction.ok().unwrap();
-        let metrics = extract_metrics(event.value().unwrap(), &config, 200);
+        let metrics = extract_metrics(event.value().unwrap(), false, &config, 200, None);
 
         // When transaction.op:ui.load and mobile:true, HTTP spans still get both
         // exclusive_time metrics:
@@ -1248,14 +1286,14 @@ mod tests {
         project.sanitize();
 
         let config = project.metric_extraction.ok().unwrap();
-        let metrics = extract_metrics(event.value().unwrap(), &config, 200);
+        let metrics = extract_metrics(event.value().unwrap(), false, &config, 200, None);
 
         let usage_metrics = metrics
             .into_iter()
             .filter(|b| &*b.name == "c:spans/usage@none")
             .collect::<Vec<_>>();
 
-        let expected_usage = 9; // We count all spans received by Relay, plus one for the transaction
+        let expected_usage = 10; // We count all spans received by Relay, plus one for the transaction
         assert_eq!(usage_metrics.len(), expected_usage);
         for m in usage_metrics {
             assert!(m.tags.is_empty());
@@ -1474,7 +1512,7 @@ mod tests {
         project.sanitize();
 
         let config = project.metric_extraction.ok().unwrap();
-        let metrics = extract_metrics(event.value().unwrap(), &config, 200);
+        let metrics = extract_metrics(event.value().unwrap(), false, &config, 200, None);
 
         assert_eq!(metrics.len(), 4);
         assert_eq!(&*metrics[0].name, "c:spans/usage@none");

@@ -30,6 +30,13 @@ const MONGODB_QUERIES: &[&str] = &["*\"$*", "{*", "*({*", "*[{*"];
 /// A list of patterns for resource span ops we'd like to ingest.
 const RESOURCE_SPAN_OPS: &[&str] = &["resource.script", "resource.css", "resource.img"];
 
+const CACHE_SPAN_OPS: &[&str] = &[
+    "cache.get_item",
+    "cache.save",
+    "cache.clear",
+    "cache.delete_item",
+];
+
 /// Adds configuration for extracting metrics from spans.
 ///
 /// This configuration is temporarily hard-coded here. It will later be provided by the upstream.
@@ -51,7 +58,11 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
         return;
     }
 
-    config.metrics.extend(span_metrics());
+    config.metrics.extend(span_metrics(
+        project_config
+            .features
+            .has(Feature::ExtractTransactionFromSegmentSpan),
+    ));
 
     config._span_metrics_extended = true;
     if config.version == 0 {
@@ -60,12 +71,20 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
 }
 
 /// Metrics with tags applied as required.
-fn span_metrics() -> impl IntoIterator<Item = MetricSpec> {
+fn span_metrics(transaction_extraction_enabled: bool) -> impl IntoIterator<Item = MetricSpec> {
+    let score_total_transaction_metric = if transaction_extraction_enabled {
+        RuleCondition::never()
+    } else {
+        RuleCondition::all()
+    };
+
     let is_db = RuleCondition::eq("span.sentry_tags.category", "db")
         & !(RuleCondition::eq("span.system", "mongodb")
             | RuleCondition::glob("span.op", DISABLED_DATABASES)
             | RuleCondition::glob("span.description", MONGODB_QUERIES));
     let is_resource = RuleCondition::glob("span.op", RESOURCE_SPAN_OPS);
+
+    let is_cache = RuleCondition::glob("span.op", CACHE_SPAN_OPS);
 
     let is_mobile_op = RuleCondition::glob("span.op", MOBILE_OPS);
 
@@ -208,6 +227,10 @@ fn span_metrics() -> impl IntoIterator<Item = MetricSpec> {
                 Tag::with_key("span.status_code")
                     .from_field("span.sentry_tags.status_code")
                     .when(is_http.clone()),
+                // Cache module
+                Tag::with_key("cache.hit")
+                    .from_field("span.sentry_tags.cache.hit")
+                    .when(is_cache.clone()),
             ],
         },
         MetricSpec {
@@ -263,6 +286,30 @@ fn span_metrics() -> impl IntoIterator<Item = MetricSpec> {
                 Tag::with_key("span.status_code")
                     .from_field("span.sentry_tags.status_code")
                     .when(is_http.clone()),
+                // Cache module
+                Tag::with_key("cache.hit")
+                    .from_field("span.sentry_tags.cache_hit")
+                    .when(is_cache.clone()),
+            ],
+        },
+        MetricSpec {
+            category: DataCategory::Span,
+            mri: "d:spans/cache.item_size@byte".into(),
+            field: Some("span.data.cache\\.item_size".into()),
+            condition: Some(is_cache.clone()),
+            tags: vec![
+                Tag::with_key("environment")
+                    .from_field("span.sentry_tags.environment")
+                    .always(), // already guarded by condition on metric
+                Tag::with_key("span.op")
+                    .from_field("span.sentry_tags.op")
+                    .always(), // already guarded by condition on metric
+                Tag::with_key("transaction")
+                    .from_field("span.sentry_tags.transaction")
+                    .always(), // already guarded by condition on metric
+                Tag::with_key("cache.hit")
+                    .from_field("span.sentry_tags.cache_hit")
+                    .always(), // already guarded by condition on metric
             ],
         },
         MetricSpec {
@@ -434,7 +481,11 @@ fn span_metrics() -> impl IntoIterator<Item = MetricSpec> {
             mri: "d:transactions/measurements.score.total@ratio".into(),
             field: Some("span.measurements.score.total.value".into()),
             condition: Some(
-                is_allowed_browser.clone() & RuleCondition::eq("span.was_transaction", false),
+                // If transactions are extracted from spans, the transaction processing pipeline
+                // will take care of this metric.
+                score_total_transaction_metric
+                    & is_allowed_browser.clone()
+                    & RuleCondition::eq("span.was_transaction", false),
             ),
             tags: vec![
                 Tag::with_key("span.op")

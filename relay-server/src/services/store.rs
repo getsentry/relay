@@ -33,7 +33,9 @@ use crate::services::global_config::GlobalConfigHandle;
 use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::services::processor::Processed;
 use crate::statsd::RelayCounters;
-use crate::utils::{self, ArrayEncoding, BucketEncoder, ExtractionMode, TypedEnvelope};
+use crate::utils::{
+    self, is_rolled_out, ArrayEncoding, BucketEncoder, ExtractionMode, FormDataIter, TypedEnvelope,
+};
 
 /// Fallback name used for attachment items without a `filename` header.
 const UNNAMED_ATTACHMENT: &str = "Unnamed Attachment";
@@ -184,6 +186,7 @@ impl StoreService {
     ) -> Result<(), StoreError> {
         let retention = envelope.retention();
         let event_id = envelope.event_id();
+
         let event_item = envelope.as_mut().take_item_by(|item| {
             matches!(
                 item.ty(),
@@ -199,6 +202,17 @@ impl StoreService {
             KafkaTopic::Attachments
         } else if event_item.as_ref().map(|x| x.ty()) == Some(&ItemType::Transaction) {
             KafkaTopic::Transactions
+        } else if event_item.as_ref().map(|x| x.ty()) == Some(&ItemType::UserReportV2) {
+            let feedback_ingest_topic_rollout_rate = self
+                .global_config
+                .current()
+                .options
+                .feedback_ingest_topic_rollout_rate;
+            if is_rolled_out(scoping.organization_id, feedback_ingest_topic_rollout_rate) {
+                KafkaTopic::Feedback
+            } else {
+                KafkaTopic::Events
+            }
         } else {
             KafkaTopic::Events
         };
@@ -288,10 +302,26 @@ impl StoreService {
                         .items()
                         .map(|item| item.ty().as_str())
                         .collect::<Vec<_>>();
+                    let attachment_types = envelope
+                        .items()
+                        .map(|item| {
+                            item.attachment_type()
+                                .map(|t| t.to_string())
+                                .unwrap_or_default()
+                        })
+                        .collect::<Vec<_>>();
 
                     relay_log::with_scope(
                         |scope| {
                             scope.set_extra("item_types", item_types.into());
+                            scope.set_extra("attachment_types", attachment_types.into());
+                            if other == &ItemType::FormData {
+                                let payload = item.payload();
+                                let form_data_keys = FormDataIter::new(&payload)
+                                    .map(|entry| entry.key())
+                                    .collect::<Vec<_>>();
+                                scope.set_extra("form_data_keys", form_data_keys.into());
+                            }
                         },
                         || {
                             relay_log::error!(
