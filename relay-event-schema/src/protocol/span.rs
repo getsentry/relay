@@ -532,6 +532,7 @@ mod tests {
             ai_prompt_tokens_used: ~,
             ai_total_tokens_used: ~,
             ai_responses: ~,
+            sdk_integration: ~,
             thread_name: ~,
             transaction: ~,
             ui_component_name: ~,
