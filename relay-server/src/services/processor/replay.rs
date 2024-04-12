@@ -29,7 +29,6 @@ pub fn process(
     let replays_enabled = project_state.has_feature(Feature::SessionReplay);
     let scrubbing_enabled = project_state.has_feature(Feature::SessionReplayRecordingScrubbing);
     let video_replay_enabled = project_state.has_feature(Feature::SessionReplayVideo);
-    let mut has_video_replay = false;
 
     let meta = state.envelope().meta().clone();
     let client_addr = meta.client_addr();
@@ -90,11 +89,11 @@ pub fn process(
                 item.set_payload(ContentType::OctetStream, replay_recording);
             }
             ItemType::ReplayVideo => {
-                has_video_replay = true;
-
-                // If video replays are not enabled break out of the loop.
+                // If video replays have not been enabled and a video replay was received
+                // drop the envelope.
                 if !video_replay_enabled {
-                    break;
+                    state.managed_envelope.drop_items_silently();
+                    return Ok(());
                 }
 
                 let replay_video = handle_replay_video_item(
@@ -112,13 +111,6 @@ pub fn process(
             }
             _ => {}
         }
-    }
-
-    // If video replays have not been enabled and a video replay was received drop the
-    // envelope.
-    if has_video_replay && !video_replay_enabled {
-        state.managed_envelope.drop_items_silently();
-        return Ok(());
     }
 
     Ok(())
