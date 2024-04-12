@@ -255,13 +255,6 @@ jobs:
             --output type=tar,dest="${{ matrix.image.name }}-${{ matrix.platform.target }}-docker-image.tgz" \
             --push .
 
-      - name: Upload Docker Image to Artifact
-        uses: actions/upload-artifact@v3
-        with:
-          retention-days: 1
-          name: ${{ matrix.image.name }}-${{ matrix.platform.target }}-docker-image
-          path: ${{ matrix.image.name }}-${{ matrix.platform.target }}-docker-image.tgz
-
   push-prod-image:
     timeout-minutes: 5
     needs: build
