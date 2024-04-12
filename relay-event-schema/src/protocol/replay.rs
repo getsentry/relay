@@ -220,6 +220,28 @@ pub struct Replay {
     pub sdk: Annotated<ClientSdkInfo>,
 }
 
+impl Replay {
+    /// Returns the raw user agent string.
+    ///
+    /// Returns `Some` if the event's request interface contains a `user-agent` header. Returns
+    /// `None` otherwise.
+    pub fn user_agent(&self) -> Option<&str> {
+        let headers = self.request.value()?.headers.value()?;
+
+        for item in headers.iter() {
+            if let Some((ref o_k, ref v)) = item.value() {
+                if let Some(k) = o_k.as_str() {
+                    if k.to_lowercase() == "user-agent" {
+                        return v.as_str();
+                    }
+                }
+            }
+        }
+
+        None
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use chrono::{TimeZone, Utc};
