@@ -31,10 +31,6 @@ const MAX_SEGMENT_LENGTH: usize = 25;
 /// Some bundlers attach characters to the end of a filename, try to catch those.
 const MAX_EXTENSION_LENGTH: usize = 10;
 
-/// IP addresses that are preserved during scrubbing
-const IPV4_ALLOW_LIST: &[Ipv4Addr] = &[Ipv4Addr::LOCALHOST];
-const IPV6_ALLOW_LIST: &[Ipv6Addr] = &[Ipv6Addr::LOCALHOST];
-
 /// Domain names that are preserved during scrubbing
 const DOMAIN_ALLOW_LIST: &[&str] = &["localhost"];
 
@@ -218,8 +214,8 @@ fn scrub_file(description: &str) -> Option<String> {
 /// ```
 pub fn scrub_host(host: Host<&str>) -> Cow<'_, str> {
     match host {
-        Host::Ipv4(ip) => scrub_ipv4(ip),
-        Host::Ipv6(ip) => scrub_ipv6(ip),
+        Host::Ipv4(ip) => Cow::Borrowed(scrub_ipv4(ip)),
+        Host::Ipv6(ip) => Cow::Borrowed(scrub_ipv6(ip)),
         Host::Domain(domain) => scrub_domain_name(domain),
     }
 }
@@ -238,18 +234,12 @@ pub fn scrub_host(host: Host<&str>) -> Cow<'_, str> {
 /// assert_eq!(scrub_ipv4(Ipv4Addr::LOCALHOST), "127.0.0.1");
 /// assert_eq!(scrub_ipv4(Ipv4Addr::new(8, 8, 8, 8)), String::from("*.*.*.*"));
 /// ```
-pub fn scrub_ipv4(ip: Ipv4Addr) -> Cow<'static, str> {
-    if IPV4_ALLOW_LIST.contains(&ip) {
-        return Cow::Owned(ip.to_string());
+pub fn scrub_ipv4(ip: Ipv4Addr) -> &'static str {
+    match ip {
+        Ipv4Addr::LOCALHOST => "127.0.0.1",
+        _ => "*.*.*.*",
     }
-
-    Cow::Borrowed("*.*.*.*")
 }
-
-/// Scrub an IPv6 address.
-///
-/// Allow well-known IPs like loopback, and fully scrub out all other IPs.
-/// Returns the scrubbed value as a string.
 ///
 /// # Examples
 ///
@@ -260,12 +250,11 @@ pub fn scrub_ipv4(ip: Ipv4Addr) -> Cow<'static, str> {
 /// assert_eq!(scrub_ipv6(Ipv6Addr::LOCALHOST), "::1");
 /// assert_eq!(scrub_ipv6(Ipv6Addr::new(8, 8, 8, 8, 8, 8, 8, 8)), String::from("*:*:*:*:*:*:*:*"));
 /// ```
-pub fn scrub_ipv6(ip: Ipv6Addr) -> Cow<'static, str> {
-    if IPV6_ALLOW_LIST.contains(&ip) {
-        return Cow::Owned(ip.to_string());
+pub fn scrub_ipv6(ip: Ipv6Addr) -> &'static str {
+    match ip {
+        Ipv6Addr::LOCALHOST => "::1",
+        _ => "*:*:*:*:*:*:*:*",
     }
-
-    Cow::Borrowed("*:*:*:*:*:*:*:*")
 }
 
 /// Sanitize a qualified domain string.
