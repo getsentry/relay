@@ -249,6 +249,7 @@ jobs:
           docker login --username '${{ github.actor }}' --password '${{ secrets.GITHUB_TOKEN }}' ghcr.io
           docker buildx build \
             --platform "${{ matrix.platform.docker }}" \
+            --attest type=provenance,mode=max \
             --tag "${DOCKER_IMAGE}:${REVISION}" \
             $( [[ "${GITHUB_REF}" == "refs/heads/master" ]] && printf %s "--tag ${DOCKER_IMAGE}:nightly" ) \
             --file Dockerfile.release \
