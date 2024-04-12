@@ -3498,8 +3498,8 @@ dependencies = [
 
 [[package]]
 name = "redis"
-version = "0.25.2"
-source = "git+https://github.com/getsentry/redis-rs.git?rev=6201a8c9f8766c4e580deef6834365ec631ce9f8#6201a8c9f8766c4e580deef6834365ec631ce9f8"
+version = "0.25.3"
+source = "git+https://github.com/getsentry/redis-rs.git?rev=9517cb7d0f247cf7f3c0813eea5e86794d6d8507#9517cb7d0f247cf7f3c0813eea5e86794d6d8507"
 dependencies = [
  "arc-swap",
  "combine",
