@@ -128,18 +128,20 @@ fn handle_replay_event_item(
 
     match process_replay_event(&payload, config, client_ip, user_agent) {
         Ok(replay) => {
-            relay_filter::should_filter(
-                &replay,
-                client_ip,
-                filter_settings,
-                global_config.filters(),
-            )
-            .map_err(|err| {
-                state
-                    .managed_envelope
-                    .reject(Outcome::Filtered(err.clone()));
-                ProcessingError::ReplayFiltered(err)
-            });
+            if let Some(ref replay_type) = replay.0 {
+                relay_filter::should_filter(
+                    replay_type,
+                    client_ip,
+                    filter_settings,
+                    global_config.filters(),
+                )
+                .map_err(|err| {
+                    state
+                        .managed_envelope
+                        .reject(Outcome::Filtered(err.clone()));
+                    ProcessingError::ReplayFiltered(err)
+                });
+            }
 
             match replay.to_json() {
                 Ok(json) => Ok(json.into_bytes().into()),
