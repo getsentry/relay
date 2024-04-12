@@ -44,6 +44,7 @@
 - Route spans according to trace_id. ([#3387](https://github.com/getsentry/relay/pull/3387))
 - Log span when encountering a validation error. ([#3401](https://github.com/getsentry/relay/pull/3401))
 - Optionally skip normalization. ([#3377](https://github.com/getsentry/relay/pull/3377))
+- Remove `ShardedProducer`. ([#3415](https://github.com/getsentry/relay/pull/3415))
 
 ## 24.3.0
 
