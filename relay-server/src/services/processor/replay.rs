@@ -92,6 +92,11 @@ pub fn process(
             ItemType::ReplayVideo => {
                 has_video_replay = true;
 
+                // If video replays are not enabled break out of the loop.
+                if !video_replay_enabled {
+                    break;
+                }
+
                 let replay_video = handle_replay_video_item(
                     item.payload(),
                     &event_id,
@@ -109,8 +114,8 @@ pub fn process(
         }
     }
 
-    // If the envelope contained a mobile event and mobile replay is disabled drop
-    // the envelope.
+    // If video replays have not been enabled and a video replay was received drop the
+    // envelope.
     if has_video_replay && !video_replay_enabled {
         state.managed_envelope.drop_items_silently();
         return Ok(());
