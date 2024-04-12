@@ -126,7 +126,7 @@ fn handle_replay_event_item(
                     filter_settings,
                     global_config.filters(),
                 )
-                .map_err(|e| ProcessingError::ReplayFiltered(e))?;
+                .map_err(ProcessingError::ReplayFiltered)?;
             }
 
             match replay.to_json() {
@@ -243,6 +243,7 @@ struct ReplayVideoEvent {
     replay_video: Bytes,
 }
 
+#[allow(clippy::too_many_arguments)]
 fn handle_replay_video_item(
     payload: Bytes,
     event_id: &Option<EventId>,
