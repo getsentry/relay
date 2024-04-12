@@ -67,7 +67,7 @@ pub enum SpanTagKey {
     FileExtension,
     /// Span started on main thread.
     MainThread,
-    // The SDK integration (e.g., openai) that created the span. Not well supported by SDK.
+    /// The SDK integration (e.g., openai) that created the span. Not yet well supported by SDKs.
     SdkIntegration,
     /// The start type of the application when the span occurred.
     AppStartType,
