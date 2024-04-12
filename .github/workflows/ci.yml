@@ -238,7 +238,7 @@ jobs:
       - name: Prepare Artifacts
         run: |
           mkdir -p "${{ matrix.platform.docker }}"
-          ls "${RELAY_BIN}*"
+          ls -l "target/${{ matrix.platform.target }}/release/"
           cp "${RELAY_BIN}"{,.debug.zip,.src.zip} "${{ matrix.platform.docker }}"
 
       - name: Upload Artifacts
@@ -260,6 +260,7 @@ jobs:
         image: [relay]
 
     env:
+      PLATFORMS: "linux/amd64,linux/arm64"
       DOCKER_IMAGE: "ghcr.io/getsentry/${{ matrix.image_name }}"
       REVISION: "${{ github.event.pull_request.head.sha || github.sha }}"
 
@@ -278,7 +279,7 @@ jobs:
           docker login --username '${{ github.actor }}' --password '${{ secrets.GITHUB_TOKEN }}' ghcr.io
 
           docker buildx build \
-            --platform "linux/amd64,linux/arm64" \
+            --platform "${PLATFORMS}" \
             --tag "${DOCKER_IMAGE}:${REVISION}" \
             $( [[ "${GITHUB_REF}" == "refs/heads/master" ]] && printf %s "--tag ${DOCKER_IMAGE}:nightly" ) \
             --file Dockerfile.release \
