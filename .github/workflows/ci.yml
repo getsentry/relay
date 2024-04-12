@@ -237,7 +237,7 @@ jobs:
 
       - name: Prepare Artifacts
         run: |
-          mkdir "${{ matrix.platform.docker }}"
+          mkdir -p "${{ matrix.platform.docker }}"
           cp "${RELAY_BIN}* ${{ matrix.platform.docker }}"
 
       - name: Upload Artifacts
