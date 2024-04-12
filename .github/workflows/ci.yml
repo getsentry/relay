@@ -185,27 +185,27 @@ jobs:
     steps:
       - name: Prepare Artifacts
         run: |
-          mkdir -p "foo/xxx"
-          touch foo/xxx/a
-          touch foo/xxx/b
+          mkdir -p "artifacts/foo/xxx"
+          touch artifacts/foo/xxx/a
+          touch artifacts/foo/xxx/b
 
-          mkdir -p "foo/yyy"
-          touch foo/yyy/a
-          touch foo/yyy/b
+          mkdir -p "artifacts2/foo/yyy"
+          touch artifacts2/foo/yyy/a
+          touch artifacts2/foo/yyy/b
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
           retention-days: 1
           name: foo@xxx
-          path: "./*/foo/xxx"
+          path: "./artifacts/*"
 
       - name: Upload Artifacts 2
         uses: actions/upload-artifact@v4
         with:
           retention-days: 1
           name: foo@yyy
-          path: "./*/foo/yyy"
+          path: "./artifacts2/*"
 
   lsart:
     runs-on: ubuntu-latest
@@ -282,7 +282,7 @@ jobs:
 
       - name: Prepare Artifacts
         run: |
-          mkdir -p "${{ matrix.platform.docker }}"
+          mkdir -p "artifacts/${{ matrix.platform.docker }}"
           cp "${RELAY_BIN}"{,.debug.zip,.src.zip} "${{ matrix.platform.docker }}"
 
       - name: Upload Artifacts
@@ -290,7 +290,7 @@ jobs:
         with:
           retention-days: 1
           name: ${{ matrix.image.name }}@${{ matrix.platform.target }}
-          path: "./*/${{ matrix.platform.docker }}"
+          path: "./artifacts/*"
 
   build-docker:
     timeout-minutes: 5
