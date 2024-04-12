@@ -398,7 +398,7 @@ fn scrub_resource_segment(segment: &str) -> Cow<str> {
     segment
 }
 
-pub(crate) fn scrub_resource_file_extension(mut extension: &str) -> &str {
+fn scrub_resource_file_extension(mut extension: &str) -> &str {
     // Only accept short, clean file extensions.
     let mut digits = 0;
     for (i, byte) in extension.bytes().enumerate() {
