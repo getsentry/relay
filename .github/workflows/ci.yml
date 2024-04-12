@@ -179,6 +179,50 @@ jobs:
   #     - name: Run Python Tests
   #       run: pytest -v py
 
+  genart:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Prepare Artifacts
+        run: |
+          mkdir -p "foo/xxx"
+          touch foo/xxx/a
+          touch foo/xxx/b
+
+          mkdir -p "foo/yyy"
+          touch foo/yyy/a
+          touch foo/yyy/b
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          retention-days: 1
+          name: foo@xxx
+          path: "foo/xxx"
+
+      - name: Upload Artifacts 2
+        uses: actions/upload-artifact@v4
+        with:
+          retention-days: 1
+          name: foo@yyy
+          path: "foo/yyy"
+
+  lsart:
+    runs-on: ubuntu-latest
+    needs: [genart]
+
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: "foo@*"
+          merge-multiple: true
+
+      - run: |
+        ls -l
+        ls -l foo/
+        ls -l foo/xxx/
+        ls -l foo/yyy/
+
   build:
     timeout-minutes: 30
     strategy:
