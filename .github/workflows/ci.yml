@@ -217,11 +217,12 @@ jobs:
           pattern: "foo@*"
           merge-multiple: true
 
-      - run: |
-        ls -l
-        ls -l foo/
-        ls -l foo/xxx/
-        ls -l foo/yyy/
+      - name: test
+        run: |
+          ls -l
+          ls -l foo/
+          ls -l foo/xxx/
+          ls -l foo/yyy/
 
   build:
     timeout-minutes: 30
