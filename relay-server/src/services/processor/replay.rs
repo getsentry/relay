@@ -28,7 +28,7 @@ pub fn process(
     let project_state = &state.project_state;
     let replays_enabled = project_state.has_feature(Feature::SessionReplay);
     let scrubbing_enabled = project_state.has_feature(Feature::SessionReplayRecordingScrubbing);
-    let mobile_replay_enabled = project_state.has_feature(Feature::SessionReplayMobile);
+    let mobile_replay_enabled = project_state.has_feature(Feature::SessionReplayVideo);
     let mut contains_mobile_event = false;
 
     let meta = state.envelope().meta().clone();
