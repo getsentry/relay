@@ -201,15 +201,18 @@ fn scrub_file(description: &str) -> Option<String> {
     }
 }
 
-/// Scrub a `Url::Host` object. For domain names, run the string through a scrubber. For IP addresses, return the IP address as-is.
+/// Scrub a [`Host`] object. 
 ///
-/// # Arguments
+/// Domain names are run through a scrubber. All IP addresses except well known ones are replaced with a scrubbed variant.
+/// Returns the scrubbed value as a string.
 ///
-/// * `host` - `Url::Host`
+/// # Examples
 ///
-/// # Returns
-///
-/// A host `String`, or `None` if scrubbing fails.
+/// ```
+/// assert_eq!(&scrub_host(Host::Domain("foo.bar.baz"), "expected value"));
+/// assert_eq!(&scrub_host(Host::Ipv4(Ipv4Addr::LOCALHOST), "127.0.0.1"));
+/// ...
+/// ```
 pub fn scrub_host(host: Host<&str>) -> Cow<'_, str> {
     match host {
         Host::Ipv4(ip) => scrub_ipv4(ip),
