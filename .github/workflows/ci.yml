@@ -238,14 +238,13 @@ jobs:
       - name: Prepare Artifacts
         run: |
           mkdir -p "${{ matrix.platform.docker }}"
-          ls -l "target/${{ matrix.platform.target }}/release/"
           cp "${RELAY_BIN}"{,.debug.zip,.src.zip} "${{ matrix.platform.docker }}"
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
           retention-days: 1
-          name: ${{ matrix.platform.docker }}/${{ matrix.image.name }}
+          name: ${{ matrix.image.name }}@${{ matrix.platform.target }}
           path: "${{ matrix.platform.docker }}"
 
   build-docker:
@@ -270,7 +269,7 @@ jobs:
 
       - uses: actions/download-artifact@v4
         with:
-          pattern: "*/${{ matrix.image_name }}"
+          pattern: "${{ matrix.image_name }}@*"
           merge-multiple: true
 
       - name: Build and push to ghcr.io
