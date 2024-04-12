@@ -481,18 +481,18 @@ fn is_false(val: &bool) -> bool {
 pub struct ItemHeaders {
     /// The type of the item.
     #[serde(rename = "type")]
-    ty: ItemType,
+    pub ty: ItemType,
 
     /// Content length of the item.
     ///
     /// Can be omitted if the item does not contain new lines. In this case, the item payload is
     /// parsed until the first newline is encountered.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    length: Option<u32>,
+    pub length: Option<u32>,
 
     /// If this is an attachment item, this may contain the attachment type.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    attachment_type: Option<AttachmentType>,
+    pub attachment_type: Option<AttachmentType>,
 
     /// Content type of the payload.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -500,7 +500,7 @@ pub struct ItemHeaders {
 
     /// If this is an attachment item, this may contain the original file name.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    filename: Option<String>,
+    pub filename: Option<String>,
 
     /// The routing_hint may be used to specify how the envelpope should be routed in when
     /// published to kafka.
@@ -508,7 +508,7 @@ pub struct ItemHeaders {
     /// XXX(epurkhiser): This is currently ONLY used for [`ItemType::CheckIn`]'s when publishing
     /// the envelope into kafka.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    routing_hint: Option<Uuid>,
+    pub routing_hint: Option<Uuid>,
 
     /// Indicates that this item is being rate limited.
     ///
@@ -519,12 +519,12 @@ pub struct ItemHeaders {
     ///
     /// NOTE: This is internal-only and not exposed into the Envelope.
     #[serde(default, skip)]
-    rate_limited: bool,
+    pub rate_limited: bool,
 
     /// Indicates that this item should be combined into one payload with other replay item.
     /// NOTE: This is internal-only and not exposed into the Envelope.
     #[serde(default, skip)]
-    replay_combined_payload: bool,
+    pub replay_combined_payload: bool,
 
     /// Contains the amount of events this item was generated and aggregated from.
     ///
@@ -536,14 +536,14 @@ pub struct ItemHeaders {
     ///
     /// NOTE: This is internal-only and not exposed into the Envelope.
     #[serde(default, skip)]
-    source_quantities: Option<SourceQuantities>,
+    pub source_quantities: Option<SourceQuantities>,
 
     /// A list of cumulative sample rates applied to this event.
     ///
     /// Multiple entries in `sample_rates` mean that the event was sampled multiple times. The
     /// effective sample rate is multiplied.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    sample_rates: Option<Value>,
+    pub sample_rates: Option<Value>,
 
     /// Flag indicating if metrics have already been extracted from the item.
     ///
@@ -552,11 +552,11 @@ pub struct ItemHeaders {
     /// the first Relay) MUST set this flat to true so that upstream Relays do
     /// not extract the metric again causing double counting of the metric.
     #[serde(default, skip_serializing_if = "is_false")]
-    metrics_extracted: bool,
+    pub metrics_extracted: bool,
 
     /// Whether or not a transaction has been extracted from a segment span.
     #[serde(default, skip_serializing_if = "is_false")]
-    transaction_extracted: bool,
+    pub transaction_extracted: bool,
 
     /// Whether or not spans and span metrics have been extracted from a transaction.
     ///
@@ -566,7 +566,7 @@ pub struct ItemHeaders {
     /// NOTE: This header is also set to `true` for transactions that are themselves extracted
     /// from spans (the opposite direction), to prevent going in circles.
     #[serde(default, skip_serializing_if = "is_false")]
-    spans_extracted: bool,
+    pub spans_extracted: bool,
 
     /// `false` if the sampling decision is "drop".
     ///
@@ -574,7 +574,7 @@ pub struct ItemHeaders {
     /// For profiles with the feature enabled, however, we keep all profile items and mark the ones
     /// for which the transaction was dropped as `sampled: false`.
     #[serde(default = "default_true", skip_serializing_if = "is_true")]
-    sampled: bool,
+    pub sampled: bool,
 
     /// Other attributes for forward compatibility.
     #[serde(flatten)]
@@ -621,8 +621,8 @@ impl AddAssign for SourceQuantities {
 
 #[derive(Clone, Debug)]
 pub struct Item {
-    headers: ItemHeaders,
-    payload: Bytes,
+    pub headers: ItemHeaders,
+    pub payload: Bytes,
 }
 
 impl Item {
@@ -1002,6 +1002,11 @@ impl Item {
             // returning `false` the safer option.
             ItemType::Unknown(_) => false,
         }
+    }
+
+    pub fn into_parts(self) -> (ItemHeaders, Bytes) {
+        let Self { headers, payload } = self;
+        (headers, payload)
     }
 }
 

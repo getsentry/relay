@@ -36,7 +36,7 @@ use relay_metrics::{
 };
 use relay_pii::PiiConfigError;
 use relay_profiling::ProfileId;
-use relay_protocol::{Annotated, Value};
+use relay_protocol::Annotated;
 use relay_quotas::{DataCategory, Scoping};
 use relay_sampling::config::RuleId;
 use relay_sampling::evaluation::{ReservoirCounters, ReservoirEvaluator};
@@ -65,7 +65,7 @@ use {
 };
 
 use crate::envelope::{
-    self, ContentType, Envelope, EnvelopeError, Item, ItemType, SourceQuantities,
+    self, ContentType, Envelope, EnvelopeError, Item, ItemHeaders, ItemType, SourceQuantities,
 };
 use crate::extractors::{PartialDsn, RequestMeta};
 use crate::http;
@@ -571,25 +571,16 @@ struct ProcessEnvelopeState<'a, Group> {
     /// extracted.
     event: Annotated<Event>,
 
-    /// Track whether transaction metrics were already extracted.
-    event_metrics_extracted: bool,
-
-    /// Track whether spans and span metrics were already extracted.
+    /// Item headers of the extracted event.
     ///
-    /// Only applies to envelopes with a transaction item.
-    spans_extracted: bool,
+    /// `None` if the envelope does not contain an event item.
+    event_headers: Option<ItemHeaders>,
 
     /// Partial metrics of the Event during construction.
     ///
     /// The pipeline stages can add to this metrics objects. In `finalize_event`, the metrics are
     /// persisted into the Event. All modifications afterwards will have no effect.
     metrics: Metrics,
-
-    /// A list of cumulative sample rates applied to this event.
-    ///
-    /// This element is obtained from the event or transaction item and re-serialized into the
-    /// resulting item.
-    sample_rates: Option<Value>,
 
     /// Metrics extracted from items in the envelope.
     ///
@@ -1071,10 +1062,8 @@ impl EnvelopeProcessorService {
 
         ProcessEnvelopeState {
             event: Annotated::empty(),
-            event_metrics_extracted: false,
-            spans_extracted: false,
+            event_headers: None,
             metrics: Metrics::default(),
-            sample_rates: None,
             extracted_metrics: Default::default(),
             project_state,
             sampling_project_state,
@@ -1115,7 +1104,10 @@ impl EnvelopeProcessorService {
         // Tell the envelope limiter about the event, since it has been removed from the Envelope at
         // this stage in processing.
         if let Some(category) = event_category {
-            envelope_limiter.assume_event(category, state.event_metrics_extracted);
+            envelope_limiter.assume_event(
+                category,
+                state.event_headers.map_or(false, |h| h.metrics_extracted),
+            );
         }
 
         let scoping = state.managed_envelope.scoping();
@@ -1163,15 +1155,15 @@ impl EnvelopeProcessorService {
             _ => None,
         };
 
-        if let Some(event) = state.event.value() {
-            if state.event_metrics_extracted {
+        if let (Some(event), Some(headers)) = (state.event.value(), &mut state.event_headers) {
+            if headers.metrics_extracted {
                 return Ok(());
             }
 
             if let Some(config) = config {
                 let metrics = crate::metrics_extraction::event::extract_metrics(
                     event,
-                    state.spans_extracted,
+                    headers.spans_extracted,
                     config,
                     self.inner
                         .config
@@ -1183,7 +1175,7 @@ impl EnvelopeProcessorService {
                         .options
                         .span_extraction_sample_rate,
                 );
-                state.event_metrics_extracted |= !metrics.is_empty();
+                headers.metrics_extracted |= !metrics.is_empty();
                 state.extracted_metrics.project_metrics.extend(metrics);
             }
 
@@ -1208,11 +1200,11 @@ impl EnvelopeProcessorService {
                     };
 
                     state.extracted_metrics.extend(extractor.extract(event)?);
-                    state.event_metrics_extracted |= true;
+                    headers.metrics_extracted |= true;
                 }
             }
 
-            if state.event_metrics_extracted {
+            if headers.metrics_extracted {
                 state.managed_envelope.set_event_metrics_extracted();
             }
         }

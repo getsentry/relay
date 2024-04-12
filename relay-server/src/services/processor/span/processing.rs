@@ -253,7 +253,11 @@ pub fn extract_from_event(
         return;
     };
 
-    if state.spans_extracted {
+    let Some(event_headers) = state.event_headers else {
+        return;
+    };
+
+    if event_headers.spans_extracted {
         return;
     }
 
@@ -304,7 +308,7 @@ pub fn extract_from_event(
         let mut item = Item::new(ItemType::Span);
         item.set_payload(ContentType::Json, span);
         // If metrics extraction happened for the event, it also happened for its spans:
-        item.set_metrics_extracted(state.event_metrics_extracted);
+        item.set_metrics_extracted(event_headers.metrics_extracted);
 
         relay_log::trace!("Adding span to envelope");
         state.managed_envelope.envelope_mut().add_item(item);
@@ -691,16 +695,14 @@ mod tests {
 
         ProcessEnvelopeState {
             event: Annotated::from(event),
+            event_headers: None,
             metrics: Default::default(),
-            sample_rates: None,
             extracted_metrics: Default::default(),
             project_state: Arc::new(project_state),
             sampling_project_state: None,
             project_id: ProjectId::new(42),
             managed_envelope: managed_envelope.try_into().unwrap(),
             profile_id: None,
-            event_metrics_extracted: false,
-            spans_extracted: false,
             reservoir: ReservoirEvaluator::new(ReservoirCounters::default()),
         }
     }

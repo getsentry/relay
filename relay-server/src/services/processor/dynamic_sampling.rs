@@ -479,8 +479,8 @@ mod tests {
 
             ProcessEnvelopeState {
                 event: Annotated::from(event),
+                event_headers: None,
                 metrics: Default::default(),
-                sample_rates: None,
                 extracted_metrics: Default::default(),
                 project_state: Arc::new(project_state),
                 sampling_project_state: None,
@@ -495,9 +495,7 @@ mod tests {
                 .try_into()
                 .unwrap(),
                 profile_id: None,
-                event_metrics_extracted: false,
                 reservoir: dummy_reservoir(),
-                spans_extracted: false,
             }
         };
 

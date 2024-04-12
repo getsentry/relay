@@ -69,22 +69,22 @@ pub fn extract<G: EventProcessing>(
 
     let mut sample_rates = None;
     let (event, event_len) = if let Some(mut item) = event_item.or(security_item) {
+        let (headers, payload) = item.into_parts();
+        state.event_headers = Some(headers);
         relay_log::trace!("processing json event");
-        sample_rates = item.take_sample_rates();
         metric!(timer(RelayTimers::EventProcessingDeserialize), {
             // Event items can never include transactions, so retain the event type and let
             // inference deal with this during store normalization.
-            event_from_json_payload(item, None)?
+            event_from_json_payload(&payload, None)?
         })
-    } else if let Some(mut item) = transaction_item {
+    } else if let Some(item) = transaction_item {
+        let (headers, payload) = item.into_parts();
         relay_log::trace!("processing json transaction");
-        sample_rates = item.take_sample_rates();
-        state.event_metrics_extracted = item.metrics_extracted();
-        state.spans_extracted = item.spans_extracted();
+        state.event_headers = Some(headers);
         metric!(timer(RelayTimers::EventProcessingDeserialize), {
             // Transaction items can only contain transaction events. Force the event type to
             // hint to normalization that we're dealing with a transaction now.
-            event_from_json_payload(item, Some(EventType::Transaction))?
+            event_from_json_payload(&payload, Some(EventType::Transaction))?
         })
     } else if let Some(item) = user_report_v2_item {
         relay_log::trace!("processing user_report_v2");
@@ -93,7 +93,7 @@ pub fn extract<G: EventProcessing>(
         if !user_report_v2_ingest {
             return Err(ProcessingError::NoEventPayload);
         }
-        event_from_json_payload(item, Some(EventType::UserReportV2))?
+        event_from_json_payload(&item.payload, Some(EventType::UserReportV2))?
     } else if let Some(mut item) = raw_security_item {
         relay_log::trace!("processing security report");
         sample_rates = item.take_sample_rates();
@@ -130,7 +130,6 @@ pub fn extract<G: EventProcessing>(
     };
 
     state.event = event;
-    state.sample_rates = sample_rates;
     state.metrics.bytes_ingested_event = Annotated::new(event_len as u64);
 
     Ok(())
@@ -190,8 +189,9 @@ pub fn finalize<G: EventProcessing>(
         }
 
         let sample_rates = state
-            .sample_rates
-            .take()
+            .event_headers
+            .as_mut()
+            .and_then(|h| h.sample_rates.take())
             .and_then(|value| Array::from_value(Annotated::new(value)).into_value());
 
         if let Some(rates) = sample_rates {
@@ -381,16 +381,8 @@ pub fn serialize<G: EventProcessing>(
     let mut event_item = Item::new(ItemType::from_event_type(event_type));
     event_item.set_payload(ContentType::Json, data);
 
-    // If transaction metrics were extracted, set the corresponding item header
-    event_item.set_metrics_extracted(state.event_metrics_extracted);
-
-    // TODO: The state should simply maintain & update an `ItemHeaders` object.
-    event_item.set_spans_extracted(state.spans_extracted);
-
-    // If there are sample rates, write them back to the envelope. In processing mode, sample
-    // rates have been removed from the state and burnt into the event via `finalize_event`.
-    if let Some(sample_rates) = state.sample_rates.take() {
-        event_item.set_sample_rates(sample_rates);
+    if let Some(headers) = state.event_headers.take() {
+        event_item.headers = headers;
     }
 
     state.envelope_mut().add_item(event_item);
@@ -459,17 +451,17 @@ fn is_duplicate(item: &Item, processing_enabled: bool) -> bool {
 }
 
 fn event_from_json_payload(
-    item: Item,
+    payload: &[u8],
     event_type: Option<EventType>,
 ) -> Result<ExtractedEvent, ProcessingError> {
-    let mut event = Annotated::<Event>::from_json_bytes(&item.payload())
-        .map_err(ProcessingError::InvalidJson)?;
+    let mut event =
+        Annotated::<Event>::from_json_bytes(payload).map_err(ProcessingError::InvalidJson)?;
 
     if let Some(event_value) = event.value_mut() {
         event_value.ty.set_value(event_type);
     }
 
-    Ok((event, item.len()))
+    Ok((event, payload.len()))
 }
 
 fn event_from_security_report(
