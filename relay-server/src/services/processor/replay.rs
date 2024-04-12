@@ -9,6 +9,7 @@ use relay_event_normalization::replay::{self, ReplayError};
 use relay_event_normalization::RawUserAgentInfo;
 use relay_event_schema::processor::{self, ProcessingState};
 use relay_event_schema::protocol::{EventId, Replay};
+use relay_filter::FilterStatKey;
 use relay_pii::PiiProcessor;
 use relay_protocol::Annotated;
 use relay_replays::recording::RecordingScrubber;
@@ -16,7 +17,7 @@ use relay_statsd::metric;
 use serde::{Deserialize, Serialize};
 
 use crate::envelope::{ContentType, ItemType};
-use crate::services::outcome::{DiscardReason, Outcome};
+use crate::services::outcome::DiscardReason;
 use crate::services::processor::{ProcessEnvelopeState, ProcessingError, ReplayGroup};
 use crate::statsd::RelayTimers;
 
@@ -69,13 +70,12 @@ pub fn process(
                 let replay_event = handle_replay_event_item(
                     item.payload(),
                     &event_id,
-                    state,
                     project_config,
                     global_config,
                     client_addr,
                     user_agent,
                 )
-                .map_err(ProcessingError::InvalidReplay)?;
+                .map_err(|e| e.to_processing_error())?;
 
                 item.set_payload(ContentType::Json, replay_event);
             }
@@ -86,7 +86,7 @@ pub fn process(
                     scrubbing_enabled,
                     &mut scrubber,
                 )
-                .map_err(ProcessingError::InvalidReplay)?;
+                .map_err(|e| e.to_processing_error())?;
 
                 item.set_payload(ContentType::OctetStream, replay_recording);
             }
@@ -94,7 +94,6 @@ pub fn process(
                 let replay_video = handle_replay_video_item(
                     item.payload(),
                     &event_id,
-                    state,
                     project_config,
                     global_config,
                     client_addr,
@@ -102,7 +101,7 @@ pub fn process(
                     scrubbing_enabled,
                     &mut scrubber,
                 )
-                .map_err(ProcessingError::InvalidReplay)?;
+                .map_err(|e| e.to_processing_error())?;
 
                 item.set_payload(ContentType::OctetStream, replay_video);
             }
@@ -118,12 +117,11 @@ pub fn process(
 fn handle_replay_event_item(
     payload: Bytes,
     event_id: &Option<EventId>,
-    state: &mut ProcessEnvelopeState<ReplayGroup>,
     config: &ProjectConfig,
     global_config: &GlobalConfig,
     client_ip: Option<IpAddr>,
     user_agent: &RawUserAgentInfo<&str>,
-) -> Result<Bytes, DiscardReason> {
+) -> Result<Bytes, ProcessingFailure> {
     let filter_settings = &config.filter_settings;
 
     match process_replay_event(&payload, config, client_ip, user_agent) {
@@ -135,12 +133,7 @@ fn handle_replay_event_item(
                     filter_settings,
                     global_config.filters(),
                 )
-                .map_err(|err| {
-                    state
-                        .managed_envelope
-                        .reject(Outcome::Filtered(err.clone()));
-                    ProcessingError::ReplayFiltered(err)
-                });
+                .map_err(|e| ProcessingFailure::Filtered(e))?;
             }
 
             match replay.to_json() {
@@ -162,10 +155,18 @@ fn handle_replay_event_item(
                 "invalid replay event"
             );
             Err(match error {
-                ReplayError::NoContent => DiscardReason::InvalidReplayEventNoPayload,
-                ReplayError::CouldNotScrub(_) => DiscardReason::InvalidReplayEventPii,
-                ReplayError::CouldNotParse(_) => DiscardReason::InvalidReplayEvent,
-                ReplayError::InvalidPayload(_) => DiscardReason::InvalidReplayEvent,
+                ReplayError::NoContent => {
+                    ProcessingFailure::Discarded(DiscardReason::InvalidReplayEventNoPayload)
+                }
+                ReplayError::CouldNotScrub(_) => {
+                    ProcessingFailure::Discarded(DiscardReason::InvalidReplayEventPii)
+                }
+                ReplayError::CouldNotParse(_) => {
+                    ProcessingFailure::Discarded(DiscardReason::InvalidReplayEvent)
+                }
+                ReplayError::InvalidPayload(_) => {
+                    ProcessingFailure::Discarded(DiscardReason::InvalidReplayEvent)
+                }
             })
         }
     }
@@ -214,7 +215,7 @@ fn handle_replay_recording_item(
     event_id: &Option<EventId>,
     scrubbing_enabled: bool,
     scrubber: &mut RecordingScrubber,
-) -> Result<Bytes, DiscardReason> {
+) -> Result<Bytes, ProcessingFailure> {
     // XXX: Processing is there just for data scrubbing. Skip the entire expensive
     // processing step if we do not need to scrub.
     if !scrubbing_enabled || scrubber.is_empty() {
@@ -233,7 +234,9 @@ fn handle_replay_recording_item(
         Ok(recording) => Ok(recording.into()),
         Err(e) => {
             relay_log::warn!("replay-recording-event: {e} {event_id:?}");
-            Err(DiscardReason::InvalidReplayRecordingEvent)
+            Err(ProcessingFailure::Discarded(
+                DiscardReason::InvalidReplayRecordingEvent,
+            ))
         }
     }
 }
@@ -250,14 +253,13 @@ struct ReplayVideoEvent {
 fn handle_replay_video_item(
     payload: Bytes,
     event_id: &Option<EventId>,
-    state: &mut ProcessEnvelopeState<ReplayGroup>,
     config: &ProjectConfig,
     global_config: &GlobalConfig,
     client_ip: Option<IpAddr>,
     user_agent: &RawUserAgentInfo<&str>,
     scrubbing_enabled: bool,
     scrubber: &mut RecordingScrubber,
-) -> Result<Bytes, DiscardReason> {
+) -> Result<Bytes, ProcessingFailure> {
     let ReplayVideoEvent {
         replay_event,
         replay_recording,
@@ -266,7 +268,9 @@ fn handle_replay_video_item(
         Ok(result) => result,
         Err(e) => {
             relay_log::warn!("replay-video-event: {e} {event_id:?}");
-            return Err(DiscardReason::InvalidReplayVideoEvent);
+            return Err(ProcessingFailure::Discarded(
+                DiscardReason::InvalidReplayVideoEvent,
+            ));
         }
     };
 
@@ -274,7 +278,6 @@ fn handle_replay_video_item(
     let replay_event = handle_replay_event_item(
         replay_event,
         event_id,
-        state,
         config,
         global_config,
         client_ip,
@@ -287,7 +290,9 @@ fn handle_replay_video_item(
 
     // Verify the replay-video payload is not empty.
     if replay_video.is_empty() {
-        return Err(DiscardReason::InvalidReplayVideoEvent);
+        return Err(ProcessingFailure::Discarded(
+            DiscardReason::InvalidReplayVideoEvent,
+        ));
     }
 
     match rmp_serde::to_vec_named(&ReplayVideoEvent {
@@ -296,6 +301,22 @@ fn handle_replay_video_item(
         replay_video,
     }) {
         Ok(payload) => Ok(payload.into()),
-        Err(_) => Err(DiscardReason::InvalidReplayVideoEvent),
+        Err(_) => Err(ProcessingFailure::Discarded(
+            DiscardReason::InvalidReplayVideoEvent,
+        )),
+    }
+}
+
+enum ProcessingFailure {
+    Discarded(DiscardReason),
+    Filtered(FilterStatKey),
+}
+
+impl ProcessingFailure {
+    pub fn to_processing_error(self) -> ProcessingError {
+        match self {
+            ProcessingFailure::Discarded(reason) => ProcessingError::InvalidReplay(reason),
+            ProcessingFailure::Filtered(key) => ProcessingError::ReplayFiltered(key),
+        }
     }
 }
