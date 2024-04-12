@@ -200,8 +200,6 @@ jobs:
     env:
       TARGET: "${{ matrix.platform.target }}"
       RELAY_BIN: "target/${{ matrix.platform.target }}/release/relay"
-      DOCKER_IMAGE: "ghcr.io/getsentry/${{ matrix.image.name }}"
-      REVISION: "${{ github.event.pull_request.head.sha || github.sha }}"
 
     steps:
       - name: Install dependencies
@@ -212,9 +210,6 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
-
-      - uses: docker/setup-qemu-action@v3
-      - uses: docker/setup-buildx-action@v3
 
       - uses: dtolnay/rust-toolchain@stable
       - uses: swatinem/rust-cache@v2
@@ -238,27 +233,55 @@ jobs:
           llvm-objcopy --add-gnu-debuglink "${RELAY_BIN}"{.debug,}
 
           cross-util run --target "${{ matrix.platform.target }}" -- "sentry-cli difutil bundle-sources ${RELAY_BIN}.debug"
+          zip "${RELAY_BIN}.debug.zip" "${RELAY_BIN}.debug"
+
+      - name: Prepare Artifacts
+        run: |
+          mkdir "${{ matrix.platform.docker }}"
+          cp "${RELAY_BIN}* ${{ matrix.platform.docker }}"
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          retention-days: 1
+          name: ${{ matrix.platform.docker }}/${{ matrix.image.name }}
+          path: "${{ matrix.platform.docker }}"
+
+  build-docker:
+    timeout-minutes: 5
+    needs: build
+
+    strategy:
+      matrix:
+        image: [relay]
+
+    env:
+      DOCKER_IMAGE: "ghcr.io/getsentry/${{ matrix.image_name }}"
+      REVISION: "${{ github.event.pull_request.head.sha || github.sha }}"
+
+    steps:
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: actions/download-artifact@v4
+        pattern: "*/${{ matrix.image_name }}"
+        merge-multiple: true
 
       - name: Build and push to ghcr.io
         if: "!github.event.pull_request.head.repo.fork && github.actor != 'dependabot[bot]'"
         run: |
-          mv "${RELAY_BIN}" ./relay-bin
-          zip relay-debug.zip "${RELAY_BIN}.debug"
-          mv "${RELAY_BIN}.src.zip" ./relay.src.zip
-
           docker login --username '${{ github.actor }}' --password '${{ secrets.GITHUB_TOKEN }}' ghcr.io
+
           docker buildx build \
-            --platform "${{ matrix.platform.docker }}" \
-            --attest type=provenance,mode=max \
+            --platform "linux/amd64,linux/arm64" \
             --tag "${DOCKER_IMAGE}:${REVISION}" \
             $( [[ "${GITHUB_REF}" == "refs/heads/master" ]] && printf %s "--tag ${DOCKER_IMAGE}:nightly" ) \
             --file Dockerfile.release \
-            --output type=tar,dest="${{ matrix.image.name }}-${{ matrix.platform.target }}-docker-image.tgz" \
             --push .
 
   push-prod-image:
     timeout-minutes: 5
-    needs: build
+    needs: build-docker
 
     name: Push GCR Docker Image
     runs-on: ubuntu-latest
