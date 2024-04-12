@@ -1020,7 +1020,6 @@ mod tests {
                         "ui.component_name": "my-component-name"
                     }
                 }
-
             ]
         }
         "#;
@@ -1153,6 +1152,14 @@ mod tests {
                     "data": {
                         "app_start_type": "cold"
                     }
+                },
+                {
+                    "op": "file.read",
+                    "description": "somebackup.212321",
+                    "span_id": "bd429c44b67a3eb2",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976303.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81"
                 }
             ]
         }
