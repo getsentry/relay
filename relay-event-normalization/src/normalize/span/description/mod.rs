@@ -186,7 +186,7 @@ fn scrub_file(description: &str) -> Option<String> {
     };
     match Path::new(filename).extension() {
         Some(extension) => {
-            let ext = extension.to_str()?;
+            let ext = scrub_resource_file_extension(extension.to_str()?);
             Some(format!("*.{ext}"))
         }
         _ => Some("*".to_owned()),
@@ -398,7 +398,7 @@ fn scrub_resource_segment(segment: &str) -> Cow<str> {
     segment
 }
 
-fn scrub_resource_file_extension(mut extension: &str) -> &str {
+pub(crate) fn scrub_resource_file_extension(mut extension: &str) -> &str {
     // Only accept short, clean file extensions.
     let mut digits = 0;
     for (i, byte) in extension.bytes().enumerate() {

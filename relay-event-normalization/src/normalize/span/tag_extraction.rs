@@ -15,7 +15,9 @@ use sqlparser::ast::Visit;
 use sqlparser::ast::{ObjectName, Visitor};
 use url::Url;
 
-use crate::span::description::{normalize_domain, scrub_span_description};
+use crate::span::description::{
+    normalize_domain, scrub_resource_file_extension, scrub_span_description,
+};
 use crate::utils::{
     extract_transaction_op, http_status_code_from_span, MAIN_THREAD_NAME, MOBILE_SDKS,
 };
@@ -435,7 +437,10 @@ pub fn extract_tags(
                     .and_then(|last_segment| last_segment.rsplit_once('.'))
                     .map(|(_, extension)| extension)
                 {
-                    span_tags.insert(SpanTagKey::FileExtension, ext.to_lowercase());
+                    span_tags.insert(
+                        SpanTagKey::FileExtension,
+                        scrub_resource_file_extension(ext.to_lowercase().as_str()).to_string(),
+                    );
                 }
             }
 
