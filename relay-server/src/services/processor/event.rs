@@ -12,7 +12,7 @@ use relay_event_normalization::{nel, ClockDriftProcessor};
 use relay_event_schema::processor::{self, ProcessingState};
 use relay_event_schema::protocol::{
     Breadcrumb, Csp, Event, ExpectCt, ExpectStaple, Hpkp, LenientString, NetworkReportError,
-    OtelContext, RelayInfo, SecurityReportType, Timestamp, Values,
+    OtelContext, RelayInfo, SecurityReportType, Values,
 };
 use relay_pii::PiiProcessor;
 use relay_protocol::{Annotated, Array, Empty, FromValue, Object, Value};
@@ -140,7 +140,6 @@ pub fn finalize<G: EventProcessing>(
     state: &mut ProcessEnvelopeState<G>,
     config: &Config,
 ) -> Result<(), ProcessingError> {
-    let is_transaction = state.event_type() == Some(EventType::Transaction);
     let envelope = state.managed_envelope.envelope_mut();
 
     let event = match state.event.value_mut() {
@@ -237,17 +236,9 @@ pub fn finalize<G: EventProcessing>(
         }
     }
 
-    // TODO: Temporary workaround before processing. Experimental SDKs relied on a buggy
-    // clock drift correction that assumes the event timestamp is the sent_at time. This
-    // should be removed as soon as legacy ingestion has been removed.
-    let sent_at = match envelope.sent_at() {
-        Some(sent_at) => Some(sent_at),
-        None if is_transaction => event.timestamp.value().copied().map(Timestamp::into_inner),
-        None => None,
-    };
-
-    let mut processor = ClockDriftProcessor::new(sent_at, state.managed_envelope.received_at())
-        .at_least(MINIMUM_CLOCK_DRIFT);
+    let mut processor =
+        ClockDriftProcessor::new(envelope.sent_at(), state.managed_envelope.received_at())
+            .at_least(MINIMUM_CLOCK_DRIFT);
     processor::process_value(&mut state.event, &mut processor, ProcessingState::root())
         .map_err(|_| ProcessingError::InvalidTransaction)?;
 
