@@ -283,7 +283,7 @@ jobs:
       - name: Prepare Artifacts
         run: |
           mkdir -p "artifacts/${{ matrix.platform.docker }}"
-          cp "${RELAY_BIN}"{,.debug.zip,.src.zip} "${{ matrix.platform.docker }}"
+          cp "${RELAY_BIN}"{,.debug.zip,.src.zip} "artifacts/${{ matrix.platform.docker }}"
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
