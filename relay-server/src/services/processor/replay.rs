@@ -9,7 +9,6 @@ use relay_event_normalization::replay::{self, ReplayError};
 use relay_event_normalization::RawUserAgentInfo;
 use relay_event_schema::processor::{self, ProcessingState};
 use relay_event_schema::protocol::{EventId, Replay};
-use relay_filter::FilterStatKey;
 use relay_pii::PiiProcessor;
 use relay_protocol::Annotated;
 use relay_replays::recording::RecordingScrubber;
@@ -74,9 +73,7 @@ pub fn process(
                     global_config,
                     client_addr,
                     user_agent,
-                )
-                .map_err(|e| e.to_processing_error())?;
-
+                )?;
                 item.set_payload(ContentType::Json, replay_event);
             }
             ItemType::ReplayRecording => {
@@ -85,9 +82,7 @@ pub fn process(
                     &event_id,
                     scrubbing_enabled,
                     &mut scrubber,
-                )
-                .map_err(|e| e.to_processing_error())?;
-
+                )?;
                 item.set_payload(ContentType::OctetStream, replay_recording);
             }
             ItemType::ReplayVideo => {
@@ -100,9 +95,7 @@ pub fn process(
                     user_agent,
                     scrubbing_enabled,
                     &mut scrubber,
-                )
-                .map_err(|e| e.to_processing_error())?;
-
+                )?;
                 item.set_payload(ContentType::OctetStream, replay_video);
             }
             _ => {}
@@ -121,7 +114,7 @@ fn handle_replay_event_item(
     global_config: &GlobalConfig,
     client_ip: Option<IpAddr>,
     user_agent: &RawUserAgentInfo<&str>,
-) -> Result<Bytes, ProcessingFailure> {
+) -> Result<Bytes, ProcessingError> {
     let filter_settings = &config.filter_settings;
 
     match process_replay_event(&payload, config, client_ip, user_agent) {
@@ -133,7 +126,7 @@ fn handle_replay_event_item(
                     filter_settings,
                     global_config.filters(),
                 )
-                .map_err(|e| ProcessingFailure::Filtered(e))?;
+                .map_err(|e| ProcessingError::ReplayFiltered(e))?;
             }
 
             match replay.to_json() {
@@ -156,16 +149,16 @@ fn handle_replay_event_item(
             );
             Err(match error {
                 ReplayError::NoContent => {
-                    ProcessingFailure::Discarded(DiscardReason::InvalidReplayEventNoPayload)
+                    ProcessingError::InvalidReplay(DiscardReason::InvalidReplayEventNoPayload)
                 }
                 ReplayError::CouldNotScrub(_) => {
-                    ProcessingFailure::Discarded(DiscardReason::InvalidReplayEventPii)
+                    ProcessingError::InvalidReplay(DiscardReason::InvalidReplayEventPii)
                 }
                 ReplayError::CouldNotParse(_) => {
-                    ProcessingFailure::Discarded(DiscardReason::InvalidReplayEvent)
+                    ProcessingError::InvalidReplay(DiscardReason::InvalidReplayEvent)
                 }
                 ReplayError::InvalidPayload(_) => {
-                    ProcessingFailure::Discarded(DiscardReason::InvalidReplayEvent)
+                    ProcessingError::InvalidReplay(DiscardReason::InvalidReplayEvent)
                 }
             })
         }
@@ -215,7 +208,7 @@ fn handle_replay_recording_item(
     event_id: &Option<EventId>,
     scrubbing_enabled: bool,
     scrubber: &mut RecordingScrubber,
-) -> Result<Bytes, ProcessingFailure> {
+) -> Result<Bytes, ProcessingError> {
     // XXX: Processing is there just for data scrubbing. Skip the entire expensive
     // processing step if we do not need to scrub.
     if !scrubbing_enabled || scrubber.is_empty() {
@@ -234,7 +227,7 @@ fn handle_replay_recording_item(
         Ok(recording) => Ok(recording.into()),
         Err(e) => {
             relay_log::warn!("replay-recording-event: {e} {event_id:?}");
-            Err(ProcessingFailure::Discarded(
+            Err(ProcessingError::InvalidReplay(
                 DiscardReason::InvalidReplayRecordingEvent,
             ))
         }
@@ -259,7 +252,7 @@ fn handle_replay_video_item(
     user_agent: &RawUserAgentInfo<&str>,
     scrubbing_enabled: bool,
     scrubber: &mut RecordingScrubber,
-) -> Result<Bytes, ProcessingFailure> {
+) -> Result<Bytes, ProcessingError> {
     let ReplayVideoEvent {
         replay_event,
         replay_recording,
@@ -268,7 +261,7 @@ fn handle_replay_video_item(
         Ok(result) => result,
         Err(e) => {
             relay_log::warn!("replay-video-event: {e} {event_id:?}");
-            return Err(ProcessingFailure::Discarded(
+            return Err(ProcessingError::InvalidReplay(
                 DiscardReason::InvalidReplayVideoEvent,
             ));
         }
@@ -290,7 +283,7 @@ fn handle_replay_video_item(
 
     // Verify the replay-video payload is not empty.
     if replay_video.is_empty() {
-        return Err(ProcessingFailure::Discarded(
+        return Err(ProcessingError::InvalidReplay(
             DiscardReason::InvalidReplayVideoEvent,
         ));
     }
@@ -301,22 +294,8 @@ fn handle_replay_video_item(
         replay_video,
     }) {
         Ok(payload) => Ok(payload.into()),
-        Err(_) => Err(ProcessingFailure::Discarded(
+        Err(_) => Err(ProcessingError::InvalidReplay(
             DiscardReason::InvalidReplayVideoEvent,
         )),
-    }
-}
-
-enum ProcessingFailure {
-    Discarded(DiscardReason),
-    Filtered(FilterStatKey),
-}
-
-impl ProcessingFailure {
-    pub fn to_processing_error(self) -> ProcessingError {
-        match self {
-            ProcessingFailure::Discarded(reason) => ProcessingError::InvalidReplay(reason),
-            ProcessingFailure::Filtered(key) => ProcessingError::ReplayFiltered(key),
-        }
     }
 }
