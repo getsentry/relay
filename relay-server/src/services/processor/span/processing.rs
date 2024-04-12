@@ -14,21 +14,23 @@ use relay_event_normalization::{
     PerformanceScoreConfig, RawUserAgentInfo, TransactionsProcessor,
 };
 use relay_event_schema::processor::{process_value, ProcessingState};
-use relay_event_schema::protocol::{BrowserContext, Contexts, Event, Span, SpanData};
+use relay_event_schema::protocol::{BrowserContext, Contexts, Event, EventId, Span, SpanData};
 use relay_log::protocol::{Attachment, AttachmentType};
 use relay_metrics::{aggregator::AggregatorConfig, MetricNamespace, UnixTimestamp};
 use relay_pii::PiiProcessor;
 use relay_protocol::{Annotated, Empty};
 use relay_spans::{otel_to_sentry_span, otel_trace::Span as OtelSpan};
 
-use crate::envelope::{ContentType, Item, ItemType};
+use crate::envelope::{ContentType, Envelope, Item, ItemType};
 use crate::metrics_extraction::generic::extract_metrics;
 use crate::services::outcome::{DiscardReason, Outcome};
 use crate::services::processor::span::extract_transaction_span;
 use crate::services::processor::{
-    ProcessEnvelopeState, ProcessingError, SpanGroup, TransactionGroup,
+    Addrs, ProcessEnvelope, ProcessEnvelopeState, ProcessingError, ProcessingGroup, SpanGroup,
+    TransactionGroup,
 };
-use crate::utils::{sample, ItemAction};
+use crate::statsd::{RelayCounters, RelayHistograms};
+use crate::utils::{sample, BufferGuard, ItemAction};
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -39,6 +41,8 @@ pub fn process(
     state: &mut ProcessEnvelopeState<SpanGroup>,
     config: Arc<Config>,
     global_config: &GlobalConfig,
+    addrs: &Addrs,
+    buffer_guard: &BufferGuard,
 ) {
     use relay_event_normalization::RemoveOtherProcessor;
 
@@ -67,6 +71,11 @@ pub fn process(
         &user_agent_info,
     );
 
+    let mut extracted_transactions = vec![];
+    let should_extract_transactions = state
+        .project_state
+        .has_feature(Feature::ExtractTransactionFromSegmentSpan);
+
     state.managed_envelope.retain_items(|item| {
         let mut annotated_span = match item.ty() {
             ItemType::OtelSpan => match serde_json::from_slice::<OtelSpan>(&item.payload()) {
@@ -87,6 +96,15 @@ pub fn process(
             _ => return ItemAction::Keep,
         };
 
+        set_segment_attributes(&mut annotated_span);
+
+        if should_extract_transactions && !item.transaction_extracted() {
+            if let Some(transaction) = convert_to_transaction(&annotated_span) {
+                extracted_transactions.push(transaction);
+                item.set_transaction_extracted(true);
+            }
+        }
+
         if let Err(e) = normalize(
             &mut annotated_span,
             normalize_span_config.clone(),
@@ -101,6 +119,7 @@ pub fn process(
             let Some(span) = annotated_span.value_mut() else {
                 return ItemAction::Drop(Outcome::Invalid(DiscardReason::Internal));
             };
+            relay_log::trace!("Extracting metrics from standalone span {:?}", span.span_id);
             let metrics = extract_metrics(span, config);
             state.extracted_metrics.project_metrics.extend(metrics);
             item.set_metrics_extracted(true);
@@ -163,6 +182,65 @@ pub fn process(
 
         ItemAction::Keep
     });
+
+    let mut transaction_count = 0;
+    for mut transaction in extracted_transactions {
+        // Give each transaction event a new random ID:
+        transaction.id = EventId::new().into();
+
+        // Enqueue a full processing request for every extracted transaction item.
+        match Envelope::try_from_event(state.envelope().headers().clone(), transaction) {
+            Ok(mut envelope) => {
+                // In order to force normalization, treat as external:
+                envelope.meta_mut().set_from_internal_relay(false);
+
+                // We don't want to extract spans or span metrics from a transaction extracted from spans,
+                // so set the spans_extracted flag:
+                for item in envelope.items_mut() {
+                    item.set_spans_extracted(true);
+                }
+
+                transaction_count += 1;
+
+                let managed_envelope = buffer_guard.enter(
+                    envelope,
+                    addrs.outcome_aggregator.clone(),
+                    addrs.test_store.clone(),
+                    ProcessingGroup::Transaction,
+                );
+
+                match managed_envelope {
+                    Ok(managed_envelope) => {
+                        addrs.envelope_processor.send(ProcessEnvelope {
+                            envelope: managed_envelope,
+                            project_state: state.project_state.clone(),
+                            sampling_project_state: state.sampling_project_state.clone(),
+                            reservoir_counters: state.reservoir.counters(),
+                        });
+                    }
+                    Err(e) => {
+                        relay_log::error!(
+                            error = &e as &dyn Error,
+                            "Failed to obtain permit for spinoff envelope:"
+                        );
+                    }
+                }
+            }
+            Err(e) => {
+                relay_log::error!(
+                    error = &e as &dyn Error,
+                    "Failed to create spinoff envelope:"
+                );
+            }
+        }
+    }
+
+    if transaction_count > 0 {
+        relay_statsd::metric!(counter(RelayCounters::TransactionsFromSpans) += transaction_count);
+        relay_statsd::metric!(
+            histogram(RelayHistograms::TransactionsFromSpansPerEnvelope) = transaction_count as u64
+        );
+    }
 }
 
 pub fn extract_from_event(
@@ -174,6 +252,10 @@ pub fn extract_from_event(
     if state.event_type() != Some(EventType::Transaction) {
         return;
     };
+
+    if state.spans_extracted {
+        return;
+    }
 
     if !state
         .project_state
@@ -263,6 +345,8 @@ pub fn extract_from_event(
     }
 
     add_span(transaction_span.into());
+
+    state.spans_extracted = true;
 }
 
 /// Removes the transaction in case the project has made the transition to spans-only.
@@ -324,6 +408,19 @@ fn get_normalize_span_config<'a>(
                 .saturating_sub(MeasurementsConfig::MEASUREMENT_MRI_OVERHEAD),
         ),
         performance_score,
+    }
+}
+
+fn set_segment_attributes(span: &mut Annotated<Span>) {
+    let Some(span) = span.value_mut() else { return };
+
+    // TODO: A span might be a segment span even if the parent_id is not empty
+    // (parent within a trace). I.e. do not overwrite here.
+    let is_segment = span.parent_span_id.is_empty();
+
+    span.is_segment = Annotated::new(is_segment);
+    if is_segment {
+        span.segment_id = span.span_id.clone();
     }
 }
 
@@ -394,13 +491,7 @@ fn normalize(
         );
     }
 
-    let is_segment = span.parent_span_id.is_empty();
-    span.is_segment = Annotated::new(is_segment);
     span.received = Annotated::new(received_at.into());
-
-    if is_segment {
-        span.segment_id = span.span_id.clone();
-    }
 
     if let Some(transaction) = span
         .data
@@ -532,6 +623,12 @@ fn validate(span: &mut Annotated<Span>) -> Result<(), ValidationError> {
     Ok(())
 }
 
+fn convert_to_transaction(annotated_span: &Annotated<Span>) -> Option<Event> {
+    let span = annotated_span.value()?;
+    relay_log::trace!("Extracting transaction for span {:?}", &span.span_id);
+    Event::try_from(span).ok()
+}
+
 #[cfg(test)]
 mod tests {
     use std::collections::BTreeMap;
@@ -603,6 +700,7 @@ mod tests {
             managed_envelope: managed_envelope.try_into().unwrap(),
             profile_id: None,
             event_metrics_extracted: false,
+            spans_extracted: false,
             reservoir: ReservoirEvaluator::new(ReservoirCounters::default()),
         }
     }

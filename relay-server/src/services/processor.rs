@@ -82,6 +82,8 @@ use crate::services::upstream::{
     SendRequest, UpstreamRelay, UpstreamRequest, UpstreamRequestError,
 };
 use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
+#[cfg(feature = "processing")]
+use crate::utils::BufferGuard;
 use crate::utils::{
     self, ExtractionMode, InvalidProcessingGroupType, ManagedEnvelope, SamplingResult,
     TypedEnvelope,
@@ -572,6 +574,11 @@ struct ProcessEnvelopeState<'a, Group> {
     /// Track whether transaction metrics were already extracted.
     event_metrics_extracted: bool,
 
+    /// Track whether spans and span metrics were already extracted.
+    ///
+    /// Only applies to envelopes with a transaction item.
+    spans_extracted: bool,
+
     /// Partial metrics of the Event during construction.
     ///
     /// The pipeline stages can add to this metrics objects. In `finalize_event`, the metrics are
@@ -911,6 +918,7 @@ pub struct EnvelopeProcessorService {
 
 /// Contains the addresses of services that the processor publishes to.
 pub struct Addrs {
+    pub envelope_processor: Addr<EnvelopeProcessor>,
     pub project_cache: Addr<ProjectCache>,
     pub outcome_aggregator: Addr<TrackOutcome>,
     #[cfg(feature = "processing")]
@@ -937,6 +945,8 @@ struct InnerProcessor {
     cardinality_limiter: Option<CardinalityLimiter>,
     #[cfg(feature = "processing")]
     metric_stats: MetricStats,
+    #[cfg(feature = "processing")]
+    buffer_guard: Arc<BufferGuard>,
 }
 
 impl EnvelopeProcessorService {
@@ -948,6 +958,7 @@ impl EnvelopeProcessorService {
         #[cfg(feature = "processing")] redis: Option<RedisPool>,
         addrs: Addrs,
         #[cfg(feature = "processing")] metric_stats: MetricStats,
+        #[cfg(feature = "processing")] buffer_guard: Arc<BufferGuard>,
     ) -> Self {
         let geoip_lookup = config.geoip_path().and_then(|p| {
             match GeoIpLookup::open(p).context(ServiceError::GeoIp) {
@@ -990,6 +1001,8 @@ impl EnvelopeProcessorService {
             #[cfg(feature = "processing")]
             metric_stats,
             config,
+            #[cfg(feature = "processing")]
+            buffer_guard,
         };
 
         Self {
@@ -1059,6 +1072,7 @@ impl EnvelopeProcessorService {
         ProcessEnvelopeState {
             event: Annotated::empty(),
             event_metrics_extracted: false,
+            spans_extracted: false,
             metrics: Metrics::default(),
             sample_rates: None,
             extracted_metrics: Default::default(),
@@ -1157,6 +1171,7 @@ impl EnvelopeProcessorService {
             if let Some(config) = config {
                 let metrics = crate::metrics_extraction::event::extract_metrics(
                     event,
+                    state.spans_extracted,
                     config,
                     self.inner
                         .config
@@ -1218,10 +1233,11 @@ impl EnvelopeProcessorService {
                 // directly to processing relays. Events should be fully
                 // normalized, independently of the ingestion path.
                 if self.inner.config.processing_enabled()
-                    && !state.envelope().meta().is_from_internal_relay()
+                    && (!state.envelope().meta().is_from_internal_relay())
                 {
                     true
                 } else {
+                    relay_log::trace!("Skipping event normalization");
                     return Ok(());
                 }
             }
@@ -1544,11 +1560,16 @@ impl EnvelopeProcessorService {
         state: &mut ProcessEnvelopeState<SpanGroup>,
     ) -> Result<(), ProcessingError> {
         span::filter(state);
+
         if_processing!(self.inner.config, {
+            let global_config = self.inner.global_config.current();
+
             span::process(
                 state,
                 self.inner.config.clone(),
-                &self.inner.global_config.current(),
+                &global_config,
+                &self.inner.addrs,
+                &self.inner.buffer_guard,
             );
             self.enforce_quotas(state)?;
         });

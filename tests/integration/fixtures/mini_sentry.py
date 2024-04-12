@@ -186,6 +186,15 @@ class Sentry(SentryLike):
         # must be called before initializing relay fixture
         self.global_config["options"][option_name] = value
 
+    def get_client_report(self, timeout=None):
+        envelope = self.captured_events.get(timeout=timeout)
+        items = envelope.items
+        assert len(items) == 1
+        item = items[0]
+        assert item.headers["type"] == "client_report"
+
+        return json.loads(item.payload.bytes)
+
 
 def _get_project_id(public_key, project_configs):
     for project_id, project_config in project_configs.items():
