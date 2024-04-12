@@ -160,9 +160,6 @@ pub enum TopicAssignment {
     /// `secondary_kafka_configs`. In this case that custom kafka config will be used to produce
     /// data to the given topic name.
     Secondary(KafkaTopicConfig),
-    /// If we want to configure multiple kafka clusters, we can create a mapping of the
-    /// range of logical shards to the kafka configuration.
-    Sharded(Sharded),
 }
 
 /// Configuration for topic
@@ -176,37 +173,6 @@ pub struct KafkaTopicConfig {
     kafka_config_name: String,
 }
 
-/// Configuration for logical shards -> kafka configuration mapping.
-///
-/// The configuration for this should look like:
-///
-/// ```ignore
-/// metrics:
-///    shards: 65000
-///    mapping:
-///      0:
-///          name: "ingest-metrics-1"
-///          config: "metrics_1"
-///      25000:
-///          name: "ingest-metrics-2"
-///          config: "metrics_2"
-///      45000:
-///          name: "ingest-metrics-3"
-///          config: "metrics_3"
-/// ```
-///
-/// where the `shards` defines how many logical shards must be created, and `mapping`
-/// describes the per-shard configuration. Index in the `mapping` is the initial inclusive
-/// index of the shard and the range is last till the next index or the maximum shard defined in
-/// the `shards` option. The first index must always start with 0.
-#[derive(Serialize, Deserialize, Debug)]
-pub struct Sharded {
-    /// The number of shards used for this topic.
-    shards: u64,
-    /// The Kafka configuration assigned to the specific shard range.
-    mapping: BTreeMap<u64, KafkaTopicConfig>,
-}
-
 /// Describes Kafka config, with all the parameters extracted, which will be used for creating the
 /// kafka producer.
 #[derive(Debug)]
@@ -215,14 +181,6 @@ pub enum KafkaConfig<'a> {
     Single {
         /// Kafka parameters to create the kafka producer.
         params: KafkaParams<'a>,
-    },
-
-    /// The list of the Kafka configs with related shard configs.
-    Sharded {
-        /// The maximum number of logical shards for this set of configs.
-        shards: u64,
-        /// The list of the sharded Kafka configs.
-        configs: BTreeMap<u64, KafkaParams<'a>>,
     },
 }
 
@@ -273,27 +231,6 @@ impl TopicAssignment {
                         .ok_or(ConfigError::UnknownKafkaConfigName)?,
                 },
             },
-            Self::Sharded(Sharded { shards, mapping }) => {
-                // quick fail if the config does not contain shard 0
-                if !mapping.contains_key(&0) {
-                    return Err(ConfigError::InvalidShard);
-                }
-                let mut kafka_params = BTreeMap::new();
-                for (shard, kafka_config) in mapping {
-                    let config = KafkaParams {
-                        topic_name: kafka_config.topic_name.as_str(),
-                        config_name: Some(kafka_config.kafka_config_name.as_str()),
-                        params: secondary_configs
-                            .get(kafka_config.kafka_config_name.as_str())
-                            .ok_or(ConfigError::UnknownKafkaConfigName)?,
-                    };
-                    kafka_params.insert(*shard, config);
-                }
-                KafkaConfig::Sharded {
-                    shards: *shards,
-                    configs: kafka_params,
-                }
-            }
         };
 
         Ok(kafka_config)
@@ -321,18 +258,7 @@ ingest-events: "ingest-events-kafka-topic"
 profiles:
     name: "ingest-profiles"
     config: "profiles"
-ingest-metrics:
-  shards: 65000
-  mapping:
-      0:
-          name: "ingest-metrics-1"
-          config: "metrics_1"
-      25000:
-          name: "ingest-metrics-2"
-          config: "metrics_2"
-      45000:
-          name: "ingest-metrics-3"
-          config: "metrics_3"
+ingest-metrics: "ingest-metrics-3"
 transactions: "ingest-transactions-kafka-topic"
 "#;
 
@@ -348,41 +274,17 @@ transactions: "ingest-transactions-kafka-topic"
                 value: "test-value".to_string(),
             }],
         );
-        second_config.insert(
-            "metrics_1".to_string(),
-            vec![KafkaConfigParam {
-                name: "test".to_string(),
-                value: "test-value".to_string(),
-            }],
-        );
-        second_config.insert(
-            "metrics_2".to_string(),
-            vec![KafkaConfigParam {
-                name: "test".to_string(),
-                value: "test-value".to_string(),
-            }],
-        );
-        second_config.insert(
-            "metrics_3".to_string(),
-            vec![KafkaConfigParam {
-                name: "test".to_string(),
-                value: "test-value".to_string(),
-            }],
-        );
+
         let topics: TopicAssignments = serde_yaml::from_str(yaml).unwrap();
         let events = topics.events;
         let profiles = topics.profiles;
-        let metrics = topics.metrics_sessions;
+        let metrics_sessions = topics.metrics_sessions;
         let transactions = topics.transactions;
 
         assert!(matches!(events, TopicAssignment::Primary(_)));
         assert!(matches!(profiles, TopicAssignment::Secondary { .. }));
-        assert!(matches!(metrics, TopicAssignment::Sharded { .. }));
-
-        let events_config = metrics
-            .kafka_config(&def_config, &second_config)
-            .expect("Kafka config for metrics topic");
-        assert!(matches!(events_config, KafkaConfig::Sharded { .. }));
+        assert!(matches!(metrics_sessions, TopicAssignment::Primary(_)));
+        assert!(matches!(transactions, TopicAssignment::Primary(_)));
 
         let events_config = events
             .kafka_config(&def_config, &second_config)
@@ -392,6 +294,33 @@ transactions: "ingest-transactions-kafka-topic"
             KafkaConfig::Single {
                 params: KafkaParams {
                     topic_name: "ingest-events-kafka-topic",
+                    ..
+                }
+            }
+        ));
+
+        let events_config = profiles
+            .kafka_config(&def_config, &second_config)
+            .expect("Kafka config for profiles topic");
+        assert!(matches!(
+            events_config,
+            KafkaConfig::Single {
+                params: KafkaParams {
+                    topic_name: "ingest-profiles",
+                    config_name: Some("profiles"),
+                    ..
+                }
+            }
+        ));
+
+        let events_config = metrics_sessions
+            .kafka_config(&def_config, &second_config)
+            .expect("Kafka config for metrics topic");
+        assert!(matches!(
+            events_config,
+            KafkaConfig::Single {
+                params: KafkaParams {
+                    topic_name: "ingest-metrics-3",
                     ..
                 }
             }
@@ -410,15 +339,6 @@ transactions: "ingest-transactions-kafka-topic"
                 }
             }
         ));
-
-        let (shards, mapping) =
-            if let TopicAssignment::Sharded(Sharded { shards, mapping }) = metrics {
-                (shards, mapping)
-            } else {
-                unreachable!()
-            };
-        assert_eq!(shards, 65000);
-        assert_eq!(3, mapping.len());
     }
 
     #[test]
