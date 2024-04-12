@@ -94,7 +94,6 @@ def test_replay_recording_with_video_flag_disabled(
     replay_events_consumer,
 ):
     project_id = 42
-    org_id = 0
     replay_id = "515539018c9b4260a6f999572f1661ee"
     relay = relay_with_processing()
     mini_sentry.add_basic_project_config(
