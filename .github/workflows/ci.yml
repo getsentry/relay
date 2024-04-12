@@ -179,88 +179,139 @@ jobs:
   #     - name: Run Python Tests
   #       run: pytest -v py
 
-  build:
-    timeout-minutes: 30
-    strategy:
-      matrix:
-        platform:
-          - target: aarch64-unknown-linux-gnu
-            docker: linux/arm64
-          - target: x86_64-unknown-linux-gnu
-            docker: linux/amd64
-        image:
-          - name: relay
-            features: "processing,crash-handler"
+  # build:
+  #   timeout-minutes: 30
+  #   strategy:
+  #     matrix:
+  #       platform:
+  #         - target: aarch64-unknown-linux-gnu
+  #           docker: linux/arm64
+  #         - target: x86_64-unknown-linux-gnu
+  #           docker: linux/amd64
+  #       image:
+  #         - name: relay
+  #           features: "processing,crash-handler"
+  #
+  #   name: Build Docker Image
+  #   runs-on: ubuntu-latest
+  #
+  #   if: "!startsWith(github.ref, 'refs/heads/release-library/')"
+  #
+  #   env:
+  #     TARGET: "${{ matrix.platform.target }}"
+  #     RELAY_BIN: "target/${{ matrix.platform.target }}/release/relay"
+  #     DOCKER_IMAGE: "ghcr.io/getsentry/${{ matrix.image.name }}"
+  #     REVISION: "${{ github.event.pull_request.head.sha || github.sha }}"
+  #
+  #   steps:
+  #     - name: Install dependencies
+  #       run: |
+  #         sudo apt-get update
+  #         sudo apt-get install -y llvm
+  #
+  #     - uses: actions/checkout@v4
+  #       with:
+  #         submodules: recursive
+  #
+  #     - uses: docker/setup-qemu-action@v3
+  #     - uses: docker/setup-buildx-action@v3
+  #
+  #     - uses: dtolnay/rust-toolchain@stable
+  #     - uses: swatinem/rust-cache@v2
+  #       with:
+  #         prefix-key: "v0-rust-${{ matrix.platform.target }}" 
+  #         cache-on-failure: true
+  #         key: ${{ github.job }}-${{ matrix.arch }}
+  #
+  #     - name: Install Cross
+  #       run: cargo install cross --git https://github.com/cross-rs/cross --rev 085092c
+  #
+  #     - name: Compile
+  #       run: |
+  #         export PATH="/home/runner/.cargo/bin/:$PATH"
+  #         cross build --release --locked --features "${{ matrix.image.features }}" --target "${{ matrix.platform.target }}"
+  #
+  #     - name: Split debug info
+  #       run: |
+  #         llvm-objcopy --only-keep-debug "${RELAY_BIN}"{,.debug}
+  #         llvm-objcopy --strip-debug --strip-unneeded "${RELAY_BIN}"
+  #         llvm-objcopy --add-gnu-debuglink "${RELAY_BIN}"{.debug,}
+  #
+  #         cross-util run --target "${{ matrix.platform.target }}" -- "sentry-cli difutil bundle-sources ${RELAY_BIN}.debug"
+  #
+  #     - name: Build and push to ghcr.io
+  #       if: "!github.event.pull_request.head.repo.fork && github.actor != 'dependabot[bot]'"
+  #       run: |
+  #         mv "${RELAY_BIN}" ./relay-bin
+  #         zip relay-debug.zip "${RELAY_BIN}.debug"
+  #         mv "${RELAY_BIN}.src.zip" ./relay.src.zip
+  #
+  #         docker login --username '${{ github.actor }}' --password '${{ secrets.GITHUB_TOKEN }}' ghcr.io
+  #         docker buildx build \
+  #           --platform "${{ matrix.platform.docker }}" \
+  #           --tag "${DOCKER_IMAGE}:${REVISION}" \
+  #           $( [[ "${GITHUB_REF}" == "refs/heads/master" ]] && printf %s "--tag ${DOCKER_IMAGE}:nightly" ) \
+  #           --file Dockerfile.release \
+  #           --output type=tar,dest="${{ matrix.image.name }}-${{ matrix.platform.target }}-docker-image.tgz" \
+  #           --push .
+  #
+  #     - name: Upload Docker Image to Artifact
+  #       uses: actions/upload-artifact@v3
+  #       with:
+  #         retention-days: 1
+  #         name: ${{ matrix.image.name }}-${{ matrix.platform.target }}-docker-image
+  #         path: ${{ matrix.image.name }}-${{ matrix.platform.target }}-docker-image.tgz
 
-    name: Build Docker Image
+  push-prod-image:
+    timeout-minutes: 5
+    # needs: build
+
+    name: Push GCR Docker Image
     runs-on: ubuntu-latest
 
-    if: "!startsWith(github.ref, 'refs/heads/release-library/')"
+    strategy:
+      matrix:
+        image_name: [relay]
+  
+    # required for google auth
+    permissions:
+      contents: "read"
+      id-token: "write"
 
     env:
-      TARGET: "${{ matrix.platform.target }}"
-      RELAY_BIN: "target/${{ matrix.platform.target }}/release/relay"
-      DOCKER_IMAGE: "ghcr.io/getsentry/${{ matrix.image.name }}"
-      REVISION: "${{ github.event.pull_request.head.sha || github.sha }}"
+      GHCR_DOCKER_IMAGE: "ghcr.io/getsentry/${{ matrix.image_name }}"
+      GCR_DOCKER_IMAGE: "us.gcr.io/sentryio/${{ matrix.image_name }}"
+        # REVISION: "${{ github.event.pull_request.head.sha || github.sha }}"
+      REVISION: "ae9ae1a78f0aa19f2067b4e2b4f9116384dff484"
+
+  #   # Skip redundant checks for library releases
+  #   # Skip for dependabot and if run on a fork
+  #   if: "!startsWith(github.ref, 'refs/heads/release-library/') && !github.event.pull_request.head.repo.fork && github.actor != 'dependabot[bot]'"
 
     steps:
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y llvm
-
-      - uses: actions/checkout@v4
+      - name: Google Auth
+        id: auth
+        uses: google-github-actions/auth@v2
         with:
-          submodules: recursive
-
-      - uses: docker/setup-qemu-action@v3
-      - uses: docker/setup-buildx-action@v3
-
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: swatinem/rust-cache@v2
+          workload_identity_provider: projects/868781662168/locations/global/workloadIdentityPools/prod-github/providers/github-oidc-pool
+          service_account: gha-gcr-push@sac-prod-sa.iam.gserviceaccount.com
+ 
+      - name: "Set up Cloud SDK"
+        uses: "google-github-actions/setup-gcloud@v2"
         with:
-          prefix-key: "v0-rust-${{ matrix.platform.target }}" 
-          cache-on-failure: true
-          key: ${{ github.job }}-${{ matrix.arch }}
-
-      - name: Install Cross
-        run: cargo install cross --git https://github.com/cross-rs/cross --rev 085092c
-
-      - name: Compile
+          # https://github.com/google-github-actions/auth#authenticating-via-workload-identity-federation
+          # You must use the Cloud SDK version 390.0.0 or later to authenticate the bq and gsutil tools.
+          version: ">= 390.0.0"
+ 
+      - name: Configure docker
         run: |
-          export PATH="/home/runner/.cargo/bin/:$PATH"
-          cross build --release --locked --features "${{ matrix.image.features }}" --target "${{ matrix.platform.target }}"
+          gcloud auth configure-docker us.gcr.io
 
-      - name: Split debug info
-        run: |
-          llvm-objcopy --only-keep-debug "${RELAY_BIN}"{,.debug}
-          llvm-objcopy --strip-debug --strip-unneeded "${RELAY_BIN}"
-          llvm-objcopy --add-gnu-debuglink "${RELAY_BIN}"{.debug,}
+      - name: Install regctl
+        uses: regclient/actions/regctl-installer@main
 
-          cross-util run --target "${{ matrix.platform.target }}" -- "sentry-cli difutil bundle-sources ${RELAY_BIN}.debug"
-
-      - name: Build and push to ghcr.io
-        if: "!github.event.pull_request.head.repo.fork && github.actor != 'dependabot[bot]'"
-        run: |
-          mv "${RELAY_BIN}" ./relay-bin
-          zip relay-debug.zip "${RELAY_BIN}.debug"
-          mv "${RELAY_BIN}.src.zip" ./relay.src.zip
-
-          docker login --username '${{ github.actor }}' --password '${{ secrets.GITHUB_TOKEN }}' ghcr.io
-          docker buildx build \
-            --platform "${{ matrix.platform.docker }}" \
-            --tag "${DOCKER_IMAGE}:${REVISION}" \
-            $( [[ "${GITHUB_REF}" == "refs/heads/master" ]] && printf %s "--tag ${DOCKER_IMAGE}:nightly" ) \
-            --file Dockerfile.release \
-            --output type=tar,dest="${{ matrix.image.name }}-${{ matrix.platform.target }}-docker-image.tgz" \
-            --push .
-
-      - name: Upload Docker Image to Artifact
-        uses: actions/upload-artifact@v3
-        with:
-          retention-days: 1
-          name: ${{ matrix.image.name }}-${{ matrix.platform.target }}-docker-image
-          path: ${{ matrix.image.name }}-${{ matrix.platform.target }}-docker-image.tgz
+      - name: Copy Image from GHCR to GCR
+        run: regctl image copy "${GHCR_DOCKER_IMAGE}:${REVISION}" "${GCR_DOCKER_IMAGE}:${REVISION}"
 
   # push-prod-image:
   #   timeout-minutes: 5
