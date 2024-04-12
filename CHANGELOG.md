@@ -46,6 +46,7 @@
 - Route spans according to trace_id. ([#3387](https://github.com/getsentry/relay/pull/3387))
 - Log span when encountering a validation error. ([#3401](https://github.com/getsentry/relay/pull/3401))
 - Optionally skip normalization. ([#3377](https://github.com/getsentry/relay/pull/3377))
+- Scrub file extensions in file spans and tags. ([#3413](https://github.com/getsentry/relay/pull/3413))
 
 ## 24.3.0
 
