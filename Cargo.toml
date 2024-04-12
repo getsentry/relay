@@ -124,8 +124,8 @@ rand = "0.8.5"
 rand_pcg = "0.3.1"
 rdkafka = "0.29.0"
 rdkafka-sys = "4.3.0"
-# Fork until https://github.com/redis-rs/redis-rs/pull/1097 is merged.
-redis = { git = "https://github.com/getsentry/redis-rs.git", rev = "9517cb7d0f247cf7f3c0813eea5e86794d6d8507", default-features = false }
+# Git revision until https://github.com/redis-rs/redis-rs/pull/1097 is released (already merged).
+redis = { git = "https://github.com/redis-rs/redis-rs.git", rev = "7e79e3a380a07eb0c1e559d9afa9152a87d2e50c", default-features = false }
 regex = "1.10.2"
 reqwasm = "0.5.0"
 reqwest = "0.11.1"
