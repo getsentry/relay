@@ -220,7 +220,7 @@ pub fn scrub_host(host: Host<&str>) -> Cow<'_, str> {
     match host {
         Host::Ipv4(ip) => scrub_ipv4(ip),
         Host::Ipv6(ip) => scrub_ipv6(ip),
-        Host::Domain(domain) => Cow::Owned(scrub_domain_name(String::from(domain))),
+        Host::Domain(domain) => scrub_domain_name(domain),
     }
 }
 
@@ -278,12 +278,12 @@ pub fn scrub_ipv6(ip: Ipv6Addr) -> Cow<'static, str> {
 /// ```
 /// use relay_event_normalization::span::description::{scrub_domain_name};
 ///
-/// assert_eq!(scrub_domain_name(String::from("my.domain.com")), String::from("*.domain.com"));
-/// assert_eq!(scrub_domain_name(String::from("hello world")), String::from("hello world"));
+/// assert_eq!(scrub_domain_name("my.domain.com"), "*.domain.com");
+/// assert_eq!(scrub_domain_name("hello world"), "hello world");
 /// ```
-pub fn scrub_domain_name(domain: String) -> String {
-    if DOMAIN_ALLOW_LIST.contains(&domain.as_str()) {
-        return domain;
+pub fn scrub_domain_name(domain: &str) -> Cow<'_, str> {
+    if DOMAIN_ALLOW_LIST.contains(&domain) {
+        return Cow::Borrowed(domain);
     }
 
     let mut tokens = domain.rsplitn(3, '.');
@@ -291,11 +291,13 @@ pub fn scrub_domain_name(domain: String) -> String {
     let domain = tokens.next();
     let prefix = tokens.next().map(|_| "*");
 
-    prefix
-        .iter()
-        .chain(domain.iter())
-        .chain(tld.iter())
-        .join(".")
+    Cow::Owned(
+        prefix
+            .iter()
+            .chain(domain.iter())
+            .chain(tld.iter())
+            .join("."),
+    )
 }
 
 /// Concatenate an optional host and port

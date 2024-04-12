@@ -1,5 +1,6 @@
 //! Logic for persisting items into `span.sentry_tags` and `span.measurements` fields.
 //! These are then used for metrics extraction.
+use std::borrow::Cow;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write;
 use std::net::IpAddr;
@@ -377,9 +378,9 @@ pub fn extract_tags(
 
                     // Leave IP addresses alone. Scrub qualified domain names
                     let domain = if let Ok(address) = domain.parse::<IpAddr>() {
-                        address.to_string()
+                        Cow::Owned(address.to_string())
                     } else {
-                        scrub_domain_name(domain.to_string())
+                        scrub_domain_name(domain)
                     };
 
                     if let Some(url_scheme) = span
@@ -395,7 +396,7 @@ pub fn extract_tags(
                     }
 
                     Some(String::from(concatenate_host_and_port(
-                        Some(domain.as_str()),
+                        Some(domain.to_string().as_str()),
                         port,
                     )))
                 } else {
