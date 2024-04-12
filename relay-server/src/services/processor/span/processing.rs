@@ -416,10 +416,12 @@ fn set_segment_attributes(span: &mut Annotated<Span>) {
 
     let is_root = span.parent_span_id.is_empty();
 
-    if is_root && span.is_segment.value().is_empty() {
+    // If `is_segment` was not set by the SDK and the span has no parent, assume it is a segment:
+    if is_root && span.is_segment.value().is_none() {
         span.is_segment = true.into();
     }
 
+    // If the span is a segment, always set to segment_id to the current span_id:
     if span.is_segment.value() == Some(&true) {
         span.segment_id = span.span_id.clone();
     }
