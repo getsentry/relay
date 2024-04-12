@@ -136,3 +136,22 @@ def test_replay_events_without_processing(mini_sentry, relay_chain):
 
     replay_event = envelope.items[0]
     assert replay_event.type == "replay_event"
+
+
+def test_replay_event_with_processing_other(
+    mini_sentry, relay_with_processing, replay_events_consumer
+):
+    relay = relay_with_processing()
+    project_config = mini_sentry.add_full_project_config(
+        42, extra={"config": {"features": ["organizations:session-replay"]}}
+    )
+    filter_settings = project_config["config"]["filterSettings"]
+    filter_settings["localhost"] = {"isEnabled": True}
+
+    replay_events_consumer = replay_events_consumer(timeout=10)
+    replay = generate_replay_sdk_event()
+    replay["request"]["url"] = "http://localhost:1200"
+
+    relay.send_replay_event(42, replay)
+
+    replay_events_consumer.assert_empty()
