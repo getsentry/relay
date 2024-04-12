@@ -3,8 +3,6 @@
 //! The configuration can be either;
 //! - [`TopicAssignment::Primary`] - the main and default kafka configuration,
 //! - [`TopicAssignment::Secondary`] - used to configure any additional kafka topic,
-//! - [`TopicAssignment::Sharded`] - if we want to configure multiple kafka clusters,
-//! we can create a mapping of the range of logical shards to the kafka configuration.
 
 use std::collections::BTreeMap;
 
