@@ -462,6 +462,9 @@ pub enum ProcessingError {
 
     #[error("invalid replay")]
     InvalidReplay(DiscardReason),
+
+    #[error("replay filtered with reason: {0:?}")]
+    ReplayFiltered(FilterStatKey),
 }
 
 impl ProcessingError {
@@ -503,6 +506,7 @@ impl ProcessingError {
             // These outcomes are emitted at the source.
             Self::MissingProjectId => None,
             Self::EventFiltered(_) => None,
+            Self::ReplayFiltered(_) => None,
             Self::InvalidProcessingGroup(_) => None,
 
             Self::InvalidReplay(reason) => Some(Outcome::Invalid(reason)),
@@ -1533,7 +1537,11 @@ impl EnvelopeProcessorService {
         &self,
         state: &mut ProcessEnvelopeState<ReplayGroup>,
     ) -> Result<(), ProcessingError> {
-        replay::process(state, &self.inner.config)?;
+        replay::process(
+            state,
+            &self.inner.config,
+            &self.inner.global_config.current(),
+        )?;
         if_processing!(self.inner.config, {
             self.enforce_quotas(state)?;
         });

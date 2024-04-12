@@ -4,7 +4,7 @@ use std::net::IpAddr;
 
 use bytes::Bytes;
 use relay_config::Config;
-use relay_dynamic_config::{Feature, ProjectConfig};
+use relay_dynamic_config::{Feature, GlobalConfig, ProjectConfig};
 use relay_event_normalization::replay::{self, ReplayError};
 use relay_event_normalization::RawUserAgentInfo;
 use relay_event_schema::processor::{self, ProcessingState};
@@ -16,7 +16,7 @@ use relay_statsd::metric;
 use serde::{Deserialize, Serialize};
 
 use crate::envelope::{ContentType, ItemType};
-use crate::services::outcome::DiscardReason;
+use crate::services::outcome::{DiscardReason, Outcome};
 use crate::services::processor::{ProcessEnvelopeState, ProcessingError, ReplayGroup};
 use crate::statsd::RelayTimers;
 
@@ -24,6 +24,7 @@ use crate::statsd::RelayTimers;
 pub fn process(
     state: &mut ProcessEnvelopeState<ReplayGroup>,
     config: &Config,
+    global_config: &GlobalConfig,
 ) -> Result<(), ProcessingError> {
     let project_state = &state.project_state;
     let replays_enabled = project_state.has_feature(Feature::SessionReplay);
@@ -68,7 +69,9 @@ pub fn process(
                 let replay_event = handle_replay_event_item(
                     item.payload(),
                     &event_id,
+                    state,
                     project_config,
+                    global_config,
                     client_addr,
                     user_agent,
                 )
@@ -91,7 +94,9 @@ pub fn process(
                 let replay_video = handle_replay_video_item(
                     item.payload(),
                     &event_id,
+                    state,
                     project_config,
+                    global_config,
                     client_addr,
                     user_agent,
                     scrubbing_enabled,
@@ -113,22 +118,41 @@ pub fn process(
 fn handle_replay_event_item(
     payload: Bytes,
     event_id: &Option<EventId>,
+    state: &mut ProcessEnvelopeState<ReplayGroup>,
     config: &ProjectConfig,
+    global_config: &GlobalConfig,
     client_ip: Option<IpAddr>,
     user_agent: &RawUserAgentInfo<&str>,
 ) -> Result<Bytes, DiscardReason> {
+    let filter_settings = &config.filter_settings;
+
     match process_replay_event(&payload, config, client_ip, user_agent) {
-        Ok(replay) => match replay.to_json() {
-            Ok(json) => Ok(json.into_bytes().into()),
-            Err(error) => {
-                relay_log::error!(
-                    error = &error as &dyn Error,
-                    ?event_id,
-                    "failed to serialize replay"
-                );
-                Ok(payload)
+        Ok(replay) => {
+            relay_filter::should_filter(
+                &replay,
+                client_ip,
+                filter_settings,
+                global_config.filters(),
+            )
+            .map_err(|err| {
+                state
+                    .managed_envelope
+                    .reject(Outcome::Filtered(err.clone()));
+                ProcessingError::ReplayFiltered(err)
+            });
+
+            match replay.to_json() {
+                Ok(json) => Ok(json.into_bytes().into()),
+                Err(error) => {
+                    relay_log::error!(
+                        error = &error as &dyn Error,
+                        ?event_id,
+                        "failed to serialize replay"
+                    );
+                    Ok(payload)
+                }
             }
-        },
+        }
         Err(error) => {
             relay_log::warn!(
                 error = &error as &dyn Error,
@@ -224,7 +248,9 @@ struct ReplayVideoEvent {
 fn handle_replay_video_item(
     payload: Bytes,
     event_id: &Option<EventId>,
+    state: &mut ProcessEnvelopeState<ReplayGroup>,
     config: &ProjectConfig,
+    global_config: &GlobalConfig,
     client_ip: Option<IpAddr>,
     user_agent: &RawUserAgentInfo<&str>,
     scrubbing_enabled: bool,
@@ -243,8 +269,15 @@ fn handle_replay_video_item(
     };
 
     // Process as a replay-event envelope item.
-    let replay_event =
-        handle_replay_event_item(replay_event, event_id, config, client_ip, user_agent)?;
+    let replay_event = handle_replay_event_item(
+        replay_event,
+        event_id,
+        state,
+        config,
+        global_config,
+        client_ip,
+        user_agent,
+    )?;
 
     // Process as a replay-recording envelope item.
     let replay_recording =
