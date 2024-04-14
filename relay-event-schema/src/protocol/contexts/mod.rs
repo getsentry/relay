@@ -97,7 +97,9 @@ pub enum Context {
 
 #[derive(Clone, Debug, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
-pub struct ContextInner(#[metastructure(bag_size = "large")] pub Context);
+pub struct ContextInner(
+    #[metastructure(max_struct_depth = 7, max_struct_bytes = 8192)] pub Context,
+);
 
 impl From<Context> for ContextInner {
     fn from(c: Context) -> ContextInner {

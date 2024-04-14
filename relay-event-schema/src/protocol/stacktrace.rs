@@ -121,7 +121,7 @@ pub struct Frame {
 
     /// Mapping of local variables and expression names that were available in this frame.
     // XXX: Probably want to trim per-var => new bag size?
-    #[metastructure(pii = "true", bag_size = "medium")]
+    #[metastructure(pii = "true", max_struct_depth = 5, max_struct_bytes = 2048)]
     pub vars: Annotated<FrameVars>,
 
     /// Auxiliary information about the frame that is platform specific.

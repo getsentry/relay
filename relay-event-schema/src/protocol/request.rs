@@ -449,7 +449,7 @@ pub struct Request {
     ///
     /// SDKs should discard large and binary bodies by default. Can be given as a string or
     /// structural data of any format.
-    #[metastructure(pii = "true", bag_size = "large")]
+    #[metastructure(pii = "true", max_struct_depth = 7, max_struct_bytes = 8192)]
     pub data: Annotated<Value>,
 
     /// The query string component of the URL.
@@ -458,7 +458,7 @@ pub struct Request {
     ///
     /// If the query string is not declared and part of the `url`, Sentry moves it to the
     /// query string.
-    #[metastructure(pii = "true", bag_size = "small")]
+    #[metastructure(pii = "true", max_struct_depth = 3, max_struct_bytes = 1024)]
     #[metastructure(skip_serialization = "empty")]
     pub query_string: Annotated<Query>,
 
@@ -470,7 +470,7 @@ pub struct Request {
     /// The cookie values.
     ///
     /// Can be given unparsed as string, as dictionary, or as a list of tuples.
-    #[metastructure(pii = "true", bag_size = "medium")]
+    #[metastructure(pii = "true", max_struct_depth = 5, max_struct_bytes = 2048)]
     #[metastructure(skip_serialization = "empty")]
     pub cookies: Annotated<Cookies>,
 
@@ -478,7 +478,7 @@ pub struct Request {
     ///
     /// If a header appears multiple times it, needs to be merged according to the HTTP standard
     /// for header merging. Header names are treated case-insensitively by Sentry.
-    #[metastructure(pii = "true", bag_size = "large")]
+    #[metastructure(pii = "true", max_struct_depth = 7, max_struct_bytes = 8192)]
     #[metastructure(skip_serialization = "empty")]
     pub headers: Annotated<Headers>,
 
@@ -491,7 +491,7 @@ pub struct Request {
     /// information such as CGI/WSGI/Rack keys go that are not HTTP headers.
     ///
     /// Sentry will explicitly look for `REMOTE_ADDR` to extract an IP address.
-    #[metastructure(pii = "true", bag_size = "large")]
+    #[metastructure(pii = "true", max_struct_depth = 7, max_struct_bytes = 8192)]
     #[metastructure(skip_serialization = "empty")]
     pub env: Annotated<Object<Value>>,
 

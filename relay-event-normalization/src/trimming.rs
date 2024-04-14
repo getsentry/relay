@@ -1,23 +1,23 @@
 use std::borrow::Cow;
 
 use relay_event_schema::processor::{
-    self, BagSize, Chunk, ProcessValue, ProcessingAction, ProcessingResult, ProcessingState,
-    Processor, ValueType,
+    self, Chunk, ProcessValue, ProcessingAction, ProcessingResult, ProcessingState, Processor,
+    ValueType,
 };
 use relay_event_schema::protocol::{Frame, RawStacktrace};
 use relay_protocol::{Annotated, Array, Empty, Meta, Object, RemarkType, Value};
 
 #[derive(Clone, Debug)]
-struct BagSizeState {
-    bag_size: BagSize,
+struct SizeState {
+    max_depth: Option<usize>,
     encountered_at_depth: usize,
-    size_remaining: usize,
+    size_remaining: Option<usize>,
 }
 
-/// Limits data bags to a maximum size and depth.
+/// Limits properties to a maximum size and depth.
 #[derive(Default)]
 pub struct TrimmingProcessor {
-    bag_size_state: Vec<BagSizeState>,
+    size_state: Vec<SizeState>,
 }
 
 impl TrimmingProcessor {
@@ -29,28 +29,30 @@ impl TrimmingProcessor {
     fn should_remove_container<T: Empty>(&self, value: &T, state: &ProcessingState<'_>) -> bool {
         // Heuristic to avoid trimming a value like `[1, 1, 1, 1, ...]` into `[null, null, null,
         // null, ...]`, making it take up more space.
-        self.remaining_bag_depth(state) == Some(1) && !value.is_empty()
+        self.remaining_depth(state) == Some(1) && !value.is_empty()
     }
 
     #[inline]
-    fn remaining_bag_depth(&self, state: &ProcessingState<'_>) -> Option<usize> {
-        self.bag_size_state
+    fn remaining_depth(&self, state: &ProcessingState<'_>) -> Option<usize> {
+        self.size_state
             .iter()
-            .map(|bag_size_state| {
+            .filter_map(|size_state| {
                 // The current depth in the entire event payload minus the depth at which we found the
-                // bag_size attribute is the depth where we are at in the databag.
-                let databag_depth = state.depth() - bag_size_state.encountered_at_depth;
-                bag_size_state
-                    .bag_size
-                    .max_depth()
-                    .saturating_sub(databag_depth)
+                // max_struct_depth attribute is the depth where we are at in the property.
+                let current_depth = state.depth() - size_state.encountered_at_depth;
+                size_state
+                    .max_depth
+                    .map(|max_depth| max_depth.saturating_sub(current_depth))
             })
             .min()
     }
 
     #[inline]
-    fn remaining_bag_size(&self) -> Option<usize> {
-        self.bag_size_state.iter().map(|x| x.size_remaining).min()
+    fn remaining_size(&self) -> Option<usize> {
+        self.size_state
+            .iter()
+            .filter_map(|x| x.size_remaining)
+            .min()
     }
 }
 
@@ -61,22 +63,22 @@ impl Processor for TrimmingProcessor {
         _: &mut Meta,
         state: &ProcessingState<'_>,
     ) -> ProcessingResult {
-        // If we encounter a bag size attribute it resets the depth and size
-        // that is permitted below it.
-        if let Some(bag_size) = state.attrs().bag_size {
-            self.bag_size_state.push(BagSizeState {
-                size_remaining: bag_size.max_size(),
+        // If we encounter a max_struct_bytes or max_struct_depth attribute it
+        // resets the size and depth that is permitted below it.
+        // XXX(iker): test setting only one of the two attributes.
+        if state.attrs().max_struct_bytes.is_some() || state.attrs().max_struct_depth.is_some() {
+            self.size_state.push(SizeState {
+                size_remaining: state.attrs().max_struct_bytes,
                 encountered_at_depth: state.depth(),
-                bag_size,
+                max_depth: state.attrs().max_struct_depth,
             });
         }
 
-        if self.remaining_bag_size() == Some(0) {
+        if self.remaining_size() == Some(0) {
             // TODO: Create remarks (ensure they do not bloat event)
             return Err(ProcessingAction::DeleteValueHard);
         }
-
-        if self.remaining_bag_depth(state) == Some(0) {
+        if self.remaining_depth(state) == Some(0) {
             // TODO: Create remarks (ensure they do not bloat event)
             return Err(ProcessingAction::DeleteValueHard);
         }
@@ -90,15 +92,15 @@ impl Processor for TrimmingProcessor {
         _: &mut Meta,
         state: &ProcessingState<'_>,
     ) -> ProcessingResult {
-        if let Some(ref mut bag_size_state) = self.bag_size_state.last_mut() {
+        if let Some(size_state) = self.size_state.last() {
             // If our current depth is the one where we found a bag_size attribute, this means we
             // are done processing a databag. Pop the bag size state.
-            if state.depth() == bag_size_state.encountered_at_depth {
-                self.bag_size_state.pop().unwrap();
+            if state.depth() == size_state.encountered_at_depth {
+                self.size_state.pop().unwrap();
             }
         }
 
-        for bag_size_state in self.bag_size_state.iter_mut() {
+        for size_state in self.size_state.iter_mut() {
             // After processing a value, update the remaining bag sizes. We have a separate if-let
             // here in case somebody defines nested databags (a struct with bag_size that contains
             // another struct with a different bag_size), in case we just exited a databag we want
@@ -110,8 +112,9 @@ impl Processor for TrimmingProcessor {
             if state.entered_anything() {
                 // Do not subtract if state is from newtype struct.
                 let item_length = relay_protocol::estimate_size_flat(value) + 1;
-                bag_size_state.size_remaining =
-                    bag_size_state.size_remaining.saturating_sub(item_length);
+                size_state.size_remaining = size_state
+                    .size_remaining
+                    .map(|size| size.saturating_sub(item_length));
             }
         }
 
@@ -128,8 +131,10 @@ impl Processor for TrimmingProcessor {
             trim_string(value, meta, max_chars, state.attrs().max_chars_allowance);
         }
 
-        if let Some(ref mut bag_size_state) = self.bag_size_state.last_mut() {
-            trim_string(value, meta, bag_size_state.size_remaining, 0);
+        if let Some(size_state) = self.size_state.last() {
+            if let Some(size_remaining) = size_state.size_remaining {
+                trim_string(value, meta, size_remaining, 0);
+            }
         }
 
         Ok(())
@@ -145,7 +150,7 @@ impl Processor for TrimmingProcessor {
         T: ProcessValue,
     {
         // If we need to check the bag size, then we go down a different path
-        if !self.bag_size_state.is_empty() {
+        if !self.size_state.is_empty() {
             let original_length = value.len();
 
             if self.should_remove_container(value, state) {
@@ -154,7 +159,7 @@ impl Processor for TrimmingProcessor {
 
             let mut split_index = None;
             for (index, item) in value.iter_mut().enumerate() {
-                if self.remaining_bag_size().unwrap() == 0 {
+                if self.remaining_size().unwrap() == 0 {
                     split_index = Some(index);
                     break;
                 }
@@ -187,7 +192,7 @@ impl Processor for TrimmingProcessor {
         T: ProcessValue,
     {
         // If we need to check the bag size, then we go down a different path
-        if !self.bag_size_state.is_empty() {
+        if !self.size_state.is_empty() {
             let original_length = value.len();
 
             if self.should_remove_container(value, state) {
@@ -196,7 +201,7 @@ impl Processor for TrimmingProcessor {
 
             let mut split_key = None;
             for (key, item) in value.iter_mut() {
-                if self.remaining_bag_size().unwrap() == 0 {
+                if self.remaining_size().unwrap() == 0 {
                     split_key = Some(key.to_owned());
                     break;
                 }
@@ -227,7 +232,7 @@ impl Processor for TrimmingProcessor {
     ) -> ProcessingResult {
         match value {
             Value::Array(_) | Value::Object(_) => {
-                if self.remaining_bag_depth(state) == Some(1) {
+                if self.remaining_depth(state) == Some(1) {
                     if let Ok(x) = serde_json::to_string(&value) {
                         // Error case should not be possible
                         *value = Value::String(x);

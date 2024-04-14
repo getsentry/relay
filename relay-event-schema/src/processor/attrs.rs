@@ -91,40 +91,6 @@ relay_common::derive_fromstr_and_display!(ValueType, UnknownValueTypeError, {
     ValueType::StackMemory => "stack_memory",
 });
 
-/// The maximum size of a databag.
-#[derive(Debug, Clone, Copy, PartialEq, Hash)]
-pub enum BagSize {
-    Small,
-    Medium,
-    Large,
-    Larger,
-    Massive,
-}
-
-impl BagSize {
-    /// Maximum depth of the structure.
-    pub fn max_depth(self) -> usize {
-        match self {
-            BagSize::Small => 3,
-            BagSize::Medium => 5,
-            BagSize::Large => 7,
-            BagSize::Larger => 7,
-            BagSize::Massive => 7,
-        }
-    }
-
-    /// Maximum estimated JSON bytes.
-    pub fn max_size(self) -> usize {
-        match self {
-            BagSize::Small => 1024,
-            BagSize::Medium => 2048,
-            BagSize::Large => 8192,
-            BagSize::Larger => 16384,
-            BagSize::Massive => 262_144,
-        }
-    }
-}
-
 /// Whether an attribute should be PII-strippable/should be subject to datascrubbers
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 pub enum Pii {
@@ -154,8 +120,10 @@ pub struct FieldAttrs {
     pub max_chars: Option<usize>,
     /// The extra char length allowance on top of max_chars.
     pub max_chars_allowance: usize,
-    /// The maximum bag size of this field.
-    pub bag_size: Option<BagSize>,
+    /// The maximum depth of this field.
+    pub max_struct_depth: Option<usize>,
+    /// The maximum number of bytes of this field.
+    pub max_struct_bytes: Option<usize>,
     /// The type of PII on the field.
     pub pii: Pii,
     /// Whether additional properties should be retained during normalization.
@@ -195,7 +163,8 @@ impl FieldAttrs {
             characters: None,
             max_chars: None,
             max_chars_allowance: 0,
-            bag_size: None,
+            max_struct_depth: None,
+            max_struct_bytes: None,
             pii: Pii::False,
             retain: false,
         }
@@ -231,14 +200,6 @@ impl FieldAttrs {
     /// Sets the maximum number of characters allowed in the field.
     pub const fn max_chars(mut self, max_chars: usize) -> Self {
         self.max_chars = Some(max_chars);
-        self
-    }
-
-    /// Sets the maximum size of all children in this field.
-    ///
-    /// This applies particularly to objects and arrays, but also to structures.
-    pub const fn bag_size(mut self, bag_size: BagSize) -> Self {
-        self.bag_size = Some(bag_size);
         self
     }
 

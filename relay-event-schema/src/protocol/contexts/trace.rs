@@ -179,7 +179,12 @@ pub struct Route {
     #[metastructure(pii = "maybe", skip_serialization = "empty")]
     name: Annotated<String>,
     /// Parameters assigned to this route.
-    #[metastructure(pii = "true", skip_serialization = "empty", bag_size = "medium")]
+    #[metastructure(
+        pii = "true",
+        skip_serialization = "empty",
+        max_struct_depth = 5,
+        max_struct_bytes = 2048
+    )]
     params: Annotated<Object<Value>>,
 
     /// Additional arbitrary fields for forwards compatibility.

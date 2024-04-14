@@ -191,7 +191,7 @@ pub struct Mechanism {
     pub parent_id: Annotated<u64>,
 
     /// Arbitrary extra data that might help the user understand the error thrown by this mechanism.
-    #[metastructure(pii = "true", bag_size = "medium")]
+    #[metastructure(pii = "true", max_struct_depth = 5, max_struct_bytes = 2048)]
     #[metastructure(skip_serialization = "empty")]
     pub data: Annotated<Object<Value>>,
 
