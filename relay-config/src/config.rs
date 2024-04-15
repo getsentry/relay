@@ -1014,9 +1014,6 @@ pub struct Processing {
     /// Maximum rate limit to report to clients.
     #[serde(default = "default_max_rate_limit")]
     pub max_rate_limit: Option<u32>,
-    /// How much normalization this Relay should apply to incoming data.
-    #[serde(default)]
-    pub normalize: Normalize,
 }
 
 impl Default for Processing {
@@ -1035,15 +1032,23 @@ impl Default for Processing {
             attachment_chunk_size: default_chunk_size(),
             projectconfig_cache_prefix: default_projectconfig_cache_prefix(),
             max_rate_limit: default_max_rate_limit(),
-            normalize: Normalize::Default,
         }
     }
+}
+
+/// Configuration for normalization in this Relay.
+#[derive(Debug, Default, Serialize, Deserialize)]
+#[serde(default)]
+pub struct Normalization {
+    /// Level of normalization for Relay to apply to incoming data.
+    #[serde(default)]
+    pub level: NormalizationLevel,
 }
 
 /// Configuration for the level of normalization this Relay should do.
 #[derive(Clone, Debug, Default, Serialize, Deserialize, Eq, PartialEq)]
 #[serde(rename_all = "lowercase")]
-pub enum Normalize {
+pub enum NormalizationLevel {
     /// Disables normalization for events coming from internal Relays.
     ///
     /// Processing relays still do full normalization for events coming from
@@ -1051,7 +1056,7 @@ pub enum Normalize {
     Disabled,
     /// Runs normalization, excluding steps that break future compatibility.
     ///
-    /// Processing Relays run [`Normalize::Full`] if this option is set.
+    /// Processing Relays run [`NormalizationLevel::Full`] if this option is set.
     #[default]
     Default,
     /// Run full normalization.
@@ -1434,6 +1439,8 @@ struct ConfigValues {
     aws: AwsConfig,
     #[serde(default)]
     geoip: GeoIpConfig,
+    #[serde(default)]
+    normalization: Normalization,
     #[serde(default)]
     cardinality_limiter: CardinalityLimiter,
     #[serde(default)]
@@ -2188,9 +2195,9 @@ impl Config {
         self.values.processing.enabled
     }
 
-    /// How much normalization this Relay should apply to incoming data.
-    pub fn normalization(&self) -> &Normalize {
-        &self.values.processing.normalize
+    /// Level of normalization for Relay to apply to incoming data.
+    pub fn normalization_level(&self) -> &NormalizationLevel {
+        &self.values.normalization.level
     }
 
     /// The path to the GeoIp database required for event processing.
