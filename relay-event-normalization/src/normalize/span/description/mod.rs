@@ -186,8 +186,12 @@ fn scrub_file(description: &str) -> Option<String> {
     };
     match Path::new(filename).extension() {
         Some(extension) => {
-            let ext = extension.to_str()?;
-            Some(format!("*.{ext}"))
+            let ext = scrub_resource_file_extension(extension.to_str()?);
+            if ext != "*" {
+                Some(format!("*.{ext}"))
+            } else {
+                Some("*".to_string())
+            }
         }
         _ => Some("*".to_owned()),
     }
@@ -776,6 +780,13 @@ mod tests {
     span_description_test!(
         span_description_file_with_no_extension,
         "somefilenamewithnoextension",
+        "file.read",
+        "*"
+    );
+
+    span_description_test!(
+        span_description_file_extension_with_numbers_only,
+        "backup.2024041101",
         "file.read",
         "*"
     );
