@@ -248,7 +248,7 @@ pub fn scrub_ipv4(ip: Ipv4Addr) -> &'static str {
 /// # Examples
 ///
 /// ```
-/// use std::net::{Ipv6Addr};
+/// use std::net::Ipv6Addr;
 /// use relay_event_normalization::span::description::{scrub_ipv6};
 ///
 /// assert_eq!(scrub_ipv6(Ipv6Addr::LOCALHOST), "::1");
