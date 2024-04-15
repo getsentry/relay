@@ -10,6 +10,7 @@
 **Features**:
 
 - **Breaking change:** Kafka topic configuration keys now support the default topic name. The previous aliases `metrics` and `metrics_transactions` are no longer supported if configuring topics manually. Use `ingest-metrics` or `metrics_sessions` instead of `metrics`, and `ingest-performance-metrics` or `metrics_generic` instead of `metrics_transactions`. ([#3361](https://github.com/getsentry/relay/pull/3361))
+- **Breaking change:** Remove `ShardedProducer` and related code. The sharded configuration for Kafka is no longer supported. ([#3415](https://github.com/getsentry/relay/pull/3415))
 - Add support for continuous profiling. ([#3270](https://github.com/getsentry/relay/pull/3270))
 - Add support for Reporting API for CSP reports ([#3277](https://github.com/getsentry/relay/pull/3277))
 - Extract op and description while converting opentelemetry spans to sentry spans. ([#3287](https://github.com/getsentry/relay/pull/3287))
@@ -24,6 +25,7 @@
 - Add `cardinality_limited` outcome with id `6`. ([#3389](https://github.com/getsentry/relay/pull/3389))
 - Extract `cache.item_size` and `cache.hit` metrics. ([#3371]https://github.com/getsentry/relay/pull/3371)
 - Optionally convert segment spans to transactions for compatibility. ([#3375](https://github.com/getsentry/relay/pull/3375))
+- Add feature flag for replay video event types. ([#3402](https://github.com/getsentry/relay/pull/3402))
 - Extract scrubbed IP addresses into the `span.domain` tag. ([#3383](https://github.com/getsentry/relay/pull/3383))
 
 **Internal**:
