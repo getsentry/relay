@@ -252,7 +252,7 @@ pub fn scrub_ipv4(ip: Ipv4Addr) -> &'static str {
 /// use relay_event_normalization::span::description::{scrub_ipv6};
 ///
 /// assert_eq!(scrub_ipv6(Ipv6Addr::LOCALHOST), "::1");
-/// assert_eq!(scrub_ipv6(Ipv6Addr::new(8, 8, 8, 8, 8, 8, 8, 8)), String::from("*:*:*:*:*:*:*:*"));
+/// assert_eq!(scrub_ipv6(Ipv6Addr::new(8, 8, 8, 8, 8, 8, 8, 8)), "*:*:*:*:*:*:*:*");
 /// ```
 pub fn scrub_ipv6(ip: Ipv6Addr) -> &'static str {
     match ip {
