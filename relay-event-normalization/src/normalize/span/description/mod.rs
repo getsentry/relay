@@ -269,7 +269,7 @@ pub fn scrub_ipv6(ip: Ipv6Addr) -> &'static str {
 /// # Examples
 ///
 /// ```
-/// use relay_event_normalization::span::description::{scrub_domain_name};
+/// use relay_event_normalization::span::description::scrub_domain_name;
 ///
 /// assert_eq!(scrub_domain_name("my.domain.com"), "*.domain.com");
 /// assert_eq!(scrub_domain_name("hello world"), "hello world");
