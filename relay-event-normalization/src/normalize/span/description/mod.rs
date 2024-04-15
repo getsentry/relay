@@ -6,11 +6,12 @@ use once_cell::sync::Lazy;
 pub use sql::{scrub_queries, Mode};
 
 use std::borrow::Cow;
+use std::net::{Ipv4Addr, Ipv6Addr};
 use std::path::Path;
 
 use itertools::Itertools;
 use relay_event_schema::protocol::Span;
-use url::Url;
+use url::{Host, Url};
 
 use crate::regexes::{
     DB_SQL_TRANSACTION_CORE_DATA_REGEX, DB_SUPABASE_REGEX, REDIS_COMMAND_REGEX,
@@ -29,6 +30,9 @@ const MAX_SEGMENT_LENGTH: usize = 25;
 
 /// Some bundlers attach characters to the end of a filename, try to catch those.
 const MAX_EXTENSION_LENGTH: usize = 10;
+
+/// Domain names that are preserved during scrubbing
+const DOMAIN_ALLOW_LIST: &[&str] = &["localhost"];
 
 /// Attempts to replace identifiers in the span description with placeholders.
 ///
@@ -165,9 +169,9 @@ fn scrub_http(string: &str) -> Option<String> {
 
     let scrubbed = match Url::parse(url) {
         Ok(url) => {
-            let host = url.host().map(|h| h.to_string())?;
-            let domain = normalize_domain(host.as_str(), url.port())?;
             let scheme = url.scheme();
+            let scrubbed_host = url.host().map(scrub_host);
+            let domain = concatenate_host_and_port(scrubbed_host.as_deref(), url.port());
 
             format!("{method} {scheme}://{domain}")
         }
@@ -197,19 +201,84 @@ fn scrub_file(description: &str) -> Option<String> {
     }
 }
 
-/// Normalize the domain and port of a URL.
+/// Scrub a [`Host`] object.
 ///
-/// # Arguments
+/// Domain names are run through a scrubber. All IP addresses except well known ones are replaced with a scrubbed variant.
+/// Returns the scrubbed value as a string.
 ///
-/// * `domain` - The domain of the URL.
-/// * `port` - The port of the URL.
+/// # Examples
 ///
-/// # Returns
+/// ```
+/// use url::{Host, Url};
+/// use std::net::{Ipv4Addr, Ipv6Addr};
+/// use relay_event_normalization::span::description::scrub_host;
 ///
-/// The normalized domain and port as a `String`, or `None` if normalization fails.
-pub fn normalize_domain(domain: &str, port: Option<u16>) -> Option<String> {
-    if let Some(allow_listed) = normalized_domain_from_allowlist(domain, port) {
-        return Some(allow_listed);
+/// assert_eq!(scrub_host(Host::Domain("foo.bar.baz")), "*.bar.baz");
+/// assert_eq!(scrub_host(Host::Ipv4(Ipv4Addr::LOCALHOST)), "127.0.0.1");
+/// ```
+pub fn scrub_host(host: Host<&str>) -> Cow<'_, str> {
+    match host {
+        Host::Ipv4(ip) => Cow::Borrowed(scrub_ipv4(ip)),
+        Host::Ipv6(ip) => Cow::Borrowed(scrub_ipv6(ip)),
+        Host::Domain(domain) => scrub_domain_name(domain),
+    }
+}
+
+/// Scrub an IPv4 address.
+///
+/// Allow well-known IPs like loopback, and fully scrub out all other IPs.
+/// Returns the scrubbed value as a string.
+///
+/// # Examples
+///
+/// ```
+/// use std::net::Ipv4Addr;
+/// use relay_event_normalization::span::description::{scrub_ipv4};
+///
+/// assert_eq!(scrub_ipv4(Ipv4Addr::LOCALHOST), "127.0.0.1");
+/// assert_eq!(scrub_ipv4(Ipv4Addr::new(8, 8, 8, 8)), "*.*.*.*");
+/// ```
+pub fn scrub_ipv4(ip: Ipv4Addr) -> &'static str {
+    match ip {
+        Ipv4Addr::LOCALHOST => "127.0.0.1",
+        _ => "*.*.*.*",
+    }
+}
+
+/// Scrub an IPv6 address.
+///
+/// # Examples
+///
+/// ```
+/// use std::net::Ipv6Addr;
+/// use relay_event_normalization::span::description::{scrub_ipv6};
+///
+/// assert_eq!(scrub_ipv6(Ipv6Addr::LOCALHOST), "::1");
+/// assert_eq!(scrub_ipv6(Ipv6Addr::new(8, 8, 8, 8, 8, 8, 8, 8)), "*:*:*:*:*:*:*:*");
+/// ```
+pub fn scrub_ipv6(ip: Ipv6Addr) -> &'static str {
+    match ip {
+        Ipv6Addr::LOCALHOST => "::1",
+        _ => "*:*:*:*:*:*:*:*",
+    }
+}
+
+/// Sanitize a qualified domain string.
+///
+/// Replace all but the last two segments with asterisks.
+/// Returns a string. In cases where the string is not domain-like, returns the original string.
+///
+/// # Examples
+///
+/// ```
+/// use relay_event_normalization::span::description::scrub_domain_name;
+///
+/// assert_eq!(scrub_domain_name("my.domain.com"), "*.domain.com");
+/// assert_eq!(scrub_domain_name("hello world"), "hello world");
+/// ```
+pub fn scrub_domain_name(domain: &str) -> Cow<'_, str> {
+    if DOMAIN_ALLOW_LIST.contains(&domain) {
+        return Cow::Borrowed(domain);
     }
 
     let mut tokens = domain.rsplitn(3, '.');
@@ -217,31 +286,34 @@ pub fn normalize_domain(domain: &str, port: Option<u16>) -> Option<String> {
     let domain = tokens.next();
     let prefix = tokens.next().map(|_| "*");
 
-    let mut replaced = prefix
-        .iter()
-        .chain(domain.iter())
-        .chain(tld.iter())
-        .join(".");
-
-    if let Some(port) = port {
-        replaced = format!("{replaced}:{port}");
-    }
-
-    if replaced.is_empty() {
-        return None;
-    }
-    Some(replaced)
+    Cow::Owned(
+        prefix
+            .iter()
+            .chain(domain.iter())
+            .chain(tld.iter())
+            .join("."),
+    )
 }
 
-/// Allow list of domains to not get subdomains scrubbed.
-const DOMAIN_ALLOW_LIST: &[&str] = &["127.0.0.1", "localhost"];
-
-fn normalized_domain_from_allowlist(domain: &str, port: Option<u16>) -> Option<String> {
-    if let Some(domain) = DOMAIN_ALLOW_LIST.iter().find(|allowed| **allowed == domain) {
-        let with_port = port.map_or_else(|| (*domain).to_owned(), |p| format!("{}:{}", domain, p));
-        return Some(with_port);
+/// Concatenate an optional host and an optional port.
+///
+/// Returns either a host + port combination, or the host. Never returns just the port.
+///
+/// # Examples
+///
+/// ```
+/// use relay_event_normalization::span::description::concatenate_host_and_port;
+///
+/// assert_eq!(concatenate_host_and_port(None, None), "");
+/// assert_eq!(concatenate_host_and_port(Some("my.domain.com"), None), "my.domain.com");
+/// assert_eq!(concatenate_host_and_port(Some("my.domain.com"), Some(1919)), "my.domain.com:1919");
+/// ```
+pub fn concatenate_host_and_port(host: Option<&str>, port: Option<u16>) -> Cow<str> {
+    match (host, port) {
+        (None, _) => Cow::Borrowed(""),
+        (Some(host), None) => Cow::Borrowed(host),
+        (Some(host), Some(port)) => Cow::Owned(format!("{host}:{port}")),
     }
-    None
 }
 
 fn scrub_redis_keys(string: &str) -> Option<String> {
@@ -297,10 +369,9 @@ fn scrub_resource(resource_type: &str, string: &str) -> Option<String> {
             return Some("browser-extension://*".to_owned());
         }
         scheme => {
-            let domain = url
-                .domain()
-                .and_then(|d| normalize_domain(d, url.port()))
-                .unwrap_or("".into());
+            let scrubbed_host = url.host().map(scrub_host);
+            let domain = concatenate_host_and_port(scrubbed_host.as_deref(), url.port());
+
             let segment_count = url.path_segments().map(|s| s.count()).unwrap_or_default();
             let mut output_segments = vec![];
             for (i, segment) in url.path_segments().into_iter().flatten().enumerate() {
@@ -508,6 +579,27 @@ mod tests {
         "GET https://www.service.io/users/01234-qwerty/settings/98765-adfghj",
         "http.client",
         "GET https://*.service.io"
+    );
+
+    span_description_test!(
+        localhost,
+        "GET https://localhost/data",
+        "http.client",
+        "GET https://localhost"
+    );
+
+    span_description_test!(
+        loopback,
+        "GET https://127.0.0.1/data",
+        "http.client",
+        "GET https://127.0.0.1"
+    );
+
+    span_description_test!(
+        ip_address,
+        "GET https://8.8.8.8/data",
+        "http.client",
+        "GET https://*.*.*.*"
     );
 
     span_description_test!(
