@@ -812,7 +812,6 @@ impl OutcomeBroker {
     fn send_kafka_message(
         &self,
         producer: &KafkaOutcomesProducer,
-        organization_id: u64,
         message: TrackRawOutcome,
     ) -> Result<(), OutcomeError> {
         relay_log::trace!("Tracking kafka outcome: {message:?}");
@@ -832,14 +831,10 @@ impl OutcomeBroker {
             KafkaTopic::Outcomes
         };
 
-        let result = producer.client.send(
-            topic,
-            organization_id,
-            key.as_bytes(),
-            None,
-            "outcome",
-            payload.as_bytes(),
-        );
+        let result =
+            producer
+                .client
+                .send(topic, key.as_bytes(), None, "outcome", payload.as_bytes());
 
         match result {
             Ok(_) => Ok(()),
@@ -852,11 +847,8 @@ impl OutcomeBroker {
             #[cfg(feature = "processing")]
             Self::Kafka(kafka_producer) => {
                 send_outcome_metric(&message, "kafka");
-                let organization_id = message.scoping.organization_id;
                 let raw_message = TrackRawOutcome::from_outcome(message, config);
-                if let Err(error) =
-                    self.send_kafka_message(kafka_producer, organization_id, raw_message)
-                {
+                if let Err(error) = self.send_kafka_message(kafka_producer, raw_message) {
                     relay_log::error!(error = &error as &dyn Error, "failed to produce outcome");
                 }
             }
@@ -877,8 +869,7 @@ impl OutcomeBroker {
             #[cfg(feature = "processing")]
             Self::Kafka(kafka_producer) => {
                 send_outcome_metric(&message, "kafka");
-                let sharding_id = message.org_id.unwrap_or_else(|| message.project_id.value());
-                if let Err(error) = self.send_kafka_message(kafka_producer, sharding_id, message) {
+                if let Err(error) = self.send_kafka_message(kafka_producer, message) {
                     relay_log::error!(error = &error as &dyn Error, "failed to produce outcome");
                 }
             }
