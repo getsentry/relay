@@ -377,8 +377,8 @@ pub fn extract_tags(
                     };
 
                     // Leave IP addresses alone. Scrub qualified domain names
-                    let domain = if let Ok(address) = domain.parse::<IpAddr>() {
-                        Cow::Owned(address.to_string())
+                    let domain = if domain.parse::<IpAddr>().is_ok() {
+                        Cow::Borrowed(domain)
                     } else {
                         scrub_domain_name(domain)
                     };
