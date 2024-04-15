@@ -487,6 +487,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "release": "1.2.3",
                 "sdk.name": "sentry.javascript.react-native",
                 "sdk.version": "unknown",
+                "trace.status": "unknown",
                 "transaction": "gEt /api/:version/users/",
                 "transaction.method": "GET",
                 "ttid": "ttid",
