@@ -365,95 +365,11 @@
 <a href="#363" id="363">363</a>
 <a href="#364" id="364">364</a>
 <a href="#365" id="365">365</a>
-<a href="#366" id="366">366</a>
-<a href="#367" id="367">367</a>
-<a href="#368" id="368">368</a>
-<a href="#369" id="369">369</a>
-<a href="#370" id="370">370</a>
-<a href="#371" id="371">371</a>
-<a href="#372" id="372">372</a>
-<a href="#373" id="373">373</a>
-<a href="#374" id="374">374</a>
-<a href="#375" id="375">375</a>
-<a href="#376" id="376">376</a>
-<a href="#377" id="377">377</a>
-<a href="#378" id="378">378</a>
-<a href="#379" id="379">379</a>
-<a href="#380" id="380">380</a>
-<a href="#381" id="381">381</a>
-<a href="#382" id="382">382</a>
-<a href="#383" id="383">383</a>
-<a href="#384" id="384">384</a>
-<a href="#385" id="385">385</a>
-<a href="#386" id="386">386</a>
-<a href="#387" id="387">387</a>
-<a href="#388" id="388">388</a>
-<a href="#389" id="389">389</a>
-<a href="#390" id="390">390</a>
-<a href="#391" id="391">391</a>
-<a href="#392" id="392">392</a>
-<a href="#393" id="393">393</a>
-<a href="#394" id="394">394</a>
-<a href="#395" id="395">395</a>
-<a href="#396" id="396">396</a>
-<a href="#397" id="397">397</a>
-<a href="#398" id="398">398</a>
-<a href="#399" id="399">399</a>
-<a href="#400" id="400">400</a>
-<a href="#401" id="401">401</a>
-<a href="#402" id="402">402</a>
-<a href="#403" id="403">403</a>
-<a href="#404" id="404">404</a>
-<a href="#405" id="405">405</a>
-<a href="#406" id="406">406</a>
-<a href="#407" id="407">407</a>
-<a href="#408" id="408">408</a>
-<a href="#409" id="409">409</a>
-<a href="#410" id="410">410</a>
-<a href="#411" id="411">411</a>
-<a href="#412" id="412">412</a>
-<a href="#413" id="413">413</a>
-<a href="#414" id="414">414</a>
-<a href="#415" id="415">415</a>
-<a href="#416" id="416">416</a>
-<a href="#417" id="417">417</a>
-<a href="#418" id="418">418</a>
-<a href="#419" id="419">419</a>
-<a href="#420" id="420">420</a>
-<a href="#421" id="421">421</a>
-<a href="#422" id="422">422</a>
-<a href="#423" id="423">423</a>
-<a href="#424" id="424">424</a>
-<a href="#425" id="425">425</a>
-<a href="#426" id="426">426</a>
-<a href="#427" id="427">427</a>
-<a href="#428" id="428">428</a>
-<a href="#429" id="429">429</a>
-<a href="#430" id="430">430</a>
-<a href="#431" id="431">431</a>
-<a href="#432" id="432">432</a>
-<a href="#433" id="433">433</a>
-<a href="#434" id="434">434</a>
-<a href="#435" id="435">435</a>
-<a href="#436" id="436">436</a>
-<a href="#437" id="437">437</a>
-<a href="#438" id="438">438</a>
-<a href="#439" id="439">439</a>
-<a href="#440" id="440">440</a>
-<a href="#441" id="441">441</a>
-<a href="#442" id="442">442</a>
-<a href="#443" id="443">443</a>
-<a href="#444" id="444">444</a>
-<a href="#445" id="445">445</a>
-<a href="#446" id="446">446</a>
-<a href="#447" id="447">447</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Configuration primitives to configure the kafka producer and properly set up the connection.
 //!
 //! The configuration can be either;
 //! - [`TopicAssignment::Primary`] - the main and default kafka configuration,
 //! - [`TopicAssignment::Secondary`] - used to configure any additional kafka topic,
-//! - [`TopicAssignment::Sharded`] - if we want to configure multiple kafka clusters,
-//! we can create a mapping of the range of logical shards to the kafka configuration.
 
 </span><span class="kw">use </span>std::collections::BTreeMap;
 
@@ -609,9 +525,6 @@
     /// `secondary_kafka_configs`. In this case that custom kafka config will be used to produce
     /// data to the given topic name.
     </span>Secondary(KafkaTopicConfig),
-    <span class="doccomment">/// If we want to configure multiple kafka clusters, we can create a mapping of the
-    /// range of logical shards to the kafka configuration.
-    </span>Sharded(Sharded),
 }
 
 <span class="doccomment">/// Configuration for topic
@@ -625,37 +538,6 @@
     </span>kafka_config_name: String,
 }
 
-<span class="doccomment">/// Configuration for logical shards -&gt; kafka configuration mapping.
-///
-/// The configuration for this should look like:
-///
-/// ```ignore
-/// metrics:
-///    shards: 65000
-///    mapping:
-///      0:
-///          name: "ingest-metrics-1"
-///          config: "metrics_1"
-///      25000:
-///          name: "ingest-metrics-2"
-///          config: "metrics_2"
-///      45000:
-///          name: "ingest-metrics-3"
-///          config: "metrics_3"
-/// ```
-///
-/// where the `shards` defines how many logical shards must be created, and `mapping`
-/// describes the per-shard configuration. Index in the `mapping` is the initial inclusive
-/// index of the shard and the range is last till the next index or the maximum shard defined in
-/// the `shards` option. The first index must always start with 0.
-</span><span class="attr">#[derive(Serialize, Deserialize, Debug)]
-</span><span class="kw">pub struct </span>Sharded {
-    <span class="doccomment">/// The number of shards used for this topic.
-    </span>shards: u64,
-    <span class="doccomment">/// The Kafka configuration assigned to the specific shard range.
-    </span>mapping: BTreeMap&lt;u64, KafkaTopicConfig&gt;,
-}
-
 <span class="doccomment">/// Describes Kafka config, with all the parameters extracted, which will be used for creating the
 /// kafka producer.
 </span><span class="attr">#[derive(Debug)]
@@ -664,14 +546,6 @@
     </span>Single {
         <span class="doccomment">/// Kafka parameters to create the kafka producer.
         </span>params: KafkaParams&lt;<span class="lifetime">'a</span>&gt;,
-    },
-
-    <span class="doccomment">/// The list of the Kafka configs with related shard configs.
-    </span>Sharded {
-        <span class="doccomment">/// The maximum number of logical shards for this set of configs.
-        </span>shards: u64,
-        <span class="doccomment">/// The list of the sharded Kafka configs.
-        </span>configs: BTreeMap&lt;u64, KafkaParams&lt;<span class="lifetime">'a</span>&gt;&gt;,
     },
 }
 
@@ -722,27 +596,6 @@
                         .ok_or(ConfigError::UnknownKafkaConfigName)<span class="question-mark">?</span>,
                 },
             },
-            <span class="self">Self</span>::Sharded(Sharded { shards, mapping }) =&gt; {
-                <span class="comment">// quick fail if the config does not contain shard 0
-                </span><span class="kw">if </span>!mapping.contains_key(<span class="kw-2">&amp;</span><span class="number">0</span>) {
-                    <span class="kw">return </span><span class="prelude-val">Err</span>(ConfigError::InvalidShard);
-                }
-                <span class="kw">let </span><span class="kw-2">mut </span>kafka_params = BTreeMap::new();
-                <span class="kw">for </span>(shard, kafka_config) <span class="kw">in </span>mapping {
-                    <span class="kw">let </span>config = KafkaParams {
-                        topic_name: kafka_config.topic_name.as_str(),
-                        config_name: <span class="prelude-val">Some</span>(kafka_config.kafka_config_name.as_str()),
-                        params: secondary_configs
-                            .get(kafka_config.kafka_config_name.as_str())
-                            .ok_or(ConfigError::UnknownKafkaConfigName)<span class="question-mark">?</span>,
-                    };
-                    kafka_params.insert(<span class="kw-2">*</span>shard, config);
-                }
-                KafkaConfig::Sharded {
-                    shards: <span class="kw-2">*</span>shards,
-                    configs: kafka_params,
-                }
-            }
         };
 
         <span class="prelude-val">Ok</span>(kafka_config)
@@ -770,18 +623,7 @@ ingest-events: "ingest-events-kafka-topic"
 profiles:
     name: "ingest-profiles"
     config: "profiles"
-ingest-metrics:
-  shards: 65000
-  mapping:
-      0:
-          name: "ingest-metrics-1"
-          config: "metrics_1"
-      25000:
-          name: "ingest-metrics-2"
-          config: "metrics_2"
-      45000:
-          name: "ingest-metrics-3"
-          config: "metrics_3"
+ingest-metrics: "ingest-metrics-3"
 transactions: "ingest-transactions-kafka-topic"
 "#</span>;
 
@@ -797,41 +639,17 @@ transactions: "ingest-transactions-kafka-topic"
                 value: <span class="string">"test-value"</span>.to_string(),
             }],
         );
-        second_config.insert(
-            <span class="string">"metrics_1"</span>.to_string(),
-            <span class="macro">vec!</span>[KafkaConfigParam {
-                name: <span class="string">"test"</span>.to_string(),
-                value: <span class="string">"test-value"</span>.to_string(),
-            }],
-        );
-        second_config.insert(
-            <span class="string">"metrics_2"</span>.to_string(),
-            <span class="macro">vec!</span>[KafkaConfigParam {
-                name: <span class="string">"test"</span>.to_string(),
-                value: <span class="string">"test-value"</span>.to_string(),
-            }],
-        );
-        second_config.insert(
-            <span class="string">"metrics_3"</span>.to_string(),
-            <span class="macro">vec!</span>[KafkaConfigParam {
-                name: <span class="string">"test"</span>.to_string(),
-                value: <span class="string">"test-value"</span>.to_string(),
-            }],
-        );
+
         <span class="kw">let </span>topics: TopicAssignments = serde_yaml::from_str(yaml).unwrap();
         <span class="kw">let </span>events = topics.events;
         <span class="kw">let </span>profiles = topics.profiles;
-        <span class="kw">let </span>metrics = topics.metrics_sessions;
+        <span class="kw">let </span>metrics_sessions = topics.metrics_sessions;
         <span class="kw">let </span>transactions = topics.transactions;
 
         <span class="macro">assert!</span>(<span class="macro">matches!</span>(events, TopicAssignment::Primary(<span class="kw">_</span>)));
         <span class="macro">assert!</span>(<span class="macro">matches!</span>(profiles, TopicAssignment::Secondary { .. }));
-        <span class="macro">assert!</span>(<span class="macro">matches!</span>(metrics, TopicAssignment::Sharded { .. }));
-
-        <span class="kw">let </span>events_config = metrics
-            .kafka_config(<span class="kw-2">&amp;</span>def_config, <span class="kw-2">&amp;</span>second_config)
-            .expect(<span class="string">"Kafka config for metrics topic"</span>);
-        <span class="macro">assert!</span>(<span class="macro">matches!</span>(events_config, KafkaConfig::Sharded { .. }));
+        <span class="macro">assert!</span>(<span class="macro">matches!</span>(metrics_sessions, TopicAssignment::Primary(<span class="kw">_</span>)));
+        <span class="macro">assert!</span>(<span class="macro">matches!</span>(transactions, TopicAssignment::Primary(<span class="kw">_</span>)));
 
         <span class="kw">let </span>events_config = events
             .kafka_config(<span class="kw-2">&amp;</span>def_config, <span class="kw-2">&amp;</span>second_config)
@@ -841,6 +659,33 @@ transactions: "ingest-transactions-kafka-topic"
             KafkaConfig::Single {
                 params: KafkaParams {
                     topic_name: <span class="string">"ingest-events-kafka-topic"</span>,
+                    ..
+                }
+            }
+        ));
+
+        <span class="kw">let </span>events_config = profiles
+            .kafka_config(<span class="kw-2">&amp;</span>def_config, <span class="kw-2">&amp;</span>second_config)
+            .expect(<span class="string">"Kafka config for profiles topic"</span>);
+        <span class="macro">assert!</span>(<span class="macro">matches!</span>(
+            events_config,
+            KafkaConfig::Single {
+                params: KafkaParams {
+                    topic_name: <span class="string">"ingest-profiles"</span>,
+                    config_name: <span class="prelude-val">Some</span>(<span class="string">"profiles"</span>),
+                    ..
+                }
+            }
+        ));
+
+        <span class="kw">let </span>events_config = metrics_sessions
+            .kafka_config(<span class="kw-2">&amp;</span>def_config, <span class="kw-2">&amp;</span>second_config)
+            .expect(<span class="string">"Kafka config for metrics topic"</span>);
+        <span class="macro">assert!</span>(<span class="macro">matches!</span>(
+            events_config,
+            KafkaConfig::Single {
+                params: KafkaParams {
+                    topic_name: <span class="string">"ingest-metrics-3"</span>,
                     ..
                 }
             }
@@ -859,15 +704,6 @@ transactions: "ingest-transactions-kafka-topic"
                 }
             }
         ));
-
-        <span class="kw">let </span>(shards, mapping) =
-            <span class="kw">if let </span>TopicAssignment::Sharded(Sharded { shards, mapping }) = metrics {
-                (shards, mapping)
-            } <span class="kw">else </span>{
-                <span class="macro">unreachable!</span>()
-            };
-        <span class="macro">assert_eq!</span>(shards, <span class="number">65000</span>);
-        <span class="macro">assert_eq!</span>(<span class="number">3</span>, mapping.len());
     }
 
     <span class="attr">#[test]

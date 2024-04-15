@@ -968,15 +968,6 @@
 <a href="#966" id="966">966</a>
 <a href="#967" id="967">967</a>
 <a href="#968" id="968">968</a>
-<a href="#969" id="969">969</a>
-<a href="#970" id="970">970</a>
-<a href="#971" id="971">971</a>
-<a href="#972" id="972">972</a>
-<a href="#973" id="973">973</a>
-<a href="#974" id="974">974</a>
-<a href="#975" id="975">975</a>
-<a href="#976" id="976">976</a>
-<a href="#977" id="977">977</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module contains the service that tracks outcomes.
 //!
 //! Outcomes describe the final "fate" of an envelope item. As such, for every item exactly one
@@ -1791,7 +1782,6 @@
     </span><span class="kw">fn </span>send_kafka_message(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         producer: <span class="kw-2">&amp;</span>KafkaOutcomesProducer,
-        organization_id: u64,
         message: TrackRawOutcome,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), OutcomeError&gt; {
         <span class="macro">relay_log::trace!</span>(<span class="string">"Tracking kafka outcome: {message:?}"</span>);
@@ -1811,14 +1801,10 @@
             KafkaTopic::Outcomes
         };
 
-        <span class="kw">let </span>result = producer.client.send(
-            topic,
-            organization_id,
-            key.as_bytes(),
-            <span class="prelude-val">None</span>,
-            <span class="string">"outcome"</span>,
-            payload.as_bytes(),
-        );
+        <span class="kw">let </span>result =
+            producer
+                .client
+                .send(topic, key.as_bytes(), <span class="prelude-val">None</span>, <span class="string">"outcome"</span>, payload.as_bytes());
 
         <span class="kw">match </span>result {
             <span class="prelude-val">Ok</span>(<span class="kw">_</span>) =&gt; <span class="prelude-val">Ok</span>(()),
@@ -1831,11 +1817,8 @@
             <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
             </span><span class="self">Self</span>::Kafka(kafka_producer) =&gt; {
                 send_outcome_metric(<span class="kw-2">&amp;</span>message, <span class="string">"kafka"</span>);
-                <span class="kw">let </span>organization_id = message.scoping.organization_id;
                 <span class="kw">let </span>raw_message = TrackRawOutcome::from_outcome(message, config);
-                <span class="kw">if let </span><span class="prelude-val">Err</span>(error) =
-                    <span class="self">self</span>.send_kafka_message(kafka_producer, organization_id, raw_message)
-                {
+                <span class="kw">if let </span><span class="prelude-val">Err</span>(error) = <span class="self">self</span>.send_kafka_message(kafka_producer, raw_message) {
                     <span class="macro">relay_log::error!</span>(error = <span class="kw-2">&amp;</span>error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error, <span class="string">"failed to produce outcome"</span>);
                 }
             }
@@ -1856,8 +1839,7 @@
             <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
             </span><span class="self">Self</span>::Kafka(kafka_producer) =&gt; {
                 send_outcome_metric(<span class="kw-2">&amp;</span>message, <span class="string">"kafka"</span>);
-                <span class="kw">let </span>sharding_id = message.org_id.unwrap_or_else(|| message.project_id.value());
-                <span class="kw">if let </span><span class="prelude-val">Err</span>(error) = <span class="self">self</span>.send_kafka_message(kafka_producer, sharding_id, message) {
+                <span class="kw">if let </span><span class="prelude-val">Err</span>(error) = <span class="self">self</span>.send_kafka_message(kafka_producer, message) {
                     <span class="macro">relay_log::error!</span>(error = <span class="kw-2">&amp;</span>error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error, <span class="string">"failed to produce outcome"</span>);
                 }
             }

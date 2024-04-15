@@ -322,108 +322,10 @@
 <a href="#320" id="320">320</a>
 <a href="#321" id="321">321</a>
 <a href="#322" id="322">322</a>
-<a href="#323" id="323">323</a>
-<a href="#324" id="324">324</a>
-<a href="#325" id="325">325</a>
-<a href="#326" id="326">326</a>
-<a href="#327" id="327">327</a>
-<a href="#328" id="328">328</a>
-<a href="#329" id="329">329</a>
-<a href="#330" id="330">330</a>
-<a href="#331" id="331">331</a>
-<a href="#332" id="332">332</a>
-<a href="#333" id="333">333</a>
-<a href="#334" id="334">334</a>
-<a href="#335" id="335">335</a>
-<a href="#336" id="336">336</a>
-<a href="#337" id="337">337</a>
-<a href="#338" id="338">338</a>
-<a href="#339" id="339">339</a>
-<a href="#340" id="340">340</a>
-<a href="#341" id="341">341</a>
-<a href="#342" id="342">342</a>
-<a href="#343" id="343">343</a>
-<a href="#344" id="344">344</a>
-<a href="#345" id="345">345</a>
-<a href="#346" id="346">346</a>
-<a href="#347" id="347">347</a>
-<a href="#348" id="348">348</a>
-<a href="#349" id="349">349</a>
-<a href="#350" id="350">350</a>
-<a href="#351" id="351">351</a>
-<a href="#352" id="352">352</a>
-<a href="#353" id="353">353</a>
-<a href="#354" id="354">354</a>
-<a href="#355" id="355">355</a>
-<a href="#356" id="356">356</a>
-<a href="#357" id="357">357</a>
-<a href="#358" id="358">358</a>
-<a href="#359" id="359">359</a>
-<a href="#360" id="360">360</a>
-<a href="#361" id="361">361</a>
-<a href="#362" id="362">362</a>
-<a href="#363" id="363">363</a>
-<a href="#364" id="364">364</a>
-<a href="#365" id="365">365</a>
-<a href="#366" id="366">366</a>
-<a href="#367" id="367">367</a>
-<a href="#368" id="368">368</a>
-<a href="#369" id="369">369</a>
-<a href="#370" id="370">370</a>
-<a href="#371" id="371">371</a>
-<a href="#372" id="372">372</a>
-<a href="#373" id="373">373</a>
-<a href="#374" id="374">374</a>
-<a href="#375" id="375">375</a>
-<a href="#376" id="376">376</a>
-<a href="#377" id="377">377</a>
-<a href="#378" id="378">378</a>
-<a href="#379" id="379">379</a>
-<a href="#380" id="380">380</a>
-<a href="#381" id="381">381</a>
-<a href="#382" id="382">382</a>
-<a href="#383" id="383">383</a>
-<a href="#384" id="384">384</a>
-<a href="#385" id="385">385</a>
-<a href="#386" id="386">386</a>
-<a href="#387" id="387">387</a>
-<a href="#388" id="388">388</a>
-<a href="#389" id="389">389</a>
-<a href="#390" id="390">390</a>
-<a href="#391" id="391">391</a>
-<a href="#392" id="392">392</a>
-<a href="#393" id="393">393</a>
-<a href="#394" id="394">394</a>
-<a href="#395" id="395">395</a>
-<a href="#396" id="396">396</a>
-<a href="#397" id="397">397</a>
-<a href="#398" id="398">398</a>
-<a href="#399" id="399">399</a>
-<a href="#400" id="400">400</a>
-<a href="#401" id="401">401</a>
-<a href="#402" id="402">402</a>
-<a href="#403" id="403">403</a>
-<a href="#404" id="404">404</a>
-<a href="#405" id="405">405</a>
-<a href="#406" id="406">406</a>
-<a href="#407" id="407">407</a>
-<a href="#408" id="408">408</a>
-<a href="#409" id="409">409</a>
-<a href="#410" id="410">410</a>
-<a href="#411" id="411">411</a>
-<a href="#412" id="412">412</a>
-<a href="#413" id="413">413</a>
-<a href="#414" id="414">414</a>
-<a href="#415" id="415">415</a>
-<a href="#416" id="416">416</a>
-<a href="#417" id="417">417</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module contains the kafka producer related code.
 //!
 //! There are two different producers that are supported in Relay right now:
 //! - [`SingleProducer`] - which sends all the messages to the defined kafka [`KafkaTopic`],
-//! - [`ShardedProducer`] - which expects to have at least one shard configured, and depending on
-//! the shard number the different messages will be sent to different topics using the configured
-//! producer for the this exact shard.
 
 </span><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::cell::Cell;
@@ -518,54 +420,6 @@
     }
 }
 
-<span class="doccomment">/// Sharded producer configuration.
-</span><span class="kw">struct </span>ShardedProducer {
-    <span class="doccomment">/// The maximum number of shards for this producer.
-    </span>shards: u64,
-    <span class="doccomment">/// The actual Kafka producer assigned to the range of logical shards, where the `u64` in the map is
-    /// the inclusive beginning of the range.
-    </span>producers: BTreeMap&lt;u64, (String, Arc&lt;ThreadedProducer&gt;)&gt;,
-}
-
-<span class="kw">impl </span>ShardedProducer {
-    <span class="doccomment">/// Returns topic name and the Kafka producer based on the provided sharding key.
-    /// Returns error [`ClientError::InvalidShard`] if the shard range for the provided sharding
-    /// key could not be found.
-    ///
-    /// # Errors
-    /// Returns [`ClientError::InvalidShard`] error if the provided `sharding_key` could not be
-    /// placed in any configured shard ranges.
-    </span><span class="kw">pub fn </span>get_producer(
-        <span class="kw-2">&amp;</span><span class="self">self</span>,
-        sharding_key: u64,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;(<span class="kw-2">&amp;</span>str, <span class="kw-2">&amp;</span>ThreadedProducer), ClientError&gt; {
-        <span class="kw">let </span>shard = sharding_key % <span class="self">self</span>.shards;
-        <span class="kw">let </span>(topic_name, producer) = <span class="self">self
-            </span>.producers
-            .iter()
-            .take_while(|(k, <span class="kw">_</span>)| <span class="kw-2">*</span>k &lt;= <span class="kw-2">&amp;</span>shard)
-            .last()
-            .map(|(<span class="kw">_</span>, v)| v)
-            .ok_or(ClientError::InvalidShard)<span class="question-mark">?</span>;
-
-        <span class="prelude-val">Ok</span>((topic_name, producer))
-    }
-}
-
-<span class="kw">impl </span>fmt::Debug <span class="kw">for </span>ShardedProducer {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
-        <span class="kw">let </span>producers = <span class="kw-2">&amp;</span><span class="self">self
-            </span>.producers
-            .iter()
-            .map(|(shard, (topic, <span class="kw">_</span>))| (shard, topic))
-            .collect::&lt;BTreeMap&lt;<span class="kw">_</span>, <span class="kw">_</span>&gt;&gt;();
-        f.debug_struct(<span class="string">"ShardedProducer"</span>)
-            .field(<span class="string">"shards"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.shards)
-            .field(<span class="string">"producers"</span>, producers)
-            .finish()
-    }
-}
-
 <span class="doccomment">/// Keeps all the configured kafka producers and responsible for the routing of the messages.
 </span><span class="attr">#[derive(Debug)]
 </span><span class="kw">pub struct </span>KafkaClient {
@@ -586,7 +440,6 @@
     </span><span class="kw">pub fn </span>send_message(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         topic: KafkaTopic,
-        organization_id: u64,
         message: <span class="kw-2">&amp;</span><span class="kw">impl </span>Message,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="kw-2">&amp;</span>str, ClientError&gt; {
         <span class="kw">let </span>serialized = message.serialize()<span class="question-mark">?</span>;
@@ -598,7 +451,6 @@
         <span class="kw">let </span>key = message.key();
         <span class="self">self</span>.send(
             topic,
-            organization_id,
             <span class="kw-2">&amp;</span>key,
             message.headers(),
             message.variant(),
@@ -612,7 +464,6 @@
     </span><span class="kw">pub fn </span>send(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         topic: KafkaTopic,
-        organization_id: u64,
         key: <span class="kw-2">&amp;</span>[u8; <span class="number">16</span>],
         headers: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>BTreeMap&lt;String, String&gt;&gt;,
         variant: <span class="kw-2">&amp;</span>str,
@@ -624,7 +475,7 @@
             );
             ClientError::InvalidTopicName
         })<span class="question-mark">?</span>;
-        producer.send(organization_id, key, headers, variant, payload)
+        producer.send(key, headers, variant, payload)
     }
 }
 
@@ -687,34 +538,6 @@
                     .insert(topic, Producer::single((<span class="kw-2">*</span>topic_name).to_string(), producer));
                 <span class="prelude-val">Ok</span>(<span class="self">self</span>)
             }
-            KafkaConfig::Sharded { shards, configs } =&gt; {
-                <span class="kw">let </span><span class="kw-2">mut </span>producers = BTreeMap::new();
-                <span class="kw">for </span>(shard, kafka_params) <span class="kw">in </span>configs {
-                    <span class="kw">let </span>config_name = kafka_params.config_name.map(str::to_string);
-                    <span class="kw">if let </span><span class="prelude-val">Some</span>(producer) = <span class="self">self</span>.reused_producers.get(<span class="kw-2">&amp;</span>config_name) {
-                        <span class="kw">let </span>cached_producer = Arc::clone(producer);
-                        producers.insert(
-                            <span class="kw-2">*</span>shard,
-                            (kafka_params.topic_name.to_string(), cached_producer),
-                        );
-                        <span class="kw">continue</span>;
-                    }
-                    <span class="kw">for </span>config_p <span class="kw">in </span>kafka_params.params {
-                        client_config.set(config_p.name.as_str(), config_p.value.as_str());
-                    }
-                    <span class="kw">let </span>producer = Arc::new(
-                        client_config
-                            .create_with_context(Context)
-                            .map_err(ClientError::InvalidConfig)<span class="question-mark">?</span>,
-                    );
-                    <span class="self">self</span>.reused_producers
-                        .insert(config_name, Arc::clone(<span class="kw-2">&amp;</span>producer));
-                    producers.insert(<span class="kw-2">*</span>shard, (kafka_params.topic_name.to_string(), producer));
-                }
-                <span class="self">self</span>.producers
-                    .insert(topic, Producer::sharded(<span class="kw-2">*</span>shards, producers));
-                <span class="prelude-val">Ok</span>(<span class="self">self</span>)
-            }
         }
     }
 
@@ -737,14 +560,11 @@
     }
 }
 
-<span class="doccomment">/// This object contains the Kafka producer variants for single and sharded configurations.
+<span class="doccomment">/// This object contains the Kafka producer variants for single.
 </span><span class="attr">#[derive(Debug)]
 </span><span class="kw">enum </span>ProducerInner {
     <span class="doccomment">/// Configuration variant for the single kafka producer.
     </span>Single(SingleProducer),
-    <span class="doccomment">/// Configuration variant for sharded kafka producer, when one topic has different producers
-    /// dedicated to the range of the shards.
-    </span>Sharded(ShardedProducer),
 }
 
 <span class="attr">#[derive(Debug)]
@@ -764,17 +584,9 @@
         }
     }
 
-    <span class="kw">fn </span>sharded(shards: u64, producers: BTreeMap&lt;u64, (String, Arc&lt;ThreadedProducer&gt;)&gt;) -&gt; <span class="self">Self </span>{
-        <span class="self">Self </span>{
-            last_report: Instant::now().into(),
-            inner: ProducerInner::Sharded(ShardedProducer { shards, producers }),
-        }
-    }
-
     <span class="doccomment">/// Sends the payload to the correct producer for the current topic.
     </span><span class="kw">fn </span>send(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
-        organization_id: u64,
         key: <span class="kw-2">&amp;</span>[u8; <span class="number">16</span>],
         headers: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>BTreeMap&lt;String, String&gt;&gt;,
         variant: <span class="kw-2">&amp;</span>str,
@@ -789,8 +601,6 @@
                 topic_name,
                 producer,
             }) =&gt; (topic_name.as_str(), producer.as_ref()),
-
-            ProducerInner::Sharded(sharded) =&gt; sharded.get_producer(organization_id)<span class="question-mark">?</span>,
         };
         <span class="kw">let </span><span class="kw-2">mut </span>record = BaseRecord::to(topic_name).key(key).payload(payload);
 
