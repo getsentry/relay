@@ -293,16 +293,19 @@ pub fn scrub_domain_name(domain: &str) -> Cow<'_, str> {
     )
 }
 
-/// Concatenate an optional host and port
+/// Concatenate an optional host and an optional port.
 ///
-/// # Arguments
+/// Returns either a host + port combination, or the host. Never returns just the port.
 ///
-/// * `host` - Hostname string
-/// * `port` - Port number
+/// # Examples
 ///
-/// # Returns
+/// ```
+/// use relay_event_normalization::span::description::concatenate_host_and_port;
 ///
-/// Either an empty string or concatenated host and port
+/// assert_eq!(concatenate_host_and_port(None, None), "");
+/// assert_eq!(concatenate_host_and_port(Some("my.domain.com"), None), "my.domain.com");
+/// assert_eq!(concatenate_host_and_port(Some("my.domain.com"), Some(1919)), "my.domain.com:1919");
+/// ```
 pub fn concatenate_host_and_port(host: Option<&str>, port: Option<u16>) -> Cow<str> {
     match (host, port) {
         (None, _) => Cow::Borrowed(""),
