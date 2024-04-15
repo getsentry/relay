@@ -1694,10 +1694,24 @@
 <a href="#1692" id="1692">1692</a>
 <a href="#1693" id="1693">1693</a>
 <a href="#1694" id="1694">1694</a>
+<a href="#1695" id="1695">1695</a>
+<a href="#1696" id="1696">1696</a>
+<a href="#1697" id="1697">1697</a>
+<a href="#1698" id="1698">1698</a>
+<a href="#1699" id="1699">1699</a>
+<a href="#1700" id="1700">1700</a>
+<a href="#1701" id="1701">1701</a>
+<a href="#1702" id="1702">1702</a>
+<a href="#1703" id="1703">1703</a>
+<a href="#1704" id="1704">1704</a>
+<a href="#1705" id="1705">1705</a>
+<a href="#1706" id="1706">1706</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Logic for persisting items into `span.sentry_tags` and `span.measurements` fields.
 //! These are then used for metrics extraction.
-</span><span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
+</span><span class="kw">use </span>std::borrow::Cow;
+<span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
 <span class="kw">use </span>std::fmt::Write;
+<span class="kw">use </span>std::net::IpAddr;
 <span class="kw">use </span>std::ops::ControlFlow;
 
 <span class="kw">use </span>once_cell::sync::Lazy;
@@ -1711,7 +1725,9 @@
 <span class="kw">use </span>sqlparser::ast::{ObjectName, Visitor};
 <span class="kw">use </span>url::Url;
 
-<span class="kw">use </span><span class="kw">crate</span>::span::description::{normalize_domain, scrub_span_description};
+<span class="kw">use </span><span class="kw">crate</span>::span::description::{
+    concatenate_host_and_port, scrub_domain_name, scrub_span_description,
+};
 <span class="kw">use </span><span class="kw">crate</span>::utils::{
     extract_transaction_op, http_status_code_from_span, MAIN_THREAD_NAME, MOBILE_SDKS,
 };
@@ -2054,16 +2070,25 @@
                     })
                 }) {
                     <span class="prelude-val">Some</span>(domain)
-                } <span class="kw">else if let </span><span class="prelude-val">Some</span>(server_host) = span
+                } <span class="kw">else if let </span><span class="prelude-val">Some</span>(server_address) = span
                     .data
                     .value()
                     .and_then(|data| data.server_address.value())
                     .and_then(|value| value.as_str())
                 {
-                    <span class="kw">let </span>lowercase_host = server_host.to_lowercase();
-                    <span class="kw">let </span>(domain, port) = <span class="kw">match </span>lowercase_host.split_once(<span class="string">':'</span>) {
+                    <span class="kw">let </span>lowercase_address = server_address.to_lowercase();
+
+                    <span class="comment">// According to OTel semantic conventions the server port should be in a separate property, called `server.port`, but incoming data sometimes disagrees
+                    </span><span class="kw">let </span>(domain, port) = <span class="kw">match </span>lowercase_address.split_once(<span class="string">':'</span>) {
                         <span class="prelude-val">Some</span>((domain, port)) =&gt; (domain, port.parse::&lt;u16&gt;().ok()),
-                        <span class="prelude-val">None </span>=&gt; (server_host, <span class="prelude-val">None</span>),
+                        <span class="prelude-val">None </span>=&gt; (server_address, <span class="prelude-val">None</span>),
+                    };
+
+                    <span class="comment">// Leave IP addresses alone. Scrub qualified domain names
+                    </span><span class="kw">let </span>domain = <span class="kw">if </span>domain.parse::&lt;IpAddr&gt;().is_ok() {
+                        Cow::Borrowed(domain)
+                    } <span class="kw">else </span>{
+                        scrub_domain_name(domain)
                     };
 
                     <span class="kw">if let </span><span class="prelude-val">Some</span>(url_scheme) = span
@@ -2074,10 +2099,11 @@
                     {
                         span_tags.insert(
                             SpanTagKey::RawDomain,
-                            <span class="macro">format!</span>(<span class="string">"{url_scheme}://{lowercase_host}"</span>),
+                            <span class="macro">format!</span>(<span class="string">"{url_scheme}://{lowercase_address}"</span>),
                         );
                     }
-                    normalize_domain(domain, port)
+
+                    <span class="prelude-val">Some</span>(concatenate_host_and_port(<span class="prelude-val">Some</span>(domain.as_ref()), port).into_owned())
                 } <span class="kw">else </span>{
                     <span class="prelude-val">None
                 </span>}
@@ -3148,24 +3174,22 @@ LIMIT 1
         <span class="kw">let </span>tags_1 = <span class="macro">get_value!</span>(span_1.sentry_tags).unwrap();
         <span class="kw">let </span>tags_2 = <span class="macro">get_value!</span>(span_2.sentry_tags).unwrap();
 
-        <span class="comment">// Descriptions with loopback IPs preserve the IP and port but strip the URL path
+        <span class="comment">// Allow loopback IPs
         </span><span class="macro">assert_eq!</span>(
             tags_1.get(<span class="string">"description"</span>).unwrap().as_str(),
             <span class="prelude-val">Some</span>(<span class="string">"POST http://127.0.0.1:10007"</span>)
         );
-        <span class="comment">// Domains of loopback IP descriptions preserve the IP and port
-        </span><span class="macro">assert_eq!</span>(
+        <span class="macro">assert_eq!</span>(
             tags_1.get(<span class="string">"domain"</span>).unwrap().as_str(),
             <span class="prelude-val">Some</span>(<span class="string">"127.0.0.1:10007"</span>)
         );
 
-        <span class="comment">// Descriptions with non-loopback IPs scrub the IP naively
+        <span class="comment">// Scrub other IPs
         </span><span class="macro">assert_eq!</span>(
             tags_2.get(<span class="string">"description"</span>).unwrap().as_str(),
-            <span class="prelude-val">Some</span>(<span class="string">"GET http://*.8.8"</span>)
+            <span class="prelude-val">Some</span>(<span class="string">"GET http://*.*.*.*"</span>)
         );
-        <span class="comment">// Domains of non-loopback IP descriptions are omitted
-        </span><span class="macro">assert_eq!</span>(tags_2.get(<span class="string">"domain"</span>), <span class="prelude-val">None</span>);
+        <span class="macro">assert_eq!</span>(tags_2.get(<span class="string">"domain"</span>).unwrap().as_str(), <span class="prelude-val">Some</span>(<span class="string">"*.*.*.*"</span>));
     }
 
     <span class="attr">#[test]

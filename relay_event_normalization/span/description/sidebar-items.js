@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"fn":["normalize_domain"]};
+window.SIDEBAR_ITEMS = {"fn":["concatenate_host_and_port","scrub_domain_name","scrub_host","scrub_ipv4","scrub_ipv6"]};
