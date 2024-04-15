@@ -244,6 +244,8 @@ pub fn scrub_ipv4(ip: Ipv4Addr) -> &'static str {
         _ => "*.*.*.*",
     }
 }
+
+/// Scrub an IPv6 address.
 ///
 /// # Examples
 ///
