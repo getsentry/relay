@@ -267,10 +267,6 @@ pub struct SpanData {
     #[metastructure(field = "ai.responses")]
     pub ai_responses: Annotated<Value>,
 
-    /// The integration which emitted a span.
-    #[metastructure(field = "sdk.integration", pii = "false")]
-    pub sdk_integration: Annotated<Value>,
-
     /// Label identifying a thread from where the span originated.
     #[metastructure(field = "thread.name")]
     pub thread_name: Annotated<Value>,
@@ -532,7 +528,6 @@ mod tests {
             ai_prompt_tokens_used: ~,
             ai_total_tokens_used: ~,
             ai_responses: ~,
-            sdk_integration: ~,
             thread_name: ~,
             transaction: ~,
             ui_component_name: ~,

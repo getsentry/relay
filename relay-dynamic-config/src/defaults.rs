@@ -468,8 +468,8 @@ fn span_metrics(transaction_extraction_enabled: bool) -> impl IntoIterator<Item 
                 Tag::with_key("release")
                     .from_field("span.sentry_tags.release")
                     .always(),
-                Tag::with_key("span.sdk_integration")
-                    .from_field("span.sentry_tags.sdk_integration")
+                Tag::with_key("span.origin")
+                    .from_field("span.origin")
                     .always(),
                 Tag::with_key("span.description")
                     .from_field("span.sentry_tags.description")

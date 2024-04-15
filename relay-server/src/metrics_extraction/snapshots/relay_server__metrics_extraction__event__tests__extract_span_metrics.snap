@@ -5808,7 +5808,7 @@ expression: metrics
             "environment": "fake_environment",
             "release": "1.2.3",
             "span.op": "ai.langchain.run",
-            "span.sdk_integration": "openai",
+            "span.origin": "auto.langchain",
         },
         metadata: BucketMetadata {
             merges: 1,

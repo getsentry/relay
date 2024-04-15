@@ -1025,6 +1025,7 @@ mod tests {
                     "start_timestamp": 1702474613.0175,
                     "description": "Autofix Pipeline",
                     "op": "ai.langchain.run",
+                    "origin": "auto.langchain",
                     "span_id": "9c01bd820a083e63",
                     "parent_span_id": "a1e13f3f06239d69",
                     "trace_id": "922dda2462ea4ac2b6a4b339bee90863",
@@ -1032,9 +1033,6 @@ mod tests {
                         "ai_total_tokens_used": {
                             "value": 20
                         }
-                    },
-                    "data": {
-                        "sdk.integration": "openai"
                     }
                 }
             ]
