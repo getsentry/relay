@@ -236,7 +236,7 @@ pub fn scrub_host(host: Host<&str>) -> Cow<'_, str> {
 /// use relay_event_normalization::span::description::{scrub_ipv4};
 ///
 /// assert_eq!(scrub_ipv4(Ipv4Addr::LOCALHOST), "127.0.0.1");
-/// assert_eq!(scrub_ipv4(Ipv4Addr::new(8, 8, 8, 8)), String::from("*.*.*.*"));
+/// assert_eq!(scrub_ipv4(Ipv4Addr::new(8, 8, 8, 8)), "*.*.*.*");
 /// ```
 pub fn scrub_ipv4(ip: Ipv4Addr) -> &'static str {
     match ip {
