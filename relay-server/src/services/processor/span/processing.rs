@@ -641,6 +641,7 @@ mod tests {
     use relay_event_schema::protocol::{
         Context, ContextInner, SpanId, Timestamp, TraceContext, TraceId,
     };
+    use relay_protocol::get_value;
     use relay_sampling::evaluation::{ReservoirCounters, ReservoirEvaluator};
     use relay_system::Addr;
 
@@ -757,5 +758,22 @@ mod tests {
             "{:?}",
             state.envelope()
         );
+    }
+
+    #[test]
+    fn segment_no_overwrite() {
+        let mut span: Annotated<Span> = Annotated::from_json(
+            r#"{
+            "is_segment": true,
+            "span_id": "fa90fdead5f74052",
+            "parent_span_id": "fa90fdead5f74051"
+        }"#,
+        )
+        .unwrap();
+
+        set_segment_attributes(&mut span);
+
+        assert_eq!(get_value!(span.is_segment!), &true);
+        assert_eq!(get_value!(span.segment_id!).0.as_str(), "fa90fdead5f74052");
     }
 }
