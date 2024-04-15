@@ -232,7 +232,7 @@ pub fn scrub_host(host: Host<&str>) -> Cow<'_, str> {
 /// # Examples
 ///
 /// ```
-/// use std::net::{Ipv4Addr};
+/// use std::net::Ipv4Addr;
 /// use relay_event_normalization::span::description::{scrub_ipv4};
 ///
 /// assert_eq!(scrub_ipv4(Ipv4Addr::LOCALHOST), "127.0.0.1");
