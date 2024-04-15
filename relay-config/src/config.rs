@@ -963,6 +963,7 @@ fn default_max_rate_limit() -> Option<u32> {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Processing {
     /// True if the Relay should do processing. Defaults to `false`.
+    #[serde(default)]
     pub enabled: bool,
     /// GeoIp DB file source.
     #[serde(default)]
@@ -977,6 +978,7 @@ pub struct Processing {
     #[serde(default = "default_max_session_secs_in_past")]
     pub max_session_secs_in_past: u32,
     /// Kafka producer configurations.
+    #[serde(default)]
     pub kafka_config: Vec<KafkaConfigParam>,
     /// Additional kafka producer configurations.
     ///
