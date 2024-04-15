@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.5.88
+
+### Various fixes & improvements
+
+- release: 0.5.87 (841aeb56) by @getsentry-bot
+- Adding DataCategory::MetricHour (#3384) by @corps
+- release: 0.8.56 (d1ba4507) by @getsentry-bot
+- feat(feedback): Emit outcomes for user feedback events (#3026) by @cmanallen
+- release: 0.8.55 (109ac110) by @getsentry-bot
+- feat(profiles): Add a new category to count profile chunks (#3303) by @phacops
+- release: 0.8.52 (65defad1) by @getsentry-bot
+- feat(profiles): Add a data category for continuous profiling (#3284) by @phacops
+
 ## 0.5.87
 
 - Add a data category for metirc hours.  [#3384](https://github.com/getsentry/relay/pull/3384)
