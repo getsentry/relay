@@ -18,7 +18,15 @@ def test_replay_recording_with_video(
     replay_id = "515539018c9b4260a6f999572f1661ee"
     relay = relay_with_processing()
     mini_sentry.add_basic_project_config(
-        project_id, extra={"config": {"features": ["organizations:session-replay"]}}
+        project_id,
+        extra={
+            "config": {
+                "features": [
+                    "organizations:session-replay",
+                    "organizations:session-replay-video",
+                ]
+            }
+        },
     )
     replay = generate_replay_sdk_event(replay_id)
     replay_events_consumer = replay_events_consumer(timeout=10)
@@ -73,6 +81,46 @@ def test_replay_recording_with_video(
     assert_replay_payload_matches(replay, replay_event)
 
     # Assert all conumers are empty.
+    replay_recordings_consumer.assert_empty()
+    outcomes_consumer.assert_empty()
+    replay_events_consumer.assert_empty()
+
+
+def test_replay_recording_with_video_flag_disabled(
+    mini_sentry,
+    relay_with_processing,
+    replay_recordings_consumer,
+    outcomes_consumer,
+    replay_events_consumer,
+):
+    project_id = 42
+    replay_id = "515539018c9b4260a6f999572f1661ee"
+    relay = relay_with_processing()
+    mini_sentry.add_basic_project_config(
+        project_id,
+        extra={"config": {"features": ["organizations:session-replay"]}},
+    )
+    replay = generate_replay_sdk_event(replay_id)
+    replay_events_consumer = replay_events_consumer(timeout=10)
+    replay_recordings_consumer = replay_recordings_consumer()
+    outcomes_consumer = outcomes_consumer()
+
+    _recording_payload = recording_payload(b"[]")
+    payload = msgpack.packb(
+        {
+            "replay_event": json.dumps(replay).encode(),
+            "replay_recording": _recording_payload,
+            "replay_video": b"hello, world!",
+        }
+    )
+
+    envelope = Envelope(
+        headers=[["event_id", replay_id], ["attachment_type", "replay_video"]]
+    )
+    envelope.add_item(Item(payload=PayloadRef(bytes=payload), type="replay_video"))
+
+    relay.send_envelope(project_id, envelope)
+
     replay_recordings_consumer.assert_empty()
     outcomes_consumer.assert_empty()
     replay_events_consumer.assert_empty()

@@ -883,14 +883,9 @@ def test_filtered_event_outcome_client_reports(relay, mini_sentry):
 
     _send_event(relay, event_type="error")
 
-    envelope = mini_sentry.captured_events.get(timeout=10)
-    items = envelope.items
-    assert len(items) == 1
-    item = items[0]
-    assert item.headers["type"] == "client_report"
-    payload = json.loads(item.payload.bytes)
-    del payload["timestamp"]
-    assert payload == {
+    report = mini_sentry.get_client_report(timeout=10)
+    del report["timestamp"]
+    assert report == {
         "discarded_events": [],
         "filtered_events": [
             {"reason": "release-version", "category": "error", "quantity": 1}
