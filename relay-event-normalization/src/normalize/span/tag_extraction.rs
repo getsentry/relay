@@ -1,7 +1,9 @@
 //! Logic for persisting items into `span.sentry_tags` and `span.measurements` fields.
 //! These are then used for metrics extraction.
+use std::borrow::Cow;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write;
+use std::net::IpAddr;
 use std::ops::ControlFlow;
 
 use once_cell::sync::Lazy;
@@ -15,7 +17,9 @@ use sqlparser::ast::Visit;
 use sqlparser::ast::{ObjectName, Visitor};
 use url::Url;
 
-use crate::span::description::{normalize_domain, scrub_span_description};
+use crate::span::description::{
+    concatenate_host_and_port, scrub_domain_name, scrub_span_description,
+};
 use crate::utils::{
     extract_transaction_op, http_status_code_from_span, MAIN_THREAD_NAME, MOBILE_SDKS,
 };
@@ -358,16 +362,25 @@ pub fn extract_tags(
                     })
                 }) {
                     Some(domain)
-                } else if let Some(server_host) = span
+                } else if let Some(server_address) = span
                     .data
                     .value()
                     .and_then(|data| data.server_address.value())
                     .and_then(|value| value.as_str())
                 {
-                    let lowercase_host = server_host.to_lowercase();
-                    let (domain, port) = match lowercase_host.split_once(':') {
+                    let lowercase_address = server_address.to_lowercase();
+
+                    // According to OTel semantic conventions the server port should be in a separate property, called `server.port`, but incoming data sometimes disagrees
+                    let (domain, port) = match lowercase_address.split_once(':') {
                         Some((domain, port)) => (domain, port.parse::<u16>().ok()),
-                        None => (server_host, None),
+                        None => (server_address, None),
+                    };
+
+                    // Leave IP addresses alone. Scrub qualified domain names
+                    let domain = if domain.parse::<IpAddr>().is_ok() {
+                        Cow::Borrowed(domain)
+                    } else {
+                        scrub_domain_name(domain)
                     };
 
                     if let Some(url_scheme) = span
@@ -378,10 +391,11 @@ pub fn extract_tags(
                     {
                         span_tags.insert(
                             SpanTagKey::RawDomain,
-                            format!("{url_scheme}://{lowercase_host}"),
+                            format!("{url_scheme}://{lowercase_address}"),
                         );
                     }
-                    normalize_domain(domain, port)
+
+                    Some(concatenate_host_and_port(Some(domain.as_ref()), port).into_owned())
                 } else {
                     None
                 }
@@ -1452,24 +1466,22 @@ LIMIT 1
         let tags_1 = get_value!(span_1.sentry_tags).unwrap();
         let tags_2 = get_value!(span_2.sentry_tags).unwrap();
 
-        // Descriptions with loopback IPs preserve the IP and port but strip the URL path
+        // Allow loopback IPs
         assert_eq!(
             tags_1.get("description").unwrap().as_str(),
             Some("POST http://127.0.0.1:10007")
         );
-        // Domains of loopback IP descriptions preserve the IP and port
         assert_eq!(
             tags_1.get("domain").unwrap().as_str(),
             Some("127.0.0.1:10007")
         );
 
-        // Descriptions with non-loopback IPs scrub the IP naively
+        // Scrub other IPs
         assert_eq!(
             tags_2.get("description").unwrap().as_str(),
-            Some("GET http://*.8.8")
+            Some("GET http://*.*.*.*")
         );
-        // Domains of non-loopback IP descriptions are omitted
-        assert_eq!(tags_2.get("domain"), None);
+        assert_eq!(tags_2.get("domain").unwrap().as_str(), Some("*.*.*.*"));
     }
 
     #[test]
