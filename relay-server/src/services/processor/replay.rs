@@ -89,8 +89,6 @@ pub fn process(
                 item.set_payload(ContentType::OctetStream, replay_recording);
             }
             ItemType::ReplayVideo => {
-                // If video replays have not been enabled and a video replay was received
-                // drop the envelope.
                 if !video_replay_enabled {
                     state.managed_envelope.drop_items_silently();
                     return Ok(());
