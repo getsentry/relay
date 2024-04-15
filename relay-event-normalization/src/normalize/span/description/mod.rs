@@ -211,7 +211,7 @@ fn scrub_file(description: &str) -> Option<String> {
 /// ```
 /// use url::{Host, Url};
 /// use std::net::{Ipv4Addr, Ipv6Addr};
-/// use relay_event_normalization::span::description::{scrub_host};
+/// use relay_event_normalization::span::description::scrub_host;
 ///
 /// assert_eq!(scrub_host(Host::Domain("foo.bar.baz")), "*.bar.baz");
 /// assert_eq!(scrub_host(Host::Ipv4(Ipv4Addr::LOCALHOST)), "127.0.0.1");
