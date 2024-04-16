@@ -1046,7 +1046,7 @@ pub struct Normalization {
 }
 
 /// Configuration for the level of normalization this Relay should do.
-#[derive(Clone, Debug, Default, Serialize, Deserialize, Eq, PartialEq)]
+#[derive(Copy, Clone, Debug, Default, Serialize, Deserialize, Eq, PartialEq)]
 #[serde(rename_all = "lowercase")]
 pub enum NormalizationLevel {
     /// Disables normalization for events coming from internal Relays.
@@ -2196,8 +2196,8 @@ impl Config {
     }
 
     /// Level of normalization for Relay to apply to incoming data.
-    pub fn normalization_level(&self) -> &NormalizationLevel {
-        &self.values.normalization.level
+    pub fn normalization_level(&self) -> NormalizationLevel {
+        self.values.normalization.level
     }
 
     /// The path to the GeoIp database required for event processing.
