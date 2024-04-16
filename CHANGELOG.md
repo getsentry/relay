@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Features**:
+
+- Add inbound filters for Annotated<Replay> types. ([#3420](https://github.com/getsentry/relay/pull/3420))
+
 ## 24.4.0
 
 **Bug fixes:**
@@ -8,8 +14,6 @@
 - Perform clock drift normalization only when `sent_at` is set in the `Envelope` headers. ([#3405](https://github.com/getsentry/relay/pull/3405))
 
 **Features**:
-
-- Add inbound filters for Annotated<Replay> types. ([#3420](https://github.com/getsentry/relay/pull/3420))
 
 - **Breaking change:** Kafka topic configuration keys now support the default topic name. The previous aliases `metrics` and `metrics_transactions` are no longer supported if configuring topics manually. Use `ingest-metrics` or `metrics_sessions` instead of `metrics`, and `ingest-performance-metrics` or `metrics_generic` instead of `metrics_transactions`. ([#3361](https://github.com/getsentry/relay/pull/3361))
 - **Breaking change:** Remove `ShardedProducer` and related code. The sharded configuration for Kafka is no longer supported. ([#3415](https://github.com/getsentry/relay/pull/3415))
