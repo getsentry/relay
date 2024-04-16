@@ -3373,7 +3373,7 @@
 <span class="kw">use </span>relay_base_schema::project::{ProjectId, ProjectKey};
 <span class="kw">use </span>relay_cogs::{AppFeature, Cogs, FeatureWeights, ResourceId, Token};
 <span class="kw">use </span>relay_common::time::UnixTimestamp;
-<span class="kw">use </span>relay_config::{Config, HttpEncoding, Normalize, RelayMode};
+<span class="kw">use </span>relay_config::{Config, HttpEncoding, NormalizationLevel, RelayMode};
 <span class="kw">use </span>relay_dynamic_config::{ErrorBoundary, Feature};
 <span class="kw">use </span>relay_event_normalization::{
     normalize_event, validate_event_timestamps, validate_transaction, ClockDriftProcessor,
@@ -4580,8 +4580,8 @@
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;G&gt;,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ProcessingError&gt; {
-        <span class="kw">let </span>full_normalization = <span class="kw">match </span><span class="self">self</span>.inner.config.normalization() {
-            Normalize::Disabled =&gt; {
+        <span class="kw">let </span>full_normalization = <span class="kw">match </span><span class="self">self</span>.inner.config.normalization_level() {
+            NormalizationLevel::Disabled =&gt; {
                 <span class="comment">// We assume envelopes coming from an internal relay have
                 // already been normalized. During incidents, like a PoP region
                 // not being available, envelopes can go to other PoP regions or
@@ -4596,8 +4596,8 @@
                     <span class="kw">return </span><span class="prelude-val">Ok</span>(());
                 }
             }
-            Normalize::Full =&gt; <span class="bool-val">true</span>,
-            Normalize::Default =&gt; <span class="self">self</span>.inner.config.processing_enabled(),
+            NormalizationLevel::Full =&gt; <span class="bool-val">true</span>,
+            NormalizationLevel::Default =&gt; <span class="self">self</span>.inner.config.processing_enabled(),
         };
 
         <span class="kw">if let </span><span class="prelude-val">Some</span>(sampling_state) = state.sampling_project_state.clone() {

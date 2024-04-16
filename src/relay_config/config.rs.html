@@ -2444,6 +2444,13 @@
 <a href="#2442" id="2442">2442</a>
 <a href="#2443" id="2443">2443</a>
 <a href="#2444" id="2444">2444</a>
+<a href="#2445" id="2445">2445</a>
+<a href="#2446" id="2446">2446</a>
+<a href="#2447" id="2447">2447</a>
+<a href="#2448" id="2448">2448</a>
+<a href="#2449" id="2449">2449</a>
+<a href="#2450" id="2450">2450</a>
+<a href="#2451" id="2451">2451</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::io::Write;
@@ -3460,9 +3467,6 @@
     <span class="doccomment">/// Maximum rate limit to report to clients.
     </span><span class="attr">#[serde(default = <span class="string">"default_max_rate_limit"</span>)]
     </span><span class="kw">pub </span>max_rate_limit: <span class="prelude-ty">Option</span>&lt;u32&gt;,
-    <span class="doccomment">/// How much normalization this Relay should apply to incoming data.
-    </span><span class="attr">#[serde(default)]
-    </span><span class="kw">pub </span>normalize: Normalize,
 }
 
 <span class="kw">impl </span>Default <span class="kw">for </span>Processing {
@@ -3481,15 +3485,23 @@
             attachment_chunk_size: default_chunk_size(),
             projectconfig_cache_prefix: default_projectconfig_cache_prefix(),
             max_rate_limit: default_max_rate_limit(),
-            normalize: Normalize::Default,
         }
     }
 }
 
+<span class="doccomment">/// Configuration for normalization in this Relay.
+</span><span class="attr">#[derive(Debug, Default, Serialize, Deserialize)]
+#[serde(default)]
+</span><span class="kw">pub struct </span>Normalization {
+    <span class="doccomment">/// Level of normalization for Relay to apply to incoming data.
+    </span><span class="attr">#[serde(default)]
+    </span><span class="kw">pub </span>level: NormalizationLevel,
+}
+
 <span class="doccomment">/// Configuration for the level of normalization this Relay should do.
-</span><span class="attr">#[derive(Clone, Debug, Default, Serialize, Deserialize, Eq, PartialEq)]
+</span><span class="attr">#[derive(Copy, Clone, Debug, Default, Serialize, Deserialize, Eq, PartialEq)]
 #[serde(rename_all = <span class="string">"lowercase"</span>)]
-</span><span class="kw">pub enum </span>Normalize {
+</span><span class="kw">pub enum </span>NormalizationLevel {
     <span class="doccomment">/// Disables normalization for events coming from internal Relays.
     ///
     /// Processing relays still do full normalization for events coming from
@@ -3497,7 +3509,7 @@
     </span>Disabled,
     <span class="doccomment">/// Runs normalization, excluding steps that break future compatibility.
     ///
-    /// Processing Relays run [`Normalize::Full`] if this option is set.
+    /// Processing Relays run [`NormalizationLevel::Full`] if this option is set.
     </span><span class="attr">#[default]
     </span>Default,
     <span class="doccomment">/// Run full normalization.
@@ -3880,6 +3892,8 @@
     </span>aws: AwsConfig,
     <span class="attr">#[serde(default)]
     </span>geoip: GeoIpConfig,
+    <span class="attr">#[serde(default)]
+    </span>normalization: Normalization,
     <span class="attr">#[serde(default)]
     </span>cardinality_limiter: CardinalityLimiter,
     <span class="attr">#[serde(default)]
@@ -4634,9 +4648,9 @@
         <span class="self">self</span>.values.processing.enabled
     }
 
-    <span class="doccomment">/// How much normalization this Relay should apply to incoming data.
-    </span><span class="kw">pub fn </span>normalization(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>Normalize {
-        <span class="kw-2">&amp;</span><span class="self">self</span>.values.processing.normalize
+    <span class="doccomment">/// Level of normalization for Relay to apply to incoming data.
+    </span><span class="kw">pub fn </span>normalization_level(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; NormalizationLevel {
+        <span class="self">self</span>.values.normalization.level
     }
 
     <span class="doccomment">/// The path to the GeoIp database required for event processing.
