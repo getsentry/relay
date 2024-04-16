@@ -581,6 +581,38 @@
 <a href="#579" id="579">579</a>
 <a href="#580" id="580">580</a>
 <a href="#581" id="581">581</a>
+<a href="#582" id="582">582</a>
+<a href="#583" id="583">583</a>
+<a href="#584" id="584">584</a>
+<a href="#585" id="585">585</a>
+<a href="#586" id="586">586</a>
+<a href="#587" id="587">587</a>
+<a href="#588" id="588">588</a>
+<a href="#589" id="589">589</a>
+<a href="#590" id="590">590</a>
+<a href="#591" id="591">591</a>
+<a href="#592" id="592">592</a>
+<a href="#593" id="593">593</a>
+<a href="#594" id="594">594</a>
+<a href="#595" id="595">595</a>
+<a href="#596" id="596">596</a>
+<a href="#597" id="597">597</a>
+<a href="#598" id="598">598</a>
+<a href="#599" id="599">599</a>
+<a href="#600" id="600">600</a>
+<a href="#601" id="601">601</a>
+<a href="#602" id="602">602</a>
+<a href="#603" id="603">603</a>
+<a href="#604" id="604">604</a>
+<a href="#605" id="605">605</a>
+<a href="#606" id="606">606</a>
+<a href="#607" id="607">607</a>
+<a href="#608" id="608">608</a>
+<a href="#609" id="609">609</a>
+<a href="#610" id="610">610</a>
+<a href="#611" id="611">611</a>
+<a href="#612" id="612">612</a>
+<a href="#613" id="613">613</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_base_schema::data_category::DataCategory;
 <span class="kw">use </span>relay_event_normalization::utils::MAX_DURATION_MOBILE_MS;
 <span class="kw">use </span>relay_protocol::RuleCondition;
@@ -661,6 +693,8 @@
         RuleCondition::all()
     };
 
+    <span class="kw">let </span>is_ai = RuleCondition::glob(<span class="string">"span.op"</span>, <span class="string">"ai.*"</span>);
+
     <span class="kw">let </span>is_db = RuleCondition::eq(<span class="string">"span.sentry_tags.category"</span>, <span class="string">"db"</span>)
         &amp; !(RuleCondition::eq(<span class="string">"span.system"</span>, <span class="string">"mongodb"</span>)
             | RuleCondition::glob(<span class="string">"span.op"</span>, DISABLED_DATABASES)
@@ -719,8 +753,9 @@
         &amp; RuleCondition::glob(<span class="string">"span.op"</span>, <span class="string">"app.start.*"</span>)
         &amp; RuleCondition::eq(<span class="string">"span.description"</span>, APP_START_ROOT_SPAN_DESCRIPTIONS);
 
-    <span class="comment">// `exclusive_time_light` is the metric with the most lenient condition.
+    <span class="comment">// `exclusive_time_light` excludes transaction tags (and some others) to reduce cardinality.
     </span><span class="kw">let </span>exclusive_time_light_condition = (is_db.clone()
+        | is_ai.clone()
         | is_resource.clone()
         | is_mobile.clone()
         | is_interaction
@@ -1032,6 +1067,35 @@
                     .from_field(<span class="string">"span.sentry_tags.app_start_type"</span>)
                     .when(app_start_condition.clone()),
             ],
+        },
+        MetricSpec {
+            category: DataCategory::Span,
+            mri: <span class="string">"c:spans/ai.total_tokens.used@none"</span>.into(),
+            field: <span class="prelude-val">Some</span>(<span class="string">"span.measurements.ai_total_tokens_used.value"</span>.into()),
+            condition: <span class="prelude-val">Some</span>(is_ai.clone()),
+            tags: <span class="macro">vec!</span>[
+                Tag::with_key(<span class="string">"span.op"</span>)
+                    .from_field(<span class="string">"span.sentry_tags.op"</span>)
+                    .always(),
+                Tag::with_key(<span class="string">"environment"</span>)
+                    .from_field(<span class="string">"span.sentry_tags.environment"</span>)
+                    .always(),
+                Tag::with_key(<span class="string">"release"</span>)
+                    .from_field(<span class="string">"span.sentry_tags.release"</span>)
+                    .always(),
+                Tag::with_key(<span class="string">"span.origin"</span>)
+                    .from_field(<span class="string">"span.origin"</span>)
+                    .always(),
+                Tag::with_key(<span class="string">"span.description"</span>)
+                    .from_field(<span class="string">"span.sentry_tags.description"</span>)
+                    .always(), <span class="comment">// already guarded by condition on metric
+                </span>Tag::with_key(<span class="string">"span.group"</span>)
+                    .from_field(<span class="string">"span.sentry_tags.group"</span>)
+                    .always(), <span class="comment">// already guarded by condition on metric
+                </span>Tag::with_key(<span class="string">"span.op"</span>)
+                    .from_field(<span class="string">"span.sentry_tags.op"</span>)
+                    .always(), <span class="comment">// already guarded by condition on metric
+            </span>],
         },
         MetricSpec {
             category: DataCategory::Span,
