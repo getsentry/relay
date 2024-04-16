@@ -50,6 +50,7 @@
 - Log span when encountering a validation error. ([#3401](https://github.com/getsentry/relay/pull/3401))
 - Optionally skip normalization. ([#3377](https://github.com/getsentry/relay/pull/3377))
 - Scrub file extensions in file spans and tags. ([#3413](https://github.com/getsentry/relay/pull/3413))
+- Emit negative outcomes in metric stats for metrics. ([#3436](https://github.com/getsentry/relay/pull/3436))
 
 ## 24.3.0
 
