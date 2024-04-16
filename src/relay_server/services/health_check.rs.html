@@ -382,6 +382,8 @@
 <a href="#380" id="380">380</a>
 <a href="#381" id="381">381</a>
 <a href="#382" id="382">382</a>
+<a href="#383" id="383">383</a>
+<a href="#384" id="384">384</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::sync::atomic::{AtomicBool, Ordering};
 <span class="kw">use </span>std::sync::{Arc, Mutex, PoisonError};
 <span class="kw">use </span>std::time::{Duration, Instant};
@@ -390,7 +392,9 @@
 <span class="kw">use </span>relay_metrics::{AcceptsMetrics, Aggregator};
 <span class="kw">use </span>relay_statsd::metric;
 <span class="kw">use </span>relay_system::{Addr, AsyncResponse, Controller, FromMessage, Interface, Sender, Service};
+<span class="kw">use </span>std::future::Future;
 <span class="kw">use </span>sysinfo::{MemoryRefreshKind, RefreshKind, System};
+<span class="kw">use </span>tokio::time::timeout;
 
 <span class="kw">use </span><span class="kw">crate</span>::services::project_cache::{ProjectCache, SpoolHealth};
 <span class="kw">use </span><span class="kw">crate</span>::services::upstream::{IsAuthenticated, IsNetworkOutage, UpstreamRelay};
@@ -425,17 +429,6 @@
     </span>Healthy,
     <span class="doccomment">/// Relay is unhealthy.
     </span>Unhealthy,
-}
-
-<span class="kw">impl </span>Status {
-    <span class="doccomment">/// Internal helper to report/log failing health checks.
-    </span><span class="kw">fn </span>report(<span class="self">self</span>, probe: <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str) -&gt; <span class="self">Self </span>{
-        <span class="kw">if </span><span class="macro">matches!</span>(<span class="self">self</span>, <span class="self">Self</span>::Unhealthy) {
-            <span class="macro">relay_log::error!</span>(<span class="string">"Health check probe '{probe}' failed"</span>);
-        }
-
-        <span class="self">self
-    </span>}
 }
 
 <span class="kw">impl </span>From&lt;bool&gt; <span class="kw">for </span>Status {
@@ -545,7 +538,6 @@
             .send(IsAuthenticated)
             .<span class="kw">await
             </span>.map_or(Status::Unhealthy, Status::from)
-            .report(<span class="string">"relay authentication"</span>)
     }
 
     <span class="kw">async fn </span>aggregator_probe(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Status {
@@ -553,15 +545,27 @@
             .send(AcceptsMetrics)
             .<span class="kw">await
             </span>.map_or(Status::Unhealthy, Status::from)
-            .report(<span class="string">"aggregator accept metrics"</span>)
     }
 
-    <span class="kw">async fn </span>project_cache_probe(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Status {
+    <span class="kw">async fn </span>spool_health_probe(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Status {
         <span class="self">self</span>.project_cache
             .send(SpoolHealth)
             .<span class="kw">await
             </span>.map_or(Status::Unhealthy, Status::from)
-            .report(<span class="string">"project cache spool health"</span>)
+    }
+
+    <span class="kw">async fn </span>probe(<span class="kw-2">&amp;</span><span class="self">self</span>, name: <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str, fut: <span class="kw">impl </span>Future&lt;Output = Status&gt;) -&gt; Status {
+        <span class="kw">match </span>timeout(<span class="self">self</span>.config.health_probe_timeout(), fut).<span class="kw">await </span>{
+            <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; {
+                <span class="macro">relay_log::error!</span>(<span class="string">"Health check probe '{name}' timed out"</span>);
+                Status::Unhealthy
+            }
+            <span class="prelude-val">Ok</span>(Status::Unhealthy) =&gt; {
+                <span class="macro">relay_log::error!</span>(<span class="string">"Health check probe '{name}' failed"</span>);
+                Status::Unhealthy
+            }
+            <span class="prelude-val">Ok</span>(Status::Healthy) =&gt; Status::Healthy,
+        }
     }
 
     <span class="kw">async fn </span>handle_is_healthy(<span class="kw-2">&amp;</span><span class="self">self</span>, message: IsHealthy) -&gt; Status {
@@ -585,10 +589,10 @@
         }
 
         <span class="kw">let </span>(sys_mem, auth, agg, proj) = <span class="macro">tokio::join!</span>(
-            <span class="self">self</span>.system_memory_probe(),
-            <span class="self">self</span>.auth_probe(),
-            <span class="self">self</span>.aggregator_probe(),
-            <span class="self">self</span>.project_cache_probe(),
+            <span class="self">self</span>.probe(<span class="string">"system memory"</span>, <span class="self">self</span>.system_memory_probe()),
+            <span class="self">self</span>.probe(<span class="string">"auth"</span>, <span class="self">self</span>.auth_probe()),
+            <span class="self">self</span>.probe(<span class="string">"aggregator"</span>, <span class="self">self</span>.aggregator_probe()),
+            <span class="self">self</span>.probe(<span class="string">"spool health"</span>, <span class="self">self</span>.spool_health_probe()),
         );
 
         Status::from_iter([sys_mem, auth, agg, proj])
