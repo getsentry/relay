@@ -95,6 +95,7 @@ where
     quantities
 }
 
+#[cfg(feature = "processing")]
 pub fn reject_metrics_metric_stats<I: IntoIterator<Item = Bucket>>(
     metric_stats: &MetricStats,
     scoping: Scoping,

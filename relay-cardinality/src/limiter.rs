@@ -222,7 +222,7 @@ pub struct CardinalityLimitsSplit<T> {
 }
 
 impl<T> CardinalityLimitsSplit<T> {
-    fn default(accepted_capacity: usize, rejected_capacity: usize) -> CardinalityLimitsSplit<T> {
+    fn new(accepted_capacity: usize, rejected_capacity: usize) -> CardinalityLimitsSplit<T> {
         CardinalityLimitsSplit {
             accepted: Vec::with_capacity(accepted_capacity),
             rejected: Vec::with_capacity(rejected_capacity),
@@ -303,7 +303,7 @@ impl<'a, T> CardinalityLimits<'a, T> {
         let source_len = self.source.len();
         let rejections_len = self.rejections.len();
         self.source.into_iter().enumerate().fold(
-            CardinalityLimitsSplit::default(source_len - rejections_len, rejections_len),
+            CardinalityLimitsSplit::new(source_len - rejections_len, rejections_len),
             |mut split, (i, item)| {
                 if self.rejections.contains(&i) {
                     split.rejected.push(item);
