@@ -222,7 +222,7 @@ pub struct CardinalityLimitsSplit<T> {
 }
 
 impl<T> CardinalityLimitsSplit<T> {
-    fn new(accepted_capacity: usize, rejected_capacity: usize) -> CardinalityLimitsSplit<T> {
+    fn with_capacity(accepted_capacity: usize, rejected_capacity: usize) -> CardinalityLimitsSplit<T> {
         CardinalityLimitsSplit {
             accepted: Vec::with_capacity(accepted_capacity),
             rejected: Vec::with_capacity(rejected_capacity),
