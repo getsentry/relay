@@ -2247,15 +2247,17 @@ impl EnvelopeProcessorService {
             return limits.into_source();
         }
 
+        let split = limits.into_split();
+
         // Log outcomes for rejected buckets.
-        utils::reject_metrics(
-            &self.inner.addrs.outcome_aggregator,
-            utils::extract_metric_quantities(limits.rejected(), mode),
+        utils::reject_metrics_metric_stats(
+            &self.inner.metric_stats,
             scoping,
+            split.rejected,
             Outcome::CardinalityLimited,
         );
 
-        limits.into_accepted()
+        split.accepted
     }
 
     /// Processes metric buckets and sends them to kafka.

@@ -9,6 +9,7 @@ use relay_quotas::{DataCategory, Quota, RateLimits, Scoping};
 use relay_system::Addr;
 
 use crate::envelope::SourceQuantities;
+use crate::metric_stats::MetricStats;
 use crate::services::outcome::{Outcome, TrackOutcome};
 
 /// Contains all data necessary to rate limit metrics or metrics buckets.
@@ -91,6 +92,17 @@ where
     }
 
     quantities
+}
+
+pub fn reject_metrics_metric_stats<I: IntoIterator<Item = Bucket>>(
+    metric_stats: &MetricStats,
+    scoping: Scoping,
+    buckets: I,
+    outcome: Outcome,
+) {
+    for bucket in buckets {
+        metric_stats.track_metric(scoping, bucket, outcome.clone())
+    }
 }
 
 pub fn reject_metrics(

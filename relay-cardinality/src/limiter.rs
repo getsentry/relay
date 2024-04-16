@@ -1,6 +1,7 @@
 //! Relay Cardinality Limiter
 
 use std::collections::BTreeMap;
+use std::mem;
 
 use hashbrown::HashSet;
 use relay_base_schema::metrics::{MetricName, MetricNamespace};
@@ -212,6 +213,15 @@ impl<'a> Reporter<'a> for DefaultReporter<'a> {
     }
 }
 
+/// Split of the original source containing accepted and rejected source elements.
+#[derive(Debug)]
+pub struct CardinalityLimitsSplit<T> {
+    /// The list of accepted elements of the source.
+    pub accepted: Vec<T>,
+    /// The list of rejected elements of the source.
+    pub rejected: Vec<T>,
+}
+
 /// Result of [`CardinalityLimiter::check_cardinality_limits`].
 #[derive(Debug)]
 pub struct CardinalityLimits<'a, T> {
@@ -265,25 +275,32 @@ impl<'a, T> CardinalityLimits<'a, T> {
         self.rejections.iter().filter_map(|&i| self.source.get(i))
     }
 
-    /// Consumes the result and returns an iterator over all accepted items.
-    pub fn into_accepted(self) -> Vec<T> {
+    /// Consumes the result and returns one iterator for all accepted items and one for all rejected
+    /// items.
+    pub fn into_split(self) -> CardinalityLimitsSplit<T> {
         if self.rejections.is_empty() {
-            return self.source;
+            return CardinalityLimitsSplit {
+                accepted: self.source,
+                rejected: Vec::new(),
+            };
         } else if self.source.len() == self.rejections.len() {
-            return Vec::new();
+            return CardinalityLimitsSplit {
+                accepted: Vec::new(),
+                rejected: self.source,
+            };
         }
 
-        self.source
-            .into_iter()
-            .enumerate()
-            .filter_map(|(i, t)| {
-                if self.rejections.contains(&i) {
-                    None
-                } else {
-                    Some(t)
-                }
-            })
-            .collect()
+        let mut accepted = vec![];
+        let mut rejected = vec![];
+        self.source.into_iter().enumerate().for_each(|(i, t)| {
+            if self.rejections.contains(&i) {
+                rejected.push(t);
+            } else {
+                accepted.push(t);
+            }
+        });
+
+        CardinalityLimitsSplit { accepted, rejected }
     }
 }
 
@@ -367,7 +384,7 @@ mod tests {
         };
         assert_rejected(&limits, ['a', 'b', 'd']);
         assert!(limits.has_rejections());
-        assert_eq!(limits.into_accepted(), vec!['c', 'e']);
+        assert_eq!(limits.into_split().accepted, vec!['c', 'e']);
 
         let limits = CardinalityLimits {
             source: vec!['a', 'b', 'c', 'd', 'e'],
@@ -377,7 +394,7 @@ mod tests {
         };
         assert_rejected(&limits, []);
         assert!(!limits.has_rejections());
-        assert_eq!(limits.into_accepted(), vec!['a', 'b', 'c', 'd', 'e']);
+        assert_eq!(limits.into_split().accepted, vec!['a', 'b', 'c', 'd', 'e']);
 
         let limits = CardinalityLimits {
             source: vec!['a', 'b', 'c', 'd', 'e'],
@@ -387,7 +404,7 @@ mod tests {
         };
         assert!(limits.has_rejections());
         assert_rejected(&limits, ['a', 'b', 'c', 'd', 'e']);
-        assert!(limits.into_accepted().is_empty());
+        assert!(limits.into_split().accepted.is_empty());
     }
 
     #[test]
@@ -429,7 +446,7 @@ mod tests {
             .unwrap();
 
         assert_eq!(result.exceeded_limits(), &HashSet::from([&limits[0]]));
-        assert!(result.into_accepted().is_empty());
+        assert!(result.into_split().accepted.is_empty());
     }
 
     #[test]
@@ -463,7 +480,7 @@ mod tests {
             .check_cardinality_limits(build_scoping(), &limits, items.clone())
             .unwrap();
 
-        assert_eq!(result.into_accepted(), items);
+        assert_eq!(result.into_split().accepted, items);
     }
 
     #[test]
@@ -509,7 +526,8 @@ mod tests {
         let accepted = limiter
             .check_cardinality_limits(build_scoping(), &build_limits(), items)
             .unwrap()
-            .into_accepted();
+            .into_split()
+            .accepted;
 
         assert_eq!(
             accepted,
@@ -599,7 +617,7 @@ mod tests {
         );
         drop(rejected); // NLL are broken here without the explicit drop
         assert_eq!(
-            limited.into_accepted(),
+            limited.into_split().accepted,
             vec![
                 Item::new(1, MetricNamespace::Custom),
                 Item::new(3, MetricNamespace::Custom),
