@@ -1,7 +1,6 @@
 //! Relay Cardinality Limiter
 
 use std::collections::BTreeMap;
-use std::mem;
 
 use hashbrown::HashSet;
 use relay_base_schema::metrics::{MetricName, MetricNamespace};
