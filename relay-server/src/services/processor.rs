@@ -469,7 +469,7 @@ pub enum ProcessingError {
 
 impl ProcessingError {
     fn to_outcome(&self) -> Option<Outcome> {
-        match *self {
+        match self {
             // General outcomes for invalid events
             Self::PayloadTooLarge => Some(Outcome::Invalid(DiscardReason::TooLarge)),
             Self::InvalidJson(_) => Some(Outcome::Invalid(DiscardReason::InvalidJson)),
@@ -506,10 +506,10 @@ impl ProcessingError {
             // These outcomes are emitted at the source.
             Self::MissingProjectId => None,
             Self::EventFiltered(_) => None,
-            Self::ReplayFiltered(_) => None,
             Self::InvalidProcessingGroup(_) => None,
 
-            Self::InvalidReplay(reason) => Some(Outcome::Invalid(reason)),
+            Self::InvalidReplay(reason) => Some(Outcome::Invalid(*reason)),
+            Self::ReplayFiltered(key) => Some(Outcome::Filtered(key.clone())),
         }
     }
 
