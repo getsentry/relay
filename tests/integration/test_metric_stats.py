@@ -63,7 +63,7 @@ def test_metric_stats_simple(
     project_config["config"]["metrics"] = {
         "cardinalityLimits": [
             {
-                "id": "custom",
+                "id": "custom-limit",
                 "window": {"windowSeconds": 3600, "granularitySeconds": 600},
                 "report": True,
                 "limit": 100,
@@ -84,6 +84,7 @@ def test_metric_stats_simple(
     assert metrics.volume["d:custom/foo@none"]["value"] == 2.0
     assert metrics.volume["d:custom/foo@none"]["tags"] == {
         "mri": "d:custom/foo@none",
+        "mri.type": "d",
         "mri.namespace": "custom",
         "outcome.id": "0",
     }
@@ -92,6 +93,7 @@ def test_metric_stats_simple(
     assert metrics.volume["s:custom/bar@none"]["value"] == 1.0
     assert metrics.volume["s:custom/bar@none"]["tags"] == {
         "mri": "s:custom/bar@none",
+        "mri.type": "s",
         "mri.namespace": "custom",
         "outcome.id": "0",
     }
@@ -107,7 +109,10 @@ def test_metric_stats_simple(
     }
     assert metrics.cardinality["d:custom/foo@none"]["tags"] == {
         "mri": "d:custom/foo@none",
+        "mri.type": "d",
         "mri.namespace": "custom",
+        "cardinality.limit": "custom-limit",
+        "cardinality.scope": "name",
         "cardinality.window": "3600",
     }
     assert metrics.cardinality["s:custom/bar@none"]["org_id"] == 0
@@ -121,7 +126,10 @@ def test_metric_stats_simple(
     }
     assert metrics.cardinality["s:custom/bar@none"]["tags"] == {
         "mri": "s:custom/bar@none",
+        "mri.type": "s",
         "mri.namespace": "custom",
+        "cardinality.limit": "custom-limit",
+        "cardinality.scope": "name",
         "cardinality.window": "3600",
     }
     assert len(metrics.cardinality) == 2
