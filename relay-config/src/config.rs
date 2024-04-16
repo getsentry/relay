@@ -1348,6 +1348,13 @@ pub struct Health {
     ///
     /// Defaults to `0.95` (95%).
     pub max_memory_percent: f32,
+    /// Health check probe timeout in milliseconds.
+    ///
+    /// Any probe exceeding the timeout will be considered failed.
+    /// This limits the max execution time of Relay health checks.
+    ///
+    /// Defaults to 900 milliseconds.
+    pub probe_timeout_ms: u64,
 }
 
 impl Default for Health {
@@ -1356,6 +1363,7 @@ impl Default for Health {
             sys_info_refresh_interval_secs: 3,
             max_memory_bytes: None,
             max_memory_percent: 0.95,
+            probe_timeout_ms: 900,
         }
     }
 }
@@ -2289,6 +2297,11 @@ impl Config {
     /// Maximum memory watermark as a percentage of maximum system memory.
     pub fn health_max_memory_watermark_percent(&self) -> f32 {
         self.values.health.max_memory_percent
+    }
+
+    /// Health check probe timeout.
+    pub fn health_probe_timeout(&self) -> Duration {
+        Duration::from_millis(self.values.health.probe_timeout_ms)
     }
 
     /// Whether COGS measurements are enabled.
