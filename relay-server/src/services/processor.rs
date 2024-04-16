@@ -2127,11 +2127,10 @@ impl EnvelopeProcessorService {
 
         buckets_by_ns
             .into_iter()
-            .filter_map(|(namespace, buckets)| {
+            .flat_map(|(namespace, buckets)| {
                 let item_scoping = scoping.metric_bucket(namespace);
                 self.rate_limit_buckets(item_scoping, buckets, quotas, mode, rate_limiter)
             })
-            .flatten()
             .collect()
     }
 
@@ -2144,7 +2143,7 @@ impl EnvelopeProcessorService {
         quotas: DynamicQuotas<'_>,
         mode: ExtractionMode,
         rate_limiter: &RedisRateLimiter,
-    ) -> Option<Vec<Bucket>> {
+    ) -> Vec<Bucket> {
         let batch_size = self.inner.config.metrics_max_batch_size_bytes();
         let batched_bucket_iter = BucketsView::new(&buckets).by_size(batch_size).flatten();
         let quantities = utils::extract_metric_quantities(batched_bucket_iter, mode);
@@ -2173,16 +2172,16 @@ impl EnvelopeProcessorService {
                     limits,
                 ));
 
-                None
+                Vec::new()
             }
-            Ok(_) => Some(buckets),
+            Ok(_) => buckets,
             Err(e) => {
                 relay_log::error!(
                     error = &e as &dyn std::error::Error,
                     "failed to check redis rate limits"
                 );
 
-                Some(buckets)
+                buckets
             }
         }
     }

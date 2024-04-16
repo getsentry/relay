@@ -94,7 +94,6 @@ where
     quantities
 }
 
-#[cfg(feature = "processing")]
 fn report_rejected_metrics<I: IntoIterator<Item = Bucket>>(
     metric_stats: &MetricStats,
     scoping: Scoping,
@@ -137,7 +136,6 @@ pub fn reject_metrics<I: IntoIterator<Item = Bucket>>(
     }
 
     if let (Some(metric_stats), Some(buckets)) = (metric_stats, buckets) {
-        #[cfg(feature = "processing")]
         report_rejected_metrics(metric_stats, scoping, buckets, outcome)
     }
 }
