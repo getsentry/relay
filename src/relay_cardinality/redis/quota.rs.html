@@ -181,11 +181,25 @@
 <a href="#179" id="179">179</a>
 <a href="#180" id="180">180</a>
 <a href="#181" id="181">181</a>
+<a href="#182" id="182">182</a>
+<a href="#183" id="183">183</a>
+<a href="#184" id="184">184</a>
+<a href="#185" id="185">185</a>
+<a href="#186" id="186">186</a>
+<a href="#187" id="187">187</a>
+<a href="#188" id="188">188</a>
+<a href="#189" id="189">189</a>
+<a href="#190" id="190">190</a>
+<a href="#191" id="191">191</a>
+<a href="#192" id="192">192</a>
+<a href="#193" id="193">193</a>
+<a href="#194" id="194">194</a>
+<a href="#195" id="195">195</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>hash32::Hasher;
 <span class="kw">use </span>std::fmt::{<span class="self">self</span>, Write};
 <span class="kw">use </span>std::hash::Hash;
 
-<span class="kw">use </span>relay_base_schema::metrics::{MetricName, MetricNamespace};
+<span class="kw">use </span>relay_base_schema::metrics::{MetricName, MetricNamespace, MetricType};
 <span class="kw">use </span>relay_base_schema::project::ProjectId;
 <span class="kw">use </span>relay_common::time::UnixTimestamp;
 
@@ -216,6 +230,7 @@
         <span class="kw">let </span>(organization_id, project_id) = <span class="kw">match </span>limit.scope {
             CardinalityScope::Organization =&gt; (<span class="prelude-val">Some</span>(scoping.organization_id), <span class="prelude-val">None</span>),
             CardinalityScope::Project =&gt; (<span class="prelude-val">Some</span>(scoping.organization_id), <span class="prelude-val">Some</span>(scoping.project_id)),
+            CardinalityScope::Type =&gt; (<span class="prelude-val">Some</span>(scoping.organization_id), <span class="prelude-val">Some</span>(scoping.project_id)),
             CardinalityScope::Name =&gt; (<span class="prelude-val">Some</span>(scoping.organization_id), <span class="prelude-val">Some</span>(scoping.project_id)),
             <span class="comment">// Invalid/unknown scope -&gt; ignore the limit.
             </span>CardinalityScope::Unknown =&gt; <span class="kw">return </span><span class="prelude-val">None</span>,
@@ -264,12 +279,20 @@
     /// does not check whether the scoping even applies to the entry. The caller
     /// needs to ensure this by calling [`Self::matches`] prior to calling `complete`.
     </span><span class="kw">pub fn </span>complete(<span class="self">self</span>, entry: Entry&lt;<span class="lifetime">'_</span>&gt;) -&gt; QuotaScoping {
-        <span class="kw">let </span>name = <span class="kw">match </span><span class="self">self</span>.scope {
+        <span class="kw">let </span>metric_name = <span class="kw">match </span><span class="self">self</span>.scope {
             CardinalityScope::Name =&gt; <span class="prelude-val">Some</span>(entry.name.clone()),
             <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
         };
+        <span class="kw">let </span>metric_type = <span class="kw">match </span><span class="self">self</span>.scope {
+            CardinalityScope::Type =&gt; entry.name.try_type(),
+            <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
+        };
 
-        QuotaScoping { parent: <span class="self">self</span>, name }
+        QuotaScoping {
+            parent: <span class="self">self</span>,
+            metric_type,
+            metric_name,
+        }
     }
 }
 
@@ -281,7 +304,8 @@
 </span><span class="attr">#[derive(Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
 </span><span class="kw">pub struct </span>QuotaScoping {
     parent: PartialQuotaScoping,
-    <span class="kw">pub </span>name: <span class="prelude-ty">Option</span>&lt;MetricName&gt;,
+    <span class="kw">pub </span>metric_type: <span class="prelude-ty">Option</span>&lt;MetricType&gt;,
+    <span class="kw">pub </span>metric_name: <span class="prelude-ty">Option</span>&lt;MetricName&gt;,
 }
 
 <span class="kw">impl </span>QuotaScoping {
@@ -295,7 +319,8 @@
         <span class="kw">let </span>organization_id = <span class="self">self</span>.organization_id.unwrap_or(<span class="number">0</span>);
         <span class="kw">let </span>project_id = <span class="self">self</span>.project_id.map(|p| p.value()).unwrap_or(<span class="number">0</span>);
         <span class="kw">let </span>namespace = <span class="self">self</span>.namespace.map(|ns| ns.as_str()).unwrap_or(<span class="string">""</span>);
-        <span class="kw">let </span>name = DisplayOptMinus(<span class="self">self</span>.name.as_deref().map(fnv32));
+        <span class="kw">let </span>metric_type = DisplayOptMinus(<span class="self">self</span>.metric_type);
+        <span class="kw">let </span>metric_name = DisplayOptMinus(<span class="self">self</span>.metric_name.as_deref().map(fnv32));
 
         <span class="comment">// Use a pre-allocated buffer instead of `format!()`, benchmarks have shown
         // this does have quite a big impact when cardinality limiting a high amount
@@ -303,8 +328,10 @@
         </span><span class="kw">let </span><span class="kw-2">mut </span>result = String::with_capacity(<span class="number">200</span>);
         <span class="macro">write!</span>(
             <span class="kw-2">&amp;mut </span>result,
-            <span class="string">"{KEY_PREFIX}:{KEY_VERSION}:scope-{{{organization_id}-{project_id}-{namespace}}}-{name}{slot}"
-        </span>).expect(<span class="string">"formatting into a string never fails"</span>);
+            <span class="string">"{KEY_PREFIX}:{KEY_VERSION}:scope-{{{organization_id}-{project_id}-{namespace}}}-{metric_type}{metric_name}{slot}"
+        </span>)
+        .expect(<span class="string">"formatting into a string never fails"</span>);
+
         result
     }
 }
@@ -340,7 +367,8 @@
             .field(<span class="string">"namespace"</span>, namespace)
             .field(<span class="string">"window"</span>, window)
             .field(<span class="string">"scope"</span>, scope)
-            .field(<span class="string">"name"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.name)
+            .field(<span class="string">"metric_type"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.metric_type)
+            .field(<span class="string">"metric_name"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.metric_name)
             .finish()
     }
 }

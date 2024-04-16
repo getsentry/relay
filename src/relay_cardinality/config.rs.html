@@ -95,6 +95,22 @@
 <a href="#93" id="93">93</a>
 <a href="#94" id="94">94</a>
 <a href="#95" id="95">95</a>
+<a href="#96" id="96">96</a>
+<a href="#97" id="97">97</a>
+<a href="#98" id="98">98</a>
+<a href="#99" id="99">99</a>
+<a href="#100" id="100">100</a>
+<a href="#101" id="101">101</a>
+<a href="#102" id="102">102</a>
+<a href="#103" id="103">103</a>
+<a href="#104" id="104">104</a>
+<a href="#105" id="105">105</a>
+<a href="#106" id="106">106</a>
+<a href="#107" id="107">107</a>
+<a href="#108" id="108">108</a>
+<a href="#109" id="109">109</a>
+<a href="#110" id="110">110</a>
+<a href="#111" id="111">111</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_base_schema::metrics::MetricNamespace;
 <span class="kw">use </span>serde::{Deserialize, Serialize};
 
@@ -148,9 +164,25 @@
     <span class="doccomment">/// A project level cardinality limit.
     ///
     /// The limit will be enforced for a specific project.
+    ///
+    /// Hierarchy: `Organization &gt; Project`.
     </span>Project,
 
+    <span class="doccomment">/// A per metric type cardinality limit.
+    ///
+    /// This scope is very similar to [`Self::Name`], it operates on a per metric
+    /// basis which includes organization and project id.
+    ///
+    /// A metric type cardinality limit is mostly useful for cardinality reports.
+    ///
+    /// Hierarchy: `Organization &gt; Project &gt; Type`.
+    </span>Type,
+
     <span class="doccomment">/// A per metric name cardinality limit.
+    ///
+    /// The name scope is a sub-scope of project and organization.
+    ///
+    /// Hierarchy: `Organization &gt; Project &gt; Name`.
     </span>Name,
 
     <span class="doccomment">/// Any other scope that is not known by this Relay.

@@ -420,7 +420,7 @@
         <span class="macro">relay_log::trace!</span>(
             <span class="string">"Tracking cardinality '{}' for mri '{}': {}"</span>,
             limit.id,
-            report.name.as_deref().unwrap_or(<span class="string">"-"</span>),
+            report.metric_name.as_deref().unwrap_or(<span class="string">"-"</span>),
             report.cardinality,
         );
         <span class="self">self</span>.aggregator
@@ -485,7 +485,7 @@
             <span class="kw">return </span><span class="prelude-val">None</span>;
         }
 
-        <span class="kw">let </span>name = report.name.as_ref()<span class="question-mark">?</span>;
+        <span class="kw">let </span>name = report.metric_name.as_ref()<span class="question-mark">?</span>;
         <span class="kw">let </span>namespace = name.namespace();
 
         <span class="kw">if </span>!namespace.has_metric_stats() {

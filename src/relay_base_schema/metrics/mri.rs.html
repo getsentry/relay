@@ -516,7 +516,7 @@
 <span class="kw">use </span>serde::{Deserialize, Serialize};
 
 <span class="doccomment">/// The type of a [`MetricResourceIdentifier`], determining its aggregation and evaluation.
-</span><span class="attr">#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+</span><span class="attr">#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, PartialOrd, Ord)]
 </span><span class="kw">pub enum </span>MetricType {
     <span class="doccomment">/// Counts instances of an event.
     ///

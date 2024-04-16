@@ -118,12 +118,41 @@
 <a href="#116" id="116">116</a>
 <a href="#117" id="117">117</a>
 <a href="#118" id="118">118</a>
+<a href="#119" id="119">119</a>
+<a href="#120" id="120">120</a>
+<a href="#121" id="121">121</a>
+<a href="#122" id="122">122</a>
+<a href="#123" id="123">123</a>
+<a href="#124" id="124">124</a>
+<a href="#125" id="125">125</a>
+<a href="#126" id="126">126</a>
+<a href="#127" id="127">127</a>
+<a href="#128" id="128">128</a>
+<a href="#129" id="129">129</a>
+<a href="#130" id="130">130</a>
+<a href="#131" id="131">131</a>
+<a href="#132" id="132">132</a>
+<a href="#133" id="133">133</a>
+<a href="#134" id="134">134</a>
+<a href="#135" id="135">135</a>
+<a href="#136" id="136">136</a>
+<a href="#137" id="137">137</a>
+<a href="#138" id="138">138</a>
+<a href="#139" id="139">139</a>
+<a href="#140" id="140">140</a>
+<a href="#141" id="141">141</a>
+<a href="#142" id="142">142</a>
+<a href="#143" id="143">143</a>
+<a href="#144" id="144">144</a>
+<a href="#145" id="145">145</a>
+<a href="#146" id="146">146</a>
+<a href="#147" id="147">147</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::sync::Arc;
 
 <span class="kw">use </span>serde::{Deserialize, Serialize};
 
-<span class="kw">use </span><span class="kw">crate</span>::metrics::MetricNamespace;
+<span class="kw">use </span><span class="kw">crate</span>::metrics::{MetricNamespace, MetricType};
 
 <span class="doccomment">/// Optimized string represenation of a metric name.
 ///
@@ -135,6 +164,36 @@
 </span><span class="kw">pub struct </span>MetricName(Arc&lt;str&gt;);
 
 <span class="kw">impl </span>MetricName {
+    <span class="doccomment">/// Extracts the type from a well formed MRI.
+    ///
+    /// If the contained metric name is not a well formed MRI this function returns `None`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use relay_base_schema::metrics::{MetricName, MetricType};
+    ///
+    /// let name = MetricName::from("cfoo");
+    /// assert!(name.try_type().is_none());
+    /// let name = MetricName::from("c:custom/foo@none");
+    /// assert_eq!(name.try_type(), Some(MetricType::Counter));
+    /// let name = MetricName::from("d:custom/foo@none");
+    /// assert_eq!(name.try_type(), Some(MetricType::Distribution));
+    /// let name = MetricName::from("s:custom/foo@none");
+    /// assert_eq!(name.try_type(), Some(MetricType::Set));
+    /// let name = MetricName::from("g:custom/foo@none");
+    /// assert_eq!(name.try_type(), Some(MetricType::Gauge));
+    /// ```
+    </span><span class="kw">pub fn </span>try_type(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;MetricType&gt; {
+        <span class="kw">match </span><span class="self">self</span>.<span class="number">0</span>.as_bytes().get(..<span class="number">2</span>) {
+            <span class="prelude-val">Some</span>(<span class="string">b"c:"</span>) =&gt; <span class="prelude-val">Some</span>(MetricType::Counter),
+            <span class="prelude-val">Some</span>(<span class="string">b"d:"</span>) =&gt; <span class="prelude-val">Some</span>(MetricType::Distribution),
+            <span class="prelude-val">Some</span>(<span class="string">b"s:"</span>) =&gt; <span class="prelude-val">Some</span>(MetricType::Set),
+            <span class="prelude-val">Some</span>(<span class="string">b"g:"</span>) =&gt; <span class="prelude-val">Some</span>(MetricType::Gauge),
+            <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
+        }
+    }
+
     <span class="doccomment">/// Extracts the namespace from a well formed MRI.
     ///
     /// Returns [`MetricNamespace::Unsupported`] if the metric name is not a well formed MRI.
@@ -172,7 +231,6 @@
     ///
     /// let name = MetricName::from("c:custom/foo@none");
     /// assert_eq!(name.try_namespace(), Some(MetricNamespace::Custom));
-    ///
     /// ```
     </span><span class="kw">pub fn </span>try_namespace(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;MetricNamespace&gt; {
         <span class="comment">// A well formed MRI is always in the format `&lt;type&gt;:&lt;namespace&gt;/&lt;name&gt;[@&lt;unit&gt;]`,
