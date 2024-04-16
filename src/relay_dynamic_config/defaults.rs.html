@@ -613,6 +613,11 @@
 <a href="#611" id="611">611</a>
 <a href="#612" id="612">612</a>
 <a href="#613" id="613">613</a>
+<a href="#614" id="614">614</a>
+<a href="#615" id="615">615</a>
+<a href="#616" id="616">616</a>
+<a href="#617" id="617">617</a>
+<a href="#618" id="618">618</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_base_schema::data_category::DataCategory;
 <span class="kw">use </span>relay_event_normalization::utils::MAX_DURATION_MOBILE_MS;
 <span class="kw">use </span>relay_protocol::RuleCondition;
@@ -651,6 +656,8 @@
     <span class="string">"cache.clear"</span>,
     <span class="string">"cache.delete_item"</span>,
 ];
+
+<span class="kw">const </span>QUEUE_SPAN_OPS: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span>str] = <span class="kw-2">&amp;</span>[<span class="string">"queue.task.celery"</span>, <span class="string">"queue.submit.celery"</span>];
 
 <span class="doccomment">/// Adds configuration for extracting metrics from spans.
 ///
@@ -709,6 +716,8 @@
 
     <span class="kw">let </span>is_http = RuleCondition::eq(<span class="string">"span.op"</span>, <span class="string">"http.client"</span>);
 
+    <span class="kw">let </span>is_queue_op = RuleCondition::glob(<span class="string">"span.op"</span>, QUEUE_SPAN_OPS);
+
     <span class="kw">let </span>is_allowed_browser = RuleCondition::eq(
         <span class="string">"span.sentry_tags.browser.name"</span>,
         <span class="macro">vec!</span>[
@@ -759,7 +768,8 @@
         | is_resource.clone()
         | is_mobile.clone()
         | is_interaction
-        | is_http.clone())
+        | is_http.clone()
+        | is_queue_op.clone())
         &amp; duration_condition.clone();
 
     <span class="kw">let </span>know_modules_condition =
