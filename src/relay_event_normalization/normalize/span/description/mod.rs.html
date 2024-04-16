@@ -1133,6 +1133,11 @@
 <a href="#1131" id="1131">1131</a>
 <a href="#1132" id="1132">1132</a>
 <a href="#1133" id="1133">1133</a>
+<a href="#1134" id="1134">1134</a>
+<a href="#1135" id="1135">1135</a>
+<a href="#1136" id="1136">1136</a>
+<a href="#1137" id="1137">1137</a>
+<a href="#1138" id="1138">1138</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Span description scrubbing logic.
 </span><span class="kw">mod </span>resource;
 <span class="kw">mod </span>sql;
@@ -1226,6 +1231,11 @@
                 }
             }
             (<span class="string">"resource"</span>, ty) =&gt; scrub_resource(ty, description),
+            (<span class="string">"ai"</span>, sub) <span class="kw">if </span>sub.starts_with(<span class="string">"run."</span>) || sub.starts_with(<span class="string">"pipeline."</span>) =&gt; {
+                <span class="comment">// ai.run.* and ai.pipeline.* are low cardinality (&lt;100 per org) and describe
+                // the names of nodes of an AI pipeline.
+                </span><span class="prelude-val">Some</span>(description.to_owned())
+            }
             (<span class="string">"ui"</span>, <span class="string">"load"</span>) =&gt; {
                 <span class="comment">// `ui.load` spans contain component names like `ListAppViewController`, so
                 // they _should_ be low-cardinality.
