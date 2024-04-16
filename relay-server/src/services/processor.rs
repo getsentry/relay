@@ -2159,7 +2159,7 @@ impl EnvelopeProcessorService {
                 );
 
                 let reason_code = limits.longest().and_then(|limit| limit.reason_code.clone());
-                utils::reject_metrics_metric_stats(
+                utils::report_rejected_metrics(
                     &self.inner.metric_stats,
                     *item_scoping.scoping,
                     buckets,
@@ -2250,7 +2250,7 @@ impl EnvelopeProcessorService {
         let split = limits.into_split();
 
         // Log outcomes for rejected buckets.
-        utils::reject_metrics_metric_stats(
+        utils::report_rejected_metrics(
             &self.inner.metric_stats,
             scoping,
             split.rejected,
