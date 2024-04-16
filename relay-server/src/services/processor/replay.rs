@@ -125,7 +125,7 @@ fn handle_replay_event_item(
 
     match process_replay_event(&payload, config, client_ip, user_agent) {
         Ok(replay) => {
-            if let Some(ref replay_type) = replay.0 {
+            if let Some(replay_type) = replay.value() {
                 relay_filter::should_filter(
                     replay_type,
                     client_ip,
