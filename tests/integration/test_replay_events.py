@@ -138,8 +138,11 @@ def test_replay_events_without_processing(mini_sentry, relay_chain):
     assert replay_event.type == "replay_event"
 
 
-def test_replay_event_with_processing_other(
-    mini_sentry, relay_with_processing, replay_events_consumer
+def test_replay_events_are_filtered(
+    mini_sentry,
+    relay_with_processing,
+    replay_events_consumer,
+    outcomes_consumer,
 ):
     relay = relay_with_processing()
     project_config = mini_sentry.add_full_project_config(
@@ -147,6 +150,7 @@ def test_replay_event_with_processing_other(
     )
     filter_settings = project_config["config"]["filterSettings"]
     filter_settings["localhost"] = {"isEnabled": True}
+    outcomes_consumer = outcomes_consumer()
 
     replay_events_consumer = replay_events_consumer(timeout=10)
     replay = generate_replay_sdk_event()
@@ -155,3 +159,4 @@ def test_replay_event_with_processing_other(
     relay.send_replay_event(42, replay)
 
     replay_events_consumer.assert_empty()
+    outcomes_consumer.get_outcome()
