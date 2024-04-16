@@ -159,4 +159,11 @@ def test_replay_events_are_filtered(
     relay.send_replay_event(42, replay)
 
     replay_events_consumer.assert_empty()
-    outcomes_consumer.get_outcome()
+
+    outcome = outcomes_consumer.get_outcome(timeout=5)
+    assert outcome["org_id"] == 1
+    assert outcome["project_id"] == 42
+    assert outcome["outcome"] == 1
+    assert outcome["reason"] == "localhost"
+    assert outcome["category"] == 7
+    assert outcome["quantity"] == 1
