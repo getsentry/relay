@@ -379,7 +379,6 @@ impl StoreService {
         let batch_size = self.config.metrics_max_batch_size_bytes();
         let mut error = None;
 
-        let mut dropped_buckets = vec![];
         let mut dropped_quantities = SourceQuantities::default();
 
         let global_config = self.global_config.current();
