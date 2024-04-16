@@ -96,7 +96,7 @@ where
 }
 
 #[cfg(feature = "processing")]
-pub fn report_rejected_metrics<I: IntoIterator<Item = Bucket>>(
+fn report_rejected_metrics<I: IntoIterator<Item = Bucket>>(
     metric_stats: &MetricStats,
     scoping: Scoping,
     buckets: I,
@@ -107,11 +107,13 @@ pub fn report_rejected_metrics<I: IntoIterator<Item = Bucket>>(
     }
 }
 
-pub fn reject_metrics(
+pub fn reject_metrics<I: IntoIterator<Item = Bucket>>(
     addr: &Addr<TrackOutcome>,
     quantities: SourceQuantities,
     scoping: Scoping,
     outcome: Outcome,
+    metric_stats: Option<&MetricStats>,
+    buckets: Option<I>,
 ) {
     let timestamp = Utc::now();
 
@@ -133,6 +135,11 @@ pub fn reject_metrics(
                 quantity,
             });
         }
+    }
+
+    if let (Some(metric_stats), Some(buckets)) = (metric_stats, buckets) {
+        #[cfg(feature = "processing")]
+        report_rejected_metrics(metric_stats, scoping, buckets, outcome)
     }
 }
 

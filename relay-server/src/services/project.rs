@@ -1195,11 +1195,13 @@ impl Project {
         if limits.is_limited() {
             let mode = project_state.get_extraction_mode();
             let reason_code = limits.longest().and_then(|limit| limit.reason_code.clone());
-            utils::reject_metrics(
+            utils::reject_metrics::<Vec<Bucket>>(
                 &outcome_aggregator,
                 utils::extract_metric_quantities(&buckets, mode),
                 scoping,
                 Outcome::RateLimited(reason_code),
+                None,
+                None,
             );
 
             return CheckedBuckets::RateLimited(len);

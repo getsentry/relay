@@ -437,11 +437,13 @@ impl StoreService {
                 "failed to produce metric buckets: {error}"
             );
 
-            utils::reject_metrics(
+            utils::reject_metrics::<Vec<Bucket>>(
                 &self.outcome_aggregator,
                 dropped,
                 scoping,
                 Outcome::Invalid(DiscardReason::Internal),
+                None,
+                None,
             );
         }
     }

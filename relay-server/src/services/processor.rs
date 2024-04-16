@@ -2159,11 +2159,13 @@ impl EnvelopeProcessorService {
                 );
 
                 let reason_code = limits.longest().and_then(|limit| limit.reason_code.clone());
-                utils::report_rejected_metrics(
-                    &self.inner.metric_stats,
+                utils::reject_metrics(
+                    &self.inner.addrs.outcome_aggregator,
+                    quantities,
                     *item_scoping.scoping,
-                    buckets,
                     Outcome::RateLimited(reason_code),
+                    Some(&self.inner.metric_stats),
+                    Some(buckets),
                 );
 
                 self.inner.addrs.project_cache.send(UpdateRateLimits::new(
@@ -2192,6 +2194,7 @@ impl EnvelopeProcessorService {
         scoping: Scoping,
         limits: &[CardinalityLimit],
         buckets: Vec<Bucket>,
+        mode: ExtractionMode,
     ) -> Vec<Bucket> {
         use crate::utils::sample;
 
@@ -2249,11 +2252,13 @@ impl EnvelopeProcessorService {
         let split = limits.into_split();
 
         // Log outcomes for rejected buckets.
-        utils::report_rejected_metrics(
-            &self.inner.metric_stats,
+        utils::reject_metrics(
+            &self.inner.addrs.outcome_aggregator,
+            utils::extract_metric_quantities(limits.rejected(), mode),
             scoping,
-            split.rejected,
             Outcome::CardinalityLimited,
+            Some(&self.inner.metric_stats),
+            Some(split.rejected),
         );
 
         split.accepted
@@ -2281,7 +2286,7 @@ impl EnvelopeProcessorService {
             let mode = project_state.get_extraction_mode();
             let limits = project_state.get_cardinality_limits();
 
-            let buckets = self.cardinality_limit_buckets(scoping, limits, buckets);
+            let buckets = self.cardinality_limit_buckets(scoping, limits, buckets, mode);
             let quotas = DynamicQuotas::new(&global_config, project_state.get_quotas());
 
             let buckets = self.rate_limit_buckets_by_namespace(scoping, buckets, quotas, mode);
@@ -2882,11 +2887,13 @@ impl UpstreamRequest for SendMetricsRequest {
                 // Request did not arrive, we are responsible for outcomes.
                 Err(error) if !error.is_received() => {
                     for (scoping, quantities) in self.quantities {
-                        utils::reject_metrics(
+                        utils::reject_metrics::<Vec<Bucket>>(
                             &self.outcome_aggregator,
                             quantities,
                             scoping,
                             Outcome::Invalid(DiscardReason::Internal),
+                            None,
+                            None,
                         );
                     }
                 }
