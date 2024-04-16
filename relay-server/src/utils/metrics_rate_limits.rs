@@ -134,7 +134,7 @@ pub fn reject_metrics(
     }
 }
 
-/// Wether to extract transaction and profile count based on the usage or duration metric.
+/// Whether to extract transaction and profile count based on the usage or duration metric.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ExtractionMode {
     /// Use the usage count metric.
