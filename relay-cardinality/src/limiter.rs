@@ -297,8 +297,8 @@ impl<'a, T> CardinalityLimits<'a, T> {
             };
         }
 
-        // TODO: we might want to optimize this method later one, by reusing one of the arrays and
-        //  swap removing elements from it.
+        // TODO: we might want to optimize this method later, by reusing one of the arrays and
+        // swap removing elements from it.
         let source_len = self.source.len();
         let rejections_len = self.rejections.len();
         self.source.into_iter().enumerate().fold(
