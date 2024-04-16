@@ -9,6 +9,7 @@ use relay_quotas::{DataCategory, Quota, RateLimits, Scoping};
 use relay_system::Addr;
 
 use crate::envelope::SourceQuantities;
+#[cfg(feature = "processing")]
 use crate::metric_stats::MetricStats;
 use crate::services::outcome::{Outcome, TrackOutcome};
 
