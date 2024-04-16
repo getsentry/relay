@@ -283,8 +283,7 @@ impl<'a, T> CardinalityLimits<'a, T> {
         self.rejections.iter().filter_map(|&i| self.source.get(i))
     }
 
-    /// Consumes the result and returns one iterator for all accepted items and one for all rejected
-    /// items.
+    /// Consumes the result and returns [`CardinalityLimitsSplit`] containing all accepted and rejected items.
     pub fn into_split(self) -> CardinalityLimitsSplit<T> {
         if self.rejections.is_empty() {
             return CardinalityLimitsSplit {
