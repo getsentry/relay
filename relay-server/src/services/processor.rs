@@ -2129,8 +2129,7 @@ impl EnvelopeProcessorService {
             .into_iter()
             .filter_map(|(namespace, buckets)| {
                 let item_scoping = scoping.metric_bucket(namespace);
-                (!self.rate_limit_buckets(item_scoping, &buckets, quotas, mode, rate_limiter))
-                    .then_some(buckets)
+                self.rate_limit_buckets(item_scoping, buckets, quotas, mode, rate_limiter)
             })
             .flatten()
             .collect()
@@ -2141,13 +2140,13 @@ impl EnvelopeProcessorService {
     fn rate_limit_buckets(
         &self,
         item_scoping: relay_quotas::ItemScoping,
-        buckets: &[Bucket],
+        buckets: Vec<Bucket>,
         quotas: DynamicQuotas<'_>,
         mode: ExtractionMode,
         rate_limiter: &RedisRateLimiter,
-    ) -> bool {
+    ) -> Option<Vec<Bucket>> {
         let batch_size = self.inner.config.metrics_max_batch_size_bytes();
-        let batched_bucket_iter = BucketsView::new(buckets).by_size(batch_size).flatten();
+        let batched_bucket_iter = BucketsView::new(&buckets).by_size(batch_size).flatten();
         let quantities = utils::extract_metric_quantities(batched_bucket_iter, mode);
 
         // Check with redis if the throughput limit has been exceeded, while also updating
@@ -2160,10 +2159,10 @@ impl EnvelopeProcessorService {
                 );
 
                 let reason_code = limits.longest().and_then(|limit| limit.reason_code.clone());
-                utils::reject_metrics(
-                    &self.inner.addrs.outcome_aggregator,
-                    quantities,
+                utils::reject_metrics_metric_stats(
+                    &self.inner.metric_stats,
                     *item_scoping.scoping,
+                    buckets,
                     Outcome::RateLimited(reason_code),
                 );
 
@@ -2172,15 +2171,16 @@ impl EnvelopeProcessorService {
                     limits,
                 ));
 
-                true
+                None
             }
-            Ok(_) => false,
+            Ok(_) => Some(buckets),
             Err(e) => {
                 relay_log::error!(
                     error = &e as &dyn std::error::Error,
                     "failed to check redis rate limits"
                 );
-                false
+
+                Some(buckets)
             }
         }
     }

@@ -221,6 +221,15 @@ pub struct CardinalityLimitsSplit<T> {
     pub rejected: Vec<T>,
 }
 
+impl<T> CardinalityLimitsSplit<T> {
+    fn default() -> CardinalityLimitsSplit<T> {
+        CardinalityLimitsSplit {
+            accepted: vec![],
+            rejected: vec![],
+        }
+    }
+}
+
 /// Result of [`CardinalityLimiter::check_cardinality_limits`].
 #[derive(Debug)]
 pub struct CardinalityLimits<'a, T> {
@@ -289,17 +298,18 @@ impl<'a, T> CardinalityLimits<'a, T> {
             };
         }
 
-        let mut accepted = vec![];
-        let mut rejected = vec![];
-        self.source.into_iter().enumerate().for_each(|(i, t)| {
-            if self.rejections.contains(&i) {
-                rejected.push(t);
-            } else {
-                accepted.push(t);
-            }
-        });
+        self.source.into_iter().enumerate().fold(
+            CardinalityLimitsSplit::default(),
+            |mut split, (i, item)| {
+                if self.rejections.contains(&i) {
+                    split.rejected.push(item);
+                } else {
+                    split.accepted.push(item);
+                };
 
-        CardinalityLimitsSplit { accepted, rejected }
+                split
+            },
+        )
     }
 }
 
@@ -364,26 +374,16 @@ mod tests {
 
     #[test]
     fn test_accepted() {
-        // Workaround for windows which requires an absurd amount of type annotations here.
-        fn assert_rejected(
-            limits: &CardinalityLimits<char>,
-            expected: impl IntoIterator<Item = char>,
-        ) {
-            assert_eq!(
-                limits.rejected().copied().collect::<HashSet<char>>(),
-                expected.into_iter().collect::<HashSet<char>>(),
-            );
-        }
-
         let limits = CardinalityLimits {
             source: vec!['a', 'b', 'c', 'd', 'e'],
             rejections: HashSet::from([0, 1, 3]),
             exceeded_limits: HashSet::new(),
             reports: BTreeMap::new(),
         };
-        assert_rejected(&limits, ['a', 'b', 'd']);
         assert!(limits.has_rejections());
-        assert_eq!(limits.into_split().accepted, vec!['c', 'e']);
+        let split = limits.into_split();
+        assert_eq!(split.rejected, vec!['a', 'b', 'd']);
+        assert_eq!(split.accepted, vec!['c', 'e']);
 
         let limits = CardinalityLimits {
             source: vec!['a', 'b', 'c', 'd', 'e'],
@@ -391,9 +391,10 @@ mod tests {
             exceeded_limits: HashSet::new(),
             reports: BTreeMap::new(),
         };
-        assert_rejected(&limits, []);
         assert!(!limits.has_rejections());
-        assert_eq!(limits.into_split().accepted, vec!['a', 'b', 'c', 'd', 'e']);
+        let split = limits.into_split();
+        assert_eq!(split.rejected, vec![]);
+        assert_eq!(split.accepted, vec!['a', 'b', 'c', 'd', 'e']);
 
         let limits = CardinalityLimits {
             source: vec!['a', 'b', 'c', 'd', 'e'],
@@ -402,8 +403,9 @@ mod tests {
             reports: BTreeMap::new(),
         };
         assert!(limits.has_rejections());
-        assert_rejected(&limits, ['a', 'b', 'c', 'd', 'e']);
-        assert!(limits.into_split().accepted.is_empty());
+        let split = limits.into_split();
+        assert_eq!(split.rejected, vec!['a', 'b', 'c', 'd', 'e']);
+        assert_eq!(split.accepted, vec![]);
     }
 
     #[test]
@@ -432,20 +434,19 @@ mod tests {
 
         let limiter = CardinalityLimiter::new(RejectAllLimiter);
 
+        let items = vec![
+            Item::new(0, MetricNamespace::Transactions),
+            Item::new(1, MetricNamespace::Transactions),
+        ];
         let limits = build_limits();
         let result = limiter
-            .check_cardinality_limits(
-                build_scoping(),
-                &limits,
-                vec![
-                    Item::new(0, MetricNamespace::Transactions),
-                    Item::new(1, MetricNamespace::Transactions),
-                ],
-            )
+            .check_cardinality_limits(build_scoping(), &limits, items.clone())
             .unwrap();
 
         assert_eq!(result.exceeded_limits(), &HashSet::from([&limits[0]]));
-        assert!(result.into_split().accepted.is_empty());
+        let split = result.into_split();
+        assert_eq!(split.rejected, items);
+        assert!(split.accepted.is_empty());
     }
 
     #[test]
@@ -479,7 +480,9 @@ mod tests {
             .check_cardinality_limits(build_scoping(), &limits, items.clone())
             .unwrap();
 
-        assert_eq!(result.into_split().accepted, items);
+        let split = result.into_split();
+        assert!(split.rejected.is_empty());
+        assert_eq!(split.accepted, items);
     }
 
     #[test]
@@ -522,14 +525,22 @@ mod tests {
             Item::new(5, MetricNamespace::Transactions),
             Item::new(6, MetricNamespace::Spans),
         ];
-        let accepted = limiter
+        let split = limiter
             .check_cardinality_limits(build_scoping(), &build_limits(), items)
             .unwrap()
-            .into_split()
-            .accepted;
+            .into_split();
 
         assert_eq!(
-            accepted,
+            split.rejected,
+            vec![
+                Item::new(0, MetricNamespace::Sessions),
+                Item::new(2, MetricNamespace::Spans),
+                Item::new(4, MetricNamespace::Custom),
+                Item::new(6, MetricNamespace::Spans),
+            ]
+        );
+        assert_eq!(
+            split.accepted,
             vec![
                 Item::new(1, MetricNamespace::Transactions),
                 Item::new(3, MetricNamespace::Custom),
@@ -604,19 +615,17 @@ mod tests {
         assert!(limited.has_rejections());
         assert_eq!(limited.exceeded_limits(), &limits.iter().collect());
 
-        // All passive items and no enforced (passive = False) should be accepted.
-        let rejected = limited.rejected().collect::<HashSet<_>>();
+        let split = limited.into_split();
         assert_eq!(
-            rejected,
-            HashSet::from([
-                &Item::new(0, MetricNamespace::Custom),
-                &Item::new(2, MetricNamespace::Custom),
-                &Item::new(4, MetricNamespace::Custom),
-            ])
+            split.rejected,
+            vec![
+                Item::new(0, MetricNamespace::Custom),
+                Item::new(2, MetricNamespace::Custom),
+                Item::new(4, MetricNamespace::Custom),
+            ]
         );
-        drop(rejected); // NLL are broken here without the explicit drop
         assert_eq!(
-            limited.into_split().accepted,
+            split.accepted,
             vec![
                 Item::new(1, MetricNamespace::Custom),
                 Item::new(3, MetricNamespace::Custom),
