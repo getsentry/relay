@@ -2254,7 +2254,7 @@ impl EnvelopeProcessorService {
         // Log outcomes for rejected buckets.
         utils::reject_metrics(
             &self.inner.addrs.outcome_aggregator,
-            utils::extract_metric_quantities(limits.rejected(), mode),
+            utils::extract_metric_quantities(&split.rejected, mode),
             scoping,
             Outcome::CardinalityLimited,
             Some(&self.inner.metric_stats),

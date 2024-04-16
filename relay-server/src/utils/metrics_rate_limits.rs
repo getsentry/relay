@@ -73,7 +73,7 @@ fn summarize_bucket(metric: BucketView<'_>, mode: ExtractionMode) -> BucketSumma
 pub fn extract_metric_quantities<'a, I, V>(buckets: I, mode: ExtractionMode) -> SourceQuantities
 where
     I: IntoIterator<Item = V>,
-    BucketView<'a>: From<V>,
+    V: Into<BucketView<'a>>,
 {
     let mut quantities = SourceQuantities::default();
 

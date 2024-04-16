@@ -377,8 +377,10 @@ impl StoreService {
         } = message;
 
         let batch_size = self.config.metrics_max_batch_size_bytes();
-        let mut dropped = SourceQuantities::default();
         let mut error = None;
+
+        let mut dropped_buckets = vec![];
+        let mut dropped_quantities = SourceQuantities::default();
 
         let global_config = self.global_config.current();
         let mut encoder = BucketEncoder::new(&global_config);
@@ -412,7 +414,7 @@ impl StoreService {
                     }
                     Err(e) => {
                         error.get_or_insert(e);
-                        dropped += utils::extract_metric_quantities([view], mode);
+                        dropped_quantities += utils::extract_metric_quantities([view], mode);
                     }
                 }
             }
@@ -428,6 +430,8 @@ impl StoreService {
             if has_success {
                 self.metric_stats
                     .track_metric(scoping, bucket, Outcome::Accepted);
+            } else {
+                dropped_buckets.push(bucket);
             }
         }
 
@@ -439,11 +443,11 @@ impl StoreService {
 
             utils::reject_metrics::<Vec<Bucket>>(
                 &self.outcome_aggregator,
-                dropped,
+                dropped_quantities,
                 scoping,
                 Outcome::Invalid(DiscardReason::Internal),
-                None,
-                None,
+                Some(&self.metric_stats),
+                Some(dropped_buckets),
             );
         }
     }
