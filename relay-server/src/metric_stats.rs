@@ -95,7 +95,7 @@ impl MetricStats {
         relay_log::trace!(
             "Tracking cardinality '{}' for mri '{}': {}",
             limit.id,
-            report.name.as_deref().unwrap_or("-"),
+            report.metric_name.as_deref().unwrap_or("-"),
             report.cardinality,
         );
         self.aggregator
@@ -160,7 +160,7 @@ impl MetricStats {
             return None;
         }
 
-        let name = report.name.as_ref()?;
+        let name = report.metric_name.as_ref()?;
         let namespace = name.namespace();
 
         if !namespace.has_metric_stats() {

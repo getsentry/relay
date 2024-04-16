@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.8.57
 
 - Add a data category for metirc hours.  [#3384](https://github.com/getsentry/relay/pull/3384)
 

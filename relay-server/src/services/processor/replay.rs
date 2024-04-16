@@ -29,6 +29,7 @@ pub fn process(
     let project_state = &state.project_state;
     let replays_enabled = project_state.has_feature(Feature::SessionReplay);
     let scrubbing_enabled = project_state.has_feature(Feature::SessionReplayRecordingScrubbing);
+    let video_replay_enabled = project_state.has_feature(Feature::SessionReplayVideo);
 
     let meta = state.envelope().meta().clone();
     let client_addr = meta.client_addr();
@@ -86,6 +87,11 @@ pub fn process(
                 item.set_payload(ContentType::OctetStream, replay_recording);
             }
             ItemType::ReplayVideo => {
+                if !video_replay_enabled {
+                    state.managed_envelope.drop_items_silently();
+                    return Ok(());
+                }
+
                 let replay_video = handle_replay_video_item(
                     item.payload(),
                     &event_id,

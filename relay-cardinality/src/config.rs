@@ -51,9 +51,25 @@ pub enum CardinalityScope {
     /// A project level cardinality limit.
     ///
     /// The limit will be enforced for a specific project.
+    ///
+    /// Hierarchy: `Organization > Project`.
     Project,
 
+    /// A per metric type cardinality limit.
+    ///
+    /// This scope is very similar to [`Self::Name`], it operates on a per metric
+    /// basis which includes organization and project id.
+    ///
+    /// A metric type cardinality limit is mostly useful for cardinality reports.
+    ///
+    /// Hierarchy: `Organization > Project > Type`.
+    Type,
+
     /// A per metric name cardinality limit.
+    ///
+    /// The name scope is a sub-scope of project and organization.
+    ///
+    /// Hierarchy: `Organization > Project > Name`.
     Name,
 
     /// Any other scope that is not known by this Relay.
