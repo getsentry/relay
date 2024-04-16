@@ -427,8 +427,15 @@ impl StoreService {
             //
             // This logic will be improved iterated on and change once we move serialization logic
             // back into the processor service.
-            self.metric_stats
-                .track_metric(scoping, bucket, if has_success { Outcome::Accepted} else {  Outcome::Invalid(DiscardReason::Internal)});
+            self.metric_stats.track_metric(
+                scoping,
+                bucket,
+                if has_success {
+                    Outcome::Accepted
+                } else {
+                    Outcome::Invalid(DiscardReason::Internal)
+                },
+            );
         }
 
         if let Some(error) = error {
@@ -443,7 +450,7 @@ impl StoreService {
                 scoping,
                 Outcome::Invalid(DiscardReason::Internal),
                 None,
-                None
+                None,
             );
         }
     }
