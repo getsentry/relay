@@ -1039,6 +1039,21 @@ mod tests {
                     "parent_span_id": "a1e13f3f06239d69",
                     "trace_id": "922dda2462ea4ac2b6a4b339bee90863",
                     "data": {}
+                },
+                {
+                    "timestamp": 1702474613.0495,
+                    "start_timestamp": 1702474613.0175,
+                    "description": "Autofix Pipeline",
+                    "op": "ai.run.langchain",
+                    "origin": "auto.langchain",
+                    "span_id": "9c01bd820a083e63",
+                    "parent_span_id": "a1e13f3f06239d69",
+                    "trace_id": "922dda2462ea4ac2b6a4b339bee90863",
+                    "measurements": {
+                        "ai_total_tokens_used": {
+                            "value": 20
+                        }
+                    }
                 }
             ]
         }

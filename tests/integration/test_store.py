@@ -1320,19 +1320,19 @@ def test_kafka_ssl(relay_with_processing):
 
 
 @pytest.mark.parametrize(
-    "normalize",
+    "normalization_level",
     ["disabled", "default", "full"],
 )
 def test_relay_normalization(
     mini_sentry,
     relay,
-    normalize,
+    normalization_level,
 ):
     project_id = 42
     mini_sentry.add_basic_project_config(project_id)
     relay = relay(
         upstream=mini_sentry,
-        options={"processing": {"normalize": normalize}},
+        options={"normalization": {"level": normalization_level}},
     )
 
     event = {"dist": "   foo   ", "other": {"should i be deleted": True}}
@@ -1340,10 +1340,10 @@ def test_relay_normalization(
 
     ingested = mini_sentry.captured_events.get(timeout=1).get_event()
 
-    if normalize == "disabled":
+    if normalization_level == "disabled":
         assert ingested["dist"] == "   foo   "
         assert ingested["other"] == {"should i be deleted": True}
-    elif normalize == "default":
+    elif normalization_level == "default":
         assert ingested["dist"] == "foo"
         assert ingested["other"] == {"should i be deleted": True}
     else:
@@ -1352,7 +1352,7 @@ def test_relay_normalization(
 
 
 @pytest.mark.parametrize(
-    "normalize, from_internal, expect_full_normalization",
+    "normalization_level, from_internal, expect_full_normalization",
     [
         ("disabled", False, True),
         ("disabled", True, False),
@@ -1367,7 +1367,7 @@ def test_processing_relay_normalization(
     events_consumer,
     relay_with_processing,
     relay_credentials,
-    normalize,
+    normalization_level,
     from_internal,
     expect_full_normalization,
 ):
@@ -1376,7 +1376,7 @@ def test_processing_relay_normalization(
     events_consumer = events_consumer()
     credentials = relay_credentials()
     relay_config = {
-        "processing": {"normalize": normalize},
+        "normalization": {"level": normalization_level},
     }
     if from_internal:
         relay_config["auth"] = {
@@ -1423,14 +1423,14 @@ def test_relay_chain_normalization(
                 "internal": True,
             },
         },
-        options={"processing": {"normalize": "disabled"}},
+        options={"normalization": {"level": "disabled"}},
     )
     relay = relay(
         processing,
         credentials=credentials,
         options={
-            "processing": {
-                "normalize": "full",
+            "normalization": {
+                "level": "full",
             }
         },
     )
