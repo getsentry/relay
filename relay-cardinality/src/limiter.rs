@@ -3,7 +3,7 @@
 use std::collections::BTreeMap;
 
 use hashbrown::HashSet;
-use relay_base_schema::metrics::{MetricName, MetricNamespace};
+use relay_base_schema::metrics::{MetricName, MetricNamespace, MetricType};
 use relay_base_schema::project::ProjectId;
 use relay_statsd::metric;
 
@@ -37,11 +37,16 @@ pub struct CardinalityReport {
     /// Only available if the the limit was at least scoped to
     /// [`CardinalityScope::Project`](crate::CardinalityScope::Project).
     pub project_id: Option<ProjectId>,
-    /// Project id for which the cardinality limit was applied.
+    /// Metric type for which the cardinality limit was applied.
     ///
-    /// Only available if the the limit was at least scoped to
+    /// Only available if the the limit was scoped to
+    /// [`CardinalityScope::Type`](crate::CardinalityScope::Type).
+    pub metric_type: Option<MetricType>,
+    /// Metric name for which the cardinality limit was applied.
+    ///
+    /// Only available if the the limit was scoped to
     /// [`CardinalityScope::Name`](crate::CardinalityScope::Name).
-    pub name: Option<MetricName>,
+    pub metric_name: Option<MetricName>,
 
     /// The current cardinality.
     pub cardinality: u32,
@@ -666,7 +671,8 @@ mod tests {
                     CardinalityReport {
                         organization_id: Some(scoping.organization_id),
                         project_id: Some(scoping.project_id),
-                        name: Some(MetricName::from("foo")),
+                        metric_type: None,
+                        metric_name: Some(MetricName::from("foo")),
                         cardinality: 1,
                     },
                 );
@@ -676,7 +682,8 @@ mod tests {
                     CardinalityReport {
                         organization_id: Some(scoping.organization_id),
                         project_id: Some(scoping.project_id),
-                        name: Some(MetricName::from("bar")),
+                        metric_type: None,
+                        metric_name: Some(MetricName::from("bar")),
                         cardinality: 2,
                     },
                 );
@@ -686,7 +693,8 @@ mod tests {
                     CardinalityReport {
                         organization_id: Some(scoping.organization_id),
                         project_id: Some(scoping.project_id),
-                        name: None,
+                        metric_type: None,
+                        metric_name: None,
                         cardinality: 3,
                     },
                 );
@@ -745,13 +753,15 @@ mod tests {
                 CardinalityReport {
                     organization_id: Some(scoping.organization_id),
                     project_id: Some(scoping.project_id),
-                    name: Some(MetricName::from("foo")),
+                    metric_type: None,
+                    metric_name: Some(MetricName::from("foo")),
                     cardinality: 1
                 },
                 CardinalityReport {
                     organization_id: Some(scoping.organization_id),
                     project_id: Some(scoping.project_id),
-                    name: Some(MetricName::from("bar")),
+                    metric_type: None,
+                    metric_name: Some(MetricName::from("bar")),
                     cardinality: 2
                 }
             ]
@@ -761,7 +771,8 @@ mod tests {
             &[CardinalityReport {
                 organization_id: Some(scoping.organization_id),
                 project_id: Some(scoping.project_id),
-                name: None,
+                metric_type: None,
+                metric_name: None,
                 cardinality: 3
             }]
         );
