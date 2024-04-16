@@ -216,7 +216,8 @@ impl CheckedLimits {
         CardinalityReport {
             organization_id: self.scope.organization_id,
             project_id: self.scope.project_id,
-            name: self.scope.name.clone(),
+            metric_type: self.scope.metric_type,
+            metric_name: self.scope.metric_name.clone(),
             cardinality: self.cardinality,
         }
     }
@@ -259,7 +260,7 @@ mod tests {
     use std::collections::{BTreeMap, HashSet};
     use std::sync::atomic::AtomicU64;
 
-    use relay_base_schema::metrics::{MetricName, MetricNamespace::*};
+    use relay_base_schema::metrics::{MetricName, MetricNamespace::*, MetricType};
     use relay_base_schema::project::ProjectId;
     use relay_redis::{redis, RedisConfigOptions};
 
@@ -502,13 +503,74 @@ mod tests {
                 CardinalityReport {
                     organization_id: Some(scoping.organization_id),
                     project_id: Some(scoping.project_id),
-                    name: Some(m0),
+                    metric_type: None,
+                    metric_name: Some(m0),
                     cardinality: 2,
                 },
                 CardinalityReport {
                     organization_id: Some(scoping.organization_id),
                     project_id: Some(scoping.project_id),
-                    name: Some(m1),
+                    metric_type: None,
+                    metric_name: Some(m1),
+                    cardinality: 2,
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn test_limiter_type_limit() {
+        let limiter = build_limiter();
+
+        let m0 = MetricName::from("c:custom/foo@none");
+        let m1 = MetricName::from("c:custom/bar@none");
+        let m2 = MetricName::from("d:custom/foo@none");
+
+        let entries = [
+            Entry::new(EntryId(0), Custom, &m0, 0),
+            Entry::new(EntryId(1), Custom, &m0, 1),
+            Entry::new(EntryId(2), Custom, &m1, 2),
+            Entry::new(EntryId(3), Custom, &m2, 3),
+            Entry::new(EntryId(4), Custom, &m2, 4),
+            Entry::new(EntryId(5), Custom, &m2, 5),
+        ];
+
+        let scoping = new_scoping(&limiter);
+        let limit = CardinalityLimit {
+            id: "limit".to_owned(),
+            passive: false,
+            report: true,
+            window: SlidingWindow {
+                window_seconds: 3600,
+                granularity_seconds: 360,
+            },
+            limit: 2,
+            scope: CardinalityScope::Type,
+            namespace: Some(Custom),
+        };
+
+        let rejected = limiter.test_limits(scoping, &[limit.clone()], entries);
+        assert_eq!(rejected.len(), 2);
+        assert!(rejected.contains_any([0, 1, 2]));
+        assert!(rejected.contains_any([3, 4, 5]));
+
+        assert_eq!(rejected.reports.len(), 1);
+        let reports = rejected.reports.get(&limit).unwrap();
+        assert_eq!(
+            reports,
+            &[
+                CardinalityReport {
+                    organization_id: Some(scoping.organization_id),
+                    project_id: Some(scoping.project_id),
+                    metric_type: Some(MetricType::Counter),
+                    metric_name: None,
+                    cardinality: 2,
+                },
+                CardinalityReport {
+                    organization_id: Some(scoping.organization_id),
+                    project_id: Some(scoping.project_id),
+                    metric_type: Some(MetricType::Distribution),
+                    metric_name: None,
                     cardinality: 2,
                 },
             ]
@@ -833,7 +895,8 @@ mod tests {
                     &[CardinalityReport {
                         organization_id: Some(scoping.organization_id),
                         project_id: None,
-                        name: None,
+                        metric_type: None,
+                        metric_name: None,
                         cardinality: 1
                     }]
                 );
@@ -842,7 +905,8 @@ mod tests {
                     &[CardinalityReport {
                         organization_id: Some(scoping.organization_id),
                         project_id: None,
-                        name: None,
+                        metric_type: None,
+                        metric_name: None,
                         cardinality: 1
                     }]
                 );
@@ -851,7 +915,8 @@ mod tests {
                     &[CardinalityReport {
                         organization_id: Some(scoping.organization_id),
                         project_id: Some(scoping.project_id),
-                        name: None,
+                        metric_type: None,
+                        metric_name: None,
                         cardinality: 1
                     }]
                 );

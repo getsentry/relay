@@ -53,6 +53,12 @@ pub enum CardinalityScope {
     /// The limit will be enforced for a specific project.
     Project,
 
+    /// A per metric type cardinality limit.
+    ///
+    /// This limit usually doesn't make sense to enforce,
+    /// but is useful for cardinality reports.
+    Type,
+
     /// A per metric name cardinality limit.
     Name,
 
