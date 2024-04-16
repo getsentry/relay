@@ -25,7 +25,6 @@
 - Add `cardinality_limited` outcome with id `6`. ([#3389](https://github.com/getsentry/relay/pull/3389))
 - Extract `cache.item_size` and `cache.hit` metrics. ([#3371]https://github.com/getsentry/relay/pull/3371)
 - Optionally convert segment spans to transactions for compatibility. ([#3375](https://github.com/getsentry/relay/pull/3375))
-- Add feature flag for replay video event types. ([#3402](https://github.com/getsentry/relay/pull/3402))
 - Extract scrubbed IP addresses into the `span.domain` tag. ([#3383](https://github.com/getsentry/relay/pull/3383))
 
 **Internal**:
