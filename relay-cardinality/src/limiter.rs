@@ -378,6 +378,11 @@ mod tests {
 
     #[test]
     fn test_accepted() {
+        // HACK: we need to make Windows happy.
+        fn assert_eq(value: Vec<char>, expected_value: Vec<char>) {
+            assert_eq!(value, expected_value)
+        }
+
         let limits = CardinalityLimits {
             source: vec!['a', 'b', 'c', 'd', 'e'],
             rejections: HashSet::from([0, 1, 3]),
@@ -397,7 +402,7 @@ mod tests {
         };
         assert!(!limits.has_rejections());
         let split = limits.into_split();
-        assert_eq!(split.rejected, vec![]);
+        assert_eq(split.rejected, vec![]);
         assert_eq!(split.accepted, vec!['a', 'b', 'c', 'd', 'e']);
 
         let limits = CardinalityLimits {
@@ -409,7 +414,7 @@ mod tests {
         assert!(limits.has_rejections());
         let split = limits.into_split();
         assert_eq!(split.rejected, vec!['a', 'b', 'c', 'd', 'e']);
-        assert_eq!(split.accepted, vec![]);
+        assert_eq(split.accepted, vec![]);
     }
 
     #[test]
