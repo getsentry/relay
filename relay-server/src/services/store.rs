@@ -427,12 +427,8 @@ impl StoreService {
             //
             // This logic will be improved iterated on and change once we move serialization logic
             // back into the processor service.
-            if has_success {
-                self.metric_stats
-                    .track_metric(scoping, bucket, Outcome::Accepted);
-            } else {
-                dropped_buckets.push(bucket);
-            }
+            self.metric_stats
+                .track_metric(scoping, bucket, if has_success { Outcome::Accepted} else {  Outcome::Invalid(DiscardReason::Internal)});
         }
 
         if let Some(error) = error {
@@ -441,13 +437,13 @@ impl StoreService {
                 "failed to produce metric buckets: {error}"
             );
 
-            utils::reject_metrics(
+            utils::reject_metrics::<Vec<Bucket>>(
                 &self.outcome_aggregator,
                 dropped_quantities,
                 scoping,
                 Outcome::Invalid(DiscardReason::Internal),
-                Some(&self.metric_stats),
-                Some(dropped_buckets),
+                None,
+                None
             );
         }
     }
