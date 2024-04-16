@@ -496,7 +496,7 @@ pub struct ItemHeaders {
 
     /// Content type of the payload.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    content_type: Option<ContentType>,
+    pub content_type: Option<ContentType>,
 
     /// If this is an attachment item, this may contain the original file name.
     #[serde(default, skip_serializing_if = "Option::is_none")]
