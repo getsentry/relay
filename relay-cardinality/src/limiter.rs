@@ -222,10 +222,10 @@ pub struct CardinalityLimitsSplit<T> {
 }
 
 impl<T> CardinalityLimitsSplit<T> {
-    fn default() -> CardinalityLimitsSplit<T> {
+    fn default(accepted_capacity: usize, rejected_capacity: usize) -> CardinalityLimitsSplit<T> {
         CardinalityLimitsSplit {
-            accepted: vec![],
-            rejected: vec![],
+            accepted: Vec::with_capacity(accepted_capacity),
+            rejected: Vec::with_capacity(rejected_capacity),
         }
     }
 }
@@ -298,8 +298,12 @@ impl<'a, T> CardinalityLimits<'a, T> {
             };
         }
 
+        // TODO: we might want to optimize this method later one, by reusing one of the arrays and
+        //  swap removing elements from it.
+        let source_len = self.source.len();
+        let rejections_len = self.rejections.len();
         self.source.into_iter().enumerate().fold(
-            CardinalityLimitsSplit::default(),
+            CardinalityLimitsSplit::default(source_len - rejections_len, rejections_len),
             |mut split, (i, item)| {
                 if self.rejections.contains(&i) {
                     split.rejected.push(item);
