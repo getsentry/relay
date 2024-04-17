@@ -70,7 +70,7 @@ pub fn extract<G: EventProcessing>(
 
     let (event, event_len) = if let Some(item) = event_item.or(security_item) {
         relay_log::trace!("processing json event");
-        let (headers, payload) = item.into_parts();
+        let Item { headers, payload } = item;
         state.event_headers = Some(headers);
         metric!(timer(RelayTimers::EventProcessingDeserialize), {
             // Event items can never include transactions, so retain the event type and let
@@ -79,7 +79,7 @@ pub fn extract<G: EventProcessing>(
         })
     } else if let Some(item) = transaction_item {
         relay_log::trace!("processing json transaction");
-        let (headers, payload) = item.into_parts();
+        let Item { headers, payload } = item;
         state.event_headers = Some(headers);
         metric!(timer(RelayTimers::EventProcessingDeserialize), {
             // Transaction items can only contain transaction events. Force the event type to
@@ -96,7 +96,7 @@ pub fn extract<G: EventProcessing>(
         event_from_json_payload(&item.payload, Some(EventType::UserReportV2))?
     } else if let Some(item) = raw_security_item {
         relay_log::trace!("processing security report");
-        let (headers, payload) = item.into_parts();
+        let Item { headers, payload } = item;
         let event =
             event_from_security_report(payload, &headers, envelope.meta()).map_err(|error| {
                 if !matches!(error, ProcessingError::UnsupportedSecurityType) {

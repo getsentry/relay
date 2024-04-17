@@ -1013,11 +1013,6 @@ impl Item {
             ItemType::Unknown(_) => false,
         }
     }
-
-    pub fn into_parts(self) -> (ItemHeaders, Bytes) {
-        let Self { headers, payload } = self;
-        (headers, payload)
-    }
 }
 
 pub type Items = SmallVec<[Item; 3]>;
