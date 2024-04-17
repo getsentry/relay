@@ -1742,6 +1742,14 @@
 <a href="#1740" id="1740">1740</a>
 <a href="#1741" id="1741">1741</a>
 <a href="#1742" id="1742">1742</a>
+<a href="#1743" id="1743">1743</a>
+<a href="#1744" id="1744">1744</a>
+<a href="#1745" id="1745">1745</a>
+<a href="#1746" id="1746">1746</a>
+<a href="#1747" id="1747">1747</a>
+<a href="#1748" id="1748">1748</a>
+<a href="#1749" id="1749">1749</a>
+<a href="#1750" id="1750">1750</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module contains the service that forwards events and attachments to the Sentry store.
 //! The service uses Kafka topics to forward data to Sentry
 
@@ -2121,8 +2129,9 @@
         } = message;
 
         <span class="kw">let </span>batch_size = <span class="self">self</span>.config.metrics_max_batch_size_bytes();
-        <span class="kw">let </span><span class="kw-2">mut </span>dropped = SourceQuantities::default();
         <span class="kw">let </span><span class="kw-2">mut </span>error = <span class="prelude-val">None</span>;
+
+        <span class="kw">let </span><span class="kw-2">mut </span>dropped_quantities = SourceQuantities::default();
 
         <span class="kw">let </span>global_config = <span class="self">self</span>.global_config.current();
         <span class="kw">let </span><span class="kw-2">mut </span>encoder = BucketEncoder::new(<span class="kw-2">&amp;</span>global_config);
@@ -2156,7 +2165,7 @@
                     }
                     <span class="prelude-val">Err</span>(e) =&gt; {
                         error.get_or_insert(e);
-                        dropped += utils::extract_metric_quantities([view], mode);
+                        dropped_quantities += utils::extract_metric_quantities([view], mode);
                     }
                 }
             }
@@ -2169,10 +2178,15 @@
             //
             // This logic will be improved iterated on and change once we move serialization logic
             // back into the processor service.
-            </span><span class="kw">if </span>has_success {
-                <span class="self">self</span>.metric_stats
-                    .track_metric(scoping, bucket, Outcome::Accepted);
-            }
+            </span><span class="self">self</span>.metric_stats.track_metric(
+                scoping,
+                bucket,
+                <span class="kw">if </span>has_success {
+                    Outcome::Accepted
+                } <span class="kw">else </span>{
+                    Outcome::Invalid(DiscardReason::Internal)
+                },
+            );
         }
 
         <span class="kw">if let </span><span class="prelude-val">Some</span>(error) = error {
@@ -2181,11 +2195,13 @@
                 <span class="string">"failed to produce metric buckets: {error}"
             </span>);
 
-            utils::reject_metrics(
+            utils::reject_metrics::&lt;Vec&lt;Bucket&gt;&gt;(
                 <span class="kw-2">&amp;</span><span class="self">self</span>.outcome_aggregator,
-                dropped,
+                dropped_quantities,
                 scoping,
                 Outcome::Invalid(DiscardReason::Internal),
+                <span class="prelude-val">None</span>,
+                <span class="prelude-val">None</span>,
             );
         }
     }

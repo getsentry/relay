@@ -462,14 +462,20 @@
 <a href="#460" id="460">460</a>
 <a href="#461" id="461">461</a>
 <a href="#462" id="462">462</a>
+<a href="#463" id="463">463</a>
+<a href="#464" id="464">464</a>
+<a href="#465" id="465">465</a>
+<a href="#466" id="466">466</a>
+<a href="#467" id="467">467</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::sync::{Arc, OnceLock};
 
-<span class="kw">use </span>relay_cardinality::{CardinalityLimit, CardinalityReport};
+<span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
+</span><span class="kw">use </span>relay_cardinality::{CardinalityLimit, CardinalityReport};
 <span class="kw">use </span>relay_config::Config;
-<span class="kw">use </span>relay_metrics::{
-    Aggregator, Bucket, BucketValue, GaugeValue, MergeBuckets, MetricName, UnixTimestamp,
-};
+<span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
+</span><span class="kw">use </span>relay_metrics::GaugeValue;
+<span class="kw">use </span>relay_metrics::{Aggregator, Bucket, BucketValue, MergeBuckets, MetricName, UnixTimestamp};
 <span class="kw">use </span>relay_quotas::Scoping;
 <span class="kw">use </span>relay_system::Addr;
 
@@ -485,7 +491,8 @@
         .clone()
 }
 
-<span class="kw">fn </span>cardinality_metric_mri() -&gt; MetricName {
+<span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
+</span><span class="kw">fn </span>cardinality_metric_mri() -&gt; MetricName {
     <span class="kw">static </span>CARDINALITY_METRIC_MRI: OnceLock&lt;MetricName&gt; = OnceLock::new();
 
     CARDINALITY_METRIC_MRI
@@ -509,6 +516,7 @@
 
 <span class="kw">impl </span>MetricStats {
     <span class="doccomment">/// Creates a new [`MetricStats`] instance.
+    </span><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
     </span><span class="kw">pub fn </span>new(
         config: Arc&lt;Config&gt;,
         global_config: GlobalConfigHandle,
@@ -542,6 +550,7 @@
     }
 
     <span class="doccomment">/// Tracks the cardinality of a metric.
+    </span><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
     </span><span class="kw">pub fn </span>track_cardinality(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         scoping: Scoping,
@@ -615,7 +624,8 @@
         })
     }
 
-    <span class="kw">fn </span>to_cardinality_metric(
+    <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
+    </span><span class="kw">fn </span>to_cardinality_metric(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         limit: <span class="kw-2">&amp;</span>CardinalityLimit,
         report: <span class="kw-2">&amp;</span>CardinalityReport,
@@ -660,7 +670,7 @@
     }
 }
 
-<span class="attr">#[cfg(test)]
+<span class="attr">#[cfg(all(test, feature = <span class="string">"processing"</span>))]
 </span><span class="kw">mod </span>tests {
     <span class="kw">use </span>relay_base_schema::project::{ProjectId, ProjectKey};
     <span class="kw">use </span>relay_cardinality::{CardinalityScope, SlidingWindow};

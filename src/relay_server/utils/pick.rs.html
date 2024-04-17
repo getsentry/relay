@@ -54,12 +54,10 @@
 <a href="#52" id="52">52</a>
 <a href="#53" id="53">53</a>
 <a href="#54" id="54">54</a>
-<a href="#55" id="55">55</a>
 </pre></div><pre class="rust"><code><span class="doccomment">/// Returns `true` if `id` is rolled out with a rollout rate `rate`.
 ///
 /// Deterministically makes a rollout decision for an id, usually organization id,
 /// and rate.
-</span><span class="attr">#[cfg(any(test, feature = <span class="string">"processing"</span>))]
 </span><span class="kw">pub fn </span>is_rolled_out(id: u64, rate: f32) -&gt; bool {
     ((id % <span class="number">100000</span>) <span class="kw">as </span>f32 / <span class="number">100000.0f32</span>) &lt; rate
 }

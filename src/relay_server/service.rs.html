@@ -344,8 +344,6 @@
 <a href="#342" id="342">342</a>
 <a href="#343" id="343">343</a>
 <a href="#344" id="344">344</a>
-<a href="#345" id="345">345</a>
-<a href="#346" id="346">346</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::convert::Infallible;
 <span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::sync::Arc;
@@ -361,8 +359,6 @@
 <span class="kw">use </span>relay_system::{channel, Addr, Service};
 <span class="kw">use </span>tokio::runtime::Runtime;
 
-<span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-</span><span class="kw">use </span><span class="kw">crate</span>::metric_stats::MetricStats;
 <span class="kw">use </span><span class="kw">crate</span>::services::cogs::{CogsService, CogsServiceRecorder};
 <span class="kw">use </span><span class="kw">crate</span>::services::global_config::{GlobalConfigManager, GlobalConfigService};
 <span class="kw">use </span><span class="kw">crate</span>::services::health_check::{HealthCheck, HealthCheckService};
@@ -487,7 +483,7 @@
         .start_in(<span class="kw-2">&amp;</span>runtimes.aggregator);
 
         <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-        </span><span class="kw">let </span>metric_stats = MetricStats::new(
+        </span><span class="kw">let </span>metric_stats = <span class="kw">crate</span>::metric_stats::MetricStats::new(
             config.clone(),
             global_config_handle.clone(),
             aggregator.clone(),

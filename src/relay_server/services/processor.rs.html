@@ -3353,6 +3353,13 @@
 <a href="#3351" id="3351">3351</a>
 <a href="#3352" id="3352">3352</a>
 <a href="#3353" id="3353">3353</a>
+<a href="#3354" id="3354">3354</a>
+<a href="#3355" id="3355">3355</a>
+<a href="#3356" id="3356">3356</a>
+<a href="#3357" id="3357">3357</a>
+<a href="#3358" id="3358">3358</a>
+<a href="#3359" id="3359">3359</a>
+<a href="#3360" id="3360">3360</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
@@ -5482,12 +5489,10 @@
 
         buckets_by_ns
             .into_iter()
-            .filter_map(|(namespace, buckets)| {
+            .flat_map(|(namespace, buckets)| {
                 <span class="kw">let </span>item_scoping = scoping.metric_bucket(namespace);
-                (!<span class="self">self</span>.rate_limit_buckets(item_scoping, <span class="kw-2">&amp;</span>buckets, quotas, mode, rate_limiter))
-                    .then_some(buckets)
+                <span class="self">self</span>.rate_limit_buckets(item_scoping, buckets, quotas, mode, rate_limiter)
             })
-            .flatten()
             .collect()
     }
 
@@ -5496,13 +5501,13 @@
     </span><span class="kw">fn </span>rate_limit_buckets(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         item_scoping: relay_quotas::ItemScoping,
-        buckets: <span class="kw-2">&amp;</span>[Bucket],
+        buckets: Vec&lt;Bucket&gt;,
         quotas: DynamicQuotas&lt;<span class="lifetime">'_</span>&gt;,
         mode: ExtractionMode,
         rate_limiter: <span class="kw-2">&amp;</span>RedisRateLimiter,
-    ) -&gt; bool {
+    ) -&gt; Vec&lt;Bucket&gt; {
         <span class="kw">let </span>batch_size = <span class="self">self</span>.inner.config.metrics_max_batch_size_bytes();
-        <span class="kw">let </span>batched_bucket_iter = BucketsView::new(buckets).by_size(batch_size).flatten();
+        <span class="kw">let </span>batched_bucket_iter = BucketsView::new(<span class="kw-2">&amp;</span>buckets).by_size(batch_size).flatten();
         <span class="kw">let </span>quantities = utils::extract_metric_quantities(batched_bucket_iter, mode);
 
         <span class="comment">// Check with redis if the throughput limit has been exceeded, while also updating
@@ -5520,6 +5525,8 @@
                     quantities,
                     <span class="kw-2">*</span>item_scoping.scoping,
                     Outcome::RateLimited(reason_code),
+                    <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.inner.metric_stats),
+                    <span class="prelude-val">Some</span>(buckets),
                 );
 
                 <span class="self">self</span>.inner.addrs.project_cache.send(UpdateRateLimits::new(
@@ -5527,16 +5534,17 @@
                     limits,
                 ));
 
-                <span class="bool-val">true
-            </span>}
-            <span class="prelude-val">Ok</span>(<span class="kw">_</span>) =&gt; <span class="bool-val">false</span>,
+                Vec::new()
+            }
+            <span class="prelude-val">Ok</span>(<span class="kw">_</span>) =&gt; buckets,
             <span class="prelude-val">Err</span>(e) =&gt; {
                 <span class="macro">relay_log::error!</span>(
                     error = <span class="kw-2">&amp;</span>e <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>std::error::Error,
                     <span class="string">"failed to check redis rate limits"
                 </span>);
-                <span class="bool-val">false
-            </span>}
+
+                buckets
+            }
         }
     }
 
@@ -5602,15 +5610,19 @@
             <span class="kw">return </span>limits.into_source();
         }
 
+        <span class="kw">let </span>split = limits.into_split();
+
         <span class="comment">// Log outcomes for rejected buckets.
         </span>utils::reject_metrics(
             <span class="kw-2">&amp;</span><span class="self">self</span>.inner.addrs.outcome_aggregator,
-            utils::extract_metric_quantities(limits.rejected(), mode),
+            utils::extract_metric_quantities(<span class="kw-2">&amp;</span>split.rejected, mode),
             scoping,
             Outcome::CardinalityLimited,
+            <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.inner.metric_stats),
+            <span class="prelude-val">Some</span>(split.rejected),
         );
 
-        limits.into_accepted()
+        split.accepted
     }
 
     <span class="doccomment">/// Processes metric buckets and sends them to kafka.
@@ -6236,11 +6248,13 @@
                 <span class="comment">// Request did not arrive, we are responsible for outcomes.
                 </span><span class="prelude-val">Err</span>(error) <span class="kw">if </span>!error.is_received() =&gt; {
                     <span class="kw">for </span>(scoping, quantities) <span class="kw">in </span><span class="self">self</span>.quantities {
-                        utils::reject_metrics(
+                        utils::reject_metrics::&lt;Vec&lt;Bucket&gt;&gt;(
                             <span class="kw-2">&amp;</span><span class="self">self</span>.outcome_aggregator,
                             quantities,
                             scoping,
                             Outcome::Invalid(DiscardReason::Internal),
+                            <span class="prelude-val">None</span>,
+                            <span class="prelude-val">None</span>,
                         );
                     }
                 }

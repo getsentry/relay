@@ -699,6 +699,24 @@
 <a href="#697" id="697">697</a>
 <a href="#698" id="698">698</a>
 <a href="#699" id="699">699</a>
+<a href="#700" id="700">700</a>
+<a href="#701" id="701">701</a>
+<a href="#702" id="702">702</a>
+<a href="#703" id="703">703</a>
+<a href="#704" id="704">704</a>
+<a href="#705" id="705">705</a>
+<a href="#706" id="706">706</a>
+<a href="#707" id="707">707</a>
+<a href="#708" id="708">708</a>
+<a href="#709" id="709">709</a>
+<a href="#710" id="710">710</a>
+<a href="#711" id="711">711</a>
+<a href="#712" id="712">712</a>
+<a href="#713" id="713">713</a>
+<a href="#714" id="714">714</a>
+<a href="#715" id="715">715</a>
+<a href="#716" id="716">716</a>
+<a href="#717" id="717">717</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Quota and rate limiting helpers for metrics and metrics buckets.
 
 </span><span class="kw">use </span>chrono::{DateTime, Utc};
@@ -710,6 +728,7 @@
 <span class="kw">use </span>relay_system::Addr;
 
 <span class="kw">use </span><span class="kw">crate</span>::envelope::SourceQuantities;
+<span class="kw">use </span><span class="kw">crate</span>::metric_stats::MetricStats;
 <span class="kw">use </span><span class="kw">crate</span>::services::outcome::{Outcome, TrackOutcome};
 
 <span class="doccomment">/// Contains all data necessary to rate limit metrics or metrics buckets.
@@ -772,7 +791,7 @@
 </span><span class="kw">pub fn </span>extract_metric_quantities&lt;<span class="lifetime">'a</span>, I, V&gt;(buckets: I, mode: ExtractionMode) -&gt; SourceQuantities
 <span class="kw">where
     </span>I: IntoIterator&lt;Item = V&gt;,
-    BucketView&lt;<span class="lifetime">'a</span>&gt;: From&lt;V&gt;,
+    V: Into&lt;BucketView&lt;<span class="lifetime">'a</span>&gt;&gt;,
 {
     <span class="kw">let </span><span class="kw-2">mut </span>quantities = SourceQuantities::default();
 
@@ -794,11 +813,24 @@
     quantities
 }
 
-<span class="kw">pub fn </span>reject_metrics(
+<span class="kw">fn </span>report_rejected_metrics&lt;I: IntoIterator&lt;Item = Bucket&gt;&gt;(
+    metric_stats: <span class="kw-2">&amp;</span>MetricStats,
+    scoping: Scoping,
+    buckets: I,
+    outcome: Outcome,
+) {
+    <span class="kw">for </span>bucket <span class="kw">in </span>buckets {
+        metric_stats.track_metric(scoping, bucket, outcome.clone())
+    }
+}
+
+<span class="kw">pub fn </span>reject_metrics&lt;I: IntoIterator&lt;Item = Bucket&gt;&gt;(
     addr: <span class="kw-2">&amp;</span>Addr&lt;TrackOutcome&gt;,
     quantities: SourceQuantities,
     scoping: Scoping,
     outcome: Outcome,
+    metric_stats: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>MetricStats&gt;,
+    buckets: <span class="prelude-ty">Option</span>&lt;I&gt;,
 ) {
     <span class="kw">let </span>timestamp = Utc::now();
 
@@ -821,9 +853,13 @@
             });
         }
     }
+
+    <span class="kw">if let </span>(<span class="prelude-val">Some</span>(metric_stats), <span class="prelude-val">Some</span>(buckets)) = (metric_stats, buckets) {
+        report_rejected_metrics(metric_stats, scoping, buckets, outcome)
+    }
 }
 
-<span class="doccomment">/// Wether to extract transaction and profile count based on the usage or duration metric.
+<span class="doccomment">/// Whether to extract transaction and profile count based on the usage or duration metric.
 </span><span class="attr">#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 </span><span class="kw">pub enum </span>ExtractionMode {
     <span class="doccomment">/// Use the usage count metric.

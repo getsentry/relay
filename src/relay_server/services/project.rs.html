@@ -1734,6 +1734,8 @@
 <a href="#1732" id="1732">1732</a>
 <a href="#1733" id="1733">1733</a>
 <a href="#1734" id="1734">1734</a>
+<a href="#1735" id="1735">1735</a>
+<a href="#1736" id="1736">1736</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::sync::Arc;
 <span class="kw">use </span>std::time::Duration;
 
@@ -2931,11 +2933,13 @@
         <span class="kw">if </span>limits.is_limited() {
             <span class="kw">let </span>mode = project_state.get_extraction_mode();
             <span class="kw">let </span>reason_code = limits.longest().and_then(|limit| limit.reason_code.clone());
-            utils::reject_metrics(
+            utils::reject_metrics::&lt;Vec&lt;Bucket&gt;&gt;(
                 <span class="kw-2">&amp;</span>outcome_aggregator,
                 utils::extract_metric_quantities(<span class="kw-2">&amp;</span>buckets, mode),
                 scoping,
                 Outcome::RateLimited(reason_code),
+                <span class="prelude-val">None</span>,
+                <span class="prelude-val">None</span>,
             );
 
             <span class="kw">return </span>CheckedBuckets::RateLimited(len);
