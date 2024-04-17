@@ -1198,6 +1198,10 @@ impl Project {
             }
         }
 
+        if buckets.is_empty() {
+            return None;
+        }
+
         let project_metrics = ProjectMetrics {
             buckets,
             project_state,
