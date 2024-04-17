@@ -794,6 +794,7 @@ fn span_op_to_category(op: &str) -> Option<&str> {
             Some(prefix @ "ui"),
             Some(category @ ("react" | "vue" | "svelte" | "angular" | "ember")),
         )
+        | (Some(prefix @ "ai"), Some(category @ "pipeline"))
         | (
             Some(prefix @ "function"),
             Some(category @ ("nextjs" | "remix" | "gpc" | "aws" | "azure")),
@@ -801,10 +802,10 @@ fn span_op_to_category(op: &str) -> Option<&str> {
         // Main categories (only keep first part):
         (
             category @ Some(
-                "app" | "browser" | "cache" | "console" | "db" | "event" | "file" | "graphql"
-                | "grpc" | "http" | "measure" | "middleware" | "navigation" | "pageload" | "queue"
-                | "resource" | "rpc" | "serialize" | "subprocess" | "template" | "topic" | "view"
-                | "websocket",
+                "ai" | "app" | "browser" | "cache" | "console" | "db" | "event" | "file"
+                | "graphql" | "grpc" | "http" | "measure" | "middleware" | "navigation"
+                | "pageload" | "queue" | "resource" | "rpc" | "serialize" | "subprocess"
+                | "template" | "topic" | "view" | "websocket",
             ),
             _,
         ) => category,
