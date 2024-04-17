@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Features**:
+
+- Add Linux distributions to os context. ([#3443](https://github.com/getsentry/relay/pull/3443))
+
 **Internal:**
 
 - Emit negative outcomes in metric stats for metrics. ([#3436](https://github.com/getsentry/relay/pull/3436))
