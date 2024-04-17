@@ -2464,6 +2464,12 @@
 <a href="#2462" id="2462">2462</a>
 <a href="#2463" id="2463">2463</a>
 <a href="#2464" id="2464">2464</a>
+<a href="#2465" id="2465">2465</a>
+<a href="#2466" id="2466">2466</a>
+<a href="#2467" id="2467">2467</a>
+<a href="#2468" id="2468">2468</a>
+<a href="#2469" id="2469">2469</a>
+<a href="#2470" id="2470">2470</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::io::Write;
@@ -2477,7 +2483,8 @@
 <span class="kw">use </span>relay_auth::{generate_key_pair, generate_relay_id, PublicKey, RelayId, SecretKey};
 <span class="kw">use </span>relay_common::Dsn;
 <span class="kw">use </span>relay_kafka::{
-    ConfigError <span class="kw">as </span>KafkaConfigError, KafkaConfig, KafkaConfigParam, KafkaTopic, TopicAssignments,
+    ConfigError <span class="kw">as </span>KafkaConfigError, KafkaConfig, KafkaConfigParam, KafkaTopic, TopicAssignment,
+    TopicAssignments,
 };
 <span class="kw">use </span>relay_metrics::aggregator::{AggregatorConfig, ShiftKey};
 <span class="kw">use </span>relay_metrics::{
@@ -4706,6 +4713,11 @@
             <span class="kw-2">&amp;</span><span class="self">self</span>.values.processing.kafka_config,
             <span class="kw-2">&amp;</span><span class="self">self</span>.values.processing.secondary_kafka_configs,
         )
+    }
+
+    <span class="doccomment">/// All unused but configured topic assignments.
+    </span><span class="kw">pub fn </span>unused_topic_assignments(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>BTreeMap&lt;String, TopicAssignment&gt; {
+        <span class="kw-2">&amp;</span><span class="self">self</span>.values.processing.topics.unused
     }
 
     <span class="doccomment">/// Redis servers to connect to, for rate limiting.

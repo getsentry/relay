@@ -449,18 +449,20 @@
 }
 
 <span class="macro">macro_rules! </span>define_topic_assignments {
-    (<span class="macro-nonterminal">$struct_name</span>:ident {
-        $(<span class="macro-nonterminal">$field_name</span>:ident : (<span class="macro-nonterminal">$kafka_topic</span>:path, <span class="macro-nonterminal">$default_topic</span>: literal, <span class="macro-nonterminal">$doc</span>: literal)),* $(,)<span class="question-mark">? </span>}) =&gt; {
-
+    ($(<span class="macro-nonterminal">$field_name</span>:ident : (<span class="macro-nonterminal">$kafka_topic</span>:path, <span class="macro-nonterminal">$default_topic</span>:literal, <span class="macro-nonterminal">$doc</span>:literal)),* $(,)<span class="question-mark">?</span>) =&gt; {
         <span class="doccomment">/// Configuration for topics.
         </span><span class="attr">#[derive(Serialize, Deserialize, Debug)]
         #[serde(default)]
         </span><span class="kw">pub struct </span>TopicAssignments {
             $(
                 <span class="attr">#[serde(alias = <span class="macro-nonterminal">$default_topic</span>)]
-                #[doc=<span class="macro-nonterminal">$doc</span>]
+                #[doc = <span class="macro-nonterminal">$doc</span>]
                 </span><span class="kw">pub </span><span class="macro-nonterminal">$field_name</span>: TopicAssignment,
             )*
+
+            <span class="doccomment">/// Additional topic assignments configured but currently unused by this Relay instance.
+            </span><span class="attr">#[serde(flatten)]
+            </span><span class="kw">pub </span>unused: BTreeMap&lt;String, TopicAssignment&gt;,
         }
 
         <span class="kw">impl </span>TopicAssignments{
@@ -481,7 +483,7 @@
                     $(
                         <span class="macro-nonterminal">$field_name</span>: <span class="macro-nonterminal">$default_topic</span>.to_owned().into(),
                     )*
-
+                    unused: BTreeMap::new(),
                 }
             }
         }
@@ -489,23 +491,21 @@
 }
 
 <span class="macro">define_topic_assignments! </span>{
-    TopicAssignments {
-        events: (KafkaTopic::Events, <span class="string">"ingest-events"</span>, <span class="string">"Simple events topic name."</span>),
-        attachments: (KafkaTopic::Attachments, <span class="string">"ingest-attachments"</span>, <span class="string">"Events with attachments topic name."</span>),
-        transactions: (KafkaTopic::Transactions, <span class="string">"ingest-transactions"</span>, <span class="string">"Transaction events topic name."</span>),
-        outcomes: (KafkaTopic::Outcomes, <span class="string">"outcomes"</span>, <span class="string">"Outcomes topic name."</span>),
-        outcomes_billing: (KafkaTopic::OutcomesBilling, <span class="string">"outcomes-billing"</span>, <span class="string">"Outcomes topic name for billing critical outcomes."</span>),
-        metrics_sessions: (KafkaTopic::MetricsSessions, <span class="string">"ingest-metrics"</span>, <span class="string">"Topic name for metrics extracted from sessions, aka release health."</span>),
-        metrics_generic: (KafkaTopic::MetricsGeneric, <span class="string">"ingest-performance-metrics"</span>, <span class="string">"Topic name for all other kinds of metrics."</span>),
-        profiles: (KafkaTopic::Profiles, <span class="string">"profiles"</span>, <span class="string">"Stacktrace topic name"</span>),
-        replay_events: (KafkaTopic::ReplayEvents, <span class="string">"ingest-replay-events"</span>, <span class="string">"Replay Events topic name."</span>),
-        replay_recordings: (KafkaTopic::ReplayRecordings, <span class="string">"ingest-replay-recordings"</span>, <span class="string">"Recordings topic name."</span>),
-        monitors: (KafkaTopic::Monitors, <span class="string">"ingest-monitors"</span>, <span class="string">"Monitor check-ins."</span>),
-        spans: (KafkaTopic::Spans, <span class="string">"snuba-spans"</span>, <span class="string">"Standalone spans without a transaction."</span>),
-        metrics_summaries: (KafkaTopic::MetricsSummaries, <span class="string">"snuba-metrics-summaries"</span>, <span class="string">"Summary for metrics collected during a span."</span>),
-        cogs: (KafkaTopic::Cogs, <span class="string">"shared-resources-usage"</span>, <span class="string">"COGS measurements."</span>),
-        feedback: (KafkaTopic::Feedback, <span class="string">"ingest-feedback-events"</span>, <span class="string">"Feedback events topic."</span>),
-    }
+    events: (KafkaTopic::Events, <span class="string">"ingest-events"</span>, <span class="string">"Simple events topic name."</span>),
+    attachments: (KafkaTopic::Attachments, <span class="string">"ingest-attachments"</span>, <span class="string">"Events with attachments topic name."</span>),
+    transactions: (KafkaTopic::Transactions, <span class="string">"ingest-transactions"</span>, <span class="string">"Transaction events topic name."</span>),
+    outcomes: (KafkaTopic::Outcomes, <span class="string">"outcomes"</span>, <span class="string">"Outcomes topic name."</span>),
+    outcomes_billing: (KafkaTopic::OutcomesBilling, <span class="string">"outcomes-billing"</span>, <span class="string">"Outcomes topic name for billing critical outcomes."</span>),
+    metrics_sessions: (KafkaTopic::MetricsSessions, <span class="string">"ingest-metrics"</span>, <span class="string">"Topic name for metrics extracted from sessions, aka release health."</span>),
+    metrics_generic: (KafkaTopic::MetricsGeneric, <span class="string">"ingest-performance-metrics"</span>, <span class="string">"Topic name for all other kinds of metrics."</span>),
+    profiles: (KafkaTopic::Profiles, <span class="string">"profiles"</span>, <span class="string">"Stacktrace topic name"</span>),
+    replay_events: (KafkaTopic::ReplayEvents, <span class="string">"ingest-replay-events"</span>, <span class="string">"Replay Events topic name."</span>),
+    replay_recordings: (KafkaTopic::ReplayRecordings, <span class="string">"ingest-replay-recordings"</span>, <span class="string">"Recordings topic name."</span>),
+    monitors: (KafkaTopic::Monitors, <span class="string">"ingest-monitors"</span>, <span class="string">"Monitor check-ins."</span>),
+    spans: (KafkaTopic::Spans, <span class="string">"snuba-spans"</span>, <span class="string">"Standalone spans without a transaction."</span>),
+    metrics_summaries: (KafkaTopic::MetricsSummaries, <span class="string">"snuba-metrics-summaries"</span>, <span class="string">"Summary for metrics collected during a span."</span>),
+    cogs: (KafkaTopic::Cogs, <span class="string">"shared-resources-usage"</span>, <span class="string">"COGS measurements."</span>),
+    feedback: (KafkaTopic::Feedback, <span class="string">"ingest-feedback-events"</span>, <span class="string">"Feedback events topic."</span>),
 }
 
 <span class="doccomment">/// Configuration for a "logical" topic/datasink that Relay should forward data into.
