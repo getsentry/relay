@@ -505,7 +505,7 @@
 
 <span class="attr">#[derive(Clone, Debug, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 #[cfg_attr(feature = <span class="string">"jsonschema"</span>, derive(JsonSchema))]
-</span><span class="kw">pub struct </span>ContextInner(<span class="attr">#[metastructure(bag_size = <span class="string">"large"</span>)] </span><span class="kw">pub </span>Context);
+</span><span class="kw">pub struct </span>ContextInner(<span class="attr">#[metastructure(max_depth = <span class="number">7</span>, max_bytes = <span class="number">8192</span>)] </span><span class="kw">pub </span>Context);
 
 <span class="kw">impl </span>From&lt;Context&gt; <span class="kw">for </span>ContextInner {
     <span class="kw">fn </span>from(c: Context) -&gt; ContextInner {

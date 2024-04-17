@@ -330,7 +330,7 @@
     ///
     /// Contains a dictionary whose contents depend on the breadcrumb `type`. Additional parameters
     /// that are unsupported by the type are rendered as a key/value table.
-    </span><span class="attr">#[metastructure(pii = <span class="string">"true"</span>, bag_size = <span class="string">"medium"</span>)]
+    </span><span class="attr">#[metastructure(pii = <span class="string">"true"</span>, max_depth = <span class="number">5</span>, max_bytes = <span class="number">2048</span>)]
     #[metastructure(skip_serialization = <span class="string">"empty"</span>)]
     </span><span class="kw">pub </span>data: Annotated&lt;Object&lt;Value&gt;&gt;,
 

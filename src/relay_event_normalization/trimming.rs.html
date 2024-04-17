@@ -907,26 +907,31 @@
 <a href="#905" id="905">905</a>
 <a href="#906" id="906">906</a>
 <a href="#907" id="907">907</a>
+<a href="#908" id="908">908</a>
+<a href="#909" id="909">909</a>
+<a href="#910" id="910">910</a>
+<a href="#911" id="911">911</a>
+<a href="#912" id="912">912</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 
 <span class="kw">use </span>relay_event_schema::processor::{
-    <span class="self">self</span>, BagSize, Chunk, ProcessValue, ProcessingAction, ProcessingResult, ProcessingState,
-    Processor, ValueType,
+    <span class="self">self</span>, Chunk, ProcessValue, ProcessingAction, ProcessingResult, ProcessingState, Processor,
+    ValueType,
 };
 <span class="kw">use </span>relay_event_schema::protocol::{Frame, RawStacktrace};
 <span class="kw">use </span>relay_protocol::{Annotated, Array, Empty, Meta, Object, RemarkType, Value};
 
 <span class="attr">#[derive(Clone, Debug)]
-</span><span class="kw">struct </span>BagSizeState {
-    bag_size: BagSize,
+</span><span class="kw">struct </span>SizeState {
+    max_depth: <span class="prelude-ty">Option</span>&lt;usize&gt;,
     encountered_at_depth: usize,
-    size_remaining: usize,
+    size_remaining: <span class="prelude-ty">Option</span>&lt;usize&gt;,
 }
 
-<span class="doccomment">/// Limits data bags to a maximum size and depth.
+<span class="doccomment">/// Limits properties to a maximum size and depth.
 </span><span class="attr">#[derive(Default)]
 </span><span class="kw">pub struct </span>TrimmingProcessor {
-    bag_size_state: Vec&lt;BagSizeState&gt;,
+    size_state: Vec&lt;SizeState&gt;,
 }
 
 <span class="kw">impl </span>TrimmingProcessor {
@@ -938,28 +943,30 @@
     <span class="kw">fn </span>should_remove_container&lt;T: Empty&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, value: <span class="kw-2">&amp;</span>T, state: <span class="kw-2">&amp;</span>ProcessingState&lt;<span class="lifetime">'_</span>&gt;) -&gt; bool {
         <span class="comment">// Heuristic to avoid trimming a value like `[1, 1, 1, 1, ...]` into `[null, null, null,
         // null, ...]`, making it take up more space.
-        </span><span class="self">self</span>.remaining_bag_depth(state) == <span class="prelude-val">Some</span>(<span class="number">1</span>) &amp;&amp; !value.is_empty()
+        </span><span class="self">self</span>.remaining_depth(state) == <span class="prelude-val">Some</span>(<span class="number">1</span>) &amp;&amp; !value.is_empty()
     }
 
     <span class="attr">#[inline]
-    </span><span class="kw">fn </span>remaining_bag_depth(<span class="kw-2">&amp;</span><span class="self">self</span>, state: <span class="kw-2">&amp;</span>ProcessingState&lt;<span class="lifetime">'_</span>&gt;) -&gt; <span class="prelude-ty">Option</span>&lt;usize&gt; {
-        <span class="self">self</span>.bag_size_state
+    </span><span class="kw">fn </span>remaining_depth(<span class="kw-2">&amp;</span><span class="self">self</span>, state: <span class="kw-2">&amp;</span>ProcessingState&lt;<span class="lifetime">'_</span>&gt;) -&gt; <span class="prelude-ty">Option</span>&lt;usize&gt; {
+        <span class="self">self</span>.size_state
             .iter()
-            .map(|bag_size_state| {
+            .filter_map(|size_state| {
                 <span class="comment">// The current depth in the entire event payload minus the depth at which we found the
-                // bag_size attribute is the depth where we are at in the databag.
-                </span><span class="kw">let </span>databag_depth = state.depth() - bag_size_state.encountered_at_depth;
-                bag_size_state
-                    .bag_size
-                    .max_depth()
-                    .saturating_sub(databag_depth)
+                // max_depth attribute is the depth where we are at in the property.
+                </span><span class="kw">let </span>current_depth = state.depth() - size_state.encountered_at_depth;
+                size_state
+                    .max_depth
+                    .map(|max_depth| max_depth.saturating_sub(current_depth))
             })
             .min()
     }
 
     <span class="attr">#[inline]
-    </span><span class="kw">fn </span>remaining_bag_size(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;usize&gt; {
-        <span class="self">self</span>.bag_size_state.iter().map(|x| x.size_remaining).min()
+    </span><span class="kw">fn </span>remaining_size(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;usize&gt; {
+        <span class="self">self</span>.size_state
+            .iter()
+            .filter_map(|x| x.size_remaining)
+            .min()
     }
 }
 
@@ -970,22 +977,22 @@
         <span class="kw">_</span>: <span class="kw-2">&amp;mut </span>Meta,
         state: <span class="kw-2">&amp;</span>ProcessingState&lt;<span class="lifetime">'_</span>&gt;,
     ) -&gt; ProcessingResult {
-        <span class="comment">// If we encounter a bag size attribute it resets the depth and size
-        // that is permitted below it.
-        </span><span class="kw">if let </span><span class="prelude-val">Some</span>(bag_size) = state.attrs().bag_size {
-            <span class="self">self</span>.bag_size_state.push(BagSizeState {
-                size_remaining: bag_size.max_size(),
+        <span class="comment">// If we encounter a max_bytes or max_depth attribute it
+        // resets the size and depth that is permitted below it.
+        // XXX(iker): test setting only one of the two attributes.
+        </span><span class="kw">if </span>state.attrs().max_bytes.is_some() || state.attrs().max_depth.is_some() {
+            <span class="self">self</span>.size_state.push(SizeState {
+                size_remaining: state.attrs().max_bytes,
                 encountered_at_depth: state.depth(),
-                bag_size,
+                max_depth: state.attrs().max_depth,
             });
         }
 
-        <span class="kw">if </span><span class="self">self</span>.remaining_bag_size() == <span class="prelude-val">Some</span>(<span class="number">0</span>) {
+        <span class="kw">if </span><span class="self">self</span>.remaining_size() == <span class="prelude-val">Some</span>(<span class="number">0</span>) {
             <span class="comment">// TODO: Create remarks (ensure they do not bloat event)
             </span><span class="kw">return </span><span class="prelude-val">Err</span>(ProcessingAction::DeleteValueHard);
         }
-
-        <span class="kw">if </span><span class="self">self</span>.remaining_bag_depth(state) == <span class="prelude-val">Some</span>(<span class="number">0</span>) {
+        <span class="kw">if </span><span class="self">self</span>.remaining_depth(state) == <span class="prelude-val">Some</span>(<span class="number">0</span>) {
             <span class="comment">// TODO: Create remarks (ensure they do not bloat event)
             </span><span class="kw">return </span><span class="prelude-val">Err</span>(ProcessingAction::DeleteValueHard);
         }
@@ -999,15 +1006,15 @@
         <span class="kw">_</span>: <span class="kw-2">&amp;mut </span>Meta,
         state: <span class="kw-2">&amp;</span>ProcessingState&lt;<span class="lifetime">'_</span>&gt;,
     ) -&gt; ProcessingResult {
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(<span class="kw-2">ref mut </span>bag_size_state) = <span class="self">self</span>.bag_size_state.last_mut() {
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(size_state) = <span class="self">self</span>.size_state.last() {
             <span class="comment">// If our current depth is the one where we found a bag_size attribute, this means we
             // are done processing a databag. Pop the bag size state.
-            </span><span class="kw">if </span>state.depth() == bag_size_state.encountered_at_depth {
-                <span class="self">self</span>.bag_size_state.pop().unwrap();
+            </span><span class="kw">if </span>state.depth() == size_state.encountered_at_depth {
+                <span class="self">self</span>.size_state.pop().unwrap();
             }
         }
 
-        <span class="kw">for </span>bag_size_state <span class="kw">in </span><span class="self">self</span>.bag_size_state.iter_mut() {
+        <span class="kw">for </span>size_state <span class="kw">in </span><span class="self">self</span>.size_state.iter_mut() {
             <span class="comment">// After processing a value, update the remaining bag sizes. We have a separate if-let
             // here in case somebody defines nested databags (a struct with bag_size that contains
             // another struct with a different bag_size), in case we just exited a databag we want
@@ -1019,8 +1026,9 @@
             </span><span class="kw">if </span>state.entered_anything() {
                 <span class="comment">// Do not subtract if state is from newtype struct.
                 </span><span class="kw">let </span>item_length = relay_protocol::estimate_size_flat(value) + <span class="number">1</span>;
-                bag_size_state.size_remaining =
-                    bag_size_state.size_remaining.saturating_sub(item_length);
+                size_state.size_remaining = size_state
+                    .size_remaining
+                    .map(|size| size.saturating_sub(item_length));
             }
         }
 
@@ -1037,8 +1045,10 @@
             trim_string(value, meta, max_chars, state.attrs().max_chars_allowance);
         }
 
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(<span class="kw-2">ref mut </span>bag_size_state) = <span class="self">self</span>.bag_size_state.last_mut() {
-            trim_string(value, meta, bag_size_state.size_remaining, <span class="number">0</span>);
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(size_state) = <span class="self">self</span>.size_state.last() {
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(size_remaining) = size_state.size_remaining {
+                trim_string(value, meta, size_remaining, <span class="number">0</span>);
+            }
         }
 
         <span class="prelude-val">Ok</span>(())
@@ -1054,7 +1064,7 @@
         </span>T: ProcessValue,
     {
         <span class="comment">// If we need to check the bag size, then we go down a different path
-        </span><span class="kw">if </span>!<span class="self">self</span>.bag_size_state.is_empty() {
+        </span><span class="kw">if </span>!<span class="self">self</span>.size_state.is_empty() {
             <span class="kw">let </span>original_length = value.len();
 
             <span class="kw">if </span><span class="self">self</span>.should_remove_container(value, state) {
@@ -1063,7 +1073,7 @@
 
             <span class="kw">let </span><span class="kw-2">mut </span>split_index = <span class="prelude-val">None</span>;
             <span class="kw">for </span>(index, item) <span class="kw">in </span>value.iter_mut().enumerate() {
-                <span class="kw">if </span><span class="self">self</span>.remaining_bag_size().unwrap() == <span class="number">0 </span>{
+                <span class="kw">if </span><span class="self">self</span>.remaining_size().unwrap() == <span class="number">0 </span>{
                     split_index = <span class="prelude-val">Some</span>(index);
                     <span class="kw">break</span>;
                 }
@@ -1096,7 +1106,7 @@
         </span>T: ProcessValue,
     {
         <span class="comment">// If we need to check the bag size, then we go down a different path
-        </span><span class="kw">if </span>!<span class="self">self</span>.bag_size_state.is_empty() {
+        </span><span class="kw">if </span>!<span class="self">self</span>.size_state.is_empty() {
             <span class="kw">let </span>original_length = value.len();
 
             <span class="kw">if </span><span class="self">self</span>.should_remove_container(value, state) {
@@ -1105,7 +1115,7 @@
 
             <span class="kw">let </span><span class="kw-2">mut </span>split_key = <span class="prelude-val">None</span>;
             <span class="kw">for </span>(key, item) <span class="kw">in </span>value.iter_mut() {
-                <span class="kw">if </span><span class="self">self</span>.remaining_bag_size().unwrap() == <span class="number">0 </span>{
+                <span class="kw">if </span><span class="self">self</span>.remaining_size().unwrap() == <span class="number">0 </span>{
                     split_key = <span class="prelude-val">Some</span>(key.to_owned());
                     <span class="kw">break</span>;
                 }
@@ -1136,7 +1146,7 @@
     ) -&gt; ProcessingResult {
         <span class="kw">match </span>value {
             Value::Array(<span class="kw">_</span>) | Value::Object(<span class="kw">_</span>) =&gt; {
-                <span class="kw">if </span><span class="self">self</span>.remaining_bag_depth(state) == <span class="prelude-val">Some</span>(<span class="number">1</span>) {
+                <span class="kw">if </span><span class="self">self</span>.remaining_depth(state) == <span class="prelude-val">Some</span>(<span class="number">1</span>) {
                     <span class="kw">if let </span><span class="prelude-val">Ok</span>(x) = serde_json::to_string(<span class="kw-2">&amp;</span>value) {
                         <span class="comment">// Error case should not be possible
                         </span><span class="kw-2">*</span>value = Value::String(x);

@@ -717,7 +717,7 @@
     </span><span class="kw">pub </span>parent_id: Annotated&lt;u64&gt;,
 
     <span class="doccomment">/// Arbitrary extra data that might help the user understand the error thrown by this mechanism.
-    </span><span class="attr">#[metastructure(pii = <span class="string">"true"</span>, bag_size = <span class="string">"medium"</span>)]
+    </span><span class="attr">#[metastructure(pii = <span class="string">"true"</span>, max_depth = <span class="number">5</span>, max_bytes = <span class="number">2048</span>)]
     #[metastructure(skip_serialization = <span class="string">"empty"</span>)]
     </span><span class="kw">pub </span>data: Annotated&lt;Object&lt;Value&gt;&gt;,
 

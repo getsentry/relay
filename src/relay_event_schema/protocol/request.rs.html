@@ -1448,7 +1448,7 @@
     ///
     /// SDKs should discard large and binary bodies by default. Can be given as a string or
     /// structural data of any format.
-    </span><span class="attr">#[metastructure(pii = <span class="string">"true"</span>, bag_size = <span class="string">"large"</span>)]
+    </span><span class="attr">#[metastructure(pii = <span class="string">"true"</span>, max_depth = <span class="number">7</span>, max_bytes = <span class="number">8192</span>)]
     </span><span class="kw">pub </span>data: Annotated&lt;Value&gt;,
 
     <span class="doccomment">/// The query string component of the URL.
@@ -1457,7 +1457,7 @@
     ///
     /// If the query string is not declared and part of the `url`, Sentry moves it to the
     /// query string.
-    </span><span class="attr">#[metastructure(pii = <span class="string">"true"</span>, bag_size = <span class="string">"small"</span>)]
+    </span><span class="attr">#[metastructure(pii = <span class="string">"true"</span>, max_depth = <span class="number">3</span>, max_bytes = <span class="number">1024</span>)]
     #[metastructure(skip_serialization = <span class="string">"empty"</span>)]
     </span><span class="kw">pub </span>query_string: Annotated&lt;Query&gt;,
 
@@ -1469,7 +1469,7 @@
     <span class="doccomment">/// The cookie values.
     ///
     /// Can be given unparsed as string, as dictionary, or as a list of tuples.
-    </span><span class="attr">#[metastructure(pii = <span class="string">"true"</span>, bag_size = <span class="string">"medium"</span>)]
+    </span><span class="attr">#[metastructure(pii = <span class="string">"true"</span>, max_depth = <span class="number">5</span>, max_bytes = <span class="number">2048</span>)]
     #[metastructure(skip_serialization = <span class="string">"empty"</span>)]
     </span><span class="kw">pub </span>cookies: Annotated&lt;Cookies&gt;,
 
@@ -1477,7 +1477,7 @@
     ///
     /// If a header appears multiple times it, needs to be merged according to the HTTP standard
     /// for header merging. Header names are treated case-insensitively by Sentry.
-    </span><span class="attr">#[metastructure(pii = <span class="string">"true"</span>, bag_size = <span class="string">"large"</span>)]
+    </span><span class="attr">#[metastructure(pii = <span class="string">"true"</span>, max_depth = <span class="number">7</span>, max_bytes = <span class="number">8192</span>)]
     #[metastructure(skip_serialization = <span class="string">"empty"</span>)]
     </span><span class="kw">pub </span>headers: Annotated&lt;Headers&gt;,
 
@@ -1490,7 +1490,7 @@
     /// information such as CGI/WSGI/Rack keys go that are not HTTP headers.
     ///
     /// Sentry will explicitly look for `REMOTE_ADDR` to extract an IP address.
-    </span><span class="attr">#[metastructure(pii = <span class="string">"true"</span>, bag_size = <span class="string">"large"</span>)]
+    </span><span class="attr">#[metastructure(pii = <span class="string">"true"</span>, max_depth = <span class="number">7</span>, max_bytes = <span class="number">8192</span>)]
     #[metastructure(skip_serialization = <span class="string">"empty"</span>)]
     </span><span class="kw">pub </span>env: Annotated&lt;Object&lt;Value&gt;&gt;,
 

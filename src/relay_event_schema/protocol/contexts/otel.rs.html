@@ -188,13 +188,13 @@
     <span class="doccomment">/// Attributes of the OpenTelemetry span that maps to a Sentry event.
     ///
     /// &lt;https://github.com/open-telemetry/opentelemetry-proto/blob/724e427879e3d2bae2edc0218fff06e37b9eb46e/opentelemetry/proto/trace/v1/trace.proto#L174-L186&gt;
-    </span><span class="attr">#[metastructure(pii = <span class="string">"maybe"</span>, bag_size = <span class="string">"large"</span>)]
+    </span><span class="attr">#[metastructure(pii = <span class="string">"maybe"</span>, max_depth = <span class="number">7</span>, max_bytes = <span class="number">8192</span>)]
     </span>attributes: Annotated&lt;Object&lt;Value&gt;&gt;,
 
     <span class="doccomment">/// Information about an OpenTelemetry resource.
     ///
     /// &lt;https://github.com/open-telemetry/opentelemetry-proto/blob/724e427879e3d2bae2edc0218fff06e37b9eb46e/opentelemetry/proto/resource/v1/resource.proto&gt;
-    </span><span class="attr">#[metastructure(pii = <span class="string">"maybe"</span>, bag_size = <span class="string">"large"</span>)]
+    </span><span class="attr">#[metastructure(pii = <span class="string">"maybe"</span>, max_depth = <span class="number">7</span>, max_bytes = <span class="number">8192</span>)]
     </span>resource: Annotated&lt;Object&lt;Value&gt;&gt;,
 
     <span class="doccomment">/// Additional arbitrary fields for forwards compatibility.

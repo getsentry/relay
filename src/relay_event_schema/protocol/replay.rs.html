@@ -437,15 +437,15 @@
     </span><span class="kw">pub </span>replay_start_timestamp: Annotated&lt;Timestamp&gt;,
 
     <span class="doccomment">/// A list of URLs visted during the lifetime of the segment.
-    </span><span class="attr">#[metastructure(pii = <span class="string">"true"</span>, bag_size = <span class="string">"large"</span>)]
+    </span><span class="attr">#[metastructure(pii = <span class="string">"true"</span>, max_depth = <span class="number">7</span>, max_bytes = <span class="number">8192</span>)]
     </span><span class="kw">pub </span>urls: Annotated&lt;Array&lt;String&gt;&gt;,
 
     <span class="doccomment">/// A list of error-ids discovered during the lifetime of the segment.
-    </span><span class="attr">#[metastructure(bag_size = <span class="string">"medium"</span>)]
+    </span><span class="attr">#[metastructure(max_depth = <span class="number">5</span>, max_bytes = <span class="number">2048</span>)]
     </span><span class="kw">pub </span>error_ids: Annotated&lt;Array&lt;Uuid&gt;&gt;,
 
     <span class="doccomment">/// A list of trace-ids discovered during the lifetime of the segment.
-    </span><span class="attr">#[metastructure(bag_size = <span class="string">"medium"</span>)]
+    </span><span class="attr">#[metastructure(max_depth = <span class="number">5</span>, max_bytes = <span class="number">2048</span>)]
     </span><span class="kw">pub </span>trace_ids: Annotated&lt;Array&lt;Uuid&gt;&gt;,
 
     <span class="doccomment">/// Contexts describing the environment (e.g. device, os or browser).

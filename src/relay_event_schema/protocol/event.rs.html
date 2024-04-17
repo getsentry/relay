@@ -1337,7 +1337,7 @@
 <span class="macro">relay_common::impl_str_serde!</span>(EventId, <span class="string">"an event identifier"</span>);
 
 <span class="attr">#[derive(Debug, FromValue, IntoValue, ProcessValue, Empty, Clone, PartialEq)]
-</span><span class="kw">pub struct </span>ExtraValue(<span class="attr">#[metastructure(bag_size = <span class="string">"larger"</span>)] </span><span class="kw">pub </span>Value);
+</span><span class="kw">pub struct </span>ExtraValue(<span class="attr">#[metastructure(max_depth = <span class="number">7</span>, max_bytes = <span class="number">16_384</span>)] </span><span class="kw">pub </span>Value);
 
 <span class="attr">#[cfg(feature = <span class="string">"jsonschema"</span>)]
 </span><span class="kw">impl </span>schemars::JsonSchema <span class="kw">for </span>ExtraValue {
@@ -1514,7 +1514,7 @@
     /// This is primarily used for suggesting to enable certain SDK integrations from within the UI
     /// and for making informed decisions on which frameworks to support in future development
     /// efforts.
-    </span><span class="attr">#[metastructure(skip_serialization = <span class="string">"empty_deep"</span>, bag_size = <span class="string">"large"</span>)]
+    </span><span class="attr">#[metastructure(skip_serialization = <span class="string">"empty_deep"</span>, max_depth = <span class="number">7</span>, max_bytes = <span class="number">8192</span>)]
     </span><span class="kw">pub </span>modules: Annotated&lt;Object&lt;String&gt;&gt;,
 
     <span class="doccomment">/// Platform identifier of this event (defaults to "other").
@@ -1674,7 +1674,7 @@
     ///         "some_other_value": "foo bar"
     ///     }
     /// }```
-    </span><span class="attr">#[metastructure(bag_size = <span class="string">"massive"</span>)]
+    </span><span class="attr">#[metastructure(max_depth = <span class="number">7</span>, max_bytes = <span class="number">262_144</span>)]
     #[metastructure(pii = <span class="string">"true"</span>, skip_serialization = <span class="string">"empty"</span>)]
     </span><span class="kw">pub </span>extra: Annotated&lt;Object&lt;ExtraValue&gt;&gt;,
 
@@ -1688,7 +1688,7 @@
     </span><span class="kw">pub </span>client_sdk: Annotated&lt;ClientSdkInfo&gt;,
 
     <span class="doccomment">/// Information about the Relays that processed this event during ingest.
-    </span><span class="attr">#[metastructure(bag_size = <span class="string">"medium"</span>)]
+    </span><span class="attr">#[metastructure(max_depth = <span class="number">5</span>, max_bytes = <span class="number">2048</span>)]
     #[metastructure(skip_serialization = <span class="string">"empty"</span>, omit_from_schema)]
     </span><span class="kw">pub </span>ingest_path: Annotated&lt;Array&lt;RelayInfo&gt;&gt;,
 
