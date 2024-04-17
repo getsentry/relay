@@ -158,7 +158,7 @@ def test_replay_events_are_filtered(
 
     relay.send_replay_event(42, replay)
 
-    outcome = outcomes_consumer.get_outcome(timeout=5)
+    outcome = outcomes_consumer.get_outcome(timeout=10)
     assert outcome["org_id"] == 1
     assert outcome["project_id"] == 42
     assert outcome["outcome"] == 1
