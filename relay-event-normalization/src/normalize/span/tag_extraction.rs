@@ -1,9 +1,7 @@
 //! Logic for persisting items into `span.sentry_tags` and `span.measurements` fields.
 //! These are then used for metrics extraction.
-use std::borrow::Cow;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write;
-use std::net::IpAddr;
 use std::ops::ControlFlow;
 
 use once_cell::sync::Lazy;
@@ -15,14 +13,14 @@ use relay_event_schema::protocol::{
 use relay_protocol::{Annotated, Value};
 use sqlparser::ast::Visit;
 use sqlparser::ast::{ObjectName, Visitor};
-use url::Url;
+use url::{Host, Url};
 
-use crate::span::description::{
-    concatenate_host_and_port, scrub_domain_name, scrub_span_description,
-};
+use crate::span::description::{concatenate_host_and_port, scrub_span_description};
 use crate::utils::{
     extract_transaction_op, http_status_code_from_span, MAIN_THREAD_NAME, MOBILE_SDKS,
 };
+
+use super::description::scrub_host;
 
 /// A list of supported span tags for tag extraction.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -353,33 +351,21 @@ pub fn extract_tags(
         let domain = if span_op == "http.client" || span_op.starts_with("resource.") {
             // HACK: Parse the normalized description to get the normalized domain.
             if let Some(scrubbed) = scrubbed_description.as_deref() {
+                // Split descriptions like `"GET http://server.app"` into the HTTP method and the URL
                 let url = if let Some((_, url)) = scrubbed.split_once(' ') {
                     url
                 } else {
                     scrubbed
                 };
 
+                // If a `server.address` span attribute is present, scrub it and use it as the domain. If not, try to parse the URL in the span description and extract the domain tag from the host and port in the URL.
                 if let Some(server_address) = span
                     .data
                     .value()
                     .and_then(|data| data.server_address.value())
                     .and_then(|value| value.as_str())
                 {
-                    let lowercase_address = server_address.to_lowercase();
-
-                    // According to OTel semantic conventions the server port should be in a separate property called `server.port`, but incoming data sometimes disagrees. We expect that the port will be appended to the host a lot of the time, especially in the JavaScript SDK
-                    let (domain, port) = match lowercase_address.split_once(':') {
-                        Some((domain, port)) => (domain, port.parse::<u16>().ok()),
-                        None => (server_address, None),
-                    };
-
-                    // Leave IP addresses alone. Scrub qualified domain names
-                    let domain = if domain.parse::<IpAddr>().is_ok() {
-                        Cow::Borrowed(domain)
-                    } else {
-                        scrub_domain_name(domain)
-                    };
-
+                    // Construct raw domain tag from the server address and URL scheme
                     if let Some(url_scheme) = span
                         .data
                         .value()
@@ -388,11 +374,28 @@ pub fn extract_tags(
                     {
                         span_tags.insert(
                             SpanTagKey::RawDomain,
-                            format!("{url_scheme}://{lowercase_address}"),
+                            format!("{url_scheme}://{server_address}"),
                         );
                     }
 
-                    Some(concatenate_host_and_port(Some(domain.as_ref()), port).into_owned())
+                    let server_address = server_address.to_lowercase();
+
+                    // According to OTel semantic conventions the server port should be in a separate property called `server.port`, but incoming data sometimes disagrees. We expect that the port will be appended to the host a lot of the time, especially in the JavaScript SDK
+                    let (domain, port) = match server_address.split_once(':') {
+                        Some((domain, port)) => (domain, port.parse::<u16>().ok()),
+                        None => (server_address.as_str(), None),
+                    };
+
+                    let host = Host::parse(domain);
+
+                    let scrubbed_host = if let Ok(host) = &host {
+                        let borrowed_host = get_borrowed_host(&host);
+                        Some(scrub_host(borrowed_host))
+                    } else {
+                        None
+                    };
+
+                    Some(concatenate_host_and_port(scrubbed_host.as_deref(), port).into_owned())
                 } else if let Some(domain) = Url::parse(url).ok().and_then(|url| {
                     url.host_str().map(|h| {
                         let mut domain = h.to_lowercase();
@@ -826,6 +829,15 @@ fn get_event_start_type(event: &Event) -> Option<&'static str> {
         Some("warm")
     } else {
         None
+    }
+}
+
+// Converts `Host<String>` into `Host<&str>` with the same lifetime.
+fn get_borrowed_host<'a>(host: &'a Host<String>) -> Host<&'a str> {
+    match host {
+        Host::Domain(s) => Host::Domain(s.as_str()),
+        Host::Ipv4(ip) => Host::Ipv4(*ip),
+        Host::Ipv6(ip) => Host::Ipv6(*ip),
     }
 }
 
