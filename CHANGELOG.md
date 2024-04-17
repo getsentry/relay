@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Internal:**
+
+- Emit negative outcomes in metric stats for metrics. ([#3436](https://github.com/getsentry/relay/pull/3436))
+
 ## 24.4.0
 
 **Bug fixes:**
