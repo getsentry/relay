@@ -358,6 +358,7 @@ pub fn extract_tags(
                 } else {
                     scrubbed
                 };
+
                 if let Some(domain) = Url::parse(url).ok().and_then(|url| {
                     url.host_str().map(|h| {
                         let mut domain = h.to_lowercase();
