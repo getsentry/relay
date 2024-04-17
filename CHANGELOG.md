@@ -9,6 +9,7 @@
 **Internal:**
 
 - Emit negative outcomes in metric stats for metrics. ([#3436](https://github.com/getsentry/relay/pull/3436))
+- Temporarily log when messages are produced to ingest-feedback-events (low volume, s4s only). ([#3450](https://github.com/getsentry/relay/pull/3450))
 
 ## 24.4.0
 
