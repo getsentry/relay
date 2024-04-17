@@ -198,4 +198,35 @@ mod tests {
 
         assert!(should_filter(&event.0.unwrap(), &config) == Err(FilterStatKey::ErrorMessage));
     }
+
+    #[test]
+    fn test_filter_chunk_load_error() {
+        let errors = [
+            "Error: Uncaught (in promise): ChunkLoadError: Loading chunk 175 failed.",
+            "Uncaught (in promise): ChunkLoadError: Loading chunk 175 failed.",
+            "ChunkLoadError: Loading chunk 552 failed.",
+        ];
+
+        let config = ErrorMessagesFilterConfig {
+            patterns: GlobPatterns::new(vec![
+                "ChunkLoadError: Loading chunk *".to_owned(),
+                "*Uncaught *: ChunkLoadError: Loading chunk *".to_owned(),
+            ]),
+        };
+
+        for error in errors {
+            let event = Event {
+                logentry: Annotated::new(LogEntry {
+                    formatted: Annotated::new(error.to_owned().into()),
+                    ..Default::default()
+                }),
+                ..Default::default()
+            };
+
+            assert_eq!(
+                should_filter(&event, &config),
+                Err(FilterStatKey::ErrorMessage)
+            );
+        }
+    }
 }
