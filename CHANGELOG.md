@@ -2,12 +2,21 @@
 
 ## Unreleased
 
+**Internal:**
+
+- Emit negative outcomes in metric stats for metrics. ([#3436](https://github.com/getsentry/relay/pull/3436))
+
+## 24.4.0
+
 **Bug fixes:**
 
 - Fix performance regression in disk spooling by using page counts to estimate the spool size. ([#3379](https://github.com/getsentry/relay/pull/3379))
+- Perform clock drift normalization only when `sent_at` is set in the `Envelope` headers. ([#3405](https://github.com/getsentry/relay/pull/3405))
 
 **Features**:
+
 - **Breaking change:** Kafka topic configuration keys now support the default topic name. The previous aliases `metrics` and `metrics_transactions` are no longer supported if configuring topics manually. Use `ingest-metrics` or `metrics_sessions` instead of `metrics`, and `ingest-performance-metrics` or `metrics_generic` instead of `metrics_transactions`. ([#3361](https://github.com/getsentry/relay/pull/3361))
+- **Breaking change:** Remove `ShardedProducer` and related code. The sharded configuration for Kafka is no longer supported. ([#3415](https://github.com/getsentry/relay/pull/3415))
 - Add support for continuous profiling. ([#3270](https://github.com/getsentry/relay/pull/3270))
 - Add support for Reporting API for CSP reports ([#3277](https://github.com/getsentry/relay/pull/3277))
 - Extract op and description while converting opentelemetry spans to sentry spans. ([#3287](https://github.com/getsentry/relay/pull/3287))
@@ -22,6 +31,8 @@
 - Add `cardinality_limited` outcome with id `6`. ([#3389](https://github.com/getsentry/relay/pull/3389))
 - Extract `cache.item_size` and `cache.hit` metrics. ([#3371]https://github.com/getsentry/relay/pull/3371)
 - Optionally convert segment spans to transactions for compatibility. ([#3375](https://github.com/getsentry/relay/pull/3375))
+- Add feature flag for replay video event types. ([#3402](https://github.com/getsentry/relay/pull/3402))
+- Extract scrubbed IP addresses into the `span.domain` tag. ([#3383](https://github.com/getsentry/relay/pull/3383))
 
 **Internal**:
 
@@ -34,6 +45,7 @@
 - Scrub transactions before enforcing quotas. ([#3248](https://github.com/getsentry/relay/pull/3248))
 - Implement metric name based cardinality limits. ([#3313](https://github.com/getsentry/relay/pull/3313))
 - Kafka topic config supports default topic names as keys. ([#3282](https://github.com/getsentry/relay/pull/3282), [#3350](https://github.com/getsentry/relay/pull/3350))
+- Extract `ai_total_tokens_used` metrics from spans. ([#3412](https://github.com/getsentry/relay/pull/3412), [#3440](https://github.com/getsentry/relay/pull/3440))
 - Set all span tags on the transaction span. ([#3310](https://github.com/getsentry/relay/pull/3310))
 - Emit outcomes for user feedback events. ([#3026](https://github.com/getsentry/relay/pull/3026))
 - Collect duration for all spans. ([#3322](https://github.com/getsentry/relay/pull/3322))
@@ -46,6 +58,7 @@
 - Route spans according to trace_id. ([#3387](https://github.com/getsentry/relay/pull/3387))
 - Log span when encountering a validation error. ([#3401](https://github.com/getsentry/relay/pull/3401))
 - Optionally skip normalization. ([#3377](https://github.com/getsentry/relay/pull/3377))
+- Scrub file extensions in file spans and tags. ([#3413](https://github.com/getsentry/relay/pull/3413))
 
 ## 24.3.0
 

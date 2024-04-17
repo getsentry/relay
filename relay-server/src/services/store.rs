@@ -34,7 +34,7 @@ use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::services::processor::Processed;
 use crate::statsd::RelayCounters;
 use crate::utils::{
-    self, is_rolled_out, ArrayEncoding, BucketEncoder, ExtractionMode, TypedEnvelope,
+    self, is_rolled_out, ArrayEncoding, BucketEncoder, ExtractionMode, FormDataIter, TypedEnvelope,
 };
 
 /// Fallback name used for attachment items without a `filename` header.
@@ -228,7 +228,6 @@ impl StoreService {
                     debug_assert!(topic == KafkaTopic::Attachments);
                     let attachment = self.produce_attachment_chunks(
                         event_id.ok_or(StoreError::NoEventId)?,
-                        scoping.organization_id,
                         scoping.project_id,
                         item,
                     )?;
@@ -238,7 +237,6 @@ impl StoreService {
                     debug_assert!(topic == KafkaTopic::Attachments);
                     self.produce_user_report(
                         event_id.ok_or(StoreError::NoEventId)?,
-                        scoping.organization_id,
                         scoping.project_id,
                         start_time,
                         item,
@@ -271,21 +269,15 @@ impl StoreService {
 
                     self.produce_replay_event(
                         event_id.ok_or(StoreError::NoEventId)?,
-                        scoping.organization_id,
                         scoping.project_id,
                         start_time,
                         retention,
                         &item.payload(),
                     )?;
                 }
-                ItemType::CheckIn => self.produce_check_in(
-                    scoping.organization_id,
-                    scoping.project_id,
-                    start_time,
-                    client,
-                    retention,
-                    item,
-                )?,
+                ItemType::CheckIn => {
+                    self.produce_check_in(scoping.project_id, start_time, client, retention, item)?
+                }
                 ItemType::Span => {
                     self.produce_span(scoping, start_time, event_id, retention, item)?
                 }
@@ -302,10 +294,26 @@ impl StoreService {
                         .items()
                         .map(|item| item.ty().as_str())
                         .collect::<Vec<_>>();
+                    let attachment_types = envelope
+                        .items()
+                        .map(|item| {
+                            item.attachment_type()
+                                .map(|t| t.to_string())
+                                .unwrap_or_default()
+                        })
+                        .collect::<Vec<_>>();
 
                     relay_log::with_scope(
                         |scope| {
                             scope.set_extra("item_types", item_types.into());
+                            scope.set_extra("attachment_types", attachment_types.into());
+                            if other == &ItemType::FormData {
+                                let payload = item.payload();
+                                let form_data_keys = FormDataIter::new(&payload)
+                                    .map(|entry| entry.key())
+                                    .collect::<Vec<_>>();
+                                scope.set_extra("form_data_keys", form_data_keys.into());
+                            }
                         },
                         || {
                             relay_log::error!(
@@ -354,7 +362,7 @@ impl StoreService {
         );
 
         for message in kafka_messages {
-            self.produce(topic, scoping.organization_id, message)?;
+            self.produce(topic, message)?;
         }
 
         Ok(())
@@ -369,8 +377,9 @@ impl StoreService {
         } = message;
 
         let batch_size = self.config.metrics_max_batch_size_bytes();
-        let mut dropped = SourceQuantities::default();
         let mut error = None;
+
+        let mut dropped_quantities = SourceQuantities::default();
 
         let global_config = self.global_config.current();
         let mut encoder = BucketEncoder::new(&global_config);
@@ -404,7 +413,7 @@ impl StoreService {
                     }
                     Err(e) => {
                         error.get_or_insert(e);
-                        dropped += utils::extract_metric_quantities([view], mode);
+                        dropped_quantities += utils::extract_metric_quantities([view], mode);
                     }
                 }
             }
@@ -417,10 +426,15 @@ impl StoreService {
             //
             // This logic will be improved iterated on and change once we move serialization logic
             // back into the processor service.
-            if has_success {
-                self.metric_stats
-                    .track_metric(scoping, bucket, Outcome::Accepted);
-            }
+            self.metric_stats.track_metric(
+                scoping,
+                bucket,
+                if has_success {
+                    Outcome::Accepted
+                } else {
+                    Outcome::Invalid(DiscardReason::Internal)
+                },
+            );
         }
 
         if let Some(error) = error {
@@ -429,18 +443,20 @@ impl StoreService {
                 "failed to produce metric buckets: {error}"
             );
 
-            utils::reject_metrics(
+            utils::reject_metrics::<Vec<Bucket>>(
                 &self.outcome_aggregator,
-                dropped,
+                dropped_quantities,
                 scoping,
                 Outcome::Invalid(DiscardReason::Internal),
+                None,
+                None,
             );
         }
     }
 
     fn handle_store_cogs(&self, StoreCogs(payload): StoreCogs) {
         let message = KafkaMessage::Cogs(CogsKafkaMessage(payload));
-        if let Err(error) = self.produce(KafkaTopic::Cogs, 0, message) {
+        if let Err(error) = self.produce(KafkaTopic::Cogs, message) {
             relay_log::error!(
                 error = &error as &dyn std::error::Error,
                 "failed to store cogs measurement"
@@ -533,16 +549,12 @@ impl StoreService {
     fn produce(
         &self,
         topic: KafkaTopic,
-        organization_id: u64,
         // Takes message by value to ensure it is not being produced twice.
         message: KafkaMessage,
     ) -> Result<(), StoreError> {
         relay_log::trace!("Sending kafka message of type {}", message.variant());
 
-        let topic_name = self
-            .producer
-            .client
-            .send_message(topic, organization_id, &message)?;
+        let topic_name = self.producer.client.send_message(topic, &message)?;
 
         match &message {
             KafkaMessage::Metric {
@@ -596,7 +608,6 @@ impl StoreService {
     fn produce_attachment_chunks(
         &self,
         event_id: EventId,
-        organization_id: u64,
         project_id: ProjectId,
         item: &Item,
     ) -> Result<ChunkedAttachment, StoreError> {
@@ -619,7 +630,7 @@ impl StoreService {
                 id: id.clone(),
                 chunk_index,
             });
-            self.produce(KafkaTopic::Attachments, organization_id, attachment_message)?;
+            self.produce(KafkaTopic::Attachments, attachment_message)?;
             offset += chunk_size;
             chunk_index += 1;
         }
@@ -646,7 +657,6 @@ impl StoreService {
     fn produce_user_report(
         &self,
         event_id: EventId,
-        organization_id: u64,
         project_id: ProjectId,
         start_time: Instant,
         item: &Item,
@@ -658,7 +668,7 @@ impl StoreService {
             start_time: UnixTimestamp::from_instant(start_time).as_secs(),
         });
 
-        self.produce(KafkaTopic::Attachments, organization_id, message)
+        self.produce(KafkaTopic::Attachments, message)
     }
 
     fn send_metric_message(
@@ -666,7 +676,6 @@ impl StoreService {
         namespace: MetricNamespace,
         message: MetricKafkaMessage,
     ) -> Result<(), StoreError> {
-        let organization_id = message.org_id;
         let topic = match namespace {
             MetricNamespace::Sessions => KafkaTopic::MetricsSessions,
             MetricNamespace::Unsupported => {
@@ -691,11 +700,7 @@ impl StoreService {
         };
         let headers = BTreeMap::from([("namespace".to_string(), namespace.to_string())]);
 
-        self.produce(
-            topic,
-            organization_id,
-            KafkaMessage::Metric { headers, message },
-        )?;
+        self.produce(topic, KafkaMessage::Metric { headers, message })?;
         Ok(())
     }
 
@@ -720,18 +725,13 @@ impl StoreService {
             )]),
             payload: item.payload(),
         };
-        self.produce(
-            KafkaTopic::Profiles,
-            organization_id,
-            KafkaMessage::Profile(message),
-        )?;
+        self.produce(KafkaTopic::Profiles, KafkaMessage::Profile(message))?;
         Ok(())
     }
 
     fn produce_replay_event(
         &self,
         replay_id: EventId,
-        organization_id: u64,
         project_id: ProjectId,
         start_time: Instant,
         retention_days: u16,
@@ -744,11 +744,7 @@ impl StoreService {
             start_time: UnixTimestamp::from_instant(start_time).as_secs(),
             payload,
         };
-        self.produce(
-            KafkaTopic::ReplayEvents,
-            organization_id,
-            KafkaMessage::ReplayEvent(message),
-        )?;
+        self.produce(KafkaTopic::ReplayEvents, KafkaMessage::ReplayEvent(message))?;
         Ok(())
     }
 
@@ -801,11 +797,7 @@ impl StoreService {
                 replay_video,
             });
 
-        self.produce(
-            KafkaTopic::ReplayRecordings,
-            scoping.organization_id,
-            message,
-        )?;
+        self.produce(KafkaTopic::ReplayRecordings, message)?;
 
         Ok(())
     }
@@ -845,7 +837,6 @@ impl StoreService {
 
         self.produce_replay_event(
             event_id.ok_or(StoreError::NoEventId)?,
-            scoping.organization_id,
             scoping.project_id,
             start_time,
             retention,
@@ -865,7 +856,6 @@ impl StoreService {
 
     fn produce_check_in(
         &self,
-        organization_id: u64,
         project_id: ProjectId,
         start_time: Instant,
         client: Option<&str>,
@@ -882,7 +872,7 @@ impl StoreService {
             routing_key_hint: item.routing_hint(),
         });
 
-        self.produce(KafkaTopic::Monitors, organization_id, message)?;
+        self.produce(KafkaTopic::Monitors, message)?;
 
         Ok(())
     }
@@ -933,11 +923,10 @@ impl StoreService {
             });
         }
 
-        self.produce_metrics_summary(scoping, item, &span);
+        self.produce_metrics_summary(item, &span);
 
         self.produce(
             KafkaTopic::Spans,
-            scoping.organization_id,
             KafkaMessage::Span {
                 headers: BTreeMap::from([(
                     "project_id".to_string(),
@@ -960,7 +949,7 @@ impl StoreService {
         Ok(())
     }
 
-    fn produce_metrics_summary(&self, scoping: Scoping, item: &Item, span: &SpanKafkaMessage) {
+    fn produce_metrics_summary(&self, item: &Item, span: &SpanKafkaMessage) {
         let payload = item.payload();
         let d = &mut Deserializer::from_slice(&payload);
         let mut metrics_summary: SpanWithMetricsSummary = match serde_path_to_error::deserialize(d)
@@ -1032,7 +1021,6 @@ impl StoreService {
                 // Ignore immediate errors on produce.
                 if let Err(error) = self.produce(
                     KafkaTopic::MetricsSummaries,
-                    scoping.organization_id,
                     KafkaMessage::MetricsSummary(MetricsSummaryKafkaMessage {
                         count,
                         duration_ms,
@@ -1076,11 +1064,7 @@ impl StoreService {
             retention_days,
             payload: item.payload(),
         };
-        self.produce(
-            KafkaTopic::Profiles,
-            organization_id,
-            KafkaMessage::ProfileChunk(message),
-        )?;
+        self.produce(KafkaTopic::Profiles, KafkaMessage::ProfileChunk(message))?;
         Ok(())
     }
 }

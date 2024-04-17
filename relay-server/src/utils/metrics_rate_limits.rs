@@ -9,6 +9,7 @@ use relay_quotas::{DataCategory, Quota, RateLimits, Scoping};
 use relay_system::Addr;
 
 use crate::envelope::SourceQuantities;
+use crate::metric_stats::MetricStats;
 use crate::services::outcome::{Outcome, TrackOutcome};
 
 /// Contains all data necessary to rate limit metrics or metrics buckets.
@@ -71,7 +72,7 @@ fn summarize_bucket(metric: BucketView<'_>, mode: ExtractionMode) -> BucketSumma
 pub fn extract_metric_quantities<'a, I, V>(buckets: I, mode: ExtractionMode) -> SourceQuantities
 where
     I: IntoIterator<Item = V>,
-    BucketView<'a>: From<V>,
+    V: Into<BucketView<'a>>,
 {
     let mut quantities = SourceQuantities::default();
 
@@ -93,11 +94,24 @@ where
     quantities
 }
 
-pub fn reject_metrics(
+fn report_rejected_metrics<I: IntoIterator<Item = Bucket>>(
+    metric_stats: &MetricStats,
+    scoping: Scoping,
+    buckets: I,
+    outcome: Outcome,
+) {
+    for bucket in buckets {
+        metric_stats.track_metric(scoping, bucket, outcome.clone())
+    }
+}
+
+pub fn reject_metrics<I: IntoIterator<Item = Bucket>>(
     addr: &Addr<TrackOutcome>,
     quantities: SourceQuantities,
     scoping: Scoping,
     outcome: Outcome,
+    metric_stats: Option<&MetricStats>,
+    buckets: Option<I>,
 ) {
     let timestamp = Utc::now();
 
@@ -120,9 +134,13 @@ pub fn reject_metrics(
             });
         }
     }
+
+    if let (Some(metric_stats), Some(buckets)) = (metric_stats, buckets) {
+        report_rejected_metrics(metric_stats, scoping, buckets, outcome)
+    }
 }
 
-/// Wether to extract transaction and profile count based on the usage or duration metric.
+/// Whether to extract transaction and profile count based on the usage or duration metric.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ExtractionMode {
     /// Use the usage count metric.

@@ -1019,8 +1019,42 @@ mod tests {
                     "data": {
                         "ui.component_name": "my-component-name"
                     }
+                },
+                {
+                    "timestamp": 1702474613.0495,
+                    "start_timestamp": 1702474613.0175,
+                    "description": "sentry.tasks.post_process.post_process_group",
+                    "op": "queue.task.celery",
+                    "span_id": "9b01bd820a083e63",
+                    "parent_span_id": "a1e13f3f06239d69",
+                    "trace_id": "922dda2462ea4ac2b6a4b339bee90863",
+                    "data": {}
+                },
+                {
+                    "timestamp": 1702474613.0495,
+                    "start_timestamp": 1702474613.0175,
+                    "description": "sentry.tasks.post_process.post_process_group",
+                    "op": "queue.submit.celery",
+                    "span_id": "9b01bd820a083e63",
+                    "parent_span_id": "a1e13f3f06239d69",
+                    "trace_id": "922dda2462ea4ac2b6a4b339bee90863",
+                    "data": {}
+                },
+                {
+                    "timestamp": 1702474613.0495,
+                    "start_timestamp": 1702474613.0175,
+                    "description": "Autofix Pipeline",
+                    "op": "ai.run.langchain",
+                    "origin": "auto.langchain",
+                    "span_id": "9c01bd820a083e63",
+                    "parent_span_id": "a1e13f3f06239d69",
+                    "trace_id": "922dda2462ea4ac2b6a4b339bee90863",
+                    "measurements": {
+                        "ai_total_tokens_used": {
+                            "value": 20
+                        }
+                    }
                 }
-
             ]
         }
         "#;
@@ -1153,6 +1187,14 @@ mod tests {
                     "data": {
                         "app_start_type": "cold"
                     }
+                },
+                {
+                    "op": "file.read",
+                    "description": "somebackup.212321",
+                    "span_id": "bd429c44b67a3eb2",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976303.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81"
                 }
             ]
         }
@@ -1286,7 +1328,7 @@ mod tests {
             .filter(|b| &*b.name == "c:spans/usage@none")
             .collect::<Vec<_>>();
 
-        let expected_usage = 9; // We count all spans received by Relay, plus one for the transaction
+        let expected_usage = 10; // We count all spans received by Relay, plus one for the transaction
         assert_eq!(usage_metrics.len(), expected_usage);
         for m in usage_metrics {
             assert!(m.tags.is_empty());

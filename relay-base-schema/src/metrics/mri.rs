@@ -5,7 +5,7 @@ use crate::metrics::MetricUnit;
 use serde::{Deserialize, Serialize};
 
 /// The type of a [`MetricResourceIdentifier`], determining its aggregation and evaluation.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, PartialOrd, Ord)]
 pub enum MetricType {
     /// Counts instances of an event.
     ///

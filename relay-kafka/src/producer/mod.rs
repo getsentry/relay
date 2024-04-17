@@ -2,9 +2,6 @@
 //!
 //! There are two different producers that are supported in Relay right now:
 //! - [`SingleProducer`] - which sends all the messages to the defined kafka [`KafkaTopic`],
-//! - [`ShardedProducer`] - which expects to have at least one shard configured, and depending on
-//! the shard number the different messages will be sent to different topics using the configured
-//! producer for the this exact shard.
 
 use std::borrow::Cow;
 use std::cell::Cell;
@@ -99,54 +96,6 @@ impl fmt::Debug for SingleProducer {
     }
 }
 
-/// Sharded producer configuration.
-struct ShardedProducer {
-    /// The maximum number of shards for this producer.
-    shards: u64,
-    /// The actual Kafka producer assigned to the range of logical shards, where the `u64` in the map is
-    /// the inclusive beginning of the range.
-    producers: BTreeMap<u64, (String, Arc<ThreadedProducer>)>,
-}
-
-impl ShardedProducer {
-    /// Returns topic name and the Kafka producer based on the provided sharding key.
-    /// Returns error [`ClientError::InvalidShard`] if the shard range for the provided sharding
-    /// key could not be found.
-    ///
-    /// # Errors
-    /// Returns [`ClientError::InvalidShard`] error if the provided `sharding_key` could not be
-    /// placed in any configured shard ranges.
-    pub fn get_producer(
-        &self,
-        sharding_key: u64,
-    ) -> Result<(&str, &ThreadedProducer), ClientError> {
-        let shard = sharding_key % self.shards;
-        let (topic_name, producer) = self
-            .producers
-            .iter()
-            .take_while(|(k, _)| *k <= &shard)
-            .last()
-            .map(|(_, v)| v)
-            .ok_or(ClientError::InvalidShard)?;
-
-        Ok((topic_name, producer))
-    }
-}
-
-impl fmt::Debug for ShardedProducer {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let producers = &self
-            .producers
-            .iter()
-            .map(|(shard, (topic, _))| (shard, topic))
-            .collect::<BTreeMap<_, _>>();
-        f.debug_struct("ShardedProducer")
-            .field("shards", &self.shards)
-            .field("producers", producers)
-            .finish()
-    }
-}
-
 /// Keeps all the configured kafka producers and responsible for the routing of the messages.
 #[derive(Debug)]
 pub struct KafkaClient {
@@ -167,7 +116,6 @@ impl KafkaClient {
     pub fn send_message(
         &self,
         topic: KafkaTopic,
-        organization_id: u64,
         message: &impl Message,
     ) -> Result<&str, ClientError> {
         let serialized = message.serialize()?;
@@ -179,7 +127,6 @@ impl KafkaClient {
         let key = message.key();
         self.send(
             topic,
-            organization_id,
             &key,
             message.headers(),
             message.variant(),
@@ -193,7 +140,6 @@ impl KafkaClient {
     pub fn send(
         &self,
         topic: KafkaTopic,
-        organization_id: u64,
         key: &[u8; 16],
         headers: Option<&BTreeMap<String, String>>,
         variant: &str,
@@ -205,7 +151,7 @@ impl KafkaClient {
             );
             ClientError::InvalidTopicName
         })?;
-        producer.send(organization_id, key, headers, variant, payload)
+        producer.send(key, headers, variant, payload)
     }
 }
 
@@ -268,34 +214,6 @@ impl KafkaClientBuilder {
                     .insert(topic, Producer::single((*topic_name).to_string(), producer));
                 Ok(self)
             }
-            KafkaConfig::Sharded { shards, configs } => {
-                let mut producers = BTreeMap::new();
-                for (shard, kafka_params) in configs {
-                    let config_name = kafka_params.config_name.map(str::to_string);
-                    if let Some(producer) = self.reused_producers.get(&config_name) {
-                        let cached_producer = Arc::clone(producer);
-                        producers.insert(
-                            *shard,
-                            (kafka_params.topic_name.to_string(), cached_producer),
-                        );
-                        continue;
-                    }
-                    for config_p in kafka_params.params {
-                        client_config.set(config_p.name.as_str(), config_p.value.as_str());
-                    }
-                    let producer = Arc::new(
-                        client_config
-                            .create_with_context(Context)
-                            .map_err(ClientError::InvalidConfig)?,
-                    );
-                    self.reused_producers
-                        .insert(config_name, Arc::clone(&producer));
-                    producers.insert(*shard, (kafka_params.topic_name.to_string(), producer));
-                }
-                self.producers
-                    .insert(topic, Producer::sharded(*shards, producers));
-                Ok(self)
-            }
         }
     }
 
@@ -318,14 +236,11 @@ impl fmt::Debug for KafkaClientBuilder {
     }
 }
 
-/// This object contains the Kafka producer variants for single and sharded configurations.
+/// This object contains the Kafka producer variants for single.
 #[derive(Debug)]
 enum ProducerInner {
     /// Configuration variant for the single kafka producer.
     Single(SingleProducer),
-    /// Configuration variant for sharded kafka producer, when one topic has different producers
-    /// dedicated to the range of the shards.
-    Sharded(ShardedProducer),
 }
 
 #[derive(Debug)]
@@ -345,17 +260,9 @@ impl Producer {
         }
     }
 
-    fn sharded(shards: u64, producers: BTreeMap<u64, (String, Arc<ThreadedProducer>)>) -> Self {
-        Self {
-            last_report: Instant::now().into(),
-            inner: ProducerInner::Sharded(ShardedProducer { shards, producers }),
-        }
-    }
-
     /// Sends the payload to the correct producer for the current topic.
     fn send(
         &self,
-        organization_id: u64,
         key: &[u8; 16],
         headers: Option<&BTreeMap<String, String>>,
         variant: &str,
@@ -370,8 +277,6 @@ impl Producer {
                 topic_name,
                 producer,
             }) => (topic_name.as_str(), producer.as_ref()),
-
-            ProducerInner::Sharded(sharded) => sharded.get_producer(organization_id)?,
         };
         let mut record = BaseRecord::to(topic_name).key(key).payload(payload);
 

@@ -18,7 +18,7 @@ use fnv::FnvHasher;
 use relay_base_schema::project::{ProjectId, ProjectKey};
 use relay_cogs::{AppFeature, Cogs, FeatureWeights, ResourceId, Token};
 use relay_common::time::UnixTimestamp;
-use relay_config::{Config, HttpEncoding, Normalize, RelayMode};
+use relay_config::{Config, HttpEncoding, NormalizationLevel, RelayMode};
 use relay_dynamic_config::{ErrorBoundary, Feature};
 use relay_event_normalization::{
     normalize_event, validate_event_timestamps, validate_transaction, ClockDriftProcessor,
@@ -1220,8 +1220,8 @@ impl EnvelopeProcessorService {
         &self,
         state: &mut ProcessEnvelopeState<G>,
     ) -> Result<(), ProcessingError> {
-        let full_normalization = match self.inner.config.normalization() {
-            Normalize::Disabled => {
+        let full_normalization = match self.inner.config.normalization_level() {
+            NormalizationLevel::Disabled => {
                 // We assume envelopes coming from an internal relay have
                 // already been normalized. During incidents, like a PoP region
                 // not being available, envelopes can go to other PoP regions or
@@ -1236,8 +1236,8 @@ impl EnvelopeProcessorService {
                     return Ok(());
                 }
             }
-            Normalize::Full => true,
-            Normalize::Default => self.inner.config.processing_enabled(),
+            NormalizationLevel::Full => true,
+            NormalizationLevel::Default => self.inner.config.processing_enabled(),
         };
 
         if let Some(sampling_state) = state.sampling_project_state.clone() {
@@ -2122,12 +2122,10 @@ impl EnvelopeProcessorService {
 
         buckets_by_ns
             .into_iter()
-            .filter_map(|(namespace, buckets)| {
+            .flat_map(|(namespace, buckets)| {
                 let item_scoping = scoping.metric_bucket(namespace);
-                (!self.rate_limit_buckets(item_scoping, &buckets, quotas, mode, rate_limiter))
-                    .then_some(buckets)
+                self.rate_limit_buckets(item_scoping, buckets, quotas, mode, rate_limiter)
             })
-            .flatten()
             .collect()
     }
 
@@ -2136,13 +2134,13 @@ impl EnvelopeProcessorService {
     fn rate_limit_buckets(
         &self,
         item_scoping: relay_quotas::ItemScoping,
-        buckets: &[Bucket],
+        buckets: Vec<Bucket>,
         quotas: DynamicQuotas<'_>,
         mode: ExtractionMode,
         rate_limiter: &RedisRateLimiter,
-    ) -> bool {
+    ) -> Vec<Bucket> {
         let batch_size = self.inner.config.metrics_max_batch_size_bytes();
-        let batched_bucket_iter = BucketsView::new(buckets).by_size(batch_size).flatten();
+        let batched_bucket_iter = BucketsView::new(&buckets).by_size(batch_size).flatten();
         let quantities = utils::extract_metric_quantities(batched_bucket_iter, mode);
 
         // Check with redis if the throughput limit has been exceeded, while also updating
@@ -2160,6 +2158,8 @@ impl EnvelopeProcessorService {
                     quantities,
                     *item_scoping.scoping,
                     Outcome::RateLimited(reason_code),
+                    Some(&self.inner.metric_stats),
+                    Some(buckets),
                 );
 
                 self.inner.addrs.project_cache.send(UpdateRateLimits::new(
@@ -2167,15 +2167,16 @@ impl EnvelopeProcessorService {
                     limits,
                 ));
 
-                true
+                Vec::new()
             }
-            Ok(_) => false,
+            Ok(_) => buckets,
             Err(e) => {
                 relay_log::error!(
                     error = &e as &dyn std::error::Error,
                     "failed to check redis rate limits"
                 );
-                false
+
+                buckets
             }
         }
     }
@@ -2242,15 +2243,19 @@ impl EnvelopeProcessorService {
             return limits.into_source();
         }
 
+        let split = limits.into_split();
+
         // Log outcomes for rejected buckets.
         utils::reject_metrics(
             &self.inner.addrs.outcome_aggregator,
-            utils::extract_metric_quantities(limits.rejected(), mode),
+            utils::extract_metric_quantities(&split.rejected, mode),
             scoping,
             Outcome::CardinalityLimited,
+            Some(&self.inner.metric_stats),
+            Some(split.rejected),
         );
 
-        limits.into_accepted()
+        split.accepted
     }
 
     /// Processes metric buckets and sends them to kafka.
@@ -2876,11 +2881,13 @@ impl UpstreamRequest for SendMetricsRequest {
                 // Request did not arrive, we are responsible for outcomes.
                 Err(error) if !error.is_received() => {
                     for (scoping, quantities) in self.quantities {
-                        utils::reject_metrics(
+                        utils::reject_metrics::<Vec<Bucket>>(
                             &self.outcome_aggregator,
                             quantities,
                             scoping,
                             Outcome::Invalid(DiscardReason::Internal),
+                            None,
+                            None,
                         );
                     }
                 }

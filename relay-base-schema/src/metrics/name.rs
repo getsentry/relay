@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
 
-use crate::metrics::MetricNamespace;
+use crate::metrics::{MetricNamespace, MetricType};
 
 /// Optimized string represenation of a metric name.
 ///
@@ -15,6 +15,36 @@ use crate::metrics::MetricNamespace;
 pub struct MetricName(Arc<str>);
 
 impl MetricName {
+    /// Extracts the type from a well formed MRI.
+    ///
+    /// If the contained metric name is not a well formed MRI this function returns `None`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use relay_base_schema::metrics::{MetricName, MetricType};
+    ///
+    /// let name = MetricName::from("cfoo");
+    /// assert!(name.try_type().is_none());
+    /// let name = MetricName::from("c:custom/foo@none");
+    /// assert_eq!(name.try_type(), Some(MetricType::Counter));
+    /// let name = MetricName::from("d:custom/foo@none");
+    /// assert_eq!(name.try_type(), Some(MetricType::Distribution));
+    /// let name = MetricName::from("s:custom/foo@none");
+    /// assert_eq!(name.try_type(), Some(MetricType::Set));
+    /// let name = MetricName::from("g:custom/foo@none");
+    /// assert_eq!(name.try_type(), Some(MetricType::Gauge));
+    /// ```
+    pub fn try_type(&self) -> Option<MetricType> {
+        match self.0.as_bytes().get(..2) {
+            Some(b"c:") => Some(MetricType::Counter),
+            Some(b"d:") => Some(MetricType::Distribution),
+            Some(b"s:") => Some(MetricType::Set),
+            Some(b"g:") => Some(MetricType::Gauge),
+            _ => None,
+        }
+    }
+
     /// Extracts the namespace from a well formed MRI.
     ///
     /// Returns [`MetricNamespace::Unsupported`] if the metric name is not a well formed MRI.
@@ -52,7 +82,6 @@ impl MetricName {
     ///
     /// let name = MetricName::from("c:custom/foo@none");
     /// assert_eq!(name.try_namespace(), Some(MetricNamespace::Custom));
-    ///
     /// ```
     pub fn try_namespace(&self) -> Option<MetricNamespace> {
         // A well formed MRI is always in the format `<type>:<namespace>/<name>[@<unit>]`,
