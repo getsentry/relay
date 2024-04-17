@@ -3360,6 +3360,14 @@
 <a href="#3358" id="3358">3358</a>
 <a href="#3359" id="3359">3359</a>
 <a href="#3360" id="3360">3360</a>
+<a href="#3361" id="3361">3361</a>
+<a href="#3362" id="3362">3362</a>
+<a href="#3363" id="3363">3363</a>
+<a href="#3364" id="3364">3364</a>
+<a href="#3365" id="3365">3365</a>
+<a href="#3366" id="3366">3366</a>
+<a href="#3367" id="3367">3367</a>
+<a href="#3368" id="3368">3368</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
@@ -3824,11 +3832,14 @@
 
     <span class="attr">#[error(<span class="string">"invalid replay"</span>)]
     </span>InvalidReplay(DiscardReason),
+
+    <span class="attr">#[error(<span class="string">"replay filtered with reason: {0:?}"</span>)]
+    </span>ReplayFiltered(FilterStatKey),
 }
 
 <span class="kw">impl </span>ProcessingError {
     <span class="kw">fn </span>to_outcome(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;Outcome&gt; {
-        <span class="kw">match </span><span class="kw-2">*</span><span class="self">self </span>{
+        <span class="kw">match </span><span class="self">self </span>{
             <span class="comment">// General outcomes for invalid events
             </span><span class="self">Self</span>::PayloadTooLarge =&gt; <span class="prelude-val">Some</span>(Outcome::Invalid(DiscardReason::TooLarge)),
             <span class="self">Self</span>::InvalidJson(<span class="kw">_</span>) =&gt; <span class="prelude-val">Some</span>(Outcome::Invalid(DiscardReason::InvalidJson)),
@@ -3867,7 +3878,8 @@
             <span class="self">Self</span>::EventFiltered(<span class="kw">_</span>) =&gt; <span class="prelude-val">None</span>,
             <span class="self">Self</span>::InvalidProcessingGroup(<span class="kw">_</span>) =&gt; <span class="prelude-val">None</span>,
 
-            <span class="self">Self</span>::InvalidReplay(reason) =&gt; <span class="prelude-val">Some</span>(Outcome::Invalid(reason)),
+            <span class="self">Self</span>::InvalidReplay(reason) =&gt; <span class="prelude-val">Some</span>(Outcome::Invalid(<span class="kw-2">*</span>reason)),
+            <span class="self">Self</span>::ReplayFiltered(key) =&gt; <span class="prelude-val">Some</span>(Outcome::Filtered(key.clone())),
         }
     }
 
@@ -4895,7 +4907,11 @@
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;ReplayGroup&gt;,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ProcessingError&gt; {
-        replay::process(state, <span class="kw-2">&amp;</span><span class="self">self</span>.inner.config)<span class="question-mark">?</span>;
+        replay::process(
+            state,
+            <span class="kw-2">&amp;</span><span class="self">self</span>.inner.config,
+            <span class="kw-2">&amp;</span><span class="self">self</span>.inner.global_config.current(),
+        )<span class="question-mark">?</span>;
         <span class="macro">if_processing!</span>(<span class="self">self</span>.inner.config, {
             <span class="self">self</span>.enforce_quotas(state)<span class="question-mark">?</span>;
         });
