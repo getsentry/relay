@@ -1,11 +1,12 @@
 use std::collections::BTreeMap;
 use std::sync::{Arc, OnceLock};
 
+#[cfg(feature = "processing")]
 use relay_cardinality::{CardinalityLimit, CardinalityReport};
 use relay_config::Config;
-use relay_metrics::{
-    Aggregator, Bucket, BucketValue, GaugeValue, MergeBuckets, MetricName, UnixTimestamp,
-};
+#[cfg(feature = "processing")]
+use relay_metrics::GaugeValue;
+use relay_metrics::{Aggregator, Bucket, BucketValue, MergeBuckets, MetricName, UnixTimestamp};
 use relay_quotas::Scoping;
 use relay_system::Addr;
 
@@ -21,6 +22,7 @@ fn volume_metric_mri() -> MetricName {
         .clone()
 }
 
+#[cfg(feature = "processing")]
 fn cardinality_metric_mri() -> MetricName {
     static CARDINALITY_METRIC_MRI: OnceLock<MetricName> = OnceLock::new();
 
@@ -45,6 +47,7 @@ pub struct MetricStats {
 
 impl MetricStats {
     /// Creates a new [`MetricStats`] instance.
+    #[cfg(feature = "processing")]
     pub fn new(
         config: Arc<Config>,
         global_config: GlobalConfigHandle,
@@ -78,6 +81,7 @@ impl MetricStats {
     }
 
     /// Tracks the cardinality of a metric.
+    #[cfg(feature = "processing")]
     pub fn track_cardinality(
         &self,
         scoping: Scoping,
@@ -129,6 +133,7 @@ impl MetricStats {
 
         let mut tags = BTreeMap::from([
             ("mri".to_owned(), bucket.name.to_string()),
+            ("mri.type".to_owned(), bucket.value.ty().to_string()),
             ("mri.namespace".to_owned(), namespace.to_string()),
             (
                 "outcome.id".to_owned(),
@@ -150,6 +155,7 @@ impl MetricStats {
         })
     }
 
+    #[cfg(feature = "processing")]
     fn to_cardinality_metric(
         &self,
         limit: &CardinalityLimit,
@@ -160,21 +166,29 @@ impl MetricStats {
             return None;
         }
 
-        let name = report.metric_name.as_ref()?;
-        let namespace = name.namespace();
-
-        if !namespace.has_metric_stats() {
-            return None;
-        }
-
-        let tags = BTreeMap::from([
-            ("mri".to_owned(), name.to_string()),
-            ("mri.namespace".to_owned(), namespace.to_string()),
+        let mut tags = BTreeMap::from([
+            ("cardinality.limit".to_owned(), limit.id.clone()),
+            (
+                "cardinality.scope".to_owned(),
+                limit.scope.as_str().to_owned(),
+            ),
             (
                 "cardinality.window".to_owned(),
                 limit.window.window_seconds.to_string(),
             ),
         ]);
+
+        if let Some(ref name) = report.metric_name {
+            tags.insert("mri".to_owned(), name.to_string());
+            tags.insert("mri.namespace".to_owned(), name.namespace().to_string());
+            if let Some(t) = name.try_type() {
+                tags.insert("mri.type".to_owned(), t.to_string());
+            }
+        }
+
+        if let Some(t) = report.metric_type {
+            tags.insert("mri.type".to_owned(), t.to_string());
+        }
 
         Some(Bucket {
             timestamp: UnixTimestamp::now(),
@@ -187,10 +201,12 @@ impl MetricStats {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "processing"))]
 mod tests {
     use relay_base_schema::project::{ProjectId, ProjectKey};
+    use relay_cardinality::{CardinalityScope, SlidingWindow};
     use relay_dynamic_config::GlobalConfig;
+    use relay_metrics::MetricType;
     use relay_quotas::ReasonCode;
     use tokio::sync::mpsc::UnboundedReceiver;
 
@@ -265,6 +281,7 @@ mod tests {
             bucket.tags,
             tags!(
                 ("mri", "d:custom/rt@millisecond"),
+                ("mri.type", "d"),
                 ("mri.namespace", "custom"),
                 ("outcome.id", "0"),
             )
@@ -285,9 +302,136 @@ mod tests {
             bucket.tags,
             tags!(
                 ("mri", "d:custom/rt@millisecond"),
+                ("mri.type", "d"),
                 ("mri.namespace", "custom"),
                 ("outcome.id", "2"),
                 ("outcome.reason", "foobar"),
+            )
+        );
+
+        assert!(receiver.blocking_recv().is_none());
+    }
+
+    #[test]
+    fn test_metric_stats_cardinality_name() {
+        let (ms, mut receiver) = create_metric_stats(1.0);
+
+        let scoping = scoping();
+        let limit = CardinalityLimit {
+            id: "test".to_owned(),
+            passive: false,
+            report: true,
+            window: SlidingWindow {
+                window_seconds: 246,
+                granularity_seconds: 123,
+            },
+            limit: 99,
+            scope: CardinalityScope::Name,
+            namespace: None,
+        };
+        let report = CardinalityReport {
+            organization_id: Some(scoping.organization_id),
+            project_id: Some(scoping.project_id),
+            metric_type: None,
+            metric_name: Some(MetricName::from("d:custom/rt@millisecond")),
+            cardinality: 12,
+        };
+
+        ms.track_cardinality(scoping, &limit, &report);
+
+        drop(ms);
+
+        let Aggregator::MergeBuckets(mb) = receiver.blocking_recv().unwrap() else {
+            panic!();
+        };
+        assert_eq!(mb.project_key(), scoping.project_key);
+
+        let mut buckets = mb.buckets();
+        assert_eq!(buckets.len(), 1);
+        let bucket = buckets.pop().unwrap();
+
+        assert_eq!(&*bucket.name, "g:metric_stats/cardinality@none");
+        assert_eq!(
+            bucket.value,
+            BucketValue::Gauge(GaugeValue {
+                last: 12.into(),
+                min: 12.into(),
+                max: 12.into(),
+                sum: 12.into(),
+                count: 1,
+            })
+        );
+        assert_eq!(
+            bucket.tags,
+            tags!(
+                ("mri", "d:custom/rt@millisecond"),
+                ("mri.type", "d"),
+                ("mri.namespace", "custom"),
+                ("cardinality.limit", "test"),
+                ("cardinality.scope", "name"),
+                ("cardinality.window", "246"),
+            )
+        );
+
+        assert!(receiver.blocking_recv().is_none());
+    }
+
+    #[test]
+    fn test_metric_stats_cardinality_type() {
+        let (ms, mut receiver) = create_metric_stats(1.0);
+
+        let scoping = scoping();
+        let limit = CardinalityLimit {
+            id: "test".to_owned(),
+            passive: false,
+            report: true,
+            window: SlidingWindow {
+                window_seconds: 246,
+                granularity_seconds: 123,
+            },
+            limit: 99,
+            scope: CardinalityScope::Type,
+            namespace: None,
+        };
+        let report = CardinalityReport {
+            organization_id: Some(scoping.organization_id),
+            project_id: Some(scoping.project_id),
+            metric_type: Some(MetricType::Distribution),
+            metric_name: None,
+            cardinality: 12,
+        };
+
+        ms.track_cardinality(scoping, &limit, &report);
+
+        drop(ms);
+
+        let Aggregator::MergeBuckets(mb) = receiver.blocking_recv().unwrap() else {
+            panic!();
+        };
+        assert_eq!(mb.project_key(), scoping.project_key);
+
+        let mut buckets = mb.buckets();
+        assert_eq!(buckets.len(), 1);
+        let bucket = buckets.pop().unwrap();
+
+        assert_eq!(&*bucket.name, "g:metric_stats/cardinality@none");
+        assert_eq!(
+            bucket.value,
+            BucketValue::Gauge(GaugeValue {
+                last: 12.into(),
+                min: 12.into(),
+                max: 12.into(),
+                sum: 12.into(),
+                count: 1,
+            })
+        );
+        assert_eq!(
+            bucket.tags,
+            tags!(
+                ("mri.type", "d"),
+                ("cardinality.limit", "test"),
+                ("cardinality.scope", "type"),
+                ("cardinality.window", "246"),
             )
         );
 

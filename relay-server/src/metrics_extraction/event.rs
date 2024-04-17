@@ -1023,8 +1023,28 @@ mod tests {
                 {
                     "timestamp": 1702474613.0495,
                     "start_timestamp": 1702474613.0175,
+                    "description": "sentry.tasks.post_process.post_process_group",
+                    "op": "queue.task.celery",
+                    "span_id": "9b01bd820a083e63",
+                    "parent_span_id": "a1e13f3f06239d69",
+                    "trace_id": "922dda2462ea4ac2b6a4b339bee90863",
+                    "data": {}
+                },
+                {
+                    "timestamp": 1702474613.0495,
+                    "start_timestamp": 1702474613.0175,
+                    "description": "sentry.tasks.post_process.post_process_group",
+                    "op": "queue.submit.celery",
+                    "span_id": "9b01bd820a083e63",
+                    "parent_span_id": "a1e13f3f06239d69",
+                    "trace_id": "922dda2462ea4ac2b6a4b339bee90863",
+                    "data": {}
+                },
+                {
+                    "timestamp": 1702474613.0495,
+                    "start_timestamp": 1702474613.0175,
                     "description": "Autofix Pipeline",
-                    "op": "ai.langchain.run",
+                    "op": "ai.run.langchain",
                     "origin": "auto.langchain",
                     "span_id": "9c01bd820a083e63",
                     "parent_span_id": "a1e13f3f06239d69",

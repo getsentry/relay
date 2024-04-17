@@ -2,7 +2,6 @@
 ///
 /// Deterministically makes a rollout decision for an id, usually organization id,
 /// and rate.
-#[cfg(any(test, feature = "processing"))]
 pub fn is_rolled_out(id: u64, rate: f32) -> bool {
     ((id % 100000) as f32 / 100000.0f32) < rate
 }

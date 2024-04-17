@@ -37,6 +37,8 @@ const CACHE_SPAN_OPS: &[&str] = &[
     "cache.delete_item",
 ];
 
+const QUEUE_SPAN_OPS: &[&str] = &["queue.task.celery", "queue.submit.celery"];
+
 /// Adds configuration for extracting metrics from spans.
 ///
 /// This configuration is temporarily hard-coded here. It will later be provided by the upstream.
@@ -94,6 +96,8 @@ fn span_metrics(transaction_extraction_enabled: bool) -> impl IntoIterator<Item 
 
     let is_http = RuleCondition::eq("span.op", "http.client");
 
+    let is_queue_op = RuleCondition::glob("span.op", QUEUE_SPAN_OPS);
+
     let is_allowed_browser = RuleCondition::eq(
         "span.sentry_tags.browser.name",
         vec![
@@ -144,7 +148,8 @@ fn span_metrics(transaction_extraction_enabled: bool) -> impl IntoIterator<Item 
         | is_resource.clone()
         | is_mobile.clone()
         | is_interaction
-        | is_http.clone())
+        | is_http.clone()
+        | is_queue_op.clone())
         & duration_condition.clone();
 
     let know_modules_condition =
