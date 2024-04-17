@@ -1,6 +1,7 @@
-use anyhow::{Context, Result};
+#[cfg(feature = "processing")]
+use anyhow::Context;
+use anyhow::Result;
 use relay_config::{Config, RelayMode};
-use relay_kafka::KafkaTopic;
 
 pub fn check_config(config: &Config) -> Result<()> {
     if config.relay_mode() == RelayMode::Managed && config.credentials().is_none() {
@@ -18,15 +19,15 @@ pub fn check_config(config: &Config) -> Result<()> {
     if config.processing_enabled() {
         for (name, topic) in config.unused_topic_assignments() {
             relay_log::with_scope(
-                |scope| scope.set_extra("topic", topic),
+                |scope| scope.set_extra("topic", format!("{topic:?}").into()),
                 || relay_log::error!("unused topic assignment '{name}'"),
             );
         }
 
-        for topic in KafkaTopic::iter() {
+        for topic in relay_kafka::KafkaTopic::iter() {
             let _ = config
-                .kafka_config(topic)
-                .with_context(|| format!("invalid kafka configuration for topic '{topic}'"))?;
+                .kafka_config(*topic)
+                .with_context(|| format!("invalid kafka configuration for topic '{topic:?}'"))?;
         }
     }
 

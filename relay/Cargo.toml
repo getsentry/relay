@@ -12,7 +12,7 @@ publish = false
 [features]
 dashboard = ["relay-server/dashboard", "relay-log/dashboard"]
 default = []
-processing = ["relay-server/processing"]
+processing = ["relay-server/processing", "dep:relay-kafka"]
 crash-handler = ["relay-log/crash-handler"]
 
 [lints]
@@ -30,6 +30,7 @@ relay-config = { workspace = true }
 relay-log = { workspace = true, features = ["init"] }
 relay-server = { workspace = true }
 relay-statsd = { workspace = true }
+relay-kafka = { workspace = true, optional = true }
 uuid = { workspace = true }
 
 [target.'cfg(target_os = "linux")'.dependencies]

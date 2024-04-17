@@ -41,6 +41,13 @@ class Relay(SentryLike):
         self.options = options
         self.version = version
 
+    def wait_for_exit(self, timeout=5):
+        try:
+            return self.process.wait(timeout)
+        except subprocess.TimeoutExpired:
+            self.process.kill()
+            raise
+
     def shutdown(self, sig=signal.SIGKILL):
         self.process.send_signal(sig)
 
