@@ -82,18 +82,20 @@ impl KafkaTopic {
 }
 
 macro_rules! define_topic_assignments {
-    ($struct_name:ident {
-        $($field_name:ident : ($kafka_topic:path, $default_topic: literal, $doc: literal)),* $(,)? }) => {
-
+    ($($field_name:ident : ($kafka_topic:path, $default_topic:literal, $doc:literal)),* $(,)?) => {
         /// Configuration for topics.
         #[derive(Serialize, Deserialize, Debug)]
         #[serde(default)]
         pub struct TopicAssignments {
             $(
                 #[serde(alias = $default_topic)]
-                #[doc=$doc]
+                #[doc = $doc]
                 pub $field_name: TopicAssignment,
             )*
+
+            /// Additional topic assignments configured but currently unused by this Relay instance.
+            #[serde(flatten)]
+            pub unused: BTreeMap<String, TopicAssignment>,
         }
 
         impl TopicAssignments{
@@ -114,7 +116,7 @@ macro_rules! define_topic_assignments {
                     $(
                         $field_name: $default_topic.to_owned().into(),
                     )*
-
+                    unused: BTreeMap::new(),
                 }
             }
         }
@@ -122,23 +124,21 @@ macro_rules! define_topic_assignments {
 }
 
 define_topic_assignments! {
-    TopicAssignments {
-        events: (KafkaTopic::Events, "ingest-events", "Simple events topic name."),
-        attachments: (KafkaTopic::Attachments, "ingest-attachments", "Events with attachments topic name."),
-        transactions: (KafkaTopic::Transactions, "ingest-transactions", "Transaction events topic name."),
-        outcomes: (KafkaTopic::Outcomes, "outcomes", "Outcomes topic name."),
-        outcomes_billing: (KafkaTopic::OutcomesBilling, "outcomes-billing", "Outcomes topic name for billing critical outcomes."),
-        metrics_sessions: (KafkaTopic::MetricsSessions, "ingest-metrics", "Topic name for metrics extracted from sessions, aka release health."),
-        metrics_generic: (KafkaTopic::MetricsGeneric, "ingest-performance-metrics", "Topic name for all other kinds of metrics."),
-        profiles: (KafkaTopic::Profiles, "profiles", "Stacktrace topic name"),
-        replay_events: (KafkaTopic::ReplayEvents, "ingest-replay-events", "Replay Events topic name."),
-        replay_recordings: (KafkaTopic::ReplayRecordings, "ingest-replay-recordings", "Recordings topic name."),
-        monitors: (KafkaTopic::Monitors, "ingest-monitors", "Monitor check-ins."),
-        spans: (KafkaTopic::Spans, "snuba-spans", "Standalone spans without a transaction."),
-        metrics_summaries: (KafkaTopic::MetricsSummaries, "snuba-metrics-summaries", "Summary for metrics collected during a span."),
-        cogs: (KafkaTopic::Cogs, "shared-resources-usage", "COGS measurements."),
-        feedback: (KafkaTopic::Feedback, "ingest-feedback-events", "Feedback events topic."),
-    }
+    events: (KafkaTopic::Events, "ingest-events", "Simple events topic name."),
+    attachments: (KafkaTopic::Attachments, "ingest-attachments", "Events with attachments topic name."),
+    transactions: (KafkaTopic::Transactions, "ingest-transactions", "Transaction events topic name."),
+    outcomes: (KafkaTopic::Outcomes, "outcomes", "Outcomes topic name."),
+    outcomes_billing: (KafkaTopic::OutcomesBilling, "outcomes-billing", "Outcomes topic name for billing critical outcomes."),
+    metrics_sessions: (KafkaTopic::MetricsSessions, "ingest-metrics", "Topic name for metrics extracted from sessions, aka release health."),
+    metrics_generic: (KafkaTopic::MetricsGeneric, "ingest-performance-metrics", "Topic name for all other kinds of metrics."),
+    profiles: (KafkaTopic::Profiles, "profiles", "Stacktrace topic name"),
+    replay_events: (KafkaTopic::ReplayEvents, "ingest-replay-events", "Replay Events topic name."),
+    replay_recordings: (KafkaTopic::ReplayRecordings, "ingest-replay-recordings", "Recordings topic name."),
+    monitors: (KafkaTopic::Monitors, "ingest-monitors", "Monitor check-ins."),
+    spans: (KafkaTopic::Spans, "snuba-spans", "Standalone spans without a transaction."),
+    metrics_summaries: (KafkaTopic::MetricsSummaries, "snuba-metrics-summaries", "Summary for metrics collected during a span."),
+    cogs: (KafkaTopic::Cogs, "shared-resources-usage", "COGS measurements."),
+    feedback: (KafkaTopic::Feedback, "ingest-feedback-events", "Feedback events topic."),
 }
 
 /// Configuration for a "logical" topic/datasink that Relay should forward data into.
