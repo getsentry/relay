@@ -414,10 +414,10 @@ fn get_normalize_span_config<'a>(
 fn set_segment_attributes(span: &mut Annotated<Span>) {
     let Some(span) = span.value_mut() else { return };
 
-    let is_root = span.parent_span_id.is_empty();
+    let is_definitely_segment = span.parent_span_id.is_empty() || span.segment_id == span.span_id;
 
-    // If `is_segment` was not set by the SDK and the span has no parent, assume it is a segment:
-    if is_root && span.is_segment.value().is_none() {
+    // If the span has no parent or it has the same ID as the segment, we know it is a segment.
+    if is_definitely_segment {
         span.is_segment = true.into();
     }
 
