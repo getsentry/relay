@@ -359,17 +359,7 @@ pub fn extract_tags(
                     scrubbed
                 };
 
-                if let Some(domain) = Url::parse(url).ok().and_then(|url| {
-                    url.host_str().map(|h| {
-                        let mut domain = h.to_lowercase();
-                        if let Some(port) = url.port() {
-                            domain = format!("{domain}:{port}");
-                        }
-                        domain
-                    })
-                }) {
-                    Some(domain)
-                } else if let Some(server_address) = span
+                if let Some(server_address) = span
                     .data
                     .value()
                     .and_then(|data| data.server_address.value())
@@ -403,6 +393,16 @@ pub fn extract_tags(
                     }
 
                     Some(concatenate_host_and_port(Some(domain.as_ref()), port).into_owned())
+                } else if let Some(domain) = Url::parse(url).ok().and_then(|url| {
+                    url.host_str().map(|h| {
+                        let mut domain = h.to_lowercase();
+                        if let Some(port) = url.port() {
+                            domain = format!("{domain}:{port}");
+                        }
+                        domain
+                    })
+                }) {
+                    Some(domain)
                 } else {
                     None
                 }
