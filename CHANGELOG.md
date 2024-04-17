@@ -9,6 +9,7 @@
 **Internal:**
 
 - Emit negative outcomes in metric stats for metrics. ([#3436](https://github.com/getsentry/relay/pull/3436))
+- Emit gauges for total and self times for spans. ([#3448](https://github.com/getsentry/relay/pull/3448))
 
 ## 24.4.0
 
