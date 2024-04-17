@@ -121,9 +121,9 @@ pub struct FieldAttrs {
     /// The extra char length allowance on top of max_chars.
     pub max_chars_allowance: usize,
     /// The maximum depth of this field.
-    pub max_struct_depth: Option<usize>,
+    pub max_depth: Option<usize>,
     /// The maximum number of bytes of this field.
-    pub max_struct_bytes: Option<usize>,
+    pub max_bytes: Option<usize>,
     /// The type of PII on the field.
     pub pii: Pii,
     /// Whether additional properties should be retained during normalization.
@@ -163,8 +163,8 @@ impl FieldAttrs {
             characters: None,
             max_chars: None,
             max_chars_allowance: 0,
-            max_struct_depth: None,
-            max_struct_bytes: None,
+            max_depth: None,
+            max_bytes: None,
             pii: Pii::False,
             retain: false,
         }

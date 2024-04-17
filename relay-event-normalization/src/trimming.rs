@@ -38,7 +38,7 @@ impl TrimmingProcessor {
             .iter()
             .filter_map(|size_state| {
                 // The current depth in the entire event payload minus the depth at which we found the
-                // max_struct_depth attribute is the depth where we are at in the property.
+                // max_depth attribute is the depth where we are at in the property.
                 let current_depth = state.depth() - size_state.encountered_at_depth;
                 size_state
                     .max_depth
@@ -63,14 +63,14 @@ impl Processor for TrimmingProcessor {
         _: &mut Meta,
         state: &ProcessingState<'_>,
     ) -> ProcessingResult {
-        // If we encounter a max_struct_bytes or max_struct_depth attribute it
+        // If we encounter a max_bytes or max_depth attribute it
         // resets the size and depth that is permitted below it.
         // XXX(iker): test setting only one of the two attributes.
-        if state.attrs().max_struct_bytes.is_some() || state.attrs().max_struct_depth.is_some() {
+        if state.attrs().max_bytes.is_some() || state.attrs().max_depth.is_some() {
             self.size_state.push(SizeState {
-                size_remaining: state.attrs().max_struct_bytes,
+                size_remaining: state.attrs().max_bytes,
                 encountered_at_depth: state.depth(),
-                max_depth: state.attrs().max_struct_depth,
+                max_depth: state.attrs().max_depth,
             });
         }
 

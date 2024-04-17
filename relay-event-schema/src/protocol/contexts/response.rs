@@ -15,7 +15,7 @@ pub struct ResponseContext {
     /// The cookie values.
     ///
     /// Can be given unparsed as string, as dictionary, or as a list of tuples.
-    #[metastructure(pii = "true", max_struct_depth = 5, max_struct_bytes = 2048)]
+    #[metastructure(pii = "true", max_depth = 5, max_bytes = 2048)]
     #[metastructure(skip_serialization = "empty")]
     pub cookies: Annotated<Cookies>,
 
@@ -23,7 +23,7 @@ pub struct ResponseContext {
     ///
     /// If a header appears multiple times it, needs to be merged according to the HTTP standard
     /// for header merging. Header names are treated case-insensitively by Sentry.
-    #[metastructure(pii = "true", max_struct_depth = 7, max_struct_bytes = 8192)]
+    #[metastructure(pii = "true", max_depth = 7, max_bytes = 8192)]
     #[metastructure(skip_serialization = "empty")]
     pub headers: Annotated<Headers>,
 
@@ -37,7 +37,7 @@ pub struct ResponseContext {
     ///
     /// SDKs should discard large and binary bodies by default. Can be given as a string or
     /// structural data of any format.
-    #[metastructure(pii = "true", max_struct_depth = 7, max_struct_bytes = 8192)]
+    #[metastructure(pii = "true", max_depth = 7, max_bytes = 8192)]
     pub data: Annotated<Value>,
 
     /// The inferred content type of the response payload.

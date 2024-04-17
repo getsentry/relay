@@ -132,15 +132,15 @@ pub struct Replay {
     pub replay_start_timestamp: Annotated<Timestamp>,
 
     /// A list of URLs visted during the lifetime of the segment.
-    #[metastructure(pii = "true", max_struct_depth = 7, max_struct_bytes = 8192)]
+    #[metastructure(pii = "true", max_depth = 7, max_bytes = 8192)]
     pub urls: Annotated<Array<String>>,
 
     /// A list of error-ids discovered during the lifetime of the segment.
-    #[metastructure(max_struct_depth = 5, max_struct_bytes = 2048)]
+    #[metastructure(max_depth = 5, max_bytes = 2048)]
     pub error_ids: Annotated<Array<Uuid>>,
 
     /// A list of trace-ids discovered during the lifetime of the segment.
-    #[metastructure(max_struct_depth = 5, max_struct_bytes = 2048)]
+    #[metastructure(max_depth = 5, max_bytes = 2048)]
     pub trace_ids: Annotated<Array<Uuid>>,
 
     /// Contexts describing the environment (e.g. device, os or browser).

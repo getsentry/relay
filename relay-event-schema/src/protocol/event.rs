@@ -66,7 +66,7 @@ impl FromStr for EventId {
 relay_common::impl_str_serde!(EventId, "an event identifier");
 
 #[derive(Debug, FromValue, IntoValue, ProcessValue, Empty, Clone, PartialEq)]
-pub struct ExtraValue(#[metastructure(max_struct_depth = 7, max_struct_bytes = 16_384)] pub Value);
+pub struct ExtraValue(#[metastructure(max_depth = 7, max_bytes = 16_384)] pub Value);
 
 #[cfg(feature = "jsonschema")]
 impl schemars::JsonSchema for ExtraValue {
@@ -243,11 +243,7 @@ pub struct Event {
     /// This is primarily used for suggesting to enable certain SDK integrations from within the UI
     /// and for making informed decisions on which frameworks to support in future development
     /// efforts.
-    #[metastructure(
-        skip_serialization = "empty_deep",
-        max_struct_depth = 7,
-        max_struct_bytes = 8192
-    )]
+    #[metastructure(skip_serialization = "empty_deep", max_depth = 7, max_bytes = 8192)]
     pub modules: Annotated<Object<String>>,
 
     /// Platform identifier of this event (defaults to "other").
@@ -407,7 +403,7 @@ pub struct Event {
     ///         "some_other_value": "foo bar"
     ///     }
     /// }```
-    #[metastructure(max_struct_depth = 7, max_struct_bytes = 262_144)]
+    #[metastructure(max_depth = 7, max_bytes = 262_144)]
     #[metastructure(pii = "true", skip_serialization = "empty")]
     pub extra: Annotated<Object<ExtraValue>>,
 
@@ -421,7 +417,7 @@ pub struct Event {
     pub client_sdk: Annotated<ClientSdkInfo>,
 
     /// Information about the Relays that processed this event during ingest.
-    #[metastructure(max_struct_depth = 5, max_struct_bytes = 2048)]
+    #[metastructure(max_depth = 5, max_bytes = 2048)]
     #[metastructure(skip_serialization = "empty", omit_from_schema)]
     pub ingest_path: Annotated<Array<RelayInfo>>,
 

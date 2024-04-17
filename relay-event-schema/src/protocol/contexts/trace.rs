@@ -182,8 +182,8 @@ pub struct Route {
     #[metastructure(
         pii = "true",
         skip_serialization = "empty",
-        max_struct_depth = 5,
-        max_struct_bytes = 2048
+        max_depth = 5,
+        max_bytes = 2048
     )]
     params: Annotated<Object<Value>>,
 

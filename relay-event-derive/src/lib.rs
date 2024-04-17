@@ -321,8 +321,8 @@ struct FieldAttrs {
     characters: Option<TokenStream>,
     max_chars: Option<TokenStream>,
     max_chars_allowance: Option<TokenStream>,
-    max_struct_depth: Option<TokenStream>,
-    max_struct_bytes: Option<TokenStream>,
+    max_depth: Option<TokenStream>,
+    max_bytes: Option<TokenStream>,
 }
 
 impl FieldAttrs {
@@ -384,18 +384,18 @@ impl FieldAttrs {
             quote!(0)
         };
 
-        let max_struct_depth = if let Some(ref max_struct_depth) = self.max_struct_depth {
-            quote!(Some(#max_struct_depth))
+        let max_depth = if let Some(ref max_depth) = self.max_depth {
+            quote!(Some(#max_depth))
         } else if let Some(ref parent_attrs) = inherit_from_field_attrs {
-            quote!(#parent_attrs.max_struct_depth)
+            quote!(#parent_attrs.max_depth)
         } else {
             quote!(None)
         };
 
-        let max_struct_bytes = if let Some(ref max_struct_bytes) = self.max_struct_bytes {
-            quote!(Some(#max_struct_bytes))
+        let max_bytes = if let Some(ref max_bytes) = self.max_bytes {
+            quote!(Some(#max_bytes))
         } else if let Some(ref parent_attrs) = inherit_from_field_attrs {
-            quote!(#parent_attrs.max_struct_bytes)
+            quote!(#parent_attrs.max_bytes)
         } else {
             quote!(None)
         };
@@ -417,8 +417,8 @@ impl FieldAttrs {
                 max_chars: #max_chars,
                 max_chars_allowance: #max_chars_allowance,
                 characters: #characters,
-                max_struct_depth: #max_struct_depth,
-                max_struct_bytes: #max_struct_bytes,
+                max_depth: #max_depth,
+                max_bytes: #max_bytes,
                 pii: #pii,
                 retain: #retain,
             }
@@ -554,22 +554,22 @@ fn parse_field_attributes(
                                         panic!("Got non integer literal for max_chars_allowance");
                                     }
                                 }
-                            } else if ident == "max_struct_depth" {
+                            } else if ident == "max_depth" {
                                 match name_value.lit {
                                     Lit::Int(litint) => {
-                                        rv.max_struct_depth = Some(quote!(#litint));
+                                        rv.max_depth = Some(quote!(#litint));
                                     }
                                     _ => {
-                                        panic!("Got non integer literal for max_struct_depth");
+                                        panic!("Got non integer literal for max_depth");
                                     }
                                 }
-                            } else if ident == "max_struct_bytes" {
+                            } else if ident == "max_bytes" {
                                 match name_value.lit {
                                     Lit::Int(litint) => {
-                                        rv.max_struct_bytes = Some(quote!(#litint));
+                                        rv.max_bytes = Some(quote!(#litint));
                                     }
                                     _ => {
-                                        panic!("Got non integer literal for max_struct_bytes");
+                                        panic!("Got non integer literal for max_bytes");
                                     }
                                 }
                             } else if ident == "pii" {
