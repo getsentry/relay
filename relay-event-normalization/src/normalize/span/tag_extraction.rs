@@ -377,7 +377,7 @@ pub fn extract_tags(
                 {
                     let lowercase_address = server_address.to_lowercase();
 
-                    // According to OTel semantic conventions the server port should be in a separate property, called `server.port`, but incoming data sometimes disagrees
+                    // According to OTel semantic conventions the server port should be in a separate property called `server.port`, but incoming data sometimes disagrees. We expect that the port will be appended to the host a lot of the time, especially in the JavaScript SDK
                     let (domain, port) = match lowercase_address.split_once(':') {
                         Some((domain, port)) => (domain, port.parse::<u16>().ok()),
                         None => (server_address, None),
