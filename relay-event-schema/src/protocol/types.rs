@@ -849,6 +849,20 @@ impl FromValue for LenientString {
     }
 }
 
+impl From<LenientString> for Value {
+    fn from(value: LenientString) -> Self {
+        value.into_value()
+    }
+}
+
+impl TryFrom<Value> for LenientString {
+    type Error = ();
+
+    fn try_from(value: Value) -> Result<Self, Self::Error> {
+        Self::from_value(value.into()).into_value().ok_or(())
+    }
+}
+
 /// A "into-string" type of value. All non-string values are serialized as JSON.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Empty, IntoValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
