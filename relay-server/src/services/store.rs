@@ -599,6 +599,15 @@ impl StoreService {
                     event_type = message.variant(),
                     topic = topic_name,
                 );
+                if topic_name == "ingest-feedback-events" {
+                    if let KafkaMessage::Event(event_msg) = message {
+                        relay_log::info!("Producing to ingest-feedback-events.\n start_time={}\n event_id={}\n project_id={}",
+                            event_msg.start_time,
+                            event_msg.event_id,
+                            event_msg.project_id
+                        );
+                    }
+                }
             }
         }
 
