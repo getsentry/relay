@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Features:**
+
+- Add inbound filters for Annotated<Replay> types. ([#3420](https://github.com/getsentry/relay/pull/3420))
+
 **Internal:**
 
 - Emit negative outcomes in metric stats for metrics. ([#3436](https://github.com/getsentry/relay/pull/3436))
