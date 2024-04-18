@@ -108,7 +108,7 @@ pub struct Breadcrumb {
     ///
     /// Contains a dictionary whose contents depend on the breadcrumb `type`. Additional parameters
     /// that are unsupported by the type are rendered as a key/value table.
-    #[metastructure(pii = "true", bag_size = "medium")]
+    #[metastructure(pii = "true", max_depth = 5, max_bytes = 2048)]
     #[metastructure(skip_serialization = "empty")]
     pub data: Annotated<Object<Value>>,
 

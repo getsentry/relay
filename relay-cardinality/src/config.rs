@@ -77,6 +77,19 @@ pub enum CardinalityScope {
     Unknown,
 }
 
+impl CardinalityScope {
+    /// Returns the string representation of this scope.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            CardinalityScope::Organization => "organization",
+            CardinalityScope::Project => "project",
+            CardinalityScope::Type => "type",
+            CardinalityScope::Name => "name",
+            CardinalityScope::Unknown => "unknown",
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

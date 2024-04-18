@@ -11,7 +11,8 @@ use anyhow::Context;
 use relay_auth::{generate_key_pair, generate_relay_id, PublicKey, RelayId, SecretKey};
 use relay_common::Dsn;
 use relay_kafka::{
-    ConfigError as KafkaConfigError, KafkaConfig, KafkaConfigParam, KafkaTopic, TopicAssignments,
+    ConfigError as KafkaConfigError, KafkaConfig, KafkaConfigParam, KafkaTopic, TopicAssignment,
+    TopicAssignments,
 };
 use relay_metrics::aggregator::{AggregatorConfig, ShiftKey};
 use relay_metrics::{
@@ -2240,6 +2241,11 @@ impl Config {
             &self.values.processing.kafka_config,
             &self.values.processing.secondary_kafka_configs,
         )
+    }
+
+    /// All unused but configured topic assignments.
+    pub fn unused_topic_assignments(&self) -> &BTreeMap<String, TopicAssignment> {
+        &self.values.processing.topics.unused
     }
 
     /// Redis servers to connect to, for rate limiting.

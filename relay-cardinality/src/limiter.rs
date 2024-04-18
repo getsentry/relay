@@ -217,6 +217,27 @@ impl<'a> Reporter<'a> for DefaultReporter<'a> {
     }
 }
 
+/// Split of the original source containing accepted and rejected source elements.
+#[derive(Debug)]
+pub struct CardinalityLimitsSplit<T> {
+    /// The list of accepted elements of the source.
+    pub accepted: Vec<T>,
+    /// The list of rejected elements of the source.
+    pub rejected: Vec<T>,
+}
+
+impl<T> CardinalityLimitsSplit<T> {
+    fn with_capacity(
+        accepted_capacity: usize,
+        rejected_capacity: usize,
+    ) -> CardinalityLimitsSplit<T> {
+        CardinalityLimitsSplit {
+            accepted: Vec::with_capacity(accepted_capacity),
+            rejected: Vec::with_capacity(rejected_capacity),
+        }
+    }
+}
+
 /// Result of [`CardinalityLimiter::check_cardinality_limits`].
 #[derive(Debug)]
 pub struct CardinalityLimits<'a, T> {
@@ -270,25 +291,36 @@ impl<'a, T> CardinalityLimits<'a, T> {
         self.rejections.iter().filter_map(|&i| self.source.get(i))
     }
 
-    /// Consumes the result and returns an iterator over all accepted items.
-    pub fn into_accepted(self) -> Vec<T> {
+    /// Consumes the result and returns [`CardinalityLimitsSplit`] containing all accepted and rejected items.
+    pub fn into_split(self) -> CardinalityLimitsSplit<T> {
         if self.rejections.is_empty() {
-            return self.source;
+            return CardinalityLimitsSplit {
+                accepted: self.source,
+                rejected: Vec::new(),
+            };
         } else if self.source.len() == self.rejections.len() {
-            return Vec::new();
+            return CardinalityLimitsSplit {
+                accepted: Vec::new(),
+                rejected: self.source,
+            };
         }
 
-        self.source
-            .into_iter()
-            .enumerate()
-            .filter_map(|(i, t)| {
+        // TODO: we might want to optimize this method later, by reusing one of the arrays and
+        // swap removing elements from it.
+        let source_len = self.source.len();
+        let rejections_len = self.rejections.len();
+        self.source.into_iter().enumerate().fold(
+            CardinalityLimitsSplit::with_capacity(source_len - rejections_len, rejections_len),
+            |mut split, (i, item)| {
                 if self.rejections.contains(&i) {
-                    None
+                    split.rejected.push(item);
                 } else {
-                    Some(t)
-                }
-            })
-            .collect()
+                    split.accepted.push(item);
+                };
+
+                split
+            },
+        )
     }
 }
 
@@ -353,15 +385,9 @@ mod tests {
 
     #[test]
     fn test_accepted() {
-        // Workaround for windows which requires an absurd amount of type annotations here.
-        fn assert_rejected(
-            limits: &CardinalityLimits<char>,
-            expected: impl IntoIterator<Item = char>,
-        ) {
-            assert_eq!(
-                limits.rejected().copied().collect::<HashSet<char>>(),
-                expected.into_iter().collect::<HashSet<char>>(),
-            );
+        // HACK: we need to make Windows happy.
+        fn assert_eq(value: Vec<char>, expected_value: Vec<char>) {
+            assert_eq!(value, expected_value)
         }
 
         let limits = CardinalityLimits {
@@ -370,9 +396,10 @@ mod tests {
             exceeded_limits: HashSet::new(),
             reports: BTreeMap::new(),
         };
-        assert_rejected(&limits, ['a', 'b', 'd']);
         assert!(limits.has_rejections());
-        assert_eq!(limits.into_accepted(), vec!['c', 'e']);
+        let split = limits.into_split();
+        assert_eq!(split.rejected, vec!['a', 'b', 'd']);
+        assert_eq!(split.accepted, vec!['c', 'e']);
 
         let limits = CardinalityLimits {
             source: vec!['a', 'b', 'c', 'd', 'e'],
@@ -380,9 +407,10 @@ mod tests {
             exceeded_limits: HashSet::new(),
             reports: BTreeMap::new(),
         };
-        assert_rejected(&limits, []);
         assert!(!limits.has_rejections());
-        assert_eq!(limits.into_accepted(), vec!['a', 'b', 'c', 'd', 'e']);
+        let split = limits.into_split();
+        assert_eq(split.rejected, vec![]);
+        assert_eq!(split.accepted, vec!['a', 'b', 'c', 'd', 'e']);
 
         let limits = CardinalityLimits {
             source: vec!['a', 'b', 'c', 'd', 'e'],
@@ -391,8 +419,9 @@ mod tests {
             reports: BTreeMap::new(),
         };
         assert!(limits.has_rejections());
-        assert_rejected(&limits, ['a', 'b', 'c', 'd', 'e']);
-        assert!(limits.into_accepted().is_empty());
+        let split = limits.into_split();
+        assert_eq!(split.rejected, vec!['a', 'b', 'c', 'd', 'e']);
+        assert_eq(split.accepted, vec![]);
     }
 
     #[test]
@@ -421,20 +450,19 @@ mod tests {
 
         let limiter = CardinalityLimiter::new(RejectAllLimiter);
 
+        let items = vec![
+            Item::new(0, MetricNamespace::Transactions),
+            Item::new(1, MetricNamespace::Transactions),
+        ];
         let limits = build_limits();
         let result = limiter
-            .check_cardinality_limits(
-                build_scoping(),
-                &limits,
-                vec![
-                    Item::new(0, MetricNamespace::Transactions),
-                    Item::new(1, MetricNamespace::Transactions),
-                ],
-            )
+            .check_cardinality_limits(build_scoping(), &limits, items.clone())
             .unwrap();
 
         assert_eq!(result.exceeded_limits(), &HashSet::from([&limits[0]]));
-        assert!(result.into_accepted().is_empty());
+        let split = result.into_split();
+        assert_eq!(split.rejected, items);
+        assert!(split.accepted.is_empty());
     }
 
     #[test]
@@ -468,7 +496,9 @@ mod tests {
             .check_cardinality_limits(build_scoping(), &limits, items.clone())
             .unwrap();
 
-        assert_eq!(result.into_accepted(), items);
+        let split = result.into_split();
+        assert!(split.rejected.is_empty());
+        assert_eq!(split.accepted, items);
     }
 
     #[test]
@@ -511,13 +541,22 @@ mod tests {
             Item::new(5, MetricNamespace::Transactions),
             Item::new(6, MetricNamespace::Spans),
         ];
-        let accepted = limiter
+        let split = limiter
             .check_cardinality_limits(build_scoping(), &build_limits(), items)
             .unwrap()
-            .into_accepted();
+            .into_split();
 
         assert_eq!(
-            accepted,
+            split.rejected,
+            vec![
+                Item::new(0, MetricNamespace::Sessions),
+                Item::new(2, MetricNamespace::Spans),
+                Item::new(4, MetricNamespace::Custom),
+                Item::new(6, MetricNamespace::Spans),
+            ]
+        );
+        assert_eq!(
+            split.accepted,
             vec![
                 Item::new(1, MetricNamespace::Transactions),
                 Item::new(3, MetricNamespace::Custom),
@@ -592,19 +631,17 @@ mod tests {
         assert!(limited.has_rejections());
         assert_eq!(limited.exceeded_limits(), &limits.iter().collect());
 
-        // All passive items and no enforced (passive = False) should be accepted.
-        let rejected = limited.rejected().collect::<HashSet<_>>();
+        let split = limited.into_split();
         assert_eq!(
-            rejected,
-            HashSet::from([
-                &Item::new(0, MetricNamespace::Custom),
-                &Item::new(2, MetricNamespace::Custom),
-                &Item::new(4, MetricNamespace::Custom),
-            ])
+            split.rejected,
+            vec![
+                Item::new(0, MetricNamespace::Custom),
+                Item::new(2, MetricNamespace::Custom),
+                Item::new(4, MetricNamespace::Custom),
+            ]
         );
-        drop(rejected); // NLL are broken here without the explicit drop
         assert_eq!(
-            limited.into_accepted(),
+            split.accepted,
             vec![
                 Item::new(1, MetricNamespace::Custom),
                 Item::new(3, MetricNamespace::Custom),
