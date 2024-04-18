@@ -110,9 +110,12 @@ macro_rules! map_fields {
             type Error = ();
 
             fn try_from(span: &Span) -> Result<Self, ()> {
-                // use relay_protocol::Empty;
-
                 let mut event = Event::default();
+
+                if !span.is_segment.value().unwrap_or(&false) {
+                    // Only segment spans can become transactions.
+                    return Err(());
+                }
 
                 $(
                     if let Some(value) = read_value!(span, $($span_path)+) {

@@ -84,7 +84,7 @@ pub fn extract<G: EventProcessing>(
         metric!(timer(RelayTimers::EventProcessingDeserialize), {
             // Transaction items can only contain transaction events. Force the event type to
             // hint to normalization that we're dealing with a transaction now.
-            event_from_json_payload(item, Some(EventType::Transaction))?
+            event_from_json_payload(dbg!(item), Some(EventType::Transaction))?
         })
     } else if let Some(item) = user_report_v2_item {
         relay_log::trace!("processing user_report_v2");

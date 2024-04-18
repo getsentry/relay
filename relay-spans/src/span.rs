@@ -83,12 +83,15 @@ pub fn otel_to_sentry_span(otel_span: OtelSpan) -> EventSpan {
 
     let span_id = hex::encode(span_id);
     let trace_id = hex::encode(trace_id);
-    let parent_span_id = hex::encode(parent_span_id);
+    let parent_span_id = match parent_span_id.as_slice() {
+        &[] => None,
+        _ => Some(hex::encode(parent_span_id)),
+    };
 
-    // TODO: This is wrong, a segment could still have a parent in the trace.
-    let segment_id = if parent_span_id.is_empty() {
+    let segment_id = if parent_span_id.is_none() {
         Annotated::new(SpanId(span_id.clone()))
     } else {
+        // TODO: derive from attributes
         Annotated::empty()
     };
 
@@ -167,7 +170,7 @@ pub fn otel_to_sentry_span(otel_span: OtelSpan) -> EventSpan {
     }
 
     // TODO: This is wrong, a segment could still have a parent in the trace.
-    let is_segment = parent_span_id.is_empty().into();
+    let is_segment = parent_span_id.is_none().into();
 
     if let (Some(http_method), Some(http_route)) = (http_method, http_route) {
         description = format!("{} {}", http_method, http_route);
@@ -178,7 +181,7 @@ pub fn otel_to_sentry_span(otel_span: OtelSpan) -> EventSpan {
         description: description.into(),
         data: SpanData::from_value(Annotated::new(data.into())),
         exclusive_time: exclusive_time_ms.into(),
-        parent_span_id: SpanId(parent_span_id).into(),
+        parent_span_id: parent_span_id.map(SpanId).into(),
         segment_id,
         span_id: Annotated::new(SpanId(span_id)),
         start_timestamp: Timestamp(start_timestamp).into(),
