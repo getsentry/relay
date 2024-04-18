@@ -413,11 +413,15 @@ fn get_normalize_span_config<'a>(
 
 fn set_segment_attributes(span: &mut Annotated<Span>) {
     let Some(span) = span.value_mut() else { return };
+    let Some(span_id) = span.span_id.value() else {
+        return;
+    };
 
-    let is_definitely_segment = span.parent_span_id.is_empty() || span.segment_id == span.span_id;
-
-    // If the span has no parent or it has the same ID as the segment, we know it is a segment.
-    if is_definitely_segment {
+    if let Some(segment_id) = span.segment_id.value() {
+        // The span is a segment if and only if the segment_id matches the span_id.
+        span.is_segment = (segment_id == span_id).into();
+    } else if span.parent_span_id.is_empty() {
+        // If the span has no parent, it is automatically a segment:
         span.is_segment = true.into();
     }
 
@@ -770,10 +774,64 @@ mod tests {
         }"#,
         )
         .unwrap();
-
         set_segment_attributes(&mut span);
-
         assert_eq!(get_value!(span.is_segment!), &true);
         assert_eq!(get_value!(span.segment_id!).0.as_str(), "fa90fdead5f74052");
+    }
+
+    #[test]
+    fn segment_overwrite_because_of_segment_id() {
+        let mut span: Annotated<Span> = Annotated::from_json(
+            r#"{
+         "is_segment": false,
+         "span_id": "fa90fdead5f74052",
+         "segment_id": "fa90fdead5f74052",
+         "parent_span_id": "fa90fdead5f74051"
+     }"#,
+        )
+        .unwrap();
+        set_segment_attributes(&mut span);
+        assert_eq!(get_value!(span.is_segment!), &true);
+    }
+
+    #[test]
+    fn segment_overwrite_because_of_missing_parent() {
+        let mut span: Annotated<Span> = Annotated::from_json(
+            r#"{
+         "is_segment": false,
+         "span_id": "fa90fdead5f74052"
+     }"#,
+        )
+        .unwrap();
+        set_segment_attributes(&mut span);
+        assert_eq!(get_value!(span.is_segment!), &true);
+        assert_eq!(get_value!(span.segment_id!).0.as_str(), "fa90fdead5f74052");
+    }
+
+    #[test]
+    fn segment_no_parent_but_segment() {
+        let mut span: Annotated<Span> = Annotated::from_json(
+            r#"{
+         "span_id": "fa90fdead5f74052",
+         "segment_id": "ea90fdead5f74051"
+     }"#,
+        )
+        .unwrap();
+        set_segment_attributes(&mut span);
+        assert_eq!(get_value!(span.is_segment!), &false);
+        assert_eq!(get_value!(span.segment_id!).0.as_str(), "ea90fdead5f74051");
+    }
+
+    #[test]
+    fn segment_only_parent() {
+        let mut span: Annotated<Span> = Annotated::from_json(
+            r#"{
+         "parent_span_id": "fa90fdead5f74051"
+     }"#,
+        )
+        .unwrap();
+        set_segment_attributes(&mut span);
+        assert_eq!(get_value!(span.is_segment), None);
+        assert_eq!(get_value!(span.segment_id), None);
     }
 }
