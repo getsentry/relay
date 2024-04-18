@@ -11,6 +11,7 @@
 
 - Emit negative outcomes in metric stats for metrics. ([#3436](https://github.com/getsentry/relay/pull/3436))
 - Add new inbound filter: Permission denied to access property "x" ([#3442](https://github.com/getsentry/relay/pull/3442))
+- Emit negative outcomes in metrics stats in pop relays. ([#3452](https://github.com/getsentry/relay/pull/3452))
 
 ## 24.4.0
 
