@@ -2,7 +2,7 @@
 //! the implementation for [`Event`].
 use url::Url;
 
-use relay_event_schema::protocol::{Csp, Event, EventType, Exception, LogEntry, Values};
+use relay_event_schema::protocol::{Csp, Event, EventType, Exception, LogEntry, Replay, Values};
 
 /// A data item to which filters can be applied.
 pub trait Filterable {
@@ -61,6 +61,42 @@ impl Filterable for Event {
             return None;
         }
         self.transaction.as_str()
+    }
+
+    fn url(&self) -> Option<Url> {
+        let url_str = self.request.value()?.url.value()?;
+        Url::parse(url_str).ok()
+    }
+
+    fn user_agent(&self) -> Option<&str> {
+        self.user_agent()
+    }
+}
+
+impl Filterable for Replay {
+    fn csp(&self) -> Option<&Csp> {
+        None
+    }
+
+    fn exceptions(&self) -> Option<&Values<Exception>> {
+        None
+    }
+
+    fn ip_addr(&self) -> Option<&str> {
+        let user = self.user.value()?;
+        Some(user.ip_address.value()?.as_ref())
+    }
+
+    fn logentry(&self) -> Option<&LogEntry> {
+        None
+    }
+
+    fn release(&self) -> Option<&str> {
+        self.release.as_str()
+    }
+
+    fn transaction(&self) -> Option<&str> {
+        None
     }
 
     fn url(&self) -> Option<Url> {

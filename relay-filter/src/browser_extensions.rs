@@ -48,7 +48,10 @@ static EXTENSION_EXC_VALUES: Lazy<Regex> = Lazy::new(|| {
         # Googletag is also very similar, caused by adblockers
         Cannot\sredefine\sproperty:\s(solana|ethereum|googletag)|
         # Translation service errors in Chrome on iOS
-        undefined\sis\snot\san\sobject\s\(evaluating\s'a.L'\)
+        undefined\sis\snot\san\sobject\s\(evaluating\s'a.L'\)|
+        # https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Errors/Property_access_denied
+        # Usually caused by extensions that do stuff that isn't allowed
+        Permission\sdenied\sto\saccess\sproperty\s
     "#,
     )
     .expect("Invalid browser extensions filter (Exec Vals) Regex")
@@ -269,6 +272,8 @@ mod tests {
             "Cannot redefine property: ethereum",
             "Cannot redefine property: googletag",
             "undefined is not an object (evaluating 'a.L')",
+            "Permission denied to access property \"correspondingUseElement\"",
+            "Permission denied to access property \"document\"",
         ];
 
         for exc_value in &exceptions {

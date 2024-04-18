@@ -310,8 +310,9 @@ def envelope_with_spans(
                     {
                         "description": "https://example.com/p/blah.js",
                         "op": "resource.script",
-                        "span_id": "bd429c44b67a3eb1",
-                        "segment_id": "968cff94913ebb07",
+                        # Span with the same `span_id` and `segment_id`, to make sure it is classified as `is_segment`.
+                        "span_id": "b0429c44b67a3eb1",
+                        "segment_id": "b0429c44b67a3eb1",
                         "start_timestamp": start.timestamp(),
                         "timestamp": end.timestamp() + 1,
                         "exclusive_time": 345.0,  # The SDK knows that this span has a lower exclusive time
@@ -518,7 +519,7 @@ def test_span_ingestion(
             "organization_id": 1,
             "project_id": 42,
             "retention_days": 90,
-            "segment_id": "bd429c44b67a3eb1",
+            "segment_id": "b0429c44b67a3eb1",
             "sentry_tags": {
                 "browser.name": "Chrome",
                 "category": "resource",
@@ -528,7 +529,7 @@ def test_span_ingestion(
                 "group": "8a97a9e43588e2bd",
                 "op": "resource.script",
             },
-            "span_id": "bd429c44b67a3eb1",
+            "span_id": "b0429c44b67a3eb1",
             "start_timestamp_ms": int(start.timestamp() * 1e3),
             "trace_id": "ff62a8b040f340bda5d830223def1d81",
         },
@@ -536,11 +537,11 @@ def test_span_ingestion(
             "description": r"test \" with \" escaped \" chars",
             "duration_ms": 1500,
             "exclusive_time_ms": 345.0,
-            "is_segment": True,
+            "is_segment": False,
             "organization_id": 1,
             "project_id": 42,
             "retention_days": 90,
-            "segment_id": "cd429c44b67a3eb1",
+            "segment_id": "968cff94913ebb07",
             "sentry_tags": {"browser.name": "Chrome", "op": "default"},
             "span_id": "cd429c44b67a3eb1",
             "start_timestamp_ms": int(start.timestamp() * 1e3),
@@ -567,11 +568,11 @@ def test_span_ingestion(
         {
             "duration_ms": 1500,
             "exclusive_time_ms": 345.0,
-            "is_segment": True,
+            "is_segment": False,
             "organization_id": 1,
             "project_id": 42,
             "retention_days": 90,
-            "segment_id": "ed429c44b67a3eb1",
+            "segment_id": "968cff94913ebb07",
             "sentry_tags": {
                 "browser.name": "Chrome",
                 "op": "default",
@@ -600,7 +601,7 @@ def test_span_ingestion(
 
     # If transaction extraction is enabled, expect transactions:
     if extract_transaction:
-        expected_transactions = 5
+        expected_transactions = 3
 
         transactions = [
             transactions_consumer.get_event()[0] for _ in range(expected_transactions)
@@ -787,14 +788,9 @@ def test_span_ingestion(
         assert {
             (m["name"], m["tags"]["transaction"]) for m in transaction_duration_metrics
         } == {
-            ("d:transactions/duration@millisecond", "<unlabeled transaction>"),
             ("d:transactions/duration@millisecond", "https://example.com/p/blah.js"),
             ("d:transactions/duration@millisecond", "my 1st OTel span"),
             ("d:transactions/duration@millisecond", "my 2nd OTel span"),
-            (
-                "d:transactions/duration@millisecond",
-                'test \\" with \\" escaped \\" chars',
-            ),
         }
         # Make sure we're not double-reporting:
         for m in transaction_duration_metrics:
@@ -1204,7 +1200,7 @@ def test_span_ingestion_with_performance_scores(
                     {
                         "op": "ui.interaction.click",
                         "span_id": "bd429c44b67a3eb1",
-                        "segment_id": "968cff94913ebb07",
+                        "segment_id": "bd429c44b67a3eb1",
                         "start_timestamp": start.timestamp(),
                         "timestamp": end.timestamp() + 1,
                         "exclusive_time": 345.0,  # The SDK knows that this span has a lower exclusive time
@@ -1234,8 +1230,8 @@ def test_span_ingestion_with_performance_scores(
                         },
                         "profile_id": "3d9428087fda4ba0936788b70a7587d0",
                         "op": "ui.interaction.click",
-                        "span_id": "bd429c44b67a3eb1",
-                        "segment_id": "968cff94913ebb07",
+                        "span_id": "cd429c44b67a3eb1",
+                        "segment_id": "cd429c44b67a3eb1",
                         "start_timestamp": start.timestamp(),
                         "timestamp": end.timestamp() + 1,
                         "exclusive_time": 345.0,  # The SDK knows that this span has a lower exclusive time
@@ -1301,7 +1297,7 @@ def test_span_ingestion_with_performance_scores(
             "organization_id": 1,
             "project_id": 42,
             "retention_days": 90,
-            "segment_id": "bd429c44b67a3eb1",
+            "segment_id": "cd429c44b67a3eb1",
             "sentry_tags": {
                 "browser.name": "Python Requests",
                 "op": "ui.interaction.click",
@@ -1309,7 +1305,7 @@ def test_span_ingestion_with_performance_scores(
                 "replay_id": "8477286c8e5148b386b71ade38374d58",
                 "user": "admin@sentry.io",
             },
-            "span_id": "bd429c44b67a3eb1",
+            "span_id": "cd429c44b67a3eb1",
             "start_timestamp_ms": int(start.timestamp() * 1e3),
             "trace_id": "ff62a8b040f340bda5d830223def1d81",
             "measurements": {

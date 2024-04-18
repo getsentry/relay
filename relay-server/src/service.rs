@@ -323,10 +323,10 @@ impl Runtimes {
     #[allow(unused_variables)]
     pub fn new(config: &Config) -> Self {
         Self {
-            upstream: create_runtime("upstream-rt", 1),
+            upstream: create_runtime("upstream-rt", 2),
             project: create_runtime("project-rt", 2),
-            aggregator: create_runtime("aggregator-rt", 1),
-            outcome: create_runtime("outcome-rt", 1),
+            aggregator: create_runtime("aggregator-rt", 2),
+            outcome: create_runtime("outcome-rt", 2),
             #[cfg(feature = "processing")]
             store: config
                 .processing_enabled()

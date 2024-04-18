@@ -3599,6 +3599,7 @@ dependencies = [
  "hostname",
  "once_cell",
  "relay-config",
+ "relay-kafka",
  "relay-log",
  "relay-server",
  "relay-statsd",

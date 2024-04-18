@@ -462,11 +462,14 @@ pub enum ProcessingError {
 
     #[error("invalid replay")]
     InvalidReplay(DiscardReason),
+
+    #[error("replay filtered with reason: {0:?}")]
+    ReplayFiltered(FilterStatKey),
 }
 
 impl ProcessingError {
     fn to_outcome(&self) -> Option<Outcome> {
-        match *self {
+        match self {
             // General outcomes for invalid events
             Self::PayloadTooLarge => Some(Outcome::Invalid(DiscardReason::TooLarge)),
             Self::InvalidJson(_) => Some(Outcome::Invalid(DiscardReason::InvalidJson)),
@@ -505,7 +508,8 @@ impl ProcessingError {
             Self::EventFiltered(_) => None,
             Self::InvalidProcessingGroup(_) => None,
 
-            Self::InvalidReplay(reason) => Some(Outcome::Invalid(reason)),
+            Self::InvalidReplay(reason) => Some(Outcome::Invalid(*reason)),
+            Self::ReplayFiltered(key) => Some(Outcome::Filtered(key.clone())),
         }
     }
 
@@ -1533,7 +1537,11 @@ impl EnvelopeProcessorService {
         &self,
         state: &mut ProcessEnvelopeState<ReplayGroup>,
     ) -> Result<(), ProcessingError> {
-        replay::process(state, &self.inner.config)?;
+        replay::process(
+            state,
+            &self.inner.config,
+            &self.inner.global_config.current(),
+        )?;
         if_processing!(self.inner.config, {
             self.enforce_quotas(state)?;
         });

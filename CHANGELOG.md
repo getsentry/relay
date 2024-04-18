@@ -2,9 +2,15 @@
 
 ## Unreleased
 
+**Features**:
+
+- Add inbound filters for Annotated<Replay> types. ([#3420](https://github.com/getsentry/relay/pull/3420))
+- Add Linux distributions to os context. ([#3443](https://github.com/getsentry/relay/pull/3443))
+
 **Internal:**
 
 - Emit negative outcomes in metric stats for metrics. ([#3436](https://github.com/getsentry/relay/pull/3436))
+- Add new inbound filter: Permission denied to access property "x" ([#3442](https://github.com/getsentry/relay/pull/3442))
 
 ## 24.4.0
 
@@ -12,6 +18,7 @@
 
 - Fix performance regression in disk spooling by using page counts to estimate the spool size. ([#3379](https://github.com/getsentry/relay/pull/3379))
 - Perform clock drift normalization only when `sent_at` is set in the `Envelope` headers. ([#3405](https://github.com/getsentry/relay/pull/3405))
+- Do not overwrite `span.is_segment: true` if already set by SDK. ([#3411](https://github.com/getsentry/relay/pull/3411))
 
 **Features**:
 

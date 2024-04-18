@@ -189,10 +189,13 @@ impl MetricStats {
             if let Some(t) = name.try_type() {
                 tags.insert("mri.type".to_owned(), t.to_string());
             }
-        }
-
-        if let Some(t) = report.metric_type {
-            tags.insert("mri.type".to_owned(), t.to_string());
+        } else {
+            if let Some(namespace) = limit.namespace {
+                tags.insert("mri.namespace".to_owned(), namespace.to_string());
+            }
+            if let Some(t) = report.metric_type {
+                tags.insert("mri.type".to_owned(), t.to_string());
+            }
         }
 
         Some(Bucket {
@@ -213,7 +216,7 @@ mod tests {
     use relay_cardinality::{CardinalityScope, SlidingWindow};
     use relay_dynamic_config::GlobalConfig;
     #[cfg(feature = "processing")]
-    use relay_metrics::MetricType;
+    use relay_metrics::{MetricNamespace, MetricType};
     use relay_quotas::ReasonCode;
     use tokio::sync::mpsc::UnboundedReceiver;
 
@@ -400,7 +403,7 @@ mod tests {
             },
             limit: 99,
             scope: CardinalityScope::Type,
-            namespace: None,
+            namespace: Some(MetricNamespace::Spans),
         };
         let report = CardinalityReport {
             organization_id: Some(scoping.organization_id),
@@ -438,6 +441,7 @@ mod tests {
             bucket.tags,
             tags!(
                 ("mri.type", "d"),
+                ("mri.namespace", "spans"),
                 ("cardinality.limit", "test"),
                 ("cardinality.scope", "type"),
                 ("cardinality.window", "246"),
