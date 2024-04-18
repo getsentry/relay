@@ -247,10 +247,8 @@ mod tests {
                 code_namespace: ~,
                 db_operation: ~,
                 db_system: ~,
-                environment: String(
-                    "prod",
-                ),
-                release: String(
+                environment: "prod",
+                release: LenientString(
                     "myapp@1.0.0",
                 ),
                 http_decoded_response_content_length: ~,
