@@ -6,6 +6,7 @@ use crate::{
     aggregator, BucketMetadata, CounterType, DistributionType, GaugeValue, MetricName, SetType,
     SetValue,
 };
+use relay_base_schema::metrics::MetricType;
 use std::collections::BTreeMap;
 use std::fmt;
 use std::ops::Range;
@@ -385,6 +386,11 @@ impl<'a> BucketView<'a> {
             BucketValue::Set(s) => BucketViewValue::Set(SetView::new(s, self.range.clone())),
             BucketValue::Gauge(g) => BucketViewValue::Gauge(*g),
         }
+    }
+
+    /// Type of the value of the bucket view.
+    pub fn value_ty(&self) -> MetricType {
+        self.inner.value.ty()
     }
 
     /// Name of the bucket.

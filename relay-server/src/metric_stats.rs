@@ -6,7 +6,9 @@ use relay_cardinality::{CardinalityLimit, CardinalityReport};
 use relay_config::Config;
 #[cfg(feature = "processing")]
 use relay_metrics::GaugeValue;
-use relay_metrics::{Aggregator, Bucket, BucketValue, MergeBuckets, MetricName, UnixTimestamp};
+use relay_metrics::{
+    Aggregator, Bucket, BucketValue, BucketView, MergeBuckets, MetricName, UnixTimestamp,
+};
 use relay_quotas::Scoping;
 use relay_system::Addr;
 
@@ -61,20 +63,23 @@ impl MetricStats {
     }
 
     /// Tracks the metric volume and outcome for the bucket.
-    pub fn track_metric(&self, scoping: Scoping, bucket: Bucket, outcome: Outcome) {
-        // TODO: we want to use a reference of bucket view.
+    pub fn track_metric<'a, V>(&self, scoping: Scoping, bucket: V, outcome: Outcome)
+    where
+        V: Into<BucketView<'a>>,
+    {
         if !self.is_enabled(scoping) {
             return;
         }
 
-        let Some(volume) = self.to_volume_metric(&bucket, &outcome) else {
+        let bucket_view = bucket.into();
+        let Some(volume) = self.to_volume_metric(&bucket_view, &outcome) else {
             return;
         };
 
         relay_log::trace!(
             "Tracking volume of {} for mri '{}': {}",
-            bucket.metadata.merges.get(),
-            bucket.name,
+            bucket_view.metadata().merges.get(),
+            bucket_view.name(),
             outcome
         );
         self.aggregator
@@ -121,20 +126,24 @@ impl MetricStats {
         is_rolled_out(organization_id, rate)
     }
 
-    fn to_volume_metric(&self, bucket: &Bucket, outcome: &Outcome) -> Option<Bucket> {
-        let volume = bucket.metadata.merges.get();
+    fn to_volume_metric<'a>(
+        &self,
+        bucket_view: &BucketView<'a>,
+        outcome: &Outcome,
+    ) -> Option<Bucket> {
+        let volume = bucket_view.metadata().merges.get();
         if volume == 0 {
             return None;
         }
 
-        let namespace = bucket.name.namespace();
+        let namespace = bucket_view.name().namespace();
         if !namespace.has_metric_stats() {
             return None;
         }
 
         let mut tags = BTreeMap::from([
-            ("mri".to_owned(), bucket.name.to_string()),
-            ("mri.type".to_owned(), bucket.value.ty().to_string()),
+            ("mri".to_owned(), bucket_view.name().to_string()),
+            ("mri.type".to_owned(), bucket_view.value_ty().to_string()),
             ("mri.namespace".to_owned(), namespace.to_string()),
             (
                 "outcome.id".to_owned(),
