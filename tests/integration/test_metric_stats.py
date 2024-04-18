@@ -136,7 +136,7 @@ def test_metric_stats_simple(
     assert len(metrics.other) == 3
 
 
-@pytest.mark.parametrize("mode", ["default"])
+@pytest.mark.parametrize("mode", ["default", "chain"])
 def test_metric_stats_with_limit_surpassed(
     mini_sentry, relay, relay_with_processing, relay_credentials, metrics_consumer, mode
 ):
