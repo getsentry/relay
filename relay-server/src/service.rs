@@ -2,6 +2,7 @@ use std::convert::Infallible;
 use std::fmt;
 use std::sync::Arc;
 
+use crate::metric_stats::MetricStats;
 use anyhow::{Context, Result};
 use axum::extract::FromRequestParts;
 use axum::http::request::Parts;
@@ -136,8 +137,7 @@ impl ServiceState {
         )
         .start_in(&runtimes.aggregator);
 
-        #[cfg(feature = "processing")]
-        let metric_stats = crate::metric_stats::MetricStats::new(
+        let metric_stats = MetricStats::new(
             config.clone(),
             global_config_handle.clone(),
             aggregator.clone(),
@@ -181,8 +181,7 @@ impl ServiceState {
                 #[cfg(feature = "processing")]
                 store_forwarder: store.clone(),
             },
-            #[cfg(feature = "processing")]
-            metric_stats,
+            metric_stats.clone(),
             #[cfg(feature = "processing")]
             buffer_guard.clone(),
         )
@@ -197,6 +196,7 @@ impl ServiceState {
             test_store.clone(),
             upstream_relay.clone(),
             global_config.clone(),
+            metric_stats,
         );
         let guard = runtimes.project.enter();
         ProjectCacheService::new(

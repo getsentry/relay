@@ -62,6 +62,7 @@ impl MetricStats {
 
     /// Tracks the metric volume and outcome for the bucket.
     pub fn track_metric(&self, scoping: Scoping, bucket: Bucket, outcome: Outcome) {
+        // TODO: we want to use a reference of bucket view.
         if !self.is_enabled(scoping) {
             return;
         }

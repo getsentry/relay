@@ -3,6 +3,7 @@ use std::error::Error;
 use std::sync::Arc;
 use std::time::Duration;
 
+use crate::metric_stats::MetricStats;
 use hashbrown::HashSet;
 use relay_base_schema::project::ProjectKey;
 use relay_config::{Config, RelayMode};
@@ -467,6 +468,7 @@ pub struct Services {
     pub test_store: Addr<TestStore>,
     pub upstream_relay: Addr<UpstreamRelay>,
     pub global_config: Addr<GlobalConfigManager>,
+    pub metric_stats: MetricStats,
 }
 
 impl Services {
@@ -480,6 +482,7 @@ impl Services {
         test_store: Addr<TestStore>,
         upstream_relay: Addr<UpstreamRelay>,
         global_config: Addr<GlobalConfigManager>,
+        metric_stats: MetricStats,
     ) -> Self {
         Self {
             aggregator,
@@ -489,6 +492,7 @@ impl Services {
             test_store,
             upstream_relay,
             global_config,
+            metric_stats,
         }
     }
 }
@@ -832,8 +836,11 @@ impl ProjectCacheBroker {
         let mut output = BTreeMap::new();
         for (project_key, buckets) in message.buckets {
             let outcome_aggregator = self.services.outcome_aggregator.clone();
+            let metric_stats = self.services.metric_stats.clone();
             let project = self.get_or_create_project(project_key);
-            if let Some((scoping, b)) = project.check_buckets(outcome_aggregator, buckets) {
+            if let Some((scoping, b)) =
+                project.check_buckets(outcome_aggregator, metric_stats, buckets)
+            {
                 output.insert(scoping, b);
             }
         }

@@ -2424,7 +2424,7 @@ impl EnvelopeProcessorService {
     ///  - partitioning
     ///  - batching by configured size limit
     ///  - serialize to JSON
-    ///  - submit the directly to the upstream
+    ///  - submit directly to the upstream
     ///
     /// Cardinality limiting and rate limiting run only in processing Relays as they both require
     /// access to the central Redis instance. Cached rate limits are applied in the project cache

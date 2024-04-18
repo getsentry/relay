@@ -29,6 +29,7 @@ use crate::services::processor::{EncodeMetricMeta, EnvelopeProcessor, ProjectMet
 use crate::services::project_cache::{CheckedEnvelope, ProjectCache, RequestUpdate};
 
 use crate::extractors::RequestMeta;
+use crate::metric_stats::MetricStats;
 use crate::statsd::RelayCounters;
 use crate::utils::{
     self, EnvelopeLimiter, ExtractionMode, ManagedEnvelope, MetricsLimiter, RetryBackoff,
@@ -1137,9 +1138,10 @@ impl Project {
     pub fn check_buckets(
         &mut self,
         outcome_aggregator: Addr<TrackOutcome>,
+        metric_stats: MetricStats,
         buckets: Vec<Bucket>,
     ) -> Option<(Scoping, ProjectMetrics)> {
-        match self.check_buckets_inner(outcome_aggregator, buckets) {
+        match self.check_buckets_inner(outcome_aggregator, metric_stats, buckets) {
             CheckedBuckets::Ok(scoping, metrics) => return Some((scoping, metrics)),
             CheckedBuckets::ProjectExpired(len) => {
                 relay_log::error!(
@@ -1171,6 +1173,7 @@ impl Project {
     fn check_buckets_inner(
         &mut self,
         outcome_aggregator: Addr<TrackOutcome>,
+        metric_stats: MetricStats,
         buckets: Vec<Bucket>,
     ) -> CheckedBuckets {
         let len = buckets.len();
@@ -1200,8 +1203,8 @@ impl Project {
                 utils::extract_metric_quantities(&buckets, mode),
                 scoping,
                 Outcome::RateLimited(reason_code),
-                None,
-                None,
+                Some(&metric_stats),
+                Some(buckets),
             );
 
             return CheckedBuckets::RateLimited(len);
