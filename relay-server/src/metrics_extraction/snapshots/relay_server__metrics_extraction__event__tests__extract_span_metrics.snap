@@ -13155,6 +13155,7 @@ expression: metrics
         tags: {
             "environment": "fake_environment",
             "span.category": "ai",
+            "span.description": "ConcurrentStream",
             "span.group": "fdd5a729aef245ba",
             "span.op": "ai.run.langchain",
             "transaction": "gEt /api/:version/users/",
@@ -13360,6 +13361,7 @@ expression: metrics
         tags: {
             "environment": "fake_environment",
             "span.category": "ai.pipeline",
+            "span.description": "Autofix Pipeline",
             "span.group": "86148ae2d6c09430",
             "span.op": "ai.pipeline.langchain",
             "transaction": "gEt /api/:version/users/",

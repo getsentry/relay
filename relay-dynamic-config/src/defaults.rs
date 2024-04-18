@@ -491,10 +491,10 @@ fn span_metrics(
                 Tag::with_key("span.category")
                     .from_field("span.sentry_tags.category")
                     .when(know_modules_condition.clone()),
-                // Mobile module:
                 Tag::with_key("span.description")
                     .from_field("span.sentry_tags.description")
-                    .when(app_start_condition.clone()),
+                    .when(is_ai.clone() | app_start_condition.clone()),
+                // Mobile module:
                 Tag::with_key("device.class")
                     .from_field("span.sentry_tags.device.class")
                     .when(app_start_condition.clone()),
