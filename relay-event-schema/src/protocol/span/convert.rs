@@ -142,27 +142,27 @@ macro_rules! map_fields {
 // allowing users to call both `Event::from(&span)` and `Span::from(&event)`.
 map_fields!(
     span._metrics_summary <=> event._metrics_summary,
-    span.data.browser_name <=> event.contexts.browser.name,
-    span.data.environment <=> event.environment,
-    span.data.sdk_name <=> event.client_sdk.name,
-    span.data.release <=> event.release,
     span.description <=> event.transaction,
     span.data.segment_name <=> event.transaction,
-    span.exclusive_time <=> event.contexts.trace.exclusive_time,
     span.measurements <=> event.measurements,
-    span.op <=> event.contexts.trace.op,
-    span.parent_span_id <=> event.contexts.trace.parent_span_id,
     span.platform <=> event.platform,
-    span.profile_id <=> event.contexts.profile.profile_id,
     span.received <=> event.received,
-    span.segment_id <=> event.contexts.trace.span_id,
-    span.span_id <=> event.contexts.trace.span_id,
     span.start_timestamp <=> event.start_timestamp,
-    span.status <=> event.contexts.trace.status,
     span.tags <=> event.tags,
     span.timestamp <=> event.timestamp,
-    span.trace_id <=> event.contexts.trace.trace_id
-
+    span.exclusive_time <=> event.contexts.trace.exclusive_time,
+    span.op <=> event.contexts.trace.op,
+    span.parent_span_id <=> event.contexts.trace.parent_span_id,
+    // A transaction corresponds to a segment span, so span_id and segment_id have the same value:
+    span.span_id <=> event.contexts.trace.span_id,
+    span.segment_id <=> event.contexts.trace.span_id,
+    span.status <=> event.contexts.trace.status,
+    span.trace_id <=> event.contexts.trace.trace_id,
+    span.profile_id <=> event.contexts.profile.profile_id,
+    span.data.release <=> event.release,
+    span.data.environment <=> event.environment,
+    span.data.browser_name <=> event.contexts.browser.name,
+    span.data.sdk_name <=> event.client_sdk.name
     ;
     span.is_segment <= true,
     span.was_transaction <= true
