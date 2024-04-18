@@ -180,16 +180,24 @@ def test_metric_stats_with_limit_surpassed(
     }
 
     relay.send_metrics(
-        project_id, "custom/foo:1337|d\ncustom/foo:12|d|#tag:value\ncustom/bar:42|s"
+        project_id, "custom/foo:1337|d\ncustom/baz:12|d|#tag:value\ncustom/bar:42|s"
     )
 
-    metrics = metric_stats_by_mri(metrics_consumer, 2)
-    print(metrics)
+    metrics = metric_stats_by_mri(metrics_consumer, 3)
     assert metrics.volume["d:custom/foo@none"]["org_id"] == 0
     assert metrics.volume["d:custom/foo@none"]["project_id"] == project_id
-    assert metrics.volume["d:custom/foo@none"]["value"] == 2.0
+    assert metrics.volume["d:custom/foo@none"]["value"] == 1.0
     assert metrics.volume["d:custom/foo@none"]["tags"] == {
         "mri": "d:custom/foo@none",
+        "mri.type": "d",
+        "mri.namespace": "custom",
+        "outcome.id": "6",
+    }
+    assert metrics.volume["d:custom/baz@none"]["org_id"] == 0
+    assert metrics.volume["d:custom/baz@none"]["project_id"] == project_id
+    assert metrics.volume["d:custom/baz@none"]["value"] == 1.0
+    assert metrics.volume["d:custom/baz@none"]["tags"] == {
+        "mri": "d:custom/baz@none",
         "mri.type": "d",
         "mri.namespace": "custom",
         "outcome.id": "6",
@@ -203,7 +211,7 @@ def test_metric_stats_with_limit_surpassed(
         "mri.namespace": "custom",
         "outcome.id": "6",
     }
-    assert len(metrics.volume) == 2
+    assert len(metrics.volume) == 3
     assert len(metrics.cardinality) == 0
     assert len(metrics.other) == 0
 
