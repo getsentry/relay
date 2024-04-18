@@ -4,11 +4,13 @@
 
 **Features**:
 
+- Add inbound filters for Annotated<Replay> types. ([#3420](https://github.com/getsentry/relay/pull/3420))
 - Add Linux distributions to os context. ([#3443](https://github.com/getsentry/relay/pull/3443))
 
 **Internal:**
 
 - Emit negative outcomes in metric stats for metrics. ([#3436](https://github.com/getsentry/relay/pull/3436))
+- Add new inbound filter: Permission denied to access property "x" ([#3442](https://github.com/getsentry/relay/pull/3442))
 
 ## 24.4.0
 
