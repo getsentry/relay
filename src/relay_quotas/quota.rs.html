@@ -936,6 +936,11 @@
 <a href="#934" id="934">934</a>
 <a href="#935" id="935">935</a>
 <a href="#936" id="936">936</a>
+<a href="#937" id="937">937</a>
+<a href="#938" id="938">938</a>
+<a href="#939" id="939">939</a>
+<a href="#940" id="940">940</a>
+<a href="#941" id="941">941</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::str::FromStr;
 
@@ -1302,7 +1307,12 @@
     /// There are a few conditions at which quotas are invalid:
     ///  - The quota only applies to `Unknown` data categories.
     ///  - The quota is counted (not limit `0`) but specifies categories with different units.
+    ///  - The quota references an unsupported namespace.
     </span><span class="kw">pub fn </span>is_valid(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="kw">if </span><span class="self">self</span>.namespace == <span class="prelude-val">Some</span>(MetricNamespace::Unsupported) {
+            <span class="kw">return </span><span class="bool-val">false</span>;
+        }
+
         <span class="kw">let </span><span class="kw-2">mut </span>units = <span class="self">self</span>.categories.iter().filter_map(CategoryUnit::from);
 
         <span class="kw">match </span>units.next() {
