@@ -1,8 +1,10 @@
 use std::collections::BTreeMap;
 use std::sync::{Arc, OnceLock};
 
+#[cfg(feature = "processing")]
 use relay_cardinality::{CardinalityLimit, CardinalityReport};
 use relay_config::Config;
+#[cfg(feature = "processing")]
 use relay_metrics::GaugeValue;
 use relay_metrics::{
     Aggregator, Bucket, BucketValue, BucketView, MergeBuckets, MetricName, UnixTimestamp,
@@ -22,6 +24,7 @@ fn volume_metric_mri() -> MetricName {
         .clone()
 }
 
+#[cfg(feature = "processing")]
 fn cardinality_metric_mri() -> MetricName {
     static CARDINALITY_METRIC_MRI: OnceLock<MetricName> = OnceLock::new();
 
@@ -83,6 +86,7 @@ impl MetricStats {
     }
 
     /// Tracks the cardinality of a metric.
+    #[cfg(feature = "processing")]
     pub fn track_cardinality(
         &self,
         scoping: Scoping,
@@ -156,6 +160,7 @@ impl MetricStats {
         })
     }
 
+    #[cfg(feature = "processing")]
     fn to_cardinality_metric(
         &self,
         limit: &CardinalityLimit,
@@ -204,8 +209,10 @@ impl MetricStats {
 #[cfg(test)]
 mod tests {
     use relay_base_schema::project::{ProjectId, ProjectKey};
+    #[cfg(feature = "processing")]
     use relay_cardinality::{CardinalityScope, SlidingWindow};
     use relay_dynamic_config::GlobalConfig;
+    #[cfg(feature = "processing")]
     use relay_metrics::MetricType;
     use relay_quotas::ReasonCode;
     use tokio::sync::mpsc::UnboundedReceiver;
@@ -313,6 +320,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "processing")]
     fn test_metric_stats_cardinality_name() {
         let (ms, mut receiver) = create_metric_stats(1.0);
 
@@ -377,6 +385,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "processing")]
     fn test_metric_stats_cardinality_type() {
         let (ms, mut receiver) = create_metric_stats(1.0);
 

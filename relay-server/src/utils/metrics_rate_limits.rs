@@ -141,6 +141,12 @@ pub fn reject_metrics<'a, I, V>(
         }
     }
 
+    // When rejecting metrics, we need to make sure that the number of merges is correctly handled
+    // for buckets views, since if we have a bucket which has 5 merges, and it's split into 2
+    // bucket views, we will emit the volume of the rejection as 5 + 5 merges since we still read
+    // the underlying metadata for each view, and it points to the same bucket reference.
+    // Possible solutions to this problem include emitting the merges only if the bucket view is
+    // the first of view or distributing uniformly the metadata between split views.
     if let (Some(metric_stats), Some(buckets)) = (metric_stats, buckets) {
         report_rejected_metrics(metric_stats, scoping, buckets, outcome)
     }
