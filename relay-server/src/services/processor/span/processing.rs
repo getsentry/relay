@@ -425,7 +425,7 @@ fn set_segment_attributes(span: &mut Annotated<Span>) {
         span.is_segment = true.into();
     }
 
-    // If the span is a segment, always set to segment_id to the current span_id:
+    // If the span is a segment, always set the segment_id to the current span_id:
     if span.is_segment.value() == Some(&true) {
         span.segment_id = span.span_id.clone();
     }
