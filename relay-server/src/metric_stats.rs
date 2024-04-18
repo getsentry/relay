@@ -70,15 +70,15 @@ impl MetricStats {
             return;
         }
 
-        let bucket_view = bucket.into();
-        let Some(volume) = self.to_volume_metric(&bucket_view, &outcome) else {
+        let bucket = bucket.into();
+        let Some(volume) = self.to_volume_metric(&bucket, &outcome) else {
             return;
         };
 
         relay_log::trace!(
             "Tracking volume of {} for mri '{}': {}",
-            bucket_view.metadata().merges.get(),
-            bucket_view.name(),
+            bucket.metadata().merges.get(),
+            bucket.name(),
             outcome
         );
         self.aggregator
