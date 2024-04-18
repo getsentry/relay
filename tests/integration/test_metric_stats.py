@@ -17,14 +17,17 @@ def metric_stats_by_mri(metrics_consumer, count, timeout=None):
     cardinality = dict()
     other = list()
 
-    for _ in range(count):
-        metric, _ = metrics_consumer.get_metric(timeout)
-        if metric["name"] == "c:metric_stats/volume@none":
-            volume[metric["tags"]["mri"]] = metric
-        elif metric["name"] == "g:metric_stats/cardinality@none":
-            cardinality[metric["tags"]["mri"]] = metric
-        else:
-            other.append(metric)
+    for i in range(count):
+        try:
+            metric, _ = metrics_consumer.get_metric(timeout)
+            if metric["name"] == "c:metric_stats/volume@none":
+                volume[metric["tags"]["mri"]] = metric
+            elif metric["name"] == "g:metric_stats/cardinality@none":
+                cardinality[metric["tags"]["mri"]] = metric
+            else:
+                other.append(metric)
+        except AssertionError:
+            pytest.fail(f"Message {i + 1} not found.")
 
     metrics_consumer.assert_empty()
     return MetricStatsByMri(volume=volume, cardinality=cardinality, other=other)
