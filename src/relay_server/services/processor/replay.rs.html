@@ -302,12 +302,6 @@
 <a href="#300" id="300">300</a>
 <a href="#301" id="301">301</a>
 <a href="#302" id="302">302</a>
-<a href="#303" id="303">303</a>
-<a href="#304" id="304">304</a>
-<a href="#305" id="305">305</a>
-<a href="#306" id="306">306</a>
-<a href="#307" id="307">307</a>
-<a href="#308" id="308">308</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Replay related processor code.
 </span><span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::net::IpAddr;
@@ -339,7 +333,6 @@
     <span class="kw">let </span>project_state = <span class="kw-2">&amp;</span>state.project_state;
     <span class="kw">let </span>replays_enabled = project_state.has_feature(Feature::SessionReplay);
     <span class="kw">let </span>scrubbing_enabled = project_state.has_feature(Feature::SessionReplayRecordingScrubbing);
-    <span class="kw">let </span>video_replay_enabled = project_state.has_feature(Feature::SessionReplayVideo);
 
     <span class="kw">let </span>meta = state.envelope().meta().clone();
     <span class="kw">let </span>client_addr = meta.client_addr();
@@ -397,11 +390,6 @@
                 item.set_payload(ContentType::OctetStream, replay_recording);
             }
             ItemType::ReplayVideo =&gt; {
-                <span class="kw">if </span>!video_replay_enabled {
-                    state.managed_envelope.drop_items_silently();
-                    <span class="kw">return </span><span class="prelude-val">Ok</span>(());
-                }
-
                 <span class="kw">let </span>replay_video = handle_replay_video_item(
                     item.payload(),
                     <span class="kw-2">&amp;</span>event_id,
