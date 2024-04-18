@@ -119,10 +119,7 @@ macro_rules! map_fields {
 
                 $(
                     if let Some(value) = read_value!(span, $($span_path)+) {
-                        *event_write_path!(&mut event, $($event_path)+) = match value.clone().try_into() {
-                            Ok(value) => Annotated::new(value),
-                            Err(_) => {return Err(())}
-                        };
+                        *event_write_path!(&mut event, $($event_path)+) = Annotated::new(value.clone()).map_value(Into::into)
                     }
                 )+
                 $(
