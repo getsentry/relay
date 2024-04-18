@@ -391,4 +391,169 @@ mod tests {
             Annotated::new("GET /api/search?q=foobar".into())
         );
     }
+
+    /// Intended to be synced with `relay-event-schema::protocol::span::convert::tests::roundtrip`.
+    #[test]
+    fn parse_everything() {
+        let json = r#"{
+            "traceId": "4c79f60c11214eb38604f4ae0781bfb2",
+            "spanId": "fa90fdead5f74052",
+            "parentSpanId": "fa90fdead5f74051",
+            "startTimeUnixNano": 123000000000,
+            "endTimeUnixNano": 123500000000,
+            "attributes": [
+                {
+                    "key" : "sentry.op",
+                    "value": {
+                        "stringValue": "myop"
+                    }
+                },
+                {
+                    "key" : "sentry.segment.id",
+                    "value": {
+                        "stringValue": "fa90fdead5f74052"
+                    }
+                },
+                {
+                    "key" : "sentry.segment.name",
+                    "value": {
+                        "stringValue": "my 1st transaction"
+                    }
+                },
+                {
+                    "key" : "sentry.profile.id",
+                    "value": {
+                        "stringValue": "a0aaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaab"
+                    }
+                },
+                {
+                    "key" : "sentry.browser.name",
+                    "value": {
+                        "stringValue": "Chrome"
+                    }
+                },
+                {
+                    "key" : "sentry.environment",
+                    "value": {
+                        "stringValue": "prod"
+                    }
+                },
+                {
+                    "key" : "sentry.release",
+                    "value": {
+                        "stringValue": "myapp@1.0.0"
+                    }
+                },
+                {
+                    "key" : "sentry.sdk.name",
+                    "value": {
+                        "stringValue": "sentry.php"
+                    }
+                },
+                {
+                    "key" : "sentry.platform",
+                    "value": {
+                        "stringValue": "php"
+                    }
+                }
+            ]
+        }"#;
+        let otel_span: OtelSpan = serde_json::from_str(json).unwrap();
+        let span_from_otel = otel_to_sentry_span(otel_span);
+
+        insta::assert_debug_snapshot!(span_from_otel, @r###"
+        Span {
+            timestamp: ~,
+            start_timestamp: ~,
+            exclusive_time: 123.4,
+            description: ~,
+            op: "myop",
+            span_id: SpanId(
+                "fa90fdead5f74052",
+            ),
+            parent_span_id: SpanId(
+                "fa90fdead5f74051",
+            ),
+            trace_id: TraceId(
+                "4c79f60c11214eb38604f4ae0781bfb2",
+            ),
+            segment_id: SpanId(
+                "fa90fdead5f74052",
+            ),
+            is_segment: true,
+            status: Ok,
+            tags: ~,
+            origin: ~,
+            profile_id: EventId(
+                a0aaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaab,
+            ),
+            data: SpanData {
+                app_start_type: ~,
+                browser_name: "Chrome",
+                code_filepath: ~,
+                code_lineno: ~,
+                code_function: ~,
+                code_namespace: ~,
+                db_operation: ~,
+                db_system: ~,
+                environment: "prod",
+                release: LenientString(
+                    "myapp@1.0.0",
+                ),
+                http_decoded_response_content_length: ~,
+                http_request_method: ~,
+                http_response_content_length: ~,
+                http_response_transfer_size: ~,
+                resource_render_blocking_status: ~,
+                server_address: ~,
+                cache_hit: ~,
+                cache_item_size: ~,
+                http_response_status_code: ~,
+                ai_input_messages: ~,
+                ai_completion_tokens_used: ~,
+                ai_prompt_tokens_used: ~,
+                ai_total_tokens_used: ~,
+                ai_responses: ~,
+                thread_name: ~,
+                segment_name: "my 1st transaction",
+                ui_component_name: ~,
+                url_scheme: ~,
+                user: ~,
+                replay_id: ~,
+                sdk_name: "sentry.php",
+                other: {},
+            },
+            sentry_tags: ~,
+            received: ~,
+            measurements: Measurements(
+                {
+                    "memory": Measurement {
+                        value: 9001.0,
+                        unit: Information(
+                            Byte,
+                        ),
+                    },
+                },
+            ),
+            _metrics_summary: MetricsSummary(
+                {
+                    "some_metric": [
+                        MetricSummary {
+                            min: 1.0,
+                            max: 2.0,
+                            sum: 3.0,
+                            count: 2,
+                            tags: {
+                                "environment": "test",
+                            },
+                        },
+                    ],
+                },
+            ),
+            platform: "php",
+            was_transaction: true,
+            other: {},
+        }
+        "###);
+    }
 }
