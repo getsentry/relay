@@ -146,7 +146,7 @@ map_fields!(
     span.data.environment <=> event.environment,
     span.data.sdk_name <=> event.client_sdk.name,
     span.data.release <=> event.release,
-    span.data.segment_name <=> event.transaction,
+    span.description <=> event.transaction,
     span.exclusive_time <=> event.contexts.trace.exclusive_time,
     span.measurements <=> event.measurements,
     span.op <=> event.contexts.trace.op,
