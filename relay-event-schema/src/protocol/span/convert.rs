@@ -147,6 +147,7 @@ map_fields!(
     span.data.sdk_name <=> event.client_sdk.name,
     span.data.release <=> event.release,
     span.description <=> event.transaction,
+    span.data.segment_name <=> event.transaction,
     span.exclusive_time <=> event.contexts.trace.exclusive_time,
     span.measurements <=> event.measurements,
     span.op <=> event.contexts.trace.op,
@@ -172,6 +173,8 @@ map_fields!(
 #[cfg(test)]
 mod tests {
     use relay_protocol::Annotated;
+
+    use crate::protocol::SpanData;
 
     use super::*;
 
@@ -229,7 +232,7 @@ mod tests {
             timestamp: ~,
             start_timestamp: ~,
             exclusive_time: 123.4,
-            description: ~,
+            description: "my 1st transaction",
             op: "myop",
             span_id: SpanId(
                 "fa90fdead5f74052",
@@ -321,6 +324,23 @@ mod tests {
 
         let roundtripped = Event::try_from(&span_from_event).unwrap();
         assert_eq!(event, roundtripped);
+    }
+
+    #[test]
+    fn segment_name_takes_precedence() {
+        let span = Span {
+            is_segment: true.into(),
+            description: "This is the description".to_owned().into(),
+            data: SpanData {
+                segment_name: "This is the segment name".to_owned().into(),
+                ..Default::default()
+            }
+            .into(),
+            ..Default::default()
+        };
+        let event = Event::try_from(&span).unwrap();
+
+        assert_eq!(event.transaction.as_str(), Some("This is the segment name"));
     }
 
     #[test]
