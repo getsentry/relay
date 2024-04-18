@@ -668,10 +668,10 @@
     </span><span class="attr">#[allow(unused_variables)]
     </span><span class="kw">pub fn </span>new(config: <span class="kw-2">&amp;</span>Config) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{
-            upstream: create_runtime(<span class="string">"upstream-rt"</span>, <span class="number">1</span>),
+            upstream: create_runtime(<span class="string">"upstream-rt"</span>, <span class="number">2</span>),
             project: create_runtime(<span class="string">"project-rt"</span>, <span class="number">2</span>),
-            aggregator: create_runtime(<span class="string">"aggregator-rt"</span>, <span class="number">1</span>),
-            outcome: create_runtime(<span class="string">"outcome-rt"</span>, <span class="number">1</span>),
+            aggregator: create_runtime(<span class="string">"aggregator-rt"</span>, <span class="number">2</span>),
+            outcome: create_runtime(<span class="string">"outcome-rt"</span>, <span class="number">2</span>),
             <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
             </span>store: config
                 .processing_enabled()
