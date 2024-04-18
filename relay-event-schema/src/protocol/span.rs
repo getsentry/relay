@@ -6,8 +6,8 @@ use relay_protocol::{Annotated, Empty, FromValue, Getter, IntoValue, Object, Val
 
 use crate::processor::ProcessValue;
 use crate::protocol::{
-    EventId, JsonLenientString, Measurements, MetricsSummary, OperationType, OriginType, SpanId,
-    SpanStatus, Timestamp, TraceId,
+    EventId, JsonLenientString, LenientString, Measurements, MetricsSummary, OperationType,
+    OriginType, SpanId, SpanStatus, Timestamp, TraceId,
 };
 
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
@@ -201,11 +201,11 @@ pub struct SpanData {
 
     /// The sentry environment.
     #[metastructure(field = "environment")]
-    pub environment: Annotated<Value>,
+    pub environment: Annotated<String>,
 
     /// The release version of the project.
     #[metastructure(field = "release")]
-    pub release: Annotated<Value>,
+    pub release: Annotated<LenientString>,
 
     /// The decoded body size of the response (in bytes).
     #[metastructure(field = "http.decoded_response_content_length")]
@@ -308,7 +308,7 @@ impl Getter for SpanData {
             "code\\.namespace" => self.code_namespace.value()?.into(),
             "db.operation" => self.db_operation.value()?.into(),
             "db\\.system" => self.db_system.value()?.into(),
-            "environment" => self.environment.value()?.into(),
+            "environment" => self.environment.as_str()?.into(),
             "http\\.decoded_response_content_length" => {
                 self.http_decoded_response_content_length.value()?.into()
             }
