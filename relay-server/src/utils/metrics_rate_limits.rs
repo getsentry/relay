@@ -94,31 +94,14 @@ where
     quantities
 }
 
-fn report_rejected_metrics<'a, I, V>(
-    metric_stats: &MetricStats,
-    scoping: Scoping,
-    buckets: I,
-    outcome: Outcome,
-) where
-    I: IntoIterator<Item = V>,
-    V: Into<BucketView<'a>>,
-{
-    for bucket in buckets {
-        metric_stats.track_metric(scoping, bucket, outcome.clone())
-    }
-}
-
-pub fn reject_metrics<'a, I, V>(
+pub fn reject_metrics<'a, T: Into<BucketView<'a>>>(
     addr: &Addr<TrackOutcome>,
+    metric_stats: &MetricStats,
     quantities: SourceQuantities,
     scoping: Scoping,
     outcome: Outcome,
-    metric_stats: Option<&MetricStats>,
-    buckets: Option<I>,
-) where
-    I: IntoIterator<Item = V>,
-    V: Into<BucketView<'a>>,
-{
+    buckets: impl IntoIterator<Item = T>,
+) {
     let timestamp = Utc::now();
 
     let categories = [
@@ -147,8 +130,8 @@ pub fn reject_metrics<'a, I, V>(
     // the underlying metadata for each view, and it points to the same bucket reference.
     // Possible solutions to this problem include emitting the merges only if the bucket view is
     // the first of view or distributing uniformly the metadata between split views.
-    if let (Some(metric_stats), Some(buckets)) = (metric_stats, buckets) {
-        report_rejected_metrics(metric_stats, scoping, buckets, outcome)
+    for bucket in buckets {
+        metric_stats.track_metric(scoping, bucket, outcome.clone())
     }
 }
 

@@ -1200,11 +1200,11 @@ impl Project {
             let reason_code = limits.longest().and_then(|limit| limit.reason_code.clone());
             utils::reject_metrics(
                 &outcome_aggregator,
+                &metric_stats,
                 utils::extract_metric_quantities(&buckets, mode),
                 scoping,
                 Outcome::RateLimited(reason_code),
-                Some(&metric_stats),
-                Some(&buckets),
+                &buckets,
             );
 
             return CheckedBuckets::RateLimited(len);

@@ -2160,11 +2160,11 @@ impl EnvelopeProcessorService {
                 let reason_code = limits.longest().and_then(|limit| limit.reason_code.clone());
                 utils::reject_metrics(
                     &self.inner.addrs.outcome_aggregator,
+                    &self.inner.metric_stats,
                     quantities,
                     *item_scoping.scoping,
                     Outcome::RateLimited(reason_code),
-                    Some(&self.inner.metric_stats),
-                    Some(&buckets),
+                    &buckets,
                 );
 
                 self.inner.addrs.project_cache.send(UpdateRateLimits::new(
@@ -2253,11 +2253,11 @@ impl EnvelopeProcessorService {
         // Log outcomes for rejected buckets.
         utils::reject_metrics(
             &self.inner.addrs.outcome_aggregator,
+            &self.inner.metric_stats,
             utils::extract_metric_quantities(&split.rejected, mode),
             scoping,
             Outcome::CardinalityLimited,
-            Some(&self.inner.metric_stats),
-            Some(&split.rejected),
+            &split.rejected,
         );
 
         split.accepted
@@ -2410,6 +2410,7 @@ impl EnvelopeProcessorService {
             http_encoding,
             quantities,
             outcome_aggregator: self.inner.addrs.outcome_aggregator.clone(),
+            metric_stats: self.inner.metric_stats.clone(),
         };
 
         self.inner.addrs.upstream_relay.send(SendRequest(request));
@@ -2839,6 +2840,8 @@ struct SendMetricsRequest {
     quantities: Vec<(Scoping, SourceQuantities)>,
     /// Address of the outcome aggregator to send outcomes to on error.
     outcome_aggregator: Addr<TrackOutcome>,
+    /// Metric stats reporter.
+    metric_stats: MetricStats,
 }
 
 impl UpstreamRequest for SendMetricsRequest {
@@ -2886,12 +2889,12 @@ impl UpstreamRequest for SendMetricsRequest {
                 // Request did not arrive, we are responsible for outcomes.
                 Err(error) if !error.is_received() => {
                     for (scoping, quantities) in self.quantities {
-                        utils::reject_metrics::<Vec<&Bucket>, &Bucket>(
+                        utils::reject_metrics::<&Bucket>(
                             &self.outcome_aggregator,
+                            &self.metric_stats,
                             quantities,
                             scoping,
                             Outcome::Invalid(DiscardReason::Internal),
-                            None,
                             None,
                         );
                     }

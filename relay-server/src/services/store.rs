@@ -443,12 +443,12 @@ impl StoreService {
                 "failed to produce metric buckets: {error}"
             );
 
-            utils::reject_metrics::<Vec<&Bucket>, &Bucket>(
+            utils::reject_metrics::<&Bucket>(
                 &self.outcome_aggregator,
+                &self.metric_stats,
                 dropped_quantities,
                 scoping,
                 Outcome::Invalid(DiscardReason::Internal),
-                None,
                 None,
             );
         }
