@@ -200,11 +200,11 @@ pub struct SpanData {
     pub db_system: Annotated<Value>,
 
     /// The sentry environment.
-    #[metastructure(field = "sentry.environment", legacy_alias = "environment")]
+    #[metastructure(field = "environment")]
     pub environment: Annotated<String>,
 
     /// The release version of the project.
-    #[metastructure(field = "sentry.release", legacy_alias = "release")]
+    #[metastructure(field = "release")]
     pub release: Annotated<LenientString>,
 
     /// The decoded body size of the response (in bytes).
@@ -274,7 +274,7 @@ pub struct SpanData {
     /// Origin Transaction name of the span.
     ///
     /// For INP spans, this is the route name where the interaction occurred.
-    #[metastructure(field = "sentry.segment.name", legacy_alias = "transaction")]
+    #[metastructure(field = "segment.name", legacy_alias = "transaction")]
     pub segment_name: Annotated<String>,
 
     /// Name of the UI component (e.g. React).
@@ -293,7 +293,7 @@ pub struct SpanData {
     #[metastructure(field = "replay_id")]
     pub replay_id: Annotated<Value>,
 
-    #[metastructure(field = "sentry.sdk.name")]
+    #[metastructure(field = "sdk.name")]
     /// The sentry SDK (see [`crate::protocol::ClientSdkInfo`]).
     pub sdk_name: Annotated<String>,
 
@@ -534,11 +534,12 @@ mod tests {
             ai_total_tokens_used: ~,
             ai_responses: ~,
             thread_name: ~,
-            transaction: ~,
+            segment_name: ~,
             ui_component_name: ~,
             url_scheme: ~,
             user: ~,
             replay_id: ~,
+            sdk_name: ~,
             other: {
                 "bar": String(
                     "3",
