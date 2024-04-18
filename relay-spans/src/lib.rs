@@ -10,6 +10,5 @@ pub use crate::span::otel_to_sentry_span;
 
 pub use opentelemetry_proto::tonic::trace::v1 as otel_trace;
 
-mod otel_to_sentry_tags;
 mod span;
 mod status_codes;

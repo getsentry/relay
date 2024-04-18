@@ -8,7 +8,6 @@ use relay_event_schema::protocol::{
 };
 use relay_protocol::{Annotated, FromValue, Object};
 
-use crate::otel_to_sentry_tags::OTEL_TO_SENTRY_TAGS;
 use crate::otel_trace::{status::StatusCode as OtelStatusCode, Span as OtelSpan};
 use crate::status_codes;
 
@@ -103,64 +102,69 @@ pub fn otel_to_sentry_span(otel_span: OtelSpan) -> EventSpan {
     let mut grpc_status_code = None;
     for attribute in attributes.into_iter() {
         if let Some(value) = attribute.value.and_then(|v| v.value) {
-            let key: String = if let Some(key) = OTEL_TO_SENTRY_TAGS.get(attribute.key.as_str()) {
-                key.to_string()
-            } else {
-                attribute.key
-            };
-            if key == "sentry.op" {
-                op = otel_value_to_string(value);
-            } else if key.starts_with("db") {
-                op = op.or(Some("db".to_string()));
-                if key == "db.statement" {
-                    if let Some(statement) = otel_value_to_string(value) {
-                        description = statement;
+            match attribute.key.as_str() {
+                "sentry.op" => {
+                    op = otel_value_to_string(value);
+                }
+                key if key.starts_with("db") => {
+                    op = op.or(Some("db".to_string()));
+                    if key == "db.statement" {
+                        if let Some(statement) = otel_value_to_string(value) {
+                            description = statement;
+                        }
                     }
                 }
-            } else if key == "http.method" || key == "request.method" {
-                let http_op = match kind {
-                    2 => "http.server",
-                    3 => "http.client",
-                    _ => "http",
-                };
-                op = op.or(Some(http_op.to_string()));
-                http_method = otel_value_to_string(value);
-            } else if key == "http.route" || key == "url.path" {
-                http_route = otel_value_to_string(value);
-            } else if key.contains("exclusive_time_ns") {
-                let value = match value {
-                    OtelValue::IntValue(v) => v as f64,
-                    OtelValue::DoubleValue(v) => v,
-                    OtelValue::StringValue(v) => v.parse::<f64>().unwrap_or_default(),
-                    _ => 0f64,
-                };
-                exclusive_time_ms = value / 1e6f64;
-            } else if key == "http.status_code" {
-                http_status_code = otel_value_to_i64(value);
-            } else if key == "rpc.grpc.status_code" {
-                grpc_status_code = otel_value_to_i64(value);
-            } else {
-                match value {
-                    OtelValue::ArrayValue(_) => {}
-                    OtelValue::BoolValue(v) => {
-                        data.insert(key, Annotated::new(v.into()));
-                    }
-                    OtelValue::BytesValue(v) => {
-                        if let Ok(v) = String::from_utf8(v) {
+                "http.method" | "request.method" => {
+                    let http_op = match kind {
+                        2 => "http.server",
+                        3 => "http.client",
+                        _ => "http",
+                    };
+                    op = op.or(Some(http_op.to_string()));
+                    http_method = otel_value_to_string(value);
+                }
+                "http.route" | "url.path" => {
+                    http_route = otel_value_to_string(value);
+                }
+                key if key.contains("exclusive_time_ns") => {
+                    let value = match value {
+                        OtelValue::IntValue(v) => v as f64,
+                        OtelValue::DoubleValue(v) => v,
+                        OtelValue::StringValue(v) => v.parse::<f64>().unwrap_or_default(),
+                        _ => 0f64,
+                    };
+                    exclusive_time_ms = value / 1e6f64;
+                }
+                "http.status_code" => {
+                    http_status_code = otel_value_to_i64(value);
+                }
+                "rpc.grpc.status_code" => {
+                    grpc_status_code = otel_value_to_i64(value);
+                }
+                _other => {
+                    let key = attribute.key;
+                    match value {
+                        OtelValue::ArrayValue(_) => {}
+                        OtelValue::BoolValue(v) => {
+                            data.insert(key, Annotated::new(v.into()));
+                        }
+                        OtelValue::BytesValue(v) => {
+                            if let Ok(v) = String::from_utf8(v) {
+                                data.insert(key, Annotated::new(v.into()));
+                            }
+                        }
+                        OtelValue::DoubleValue(v) => {
+                            data.insert(key, Annotated::new(v.into()));
+                        }
+                        OtelValue::IntValue(v) => {
+                            data.insert(key, Annotated::new(v.into()));
+                        }
+                        OtelValue::KvlistValue(_) => {}
+                        OtelValue::StringValue(v) => {
                             data.insert(key, Annotated::new(v.into()));
                         }
                     }
-                    OtelValue::DoubleValue(v) => {
-                        data.insert(key, Annotated::new(v.into()));
-                    }
-                    OtelValue::IntValue(v) => {
-                        data.insert(key, Annotated::new(v.into()));
-                    }
-                    OtelValue::KvlistValue(_) => {}
-                    OtelValue::StringValue(v) => {
-                        data.insert(key, Annotated::new(v.into()));
-                    }
-                };
+                }
             }
         }
     }
