@@ -364,7 +364,12 @@ impl Quota {
     /// There are a few conditions at which quotas are invalid:
     ///  - The quota only applies to `Unknown` data categories.
     ///  - The quota is counted (not limit `0`) but specifies categories with different units.
+    ///  - The quota references an unsupported namespace.
     pub fn is_valid(&self) -> bool {
+        if self.namespace == Some(MetricNamespace::Unsupported) {
+            return false;
+        }
+
         let mut units = self.categories.iter().filter_map(CategoryUnit::from);
 
         match units.next() {
