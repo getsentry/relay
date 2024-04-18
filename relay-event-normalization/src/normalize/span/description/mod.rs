@@ -643,6 +643,27 @@ mod tests {
     );
 
     span_description_test!(
+        simple_cctld,
+        "GET http://bbc.co.uk",
+        "http.client",
+        "GET http://bbc.co.uk"
+    );
+
+    span_description_test!(
+        longer_cctld,
+        "GET http://www.radio1.bbc.co.uk",
+        "http.client",
+        "GET http://*.bbc.co.uk"
+    );
+
+    span_description_test!(
+        complicated_tld,
+        "GET https://application.www.xn--85x722f.xn--55qx5d.cn",
+        "http.client",
+        "GET https://*.xn--85x722f.xn--55qx5d.cn"
+    );
+
+    span_description_test!(
         only_dblike_on_db_ops,
         "SELECT count() FROM table WHERE id IN (%s, %s)",
         "http.client",
