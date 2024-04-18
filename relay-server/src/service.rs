@@ -197,13 +197,13 @@ impl ServiceState {
             test_store.clone(),
             upstream_relay.clone(),
             global_config.clone(),
-            metric_stats,
         );
         let guard = runtimes.project.enter();
         ProjectCacheService::new(
             config.clone(),
             buffer_guard.clone(),
             project_cache_services,
+            metric_stats,
             redis_pool,
         )
         .spawn_handler(project_cache_rx);

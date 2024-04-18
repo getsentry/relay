@@ -1321,11 +1321,10 @@ mod tests {
         project_state.disabled = true;
         project.state = State::Cached(project_state.into());
 
-        let (addr, _) = Addr::custom();
         let metric_stats = MetricStats::new(
             Arc::new(Config::default()),
             GlobalConfigHandle::fixed(GlobalConfig::default()),
-            addr,
+            Addr::custom().0,
         );
 
         let result = project.check_buckets_inner(Addr::custom().0, metric_stats, vec![]);

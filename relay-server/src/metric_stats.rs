@@ -62,9 +62,9 @@ impl MetricStats {
     }
 
     /// Tracks the metric volume and outcome for the bucket.
-    pub fn track_metric<'a, V>(&self, scoping: Scoping, bucket: V, outcome: Outcome)
+    pub fn track_metric<'a, T>(&self, scoping: Scoping, bucket: T, outcome: Outcome)
     where
-        V: Into<BucketView<'a>>,
+        T: Into<BucketView<'a>>,
     {
         if !self.is_enabled(scoping) {
             return;
@@ -125,20 +125,20 @@ impl MetricStats {
         is_rolled_out(organization_id, rate)
     }
 
-    fn to_volume_metric(&self, bucket_view: &BucketView, outcome: &Outcome) -> Option<Bucket> {
-        let volume = bucket_view.metadata().merges.get();
+    fn to_volume_metric(&self, bucket: &BucketView<'_>, outcome: &Outcome) -> Option<Bucket> {
+        let volume = bucket.metadata().merges.get();
         if volume == 0 {
             return None;
         }
 
-        let namespace = bucket_view.name().namespace();
+        let namespace = bucket.name().namespace();
         if !namespace.has_metric_stats() {
             return None;
         }
 
         let mut tags = BTreeMap::from([
-            ("mri".to_owned(), bucket_view.name().to_string()),
-            ("mri.type".to_owned(), bucket_view.value_ty().to_string()),
+            ("mri".to_owned(), bucket.name().to_string()),
+            ("mri.type".to_owned(), bucket.ty().to_string()),
             ("mri.namespace".to_owned(), namespace.to_string()),
             (
                 "outcome.id".to_owned(),

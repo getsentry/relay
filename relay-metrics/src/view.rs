@@ -389,8 +389,13 @@ impl<'a> BucketView<'a> {
     }
 
     /// Type of the value of the bucket view.
-    pub fn value_ty(&self) -> MetricType {
-        self.inner.value.ty()
+    pub fn ty(&self) -> MetricType {
+        match &self.inner.value {
+            BucketValue::Counter(_) => MetricType::Counter,
+            BucketValue::Distribution(_) => MetricType::Distribution,
+            BucketValue::Set(_) => MetricType::Set,
+            BucketValue::Gauge(_) => MetricType::Gauge,
+        }
     }
 
     /// Name of the bucket.
