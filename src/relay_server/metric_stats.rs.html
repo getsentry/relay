@@ -467,6 +467,10 @@
 <a href="#465" id="465">465</a>
 <a href="#466" id="466">466</a>
 <a href="#467" id="467">467</a>
+<a href="#468" id="468">468</a>
+<a href="#469" id="469">469</a>
+<a href="#470" id="470">470</a>
+<a href="#471" id="471">471</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::sync::{Arc, OnceLock};
 
@@ -653,10 +657,13 @@
             <span class="kw">if let </span><span class="prelude-val">Some</span>(t) = name.try_type() {
                 tags.insert(<span class="string">"mri.type"</span>.to_owned(), t.to_string());
             }
-        }
-
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(t) = report.metric_type {
-            tags.insert(<span class="string">"mri.type"</span>.to_owned(), t.to_string());
+        } <span class="kw">else </span>{
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(namespace) = limit.namespace {
+                tags.insert(<span class="string">"mri.namespace"</span>.to_owned(), namespace.to_string());
+            }
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(t) = report.metric_type {
+                tags.insert(<span class="string">"mri.type"</span>.to_owned(), t.to_string());
+            }
         }
 
         <span class="prelude-val">Some</span>(Bucket {
@@ -675,7 +682,7 @@
     <span class="kw">use </span>relay_base_schema::project::{ProjectId, ProjectKey};
     <span class="kw">use </span>relay_cardinality::{CardinalityScope, SlidingWindow};
     <span class="kw">use </span>relay_dynamic_config::GlobalConfig;
-    <span class="kw">use </span>relay_metrics::MetricType;
+    <span class="kw">use </span>relay_metrics::{MetricNamespace, MetricType};
     <span class="kw">use </span>relay_quotas::ReasonCode;
     <span class="kw">use </span>tokio::sync::mpsc::UnboundedReceiver;
 
@@ -860,7 +867,7 @@
             },
             limit: <span class="number">99</span>,
             scope: CardinalityScope::Type,
-            namespace: <span class="prelude-val">None</span>,
+            namespace: <span class="prelude-val">Some</span>(MetricNamespace::Spans),
         };
         <span class="kw">let </span>report = CardinalityReport {
             organization_id: <span class="prelude-val">Some</span>(scoping.organization_id),
@@ -898,6 +905,7 @@
             bucket.tags,
             <span class="macro">tags!</span>(
                 (<span class="string">"mri.type"</span>, <span class="string">"d"</span>),
+                (<span class="string">"mri.namespace"</span>, <span class="string">"spans"</span>),
                 (<span class="string">"cardinality.limit"</span>, <span class="string">"test"</span>),
                 (<span class="string">"cardinality.scope"</span>, <span class="string">"type"</span>),
                 (<span class="string">"cardinality.window"</span>, <span class="string">"246"</span>),
