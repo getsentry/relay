@@ -13,8 +13,6 @@ use relay_redis::RedisPool;
 use relay_system::{channel, Addr, Service};
 use tokio::runtime::Runtime;
 
-#[cfg(feature = "processing")]
-use crate::metric_stats::MetricStats;
 use crate::services::cogs::{CogsService, CogsServiceRecorder};
 use crate::services::global_config::{GlobalConfigManager, GlobalConfigService};
 use crate::services::health_check::{HealthCheck, HealthCheckService};
@@ -139,7 +137,7 @@ impl ServiceState {
         .start_in(&runtimes.aggregator);
 
         #[cfg(feature = "processing")]
-        let metric_stats = MetricStats::new(
+        let metric_stats = crate::metric_stats::MetricStats::new(
             config.clone(),
             global_config_handle.clone(),
             aggregator.clone(),

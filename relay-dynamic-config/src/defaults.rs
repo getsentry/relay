@@ -37,6 +37,8 @@ const CACHE_SPAN_OPS: &[&str] = &[
     "cache.delete_item",
 ];
 
+const QUEUE_SPAN_OPS: &[&str] = &["queue.task.celery", "queue.submit.celery"];
+
 /// Adds configuration for extracting metrics from spans.
 ///
 /// This configuration is temporarily hard-coded here. It will later be provided by the upstream.
@@ -78,6 +80,8 @@ fn span_metrics(transaction_extraction_enabled: bool) -> impl IntoIterator<Item 
         RuleCondition::all()
     };
 
+    let is_ai = RuleCondition::glob("span.op", "ai.*");
+
     let is_db = RuleCondition::eq("span.sentry_tags.category", "db")
         & !(RuleCondition::eq("span.system", "mongodb")
             | RuleCondition::glob("span.op", DISABLED_DATABASES)
@@ -91,6 +95,8 @@ fn span_metrics(transaction_extraction_enabled: bool) -> impl IntoIterator<Item 
     let is_mobile_sdk = RuleCondition::eq("span.sentry_tags.mobile", "true");
 
     let is_http = RuleCondition::eq("span.op", "http.client");
+
+    let is_queue_op = RuleCondition::glob("span.op", QUEUE_SPAN_OPS);
 
     let is_allowed_browser = RuleCondition::eq(
         "span.sentry_tags.browser.name",
@@ -136,12 +142,14 @@ fn span_metrics(transaction_extraction_enabled: bool) -> impl IntoIterator<Item 
         & RuleCondition::glob("span.op", "app.start.*")
         & RuleCondition::eq("span.description", APP_START_ROOT_SPAN_DESCRIPTIONS);
 
-    // `exclusive_time_light` is the metric with the most lenient condition.
+    // `exclusive_time_light` excludes transaction tags (and some others) to reduce cardinality.
     let exclusive_time_light_condition = (is_db.clone()
+        | is_ai.clone()
         | is_resource.clone()
         | is_mobile.clone()
         | is_interaction
-        | is_http.clone())
+        | is_http.clone()
+        | is_queue_op.clone())
         & duration_condition.clone();
 
     let know_modules_condition =
@@ -448,6 +456,35 @@ fn span_metrics(transaction_extraction_enabled: bool) -> impl IntoIterator<Item 
                 Tag::with_key("app_start_type")
                     .from_field("span.sentry_tags.app_start_type")
                     .when(app_start_condition.clone()),
+            ],
+        },
+        MetricSpec {
+            category: DataCategory::Span,
+            mri: "c:spans/ai.total_tokens.used@none".into(),
+            field: Some("span.measurements.ai_total_tokens_used.value".into()),
+            condition: Some(is_ai.clone()),
+            tags: vec![
+                Tag::with_key("span.op")
+                    .from_field("span.sentry_tags.op")
+                    .always(),
+                Tag::with_key("environment")
+                    .from_field("span.sentry_tags.environment")
+                    .always(),
+                Tag::with_key("release")
+                    .from_field("span.sentry_tags.release")
+                    .always(),
+                Tag::with_key("span.origin")
+                    .from_field("span.origin")
+                    .always(),
+                Tag::with_key("span.description")
+                    .from_field("span.sentry_tags.description")
+                    .always(), // already guarded by condition on metric
+                Tag::with_key("span.group")
+                    .from_field("span.sentry_tags.group")
+                    .always(), // already guarded by condition on metric
+                Tag::with_key("span.op")
+                    .from_field("span.sentry_tags.op")
+                    .always(), // already guarded by condition on metric
             ],
         },
         MetricSpec {

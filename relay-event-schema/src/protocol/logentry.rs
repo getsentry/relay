@@ -50,7 +50,7 @@ pub struct LogEntry {
 
     /// Parameters to be interpolated into the log message. This can be an array of positional
     /// parameters as well as a mapping of named arguments to their values.
-    #[metastructure(bag_size = "medium", pii = "true")]
+    #[metastructure(max_depth = 5, max_bytes = 2048, pii = "true")]
     pub params: Annotated<Value>,
 
     /// Additional arbitrary fields for forwards compatibility.
