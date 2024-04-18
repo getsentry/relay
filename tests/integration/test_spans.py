@@ -310,6 +310,7 @@ def envelope_with_spans(
                     {
                         "description": "https://example.com/p/blah.js",
                         "op": "resource.script",
+                        # Span with the same `span_id` and `segment_id`, to make sure it is classified as `is_segment`.
                         "span_id": "b0429c44b67a3eb1",
                         "segment_id": "b0429c44b67a3eb1",
                         "start_timestamp": start.timestamp(),
