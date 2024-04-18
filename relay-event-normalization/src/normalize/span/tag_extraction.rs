@@ -505,8 +505,10 @@ pub fn extract_tags(
         }
         if let Some(measurements) = span.measurements.value() {
             if span_op.starts_with("ui.interaction.") && measurements.contains_key("inp") {
-                if let Some(transaction) =
-                    span.data.value().and_then(|data| data.transaction.as_str())
+                if let Some(transaction) = span
+                    .data
+                    .value()
+                    .and_then(|data| data.segment_name.as_str())
                 {
                     span_tags.insert(SpanTagKey::Transaction, transaction.into());
                 }
@@ -572,13 +574,8 @@ pub fn extract_tags(
         }
     }
 
-    if let Some(browser_name) = span
-        .data
-        .value()
-        .and_then(|data| data.browser_name.value())
-        .and_then(|browser_name| browser_name.as_str())
-    {
-        span_tags.insert(SpanTagKey::BrowserName, browser_name.into());
+    if let Some(browser_name) = span.data.value().and_then(|data| data.browser_name.value()) {
+        span_tags.insert(SpanTagKey::BrowserName, browser_name.clone());
     }
 
     span_tags

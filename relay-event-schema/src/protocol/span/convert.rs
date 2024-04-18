@@ -1,5 +1,5 @@
 //! This module defines bidirectional field mappings between spans and transactions.
-use crate::protocol::{Contexts, Event, ProfileContext, Span, TraceContext};
+use crate::protocol::{BrowserContext, Contexts, Event, ProfileContext, Span, TraceContext};
 
 use relay_base_schema::events::EventType;
 use relay_protocol::Annotated;
@@ -40,15 +40,18 @@ macro_rules! context_write_path (
 );
 
 macro_rules! event_write_path(
+    ($event:expr, contexts browser $context_field:ident) => {
+        context_write_path!($event, BrowserContext, $context_field)
+    };
     ($event:expr, contexts trace $context_field:ident) => {
         context_write_path!($event, TraceContext, $context_field)
     };
     ($event:expr, contexts profile $context_field:ident) => {
         context_write_path!($event, ProfileContext, $context_field)
     };
-    ($event:expr, $path_root:ident $(. $path_segment:ident)*) => {
+    ($event:expr, $path_root:ident $($path_segment:ident)*) => {
         {
-            write_path!($event, $path_root $(. $path_segment:ident)*)
+            write_path!($event, $path_root $($path_segment)*)
         }
     };
 );
@@ -63,17 +66,20 @@ macro_rules! context_value (
 );
 
 macro_rules! event_value(
+    ($event:expr, contexts browser $context_field:ident) => {
+        context_value!($event, BrowserContext, $context_field)
+    };
     ($event:expr, contexts trace $context_field:ident) => {
         context_value!($event, TraceContext, $context_field)
     };
     ($event:expr, contexts profile $context_field:ident) => {
         context_value!($event, ProfileContext, $context_field)
     };
-    ($event:expr, $path_root:ident $(. $path_segment:ident)*) => {
+    ($event:expr, $path_root:ident $($path_segment:ident)*) => {
         {
             let value = ($event).$path_root.value();
             $(
-                let value = value.and_then(|value|&value.$path_segment.value());
+                let value = value.and_then(|value|value.$path_segment.value());
             )*
             value
         }
@@ -136,24 +142,26 @@ macro_rules! map_fields {
 // allowing users to call both `Event::from(&span)` and `Span::from(&event)`.
 map_fields!(
     span._metrics_summary <=> event._metrics_summary,
-    span.description <=> event.transaction,
-    span.measurements <=> event.measurements,
-    span.platform <=> event.platform,
-    span.received <=> event.received,
-    span.start_timestamp <=> event.start_timestamp,
-    span.tags <=> event.tags,
-    span.timestamp <=> event.timestamp,
+    span.data.browser_name <=> event.contexts.browser.name,
+    span.data.environment <=> event.environment,
+    span.data.sdk_name <=> event.client_sdk.name,
+    span.data.release <=> event.release,
+    span.data.segment_name <=> event.transaction,
     span.exclusive_time <=> event.contexts.trace.exclusive_time,
+    span.measurements <=> event.measurements,
     span.op <=> event.contexts.trace.op,
     span.parent_span_id <=> event.contexts.trace.parent_span_id,
-    // A transaction corresponds to a segment span, so span_id and segment_id have the same value:
-    span.span_id <=> event.contexts.trace.span_id,
-    span.segment_id <=> event.contexts.trace.span_id,
-    span.status <=> event.contexts.trace.status,
-    span.trace_id <=> event.contexts.trace.trace_id,
+    span.platform <=> event.platform,
     span.profile_id <=> event.contexts.profile.profile_id,
-    span.data.release <=> event.release,
-    span.data.environment <=> event.environment
+    span.received <=> event.received,
+    span.segment_id <=> event.contexts.trace.span_id,
+    span.span_id <=> event.contexts.trace.span_id,
+    span.start_timestamp <=> event.start_timestamp,
+    span.status <=> event.contexts.trace.status,
+    span.tags <=> event.tags,
+    span.timestamp <=> event.timestamp,
+    span.trace_id <=> event.contexts.trace.trace_id
+
     ;
     span.is_segment <= true,
     span.was_transaction <= true
@@ -172,9 +180,13 @@ mod tests {
         let event = Annotated::<Event>::from_json(
             r#"{
                 "type": "transaction",
+                "platform": "php",
+                "sdk": {"name": "sentry.php"},
                 "release": "myapp@1.0.0",
                 "environment": "prod",
+                "transaction": "my 1st transaction",
                 "contexts": {
+                    "browser": {"name": "Chrome"},
                     "profile": {"profile_id": "a0aaaaaaaaaaaaaaaaaaaaaaaaaaaaab"},
                     "trace": {
                         "trace_id": "4C79F60C11214EB38604F4AE0781BFB2",
@@ -240,7 +252,7 @@ mod tests {
             ),
             data: SpanData {
                 app_start_type: ~,
-                browser_name: ~,
+                browser_name: "Chrome",
                 code_filepath: ~,
                 code_lineno: ~,
                 code_function: ~,
@@ -266,11 +278,12 @@ mod tests {
                 ai_total_tokens_used: ~,
                 ai_responses: ~,
                 thread_name: ~,
-                transaction: ~,
+                segment_name: "my 1st transaction",
                 ui_component_name: ~,
                 url_scheme: ~,
                 user: ~,
                 replay_id: ~,
+                sdk_name: "sentry.php",
                 other: {},
             },
             sentry_tags: ~,
@@ -300,7 +313,7 @@ mod tests {
                     ],
                 },
             ),
-            platform: ~,
+            platform: "php",
             was_transaction: true,
             other: {},
         }

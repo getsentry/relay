@@ -165,7 +165,7 @@ pub struct SpanData {
 
     /// The client's browser name.
     #[metastructure(field = "browser.name")]
-    pub browser_name: Annotated<Value>,
+    pub browser_name: Annotated<String>,
 
     /// The source code file name that identifies the code unit as uniquely as possible.
     #[metastructure(field = "code.filepath", pii = "maybe")]
@@ -200,11 +200,11 @@ pub struct SpanData {
     pub db_system: Annotated<Value>,
 
     /// The sentry environment.
-    #[metastructure(field = "environment")]
+    #[metastructure(field = "sentry.environment", legacy_alias = "environment")]
     pub environment: Annotated<String>,
 
     /// The release version of the project.
-    #[metastructure(field = "release")]
+    #[metastructure(field = "sentry.release", legacy_alias = "release")]
     pub release: Annotated<LenientString>,
 
     /// The decoded body size of the response (in bytes).
@@ -274,7 +274,8 @@ pub struct SpanData {
     /// Origin Transaction name of the span.
     ///
     /// For INP spans, this is the route name where the interaction occurred.
-    pub transaction: Annotated<String>,
+    #[metastructure(field = "sentry.segment.name", legacy_alias = "transaction")]
+    pub segment_name: Annotated<String>,
 
     /// Name of the UI component (e.g. React).
     #[metastructure(field = "ui.component_name")]
@@ -292,6 +293,10 @@ pub struct SpanData {
     #[metastructure(field = "replay_id")]
     pub replay_id: Annotated<Value>,
 
+    #[metastructure(field = "sentry.sdk.name")]
+    /// The sentry SDK (see [`crate::protocol::ClientSdkInfo`]).
+    pub sdk_name: Annotated<String>,
+
     /// Other fields in `span.data`.
     #[metastructure(additional_properties, pii = "true", retain = "true")]
     other: Object<Value>,
@@ -301,7 +306,7 @@ impl Getter for SpanData {
     fn get_value(&self, path: &str) -> Option<Val<'_>> {
         Some(match path {
             "app_start_type" => self.app_start_type.value()?.into(),
-            "browser\\.name" => self.browser_name.value()?.into(),
+            "browser\\.name" => self.browser_name.as_str()?.into(),
             "code\\.filepath" => self.code_filepath.value()?.into(),
             "code\\.function" => self.code_function.value()?.into(),
             "code\\.lineno" => self.code_lineno.value()?.into(),
@@ -327,7 +332,7 @@ impl Getter for SpanData {
             "thread\\.name" => self.thread_name.value()?.into(),
             "ui\\.component_name" => self.ui_component_name.value()?.into(),
             "url\\.scheme" => self.url_scheme.value()?.into(),
-            "transaction" => self.transaction.as_str()?.into(),
+            "transaction" => self.segment_name.as_str()?.into(),
             _ => {
                 let escaped = path.replace("\\.", "\0");
                 let mut path = escaped.split('.').map(|s| s.replace('\0', "."));
