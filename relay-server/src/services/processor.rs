@@ -8,6 +8,7 @@ use std::pin::Pin;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
+use crate::metric_stats::MetricStats;
 use anyhow::Context;
 use brotli::CompressorWriter as BrotliEncoder;
 use bytes::Bytes;
@@ -48,7 +49,6 @@ use tokio::sync::Semaphore;
 
 #[cfg(feature = "processing")]
 use {
-    crate::metric_stats::MetricStats,
     crate::services::store::{Store, StoreEnvelope},
     crate::utils::{EnvelopeLimiter, ItemAction, MetricsLimiter},
     itertools::Itertools,
@@ -947,7 +947,6 @@ struct InnerProcessor {
     metric_meta_store: Option<RedisMetricMetaStore>,
     #[cfg(feature = "processing")]
     cardinality_limiter: Option<CardinalityLimiter>,
-    #[cfg(feature = "processing")]
     metric_stats: MetricStats,
     #[cfg(feature = "processing")]
     buffer_guard: Arc<BufferGuard>,
@@ -961,7 +960,7 @@ impl EnvelopeProcessorService {
         cogs: Cogs,
         #[cfg(feature = "processing")] redis: Option<RedisPool>,
         addrs: Addrs,
-        #[cfg(feature = "processing")] metric_stats: MetricStats,
+        metric_stats: MetricStats,
         #[cfg(feature = "processing")] buffer_guard: Arc<BufferGuard>,
     ) -> Self {
         let geoip_lookup = config.geoip_path().and_then(|p| {
@@ -1002,7 +1001,6 @@ impl EnvelopeProcessorService {
                     )
                 })
                 .map(CardinalityLimiter::new),
-            #[cfg(feature = "processing")]
             metric_stats,
             config,
             #[cfg(feature = "processing")]

@@ -181,7 +181,6 @@ impl ServiceState {
                 #[cfg(feature = "processing")]
                 store_forwarder: store.clone(),
             },
-            #[cfg(feature = "processing")]
             metric_stats.clone(),
             #[cfg(feature = "processing")]
             buffer_guard.clone(),

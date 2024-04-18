@@ -14,7 +14,6 @@ use relay_test::mock_service;
 
 use crate::envelope::{Envelope, Item, ItemType};
 use crate::extractors::RequestMeta;
-#[cfg(feature = "processing")]
 use crate::metric_stats::MetricStats;
 use crate::services::global_config::GlobalConfigHandle;
 use crate::services::outcome::TrackOutcome;
@@ -120,7 +119,6 @@ pub fn create_test_processor(config: Config) -> EnvelopeProcessorService {
     let (project_cache, _) = mock_service("project_cache", (), |&mut (), _| {});
     let (upstream_relay, _) = mock_service("upstream_relay", (), |&mut (), _| {});
     let (test_store, _) = mock_service("test_store", (), |&mut (), _| {});
-    #[cfg(feature = "processing")]
     let (aggregator, _) = mock_service("aggregator", (), |&mut (), _| {});
 
     #[cfg(feature = "processing")]
@@ -147,7 +145,6 @@ pub fn create_test_processor(config: Config) -> EnvelopeProcessorService {
             #[cfg(feature = "processing")]
             store_forwarder: None,
         },
-        #[cfg(feature = "processing")]
         MetricStats::new(
             config,
             GlobalConfigHandle::fixed(Default::default()),
