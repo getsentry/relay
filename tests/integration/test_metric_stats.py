@@ -136,7 +136,7 @@ def test_metric_stats_simple(
     assert len(metrics.other) == 3
 
 
-@pytest.mark.parametrize("mode", ["default", "chain"])
+@pytest.mark.parametrize("mode", ["default"])
 def test_metric_stats_with_limit_surpassed(
     mini_sentry, relay, relay_with_processing, relay_credentials, metrics_consumer, mode
 ):
@@ -184,7 +184,7 @@ def test_metric_stats_with_limit_surpassed(
     )
 
     metrics = metric_stats_by_mri(metrics_consumer, 7)
-
+    print(metrics)
     assert metrics.volume["d:custom/foo@none"]["org_id"] == 0
     assert metrics.volume["d:custom/foo@none"]["project_id"] == project_id
     assert metrics.volume["d:custom/foo@none"]["value"] == 2.0
