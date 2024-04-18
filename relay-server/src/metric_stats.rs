@@ -1,10 +1,8 @@
 use std::collections::BTreeMap;
 use std::sync::{Arc, OnceLock};
 
-#[cfg(feature = "processing")]
 use relay_cardinality::{CardinalityLimit, CardinalityReport};
 use relay_config::Config;
-#[cfg(feature = "processing")]
 use relay_metrics::GaugeValue;
 use relay_metrics::{
     Aggregator, Bucket, BucketValue, BucketView, MergeBuckets, MetricName, UnixTimestamp,
@@ -24,7 +22,6 @@ fn volume_metric_mri() -> MetricName {
         .clone()
 }
 
-#[cfg(feature = "processing")]
 fn cardinality_metric_mri() -> MetricName {
     static CARDINALITY_METRIC_MRI: OnceLock<MetricName> = OnceLock::new();
 
@@ -49,7 +46,6 @@ pub struct MetricStats {
 
 impl MetricStats {
     /// Creates a new [`MetricStats`] instance.
-    #[cfg(feature = "processing")]
     pub fn new(
         config: Arc<Config>,
         global_config: GlobalConfigHandle,
@@ -87,7 +83,6 @@ impl MetricStats {
     }
 
     /// Tracks the cardinality of a metric.
-    #[cfg(feature = "processing")]
     pub fn track_cardinality(
         &self,
         scoping: Scoping,
@@ -126,11 +121,7 @@ impl MetricStats {
         is_rolled_out(organization_id, rate)
     }
 
-    fn to_volume_metric<'a>(
-        &self,
-        bucket_view: &BucketView<'a>,
-        outcome: &Outcome,
-    ) -> Option<Bucket> {
+    fn to_volume_metric(&self, bucket_view: &BucketView, outcome: &Outcome) -> Option<Bucket> {
         let volume = bucket_view.metadata().merges.get();
         if volume == 0 {
             return None;
@@ -165,7 +156,6 @@ impl MetricStats {
         })
     }
 
-    #[cfg(feature = "processing")]
     fn to_cardinality_metric(
         &self,
         limit: &CardinalityLimit,
@@ -211,7 +201,7 @@ impl MetricStats {
     }
 }
 
-#[cfg(all(test, feature = "processing"))]
+#[cfg(test)]
 mod tests {
     use relay_base_schema::project::{ProjectId, ProjectKey};
     use relay_cardinality::{CardinalityScope, SlidingWindow};
@@ -265,12 +255,12 @@ mod tests {
         let scoping = scoping();
         let mut bucket = Bucket::parse(b"rt@millisecond:57|d", UnixTimestamp::now()).unwrap();
 
-        ms.track_metric(scoping, bucket.clone(), Outcome::Accepted);
+        ms.track_metric(scoping, &bucket.clone(), Outcome::Accepted);
 
         bucket.metadata.merges = bucket.metadata.merges.saturating_add(41);
         ms.track_metric(
             scoping,
-            bucket,
+            &bucket,
             Outcome::RateLimited(Some(ReasonCode::new("foobar"))),
         );
 
@@ -454,7 +444,7 @@ mod tests {
 
         let scoping = scoping();
         let bucket = Bucket::parse(b"rt@millisecond:57|d", UnixTimestamp::now()).unwrap();
-        ms.track_metric(scoping, bucket, Outcome::Accepted);
+        ms.track_metric(scoping, &bucket, Outcome::Accepted);
 
         drop(ms);
 
@@ -468,7 +458,7 @@ mod tests {
         let scoping = scoping();
         let bucket =
             Bucket::parse(b"transactions/rt@millisecond:57|d", UnixTimestamp::now()).unwrap();
-        ms.track_metric(scoping, bucket, Outcome::Accepted);
+        ms.track_metric(scoping, &bucket, Outcome::Accepted);
 
         drop(ms);
 

@@ -94,25 +94,31 @@ where
     quantities
 }
 
-fn report_rejected_metrics<I: IntoIterator<Item = Bucket>>(
+fn report_rejected_metrics<'a, I, V>(
     metric_stats: &MetricStats,
     scoping: Scoping,
     buckets: I,
     outcome: Outcome,
-) {
+) where
+    I: IntoIterator<Item = V>,
+    V: Into<BucketView<'a>>,
+{
     for bucket in buckets {
         metric_stats.track_metric(scoping, bucket, outcome.clone())
     }
 }
 
-pub fn reject_metrics<I: IntoIterator<Item = Bucket>>(
+pub fn reject_metrics<'a, I, V>(
     addr: &Addr<TrackOutcome>,
     quantities: SourceQuantities,
     scoping: Scoping,
     outcome: Outcome,
     metric_stats: Option<&MetricStats>,
     buckets: Option<I>,
-) {
+) where
+    I: IntoIterator<Item = V>,
+    V: Into<BucketView<'a>>,
+{
     let timestamp = Utc::now();
 
     let categories = [

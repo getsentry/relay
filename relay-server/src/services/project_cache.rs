@@ -1183,6 +1183,8 @@ impl FetchOptionalProjectState {
 
 #[cfg(test)]
 mod tests {
+    use crate::services::global_config::GlobalConfigHandle;
+    use relay_dynamic_config::GlobalConfig;
     use relay_test::mock_service;
     use tokio::select;
     use uuid::Uuid;
@@ -1201,6 +1203,13 @@ mod tests {
         let (upstream_relay, _) = mock_service("upstream_relay", (), |&mut (), _| {});
         let (global_config, _) = mock_service("global_config", (), |&mut (), _| {});
 
+        let (addr, _) = Addr::custom();
+        let metric_stats = MetricStats::new(
+            Arc::new(Config::default()),
+            GlobalConfigHandle::fixed(GlobalConfig::default()),
+            addr,
+        );
+
         Services {
             aggregator,
             envelope_processor,
@@ -1209,6 +1218,7 @@ mod tests {
             test_store,
             upstream_relay,
             global_config,
+            metric_stats,
         }
     }
 

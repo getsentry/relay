@@ -2164,7 +2164,7 @@ impl EnvelopeProcessorService {
                     *item_scoping.scoping,
                     Outcome::RateLimited(reason_code),
                     Some(&self.inner.metric_stats),
-                    Some(buckets),
+                    Some(&buckets),
                 );
 
                 self.inner.addrs.project_cache.send(UpdateRateLimits::new(
@@ -2257,7 +2257,7 @@ impl EnvelopeProcessorService {
             scoping,
             Outcome::CardinalityLimited,
             Some(&self.inner.metric_stats),
-            Some(split.rejected),
+            Some(&split.rejected),
         );
 
         split.accepted
@@ -2886,7 +2886,7 @@ impl UpstreamRequest for SendMetricsRequest {
                 // Request did not arrive, we are responsible for outcomes.
                 Err(error) if !error.is_received() => {
                     for (scoping, quantities) in self.quantities {
-                        utils::reject_metrics::<Vec<Bucket>>(
+                        utils::reject_metrics::<Vec<&Bucket>, &Bucket>(
                             &self.outcome_aggregator,
                             quantities,
                             scoping,

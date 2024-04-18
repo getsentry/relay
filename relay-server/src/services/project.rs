@@ -1198,13 +1198,13 @@ impl Project {
         if limits.is_limited() {
             let mode = project_state.get_extraction_mode();
             let reason_code = limits.longest().and_then(|limit| limit.reason_code.clone());
-            utils::reject_metrics::<Vec<Bucket>>(
+            utils::reject_metrics(
                 &outcome_aggregator,
                 utils::extract_metric_quantities(&buckets, mode),
                 scoping,
                 Outcome::RateLimited(reason_code),
                 Some(&metric_stats),
-                Some(buckets),
+                Some(&buckets),
             );
 
             return CheckedBuckets::RateLimited(len);
@@ -1267,9 +1267,10 @@ mod tests {
     use std::collections::BTreeMap;
     use std::sync::Mutex;
 
+    use crate::services::global_config::GlobalConfigHandle;
     use relay_common::glob3::GlobPatterns;
     use relay_common::time::UnixTimestamp;
-    use relay_dynamic_config::TagBlock;
+    use relay_dynamic_config::{GlobalConfig, TagBlock};
     use relay_metrics::BucketValue;
     use relay_test::mock_service;
     use serde_json::json;
@@ -1320,7 +1321,14 @@ mod tests {
         project_state.disabled = true;
         project.state = State::Cached(project_state.into());
 
-        let result = project.check_buckets_inner(Addr::custom().0, vec![]);
+        let (addr, _) = Addr::custom();
+        let metric_stats = MetricStats::new(
+            Arc::new(Config::default()),
+            GlobalConfigHandle::fixed(GlobalConfig::default()),
+            addr,
+        );
+
+        let result = project.check_buckets_inner(Addr::custom().0, metric_stats, vec![]);
         assert!(matches!(result, CheckedBuckets::ProjectDisabled(0)));
     }
 
