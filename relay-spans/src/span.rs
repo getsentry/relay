@@ -3,13 +3,12 @@ use std::str::FromStr;
 use chrono::{TimeZone, Utc};
 use opentelemetry_proto::tonic::common::v1::any_value::Value as OtelValue;
 
-use relay_event_schema::protocol::{
-    Span as EventSpan, SpanData, SpanId, SpanStatus, Timestamp, TraceId,
-};
-use relay_protocol::{Annotated, FromValue, Object};
-
 use crate::otel_trace::{status::StatusCode as OtelStatusCode, Span as OtelSpan};
 use crate::status_codes;
+use relay_event_schema::protocol::{
+    EventId, Span as EventSpan, SpanData, SpanId, SpanStatus, Timestamp, TraceId,
+};
+use relay_protocol::{Annotated, FromValue, Object};
 
 /// convert_from_otel_to_sentry_status returns a status as defined by Sentry based on the OTel status.
 fn convert_from_otel_to_sentry_status(
@@ -63,6 +62,14 @@ fn otel_value_to_string(value: OtelValue) -> Option<String> {
     }
 }
 
+fn otel_value_to_span_id(value: OtelValue) -> Option<String> {
+    match value {
+        OtelValue::StringValue(s) => Some(s),
+        OtelValue::BytesValue(b) => Some(hex::encode(b)),
+        _ => None,
+    }
+}
+
 /// Transform an OtelSpan to a Sentry span.
 pub fn otel_to_sentry_span(otel_span: OtelSpan) -> EventSpan {
     let mut exclusive_time_ms = 0f64;
@@ -87,19 +94,15 @@ pub fn otel_to_sentry_span(otel_span: OtelSpan) -> EventSpan {
         _ => Some(hex::encode(parent_span_id)),
     };
 
-    let segment_id = if parent_span_id.is_none() {
-        Annotated::new(SpanId(span_id.clone()))
-    } else {
-        // TODO: derive from attributes
-        Annotated::empty()
-    };
-
     let mut op = None;
-    let mut description = name;
+    let mut description = if name.is_empty() { None } else { Some(name) };
     let mut http_method = None;
     let mut http_route = None;
     let mut http_status_code = None;
     let mut grpc_status_code = None;
+    let mut platform = None;
+    let mut segment_id = None;
+    let mut profile_id = None;
     for attribute in attributes.into_iter() {
         if let Some(value) = attribute.value.and_then(|v| v.value) {
             match attribute.key.as_str() {
@@ -110,7 +113,7 @@ pub fn otel_to_sentry_span(otel_span: OtelSpan) -> EventSpan {
                     op = op.or(Some("db".to_string()));
                     if key == "db.statement" {
                         if let Some(statement) = otel_value_to_string(value) {
-                            description = statement;
+                            description = Some(statement);
                         }
                     }
                 }
@@ -140,6 +143,15 @@ pub fn otel_to_sentry_span(otel_span: OtelSpan) -> EventSpan {
                 }
                 "rpc.grpc.status_code" => {
                     grpc_status_code = otel_value_to_i64(value);
+                }
+                "sentry.platform" => {
+                    platform = otel_value_to_string(value);
+                }
+                "sentry.segment.id" => {
+                    segment_id = otel_value_to_span_id(value);
+                }
+                "sentry.profile.id" => {
+                    profile_id = otel_value_to_span_id(value);
                 }
                 _other => {
                     let key = attribute.key;
@@ -173,11 +185,8 @@ pub fn otel_to_sentry_span(otel_span: OtelSpan) -> EventSpan {
             (otel_span.end_time_unix_nano - otel_span.start_time_unix_nano) as f64 / 1e6f64;
     }
 
-    // TODO: This is wrong, a segment could still have a parent in the trace.
-    let is_segment = parent_span_id.is_none().into();
-
     if let (Some(http_method), Some(http_route)) = (http_method, http_route) {
-        description = format!("{} {}", http_method, http_route);
+        description = Some(format!("{} {}", http_method, http_route));
     }
 
     EventSpan {
@@ -186,8 +195,12 @@ pub fn otel_to_sentry_span(otel_span: OtelSpan) -> EventSpan {
         data: SpanData::from_value(Annotated::new(data.into())),
         exclusive_time: exclusive_time_ms.into(),
         parent_span_id: parent_span_id.map(SpanId).into(),
-        segment_id,
+        segment_id: segment_id.map(SpanId).into(),
         span_id: Annotated::new(SpanId(span_id)),
+        profile_id: profile_id
+            .as_deref()
+            .and_then(|s| EventId::from_str(s).ok())
+            .into(),
         start_timestamp: Timestamp(start_timestamp).into(),
         status: Annotated::new(convert_from_otel_to_sentry_status(
             status.map(|s| s.code),
@@ -196,7 +209,7 @@ pub fn otel_to_sentry_span(otel_span: OtelSpan) -> EventSpan {
         )),
         timestamp: Timestamp(end_timestamp).into(),
         trace_id: TraceId(trace_id).into(),
-        is_segment,
+        platform: platform.into(),
         ..Default::default()
     }
 }
@@ -405,9 +418,10 @@ mod tests {
             "parentSpanId": "fa90fdead5f74051",
             "startTimeUnixNano": 123000000000,
             "endTimeUnixNano": 123500000000,
+            "status": {"code": 0, "message": "foo"},
             "attributes": [
                 {
-                    "key" : "sentry.browser.name",
+                    "key" : "browser.name",
                     "value": {
                         "stringValue": "Chrome"
                     }
@@ -469,9 +483,13 @@ mod tests {
 
         insta::assert_debug_snapshot!(span_from_otel, @r###"
         Span {
-            timestamp: ~,
-            start_timestamp: ~,
-            exclusive_time: 123.4,
+            timestamp: Timestamp(
+                1970-01-01T00:02:03.500Z,
+            ),
+            start_timestamp: Timestamp(
+                1970-01-01T00:02:03Z,
+            ),
+            exclusive_time: 500.0,
             description: ~,
             op: "myop",
             span_id: SpanId(
@@ -486,7 +504,7 @@ mod tests {
             segment_id: SpanId(
                 "fa90fdead5f74052",
             ),
-            is_segment: true,
+            is_segment: ~,
             status: Ok,
             tags: ~,
             origin: ~,
@@ -531,8 +549,10 @@ mod tests {
             },
             sentry_tags: ~,
             received: ~,
+            measurements: ~,
+            _metrics_summary: ~,
             platform: "php",
-            was_transaction: true,
+            was_transaction: ~,
             other: {},
         }
         "###);
