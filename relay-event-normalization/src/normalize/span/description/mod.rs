@@ -2,15 +2,14 @@
 mod resource;
 mod sql;
 use once_cell::sync::Lazy;
+use psl;
 #[cfg(test)]
 pub use sql::{scrub_queries, Mode};
 
+use relay_event_schema::protocol::Span;
 use std::borrow::Cow;
 use std::net::{Ipv4Addr, Ipv6Addr};
 use std::path::Path;
-
-use itertools::Itertools;
-use relay_event_schema::protocol::Span;
 use url::{Host, Url};
 
 use crate::regexes::{
@@ -279,6 +278,7 @@ pub fn scrub_ipv6(ip: Ipv6Addr) -> &'static str {
 /// use relay_event_normalization::span::description::scrub_domain_name;
 ///
 /// assert_eq!(scrub_domain_name("my.domain.com"), "*.domain.com");
+/// assert_eq!(scrub_domain_name("data.bbc.co.uk"), "*.bbc.co.uk");
 /// assert_eq!(scrub_domain_name("hello world"), "hello world");
 /// ```
 pub fn scrub_domain_name(domain: &str) -> Cow<'_, str> {
@@ -286,18 +286,43 @@ pub fn scrub_domain_name(domain: &str) -> Cow<'_, str> {
         return Cow::Borrowed(domain);
     }
 
-    let mut tokens = domain.rsplitn(3, '.');
-    let tld = tokens.next();
-    let domain = tokens.next();
-    let prefix = tokens.next().map(|_| "*");
+    let parsed_domain = psl::domain(domain.as_bytes());
 
-    Cow::Owned(
-        prefix
-            .iter()
-            .chain(domain.iter())
-            .chain(tld.iter())
-            .join("."),
-    )
+    if parsed_domain.is_none() {
+        // If parsing fails, return the original string
+        return Cow::Borrowed(domain);
+    }
+
+    let parsed_domain = parsed_domain.unwrap();
+
+    let suffix_string = String::from_utf8(parsed_domain.suffix().as_bytes().to_vec());
+    let scrubbed_suffix = match &suffix_string {
+        Ok(string) => string.as_ref(),
+        Err(_) => "*",
+    };
+
+    let domain_string = String::from_utf8(parsed_domain.as_bytes().to_vec());
+    let scrubbed_domain = match &domain_string {
+        Ok(string) => {
+            let second_level_domain = string.strip_suffix(scrubbed_suffix).unwrap_or("");
+
+            // If a subdomain is present, replace with `"*."`
+            let subdomain = match domain
+                .strip_suffix(scrubbed_suffix)
+                .unwrap_or(domain)
+                .strip_suffix(second_level_domain)
+            {
+                None => "",
+                Some("") => "",
+                _ => "*.",
+            };
+
+            format!("{subdomain}{second_level_domain}")
+        }
+        Err(_) => String::from("*"),
+    };
+
+    return Cow::Owned(format!("{scrubbed_domain}{scrubbed_suffix}"));
 }
 
 /// Concatenate an optional host and an optional port.
