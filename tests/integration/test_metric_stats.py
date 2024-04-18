@@ -12,7 +12,7 @@ class MetricStatsByMri:
     other: list[Any]
 
 
-def metric_stats_by_mri(metrics_consumer, count, timeout=None):
+def metric_stats_by_mri(metrics_consumer, count, timeout=5):
     volume = dict()
     cardinality = dict()
     other = list()
