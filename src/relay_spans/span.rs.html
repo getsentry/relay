@@ -391,6 +391,9 @@
 <a href="#389" id="389">389</a>
 <a href="#390" id="390">390</a>
 <a href="#391" id="391">391</a>
+<a href="#392" id="392">392</a>
+<a href="#393" id="393">393</a>
+<a href="#394" id="394">394</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::str::FromStr;
 
 <span class="kw">use </span>chrono::{TimeZone, Utc};
@@ -476,13 +479,16 @@
 
     <span class="kw">let </span>span_id = hex::encode(span_id);
     <span class="kw">let </span>trace_id = hex::encode(trace_id);
-    <span class="kw">let </span>parent_span_id = hex::encode(parent_span_id);
+    <span class="kw">let </span>parent_span_id = <span class="kw">match </span>parent_span_id.as_slice() {
+        <span class="kw-2">&amp;</span>[] =&gt; <span class="prelude-val">None</span>,
+        <span class="kw">_ </span>=&gt; <span class="prelude-val">Some</span>(hex::encode(parent_span_id)),
+    };
 
-    <span class="comment">// TODO: This is wrong, a segment could still have a parent in the trace.
-    </span><span class="kw">let </span>segment_id = <span class="kw">if </span>parent_span_id.is_empty() {
+    <span class="kw">let </span>segment_id = <span class="kw">if </span>parent_span_id.is_none() {
         Annotated::new(SpanId(span_id.clone()))
     } <span class="kw">else </span>{
-        Annotated::empty()
+        <span class="comment">// TODO: derive from attributes
+        </span>Annotated::empty()
     };
 
     <span class="kw">let </span><span class="kw-2">mut </span>op = <span class="prelude-val">None</span>;
@@ -560,7 +566,7 @@
     }
 
     <span class="comment">// TODO: This is wrong, a segment could still have a parent in the trace.
-    </span><span class="kw">let </span>is_segment = parent_span_id.is_empty().into();
+    </span><span class="kw">let </span>is_segment = parent_span_id.is_none().into();
 
     <span class="kw">if let </span>(<span class="prelude-val">Some</span>(http_method), <span class="prelude-val">Some</span>(http_route)) = (http_method, http_route) {
         description = <span class="macro">format!</span>(<span class="string">"{} {}"</span>, http_method, http_route);
@@ -571,7 +577,7 @@
         description: description.into(),
         data: SpanData::from_value(Annotated::new(data.into())),
         exclusive_time: exclusive_time_ms.into(),
-        parent_span_id: SpanId(parent_span_id).into(),
+        parent_span_id: parent_span_id.map(SpanId).into(),
         segment_id,
         span_id: Annotated::new(SpanId(span_id)),
         start_timestamp: Timestamp(start_timestamp).into(),

@@ -564,8 +564,8 @@
 
 <span class="kw">use </span><span class="kw">crate</span>::processor::ProcessValue;
 <span class="kw">use </span><span class="kw">crate</span>::protocol::{
-    EventId, JsonLenientString, Measurements, MetricsSummary, OperationType, OriginType, SpanId,
-    SpanStatus, Timestamp, TraceId,
+    EventId, JsonLenientString, LenientString, Measurements, MetricsSummary, OperationType,
+    OriginType, SpanId, SpanStatus, Timestamp, TraceId,
 };
 
 <span class="attr">#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
@@ -759,11 +759,11 @@
 
     <span class="doccomment">/// The sentry environment.
     </span><span class="attr">#[metastructure(field = <span class="string">"environment"</span>)]
-    </span><span class="kw">pub </span>environment: Annotated&lt;Value&gt;,
+    </span><span class="kw">pub </span>environment: Annotated&lt;String&gt;,
 
     <span class="doccomment">/// The release version of the project.
     </span><span class="attr">#[metastructure(field = <span class="string">"release"</span>)]
-    </span><span class="kw">pub </span>release: Annotated&lt;Value&gt;,
+    </span><span class="kw">pub </span>release: Annotated&lt;LenientString&gt;,
 
     <span class="doccomment">/// The decoded body size of the response (in bytes).
     </span><span class="attr">#[metastructure(field = <span class="string">"http.decoded_response_content_length"</span>)]
@@ -866,7 +866,7 @@
             <span class="string">"code\\.namespace" </span>=&gt; <span class="self">self</span>.code_namespace.value()<span class="question-mark">?</span>.into(),
             <span class="string">"db.operation" </span>=&gt; <span class="self">self</span>.db_operation.value()<span class="question-mark">?</span>.into(),
             <span class="string">"db\\.system" </span>=&gt; <span class="self">self</span>.db_system.value()<span class="question-mark">?</span>.into(),
-            <span class="string">"environment" </span>=&gt; <span class="self">self</span>.environment.value()<span class="question-mark">?</span>.into(),
+            <span class="string">"environment" </span>=&gt; <span class="self">self</span>.environment.as_str()<span class="question-mark">?</span>.into(),
             <span class="string">"http\\.decoded_response_content_length" </span>=&gt; {
                 <span class="self">self</span>.http_decoded_response_content_length.value()<span class="question-mark">?</span>.into()
             }

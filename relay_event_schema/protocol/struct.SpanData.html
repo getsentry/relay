@@ -8,8 +8,8 @@
     pub code_namespace: Annotated&lt;Value&gt;,
     pub db_operation: Annotated&lt;Value&gt;,
     pub db_system: Annotated&lt;Value&gt;,
-    pub environment: Annotated&lt;Value&gt;,
-    pub release: Annotated&lt;Value&gt;,
+    pub environment: Annotated&lt;<a class="struct" href="https://doc.rust-lang.org/1.77.2/alloc/string/struct.String.html" title="struct alloc::string::String">String</a>&gt;,
+    pub release: Annotated&lt;<a class="struct" href="struct.LenientString.html" title="struct relay_event_schema::protocol::LenientString">LenientString</a>&gt;,
     pub http_decoded_response_content_length: Annotated&lt;Value&gt;,
     pub http_request_method: Annotated&lt;Value&gt;,
     pub http_response_content_length: Annotated&lt;Value&gt;,
@@ -50,8 +50,8 @@ form a unique identifier for the code unit.</p>
 Based on <a href="https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/trace/semantic_conventions/database.md#call-level-attributes">OpenTelemetry’s call level db attributes</a>.</p>
 </div><span id="structfield.db_system" class="structfield section-header"><a href="#structfield.db_system" class="anchor field">§</a><code>db_system: Annotated&lt;Value&gt;</code></span><div class="docblock"><p>An identifier for the database management system (DBMS) product being used.</p>
 <p>See <a href="https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/trace/semantic_conventions/database.md#notes-and-well-known-identifiers-for-dbsystem">OpenTelemetry docs for a list of well-known identifiers</a>.</p>
-</div><span id="structfield.environment" class="structfield section-header"><a href="#structfield.environment" class="anchor field">§</a><code>environment: Annotated&lt;Value&gt;</code></span><div class="docblock"><p>The sentry environment.</p>
-</div><span id="structfield.release" class="structfield section-header"><a href="#structfield.release" class="anchor field">§</a><code>release: Annotated&lt;Value&gt;</code></span><div class="docblock"><p>The release version of the project.</p>
+</div><span id="structfield.environment" class="structfield section-header"><a href="#structfield.environment" class="anchor field">§</a><code>environment: Annotated&lt;<a class="struct" href="https://doc.rust-lang.org/1.77.2/alloc/string/struct.String.html" title="struct alloc::string::String">String</a>&gt;</code></span><div class="docblock"><p>The sentry environment.</p>
+</div><span id="structfield.release" class="structfield section-header"><a href="#structfield.release" class="anchor field">§</a><code>release: Annotated&lt;<a class="struct" href="struct.LenientString.html" title="struct relay_event_schema::protocol::LenientString">LenientString</a>&gt;</code></span><div class="docblock"><p>The release version of the project.</p>
 </div><span id="structfield.http_decoded_response_content_length" class="structfield section-header"><a href="#structfield.http_decoded_response_content_length" class="anchor field">§</a><code>http_decoded_response_content_length: Annotated&lt;Value&gt;</code></span><div class="docblock"><p>The decoded body size of the response (in bytes).</p>
 </div><span id="structfield.http_request_method" class="structfield section-header"><a href="#structfield.http_request_method" class="anchor field">§</a><code>http_request_method: Annotated&lt;Value&gt;</code></span><div class="docblock"><p>The HTTP method used.</p>
 </div><span id="structfield.http_response_content_length" class="structfield section-header"><a href="#structfield.http_response_content_length" class="anchor field">§</a><code>http_response_content_length: Annotated&lt;Value&gt;</code></span><div class="docblock"><p>The encoded body size of the response (in bytes).</p>
