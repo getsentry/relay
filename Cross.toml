@@ -1,11 +1,14 @@
 [build]
 pre-build = [
-    "sed -i -e 's/archive.archive.ubuntu.com/azure.archive.ubuntu.com/' /etc/apt/sources.list",
+    # Use azure mirrors for faster downloads.
+    # Commands taken from: https://learn.microsoft.com/en-us/azure/virtual-machines/linux/create-upload-ubuntu#manual-steps
+    # Removed dot escapes, because TOML.
+    "sed -i 's#http://archive.ubuntu.com/ubuntu#http://azure.archive.ubuntu.com/ubuntu#g' /etc/apt/sources.list",
+    "sed -i 's#http://[a-z][a-z].archive.ubuntu.com/ubuntu#http://azure.archive.ubuntu.com/ubuntu#g' /etc/apt/sources.list",
+    "sed -i 's#http://security.ubuntu.com/ubuntu#http://azure.archive.ubuntu.com/ubuntu#g' /etc/apt/sources.list",
+    "sed -i 's#http://[a-z][a-z].security.ubuntu.com/ubuntu#http://azure.archive.ubuntu.com/ubuntu#g' /etc/apt/sources.list",
     "apt-get update && apt-get --assume-yes install libclang-8-dev clang-8",
     "curl -sL https://sentry.io/get-cli/ | sh",
-    # "apt-get update && apt-get install --assume-yes --no-install-recommends libclang-10-dev clang-10 ",
-    # "dpkg --add-architecture $CROSS_DEB_ARCH", 
-    # "apt-get update && apt-get --assume-yes install zlib1g-dev:$CROSS_DEB_ARCH libsasl2-dev:$CROSS_DEB_ARCH"
 ]
 
 [target.aarch64-unknown-linux-gnu]
