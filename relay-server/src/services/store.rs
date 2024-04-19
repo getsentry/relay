@@ -1260,25 +1260,6 @@ struct UserReportKafkaMessage {
     event_id: EventId,
 }
 
-//TODO:
-// /// Container payload for user feedback messages.
-// /// Derived from EventMessage after separating feedback to its own topic.
-// #[derive(Debug, Serialize)]
-// struct UserReportV2KafkaMessage {
-//     /// Raw event payload.
-//     payload: Bytes,
-//     /// Time at which the event was received by Relay.
-//     start_time: u64,
-//     /// The event id.
-//     event_id: EventId,
-//     /// The project id for the current event.
-//     project_id: ProjectId,
-//     /// The client ip address.
-//     remote_addr: Option<String>, //TODO: is this necessary or expected by anything downstream?
-//     /// Attachments that are potentially relevant for processing.
-//     attachments: Vec<ChunkedAttachment>, //TODO: is this necessary?
-// }
-
 #[derive(Clone, Debug, Serialize)]
 struct SessionKafkaMessage {
     org_id: u64,
