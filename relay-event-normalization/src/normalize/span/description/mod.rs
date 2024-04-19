@@ -309,7 +309,7 @@ pub fn scrub_domain_name(domain: &str) -> Cow<'_, str> {
             let scrubbed = [b"*.", second_level_domain, suffix].concat();
             match String::from_utf8(scrubbed) {
                 Ok(s) => Cow::Owned(s),
-                Err(_) => Cow::Borrowed("*"),
+                Err(_) => Cow::Borrowed(domain),
             }
         }
     }
