@@ -1948,6 +1948,28 @@ expression: metrics
         timestamp: UnixTimestamp(1597976302),
         width: 0,
         name: MetricName(
+            "d:spans/exclusive_time_light@millisecond",
+        ),
+        value: Distribution(
+            [
+                2000.0,
+            ],
+        ),
+        tags: {
+            "cache.hit": "false",
+            "span.category": "cache",
+            "span.description": "GET *",
+            "span.group": "37e3d9fab1ae9162",
+            "span.op": "cache.get_item",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
             "d:spans/duration@millisecond",
         ),
         value: Distribution(
@@ -4903,6 +4925,28 @@ expression: metrics
         timestamp: UnixTimestamp(1597976302),
         width: 0,
         name: MetricName(
+            "d:spans/exclusive_time_light@millisecond",
+        ),
+        value: Distribution(
+            [
+                2000.0,
+            ],
+        ),
+        tags: {
+            "cache.hit": "false",
+            "span.category": "cache",
+            "span.description": "GET *",
+            "span.group": "37e3d9fab1ae9162",
+            "span.op": "cache.get_item",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
             "d:spans/duration@millisecond",
         ),
         value: Distribution(
@@ -4951,6 +4995,28 @@ expression: metrics
             "span.op": "cache.get_item",
             "transaction": "gEt /api/:version/users/",
             "transaction.op": "myop",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "d:spans/exclusive_time_light@millisecond",
+        ),
+        value: Distribution(
+            [
+                2000.0,
+            ],
+        ),
+        tags: {
+            "cache.hit": "true",
+            "span.category": "cache",
+            "span.description": "GET *",
+            "span.group": "37e3d9fab1ae9162",
+            "span.op": "cache.get_item",
         },
         metadata: BucketMetadata {
             merges: 1,
