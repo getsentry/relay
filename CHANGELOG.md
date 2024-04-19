@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Internal:**
+
+- Build and publish ARM docker images for Relay. ([#3272](https://github.com/getsentry/relay/pull/3272)).
+
 ## 24.4.1
 
 **Features**:
