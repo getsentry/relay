@@ -13,7 +13,7 @@ use rdkafka::ClientConfig;
 use relay_statsd::metric;
 use thiserror::Error;
 
-use crate::config::{KafkaConfig, KafkaParams, KafkaTopic};
+use crate::config::{KafkaParams, KafkaTopic};
 use crate::statsd::{KafkaCounters, KafkaGauges, KafkaHistograms};
 
 mod utils;
@@ -187,44 +187,42 @@ impl KafkaClientBuilder {
     pub fn add_kafka_topic_config(
         mut self,
         topic: KafkaTopic,
-        config: &KafkaConfig,
+        params: &KafkaParams,
     ) -> Result<Self, ClientError> {
         let mut client_config = ClientConfig::new();
-        match config {
-            KafkaConfig::Single { params } => {
-                let KafkaParams {
-                    topic_name,
-                    config_name,
-                    params,
-                } = params;
 
-                let config_name = config_name.map(str::to_string);
+        let KafkaParams {
+            topic_name,
+            config_name,
+            params,
+        } = params;
 
-                if let Some(producer) = self.reused_producers.get(&config_name) {
-                    self.producers.insert(
-                        topic,
-                        Producer::new((*topic_name).to_string(), Arc::clone(producer)),
-                    );
-                    return Ok(self);
-                }
+        let config_name = config_name.map(str::to_string);
 
-                for config_p in *params {
-                    client_config.set(config_p.name.as_str(), config_p.value.as_str());
-                }
-
-                let producer = Arc::new(
-                    client_config
-                        .create_with_context(Context)
-                        .map_err(ClientError::InvalidConfig)?,
-                );
-
-                self.reused_producers
-                    .insert(config_name, Arc::clone(&producer));
-                self.producers
-                    .insert(topic, Producer::new((*topic_name).to_string(), producer));
-                Ok(self)
-            }
+        if let Some(producer) = self.reused_producers.get(&config_name) {
+            self.producers.insert(
+                topic,
+                Producer::new((*topic_name).to_string(), Arc::clone(producer)),
+            );
+            return Ok(self);
         }
+
+        for config_p in *params {
+            client_config.set(config_p.name.as_str(), config_p.value.as_str());
+        }
+
+        let producer = Arc::new(
+            client_config
+                .create_with_context(Context)
+                .map_err(ClientError::InvalidConfig)?,
+        );
+
+        self.reused_producers
+            .insert(config_name, Arc::clone(&producer));
+        self.producers
+            .insert(topic, Producer::new((*topic_name).to_string(), producer));
+
+        Ok(self)
     }
 
     /// Consumes self and returns the built [`KafkaClient`].
