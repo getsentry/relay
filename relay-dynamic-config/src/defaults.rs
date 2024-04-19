@@ -160,7 +160,7 @@ fn span_metrics(
         & duration_condition.clone();
 
     let know_modules_condition =
-        (is_ai.clone() | is_db.clone() | is_resource.clone() | is_mobile.clone() | is_http.clone())
+        (is_db.clone() | is_resource.clone() | is_mobile.clone() | is_http.clone())
             & duration_condition.clone();
     let self_time_tags = vec![
         // All modules:
@@ -487,10 +487,14 @@ fn span_metrics(
                     .always(),
                 Tag::with_key("span.group")
                     .from_field("span.sentry_tags.group")
-                    .when(know_modules_condition.clone() | app_start_condition.clone()),
+                    .when(
+                        is_ai.clone()
+                            | know_modules_condition.clone()
+                            | app_start_condition.clone(),
+                    ),
                 Tag::with_key("span.category")
                     .from_field("span.sentry_tags.category")
-                    .when(know_modules_condition.clone()),
+                    .when(is_ai.clone() | know_modules_condition.clone()),
                 Tag::with_key("span.description")
                     .from_field("span.sentry_tags.description")
                     .when(is_ai.clone() | app_start_condition.clone()),
