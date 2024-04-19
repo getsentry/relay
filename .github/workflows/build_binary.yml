@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - release/**
-  pull_request: # TODO: remove me
 
 env:
   CARGO_TERM_COLOR: always
