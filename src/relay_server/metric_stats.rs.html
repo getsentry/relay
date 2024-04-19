@@ -471,6 +471,15 @@
 <a href="#469" id="469">469</a>
 <a href="#470" id="470">470</a>
 <a href="#471" id="471">471</a>
+<a href="#472" id="472">472</a>
+<a href="#473" id="473">473</a>
+<a href="#474" id="474">474</a>
+<a href="#475" id="475">475</a>
+<a href="#476" id="476">476</a>
+<a href="#477" id="477">477</a>
+<a href="#478" id="478">478</a>
+<a href="#479" id="479">479</a>
+<a href="#480" id="480">480</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::sync::{Arc, OnceLock};
 
@@ -479,7 +488,9 @@
 <span class="kw">use </span>relay_config::Config;
 <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
 </span><span class="kw">use </span>relay_metrics::GaugeValue;
-<span class="kw">use </span>relay_metrics::{Aggregator, Bucket, BucketValue, MergeBuckets, MetricName, UnixTimestamp};
+<span class="kw">use </span>relay_metrics::{
+    Aggregator, Bucket, BucketValue, BucketView, MergeBuckets, MetricName, UnixTimestamp,
+};
 <span class="kw">use </span>relay_quotas::Scoping;
 <span class="kw">use </span>relay_system::Addr;
 
@@ -520,7 +531,6 @@
 
 <span class="kw">impl </span>MetricStats {
     <span class="doccomment">/// Creates a new [`MetricStats`] instance.
-    </span><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
     </span><span class="kw">pub fn </span>new(
         config: Arc&lt;Config&gt;,
         global_config: GlobalConfigHandle,
@@ -534,19 +544,23 @@
     }
 
     <span class="doccomment">/// Tracks the metric volume and outcome for the bucket.
-    </span><span class="kw">pub fn </span>track_metric(<span class="kw-2">&amp;</span><span class="self">self</span>, scoping: Scoping, bucket: Bucket, outcome: Outcome) {
+    </span><span class="kw">pub fn </span>track_metric&lt;<span class="lifetime">'a</span>, T&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, scoping: Scoping, bucket: T, outcome: Outcome)
+    <span class="kw">where
+        </span>T: Into&lt;BucketView&lt;<span class="lifetime">'a</span>&gt;&gt;,
+    {
         <span class="kw">if </span>!<span class="self">self</span>.is_enabled(scoping) {
             <span class="kw">return</span>;
         }
 
+        <span class="kw">let </span>bucket = bucket.into();
         <span class="kw">let </span><span class="prelude-val">Some</span>(volume) = <span class="self">self</span>.to_volume_metric(<span class="kw-2">&amp;</span>bucket, <span class="kw-2">&amp;</span>outcome) <span class="kw">else </span>{
             <span class="kw">return</span>;
         };
 
         <span class="macro">relay_log::trace!</span>(
             <span class="string">"Tracking volume of {} for mri '{}': {}"</span>,
-            bucket.metadata.merges.get(),
-            bucket.name,
+            bucket.metadata().merges.get(),
+            bucket.name(),
             outcome
         );
         <span class="self">self</span>.aggregator
@@ -593,20 +607,20 @@
         is_rolled_out(organization_id, rate)
     }
 
-    <span class="kw">fn </span>to_volume_metric(<span class="kw-2">&amp;</span><span class="self">self</span>, bucket: <span class="kw-2">&amp;</span>Bucket, outcome: <span class="kw-2">&amp;</span>Outcome) -&gt; <span class="prelude-ty">Option</span>&lt;Bucket&gt; {
-        <span class="kw">let </span>volume = bucket.metadata.merges.get();
+    <span class="kw">fn </span>to_volume_metric(<span class="kw-2">&amp;</span><span class="self">self</span>, bucket: <span class="kw-2">&amp;</span>BucketView&lt;<span class="lifetime">'_</span>&gt;, outcome: <span class="kw-2">&amp;</span>Outcome) -&gt; <span class="prelude-ty">Option</span>&lt;Bucket&gt; {
+        <span class="kw">let </span>volume = bucket.metadata().merges.get();
         <span class="kw">if </span>volume == <span class="number">0 </span>{
             <span class="kw">return </span><span class="prelude-val">None</span>;
         }
 
-        <span class="kw">let </span>namespace = bucket.name.namespace();
+        <span class="kw">let </span>namespace = bucket.name().namespace();
         <span class="kw">if </span>!namespace.has_metric_stats() {
             <span class="kw">return </span><span class="prelude-val">None</span>;
         }
 
         <span class="kw">let </span><span class="kw-2">mut </span>tags = BTreeMap::from([
-            (<span class="string">"mri"</span>.to_owned(), bucket.name.to_string()),
-            (<span class="string">"mri.type"</span>.to_owned(), bucket.value.ty().to_string()),
+            (<span class="string">"mri"</span>.to_owned(), bucket.name().to_string()),
+            (<span class="string">"mri.type"</span>.to_owned(), bucket.ty().to_string()),
             (<span class="string">"mri.namespace"</span>.to_owned(), namespace.to_string()),
             (
                 <span class="string">"outcome.id"</span>.to_owned(),
@@ -677,12 +691,14 @@
     }
 }
 
-<span class="attr">#[cfg(all(test, feature = <span class="string">"processing"</span>))]
+<span class="attr">#[cfg(test)]
 </span><span class="kw">mod </span>tests {
     <span class="kw">use </span>relay_base_schema::project::{ProjectId, ProjectKey};
-    <span class="kw">use </span>relay_cardinality::{CardinalityScope, SlidingWindow};
+    <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
+    </span><span class="kw">use </span>relay_cardinality::{CardinalityScope, SlidingWindow};
     <span class="kw">use </span>relay_dynamic_config::GlobalConfig;
-    <span class="kw">use </span>relay_metrics::{MetricNamespace, MetricType};
+    <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
+    </span><span class="kw">use </span>relay_metrics::{MetricNamespace, MetricType};
     <span class="kw">use </span>relay_quotas::ReasonCode;
     <span class="kw">use </span>tokio::sync::mpsc::UnboundedReceiver;
 
@@ -731,12 +747,12 @@
         <span class="kw">let </span>scoping = scoping();
         <span class="kw">let </span><span class="kw-2">mut </span>bucket = Bucket::parse(<span class="string">b"rt@millisecond:57|d"</span>, UnixTimestamp::now()).unwrap();
 
-        ms.track_metric(scoping, bucket.clone(), Outcome::Accepted);
+        ms.track_metric(scoping, <span class="kw-2">&amp;</span>bucket.clone(), Outcome::Accepted);
 
         bucket.metadata.merges = bucket.metadata.merges.saturating_add(<span class="number">41</span>);
         ms.track_metric(
             scoping,
-            bucket,
+            <span class="kw-2">&amp;</span>bucket,
             Outcome::RateLimited(<span class="prelude-val">Some</span>(ReasonCode::new(<span class="string">"foobar"</span>))),
         );
 
@@ -789,6 +805,7 @@
     }
 
     <span class="attr">#[test]
+    #[cfg(feature = <span class="string">"processing"</span>)]
     </span><span class="kw">fn </span>test_metric_stats_cardinality_name() {
         <span class="kw">let </span>(ms, <span class="kw-2">mut </span>receiver) = create_metric_stats(<span class="number">1.0</span>);
 
@@ -853,6 +870,7 @@
     }
 
     <span class="attr">#[test]
+    #[cfg(feature = <span class="string">"processing"</span>)]
     </span><span class="kw">fn </span>test_metric_stats_cardinality_type() {
         <span class="kw">let </span>(ms, <span class="kw-2">mut </span>receiver) = create_metric_stats(<span class="number">1.0</span>);
 
@@ -921,7 +939,7 @@
 
         <span class="kw">let </span>scoping = scoping();
         <span class="kw">let </span>bucket = Bucket::parse(<span class="string">b"rt@millisecond:57|d"</span>, UnixTimestamp::now()).unwrap();
-        ms.track_metric(scoping, bucket, Outcome::Accepted);
+        ms.track_metric(scoping, <span class="kw-2">&amp;</span>bucket, Outcome::Accepted);
 
         drop(ms);
 
@@ -935,7 +953,7 @@
         <span class="kw">let </span>scoping = scoping();
         <span class="kw">let </span>bucket =
             Bucket::parse(<span class="string">b"transactions/rt@millisecond:57|d"</span>, UnixTimestamp::now()).unwrap();
-        ms.track_metric(scoping, bucket, Outcome::Accepted);
+        ms.track_metric(scoping, <span class="kw-2">&amp;</span>bucket, Outcome::Accepted);
 
         drop(ms);
 

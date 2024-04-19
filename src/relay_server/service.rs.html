@@ -348,6 +348,7 @@
 <span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::sync::Arc;
 
+<span class="kw">use </span><span class="kw">crate</span>::metric_stats::MetricStats;
 <span class="kw">use </span>anyhow::{Context, <span class="prelude-ty">Result</span>};
 <span class="kw">use </span>axum::extract::FromRequestParts;
 <span class="kw">use </span>axum::http::request::Parts;
@@ -482,8 +483,7 @@
         )
         .start_in(<span class="kw-2">&amp;</span>runtimes.aggregator);
 
-        <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-        </span><span class="kw">let </span>metric_stats = <span class="kw">crate</span>::metric_stats::MetricStats::new(
+        <span class="kw">let </span>metric_stats = MetricStats::new(
             config.clone(),
             global_config_handle.clone(),
             aggregator.clone(),
@@ -527,8 +527,7 @@
                 <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
                 </span>store_forwarder: store.clone(),
             },
-            <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-            </span>metric_stats,
+            metric_stats.clone(),
             <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
             </span>buffer_guard.clone(),
         )
@@ -549,6 +548,7 @@
             config.clone(),
             buffer_guard.clone(),
             project_cache_services,
+            metric_stats,
             redis_pool,
         )
         .spawn_handler(project_cache_rx);

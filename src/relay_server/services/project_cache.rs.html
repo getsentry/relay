@@ -1484,11 +1484,31 @@
 <a href="#1482" id="1482">1482</a>
 <a href="#1483" id="1483">1483</a>
 <a href="#1484" id="1484">1484</a>
+<a href="#1485" id="1485">1485</a>
+<a href="#1486" id="1486">1486</a>
+<a href="#1487" id="1487">1487</a>
+<a href="#1488" id="1488">1488</a>
+<a href="#1489" id="1489">1489</a>
+<a href="#1490" id="1490">1490</a>
+<a href="#1491" id="1491">1491</a>
+<a href="#1492" id="1492">1492</a>
+<a href="#1493" id="1493">1493</a>
+<a href="#1494" id="1494">1494</a>
+<a href="#1495" id="1495">1495</a>
+<a href="#1496" id="1496">1496</a>
+<a href="#1497" id="1497">1497</a>
+<a href="#1498" id="1498">1498</a>
+<a href="#1499" id="1499">1499</a>
+<a href="#1500" id="1500">1500</a>
+<a href="#1501" id="1501">1501</a>
+<a href="#1502" id="1502">1502</a>
+<a href="#1503" id="1503">1503</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
 <span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::sync::Arc;
 <span class="kw">use </span>std::time::Duration;
 
+<span class="kw">use </span><span class="kw">crate</span>::metric_stats::MetricStats;
 <span class="kw">use </span>hashbrown::HashSet;
 <span class="kw">use </span>relay_base_schema::project::ProjectKey;
 <span class="kw">use </span>relay_config::{Config, RelayMode};
@@ -1987,6 +2007,7 @@
 </span><span class="kw">struct </span>ProjectCacheBroker {
     config: Arc&lt;Config&gt;,
     services: Services,
+    metric_stats: MetricStats,
     <span class="comment">// Need hashbrown because extract_if is not stable in std yet.
     </span>projects: hashbrown::HashMap&lt;ProjectKey, Project&gt;,
     garbage_disposal: GarbageDisposal&lt;Project&gt;,
@@ -2318,8 +2339,11 @@
         <span class="kw">let </span><span class="kw-2">mut </span>output = BTreeMap::new();
         <span class="kw">for </span>(project_key, buckets) <span class="kw">in </span>message.buckets {
             <span class="kw">let </span>outcome_aggregator = <span class="self">self</span>.services.outcome_aggregator.clone();
+            <span class="kw">let </span>metric_stats = <span class="self">self</span>.metric_stats.clone();
             <span class="kw">let </span>project = <span class="self">self</span>.get_or_create_project(project_key);
-            <span class="kw">if let </span><span class="prelude-val">Some</span>((scoping, b)) = project.check_buckets(outcome_aggregator, buckets) {
+            <span class="kw">if let </span><span class="prelude-val">Some</span>((scoping, b)) =
+                project.check_buckets(outcome_aggregator, metric_stats, buckets)
+            {
                 output.insert(scoping, b);
             }
         }
@@ -2482,6 +2506,7 @@
     buffer_guard: Arc&lt;BufferGuard&gt;,
     config: Arc&lt;Config&gt;,
     services: Services,
+    metric_stats: MetricStats,
     redis: <span class="prelude-ty">Option</span>&lt;RedisPool&gt;,
 }
 
@@ -2491,12 +2516,14 @@
         config: Arc&lt;Config&gt;,
         buffer_guard: Arc&lt;BufferGuard&gt;,
         services: Services,
+        metric_stats: MetricStats,
         redis: <span class="prelude-ty">Option</span>&lt;RedisPool&gt;,
     ) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{
             buffer_guard,
             config,
             services,
+            metric_stats,
             redis,
         }
     }
@@ -2510,6 +2537,7 @@
             buffer_guard,
             config,
             services,
+            metric_stats,
             redis,
         } = <span class="self">self</span>;
         <span class="kw">let </span>project_cache = services.project_cache.clone();
@@ -2588,6 +2616,7 @@
                 buffer_unspool_backoff: RetryBackoff::new(config.http_max_retry_interval()),
                 buffer,
                 global_config,
+                metric_stats,
             };
 
             <span class="kw">loop </span>{
@@ -2662,6 +2691,8 @@
 
 <span class="attr">#[cfg(test)]
 </span><span class="kw">mod </span>tests {
+    <span class="kw">use </span><span class="kw">crate</span>::services::global_config::GlobalConfigHandle;
+    <span class="kw">use </span>relay_dynamic_config::GlobalConfig;
     <span class="kw">use </span>relay_test::mock_service;
     <span class="kw">use </span>tokio::select;
     <span class="kw">use </span>uuid::Uuid;
@@ -2728,6 +2759,12 @@
             }
         };
 
+        <span class="kw">let </span>metric_stats = MetricStats::new(
+            Arc::new(Config::default()),
+            GlobalConfigHandle::fixed(GlobalConfig::default()),
+            Addr::custom().<span class="number">0</span>,
+        );
+
         (
             ProjectCacheBroker {
                 config: config.clone(),
@@ -2743,6 +2780,7 @@
                 global_config: GlobalConfigStatus::Pending,
                 buffer_unspool_handle: SleepHandle::idle(),
                 buffer_unspool_backoff: RetryBackoff::new(Duration::from_millis(<span class="number">100</span>)),
+                metric_stats,
             },
             buffer,
         )

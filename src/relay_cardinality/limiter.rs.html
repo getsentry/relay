@@ -780,6 +780,8 @@
 <a href="#778" id="778">778</a>
 <a href="#779" id="779">779</a>
 <a href="#780" id="780">780</a>
+<a href="#781" id="781">781</a>
+<a href="#782" id="782">782</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Relay Cardinality Limiter
 
 </span><span class="kw">use </span>std::collections::BTreeMap;
@@ -1009,7 +1011,9 @@
 }
 
 <span class="kw">impl</span>&lt;T&gt; CardinalityLimitsSplit&lt;T&gt; {
-    <span class="kw">fn </span>with_capacity(
+    <span class="doccomment">/// Creates a new cardinality limits split with a given capacity for `accepted` and `rejected`
+    /// elements.
+    </span><span class="kw">fn </span>with_capacity(
         accepted_capacity: usize,
         rejected_capacity: usize,
     ) -&gt; CardinalityLimitsSplit&lt;T&gt; {

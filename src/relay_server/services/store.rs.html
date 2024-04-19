@@ -2180,7 +2180,7 @@
             // back into the processor service.
             </span><span class="self">self</span>.metric_stats.track_metric(
                 scoping,
-                bucket,
+                <span class="kw-2">&amp;</span>bucket,
                 <span class="kw">if </span>has_success {
                     Outcome::Accepted
                 } <span class="kw">else </span>{
@@ -2195,12 +2195,12 @@
                 <span class="string">"failed to produce metric buckets: {error}"
             </span>);
 
-            utils::reject_metrics::&lt;Vec&lt;Bucket&gt;&gt;(
+            utils::reject_metrics::&lt;<span class="kw-2">&amp;</span>Bucket&gt;(
                 <span class="kw-2">&amp;</span><span class="self">self</span>.outcome_aggregator,
+                <span class="kw-2">&amp;</span><span class="self">self</span>.metric_stats,
                 dropped_quantities,
                 scoping,
                 Outcome::Invalid(DiscardReason::Internal),
-                <span class="prelude-val">None</span>,
                 <span class="prelude-val">None</span>,
             );
         }
