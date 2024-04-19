@@ -12,4 +12,5 @@ pre-build = [
 ]
 
 [target.aarch64-unknown-linux-gnu]
+# We're using a nightly `cross`, let's still use a stable image.
 image = "ghcr.io/cross-rs/aarch64-unknown-linux-gnu:0.2.5"
