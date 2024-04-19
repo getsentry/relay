@@ -92,7 +92,7 @@ struct Producer {
 impl Producer {
     fn new(topic_name: String, producer: Arc<ThreadedProducer>) -> Self {
         Self {
-            last_report: Instant::now().into(),
+            last_report: Cell::new(Instant::now()),
             topic_name,
             producer,
         }
