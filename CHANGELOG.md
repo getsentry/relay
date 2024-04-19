@@ -6,7 +6,7 @@
 
 - Add inbound filters for Annotated<Replay> types. ([#3420](https://github.com/getsentry/relay/pull/3420))
 - Add Linux distributions to os context. ([#3443](https://github.com/getsentry/relay/pull/3443))
-- Parse ccTLDs. ([#3458](https://github.com/getsentry/relay/pull/3458))
+- Respect country code TLDs when scrubbing span tags. ([#3458](https://github.com/getsentry/relay/pull/3458))
 
 **Internal:**
 
