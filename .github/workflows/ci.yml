@@ -326,7 +326,7 @@ jobs:
           # 3) nightly
           regctl image copy "${GHCR_DOCKER_IMAGE}:nightly" "${DH_DOCKER_IMAGE}:nightly"
 
-  push-prod-image:
+  publish-to-gcr:
     timeout-minutes: 5
     needs: build-docker
 
@@ -383,13 +383,50 @@ jobs:
         if: github.ref == 'refs/heads/master'
         run: regctl image copy "${GHCR_DOCKER_IMAGE}:nightly" "${GCR_DOCKER_IMAGE}:nightly"
 
+  gocd-artifacts:
+    timeout-minutes: 5
+    needs: build-docker
+
+    name: Upload build artifacts to gocd
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        image_name: [relay, relay-pop]
+
+    # required for google auth
+    permissions:
+      contents: "read"
+      id-token: "write"
+
+    env:
+      GHCR_DOCKER_IMAGE: "ghcr.io/getsentry/${{ matrix.image_name }}"
+      REVISION: "${{ github.event.pull_request.head.sha || github.sha }}"
+
+    if: "!startsWith(github.ref, 'refs/heads/release-library/') && !github.event.pull_request.head.repo.fork && github.actor != 'dependabot[bot]'"
+
+    steps:
+      - name: Google Auth
+        id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: projects/868781662168/locations/global/workloadIdentityPools/prod-github/providers/github-oidc-pool
+          service_account: gha-gcr-push@sac-prod-sa.iam.gserviceaccount.com
+
+      - name: "Set up Cloud SDK"
+        uses: "google-github-actions/setup-gcloud@v2"
+        with:
+          # https://github.com/google-github-actions/auth#authenticating-via-workload-identity-federation
+          # You must use the Cloud SDK version 390.0.0 or later to authenticate the bq and gsutil tools.
+          version: ">= 390.0.0"
+
       - name: Upload gocd deployment assets
         run: |
           set -euxo pipefail
           VERSION="$(docker run --rm "${GHCR_DOCKER_IMAGE}:${REVISION}" --version | cut -d" " -f2)"
           echo "${{ matrix.image_name }}@${VERSION}+${REVISION}" > release-name
 
-          docker run --rm --entrypoint cat "${GHCR_DOCKER_IMAGE}:${REVISION}" /opt/relay-debug.zip > relay-debug.zip
+          docker run --rm --entrypoint cat "${GHCR_DOCKER_IMAGE}:${REVISION}" /opt/relay.debug.zip > relay.debug.zip
           docker run --rm --entrypoint cat "${GHCR_DOCKER_IMAGE}:${REVISION}" /opt/relay.src.zip > relay.src.zip
           docker run --rm --entrypoint tar "${GHCR_DOCKER_IMAGE}:${REVISION}" -cf - /lib/x86_64-linux-gnu > libs.tar
 
