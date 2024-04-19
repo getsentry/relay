@@ -11,173 +11,173 @@ on:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  # lint:
-  #   name: Lint
-  #   runs-on: ubuntu-latest
-  #
-  #   steps:
-  #     - name: Install libcurl-dev
-  #       run: |
-  #         sudo apt-get update
-  #         sudo apt-get install -y libcurl4-openssl-dev
-  #
-  #     - uses: actions/checkout@v4
-  #       with:
-  #         submodules: recursive
-  #
-  #     - uses: actions/setup-python@v5
-  #       with:
-  #         python-version: '3.10'
-  #
-  #     - name: Install Rust Toolchain
-  #       run: rustup toolchain install stable --profile minimal --component clippy rustfmt rust-docs --no-self-update
-  #
-  #     - uses: swatinem/rust-cache@v2
-  #       with:
-  #         key: ${{ github.job }}
-  #
-  #     - run: make style lint
-  #
-  #     - name: Check Docs
-  #       run: cargo doc --workspace --all-features --no-deps --document-private-items
-  #       env:
-  #         RUSTDOCFLAGS: -Dwarnings
-  #
-  # lint_default:
-  #   name: Lint Rust Default Features
-  #   runs-on: ubuntu-latest
-  #
-  #   steps:
-  #     - name: Install libcurl-dev
-  #       run: |
-  #         sudo apt-get update
-  #         sudo apt-get install -y libcurl4-openssl-dev
-  #
-  #     - uses: actions/checkout@v4
-  #       with:
-  #         submodules: recursive
-  #
-  #     - name: Install Rust Toolchain
-  #       run: rustup toolchain install stable --profile minimal --component clippy --no-self-update
-  #
-  #     - uses: swatinem/rust-cache@v2
-  #       with:
-  #         key: ${{ github.job }}
-  #
-  #     - name: Run Clippy
-  #       run: cargo clippy --workspace --all-targets --no-deps -- -D warnings
-  #
-  # test:
-  #   timeout-minutes: 20
-  #   strategy:
-  #     fail-fast: false
-  #     matrix:
-  #       os: [macos-latest, windows-latest]
-  #
-  #   name: Test (${{ matrix.os }})
-  #   runs-on: ${{ matrix.os }}
-  #
-  #   # Skip redundant checks for library releases
-  #   if: "!startsWith(github.ref, 'refs/heads/release-library/')"
-  #
-  #   steps:
-  #     - uses: actions/checkout@v4
-  #       with:
-  #         submodules: recursive
-  #
-  #     - name: Install Rust Toolchain
-  #       run: rustup toolchain install stable --profile minimal --no-self-update
-  #
-  #     - uses: swatinem/rust-cache@v2
-  #       with:
-  #         key: ${{ github.job }}
-  #
-  #     - name: Run Cargo Tests
-  #       run: cargo test --workspace
-  #
-  # test_all:
-  #   timeout-minutes: 15
-  #   name: Test All Features (ubuntu-latest)
-  #   runs-on: ubuntu-latest
-  #
-  #   # Skip redundant checks for library releases
-  #   if: "!startsWith(github.ref, 'refs/heads/release-library/')"
-  #
-  #   # Testing all features requires Docker container operations that are only available on
-  #   # `ubuntu-latest`. This `test-all` job is to be seen as complementary to the `test` job. If
-  #   # services become available on other platforms, the jobs should be consolidated. See
-  #   # https://docs.github.com/en/actions/guides/about-service-containers
-  #
-  #   services:
-  #     redis: # https://docs.github.com/en/actions/guides/creating-redis-service-containers
-  #       image: redis
-  #       ports:
-  #         - 6379:6379
-  #
-  #   steps:
-  #     - name: Install libcurl-dev
-  #       run: |
-  #         sudo apt-get update
-  #         sudo apt-get install -y libcurl4-openssl-dev
-  #
-  #     - uses: actions/checkout@v4
-  #       with:
-  #         submodules: recursive
-  #
-  #     - name: Install Rust Toolchain
-  #       run: rustup toolchain install stable --profile minimal --no-self-update
-  #
-  #     - uses: swatinem/rust-cache@v2
-  #       with:
-  #         key: ${{ github.job }}
-  #
-  #     - name: Run Cargo Tests
-  #       run: cargo test --workspace --all-features
-  #
-  # test_py:
-  #   strategy:
-  #     fail-fast: false
-  #     matrix:
-  #       python-version: ['3.10']
-  #
-  #   # Skip redundant checks for binary releases
-  #   if: "!startsWith(github.ref, 'refs/heads/release/')"
-  #
-  #   name: Test Python ${{ matrix.python-version }}
-  #   runs-on: ubuntu-latest
-  #
-  #   steps:
-  #     - uses: actions/checkout@v4
-  #       with:
-  #         submodules: recursive
-  #
-  #     - name: Install Rust Toolchain
-  #       run: rustup toolchain install stable --profile minimal --no-self-update
-  #
-  #     - uses: actions/setup-python@v5
-  #       with:
-  #         python-version: ${{ matrix.python-version }}
-  #
-  #     - name: Install Dependencies
-  #       run: pip install -U pytest
-  #
-  #     - uses: swatinem/rust-cache@v2
-  #       with:
-  #         key: ${{ github.job }}
-  #
-  #     - name: Build and Install Library
-  #       run: pip install -v --editable py
-  #       env:
-  #         RELAY_DEBUG: 1
-  #
-  #     - name: Run Python Tests
-  #       run: pytest -v py
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Install libcurl-dev
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libcurl4-openssl-dev
+
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install Rust Toolchain
+        run: rustup toolchain install stable --profile minimal --component clippy rustfmt rust-docs --no-self-update
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          key: ${{ github.job }}
+
+      - run: make style lint
+
+      - name: Check Docs
+        run: cargo doc --workspace --all-features --no-deps --document-private-items
+        env:
+          RUSTDOCFLAGS: -Dwarnings
+
+  lint_default:
+    name: Lint Rust Default Features
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Install libcurl-dev
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libcurl4-openssl-dev
+
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Rust Toolchain
+        run: rustup toolchain install stable --profile minimal --component clippy --no-self-update
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          key: ${{ github.job }}
+
+      - name: Run Clippy
+        run: cargo clippy --workspace --all-targets --no-deps -- -D warnings
+
+  test:
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+
+    name: Test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+
+    # Skip redundant checks for library releases
+    if: "!startsWith(github.ref, 'refs/heads/release-library/')"
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Rust Toolchain
+        run: rustup toolchain install stable --profile minimal --no-self-update
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          key: ${{ github.job }}
+
+      - name: Run Cargo Tests
+        run: cargo test --workspace
+
+  test_all:
+    timeout-minutes: 15
+    name: Test All Features (ubuntu-latest)
+    runs-on: ubuntu-latest
+
+    # Skip redundant checks for library releases
+    if: "!startsWith(github.ref, 'refs/heads/release-library/')"
+
+    # Testing all features requires Docker container operations that are only available on
+    # `ubuntu-latest`. This `test-all` job is to be seen as complementary to the `test` job. If
+    # services become available on other platforms, the jobs should be consolidated. See
+    # https://docs.github.com/en/actions/guides/about-service-containers
+
+    services:
+      redis: # https://docs.github.com/en/actions/guides/creating-redis-service-containers
+        image: redis
+        ports:
+          - 6379:6379
+
+    steps:
+      - name: Install libcurl-dev
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libcurl4-openssl-dev
+
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Rust Toolchain
+        run: rustup toolchain install stable --profile minimal --no-self-update
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          key: ${{ github.job }}
+
+      - name: Run Cargo Tests
+        run: cargo test --workspace --all-features
+
+  test_py:
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.10']
+
+    # Skip redundant checks for binary releases
+    if: "!startsWith(github.ref, 'refs/heads/release/')"
+
+    name: Test Python ${{ matrix.python-version }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Rust Toolchain
+        run: rustup toolchain install stable --profile minimal --no-self-update
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install Dependencies
+        run: pip install -U pytest
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          key: ${{ github.job }}
+
+      - name: Build and Install Library
+        run: pip install -v --editable py
+        env:
+          RELAY_DEBUG: 1
+
+      - name: Run Python Tests
+        run: pytest -v py
 
   build:
     timeout-minutes: 30
@@ -191,6 +191,8 @@ jobs:
         image:
           - name: relay
             features: "processing,crash-handler"
+          - name: relay-pop
+            features: "crash-handler"
 
     name: Build Relay Binary
     runs-on: ubuntu-latest
@@ -256,7 +258,7 @@ jobs:
 
     strategy:
       matrix:
-        image_name: [relay]
+        image_name: [relay, relay-pop]
 
     env:
       PLATFORMS: "linux/amd64,linux/arm64"
@@ -294,9 +296,9 @@ jobs:
 
     strategy:
       matrix:
-        image_name: [relay]
+        image_name: [relay] # Don't publish relay-pop (for now)
 
-          # if: ${{ (github.ref_name == 'master') }}
+    if: ${{ (github.ref_name == 'master') }}
 
     env:
       GHCR_DOCKER_IMAGE: "ghcr.io/getsentry/${{ matrix.image_name }}"
@@ -316,7 +318,6 @@ jobs:
       - name: Copy Image from GHCR to DockerHub
         run: |
           # We push 3 tags to Dockerhub:
-
           # 1) the full sha of the commit
           regctl image copy "${GHCR_DOCKER_IMAGE}:${REVISION}" "${DH_DOCKER_IMAGE}:${REVISION}"
 
@@ -331,12 +332,12 @@ jobs:
     timeout-minutes: 5
     needs: build-docker
 
-    name: Push GCR Docker Image
+    name: Publish Relay to GCR
     runs-on: ubuntu-latest
 
     strategy:
       matrix:
-        image_name: [relay]
+        image_name: [relay, relay-pop]
 
     # required for google auth
     permissions:
@@ -387,7 +388,7 @@ jobs:
       - name: Upload gocd deployment assets
         run: |
           set -euxo pipefail
-          VERSION="$(docker run --rm "$IMG_VERSIONED" --version | cut -d" " -f2)"
+          VERSION="$(docker run --rm "${GHCR_DOCKER_IMAGE}:${REVISION}" --version | cut -d" " -f2)"
           echo "${{ matrix.image_name }}@${VERSION}+${REVISION}" > release-name
 
           docker run --rm --entrypoint cat "${GHCR_DOCKER_IMAGE}:${REVISION}" /opt/relay-debug.zip > relay-debug.zip
@@ -408,115 +409,115 @@ jobs:
           cat gsutil.log
           exit "$status"
 
-  # test_integration:
-  #   name: Integration Tests
-  #   runs-on: ubuntu-latest
-  #   timeout-minutes: 20
-  #
-  #   # Skip redundant checks for library releases
-  #   if: "!startsWith(github.ref, 'refs/heads/release-library/')"
-  #
-  #   services:
-  #     redis: # https://docs.github.com/en/actions/guides/creating-redis-service-containers
-  #       image: redis
-  #       ports:
-  #         - 6379:6379
-  #
-  #     # Kafka + Zookeeper version synced with
-  #     # https://github.com/getsentry/sentry/blob/363509c242aff197409207ce4990fb061f3534a3/.github/actions/setup-sentry/action.yml#L174
-  #
-  #     zookeeper:
-  #       image: confluentinc/cp-zookeeper:4.1.0
-  #       env:
-  #         ZOOKEEPER_CLIENT_PORT: 2181
-  #
-  #     kafka:
-  #       image: confluentinc/cp-kafka:5.1.2
-  #       env:
-  #         KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-  #         KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://127.0.0.1:9092
-  #         KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-  #         KAFKA_OFFSETS_TOPIC_NUM_PARTITIONS: 1
-  #       ports:
-  #         - 9092:9092
-  #
-  #   steps:
-  #     - name: Install libcurl-dev
-  #       run: |
-  #         sudo apt-get update
-  #         sudo apt-get install -y libcurl4-openssl-dev
-  #
-  #     - uses: actions/checkout@v4
-  #       with:
-  #         submodules: recursive
-  #
-  #     - name: Install Rust Toolchain
-  #       run: rustup toolchain install stable --profile minimal --no-self-update
-  #
-  #     - uses: swatinem/rust-cache@v2
-  #       with:
-  #         key: ${{ github.job }}
-  #
-  #     - name: Cargo build
-  #       run: cargo build --all-features
-  #
-  #     - uses: actions/setup-python@v5
-  #       with:
-  #         python-version: '3.10'
-  #
-  #     - run: make test-integration
-  #       env:
-  #         RELAY_VERSION_CHAIN: "20.6.0,latest"
-  #
-  # sentry-relay-integration-tests:
-  #   name: Sentry-Relay Integration Tests
-  #   runs-on: ubuntu-latest
-  #   timeout-minutes: 30
-  #   needs: build
-  #
-  #   # Skip redundant checks for library releases
-  #   if: "!startsWith(github.ref, 'refs/heads/release-library/')"
-  #
-  #   steps:
-  #     # Checkout Sentry and run integration tests against latest Relay
-  #     - name: Checkout Sentry
-  #       uses: actions/checkout@v4
-  #       with:
-  #         repository: getsentry/sentry
-  #         path: sentry
-  #
-  #     - name: Setup steps
-  #       id: setup
-  #       run: |
-  #         # GITHUB_SHA in pull requests points to the merge commit
-  #         RELAY_TEST_IMAGE=ghcr.io/getsentry/relay:${{ github.event.pull_request.head.sha || github.sha }}
-  #         echo "We expected GCB to push this image $RELAY_TEST_IMAGE"
-  #         echo "relay-test-image=$RELAY_TEST_IMAGE" >> "$GITHUB_OUTPUT"
-  #         # We cannot execute actions that are not placed under .github of the main repo
-  #         mkdir -p .github/actions
-  #         cp -r sentry/.github/actions/setup-sentry .github/actions/
-  #
-  #     - name: Setup Sentry
-  #       uses: ./.github/actions/setup-sentry
-  #       with:
-  #         workdir: sentry
-  #         snuba: true
-  #         kafka: true
-  #         symbolicator: true
-  #
-  #     - name: Download Docker Image
-  #       uses: actions/download-artifact@v3
-  #       with:
-  #         name: relay-docker-image
-  #
-  #     - name: Import Docker Image
-  #       run: docker load -i relay-docker-image.tgz
-  #
-  #     - name: Run Sentry integration tests
-  #       working-directory: sentry
-  #       env:
-  #         RELAY_TEST_IMAGE: ${{ steps.setup.outputs.relay-test-image }}
-  #       run: |
-  #         echo "Testing against ${RELAY_TEST_IMAGE}"
-  #         make test-relay-integration
-  #
+  test_integration:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    # Skip redundant checks for library releases
+    if: "!startsWith(github.ref, 'refs/heads/release-library/')"
+
+    services:
+      redis: # https://docs.github.com/en/actions/guides/creating-redis-service-containers
+        image: redis
+        ports:
+          - 6379:6379
+
+      # Kafka + Zookeeper version synced with
+      # https://github.com/getsentry/sentry/blob/363509c242aff197409207ce4990fb061f3534a3/.github/actions/setup-sentry/action.yml#L174
+
+      zookeeper:
+        image: confluentinc/cp-zookeeper:4.1.0
+        env:
+          ZOOKEEPER_CLIENT_PORT: 2181
+
+      kafka:
+        image: confluentinc/cp-kafka:5.1.2
+        env:
+          KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+          KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://127.0.0.1:9092
+          KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+          KAFKA_OFFSETS_TOPIC_NUM_PARTITIONS: 1
+        ports:
+          - 9092:9092
+
+    steps:
+      - name: Install libcurl-dev
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libcurl4-openssl-dev
+
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Rust Toolchain
+        run: rustup toolchain install stable --profile minimal --no-self-update
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          key: ${{ github.job }}
+
+      - name: Cargo build
+        run: cargo build --all-features
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - run: make test-integration
+        env:
+          RELAY_VERSION_CHAIN: "20.6.0,latest"
+
+  sentry-relay-integration-tests:
+    name: Sentry-Relay Integration Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: build-docker
+
+    # Skip redundant checks for library releases
+    if: "!startsWith(github.ref, 'refs/heads/release-library/')"
+
+    steps:
+      # Checkout Sentry and run integration tests against latest Relay
+      - name: Checkout Sentry
+        uses: actions/checkout@v4
+        with:
+          repository: getsentry/sentry
+          path: sentry
+
+      - name: Setup steps
+        id: setup
+        run: |
+          # GITHUB_SHA in pull requests points to the merge commit
+          RELAY_TEST_IMAGE=ghcr.io/getsentry/relay:${{ github.event.pull_request.head.sha || github.sha }}
+          echo "We expected GCB to push this image $RELAY_TEST_IMAGE"
+          echo "relay-test-image=$RELAY_TEST_IMAGE" >> "$GITHUB_OUTPUT"
+          # We cannot execute actions that are not placed under .github of the main repo
+          mkdir -p .github/actions
+          cp -r sentry/.github/actions/setup-sentry .github/actions/
+
+      - name: Setup Sentry
+        uses: ./.github/actions/setup-sentry
+        with:
+          workdir: sentry
+          snuba: true
+          kafka: true
+          symbolicator: true
+
+      - name: Download Docker Image
+        uses: actions/download-artifact@v3
+        with:
+          name: relay-docker-image
+
+      - name: Import Docker Image
+        run: docker load -i relay-docker-image.tgz
+
+      - name: Run Sentry integration tests
+        working-directory: sentry
+        env:
+          RELAY_TEST_IMAGE: ${{ steps.setup.outputs.relay-test-image }}
+        run: |
+          echo "Testing against ${RELAY_TEST_IMAGE}"
+          make test-relay-integration
+
