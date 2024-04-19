@@ -2,6 +2,7 @@ import pytest
 import json
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 
+
 def generate_feedback_sdk_event():
     return {
         "type": "feedback",
@@ -163,15 +164,17 @@ def test_feedback_envelope_with_attachment(
     envelope = Envelope(headers=[["event_id", event_id]])
     envelope.add_item(
         Item(
-            headers=[], # TODO:
+            headers=[],  # TODO:
             type="event",
             payload=PayloadRef(json=feedback),
         ),
         Item(
-            headers=[["attachment_type", "event.view_hierarchy"]], # TODO: different attachment type?
+            headers=[
+                ["attachment_type", "event.view_hierarchy"]
+            ],  # TODO: different attachment type?
             type="attachment",
             payload=PayloadRef(json={"rendering_system": "compose", "windows": []}),
-        )
+        ),
     )
 
     relay.send_envelope(project_id, envelope)
