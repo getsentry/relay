@@ -342,29 +342,6 @@
 <a href="#340" id="340">340</a>
 <a href="#341" id="341">341</a>
 <a href="#342" id="342">342</a>
-<a href="#343" id="343">343</a>
-<a href="#344" id="344">344</a>
-<a href="#345" id="345">345</a>
-<a href="#346" id="346">346</a>
-<a href="#347" id="347">347</a>
-<a href="#348" id="348">348</a>
-<a href="#349" id="349">349</a>
-<a href="#350" id="350">350</a>
-<a href="#351" id="351">351</a>
-<a href="#352" id="352">352</a>
-<a href="#353" id="353">353</a>
-<a href="#354" id="354">354</a>
-<a href="#355" id="355">355</a>
-<a href="#356" id="356">356</a>
-<a href="#357" id="357">357</a>
-<a href="#358" id="358">358</a>
-<a href="#359" id="359">359</a>
-<a href="#360" id="360">360</a>
-<a href="#361" id="361">361</a>
-<a href="#362" id="362">362</a>
-<a href="#363" id="363">363</a>
-<a href="#364" id="364">364</a>
-<a href="#365" id="365">365</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Configuration primitives to configure the kafka producer and properly set up the connection.
 //!
 //! The configuration can be either;
@@ -538,18 +515,7 @@
     </span>kafka_config_name: String,
 }
 
-<span class="doccomment">/// Describes Kafka config, with all the parameters extracted, which will be used for creating the
-/// kafka producer.
-</span><span class="attr">#[derive(Debug)]
-</span><span class="kw">pub enum </span>KafkaConfig&lt;<span class="lifetime">'a</span>&gt; {
-    <span class="doccomment">/// Single config with Kafka parameters.
-    </span>Single {
-        <span class="doccomment">/// Kafka parameters to create the kafka producer.
-        </span>params: KafkaParams&lt;<span class="lifetime">'a</span>&gt;,
-    },
-}
-
-<span class="doccomment">/// Sharded Kafka config.
+<span class="doccomment">/// Config for creating a Kafka producer.
 </span><span class="attr">#[derive(Debug)]
 </span><span class="kw">pub struct </span>KafkaParams&lt;<span class="lifetime">'a</span>&gt; {
     <span class="doccomment">/// The topic name to use.
@@ -575,26 +541,22 @@
         <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="self">self</span>,
         default_config: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>Vec&lt;KafkaConfigParam&gt;,
         secondary_configs: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>BTreeMap&lt;String, Vec&lt;KafkaConfigParam&gt;&gt;,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;KafkaConfig&lt;<span class="lifetime">'_</span>&gt;, ConfigError&gt; {
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;KafkaParams&lt;<span class="lifetime">'_</span>&gt;, ConfigError&gt; {
         <span class="kw">let </span>kafka_config = <span class="kw">match </span><span class="self">self </span>{
-            <span class="self">Self</span>::Primary(topic_name) =&gt; KafkaConfig::Single {
-                params: KafkaParams {
-                    topic_name,
-                    config_name: <span class="prelude-val">None</span>,
-                    params: default_config.as_slice(),
-                },
+            <span class="self">Self</span>::Primary(topic_name) =&gt; KafkaParams {
+                topic_name,
+                config_name: <span class="prelude-val">None</span>,
+                params: default_config.as_slice(),
             },
             <span class="self">Self</span>::Secondary(KafkaTopicConfig {
                 topic_name,
                 kafka_config_name,
-            }) =&gt; KafkaConfig::Single {
-                params: KafkaParams {
-                    config_name: <span class="prelude-val">Some</span>(kafka_config_name),
-                    topic_name,
-                    params: secondary_configs
-                        .get(kafka_config_name)
-                        .ok_or(ConfigError::UnknownKafkaConfigName)<span class="question-mark">?</span>,
-                },
+            }) =&gt; KafkaParams {
+                config_name: <span class="prelude-val">Some</span>(kafka_config_name),
+                topic_name,
+                params: secondary_configs
+                    .get(kafka_config_name)
+                    .ok_or(ConfigError::UnknownKafkaConfigName)<span class="question-mark">?</span>,
             },
         };
 
@@ -656,11 +618,9 @@ transactions: "ingest-transactions-kafka-topic"
             .expect(<span class="string">"Kafka config for events topic"</span>);
         <span class="macro">assert!</span>(<span class="macro">matches!</span>(
             events_config,
-            KafkaConfig::Single {
-                params: KafkaParams {
-                    topic_name: <span class="string">"ingest-events-kafka-topic"</span>,
-                    ..
-                }
+            KafkaParams {
+                topic_name: <span class="string">"ingest-events-kafka-topic"</span>,
+                ..
             }
         ));
 
@@ -669,12 +629,10 @@ transactions: "ingest-transactions-kafka-topic"
             .expect(<span class="string">"Kafka config for profiles topic"</span>);
         <span class="macro">assert!</span>(<span class="macro">matches!</span>(
             events_config,
-            KafkaConfig::Single {
-                params: KafkaParams {
-                    topic_name: <span class="string">"ingest-profiles"</span>,
-                    config_name: <span class="prelude-val">Some</span>(<span class="string">"profiles"</span>),
-                    ..
-                }
+            KafkaParams {
+                topic_name: <span class="string">"ingest-profiles"</span>,
+                config_name: <span class="prelude-val">Some</span>(<span class="string">"profiles"</span>),
+                ..
             }
         ));
 
@@ -683,11 +641,9 @@ transactions: "ingest-transactions-kafka-topic"
             .expect(<span class="string">"Kafka config for metrics topic"</span>);
         <span class="macro">assert!</span>(<span class="macro">matches!</span>(
             events_config,
-            KafkaConfig::Single {
-                params: KafkaParams {
-                    topic_name: <span class="string">"ingest-metrics-3"</span>,
-                    ..
-                }
+            KafkaParams {
+                topic_name: <span class="string">"ingest-metrics-3"</span>,
+                ..
             }
         ));
 
@@ -697,11 +653,9 @@ transactions: "ingest-transactions-kafka-topic"
             .expect(<span class="string">"Kafka config for transactions topic"</span>);
         <span class="macro">assert!</span>(<span class="macro">matches!</span>(
             transactions_config,
-            KafkaConfig::Single {
-                params: KafkaParams {
-                    topic_name: <span class="string">"ingest-transactions-kafka-topic"</span>,
-                    ..
-                }
+            KafkaParams {
+                topic_name: <span class="string">"ingest-transactions-kafka-topic"</span>,
+                ..
             }
         ));
     }

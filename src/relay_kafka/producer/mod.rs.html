@@ -303,29 +303,7 @@
 <a href="#301" id="301">301</a>
 <a href="#302" id="302">302</a>
 <a href="#303" id="303">303</a>
-<a href="#304" id="304">304</a>
-<a href="#305" id="305">305</a>
-<a href="#306" id="306">306</a>
-<a href="#307" id="307">307</a>
-<a href="#308" id="308">308</a>
-<a href="#309" id="309">309</a>
-<a href="#310" id="310">310</a>
-<a href="#311" id="311">311</a>
-<a href="#312" id="312">312</a>
-<a href="#313" id="313">313</a>
-<a href="#314" id="314">314</a>
-<a href="#315" id="315">315</a>
-<a href="#316" id="316">316</a>
-<a href="#317" id="317">317</a>
-<a href="#318" id="318">318</a>
-<a href="#319" id="319">319</a>
-<a href="#320" id="320">320</a>
-<a href="#321" id="321">321</a>
-<a href="#322" id="322">322</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module contains the kafka producer related code.
-//!
-//! There are two different producers that are supported in Relay right now:
-//! - [`SingleProducer`] - which sends all the messages to the defined kafka [`KafkaTopic`],
 
 </span><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::cell::Cell;
@@ -340,7 +318,7 @@
 <span class="kw">use </span>relay_statsd::metric;
 <span class="kw">use </span>thiserror::Error;
 
-<span class="kw">use </span><span class="kw">crate</span>::config::{KafkaConfig, KafkaParams, KafkaTopic};
+<span class="kw">use </span><span class="kw">crate</span>::config::{KafkaParams, KafkaTopic};
 <span class="kw">use </span><span class="kw">crate</span>::statsd::{KafkaCounters, KafkaGauges, KafkaHistograms};
 
 <span class="kw">mod </span>utils;
@@ -404,16 +382,29 @@
 }
 
 <span class="doccomment">/// Single kafka producer config with assigned topic.
-</span><span class="kw">struct </span>SingleProducer {
+</span><span class="kw">struct </span>Producer {
+    <span class="doccomment">/// Time of the latest collection of stats.
+    </span>last_report: Cell&lt;Instant&gt;,
     <span class="doccomment">/// Kafka topic name.
     </span>topic_name: String,
     <span class="doccomment">/// Real kafka producer.
     </span>producer: Arc&lt;ThreadedProducer&gt;,
 }
 
-<span class="kw">impl </span>fmt::Debug <span class="kw">for </span>SingleProducer {
+<span class="kw">impl </span>Producer {
+    <span class="kw">fn </span>new(topic_name: String, producer: Arc&lt;ThreadedProducer&gt;) -&gt; <span class="self">Self </span>{
+        <span class="self">Self </span>{
+            last_report: Cell::new(Instant::now()),
+            topic_name,
+            producer,
+        }
+    }
+}
+
+<span class="kw">impl </span>fmt::Debug <span class="kw">for </span>Producer {
     <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
-        f.debug_struct(<span class="string">"Single"</span>)
+        f.debug_struct(<span class="string">"Producer"</span>)
+            .field(<span class="string">"last_report"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.last_report)
             .field(<span class="string">"topic_name"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.topic_name)
             .field(<span class="string">"producer"</span>, <span class="kw-2">&amp;</span><span class="string">"&lt;ThreadedProducer&gt;"</span>)
             .finish()
@@ -501,44 +492,42 @@
     </span><span class="kw">pub fn </span>add_kafka_topic_config(
         <span class="kw-2">mut </span><span class="self">self</span>,
         topic: KafkaTopic,
-        config: <span class="kw-2">&amp;</span>KafkaConfig,
+        params: <span class="kw-2">&amp;</span>KafkaParams,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, ClientError&gt; {
         <span class="kw">let </span><span class="kw-2">mut </span>client_config = ClientConfig::new();
-        <span class="kw">match </span>config {
-            KafkaConfig::Single { params } =&gt; {
-                <span class="kw">let </span>KafkaParams {
-                    topic_name,
-                    config_name,
-                    params,
-                } = params;
 
-                <span class="kw">let </span>config_name = config_name.map(str::to_string);
+        <span class="kw">let </span>KafkaParams {
+            topic_name,
+            config_name,
+            params,
+        } = params;
 
-                <span class="kw">if let </span><span class="prelude-val">Some</span>(producer) = <span class="self">self</span>.reused_producers.get(<span class="kw-2">&amp;</span>config_name) {
-                    <span class="self">self</span>.producers.insert(
-                        topic,
-                        Producer::single((<span class="kw-2">*</span>topic_name).to_string(), Arc::clone(producer)),
-                    );
-                    <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="self">self</span>);
-                }
+        <span class="kw">let </span>config_name = config_name.map(str::to_string);
 
-                <span class="kw">for </span>config_p <span class="kw">in </span><span class="kw-2">*</span>params {
-                    client_config.set(config_p.name.as_str(), config_p.value.as_str());
-                }
-
-                <span class="kw">let </span>producer = Arc::new(
-                    client_config
-                        .create_with_context(Context)
-                        .map_err(ClientError::InvalidConfig)<span class="question-mark">?</span>,
-                );
-
-                <span class="self">self</span>.reused_producers
-                    .insert(config_name, Arc::clone(<span class="kw-2">&amp;</span>producer));
-                <span class="self">self</span>.producers
-                    .insert(topic, Producer::single((<span class="kw-2">*</span>topic_name).to_string(), producer));
-                <span class="prelude-val">Ok</span>(<span class="self">self</span>)
-            }
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(producer) = <span class="self">self</span>.reused_producers.get(<span class="kw-2">&amp;</span>config_name) {
+            <span class="self">self</span>.producers.insert(
+                topic,
+                Producer::new((<span class="kw-2">*</span>topic_name).to_string(), Arc::clone(producer)),
+            );
+            <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="self">self</span>);
         }
+
+        <span class="kw">for </span>config_p <span class="kw">in </span><span class="kw-2">*</span>params {
+            client_config.set(config_p.name.as_str(), config_p.value.as_str());
+        }
+
+        <span class="kw">let </span>producer = Arc::new(
+            client_config
+                .create_with_context(Context)
+                .map_err(ClientError::InvalidConfig)<span class="question-mark">?</span>,
+        );
+
+        <span class="self">self</span>.reused_producers
+            .insert(config_name, Arc::clone(<span class="kw-2">&amp;</span>producer));
+        <span class="self">self</span>.producers
+            .insert(topic, Producer::new((<span class="kw-2">*</span>topic_name).to_string(), producer));
+
+        <span class="prelude-val">Ok</span>(<span class="self">self</span>)
     }
 
     <span class="doccomment">/// Consumes self and returns the built [`KafkaClient`].
@@ -560,30 +549,7 @@
     }
 }
 
-<span class="doccomment">/// This object contains the Kafka producer variants for single.
-</span><span class="attr">#[derive(Debug)]
-</span><span class="kw">enum </span>ProducerInner {
-    <span class="doccomment">/// Configuration variant for the single kafka producer.
-    </span>Single(SingleProducer),
-}
-
-<span class="attr">#[derive(Debug)]
-</span><span class="kw">struct </span>Producer {
-    last_report: Cell&lt;Instant&gt;,
-    inner: ProducerInner,
-}
-
 <span class="kw">impl </span>Producer {
-    <span class="kw">fn </span>single(topic_name: String, producer: Arc&lt;ThreadedProducer&gt;) -&gt; <span class="self">Self </span>{
-        <span class="self">Self </span>{
-            last_report: Instant::now().into(),
-            inner: ProducerInner::Single(SingleProducer {
-                topic_name,
-                producer,
-            }),
-        }
-    }
-
     <span class="doccomment">/// Sends the payload to the correct producer for the current topic.
     </span><span class="kw">fn </span>send(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
@@ -596,12 +562,8 @@
             histogram(KafkaHistograms::KafkaMessageSize) = payload.len() <span class="kw">as </span>u64,
             variant = variant
         );
-        <span class="kw">let </span>(topic_name, producer) = <span class="kw">match </span><span class="kw-2">&amp;</span><span class="self">self</span>.inner {
-            ProducerInner::Single(SingleProducer {
-                topic_name,
-                producer,
-            }) =&gt; (topic_name.as_str(), producer.as_ref()),
-        };
+
+        <span class="kw">let </span>topic_name = <span class="self">self</span>.topic_name.as_str();
         <span class="kw">let </span><span class="kw-2">mut </span>record = BaseRecord::to(topic_name).key(key).payload(payload);
 
         <span class="comment">// Make sure to set the headers if provided.
@@ -619,13 +581,13 @@
         <span class="kw">if </span><span class="self">self</span>.last_report.get().elapsed() &gt; REPORT_FREQUENCY {
             <span class="self">self</span>.last_report.replace(Instant::now());
             <span class="macro">metric!</span>(
-                gauge(KafkaGauges::InFlightCount) = producer.in_flight_count() <span class="kw">as </span>u64,
+                gauge(KafkaGauges::InFlightCount) = <span class="self">self</span>.producer.in_flight_count() <span class="kw">as </span>u64,
                 variant = variant,
                 topic = topic_name
             );
         }
 
-        producer
+        <span class="self">self</span>.producer
             .send(record)
             .map(|<span class="kw">_</span>| topic_name)
             .map_err(|(error, _message)| {
