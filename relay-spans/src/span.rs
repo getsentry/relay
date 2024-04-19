@@ -117,7 +117,7 @@ pub fn otel_to_sentry_span(otel_span: OtelSpan) -> EventSpan {
                         }
                     }
                 }
-                "http.method" | "request.method" => {
+                "http.method" | "http.request.method" => {
                     let http_op = match kind {
                         2 => "http.server",
                         3 => "http.client",
