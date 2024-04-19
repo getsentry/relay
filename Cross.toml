@@ -2,7 +2,7 @@
 pre-build = [
     # Use azure mirrors for faster downloads.
     "sed -i -e 's/archive.archive.ubuntu.com/azure.archive.ubuntu.com/' /etc/apt/sources.list",
-    "sed -i -e 's/security.ubuntu.com/azure.archive.ubuntu.com/' /etc/apt/sources.list",
+    "sed -i -e 's/security.archive.ubuntu.com/azure.archive.ubuntu.com/' /etc/apt/sources.list",
     "apt-get update && apt-get --assume-yes install libclang-8-dev clang-8",
     "curl -sL https://sentry.io/get-cli/ | sh",
 ]

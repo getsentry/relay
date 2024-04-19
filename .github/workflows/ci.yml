@@ -200,7 +200,6 @@ jobs:
     if: "!startsWith(github.ref, 'refs/heads/release-library/')"
 
     env:
-      TARGET: "${{ matrix.platform.target }}"
       RELAY_BIN: "target/${{ matrix.platform.target }}/release/relay"
 
     steps:
