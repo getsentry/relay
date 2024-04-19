@@ -305,6 +305,7 @@
 <a href="#303" id="303">303</a>
 <a href="#304" id="304">304</a>
 <a href="#305" id="305">305</a>
+<a href="#306" id="306">306</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_redis::{
     redis::{<span class="self">self</span>, FromRedisValue, Script},
     Connection,
@@ -372,6 +373,7 @@
             <span class="kw">return </span><span class="prelude-val">Err</span>(redis::RedisError::from((
                 redis::ErrorKind::TypeError,
                 <span class="string">"Expected a sequence from the cardinality script"</span>,
+                <span class="macro">format!</span>(<span class="string">"{v:?}"</span>),
             )));
         };
 
