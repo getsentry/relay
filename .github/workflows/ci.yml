@@ -190,9 +190,7 @@ jobs:
             docker: linux/amd64
         image:
           - name: relay
-            features: "processing,crash-handler"
           - name: relay-pop
-            features: "crash-handler"
 
     name: Build Relay Binary
     runs-on: ubuntu-latest
@@ -201,6 +199,11 @@ jobs:
 
     env:
       RELAY_BIN: "target/${{ matrix.platform.target }}/release/relay"
+      FEATURES: |
+        { 
+          "relay": "processing,crash-handler", 
+          "relay-pop": "crash-handler"
+        }
 
     steps:
       - name: Install dependencies
@@ -224,7 +227,8 @@ jobs:
       - name: Compile
         run: |
           export PATH="/home/runner/.cargo/bin/:$PATH"
-          cross build --release --locked --features "${{ matrix.image.features }}" --target "${{ matrix.platform.target }}"
+
+          cross build --release --locked --features "${{ fromJson(env.FEATURES)[matrix.image.name] }}" --target "${{ matrix.platform.target }}"
 
       - name: Split debug info
         run: |
