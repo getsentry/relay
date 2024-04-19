@@ -295,34 +295,26 @@ pub fn scrub_domain_name(domain: &str) -> Cow<'_, str> {
 
     let parsed_domain = parsed_domain.unwrap();
 
-    let suffix_string = String::from_utf8(parsed_domain.suffix().as_bytes().to_vec());
-    let scrubbed_suffix = match &suffix_string {
-        Ok(string) => string.as_ref(),
-        Err(_) => "*",
+    let suffix = parsed_domain.suffix().as_bytes();
+    let Some(second_level_domain) = parsed_domain.as_bytes().strip_suffix(suffix) else {
+        return Cow::Borrowed(domain);
     };
 
-    let domain_string = String::from_utf8(parsed_domain.as_bytes().to_vec());
-    let scrubbed_domain = match &domain_string {
-        Ok(string) => {
-            let second_level_domain = string.strip_suffix(scrubbed_suffix).unwrap_or("");
+    let subdomain = domain
+        .as_bytes()
+        .strip_suffix(suffix)
+        .and_then(|s| s.strip_suffix(second_level_domain));
 
-            // If a subdomain is present, replace with `"*."`
-            let subdomain = match domain
-                .strip_suffix(scrubbed_suffix)
-                .unwrap_or(domain)
-                .strip_suffix(second_level_domain)
-            {
-                None => "",
-                Some("") => "",
-                _ => "*.",
-            };
-
-            format!("{subdomain}{second_level_domain}")
+    match subdomain {
+        None | Some(b"") => Cow::Borrowed(domain),
+        Some(_subdomain) => {
+            let scrubbed = [b"*.", second_level_domain, suffix].concat();
+            match String::from_utf8(scrubbed) {
+                Ok(s) => Cow::Owned(s),
+                Err(_) => Cow::Borrowed("*"),
+            }
         }
-        Err(_) => String::from("*"),
-    };
-
-    return Cow::Owned(format!("{scrubbed_domain}{scrubbed_suffix}"));
+    }
 }
 
 /// Concatenate an optional host and an optional port.
