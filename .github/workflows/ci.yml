@@ -505,14 +505,6 @@ jobs:
           kafka: true
           symbolicator: true
 
-      - name: Download Docker Image
-        uses: actions/download-artifact@v3
-        with:
-          name: relay-docker-image
-
-      - name: Import Docker Image
-        run: docker load -i relay-docker-image.tgz
-
       - name: Run Sentry integration tests
         working-directory: sentry
         env:
