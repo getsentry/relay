@@ -1062,6 +1062,7 @@ mod tests {
         let mut event = Annotated::from_json(json).unwrap();
         let features = FeatureSet(BTreeSet::from([
             Feature::ExtractSpansAndSpanMetricsFromEvent,
+            Feature::DoubleWriteSpanDistributionMetricsAsGauges,
         ]));
 
         // Normalize first, to make sure that all things are correct as in the real pipeline:
@@ -1371,8 +1372,6 @@ mod tests {
                 "c:spans/usage@none",
                 "d:spans/exclusive_time@millisecond",
                 "d:spans/exclusive_time_light@millisecond",
-                "g:spans/self_time@millisecond",
-                "g:spans/self_time_light@millisecond",
             ]
         );
     }
@@ -1382,11 +1381,7 @@ mod tests {
         let metrics = extract_span_metrics_mobile("app.start.cold", 181000.0);
         assert_eq!(
             metrics.iter().map(|m| &*m.name).collect::<Vec<_>>(),
-            vec![
-                "c:spans/usage@none",
-                "d:spans/exclusive_time@millisecond",
-                "g:spans/self_time@millisecond",
-            ]
+            vec!["c:spans/usage@none", "d:spans/exclusive_time@millisecond",]
         );
     }
 
@@ -1399,8 +1394,6 @@ mod tests {
                 "c:spans/usage@none",
                 "d:spans/exclusive_time@millisecond",
                 "d:spans/exclusive_time_light@millisecond",
-                "g:spans/self_time@millisecond",
-                "g:spans/self_time_light@millisecond",
             ]
         );
     }
@@ -1410,11 +1403,7 @@ mod tests {
         let metrics = extract_span_metrics_mobile("app.start.warm", 181000.0);
         assert_eq!(
             metrics.iter().map(|m| &*m.name).collect::<Vec<_>>(),
-            vec![
-                "c:spans/usage@none",
-                "d:spans/exclusive_time@millisecond",
-                "g:spans/self_time@millisecond",
-            ]
+            vec!["c:spans/usage@none", "d:spans/exclusive_time@millisecond",]
         );
     }
 
@@ -1427,8 +1416,6 @@ mod tests {
                 "c:spans/usage@none",
                 "d:spans/exclusive_time@millisecond",
                 "d:spans/exclusive_time_light@millisecond",
-                "g:spans/self_time@millisecond",
-                "g:spans/self_time_light@millisecond",
             ]
         );
     }
@@ -1438,11 +1425,7 @@ mod tests {
         let metrics = extract_span_metrics_mobile("ui.load.initial_display", 181000.0);
         assert_eq!(
             metrics.iter().map(|m| &*m.name).collect::<Vec<_>>(),
-            vec![
-                "c:spans/usage@none",
-                "d:spans/exclusive_time@millisecond",
-                "g:spans/self_time@millisecond",
-            ]
+            vec!["c:spans/usage@none", "d:spans/exclusive_time@millisecond",]
         );
     }
 
@@ -1455,8 +1438,6 @@ mod tests {
                 "c:spans/usage@none",
                 "d:spans/exclusive_time@millisecond",
                 "d:spans/exclusive_time_light@millisecond",
-                "g:spans/self_time@millisecond",
-                "g:spans/self_time_light@millisecond",
             ]
         );
     }
@@ -1466,11 +1447,7 @@ mod tests {
         let metrics = extract_span_metrics_mobile("ui.load.full_display", 181000.0);
         assert_eq!(
             metrics.iter().map(|m| &*m.name).collect::<Vec<_>>(),
-            vec![
-                "c:spans/usage@none",
-                "d:spans/exclusive_time@millisecond",
-                "g:spans/self_time@millisecond",
-            ]
+            vec!["c:spans/usage@none", "d:spans/exclusive_time@millisecond",]
         );
     }
 
@@ -1494,9 +1471,7 @@ mod tests {
 
         assert!(!metrics.is_empty());
         for metric in metrics {
-            if &*metric.name == "d:spans/exclusive_time@millisecond"
-                || &*metric.name == "g:spans/self_time@millisecond"
-            {
+            if &*metric.name == "d:spans/exclusive_time@millisecond" {
                 assert_eq!(metric.tag("ttid"), Some("ttid"));
                 assert_eq!(metric.tag("ttfd"), Some("ttfd"));
             } else {
@@ -1575,7 +1550,7 @@ mod tests {
         let config = project.metric_extraction.ok().unwrap();
         let metrics = extract_metrics(event.value().unwrap(), false, &config, 200, None);
 
-        assert_eq!(metrics.len(), 7);
+        assert_eq!(metrics.len(), 4);
 
         assert_eq!(&*metrics[0].name, "c:spans/usage@none");
 
@@ -1594,19 +1569,5 @@ mod tests {
         );
 
         assert_eq!(&*metrics[3].name, "d:spans/duration@millisecond");
-
-        assert_eq!(&*metrics[4].name, "g:spans/self_time@millisecond");
-        assert_debug_snapshot!(metrics[4].tags, @r###"
-        {
-            "span.category": "db",
-            "span.op": "db.query",
-            "transaction": "my_transaction",
-            "transaction.op": "db.query",
-        }
-        "###);
-
-        assert_eq!(&*metrics[5].name, "g:spans/self_time_light@millisecond");
-
-        assert_eq!(&*metrics[6].name, "g:spans/total_time@millisecond");
     }
 }

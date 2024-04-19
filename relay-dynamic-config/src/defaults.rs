@@ -64,6 +64,9 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
         project_config
             .features
             .has(Feature::ExtractTransactionFromSegmentSpan),
+        project_config
+            .features
+            .has(Feature::DoubleWriteSpanDistributionMetricsAsGauges),
     ));
 
     config._span_metrics_extended = true;
@@ -73,7 +76,10 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
 }
 
 /// Metrics with tags applied as required.
-fn span_metrics(transaction_extraction_enabled: bool) -> impl IntoIterator<Item = MetricSpec> {
+fn span_metrics(
+    transaction_extraction_enabled: bool,
+    double_write_distributions_as_gauges: bool,
+) -> impl IntoIterator<Item = MetricSpec> {
     let score_total_transaction_metric = if transaction_extraction_enabled {
         RuleCondition::never()
     } else {
@@ -311,7 +317,8 @@ fn span_metrics(transaction_extraction_enabled: bool) -> impl IntoIterator<Item 
             .from_field("span.sentry_tags.app_start_type")
             .when(app_start_condition.clone()),
     ];
-    [
+
+    let mut metrics = vec![
         MetricSpec {
             category: DataCategory::Span,
             mri: "c:spans/usage@none".into(),
@@ -339,27 +346,6 @@ fn span_metrics(transaction_extraction_enabled: bool) -> impl IntoIterator<Item 
             field: Some("span.duration".into()),
             condition: None,
             tags: total_time_tags.clone(),
-        },
-        MetricSpec {
-            category: DataCategory::Span,
-            mri: "g:spans/self_time@millisecond".into(),
-            field: Some("span.exclusive_time".into()),
-            condition: None,
-            tags: self_time_tags,
-        },
-        MetricSpec {
-            category: DataCategory::Span,
-            mri: "g:spans/self_time_light@millisecond".into(),
-            field: Some("span.exclusive_time".into()),
-            condition: Some(exclusive_time_light_condition),
-            tags: self_time_light_tags,
-        },
-        MetricSpec {
-            category: DataCategory::Span,
-            mri: "g:spans/total_time@millisecond".into(),
-            field: Some("span.duration".into()),
-            condition: None,
-            tags: total_time_tags,
         },
         MetricSpec {
             category: DataCategory::Span,
@@ -635,5 +621,33 @@ fn span_metrics(transaction_extraction_enabled: bool) -> impl IntoIterator<Item 
                     .always(), // already guarded by condition on metric
             ],
         },
-    ]
+    ];
+
+    if double_write_distributions_as_gauges {
+        metrics.append(&mut vec![
+            MetricSpec {
+                category: DataCategory::Span,
+                mri: "g:spans/self_time@millisecond".into(),
+                field: Some("span.exclusive_time".into()),
+                condition: None,
+                tags: self_time_tags,
+            },
+            MetricSpec {
+                category: DataCategory::Span,
+                mri: "g:spans/self_time_light@millisecond".into(),
+                field: Some("span.exclusive_time".into()),
+                condition: Some(exclusive_time_light_condition),
+                tags: self_time_light_tags,
+            },
+            MetricSpec {
+                category: DataCategory::Span,
+                mri: "g:spans/total_time@millisecond".into(),
+                field: Some("span.duration".into()),
+                condition: None,
+                tags: total_time_tags,
+            },
+        ]);
+    }
+
+    metrics
 }

@@ -5545,6 +5545,79 @@ expression: metrics
         timestamp: UnixTimestamp(1694732408),
         width: 0,
         name: MetricName(
+            "d:spans/http.response_content_length@byte",
+        ),
+        value: Distribution(
+            [
+                36170.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "file_extension": "css",
+            "resource.render_blocking_status": "blocking",
+            "span.description": "https://*.domain.com/*/*.css",
+            "span.domain": "*.domain.com",
+            "span.group": "d744fa0716ef1142",
+            "span.op": "resource.css",
+            "transaction": "gEt /api/:version/users/",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1694732408),
+        width: 0,
+        name: MetricName(
+            "d:spans/http.decoded_response_content_length@byte",
+        ),
+        value: Distribution(
+            [
+                128950.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "file_extension": "css",
+            "resource.render_blocking_status": "blocking",
+            "span.description": "https://*.domain.com/*/*.css",
+            "span.domain": "*.domain.com",
+            "span.group": "d744fa0716ef1142",
+            "span.op": "resource.css",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1694732408),
+        width: 0,
+        name: MetricName(
+            "d:spans/http.response_transfer_size@byte",
+        ),
+        value: Distribution(
+            [
+                36470.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "file_extension": "css",
+            "resource.render_blocking_status": "blocking",
+            "span.description": "https://*.domain.com/*/*.css",
+            "span.domain": "*.domain.com",
+            "span.group": "d744fa0716ef1142",
+            "span.op": "resource.css",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1694732408),
+        width: 0,
+        name: MetricName(
             "g:spans/self_time@millisecond",
         ),
         value: Gauge(
@@ -5622,79 +5695,6 @@ expression: metrics
             "span.op": "resource.css",
             "transaction": "gEt /api/:version/users/",
             "transaction.op": "myop",
-        },
-        metadata: BucketMetadata {
-            merges: 1,
-        },
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1694732408),
-        width: 0,
-        name: MetricName(
-            "d:spans/http.response_content_length@byte",
-        ),
-        value: Distribution(
-            [
-                36170.0,
-            ],
-        ),
-        tags: {
-            "environment": "fake_environment",
-            "file_extension": "css",
-            "resource.render_blocking_status": "blocking",
-            "span.description": "https://*.domain.com/*/*.css",
-            "span.domain": "*.domain.com",
-            "span.group": "d744fa0716ef1142",
-            "span.op": "resource.css",
-            "transaction": "gEt /api/:version/users/",
-        },
-        metadata: BucketMetadata {
-            merges: 1,
-        },
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1694732408),
-        width: 0,
-        name: MetricName(
-            "d:spans/http.decoded_response_content_length@byte",
-        ),
-        value: Distribution(
-            [
-                128950.0,
-            ],
-        ),
-        tags: {
-            "environment": "fake_environment",
-            "file_extension": "css",
-            "resource.render_blocking_status": "blocking",
-            "span.description": "https://*.domain.com/*/*.css",
-            "span.domain": "*.domain.com",
-            "span.group": "d744fa0716ef1142",
-            "span.op": "resource.css",
-        },
-        metadata: BucketMetadata {
-            merges: 1,
-        },
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1694732408),
-        width: 0,
-        name: MetricName(
-            "d:spans/http.response_transfer_size@byte",
-        ),
-        value: Distribution(
-            [
-                36470.0,
-            ],
-        ),
-        tags: {
-            "environment": "fake_environment",
-            "file_extension": "css",
-            "resource.render_blocking_status": "blocking",
-            "span.description": "https://*.domain.com/*/*.css",
-            "span.domain": "*.domain.com",
-            "span.group": "d744fa0716ef1142",
-            "span.op": "resource.css",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -5792,6 +5792,79 @@ expression: metrics
         timestamp: UnixTimestamp(1694732408),
         width: 0,
         name: MetricName(
+            "d:spans/http.response_content_length@byte",
+        ),
+        value: Distribution(
+            [
+                36170.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "file_extension": "js",
+            "resource.render_blocking_status": "blocking",
+            "span.description": "/static/myscript-*.js",
+            "span.domain": "*.example.com:5688",
+            "span.group": "89bda2e660f6236c",
+            "span.op": "resource.script",
+            "transaction": "gEt /api/:version/users/",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1694732408),
+        width: 0,
+        name: MetricName(
+            "d:spans/http.decoded_response_content_length@byte",
+        ),
+        value: Distribution(
+            [
+                128950.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "file_extension": "js",
+            "resource.render_blocking_status": "blocking",
+            "span.description": "/static/myscript-*.js",
+            "span.domain": "*.example.com:5688",
+            "span.group": "89bda2e660f6236c",
+            "span.op": "resource.script",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1694732408),
+        width: 0,
+        name: MetricName(
+            "d:spans/http.response_transfer_size@byte",
+        ),
+        value: Distribution(
+            [
+                36470.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "file_extension": "js",
+            "resource.render_blocking_status": "blocking",
+            "span.description": "/static/myscript-*.js",
+            "span.domain": "*.example.com:5688",
+            "span.group": "89bda2e660f6236c",
+            "span.op": "resource.script",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1694732408),
+        width: 0,
+        name: MetricName(
             "g:spans/self_time@millisecond",
         ),
         value: Gauge(
@@ -5869,79 +5942,6 @@ expression: metrics
             "span.op": "resource.script",
             "transaction": "gEt /api/:version/users/",
             "transaction.op": "myop",
-        },
-        metadata: BucketMetadata {
-            merges: 1,
-        },
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1694732408),
-        width: 0,
-        name: MetricName(
-            "d:spans/http.response_content_length@byte",
-        ),
-        value: Distribution(
-            [
-                36170.0,
-            ],
-        ),
-        tags: {
-            "environment": "fake_environment",
-            "file_extension": "js",
-            "resource.render_blocking_status": "blocking",
-            "span.description": "/static/myscript-*.js",
-            "span.domain": "*.example.com:5688",
-            "span.group": "89bda2e660f6236c",
-            "span.op": "resource.script",
-            "transaction": "gEt /api/:version/users/",
-        },
-        metadata: BucketMetadata {
-            merges: 1,
-        },
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1694732408),
-        width: 0,
-        name: MetricName(
-            "d:spans/http.decoded_response_content_length@byte",
-        ),
-        value: Distribution(
-            [
-                128950.0,
-            ],
-        ),
-        tags: {
-            "environment": "fake_environment",
-            "file_extension": "js",
-            "resource.render_blocking_status": "blocking",
-            "span.description": "/static/myscript-*.js",
-            "span.domain": "*.example.com:5688",
-            "span.group": "89bda2e660f6236c",
-            "span.op": "resource.script",
-        },
-        metadata: BucketMetadata {
-            merges: 1,
-        },
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1694732408),
-        width: 0,
-        name: MetricName(
-            "d:spans/http.response_transfer_size@byte",
-        ),
-        value: Distribution(
-            [
-                36470.0,
-            ],
-        ),
-        tags: {
-            "environment": "fake_environment",
-            "file_extension": "js",
-            "resource.render_blocking_status": "blocking",
-            "span.description": "/static/myscript-*.js",
-            "span.domain": "*.example.com:5688",
-            "span.group": "89bda2e660f6236c",
-            "span.op": "resource.script",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -10577,92 +10577,6 @@ expression: metrics
         timestamp: UnixTimestamp(1694732408),
         width: 0,
         name: MetricName(
-            "g:spans/self_time@millisecond",
-        ),
-        value: Gauge(
-            GaugeValue {
-                last: 477.800131,
-                min: 477.800131,
-                max: 477.800131,
-                sum: 477.800131,
-                count: 1,
-            },
-        ),
-        tags: {
-            "environment": "fake_environment",
-            "file_extension": "css",
-            "resource.render_blocking_status": "blocking",
-            "span.category": "resource",
-            "span.description": "https://*.domain.com/*/*.CSS",
-            "span.domain": "*.domain.com",
-            "span.group": "7f402250846262be",
-            "span.op": "resource.css",
-            "transaction": "gEt /api/:version/users/",
-            "transaction.op": "myop",
-        },
-        metadata: BucketMetadata {
-            merges: 1,
-        },
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1694732408),
-        width: 0,
-        name: MetricName(
-            "g:spans/self_time_light@millisecond",
-        ),
-        value: Gauge(
-            GaugeValue {
-                last: 477.800131,
-                min: 477.800131,
-                max: 477.800131,
-                sum: 477.800131,
-                count: 1,
-            },
-        ),
-        tags: {
-            "environment": "fake_environment",
-            "file_extension": "css",
-            "resource.render_blocking_status": "blocking",
-            "span.category": "resource",
-            "span.description": "https://*.domain.com/*/*.CSS",
-            "span.domain": "*.domain.com",
-            "span.group": "7f402250846262be",
-            "span.op": "resource.css",
-        },
-        metadata: BucketMetadata {
-            merges: 1,
-        },
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1694732408),
-        width: 0,
-        name: MetricName(
-            "g:spans/total_time@millisecond",
-        ),
-        value: Gauge(
-            GaugeValue {
-                last: 477.800131,
-                min: 477.800131,
-                max: 477.800131,
-                sum: 477.800131,
-                count: 1,
-            },
-        ),
-        tags: {
-            "environment": "fake_environment",
-            "span.group": "7f402250846262be",
-            "span.op": "resource.css",
-            "transaction": "gEt /api/:version/users/",
-            "transaction.op": "myop",
-        },
-        metadata: BucketMetadata {
-            merges: 1,
-        },
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1694732408),
-        width: 0,
-        name: MetricName(
             "d:spans/http.response_content_length@byte",
         ),
         value: Distribution(
@@ -10736,6 +10650,92 @@ expression: metrics
         timestamp: UnixTimestamp(1694732408),
         width: 0,
         name: MetricName(
+            "g:spans/self_time@millisecond",
+        ),
+        value: Gauge(
+            GaugeValue {
+                last: 477.800131,
+                min: 477.800131,
+                max: 477.800131,
+                sum: 477.800131,
+                count: 1,
+            },
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "file_extension": "css",
+            "resource.render_blocking_status": "blocking",
+            "span.category": "resource",
+            "span.description": "https://*.domain.com/*/*.CSS",
+            "span.domain": "*.domain.com",
+            "span.group": "7f402250846262be",
+            "span.op": "resource.css",
+            "transaction": "gEt /api/:version/users/",
+            "transaction.op": "myop",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1694732408),
+        width: 0,
+        name: MetricName(
+            "g:spans/self_time_light@millisecond",
+        ),
+        value: Gauge(
+            GaugeValue {
+                last: 477.800131,
+                min: 477.800131,
+                max: 477.800131,
+                sum: 477.800131,
+                count: 1,
+            },
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "file_extension": "css",
+            "resource.render_blocking_status": "blocking",
+            "span.category": "resource",
+            "span.description": "https://*.domain.com/*/*.CSS",
+            "span.domain": "*.domain.com",
+            "span.group": "7f402250846262be",
+            "span.op": "resource.css",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1694732408),
+        width: 0,
+        name: MetricName(
+            "g:spans/total_time@millisecond",
+        ),
+        value: Gauge(
+            GaugeValue {
+                last: 477.800131,
+                min: 477.800131,
+                max: 477.800131,
+                sum: 477.800131,
+                count: 1,
+            },
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "span.group": "7f402250846262be",
+            "span.op": "resource.css",
+            "transaction": "gEt /api/:version/users/",
+            "transaction.op": "myop",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1694732408),
+        width: 0,
+        name: MetricName(
             "c:spans/usage@none",
         ),
         value: Counter(
@@ -11405,80 +11405,6 @@ expression: metrics
             [
                 32.000065,
             ],
-        ),
-        tags: {
-            "environment": "fake_environment",
-            "span.op": "ai.run.langchain",
-            "transaction": "gEt /api/:version/users/",
-            "transaction.op": "myop",
-        },
-        metadata: BucketMetadata {
-            merges: 1,
-        },
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1702474613),
-        width: 0,
-        name: MetricName(
-            "g:spans/self_time@millisecond",
-        ),
-        value: Gauge(
-            GaugeValue {
-                last: 32.000065,
-                min: 32.000065,
-                max: 32.000065,
-                sum: 32.000065,
-                count: 1,
-            },
-        ),
-        tags: {
-            "environment": "fake_environment",
-            "span.op": "ai.run.langchain",
-            "transaction": "gEt /api/:version/users/",
-            "transaction.op": "myop",
-        },
-        metadata: BucketMetadata {
-            merges: 1,
-        },
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1702474613),
-        width: 0,
-        name: MetricName(
-            "g:spans/self_time_light@millisecond",
-        ),
-        value: Gauge(
-            GaugeValue {
-                last: 32.000065,
-                min: 32.000065,
-                max: 32.000065,
-                sum: 32.000065,
-                count: 1,
-            },
-        ),
-        tags: {
-            "span.description": "Autofix Pipeline",
-            "span.group": "86148ae2d6c09430",
-            "span.op": "ai.run.langchain",
-        },
-        metadata: BucketMetadata {
-            merges: 1,
-        },
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1702474613),
-        width: 0,
-        name: MetricName(
-            "g:spans/total_time@millisecond",
-        ),
-        value: Gauge(
-            GaugeValue {
-                last: 32.000065,
-                min: 32.000065,
-                max: 32.000065,
-                sum: 32.000065,
-                count: 1,
-            },
         ),
         tags: {
             "environment": "fake_environment",
@@ -11506,6 +11432,80 @@ expression: metrics
             "span.group": "86148ae2d6c09430",
             "span.op": "ai.run.langchain",
             "span.origin": "auto.langchain",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1702474613),
+        width: 0,
+        name: MetricName(
+            "g:spans/self_time@millisecond",
+        ),
+        value: Gauge(
+            GaugeValue {
+                last: 32.000065,
+                min: 32.000065,
+                max: 32.000065,
+                sum: 32.000065,
+                count: 1,
+            },
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "span.op": "ai.run.langchain",
+            "transaction": "gEt /api/:version/users/",
+            "transaction.op": "myop",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1702474613),
+        width: 0,
+        name: MetricName(
+            "g:spans/self_time_light@millisecond",
+        ),
+        value: Gauge(
+            GaugeValue {
+                last: 32.000065,
+                min: 32.000065,
+                max: 32.000065,
+                sum: 32.000065,
+                count: 1,
+            },
+        ),
+        tags: {
+            "span.description": "Autofix Pipeline",
+            "span.group": "86148ae2d6c09430",
+            "span.op": "ai.run.langchain",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1702474613),
+        width: 0,
+        name: MetricName(
+            "g:spans/total_time@millisecond",
+        ),
+        value: Gauge(
+            GaugeValue {
+                last: 32.000065,
+                min: 32.000065,
+                max: 32.000065,
+                sum: 32.000065,
+                count: 1,
+            },
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "span.op": "ai.run.langchain",
+            "transaction": "gEt /api/:version/users/",
+            "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
