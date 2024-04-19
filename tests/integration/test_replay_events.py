@@ -136,3 +136,35 @@ def test_replay_events_without_processing(mini_sentry, relay_chain):
 
     replay_event = envelope.items[0]
     assert replay_event.type == "replay_event"
+
+
+def test_replay_events_are_filtered(
+    mini_sentry,
+    relay_with_processing,
+    replay_events_consumer,
+    outcomes_consumer,
+):
+    relay = relay_with_processing()
+    project_config = mini_sentry.add_full_project_config(
+        42, extra={"config": {"features": ["organizations:session-replay"]}}
+    )
+    filter_settings = project_config["config"]["filterSettings"]
+    filter_settings["localhost"] = {"isEnabled": True}
+    outcomes_consumer = outcomes_consumer()
+
+    replay_events_consumer = replay_events_consumer(timeout=10)
+    replay = generate_replay_sdk_event()
+    replay["request"]["url"] = "http://localhost:1200"
+
+    relay.send_replay_event(42, replay)
+
+    outcome = outcomes_consumer.get_outcome(timeout=10)
+    assert outcome["org_id"] == 1
+    assert outcome["project_id"] == 42
+    assert outcome["outcome"] == 1
+    assert outcome["reason"] == "localhost"
+    assert outcome["category"] == 7
+    assert outcome["quantity"] == 1
+
+    replay_events_consumer.assert_empty()
+    outcomes_consumer.assert_empty()

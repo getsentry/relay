@@ -2,7 +2,7 @@ use hash32::Hasher;
 use std::fmt::{self, Write};
 use std::hash::Hash;
 
-use relay_base_schema::metrics::{MetricName, MetricNamespace};
+use relay_base_schema::metrics::{MetricName, MetricNamespace, MetricType};
 use relay_base_schema::project::ProjectId;
 use relay_common::time::UnixTimestamp;
 
@@ -33,6 +33,7 @@ impl PartialQuotaScoping {
         let (organization_id, project_id) = match limit.scope {
             CardinalityScope::Organization => (Some(scoping.organization_id), None),
             CardinalityScope::Project => (Some(scoping.organization_id), Some(scoping.project_id)),
+            CardinalityScope::Type => (Some(scoping.organization_id), Some(scoping.project_id)),
             CardinalityScope::Name => (Some(scoping.organization_id), Some(scoping.project_id)),
             // Invalid/unknown scope -> ignore the limit.
             CardinalityScope::Unknown => return None,
@@ -81,12 +82,20 @@ impl PartialQuotaScoping {
     /// does not check whether the scoping even applies to the entry. The caller
     /// needs to ensure this by calling [`Self::matches`] prior to calling `complete`.
     pub fn complete(self, entry: Entry<'_>) -> QuotaScoping {
-        let name = match self.scope {
+        let metric_name = match self.scope {
             CardinalityScope::Name => Some(entry.name.clone()),
             _ => None,
         };
+        let metric_type = match self.scope {
+            CardinalityScope::Type => entry.name.try_type(),
+            _ => None,
+        };
 
-        QuotaScoping { parent: self, name }
+        QuotaScoping {
+            parent: self,
+            metric_type,
+            metric_name,
+        }
     }
 }
 
@@ -98,7 +107,8 @@ impl PartialQuotaScoping {
 #[derive(Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct QuotaScoping {
     parent: PartialQuotaScoping,
-    pub name: Option<MetricName>,
+    pub metric_type: Option<MetricType>,
+    pub metric_name: Option<MetricName>,
 }
 
 impl QuotaScoping {
@@ -112,7 +122,8 @@ impl QuotaScoping {
         let organization_id = self.organization_id.unwrap_or(0);
         let project_id = self.project_id.map(|p| p.value()).unwrap_or(0);
         let namespace = self.namespace.map(|ns| ns.as_str()).unwrap_or("");
-        let name = DisplayOptMinus(self.name.as_deref().map(fnv32));
+        let metric_type = DisplayOptMinus(self.metric_type);
+        let metric_name = DisplayOptMinus(self.metric_name.as_deref().map(fnv32));
 
         // Use a pre-allocated buffer instead of `format!()`, benchmarks have shown
         // this does have quite a big impact when cardinality limiting a high amount
@@ -120,8 +131,10 @@ impl QuotaScoping {
         let mut result = String::with_capacity(200);
         write!(
             &mut result,
-            "{KEY_PREFIX}:{KEY_VERSION}:scope-{{{organization_id}-{project_id}-{namespace}}}-{name}{slot}"
-        ).expect("formatting into a string never fails");
+            "{KEY_PREFIX}:{KEY_VERSION}:scope-{{{organization_id}-{project_id}-{namespace}}}-{metric_type}{metric_name}{slot}"
+        )
+        .expect("formatting into a string never fails");
+
         result
     }
 }
@@ -157,7 +170,8 @@ impl fmt::Debug for QuotaScoping {
             .field("namespace", namespace)
             .field("window", window)
             .field("scope", scope)
-            .field("name", &self.name)
+            .field("metric_type", &self.metric_type)
+            .field("metric_name", &self.metric_name)
             .finish()
     }
 }

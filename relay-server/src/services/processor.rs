@@ -8,6 +8,7 @@ use std::pin::Pin;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
+use crate::metric_stats::MetricStats;
 use anyhow::Context;
 use brotli::CompressorWriter as BrotliEncoder;
 use bytes::Bytes;
@@ -18,7 +19,7 @@ use fnv::FnvHasher;
 use relay_base_schema::project::{ProjectId, ProjectKey};
 use relay_cogs::{AppFeature, Cogs, FeatureWeights, ResourceId, Token};
 use relay_common::time::UnixTimestamp;
-use relay_config::{Config, HttpEncoding, Normalize, RelayMode};
+use relay_config::{Config, HttpEncoding, NormalizationLevel, RelayMode};
 use relay_dynamic_config::{ErrorBoundary, Feature};
 use relay_event_normalization::{
     normalize_event, validate_event_timestamps, validate_transaction, ClockDriftProcessor,
@@ -48,7 +49,6 @@ use tokio::sync::Semaphore;
 
 #[cfg(feature = "processing")]
 use {
-    crate::metric_stats::MetricStats,
     crate::services::store::{Store, StoreEnvelope},
     crate::utils::{EnvelopeLimiter, ItemAction, MetricsLimiter},
     itertools::Itertools,
@@ -462,11 +462,14 @@ pub enum ProcessingError {
 
     #[error("invalid replay")]
     InvalidReplay(DiscardReason),
+
+    #[error("replay filtered with reason: {0:?}")]
+    ReplayFiltered(FilterStatKey),
 }
 
 impl ProcessingError {
     fn to_outcome(&self) -> Option<Outcome> {
-        match *self {
+        match self {
             // General outcomes for invalid events
             Self::PayloadTooLarge => Some(Outcome::Invalid(DiscardReason::TooLarge)),
             Self::InvalidJson(_) => Some(Outcome::Invalid(DiscardReason::InvalidJson)),
@@ -505,7 +508,8 @@ impl ProcessingError {
             Self::EventFiltered(_) => None,
             Self::InvalidProcessingGroup(_) => None,
 
-            Self::InvalidReplay(reason) => Some(Outcome::Invalid(reason)),
+            Self::InvalidReplay(reason) => Some(Outcome::Invalid(*reason)),
+            Self::ReplayFiltered(key) => Some(Outcome::Filtered(key.clone())),
         }
     }
 
@@ -943,7 +947,6 @@ struct InnerProcessor {
     metric_meta_store: Option<RedisMetricMetaStore>,
     #[cfg(feature = "processing")]
     cardinality_limiter: Option<CardinalityLimiter>,
-    #[cfg(feature = "processing")]
     metric_stats: MetricStats,
     #[cfg(feature = "processing")]
     buffer_guard: Arc<BufferGuard>,
@@ -957,7 +960,7 @@ impl EnvelopeProcessorService {
         cogs: Cogs,
         #[cfg(feature = "processing")] redis: Option<RedisPool>,
         addrs: Addrs,
-        #[cfg(feature = "processing")] metric_stats: MetricStats,
+        metric_stats: MetricStats,
         #[cfg(feature = "processing")] buffer_guard: Arc<BufferGuard>,
     ) -> Self {
         let geoip_lookup = config.geoip_path().and_then(|p| {
@@ -998,7 +1001,6 @@ impl EnvelopeProcessorService {
                     )
                 })
                 .map(CardinalityLimiter::new),
-            #[cfg(feature = "processing")]
             metric_stats,
             config,
             #[cfg(feature = "processing")]
@@ -1225,8 +1227,8 @@ impl EnvelopeProcessorService {
         &self,
         state: &mut ProcessEnvelopeState<G>,
     ) -> Result<(), ProcessingError> {
-        let full_normalization = match self.inner.config.normalization() {
-            Normalize::Disabled => {
+        let full_normalization = match self.inner.config.normalization_level() {
+            NormalizationLevel::Disabled => {
                 // We assume envelopes coming from an internal relay have
                 // already been normalized. During incidents, like a PoP region
                 // not being available, envelopes can go to other PoP regions or
@@ -1241,8 +1243,8 @@ impl EnvelopeProcessorService {
                     return Ok(());
                 }
             }
-            Normalize::Full => true,
-            Normalize::Default => self.inner.config.processing_enabled(),
+            NormalizationLevel::Full => true,
+            NormalizationLevel::Default => self.inner.config.processing_enabled(),
         };
 
         if let Some(sampling_state) = state.sampling_project_state.clone() {
@@ -1533,7 +1535,11 @@ impl EnvelopeProcessorService {
         &self,
         state: &mut ProcessEnvelopeState<ReplayGroup>,
     ) -> Result<(), ProcessingError> {
-        replay::process(state, &self.inner.config)?;
+        replay::process(
+            state,
+            &self.inner.config,
+            &self.inner.global_config.current(),
+        )?;
         if_processing!(self.inner.config, {
             self.enforce_quotas(state)?;
         });
@@ -2127,12 +2133,10 @@ impl EnvelopeProcessorService {
 
         buckets_by_ns
             .into_iter()
-            .filter_map(|(namespace, buckets)| {
+            .flat_map(|(namespace, buckets)| {
                 let item_scoping = scoping.metric_bucket(namespace);
-                (!self.rate_limit_buckets(item_scoping, &buckets, quotas, mode, rate_limiter))
-                    .then_some(buckets)
+                self.rate_limit_buckets(item_scoping, buckets, quotas, mode, rate_limiter)
             })
-            .flatten()
             .collect()
     }
 
@@ -2141,13 +2145,13 @@ impl EnvelopeProcessorService {
     fn rate_limit_buckets(
         &self,
         item_scoping: relay_quotas::ItemScoping,
-        buckets: &[Bucket],
+        buckets: Vec<Bucket>,
         quotas: DynamicQuotas<'_>,
         mode: ExtractionMode,
         rate_limiter: &RedisRateLimiter,
-    ) -> bool {
+    ) -> Vec<Bucket> {
         let batch_size = self.inner.config.metrics_max_batch_size_bytes();
-        let batched_bucket_iter = BucketsView::new(buckets).by_size(batch_size).flatten();
+        let batched_bucket_iter = BucketsView::new(&buckets).by_size(batch_size).flatten();
         let quantities = utils::extract_metric_quantities(batched_bucket_iter, mode);
 
         // Check with redis if the throughput limit has been exceeded, while also updating
@@ -2162,9 +2166,11 @@ impl EnvelopeProcessorService {
                 let reason_code = limits.longest().and_then(|limit| limit.reason_code.clone());
                 utils::reject_metrics(
                     &self.inner.addrs.outcome_aggregator,
+                    &self.inner.metric_stats,
                     quantities,
                     *item_scoping.scoping,
                     Outcome::RateLimited(reason_code),
+                    &buckets,
                 );
 
                 self.inner.addrs.project_cache.send(UpdateRateLimits::new(
@@ -2172,15 +2178,16 @@ impl EnvelopeProcessorService {
                     limits,
                 ));
 
-                true
+                Vec::new()
             }
-            Ok(_) => false,
+            Ok(_) => buckets,
             Err(e) => {
                 relay_log::error!(
                     error = &e as &dyn std::error::Error,
                     "failed to check redis rate limits"
                 );
-                false
+
+                buckets
             }
         }
     }
@@ -2247,15 +2254,19 @@ impl EnvelopeProcessorService {
             return limits.into_source();
         }
 
+        let split = limits.into_split();
+
         // Log outcomes for rejected buckets.
         utils::reject_metrics(
             &self.inner.addrs.outcome_aggregator,
-            utils::extract_metric_quantities(limits.rejected(), mode),
+            &self.inner.metric_stats,
+            utils::extract_metric_quantities(&split.rejected, mode),
             scoping,
             Outcome::CardinalityLimited,
+            &split.rejected,
         );
 
-        limits.into_accepted()
+        split.accepted
     }
 
     /// Processes metric buckets and sends them to kafka.
@@ -2405,6 +2416,7 @@ impl EnvelopeProcessorService {
             http_encoding,
             quantities,
             outcome_aggregator: self.inner.addrs.outcome_aggregator.clone(),
+            metric_stats: self.inner.metric_stats.clone(),
         };
 
         self.inner.addrs.upstream_relay.send(SendRequest(request));
@@ -2419,7 +2431,7 @@ impl EnvelopeProcessorService {
     ///  - partitioning
     ///  - batching by configured size limit
     ///  - serialize to JSON
-    ///  - submit the directly to the upstream
+    ///  - submit directly to the upstream
     ///
     /// Cardinality limiting and rate limiting run only in processing Relays as they both require
     /// access to the central Redis instance. Cached rate limits are applied in the project cache
@@ -2834,6 +2846,8 @@ struct SendMetricsRequest {
     quantities: Vec<(Scoping, SourceQuantities)>,
     /// Address of the outcome aggregator to send outcomes to on error.
     outcome_aggregator: Addr<TrackOutcome>,
+    /// Metric stats reporter.
+    metric_stats: MetricStats,
 }
 
 impl UpstreamRequest for SendMetricsRequest {
@@ -2881,11 +2895,13 @@ impl UpstreamRequest for SendMetricsRequest {
                 // Request did not arrive, we are responsible for outcomes.
                 Err(error) if !error.is_received() => {
                     for (scoping, quantities) in self.quantities {
-                        utils::reject_metrics(
+                        utils::reject_metrics::<&Bucket>(
                             &self.outcome_aggregator,
+                            &self.metric_stats,
                             quantities,
                             scoping,
                             Outcome::Invalid(DiscardReason::Internal),
+                            None,
                         );
                     }
                 }

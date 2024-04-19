@@ -3,6 +3,7 @@ use std::error::Error;
 use std::sync::Arc;
 use std::time::Duration;
 
+use crate::metric_stats::MetricStats;
 use hashbrown::HashSet;
 use relay_base_schema::project::ProjectKey;
 use relay_config::{Config, RelayMode};
@@ -501,6 +502,7 @@ impl Services {
 struct ProjectCacheBroker {
     config: Arc<Config>,
     services: Services,
+    metric_stats: MetricStats,
     // Need hashbrown because extract_if is not stable in std yet.
     projects: hashbrown::HashMap<ProjectKey, Project>,
     garbage_disposal: GarbageDisposal<Project>,
@@ -832,8 +834,11 @@ impl ProjectCacheBroker {
         let mut output = BTreeMap::new();
         for (project_key, buckets) in message.buckets {
             let outcome_aggregator = self.services.outcome_aggregator.clone();
+            let metric_stats = self.metric_stats.clone();
             let project = self.get_or_create_project(project_key);
-            if let Some((scoping, b)) = project.check_buckets(outcome_aggregator, buckets) {
+            if let Some((scoping, b)) =
+                project.check_buckets(outcome_aggregator, metric_stats, buckets)
+            {
                 output.insert(scoping, b);
             }
         }
@@ -996,6 +1001,7 @@ pub struct ProjectCacheService {
     buffer_guard: Arc<BufferGuard>,
     config: Arc<Config>,
     services: Services,
+    metric_stats: MetricStats,
     redis: Option<RedisPool>,
 }
 
@@ -1005,12 +1011,14 @@ impl ProjectCacheService {
         config: Arc<Config>,
         buffer_guard: Arc<BufferGuard>,
         services: Services,
+        metric_stats: MetricStats,
         redis: Option<RedisPool>,
     ) -> Self {
         Self {
             buffer_guard,
             config,
             services,
+            metric_stats,
             redis,
         }
     }
@@ -1024,6 +1032,7 @@ impl Service for ProjectCacheService {
             buffer_guard,
             config,
             services,
+            metric_stats,
             redis,
         } = self;
         let project_cache = services.project_cache.clone();
@@ -1102,6 +1111,7 @@ impl Service for ProjectCacheService {
                 buffer_unspool_backoff: RetryBackoff::new(config.http_max_retry_interval()),
                 buffer,
                 global_config,
+                metric_stats,
             };
 
             loop {
@@ -1176,6 +1186,8 @@ impl FetchOptionalProjectState {
 
 #[cfg(test)]
 mod tests {
+    use crate::services::global_config::GlobalConfigHandle;
+    use relay_dynamic_config::GlobalConfig;
     use relay_test::mock_service;
     use tokio::select;
     use uuid::Uuid;
@@ -1242,6 +1254,12 @@ mod tests {
             }
         };
 
+        let metric_stats = MetricStats::new(
+            Arc::new(Config::default()),
+            GlobalConfigHandle::fixed(GlobalConfig::default()),
+            Addr::custom().0,
+        );
+
         (
             ProjectCacheBroker {
                 config: config.clone(),
@@ -1257,6 +1275,7 @@ mod tests {
                 global_config: GlobalConfigStatus::Pending,
                 buffer_unspool_handle: SleepHandle::idle(),
                 buffer_unspool_backoff: RetryBackoff::new(Duration::from_millis(100)),
+                metric_stats,
             },
             buffer,
         )

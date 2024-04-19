@@ -381,8 +381,9 @@ impl StoreService {
         } = message;
 
         let batch_size = self.config.metrics_max_batch_size_bytes();
-        let mut dropped = SourceQuantities::default();
         let mut error = None;
+
+        let mut dropped_quantities = SourceQuantities::default();
 
         let global_config = self.global_config.current();
         let mut encoder = BucketEncoder::new(&global_config);
@@ -416,7 +417,7 @@ impl StoreService {
                     }
                     Err(e) => {
                         error.get_or_insert(e);
-                        dropped += utils::extract_metric_quantities([view], mode);
+                        dropped_quantities += utils::extract_metric_quantities([view], mode);
                     }
                 }
             }
@@ -429,10 +430,15 @@ impl StoreService {
             //
             // This logic will be improved iterated on and change once we move serialization logic
             // back into the processor service.
-            if has_success {
-                self.metric_stats
-                    .track_metric(scoping, bucket, Outcome::Accepted);
-            }
+            self.metric_stats.track_metric(
+                scoping,
+                &bucket,
+                if has_success {
+                    Outcome::Accepted
+                } else {
+                    Outcome::Invalid(DiscardReason::Internal)
+                },
+            );
         }
 
         if let Some(error) = error {
@@ -441,11 +447,13 @@ impl StoreService {
                 "failed to produce metric buckets: {error}"
             );
 
-            utils::reject_metrics(
+            utils::reject_metrics::<&Bucket>(
                 &self.outcome_aggregator,
-                dropped,
+                &self.metric_stats,
+                dropped_quantities,
                 scoping,
                 Outcome::Invalid(DiscardReason::Internal),
+                None,
             );
         }
     }

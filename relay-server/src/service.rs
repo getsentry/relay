@@ -2,6 +2,7 @@ use std::convert::Infallible;
 use std::fmt;
 use std::sync::Arc;
 
+use crate::metric_stats::MetricStats;
 use anyhow::{Context, Result};
 use axum::extract::FromRequestParts;
 use axum::http::request::Parts;
@@ -13,8 +14,6 @@ use relay_redis::RedisPool;
 use relay_system::{channel, Addr, Service};
 use tokio::runtime::Runtime;
 
-#[cfg(feature = "processing")]
-use crate::metric_stats::MetricStats;
 use crate::services::cogs::{CogsService, CogsServiceRecorder};
 use crate::services::global_config::{GlobalConfigManager, GlobalConfigService};
 use crate::services::health_check::{HealthCheck, HealthCheckService};
@@ -138,7 +137,6 @@ impl ServiceState {
         )
         .start_in(&runtimes.aggregator);
 
-        #[cfg(feature = "processing")]
         let metric_stats = MetricStats::new(
             config.clone(),
             global_config_handle.clone(),
@@ -183,8 +181,7 @@ impl ServiceState {
                 #[cfg(feature = "processing")]
                 store_forwarder: store.clone(),
             },
-            #[cfg(feature = "processing")]
-            metric_stats,
+            metric_stats.clone(),
             #[cfg(feature = "processing")]
             buffer_guard.clone(),
         )
@@ -205,6 +202,7 @@ impl ServiceState {
             config.clone(),
             buffer_guard.clone(),
             project_cache_services,
+            metric_stats,
             redis_pool,
         )
         .spawn_handler(project_cache_rx);
@@ -324,10 +322,10 @@ impl Runtimes {
     #[allow(unused_variables)]
     pub fn new(config: &Config) -> Self {
         Self {
-            upstream: create_runtime("upstream-rt", 1),
+            upstream: create_runtime("upstream-rt", 2),
             project: create_runtime("project-rt", 2),
-            aggregator: create_runtime("aggregator-rt", 1),
-            outcome: create_runtime("outcome-rt", 1),
+            aggregator: create_runtime("aggregator-rt", 2),
+            outcome: create_runtime("outcome-rt", 2),
             #[cfg(feature = "processing")]
             store: config
                 .processing_enabled()

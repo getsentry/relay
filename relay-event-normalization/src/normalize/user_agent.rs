@@ -957,6 +957,7 @@ OsContext {
     build: ~,
     kernel_version: ~,
     rooted: ~,
+    distribution: ~,
     raw_description: ~,
     other: {},
 }
@@ -1028,6 +1029,7 @@ OsContext {
     build: ~,
     kernel_version: ~,
     rooted: ~,
+    distribution: ~,
     raw_description: ~,
     other: {},
 }

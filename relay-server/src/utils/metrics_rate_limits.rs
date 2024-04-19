@@ -9,6 +9,7 @@ use relay_quotas::{DataCategory, Quota, RateLimits, Scoping};
 use relay_system::Addr;
 
 use crate::envelope::SourceQuantities;
+use crate::metric_stats::MetricStats;
 use crate::services::outcome::{Outcome, TrackOutcome};
 
 /// Contains all data necessary to rate limit metrics or metrics buckets.
@@ -71,7 +72,7 @@ fn summarize_bucket(metric: BucketView<'_>, mode: ExtractionMode) -> BucketSumma
 pub fn extract_metric_quantities<'a, I, V>(buckets: I, mode: ExtractionMode) -> SourceQuantities
 where
     I: IntoIterator<Item = V>,
-    BucketView<'a>: From<V>,
+    V: Into<BucketView<'a>>,
 {
     let mut quantities = SourceQuantities::default();
 
@@ -93,11 +94,13 @@ where
     quantities
 }
 
-pub fn reject_metrics(
+pub fn reject_metrics<'a, T: Into<BucketView<'a>>>(
     addr: &Addr<TrackOutcome>,
+    metric_stats: &MetricStats,
     quantities: SourceQuantities,
     scoping: Scoping,
     outcome: Outcome,
+    buckets: impl IntoIterator<Item = T>,
 ) {
     let timestamp = Utc::now();
 
@@ -120,9 +123,19 @@ pub fn reject_metrics(
             });
         }
     }
+
+    // When rejecting metrics, we need to make sure that the number of merges is correctly handled
+    // for buckets views, since if we have a bucket which has 5 merges, and it's split into 2
+    // bucket views, we will emit the volume of the rejection as 5 + 5 merges since we still read
+    // the underlying metadata for each view, and it points to the same bucket reference.
+    // Possible solutions to this problem include emitting the merges only if the bucket view is
+    // the first of view or distributing uniformly the metadata between split views.
+    for bucket in buckets {
+        metric_stats.track_metric(scoping, bucket, outcome.clone())
+    }
 }
 
-/// Wether to extract transaction and profile count based on the usage or duration metric.
+/// Whether to extract transaction and profile count based on the usage or duration metric.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ExtractionMode {
     /// Use the usage count metric.

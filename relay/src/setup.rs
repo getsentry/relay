@@ -1,3 +1,5 @@
+#[cfg(feature = "processing")]
+use anyhow::Context;
 use anyhow::Result;
 use relay_config::{Config, RelayMode};
 
@@ -11,6 +13,22 @@ pub fn check_config(config: &Config) -> Result<()> {
 
     if config.relay_mode() == RelayMode::Proxy && config.processing_enabled() {
         anyhow::bail!("Processing cannot be enabled while in proxy mode.");
+    }
+
+    #[cfg(feature = "processing")]
+    if config.processing_enabled() {
+        for (name, topic) in config.unused_topic_assignments() {
+            relay_log::with_scope(
+                |scope| scope.set_extra("topic", format!("{topic:?}").into()),
+                || relay_log::error!("unused topic assignment '{name}'"),
+            );
+        }
+
+        for topic in relay_kafka::KafkaTopic::iter() {
+            let _ = config
+                .kafka_config(*topic)
+                .with_context(|| format!("invalid kafka configuration for topic '{topic:?}'"))?;
+        }
     }
 
     Ok(())

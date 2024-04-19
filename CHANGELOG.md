@@ -1,11 +1,25 @@
 # Changelog
 
-## Unreleased
+## 24.4.1
+
+**Features**:
+
+- Add inbound filters for Annotated<Replay> types. ([#3420](https://github.com/getsentry/relay/pull/3420))
+- Add Linux distributions to os context. ([#3443](https://github.com/getsentry/relay/pull/3443))
+
+**Internal:**
+
+- Emit negative outcomes in metric stats for metrics. ([#3436](https://github.com/getsentry/relay/pull/3436))
+- Add new inbound filter: Permission denied to access property "x" ([#3442](https://github.com/getsentry/relay/pull/3442))
+- Emit negative outcomes for metrics via metric stats in pop relays. ([#3452](https://github.com/getsentry/relay/pull/3452))
+
+## 24.4.0
 
 **Bug fixes:**
 
 - Fix performance regression in disk spooling by using page counts to estimate the spool size. ([#3379](https://github.com/getsentry/relay/pull/3379))
 - Perform clock drift normalization only when `sent_at` is set in the `Envelope` headers. ([#3405](https://github.com/getsentry/relay/pull/3405))
+- Do not overwrite `span.is_segment: true` if already set by SDK. ([#3411](https://github.com/getsentry/relay/pull/3411))
 
 **Features**:
 
@@ -25,7 +39,6 @@
 - Add `cardinality_limited` outcome with id `6`. ([#3389](https://github.com/getsentry/relay/pull/3389))
 - Extract `cache.item_size` and `cache.hit` metrics. ([#3371]https://github.com/getsentry/relay/pull/3371)
 - Optionally convert segment spans to transactions for compatibility. ([#3375](https://github.com/getsentry/relay/pull/3375))
-- Add feature flag for replay video event types. ([#3402](https://github.com/getsentry/relay/pull/3402))
 - Extract scrubbed IP addresses into the `span.domain` tag. ([#3383](https://github.com/getsentry/relay/pull/3383))
 
 **Internal**:
@@ -39,6 +52,7 @@
 - Scrub transactions before enforcing quotas. ([#3248](https://github.com/getsentry/relay/pull/3248))
 - Implement metric name based cardinality limits. ([#3313](https://github.com/getsentry/relay/pull/3313))
 - Kafka topic config supports default topic names as keys. ([#3282](https://github.com/getsentry/relay/pull/3282), [#3350](https://github.com/getsentry/relay/pull/3350))
+- Extract `ai_total_tokens_used` metrics from spans. ([#3412](https://github.com/getsentry/relay/pull/3412), [#3440](https://github.com/getsentry/relay/pull/3440))
 - Set all span tags on the transaction span. ([#3310](https://github.com/getsentry/relay/pull/3310))
 - Emit outcomes for user feedback events. ([#3026](https://github.com/getsentry/relay/pull/3026))
 - Collect duration for all spans. ([#3322](https://github.com/getsentry/relay/pull/3322))

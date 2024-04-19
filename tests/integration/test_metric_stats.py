@@ -12,19 +12,22 @@ class MetricStatsByMri:
     other: list[Any]
 
 
-def metric_stats_by_mri(metrics_consumer, count, timeout=None):
+def metric_stats_by_mri(metrics_consumer, count, timeout=5):
     volume = dict()
     cardinality = dict()
     other = list()
 
-    for _ in range(count):
-        metric, _ = metrics_consumer.get_metric(timeout)
-        if metric["name"] == "c:metric_stats/volume@none":
-            volume[metric["tags"]["mri"]] = metric
-        elif metric["name"] == "g:metric_stats/cardinality@none":
-            cardinality[metric["tags"]["mri"]] = metric
-        else:
-            other.append(metric)
+    for i in range(count):
+        try:
+            metric, _ = metrics_consumer.get_metric(timeout)
+            if metric["name"] == "c:metric_stats/volume@none":
+                volume[metric["tags"]["mri"]] = metric
+            elif metric["name"] == "g:metric_stats/cardinality@none":
+                cardinality[metric["tags"]["mri"]] = metric
+            else:
+                other.append(metric)
+        except AssertionError:
+            pytest.fail(f"Message {i + 1} not found.")
 
     metrics_consumer.assert_empty()
     return MetricStatsByMri(volume=volume, cardinality=cardinality, other=other)
@@ -63,7 +66,7 @@ def test_metric_stats_simple(
     project_config["config"]["metrics"] = {
         "cardinalityLimits": [
             {
-                "id": "custom",
+                "id": "custom-limit",
                 "window": {"windowSeconds": 3600, "granularitySeconds": 600},
                 "report": True,
                 "limit": 100,
@@ -84,6 +87,7 @@ def test_metric_stats_simple(
     assert metrics.volume["d:custom/foo@none"]["value"] == 2.0
     assert metrics.volume["d:custom/foo@none"]["tags"] == {
         "mri": "d:custom/foo@none",
+        "mri.type": "d",
         "mri.namespace": "custom",
         "outcome.id": "0",
     }
@@ -92,6 +96,7 @@ def test_metric_stats_simple(
     assert metrics.volume["s:custom/bar@none"]["value"] == 1.0
     assert metrics.volume["s:custom/bar@none"]["tags"] == {
         "mri": "s:custom/bar@none",
+        "mri.type": "s",
         "mri.namespace": "custom",
         "outcome.id": "0",
     }
@@ -107,7 +112,10 @@ def test_metric_stats_simple(
     }
     assert metrics.cardinality["d:custom/foo@none"]["tags"] == {
         "mri": "d:custom/foo@none",
+        "mri.type": "d",
         "mri.namespace": "custom",
+        "cardinality.limit": "custom-limit",
+        "cardinality.scope": "name",
         "cardinality.window": "3600",
     }
     assert metrics.cardinality["s:custom/bar@none"]["org_id"] == 0
@@ -121,11 +129,94 @@ def test_metric_stats_simple(
     }
     assert metrics.cardinality["s:custom/bar@none"]["tags"] == {
         "mri": "s:custom/bar@none",
+        "mri.type": "s",
         "mri.namespace": "custom",
+        "cardinality.limit": "custom-limit",
+        "cardinality.scope": "name",
         "cardinality.window": "3600",
     }
     assert len(metrics.cardinality) == 2
     assert len(metrics.other) == 3
+
+
+@pytest.mark.parametrize("mode", ["default", "chain"])
+def test_metric_stats_with_limit_surpassed(
+    mini_sentry, relay, relay_with_processing, relay_credentials, metrics_consumer, mode
+):
+    mini_sentry.global_config["options"]["relay.metric-stats.rollout-rate"] = 1.0
+
+    metrics_consumer = metrics_consumer()
+
+    if mode == "default":
+        relay = relay_with_processing(options=TEST_CONFIG)
+    elif mode == "chain":
+        credentials = relay_credentials()
+        static_relays = {
+            credentials["id"]: {
+                "public_key": credentials["public_key"],
+                "internal": True,
+            },
+        }
+        relay = relay(
+            relay_with_processing(options=TEST_CONFIG, static_relays=static_relays),
+            options=TEST_CONFIG,
+            credentials=credentials,
+        )
+
+    project_id = 42
+    project_config = mini_sentry.add_basic_project_config(project_id)
+    project_config["config"]["features"] = [
+        "organizations:custom-metrics",
+        "organizations:metric-stats",
+    ]
+    project_config["config"]["metrics"] = {
+        "cardinalityLimits": [
+            {
+                "id": "custom-limit",
+                "window": {"windowSeconds": 1, "granularitySeconds": 1},
+                "report": True,
+                "limit": 0,
+                "scope": "name",
+                "namespace": "custom",
+            }
+        ]
+    }
+
+    relay.send_metrics(
+        project_id, "custom/foo:1337|d\ncustom/baz:12|d|#tag:value\ncustom/bar:42|s"
+    )
+
+    metrics = metric_stats_by_mri(metrics_consumer, 3)
+    assert metrics.volume["d:custom/foo@none"]["org_id"] == 0
+    assert metrics.volume["d:custom/foo@none"]["project_id"] == project_id
+    assert metrics.volume["d:custom/foo@none"]["value"] == 1.0
+    assert metrics.volume["d:custom/foo@none"]["tags"] == {
+        "mri": "d:custom/foo@none",
+        "mri.type": "d",
+        "mri.namespace": "custom",
+        "outcome.id": "6",
+    }
+    assert metrics.volume["d:custom/baz@none"]["org_id"] == 0
+    assert metrics.volume["d:custom/baz@none"]["project_id"] == project_id
+    assert metrics.volume["d:custom/baz@none"]["value"] == 1.0
+    assert metrics.volume["d:custom/baz@none"]["tags"] == {
+        "mri": "d:custom/baz@none",
+        "mri.type": "d",
+        "mri.namespace": "custom",
+        "outcome.id": "6",
+    }
+    assert metrics.volume["s:custom/bar@none"]["org_id"] == 0
+    assert metrics.volume["s:custom/bar@none"]["project_id"] == project_id
+    assert metrics.volume["s:custom/bar@none"]["value"] == 1.0
+    assert metrics.volume["s:custom/bar@none"]["tags"] == {
+        "mri": "s:custom/bar@none",
+        "mri.type": "s",
+        "mri.namespace": "custom",
+        "outcome.id": "6",
+    }
+    assert len(metrics.volume) == 3
+    assert len(metrics.cardinality) == 0
+    assert len(metrics.other) == 0
 
 
 def test_metric_stats_max_flush_bytes(
