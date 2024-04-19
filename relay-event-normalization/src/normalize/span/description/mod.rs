@@ -288,12 +288,10 @@ pub fn scrub_domain_name(domain: &str) -> Cow<'_, str> {
 
     let parsed_domain = psl::domain(domain.as_bytes());
 
-    if parsed_domain.is_none() {
+    let Some(parsed_domain) = parsed_domain else {
         // If parsing fails, return the original string
         return Cow::Borrowed(domain);
-    }
-
-    let parsed_domain = parsed_domain.unwrap();
+    };
 
     let suffix = parsed_domain.suffix().as_bytes();
     let Some(second_level_domain) = parsed_domain.as_bytes().strip_suffix(suffix) else {
