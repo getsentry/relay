@@ -428,7 +428,7 @@ impl StoreService {
             // back into the processor service.
             self.metric_stats.track_metric(
                 scoping,
-                bucket,
+                &bucket,
                 if has_success {
                     Outcome::Accepted
                 } else {
@@ -443,12 +443,12 @@ impl StoreService {
                 "failed to produce metric buckets: {error}"
             );
 
-            utils::reject_metrics::<Vec<Bucket>>(
+            utils::reject_metrics::<&Bucket>(
                 &self.outcome_aggregator,
+                &self.metric_stats,
                 dropped_quantities,
                 scoping,
                 Outcome::Invalid(DiscardReason::Internal),
-                None,
                 None,
             );
         }
