@@ -11,7 +11,7 @@ use anyhow::Context;
 use relay_auth::{generate_key_pair, generate_relay_id, PublicKey, RelayId, SecretKey};
 use relay_common::Dsn;
 use relay_kafka::{
-    ConfigError as KafkaConfigError, KafkaConfig, KafkaConfigParam, KafkaTopic, TopicAssignment,
+    ConfigError as KafkaConfigError, KafkaConfigParam, KafkaParams, KafkaTopic, TopicAssignment,
     TopicAssignments,
 };
 use relay_metrics::aggregator::{AggregatorConfig, ShiftKey};
@@ -2236,7 +2236,7 @@ impl Config {
     }
 
     /// Configuration name and list of Kafka configuration parameters for a given topic.
-    pub fn kafka_config(&self, topic: KafkaTopic) -> Result<KafkaConfig, KafkaConfigError> {
+    pub fn kafka_config(&self, topic: KafkaTopic) -> Result<KafkaParams, KafkaConfigError> {
         self.values.processing.topics.get(topic).kafka_config(
             &self.values.processing.kafka_config,
             &self.values.processing.secondary_kafka_configs,
