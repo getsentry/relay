@@ -183,14 +183,8 @@ jobs:
     timeout-minutes: 30
     strategy:
       matrix:
-        platform:
-          - target: aarch64-unknown-linux-gnu
-            docker: linux/arm64
-          - target: x86_64-unknown-linux-gnu
-            docker: linux/amd64
-        image:
-          - name: relay
-          - name: relay-pop
+        image_name: [relay, relay-pop]
+        target: [x86_64-unknown-linux-gnu, aarch64-unknown-linux-gnu]
 
     name: Build Relay Binary
     runs-on: ubuntu-latest
@@ -198,12 +192,18 @@ jobs:
     if: "!startsWith(github.ref, 'refs/heads/release-library/')"
 
     env:
-      RELAY_BIN: "target/${{ matrix.platform.target }}/release/relay"
+      RELAY_BIN: "target/${{ matrix.target }}/release/relay"
       FEATURES: |
-        { 
+        ${{fromJson('{ 
           "relay": "processing,crash-handler", 
           "relay-pop": "crash-handler"
-        }
+        }')[matrix.image_name] }}
+      DOCKER_PLATFORM: |
+        ${{fromJson('{ 
+          "x86_64-unknown-linux-gnu": "linux/amd64",
+          "aarch64-unknown-linux-gnu": "linux/arm64" 
+        }')[matrix.target] }}
+      # Fix editor: '
 
     steps:
       - name: Install dependencies
@@ -218,7 +218,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: swatinem/rust-cache@v2
         with:
-          key: "${{ github.job }}-${{ matrix.platform.target }}-${{ matrix.image.name }}"
+          key: "${{ github.job }}-${{ matrix.target }}-${{ matrix.image_name }}"
 
       - name: Install Cross
         # We need a nightly version of cross for `cross-util`.
@@ -228,7 +228,7 @@ jobs:
         run: |
           export PATH="/home/runner/.cargo/bin/:$PATH"
 
-          cross build --release --locked --features "${{ fromJson(env.FEATURES)[matrix.image.name] }}" --target "${{ matrix.platform.target }}"
+          cross build --release --locked --features "${FEATURES}" --target "${{ matrix.target }}"
 
       - name: Split debug info
         run: |
@@ -236,19 +236,19 @@ jobs:
           llvm-objcopy --strip-debug --strip-unneeded "${RELAY_BIN}"
           llvm-objcopy --add-gnu-debuglink "${RELAY_BIN}"{.debug,}
 
-          cross-util run --target "${{ matrix.platform.target }}" -- "sentry-cli difutil bundle-sources ${RELAY_BIN}.debug"
+          cross-util run --target "${{ matrix.target }}" -- "sentry-cli difutil bundle-sources ${RELAY_BIN}.debug"
           zip "${RELAY_BIN}.debug.zip" "${RELAY_BIN}.debug"
 
       - name: Prepare Artifacts
         run: |
-          mkdir -p "artifacts/${{ matrix.platform.docker }}"
-          cp "${RELAY_BIN}"{,.debug.zip,.src.zip} "artifacts/${{ matrix.platform.docker }}"
+          mkdir -p "artifacts/${DOCKER_PLATFORM}"
+          cp "${RELAY_BIN}"{,.debug.zip,.src.zip} "artifacts/${DOCKER_PLATFORM}"
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
           retention-days: 1
-          name: ${{ matrix.image.name }}@${{ matrix.platform.target }}
+          name: ${{ matrix.image_name }}@${{ matrix.target }}
           path: "./artifacts/*"
 
   build-docker:
