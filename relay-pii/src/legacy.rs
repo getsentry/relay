@@ -3,7 +3,8 @@
 //! All these configuration options are ignored by the new data scrubbers which operate
 //! solely from the [PiiConfig] rules for the project.
 
-use once_cell::sync::OnceCell;
+use std::sync::OnceLock;
+
 use serde::{Deserialize, Serialize};
 
 use crate::config::{PiiConfig, PiiConfigError};
@@ -35,19 +36,22 @@ pub struct DataScrubbingConfig {
     /// because we want the conversion to run on the processing sync arbiter, so that it does not
     /// slow down or even crash other parts of the system.
     #[serde(skip)]
-    pub(super) pii_config: OnceCell<Result<Option<PiiConfig>, PiiConfigError>>,
+    pub(super) pii_config: OnceLock<Result<Option<PiiConfig>, PiiConfigError>>,
 }
 
 impl DataScrubbingConfig {
     /// Creates a new data scrubbing configuration that does nothing on the event.
     pub fn new_disabled() -> Self {
+        let pii_config = OnceLock::new();
+        let _ = pii_config.set(Ok(None));
+
         DataScrubbingConfig {
             exclude_fields: vec![],
             scrub_data: false,
             scrub_ip_addresses: false,
             sensitive_fields: vec![],
             scrub_defaults: false,
-            pii_config: OnceCell::with_value(Ok(None)),
+            pii_config,
         }
     }
 

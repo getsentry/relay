@@ -44,13 +44,14 @@ def processing_config(get_topic_name):
             ]
         if processing.get("topics") is None:
             metrics_topic = get_topic_name("metrics")
+            outcomes_topic = get_topic_name("outcomes")
             processing["topics"] = {
                 "events": get_topic_name("events"),
                 "attachments": get_topic_name("attachments"),
                 "transactions": get_topic_name("transactions"),
-                "outcomes": get_topic_name("outcomes"),
-                "sessions": get_topic_name("sessions"),
-                "metrics": metrics_topic,
+                "outcomes": outcomes_topic,
+                "outcomes_billing": outcomes_topic,
+                "metrics_sessions": metrics_topic,
                 "metrics_generic": metrics_topic,
                 "replay_events": get_topic_name("replay_events"),
                 "replay_recordings": get_topic_name("replay_recordings"),
@@ -59,14 +60,15 @@ def processing_config(get_topic_name):
                 "profiles": get_topic_name("profiles"),
                 "metrics_summaries": get_topic_name("metrics_summaries"),
                 "cogs": get_topic_name("cogs"),
+                "feedback": get_topic_name("feedback"),
             }
 
         if not processing.get("redis"):
             processing["redis"] = "redis://127.0.0.1"
 
-        processing[
-            "projectconfig_cache_prefix"
-        ] = f"relay-test-relayconfig-{uuid.uuid4()}"
+        processing["projectconfig_cache_prefix"] = (
+            f"relay-test-relayconfig-{uuid.uuid4()}"
+        )
 
         return options
 
@@ -80,9 +82,9 @@ def relay_with_processing(relay, mini_sentry, processing_config):
     requests to the test ingestion topics
     """
 
-    def inner(options=None):
+    def inner(options=None, **kwargs):
         options = processing_config(options)
-        return relay(mini_sentry, options=options)
+        return relay(mini_sentry, options=options, **kwargs)
 
     return inner
 
@@ -174,7 +176,8 @@ class ConsumerBase:
         test message ends up in the same partition as the message we are checking).
         """
         # First, give Relay a bit of time to process
-        assert self.poll(timeout=0.2) is None
+        rv = self.poll(timeout=0.2)
+        assert rv is None, f"not empty: {rv.value()}"
 
         # Then, send a custom message to ensure we're not just timing out
         message = json.dumps({"__test__": uuid.uuid4().hex}).encode("utf8")
@@ -210,6 +213,8 @@ def category_value(category):
         return 8
     if category == "transaction_indexed":
         return 9
+    if category == "user_report_v2":
+        return 14
     assert False, "invalid category"
 
 
@@ -297,6 +302,16 @@ def replay_recordings_consumer(kafka_consumer):
 def replay_events_consumer(kafka_consumer):
     return lambda timeout=None: ReplayEventsConsumer(
         timeout=timeout, *kafka_consumer("replay_events")
+    )
+
+
+@pytest.fixture
+def feedback_consumer(kafka_consumer):
+    return lambda timeout=None: FeedbackConsumer(
+        timeout=timeout,
+        *kafka_consumer(
+            "feedback"
+        ),  # Corresponds to key in processing_config["processing"]["topics"]
     )
 
 
@@ -444,6 +459,16 @@ class ReplayEventsConsumer(ConsumerBase):
 
         assert payload["type"] == "replay_event"
         return payload, event
+
+
+class FeedbackConsumer(ConsumerBase):
+    def get_event(self, timeout=None):
+        message = self.poll(timeout)
+        assert message is not None
+        assert message.error() is None
+
+        message_dict = msgpack.unpackb(message.value(), raw=False, use_list=False)
+        return json.loads(message_dict["payload"].decode("utf8")), message_dict
 
 
 class MonitorsConsumer(ConsumerBase):

@@ -4,9 +4,11 @@ from datetime import datetime, timedelta, timezone
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 import json
 import signal
+import time
 
 import pytest
 import requests
+from requests.exceptions import HTTPError
 import queue
 
 from .test_envelope import generate_transaction_item
@@ -311,6 +313,43 @@ def test_metrics_max_batch_size(mini_sentry, relay, max_batch_size, expected_eve
         mini_sentry.captured_events.get(timeout=1)
 
 
+@pytest.mark.parametrize("ns", [None, "custom", "transactions"])
+def test_metrics_rate_limits_namespace(mini_sentry, relay, ns):
+    relay = relay(mini_sentry, options=TEST_CONFIG)
+
+    project_id = 42
+    project_config = mini_sentry.add_basic_project_config(project_id)
+    project_config["config"]["quotas"] = [
+        {
+            "categories": ["metric_bucket"],
+            "limit": 0,
+            "reasonCode": "static_disabled_quota",
+            "namespace": ns,
+        }
+    ]
+
+    timestamp = int(datetime.now(tz=timezone.utc).timestamp())
+    metrics_payload = (
+        f"transactions/foo:42|c|T{timestamp}\ntransactions/bar:17|c|T{timestamp}"
+    )
+
+    # Send and ignore first request to populate caches
+    relay.send_metrics(project_id, metrics_payload)
+    time.sleep(1)
+
+    with pytest.raises(HTTPError) as excinfo:
+        relay.send_metrics(project_id, metrics_payload)
+
+    response = excinfo.value.response
+    assert response.status_code == 429
+
+    ns_component = ":" + ns if ns is not None else ""
+    assert (
+        response.headers["x-sentry-rate-limits"]
+        == f"60:metric_bucket:organization:static_disabled_quota{ns_component}"
+    )
+
+
 def test_global_metrics(mini_sentry, relay):
     relay = relay(
         mini_sentry, options={"http": {"global_metrics": True}, **TEST_CONFIG}
@@ -523,76 +562,6 @@ def test_global_metrics_with_processing(
     }
 
 
-def test_metrics_with_sharded_kafka(
-    get_topic_name,
-    mini_sentry,
-    relay_with_processing,
-    metrics_consumer,
-    processing_config,
-):
-    options = processing_config(None)
-    default_config = options["processing"]["kafka_config"]
-    config = {
-        "processing": {
-            "secondary_kafka_configs": {"foo": default_config, "baz": default_config},
-            "topics": {
-                "metrics_generic": {
-                    "shards": 3,
-                    "mapping": {
-                        0: {
-                            "name": get_topic_name("metrics-1"),
-                            "config": "foo",
-                        },
-                        2: {
-                            "name": get_topic_name("metrics-2"),
-                            "config": "baz",
-                        },
-                    },
-                }
-            },
-        }
-    }
-    relay = relay_with_processing(options={**TEST_CONFIG, **config})
-
-    project_id = 42
-    project_config = mini_sentry.add_full_project_config(project_id)
-    project_config["organizationId"] = 5
-    m1 = metrics_consumer(topic="metrics-1")
-    m2 = metrics_consumer(topic="metrics-2")
-
-    timestamp = int(datetime.now(tz=timezone.utc).timestamp())
-    metrics_payload = (
-        f"transactions/foo:42|c\ntransactions/bar@second:17|c|T{timestamp}"
-    )
-    relay.send_metrics(project_id, metrics_payload)
-
-    # There must be no messages in the metrics-1, since the shard was not picked up
-    m1.assert_empty()
-
-    metrics2 = metrics_by_name(m2, 2)
-    assert metrics2["c:transactions/foo@none"] == {
-        "org_id": 5,
-        "project_id": project_id,
-        "retention_days": 90,
-        "name": "c:transactions/foo@none",
-        "tags": {},
-        "value": 42.0,
-        "type": "c",
-        "timestamp": timestamp,
-    }
-
-    assert metrics2["c:transactions/bar@second"] == {
-        "org_id": 5,
-        "project_id": project_id,
-        "retention_days": 90,
-        "name": "c:transactions/bar@second",
-        "tags": {},
-        "value": 17.0,
-        "type": "c",
-        "timestamp": timestamp,
-    }
-
-
 def test_metrics_full(mini_sentry, relay, relay_with_processing, metrics_consumer):
     metrics_consumer = metrics_consumer()
 
@@ -632,121 +601,6 @@ def test_metrics_full(mini_sentry, relay, relay_with_processing, metrics_consume
     }
 
     metrics_consumer.assert_empty()
-
-
-@pytest.mark.parametrize(
-    "extract_metrics", [True, False], ids=["extract", "don't extract"]
-)
-@pytest.mark.parametrize(
-    "metrics_extracted", [True, False], ids=["extracted", "not extracted"]
-)
-def test_session_metrics_non_processing(
-    mini_sentry, relay, extract_metrics, metrics_extracted
-):
-    """
-    Tests metrics extraction in  a non processing relay
-
-    If and only if the metrics-extraction feature is enabled and the metrics from the session were not already
-    extracted the relay should extract the metrics from the session and mark the session item as "metrics extracted"
-    """
-
-    relay = relay(mini_sentry, options=TEST_CONFIG)
-
-    if extract_metrics:
-        # enable metrics extraction for the project
-        extra_config = {"config": {"sessionMetrics": {"version": 1}}}
-    else:
-        extra_config = {}
-
-    project_id = 42
-    mini_sentry.add_basic_project_config(project_id, extra=extra_config)
-
-    timestamp = datetime.now(tz=timezone.utc)
-    started = timestamp - timedelta(hours=1)
-    session_payload = _session_payload(timestamp=timestamp, started=started)
-
-    relay.send_session(
-        project_id,
-        session_payload,
-        item_headers={"metrics_extracted": metrics_extracted},
-    )
-
-    # Get session envelope
-    first_envelope = mini_sentry.captured_events.get(timeout=2)
-
-    try:
-        second_envelope = mini_sentry.captured_events.get(timeout=2)
-    except Exception:
-        second_envelope = None
-
-    assert first_envelope is not None
-    assert len(first_envelope.items) == 1
-    first_item = first_envelope.items[0]
-
-    if extract_metrics and not metrics_extracted:
-        # here we have not yet extracted metrics and metric extraction is enabled
-        # we expect to have two messages a session message and a metrics message
-        assert second_envelope is not None
-        assert len(second_envelope.items) == 1
-
-        second_item = second_envelope.items[0]
-
-        if first_item.type == "session":
-            session_item = first_item
-            metrics_item = second_item
-        else:
-            session_item = second_item
-            metrics_item = first_item
-
-        # check the metrics item
-        assert metrics_item.type == "metric_buckets"
-
-        session_metrics = json.loads(metrics_item.get_bytes().decode())
-        session_metrics = sorted(session_metrics, key=lambda x: x["name"])
-
-        ts = int(started.timestamp())
-        assert session_metrics == [
-            {
-                "name": "c:sessions/session@none",
-                "tags": {
-                    "sdk": "raven-node/2.6.3",
-                    "environment": "production",
-                    "release": "sentry-test@1.0.0",
-                    "session.status": "init",
-                },
-                "timestamp": ts,
-                "width": 1,
-                "type": "c",
-                "value": 1.0,
-            },
-            {
-                "name": "s:sessions/user@none",
-                "tags": {
-                    "sdk": "raven-node/2.6.3",
-                    "environment": "production",
-                    "release": "sentry-test@1.0.0",
-                },
-                "timestamp": ts,
-                "width": 1,
-                "type": "s",
-                "value": [1617781333],
-            },
-        ]
-    else:
-        # either the metrics are already extracted or we have metric extraction disabled
-        # only the session message should be present
-        assert second_envelope is None
-        session_item = first_item
-
-    assert session_item is not None
-    assert session_item.type == "session"
-
-    # we have marked the item as "metrics extracted" properly
-    # already extracted metrics should keep the flag, newly extracted metrics should set the flag
-    assert (
-        session_item.headers.get("metrics_extracted", False) is extract_metrics
-        or metrics_extracted
-    )
 
 
 def test_session_metrics_extracted_only_once(
@@ -927,6 +781,7 @@ def test_transaction_metrics(
         config["transactionMetrics"] = {
             "version": 1,
         }
+        config.setdefault("features", []).append("projects:span-metrics-extraction")
 
     transaction = generate_transaction_item()
     transaction["timestamp"] = timestamp.isoformat()
@@ -972,7 +827,8 @@ def test_transaction_metrics(
 
         return
 
-    metrics = metrics_by_name(metrics_consumer, 7, timeout=6)
+    metrics = metrics_by_name(metrics_consumer, count=10, timeout=6)
+
     common = {
         "timestamp": int(timestamp.timestamp()),
         "org_id": 1,
@@ -984,6 +840,8 @@ def test_transaction_metrics(
             "transaction.status": "unknown",
         },
     }
+
+    assert metrics["c:spans/usage@none"]["value"] == 2
 
     assert metrics["c:transactions/usage@none"] == {
         **common,
@@ -1504,6 +1362,7 @@ def test_span_metrics(
                 "trace_id": "4C79F60C11214EB38604F4AE0781BFB2",
                 "span_id": "FA90FDEAD5F74052",
                 "type": "trace",
+                "op": "my-transaction-op",
             }
         },
         "spans": [
@@ -1520,9 +1379,9 @@ def test_span_metrics(
     }
     # Default timestamp is so old that relay drops metrics, setting a more recent one avoids the drop.
     timestamp = datetime.now(tz=timezone.utc)
-    transaction["timestamp"] = transaction["spans"][0][
-        "timestamp"
-    ] = timestamp.isoformat()
+    transaction["timestamp"] = transaction["spans"][0]["timestamp"] = (
+        timestamp.isoformat()
+    )
 
     metrics_consumer = metrics_consumer()
     tx_consumer = transactions_consumer()
@@ -1540,13 +1399,19 @@ def test_span_metrics(
         for metric, headers in metrics
         if metric["name"].startswith("spans", 2)
     ]
-    assert len(span_metrics) == 3
+    assert len(span_metrics) == 6
     for metric, headers in span_metrics:
         assert headers == [("namespace", b"spans")]
-        if metric["name"] == "c:spans/count_per_op@none":
+        if metric["name"] in (
+            "c:spans/usage@none",
+            "d:spans/duration@millisecond",
+        ):
             continue
-        assert metric["tags"]["span.description"] == expected_description
-        assert metric["tags"]["span.group"] == expected_group
+
+        # Ignore transaction spans
+        if metric["tags"]["span.op"] != "my-transaction-op":
+            assert metric["tags"]["span.description"] == expected_description, metric
+            assert metric["tags"]["span.group"] == expected_group, metric
 
 
 def test_generic_metric_extraction(mini_sentry, relay):
@@ -1639,7 +1504,7 @@ def test_span_metrics_secondary_aggregator(
             {
                 "description": "SELECT %s FROM foo",
                 "op": "db",
-                "parent_span_id": "8f5a2b8768cafb4e",
+                "parent_span_id": "FA90FDEAD5F74052",
                 "span_id": "bd429c44b67a3eb4",
                 "start_timestamp": 1597976393.4619668,
                 "timestamp": 1597976393.4718769,
@@ -1649,9 +1514,12 @@ def test_span_metrics_secondary_aggregator(
     }
     # Default timestamp is so old that relay drops metrics, setting a more recent one avoids the drop.
     timestamp = datetime.now(tz=timezone.utc)
-    transaction["timestamp"] = transaction["spans"][0][
-        "timestamp"
-    ] = timestamp.isoformat()
+    transaction["timestamp"] = transaction["spans"][0]["timestamp"] = (
+        timestamp.isoformat()
+    )
+    transaction["start_timestamp"] = (
+        timestamp - timedelta(milliseconds=126)
+    ).isoformat()
     transaction["spans"][0]["start_timestamp"] = (
         timestamp - timedelta(milliseconds=123)
     ).isoformat()
@@ -1692,6 +1560,7 @@ def test_span_metrics_secondary_aggregator(
         for metric, headers in metrics
         if metric["name"] == "d:spans/exclusive_time@millisecond"
     ]
+    span_metrics.sort(key=lambda m: m[0]["tags"]["span.op"])
     assert span_metrics == [
         (
             {
@@ -1709,6 +1578,19 @@ def test_span_metrics_secondary_aggregator(
                 "timestamp": int(timestamp.timestamp()),
                 "type": "d",
                 "value": [123],
+            },
+            [("namespace", b"spans")],
+        ),
+        (
+            {
+                "name": "d:spans/exclusive_time@millisecond",
+                "org_id": 1,
+                "project_id": 42,
+                "retention_days": 90,
+                "tags": {"span.op": "default"},
+                "timestamp": int(timestamp.timestamp()),
+                "type": "d",
+                "value": [3],
             },
             [("namespace", b"spans")],
         ),
@@ -1731,91 +1613,6 @@ def test_custom_metrics_disabled(mini_sentry, relay_with_processing, metrics_con
 
     assert "c:transactions/foo@none" in metrics
     assert "c:custom/bar@second" not in metrics
-
-
-@pytest.mark.parametrize(
-    "denied_tag", ["sdk", "release"], ids=["remove sdk tag", "remove release tag"]
-)
-@pytest.mark.parametrize(
-    "denied_names", ["*user*", ""], ids=["deny user", "no denied names"]
-)
-def test_block_metrics_and_tags(mini_sentry, relay, denied_names, denied_tag):
-    relay = relay(mini_sentry, options=TEST_CONFIG)
-
-    extra_config = {
-        "config": {
-            "sessionMetrics": {"version": 1},
-            "metrics": {
-                "deniedNames": [denied_names],
-                "deniedTags": [{"name": ["*"], "tags": [denied_tag]}],
-            },
-        }
-    }
-
-    project_id = 42
-    mini_sentry.add_basic_project_config(project_id, extra=extra_config)
-
-    timestamp = datetime.now(tz=timezone.utc)
-    started = timestamp - timedelta(hours=1)
-    session_payload = _session_payload(timestamp=timestamp, started=started)
-
-    relay.send_session(
-        project_id,
-        session_payload,
-    )
-
-    envelope = mini_sentry.captured_events.get(timeout=2)
-    assert len(envelope.items) == 1
-    first_item = envelope.items[0]
-
-    second_envelope = mini_sentry.captured_events.get(timeout=2)
-    assert len(second_envelope.items) == 1
-    second_item = second_envelope.items[0]
-
-    if first_item.type == "session":
-        metrics_item = second_item
-    else:
-        metrics_item = first_item
-
-    assert metrics_item.type == "metric_buckets"
-
-    session_metrics = json.loads(metrics_item.get_bytes().decode())
-    session_metrics = sorted(session_metrics, key=lambda x: x["name"])
-
-    if denied_names == "*user*":
-        assert len(session_metrics) == 1
-        assert session_metrics[0]["name"] == "c:sessions/session@none"
-    elif denied_names == "":
-        assert len(session_metrics) == 2
-        assert session_metrics[0]["name"] == "c:sessions/session@none"
-        assert session_metrics[1]["name"] == "s:sessions/user@none"
-    else:
-        assert False, "add new else-branch if you add another denied name"
-
-    if denied_tag == "sdk":
-        assert session_metrics[0]["tags"] == {
-            "environment": "production",
-            "release": "sentry-test@1.0.0",
-            "session.status": "init",
-        }
-        if denied_names == "":
-            assert session_metrics[1]["tags"] == {
-                "environment": "production",
-                "release": "sentry-test@1.0.0",
-            }
-    elif denied_tag == "release":
-        assert session_metrics[0]["tags"] == {
-            "sdk": "raven-node/2.6.3",
-            "environment": "production",
-            "session.status": "init",
-        }
-        if denied_names == "":
-            assert session_metrics[1]["tags"] == {
-                "sdk": "raven-node/2.6.3",
-                "environment": "production",
-            }
-    else:
-        assert False, "add new else-branch if you add another denied tag"
 
 
 @pytest.mark.parametrize("is_processing_relay", (False, True))

@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 use std::collections::{BTreeMap, BTreeSet};
+use std::sync::OnceLock;
 
-use once_cell::sync::OnceCell;
 use regex::{Regex, RegexBuilder};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
@@ -31,7 +31,7 @@ pub enum PiiConfigError {
 pub struct LazyPattern {
     raw: Cow<'static, str>,
     case_insensitive: bool,
-    pattern: OnceCell<Result<Regex, PiiConfigError>>,
+    pattern: OnceLock<Result<Regex, PiiConfigError>>,
 }
 
 impl PartialEq for LazyPattern {
@@ -49,7 +49,7 @@ impl LazyPattern {
         Self {
             raw: raw.into(),
             case_insensitive: false,
-            pattern: OnceCell::new(),
+            pattern: OnceLock::new(),
         }
     }
 
@@ -241,7 +241,7 @@ pub struct PiiConfig {
     ///
     /// Cached because the conversion process is expensive.
     #[serde(skip)]
-    pub(super) compiled: OnceCell<CompiledPiiConfig>,
+    pub(super) compiled: OnceLock<CompiledPiiConfig>,
 }
 
 impl PartialEq for PiiConfig {

@@ -178,6 +178,10 @@ pub enum RelayHistograms {
     /// The distribution of buckets should be even.
     /// If it is not, this metric should expose it.
     PartitionKeys,
+
+    /// Measures how many transactions were created from segment spans in a single envelope.
+    #[cfg(feature = "processing")]
+    TransactionsFromSpansPerEnvelope,
 }
 
 impl HistogramMetric for RelayHistograms {
@@ -211,6 +215,10 @@ impl HistogramMetric for RelayHistograms {
             RelayHistograms::UpstreamEnvelopeBodySize => "upstream.envelope.body_size",
             RelayHistograms::UpstreamMetricsBodySize => "upstream.metrics.body_size",
             RelayHistograms::PartitionKeys => "metrics.buckets.partition_keys",
+            #[cfg(feature = "processing")]
+            RelayHistograms::TransactionsFromSpansPerEnvelope => {
+                "transactions_from_spans_per_envelope"
+            }
         }
     }
 }
@@ -220,13 +228,9 @@ pub enum RelayTimers {
     /// Time in milliseconds spent deserializing an event from JSON bytes into the native data
     /// structure on which Relay operates.
     EventProcessingDeserialize,
-    /// Time in milliseconds spent running light normalization on an event. Light normalization
-    /// happens before envelope filtering and metrics extraction.
-    EventProcessingLightNormalization,
-    /// Time in milliseconds spent running event processors on an event for normalization. Event
-    /// processing happens before filtering.
-    #[cfg(feature = "processing")]
-    EventProcessingProcess,
+    /// Time in milliseconds spent running normalization on an event. Normalization
+    /// happens before envelope filtering and metric extraction.
+    EventProcessingNormalization,
     /// Time in milliseconds spent running inbound data filters on an event.
     EventProcessingFiltering,
     /// Time in milliseconds spent checking for organization, project, and DSN rate limits.
@@ -392,11 +396,7 @@ impl TimerMetric for RelayTimers {
     fn name(&self) -> &'static str {
         match self {
             RelayTimers::EventProcessingDeserialize => "event_processing.deserialize",
-            RelayTimers::EventProcessingLightNormalization => {
-                "event_processing.light_normalization"
-            }
-            #[cfg(feature = "processing")]
-            RelayTimers::EventProcessingProcess => "event_processing.process",
+            RelayTimers::EventProcessingNormalization => "event_processing.normalization",
             RelayTimers::EventProcessingFiltering => "event_processing.filtering",
             #[cfg(feature = "processing")]
             RelayTimers::EventProcessingRateLimiting => "event_processing.rate_limiting",
@@ -438,7 +438,6 @@ pub enum RelayCounters {
     ///
     /// This currently checks for `environment` and `release`, for which we know that
     /// some SDKs may send corrupted values.
-    #[cfg(feature = "processing")]
     EventCorrupted,
     /// Number of envelopes accepted in the current time slot.
     ///
@@ -646,69 +645,19 @@ pub enum RelayCounters {
     /// This metric is tagged with:
     ///  - `success`: whether deserializing the global config succeeded.
     GlobalConfigFetched,
-    /// Number of times the batched metrics processing has been called with at least one bucket of
-    /// a namespace.
-    ///
-    /// This metric is tagged with:
-    /// - `namespace`: the metric namespace.
-    ProcessorBatchedMetricsCalls,
-    /// Number of buckets processed in the batched metrics handling of the envelope processor.
-    ///
-    /// This metric is tagged with:
-    /// - `namespace`: the metric namespace.
-    ProcessorBatchedMetricsCount,
-    /// Bucket cost for all buckets processed in the batched metrics handling of the envelope processor.
-    ///
-    /// This metric is tagged with:
-    /// - `namespace`: the metric namespace.
-    ProcessorBatchedMetricsCost,
-    /// Number of times the metric encoding has been called with at least one bucket of
-    /// a namespace.
-    ///
-    /// This metric is tagged with:
-    /// - `namespace`: the metric namespace.
-    ProcessorEncodeMetricsCalls,
-    /// Number of metric buckets encoded in the envelope processor.
-    ///
-    /// This metric is tagged with:
-    /// - `namespace`: the metric namespace.
-    ProcessorEncodeMetricsCount,
-    /// Bucket cost for all buckets encoded in the envelope processor.
-    ///
-    /// This metric is tagged with:
-    /// - `namespace`: the metric namespace.
-    ProcessorEncodeMetricsCost,
-    /// Number of times metric bucket rate limiting has been called with at least one bucket of
-    /// a namespace.
-    ///
-    /// This metric is tagged with:
-    /// - `namespace`: the metric namespace.
-    #[cfg(feature = "processing")]
-    ProcessorRateLimitBucketsCalls,
-    /// Number of metric buckets rate limited in the envelope processor.
-    ///
-    /// This metric is tagged with:
-    /// - `namespace`: the metric namespace.
-    #[cfg(feature = "processing")]
-    ProcessorRateLimitBucketsCount,
-    /// Bucket cost for all buckets rate limited envelope processor.
-    ///
-    /// This metric is tagged with:
-    /// - `namespace`: the metric namespace.
-    #[cfg(feature = "processing")]
-    ProcessorRateLimitBucketsCost,
-
     /// Counter for dynamic sampling decision.
     ///
     /// This metric is tagged with:
     /// - `decision`: "drop" if dynamic sampling drops the envelope, else "keep".
     DynamicSamplingDecision,
+    /// Counts how many transactions were created from segment spans.
+    #[cfg(feature = "processing")]
+    TransactionsFromSpans,
 }
 
 impl CounterMetric for RelayCounters {
     fn name(&self) -> &'static str {
         match self {
-            #[cfg(feature = "processing")]
             RelayCounters::EventCorrupted => "event.corrupted",
             RelayCounters::EnvelopeAccepted => "event.accepted",
             RelayCounters::EnvelopeRejected => "event.rejected",
@@ -741,19 +690,9 @@ impl CounterMetric for RelayCounters {
             RelayCounters::MetricsTransactionNameExtracted => "metrics.transaction_name",
             RelayCounters::OpenTelemetryEvent => "event.opentelemetry",
             RelayCounters::GlobalConfigFetched => "global_config.fetch",
-            RelayCounters::ProcessorBatchedMetricsCalls => "processor.batched_metrics.calls",
-            RelayCounters::ProcessorBatchedMetricsCount => "processor.batched_metrics.count",
-            RelayCounters::ProcessorBatchedMetricsCost => "processor.batched_metrics.cost",
-            RelayCounters::ProcessorEncodeMetricsCalls => "processor.encode_metrics.calls",
-            RelayCounters::ProcessorEncodeMetricsCount => "processor.encode_metrics.count",
-            RelayCounters::ProcessorEncodeMetricsCost => "processor.encode_metrics.cost",
-            #[cfg(feature = "processing")]
-            RelayCounters::ProcessorRateLimitBucketsCalls => "processor.rate_limit_buckets.calls",
-            #[cfg(feature = "processing")]
-            RelayCounters::ProcessorRateLimitBucketsCount => "processor.rate_limit_buckets.count",
-            #[cfg(feature = "processing")]
-            RelayCounters::ProcessorRateLimitBucketsCost => "processor.rate_limit_buckets.cost",
             RelayCounters::DynamicSamplingDecision => "dynamic_sampling_decision",
+            #[cfg(feature = "processing")]
+            RelayCounters::TransactionsFromSpans => "transactions_from_spans",
         }
     }
 }

@@ -4,7 +4,7 @@ authors = ["Sentry <oss@sentry.io>"]
 description = "Macros for error handling in FFI bindings"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "24.2.0"
+version = "24.4.1"
 edition = "2021"
 license-file = "../LICENSE.md"
 publish = false
@@ -12,6 +12,9 @@ publish = false
 [lib]
 proc-macro = true
 
+[lints]
+workspace = true
+
 [dependencies]
-syn = { version = "1.0.39", features = ["fold", "full"] }
-quote = "1.0.6"
+syn = { workspace = true, features = ["fold", "full"] }
+quote = { workspace = true }

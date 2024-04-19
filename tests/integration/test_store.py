@@ -263,20 +263,6 @@ def test_store_max_concurrent_requests(mini_sentry, relay):
     store_count.acquire(timeout=2)
 
 
-def test_store_not_normalized(mini_sentry, relay):
-    """
-    Tests that relay does not normalize when processing is disabled
-    """
-    relay = relay(mini_sentry, {"processing": {"enabled": False}})
-    project_id = 42
-    mini_sentry.add_basic_project_config(project_id)
-    relay.send_event(project_id, {"message": "some_message"})
-    event = mini_sentry.captured_events.get(timeout=1).get_event()
-    assert event.get("key_id") is None
-    assert event.get("project") is None
-    assert event.get("version") is None
-
-
 def make_transaction(event):
     now = datetime.utcnow()
     event.update(
@@ -491,7 +477,7 @@ def test_processing_quotas(
             relay.send_event(
                 project_id, transform({"message": f"otherkey{i}"}), dsn_key_idx=1
             )
-        event, _ = events_consumer.get_event(timeout=5)
+        event, _ = events_consumer.get_event(timeout=10)
 
         if event_type == "nel":
             assert event["logentry"]["formatted"] == "application / http.error"
@@ -536,8 +522,10 @@ def test_sends_metric_bucket_outcome(
 
     outcome = outcomes_consumer.get_outcome(timeout=3)
 
-    assert outcome["category"] == 15
+    assert outcome["category"] == 15  # metric_bucket
     assert outcome["quantity"] == 1
+
+    outcomes_consumer.assert_empty()
 
 
 def test_rate_limit_metric_bucket(
@@ -1329,3 +1317,127 @@ def test_kafka_ssl(relay_with_processing):
     relay_with_processing(
         options={"kafka_config": [{"name": "ssl.key.password", "value": "foo"}]}
     )
+
+
+@pytest.mark.parametrize(
+    "normalization_level",
+    ["disabled", "default", "full"],
+)
+def test_relay_normalization(
+    mini_sentry,
+    relay,
+    normalization_level,
+):
+    project_id = 42
+    mini_sentry.add_basic_project_config(project_id)
+    relay = relay(
+        upstream=mini_sentry,
+        options={"normalization": {"level": normalization_level}},
+    )
+
+    event = {"dist": "   foo   ", "other": {"should i be deleted": True}}
+    relay.send_event(project_id, event)
+
+    ingested = mini_sentry.captured_events.get(timeout=1).get_event()
+
+    if normalization_level == "disabled":
+        assert ingested["dist"] == "   foo   "
+        assert ingested["other"] == {"should i be deleted": True}
+    elif normalization_level == "default":
+        assert ingested["dist"] == "foo"
+        assert ingested["other"] == {"should i be deleted": True}
+    else:
+        assert ingested["dist"] == "foo"
+        assert ingested["other"] is None
+
+
+@pytest.mark.parametrize(
+    "normalization_level, from_internal, expect_full_normalization",
+    [
+        ("disabled", False, True),
+        ("disabled", True, False),
+        ("default", False, True),
+        ("default", True, True),
+        ("full", False, True),
+        ("full", True, True),
+    ],
+)
+def test_processing_relay_normalization(
+    mini_sentry,
+    events_consumer,
+    relay_with_processing,
+    relay_credentials,
+    normalization_level,
+    from_internal,
+    expect_full_normalization,
+):
+    project_id = 42
+    mini_sentry.add_basic_project_config(project_id)
+    events_consumer = events_consumer()
+    credentials = relay_credentials()
+    relay_config = {
+        "normalization": {"level": normalization_level},
+    }
+    if from_internal:
+        relay_config["auth"] = {
+            "static_relays": {
+                credentials["id"]: {
+                    "public_key": credentials["public_key"],
+                    "internal": True,
+                }
+            }
+        }
+    processing = relay_with_processing(options=relay_config)
+
+    event = {"dist": "   foo   ", "other": {"should i be deleted": True}}
+    processing.send_event(
+        project_id,
+        event,
+        headers={"x-sentry-relay-id": credentials["id"]},
+    )
+
+    ingested, _ = events_consumer.get_event(timeout=1)
+
+    # Processing relays run full normalization if they need to, or don't run
+    # normalization at all.
+    if expect_full_normalization:
+        assert ingested["dist"] == "foo"
+        assert ingested["other"] is None
+    else:
+        assert ingested["dist"] == "   foo   "
+        assert ingested["other"] == {"should i be deleted": True}
+
+
+def test_relay_chain_normalization(
+    mini_sentry, events_consumer, relay_with_processing, relay, relay_credentials
+):
+    project_id = 42
+    mini_sentry.add_basic_project_config(project_id)
+    events_consumer = events_consumer()
+
+    credentials = relay_credentials()
+    processing = relay_with_processing(
+        static_relays={
+            credentials["id"]: {
+                "public_key": credentials["public_key"],
+                "internal": True,
+            },
+        },
+        options={"normalization": {"level": "disabled"}},
+    )
+    relay = relay(
+        processing,
+        credentials=credentials,
+        options={
+            "normalization": {
+                "level": "full",
+            }
+        },
+    )
+
+    event = {"dist": "   foo   ", "other": {"should i be deleted": True}}
+    relay.send_event(project_id, event)
+
+    ingested, _ = events_consumer.get_event(timeout=1)
+    assert ingested["dist"] == "foo"
+    assert ingested["other"] is None

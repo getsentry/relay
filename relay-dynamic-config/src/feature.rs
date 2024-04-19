@@ -75,6 +75,21 @@ pub enum Feature {
     #[serde(rename = "projects:discard-transaction")]
     DiscardTransaction,
 
+    /// Enable continuous profiling.
+    ///
+    /// Serialized as `organizations:continuous-profiling`.
+    #[serde(rename = "organizations:continuous-profiling")]
+    ContinuousProfiling,
+
+    /// When enabled, every standalone segment span will be duplicated as a transaction.
+    ///
+    /// This allows support of product features that rely on transactions for SDKs that only
+    /// send spans.
+    ///
+    /// Serialized as `projects:extract-transaction-from-segment-span`.
+    #[serde(rename = "projects:extract-transaction-from-segment-span")]
+    ExtractTransactionFromSegmentSpan,
+
     /// Deprecated, still forwarded for older downstream Relays.
     #[doc(hidden)]
     #[serde(rename = "organizations:transaction-name-mark-scrubbed-as-sanitized")]

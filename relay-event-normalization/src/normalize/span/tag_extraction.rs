@@ -1,7 +1,9 @@
 //! Logic for persisting items into `span.sentry_tags` and `span.measurements` fields.
 //! These are then used for metrics extraction.
+use std::borrow::Cow;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write;
+use std::net::IpAddr;
 use std::ops::ControlFlow;
 
 use once_cell::sync::Lazy;
@@ -15,7 +17,9 @@ use sqlparser::ast::Visit;
 use sqlparser::ast::{ObjectName, Visitor};
 use url::Url;
 
-use crate::span::description::{normalize_domain, scrub_span_description};
+use crate::span::description::{
+    concatenate_host_and_port, scrub_domain_name, scrub_span_description,
+};
 use crate::utils::{
     extract_transaction_op, http_status_code_from_span, MAIN_THREAD_NAME, MOBILE_SDKS,
 };
@@ -66,6 +70,8 @@ pub enum SpanTagKey {
     /// The start type of the application when the span occurred.
     AppStartType,
     ReplayId,
+    CacheHit,
+    TraceStatus,
 }
 
 impl SpanTagKey {
@@ -104,9 +110,11 @@ impl SpanTagKey {
             SpanTagKey::TimeToInitialDisplay => "ttid",
             SpanTagKey::FileExtension => "file_extension",
             SpanTagKey::MainThread => "main_thread",
+            SpanTagKey::CacheHit => "cache.hit",
             SpanTagKey::OsName => "os.name",
             SpanTagKey::AppStartType => "app_start_type",
             SpanTagKey::ReplayId => "replay_id",
+            SpanTagKey::TraceStatus => "trace.status",
         }
     }
 }
@@ -141,14 +149,24 @@ impl std::fmt::Display for RenderBlockingStatus {
     }
 }
 
-/// Configuration for span tag extraction.
-pub struct Config {
-    /// The maximum allowed size of tag values in bytes. Longer values will be cropped.
-    pub max_tag_value_size: usize,
+/// Wrapper for [`extract_span_tags`].
+///
+/// Tags longer than `max_tag_value_size` bytes will be truncated.
+pub(crate) fn extract_span_tags_from_event(event: &mut Event, max_tag_value_size: usize) {
+    // Temporarily take ownership to pass both an event reference and a mutable span reference to `extract_span_tags`.
+    let mut spans = std::mem::take(&mut event.spans);
+    let Some(spans_vec) = spans.value_mut() else {
+        return;
+    };
+    extract_span_tags(event, spans_vec.as_mut_slice(), max_tag_value_size);
+
+    event.spans = spans;
 }
 
-/// Extracts tags from event and spans and materializes them into `span.data`.
-pub(crate) fn extract_span_tags(event: &mut Event, config: &Config) {
+/// Extracts tags and measurements from event and spans and materializes them into the spans.
+///
+/// Tags longer than `max_tag_value_size` bytes will be truncated.
+pub fn extract_span_tags(event: &Event, spans: &mut [Annotated<Span>], max_tag_value_size: usize) {
     // TODO: To prevent differences between metrics and payloads, we should not extract tags here
     // when they have already been extracted by a downstream relay.
     let shared_tags = extract_shared_tags(event);
@@ -157,19 +175,15 @@ pub(crate) fn extract_span_tags(event: &mut Event, config: &Config) {
         .is_some_and(|v| v.as_str() == "true");
     let start_type = is_mobile.then(|| get_event_start_type(event)).flatten();
 
-    let Some(spans) = event.spans.value_mut() else {
-        return;
-    };
-
     let ttid = timestamp_by_op(spans, "ui.load.initial_display");
     let ttfd = timestamp_by_op(spans, "ui.load.full_display");
 
     for span in spans {
-        let Some(span) = span.value_mut().as_mut() else {
+        let Some(span) = span.value_mut() else {
             continue;
         };
 
-        let tags = extract_tags(span, config, ttid, ttfd, is_mobile, start_type);
+        let tags = extract_tags(span, max_tag_value_size, ttid, ttfd, is_mobile, start_type);
 
         span.sentry_tags = Annotated::new(
             shared_tags
@@ -185,7 +199,7 @@ pub(crate) fn extract_span_tags(event: &mut Event, config: &Config) {
 }
 
 /// Extracts tags shared by every span.
-pub fn extract_shared_tags(event: &Event) -> BTreeMap<SpanTagKey, String> {
+fn extract_shared_tags(event: &Event) -> BTreeMap<SpanTagKey, String> {
     let mut tags = BTreeMap::new();
 
     if let Some(release) = event.release.as_str() {
@@ -219,6 +233,10 @@ pub fn extract_shared_tags(event: &Event) -> BTreeMap<SpanTagKey, String> {
     if let Some(trace_context) = event.context::<TraceContext>() {
         if let Some(op) = extract_transaction_op(trace_context) {
             tags.insert(SpanTagKey::TransactionOp, op.to_lowercase().to_owned());
+        }
+
+        if let Some(status) = trace_context.status.value() {
+            tags.insert(SpanTagKey::TraceStatus, status.to_string());
         }
     }
 
@@ -266,7 +284,7 @@ pub fn extract_shared_tags(event: &Event) -> BTreeMap<SpanTagKey, String> {
 /// and rely on Sentry conventions and heuristics.
 pub fn extract_tags(
     span: &Span,
-    config: &Config,
+    max_tag_value_size: usize,
     initial_display: Option<Timestamp>,
     full_display: Option<Timestamp>,
     is_mobile: bool,
@@ -341,8 +359,8 @@ pub fn extract_tags(
                     scrubbed
                 };
                 if let Some(domain) = Url::parse(url).ok().and_then(|url| {
-                    url.domain().map(|d| {
-                        let mut domain = d.to_lowercase();
+                    url.host_str().map(|h| {
+                        let mut domain = h.to_lowercase();
                         if let Some(port) = url.port() {
                             domain = format!("{domain}:{port}");
                         }
@@ -350,16 +368,25 @@ pub fn extract_tags(
                     })
                 }) {
                     Some(domain)
-                } else if let Some(server_host) = span
+                } else if let Some(server_address) = span
                     .data
                     .value()
                     .and_then(|data| data.server_address.value())
                     .and_then(|value| value.as_str())
                 {
-                    let lowercase_host = server_host.to_lowercase();
-                    let (domain, port) = match lowercase_host.split_once(':') {
+                    let lowercase_address = server_address.to_lowercase();
+
+                    // According to OTel semantic conventions the server port should be in a separate property, called `server.port`, but incoming data sometimes disagrees
+                    let (domain, port) = match lowercase_address.split_once(':') {
                         Some((domain, port)) => (domain, port.parse::<u16>().ok()),
-                        None => (server_host, None),
+                        None => (server_address, None),
+                    };
+
+                    // Leave IP addresses alone. Scrub qualified domain names
+                    let domain = if domain.parse::<IpAddr>().is_ok() {
+                        Cow::Borrowed(domain)
+                    } else {
+                        scrub_domain_name(domain)
                     };
 
                     if let Some(url_scheme) = span
@@ -370,10 +397,11 @@ pub fn extract_tags(
                     {
                         span_tags.insert(
                             SpanTagKey::RawDomain,
-                            format!("{url_scheme}://{lowercase_host}"),
+                            format!("{url_scheme}://{lowercase_address}"),
                         );
                     }
-                    normalize_domain(domain, port)
+
+                    Some(concatenate_host_and_port(Some(domain.as_ref()), port).into_owned())
                 } else {
                     None
                 }
@@ -400,6 +428,15 @@ pub fn extract_tags(
             }
         }
 
+        if span_op.starts_with("cache.") {
+            if let Some(Value::Bool(cache_hit)) =
+                span.data.value().and_then(|data| data.cache_hit.value())
+            {
+                let tag_value = if *cache_hit { "true" } else { "false" };
+                span_tags.insert(SpanTagKey::CacheHit, tag_value.to_owned());
+            }
+        }
+
         if let Some(scrubbed_desc) = scrubbed_description {
             // Truncating the span description's tag value is, for now,
             // a temporary solution to not get large descriptions dropped. The
@@ -410,7 +447,7 @@ pub fn extract_tags(
             span_group.truncate(16);
             span_tags.insert(SpanTagKey::Group, span_group);
 
-            let truncated = truncate_string(scrubbed_desc, config.max_tag_value_size);
+            let truncated = truncate_string(scrubbed_desc, max_tag_value_size);
             if span_op.starts_with("resource.") {
                 if let Some(ext) = truncated
                     .rsplit('/')
@@ -480,6 +517,14 @@ pub fn extract_tags(
                 {
                     span_tags.insert(SpanTagKey::ReplayId, replay_id.into());
                 }
+                if let Some(environment) =
+                    span.data.value().and_then(|data| data.environment.as_str())
+                {
+                    span_tags.insert(SpanTagKey::Environment, environment.into());
+                }
+                if let Some(release) = span.data.value().and_then(|data| data.release.as_str()) {
+                    span_tags.insert(SpanTagKey::Release, release.into());
+                }
             }
         }
     }
@@ -544,6 +589,27 @@ pub fn extract_measurements(span: &mut Span) {
     let Some(span_op) = span.op.as_str() else {
         return;
     };
+
+    if span_op.starts_with("cache.") {
+        if let Some(data) = span.data.value() {
+            if let Some(value) = match &data.cache_item_size.value() {
+                Some(Value::F64(f)) => Some(*f),
+                Some(Value::I64(i)) => Some(*i as f64),
+                Some(Value::U64(u)) => Some(*u as f64),
+                _ => None,
+            } {
+                let measurements = span.measurements.get_or_insert_with(Default::default);
+                measurements.insert(
+                    "cache.item_size".to_owned(),
+                    Measurement {
+                        value: value.into(),
+                        unit: MetricUnit::Information(InformationUnit::Byte).into(),
+                    }
+                    .into(),
+                );
+            }
+        }
+    }
 
     if span_op.starts_with("resource.") {
         if let Some(data) = span.data.value() {
@@ -765,8 +831,8 @@ fn get_event_start_type(event: &Event) -> Option<&'static str> {
 #[cfg(test)]
 mod tests {
     use insta::assert_debug_snapshot;
-    use relay_event_schema::protocol::{Event, Request};
-    use relay_protocol::{get_value, Annotated};
+    use relay_event_schema::protocol::Request;
+    use relay_protocol::get_value;
 
     use super::*;
     use crate::span::description::{scrub_queries, Mode};
@@ -1068,12 +1134,7 @@ LIMIT 1
             .into_value()
             .unwrap();
 
-        extract_span_tags(
-            &mut event,
-            &Config {
-                max_tag_value_size: 200,
-            },
-        );
+        extract_span_tags_from_event(&mut event, 200);
 
         let spans = event.spans.value().unwrap();
 
@@ -1135,12 +1196,7 @@ LIMIT 1
             .into_value()
             .unwrap();
 
-        extract_span_tags(
-            &mut event,
-            &Config {
-                max_tag_value_size: 200,
-            },
-        );
+        extract_span_tags_from_event(&mut event, 200);
 
         let span = &event.spans.value().unwrap()[0];
 
@@ -1258,12 +1314,7 @@ LIMIT 1
             .into_value()
             .unwrap();
 
-        extract_span_tags(
-            &mut event,
-            &Config {
-                max_tag_value_size: 200,
-            },
-        );
+        extract_span_tags_from_event(&mut event, 200);
 
         let span_1 = &event.spans.value().unwrap()[0];
         let span_2 = &event.spans.value().unwrap()[1];
@@ -1282,6 +1333,161 @@ LIMIT 1
             Some("http://example.com")
         );
         assert!(!tags_3.contains_key("raw_domain"));
+    }
+
+    #[test]
+    fn test_cache_extraction() {
+        let json = r#"
+            {
+                "spans": [
+                    {
+                        "timestamp": 1694732408.3145,
+                        "start_timestamp": 1694732407.8367,
+                        "exclusive_time": 477.800131,
+                        "description": "get my_key",
+                        "op": "cache.get_item",
+                        "span_id": "97c0ef9770a02f9d",
+                        "parent_span_id": "9756d8d7b2b364ff",
+                        "trace_id": "77aeb1c16bb544a4a39b8d42944947a3",
+                        "data": {
+                            "cache.hit": true,
+                            "cache.item_size": 8,
+                            "thread.id": "6286962688",
+                            "thread.name": "Thread-4 (process_request_thread)"
+
+                        },
+                        "hash": "e2fae740cccd3781"
+                    },
+                    {
+                        "timestamp": 1694732409.3145,
+                        "start_timestamp": 1694732408.8367,
+                        "exclusive_time": 477.800131,
+                        "description": "get my_key",
+                        "op": "cache.get_item",
+                        "span_id": "97c0ef9770a02f9d",
+                        "parent_span_id": "9756d8d7b2b364ff",
+                        "trace_id": "77aeb1c16bb544a4a39b8d42944947a3",
+                        "data": {
+                            "cache.hit": false,
+                            "cache.item_size": 8,
+                            "thread.id": "6286962688",
+                            "thread.name": "Thread-4 (process_request_thread)"
+
+                        },
+                        "hash": "e2fae740cccd3781"
+                    }
+                ]
+            }
+        "#;
+
+        let mut event = Annotated::<Event>::from_json(json)
+            .unwrap()
+            .into_value()
+            .unwrap();
+
+        extract_span_tags_from_event(&mut event, 200);
+
+        let span_1 = &event.spans.value().unwrap()[0];
+        let span_2 = &event.spans.value().unwrap()[1];
+
+        let tags_1 = get_value!(span_1.sentry_tags).unwrap();
+        let tags_2 = get_value!(span_2.sentry_tags).unwrap();
+        let measurements_1 = span_1.value().unwrap().measurements.value().unwrap();
+
+        assert_eq!(tags_1.get("cache.hit").unwrap().as_str(), Some("true"));
+        assert_eq!(tags_2.get("cache.hit").unwrap().as_str(), Some("false"));
+        assert_debug_snapshot!(measurements_1, @r###"
+        Measurements(
+            {
+                "cache.item_size": Measurement {
+                    value: 8.0,
+                    unit: Information(
+                        Byte,
+                    ),
+                },
+            },
+        )
+        "###);
+    }
+
+    #[test]
+    fn test_http_client_domain() {
+        let json = r#"
+            {
+                "spans": [
+                    {
+                        "timestamp": 1711007391.89278,
+                        "start_timestamp": 1711007391.891537,
+                        "exclusive_time": 1.243114,
+                        "description": "POST http://127.0.0.1:10007/data",
+                        "op": "http.client",
+                        "span_id": "8e635823db6a742a",
+                        "parent_span_id": "a1bdf3c7d2afe10e",
+                        "trace_id": "2920522dedff493ebe5d84da7be4319f",
+                        "data": {
+                            "http.request_method": "POST",
+                            "http.response.status_code": 200,
+                            "http.fragment": "",
+                            "http.query": "",
+                            "reason": "OK",
+                            "url": "http://127.0.0.1:10007/data"
+                        },
+                        "hash": "8e7b6caca435801d",
+                        "same_process_as_parent": true
+                    },
+                    {
+                        "timestamp": 1711007391.036243,
+                        "start_timestamp": 1711007391.034472,
+                        "exclusive_time": 1.770973,
+                        "description": "GET http://8.8.8.8/",
+                        "op": "http.client",
+                        "span_id": "872834c747983b2f",
+                        "parent_span_id": "a1bdf3c7d2afe10e",
+                        "trace_id": "2920522dedff493ebe5d84da7be4319f",
+                        "data": {
+                            "http.request_method": "GET",
+                            "http.response.status_code": 200,
+                            "http.fragment": "",
+                            "http.query": "",
+                            "reason": "OK",
+                            "url": "http://8.8.8.8/"
+                        },
+                        "hash": "8e7b6caca435801d",
+                        "same_process_as_parent": true
+                    }
+                ]
+            }
+        "#;
+
+        let mut event = Annotated::<Event>::from_json(json)
+            .unwrap()
+            .into_value()
+            .unwrap();
+
+        extract_span_tags_from_event(&mut event, 200);
+
+        let span_1 = &event.spans.value().unwrap()[0];
+        let span_2 = &event.spans.value().unwrap()[1];
+
+        let tags_1 = get_value!(span_1.sentry_tags).unwrap();
+        let tags_2 = get_value!(span_2.sentry_tags).unwrap();
+
+        // Allow loopback IPs
+        assert_eq!(
+            tags_1.get("description").unwrap().as_str(),
+            Some("POST http://127.0.0.1:10007")
+        );
+        assert_eq!(
+            tags_1.get("domain").unwrap().as_str(),
+            Some("127.0.0.1:10007")
+        );
+
+        // Scrub other IPs
+        assert_eq!(
+            tags_2.get("description").unwrap().as_str(),
+            Some("GET http://*.*.*.*")
+        );
+        assert_eq!(tags_2.get("domain").unwrap().as_str(), Some("*.*.*.*"));
     }
 
     #[test]
@@ -1354,12 +1560,7 @@ LIMIT 1
             .into_value()
             .unwrap();
 
-        extract_span_tags(
-            &mut event,
-            &Config {
-                max_tag_value_size: 200,
-            },
-        );
+        extract_span_tags_from_event(&mut event, 200);
 
         let span = &event.spans.value().unwrap()[0];
 
@@ -1416,12 +1617,7 @@ LIMIT 1
             .into_value()
             .unwrap();
 
-        extract_span_tags(
-            &mut event,
-            &Config {
-                max_tag_value_size: 200,
-            },
-        );
+        extract_span_tags_from_event(&mut event, 200);
 
         let span = &event.spans.value().unwrap()[0];
         let tags = span.value().unwrap().sentry_tags.value().unwrap();
@@ -1449,20 +1645,54 @@ LIMIT 1
             .unwrap()
             .into_value()
             .unwrap();
-        let tags = extract_tags(
-            &span,
-            &Config {
-                max_tag_value_size: 200,
-            },
-            None,
-            None,
-            false,
-            None,
-        );
+        let tags = extract_tags(&span, 200, None, None, false, None);
 
         assert_eq!(
             tags.get(&SpanTagKey::BrowserName),
             Some(&"Chrome".to_string())
+        );
+    }
+
+    #[test]
+    fn test_extract_trace_status() {
+        let json = r#"
+
+            {
+                "type": "transaction",
+                "platform": "python",
+                "start_timestamp": "2021-04-26T07:59:01+0100",
+                "timestamp": "2021-04-26T08:00:00+0100",
+                "transaction": "foo",
+                "contexts": {
+                    "trace": {
+                        "status": "ok"
+                    }
+                },
+                "spans": [
+                    {
+                        "op": "resource.script",
+                        "span_id": "bd429c44b67a3eb1",
+                        "start_timestamp": 1597976300.0000000,
+                        "timestamp": 1597976302.0000000,
+                        "trace_id": "ff62a8b040f340bda5d830223def1d81"
+                    }
+                ]
+            }
+        "#;
+
+        let mut event = Annotated::<Event>::from_json(json)
+            .unwrap()
+            .into_value()
+            .unwrap();
+
+        extract_span_tags_from_event(&mut event, 200);
+
+        let span = &event.spans.value().unwrap()[0];
+        let tags = span.value().unwrap().sentry_tags.value().unwrap();
+
+        assert_eq!(
+            tags.get("trace.status"),
+            Some(&Annotated::new("ok".to_string()))
         );
     }
 
@@ -1485,16 +1715,7 @@ LIMIT 1
             .unwrap();
         span.description.set_value(Some(description.into()));
 
-        extract_tags(
-            &span,
-            &Config {
-                max_tag_value_size: 200,
-            },
-            None,
-            None,
-            false,
-            None,
-        )
+        extract_tags(&span, 200, None, None, false, None)
     }
 
     #[test]

@@ -65,6 +65,11 @@ impl<'a> ReservoirEvaluator<'a> {
         }
     }
 
+    /// Gets shared ownership of the reservoir counters.
+    pub fn counters(&self) -> ReservoirCounters {
+        Arc::clone(&self.counters)
+    }
+
     /// Sets the Redis pool and organiation ID for the [`ReservoirEvaluator`].
     ///
     /// These values are needed to synchronize with Redis.
@@ -395,16 +400,12 @@ impl fmt::Display for MatchedRuleIds {
 mod tests {
     use std::str::FromStr;
 
-    use chrono::{TimeZone, Utc};
+    use chrono::TimeZone;
     use relay_protocol::RuleCondition;
     use similar_asserts::assert_eq;
-    use uuid::Uuid;
 
-    use crate::config::{
-        DecayingFunction, RuleId, RuleType, SamplingRule, SamplingValue, TimeRange,
-    };
+    use crate::config::{DecayingFunction, RuleType, TimeRange};
     use crate::dsc::TraceUserContext;
-    use crate::evaluation::MatchedRuleIds;
     use crate::DynamicSamplingContext;
 
     use super::*;
@@ -475,8 +476,8 @@ mod tests {
             match path {
                 "trace.release" => dsc.release = Some(value.to_owned()),
                 "trace.environment" => dsc.environment = Some(value.to_owned()),
-                "trace.user.id" => dsc.user.user_id = value.to_owned(),
-                "trace.user.segment" => dsc.user.user_segment = value.to_owned(),
+                "trace.user.id" => value.clone_into(&mut dsc.user.user_id),
+                "trace.user.segment" => value.clone_into(&mut dsc.user.user_segment),
                 "trace.transaction" => dsc.transaction = Some(value.to_owned()),
                 "trace.replay_id" => dsc.replay_id = Some(Uuid::from_str(value).unwrap()),
                 _ => panic!("invalid path"),

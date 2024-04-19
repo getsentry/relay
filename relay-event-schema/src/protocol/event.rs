@@ -66,7 +66,7 @@ impl FromStr for EventId {
 relay_common::impl_str_serde!(EventId, "an event identifier");
 
 #[derive(Debug, FromValue, IntoValue, ProcessValue, Empty, Clone, PartialEq)]
-pub struct ExtraValue(#[metastructure(bag_size = "larger")] pub Value);
+pub struct ExtraValue(#[metastructure(max_depth = 7, max_bytes = 16_384)] pub Value);
 
 #[cfg(feature = "jsonschema")]
 impl schemars::JsonSchema for ExtraValue {
@@ -115,7 +115,7 @@ pub struct EventProcessingError {
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 pub struct GroupingConfig {
     /// The id of the grouping config.
-    #[metastructure(max_chars = "enumlike")]
+    #[metastructure(max_chars = 128)]
     pub id: Annotated<String>,
     /// The enhancements configuration.
     pub enhancements: Annotated<String>,
@@ -201,14 +201,14 @@ pub struct Event {
     /// Custom culprit of the event.
     ///
     /// This field is deprecated and shall not be set by client SDKs.
-    #[metastructure(max_chars = "culprit", pii = "maybe")]
+    #[metastructure(max_chars = 200, pii = "maybe")]
     pub culprit: Annotated<String>,
 
     /// Transaction name of the event.
     ///
     /// For example, in a web app, this might be the route name (`"/users/<username>/"` or
     /// `UserView`), in a task queue it might be the function + module name.
-    #[metastructure(max_chars = "culprit", trim_whitespace = "true")]
+    #[metastructure(max_chars = 200, trim_whitespace = "true")]
     pub transaction: Annotated<String>,
 
     /// Additional information about the name of the transaction.
@@ -225,7 +225,7 @@ pub struct Event {
 
     /// Logger that created the event.
     #[metastructure(
-        max_chars = "logger", // DB-imposed limit
+        max_chars = 64, // DB-imposed limit
         deny_chars = "\r\n",
     )]
     pub logger: Annotated<String>,
@@ -243,7 +243,7 @@ pub struct Event {
     /// This is primarily used for suggesting to enable certain SDK integrations from within the UI
     /// and for making informed decisions on which frameworks to support in future development
     /// efforts.
-    #[metastructure(skip_serialization = "empty_deep", bag_size = "large")]
+    #[metastructure(skip_serialization = "empty_deep", max_depth = 7, max_bytes = 8192)]
     pub modules: Annotated<Object<String>>,
 
     /// Platform identifier of this event (defaults to "other").
@@ -294,7 +294,7 @@ pub struct Event {
     /// Server or device name the event was generated on.
     ///
     /// This is supposed to be a hostname.
-    #[metastructure(pii = "true", max_chars = "symbol")]
+    #[metastructure(pii = "true", max_chars = 256, max_chars_allowance = 20)]
     pub server_name: Annotated<String>,
 
     /// The release version of the application.
@@ -302,7 +302,7 @@ pub struct Event {
     /// **Release versions must be unique across all projects in your organization.** This value
     /// can be the git SHA for the given project, or a product identifier with a semantic version.
     #[metastructure(
-        max_chars = "tag_value",  // release ends in tag
+        max_chars = 200,  // release ends in tag
         // release allowed chars are validated in the sentry-release-parser crate!
         required = "false",
         trim_whitespace = "true",
@@ -332,7 +332,7 @@ pub struct Event {
     /// { "environment": "production" }
     /// ```
     #[metastructure(
-        max_chars = "environment",
+        max_chars = 64,
         // environment allowed chars are validated in the sentry-release-parser crate!
         nonempty = "true",
         required = "false",
@@ -341,7 +341,7 @@ pub struct Event {
     pub environment: Annotated<String>,
 
     /// Deprecated in favor of tags.
-    #[metastructure(max_chars = "symbol")]
+    #[metastructure(max_chars = 256, max_chars_allowance = 20)]
     #[metastructure(omit_from_schema)] // deprecated
     pub site: Annotated<String>,
 
@@ -403,7 +403,7 @@ pub struct Event {
     ///         "some_other_value": "foo bar"
     ///     }
     /// }```
-    #[metastructure(bag_size = "massive")]
+    #[metastructure(max_depth = 7, max_bytes = 262_144)]
     #[metastructure(pii = "true", skip_serialization = "empty")]
     pub extra: Annotated<Object<ExtraValue>>,
 
@@ -417,7 +417,7 @@ pub struct Event {
     pub client_sdk: Annotated<ClientSdkInfo>,
 
     /// Information about the Relays that processed this event during ingest.
-    #[metastructure(bag_size = "medium")]
+    #[metastructure(max_depth = 5, max_bytes = 2048)]
     #[metastructure(skip_serialization = "empty", omit_from_schema)]
     pub ingest_path: Annotated<Array<RelayInfo>>,
 
@@ -439,7 +439,7 @@ pub struct Event {
     pub grouping_config: Annotated<Object<Value>>,
 
     /// Legacy checksum used for grouping before fingerprint hashes.
-    #[metastructure(max_chars = "hash")]
+    #[metastructure(max_chars = 128)]
     #[metastructure(omit_from_schema)] // deprecated
     pub checksum: Annotated<String>,
 
@@ -670,7 +670,7 @@ impl Getter for Event {
             "sdk.name" => self.client_sdk.value()?.name.as_str()?.into(),
             "sdk.version" => self.client_sdk.value()?.version.as_str()?.into(),
 
-            // Computed fields (after light normalization).
+            // Computed fields (after normalization).
             "sentry_user" => self.user.value()?.sentry_user.as_str()?.into(),
 
             // Partial implementation of contexts.

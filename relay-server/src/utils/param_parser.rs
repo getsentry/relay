@@ -56,24 +56,24 @@ fn get_indexes(full_string: &str) -> Result<Vec<&str>, ()> {
     let mut ret_vals = vec![];
     let mut state = IndexingState::Starting;
     //first iterate by byte (so we can get correct offsets)
-    for (idx, by) in full_string.as_bytes().iter().enumerate() {
+    for (idx, by) in full_string.bytes().enumerate() {
         match state {
             IndexingState::Starting => {
-                if by == &b'[' {
+                if by == b'[' {
                     state = IndexingState::Accumulating(idx + 1)
                 }
             }
             IndexingState::LookingForLeftParenthesis => {
-                if by == &b'[' {
+                if by == b'[' {
                     state = IndexingState::Accumulating(idx + 1);
-                } else if by == &b'=' {
+                } else if by == b'=' {
                     return Ok(ret_vals);
                 } else {
                     return Err(());
                 }
             }
             IndexingState::Accumulating(start_idx) => {
-                if by == &b']' {
+                if by == b']' {
                     let slice = &full_string[start_idx..idx];
                     ret_vals.push(slice);
                     state = IndexingState::LookingForLeftParenthesis;

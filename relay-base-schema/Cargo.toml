@@ -4,15 +4,18 @@ authors = ["Sentry <oss@sentry.io>"]
 description = "Basic types for Relay's API schema used across multiple services"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "24.2.0"
+version = "24.4.1"
 edition = "2021"
 license-file = "../LICENSE.md"
 publish = false
 
+[lints]
+workspace = true
+
 [dependencies]
 regex = { workspace = true }
-relay-common = { path = "../relay-common" }
-relay-protocol = { path = "../relay-protocol" }
+relay-common = { workspace = true }
+relay-protocol = { workspace = true }
 schemars = { workspace = true, optional = true }
 serde = { workspace = true }
 

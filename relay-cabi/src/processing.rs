@@ -7,25 +7,145 @@ use std::cmp::Ordering;
 use std::ffi::CStr;
 use std::os::raw::c_char;
 use std::slice;
+use std::sync::OnceLock;
 
-use once_cell::sync::OnceCell;
+use chrono::{DateTime, Utc};
 use relay_common::glob::{glob_match_bytes, GlobOptions};
 use relay_dynamic_config::{normalize_json, validate_json, GlobalConfig, ProjectConfig};
 use relay_event_normalization::{
-    normalize_event, validate_event_timestamps, validate_transaction, EventValidationConfig,
-    GeoIpLookup, NormalizationConfig, RawUserAgentInfo, StoreConfig, StoreProcessor,
+    normalize_event, validate_event_timestamps, validate_transaction, BreakdownsConfig,
+    ClientHints, EventValidationConfig, GeoIpLookup, NormalizationConfig, RawUserAgentInfo,
     TransactionValidationConfig,
 };
 use relay_event_schema::processor::{process_value, split_chunks, ProcessingState};
-use relay_event_schema::protocol::{Event, VALID_PLATFORMS};
+use relay_event_schema::protocol::{Event, IpAddr, VALID_PLATFORMS};
 use relay_pii::{
     selector_suggestions_from_value, DataScrubbingConfig, InvalidSelectorError, PiiConfig,
     PiiConfigError, PiiProcessor, SelectorSpec,
 };
 use relay_protocol::{Annotated, Remark, RuleCondition};
 use relay_sampling::SamplingConfig;
+use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
 use crate::core::{RelayBuf, RelayStr};
+
+/// Configuration for the store step -- validation and normalization.
+#[derive(Serialize, Deserialize, Debug, Default)]
+#[serde(default)]
+pub struct StoreNormalizer {
+    /// The identifier of the target project, which gets added to the payload.
+    pub project_id: Option<u64>,
+
+    /// The IP address of the SDK that sent the event.
+    ///
+    /// When `{{auto}}` is specified and there is no other IP address in the payload, such as in the
+    /// `request` context, this IP address gets added to the `user` context.
+    pub client_ip: Option<IpAddr>,
+
+    /// The name and version of the SDK that sent the event.
+    pub client: Option<String>,
+
+    /// The internal identifier of the DSN, which gets added to the payload.
+    ///
+    /// Note that this is different from the DSN's public key. The ID is usually numeric.
+    pub key_id: Option<String>,
+
+    /// The version of the protocol.
+    ///
+    /// This is a deprecated field, as there is no more versioning of Relay event payloads.
+    pub protocol_version: Option<String>,
+
+    /// Configuration for issue grouping.
+    ///
+    /// This configuration is persisted into the event payload to achieve idempotency in the
+    /// processing pipeline and for reprocessing.
+    pub grouping_config: Option<serde_json::Value>,
+
+    /// The raw user-agent string obtained from the submission request headers.
+    ///
+    /// The user agent is used to infer device, operating system, and browser information should the
+    /// event payload contain no such data.
+    ///
+    /// Newer browsers have frozen their user agents and send [`client_hints`](Self::client_hints)
+    /// instead. If both a user agent and client hints are present, normalization uses client hints.
+    pub user_agent: Option<String>,
+
+    /// A collection of headers sent by newer browsers about the device and environment.
+    ///
+    /// Client hints are the preferred way to infer device, operating system, and browser
+    /// information should the event payload contain no such data. If no client hints are present,
+    /// normalization falls back to the user agent.
+    pub client_hints: ClientHints<String>,
+
+    /// The time at which the event was received in this Relay.
+    ///
+    /// This timestamp is persisted into the event payload.
+    pub received_at: Option<DateTime<Utc>>,
+
+    /// The time at which the event was sent by the client.
+    ///
+    /// The difference between this and the `received_at` timestamps is used for clock drift
+    /// correction, should a significant difference be detected.
+    pub sent_at: Option<DateTime<Utc>>,
+
+    /// The maximum amount of seconds an event can be predated into the future.
+    ///
+    /// If the event's timestamp lies further into the future, the received timestamp is assumed.
+    pub max_secs_in_future: Option<i64>,
+
+    /// The maximum amount of seconds an event can be dated in the past.
+    ///
+    /// If the event's timestamp is older, the received timestamp is assumed.
+    pub max_secs_in_past: Option<i64>,
+
+    /// When `Some(true)`, individual parts of the event payload is trimmed to a maximum size.
+    ///
+    /// See the event schema for size declarations.
+    pub enable_trimming: Option<bool>,
+
+    /// When `Some(true)`, it is assumed that the event has been normalized before.
+    ///
+    /// This disables certain normalizations, especially all that are not idempotent. The
+    /// renormalize mode is intended for the use in the processing pipeline, so an event modified
+    /// during ingestion can be validated against the schema and large data can be trimmed. However,
+    /// advanced normalizations such as inferring contexts or clock drift correction are disabled.
+    ///
+    /// `None` equals to `false`.
+    pub is_renormalize: Option<bool>,
+
+    /// Overrides the default flag for other removal.
+    pub remove_other: Option<bool>,
+
+    /// When `Some(true)`, context information is extracted from the user agent.
+    pub normalize_user_agent: Option<bool>,
+
+    /// Emit breakdowns based on given configuration.
+    pub breakdowns: Option<BreakdownsConfig>,
+
+    /// The SDK's sample rate as communicated via envelope headers.
+    ///
+    /// It is persisted into the event payload.
+    pub client_sample_rate: Option<f64>,
+
+    /// The identifier of the Replay running while this event was created.
+    ///
+    /// It is persisted into the event payload for correlation.
+    pub replay_id: Option<Uuid>,
+
+    /// Controls whether spans should be normalized (e.g. normalizing the exclusive time).
+    ///
+    /// To normalize spans in [`normalize_event`], `is_renormalize` must
+    /// be disabled _and_ `normalize_spans` enabled.
+    pub normalize_spans: bool,
+}
+
+impl StoreNormalizer {
+    /// Helper method to parse *mut StoreConfig -> &StoreConfig
+    fn this(&self) -> &Self {
+        self
+    }
+}
 
 /// A geo ip lookup helper based on maxmind db files.
 pub struct RelayGeoIpLookup;
@@ -69,7 +189,7 @@ pub unsafe extern "C" fn relay_geoip_lookup_free(lookup: *mut RelayGeoIpLookup) 
 #[no_mangle]
 #[relay_ffi::catch_unwind]
 pub unsafe extern "C" fn relay_valid_platforms(size_out: *mut usize) -> *const RelayStr {
-    static VALID_PLATFORM_STRS: OnceCell<Vec<RelayStr>> = OnceCell::new();
+    static VALID_PLATFORM_STRS: OnceLock<Vec<RelayStr>> = OnceLock::new();
     let platforms = VALID_PLATFORM_STRS
         .get_or_init(|| VALID_PLATFORMS.iter().map(|s| RelayStr::new(s)).collect());
 
@@ -80,15 +200,14 @@ pub unsafe extern "C" fn relay_valid_platforms(size_out: *mut usize) -> *const R
     platforms.as_ptr()
 }
 
-/// Creates a new normalization processor.
+/// Creates a new normalization config.
 #[no_mangle]
 #[relay_ffi::catch_unwind]
 pub unsafe extern "C" fn relay_store_normalizer_new(
     config: *const RelayStr,
     _geoip_lookup: *const RelayGeoIpLookup,
 ) -> *mut RelayStoreNormalizer {
-    let config: StoreConfig = serde_json::from_str((*config).as_str())?;
-    let normalizer = StoreProcessor::new(config);
+    let normalizer: StoreNormalizer = serde_json::from_str((*config).as_str())?;
     Box::into_raw(Box::new(normalizer)) as *mut RelayStoreNormalizer
 }
 
@@ -97,7 +216,7 @@ pub unsafe extern "C" fn relay_store_normalizer_new(
 #[relay_ffi::catch_unwind]
 pub unsafe extern "C" fn relay_store_normalizer_free(normalizer: *mut RelayStoreNormalizer) {
     if !normalizer.is_null() {
-        let normalizer = normalizer as *mut StoreProcessor;
+        let normalizer = normalizer as *mut StoreNormalizer;
         let _dropped = Box::from_raw(normalizer);
     }
 }
@@ -109,9 +228,9 @@ pub unsafe extern "C" fn relay_store_normalizer_normalize_event(
     normalizer: *mut RelayStoreNormalizer,
     event: *const RelayStr,
 ) -> RelayStr {
-    let processor = normalizer as *mut StoreProcessor;
+    let normalizer = normalizer as *mut StoreNormalizer;
+    let config = (*normalizer).this();
     let mut event = Annotated::<Event>::from_json((*event).as_str())?;
-    let config = (*processor).config();
 
     let event_validation_config = EventValidationConfig {
         received_at: config.received_at,
@@ -127,8 +246,16 @@ pub unsafe extern "C" fn relay_store_normalizer_normalize_event(
     };
     validate_transaction(&mut event, &tx_validation_config)?;
 
+    let is_renormalize = config.is_renormalize.unwrap_or(false);
+
     let normalization_config = NormalizationConfig {
+        project_id: config.project_id,
+        client: config.client.clone(),
+        protocol_version: config.protocol_version.clone(),
+        key_id: config.key_id.clone(),
+        grouping_config: config.grouping_config.clone(),
         client_ip: config.client_ip.as_ref(),
+        client_sample_rate: config.client_sample_rate,
         user_agent: RawUserAgentInfo {
             user_agent: config.user_agent.as_deref(),
             client_hints: config.client_hints.as_deref(),
@@ -137,7 +264,9 @@ pub unsafe extern "C" fn relay_store_normalizer_normalize_event(
         breakdowns_config: None, // only supported in relay
         normalize_user_agent: config.normalize_user_agent,
         transaction_name_config: Default::default(), // only supported in relay
-        is_renormalize: config.is_renormalize.unwrap_or(false),
+        is_renormalize,
+        remove_other: config.remove_other.unwrap_or(!is_renormalize),
+        emit_event_errors: !is_renormalize,
         device_class_synthesis_config: false, // only supported in relay
         enrich_spans: false,
         max_tag_value_length: usize::MAX,
@@ -147,10 +276,10 @@ pub unsafe extern "C" fn relay_store_normalizer_normalize_event(
         enable_trimming: config.enable_trimming.unwrap_or_default(),
         measurements: None,
         normalize_spans: config.normalize_spans,
+        replay_id: config.replay_id,
     };
     normalize_event(&mut event, &normalization_config);
 
-    process_value(&mut event, &mut *processor, ProcessingState::root())?;
     RelayStr::from_string(event.to_json()?)
 }
 

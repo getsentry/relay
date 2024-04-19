@@ -4,7 +4,7 @@ authors = ["Sentry <oss@sentry.io>"]
 description = "Endpoints and services for Relay"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "24.2.0"
+version = "24.4.1"
 edition = "2021"
 build = "build.rs"
 license-file = "../LICENSE.md"
@@ -32,90 +32,94 @@ processing = [
     "relay-sampling/redis",
 ]
 
+[lints]
+workspace = true
+
 [dependencies]
 anyhow = { workspace = true }
-serde_path_to_error = "0.1.14"
-axum = { version = "0.6.20", features = [
+serde_path_to_error = { workspace = true }
+axum = { workspace = true, features = [
     "headers",
     "macros",
     "matched-path",
     "multipart",
     "tracing",
 ] }
-axum-server = "0.4.7"
-backoff = "0.4.0"
-brotli = "3.3.4"
-bytecount = "0.6.0"
-bytes = { version = "1.4.0", features = ["serde"] }
+axum-server = { workspace = true }
+backoff = { workspace = true }
+brotli = { workspace = true }
+bytecount = { workspace = true }
+bytes = { workspace = true, features = ["serde"] }
 chrono = { workspace = true, features = ["clock"] }
-data-encoding = "2.5.0"
-flate2 = "1.0.19"
-fnv = "1.0.7"
+data-encoding = { workspace = true }
+flate2 = { workspace = true }
+fnv = { workspace = true }
 futures = { workspace = true }
 hash32 = { workspace = true }
 hashbrown = { workspace = true }
 itertools = { workspace = true }
-json-forensics = { version = "0.1.1" }
-mime = "0.3.16"
-mime_guess = { version = "2.0.4", optional = true }
-minidump = { version = "0.15.2", optional = true }
-multer = "2.0.4"
+json-forensics = { workspace = true }
+mime = { workspace = true }
+mime_guess = { workspace = true, optional = true }
+minidump = { workspace = true, optional = true }
+multer = { workspace = true }
 once_cell = { workspace = true }
+pin-project-lite = { workspace = true }
 rand = { workspace = true }
 regex = { workspace = true }
-relay-auth = { path = "../relay-auth" }
-relay-aws-extension = { path = "../relay-aws-extension" }
-relay-base-schema = { path = "../relay-base-schema" }
-relay-cardinality = { path = "../relay-cardinality" }
-relay-cogs = { path = "../relay-cogs" }
-relay-common = { path = "../relay-common" }
-relay-config = { path = "../relay-config" }
-relay-dynamic-config = { path = "../relay-dynamic-config" }
-relay-event-normalization = { path = "../relay-event-normalization" }
-relay-event-schema = { path = "../relay-event-schema" }
-relay-filter = { path = "../relay-filter" }
-relay-kafka = { path = "../relay-kafka", optional = true }
-relay-log = { path = "../relay-log", features = ["sentry"] }
-relay-metrics = { path = "../relay-metrics" }
-relay-monitors = { path = "../relay-monitors" }
-relay-pii = { path = "../relay-pii" }
-relay-profiling = { path = "../relay-profiling" }
-relay-protocol = { path = "../relay-protocol" }
-relay-quotas = { path = "../relay-quotas" }
-relay-redis = { path = "../relay-redis" }
-relay-replays = { path = "../relay-replays" }
-relay-sampling = { path = "../relay-sampling" }
-relay-spans = { path = "../relay-spans" }
-relay-statsd = { path = "../relay-statsd" }
-relay-system = { path = "../relay-system" }
-reqwest = { version = "0.11.1", features = [
+relay-auth = { workspace = true }
+relay-aws-extension = { workspace = true }
+relay-base-schema = { workspace = true }
+relay-cardinality = { workspace = true }
+relay-cogs = { workspace = true }
+relay-common = { workspace = true }
+relay-config = { workspace = true }
+relay-dynamic-config = { workspace = true }
+relay-event-normalization = { workspace = true }
+relay-event-schema = { workspace = true }
+relay-filter = { workspace = true }
+relay-kafka = { workspace = true, optional = true }
+relay-log = { workspace = true, features = ["sentry"] }
+relay-metrics = { workspace = true }
+relay-monitors = { workspace = true }
+relay-pii = { workspace = true }
+relay-profiling = { workspace = true }
+relay-protocol = { workspace = true }
+relay-quotas = { workspace = true }
+relay-redis = { workspace = true }
+relay-replays = { workspace = true }
+relay-sampling = { workspace = true }
+relay-spans = { workspace = true }
+relay-statsd = { workspace = true }
+relay-system = { workspace = true }
+reqwest = { workspace = true, features = [
     "gzip",
     "stream",
     "trust-dns",
     "native-tls-vendored",
 ] }
-rmp-serde = "1.1.1"
-rust-embed = { version = "8.0.0", optional = true }
-sentry_usage_accountant = { version = "0.1.0", default-features = false }
+rmp-serde = { workspace = true }
+rust-embed = { workspace = true, optional = true }
+sentry_usage_accountant = { workspace = true, default-features = false }
 serde = { workspace = true }
-serde_bytes = "0.11"
+serde_bytes = { workspace = true }
 serde_json = { workspace = true }
 smallvec = { workspace = true, features = ["drain_filter"] }
-sqlx = { version = "0.7.3", features = [
+sqlx = { workspace = true, features = [
     "macros",
     "migrate",
     "sqlite",
     "runtime-tokio",
 ], default-features = false }
-symbolic-common = { version = "12.1.2", optional = true, default-features = false }
-symbolic-unreal = { version = "12.1.2", optional = true, default-features = false, features = [
+symbolic-common = { workspace = true, optional = true, default-features = false }
+symbolic-unreal = { workspace = true, optional = true, default-features = false, features = [
     "serde",
 ] }
-sysinfo = { version = "0.30.7", default-features = false }
+sysinfo = { workspace = true, default-features = false }
 thiserror = { workspace = true }
 tokio = { workspace = true, features = ["rt-multi-thread"] }
-tower = { version = "0.4.13", default-features = false }
-tower-http = { version = "0.4.0", default-features = false, features = [
+tower = { workspace = true, default-features = false }
+tower-http = { workspace = true, default-features = false, features = [
     "catch-panic",
     "compression-br",
     "compression-deflate",
@@ -129,16 +133,14 @@ tower-http = { version = "0.4.0", default-features = false, features = [
 ] }
 url = { workspace = true, features = ["serde"] }
 uuid = { workspace = true, features = ["v5"] }
-zstd = { version = "0.12.3", optional = true }
-axum-extra = { version = "0.7.7", features = ["protobuf"] }
+zstd = { workspace = true, optional = true }
+axum-extra = { workspace = true, features = ["protobuf"] }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ['test-util'] }
 insta = { workspace = true }
-relay-event-schema = { path = "../relay-event-schema", features = [
-    "jsonschema",
-] }
-relay-protocol = { path = "../relay-protocol", features = ["test"] }
-relay-test = { path = "../relay-test" }
+relay-event-schema = { workspace = true, features = ["jsonschema"] }
+relay-protocol = { workspace = true, features = ["test"] }
+relay-test = { workspace = true }
 similar-asserts = { workspace = true }
-tempfile = "3.5.0"
+tempfile = { workspace = true }

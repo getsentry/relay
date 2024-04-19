@@ -1,11 +1,13 @@
 use relay_common::time::UnixTimestamp;
-use relay_dynamic_config::{MetricExtractionConfig, Options};
+use relay_dynamic_config::MetricExtractionConfig;
 use relay_event_schema::protocol::{Event, Span};
 use relay_metrics::Bucket;
 use relay_quotas::DataCategory;
 
 use crate::metrics_extraction::generic::{self, Extractable};
+use crate::services::processor::extract_transaction_span;
 use crate::statsd::RelayTimers;
+use crate::utils::sample;
 
 impl Extractable for Event {
     fn category(&self) -> DataCategory {
@@ -45,27 +47,47 @@ impl Extractable for Span {
 /// If this is a transaction event with spans, metrics will also be extracted from the spans.
 pub fn extract_metrics(
     event: &Event,
+    spans_extracted: bool,
     config: &MetricExtractionConfig,
-    global_options: Option<&Options>,
+    max_tag_value_size: usize,
+    span_extraction_sample_rate: Option<f32>,
 ) -> Vec<Bucket> {
-    let mut metrics = generic::extract_metrics(event, config, global_options);
+    let mut metrics = generic::extract_metrics(event, config);
 
+    // If spans were already extracted for an event,
+    // we rely on span processing to extract metrics.
+    if !spans_extracted && sample(span_extraction_sample_rate.unwrap_or(1.0)) {
+        extract_span_metrics_for_event(event, config, max_tag_value_size, &mut metrics);
+    }
+
+    metrics
+}
+
+fn extract_span_metrics_for_event(
+    event: &Event,
+    config: &MetricExtractionConfig,
+    max_tag_value_size: usize,
+    output: &mut Vec<Bucket>,
+) {
     relay_statsd::metric!(timer(RelayTimers::EventProcessingSpanMetricsExtraction), {
+        if let Some(transaction_span) = extract_transaction_span(event, max_tag_value_size) {
+            output.extend(generic::extract_metrics(&transaction_span, config));
+        }
+
         if let Some(spans) = event.spans.value() {
             for annotated_span in spans {
                 if let Some(span) = annotated_span.value() {
-                    metrics.extend(generic::extract_metrics(span, config, global_options));
+                    output.extend(generic::extract_metrics(span, config));
                 }
             }
         }
     });
-
-    metrics
 }
 
 #[cfg(test)]
 mod tests {
     use chrono::{DateTime, Utc};
+    use insta::assert_debug_snapshot;
     use relay_dynamic_config::{Feature, FeatureSet, ProjectConfig};
     use relay_event_normalization::{normalize_event, NormalizationConfig};
     use relay_event_schema::protocol::Timestamp;
@@ -407,7 +429,8 @@ mod tests {
                     "trace_id": "ff62a8b040f340bda5d830223def1d81",
                     "status": "ok",
                     "data": {
-                        "cache.hit": false
+                        "cache.hit": false,
+                        "cache.item_size": 8
                     }
                 },
                 {
@@ -884,7 +907,21 @@ mod tests {
                     "trace_id": "ff62a8b040f340bda5d830223def1d81",
                     "status": "ok",
                     "data": {
-                        "cache.hit": false
+                        "cache.hit": false,
+                        "cache.item_size": 10
+                    }
+                },
+                {
+                    "description": "GET cache:user:{456}",
+                    "op": "cache.get_item",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bb7af8b99e95af5f",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976302.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "status": "ok",
+                    "data": {
+                        "cache.hit": true
                     }
                 },
                 {
@@ -982,8 +1019,42 @@ mod tests {
                     "data": {
                         "ui.component_name": "my-component-name"
                     }
+                },
+                {
+                    "timestamp": 1702474613.0495,
+                    "start_timestamp": 1702474613.0175,
+                    "description": "sentry.tasks.post_process.post_process_group",
+                    "op": "queue.task.celery",
+                    "span_id": "9b01bd820a083e63",
+                    "parent_span_id": "a1e13f3f06239d69",
+                    "trace_id": "922dda2462ea4ac2b6a4b339bee90863",
+                    "data": {}
+                },
+                {
+                    "timestamp": 1702474613.0495,
+                    "start_timestamp": 1702474613.0175,
+                    "description": "sentry.tasks.post_process.post_process_group",
+                    "op": "queue.submit.celery",
+                    "span_id": "9b01bd820a083e63",
+                    "parent_span_id": "a1e13f3f06239d69",
+                    "trace_id": "922dda2462ea4ac2b6a4b339bee90863",
+                    "data": {}
+                },
+                {
+                    "timestamp": 1702474613.0495,
+                    "start_timestamp": 1702474613.0175,
+                    "description": "Autofix Pipeline",
+                    "op": "ai.run.langchain",
+                    "origin": "auto.langchain",
+                    "span_id": "9c01bd820a083e63",
+                    "parent_span_id": "a1e13f3f06239d69",
+                    "trace_id": "922dda2462ea4ac2b6a4b339bee90863",
+                    "measurements": {
+                        "ai_total_tokens_used": {
+                            "value": 20
+                        }
+                    }
                 }
-
             ]
         }
         "#;
@@ -1010,7 +1081,7 @@ mod tests {
         project.sanitize();
 
         let config = project.metric_extraction.ok().unwrap();
-        let metrics = extract_metrics(event.value().unwrap(), &config, None);
+        let metrics = extract_metrics(event.value().unwrap(), false, &config, 200, None);
         insta::assert_debug_snapshot!(metrics);
     }
 
@@ -1116,6 +1187,14 @@ mod tests {
                     "data": {
                         "app_start_type": "cold"
                     }
+                },
+                {
+                    "op": "file.read",
+                    "description": "somebackup.212321",
+                    "span_id": "bd429c44b67a3eb2",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976303.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81"
                 }
             ]
         }
@@ -1145,7 +1224,7 @@ mod tests {
         project.sanitize();
 
         let config = project.metric_extraction.ok().unwrap();
-        let metrics = extract_metrics(event.value().unwrap(), &config, None);
+        let metrics = extract_metrics(event.value().unwrap(), false, &config, 200, None);
         insta::assert_debug_snapshot!((&event.value().unwrap().spans, metrics));
     }
 
@@ -1206,16 +1285,16 @@ mod tests {
         project.sanitize();
 
         let config = project.metric_extraction.ok().unwrap();
-        let metrics = extract_metrics(event.value().unwrap(), &config, None);
+        let metrics = extract_metrics(event.value().unwrap(), false, &config, 200, None);
 
         // When transaction.op:ui.load and mobile:true, HTTP spans still get both
         // exclusive_time metrics:
         assert!(metrics
             .iter()
-            .any(|b| b.name == "d:spans/exclusive_time@millisecond"));
+            .any(|b| &*b.name == "d:spans/exclusive_time@millisecond"));
         assert!(metrics
             .iter()
-            .any(|b| b.name == "d:spans/exclusive_time_light@millisecond"));
+            .any(|b| &*b.name == "d:spans/exclusive_time_light@millisecond"));
     }
 
     #[test]
@@ -1242,22 +1321,14 @@ mod tests {
         project.sanitize();
 
         let config = project.metric_extraction.ok().unwrap();
-        let metrics = extract_metrics(
-            event.value().unwrap(),
-            &config,
-            Some(&{
-                let mut o = Options::default();
-                o.span_usage_metric = true;
-                o
-            }),
-        );
+        let metrics = extract_metrics(event.value().unwrap(), false, &config, 200, None);
 
         let usage_metrics = metrics
             .into_iter()
-            .filter(|b| b.name == "c:spans/usage@none")
+            .filter(|b| &*b.name == "c:spans/usage@none")
             .collect::<Vec<_>>();
 
-        let expected_usage = 8; // We count all spans received by Relay
+        let expected_usage = 10; // We count all spans received by Relay, plus one for the transaction
         assert_eq!(usage_metrics.len(), expected_usage);
         for m in usage_metrics {
             assert!(m.tags.is_empty());
@@ -1274,7 +1345,7 @@ mod tests {
         config.sanitize(); // apply defaults for span extraction
 
         let extraction_config = config.metric_extraction.ok().unwrap();
-        generic::extract_metrics(span, &extraction_config, None)
+        generic::extract_metrics(span, &extraction_config)
     }
 
     /// Helper function for span metric extraction tests.
@@ -1295,12 +1366,11 @@ mod tests {
     fn test_app_start_cold_inlier() {
         let metrics = extract_span_metrics_mobile("app.start.cold", 180000.0);
         assert_eq!(
-            metrics.iter().map(|m| &m.name).collect::<Vec<_>>(),
+            metrics.iter().map(|m| &*m.name).collect::<Vec<_>>(),
             vec![
+                "c:spans/usage@none",
                 "d:spans/exclusive_time@millisecond",
                 "d:spans/exclusive_time_light@millisecond",
-                "c:spans/count_per_op@none",
-                "c:spans/count_per_segment@none"
             ]
         );
     }
@@ -1308,19 +1378,21 @@ mod tests {
     #[test]
     fn test_app_start_cold_outlier() {
         let metrics = extract_span_metrics_mobile("app.start.cold", 181000.0);
-        assert!(metrics.is_empty());
+        assert_eq!(
+            metrics.iter().map(|m| &*m.name).collect::<Vec<_>>(),
+            vec!["c:spans/usage@none", "d:spans/exclusive_time@millisecond"]
+        );
     }
 
     #[test]
     fn test_app_start_warm_inlier() {
         let metrics = extract_span_metrics_mobile("app.start.warm", 180000.0);
         assert_eq!(
-            metrics.iter().map(|m| &m.name).collect::<Vec<_>>(),
+            metrics.iter().map(|m| &*m.name).collect::<Vec<_>>(),
             vec![
+                "c:spans/usage@none",
                 "d:spans/exclusive_time@millisecond",
                 "d:spans/exclusive_time_light@millisecond",
-                "c:spans/count_per_op@none",
-                "c:spans/count_per_segment@none"
             ]
         );
     }
@@ -1328,19 +1400,21 @@ mod tests {
     #[test]
     fn test_app_start_warm_outlier() {
         let metrics = extract_span_metrics_mobile("app.start.warm", 181000.0);
-        assert!(metrics.is_empty());
+        assert_eq!(
+            metrics.iter().map(|m| &*m.name).collect::<Vec<_>>(),
+            vec!["c:spans/usage@none", "d:spans/exclusive_time@millisecond"]
+        );
     }
 
     #[test]
     fn test_ui_load_initial_display_inlier() {
         let metrics = extract_span_metrics_mobile("ui.load.initial_display", 180000.0);
         assert_eq!(
-            metrics.iter().map(|m| &m.name).collect::<Vec<_>>(),
+            metrics.iter().map(|m| &*m.name).collect::<Vec<_>>(),
             vec![
+                "c:spans/usage@none",
                 "d:spans/exclusive_time@millisecond",
                 "d:spans/exclusive_time_light@millisecond",
-                "c:spans/count_per_op@none",
-                "c:spans/count_per_segment@none"
             ]
         );
     }
@@ -1348,19 +1422,21 @@ mod tests {
     #[test]
     fn test_ui_load_initial_display_outlier() {
         let metrics = extract_span_metrics_mobile("ui.load.initial_display", 181000.0);
-        assert!(metrics.is_empty());
+        assert_eq!(
+            metrics.iter().map(|m| &*m.name).collect::<Vec<_>>(),
+            vec!["c:spans/usage@none", "d:spans/exclusive_time@millisecond"]
+        );
     }
 
     #[test]
     fn test_ui_load_full_display_inlier() {
         let metrics = extract_span_metrics_mobile("ui.load.full_display", 180000.0);
         assert_eq!(
-            metrics.iter().map(|m| &m.name).collect::<Vec<_>>(),
+            metrics.iter().map(|m| &*m.name).collect::<Vec<_>>(),
             vec![
+                "c:spans/usage@none",
                 "d:spans/exclusive_time@millisecond",
                 "d:spans/exclusive_time_light@millisecond",
-                "c:spans/count_per_op@none",
-                "c:spans/count_per_segment@none"
             ]
         );
     }
@@ -1368,7 +1444,10 @@ mod tests {
     #[test]
     fn test_ui_load_full_display_outlier() {
         let metrics = extract_span_metrics_mobile("ui.load.full_display", 181000.0);
-        assert!(metrics.is_empty());
+        assert_eq!(
+            metrics.iter().map(|m| &*m.name).collect::<Vec<_>>(),
+            vec!["c:spans/usage@none", "d:spans/exclusive_time@millisecond"]
+        );
     }
 
     #[test]
@@ -1391,18 +1470,13 @@ mod tests {
 
         assert!(!metrics.is_empty());
         for metric in metrics {
-            if metric.name == "c:spans/count_per_op@none"
-                || metric.name == "c:spans/count_per_segment@none"
-            {
-                continue;
-            }
-            if metric.name == "d:spans/exclusive_time_light@millisecond" {
+            if &*metric.name == "d:spans/exclusive_time@millisecond" {
+                assert_eq!(metric.tag("ttid"), Some("ttid"));
+                assert_eq!(metric.tag("ttfd"), Some("ttfd"));
+            } else {
                 assert!(!metric.tags.contains_key("ttid"));
                 assert!(!metric.tags.contains_key("ttfd"));
-                continue;
             }
-            assert_eq!(metric.tag("ttid"), Some("ttid"));
-            assert_eq!(metric.tag("ttfd"), Some("ttfd"));
         }
     }
 
@@ -1438,7 +1512,60 @@ mod tests {
             "d:spans/webvital.score.total@ratio",
             "d:spans/webvital.score.weight.inp@ratio",
         ] {
-            assert!(metrics.iter().any(|b| b.name == mri));
+            assert!(metrics.iter().any(|b| &*b.name == mri));
+            assert!(metrics.iter().any(|b| b.tags.contains_key("browser.name")));
+            assert!(metrics.iter().any(|b| b.tags.contains_key("span.op")));
         }
+    }
+
+    #[test]
+    fn extracts_span_metrics_from_transaction() {
+        let event = r#"
+            {
+                "type": "transaction",
+                "timestamp": "2021-04-26T08:00:05+0100",
+                "start_timestamp": "2021-04-26T08:00:00+0100",
+                "transaction": "my_transaction",
+                "contexts": {
+                    "trace": {
+                        "exclusive_time": 5000.0,
+                        "op": "db.query",
+                        "status": "ok"
+                    }
+                }
+            }
+            "#;
+        let event = Annotated::<Event>::from_json(event).unwrap();
+
+        // Create a project config with the relevant feature flag. Sanitize to fill defaults.
+        let mut project = ProjectConfig {
+            features: [Feature::ExtractSpansAndSpanMetricsFromEvent]
+                .into_iter()
+                .collect(),
+            ..ProjectConfig::default()
+        };
+        project.sanitize();
+
+        let config = project.metric_extraction.ok().unwrap();
+        let metrics = extract_metrics(event.value().unwrap(), false, &config, 200, None);
+
+        assert_eq!(metrics.len(), 4);
+        assert_eq!(&*metrics[0].name, "c:spans/usage@none");
+
+        assert_eq!(&*metrics[1].name, "d:spans/exclusive_time@millisecond");
+        assert_debug_snapshot!(metrics[1].tags, @r###"
+        {
+            "span.category": "db",
+            "span.op": "db.query",
+            "transaction": "my_transaction",
+            "transaction.op": "db.query",
+        }
+        "###);
+        assert_eq!(
+            &*metrics[2].name,
+            "d:spans/exclusive_time_light@millisecond"
+        );
+
+        assert_eq!(&*metrics[3].name, "d:spans/duration@millisecond");
     }
 }

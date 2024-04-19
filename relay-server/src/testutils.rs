@@ -7,17 +7,21 @@ use relay_dynamic_config::ErrorBoundary;
 use relay_event_schema::protocol::EventId;
 use relay_protocol::RuleCondition;
 use relay_sampling::config::{DecayingFunction, RuleId, RuleType, SamplingRule, SamplingValue};
+
 use relay_sampling::{DynamicSamplingContext, SamplingConfig};
 use relay_system::Addr;
 use relay_test::mock_service;
 
 use crate::envelope::{Envelope, Item, ItemType};
 use crate::extractors::RequestMeta;
+use crate::metric_stats::MetricStats;
 use crate::services::global_config::GlobalConfigHandle;
 use crate::services::outcome::TrackOutcome;
-use crate::services::processor::EnvelopeProcessorService;
+use crate::services::processor::{self, EnvelopeProcessorService};
 use crate::services::project::ProjectState;
 use crate::services::test_store::TestStore;
+#[cfg(feature = "processing")]
+use crate::utils::BufferGuard;
 
 pub fn state_with_rule_and_condition(
     sample_rate: Option<f64>,
@@ -115,8 +119,7 @@ pub fn create_test_processor(config: Config) -> EnvelopeProcessorService {
     let (project_cache, _) = mock_service("project_cache", (), |&mut (), _| {});
     let (upstream_relay, _) = mock_service("upstream_relay", (), |&mut (), _| {});
     let (test_store, _) = mock_service("test_store", (), |&mut (), _| {});
-    #[cfg(feature = "processing")]
-    let (_aggregator, _) = mock_service("aggregator", (), |&mut (), _| {});
+    let (aggregator, _) = mock_service("aggregator", (), |&mut (), _| {});
 
     #[cfg(feature = "processing")]
     let redis = config
@@ -124,20 +127,31 @@ pub fn create_test_processor(config: Config) -> EnvelopeProcessorService {
         .filter(|_| config.processing_enabled())
         .map(|redis_config| relay_redis::RedisPool::new(redis_config).unwrap());
 
+    let config = Arc::new(config);
     EnvelopeProcessorService::new(
-        Arc::new(config),
+        Arc::clone(&config),
         GlobalConfigHandle::fixed(Default::default()),
         Cogs::noop(),
         #[cfg(feature = "processing")]
         redis,
-        outcome_aggregator,
-        project_cache,
-        upstream_relay,
-        test_store,
+        processor::Addrs {
+            envelope_processor: Addr::dummy(),
+            outcome_aggregator,
+            project_cache,
+            upstream_relay,
+            test_store,
+            #[cfg(feature = "processing")]
+            aggregator: aggregator.clone(),
+            #[cfg(feature = "processing")]
+            store_forwarder: None,
+        },
+        MetricStats::new(
+            config,
+            GlobalConfigHandle::fixed(Default::default()),
+            aggregator,
+        ),
         #[cfg(feature = "processing")]
-        _aggregator,
-        #[cfg(feature = "processing")]
-        None,
+        Arc::new(BufferGuard::new(usize::MAX)),
     )
 }
 

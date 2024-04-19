@@ -152,7 +152,7 @@ pub struct TransactionInfo {
     /// The unmodified transaction name as obtained by the source.
     ///
     /// This value will only be set if the transaction name was modified during event processing.
-    #[metastructure(max_chars = "culprit", trim_whitespace = "true")]
+    #[metastructure(max_chars = 200, trim_whitespace = "true")]
     pub original: Annotated<String>,
 
     /// A list of changes prior to the final transaction name.

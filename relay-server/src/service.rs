@@ -2,6 +2,7 @@ use std::convert::Infallible;
 use std::fmt;
 use std::sync::Arc;
 
+use crate::metric_stats::MetricStats;
 use anyhow::{Context, Result};
 use axum::extract::FromRequestParts;
 use axum::http::request::Parts;
@@ -18,7 +19,7 @@ use crate::services::global_config::{GlobalConfigManager, GlobalConfigService};
 use crate::services::health_check::{HealthCheck, HealthCheckService};
 use crate::services::outcome::{OutcomeProducer, OutcomeProducerService, TrackOutcome};
 use crate::services::outcome_aggregator::OutcomeAggregator;
-use crate::services::processor::{EnvelopeProcessor, EnvelopeProcessorService};
+use crate::services::processor::{self, EnvelopeProcessor, EnvelopeProcessorService};
 use crate::services::project_cache::{ProjectCache, ProjectCacheService, Services};
 use crate::services::relays::{RelayCache, RelayCacheService};
 #[cfg(feature = "processing")]
@@ -106,7 +107,7 @@ impl ServiceState {
             _ => None,
         };
 
-        let buffer = Arc::new(BufferGuard::new(config.envelope_buffer_size()));
+        let buffer_guard = Arc::new(BufferGuard::new(config.envelope_buffer_size()));
 
         // Create an address for the `EnvelopeProcessor`, which can be injected into the
         // other services.
@@ -136,6 +137,12 @@ impl ServiceState {
         )
         .start_in(&runtimes.aggregator);
 
+        let metric_stats = MetricStats::new(
+            config.clone(),
+            global_config_handle.clone(),
+            aggregator.clone(),
+        );
+
         #[cfg(feature = "processing")]
         let store = match runtimes.store {
             Some(ref rt) => Some(
@@ -143,6 +150,7 @@ impl ServiceState {
                     config.clone(),
                     global_config_handle.clone(),
                     outcome_aggregator.clone(),
+                    metric_stats.clone(),
                 )?
                 .start_in(rt),
             ),
@@ -162,14 +170,20 @@ impl ServiceState {
             cogs,
             #[cfg(feature = "processing")]
             redis_pool.clone(),
-            outcome_aggregator.clone(),
-            project_cache.clone(),
-            upstream_relay.clone(),
-            test_store.clone(),
+            processor::Addrs {
+                envelope_processor: processor.clone(),
+                project_cache: project_cache.clone(),
+                outcome_aggregator: outcome_aggregator.clone(),
+                upstream_relay: upstream_relay.clone(),
+                test_store: test_store.clone(),
+                #[cfg(feature = "processing")]
+                aggregator: aggregator.clone(),
+                #[cfg(feature = "processing")]
+                store_forwarder: store.clone(),
+            },
+            metric_stats.clone(),
             #[cfg(feature = "processing")]
-            aggregator.clone(),
-            #[cfg(feature = "processing")]
-            store.clone(),
+            buffer_guard.clone(),
         )
         .spawn_handler(processor_rx);
 
@@ -186,8 +200,9 @@ impl ServiceState {
         let guard = runtimes.project.enter();
         ProjectCacheService::new(
             config.clone(),
-            buffer.clone(),
+            buffer_guard.clone(),
             project_cache_services,
+            metric_stats,
             redis_pool,
         )
         .spawn_handler(project_cache_rx);
@@ -222,7 +237,7 @@ impl ServiceState {
         };
 
         let state = StateInner {
-            buffer_guard: buffer,
+            buffer_guard,
             config,
             registry,
         };
@@ -307,10 +322,10 @@ impl Runtimes {
     #[allow(unused_variables)]
     pub fn new(config: &Config) -> Self {
         Self {
-            upstream: create_runtime("upstream-rt", 1),
+            upstream: create_runtime("upstream-rt", 2),
             project: create_runtime("project-rt", 2),
-            aggregator: create_runtime("aggregator-rt", 1),
-            outcome: create_runtime("outcome-rt", 1),
+            aggregator: create_runtime("aggregator-rt", 2),
+            outcome: create_runtime("outcome-rt", 2),
             #[cfg(feature = "processing")]
             store: config
                 .processing_enabled()

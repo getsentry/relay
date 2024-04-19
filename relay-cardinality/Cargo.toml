@@ -4,7 +4,7 @@ authors = ["Sentry <oss@sentry.io>"]
 description = "Metrics Cardinality Limiter"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "24.2.0"
+version = "24.4.1"
 edition = "2021"
 license-file = "../LICENSE"
 publish = false
@@ -14,14 +14,18 @@ autobenches = false
 default = []
 redis = ["relay-redis/impl"]
 
+[lints]
+workspace = true
+
 [dependencies]
+hash32 = { workspace = true }
 hashbrown = { workspace = true }
 parking_lot = { workspace = true }
-relay-base-schema = { path = "../relay-base-schema" }
-relay-common = { path = "../relay-common" }
-relay-log = { path = "../relay-log" }
-relay-redis = { path = "../relay-redis" }
-relay-statsd = { path = "../relay-statsd" }
+relay-base-schema = { workspace = true }
+relay-common = { workspace = true }
+relay-log = { workspace = true }
+relay-redis = { workspace = true }
+relay-statsd = { workspace = true }
 serde = { workspace = true }
 thiserror = { workspace = true }
 

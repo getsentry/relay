@@ -1,15 +1,15 @@
 #[cfg(feature = "jsonschema")]
 use relay_jsonschema_derive::JsonSchema;
-use relay_protocol::{Annotated, Array, Empty, FromValue, IntoValue, Value};
+use relay_protocol::{Annotated, Array, Empty, FromValue, IntoValue, Object, Value};
 
 use crate::processor::ProcessValue;
-use crate::protocol::{AsPair, LenientString, PairList};
+use crate::protocol::{AsPair, JsonLenientString, LenientString, PairList};
 
 #[derive(Clone, Debug, Default, PartialEq, Empty, IntoValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct TagEntry(
-    #[metastructure(max_chars = "tag_key", allow_chars = "a-zA-Z0-9_.:-")] pub Annotated<String>,
-    #[metastructure(max_chars = "tag_value", deny_chars = "\n")] pub Annotated<String>,
+    #[metastructure(max_chars = 200, allow_chars = "a-zA-Z0-9_.:-")] pub Annotated<String>,
+    #[metastructure(max_chars = 200, deny_chars = "\n")] pub Annotated<String>,
 );
 
 impl AsPair for TagEntry {
@@ -73,6 +73,30 @@ impl std::ops::Deref for Tags {
 impl std::ops::DerefMut for Tags {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
+    }
+}
+
+impl<T: Into<String>> From<Object<T>> for Tags {
+    fn from(value: Object<T>) -> Self {
+        Self(PairList(
+            value
+                .into_iter()
+                .map(|(k, v)| TagEntry(k.into(), v.map_value(|s| s.into())))
+                .map(Annotated::new)
+                .collect(),
+        ))
+    }
+}
+
+impl From<Tags> for Object<JsonLenientString> {
+    fn from(value: Tags) -> Self {
+        value
+            .0
+             .0
+            .into_iter()
+            .flat_map(Annotated::into_value)
+            .flat_map(|p| Some((p.0.into_value()?, p.1.map_value(Into::into))))
+            .collect()
     }
 }
 

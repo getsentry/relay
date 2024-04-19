@@ -19,7 +19,7 @@ use crate::services::processor::{
     profile, EventProcessing, ProcessEnvelopeState, TransactionGroup,
 };
 use crate::statsd::RelayCounters;
-use crate::utils::{self, ItemAction, SamplingResult};
+use crate::utils::{self, sample, ItemAction, SamplingResult};
 
 /// Ensures there is a valid dynamic sampling context and corresponding project state.
 ///
@@ -280,7 +280,7 @@ fn forward_unsampled_profiles(
             .profile_metrics_allowed_platforms
             .iter()
             .any(|s| s == event_platform)
-        && rand::random::<f32>() < global_options.profile_metrics_sample_rate
+        && sample(global_options.profile_metrics_sample_rate)
 }
 
 #[cfg(test)]
@@ -298,7 +298,7 @@ mod tests {
     use relay_sampling::evaluation::{ReservoirCounters, SamplingMatch};
     use uuid::Uuid;
 
-    use crate::envelope::{ContentType, Envelope, Item, ItemType};
+    use crate::envelope::{ContentType, Envelope, Item};
     use crate::extractors::RequestMeta;
     use crate::services::processor::{ProcessEnvelope, ProcessingGroup};
     use crate::services::project::ProjectState;
@@ -497,6 +497,7 @@ mod tests {
                 profile_id: None,
                 event_metrics_extracted: false,
                 reservoir: dummy_reservoir(),
+                spans_extracted: false,
             }
         };
 

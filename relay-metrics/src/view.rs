@@ -3,8 +3,10 @@ use serde::ser::{SerializeMap, SerializeSeq};
 use serde::Serialize;
 
 use crate::{
-    aggregator, BucketMetadata, CounterType, DistributionType, GaugeValue, SetType, SetValue,
+    aggregator, BucketMetadata, CounterType, DistributionType, GaugeValue, MetricName, SetType,
+    SetValue,
 };
+use relay_base_schema::metrics::MetricType;
 use std::collections::BTreeMap;
 use std::fmt;
 use std::ops::Range;
@@ -372,7 +374,7 @@ impl<'a> BucketView<'a> {
     /// Name of the bucket.
     ///
     /// See also: [`Bucket::name`]
-    pub fn name(&self) -> &'a str {
+    pub fn name(&self) -> &'a MetricName {
         &self.inner.name
     }
 
@@ -383,6 +385,16 @@ impl<'a> BucketView<'a> {
             BucketValue::Distribution(d) => BucketViewValue::Distribution(&d[self.range.clone()]),
             BucketValue::Set(s) => BucketViewValue::Set(SetView::new(s, self.range.clone())),
             BucketValue::Gauge(g) => BucketViewValue::Gauge(*g),
+        }
+    }
+
+    /// Type of the value of the bucket view.
+    pub fn ty(&self) -> MetricType {
+        match &self.inner.value {
+            BucketValue::Counter(_) => MetricType::Counter,
+            BucketValue::Distribution(_) => MetricType::Distribution,
+            BucketValue::Set(_) => MetricType::Set,
+            BucketValue::Gauge(_) => MetricType::Gauge,
         }
     }
 
@@ -709,7 +721,6 @@ fn split_at(bucket: &BucketView<'_>, max_size: usize, min_split_size: usize) -> 
 #[cfg(test)]
 mod tests {
     use insta::assert_json_snapshot;
-    use relay_common::time::UnixTimestamp;
 
     use super::*;
 

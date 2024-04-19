@@ -6,7 +6,9 @@ use relay_config::{Config, RelayMode};
 use relay_metrics::{AcceptsMetrics, Aggregator};
 use relay_statsd::metric;
 use relay_system::{Addr, AsyncResponse, Controller, FromMessage, Interface, Sender, Service};
+use std::future::Future;
 use sysinfo::{MemoryRefreshKind, RefreshKind, System};
+use tokio::time::timeout;
 
 use crate::services::project_cache::{ProjectCache, SpoolHealth};
 use crate::services::upstream::{IsAuthenticated, IsNetworkOutage, UpstreamRelay};
@@ -41,17 +43,6 @@ pub enum Status {
     Healthy,
     /// Relay is unhealthy.
     Unhealthy,
-}
-
-impl Status {
-    /// Internal helper to report/log failing health checks.
-    fn report(self, probe: &'static str) -> Self {
-        if matches!(self, Self::Unhealthy) {
-            relay_log::error!("Health check probe '{probe}' failed");
-        }
-
-        self
-    }
 }
 
 impl From<bool> for Status {
@@ -161,7 +152,6 @@ impl HealthCheckService {
             .send(IsAuthenticated)
             .await
             .map_or(Status::Unhealthy, Status::from)
-            .report("relay authentication")
     }
 
     async fn aggregator_probe(&self) -> Status {
@@ -169,15 +159,27 @@ impl HealthCheckService {
             .send(AcceptsMetrics)
             .await
             .map_or(Status::Unhealthy, Status::from)
-            .report("aggregator accept metrics")
     }
 
-    async fn project_cache_probe(&self) -> Status {
+    async fn spool_health_probe(&self) -> Status {
         self.project_cache
             .send(SpoolHealth)
             .await
             .map_or(Status::Unhealthy, Status::from)
-            .report("project cache spool health")
+    }
+
+    async fn probe(&self, name: &'static str, fut: impl Future<Output = Status>) -> Status {
+        match timeout(self.config.health_probe_timeout(), fut).await {
+            Err(_) => {
+                relay_log::error!("Health check probe '{name}' timed out");
+                Status::Unhealthy
+            }
+            Ok(Status::Unhealthy) => {
+                relay_log::error!("Health check probe '{name}' failed");
+                Status::Unhealthy
+            }
+            Ok(Status::Healthy) => Status::Healthy,
+        }
     }
 
     async fn handle_is_healthy(&self, message: IsHealthy) -> Status {
@@ -201,10 +203,10 @@ impl HealthCheckService {
         }
 
         let (sys_mem, auth, agg, proj) = tokio::join!(
-            self.system_memory_probe(),
-            self.auth_probe(),
-            self.aggregator_probe(),
-            self.project_cache_probe(),
+            self.probe("system memory", self.system_memory_probe()),
+            self.probe("auth", self.auth_probe()),
+            self.probe("aggregator", self.aggregator_probe()),
+            self.probe("spool health", self.spool_health_probe()),
         );
 
         Status::from_iter([sys_mem, auth, agg, proj])

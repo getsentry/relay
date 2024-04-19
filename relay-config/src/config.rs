@@ -1,5 +1,4 @@
 use std::collections::{BTreeMap, HashMap};
-use std::convert::TryInto;
 use std::error::Error;
 use std::io::Write;
 use std::net::{IpAddr, SocketAddr, ToSocketAddrs};
@@ -12,7 +11,8 @@ use anyhow::Context;
 use relay_auth::{generate_key_pair, generate_relay_id, PublicKey, RelayId, SecretKey};
 use relay_common::Dsn;
 use relay_kafka::{
-    ConfigError as KafkaConfigError, KafkaConfig, KafkaConfigParam, KafkaTopic, TopicAssignments,
+    ConfigError as KafkaConfigError, KafkaConfigParam, KafkaParams, KafkaTopic, TopicAssignment,
+    TopicAssignments,
 };
 use relay_metrics::aggregator::{AggregatorConfig, ShiftKey};
 use relay_metrics::{
@@ -1037,6 +1037,36 @@ impl Default for Processing {
     }
 }
 
+/// Configuration for normalization in this Relay.
+#[derive(Debug, Default, Serialize, Deserialize)]
+#[serde(default)]
+pub struct Normalization {
+    /// Level of normalization for Relay to apply to incoming data.
+    #[serde(default)]
+    pub level: NormalizationLevel,
+}
+
+/// Configuration for the level of normalization this Relay should do.
+#[derive(Copy, Clone, Debug, Default, Serialize, Deserialize, Eq, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum NormalizationLevel {
+    /// Disables normalization for events coming from internal Relays.
+    ///
+    /// Processing relays still do full normalization for events coming from
+    /// non-internal Relays.
+    Disabled,
+    /// Runs normalization, excluding steps that break future compatibility.
+    ///
+    /// Processing Relays run [`NormalizationLevel::Full`] if this option is set.
+    #[default]
+    Default,
+    /// Run full normalization.
+    ///
+    /// It includes steps that break future compatibility and should only run in
+    /// the last layer of relays.
+    Full,
+}
+
 /// Configuration values for the outcome aggregator
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(default)]
@@ -1319,6 +1349,13 @@ pub struct Health {
     ///
     /// Defaults to `0.95` (95%).
     pub max_memory_percent: f32,
+    /// Health check probe timeout in milliseconds.
+    ///
+    /// Any probe exceeding the timeout will be considered failed.
+    /// This limits the max execution time of Relay health checks.
+    ///
+    /// Defaults to 900 milliseconds.
+    pub probe_timeout_ms: u64,
 }
 
 impl Default for Health {
@@ -1327,6 +1364,7 @@ impl Default for Health {
             sys_info_refresh_interval_secs: 3,
             max_memory_bytes: None,
             max_memory_percent: 0.95,
+            probe_timeout_ms: 900,
         }
     }
 }
@@ -1410,6 +1448,8 @@ struct ConfigValues {
     aws: AwsConfig,
     #[serde(default)]
     geoip: GeoIpConfig,
+    #[serde(default)]
+    normalization: Normalization,
     #[serde(default)]
     cardinality_limiter: CardinalityLimiter,
     #[serde(default)]
@@ -2164,6 +2204,11 @@ impl Config {
         self.values.processing.enabled
     }
 
+    /// Level of normalization for Relay to apply to incoming data.
+    pub fn normalization_level(&self) -> NormalizationLevel {
+        self.values.normalization.level
+    }
+
     /// The path to the GeoIp database required for event processing.
     pub fn geoip_path(&self) -> Option<&Path> {
         self.values
@@ -2191,11 +2236,16 @@ impl Config {
     }
 
     /// Configuration name and list of Kafka configuration parameters for a given topic.
-    pub fn kafka_config(&self, topic: KafkaTopic) -> Result<KafkaConfig, KafkaConfigError> {
+    pub fn kafka_config(&self, topic: KafkaTopic) -> Result<KafkaParams, KafkaConfigError> {
         self.values.processing.topics.get(topic).kafka_config(
             &self.values.processing.kafka_config,
             &self.values.processing.secondary_kafka_configs,
         )
+    }
+
+    /// All unused but configured topic assignments.
+    pub fn unused_topic_assignments(&self) -> &BTreeMap<String, TopicAssignment> {
+        &self.values.processing.topics.unused
     }
 
     /// Redis servers to connect to, for rate limiting.
@@ -2253,6 +2303,11 @@ impl Config {
     /// Maximum memory watermark as a percentage of maximum system memory.
     pub fn health_max_memory_watermark_percent(&self) -> f32 {
         self.values.health.max_memory_percent
+    }
+
+    /// Health check probe timeout.
+    pub fn health_probe_timeout(&self) -> Duration {
+        Duration::from_millis(self.values.health.probe_timeout_ms)
     }
 
     /// Whether COGS measurements are enabled.

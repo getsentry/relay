@@ -1,3 +1,6 @@
+use std::fmt;
+use std::str::FromStr;
+
 #[cfg(feature = "jsonschema")]
 use relay_jsonschema_derive::JsonSchema;
 use relay_protocol::{Annotated, Empty, Error, FromValue, IntoValue, Object, Value};
@@ -42,6 +45,22 @@ impl AsRef<str> for TraceId {
 #[derive(Clone, Debug, Default, Eq, Hash, PartialEq, Empty, IntoValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct SpanId(pub String);
+
+relay_common::impl_str_serde!(SpanId, "a span identifier");
+
+impl FromStr for SpanId {
+    type Err = Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(SpanId(s.to_string()))
+    }
+}
+
+impl fmt::Display for SpanId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
 
 impl FromValue for SpanId {
     fn from_value(value: Annotated<Value>) -> Annotated<Self> {
@@ -92,7 +111,7 @@ pub struct TraceContext {
     pub parent_span_id: Annotated<SpanId>,
 
     /// Span type (see `OperationType` docs).
-    #[metastructure(max_chars = "enumlike")]
+    #[metastructure(max_chars = 128)]
     pub op: Annotated<OperationType>,
 
     /// Whether the trace failed or succeeded. Currently only used to indicate status of individual
@@ -110,7 +129,7 @@ pub struct TraceContext {
     pub client_sample_rate: Annotated<f64>,
 
     /// The origin of the trace indicates what created the trace (see [OriginType] docs).
-    #[metastructure(max_chars = "enumlike", allow_chars = "a-zA-Z0-9_.")]
+    #[metastructure(max_chars = 128, allow_chars = "a-zA-Z0-9_.")]
     pub origin: Annotated<OriginType>,
 
     /// Track whether the trace connected to this event has been sampled entirely.
@@ -160,7 +179,12 @@ pub struct Route {
     #[metastructure(pii = "maybe", skip_serialization = "empty")]
     name: Annotated<String>,
     /// Parameters assigned to this route.
-    #[metastructure(pii = "true", skip_serialization = "empty", bag_size = "medium")]
+    #[metastructure(
+        pii = "true",
+        skip_serialization = "empty",
+        max_depth = 5,
+        max_bytes = 2048
+    )]
     params: Annotated<Object<Value>>,
 
     /// Additional arbitrary fields for forwards compatibility.

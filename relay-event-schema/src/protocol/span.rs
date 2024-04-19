@@ -1,11 +1,13 @@
+mod convert;
+
 #[cfg(feature = "jsonschema")]
 use relay_jsonschema_derive::JsonSchema;
 use relay_protocol::{Annotated, Empty, FromValue, Getter, IntoValue, Object, Val, Value};
 
 use crate::processor::ProcessValue;
 use crate::protocol::{
-    Event, EventId, JsonLenientString, Measurements, MetricsSummary, OperationType, OriginType,
-    ProfileContext, SpanId, SpanStatus, Timestamp, TraceContext, TraceId,
+    EventId, JsonLenientString, LenientString, Measurements, MetricsSummary, OperationType,
+    OriginType, SpanId, SpanStatus, Timestamp, TraceId,
 };
 
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
@@ -29,7 +31,7 @@ pub struct Span {
     pub description: Annotated<String>,
 
     /// Span type (see `OperationType` docs).
-    #[metastructure(max_chars = "enumlike")]
+    #[metastructure(max_chars = 128)]
     pub op: Annotated<OperationType>,
 
     /// The Span id.
@@ -60,7 +62,7 @@ pub struct Span {
     pub tags: Annotated<Object<JsonLenientString>>,
 
     /// The origin of the span indicates what created the span (see [OriginType] docs).
-    #[metastructure(max_chars = "enumlike", allow_chars = "a-zA-Z0-9_.")]
+    #[metastructure(max_chars = 128, allow_chars = "a-zA-Z0-9_.")]
     pub origin: Annotated<OriginType>,
 
     /// ID of a profile that can be associated with the span.
@@ -93,46 +95,18 @@ pub struct Span {
 
     /// Platform identifier.
     ///
-    /// See [`Event::platform`].
+    /// See [`Event::platform`](`crate::protocol::Event::platform`).
     #[metastructure(skip_serialization = "empty")]
     pub platform: Annotated<String>,
+
+    /// Whether the span is a segment span that was converted from a transaction.
+    #[metastructure(skip_serialization = "empty")]
+    pub was_transaction: Annotated<bool>,
 
     // TODO remove retain when the api stabilizes
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(additional_properties, retain = "true", pii = "maybe")]
     pub other: Object<Value>,
-}
-
-impl From<&Event> for Span {
-    fn from(event: &Event) -> Self {
-        let mut span = Self {
-            _metrics_summary: event._metrics_summary.clone(),
-            description: event.transaction.clone(),
-            is_segment: Some(true).into(),
-            received: event.received.clone(),
-            start_timestamp: event.start_timestamp.clone(),
-            timestamp: event.timestamp.clone(),
-            measurements: event.measurements.clone(),
-            platform: event.platform.clone(),
-            ..Default::default()
-        };
-
-        if let Some(trace_context) = event.context::<TraceContext>().cloned() {
-            span.exclusive_time = trace_context.exclusive_time;
-            span.op = trace_context.op;
-            span.parent_span_id = trace_context.parent_span_id;
-            span.segment_id = trace_context.span_id.clone(); // a transaction is a segment
-            span.span_id = trace_context.span_id;
-            span.status = trace_context.status;
-            span.trace_id = trace_context.trace_id;
-        }
-
-        if let Some(profile_context) = event.context::<ProfileContext>() {
-            span.profile_id = profile_context.profile_id.clone();
-        }
-
-        span
-    }
 }
 
 impl Getter for Span {
@@ -151,6 +125,7 @@ impl Getter for Span {
                 let timestamp = *self.timestamp.value()?;
                 relay_common::time::chrono_to_positive_millis(timestamp - start_timestamp).into()
             }
+            "was_transaction" => self.was_transaction.value().unwrap_or(&false).into(),
             path => {
                 if let Some(key) = path.strip_prefix("tags.") {
                     self.tags.value()?.get(key)?.as_str()?.into()
@@ -226,7 +201,11 @@ pub struct SpanData {
 
     /// The sentry environment.
     #[metastructure(field = "environment")]
-    pub environment: Annotated<Value>,
+    pub environment: Annotated<String>,
+
+    /// The release version of the project.
+    #[metastructure(field = "release")]
+    pub release: Annotated<LenientString>,
 
     /// The decoded body size of the response (in bytes).
     #[metastructure(field = "http.decoded_response_content_length")]
@@ -252,13 +231,41 @@ pub struct SpanData {
     #[metastructure(field = "resource.render_blocking_status")]
     pub resource_render_blocking_status: Annotated<Value>,
 
-    /// Name of the database host.
+    /// Name of the web server host.
     #[metastructure(field = "server.address")]
     pub server_address: Annotated<Value>,
+
+    /// Whether cache was hit or miss on a read operation.
+    #[metastructure(field = "cache.hit")]
+    pub cache_hit: Annotated<Value>,
+
+    /// The size of the cache item.
+    #[metastructure(field = "cache.item_size")]
+    pub cache_item_size: Annotated<Value>,
 
     /// The status HTTP response.
     #[metastructure(field = "http.response.status_code", legacy_alias = "status_code")]
     pub http_response_status_code: Annotated<Value>,
+
+    /// The input messages to an AI model call
+    #[metastructure(field = "ai.input_messages")]
+    pub ai_input_messages: Annotated<Value>,
+
+    /// The number of tokens used to generate the response to an AI call
+    #[metastructure(field = "ai.completion_tokens.used", pii = "false")]
+    pub ai_completion_tokens_used: Annotated<Value>,
+
+    /// The number of tokens used to process a request for an AI call
+    #[metastructure(field = "ai.prompt_tokens.used", pii = "false")]
+    pub ai_prompt_tokens_used: Annotated<Value>,
+
+    /// The total number of tokens used to for an AI call
+    #[metastructure(field = "ai.total_tokens.used", pii = "false")]
+    pub ai_total_tokens_used: Annotated<Value>,
+
+    /// The responses to an AI model call
+    #[metastructure(field = "ai.responses")]
+    pub ai_responses: Annotated<Value>,
 
     /// Label identifying a thread from where the span originated.
     #[metastructure(field = "thread.name")]
@@ -301,7 +308,7 @@ impl Getter for SpanData {
             "code\\.namespace" => self.code_namespace.value()?.into(),
             "db.operation" => self.db_operation.value()?.into(),
             "db\\.system" => self.db_system.value()?.into(),
-            "environment" => self.environment.value()?.into(),
+            "environment" => self.environment.as_str()?.into(),
             "http\\.decoded_response_content_length" => {
                 self.http_decoded_response_content_length.value()?.into()
             }
@@ -344,8 +351,8 @@ impl Getter for SpanData {
 mod tests {
     use crate::protocol::Measurement;
     use chrono::{TimeZone, Utc};
-    use insta::assert_debug_snapshot;
     use relay_base_schema::metrics::{InformationUnit, MetricUnit};
+    use relay_protocol::RuleCondition;
     use similar_asserts::assert_eq;
 
     use super::*;
@@ -429,83 +436,30 @@ mod tests {
     }
 
     #[test]
-    fn span_from_event() {
-        let event = Annotated::<Event>::from_json(
-            r#"{
-                "contexts": {
-                    "profile": {"profile_id": "a0aaaaaaaaaaaaaaaaaaaaaaaaaaaaab"},
-                    "trace": {
-                        "trace_id": "4C79F60C11214EB38604F4AE0781BFB2",
-                        "span_id": "FA90FDEAD5F74052",
-                        "type": "trace"
-                    }
-                },
-                "_metrics_summary": {
-                    "some_metric": [
-                        {
-                            "min": 1.0,
-                            "max": 2.0,
-                            "sum": 3.0,
-                            "count": 2,
-                            "tags": {
-                                "environment": "test"
-                            }
-                        }
-                    ]
-                }
-            }"#,
-        )
-        .unwrap()
-        .into_value()
-        .unwrap();
+    fn test_getter_was_transaction() {
+        let mut span = Span::default();
+        assert_eq!(
+            span.get_value("span.was_transaction"),
+            Some(Val::Bool(false))
+        );
+        assert!(RuleCondition::eq("span.was_transaction", false).matches(&span));
+        assert!(!RuleCondition::eq("span.was_transaction", true).matches(&span));
 
-        assert_debug_snapshot!(Span::from(&event), @r###"
-        Span {
-            timestamp: ~,
-            start_timestamp: ~,
-            exclusive_time: ~,
-            description: ~,
-            op: ~,
-            span_id: SpanId(
-                "fa90fdead5f74052",
-            ),
-            parent_span_id: ~,
-            trace_id: TraceId(
-                "4c79f60c11214eb38604f4ae0781bfb2",
-            ),
-            segment_id: SpanId(
-                "fa90fdead5f74052",
-            ),
-            is_segment: true,
-            status: ~,
-            tags: ~,
-            origin: ~,
-            profile_id: EventId(
-                a0aaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaab,
-            ),
-            data: ~,
-            sentry_tags: ~,
-            received: ~,
-            measurements: ~,
-            _metrics_summary: MetricsSummary(
-                {
-                    "some_metric": [
-                        MetricSummary {
-                            min: 1.0,
-                            max: 2.0,
-                            sum: 3.0,
-                            count: 2,
-                            tags: {
-                                "environment": "test",
-                            },
-                        },
-                    ],
-                },
-            ),
-            platform: ~,
-            other: {},
-        }
-        "###);
+        span.was_transaction.set_value(Some(false));
+        assert_eq!(
+            span.get_value("span.was_transaction"),
+            Some(Val::Bool(false))
+        );
+        assert!(RuleCondition::eq("span.was_transaction", false).matches(&span));
+        assert!(!RuleCondition::eq("span.was_transaction", true).matches(&span));
+
+        span.was_transaction.set_value(Some(true));
+        assert_eq!(
+            span.get_value("span.was_transaction"),
+            Some(Val::Bool(true))
+        );
+        assert!(RuleCondition::eq("span.was_transaction", true).matches(&span));
+        assert!(!RuleCondition::eq("span.was_transaction", false).matches(&span));
     }
 
     #[test]
@@ -559,13 +513,21 @@ mod tests {
                 "mysql",
             ),
             environment: ~,
+            release: ~,
             http_decoded_response_content_length: ~,
             http_request_method: ~,
             http_response_content_length: ~,
             http_response_transfer_size: ~,
             resource_render_blocking_status: ~,
             server_address: ~,
+            cache_hit: ~,
+            cache_item_size: ~,
             http_response_status_code: ~,
+            ai_input_messages: ~,
+            ai_completion_tokens_used: ~,
+            ai_prompt_tokens_used: ~,
+            ai_total_tokens_used: ~,
+            ai_responses: ~,
             thread_name: ~,
             transaction: ~,
             ui_component_name: ~,

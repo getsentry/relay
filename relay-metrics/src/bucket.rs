@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::hash::Hash;
 use std::iter::FusedIterator;
-use std::num::NonZeroU64;
+use std::num::NonZeroU32;
 use std::{fmt, mem};
 
 use hash32::{FnvHasher, Hasher as _};
@@ -11,8 +11,8 @@ use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
 
 use crate::protocol::{
-    self, hash_set_value, CounterType, DistributionType, GaugeType, MetricResourceIdentifier,
-    MetricType, SetType,
+    self, hash_set_value, CounterType, DistributionType, GaugeType, MetricName,
+    MetricResourceIdentifier, MetricType, SetType,
 };
 use crate::{FiniteF64, MetricNamespace, ParseMetricError};
 
@@ -413,10 +413,9 @@ fn parse_tags(string: &str) -> Option<BTreeMap<String, String>> {
             continue;
         }
 
-        let mut value = name_value.next().unwrap_or_default().to_owned();
-        protocol::validate_tag_value(&mut value);
-
-        map.insert(name.to_owned(), value);
+        if let Ok(value) = protocol::unescape_tag_value(name_value.next().unwrap_or_default()) {
+            map.insert(name.to_owned(), value);
+        }
     }
 
     Some(map)
@@ -538,7 +537,7 @@ pub struct Bucket {
     ///
     /// Namespaces and units must consist of ASCII characters and match the regular expression
     /// `/\w+/`. The name component of MRIs consist of unicode characters and must match the
-    /// regular expression `/\w[\w\d_-.]+/`. Note that the name must begin with a letter.
+    /// regular expression `/\w[\w\-.]*/`. Note that the name must begin with a letter.
     ///
     /// Per convention, dots separate metric names into components, where the leading components are
     /// considered namespaces and the final component is the name of the metric within its
@@ -551,7 +550,7 @@ pub struct Bucket {
     /// custom/endpoint.hits:1|c
     /// custom/endpoint.duration@millisecond:21.5|d
     /// ```
-    pub name: String,
+    pub name: MetricName,
 
     /// The type and aggregated values of this bucket.
     ///
@@ -593,8 +592,15 @@ pub struct Bucket {
     /// omitted.
     ///
     /// Tag keys are restricted to ASCII characters and must match the regular expression
-    /// `/[a-zA-Z0-9_/.-]+/`. Tag values can contain unicode characters and must match the regular
-    /// expression `/[\w\d\s_:/@.{}\[\]$-]+/`.
+    /// `/[\w\-.\/]+/`.
+    ///
+    /// Tag values can contain unicode characters with the following escaping rules:
+    ///  - Tab is escaped as `\t`.
+    ///  - Carriage return is escaped as `\r`.
+    ///  - Line feed is escaped as `\n`.
+    ///  - Backslash is escaped as `\\`.
+    ///  - Commas and pipes are given unicode escapes in the form `\u{2c}` and `\u{7c}`,
+    ///    respectively.
     ///
     /// # Example
     ///
@@ -613,11 +619,6 @@ pub struct Bucket {
 }
 
 impl Bucket {
-    /// Returns the [`MetricNamespace`] of the bucket.
-    pub fn parse_namespace(&self) -> Result<MetricNamespace, ParseMetricError> {
-        MetricResourceIdentifier::parse(&self.name).map(|mri| mri.namespace)
-    }
-
     /// Parses a statsd-compatible payload.
     ///
     /// ```text
@@ -640,7 +641,7 @@ impl Bucket {
         let mut bucket = Bucket {
             timestamp,
             width: 0,
-            name: mri.to_string(),
+            name: mri.to_string().into(),
             value,
             tags: Default::default(),
             metadata: Default::default(),
@@ -721,19 +722,11 @@ impl Bucket {
 
 impl CardinalityItem for Bucket {
     fn namespace(&self) -> Option<MetricNamespace> {
-        let mri = match MetricResourceIdentifier::parse(&self.name) {
-            Err(error) => {
-                relay_log::debug!(
-                    error = &error as &dyn std::error::Error,
-                    metric = self.name,
-                    "rejecting metric with invalid MRI"
-                );
-                return None;
-            }
-            Ok(mri) => mri,
-        };
+        self.name.try_namespace()
+    }
 
-        Some(mri.namespace)
+    fn name(&self) -> &MetricName {
+        &self.name
     }
 
     fn to_hash(&self) -> u32 {
@@ -754,7 +747,7 @@ pub struct BucketMetadata {
     ///
     /// For example: Merging two un-merged buckets will yield a total
     /// of `2` merges.
-    pub merges: NonZeroU64,
+    pub merges: NonZeroU32,
 }
 
 impl BucketMetadata {
@@ -763,14 +756,14 @@ impl BucketMetadata {
     /// The new metadata is initialized with `1` merge.
     pub fn new() -> Self {
         Self {
-            merges: NonZeroU64::MIN,
+            merges: NonZeroU32::MIN,
         }
     }
 
     /// Whether the metadata does not contain more information than the default.
     pub fn is_default(&self) -> bool {
         let Self { merges } = self;
-        *merges == NonZeroU64::MIN
+        *merges == NonZeroU32::MIN
     }
 
     /// Merges another metadata object into the current one.
@@ -905,7 +898,9 @@ mod tests {
         Bucket {
             timestamp: UnixTimestamp(4711),
             width: 0,
-            name: "c:transactions/foo@none",
+            name: MetricName(
+                "c:transactions/foo@none",
+            ),
             value: Counter(
                 42.0,
             ),
@@ -934,7 +929,9 @@ mod tests {
         Bucket {
             timestamp: UnixTimestamp(4711),
             width: 0,
-            name: "d:transactions/foo@none",
+            name: MetricName(
+                "d:transactions/foo@none",
+            ),
             value: Distribution(
                 [
                     17.5,
@@ -983,7 +980,9 @@ mod tests {
         Bucket {
             timestamp: UnixTimestamp(4711),
             width: 0,
-            name: "s:transactions/foo@none",
+            name: MetricName(
+                "s:transactions/foo@none",
+            ),
             value: Set(
                 {
                     4267882815,
@@ -1036,7 +1035,9 @@ mod tests {
         Bucket {
             timestamp: UnixTimestamp(4711),
             width: 0,
-            name: "g:transactions/foo@none",
+            name: MetricName(
+                "g:transactions/foo@none",
+            ),
             value: Gauge(
                 GaugeValue {
                     last: 42.0,
@@ -1063,7 +1064,9 @@ mod tests {
         Bucket {
             timestamp: UnixTimestamp(4711),
             width: 0,
-            name: "g:transactions/foo@none",
+            name: MetricName(
+                "g:transactions/foo@none",
+            ),
             value: Gauge(
                 GaugeValue {
                     last: 25.0,
@@ -1090,7 +1093,9 @@ mod tests {
         Bucket {
             timestamp: UnixTimestamp(4711),
             width: 0,
-            name: "c:custom/foo@none",
+            name: MetricName(
+                "c:custom/foo@none",
+            ),
             value: Counter(
                 42.0,
             ),
@@ -1134,6 +1139,18 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_tags_escaped() {
+        let s = "transactions/foo:17.5|d|#foo:😅\\u{2c}🚀";
+        let timestamp = UnixTimestamp::from_secs(4711);
+        let metric = Bucket::parse(s.as_bytes(), timestamp).unwrap();
+        insta::assert_debug_snapshot!(metric.tags, @r#"
+            {
+                "foo": "😅,🚀",
+            }
+            "#);
+    }
+
+    #[test]
     fn test_parse_timestamp() {
         let s = "transactions/foo:17.5|d|T1615889449";
         let timestamp = UnixTimestamp::from_secs(4711);
@@ -1154,7 +1171,7 @@ mod tests {
         let s = "foo#bar:42|c";
         let timestamp = UnixTimestamp::from_secs(4711);
         let metric = Bucket::parse(s.as_bytes(), timestamp).unwrap();
-        assert_eq!(metric.name, "c:custom/foo_bar@none");
+        assert_eq!(metric.name.as_ref(), "c:custom/foo_bar@none");
     }
 
     #[test]
@@ -1264,7 +1281,9 @@ mod tests {
             Bucket {
                 timestamp: UnixTimestamp(1615889440),
                 width: 10,
-                name: "endpoint.response_time",
+                name: MetricName(
+                    "endpoint.response_time",
+                ),
                 value: Distribution(
                     [
                         36.0,
@@ -1302,7 +1321,9 @@ mod tests {
             Bucket {
                 timestamp: UnixTimestamp(1615889440),
                 width: 10,
-                name: "endpoint.hits",
+                name: MetricName(
+                    "endpoint.hits",
+                ),
                 value: Counter(
                     4.0,
                 ),

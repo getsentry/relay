@@ -6,7 +6,6 @@
 
 use std::borrow::Cow;
 use std::collections::BTreeMap;
-use std::convert::TryInto;
 use std::error::Error;
 use std::net::IpAddr;
 use std::sync::Arc;
@@ -81,6 +80,11 @@ impl OutcomeId {
     const INVALID: OutcomeId = OutcomeId(3);
     const ABUSE: OutcomeId = OutcomeId(4);
     const CLIENT_DISCARD: OutcomeId = OutcomeId(5);
+    const CARDINALITY_LIMITED: OutcomeId = OutcomeId(6);
+
+    pub fn as_u8(self) -> u8 {
+        self.0
+    }
 }
 
 trait TrackOutcomeLike {
@@ -99,6 +103,7 @@ trait TrackOutcomeLike {
             OutcomeId::INVALID => "invalid",
             OutcomeId::ABUSE => "abuse",
             OutcomeId::CLIENT_DISCARD => "client_discard",
+            OutcomeId::CARDINALITY_LIMITED => "cardinality_limited",
             _ => "<unknown>",
         }
     }
@@ -180,12 +185,12 @@ pub enum Outcome {
 
 impl Outcome {
     /// Returns the raw numeric value of this outcome for the JSON and Kafka schema.
-    fn to_outcome_id(&self) -> OutcomeId {
+    pub fn to_outcome_id(&self) -> OutcomeId {
         match self {
             Outcome::Filtered(_) | Outcome::FilteredSampling(_) => OutcomeId::FILTERED,
             Outcome::RateLimited(_) => OutcomeId::RATE_LIMITED,
             #[cfg(feature = "processing")]
-            Outcome::CardinalityLimited => OutcomeId::RATE_LIMITED,
+            Outcome::CardinalityLimited => OutcomeId::CARDINALITY_LIMITED,
             Outcome::Invalid(_) => OutcomeId::INVALID,
             Outcome::Abuse => OutcomeId::ABUSE,
             Outcome::ClientDiscard(_) => OutcomeId::CLIENT_DISCARD,
@@ -194,17 +199,16 @@ impl Outcome {
     }
 
     /// Returns the `reason` code field of this outcome.
-    fn to_reason(&self) -> Option<Cow<str>> {
+    pub fn to_reason(&self) -> Option<Cow<'_, str>> {
         match self {
             Outcome::Invalid(discard_reason) => Some(Cow::Borrowed(discard_reason.name())),
             Outcome::Filtered(filter_key) => Some(filter_key.clone().name()),
             Outcome::FilteredSampling(rule_ids) => Some(Cow::Owned(format!("Sampled:{rule_ids}"))),
-            //TODO can we do better ? (not re copying the string )
-            Outcome::RateLimited(code_opt) => code_opt
-                .as_ref()
-                .map(|code| Cow::Owned(code.as_str().into())),
+            Outcome::RateLimited(code_opt) => {
+                code_opt.as_ref().map(|code| Cow::Borrowed(code.as_str()))
+            }
             #[cfg(feature = "processing")]
-            Outcome::CardinalityLimited => Some(Cow::Borrowed("cardinality_limited")),
+            Outcome::CardinalityLimited => None,
             Outcome::ClientDiscard(ref discard_reason) => Some(Cow::Borrowed(discard_reason)),
             Outcome::Abuse => None,
             Outcome::Accepted => None,
@@ -524,13 +528,12 @@ impl FromMessage<Self> for TrackRawOutcome {
 }
 
 #[derive(Debug)]
+#[cfg(feature = "processing")]
 #[cfg_attr(feature = "processing", derive(thiserror::Error))]
 pub enum OutcomeError {
     #[error("failed to send kafka message")]
-    #[cfg(feature = "processing")]
     SendFailed(ClientError),
     #[error("json serialization error")]
-    #[cfg(feature = "processing")]
     SerializationError(serde_json::Error),
 }
 
@@ -809,7 +812,6 @@ impl OutcomeBroker {
     fn send_kafka_message(
         &self,
         producer: &KafkaOutcomesProducer,
-        organization_id: u64,
         message: TrackRawOutcome,
     ) -> Result<(), OutcomeError> {
         relay_log::trace!("Tracking kafka outcome: {message:?}");
@@ -829,14 +831,10 @@ impl OutcomeBroker {
             KafkaTopic::Outcomes
         };
 
-        let result = producer.client.send(
-            topic,
-            organization_id,
-            key.as_bytes(),
-            None,
-            "outcome",
-            payload.as_bytes(),
-        );
+        let result =
+            producer
+                .client
+                .send(topic, key.as_bytes(), None, "outcome", payload.as_bytes());
 
         match result {
             Ok(_) => Ok(()),
@@ -849,11 +847,8 @@ impl OutcomeBroker {
             #[cfg(feature = "processing")]
             Self::Kafka(kafka_producer) => {
                 send_outcome_metric(&message, "kafka");
-                let organization_id = message.scoping.organization_id;
                 let raw_message = TrackRawOutcome::from_outcome(message, config);
-                if let Err(error) =
-                    self.send_kafka_message(kafka_producer, organization_id, raw_message)
-                {
+                if let Err(error) = self.send_kafka_message(kafka_producer, raw_message) {
                     relay_log::error!(error = &error as &dyn Error, "failed to produce outcome");
                 }
             }
@@ -874,8 +869,7 @@ impl OutcomeBroker {
             #[cfg(feature = "processing")]
             Self::Kafka(kafka_producer) => {
                 send_outcome_metric(&message, "kafka");
-                let sharding_id = message.org_id.unwrap_or_else(|| message.project_id.value());
-                if let Err(error) = self.send_kafka_message(kafka_producer, sharding_id, message) {
+                if let Err(error) = self.send_kafka_message(kafka_producer, message) {
                     relay_log::error!(error = &error as &dyn Error, "failed to produce outcome");
                 }
             }

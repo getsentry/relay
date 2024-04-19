@@ -932,6 +932,9 @@ expression: "relay_event_schema::protocol::event_json_schema()"
           "$ref": "#/definitions/NelContext"
         },
         {
+          "$ref": "#/definitions/PerformanceScoreContext"
+        },
+        {
           "type": "object",
           "additionalProperties": true
         }
@@ -2167,6 +2170,41 @@ expression: "relay_event_schema::protocol::event_json_schema()"
         "fatal"
       ]
     },
+    "LinuxDistribution": {
+      "description": " Metadata for the Linux Distribution.",
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "name": {
+              "description": " An index-able name that is stable for each distribution.",
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "pretty_name": {
+              "description": " A full rendering of name + version + release name (not available in all distributions).",
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "version": {
+              "description": " The version of the distribution (missing in distributions with solely rolling release).",
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
     "LockReason": {
       "description": " Represents an instance of a held lock (java monitor object) in a thread.",
       "anyOf": [
@@ -2753,6 +2791,18 @@ expression: "relay_event_schema::protocol::event_json_schema()"
                 "null"
               ]
             },
+            "distribution": {
+              "description": " Meta-data for the Linux Distribution.",
+              "default": null,
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/LinuxDistribution"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
             "kernel_version": {
               "description": " Current kernel version.\n\n This is typically the entire output of the `uname` syscall.",
               "default": null,
@@ -2821,6 +2871,25 @@ expression: "relay_event_schema::protocol::event_json_schema()"
                 "null"
               ],
               "additionalProperties": true
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "PerformanceScoreContext": {
+      "description": " Performance Score context.\n\n The performance score context contains the version of the\n profile used to calculate the performance score.",
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "score_profile_version": {
+              "description": " The performance score profile version.",
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
             }
           },
           "additionalProperties": false
