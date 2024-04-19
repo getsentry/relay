@@ -30,14 +30,14 @@ jobs:
 
       - name: Bundle Debug File
         run: |
-          cd target/x86_64-unknown-linux-gnu/release/
+          cd target/release/
           zip relay-Linux-x86_64-debug.zip relay.debug
           mv relay relay-Linux-x86_64
 
       - uses: actions/upload-artifact@v3
         with:
           name: ${{ github.sha }}
-          path: target/x86_64-unknown-linux-gnu/release/relay-Linux-x86_64*
+          path: target/release/relay-Linux-x86_64*
 
   macos:
     name: macOS
