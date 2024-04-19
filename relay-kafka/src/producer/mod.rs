@@ -1,7 +1,4 @@
 //! This module contains the kafka producer related code.
-//!
-//! There are two different producers that are supported in Relay right now:
-//! - [`SingleProducer`] - which sends all the messages to the defined kafka [`KafkaTopic`],
 
 use std::borrow::Cow;
 use std::cell::Cell;
@@ -80,16 +77,29 @@ pub trait Message {
 }
 
 /// Single kafka producer config with assigned topic.
-struct SingleProducer {
+struct Producer {
+    /// Time of the latest collection of stats.
+    last_report: Cell<Instant>,
     /// Kafka topic name.
     topic_name: String,
     /// Real kafka producer.
     producer: Arc<ThreadedProducer>,
 }
 
-impl fmt::Debug for SingleProducer {
+impl Producer {
+    fn new(topic_name: String, producer: Arc<ThreadedProducer>) -> Self {
+        Self {
+            last_report: Cell::new(Instant::now()),
+            topic_name,
+            producer,
+        }
+    }
+}
+
+impl fmt::Debug for Producer {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Single")
+        f.debug_struct("Producer")
+            .field("last_report", &self.last_report)
             .field("topic_name", &self.topic_name)
             .field("producer", &"<ThreadedProducer>")
             .finish()
@@ -193,7 +203,7 @@ impl KafkaClientBuilder {
                 if let Some(producer) = self.reused_producers.get(&config_name) {
                     self.producers.insert(
                         topic,
-                        Producer::single((*topic_name).to_string(), Arc::clone(producer)),
+                        Producer::new((*topic_name).to_string(), Arc::clone(producer)),
                     );
                     return Ok(self);
                 }
@@ -211,7 +221,7 @@ impl KafkaClientBuilder {
                 self.reused_producers
                     .insert(config_name, Arc::clone(&producer));
                 self.producers
-                    .insert(topic, Producer::single((*topic_name).to_string(), producer));
+                    .insert(topic, Producer::new((*topic_name).to_string(), producer));
                 Ok(self)
             }
         }
@@ -236,30 +246,7 @@ impl fmt::Debug for KafkaClientBuilder {
     }
 }
 
-/// This object contains the Kafka producer variants for single.
-#[derive(Debug)]
-enum ProducerInner {
-    /// Configuration variant for the single kafka producer.
-    Single(SingleProducer),
-}
-
-#[derive(Debug)]
-struct Producer {
-    last_report: Cell<Instant>,
-    inner: ProducerInner,
-}
-
 impl Producer {
-    fn single(topic_name: String, producer: Arc<ThreadedProducer>) -> Self {
-        Self {
-            last_report: Instant::now().into(),
-            inner: ProducerInner::Single(SingleProducer {
-                topic_name,
-                producer,
-            }),
-        }
-    }
-
     /// Sends the payload to the correct producer for the current topic.
     fn send(
         &self,
@@ -272,12 +259,8 @@ impl Producer {
             histogram(KafkaHistograms::KafkaMessageSize) = payload.len() as u64,
             variant = variant
         );
-        let (topic_name, producer) = match &self.inner {
-            ProducerInner::Single(SingleProducer {
-                topic_name,
-                producer,
-            }) => (topic_name.as_str(), producer.as_ref()),
-        };
+
+        let topic_name = self.topic_name.as_str();
         let mut record = BaseRecord::to(topic_name).key(key).payload(payload);
 
         // Make sure to set the headers if provided.
@@ -295,13 +278,13 @@ impl Producer {
         if self.last_report.get().elapsed() > REPORT_FREQUENCY {
             self.last_report.replace(Instant::now());
             metric!(
-                gauge(KafkaGauges::InFlightCount) = producer.in_flight_count() as u64,
+                gauge(KafkaGauges::InFlightCount) = self.producer.in_flight_count() as u64,
                 variant = variant,
                 topic = topic_name
             );
         }
 
-        producer
+        self.producer
             .send(record)
             .map(|_| topic_name)
             .map_err(|(error, _message)| {
