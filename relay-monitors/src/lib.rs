@@ -114,6 +114,10 @@ pub struct MonitorConfig {
     /// How many consecutive OK check-ins it takes to resolve an issue.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     recovery_threshold: Option<u64>,
+
+    /// Who the owner of the monitor should be.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    owner: Option<String>,
 }
 
 /// The trace context sent with a check-in.
@@ -325,7 +329,8 @@ mod tests {
     "max_runtime": 10,
     "timezone": "America/Los_Angles",
     "failure_issue_threshold": 3,
-    "recovery_threshold": 1
+    "recovery_threshold": 1,
+    "owner": "user:123"
   }
 }"#;
 
