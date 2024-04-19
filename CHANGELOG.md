@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+**Features**:
+
+**Internal**:
+
+- Collect exclusive_time_light metrics for cache.\* spans ([#3466]https://github.com/getsentry/relay/pull/3466)
+
 ## 24.4.1
 
 **Features**:
