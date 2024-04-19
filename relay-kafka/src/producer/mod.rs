@@ -1,7 +1,4 @@
 //! This module contains the kafka producer related code.
-//!
-//! There are two different producers that are supported in Relay right now:
-//! - [`SingleProducer`] - which sends all the messages to the defined kafka [`KafkaTopic`],
 
 use std::borrow::Cow;
 use std::cell::Cell;
