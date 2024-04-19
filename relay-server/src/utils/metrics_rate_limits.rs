@@ -94,24 +94,13 @@ where
     quantities
 }
 
-fn report_rejected_metrics<I: IntoIterator<Item = Bucket>>(
-    metric_stats: &MetricStats,
-    scoping: Scoping,
-    buckets: I,
-    outcome: Outcome,
-) {
-    for bucket in buckets {
-        metric_stats.track_metric(scoping, bucket, outcome.clone())
-    }
-}
-
-pub fn reject_metrics<I: IntoIterator<Item = Bucket>>(
+pub fn reject_metrics<'a, T: Into<BucketView<'a>>>(
     addr: &Addr<TrackOutcome>,
+    metric_stats: &MetricStats,
     quantities: SourceQuantities,
     scoping: Scoping,
     outcome: Outcome,
-    metric_stats: Option<&MetricStats>,
-    buckets: Option<I>,
+    buckets: impl IntoIterator<Item = T>,
 ) {
     let timestamp = Utc::now();
 
@@ -135,8 +124,14 @@ pub fn reject_metrics<I: IntoIterator<Item = Bucket>>(
         }
     }
 
-    if let (Some(metric_stats), Some(buckets)) = (metric_stats, buckets) {
-        report_rejected_metrics(metric_stats, scoping, buckets, outcome)
+    // When rejecting metrics, we need to make sure that the number of merges is correctly handled
+    // for buckets views, since if we have a bucket which has 5 merges, and it's split into 2
+    // bucket views, we will emit the volume of the rejection as 5 + 5 merges since we still read
+    // the underlying metadata for each view, and it points to the same bucket reference.
+    // Possible solutions to this problem include emitting the merges only if the bucket view is
+    // the first of view or distributing uniformly the metadata between split views.
+    for bucket in buckets {
+        metric_stats.track_metric(scoping, bucket, outcome.clone())
     }
 }
 
