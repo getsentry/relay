@@ -1,6 +1,6 @@
 import pytest
 import json
-
+from sentry_sdk.envelope import Envelope, Item, PayloadRef
 
 def generate_feedback_sdk_event():
     return {
@@ -139,3 +139,103 @@ def test_feedback_events_without_processing(
 
     userfeedback = envelope.items[0]
     assert userfeedback.type == "feedback"
+
+
+def test_feedback_envelope_with_attachment(
+    mini_sentry,
+    relay_with_processing,
+    feedback_consumer,
+    attachments_consumer,
+    use_feedback_topic,
+):
+    mini_sentry.add_basic_project_config(
+        42, extra={"config": {"features": ["organizations:user-feedback-ingest"]}}
+    )
+    # mini_sentry.set_global_config_option("feedback.ingest-topic.rollout-rate", 1.0)
+    # TODO: make and set a FF here
+    feedback_consumer_ = feedback_consumer(timeout=20)
+    attachments_consumer_ = attachments_consumer(timeout=20)
+
+    feedback = generate_feedback_sdk_event()
+    event_id = feedback["event_id"]
+
+    # TODO: find an example envelope
+    envelope = Envelope(headers=[["event_id", event_id]])
+    envelope.add_item(
+        Item(
+            headers=[], # TODO:
+            type="event",
+            payload=PayloadRef(json=feedback),
+        ),
+        Item(
+            headers=[["attachment_type", "event.view_hierarchy"]], # TODO: different attachment type?
+            type="attachment",
+            payload=PayloadRef(json={"rendering_system": "compose", "windows": []}),
+        )
+    )
+
+    relay.send_envelope(project_id, envelope)
+
+    (payload, chunk) = attachments_consumer.get_attachment_chunk()
+    attachment = attachments_consumer.get_individual_attachment()
+
+    assert attachment == {
+        "type": "attachment",
+        "attachment": {
+            "attachment_type": "event.view_hierarchy",
+            "chunks": 1,
+            "content_type": "application/json",
+            "id": chunk["id"],
+            "name": "Unnamed Attachment",
+            "size": len(payload),
+            "rate_limited": False,
+        },
+        "event_id": event_id,
+        "project_id": project_id,
+    }
+
+    relay = relay_with_processing()
+    relay.send_envelope(project_id, envelope)
+
+    event, message = feedback_consumer_.get_event()
+    assert event["type"] == "feedback"
+
+
+# /// If there is a UserReportV2 item, . The attachments should be kept in
+#     /// the event and not be returned as stand-alone attachments.
+#     #[test]
+#     fn test_store_attachment_in_event_when_not_a_transaction() {
+#         let (start_time, event_id, scoping, attachment_vec) = arguments_extract_kafka_msgs();
+#         let number_of_attachments = attachment_vec.len();
+
+#         let item = Item::new(ItemType::Event);
+#         let event_item = Some(&item);
+
+#         let kafka_messages = StoreService::extract_kafka_messages_for_event(
+#             event_item,
+#             event_id,
+#             scoping,
+#             start_time,
+#             None,
+#             attachment_vec,
+#         );
+
+#         let (event, standalone_attachments): (Vec<_>, Vec<_>) =
+#             kafka_messages.partition(|item| match item {
+#                 KafkaMessage::Event(_) => true,
+#                 KafkaMessage::Attachment(_) => false,
+#                 _ => panic!("only expected events or attachment type"),
+#             });
+
+#         // Because it's not a transaction event, the attachment should be part of the event,
+#         // and therefore the standalone_attachments vec should be empty.
+#         assert!(standalone_attachments.is_empty());
+
+#         // Checks that the attachment is part of the event.
+#         let event = &event[0];
+#         if let KafkaMessage::Event(event) = event {
+#             assert!(event.attachments.len() == number_of_attachments);
+#         } else {
+#             panic!("No event found")
+#         }
+#     }
