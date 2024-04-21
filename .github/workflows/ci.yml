@@ -193,12 +193,12 @@ jobs:
 
     env:
       RELAY_BIN: "target/${{ matrix.target }}/release/relay"
-      FEATURES: |
+      FEATURES: |-
         ${{fromJson('{ 
           "relay": "processing,crash-handler", 
           "relay-pop": "crash-handler"
         }')[matrix.image_name] }}
-      DOCKER_PLATFORM: |
+      DOCKER_PLATFORM: |-
         ${{fromJson('{ 
           "x86_64-unknown-linux-gnu": "linux/amd64",
           "aarch64-unknown-linux-gnu": "linux/arm64" 
