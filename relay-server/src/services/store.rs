@@ -189,19 +189,15 @@ impl StoreService {
         let retention = envelope.retention();
         let event_id = envelope.event_id();
 
-        let use_feedback_ingest_v2 = self
-            .global_config
-            .current()
-            .options
-            .feedback_ingest_v2;
+        let use_feedback_ingest_v2 = self.global_config.current().options.feedback_ingest_v2;
 
         let event_item = envelope.as_mut().take_item_by(|item| {
             matches!(
                 (item.ty(), use_feedback_ingest_v2),
                 (ItemType::Event, _)
-                | (ItemType::Transaction, _)
-                | (ItemType::Security, _)
-                | (ItemType::UserReportV2, false)
+                    | (ItemType::Transaction, _)
+                    | (ItemType::Security, _)
+                    | (ItemType::UserReportV2, false)
             )
         });
         let client = envelope.meta().client();
@@ -254,7 +250,8 @@ impl StoreService {
                 ItemType::UserReportV2 => {
                     // The preferred, newest form of feedback. Main source is user feedback widget
                     if use_feedback_ingest_v2 {
-                        let remote_addr = envelope.meta().client_addr().map(|addr| addr.to_string());
+                        let remote_addr =
+                            envelope.meta().client_addr().map(|addr| addr.to_string());
                         self.produce_user_report_v2(
                             event_id.ok_or(StoreError::NoEventId)?,
                             scoping.project_id,
@@ -703,14 +700,6 @@ impl StoreService {
         item: &Item,
         remote_addr: Option<String>,
     ) -> Result<(), StoreError> {
-        let message = KafkaMessage::UserReportV2(UserReportV2KafkaMessage {
-            project_id,
-            event_id,
-            payload: item.payload(),
-            start_time: UnixTimestamp::from_instant(start_time).as_secs(),
-            remote_addr,
-        });
-
         // check rollout rate option (effectively a FF) to determine whether to produce to new infra
         let global_config = self.global_config.current();
         let feedback_ingest_topic_rollout_rate =
@@ -721,6 +710,13 @@ impl StoreService {
             KafkaTopic::Events
         };
 
+        let message = KafkaMessage::UserReportV2(UserReportV2KafkaMessage {
+            project_id,
+            event_id,
+            payload: item.payload(),
+            start_time: UnixTimestamp::from_instant(start_time).as_secs(),
+            remote_addr,
+        });
         self.produce(topic, message)
     }
 
