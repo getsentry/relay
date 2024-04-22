@@ -8,6 +8,7 @@ use std::pin::Pin;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
+use crate::metric_stats::MetricStats;
 use anyhow::Context;
 use brotli::CompressorWriter as BrotliEncoder;
 use bytes::Bytes;
@@ -48,7 +49,6 @@ use tokio::sync::Semaphore;
 
 #[cfg(feature = "processing")]
 use {
-    crate::metric_stats::MetricStats,
     crate::services::store::{Store, StoreEnvelope},
     crate::utils::{EnvelopeLimiter, ItemAction, MetricsLimiter},
     itertools::Itertools,
@@ -947,7 +947,6 @@ struct InnerProcessor {
     metric_meta_store: Option<RedisMetricMetaStore>,
     #[cfg(feature = "processing")]
     cardinality_limiter: Option<CardinalityLimiter>,
-    #[cfg(feature = "processing")]
     metric_stats: MetricStats,
     #[cfg(feature = "processing")]
     buffer_guard: Arc<BufferGuard>,
@@ -961,7 +960,7 @@ impl EnvelopeProcessorService {
         cogs: Cogs,
         #[cfg(feature = "processing")] redis: Option<RedisPool>,
         addrs: Addrs,
-        #[cfg(feature = "processing")] metric_stats: MetricStats,
+        metric_stats: MetricStats,
         #[cfg(feature = "processing")] buffer_guard: Arc<BufferGuard>,
     ) -> Self {
         let geoip_lookup = config.geoip_path().and_then(|p| {
@@ -1002,7 +1001,6 @@ impl EnvelopeProcessorService {
                     )
                 })
                 .map(CardinalityLimiter::new),
-            #[cfg(feature = "processing")]
             metric_stats,
             config,
             #[cfg(feature = "processing")]
@@ -2168,11 +2166,11 @@ impl EnvelopeProcessorService {
                 let reason_code = limits.longest().and_then(|limit| limit.reason_code.clone());
                 utils::reject_metrics(
                     &self.inner.addrs.outcome_aggregator,
+                    &self.inner.metric_stats,
                     quantities,
                     *item_scoping.scoping,
                     Outcome::RateLimited(reason_code),
-                    Some(&self.inner.metric_stats),
-                    Some(buckets),
+                    &buckets,
                 );
 
                 self.inner.addrs.project_cache.send(UpdateRateLimits::new(
@@ -2261,11 +2259,11 @@ impl EnvelopeProcessorService {
         // Log outcomes for rejected buckets.
         utils::reject_metrics(
             &self.inner.addrs.outcome_aggregator,
+            &self.inner.metric_stats,
             utils::extract_metric_quantities(&split.rejected, mode),
             scoping,
             Outcome::CardinalityLimited,
-            Some(&self.inner.metric_stats),
-            Some(split.rejected),
+            &split.rejected,
         );
 
         split.accepted
@@ -2418,6 +2416,7 @@ impl EnvelopeProcessorService {
             http_encoding,
             quantities,
             outcome_aggregator: self.inner.addrs.outcome_aggregator.clone(),
+            metric_stats: self.inner.metric_stats.clone(),
         };
 
         self.inner.addrs.upstream_relay.send(SendRequest(request));
@@ -2432,7 +2431,7 @@ impl EnvelopeProcessorService {
     ///  - partitioning
     ///  - batching by configured size limit
     ///  - serialize to JSON
-    ///  - submit the directly to the upstream
+    ///  - submit directly to the upstream
     ///
     /// Cardinality limiting and rate limiting run only in processing Relays as they both require
     /// access to the central Redis instance. Cached rate limits are applied in the project cache
@@ -2847,6 +2846,8 @@ struct SendMetricsRequest {
     quantities: Vec<(Scoping, SourceQuantities)>,
     /// Address of the outcome aggregator to send outcomes to on error.
     outcome_aggregator: Addr<TrackOutcome>,
+    /// Metric stats reporter.
+    metric_stats: MetricStats,
 }
 
 impl UpstreamRequest for SendMetricsRequest {
@@ -2894,12 +2895,12 @@ impl UpstreamRequest for SendMetricsRequest {
                 // Request did not arrive, we are responsible for outcomes.
                 Err(error) if !error.is_received() => {
                     for (scoping, quantities) in self.quantities {
-                        utils::reject_metrics::<Vec<Bucket>>(
+                        utils::reject_metrics::<&Bucket>(
                             &self.outcome_aggregator,
+                            &self.metric_stats,
                             quantities,
                             scoping,
                             Outcome::Invalid(DiscardReason::Internal),
-                            None,
                             None,
                         );
                     }

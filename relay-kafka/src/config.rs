@@ -171,18 +171,7 @@ pub struct KafkaTopicConfig {
     kafka_config_name: String,
 }
 
-/// Describes Kafka config, with all the parameters extracted, which will be used for creating the
-/// kafka producer.
-#[derive(Debug)]
-pub enum KafkaConfig<'a> {
-    /// Single config with Kafka parameters.
-    Single {
-        /// Kafka parameters to create the kafka producer.
-        params: KafkaParams<'a>,
-    },
-}
-
-/// Sharded Kafka config.
+/// Config for creating a Kafka producer.
 #[derive(Debug)]
 pub struct KafkaParams<'a> {
     /// The topic name to use.
@@ -208,26 +197,22 @@ impl TopicAssignment {
         &'a self,
         default_config: &'a Vec<KafkaConfigParam>,
         secondary_configs: &'a BTreeMap<String, Vec<KafkaConfigParam>>,
-    ) -> Result<KafkaConfig<'_>, ConfigError> {
+    ) -> Result<KafkaParams<'_>, ConfigError> {
         let kafka_config = match self {
-            Self::Primary(topic_name) => KafkaConfig::Single {
-                params: KafkaParams {
-                    topic_name,
-                    config_name: None,
-                    params: default_config.as_slice(),
-                },
+            Self::Primary(topic_name) => KafkaParams {
+                topic_name,
+                config_name: None,
+                params: default_config.as_slice(),
             },
             Self::Secondary(KafkaTopicConfig {
                 topic_name,
                 kafka_config_name,
-            }) => KafkaConfig::Single {
-                params: KafkaParams {
-                    config_name: Some(kafka_config_name),
-                    topic_name,
-                    params: secondary_configs
-                        .get(kafka_config_name)
-                        .ok_or(ConfigError::UnknownKafkaConfigName)?,
-                },
+            }) => KafkaParams {
+                config_name: Some(kafka_config_name),
+                topic_name,
+                params: secondary_configs
+                    .get(kafka_config_name)
+                    .ok_or(ConfigError::UnknownKafkaConfigName)?,
             },
         };
 
@@ -289,11 +274,9 @@ transactions: "ingest-transactions-kafka-topic"
             .expect("Kafka config for events topic");
         assert!(matches!(
             events_config,
-            KafkaConfig::Single {
-                params: KafkaParams {
-                    topic_name: "ingest-events-kafka-topic",
-                    ..
-                }
+            KafkaParams {
+                topic_name: "ingest-events-kafka-topic",
+                ..
             }
         ));
 
@@ -302,12 +285,10 @@ transactions: "ingest-transactions-kafka-topic"
             .expect("Kafka config for profiles topic");
         assert!(matches!(
             events_config,
-            KafkaConfig::Single {
-                params: KafkaParams {
-                    topic_name: "ingest-profiles",
-                    config_name: Some("profiles"),
-                    ..
-                }
+            KafkaParams {
+                topic_name: "ingest-profiles",
+                config_name: Some("profiles"),
+                ..
             }
         ));
 
@@ -316,11 +297,9 @@ transactions: "ingest-transactions-kafka-topic"
             .expect("Kafka config for metrics topic");
         assert!(matches!(
             events_config,
-            KafkaConfig::Single {
-                params: KafkaParams {
-                    topic_name: "ingest-metrics-3",
-                    ..
-                }
+            KafkaParams {
+                topic_name: "ingest-metrics-3",
+                ..
             }
         ));
 
@@ -330,11 +309,9 @@ transactions: "ingest-transactions-kafka-topic"
             .expect("Kafka config for transactions topic");
         assert!(matches!(
             transactions_config,
-            KafkaConfig::Single {
-                params: KafkaParams {
-                    topic_name: "ingest-transactions-kafka-topic",
-                    ..
-                }
+            KafkaParams {
+                topic_name: "ingest-transactions-kafka-topic",
+                ..
             }
         ));
     }

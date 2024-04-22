@@ -484,7 +484,7 @@ fn normalize(
         .and_then(|v| v.name.value())
     {
         let data = span.data.value_mut().get_or_insert_with(SpanData::default);
-        data.browser_name = Annotated::new(browser_name.to_owned().into());
+        data.browser_name = Annotated::new(browser_name.to_owned());
     }
 
     if let Annotated(Some(ref mut measurement_values), ref mut meta) = span.measurements {
@@ -504,7 +504,7 @@ fn normalize(
         .data
         .value_mut()
         .as_mut()
-        .map(|data| &mut data.transaction)
+        .map(|data| &mut data.segment_name)
     {
         normalize_transaction_name(transaction, &project_config.tx_name_rules);
     }
