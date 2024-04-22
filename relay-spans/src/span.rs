@@ -2,14 +2,15 @@ use std::str::FromStr;
 
 use chrono::{TimeZone, Utc};
 use opentelemetry_proto::tonic::common::v1::any_value::Value as OtelValue;
+use opentelemetry_proto::tonic::common::v1::{AnyValue, KeyValue};
 
 use crate::otel_trace::{status::StatusCode as OtelStatusCode, Span as OtelSpan};
 use crate::status_codes;
 use relay_event_schema::protocol::{
-    EventId, Measurement, Measurements, Span as EventSpan, SpanData, SpanId, SpanStatus, Timestamp,
-    TraceId,
+    EventId, Measurement, Measurements, MetricSummary, MetricsSummary, Span as EventSpan, SpanData,
+    SpanId, SpanStatus, Timestamp, TraceId,
 };
-use relay_protocol::{Annotated, FromValue, Object};
+use relay_protocol::{Annotated, Empty, FromValue, Object};
 
 /// convert_from_otel_to_sentry_status returns a status as defined by Sentry based on the OTel status.
 fn convert_from_otel_to_sentry_status(
@@ -71,6 +72,44 @@ fn otel_value_to_span_id(value: OtelValue) -> Option<String> {
     }
 }
 
+fn otel_value_to_metric_summary(value: &AnyValue) -> Option<MetricSummary> {
+    let value = value.value.as_ref()?;
+    let OtelValue::KvlistValue(value) = dbg!(value) else {
+        return None;
+    };
+    let mut summary = MetricSummary::default();
+    for KeyValue { key, value } in &value.values {
+        let value = value.as_ref()?.value.as_ref()?;
+        match dbg!(value) {
+            OtelValue::IntValue(n) if key == "count" => {
+                summary.count = u64::try_from(*n).ok()?.into();
+            }
+            OtelValue::DoubleValue(f) if key == "min" => {
+                summary.min = (*f).into();
+            }
+            OtelValue::DoubleValue(f) if key == "max" => {
+                summary.max = (*f).into();
+            }
+            OtelValue::DoubleValue(f) if key == "sum" => {
+                summary.sum = (*f).into();
+            }
+            OtelValue::KvlistValue(list) if key == "tags" => {
+                let tags = summary.tags.get_or_insert_with(Default::default);
+                for KeyValue { key, value } in &list.values {
+                    let OtelValue::StringValue(value) = value.as_ref()?.value.as_ref()? else {
+                        return None;
+                    };
+                    // TODO: don't clone here, take ownership of original value.
+                    tags.insert(key.clone(), value.clone().into());
+                }
+            }
+            _ => return None,
+        }
+    }
+
+    Some(summary)
+}
+
 /// Transform an OtelSpan to a Sentry span.
 pub fn otel_to_sentry_span(otel_span: OtelSpan) -> EventSpan {
     let mut exclusive_time_ms = 0f64;
@@ -105,6 +144,7 @@ pub fn otel_to_sentry_span(otel_span: OtelSpan) -> EventSpan {
     let mut segment_id = None;
     let mut profile_id = None;
     let mut measurements = Object::<Measurement>::new();
+    let mut metrics_summary = MetricsSummary::default();
     for attribute in attributes.into_iter() {
         if let Some(value) = attribute.value.and_then(|v| v.value) {
             match attribute.key.as_str() {
@@ -181,7 +221,21 @@ pub fn otel_to_sentry_span(otel_span: OtelSpan) -> EventSpan {
                                 }
                                 _ => {}
                             }
+                        } else if let Some(metric_name) = suffix.strip_prefix("metrics_summary.") {
+                            if let OtelValue::ArrayValue(entries) = dbg!(&value) {
+                                let summaries =
+                                    metrics_summary.0.entry(metric_name.to_owned()).or_default();
+                                let summaries = summaries.get_or_insert_with(Default::default);
+                                for field in &entries.values {
+                                    if let Some(summary) = otel_value_to_metric_summary(field) {
+                                        summaries.push(summary.into());
+                                    }
+                                }
+
+                                continue;
+                            }
                         }
+                        {}
                     }
 
                     let key = attribute.key;
@@ -240,7 +294,13 @@ pub fn otel_to_sentry_span(otel_span: OtelSpan) -> EventSpan {
         timestamp: Timestamp(end_timestamp).into(),
         trace_id: TraceId(trace_id).into(),
         platform: platform.into(),
-        measurements: Annotated::new(Measurements(measurements)),
+        measurements: Annotated::new(Measurements(
+            measurements
+                .into_iter()
+                .filter(|(_, v)| v.value().map_or(false, |m| !m.value.is_empty()))
+                .collect(),
+        )),
+        _metrics_summary: metrics_summary.into(),
         ..Default::default()
     }
 }
@@ -518,53 +578,55 @@ mod tests {
                     }
                 },
                 {
-                    "key": "sentry._metrics_summary.some_metric",
+                    "key": "sentry.metrics_summary.some_metric",
                     "value": {
                         "arrayValue": {
                             "values": [
                                 {
-                                    "kvlistValue": {
-                                        "values": [
-                                            {
-                                                "key": "min",
-                                                "value": {
-                                                    "doubleValue": 1.0
-                                                }
-                                            },
-                                            {
-                                                "key": "max",
-                                                "value": {
-                                                    "doubleValue": 1.0
-                                                }
-                                            },
-                                            {
-                                                "key": "sum",
-                                                "value": {
-                                                    "doubleValue": 1.0
-                                                }
-                                            },
-                                            {
-                                                "key": "count",
-                                                "value": {
-                                                    "doubleValue": 1.0
-                                                }
-                                            },
-                                            {
-                                                "key": "tags",
-                                                "value": {
-                                                    "kvlistValue": {
-                                                        "values": [
-                                                            {
-                                                                "key": "environment",
-                                                                "value": {
-                                                                    "stringValue": "test"
+                                    "value": {
+                                        "kvlistValue": {
+                                            "values": [
+                                                {
+                                                    "key": "min",
+                                                    "value": {
+                                                        "doubleValue": 1.0
+                                                    }
+                                                },
+                                                {
+                                                    "key": "max",
+                                                    "value": {
+                                                        "doubleValue": 2.0
+                                                    }
+                                                },
+                                                {
+                                                    "key": "sum",
+                                                    "value": {
+                                                        "doubleValue": 3.0
+                                                    }
+                                                },
+                                                {
+                                                    "key": "count",
+                                                    "value": {
+                                                        "intValue": 2
+                                                    }
+                                                },
+                                                {
+                                                    "key": "tags",
+                                                    "value": {
+                                                        "kvlistValue": {
+                                                            "values": [
+                                                                {
+                                                                    "key": "environment",
+                                                                    "value": {
+                                                                        "stringValue": "test"
+                                                                    }
                                                                 }
-                                                            }
-                                                        ]
+                                                            ]
+                                                        }
                                                     }
                                                 }
-                                            }
-                                        ]
+                                            ]
+                                        }
                                     }
                                 }
                             ]
@@ -645,27 +707,31 @@ mod tests {
             },
             sentry_tags: ~,
             received: ~,
-            measurements: {
-                "memory": {
-                    "value": 9001.0,
-                    "unit": "byte"
-                }
-            },
-            _metrics_summary: {
+            measurements: Measurements(
+                {
+                    "memory": Measurement {
+                        value: 9001.0,
+                        unit: Information(
+                            Byte,
+                        ),
+                    },
+                },
+            ),
+            _metrics_summary: MetricsSummary(
                 {
                     "some_metric": [
-                        {
-                            "min": 1.0,
-                            "max": 2.0,
-                            "sum": 3.0,
-                            "count": 2,
-                            "tags": {
-                                "environment": "test"
-                            }
-                        }
-                    ]
-                }
-            },
+                        MetricSummary {
+                            min: 1.0,
+                            max: 2.0,
+                            sum: 3.0,
+                            count: 2,
+                            tags: {
+                                "environment": "test",
+                            },
+                        },
+                    ],
+                },
+            ),
             platform: "php",
             was_transaction: ~,
             other: {},
