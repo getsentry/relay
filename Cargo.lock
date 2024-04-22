@@ -3831,6 +3831,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "relay-features"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "relay-ffi"
 version = "24.4.1"
 dependencies = [
@@ -4135,6 +4143,7 @@ dependencies = [
  "relay-dynamic-config",
  "relay-event-normalization",
  "relay-event-schema",
+ "relay-features",
  "relay-filter",
  "relay-kafka",
  "relay-log",

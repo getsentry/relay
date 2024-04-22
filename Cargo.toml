@@ -28,6 +28,7 @@ relay-crash = { path = "relay-crash" }
 relay-dynamic-config = { path = "relay-dynamic-config" }
 relay-event-normalization = { path = "relay-event-normalization" }
 relay-event-schema = { path = "relay-event-schema" }
+relay-features = { path = "relay-features" }
 relay-ffi = { path = "relay-ffi" }
 relay-ffi-macros = { path = "relay-ffi-macros" }
 relay-filter = { path = "relay-filter" }

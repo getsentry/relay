@@ -11,6 +11,7 @@ mod common;
 mod dashboard;
 mod envelope;
 mod events;
+mod features;
 mod forward;
 mod health_check;
 #[cfg(feature = "dashboard")]
@@ -80,6 +81,7 @@ where
 
         .route("/api/:project_id/store/", store::route(config))
         .route("/api/:project_id/envelope/", envelope::route(config))
+        .route("/api/:project_id/features/", get(features::handle))
         .route("/api/:project_id/security/", security_report::route(config))
         .route("/api/:project_id/csp-report/", security_report::route(config))
         .route("/api/:project_id/nel/", nel::route(config))

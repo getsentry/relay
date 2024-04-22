@@ -77,6 +77,7 @@ relay-config = { workspace = true }
 relay-dynamic-config = { workspace = true }
 relay-event-normalization = { workspace = true }
 relay-event-schema = { workspace = true }
+relay-features = { workspace = true }
 relay-filter = { workspace = true }
 relay-kafka = { workspace = true, optional = true }
 relay-log = { workspace = true, features = ["sentry"] }
