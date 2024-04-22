@@ -1062,6 +1062,7 @@ mod tests {
         let mut event = Annotated::from_json(json).unwrap();
         let features = FeatureSet(BTreeSet::from([
             Feature::ExtractSpansAndSpanMetricsFromEvent,
+            Feature::DoubleWriteSpanDistributionMetricsAsGauges,
         ]));
 
         // Normalize first, to make sure that all things are correct as in the real pipeline:
@@ -1380,7 +1381,7 @@ mod tests {
         let metrics = extract_span_metrics_mobile("app.start.cold", 181000.0);
         assert_eq!(
             metrics.iter().map(|m| &*m.name).collect::<Vec<_>>(),
-            vec!["c:spans/usage@none", "d:spans/exclusive_time@millisecond"]
+            vec!["c:spans/usage@none", "d:spans/exclusive_time@millisecond",]
         );
     }
 
@@ -1402,7 +1403,7 @@ mod tests {
         let metrics = extract_span_metrics_mobile("app.start.warm", 181000.0);
         assert_eq!(
             metrics.iter().map(|m| &*m.name).collect::<Vec<_>>(),
-            vec!["c:spans/usage@none", "d:spans/exclusive_time@millisecond"]
+            vec!["c:spans/usage@none", "d:spans/exclusive_time@millisecond",]
         );
     }
 
@@ -1424,7 +1425,7 @@ mod tests {
         let metrics = extract_span_metrics_mobile("ui.load.initial_display", 181000.0);
         assert_eq!(
             metrics.iter().map(|m| &*m.name).collect::<Vec<_>>(),
-            vec!["c:spans/usage@none", "d:spans/exclusive_time@millisecond"]
+            vec!["c:spans/usage@none", "d:spans/exclusive_time@millisecond",]
         );
     }
 
@@ -1446,7 +1447,7 @@ mod tests {
         let metrics = extract_span_metrics_mobile("ui.load.full_display", 181000.0);
         assert_eq!(
             metrics.iter().map(|m| &*m.name).collect::<Vec<_>>(),
-            vec!["c:spans/usage@none", "d:spans/exclusive_time@millisecond"]
+            vec!["c:spans/usage@none", "d:spans/exclusive_time@millisecond",]
         );
     }
 
@@ -1550,6 +1551,7 @@ mod tests {
         let metrics = extract_metrics(event.value().unwrap(), false, &config, 200, None);
 
         assert_eq!(metrics.len(), 4);
+
         assert_eq!(&*metrics[0].name, "c:spans/usage@none");
 
         assert_eq!(&*metrics[1].name, "d:spans/exclusive_time@millisecond");

@@ -1,10 +1,27 @@
 # Changelog
 
+## Unreleased
+
+
+**Bug fixes:**
+
+- Respect country code TLDs when scrubbing span tags. ([#3458](https://github.com/getsentry/relay/pull/3458))
+
+**Features**:
+
+- Use same keys for OTel span attributes and Sentry span data. ([#3457](https://github.com/getsentry/relay/pull/3457))
+- Support passing owner when upserting Monitors. ([#3468](https://github.com/getsentry/relay/pull/3468))
+
+**Internal**:
+
+- Emit gauges for total and self times for spans. ([#3448](https://github.com/getsentry/relay/pull/3448))
+- Collect exclusive_time_light metrics for `cache.*` spans. ([#3466](https://github.com/getsentry/relay/pull/3466))
+
 ## 24.4.1
 
 **Features**:
 
-- Add inbound filters for Annotated<Replay> types. ([#3420](https://github.com/getsentry/relay/pull/3420))
+- Add inbound filters for `Annotated<Replay>` types. ([#3420](https://github.com/getsentry/relay/pull/3420))
 - Add Linux distributions to os context. ([#3443](https://github.com/getsentry/relay/pull/3443))
 
 **Internal:**
