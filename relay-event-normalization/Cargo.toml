@@ -20,6 +20,7 @@ itertools = { workspace = true }
 maxminddb = { workspace = true }
 md5 = { workspace = true }
 once_cell = { workspace = true }
+psl = { workspace = true }
 regex = { workspace = true }
 relay-base-schema = { workspace = true }
 relay-common = { workspace = true }
