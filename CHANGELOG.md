@@ -4,7 +4,11 @@
 
 **Features**:
 
-- Use same keys for Otel span attributes and Sentry span data. ([#3457](https://github.com/getsentry/relay/pull/3457))
+- Use same keys for OTel span attributes and Sentry span data. ([#3457](https://github.com/getsentry/relay/pull/3457))
+
+**Internal**:
+
+- Emit gauges for total and self times for spans. ([#3448](https://github.com/getsentry/relay/pull/3448))
 
 ## 24.4.1
 
