@@ -189,10 +189,19 @@ impl StoreService {
         let retention = envelope.retention();
         let event_id = envelope.event_id();
 
+        let use_feedback_ingest_v2 = self
+            .global_config
+            .current()
+            .options
+            .feedback_ingest_v2;
+
         let event_item = envelope.as_mut().take_item_by(|item| {
             matches!(
-                item.ty(),
-                ItemType::Event | ItemType::Transaction | ItemType::Security
+                (item.ty(), use_feedback_ingest_v2),
+                (ItemType::Event, _)
+                | (ItemType::Transaction, _)
+                | (ItemType::Security, _)
+                | (ItemType::UserReportV2, false)
             )
         });
         let client = envelope.meta().client();
@@ -201,6 +210,17 @@ impl StoreService {
             KafkaTopic::Attachments
         } else if event_item.as_ref().map(|x| x.ty()) == Some(&ItemType::Transaction) {
             KafkaTopic::Transactions
+        } else if event_item.as_ref().map(|x| x.ty()) == Some(&ItemType::UserReportV2) {
+            let feedback_ingest_topic_rollout_rate = self
+                .global_config
+                .current()
+                .options
+                .feedback_ingest_topic_rollout_rate;
+            if is_rolled_out(scoping.organization_id, feedback_ingest_topic_rollout_rate) {
+                KafkaTopic::Feedback
+            } else {
+                KafkaTopic::Events
+            }
         } else {
             KafkaTopic::Events
         };
@@ -233,16 +253,17 @@ impl StoreService {
                 }
                 ItemType::UserReportV2 => {
                     // The preferred, newest form of feedback. Main source is user feedback widget
-                    let remote_addr = envelope.meta().client_addr().map(|addr| addr.to_string());
-
-                    self.produce_user_report_v2(
-                        event_id.ok_or(StoreError::NoEventId)?,
-                        scoping.project_id,
-                        scoping.organization_id,
-                        start_time,
-                        item,
-                        remote_addr,
-                    )?;
+                    if use_feedback_ingest_v2 {
+                        let remote_addr = envelope.meta().client_addr().map(|addr| addr.to_string());
+                        self.produce_user_report_v2(
+                            event_id.ok_or(StoreError::NoEventId)?,
+                            scoping.project_id,
+                            scoping.organization_id,
+                            start_time,
+                            item,
+                            remote_addr,
+                        )?;
+                    }
                 }
                 ItemType::Profile => self.produce_profile(
                     scoping.organization_id,
@@ -682,19 +703,18 @@ impl StoreService {
         item: &Item,
         remote_addr: Option<String>,
     ) -> Result<(), StoreError> {
-        let message = KafkaMessage::Event(EventKafkaMessage {
+        let message = KafkaMessage::UserReportV2(UserReportV2KafkaMessage {
             project_id,
             event_id,
             payload: item.payload(),
             start_time: UnixTimestamp::from_instant(start_time).as_secs(),
             remote_addr,
-            attachments: vec![],
         });
 
+        // check rollout rate option (effectively a FF) to determine whether to produce to new infra
         let global_config = self.global_config.current();
         let feedback_ingest_topic_rollout_rate =
             global_config.options.feedback_ingest_topic_rollout_rate;
-
         let topic = if is_rolled_out(organization_id, feedback_ingest_topic_rollout_rate) {
             KafkaTopic::Feedback
         } else {
