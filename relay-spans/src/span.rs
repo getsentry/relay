@@ -186,7 +186,7 @@ pub fn otel_to_sentry_span(otel_span: OtelSpan) -> EventSpan {
     }
 
     if let (Some(http_method), Some(http_route)) = (http_method, http_route) {
-        description = Some(format!("{} {}", http_method, http_route));
+        description = Some(format!("{http_method} {http_route}"));
     }
 
     EventSpan {
