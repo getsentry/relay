@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+
 **Bug fixes:**
 
 - Respect country code TLDs when scrubbing span tags. ([#3458](https://github.com/getsentry/relay/pull/3458))
@@ -13,6 +14,7 @@
 **Internal**:
 
 - Emit gauges for total and self times for spans. ([#3448](https://github.com/getsentry/relay/pull/3448))
+- Collect exclusive_time_light metrics for `cache.*` spans. ([#3466](https://github.com/getsentry/relay/pull/3466))
 
 ## 24.4.1
 

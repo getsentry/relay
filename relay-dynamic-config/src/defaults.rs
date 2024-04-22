@@ -155,7 +155,8 @@ fn span_metrics(
         | is_mobile.clone()
         | is_interaction
         | is_http.clone()
-        | is_queue_op.clone())
+        | is_queue_op.clone()
+        | is_cache.clone())
         & duration_condition.clone();
 
     let know_modules_condition =
@@ -280,7 +281,7 @@ fn span_metrics(
             .when(is_http.clone()),
         // Cache module
         Tag::with_key("cache.hit")
-            .from_field("span.sentry_tags.cache_hit")
+            .from_field("span.sentry_tags.cache.hit")
             .when(is_cache.clone()),
     ];
     let total_time_tags = vec![
@@ -363,7 +364,7 @@ fn span_metrics(
                     .from_field("span.sentry_tags.transaction")
                     .always(), // already guarded by condition on metric
                 Tag::with_key("cache.hit")
-                    .from_field("span.sentry_tags.cache_hit")
+                    .from_field("span.sentry_tags.cache.hit")
                     .always(), // already guarded by condition on metric
             ],
         },
