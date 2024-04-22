@@ -4198,6 +4198,7 @@ dependencies = [
  "chrono",
  "enumset",
  "hex",
+ "insta",
  "once_cell",
  "opentelemetry-proto",
  "relay-event-schema",

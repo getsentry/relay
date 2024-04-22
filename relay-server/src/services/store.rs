@@ -1359,6 +1359,7 @@ struct SpanKafkaMessage<'a> {
     event_id: Option<EventId>,
     #[serde(rename(deserialize = "exclusive_time"))]
     exclusive_time_ms: f64,
+    #[serde(default)]
     is_segment: bool,
 
     #[serde(borrow, default, skip_serializing_if = "Option::is_none")]
