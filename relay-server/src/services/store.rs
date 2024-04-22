@@ -1262,6 +1262,22 @@ struct UserReportKafkaMessage {
     event_id: EventId,
 }
 
+/// Container payload for user feedback messages.
+/// Originally derived from EventMessage after separating feedback to its own topic.
+#[derive(Debug, Serialize)]
+struct UserReportV2KafkaMessage {
+    /// Raw event payload.
+    payload: Bytes,
+    /// Time at which the event was received by Relay.
+    start_time: u64,
+    /// The event id.
+    event_id: EventId,
+    /// The project id for the current event.
+    project_id: ProjectId,
+    /// The client ip address.
+    remote_addr: Option<String>,
+}
+
 #[derive(Clone, Debug, Serialize)]
 struct SessionKafkaMessage {
     org_id: u64,
@@ -1500,6 +1516,7 @@ enum KafkaMessage<'a> {
     Attachment(AttachmentKafkaMessage),
     AttachmentChunk(AttachmentChunkKafkaMessage),
     UserReport(UserReportKafkaMessage),
+    UserReportV2(UserReportV2KafkaMessage),
     Metric {
         #[serde(skip)]
         headers: BTreeMap<String, String>,
@@ -1528,6 +1545,7 @@ impl Message for KafkaMessage<'_> {
             KafkaMessage::Attachment(_) => "attachment",
             KafkaMessage::AttachmentChunk(_) => "attachment_chunk",
             KafkaMessage::UserReport(_) => "user_report",
+            KafkaMessage::UserReportV2(_) => "user_report_v2",
             KafkaMessage::Metric { message, .. } => match message.name.namespace() {
                 MetricNamespace::Sessions => "metric_sessions",
                 MetricNamespace::Transactions => "metric_transactions",
@@ -1555,6 +1573,7 @@ impl Message for KafkaMessage<'_> {
             Self::Attachment(message) => message.event_id.0,
             Self::AttachmentChunk(message) => message.event_id.0,
             Self::UserReport(message) => message.event_id.0,
+            Self::UserReportV2(message) => message.event_id.0,
             Self::ReplayEvent(message) => message.replay_id.0,
             Self::Span { message, .. } => message.trace_id.0,
 
