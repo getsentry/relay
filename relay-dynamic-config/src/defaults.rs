@@ -300,11 +300,14 @@ fn span_metrics(
             .always(),
         Tag::with_key("span.group")
             .from_field("span.sentry_tags.group")
-            .when(know_modules_condition.clone() | app_start_condition.clone()),
-        // Mobile module:
+            .when(is_ai.clone() | know_modules_condition.clone() | app_start_condition.clone()),
+        Tag::with_key("span.category")
+            .from_field("span.sentry_tags.category")
+            .when(is_ai.clone()),
         Tag::with_key("span.description")
             .from_field("span.sentry_tags.description")
-            .when(app_start_condition.clone()),
+            .when(is_ai.clone() | app_start_condition.clone()),
+        // Mobile module:
         Tag::with_key("device.class")
             .from_field("span.sentry_tags.device.class")
             .when(app_start_condition.clone()),
@@ -464,53 +467,6 @@ fn span_metrics(
                 Tag::with_key("span.op")
                     .from_field("span.sentry_tags.op")
                     .always(), // already guarded by condition on metric
-            ],
-        },
-        MetricSpec {
-            category: DataCategory::Span,
-            mri: "d:spans/duration@millisecond".into(),
-            field: Some("span.duration".into()),
-            condition: None,
-            tags: vec![
-                // All modules:
-                Tag::with_key("environment")
-                    .from_field("span.sentry_tags.environment")
-                    .always(),
-                Tag::with_key("span.op")
-                    .from_field("span.sentry_tags.op")
-                    .always(),
-                Tag::with_key("transaction")
-                    .from_field("span.sentry_tags.transaction")
-                    .always(),
-                Tag::with_key("transaction.op")
-                    .from_field("span.sentry_tags.transaction.op")
-                    .always(),
-                Tag::with_key("span.group")
-                    .from_field("span.sentry_tags.group")
-                    .when(
-                        is_ai.clone()
-                            | know_modules_condition.clone()
-                            | app_start_condition.clone(),
-                    ),
-                Tag::with_key("span.category")
-                    .from_field("span.sentry_tags.category")
-                    .when(is_ai.clone()),
-                Tag::with_key("span.description")
-                    .from_field("span.sentry_tags.description")
-                    .when(is_ai.clone() | app_start_condition.clone()),
-                // Mobile module:
-                Tag::with_key("device.class")
-                    .from_field("span.sentry_tags.device.class")
-                    .when(app_start_condition.clone()),
-                Tag::with_key("release")
-                    .from_field("span.sentry_tags.release")
-                    .when(app_start_condition.clone()),
-                Tag::with_key("os.name")
-                    .from_field("span.sentry_tags.os.name")
-                    .when(app_start_condition.clone()),
-                Tag::with_key("app_start_type")
-                    .from_field("span.sentry_tags.app_start_type")
-                    .when(app_start_condition.clone()),
             ],
         },
         MetricSpec {

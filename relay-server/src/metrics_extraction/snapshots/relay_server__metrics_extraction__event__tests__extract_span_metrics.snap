@@ -63,27 +63,6 @@ expression: metrics
         timestamp: UnixTimestamp(1619420400),
         width: 0,
         name: MetricName(
-            "d:spans/duration@millisecond",
-        ),
-        value: Distribution(
-            [
-                59000.0,
-            ],
-        ),
-        tags: {
-            "environment": "fake_environment",
-            "span.op": "myop",
-            "transaction": "gEt /api/:version/users/",
-            "transaction.op": "myop",
-        },
-        metadata: BucketMetadata {
-            merges: 1,
-        },
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1619420400),
-        width: 0,
-        name: MetricName(
             "g:spans/self_time@millisecond",
         ),
         value: Gauge(
@@ -190,27 +169,6 @@ expression: metrics
         timestamp: UnixTimestamp(1597976302),
         width: 0,
         name: MetricName(
-            "d:spans/duration@millisecond",
-        ),
-        value: Distribution(
-            [
-                2000.0,
-            ],
-        ),
-        tags: {
-            "environment": "fake_environment",
-            "span.op": "ui.react.render",
-            "transaction": "gEt /api/:version/users/",
-            "transaction.op": "myop",
-        },
-        metadata: BucketMetadata {
-            merges: 1,
-        },
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1597976302),
-        width: 0,
-        name: MetricName(
             "g:spans/self_time@millisecond",
         ),
         value: Gauge(
@@ -346,28 +304,6 @@ expression: metrics
         timestamp: UnixTimestamp(1597976302),
         width: 0,
         name: MetricName(
-            "d:spans/duration@millisecond",
-        ),
-        value: Distribution(
-            [
-                2000.0,
-            ],
-        ),
-        tags: {
-            "environment": "fake_environment",
-            "span.group": "d9dc18637d441612",
-            "span.op": "http.client",
-            "transaction": "gEt /api/:version/users/",
-            "transaction.op": "myop",
-        },
-        metadata: BucketMetadata {
-            merges: 1,
-        },
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1597976302),
-        width: 0,
-        name: MetricName(
             "g:spans/self_time@millisecond",
         ),
         value: Gauge(
@@ -536,28 +472,6 @@ expression: metrics
         timestamp: UnixTimestamp(1597976302),
         width: 0,
         name: MetricName(
-            "d:spans/duration@millisecond",
-        ),
-        value: Distribution(
-            [
-                2000.0,
-            ],
-        ),
-        tags: {
-            "environment": "fake_environment",
-            "span.group": "25faf23529f71d3e",
-            "span.op": "http.client",
-            "transaction": "gEt /api/:version/users/",
-            "transaction.op": "myop",
-        },
-        metadata: BucketMetadata {
-            merges: 1,
-        },
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1597976302),
-        width: 0,
-        name: MetricName(
             "g:spans/self_time@millisecond",
         ),
         value: Gauge(
@@ -726,28 +640,6 @@ expression: metrics
         timestamp: UnixTimestamp(1597976302),
         width: 0,
         name: MetricName(
-            "d:spans/duration@millisecond",
-        ),
-        value: Distribution(
-            [
-                2000.0,
-            ],
-        ),
-        tags: {
-            "environment": "fake_environment",
-            "span.group": "488f09b46e5978be",
-            "span.op": "http.client",
-            "transaction": "gEt /api/:version/users/",
-            "transaction.op": "myop",
-        },
-        metadata: BucketMetadata {
-            merges: 1,
-        },
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1597976302),
-        width: 0,
-        name: MetricName(
             "g:spans/self_time@millisecond",
         ),
         value: Gauge(
@@ -914,28 +806,6 @@ expression: metrics
         timestamp: UnixTimestamp(1597976302),
         width: 0,
         name: MetricName(
-            "d:spans/duration@millisecond",
-        ),
-        value: Distribution(
-            [
-                2000.0,
-            ],
-        ),
-        tags: {
-            "environment": "fake_environment",
-            "span.group": "37e3d9fab1ae9162",
-            "span.op": "http.client",
-            "transaction": "gEt /api/:version/users/",
-            "transaction.op": "myop",
-        },
-        metadata: BucketMetadata {
-            merges: 1,
-        },
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1597976302),
-        width: 0,
-        name: MetricName(
             "g:spans/self_time@millisecond",
         ),
         value: Gauge(
@@ -1071,28 +941,6 @@ expression: metrics
             "span.group": "37e3d9fab1ae9162",
             "span.op": "http.client",
             "span.status_code": "500",
-        },
-        metadata: BucketMetadata {
-            merges: 1,
-        },
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1597976302),
-        width: 0,
-        name: MetricName(
-            "d:spans/duration@millisecond",
-        ),
-        value: Distribution(
-            [
-                2000.0,
-            ],
-        ),
-        tags: {
-            "environment": "fake_environment",
-            "span.group": "37e3d9fab1ae9162",
-            "span.op": "http.client",
-            "transaction": "gEt /api/:version/users/",
-            "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -1263,28 +1111,6 @@ expression: metrics
             "span.group": "464fe695f9cf639c",
             "span.op": "http.client",
             "span.status_code": "200",
-        },
-        metadata: BucketMetadata {
-            merges: 1,
-        },
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1597976302),
-        width: 0,
-        name: MetricName(
-            "d:spans/duration@millisecond",
-        ),
-        value: Distribution(
-            [
-                2000.0,
-            ],
-        ),
-        tags: {
-            "environment": "fake_environment",
-            "span.group": "464fe695f9cf639c",
-            "span.op": "http.client",
-            "transaction": "gEt /api/:version/users/",
-            "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -1488,28 +1314,6 @@ expression: metrics
         timestamp: UnixTimestamp(1597976302),
         width: 0,
         name: MetricName(
-            "d:spans/duration@millisecond",
-        ),
-        value: Distribution(
-            [
-                2000.0,
-            ],
-        ),
-        tags: {
-            "environment": "fake_environment",
-            "span.group": "86818d1c74ecfc66",
-            "span.op": "http.client",
-            "transaction": "gEt /api/:version/users/",
-            "transaction.op": "myop",
-        },
-        metadata: BucketMetadata {
-            merges: 1,
-        },
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1597976302),
-        width: 0,
-        name: MetricName(
             "g:spans/self_time@millisecond",
         ),
         value: Gauge(
@@ -1651,28 +1455,6 @@ expression: metrics
             "span.group": "72ab88b506cb04b2",
             "span.op": "http.client",
             "span.status_code": "200",
-        },
-        metadata: BucketMetadata {
-            merges: 1,
-        },
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1597976302),
-        width: 0,
-        name: MetricName(
-            "d:spans/duration@millisecond",
-        ),
-        value: Distribution(
-            [
-                2000.0,
-            ],
-        ),
-        tags: {
-            "environment": "fake_environment",
-            "span.group": "72ab88b506cb04b2",
-            "span.op": "http.client",
-            "transaction": "gEt /api/:version/users/",
-            "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -1876,28 +1658,6 @@ expression: metrics
         timestamp: UnixTimestamp(1597976302),
         width: 0,
         name: MetricName(
-            "d:spans/duration@millisecond",
-        ),
-        value: Distribution(
-            [
-                2000.0,
-            ],
-        ),
-        tags: {
-            "environment": "fake_environment",
-            "span.group": "c8e531abe96ff360",
-            "span.op": "http.client",
-            "transaction": "gEt /api/:version/users/",
-            "transaction.op": "myop",
-        },
-        metadata: BucketMetadata {
-            merges: 1,
-        },
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1597976302),
-        width: 0,
-        name: MetricName(
             "g:spans/self_time@millisecond",
         ),
         value: Gauge(
@@ -2070,28 +1830,6 @@ expression: metrics
         timestamp: UnixTimestamp(1597976302),
         width: 0,
         name: MetricName(
-            "d:spans/duration@millisecond",
-        ),
-        value: Distribution(
-            [
-                2000.0,
-            ],
-        ),
-        tags: {
-            "environment": "fake_environment",
-            "span.group": "86818d1c74ecfc66",
-            "span.op": "http.client",
-            "transaction": "gEt /api/:version/users/",
-            "transaction.op": "myop",
-        },
-        metadata: BucketMetadata {
-            merges: 1,
-        },
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1597976302),
-        width: 0,
-        name: MetricName(
             "g:spans/self_time@millisecond",
         ),
         value: Gauge(
@@ -2233,28 +1971,6 @@ expression: metrics
             "span.group": "86818d1c74ecfc66",
             "span.op": "http.client",
             "span.status_code": "200",
-        },
-        metadata: BucketMetadata {
-            merges: 1,
-        },
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1597976302),
-        width: 0,
-        name: MetricName(
-            "d:spans/duration@millisecond",
-        ),
-        value: Distribution(
-            [
-                2000.0,
-            ],
-        ),
-        tags: {
-            "environment": "fake_environment",
-            "span.group": "86818d1c74ecfc66",
-            "span.op": "http.client",
-            "transaction": "gEt /api/:version/users/",
-            "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -2458,28 +2174,6 @@ expression: metrics
         timestamp: UnixTimestamp(1597976302),
         width: 0,
         name: MetricName(
-            "d:spans/duration@millisecond",
-        ),
-        value: Distribution(
-            [
-                2000.0,
-            ],
-        ),
-        tags: {
-            "environment": "fake_environment",
-            "span.group": "f4a7fef06db3d88e",
-            "span.op": "db.sql.query",
-            "transaction": "gEt /api/:version/users/",
-            "transaction.op": "myop",
-        },
-        metadata: BucketMetadata {
-            merges: 1,
-        },
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1597976302),
-        width: 0,
-        name: MetricName(
             "g:spans/self_time@millisecond",
         ),
         value: Gauge(
@@ -2652,28 +2346,6 @@ expression: metrics
         timestamp: UnixTimestamp(1597976302),
         width: 0,
         name: MetricName(
-            "d:spans/duration@millisecond",
-        ),
-        value: Distribution(
-            [
-                2000.0,
-            ],
-        ),
-        tags: {
-            "environment": "fake_environment",
-            "span.group": "4f9711d2d09963b9",
-            "span.op": "db",
-            "transaction": "gEt /api/:version/users/",
-            "transaction.op": "myop",
-        },
-        metadata: BucketMetadata {
-            merges: 1,
-        },
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1597976302),
-        width: 0,
-        name: MetricName(
             "g:spans/self_time@millisecond",
         ),
         value: Gauge(
@@ -2841,27 +2513,6 @@ expression: metrics
         timestamp: UnixTimestamp(1597976302),
         width: 0,
         name: MetricName(
-            "d:spans/duration@millisecond",
-        ),
-        value: Distribution(
-            [
-                2000.0,
-            ],
-        ),
-        tags: {
-            "environment": "fake_environment",
-            "span.op": "db.sql.query",
-            "transaction": "gEt /api/:version/users/",
-            "transaction.op": "myop",
-        },
-        metadata: BucketMetadata {
-            merges: 1,
-        },
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1597976302),
-        width: 0,
-        name: MetricName(
             "g:spans/self_time@millisecond",
         ),
         value: Gauge(
@@ -2998,28 +2649,6 @@ expression: metrics
             "span.domain": ",from_date,",
             "span.group": "e4ea457c8e7e4109",
             "span.op": "db.sql.query",
-        },
-        metadata: BucketMetadata {
-            merges: 1,
-        },
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1597976302),
-        width: 0,
-        name: MetricName(
-            "d:spans/duration@millisecond",
-        ),
-        value: Distribution(
-            [
-                2000.0,
-            ],
-        ),
-        tags: {
-            "environment": "fake_environment",
-            "span.group": "e4ea457c8e7e4109",
-            "span.op": "db.sql.query",
-            "transaction": "gEt /api/:version/users/",
-            "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -3188,27 +2817,6 @@ expression: metrics
             "span.category": "db",
             "span.domain": "table",
             "span.op": "db",
-        },
-        metadata: BucketMetadata {
-            merges: 1,
-        },
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1597976302),
-        width: 0,
-        name: MetricName(
-            "d:spans/duration@millisecond",
-        ),
-        value: Distribution(
-            [
-                2000.0,
-            ],
-        ),
-        tags: {
-            "environment": "fake_environment",
-            "span.op": "db",
-            "transaction": "gEt /api/:version/users/",
-            "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -3375,28 +2983,6 @@ expression: metrics
             "span.domain": "table",
             "span.group": "03cb381cee3f1463",
             "span.op": "db.sql.query",
-        },
-        metadata: BucketMetadata {
-            merges: 1,
-        },
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1597976302),
-        width: 0,
-        name: MetricName(
-            "d:spans/duration@millisecond",
-        ),
-        value: Distribution(
-            [
-                2000.0,
-            ],
-        ),
-        tags: {
-            "environment": "fake_environment",
-            "span.group": "03cb381cee3f1463",
-            "span.op": "db.sql.query",
-            "transaction": "gEt /api/:version/users/",
-            "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -3569,28 +3155,6 @@ expression: metrics
             "span.domain": ",table,",
             "span.group": "e0f7e81a59b030ba",
             "span.op": "db",
-        },
-        metadata: BucketMetadata {
-            merges: 1,
-        },
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1597976302),
-        width: 0,
-        name: MetricName(
-            "d:spans/duration@millisecond",
-        ),
-        value: Distribution(
-            [
-                2000.0,
-            ],
-        ),
-        tags: {
-            "environment": "fake_environment",
-            "span.group": "e0f7e81a59b030ba",
-            "span.op": "db",
-            "transaction": "gEt /api/:version/users/",
-            "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -3759,27 +3323,6 @@ expression: metrics
             "span.category": "db",
             "span.domain": "table",
             "span.op": "db",
-        },
-        metadata: BucketMetadata {
-            merges: 1,
-        },
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1597976302),
-        width: 0,
-        name: MetricName(
-            "d:spans/duration@millisecond",
-        ),
-        value: Distribution(
-            [
-                2000.0,
-            ],
-        ),
-        tags: {
-            "environment": "fake_environment",
-            "span.op": "db",
-            "transaction": "gEt /api/:version/users/",
-            "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -3942,27 +3485,6 @@ expression: metrics
             "span.category": "db",
             "span.domain": "table",
             "span.op": "db",
-        },
-        metadata: BucketMetadata {
-            merges: 1,
-        },
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1597976302),
-        width: 0,
-        name: MetricName(
-            "d:spans/duration@millisecond",
-        ),
-        value: Distribution(
-            [
-                2000.0,
-            ],
-        ),
-        tags: {
-            "environment": "fake_environment",
-            "span.op": "db",
-            "transaction": "gEt /api/:version/users/",
-            "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -4127,28 +3649,6 @@ expression: metrics
             "span.description": "SAVEPOINT %s",
             "span.group": "3f955cbde39e04b9",
             "span.op": "db",
-        },
-        metadata: BucketMetadata {
-            merges: 1,
-        },
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1597976302),
-        width: 0,
-        name: MetricName(
-            "d:spans/duration@millisecond",
-        ),
-        value: Distribution(
-            [
-                2000.0,
-            ],
-        ),
-        tags: {
-            "environment": "fake_environment",
-            "span.group": "3f955cbde39e04b9",
-            "span.op": "db",
-            "transaction": "gEt /api/:version/users/",
-            "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -4342,27 +3842,6 @@ expression: metrics
         timestamp: UnixTimestamp(1597976302),
         width: 0,
         name: MetricName(
-            "d:spans/duration@millisecond",
-        ),
-        value: Distribution(
-            [
-                2000.0,
-            ],
-        ),
-        tags: {
-            "environment": "fake_environment",
-            "span.op": "cache.get_item",
-            "transaction": "gEt /api/:version/users/",
-            "transaction.op": "myop",
-        },
-        metadata: BucketMetadata {
-            merges: 1,
-        },
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1597976302),
-        width: 0,
-        name: MetricName(
             "g:spans/self_time@millisecond",
         ),
         value: Gauge(
@@ -4525,28 +4004,6 @@ expression: metrics
         timestamp: UnixTimestamp(1597976302),
         width: 0,
         name: MetricName(
-            "d:spans/duration@millisecond",
-        ),
-        value: Distribution(
-            [
-                2000.0,
-            ],
-        ),
-        tags: {
-            "environment": "fake_environment",
-            "span.group": "37e3d9fab1ae9162",
-            "span.op": "db.redis",
-            "transaction": "gEt /api/:version/users/",
-            "transaction.op": "myop",
-        },
-        metadata: BucketMetadata {
-            merges: 1,
-        },
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1597976302),
-        width: 0,
-        name: MetricName(
             "g:spans/self_time@millisecond",
         ),
         value: Gauge(
@@ -4715,28 +4172,6 @@ expression: metrics
         timestamp: UnixTimestamp(1597976302),
         width: 0,
         name: MetricName(
-            "d:spans/duration@millisecond",
-        ),
-        value: Distribution(
-            [
-                2000.0,
-            ],
-        ),
-        tags: {
-            "environment": "fake_environment",
-            "span.group": "37e3d9fab1ae9162",
-            "span.op": "db.redis",
-            "transaction": "gEt /api/:version/users/",
-            "transaction.op": "myop",
-        },
-        metadata: BucketMetadata {
-            merges: 1,
-        },
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1597976302),
-        width: 0,
-        name: MetricName(
             "g:spans/self_time@millisecond",
         ),
         value: Gauge(
@@ -4874,28 +4309,6 @@ expression: metrics
             "span.description": "SET *",
             "span.group": "46b2cac4b418f556",
             "span.op": "db.redis",
-        },
-        metadata: BucketMetadata {
-            merges: 1,
-        },
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1597976302),
-        width: 0,
-        name: MetricName(
-            "d:spans/duration@millisecond",
-        ),
-        value: Distribution(
-            [
-                2000.0,
-            ],
-        ),
-        tags: {
-            "environment": "fake_environment",
-            "span.group": "46b2cac4b418f556",
-            "span.op": "db.redis",
-            "transaction": "gEt /api/:version/users/",
-            "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -5096,28 +4509,6 @@ expression: metrics
         timestamp: UnixTimestamp(1597976302),
         width: 0,
         name: MetricName(
-            "d:spans/duration@millisecond",
-        ),
-        value: Distribution(
-            [
-                2000.0,
-            ],
-        ),
-        tags: {
-            "environment": "fake_environment",
-            "span.group": "022f81fdf31228bf",
-            "span.op": "resource.script",
-            "transaction": "gEt /api/:version/users/",
-            "transaction.op": "myop",
-        },
-        metadata: BucketMetadata {
-            merges: 1,
-        },
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1597976302),
-        width: 0,
-        name: MetricName(
             "g:spans/self_time@millisecond",
         ),
         value: Gauge(
@@ -5217,27 +4608,6 @@ expression: metrics
         width: 0,
         name: MetricName(
             "d:spans/exclusive_time@millisecond",
-        ),
-        value: Distribution(
-            [
-                2000.0,
-            ],
-        ),
-        tags: {
-            "environment": "fake_environment",
-            "span.op": "db.sql.query",
-            "transaction": "gEt /api/:version/users/",
-            "transaction.op": "myop",
-        },
-        metadata: BucketMetadata {
-            merges: 1,
-        },
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1597976302),
-        width: 0,
-        name: MetricName(
-            "d:spans/duration@millisecond",
         ),
         value: Distribution(
             [
@@ -5411,27 +4781,6 @@ expression: metrics
         timestamp: UnixTimestamp(1597976302),
         width: 0,
         name: MetricName(
-            "d:spans/duration@millisecond",
-        ),
-        value: Distribution(
-            [
-                2000.0,
-            ],
-        ),
-        tags: {
-            "environment": "fake_environment",
-            "span.op": "db.sql.query",
-            "transaction": "gEt /api/:version/users/",
-            "transaction.op": "myop",
-        },
-        metadata: BucketMetadata {
-            merges: 1,
-        },
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1597976302),
-        width: 0,
-        name: MetricName(
             "g:spans/self_time@millisecond",
         ),
         value: Gauge(
@@ -5527,27 +4876,6 @@ expression: metrics
         width: 0,
         name: MetricName(
             "d:spans/exclusive_time@millisecond",
-        ),
-        value: Distribution(
-            [
-                2000.0,
-            ],
-        ),
-        tags: {
-            "environment": "fake_environment",
-            "span.op": "db.mongodb.find",
-            "transaction": "gEt /api/:version/users/",
-            "transaction.op": "myop",
-        },
-        metadata: BucketMetadata {
-            merges: 1,
-        },
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1597976302),
-        width: 0,
-        name: MetricName(
-            "d:spans/duration@millisecond",
         ),
         value: Distribution(
             [
@@ -5691,27 +5019,6 @@ expression: metrics
             "span.category": "db",
             "span.domain": "table",
             "span.op": "db.sql.activerecord",
-        },
-        metadata: BucketMetadata {
-            merges: 1,
-        },
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1597976302),
-        width: 0,
-        name: MetricName(
-            "d:spans/duration@millisecond",
-        ),
-        value: Distribution(
-            [
-                2000.0,
-            ],
-        ),
-        tags: {
-            "environment": "fake_environment",
-            "span.op": "db.sql.activerecord",
-            "transaction": "gEt /api/:version/users/",
-            "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -5872,27 +5179,6 @@ expression: metrics
             "span.action": "SAVEPOINT",
             "span.category": "db",
             "span.op": "db.redis.command",
-        },
-        metadata: BucketMetadata {
-            merges: 1,
-        },
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1597976302),
-        width: 0,
-        name: MetricName(
-            "d:spans/duration@millisecond",
-        ),
-        value: Distribution(
-            [
-                2000.0,
-            ],
-        ),
-        tags: {
-            "environment": "fake_environment",
-            "span.op": "db.redis.command",
-            "transaction": "gEt /api/:version/users/",
-            "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -6016,27 +5302,6 @@ expression: metrics
         width: 0,
         name: MetricName(
             "d:spans/exclusive_time@millisecond",
-        ),
-        value: Distribution(
-            [
-                15833.532095,
-            ],
-        ),
-        tags: {
-            "environment": "fake_environment",
-            "span.op": "ui.load",
-            "transaction": "gEt /api/:version/users/",
-            "transaction.op": "myop",
-        },
-        metadata: BucketMetadata {
-            merges: 1,
-        },
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1695255152),
-        width: 0,
-        name: MetricName(
-            "d:spans/duration@millisecond",
         ),
         value: Distribution(
             [
@@ -6151,30 +5416,6 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
-            "span.op": "app.start.cold",
-            "transaction": "gEt /api/:version/users/",
-            "transaction.op": "myop",
-        },
-        metadata: BucketMetadata {
-            merges: 1,
-        },
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1695255136),
-        width: 0,
-        name: MetricName(
-            "d:spans/duration@millisecond",
-        ),
-        value: Distribution(
-            [
-                1668.516159,
-            ],
-        ),
-        tags: {
-            "environment": "fake_environment",
-            "release": "1.2.3",
-            "span.description": "Cold Start",
-            "span.group": "2d675185edfeb30c",
             "span.op": "app.start.cold",
             "transaction": "gEt /api/:version/users/",
             "transaction.op": "myop",
@@ -6425,28 +5666,6 @@ expression: metrics
         timestamp: UnixTimestamp(1694732408),
         width: 0,
         name: MetricName(
-            "d:spans/duration@millisecond",
-        ),
-        value: Distribution(
-            [
-                477.800131,
-            ],
-        ),
-        tags: {
-            "environment": "fake_environment",
-            "span.group": "d744fa0716ef1142",
-            "span.op": "resource.css",
-            "transaction": "gEt /api/:version/users/",
-            "transaction.op": "myop",
-        },
-        metadata: BucketMetadata {
-            merges: 1,
-        },
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1694732408),
-        width: 0,
-        name: MetricName(
             "g:spans/self_time@millisecond",
         ),
         value: Gauge(
@@ -6694,28 +5913,6 @@ expression: metrics
         timestamp: UnixTimestamp(1694732408),
         width: 0,
         name: MetricName(
-            "d:spans/duration@millisecond",
-        ),
-        value: Distribution(
-            [
-                477.800131,
-            ],
-        ),
-        tags: {
-            "environment": "fake_environment",
-            "span.group": "89bda2e660f6236c",
-            "span.op": "resource.script",
-            "transaction": "gEt /api/:version/users/",
-            "transaction.op": "myop",
-        },
-        metadata: BucketMetadata {
-            merges: 1,
-        },
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1694732408),
-        width: 0,
-        name: MetricName(
             "g:spans/self_time@millisecond",
         ),
         value: Gauge(
@@ -6858,27 +6055,6 @@ expression: metrics
         timestamp: UnixTimestamp(1597976302),
         width: 0,
         name: MetricName(
-            "d:spans/duration@millisecond",
-        ),
-        value: Distribution(
-            [
-                2000.0,
-            ],
-        ),
-        tags: {
-            "environment": "fake_environment",
-            "span.op": "ui.react.render",
-            "transaction": "gEt /api/:version/users/",
-            "transaction.op": "myop",
-        },
-        metadata: BucketMetadata {
-            merges: 1,
-        },
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1597976302),
-        width: 0,
-        name: MetricName(
             "g:spans/self_time@millisecond",
         ),
         value: Gauge(
@@ -7014,28 +6190,6 @@ expression: metrics
         timestamp: UnixTimestamp(1597976302),
         width: 0,
         name: MetricName(
-            "d:spans/duration@millisecond",
-        ),
-        value: Distribution(
-            [
-                2000.0,
-            ],
-        ),
-        tags: {
-            "environment": "fake_environment",
-            "span.group": "d9dc18637d441612",
-            "span.op": "http.client",
-            "transaction": "gEt /api/:version/users/",
-            "transaction.op": "myop",
-        },
-        metadata: BucketMetadata {
-            merges: 1,
-        },
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1597976302),
-        width: 0,
-        name: MetricName(
             "g:spans/self_time@millisecond",
         ),
         value: Gauge(
@@ -7204,28 +6358,6 @@ expression: metrics
         timestamp: UnixTimestamp(1597976302),
         width: 0,
         name: MetricName(
-            "d:spans/duration@millisecond",
-        ),
-        value: Distribution(
-            [
-                2000.0,
-            ],
-        ),
-        tags: {
-            "environment": "fake_environment",
-            "span.group": "25faf23529f71d3e",
-            "span.op": "http.client",
-            "transaction": "gEt /api/:version/users/",
-            "transaction.op": "myop",
-        },
-        metadata: BucketMetadata {
-            merges: 1,
-        },
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1597976302),
-        width: 0,
-        name: MetricName(
             "g:spans/self_time@millisecond",
         ),
         value: Gauge(
@@ -7394,28 +6526,6 @@ expression: metrics
         timestamp: UnixTimestamp(1597976302),
         width: 0,
         name: MetricName(
-            "d:spans/duration@millisecond",
-        ),
-        value: Distribution(
-            [
-                2000.0,
-            ],
-        ),
-        tags: {
-            "environment": "fake_environment",
-            "span.group": "488f09b46e5978be",
-            "span.op": "http.client",
-            "transaction": "gEt /api/:version/users/",
-            "transaction.op": "myop",
-        },
-        metadata: BucketMetadata {
-            merges: 1,
-        },
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1597976302),
-        width: 0,
-        name: MetricName(
             "g:spans/self_time@millisecond",
         ),
         value: Gauge(
@@ -7582,28 +6692,6 @@ expression: metrics
         timestamp: UnixTimestamp(1597976302),
         width: 0,
         name: MetricName(
-            "d:spans/duration@millisecond",
-        ),
-        value: Distribution(
-            [
-                2000.0,
-            ],
-        ),
-        tags: {
-            "environment": "fake_environment",
-            "span.group": "37e3d9fab1ae9162",
-            "span.op": "http.client",
-            "transaction": "gEt /api/:version/users/",
-            "transaction.op": "myop",
-        },
-        metadata: BucketMetadata {
-            merges: 1,
-        },
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1597976302),
-        width: 0,
-        name: MetricName(
             "g:spans/self_time@millisecond",
         ),
         value: Gauge(
@@ -7741,28 +6829,6 @@ expression: metrics
             "span.group": "464fe695f9cf639c",
             "span.op": "http.client",
             "span.status_code": "200",
-        },
-        metadata: BucketMetadata {
-            merges: 1,
-        },
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1597976302),
-        width: 0,
-        name: MetricName(
-            "d:spans/duration@millisecond",
-        ),
-        value: Distribution(
-            [
-                2000.0,
-            ],
-        ),
-        tags: {
-            "environment": "fake_environment",
-            "span.group": "464fe695f9cf639c",
-            "span.op": "http.client",
-            "transaction": "gEt /api/:version/users/",
-            "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -7966,28 +7032,6 @@ expression: metrics
         timestamp: UnixTimestamp(1597976302),
         width: 0,
         name: MetricName(
-            "d:spans/duration@millisecond",
-        ),
-        value: Distribution(
-            [
-                2000.0,
-            ],
-        ),
-        tags: {
-            "environment": "fake_environment",
-            "span.group": "86818d1c74ecfc66",
-            "span.op": "http.client",
-            "transaction": "gEt /api/:version/users/",
-            "transaction.op": "myop",
-        },
-        metadata: BucketMetadata {
-            merges: 1,
-        },
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1597976302),
-        width: 0,
-        name: MetricName(
             "g:spans/self_time@millisecond",
         ),
         value: Gauge(
@@ -8129,28 +7173,6 @@ expression: metrics
             "span.group": "72ab88b506cb04b2",
             "span.op": "http.client",
             "span.status_code": "200",
-        },
-        metadata: BucketMetadata {
-            merges: 1,
-        },
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1597976302),
-        width: 0,
-        name: MetricName(
-            "d:spans/duration@millisecond",
-        ),
-        value: Distribution(
-            [
-                2000.0,
-            ],
-        ),
-        tags: {
-            "environment": "fake_environment",
-            "span.group": "72ab88b506cb04b2",
-            "span.op": "http.client",
-            "transaction": "gEt /api/:version/users/",
-            "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -8354,28 +7376,6 @@ expression: metrics
         timestamp: UnixTimestamp(1597976302),
         width: 0,
         name: MetricName(
-            "d:spans/duration@millisecond",
-        ),
-        value: Distribution(
-            [
-                2000.0,
-            ],
-        ),
-        tags: {
-            "environment": "fake_environment",
-            "span.group": "c8e531abe96ff360",
-            "span.op": "http.client",
-            "transaction": "gEt /api/:version/users/",
-            "transaction.op": "myop",
-        },
-        metadata: BucketMetadata {
-            merges: 1,
-        },
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1597976302),
-        width: 0,
-        name: MetricName(
             "g:spans/self_time@millisecond",
         ),
         value: Gauge(
@@ -8548,28 +7548,6 @@ expression: metrics
         timestamp: UnixTimestamp(1597976302),
         width: 0,
         name: MetricName(
-            "d:spans/duration@millisecond",
-        ),
-        value: Distribution(
-            [
-                2000.0,
-            ],
-        ),
-        tags: {
-            "environment": "fake_environment",
-            "span.group": "86818d1c74ecfc66",
-            "span.op": "http.client",
-            "transaction": "gEt /api/:version/users/",
-            "transaction.op": "myop",
-        },
-        metadata: BucketMetadata {
-            merges: 1,
-        },
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1597976302),
-        width: 0,
-        name: MetricName(
             "g:spans/self_time@millisecond",
         ),
         value: Gauge(
@@ -8711,28 +7689,6 @@ expression: metrics
             "span.group": "86818d1c74ecfc66",
             "span.op": "http.client",
             "span.status_code": "200",
-        },
-        metadata: BucketMetadata {
-            merges: 1,
-        },
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1597976302),
-        width: 0,
-        name: MetricName(
-            "d:spans/duration@millisecond",
-        ),
-        value: Distribution(
-            [
-                2000.0,
-            ],
-        ),
-        tags: {
-            "environment": "fake_environment",
-            "span.group": "86818d1c74ecfc66",
-            "span.op": "http.client",
-            "transaction": "gEt /api/:version/users/",
-            "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -8936,28 +7892,6 @@ expression: metrics
         timestamp: UnixTimestamp(1597976302),
         width: 0,
         name: MetricName(
-            "d:spans/duration@millisecond",
-        ),
-        value: Distribution(
-            [
-                2000.0,
-            ],
-        ),
-        tags: {
-            "environment": "fake_environment",
-            "span.group": "f4a7fef06db3d88e",
-            "span.op": "db.sql.query",
-            "transaction": "gEt /api/:version/users/",
-            "transaction.op": "myop",
-        },
-        metadata: BucketMetadata {
-            merges: 1,
-        },
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1597976302),
-        width: 0,
-        name: MetricName(
             "g:spans/self_time@millisecond",
         ),
         value: Gauge(
@@ -9130,28 +8064,6 @@ expression: metrics
         timestamp: UnixTimestamp(1597976302),
         width: 0,
         name: MetricName(
-            "d:spans/duration@millisecond",
-        ),
-        value: Distribution(
-            [
-                2000.0,
-            ],
-        ),
-        tags: {
-            "environment": "fake_environment",
-            "span.group": "4f9711d2d09963b9",
-            "span.op": "db",
-            "transaction": "gEt /api/:version/users/",
-            "transaction.op": "myop",
-        },
-        metadata: BucketMetadata {
-            merges: 1,
-        },
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1597976302),
-        width: 0,
-        name: MetricName(
             "g:spans/self_time@millisecond",
         ),
         value: Gauge(
@@ -9319,27 +8231,6 @@ expression: metrics
         timestamp: UnixTimestamp(1597976302),
         width: 0,
         name: MetricName(
-            "d:spans/duration@millisecond",
-        ),
-        value: Distribution(
-            [
-                2000.0,
-            ],
-        ),
-        tags: {
-            "environment": "fake_environment",
-            "span.op": "db.sql.query",
-            "transaction": "gEt /api/:version/users/",
-            "transaction.op": "myop",
-        },
-        metadata: BucketMetadata {
-            merges: 1,
-        },
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1597976302),
-        width: 0,
-        name: MetricName(
             "g:spans/self_time@millisecond",
         ),
         value: Gauge(
@@ -9476,28 +8367,6 @@ expression: metrics
             "span.domain": ",from_date,",
             "span.group": "e4ea457c8e7e4109",
             "span.op": "db.sql.query",
-        },
-        metadata: BucketMetadata {
-            merges: 1,
-        },
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1597976302),
-        width: 0,
-        name: MetricName(
-            "d:spans/duration@millisecond",
-        ),
-        value: Distribution(
-            [
-                2000.0,
-            ],
-        ),
-        tags: {
-            "environment": "fake_environment",
-            "span.group": "e4ea457c8e7e4109",
-            "span.op": "db.sql.query",
-            "transaction": "gEt /api/:version/users/",
-            "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -9666,27 +8535,6 @@ expression: metrics
             "span.category": "db",
             "span.domain": "table",
             "span.op": "db",
-        },
-        metadata: BucketMetadata {
-            merges: 1,
-        },
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1597976302),
-        width: 0,
-        name: MetricName(
-            "d:spans/duration@millisecond",
-        ),
-        value: Distribution(
-            [
-                2000.0,
-            ],
-        ),
-        tags: {
-            "environment": "fake_environment",
-            "span.op": "db",
-            "transaction": "gEt /api/:version/users/",
-            "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -9853,28 +8701,6 @@ expression: metrics
             "span.domain": "table",
             "span.group": "03cb381cee3f1463",
             "span.op": "db.sql.query",
-        },
-        metadata: BucketMetadata {
-            merges: 1,
-        },
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1597976302),
-        width: 0,
-        name: MetricName(
-            "d:spans/duration@millisecond",
-        ),
-        value: Distribution(
-            [
-                2000.0,
-            ],
-        ),
-        tags: {
-            "environment": "fake_environment",
-            "span.group": "03cb381cee3f1463",
-            "span.op": "db.sql.query",
-            "transaction": "gEt /api/:version/users/",
-            "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -10078,28 +8904,6 @@ expression: metrics
         timestamp: UnixTimestamp(1597976302),
         width: 0,
         name: MetricName(
-            "d:spans/duration@millisecond",
-        ),
-        value: Distribution(
-            [
-                2000.0,
-            ],
-        ),
-        tags: {
-            "environment": "fake_environment",
-            "span.group": "e0f7e81a59b030ba",
-            "span.op": "db",
-            "transaction": "gEt /api/:version/users/",
-            "transaction.op": "myop",
-        },
-        metadata: BucketMetadata {
-            merges: 1,
-        },
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1597976302),
-        width: 0,
-        name: MetricName(
             "g:spans/self_time@millisecond",
         ),
         value: Gauge(
@@ -10267,27 +9071,6 @@ expression: metrics
         timestamp: UnixTimestamp(1597976302),
         width: 0,
         name: MetricName(
-            "d:spans/duration@millisecond",
-        ),
-        value: Distribution(
-            [
-                2000.0,
-            ],
-        ),
-        tags: {
-            "environment": "fake_environment",
-            "span.op": "db",
-            "transaction": "gEt /api/:version/users/",
-            "transaction.op": "myop",
-        },
-        metadata: BucketMetadata {
-            merges: 1,
-        },
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1597976302),
-        width: 0,
-        name: MetricName(
             "g:spans/self_time@millisecond",
         ),
         value: Gauge(
@@ -10450,27 +9233,6 @@ expression: metrics
         timestamp: UnixTimestamp(1597976302),
         width: 0,
         name: MetricName(
-            "d:spans/duration@millisecond",
-        ),
-        value: Distribution(
-            [
-                2000.0,
-            ],
-        ),
-        tags: {
-            "environment": "fake_environment",
-            "span.op": "db",
-            "transaction": "gEt /api/:version/users/",
-            "transaction.op": "myop",
-        },
-        metadata: BucketMetadata {
-            merges: 1,
-        },
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1597976302),
-        width: 0,
-        name: MetricName(
             "g:spans/self_time@millisecond",
         ),
         value: Gauge(
@@ -10636,28 +9398,6 @@ expression: metrics
         timestamp: UnixTimestamp(1597976302),
         width: 0,
         name: MetricName(
-            "d:spans/duration@millisecond",
-        ),
-        value: Distribution(
-            [
-                2000.0,
-            ],
-        ),
-        tags: {
-            "environment": "fake_environment",
-            "span.group": "3f955cbde39e04b9",
-            "span.op": "db",
-            "transaction": "gEt /api/:version/users/",
-            "transaction.op": "myop",
-        },
-        metadata: BucketMetadata {
-            merges: 1,
-        },
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1597976302),
-        width: 0,
-        name: MetricName(
             "g:spans/self_time@millisecond",
         ),
         value: Gauge(
@@ -10820,27 +9560,6 @@ expression: metrics
         timestamp: UnixTimestamp(1597976302),
         width: 0,
         name: MetricName(
-            "d:spans/duration@millisecond",
-        ),
-        value: Distribution(
-            [
-                2000.0,
-            ],
-        ),
-        tags: {
-            "environment": "fake_environment",
-            "span.op": "cache.get_item",
-            "transaction": "gEt /api/:version/users/",
-            "transaction.op": "myop",
-        },
-        metadata: BucketMetadata {
-            merges: 1,
-        },
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1597976302),
-        width: 0,
-        name: MetricName(
             "g:spans/self_time@millisecond",
         ),
         value: Gauge(
@@ -10997,27 +9716,6 @@ expression: metrics
         timestamp: UnixTimestamp(1597976302),
         width: 0,
         name: MetricName(
-            "d:spans/duration@millisecond",
-        ),
-        value: Distribution(
-            [
-                2000.0,
-            ],
-        ),
-        tags: {
-            "environment": "fake_environment",
-            "span.op": "cache.get_item",
-            "transaction": "gEt /api/:version/users/",
-            "transaction.op": "myop",
-        },
-        metadata: BucketMetadata {
-            merges: 1,
-        },
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1597976302),
-        width: 0,
-        name: MetricName(
             "g:spans/self_time@millisecond",
         ),
         value: Gauge(
@@ -11180,28 +9878,6 @@ expression: metrics
         timestamp: UnixTimestamp(1597976302),
         width: 0,
         name: MetricName(
-            "d:spans/duration@millisecond",
-        ),
-        value: Distribution(
-            [
-                2000.0,
-            ],
-        ),
-        tags: {
-            "environment": "fake_environment",
-            "span.group": "37e3d9fab1ae9162",
-            "span.op": "db.redis",
-            "transaction": "gEt /api/:version/users/",
-            "transaction.op": "myop",
-        },
-        metadata: BucketMetadata {
-            merges: 1,
-        },
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1597976302),
-        width: 0,
-        name: MetricName(
             "g:spans/self_time@millisecond",
         ),
         value: Gauge(
@@ -11339,28 +10015,6 @@ expression: metrics
             "span.description": "GET *",
             "span.group": "37e3d9fab1ae9162",
             "span.op": "db.redis",
-        },
-        metadata: BucketMetadata {
-            merges: 1,
-        },
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1597976302),
-        width: 0,
-        name: MetricName(
-            "d:spans/duration@millisecond",
-        ),
-        value: Distribution(
-            [
-                2000.0,
-            ],
-        ),
-        tags: {
-            "environment": "fake_environment",
-            "span.group": "37e3d9fab1ae9162",
-            "span.op": "db.redis",
-            "transaction": "gEt /api/:version/users/",
-            "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -11529,28 +10183,6 @@ expression: metrics
             "span.description": "SET *",
             "span.group": "46b2cac4b418f556",
             "span.op": "db.redis",
-        },
-        metadata: BucketMetadata {
-            merges: 1,
-        },
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1597976302),
-        width: 0,
-        name: MetricName(
-            "d:spans/duration@millisecond",
-        ),
-        value: Distribution(
-            [
-                2000.0,
-            ],
-        ),
-        tags: {
-            "environment": "fake_environment",
-            "span.group": "46b2cac4b418f556",
-            "span.op": "db.redis",
-            "transaction": "gEt /api/:version/users/",
-            "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -11718,28 +10350,6 @@ expression: metrics
             "span.domain": "*",
             "span.group": "3e92c536f98104b2",
             "span.op": "resource.script",
-        },
-        metadata: BucketMetadata {
-            merges: 1,
-        },
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1597976302),
-        width: 0,
-        name: MetricName(
-            "d:spans/duration@millisecond",
-        ),
-        value: Distribution(
-            [
-                2000.0,
-            ],
-        ),
-        tags: {
-            "environment": "fake_environment",
-            "span.group": "3e92c536f98104b2",
-            "span.op": "resource.script",
-            "transaction": "gEt /api/:version/users/",
-            "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -11908,28 +10518,6 @@ expression: metrics
             "span.domain": "domain",
             "span.group": "022f81fdf31228bf",
             "span.op": "resource.script",
-        },
-        metadata: BucketMetadata {
-            merges: 1,
-        },
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1597976302),
-        width: 0,
-        name: MetricName(
-            "d:spans/duration@millisecond",
-        ),
-        value: Distribution(
-            [
-                2000.0,
-            ],
-        ),
-        tags: {
-            "environment": "fake_environment",
-            "span.group": "022f81fdf31228bf",
-            "span.op": "resource.script",
-            "transaction": "gEt /api/:version/users/",
-            "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -12206,28 +10794,6 @@ expression: metrics
         timestamp: UnixTimestamp(1694732408),
         width: 0,
         name: MetricName(
-            "d:spans/duration@millisecond",
-        ),
-        value: Distribution(
-            [
-                477.800131,
-            ],
-        ),
-        tags: {
-            "environment": "fake_environment",
-            "span.group": "7f402250846262be",
-            "span.op": "resource.css",
-            "transaction": "gEt /api/:version/users/",
-            "transaction.op": "myop",
-        },
-        metadata: BucketMetadata {
-            merges: 1,
-        },
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1694732408),
-        width: 0,
-        name: MetricName(
             "g:spans/self_time@millisecond",
         ),
         value: Gauge(
@@ -12365,28 +10931,6 @@ expression: metrics
             "span.description": "*/zero-length-*",
             "span.group": "c7d3c9d83f92123a",
             "span.op": "resource.script",
-        },
-        metadata: BucketMetadata {
-            merges: 1,
-        },
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1694732408),
-        width: 0,
-        name: MetricName(
-            "d:spans/duration@millisecond",
-        ),
-        value: Distribution(
-            [
-                477.800131,
-            ],
-        ),
-        tags: {
-            "environment": "fake_environment",
-            "span.group": "c7d3c9d83f92123a",
-            "span.op": "resource.script",
-            "transaction": "gEt /api/:version/users/",
-            "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -12574,27 +11118,6 @@ expression: metrics
         timestamp: UnixTimestamp(1702474613),
         width: 0,
         name: MetricName(
-            "d:spans/duration@millisecond",
-        ),
-        value: Distribution(
-            [
-                32.000065,
-            ],
-        ),
-        tags: {
-            "environment": "fake_environment",
-            "span.op": "ui.interaction.click",
-            "transaction": "gEt /api/:version/users/",
-            "transaction.op": "myop",
-        },
-        metadata: BucketMetadata {
-            merges: 1,
-        },
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1702474613),
-        width: 0,
-        name: MetricName(
             "g:spans/self_time@millisecond",
         ),
         value: Gauge(
@@ -12744,27 +11267,6 @@ expression: metrics
         timestamp: UnixTimestamp(1702474613),
         width: 0,
         name: MetricName(
-            "d:spans/duration@millisecond",
-        ),
-        value: Distribution(
-            [
-                32.000065,
-            ],
-        ),
-        tags: {
-            "environment": "fake_environment",
-            "span.op": "queue.task.celery",
-            "transaction": "gEt /api/:version/users/",
-            "transaction.op": "myop",
-        },
-        metadata: BucketMetadata {
-            merges: 1,
-        },
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1702474613),
-        width: 0,
-        name: MetricName(
             "g:spans/self_time@millisecond",
         ),
         value: Gauge(
@@ -12883,27 +11385,6 @@ expression: metrics
         tags: {
             "span.category": "queue",
             "span.op": "queue.submit.celery",
-        },
-        metadata: BucketMetadata {
-            merges: 1,
-        },
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1702474613),
-        width: 0,
-        name: MetricName(
-            "d:spans/duration@millisecond",
-        ),
-        value: Distribution(
-            [
-                32.000065,
-            ],
-        ),
-        tags: {
-            "environment": "fake_environment",
-            "span.op": "queue.submit.celery",
-            "transaction": "gEt /api/:version/users/",
-            "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -13054,27 +11535,6 @@ expression: metrics
             "span.description": "ConcurrentStream",
             "span.group": "fdd5a729aef245ba",
             "span.op": "ai.run.langchain",
-        },
-        metadata: BucketMetadata {
-            merges: 1,
-        },
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1702474613),
-        width: 0,
-        name: MetricName(
-            "d:spans/duration@millisecond",
-        ),
-        value: Distribution(
-            [
-                32.000065,
-            ],
-        ),
-        tags: {
-            "environment": "fake_environment",
-            "span.op": "ai.run.langchain",
-            "transaction": "gEt /api/:version/users/",
-            "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -13193,6 +11653,9 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "span.category": "ai",
+            "span.description": "ConcurrentStream",
+            "span.group": "fdd5a729aef245ba",
             "span.op": "ai.run.langchain",
             "transaction": "gEt /api/:version/users/",
             "transaction.op": "myop",
@@ -13252,27 +11715,6 @@ expression: metrics
             "span.description": "Autofix Pipeline",
             "span.group": "86148ae2d6c09430",
             "span.op": "ai.pipeline.langchain",
-        },
-        metadata: BucketMetadata {
-            merges: 1,
-        },
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1702474613),
-        width: 0,
-        name: MetricName(
-            "d:spans/duration@millisecond",
-        ),
-        value: Distribution(
-            [
-                32.000065,
-            ],
-        ),
-        tags: {
-            "environment": "fake_environment",
-            "span.op": "ai.pipeline.langchain",
-            "transaction": "gEt /api/:version/users/",
-            "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -13391,6 +11833,9 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "span.category": "ai.pipeline",
+            "span.description": "Autofix Pipeline",
+            "span.group": "86148ae2d6c09430",
             "span.op": "ai.pipeline.langchain",
             "transaction": "gEt /api/:version/users/",
             "transaction.op": "myop",
