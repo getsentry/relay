@@ -1451,6 +1451,26 @@ LIMIT 1
                         },
                         "hash": "8e7b6caca435801d",
                         "same_process_as_parent": true
+                    },
+                    {
+                        "timestamp": 1711007391.034472,
+                        "start_timestamp": 1711007391.217212,
+                        "exclusive_time": 0.18274,
+                        "description": "GET http://data.application.co.uk/feed.json",
+                        "op": "http.client",
+                        "span_id": "37983b2fc748728f",
+                        "parent_span_id": "a1bdf3c7d2afe10e",
+                        "trace_id": "2920522dedff493ebe5d84da7be4319f",
+                        "data": {
+                            "http.request_method": "GET",
+                            "http.response.status_code": 200,
+                            "http.fragment": "",
+                            "http.query": "",
+                            "reason": "OK",
+                            "url": "http://data.application.co.uk/feed.json"
+                        },
+                        "hash": "6a4358018e7bdcac",
+                        "same_process_as_parent": true
                     }
                 ]
             }
@@ -1465,9 +1485,11 @@ LIMIT 1
 
         let span_1 = &event.spans.value().unwrap()[0];
         let span_2 = &event.spans.value().unwrap()[1];
+        let span_3 = &event.spans.value().unwrap()[2];
 
         let tags_1 = get_value!(span_1.sentry_tags).unwrap();
         let tags_2 = get_value!(span_2.sentry_tags).unwrap();
+        let tags_3 = get_value!(span_3.sentry_tags).unwrap();
 
         // Allow loopback IPs
         assert_eq!(
@@ -1485,6 +1507,16 @@ LIMIT 1
             Some("GET http://*.*.*.*")
         );
         assert_eq!(tags_2.get("domain").unwrap().as_str(), Some("*.*.*.*"));
+
+        // Parse ccTLDs
+        assert_eq!(
+            tags_3.get("description").unwrap().as_str(),
+            Some("GET http://*.application.co.uk")
+        );
+        assert_eq!(
+            tags_3.get("domain").unwrap().as_str(),
+            Some("*.application.co.uk")
+        );
     }
 
     #[test]
