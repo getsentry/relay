@@ -1752,6 +1752,38 @@
 <a href="#1750" id="1750">1750</a>
 <a href="#1751" id="1751">1751</a>
 <a href="#1752" id="1752">1752</a>
+<a href="#1753" id="1753">1753</a>
+<a href="#1754" id="1754">1754</a>
+<a href="#1755" id="1755">1755</a>
+<a href="#1756" id="1756">1756</a>
+<a href="#1757" id="1757">1757</a>
+<a href="#1758" id="1758">1758</a>
+<a href="#1759" id="1759">1759</a>
+<a href="#1760" id="1760">1760</a>
+<a href="#1761" id="1761">1761</a>
+<a href="#1762" id="1762">1762</a>
+<a href="#1763" id="1763">1763</a>
+<a href="#1764" id="1764">1764</a>
+<a href="#1765" id="1765">1765</a>
+<a href="#1766" id="1766">1766</a>
+<a href="#1767" id="1767">1767</a>
+<a href="#1768" id="1768">1768</a>
+<a href="#1769" id="1769">1769</a>
+<a href="#1770" id="1770">1770</a>
+<a href="#1771" id="1771">1771</a>
+<a href="#1772" id="1772">1772</a>
+<a href="#1773" id="1773">1773</a>
+<a href="#1774" id="1774">1774</a>
+<a href="#1775" id="1775">1775</a>
+<a href="#1776" id="1776">1776</a>
+<a href="#1777" id="1777">1777</a>
+<a href="#1778" id="1778">1778</a>
+<a href="#1779" id="1779">1779</a>
+<a href="#1780" id="1780">1780</a>
+<a href="#1781" id="1781">1781</a>
+<a href="#1782" id="1782">1782</a>
+<a href="#1783" id="1783">1783</a>
+<a href="#1784" id="1784">1784</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Logic for persisting items into `span.sentry_tags` and `span.measurements` fields.
 //! These are then used for metrics extraction.
 </span><span class="kw">use </span>std::borrow::Cow;
@@ -3205,6 +3237,26 @@ LIMIT 1
                         },
                         "hash": "8e7b6caca435801d",
                         "same_process_as_parent": true
+                    },
+                    {
+                        "timestamp": 1711007391.034472,
+                        "start_timestamp": 1711007391.217212,
+                        "exclusive_time": 0.18274,
+                        "description": "GET http://data.application.co.uk/feed.json",
+                        "op": "http.client",
+                        "span_id": "37983b2fc748728f",
+                        "parent_span_id": "a1bdf3c7d2afe10e",
+                        "trace_id": "2920522dedff493ebe5d84da7be4319f",
+                        "data": {
+                            "http.request_method": "GET",
+                            "http.response.status_code": 200,
+                            "http.fragment": "",
+                            "http.query": "",
+                            "reason": "OK",
+                            "url": "http://data.application.co.uk/feed.json"
+                        },
+                        "hash": "6a4358018e7bdcac",
+                        "same_process_as_parent": true
                     }
                 ]
             }
@@ -3219,9 +3271,11 @@ LIMIT 1
 
         <span class="kw">let </span>span_1 = <span class="kw-2">&amp;</span>event.spans.value().unwrap()[<span class="number">0</span>];
         <span class="kw">let </span>span_2 = <span class="kw-2">&amp;</span>event.spans.value().unwrap()[<span class="number">1</span>];
+        <span class="kw">let </span>span_3 = <span class="kw-2">&amp;</span>event.spans.value().unwrap()[<span class="number">2</span>];
 
         <span class="kw">let </span>tags_1 = <span class="macro">get_value!</span>(span_1.sentry_tags).unwrap();
         <span class="kw">let </span>tags_2 = <span class="macro">get_value!</span>(span_2.sentry_tags).unwrap();
+        <span class="kw">let </span>tags_3 = <span class="macro">get_value!</span>(span_3.sentry_tags).unwrap();
 
         <span class="comment">// Allow loopback IPs
         </span><span class="macro">assert_eq!</span>(
@@ -3239,6 +3293,16 @@ LIMIT 1
             <span class="prelude-val">Some</span>(<span class="string">"GET http://*.*.*.*"</span>)
         );
         <span class="macro">assert_eq!</span>(tags_2.get(<span class="string">"domain"</span>).unwrap().as_str(), <span class="prelude-val">Some</span>(<span class="string">"*.*.*.*"</span>));
+
+        <span class="comment">// Parse ccTLDs
+        </span><span class="macro">assert_eq!</span>(
+            tags_3.get(<span class="string">"description"</span>).unwrap().as_str(),
+            <span class="prelude-val">Some</span>(<span class="string">"GET http://*.application.co.uk"</span>)
+        );
+        <span class="macro">assert_eq!</span>(
+            tags_3.get(<span class="string">"domain"</span>).unwrap().as_str(),
+            <span class="prelude-val">Some</span>(<span class="string">"*.application.co.uk"</span>)
+        );
     }
 
     <span class="attr">#[test]
