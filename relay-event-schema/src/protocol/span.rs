@@ -296,7 +296,7 @@ pub struct SpanData {
     pub replay_id: Annotated<Value>,
 
     /// The sentry SDK (see [`crate::protocol::ClientSdkInfo`]).
-    #[metastructure(field = "sdk.name")]
+    #[metastructure(field = "sentry.sdk.name")]
     pub sdk_name: Annotated<String>,
 
     /// Other fields in `span.data`.
