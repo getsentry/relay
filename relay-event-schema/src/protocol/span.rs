@@ -165,7 +165,7 @@ pub struct SpanData {
 
     /// The client's browser name.
     #[metastructure(field = "browser.name")]
-    pub browser_name: Annotated<Value>,
+    pub browser_name: Annotated<String>,
 
     /// The source code file name that identifies the code unit as uniquely as possible.
     #[metastructure(field = "code.filepath", pii = "maybe")]
@@ -271,10 +271,13 @@ pub struct SpanData {
     #[metastructure(field = "thread.name")]
     pub thread_name: Annotated<Value>,
 
-    /// Origin Transaction name of the span.
+    /// Name of the segment that this span belongs to (see `segment_id`).
+    ///
+    /// This corresponds to the transaction name in the transaction-based model.
     ///
     /// For INP spans, this is the route name where the interaction occurred.
-    pub transaction: Annotated<String>,
+    #[metastructure(field = "segment.name", legacy_alias = "transaction")]
+    pub segment_name: Annotated<String>,
 
     /// Name of the UI component (e.g. React).
     #[metastructure(field = "ui.component_name")]
@@ -292,6 +295,10 @@ pub struct SpanData {
     #[metastructure(field = "replay_id")]
     pub replay_id: Annotated<Value>,
 
+    /// The sentry SDK (see [`crate::protocol::ClientSdkInfo`]).
+    #[metastructure(field = "sdk.name")]
+    pub sdk_name: Annotated<String>,
+
     /// Other fields in `span.data`.
     #[metastructure(additional_properties, pii = "true", retain = "true")]
     other: Object<Value>,
@@ -301,7 +308,7 @@ impl Getter for SpanData {
     fn get_value(&self, path: &str) -> Option<Val<'_>> {
         Some(match path {
             "app_start_type" => self.app_start_type.value()?.into(),
-            "browser\\.name" => self.browser_name.value()?.into(),
+            "browser\\.name" => self.browser_name.as_str()?.into(),
             "code\\.filepath" => self.code_filepath.value()?.into(),
             "code\\.function" => self.code_function.value()?.into(),
             "code\\.lineno" => self.code_lineno.value()?.into(),
@@ -327,7 +334,7 @@ impl Getter for SpanData {
             "thread\\.name" => self.thread_name.value()?.into(),
             "ui\\.component_name" => self.ui_component_name.value()?.into(),
             "url\\.scheme" => self.url_scheme.value()?.into(),
-            "transaction" => self.transaction.as_str()?.into(),
+            "transaction" => self.segment_name.as_str()?.into(),
             _ => {
                 let escaped = path.replace("\\.", "\0");
                 let mut path = escaped.split('.').map(|s| s.replace('\0', "."));
@@ -529,11 +536,12 @@ mod tests {
             ai_total_tokens_used: ~,
             ai_responses: ~,
             thread_name: ~,
-            transaction: ~,
+            segment_name: ~,
             ui_component_name: ~,
             url_scheme: ~,
             user: ~,
             replay_id: ~,
+            sdk_name: ~,
             other: {
                 "bar": String(
                     "3",
