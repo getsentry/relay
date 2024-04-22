@@ -494,7 +494,7 @@ fn span_metrics(
                     ),
                 Tag::with_key("span.category")
                     .from_field("span.sentry_tags.category")
-                    .when(is_ai.clone() | know_modules_condition.clone()),
+                    .when(is_ai.clone()),
                 Tag::with_key("span.description")
                     .from_field("span.sentry_tags.description")
                     .when(is_ai.clone() | app_start_condition.clone()),

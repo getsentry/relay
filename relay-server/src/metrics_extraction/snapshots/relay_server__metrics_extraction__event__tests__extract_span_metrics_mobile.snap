@@ -667,7 +667,6 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 ],
             ),
             tags: {
-                "span.category": "app",
                 "span.op": "app.start.cold",
                 "transaction": "gEt /api/:version/users/",
             },
@@ -880,7 +879,6 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "device.class": "1",
                 "os.name": "iOS",
                 "release": "1.2.3",
-                "span.category": "app",
                 "span.description": "Cold Start",
                 "span.group": "2d675185edfeb30c",
                 "span.op": "app.start.cold",
