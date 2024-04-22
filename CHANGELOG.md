@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Internal**:
+
+- Emit gauges for total and self times for spans. ([#3448](https://github.com/getsentry/relay/pull/3448))
+
 ## 24.4.1
 
 **Features**:
