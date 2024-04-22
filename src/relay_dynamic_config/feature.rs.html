@@ -169,6 +169,14 @@
 <a href="#167" id="167">167</a>
 <a href="#168" id="168">168</a>
 <a href="#169" id="169">169</a>
+<a href="#170" id="170">170</a>
+<a href="#171" id="171">171</a>
+<a href="#172" id="172">172</a>
+<a href="#173" id="173">173</a>
+<a href="#174" id="174">174</a>
+<a href="#175" id="175">175</a>
+<a href="#176" id="176">176</a>
+<a href="#177" id="177">177</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeSet;
 
 <span class="kw">use </span>serde::{Deserialize, Serialize};
@@ -260,6 +268,14 @@
     /// Serialized as `projects:extract-transaction-from-segment-span`.
     </span><span class="attr">#[serde(rename = <span class="string">"projects:extract-transaction-from-segment-span"</span>)]
     </span>ExtractTransactionFromSegmentSpan,
+
+    <span class="doccomment">/// Double write span distribution metrics as gauges.
+    ///
+    /// This is to transition to a cheaper way to store span metrics where we only use averages.
+    ///
+    /// Serialized as `projects:span-metrics-double-write-distributions-as-gauges`.
+    </span><span class="attr">#[serde(rename = <span class="string">"projects:span-metrics-double-write-distributions-as-gauges"</span>)]
+    </span>DoubleWriteSpanDistributionMetricsAsGauges,
 
     <span class="doccomment">/// Deprecated, still forwarded for older downstream Relays.
     </span><span class="attr">#[doc(hidden)]

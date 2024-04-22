@@ -1571,6 +1571,8 @@
 <a href="#1569" id="1569">1569</a>
 <a href="#1570" id="1570">1570</a>
 <a href="#1571" id="1571">1571</a>
+<a href="#1572" id="1572">1572</a>
+<a href="#1573" id="1573">1573</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_common::time::UnixTimestamp;
 <span class="kw">use </span>relay_dynamic_config::MetricExtractionConfig;
 <span class="kw">use </span>relay_event_schema::protocol::{Event, Span};
@@ -2635,6 +2637,7 @@
         <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::from_json(json).unwrap();
         <span class="kw">let </span>features = FeatureSet(BTreeSet::from([
             Feature::ExtractSpansAndSpanMetricsFromEvent,
+            Feature::DoubleWriteSpanDistributionMetricsAsGauges,
         ]));
 
         <span class="comment">// Normalize first, to make sure that all things are correct as in the real pipeline:
@@ -2953,7 +2956,7 @@
         <span class="kw">let </span>metrics = extract_span_metrics_mobile(<span class="string">"app.start.cold"</span>, <span class="number">181000.0</span>);
         <span class="macro">assert_eq!</span>(
             metrics.iter().map(|m| <span class="kw-2">&amp;*</span>m.name).collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;(),
-            <span class="macro">vec!</span>[<span class="string">"c:spans/usage@none"</span>, <span class="string">"d:spans/exclusive_time@millisecond"</span>]
+            <span class="macro">vec!</span>[<span class="string">"c:spans/usage@none"</span>, <span class="string">"d:spans/exclusive_time@millisecond"</span>,]
         );
     }
 
@@ -2975,7 +2978,7 @@
         <span class="kw">let </span>metrics = extract_span_metrics_mobile(<span class="string">"app.start.warm"</span>, <span class="number">181000.0</span>);
         <span class="macro">assert_eq!</span>(
             metrics.iter().map(|m| <span class="kw-2">&amp;*</span>m.name).collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;(),
-            <span class="macro">vec!</span>[<span class="string">"c:spans/usage@none"</span>, <span class="string">"d:spans/exclusive_time@millisecond"</span>]
+            <span class="macro">vec!</span>[<span class="string">"c:spans/usage@none"</span>, <span class="string">"d:spans/exclusive_time@millisecond"</span>,]
         );
     }
 
@@ -2997,7 +3000,7 @@
         <span class="kw">let </span>metrics = extract_span_metrics_mobile(<span class="string">"ui.load.initial_display"</span>, <span class="number">181000.0</span>);
         <span class="macro">assert_eq!</span>(
             metrics.iter().map(|m| <span class="kw-2">&amp;*</span>m.name).collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;(),
-            <span class="macro">vec!</span>[<span class="string">"c:spans/usage@none"</span>, <span class="string">"d:spans/exclusive_time@millisecond"</span>]
+            <span class="macro">vec!</span>[<span class="string">"c:spans/usage@none"</span>, <span class="string">"d:spans/exclusive_time@millisecond"</span>,]
         );
     }
 
@@ -3019,7 +3022,7 @@
         <span class="kw">let </span>metrics = extract_span_metrics_mobile(<span class="string">"ui.load.full_display"</span>, <span class="number">181000.0</span>);
         <span class="macro">assert_eq!</span>(
             metrics.iter().map(|m| <span class="kw-2">&amp;*</span>m.name).collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;(),
-            <span class="macro">vec!</span>[<span class="string">"c:spans/usage@none"</span>, <span class="string">"d:spans/exclusive_time@millisecond"</span>]
+            <span class="macro">vec!</span>[<span class="string">"c:spans/usage@none"</span>, <span class="string">"d:spans/exclusive_time@millisecond"</span>,]
         );
     }
 
@@ -3123,6 +3126,7 @@
         <span class="kw">let </span>metrics = extract_metrics(event.value().unwrap(), <span class="bool-val">false</span>, <span class="kw-2">&amp;</span>config, <span class="number">200</span>, <span class="prelude-val">None</span>);
 
         <span class="macro">assert_eq!</span>(metrics.len(), <span class="number">4</span>);
+
         <span class="macro">assert_eq!</span>(<span class="kw-2">&amp;*</span>metrics[<span class="number">0</span>].name, <span class="string">"c:spans/usage@none"</span>);
 
         <span class="macro">assert_eq!</span>(<span class="kw-2">&amp;*</span>metrics[<span class="number">1</span>].name, <span class="string">"d:spans/exclusive_time@millisecond"</span>);
