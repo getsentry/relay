@@ -55,12 +55,14 @@ struct Producer {
 }
 
 impl Producer {
-    pub fn create(config: &Arc<Config>) -> anyhow::Result<Self> {
+    pub fn create(config: &Config) -> anyhow::Result<Self> {
         let mut client_builder = KafkaClient::builder();
 
-        for topic in KafkaTopic::iter()
-            .filter(|t| **t != KafkaTopic::Outcomes || **t != KafkaTopic::OutcomesBilling)
-        {
+        for topic in KafkaTopic::iter().filter(|t| {
+            // Outcomes should not be sent from the store forwarder.
+            // See `KafkaOutcomesProducer`.
+            **t != KafkaTopic::Outcomes && **t != KafkaTopic::OutcomesBilling
+        }) {
             let kafka_config = &config.kafka_config(*topic)?;
             client_builder = client_builder.add_kafka_topic_config(*topic, kafka_config)?;
         }
@@ -1745,6 +1747,20 @@ mod tests {
             assert!(event.attachments.len() == number_of_attachments);
         } else {
             panic!("No event found")
+        }
+    }
+
+    #[test]
+    fn disallow_outcomes() {
+        let config = Config::default();
+        let producer = Producer::create(&config).unwrap();
+
+        for topic in [KafkaTopic::Outcomes, KafkaTopic::OutcomesBilling] {
+            let res = producer
+                .client
+                .send(topic, b"0123456789abcdef", None, "foo", b"");
+
+            assert!(matches!(res, Err(ClientError::InvalidTopicName)));
         }
     }
 }
