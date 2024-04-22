@@ -1752,9 +1752,6 @@
 <a href="#1750" id="1750">1750</a>
 <a href="#1751" id="1751">1751</a>
 <a href="#1752" id="1752">1752</a>
-<a href="#1753" id="1753">1753</a>
-<a href="#1754" id="1754">1754</a>
-<a href="#1755" id="1755">1755</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Logic for persisting items into `span.sentry_tags` and `span.measurements` fields.
 //! These are then used for metrics extraction.
 </span><span class="kw">use </span>std::borrow::Cow;
@@ -2262,8 +2259,10 @@
         }
         <span class="kw">if let </span><span class="prelude-val">Some</span>(measurements) = span.measurements.value() {
             <span class="kw">if </span>span_op.starts_with(<span class="string">"ui.interaction."</span>) &amp;&amp; measurements.contains_key(<span class="string">"inp"</span>) {
-                <span class="kw">if let </span><span class="prelude-val">Some</span>(transaction) =
-                    span.data.value().and_then(|data| data.transaction.as_str())
+                <span class="kw">if let </span><span class="prelude-val">Some</span>(transaction) = span
+                    .data
+                    .value()
+                    .and_then(|data| data.segment_name.as_str())
                 {
                     span_tags.insert(SpanTagKey::Transaction, transaction.into());
                 }
@@ -2329,13 +2328,8 @@
         }
     }
 
-    <span class="kw">if let </span><span class="prelude-val">Some</span>(browser_name) = span
-        .data
-        .value()
-        .and_then(|data| data.browser_name.value())
-        .and_then(|browser_name| browser_name.as_str())
-    {
-        span_tags.insert(SpanTagKey::BrowserName, browser_name.into());
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(browser_name) = span.data.value().and_then(|data| data.browser_name.value()) {
+        span_tags.insert(SpanTagKey::BrowserName, browser_name.clone());
     }
 
     span_tags

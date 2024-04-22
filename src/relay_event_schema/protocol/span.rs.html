@@ -556,6 +556,14 @@
 <a href="#554" id="554">554</a>
 <a href="#555" id="555">555</a>
 <a href="#556" id="556">556</a>
+<a href="#557" id="557">557</a>
+<a href="#558" id="558">558</a>
+<a href="#559" id="559">559</a>
+<a href="#560" id="560">560</a>
+<a href="#561" id="561">561</a>
+<a href="#562" id="562">562</a>
+<a href="#563" id="563">563</a>
+<a href="#564" id="564">564</a>
 </pre></div><pre class="rust"><code><span class="kw">mod </span>convert;
 
 <span class="attr">#[cfg(feature = <span class="string">"jsonschema"</span>)]
@@ -723,7 +731,7 @@
 
     <span class="doccomment">/// The client's browser name.
     </span><span class="attr">#[metastructure(field = <span class="string">"browser.name"</span>)]
-    </span><span class="kw">pub </span>browser_name: Annotated&lt;Value&gt;,
+    </span><span class="kw">pub </span>browser_name: Annotated&lt;String&gt;,
 
     <span class="doccomment">/// The source code file name that identifies the code unit as uniquely as possible.
     </span><span class="attr">#[metastructure(field = <span class="string">"code.filepath"</span>, pii = <span class="string">"maybe"</span>)]
@@ -829,10 +837,13 @@
     </span><span class="attr">#[metastructure(field = <span class="string">"thread.name"</span>)]
     </span><span class="kw">pub </span>thread_name: Annotated&lt;Value&gt;,
 
-    <span class="doccomment">/// Origin Transaction name of the span.
+    <span class="doccomment">/// Name of the segment that this span belongs to (see `segment_id`).
+    ///
+    /// This corresponds to the transaction name in the transaction-based model.
     ///
     /// For INP spans, this is the route name where the interaction occurred.
-    </span><span class="kw">pub </span>transaction: Annotated&lt;String&gt;,
+    </span><span class="attr">#[metastructure(field = <span class="string">"segment.name"</span>, legacy_alias = <span class="string">"transaction"</span>)]
+    </span><span class="kw">pub </span>segment_name: Annotated&lt;String&gt;,
 
     <span class="doccomment">/// Name of the UI component (e.g. React).
     </span><span class="attr">#[metastructure(field = <span class="string">"ui.component_name"</span>)]
@@ -850,6 +861,10 @@
     </span><span class="attr">#[metastructure(field = <span class="string">"replay_id"</span>)]
     </span><span class="kw">pub </span>replay_id: Annotated&lt;Value&gt;,
 
+    <span class="doccomment">/// The sentry SDK (see [`crate::protocol::ClientSdkInfo`]).
+    </span><span class="attr">#[metastructure(field = <span class="string">"sdk.name"</span>)]
+    </span><span class="kw">pub </span>sdk_name: Annotated&lt;String&gt;,
+
     <span class="doccomment">/// Other fields in `span.data`.
     </span><span class="attr">#[metastructure(additional_properties, pii = <span class="string">"true"</span>, retain = <span class="string">"true"</span>)]
     </span>other: Object&lt;Value&gt;,
@@ -859,7 +874,7 @@
     <span class="kw">fn </span>get_value(<span class="kw-2">&amp;</span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;Val&lt;<span class="lifetime">'_</span>&gt;&gt; {
         <span class="prelude-val">Some</span>(<span class="kw">match </span>path {
             <span class="string">"app_start_type" </span>=&gt; <span class="self">self</span>.app_start_type.value()<span class="question-mark">?</span>.into(),
-            <span class="string">"browser\\.name" </span>=&gt; <span class="self">self</span>.browser_name.value()<span class="question-mark">?</span>.into(),
+            <span class="string">"browser\\.name" </span>=&gt; <span class="self">self</span>.browser_name.as_str()<span class="question-mark">?</span>.into(),
             <span class="string">"code\\.filepath" </span>=&gt; <span class="self">self</span>.code_filepath.value()<span class="question-mark">?</span>.into(),
             <span class="string">"code\\.function" </span>=&gt; <span class="self">self</span>.code_function.value()<span class="question-mark">?</span>.into(),
             <span class="string">"code\\.lineno" </span>=&gt; <span class="self">self</span>.code_lineno.value()<span class="question-mark">?</span>.into(),
@@ -885,7 +900,7 @@
             <span class="string">"thread\\.name" </span>=&gt; <span class="self">self</span>.thread_name.value()<span class="question-mark">?</span>.into(),
             <span class="string">"ui\\.component_name" </span>=&gt; <span class="self">self</span>.ui_component_name.value()<span class="question-mark">?</span>.into(),
             <span class="string">"url\\.scheme" </span>=&gt; <span class="self">self</span>.url_scheme.value()<span class="question-mark">?</span>.into(),
-            <span class="string">"transaction" </span>=&gt; <span class="self">self</span>.transaction.as_str()<span class="question-mark">?</span>.into(),
+            <span class="string">"transaction" </span>=&gt; <span class="self">self</span>.segment_name.as_str()<span class="question-mark">?</span>.into(),
             <span class="kw">_ </span>=&gt; {
                 <span class="kw">let </span>escaped = path.replace(<span class="string">"\\."</span>, <span class="string">"\0"</span>);
                 <span class="kw">let </span><span class="kw-2">mut </span>path = escaped.split(<span class="string">'.'</span>).map(|s| s.replace(<span class="string">'\0'</span>, <span class="string">"."</span>));
@@ -1087,11 +1102,12 @@
             ai_total_tokens_used: ~,
             ai_responses: ~,
             thread_name: ~,
-            transaction: ~,
+            segment_name: ~,
             ui_component_name: ~,
             url_scheme: ~,
             user: ~,
             replay_id: ~,
+            sdk_name: ~,
             other: {
                 "bar": String(
                     "3",
