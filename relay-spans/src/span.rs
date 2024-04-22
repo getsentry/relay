@@ -473,13 +473,87 @@ mod tests {
                     "value": {
                         "stringValue": "my 1st transaction"
                     }
+                },
+                {
+                    "key": "sentry.measurements.memory.value",
+                    "value": {
+                        "doubleValue": 9001.0
+                    }
+                },
+                {
+                    "key": "sentry.measurements.memory.unit",
+                    "value": {
+                        "stringValue": "byte"
+                    }
+                },
+                {
+                    "key": "sentry._metrics_summary",
+                    "value": {
+                        "kvlistValue": {
+                            "values": [
+                                {
+                                    "key": "some_metric",
+                                    "value": {
+                                        "arrayValue": {
+                                            "values": [
+                                                {
+                                                    "kvlistValue": {
+                                                        "values": [
+                                                            {
+                                                                "key": "min",
+                                                                "value": {
+                                                                    "doubleValue": 1.0
+                                                                }
+                                                            },
+                                                            {
+                                                                "key": "max",
+                                                                "value": {
+                                                                    "doubleValue": 1.0
+                                                                }
+                                                            },
+                                                            {
+                                                                "key": "sum",
+                                                                "value": {
+                                                                    "doubleValue": 1.0
+                                                                }
+                                                            },
+                                                            {
+                                                                "key": "count",
+                                                                "value": {
+                                                                    "doubleValue": 1.0
+                                                                }
+                                                            },
+                                                            {
+                                                                "key": "tags",
+                                                                "value": {
+                                                                    "kvlistValue": {
+                                                                        "values": [
+                                                                            {
+                                                                                "key": "environment",
+                                                                                "value": {
+                                                                                    "stringValue": "test"
+                                                                                }
+                                                                            }
+                                                                        ]
+                                                                    }
+                                                                }
+                                                            }
+                                                        ]
+                                                    }
+                                                }
+                                            ]
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
                 }
             ]
         }"#;
+
         let otel_span: OtelSpan = serde_json::from_str(json).unwrap();
         let span_from_otel = otel_to_sentry_span(otel_span);
-
-        // TODO: measurements, metrics_summary
 
         insta::assert_debug_snapshot!(span_from_otel, @r###"
         Span {
@@ -549,8 +623,27 @@ mod tests {
             },
             sentry_tags: ~,
             received: ~,
-            measurements: ~,
-            _metrics_summary: ~,
+            measurements: {
+                "memory": {
+                    "value": 9001.0,
+                    "unit": "byte"
+                }
+            },
+            _metrics_summary: {
+                {
+                    "some_metric": [
+                        {
+                            "min": 1.0,
+                            "max": 2.0,
+                            "sum": 3.0,
+                            "count": 2,
+                            "tags": {
+                                "environment": "test"
+                            }
+                        }
+                    ]
+                }
+            },
             platform: "php",
             was_transaction: ~,
             other: {},
