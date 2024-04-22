@@ -271,7 +271,9 @@ pub struct SpanData {
     #[metastructure(field = "thread.name")]
     pub thread_name: Annotated<Value>,
 
-    /// Origin Transaction name of the span.
+    /// Name of the segment that this span belongs to (see `segment_id`).
+    ///
+    /// This corresponds to the transaction name in the transaction-based model.
     ///
     /// For INP spans, this is the route name where the interaction occurred.
     #[metastructure(field = "sentry.segment.name", legacy_alias = "transaction")]
@@ -293,8 +295,8 @@ pub struct SpanData {
     #[metastructure(field = "sentry.replay.id", legacy_alias = "replay_id")]
     pub replay_id: Annotated<Value>,
 
-    #[metastructure(field = "sentry.sdk.name")]
     /// The sentry SDK (see [`crate::protocol::ClientSdkInfo`]).
+    #[metastructure(field = "sdk.name")]
     pub sdk_name: Annotated<String>,
 
     /// Other fields in `span.data`.

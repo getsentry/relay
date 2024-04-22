@@ -30,6 +30,7 @@ use crate::services::processor::{EncodeMetricMeta, EnvelopeProcessor, ProjectMet
 use crate::services::project_cache::{CheckedEnvelope, ProjectCache, RequestUpdate};
 
 use crate::extractors::RequestMeta;
+use crate::metric_stats::MetricStats;
 use crate::statsd::RelayCounters;
 use crate::utils::{
     self, EnvelopeLimiter, ExtractionMode, ManagedEnvelope, MetricsLimiter, RetryBackoff,
@@ -1138,6 +1139,7 @@ impl Project {
     pub fn check_buckets(
         &mut self,
         outcome_aggregator: Addr<TrackOutcome>,
+        metric_stats: MetricStats,
         mut buckets: Vec<Bucket>,
     ) -> Option<(Scoping, ProjectMetrics)> {
         let Some(project_state) = self.valid_state() else {
@@ -1185,13 +1187,13 @@ impl Project {
                 relay_log::debug!("dropping {} buckets due to rate limit", quantities.buckets);
 
                 let reason_code = limits.longest().and_then(|limit| limit.reason_code.clone());
-                utils::reject_metrics::<Vec<Bucket>>(
+                utils::reject_metrics(
                     &outcome_aggregator,
+                    &metric_stats,
                     quantities,
                     scoping,
                     Outcome::RateLimited(reason_code),
-                    None,
-                    None,
+                    &buckets,
                 );
 
                 buckets.retain(|bucket| bucket.name.try_namespace() != Some(namespace));

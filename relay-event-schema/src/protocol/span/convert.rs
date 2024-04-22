@@ -327,7 +327,7 @@ mod tests {
     }
 
     #[test]
-    fn segment_name_takes_precedence() {
+    fn segment_name_takes_precedence_over_description() {
         let span = Span {
             is_segment: true.into(),
             description: "This is the description".to_owned().into(),
