@@ -7,10 +7,10 @@ use opentelemetry_proto::tonic::common::v1::{AnyValue, KeyValue};
 use crate::otel_trace::{status::StatusCode as OtelStatusCode, Span as OtelSpan};
 use crate::status_codes;
 use relay_event_schema::protocol::{
-    EventId, Measurement, Measurements, MetricSummary, MetricsSummary, Span as EventSpan, SpanData,
-    SpanId, SpanStatus, Timestamp, TraceId,
+    EventId, MetricSummary, MetricsSummary, Span as EventSpan, SpanData, SpanId, SpanStatus,
+    Timestamp, TraceId,
 };
-use relay_protocol::{Annotated, Empty, FromValue, Object};
+use relay_protocol::{Annotated, FromValue, Object};
 
 /// convert_from_otel_to_sentry_status returns a status as defined by Sentry based on the OTel status.
 fn convert_from_otel_to_sentry_status(
@@ -72,35 +72,34 @@ fn otel_value_to_span_id(value: OtelValue) -> Option<String> {
     }
 }
 
-fn otel_value_to_metric_summary(value: &AnyValue) -> Option<MetricSummary> {
-    let value = value.value.as_ref()?;
-    let OtelValue::KvlistValue(value) = dbg!(value) else {
+fn otel_value_to_metric_summary(value: AnyValue) -> Option<MetricSummary> {
+    let value = value.value?;
+    let OtelValue::KvlistValue(value) = value else {
         return None;
     };
     let mut summary = MetricSummary::default();
-    for KeyValue { key, value } in &value.values {
-        let value = value.as_ref()?.value.as_ref()?;
-        match dbg!(value) {
+    for KeyValue { key, value } in value.values {
+        let value = value?.value?;
+        match value {
             OtelValue::IntValue(n) if key == "count" => {
-                summary.count = u64::try_from(*n).ok()?.into();
+                summary.count = u64::try_from(n).ok()?.into();
             }
             OtelValue::DoubleValue(f) if key == "min" => {
-                summary.min = (*f).into();
+                summary.min = f.into();
             }
             OtelValue::DoubleValue(f) if key == "max" => {
-                summary.max = (*f).into();
+                summary.max = f.into();
             }
             OtelValue::DoubleValue(f) if key == "sum" => {
-                summary.sum = (*f).into();
+                summary.sum = f.into();
             }
             OtelValue::KvlistValue(list) if key == "tags" => {
                 let tags = summary.tags.get_or_insert_with(Default::default);
-                for KeyValue { key, value } in &list.values {
-                    let OtelValue::StringValue(value) = value.as_ref()?.value.as_ref()? else {
+                for KeyValue { key, value } in list.values {
+                    let OtelValue::StringValue(value) = value?.value? else {
                         return None;
                     };
-                    // TODO: don't clone here, take ownership of original value.
-                    tags.insert(key.clone(), value.clone().into());
+                    tags.insert(key, value.into());
                 }
             }
             _ => return None,
@@ -143,7 +142,6 @@ pub fn otel_to_sentry_span(otel_span: OtelSpan) -> EventSpan {
     let mut platform = None;
     let mut segment_id = None;
     let mut profile_id = None;
-    let mut measurements = Object::<Measurement>::new();
     let mut metrics_summary = MetricsSummary::default();
     for attribute in attributes.into_iter() {
         if let Some(value) = attribute.value.and_then(|v| v.value) {
@@ -196,46 +194,19 @@ pub fn otel_to_sentry_span(otel_span: OtelSpan) -> EventSpan {
                     profile_id = otel_value_to_span_id(value);
                 }
                 other => {
-                    if let Some(suffix) = other.strip_prefix("sentry.") {
-                        if let Some(measurement) = suffix.strip_prefix("measurements.") {
-                            match (&value, measurement.rsplit_once('.')) {
-                                (OtelValue::DoubleValue(value), Some((name, "value"))) => {
-                                    let measurement =
-                                        measurements.entry(name.to_owned()).or_default();
-                                    let measurement =
-                                        measurement.get_or_insert_with(Measurement::default);
-                                    measurement.value = Annotated::new(*value);
-
-                                    continue;
+                    if let Some(metric_name) = other.strip_prefix("sentry.metrics_summary.") {
+                        if let OtelValue::ArrayValue(entries) = value {
+                            let summaries =
+                                metrics_summary.0.entry(metric_name.to_owned()).or_default();
+                            let summaries = summaries.get_or_insert_with(Default::default);
+                            for field in entries.values {
+                                if let Some(summary) = otel_value_to_metric_summary(field) {
+                                    summaries.push(summary.into());
                                 }
-                                (OtelValue::StringValue(unit), Some((name, "unit"))) => {
-                                    if let Ok(unit) = FromStr::from_str(unit) {
-                                        let measurement =
-                                            measurements.entry(name.to_owned()).or_default();
-                                        let measurement =
-                                            measurement.get_or_insert_with(Measurement::default);
-                                        measurement.unit = Annotated::new(unit);
-
-                                        continue;
-                                    }
-                                }
-                                _ => {}
                             }
-                        } else if let Some(metric_name) = suffix.strip_prefix("metrics_summary.") {
-                            if let OtelValue::ArrayValue(entries) = dbg!(&value) {
-                                let summaries =
-                                    metrics_summary.0.entry(metric_name.to_owned()).or_default();
-                                let summaries = summaries.get_or_insert_with(Default::default);
-                                for field in &entries.values {
-                                    if let Some(summary) = otel_value_to_metric_summary(field) {
-                                        summaries.push(summary.into());
-                                    }
-                                }
 
-                                continue;
-                            }
+                            continue;
                         }
-                        {}
                     }
 
                     let key = attribute.key;
@@ -294,12 +265,6 @@ pub fn otel_to_sentry_span(otel_span: OtelSpan) -> EventSpan {
         timestamp: Timestamp(end_timestamp).into(),
         trace_id: TraceId(trace_id).into(),
         platform: platform.into(),
-        measurements: Annotated::new(Measurements(
-            measurements
-                .into_iter()
-                .filter(|(_, v)| v.value().map_or(false, |m| !m.value.is_empty()))
-                .collect(),
-        )),
         _metrics_summary: metrics_summary.into(),
         ..Default::default()
     }
@@ -566,18 +531,6 @@ mod tests {
                     }
                 },
                 {
-                    "key": "sentry.measurements.memory.value",
-                    "value": {
-                        "doubleValue": 9001.0
-                    }
-                },
-                {
-                    "key": "sentry.measurements.memory.unit",
-                    "value": {
-                        "stringValue": "byte"
-                    }
-                },
-                {
                     "key": "sentry.metrics_summary.some_metric",
                     "value": {
                         "arrayValue": {
@@ -707,16 +660,7 @@ mod tests {
             },
             sentry_tags: ~,
             received: ~,
-            measurements: Measurements(
-                {
-                    "memory": Measurement {
-                        value: 9001.0,
-                        unit: Information(
-                            Byte,
-                        ),
-                    },
-                },
-            ),
+            measurements: ~,
             _metrics_summary: MetricsSummary(
                 {
                     "some_metric": [
