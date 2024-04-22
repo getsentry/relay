@@ -1750,6 +1750,22 @@
 <a href="#1748" id="1748">1748</a>
 <a href="#1749" id="1749">1749</a>
 <a href="#1750" id="1750">1750</a>
+<a href="#1751" id="1751">1751</a>
+<a href="#1752" id="1752">1752</a>
+<a href="#1753" id="1753">1753</a>
+<a href="#1754" id="1754">1754</a>
+<a href="#1755" id="1755">1755</a>
+<a href="#1756" id="1756">1756</a>
+<a href="#1757" id="1757">1757</a>
+<a href="#1758" id="1758">1758</a>
+<a href="#1759" id="1759">1759</a>
+<a href="#1760" id="1760">1760</a>
+<a href="#1761" id="1761">1761</a>
+<a href="#1762" id="1762">1762</a>
+<a href="#1763" id="1763">1763</a>
+<a href="#1764" id="1764">1764</a>
+<a href="#1765" id="1765">1765</a>
+<a href="#1766" id="1766">1766</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module contains the service that forwards events and attachments to the Sentry store.
 //! The service uses Kafka topics to forward data to Sentry
 
@@ -1807,12 +1823,14 @@
 }
 
 <span class="kw">impl </span>Producer {
-    <span class="kw">pub fn </span>create(config: <span class="kw-2">&amp;</span>Arc&lt;Config&gt;) -&gt; anyhow::Result&lt;<span class="self">Self</span>&gt; {
+    <span class="kw">pub fn </span>create(config: <span class="kw-2">&amp;</span>Config) -&gt; anyhow::Result&lt;<span class="self">Self</span>&gt; {
         <span class="kw">let </span><span class="kw-2">mut </span>client_builder = KafkaClient::builder();
 
-        <span class="kw">for </span>topic <span class="kw">in </span>KafkaTopic::iter()
-            .filter(|t| <span class="kw-2">**</span>t != KafkaTopic::Outcomes || <span class="kw-2">**</span>t != KafkaTopic::OutcomesBilling)
-        {
+        <span class="kw">for </span>topic <span class="kw">in </span>KafkaTopic::iter().filter(|t| {
+            <span class="comment">// Outcomes should not be sent from the store forwarder.
+            // See `KafkaOutcomesProducer`.
+            </span><span class="kw-2">**</span>t != KafkaTopic::Outcomes &amp;&amp; <span class="kw-2">**</span>t != KafkaTopic::OutcomesBilling
+        }) {
             <span class="kw">let </span>kafka_config = <span class="kw-2">&amp;</span>config.kafka_config(<span class="kw-2">*</span>topic)<span class="question-mark">?</span>;
             client_builder = client_builder.add_kafka_topic_config(<span class="kw-2">*</span>topic, kafka_config)<span class="question-mark">?</span>;
         }
@@ -3497,6 +3515,20 @@
             <span class="macro">assert!</span>(event.attachments.len() == number_of_attachments);
         } <span class="kw">else </span>{
             <span class="macro">panic!</span>(<span class="string">"No event found"</span>)
+        }
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>disallow_outcomes() {
+        <span class="kw">let </span>config = Config::default();
+        <span class="kw">let </span>producer = Producer::create(<span class="kw-2">&amp;</span>config).unwrap();
+
+        <span class="kw">for </span>topic <span class="kw">in </span>[KafkaTopic::Outcomes, KafkaTopic::OutcomesBilling] {
+            <span class="kw">let </span>res = producer
+                .client
+                .send(topic, <span class="string">b"0123456789abcdef"</span>, <span class="prelude-val">None</span>, <span class="string">"foo"</span>, <span class="string">b""</span>);
+
+            <span class="macro">assert!</span>(<span class="macro">matches!</span>(res, <span class="prelude-val">Err</span>(ClientError::InvalidTopicName)));
         }
     }
 }
