@@ -12,7 +12,7 @@ use relay_base_schema::metrics::{InformationUnit, MetricUnit};
 use relay_event_schema::protocol::{
     AppContext, BrowserContext, Event, Measurement, OsContext, Span, Timestamp, TraceContext,
 };
-use relay_protocol::{Annotated, Value};
+use relay_protocol::{Annotated, Getter, Value};
 use sqlparser::ast::Visit;
 use sqlparser::ast::{ObjectName, Visitor};
 use url::Url;
@@ -47,6 +47,8 @@ pub enum SpanTagKey {
 
     // Specific to spans
     Action,
+    /// The group of the ancestral span with op ai.pipeline.*
+    AIPipelineGroup,
     Category,
     Description,
     Domain,
@@ -94,6 +96,7 @@ impl SpanTagKey {
             SpanTagKey::Platform => "platform",
 
             SpanTagKey::Action => "action",
+            SpanTagKey::AIPipelineGroup => "ai_pipeline_group",
             SpanTagKey::Category => "category",
             SpanTagKey::Description => "description",
             SpanTagKey::Domain => "domain",
@@ -460,6 +463,19 @@ pub fn extract_tags(
             }
 
             span_tags.insert(SpanTagKey::Description, truncated);
+        }
+
+        if category == Some("ai") {
+            if let Some(ai_pipeline_name) = span
+                .data
+                .value()
+                .and_then(|data| data.get_value("ai\\.pipeline\\.name"))
+                .and_then(|val| val.as_str())
+            {
+                let mut ai_pipeline_group = format!("{:?}", md5::compute(ai_pipeline_name));
+                ai_pipeline_group.truncate(16);
+                span_tags.insert(SpanTagKey::AIPipelineGroup, ai_pipeline_group);
+            }
         }
 
         if span_op.starts_with("resource.") {

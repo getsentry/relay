@@ -490,6 +490,9 @@ fn span_metrics(
                 Tag::with_key("span.category")
                     .from_field("span.sentry_tags.category")
                     .always(), // already guarded by condition on metric
+                Tag::with_key("span.ai.pipeline.group")
+                    .from_field("span.sentry_tags.ai_pipeline_group")
+                    .always(), // already guarded by condition on metric
                 Tag::with_key("span.description")
                     .from_field("span.sentry_tags.description")
                     .always(), // already guarded by condition on metric

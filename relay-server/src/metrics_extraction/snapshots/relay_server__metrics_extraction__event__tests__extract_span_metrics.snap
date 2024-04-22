@@ -11576,6 +11576,7 @@ expression: metrics
         tags: {
             "environment": "fake_environment",
             "release": "1.2.3",
+            "span.ai.pipeline.group": "86148ae2d6c09430",
             "span.category": "ai",
             "span.description": "ConcurrentStream",
             "span.group": "fdd5a729aef245ba",

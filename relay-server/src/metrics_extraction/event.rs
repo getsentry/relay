@@ -1053,6 +1053,9 @@ mod tests {
                         "ai_total_tokens_used": {
                             "value": 20
                         }
+                    },
+                    "data": {
+                        "ai.pipeline.name": "Autofix Pipeline"
                     }
                 },
                 {
