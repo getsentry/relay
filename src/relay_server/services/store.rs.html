@@ -1766,6 +1766,7 @@
 <a href="#1764" id="1764">1764</a>
 <a href="#1765" id="1765">1765</a>
 <a href="#1766" id="1766">1766</a>
+<a href="#1767" id="1767">1767</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module contains the service that forwards events and attachments to the Sentry store.
 //! The service uses Kafka topics to forward data to Sentry
 
@@ -3127,7 +3128,8 @@
     </span>event_id: <span class="prelude-ty">Option</span>&lt;EventId&gt;,
     <span class="attr">#[serde(rename(deserialize = <span class="string">"exclusive_time"</span>))]
     </span>exclusive_time_ms: f64,
-    is_segment: bool,
+    <span class="attr">#[serde(default)]
+    </span>is_segment: bool,
 
     <span class="attr">#[serde(borrow, default, skip_serializing_if = <span class="string">"Option::is_none"</span>)]
     </span>measurements: <span class="prelude-ty">Option</span>&lt;BTreeMap&lt;Cow&lt;<span class="lifetime">'a</span>, str&gt;, <span class="prelude-ty">Option</span>&lt;SpanMeasurement&gt;&gt;&gt;,

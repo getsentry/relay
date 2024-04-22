@@ -766,11 +766,11 @@
     </span><span class="kw">pub </span>db_system: Annotated&lt;Value&gt;,
 
     <span class="doccomment">/// The sentry environment.
-    </span><span class="attr">#[metastructure(field = <span class="string">"environment"</span>)]
+    </span><span class="attr">#[metastructure(field = <span class="string">"sentry.environment"</span>, legacy_alias = <span class="string">"environment"</span>)]
     </span><span class="kw">pub </span>environment: Annotated&lt;String&gt;,
 
     <span class="doccomment">/// The release version of the project.
-    </span><span class="attr">#[metastructure(field = <span class="string">"release"</span>)]
+    </span><span class="attr">#[metastructure(field = <span class="string">"sentry.release"</span>, legacy_alias = <span class="string">"release"</span>)]
     </span><span class="kw">pub </span>release: Annotated&lt;LenientString&gt;,
 
     <span class="doccomment">/// The decoded body size of the response (in bytes).
@@ -842,7 +842,7 @@
     /// This corresponds to the transaction name in the transaction-based model.
     ///
     /// For INP spans, this is the route name where the interaction occurred.
-    </span><span class="attr">#[metastructure(field = <span class="string">"segment.name"</span>, legacy_alias = <span class="string">"transaction"</span>)]
+    </span><span class="attr">#[metastructure(field = <span class="string">"sentry.segment.name"</span>, legacy_alias = <span class="string">"transaction"</span>)]
     </span><span class="kw">pub </span>segment_name: Annotated&lt;String&gt;,
 
     <span class="doccomment">/// Name of the UI component (e.g. React).
@@ -858,11 +858,11 @@
     </span><span class="kw">pub </span>user: Annotated&lt;Value&gt;,
 
     <span class="doccomment">/// Replay ID
-    </span><span class="attr">#[metastructure(field = <span class="string">"replay_id"</span>)]
+    </span><span class="attr">#[metastructure(field = <span class="string">"sentry.replay.id"</span>, legacy_alias = <span class="string">"replay_id"</span>)]
     </span><span class="kw">pub </span>replay_id: Annotated&lt;Value&gt;,
 
     <span class="doccomment">/// The sentry SDK (see [`crate::protocol::ClientSdkInfo`]).
-    </span><span class="attr">#[metastructure(field = <span class="string">"sdk.name"</span>)]
+    </span><span class="attr">#[metastructure(field = <span class="string">"sentry.sdk.name"</span>)]
     </span><span class="kw">pub </span>sdk_name: Annotated&lt;String&gt;,
 
     <span class="doccomment">/// Other fields in `span.data`.
