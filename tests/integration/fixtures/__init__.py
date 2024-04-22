@@ -121,6 +121,24 @@ class SentryLike:
             else:
                 yield from self.upstream.iter_public_keys()
 
+    def get_features(
+        self,
+        project_id,
+        headers=None,
+        dsn_key_idx=0,
+        dsn_key=None,
+    ):
+        headers = {
+            "Content-Type": "application/octet-stream",
+            "X-Sentry-Auth": self.get_auth_header(project_id, dsn_key_idx, dsn_key),
+            **(headers or {}),
+        }
+
+        url = "/api/%s/features/" % project_id
+        response = self.get(url, headers=headers)
+        response.raise_for_status()
+        return response.json()
+
     def send_event(
         self,
         project_id,
