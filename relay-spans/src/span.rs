@@ -6,7 +6,8 @@ use opentelemetry_proto::tonic::common::v1::any_value::Value as OtelValue;
 use crate::otel_trace::{status::StatusCode as OtelStatusCode, Span as OtelSpan};
 use crate::status_codes;
 use relay_event_schema::protocol::{
-    EventId, Span as EventSpan, SpanData, SpanId, SpanStatus, Timestamp, TraceId,
+    EventId, Measurement, Measurements, Span as EventSpan, SpanData, SpanId, SpanStatus, Timestamp,
+    TraceId,
 };
 use relay_protocol::{Annotated, FromValue, Object};
 
@@ -103,6 +104,7 @@ pub fn otel_to_sentry_span(otel_span: OtelSpan) -> EventSpan {
     let mut platform = None;
     let mut segment_id = None;
     let mut profile_id = None;
+    let mut measurements = Object::<Measurement>::new();
     for attribute in attributes.into_iter() {
         if let Some(value) = attribute.value.and_then(|v| v.value) {
             match attribute.key.as_str() {
@@ -153,7 +155,35 @@ pub fn otel_to_sentry_span(otel_span: OtelSpan) -> EventSpan {
                 "sentry.profile.id" => {
                     profile_id = otel_value_to_span_id(value);
                 }
-                _other => {
+                other => {
+                    if let Some(suffix) = other.strip_prefix("sentry.") {
+                        if let Some(measurement) = suffix.strip_prefix("measurements.") {
+                            match (&value, measurement.rsplit_once('.')) {
+                                (OtelValue::DoubleValue(value), Some((name, "value"))) => {
+                                    let measurement =
+                                        measurements.entry(name.to_owned()).or_default();
+                                    let measurement =
+                                        measurement.get_or_insert_with(Measurement::default);
+                                    measurement.value = Annotated::new(*value);
+
+                                    continue;
+                                }
+                                (OtelValue::StringValue(unit), Some((name, "unit"))) => {
+                                    if let Ok(unit) = FromStr::from_str(unit) {
+                                        let measurement =
+                                            measurements.entry(name.to_owned()).or_default();
+                                        let measurement =
+                                            measurement.get_or_insert_with(Measurement::default);
+                                        measurement.unit = Annotated::new(unit);
+
+                                        continue;
+                                    }
+                                }
+                                _ => {}
+                            }
+                        }
+                    }
+
                     let key = attribute.key;
                     match value {
                         OtelValue::ArrayValue(_) => {}
@@ -210,6 +240,7 @@ pub fn otel_to_sentry_span(otel_span: OtelSpan) -> EventSpan {
         timestamp: Timestamp(end_timestamp).into(),
         trace_id: TraceId(trace_id).into(),
         platform: platform.into(),
+        measurements: Annotated::new(Measurements(measurements)),
         ..Default::default()
     }
 }
@@ -487,62 +518,53 @@ mod tests {
                     }
                 },
                 {
-                    "key": "sentry._metrics_summary",
+                    "key": "sentry._metrics_summary.some_metric",
                     "value": {
-                        "kvlistValue": {
+                        "arrayValue": {
                             "values": [
                                 {
-                                    "key": "some_metric",
-                                    "value": {
-                                        "arrayValue": {
-                                            "values": [
-                                                {
+                                    "kvlistValue": {
+                                        "values": [
+                                            {
+                                                "key": "min",
+                                                "value": {
+                                                    "doubleValue": 1.0
+                                                }
+                                            },
+                                            {
+                                                "key": "max",
+                                                "value": {
+                                                    "doubleValue": 1.0
+                                                }
+                                            },
+                                            {
+                                                "key": "sum",
+                                                "value": {
+                                                    "doubleValue": 1.0
+                                                }
+                                            },
+                                            {
+                                                "key": "count",
+                                                "value": {
+                                                    "doubleValue": 1.0
+                                                }
+                                            },
+                                            {
+                                                "key": "tags",
+                                                "value": {
                                                     "kvlistValue": {
                                                         "values": [
                                                             {
-                                                                "key": "min",
+                                                                "key": "environment",
                                                                 "value": {
-                                                                    "doubleValue": 1.0
-                                                                }
-                                                            },
-                                                            {
-                                                                "key": "max",
-                                                                "value": {
-                                                                    "doubleValue": 1.0
-                                                                }
-                                                            },
-                                                            {
-                                                                "key": "sum",
-                                                                "value": {
-                                                                    "doubleValue": 1.0
-                                                                }
-                                                            },
-                                                            {
-                                                                "key": "count",
-                                                                "value": {
-                                                                    "doubleValue": 1.0
-                                                                }
-                                                            },
-                                                            {
-                                                                "key": "tags",
-                                                                "value": {
-                                                                    "kvlistValue": {
-                                                                        "values": [
-                                                                            {
-                                                                                "key": "environment",
-                                                                                "value": {
-                                                                                    "stringValue": "test"
-                                                                                }
-                                                                            }
-                                                                        ]
-                                                                    }
+                                                                    "stringValue": "test"
                                                                 }
                                                             }
                                                         ]
                                                     }
                                                 }
-                                            ]
-                                        }
+                                            }
+                                        ]
                                     }
                                 }
                             ]
