@@ -1,10 +1,16 @@
 # Changelog
 
+## Unreleased
+
+**Features**:
+
+- Use same keys for Otel span attributes and Sentry span data. ([#3457](https://github.com/getsentry/relay/pull/3457))
+
 ## 24.4.1
 
 **Features**:
 
-- Add inbound filters for Annotated<Replay> types. ([#3420](https://github.com/getsentry/relay/pull/3420))
+- Add inbound filters for `Annotated<Replay>` types. ([#3420](https://github.com/getsentry/relay/pull/3420))
 - Add Linux distributions to os context. ([#3443](https://github.com/getsentry/relay/pull/3443))
 
 **Internal:**
