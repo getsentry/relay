@@ -653,6 +653,7 @@
 <a href="#651" id="651">651</a>
 <a href="#652" id="652">652</a>
 <a href="#653" id="653">653</a>
+<a href="#654" id="654">654</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_base_schema::data_category::DataCategory;
 <span class="kw">use </span>relay_event_normalization::utils::MAX_DURATION_MOBILE_MS;
 <span class="kw">use </span>relay_protocol::RuleCondition;
@@ -810,7 +811,8 @@
         | is_mobile.clone()
         | is_interaction
         | is_http.clone()
-        | is_queue_op.clone())
+        | is_queue_op.clone()
+        | is_cache.clone())
         &amp; duration_condition.clone();
 
     <span class="kw">let </span>know_modules_condition =
@@ -935,7 +937,7 @@
             .when(is_http.clone()),
         <span class="comment">// Cache module
         </span>Tag::with_key(<span class="string">"cache.hit"</span>)
-            .from_field(<span class="string">"span.sentry_tags.cache_hit"</span>)
+            .from_field(<span class="string">"span.sentry_tags.cache.hit"</span>)
             .when(is_cache.clone()),
     ];
     <span class="kw">let </span>total_time_tags = <span class="macro">vec!</span>[
@@ -1018,7 +1020,7 @@
                     .from_field(<span class="string">"span.sentry_tags.transaction"</span>)
                     .always(), <span class="comment">// already guarded by condition on metric
                 </span>Tag::with_key(<span class="string">"cache.hit"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.cache_hit"</span>)
+                    .from_field(<span class="string">"span.sentry_tags.cache.hit"</span>)
                     .always(), <span class="comment">// already guarded by condition on metric
             </span>],
         },
