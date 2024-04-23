@@ -300,7 +300,7 @@ pub struct SpanData {
     pub sdk_name: Annotated<String>,
 
     // Frames Delay (in ms)
-    #[metastructure(field = "sentry.frames.delay")]
+    #[metastructure(field = "frames.delay")]
     pub frames_delay: Annotated<Value>,
 
     /// Other fields in `span.data`.
@@ -547,16 +547,15 @@ mod tests {
             user: ~,
             replay_id: ~,
             sdk_name: ~,
-            frames_delay: ~,
+            frames_delay: I64(
+                100,
+            ),
             other: {
                 "bar": String(
                     "3",
                 ),
                 "foo": I64(
                     2,
-                ),
-                "frames.delay": I64(
-                    100,
                 ),
             },
         }

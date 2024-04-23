@@ -545,6 +545,7 @@ mod tests {
                 user: ~,
                 replay_id: ~,
                 sdk_name: "sentry.php",
+                frames_delay: ~,
                 other: {},
             },
             sentry_tags: ~,
