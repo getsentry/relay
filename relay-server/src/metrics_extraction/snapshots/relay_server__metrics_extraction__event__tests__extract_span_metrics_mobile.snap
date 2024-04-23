@@ -106,17 +106,16 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 user: ~,
                 replay_id: ~,
                 sdk_name: ~,
-                other: {
-                    "frames.frozen": I64(
-                        2,
-                    ),
-                    "frames.slow": I64(
-                        1,
-                    ),
-                    "frames.total": I64(
-                        9,
-                    ),
-                },
+                frames_slow: I64(
+                    1,
+                ),
+                frames_frozen: I64(
+                    2,
+                ),
+                frames_total: I64(
+                    9,
+                ),
+                other: {},
             },
             sentry_tags: {
                 "app_start_type": "warm",
@@ -388,6 +387,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 user: ~,
                 replay_id: ~,
                 sdk_name: ~,
+                frames_slow: ~,
+                frames_frozen: ~,
+                frames_total: ~,
                 other: {},
             },
             sentry_tags: {
@@ -471,6 +473,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 user: ~,
                 replay_id: ~,
                 sdk_name: ~,
+                frames_slow: ~,
+                frames_frozen: ~,
+                frames_total: ~,
                 other: {},
             },
             sentry_tags: {

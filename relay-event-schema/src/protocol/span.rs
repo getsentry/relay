@@ -299,6 +299,18 @@ pub struct SpanData {
     #[metastructure(field = "sentry.sdk.name")]
     pub sdk_name: Annotated<String>,
 
+    /// Slow Frames
+    #[metastructure(field = "frames.slow")]
+    pub frames_slow: Annotated<Value>,
+
+    /// Frozen Frames
+    #[metastructure(field = "frames.frozen")]
+    pub frames_frozen: Annotated<Value>,
+
+    /// Total Frames
+    #[metastructure(field = "frames.total")]
+    pub frames_total: Annotated<Value>,
+
     /// Other fields in `span.data`.
     #[metastructure(additional_properties, pii = "true", retain = "true")]
     other: Object<Value>,
@@ -316,6 +328,9 @@ impl Getter for SpanData {
             "db.operation" => self.db_operation.value()?.into(),
             "db\\.system" => self.db_system.value()?.into(),
             "environment" => self.environment.as_str()?.into(),
+            "frames\\.frozen" => self.frames_frozen.value()?.into(),
+            "frames\\.slow" => self.frames_slow.value()?.into(),
+            "frames\\.total" => self.frames_total.value()?.into(),
             "http\\.decoded_response_content_length" => {
                 self.http_decoded_response_content_length.value()?.into()
             }
@@ -545,21 +560,21 @@ mod tests {
             user: ~,
             replay_id: ~,
             sdk_name: ~,
+            frames_slow: I64(
+                1,
+            ),
+            frames_frozen: I64(
+                2,
+            ),
+            frames_total: I64(
+                9,
+            ),
             other: {
                 "bar": String(
                     "3",
                 ),
                 "foo": I64(
                     2,
-                ),
-                "frames.frozen": I64(
-                    2,
-                ),
-                "frames.slow": I64(
-                    1,
-                ),
-                "frames.total": I64(
-                    9,
                 ),
             },
         }
