@@ -238,7 +238,6 @@ impl StoreService {
                     attachments.push(attachment);
                 }
                 ItemType::UserReport => {
-                    // Crash report modal and older SDKs and feedback endpoints
                     debug_assert!(topic == KafkaTopic::Attachments);
                     self.produce_user_report(
                         event_id.ok_or(StoreError::NoEventId)?,
@@ -248,7 +247,6 @@ impl StoreService {
                     )?;
                 }
                 ItemType::UserReportV2 => {
-                    // The preferred, newest form of feedback. Main source is user feedback widget
                     if use_feedback_ingest_v2 {
                         let remote_addr =
                             envelope.meta().client_addr().map(|addr| addr.to_string());
