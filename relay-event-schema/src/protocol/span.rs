@@ -247,6 +247,10 @@ pub struct SpanData {
     #[metastructure(field = "http.response.status_code", legacy_alias = "status_code")]
     pub http_response_status_code: Annotated<Value>,
 
+    /// The 'name' field of the ancestor span with op ai.pipeline.*
+    #[metastructure(field = "ai.pipeline.name")]
+    pub ai_pipeline_name: Annotated<Value>,
+
     /// The input messages to an AI model call
     #[metastructure(field = "ai.input_messages")]
     pub ai_input_messages: Annotated<Value>,
@@ -530,6 +534,7 @@ mod tests {
             cache_hit: ~,
             cache_item_size: ~,
             http_response_status_code: ~,
+            ai_pipeline_name: ~,
             ai_input_messages: ~,
             ai_completion_tokens_used: ~,
             ai_prompt_tokens_used: ~,
