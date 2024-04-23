@@ -624,7 +624,7 @@ fn span_metrics(
         },
         MetricSpec {
             category: DataCategory::Span,
-            mri: "d:spans/mobile.slow_frames@none".into(),
+            mri: "g:spans/mobile.slow_frames@none".into(),
             field: Some("span.data.frames\\.slow".into()),
             condition: Some(is_mobile.clone() & duration_condition.clone()),
             tags: vec![
@@ -656,7 +656,7 @@ fn span_metrics(
         },
         MetricSpec {
             category: DataCategory::Span,
-            mri: "d:spans/mobile.frozen_frames@none".into(),
+            mri: "g:spans/mobile.frozen_frames@none".into(),
             field: Some("span.data.frames\\.frozen".into()),
             condition: Some(is_mobile.clone() & duration_condition.clone()),
             tags: vec![
@@ -688,7 +688,7 @@ fn span_metrics(
         },
         MetricSpec {
             category: DataCategory::Span,
-            mri: "d:spans/mobile.total_frames@none".into(),
+            mri: "g:spans/mobile.total_frames@none".into(),
             field: Some("span.data.frames\\.total".into()),
             condition: Some(is_mobile.clone() & duration_condition.clone()),
             tags: vec![

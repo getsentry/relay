@@ -767,34 +767,16 @@ expression: "(&event.value().unwrap().spans, metrics)"
             timestamp: UnixTimestamp(1597976303),
             width: 0,
             name: MetricName(
-                "d:spans/mobile.slow_frames@none",
+                "g:spans/mobile.slow_frames@none",
             ),
-            value: Distribution(
-                [
-                    1.0,
-                ],
-            ),
-            tags: {
-                "device.class": "1",
-                "os.name": "iOS",
-                "release": "1.2.3",
-                "span.op": "ui.load.initial_display",
-                "transaction": "gEt /api/:version/users/",
-            },
-            metadata: BucketMetadata {
-                merges: 1,
-            },
-        },
-        Bucket {
-            timestamp: UnixTimestamp(1597976303),
-            width: 0,
-            name: MetricName(
-                "d:spans/mobile.frozen_frames@none",
-            ),
-            value: Distribution(
-                [
-                    2.0,
-                ],
+            value: Gauge(
+                GaugeValue {
+                    last: 1.0,
+                    min: 1.0,
+                    max: 1.0,
+                    sum: 1.0,
+                    count: 1,
+                },
             ),
             tags: {
                 "device.class": "1",
@@ -811,12 +793,42 @@ expression: "(&event.value().unwrap().spans, metrics)"
             timestamp: UnixTimestamp(1597976303),
             width: 0,
             name: MetricName(
-                "d:spans/mobile.total_frames@none",
+                "g:spans/mobile.frozen_frames@none",
             ),
-            value: Distribution(
-                [
-                    9.0,
-                ],
+            value: Gauge(
+                GaugeValue {
+                    last: 2.0,
+                    min: 2.0,
+                    max: 2.0,
+                    sum: 2.0,
+                    count: 1,
+                },
+            ),
+            tags: {
+                "device.class": "1",
+                "os.name": "iOS",
+                "release": "1.2.3",
+                "span.op": "ui.load.initial_display",
+                "transaction": "gEt /api/:version/users/",
+            },
+            metadata: BucketMetadata {
+                merges: 1,
+            },
+        },
+        Bucket {
+            timestamp: UnixTimestamp(1597976303),
+            width: 0,
+            name: MetricName(
+                "g:spans/mobile.total_frames@none",
+            ),
+            value: Gauge(
+                GaugeValue {
+                    last: 9.0,
+                    min: 9.0,
+                    max: 9.0,
+                    sum: 9.0,
+                    count: 1,
+                },
             ),
             tags: {
                 "device.class": "1",
