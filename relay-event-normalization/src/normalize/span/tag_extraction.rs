@@ -12,7 +12,7 @@ use relay_base_schema::metrics::{InformationUnit, MetricUnit};
 use relay_event_schema::protocol::{
     AppContext, BrowserContext, Event, Measurement, OsContext, Span, Timestamp, TraceContext,
 };
-use relay_protocol::{Annotated, Getter, Value};
+use relay_protocol::{Annotated, Value};
 use sqlparser::ast::Visit;
 use sqlparser::ast::{ObjectName, Visitor};
 use url::Url;
@@ -469,7 +469,7 @@ pub fn extract_tags(
             if let Some(ai_pipeline_name) = span
                 .data
                 .value()
-                .and_then(|data| data.get_value("ai\\.pipeline\\.name"))
+                .and_then(|data| data.ai_pipeline_name.value())
                 .and_then(|val| val.as_str())
             {
                 let mut ai_pipeline_group = format!("{:?}", md5::compute(ai_pipeline_name));
