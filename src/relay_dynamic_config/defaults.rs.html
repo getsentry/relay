@@ -654,6 +654,15 @@
 <a href="#652" id="652">652</a>
 <a href="#653" id="653">653</a>
 <a href="#654" id="654">654</a>
+<a href="#655" id="655">655</a>
+<a href="#656" id="656">656</a>
+<a href="#657" id="657">657</a>
+<a href="#658" id="658">658</a>
+<a href="#659" id="659">659</a>
+<a href="#660" id="660">660</a>
+<a href="#661" id="661">661</a>
+<a href="#662" id="662">662</a>
+<a href="#663" id="663">663</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_base_schema::data_category::DataCategory;
 <span class="kw">use </span>relay_event_normalization::utils::MAX_DURATION_MOBILE_MS;
 <span class="kw">use </span>relay_protocol::RuleCondition;
@@ -956,12 +965,15 @@
             .always(),
         Tag::with_key(<span class="string">"span.group"</span>)
             .from_field(<span class="string">"span.sentry_tags.group"</span>)
-            .when(know_modules_condition.clone() | app_start_condition.clone()),
-        <span class="comment">// Mobile module:
-        </span>Tag::with_key(<span class="string">"span.description"</span>)
+            .when(is_ai.clone() | know_modules_condition.clone() | app_start_condition.clone()),
+        Tag::with_key(<span class="string">"span.category"</span>)
+            .from_field(<span class="string">"span.sentry_tags.category"</span>)
+            .when(is_ai.clone()),
+        Tag::with_key(<span class="string">"span.description"</span>)
             .from_field(<span class="string">"span.sentry_tags.description"</span>)
-            .when(app_start_condition.clone()),
-        Tag::with_key(<span class="string">"device.class"</span>)
+            .when(is_ai.clone() | app_start_condition.clone()),
+        <span class="comment">// Mobile module:
+        </span>Tag::with_key(<span class="string">"device.class"</span>)
             .from_field(<span class="string">"span.sentry_tags.device.class"</span>)
             .when(app_start_condition.clone()),
         Tag::with_key(<span class="string">"release"</span>)
@@ -1140,7 +1152,13 @@
                 Tag::with_key(<span class="string">"span.origin"</span>)
                     .from_field(<span class="string">"span.origin"</span>)
                     .always(),
-                Tag::with_key(<span class="string">"span.description"</span>)
+                Tag::with_key(<span class="string">"span.category"</span>)
+                    .from_field(<span class="string">"span.sentry_tags.category"</span>)
+                    .always(), <span class="comment">// already guarded by condition on metric
+                </span>Tag::with_key(<span class="string">"span.ai.pipeline.group"</span>)
+                    .from_field(<span class="string">"span.sentry_tags.ai_pipeline_group"</span>)
+                    .always(), <span class="comment">// already guarded by condition on metric
+                </span>Tag::with_key(<span class="string">"span.description"</span>)
                     .from_field(<span class="string">"span.sentry_tags.description"</span>)
                     .always(), <span class="comment">// already guarded by condition on metric
                 </span>Tag::with_key(<span class="string">"span.group"</span>)

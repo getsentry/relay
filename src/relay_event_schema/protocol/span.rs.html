@@ -564,6 +564,11 @@
 <a href="#562" id="562">562</a>
 <a href="#563" id="563">563</a>
 <a href="#564" id="564">564</a>
+<a href="#565" id="565">565</a>
+<a href="#566" id="566">566</a>
+<a href="#567" id="567">567</a>
+<a href="#568" id="568">568</a>
+<a href="#569" id="569">569</a>
 </pre></div><pre class="rust"><code><span class="kw">mod </span>convert;
 
 <span class="attr">#[cfg(feature = <span class="string">"jsonschema"</span>)]
@@ -812,6 +817,10 @@
     <span class="doccomment">/// The status HTTP response.
     </span><span class="attr">#[metastructure(field = <span class="string">"http.response.status_code"</span>, legacy_alias = <span class="string">"status_code"</span>)]
     </span><span class="kw">pub </span>http_response_status_code: Annotated&lt;Value&gt;,
+
+    <span class="doccomment">/// The 'name' field of the ancestor span with op ai.pipeline.*
+    </span><span class="attr">#[metastructure(field = <span class="string">"ai.pipeline.name"</span>)]
+    </span><span class="kw">pub </span>ai_pipeline_name: Annotated&lt;Value&gt;,
 
     <span class="doccomment">/// The input messages to an AI model call
     </span><span class="attr">#[metastructure(field = <span class="string">"ai.input_messages"</span>)]
@@ -1096,6 +1105,7 @@
             cache_hit: ~,
             cache_item_size: ~,
             http_response_status_code: ~,
+            ai_pipeline_name: ~,
             ai_input_messages: ~,
             ai_completion_tokens_used: ~,
             ai_prompt_tokens_used: ~,
