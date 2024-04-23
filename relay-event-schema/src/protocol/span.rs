@@ -300,15 +300,15 @@ pub struct SpanData {
     pub sdk_name: Annotated<String>,
 
     /// Slow Frames
-    #[metastructure(field = "sentry.frames.slow")]
+    #[metastructure(field = "sentry.frames.slow", legacy_alias = "frames.slow")]
     pub frames_slow: Annotated<Value>,
 
     /// Frozen Frames
-    #[metastructure(field = "sentry.frames.frozen")]
+    #[metastructure(field = "sentry.frames.frozen", legacy_alias = "frames.frozen")]
     pub frames_frozen: Annotated<Value>,
 
     /// Total Frames
-    #[metastructure(field = "sentry.frames.total")]
+    #[metastructure(field = "sentry.frames.total", legacy_alias = "frames.total")]
     pub frames_total: Annotated<Value>,
 
     /// Other fields in `span.data`.
@@ -560,24 +560,21 @@ mod tests {
             user: ~,
             replay_id: ~,
             sdk_name: ~,
-            frames_slow: ~,
-            frames_frozen: ~,
-            frames_total: ~,
+            frames_slow: I64(
+                1,
+            ),
+            frames_frozen: I64(
+                2,
+            ),
+            frames_total: I64(
+                9,
+            ),
             other: {
                 "bar": String(
                     "3",
                 ),
                 "foo": I64(
                     2,
-                ),
-                "frames.frozen": I64(
-                    2,
-                ),
-                "frames.slow": I64(
-                    1,
-                ),
-                "frames.total": I64(
-                    9,
                 ),
             },
         }
