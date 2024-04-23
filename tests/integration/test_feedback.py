@@ -62,7 +62,9 @@ def assert_expected_feedback(parsed_feedback, sent_feedback):
     assert parsed_feedback["timestamp"]
 
     # Assert the tags and requests objects were normalized to lists of doubles.
-    assert parsed_feedback["tags"] == [["transaction", sent_feedback["tags"]["transaction"]]]
+    assert parsed_feedback["tags"] == [
+        ["transaction", sent_feedback["tags"]["transaction"]]
+    ]
     assert parsed_feedback["request"] == {
         "headers": [["User-Agent", sent_feedback["request"]["headers"]["user-Agent"]]]
     }
@@ -72,14 +74,17 @@ def assert_expected_feedback(parsed_feedback, sent_feedback):
         "browser": {"name": "Safari", "version": "15.5", "type": "browser"},
         "device": {"brand": "Apple", "family": "Mac", "model": "Mac", "type": "device"},
         "os": {"name": "Mac OS X", "version": ">=10.15.7", "type": "os"},
-        "replay": {"replay_id": sent_feedback["contexts"]["replay"]["replay_id"].lower(), "type": "replay"},
+        "replay": {
+            "replay_id": sent_feedback["contexts"]["replay"]["replay_id"].lower(),
+            "type": "replay",
+        },
         "trace": {
             "status": "unknown",
             "trace_id": sent_feedback["contexts"]["trace"]["trace_id"].lower(),
             "span_id": sent_feedback["contexts"]["trace"]["span_id"].lower(),
             "type": "trace",
         },
-        "feedback": sent_feedback["contexts"]["feedback"]
+        "feedback": sent_feedback["contexts"]["feedback"],
     }
 
 
