@@ -88,6 +88,7 @@ def assert_expected_feedback(parsed_feedback, sent_feedback):
     }
 
 
+@pytest.mark.parametrize("handle_same_envelope_attachment", (False, True))
 @pytest.mark.parametrize("use_feedback_topic", (False, True))
 def test_feedback_event_with_processing(
     mini_sentry,
@@ -95,9 +96,13 @@ def test_feedback_event_with_processing(
     events_consumer,
     feedback_consumer,
     use_feedback_topic,
+    handle_same_envelope_attachment,
 ):
     mini_sentry.add_basic_project_config(
         42, extra={"config": {"features": ["organizations:user-feedback-ingest"]}}
+    )
+    mini_sentry.set_global_config_option(
+        "feedback.ingest-inline-attachments", handle_same_envelope_attachment
     )
 
     if use_feedback_topic:
@@ -124,14 +129,18 @@ def test_feedback_event_with_processing(
     other_consumer.assert_empty()
 
 
+@pytest.mark.parametrize("handle_same_envelope_attachment", (False, True))
 @pytest.mark.parametrize("use_feedback_topic", (False, True))
 def test_feedback_events_without_processing(
-    mini_sentry, relay_chain, use_feedback_topic
+    mini_sentry, relay_chain, use_feedback_topic, handle_same_envelope_attachment
 ):
     project_id = 42
     mini_sentry.add_basic_project_config(
         project_id,
         extra={"config": {"features": ["organizations:user-feedback-ingest"]}},
+    )
+    mini_sentry.set_global_config_option(
+        "feedback.ingest-inline-attachments", handle_same_envelope_attachment
     )
     mini_sentry.set_global_config_option(
         "feedback.ingest-topic.rollout-rate", 1.0 if use_feedback_topic else 0.0
@@ -232,43 +241,3 @@ def test_feedback_with_attachment_in_same_envelope(
 
     # test message wasn't sent to attachments topic
     attachments_consumer_.assert_empty()
-
-
-# /// If there is a UserReportV2 item, . The attachments should be kept in
-#     /// the event and not be returned as stand-alone attachments.
-#     #[test]
-#     fn test_store_attachment_in_event_when_not_a_transaction() {
-#         let (start_time, event_id, scoping, attachment_vec) = arguments_extract_kafka_msgs();
-#         let number_of_attachments = attachment_vec.len();
-
-#         let item = Item::new(ItemType::Event);
-#         let event_item = Some(&item);
-
-#         let kafka_messages = StoreService::extract_kafka_messages_for_event(
-#             event_item,
-#             event_id,
-#             scoping,
-#             start_time,
-#             None,
-#             attachment_vec,
-#         );
-
-#         let (event, standalone_attachments): (Vec<_>, Vec<_>) =
-#             kafka_messages.partition(|item| match item {
-#                 KafkaMessage::Event(_) => true,
-#                 KafkaMessage::Attachment(_) => false,
-#                 _ => panic!("only expected events or attachment type"),
-#             });
-
-#         // Because it's not a transaction event, the attachment should be part of the event,
-#         // and therefore the standalone_attachments vec should be empty.
-#         assert!(standalone_attachments.is_empty());
-
-#         // Checks that the attachment is part of the event.
-#         let event = &event[0];
-#         if let KafkaMessage::Event(event) = event {
-#             assert!(event.attachments.len() == number_of_attachments);
-#         } else {
-#             panic!("No event found")
-#         }
-#     }
