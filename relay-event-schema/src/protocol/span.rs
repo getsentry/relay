@@ -320,6 +320,7 @@ impl Getter for SpanData {
             "db.operation" => self.db_operation.value()?.into(),
             "db\\.system" => self.db_system.value()?.into(),
             "environment" => self.environment.as_str()?.into(),
+            "frames\\.delay" => self.frames_delay.value()?.into(),
             "http\\.decoded_response_content_length" => {
                 self.http_decoded_response_content_length.value()?.into()
             }
