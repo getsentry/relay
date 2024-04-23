@@ -88,7 +88,7 @@ def assert_expected_feedback(parsed_feedback, sent_feedback):
     }
 
 
-@pytest.mark.parametrize("handle_same_envelope_attachment", (False, True))
+@pytest.mark.parametrize("use_feedback_ingest_v2", (False, True))
 @pytest.mark.parametrize("use_feedback_topic", (False, True))
 def test_feedback_event_with_processing(
     mini_sentry,
@@ -96,13 +96,13 @@ def test_feedback_event_with_processing(
     events_consumer,
     feedback_consumer,
     use_feedback_topic,
-    handle_same_envelope_attachment,
+    use_feedback_ingest_v2,
 ):
     mini_sentry.add_basic_project_config(
         42, extra={"config": {"features": ["organizations:user-feedback-ingest"]}}
     )
     mini_sentry.set_global_config_option(
-        "feedback.ingest-inline-attachments", handle_same_envelope_attachment
+        "feedback.ingest-inline-attachments", use_feedback_ingest_v2
     )
 
     if use_feedback_topic:
@@ -129,10 +129,10 @@ def test_feedback_event_with_processing(
     other_consumer.assert_empty()
 
 
-@pytest.mark.parametrize("handle_same_envelope_attachment", (False, True))
+@pytest.mark.parametrize("use_feedback_ingest_v2", (False, True))
 @pytest.mark.parametrize("use_feedback_topic", (False, True))
 def test_feedback_events_without_processing(
-    mini_sentry, relay_chain, use_feedback_topic, handle_same_envelope_attachment
+    mini_sentry, relay_chain, use_feedback_topic, use_feedback_ingest_v2
 ):
     project_id = 42
     mini_sentry.add_basic_project_config(
@@ -140,7 +140,7 @@ def test_feedback_events_without_processing(
         extra={"config": {"features": ["organizations:user-feedback-ingest"]}},
     )
     mini_sentry.set_global_config_option(
-        "feedback.ingest-inline-attachments", handle_same_envelope_attachment
+        "feedback.ingest-inline-attachments", use_feedback_ingest_v2
     )
     mini_sentry.set_global_config_option(
         "feedback.ingest-topic.rollout-rate", 1.0 if use_feedback_topic else 0.0
