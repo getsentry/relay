@@ -622,6 +622,102 @@ fn span_metrics(
                     .always(), // already guarded by condition on metric
             ],
         },
+        MetricSpec {
+            category: DataCategory::Span,
+            mri: "d:spans/mobile.slow_frames@none".into(),
+            field: Some("span.data.frames\\.slow".into()),
+            condition: Some(is_mobile.clone() & duration_condition.clone()),
+            tags: vec![
+                Tag::with_key("transaction")
+                    .from_field("span.sentry_tags.transaction")
+                    .always(),
+                Tag::with_key("environment")
+                    .from_field("span.sentry_tags.environment")
+                    .always(),
+                Tag::with_key("release")
+                    .from_field("span.sentry_tags.release")
+                    .always(),
+                Tag::with_key("span.description")
+                    .from_field("span.sentry_tags.description")
+                    .always(),
+                Tag::with_key("span.op")
+                    .from_field("span.sentry_tags.op")
+                    .always(),
+                Tag::with_key("span.group")
+                    .from_field("span.sentry_tags.group")
+                    .always(),
+                Tag::with_key("device.class")
+                    .from_field("span.sentry_tags.device.class")
+                    .always(),
+                Tag::with_key("os.name")
+                    .from_field("span.sentry_tags.os.name")
+                    .always(),
+            ],
+        },
+        MetricSpec {
+            category: DataCategory::Span,
+            mri: "d:spans/mobile.frozen_frames@none".into(),
+            field: Some("span.data.frames\\.frozen".into()),
+            condition: Some(is_mobile.clone() & duration_condition.clone()),
+            tags: vec![
+                Tag::with_key("transaction")
+                    .from_field("span.sentry_tags.transaction")
+                    .always(),
+                Tag::with_key("environment")
+                    .from_field("span.sentry_tags.environment")
+                    .always(),
+                Tag::with_key("release")
+                    .from_field("span.sentry_tags.release")
+                    .always(),
+                Tag::with_key("span.description")
+                    .from_field("span.sentry_tags.description")
+                    .always(),
+                Tag::with_key("span.op")
+                    .from_field("span.sentry_tags.op")
+                    .always(),
+                Tag::with_key("span.group")
+                    .from_field("span.sentry_tags.group")
+                    .always(),
+                Tag::with_key("device.class")
+                    .from_field("span.sentry_tags.device.class")
+                    .always(),
+                Tag::with_key("os.name")
+                    .from_field("span.sentry_tags.os.name")
+                    .always(),
+            ],
+        },
+        MetricSpec {
+            category: DataCategory::Span,
+            mri: "d:spans/mobile.total_frames@none".into(),
+            field: Some("span.data.frames\\.total".into()),
+            condition: Some(is_mobile.clone() & duration_condition.clone()),
+            tags: vec![
+                Tag::with_key("transaction")
+                    .from_field("span.sentry_tags.transaction")
+                    .always(),
+                Tag::with_key("environment")
+                    .from_field("span.sentry_tags.environment")
+                    .always(),
+                Tag::with_key("release")
+                    .from_field("span.sentry_tags.release")
+                    .always(),
+                Tag::with_key("span.description")
+                    .from_field("span.sentry_tags.description")
+                    .always(),
+                Tag::with_key("span.op")
+                    .from_field("span.sentry_tags.op")
+                    .always(),
+                Tag::with_key("span.group")
+                    .from_field("span.sentry_tags.group")
+                    .always(),
+                Tag::with_key("device.class")
+                    .from_field("span.sentry_tags.device.class")
+                    .always(),
+                Tag::with_key("os.name")
+                    .from_field("span.sentry_tags.os.name")
+                    .always(),
+            ],
+        },
     ];
 
     if double_write_distributions_as_gauges {
