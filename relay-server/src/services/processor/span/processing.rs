@@ -547,7 +547,6 @@ fn normalize(
     Ok(())
 }
 
-#[cfg(feature = "processing")]
 fn scrub(
     annotated_span: &mut Annotated<Span>,
     project_config: &ProjectConfig,

@@ -155,19 +155,13 @@ pub struct SamplingEvaluator<'a> {
 
 impl<'a> SamplingEvaluator<'a> {
     /// Constructor for [`SamplingEvaluator`].
-    pub fn new(now: DateTime<Utc>) -> Self {
+    pub fn new(now: DateTime<Utc>, reservoir: Option<&'a ReservoirEvaluator<'a>>) -> Self {
         Self {
             now,
             rule_ids: vec![],
             factor: 1.0,
-            reservoir: None,
+            reservoir,
         }
-    }
-
-    /// Sets a [`ReservoirEvaluator`].
-    pub fn set_reservoir(mut self, reservoir: &'a ReservoirEvaluator) -> Self {
-        self.reservoir = Some(reservoir);
-        self
     }
 
     /// Attempts to find a match for sampling rules using `ControlFlow`.
@@ -384,7 +378,7 @@ mod tests {
 
     /// Helper to extract the sampling match after evaluating rules.
     fn get_sampling_match(rules: &[SamplingRule], instance: &impl Getter) -> SamplingMatch {
-        match SamplingEvaluator::new(Utc::now()).match_rules(
+        match SamplingEvaluator::new(Utc::now(), None).match_rules(
             Uuid::default(),
             instance,
             rules.iter(),
@@ -533,19 +527,19 @@ mod tests {
         // shares state among multiple evaluator instances.
         let reservoir = mock_reservoir_evaluator(vec![]);
 
-        let evaluator = SamplingEvaluator::new(Utc::now()).set_reservoir(&reservoir);
+        let evaluator = SamplingEvaluator::new(Utc::now(), Some(&reservoir));
         let matched_rules =
             get_matched_rules(&evaluator.match_rules(Uuid::default(), &dsc, rules.iter()));
         // Reservoir rule overrides 0 and 2.
         assert_eq!(&matched_rules, &[1]);
 
-        let evaluator = SamplingEvaluator::new(Utc::now()).set_reservoir(&reservoir);
+        let evaluator = SamplingEvaluator::new(Utc::now(), Some(&reservoir));
         let matched_rules =
             get_matched_rules(&evaluator.match_rules(Uuid::default(), &dsc, rules.iter()));
         // Reservoir rule overrides 0 and 2.
         assert_eq!(&matched_rules, &[1]);
 
-        let evaluator = SamplingEvaluator::new(Utc::now()).set_reservoir(&reservoir);
+        let evaluator = SamplingEvaluator::new(Utc::now(), Some(&reservoir));
         let matched_rules =
             get_matched_rules(&evaluator.match_rules(Uuid::default(), &dsc, rules.iter()));
         // Reservoir rule reached its limit, rule 0 and 2 are now matched instead.
@@ -571,7 +565,7 @@ mod tests {
 
         // Baseline test.
         let within_timerange = Utc.with_ymd_and_hms(1970, 10, 11, 0, 0, 0).unwrap();
-        let res = SamplingEvaluator::new(within_timerange).match_rules(
+        let res = SamplingEvaluator::new(within_timerange, None).match_rules(
             Uuid::default(),
             &dsc,
             [rule.clone()].iter(),
@@ -580,7 +574,7 @@ mod tests {
         assert!(evaluation_is_match(res));
 
         let before_timerange = Utc.with_ymd_and_hms(1969, 1, 1, 0, 0, 0).unwrap();
-        let res = SamplingEvaluator::new(before_timerange).match_rules(
+        let res = SamplingEvaluator::new(before_timerange, None).match_rules(
             Uuid::default(),
             &dsc,
             [rule.clone()].iter(),
@@ -588,7 +582,7 @@ mod tests {
         assert!(!evaluation_is_match(res));
 
         let after_timerange = Utc.with_ymd_and_hms(1971, 1, 1, 0, 0, 0).unwrap();
-        let res = SamplingEvaluator::new(after_timerange).match_rules(
+        let res = SamplingEvaluator::new(after_timerange, None).match_rules(
             Uuid::default(),
             &dsc,
             [rule].iter(),
@@ -714,7 +708,8 @@ mod tests {
     fn test_get_sampling_match_result_with_no_match() {
         let dsc = mocked_dsc_with_getter_values(vec![]);
 
-        let res = SamplingEvaluator::new(Utc::now()).match_rules(Uuid::default(), &dsc, [].iter());
+        let res =
+            SamplingEvaluator::new(Utc::now(), None).match_rules(Uuid::default(), &dsc, [].iter());
 
         assert!(!evaluation_is_match(res));
     }
@@ -745,7 +740,7 @@ mod tests {
         };
 
         let is_match = |now: DateTime<Utc>, rule: &SamplingRule| -> bool {
-            SamplingEvaluator::new(now)
+            SamplingEvaluator::new(now, None)
                 .match_rules(Uuid::default(), &dsc, [rule.clone()].iter())
                 .is_break()
         };
@@ -783,7 +778,7 @@ mod tests {
         let mut rule = mocked_sampling_rule();
 
         let reservoir = ReservoirEvaluator::new(ReservoirCounters::default());
-        let mut eval = SamplingEvaluator::new(Utc::now()).set_reservoir(&reservoir);
+        let mut eval = SamplingEvaluator::new(Utc::now(), Some(&reservoir));
 
         rule.sampling_value = SamplingValue::SampleRate { value: 1.0 };
         assert_eq!(eval.try_compute_sample_rate(&rule), Some(1.0));

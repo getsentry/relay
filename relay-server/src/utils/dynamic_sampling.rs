@@ -76,8 +76,7 @@ pub fn is_trace_fully_sampled(
         return Some(false);
     }
 
-    // TODO(tor): pass correct now timestamp
-    let evaluator = SamplingEvaluator::new(Utc::now());
+    let evaluator = SamplingEvaluator::new(Utc::now(), None);
 
     let rules = root_project_config.filter_rules(RuleType::Trace);
 
@@ -197,7 +196,7 @@ mod tests {
         let rules = [mocked_sampling_rule(1, RuleType::Transaction, 1.0)];
         let seed = Uuid::default();
 
-        let result: SamplingResult = SamplingEvaluator::new(Utc::now())
+        let result: SamplingResult = SamplingEvaluator::new(Utc::now(), None)
             .match_rules(seed, &event, rules.iter())
             .into();
 
@@ -211,7 +210,7 @@ mod tests {
         let rules = [mocked_sampling_rule(1, RuleType::Transaction, 0.0)];
         let seed = Uuid::default();
 
-        let result: SamplingResult = SamplingEvaluator::new(Utc::now())
+        let result: SamplingResult = SamplingEvaluator::new(Utc::now(), None)
             .match_rules(seed, &event, rules.iter())
             .into();
 
@@ -234,7 +233,7 @@ mod tests {
         let event = mocked_event(EventType::Transaction, "bar", "2.0");
         let seed = Uuid::default();
 
-        let result: SamplingResult = SamplingEvaluator::new(Utc::now())
+        let result: SamplingResult = SamplingEvaluator::new(Utc::now(), None)
             .match_rules(seed, &event, rules.iter())
             .into();
 
@@ -248,7 +247,7 @@ mod tests {
         let rules = [mocked_sampling_rule(1, RuleType::Trace, 1.0)];
         let dsc = mocked_simple_dynamic_sampling_context(Some(1.0), Some("3.0"), None, None, None);
 
-        let result: SamplingResult = SamplingEvaluator::new(Utc::now())
+        let result: SamplingResult = SamplingEvaluator::new(Utc::now(), None)
             .match_rules(Uuid::default(), &dsc, rules.iter())
             .into();
 

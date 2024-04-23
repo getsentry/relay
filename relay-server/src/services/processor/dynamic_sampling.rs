@@ -88,7 +88,7 @@ where
 
     compute_sampling_decision(
         config.processing_enabled(),
-        &state.reservoir, // TODO: check that reservoir only handles transactions.
+        state.sampling_reservoir(),
         sampling_config,
         state.event.value(),
         root_config,
@@ -138,7 +138,7 @@ pub fn sample_envelope_items(
 /// Computes the sampling decision on the incoming envelope.
 fn compute_sampling_decision(
     processing_enabled: bool,
-    reservoir: &ReservoirEvaluator,
+    reservoir: Option<&ReservoirEvaluator>,
     sampling_config: Option<&SamplingConfig>,
     event: Option<&Event>,
     root_sampling_config: Option<&SamplingConfig>,
@@ -160,7 +160,7 @@ fn compute_sampling_decision(
         }
     }
 
-    let mut evaluator = SamplingEvaluator::new(Utc::now()).set_reservoir(reservoir);
+    let mut evaluator = SamplingEvaluator::new(Utc::now(), reservoir);
 
     if let (Some(event), Some(sampling_state)) = (event, sampling_config) {
         if let Some(seed) = event.id.value().map(|id| id.0) {
@@ -405,7 +405,7 @@ mod tests {
             // pipeline.
             let res = compute_sampling_decision(
                 false,
-                &dummy_reservoir(),
+                None,
                 Some(&sampling_config),
                 Some(&event),
                 None,
@@ -618,7 +618,7 @@ mod tests {
 
         let res = compute_sampling_decision(
             false,
-            &dummy_reservoir(),
+            None,
             Some(&sampling_config),
             Some(&event),
             None,
@@ -656,7 +656,7 @@ mod tests {
         // Unsupported rule should result in no match if processing is not enabled.
         let res = compute_sampling_decision(
             false,
-            &dummy_reservoir(),
+            None,
             Some(&sampling_config),
             Some(&event),
             None,
@@ -665,14 +665,8 @@ mod tests {
         assert!(res.is_no_match());
 
         // Match if processing is enabled.
-        let res = compute_sampling_decision(
-            true,
-            &dummy_reservoir(),
-            Some(&sampling_config),
-            Some(&event),
-            None,
-            None,
-        );
+        let res =
+            compute_sampling_decision(true, None, Some(&sampling_config), Some(&event), None, None);
         assert!(res.is_match());
     }
 
@@ -705,14 +699,8 @@ mod tests {
             ..SamplingConfig::new()
         };
 
-        let res = compute_sampling_decision(
-            false,
-            &dummy_reservoir(),
-            None,
-            None,
-            Some(&sampling_config),
-            Some(&dsc),
-        );
+        let res =
+            compute_sampling_decision(false, None, None, None, Some(&sampling_config), Some(&dsc));
 
         assert_eq!(get_sampling_match(res).sample_rate(), 0.2);
     }

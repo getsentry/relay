@@ -677,6 +677,13 @@ impl<'a, Group> ProcessEnvelopeState<'a, Group> {
         self.remove_event();
         self.managed_envelope.reject_event(outcome);
     }
+
+    fn sampling_reservoir(&self) -> Option<&ReservoirEvaluator<'a>> {
+        match self.managed_envelope.group() {
+            ProcessingGroup::Transaction => Some(&self.reservoir),
+            _ => None,
+        }
+    }
 }
 
 /// The view out of the [`ProcessEnvelopeState`] after processing.
