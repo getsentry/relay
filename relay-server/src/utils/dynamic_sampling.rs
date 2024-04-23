@@ -5,7 +5,7 @@ use chrono::Utc;
 use relay_base_schema::events::EventType;
 use relay_base_schema::project::ProjectKey;
 use relay_event_schema::protocol::{Event, TraceContext};
-use relay_sampling::config::{RuleType, SamplingConfig, SamplingMode};
+use relay_sampling::config::{RuleType, SamplingConfig};
 use relay_sampling::dsc::{DynamicSamplingContext, TraceUserContext};
 use relay_sampling::evaluation::{SamplingEvaluator, SamplingMatch};
 

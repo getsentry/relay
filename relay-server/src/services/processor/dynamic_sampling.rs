@@ -8,7 +8,7 @@ use relay_config::Config;
 use relay_dynamic_config::{ErrorBoundary, Feature, GlobalConfig};
 use relay_event_schema::protocol::{Contexts, Event, TraceContext};
 use relay_protocol::{Annotated, Empty};
-use relay_sampling::config::{RuleType, SamplingMode};
+use relay_sampling::config::RuleType;
 use relay_sampling::evaluation::{ReservoirEvaluator, SamplingEvaluator};
 use relay_sampling::{DynamicSamplingContext, SamplingConfig};
 use relay_statsd::metric;
@@ -41,7 +41,7 @@ use crate::utils::{self, sample, ItemAction, SamplingResult};
 /// the main project state.
 ///
 /// If there is no transaction event in the envelope, this function will do nothing.
-pub fn normalize(state: &mut ProcessEnvelopeState<TransactionGroup>) {
+pub fn ensure_dsc(state: &mut ProcessEnvelopeState<TransactionGroup>) {
     if state.envelope().dsc().is_some() && state.sampling_project_state.is_some() {
         return;
     }
@@ -165,27 +165,7 @@ fn compute_sampling_decision(
         }
     }
 
-    let adjustment_rate = match sampling_config
-        .or(root_sampling_config)
-        .map(|config| config.mode)
-    {
-        Some(SamplingMode::Received) => None,
-        Some(SamplingMode::Total) => dsc.and_then(|dsc| dsc.sample_rate),
-        Some(SamplingMode::Unsupported) => {
-            if processing_enabled {
-                relay_log::error!("found unsupported sampling mode even as processing Relay");
-            }
-            return SamplingResult::NoMatch;
-        }
-        None => {
-            relay_log::error!("cannot sample without at least one sampling config");
-            return SamplingResult::NoMatch;
-        }
-    };
-
-    let mut evaluator = SamplingEvaluator::new(Utc::now())
-        .adjust_client_sample_rate(adjustment_rate)
-        .set_reservoir(reservoir);
+    let mut evaluator = SamplingEvaluator::new(Utc::now()).set_reservoir(reservoir);
 
     if let (Some(event), Some(sampling_state)) = (event, sampling_config) {
         if let Some(seed) = event.id.value().map(|id| id.0) {
