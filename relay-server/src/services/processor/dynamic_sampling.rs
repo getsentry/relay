@@ -705,7 +705,7 @@ mod tests {
             decaying_fn: Default::default(),
         };
 
-        let mut sampling_config = SamplingConfig {
+        let sampling_config = SamplingConfig {
             rules: vec![rule],
             ..SamplingConfig::new()
         };
@@ -720,18 +720,5 @@ mod tests {
         );
 
         assert_eq!(get_sampling_match(res).sample_rate(), 0.2);
-
-        sampling_config.mode = SamplingMode::Total;
-
-        let res = compute_sampling_decision(
-            false,
-            &dummy_reservoir(),
-            None,
-            None,
-            Some(&sampling_config),
-            Some(&dsc),
-        );
-
-        assert_eq!(get_sampling_match(res).sample_rate(), 0.4);
     }
 }

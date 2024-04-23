@@ -2,13 +2,13 @@
 
 ## Unreleased
 
-
 **Bug fixes:**
 
 - Respect country code TLDs when scrubbing span tags. ([#3458](https://github.com/getsentry/relay/pull/3458))
 
 **Features**:
 
+- **Breaking change:** Stop supporting dynamic sampling mode `"total"`, which adjusted for the client sample rate. ([#3474](https://github.com/getsentry/relay/pull/3474))
 - Use same keys for OTel span attributes and Sentry span data. ([#3457](https://github.com/getsentry/relay/pull/3457))
 - Support passing owner when upserting Monitors. ([#3468](https://github.com/getsentry/relay/pull/3468))
 
@@ -49,12 +49,12 @@
 - Support for AI token metrics ([#3250](https://github.com/getsentry/relay/pull/3250))
 - Accept integers in `event.user.username`. ([#3328](https://github.com/getsentry/relay/pull/3328))
 - Produce user feedback to ingest-feedback-events topic, with rollout rate. ([#3344](https://github.com/getsentry/relay/pull/3344))
-- Extract `cache.item_size` and `cache.hit` data into span indexed ([#3367]https://github.com/getsentry/relay/pull/3367)
+- Extract `cache.item_size` and `cache.hit` data into span indexed ([#3367](https://github.com/getsentry/relay/pull/3367))
 - Allow IP addresses in metrics domain tag. ([#3365](https://github.com/getsentry/relay/pull/3365))
 - Support the full unicode character set via UTF-8 encoding for metric tags submitted via the statsd format. Certain restricted characters require escape sequences, see [docs](https://develop.sentry.dev/sdk/metrics/#normalization) for the precise rules. ([#3358](https://github.com/getsentry/relay/pull/3358))
 - Stop extracting count_per_segment and count_per_op metrics. ([#3380](https://github.com/getsentry/relay/pull/3380))
 - Add `cardinality_limited` outcome with id `6`. ([#3389](https://github.com/getsentry/relay/pull/3389))
-- Extract `cache.item_size` and `cache.hit` metrics. ([#3371]https://github.com/getsentry/relay/pull/3371)
+- Extract `cache.item_size` and `cache.hit` metrics. ([#3371](https://github.com/getsentry/relay/pull/3371))
 - Optionally convert segment spans to transactions for compatibility. ([#3375](https://github.com/getsentry/relay/pull/3375))
 - Extract scrubbed IP addresses into the `span.domain` tag. ([#3383](https://github.com/getsentry/relay/pull/3383))
 
