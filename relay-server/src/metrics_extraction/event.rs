@@ -1133,7 +1133,10 @@ mod tests {
                     "span_id": "bd429c44b67a3eb2",
                     "start_timestamp": 1597976300.0000000,
                     "timestamp": 1597976303.0000000,
-                    "trace_id": "ff62a8b040f340bda5d830223def1d81"
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "data": {
+                        "frames.delay": 123
+                    }
                 },
                 {
                     "op": "app.start.cold",

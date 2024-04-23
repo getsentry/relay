@@ -493,7 +493,8 @@ mod tests {
         "code.filepath": "task.py",
         "code.lineno": 123,
         "code.function": "fn()",
-        "code.namespace": "ns"
+        "code.namespace": "ns",
+        "frames.delay": 100
     }"#;
         let data = Annotated::<SpanData>::from_json(data)
             .unwrap()
@@ -548,6 +549,9 @@ mod tests {
                 ),
                 "foo": I64(
                     2,
+                ),
+                "frames.delay": I64(
+                    100,
                 ),
             },
         }
