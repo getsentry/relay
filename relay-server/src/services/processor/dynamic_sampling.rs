@@ -16,7 +16,7 @@ use relay_statsd::metric;
 use crate::envelope::ItemType;
 use crate::services::outcome::Outcome;
 use crate::services::processor::{
-    profile, EventProcessing, ProcessEnvelopeState, TransactionGroup,
+    profile, EventProcessing, ProcessEnvelopeState, Sampling, TransactionGroup,
 };
 use crate::statsd::RelayCounters;
 use crate::utils::{self, sample, ItemAction, SamplingResult};
@@ -62,43 +62,38 @@ pub fn ensure_dsc(state: &mut ProcessEnvelopeState<TransactionGroup>) {
 }
 
 /// Computes the sampling decision on the incoming event
-pub fn run(state: &mut ProcessEnvelopeState<TransactionGroup>, config: &Config) -> SamplingResult {
+pub fn run<G>(state: &mut ProcessEnvelopeState<G>, config: &Config) -> SamplingResult
+where
+    G: Sampling,
+{
     // Running dynamic sampling involves either:
     // - Tagging whether an incoming error has a sampled trace connected to it.
     // - Computing the actual sampling decision on an incoming transaction.
-    match state.event_type().unwrap_or_default() {
-        EventType::Default | EventType::Error => {
-            tag_error_with_sampling_decision(state, config);
-            SamplingResult::Pending
-        }
-        EventType::Transaction => {
-            match state.project_state.config.transaction_metrics {
-                Some(ErrorBoundary::Ok(ref c)) if c.is_enabled() => (),
-                _ => return SamplingResult::Pending,
-            }
 
-            let sampling_config = match state.project_state.config.sampling {
-                Some(ErrorBoundary::Ok(ref config)) if !config.unsupported() => Some(config),
-                _ => None,
-            };
-
-            let root_state = state.sampling_project_state.as_ref();
-            let root_config = match root_state.and_then(|s| s.config.sampling.as_ref()) {
-                Some(ErrorBoundary::Ok(ref config)) if !config.unsupported() => Some(config),
-                _ => None,
-            };
-
-            compute_sampling_decision(
-                config.processing_enabled(),
-                &state.reservoir,
-                sampling_config,
-                state.event.value(),
-                root_config,
-                state.envelope().dsc(),
-            )
-        }
-        _ => SamplingResult::Pending,
+    match state.project_state.config.transaction_metrics {
+        Some(ErrorBoundary::Ok(ref c)) if c.is_enabled() => (),
+        _ => return SamplingResult::Pending,
     }
+
+    let sampling_config = match state.project_state.config.sampling {
+        Some(ErrorBoundary::Ok(ref config)) if !config.unsupported() => Some(config),
+        _ => None,
+    };
+
+    let root_state = state.sampling_project_state.as_ref();
+    let root_config = match root_state.and_then(|s| s.config.sampling.as_ref()) {
+        Some(ErrorBoundary::Ok(ref config)) if !config.unsupported() => Some(config),
+        _ => None,
+    };
+
+    compute_sampling_decision(
+        config.processing_enabled(),
+        &state.reservoir, // TODO: check that reservoir only handles transactions.
+        sampling_config,
+        state.event.value(),
+        root_config,
+        state.envelope().dsc(),
+    )
 }
 
 /// Apply the dynamic sampling decision from `compute_sampling_decision`.
@@ -140,7 +135,7 @@ pub fn sample_envelope_items(
     }
 }
 
-/// Computes the sampling decision on the incoming transaction.
+/// Computes the sampling decision on the incoming envelope.
 fn compute_sampling_decision(
     processing_enabled: bool,
     reservoir: &ReservoirEvaluator,
@@ -457,7 +452,7 @@ mod tests {
                     .into();
             }
 
-            ProcessEnvelopeState {
+            ProcessEnvelopeState::<TransactionGroup> {
                 event: Annotated::from(event),
                 metrics: Default::default(),
                 sample_rates: None,

@@ -26,11 +26,11 @@ use crate::metrics_extraction::generic::extract_metrics;
 use crate::services::outcome::{DiscardReason, Outcome};
 use crate::services::processor::span::extract_transaction_span;
 use crate::services::processor::{
-    Addrs, ProcessEnvelope, ProcessEnvelopeState, ProcessingError, ProcessingGroup, SpanGroup,
-    TransactionGroup,
+    dynamic_sampling, Addrs, ProcessEnvelope, ProcessEnvelopeState, ProcessingError,
+    ProcessingGroup, SpanGroup, TransactionGroup,
 };
 use crate::statsd::{RelayCounters, RelayHistograms};
-use crate::utils::{sample, BufferGuard, ItemAction};
+use crate::utils::{sample, BufferGuard, ItemAction, SamplingResult};
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -46,12 +46,21 @@ pub fn process(
 ) {
     use relay_event_normalization::RemoveOtherProcessor;
 
+    // We only implement trace-based sampling rules for now, which can be computed
+    // once for all spans in the envelope.
+    let sampling_outcome = match dynamic_sampling::run(state, &config) {
+        SamplingResult::Match(sampling_match) => Some(Outcome::FilteredSampling(
+            sampling_match.into_matched_rules(),
+        )),
+        _ => None,
+    };
+
     let span_metrics_extraction_config = match state.project_state.config.metric_extraction {
         ErrorBoundary::Ok(ref config) if config.is_enabled() => Some(config),
         _ => None,
     };
     let normalize_span_config = get_normalize_span_config(
-        config,
+        Arc::clone(&config),
         state.managed_envelope.received_at(),
         global_config.measurements.as_ref(),
         state.project_state.config().measurements.as_ref(),
@@ -125,13 +134,13 @@ pub fn process(
             item.set_metrics_extracted(true);
         }
 
-        // TODO: dynamic sampling
+        if let Some(sampling_outcome) = &sampling_outcome {
+            return ItemAction::Drop(sampling_outcome.clone());
+        }
 
         if let Err(e) = scrub(&mut annotated_span, &state.project_state.config) {
             relay_log::error!("failed to scrub span: {e}");
         }
-
-        // TODO: rate limiting
 
         // Remove additional fields.
         process_value(

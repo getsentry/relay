@@ -157,8 +157,12 @@ macro_rules! processing_group {
 /// Should be used only with groups which are responsible for processing envelopes with events.
 pub trait EventProcessing {}
 
+/// A trait for processing groups that can be dynamically sampled.
+pub trait Sampling {}
+
 processing_group!(TransactionGroup, Transaction);
 impl EventProcessing for TransactionGroup {}
+impl Sampling for TransactionGroup {}
 
 processing_group!(ErrorGroup, Error);
 impl EventProcessing for ErrorGroup {}
@@ -169,6 +173,8 @@ processing_group!(ClientReportGroup, ClientReport);
 processing_group!(ReplayGroup, Replay);
 processing_group!(CheckInGroup, CheckIn);
 processing_group!(SpanGroup, Span);
+impl Sampling for SpanGroup {}
+
 processing_group!(ProfileChunkGroup, ProfileChunk);
 processing_group!(MetricsGroup, Metrics);
 processing_group!(ForwardUnknownGroup, ForwardUnknown);
