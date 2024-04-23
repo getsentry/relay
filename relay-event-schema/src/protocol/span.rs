@@ -299,6 +299,10 @@ pub struct SpanData {
     #[metastructure(field = "sentry.sdk.name")]
     pub sdk_name: Annotated<String>,
 
+    // Frames Delay (in ms)
+    #[metastructure(field = "sentry.frames.delay")]
+    pub frames_delay: Annotated<Value>,
+
     /// Other fields in `span.data`.
     #[metastructure(additional_properties, pii = "true", retain = "true")]
     other: Object<Value>,
@@ -543,6 +547,7 @@ mod tests {
             user: ~,
             replay_id: ~,
             sdk_name: ~,
+            frames_delay: ~,
             other: {
                 "bar": String(
                     "3",
