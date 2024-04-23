@@ -513,7 +513,7 @@ mod tests {
             segment_id: Some(SpanId("bd2eb23da2beb459".to_string())),
         });
         profile.profile.stacks.push(vec![0]);
-        profile.profile.samples.extend(vec![
+        profile.profile.samples.extend([
             Sample {
                 stack_id: 0,
                 queue_address: Some("0xdeadbeef".to_string()),
