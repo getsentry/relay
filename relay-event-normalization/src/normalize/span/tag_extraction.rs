@@ -47,6 +47,8 @@ pub enum SpanTagKey {
 
     // Specific to spans
     Action,
+    /// The group of the ancestral span with op ai.pipeline.*
+    AIPipelineGroup,
     Category,
     Description,
     Domain,
@@ -94,6 +96,7 @@ impl SpanTagKey {
             SpanTagKey::Platform => "platform",
 
             SpanTagKey::Action => "action",
+            SpanTagKey::AIPipelineGroup => "ai_pipeline_group",
             SpanTagKey::Category => "category",
             SpanTagKey::Description => "description",
             SpanTagKey::Domain => "domain",
@@ -462,6 +465,19 @@ pub fn extract_tags(
             span_tags.insert(SpanTagKey::Description, truncated);
         }
 
+        if category == Some("ai") {
+            if let Some(ai_pipeline_name) = span
+                .data
+                .value()
+                .and_then(|data| data.ai_pipeline_name.value())
+                .and_then(|val| val.as_str())
+            {
+                let mut ai_pipeline_group = format!("{:?}", md5::compute(ai_pipeline_name));
+                ai_pipeline_group.truncate(16);
+                span_tags.insert(SpanTagKey::AIPipelineGroup, ai_pipeline_group);
+            }
+        }
+
         if span_op.starts_with("resource.") {
             // TODO: Remove response size tags once product uses measurements instead.
             if let Some(data) = span.data.value() {
@@ -821,6 +837,7 @@ fn span_op_to_category(op: &str) -> Option<&str> {
             Some(prefix @ "ui"),
             Some(category @ ("react" | "vue" | "svelte" | "angular" | "ember")),
         )
+        | (Some(prefix @ "ai"), Some(category @ "pipeline"))
         | (
             Some(prefix @ "function"),
             Some(category @ ("nextjs" | "remix" | "gpc" | "aws" | "azure")),
@@ -828,10 +845,10 @@ fn span_op_to_category(op: &str) -> Option<&str> {
         // Main categories (only keep first part):
         (
             category @ Some(
-                "app" | "browser" | "cache" | "console" | "db" | "event" | "file" | "graphql"
-                | "grpc" | "http" | "measure" | "middleware" | "navigation" | "pageload" | "queue"
-                | "resource" | "rpc" | "serialize" | "subprocess" | "template" | "topic" | "view"
-                | "websocket",
+                "ai" | "app" | "browser" | "cache" | "console" | "db" | "event" | "file"
+                | "graphql" | "grpc" | "http" | "measure" | "middleware" | "navigation"
+                | "pageload" | "queue" | "resource" | "rpc" | "serialize" | "subprocess"
+                | "template" | "topic" | "view" | "websocket",
             ),
             _,
         ) => category,

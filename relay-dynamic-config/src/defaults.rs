@@ -300,11 +300,14 @@ fn span_metrics(
             .always(),
         Tag::with_key("span.group")
             .from_field("span.sentry_tags.group")
-            .when(know_modules_condition.clone() | app_start_condition.clone()),
-        // Mobile module:
+            .when(is_ai.clone() | know_modules_condition.clone() | app_start_condition.clone()),
+        Tag::with_key("span.category")
+            .from_field("span.sentry_tags.category")
+            .when(is_ai.clone()),
         Tag::with_key("span.description")
             .from_field("span.sentry_tags.description")
-            .when(app_start_condition.clone()),
+            .when(is_ai.clone() | app_start_condition.clone()),
+        // Mobile module:
         Tag::with_key("device.class")
             .from_field("span.sentry_tags.device.class")
             .when(app_start_condition.clone()),
@@ -484,6 +487,12 @@ fn span_metrics(
                 Tag::with_key("span.origin")
                     .from_field("span.origin")
                     .always(),
+                Tag::with_key("span.category")
+                    .from_field("span.sentry_tags.category")
+                    .always(), // already guarded by condition on metric
+                Tag::with_key("span.ai.pipeline.group")
+                    .from_field("span.sentry_tags.ai_pipeline_group")
+                    .always(), // already guarded by condition on metric
                 Tag::with_key("span.description")
                     .from_field("span.sentry_tags.description")
                     .always(), // already guarded by condition on metric
