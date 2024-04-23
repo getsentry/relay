@@ -8,7 +8,7 @@
 
 **Features**:
 
-- Separate the logic for producing UserReportV2's (user feedback) and handle attachments in the same envelope as feedback. ([#3403](https://github.com/getsentry/relay/pull/3403))
+- Separate the logic for producing UserReportV2 events (user feedback) and handle attachments in the same envelope as feedback. ([#3403](https://github.com/getsentry/relay/pull/3403))
 - Use same keys for OTel span attributes and Sentry span data. ([#3457](https://github.com/getsentry/relay/pull/3457))
 - Support passing owner when upserting Monitors. ([#3468](https://github.com/getsentry/relay/pull/3468))
 
