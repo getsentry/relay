@@ -133,7 +133,22 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "ttid": "ttid",
             },
             received: ~,
-            measurements: ~,
+            measurements: Measurements(
+                {
+                    "frames.frozen": Measurement {
+                        value: 2.0,
+                        unit: None,
+                    },
+                    "frames.slow": Measurement {
+                        value: 1.0,
+                        unit: None,
+                    },
+                    "frames.total": Measurement {
+                        value: 9.0,
+                        unit: None,
+                    },
+                },
+            ),
             _metrics_summary: ~,
             platform: ~,
             was_transaction: ~,

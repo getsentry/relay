@@ -328,9 +328,6 @@ impl Getter for SpanData {
             "db.operation" => self.db_operation.value()?.into(),
             "db\\.system" => self.db_system.value()?.into(),
             "environment" => self.environment.as_str()?.into(),
-            "frames\\.frozen" => self.frames_frozen.value()?.into(),
-            "frames\\.slow" => self.frames_slow.value()?.into(),
-            "frames\\.total" => self.frames_total.value()?.into(),
             "http\\.decoded_response_content_length" => {
                 self.http_decoded_response_content_length.value()?.into()
             }
