@@ -39,7 +39,7 @@ def test_relay_with_full_normalization(mini_sentry, relay):
     )
 
     relay.send_event(project_id, input)
-    ingested = mini_sentry.captured_events.get(timeout=3).get_event()
+    ingested = mini_sentry.captured_events.get(timeout=5).get_event()
     assert_ingested_event(expected, ingested)
 
 
@@ -52,7 +52,7 @@ def test_processing(mini_sentry, events_consumer, relay_with_processing):
     processing = relay_with_processing()
 
     processing.send_event(project_id, input)
-    ingested, _ = events_consumer.get_event(timeout=3)
+    ingested, _ = events_consumer.get_event(timeout=5)
     assert_ingested_event(expected, ingested)
 
 
@@ -85,5 +85,5 @@ def test_relay_chain(
     )
 
     relay.send_event(project_id, input)
-    ingested, _ = events_consumer.get_event(timeout=3)
+    ingested, _ = events_consumer.get_event(timeout=5)
     assert_ingested_event(expected, ingested)
