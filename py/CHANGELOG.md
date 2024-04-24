@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.8.58
+
+- Add ability to change the json parser. ([#3480](https://github.com/getsentry/relay/pull/3480))
+
 ## 0.8.57
 
 - Add a data category for metirc hours.  [#3384](https://github.com/getsentry/relay/pull/3384)

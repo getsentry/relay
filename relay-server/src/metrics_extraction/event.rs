@@ -1043,7 +1043,7 @@ mod tests {
                 {
                     "timestamp": 1702474613.0495,
                     "start_timestamp": 1702474613.0175,
-                    "description": "Autofix Pipeline",
+                    "description": "ConcurrentStream",
                     "op": "ai.run.langchain",
                     "origin": "auto.langchain",
                     "span_id": "9c01bd820a083e63",
@@ -1052,6 +1052,24 @@ mod tests {
                     "measurements": {
                         "ai_total_tokens_used": {
                             "value": 20
+                        }
+                    },
+                    "data": {
+                        "ai.pipeline.name": "Autofix Pipeline"
+                    }
+                },
+                {
+                    "timestamp": 1702474613.0495,
+                    "start_timestamp": 1702474613.0175,
+                    "description": "Autofix Pipeline",
+                    "op": "ai.pipeline.langchain",
+                    "origin": "auto.langchain",
+                    "span_id": "9c01bd820a083e63",
+                    "parent_span_id": "a1e13f3f06239d69",
+                    "trace_id": "922dda2462ea4ac2b6a4b339bee90863",
+                    "measurements": {
+                        "ai_total_tokens_used": {
+                            "value": 30
                         }
                     }
                 }
@@ -1135,7 +1153,9 @@ mod tests {
                     "timestamp": 1597976303.0000000,
                     "trace_id": "ff62a8b040f340bda5d830223def1d81",
                     "data": {
-                        "frames.delay": 123
+                        "frames.slow": 1,
+                        "frames.frozen": 2,
+                        "frames.total": 9
                     }
                 },
                 {

@@ -247,6 +247,10 @@ pub struct SpanData {
     #[metastructure(field = "http.response.status_code", legacy_alias = "status_code")]
     pub http_response_status_code: Annotated<Value>,
 
+    /// The 'name' field of the ancestor span with op ai.pipeline.*
+    #[metastructure(field = "ai.pipeline.name")]
+    pub ai_pipeline_name: Annotated<Value>,
+
     /// The input messages to an AI model call
     #[metastructure(field = "ai.input_messages")]
     pub ai_input_messages: Annotated<Value>,
@@ -299,7 +303,19 @@ pub struct SpanData {
     #[metastructure(field = "sentry.sdk.name")]
     pub sdk_name: Annotated<String>,
 
-    // Frames Delay (in ms)
+    /// Slow Frames
+    #[metastructure(field = "sentry.frames.slow", legacy_alias = "frames.slow")]
+    pub frames_slow: Annotated<Value>,
+
+    /// Frozen Frames
+    #[metastructure(field = "sentry.frames.frozen", legacy_alias = "frames.frozen")]
+    pub frames_frozen: Annotated<Value>,
+
+    /// Total Frames
+    #[metastructure(field = "sentry.frames.total", legacy_alias = "frames.total")]
+    pub frames_total: Annotated<Value>,
+
+    // Frames Delay (in seconds)
     #[metastructure(field = "frames.delay")]
     pub frames_delay: Annotated<Value>,
 
@@ -499,6 +515,9 @@ mod tests {
         "code.lineno": 123,
         "code.function": "fn()",
         "code.namespace": "ns",
+        "frames.slow": 1,
+        "frames.frozen": 2,
+        "frames.total": 9,
         "frames.delay": 100
     }"#;
         let data = Annotated::<SpanData>::from_json(data)
@@ -536,6 +555,7 @@ mod tests {
             cache_hit: ~,
             cache_item_size: ~,
             http_response_status_code: ~,
+            ai_pipeline_name: ~,
             ai_input_messages: ~,
             ai_completion_tokens_used: ~,
             ai_prompt_tokens_used: ~,
@@ -548,6 +568,15 @@ mod tests {
             user: ~,
             replay_id: ~,
             sdk_name: ~,
+            frames_slow: I64(
+                1,
+            ),
+            frames_frozen: I64(
+                2,
+            ),
+            frames_total: I64(
+                9,
+            ),
             frames_delay: I64(
                 100,
             ),
