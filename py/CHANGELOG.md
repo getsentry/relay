@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.8.58
 
 - Add ability to change the json parser. ([#3480](https://github.com/getsentry/relay/pull/3480))
 
