@@ -730,7 +730,7 @@ fn span_metrics(
         MetricSpec {
             category: DataCategory::Span,
             mri: "d:spans/mobile.frames_delay@second".into(),
-            field: Some("span.data.frames\\.delay".into()),
+            field: Some("span.measurements.frames.delay.value".into()),
             condition: Some(is_mobile.clone() & duration_condition.clone()),
             tags: vec![
                 Tag::with_key("transaction")
