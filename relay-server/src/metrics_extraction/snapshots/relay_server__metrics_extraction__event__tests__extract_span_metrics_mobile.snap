@@ -116,7 +116,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 frames_total: I64(
                     9,
                 ),
-                frames_delay: ~,
+                frames_delay: F64(
+                    0.1,
+                ),
                 other: {},
             },
             sentry_tags: {
@@ -137,6 +139,12 @@ expression: "(&event.value().unwrap().spans, metrics)"
             received: ~,
             measurements: Measurements(
                 {
+                    "frames.delay": Measurement {
+                        value: 0.1,
+                        unit: Duration(
+                            Second,
+                        ),
+                    },
                     "frames.frozen": Measurement {
                         value: 2.0,
                         unit: None,
@@ -850,6 +858,28 @@ expression: "(&event.value().unwrap().spans, metrics)"
                     sum: 9.0,
                     count: 1,
                 },
+            ),
+            tags: {
+                "device.class": "1",
+                "os.name": "iOS",
+                "release": "1.2.3",
+                "span.op": "ui.load.initial_display",
+                "transaction": "gEt /api/:version/users/",
+            },
+            metadata: BucketMetadata {
+                merges: 1,
+            },
+        },
+        Bucket {
+            timestamp: UnixTimestamp(1597976303),
+            width: 0,
+            name: MetricName(
+                "d:spans/mobile.frames_delay@second",
+            ),
+            value: Distribution(
+                [
+                    0.1,
+                ],
             ),
             tags: {
                 "device.class": "1",
