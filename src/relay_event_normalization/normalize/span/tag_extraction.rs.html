@@ -1801,6 +1801,33 @@
 <a href="#1799" id="1799">1799</a>
 <a href="#1800" id="1800">1800</a>
 <a href="#1801" id="1801">1801</a>
+<a href="#1802" id="1802">1802</a>
+<a href="#1803" id="1803">1803</a>
+<a href="#1804" id="1804">1804</a>
+<a href="#1805" id="1805">1805</a>
+<a href="#1806" id="1806">1806</a>
+<a href="#1807" id="1807">1807</a>
+<a href="#1808" id="1808">1808</a>
+<a href="#1809" id="1809">1809</a>
+<a href="#1810" id="1810">1810</a>
+<a href="#1811" id="1811">1811</a>
+<a href="#1812" id="1812">1812</a>
+<a href="#1813" id="1813">1813</a>
+<a href="#1814" id="1814">1814</a>
+<a href="#1815" id="1815">1815</a>
+<a href="#1816" id="1816">1816</a>
+<a href="#1817" id="1817">1817</a>
+<a href="#1818" id="1818">1818</a>
+<a href="#1819" id="1819">1819</a>
+<a href="#1820" id="1820">1820</a>
+<a href="#1821" id="1821">1821</a>
+<a href="#1822" id="1822">1822</a>
+<a href="#1823" id="1823">1823</a>
+<a href="#1824" id="1824">1824</a>
+<a href="#1825" id="1825">1825</a>
+<a href="#1826" id="1826">1826</a>
+<a href="#1827" id="1827">1827</a>
+<a href="#1828" id="1828">1828</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Logic for persisting items into `span.sentry_tags` and `span.measurements` fields.
 //! These are then used for metrics extraction.
 </span><span class="kw">use </span>std::borrow::Cow;
@@ -2000,7 +2027,7 @@
                 .collect(),
         );
 
-        extract_measurements(span);
+        extract_measurements(span, is_mobile);
     }
 }
 
@@ -2401,7 +2428,7 @@
 }
 
 <span class="doccomment">/// Copies specific numeric values from span data to span measurements.
-</span><span class="kw">pub fn </span>extract_measurements(span: <span class="kw-2">&amp;mut </span>Span) {
+</span><span class="kw">pub fn </span>extract_measurements(span: <span class="kw-2">&amp;mut </span>Span, is_mobile: bool) {
     <span class="kw">let </span><span class="prelude-val">Some</span>(span_op) = span.op.as_str() <span class="kw">else </span>{
         <span class="kw">return</span>;
     };
@@ -2455,6 +2482,33 @@
                         Measurement {
                             value: value.into(),
                             unit: MetricUnit::Information(InformationUnit::Byte).into(),
+                        }
+                        .into(),
+                    );
+                }
+            }
+        }
+    }
+
+    <span class="kw">if </span>is_mobile {
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(data) = span.data.value() {
+            <span class="kw">for </span>(field, key) <span class="kw">in </span>[
+                (<span class="kw-2">&amp;</span>data.frames_frozen, <span class="string">"frames.frozen"</span>),
+                (<span class="kw-2">&amp;</span>data.frames_slow, <span class="string">"frames.slow"</span>),
+                (<span class="kw-2">&amp;</span>data.frames_total, <span class="string">"frames.total"</span>),
+            ] {
+                <span class="kw">if let </span><span class="prelude-val">Some</span>(value) = <span class="kw">match </span>field.value() {
+                    <span class="prelude-val">Some</span>(Value::F64(f)) =&gt; <span class="prelude-val">Some</span>(<span class="kw-2">*</span>f),
+                    <span class="prelude-val">Some</span>(Value::I64(i)) =&gt; <span class="prelude-val">Some</span>(<span class="kw-2">*</span>i <span class="kw">as </span>f64),
+                    <span class="prelude-val">Some</span>(Value::U64(u)) =&gt; <span class="prelude-val">Some</span>(<span class="kw-2">*</span>u <span class="kw">as </span>f64),
+                    <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
+                } {
+                    <span class="kw">let </span>measurements = span.measurements.get_or_insert_with(Default::default);
+                    measurements.insert(
+                        key.into(),
+                        Measurement {
+                            value: value.into(),
+                            unit: MetricUnit::None.into(),
                         }
                         .into(),
                     );

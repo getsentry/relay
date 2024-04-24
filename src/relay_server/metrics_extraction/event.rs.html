@@ -1591,6 +1591,11 @@
 <a href="#1589" id="1589">1589</a>
 <a href="#1590" id="1590">1590</a>
 <a href="#1591" id="1591">1591</a>
+<a href="#1592" id="1592">1592</a>
+<a href="#1593" id="1593">1593</a>
+<a href="#1594" id="1594">1594</a>
+<a href="#1595" id="1595">1595</a>
+<a href="#1596" id="1596">1596</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_common::time::UnixTimestamp;
 <span class="kw">use </span>relay_dynamic_config::MetricExtractionConfig;
 <span class="kw">use </span>relay_event_schema::protocol::{Event, Span};
@@ -2744,7 +2749,12 @@
                     "span_id": "bd429c44b67a3eb2",
                     "start_timestamp": 1597976300.0000000,
                     "timestamp": 1597976303.0000000,
-                    "trace_id": "ff62a8b040f340bda5d830223def1d81"
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "data": {
+                        "frames.slow": 1,
+                        "frames.frozen": 2,
+                        "frames.total": 9
+                    }
                 },
                 {
                     "op": "app.start.cold",
