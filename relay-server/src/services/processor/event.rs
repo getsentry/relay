@@ -457,7 +457,9 @@ fn event_from_json_payload(
         .map_err(ProcessingError::InvalidJson)?;
 
     if let Some(event_value) = event.value_mut() {
-        event_value.ty.set_value(event_type);
+        if event_type.is_some() {
+            event_value.ty.set_value(event_type);
+        }
     }
 
     Ok((event, item.len()))
