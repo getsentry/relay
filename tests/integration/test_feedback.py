@@ -178,11 +178,11 @@ def test_feedback_with_attachment_in_same_envelope(
     if use_feedback_topic:
         mini_sentry.set_global_config_option("feedback.ingest-topic.rollout-rate", 1.0)
         feedback_consumer_ = feedback_consumer(timeout=20)
-        other_consumer_ = events_consumer(timeout=20)
+        other_consumer = events_consumer(timeout=20)
     else:
         mini_sentry.set_global_config_option("feedback.ingest-topic.rollout-rate", 0.0)
         feedback_consumer_ = events_consumer(timeout=20)
-        other_consumer_ = feedback_consumer(timeout=20)
+        other_consumer = feedback_consumer(timeout=20)
     attachments_consumer_ = attachments_consumer(timeout=20)
 
     feedback = generate_feedback_sdk_event()
@@ -237,7 +237,7 @@ def test_feedback_with_attachment_in_same_envelope(
     assert_expected_feedback(parsed_feedback, feedback)
 
     # test message wasn't dup'd to the wrong topic
-    other_consumer_.assert_empty()
+    other_consumer.assert_empty()
 
     # test message wasn't sent to attachments topic
     attachments_consumer_.assert_empty()

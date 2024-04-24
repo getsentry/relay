@@ -4,7 +4,12 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="0d9092c7-6c91-462f-9f76-123e32eaeea8" name="Changes" comment="" />
+    <list default="true" id="0d9092c7-6c91-462f-9f76-123e32eaeea8" name="Changes" comment="">
+      <change beforePath="$PROJECT_DIR$/../relay-dynamic-config/src/global.rs" beforeDir="false" afterPath="$PROJECT_DIR$/../relay-dynamic-config/src/global.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../relay-server/src/services/store.rs" beforeDir="false" afterPath="$PROJECT_DIR$/../relay-server/src/services/store.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/integration/test_feedback.py" beforeDir="false" afterPath="$PROJECT_DIR$/integration/test_feedback.py" afterDir="false" />
+    </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />

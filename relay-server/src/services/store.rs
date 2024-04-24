@@ -189,11 +189,15 @@ impl StoreService {
         let retention = envelope.retention();
         let event_id = envelope.event_id();
 
-        let use_feedback_ingest_v2 = self.global_config.current().options.feedback_ingest_v2;
+        let feedback_ingest_same_envelope_attachments = self
+            .global_config
+            .current()
+            .options
+            .feedback_ingest_same_envelope_attachments;
 
         let event_item = envelope.as_mut().take_item_by(|item| {
             matches!(
-                (item.ty(), use_feedback_ingest_v2),
+                (item.ty(), feedback_ingest_same_envelope_attachments),
                 (ItemType::Event, _)
                     | (ItemType::Transaction, _)
                     | (ItemType::Security, _)
@@ -246,19 +250,16 @@ impl StoreService {
                         item,
                     )?;
                 }
-                ItemType::UserReportV2 => {
-                    if use_feedback_ingest_v2 {
-                        let remote_addr =
-                            envelope.meta().client_addr().map(|addr| addr.to_string());
-                        self.produce_user_report_v2(
-                            event_id.ok_or(StoreError::NoEventId)?,
-                            scoping.project_id,
-                            scoping.organization_id,
-                            start_time,
-                            item,
-                            remote_addr,
-                        )?;
-                    }
+                ItemType::UserReportV2 if feedback_ingest_same_envelope_attachments => {
+                    let remote_addr = envelope.meta().client_addr().map(|addr| addr.to_string());
+                    self.produce_user_report_v2(
+                        event_id.ok_or(StoreError::NoEventId)?,
+                        scoping.project_id,
+                        scoping.organization_id,
+                        start_time,
+                        item,
+                        remote_addr,
+                    )?;
                 }
                 ItemType::Profile => self.produce_profile(
                     scoping.organization_id,

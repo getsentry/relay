@@ -167,7 +167,8 @@ pub struct Options {
     )]
     pub feedback_ingest_topic_rollout_rate: f32,
 
-    /// Flag for handling feedback and attachments in the same envelope. Temporary FF for testing.
+    /// Flag for handling feedback and attachments in the same envelope. Temporary FF for fast-revert
+    /// (will remove after user feedback GA release).
     ///
     /// Enabling this will also separate the logic for producing feedback, to its own match case in
     /// StoreService::store_envelope
@@ -176,7 +177,7 @@ pub struct Options {
         deserialize_with = "default_on_error",
         skip_serializing_if = "is_default"
     )]
-    pub feedback_ingest_v2: bool,
+    pub feedback_ingest_same_envelope_attachments: bool,
 
     /// Overall sampling of span extraction.
     ///
