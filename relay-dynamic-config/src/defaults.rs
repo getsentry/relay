@@ -37,7 +37,14 @@ const CACHE_SPAN_OPS: &[&str] = &[
     "cache.delete_item",
 ];
 
-const QUEUE_SPAN_OPS: &[&str] = &["queue.task.*", "queue.submit.*"];
+const QUEUE_SPAN_OPS: &[&str] = &[
+    "queue.task.*",
+    "queue.submit.*",
+    "queue.task",
+    "queue.submit",
+    "queue.publish",
+    "queue.process",
+];
 
 /// Adds configuration for extracting metrics from spans.
 ///
