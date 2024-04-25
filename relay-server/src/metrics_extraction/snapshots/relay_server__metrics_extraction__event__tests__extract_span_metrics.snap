@@ -11215,6 +11215,7 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "span.category": "queue",
             "span.op": "queue.task.celery",
             "transaction": "gEt /api/:version/users/",
             "transaction.op": "myop",
@@ -11255,6 +11256,7 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "span.category": "queue",
             "span.op": "queue.task.celery",
             "transaction": "gEt /api/:version/users/",
             "transaction.op": "myop",
@@ -11280,6 +11282,7 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "span.category": "queue",
             "span.op": "queue.task.celery",
             "transaction": "gEt /api/:version/users/",
             "transaction.op": "myop",
@@ -11328,6 +11331,7 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "span.category": "queue",
             "span.op": "queue.task.celery",
             "transaction": "gEt /api/:version/users/",
             "transaction.op": "myop",
