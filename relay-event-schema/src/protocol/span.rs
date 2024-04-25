@@ -315,6 +315,18 @@ pub struct SpanData {
     #[metastructure(field = "sentry.frames.total", legacy_alias = "frames.total")]
     pub frames_total: Annotated<Value>,
 
+    /// Message Retry Count
+    #[metastructure(field = "sentry.messaging.message.retry.count")]
+    pub messaging_message_retry_count: Annotated<Value>,
+
+    /// Message Receive Latency
+    #[metastructure(field = "sentry.messaging.message.receive.latency")]
+    pub messaging_message_receive_latency: Annotated<Value>,
+
+    /// Message Body Size
+    #[metastructure(field = "sentry.messaging.message.body.size")]
+    pub messaging_message_body_size: Annotated<Value>,
+
     /// Other fields in `span.data`.
     #[metastructure(additional_properties, pii = "true", retain = "true")]
     other: Object<Value>,
@@ -571,6 +583,9 @@ mod tests {
             frames_total: I64(
                 9,
             ),
+            messaging_message_retry_count: ~,
+            messaging_message_receive_latency: ~,
+            messaging_message_body_size: ~,
             other: {
                 "bar": String(
                     "3",

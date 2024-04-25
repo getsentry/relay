@@ -737,6 +737,57 @@ fn span_metrics(
                     .always(),
             ],
         },
+        MetricSpec {
+            category: DataCategory::Span,
+            mri: "g:spans/messaging.message.body.size@byte".into(),
+            field: Some("span.measurements.messaging.message.body.size".into()),
+            condition: Some(is_queue_op.clone()),
+            tags: vec![
+                Tag::with_key("environment")
+                    .from_field("span.sentry_tags.environment")
+                    .always(),
+                Tag::with_key("span.op")
+                    .from_field("span.sentry_tags.op")
+                    .always(),
+                Tag::with_key("transaction")
+                    .from_field("span.sentry_tags.transaction")
+                    .always(),
+            ],
+        },
+        MetricSpec {
+            category: DataCategory::Span,
+            mri: "g:spans/messaging.message.receive.latency@millisecond".into(),
+            field: Some("span.messaging.message.receive.latency".into()),
+            condition: Some(is_queue_op.clone()),
+            tags: vec![
+                Tag::with_key("environment")
+                    .from_field("span.sentry_tags.environment")
+                    .always(),
+                Tag::with_key("span.op")
+                    .from_field("span.sentry_tags.op")
+                    .always(),
+                Tag::with_key("transaction")
+                    .from_field("span.sentry_tags.transaction")
+                    .always(),
+            ],
+        },
+        MetricSpec {
+            category: DataCategory::Span,
+            mri: "g:spans/messaging.message.retry.count@none".into(),
+            field: Some("span.measurements.messaging.message.retry.count".into()),
+            condition: Some(is_queue_op.clone()),
+            tags: vec![
+                Tag::with_key("environment")
+                    .from_field("span.sentry_tags.environment")
+                    .always(),
+                Tag::with_key("span.op")
+                    .from_field("span.sentry_tags.op")
+                    .always(),
+                Tag::with_key("transaction")
+                    .from_field("span.sentry_tags.transaction")
+                    .always(),
+            ],
+        },
     ];
 
     if double_write_distributions_as_gauges {
