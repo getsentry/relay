@@ -1,3 +1,4 @@
+use chrono::Utc;
 use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::fmt::Display;
@@ -120,7 +121,9 @@ impl IntoMetric for TransactionMetric {
             name: mri.to_string().into(),
             value,
             tags,
-            metadata: BucketMetadata::new(),
+            // For extracted metrics we assume the `received_at` timestamp is equivalent to the time
+            // in which the metric is extracted.
+            metadata: BucketMetadata::new(Utc::now()),
         }
     }
 }

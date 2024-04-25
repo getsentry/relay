@@ -1810,7 +1810,9 @@ impl EnvelopeProcessorService {
         for item in items {
             let payload = item.payload();
             if item.ty() == &ItemType::Statsd {
-                for bucket_result in Bucket::parse_all(&payload, received_timestamp) {
+                for bucket_result in
+                    Bucket::parse_all(&payload, received_timestamp, received_timestamp)
+                {
                     match bucket_result {
                         Ok(bucket) => buckets.push(bucket),
                         Err(error) => relay_log::debug!(
@@ -1852,7 +1854,7 @@ impl EnvelopeProcessorService {
         for bucket in &mut buckets {
             clock_drift_processor.process_timestamp(&mut bucket.timestamp);
             if !keep_metadata {
-                bucket.metadata = BucketMetadata::new();
+                bucket.metadata = BucketMetadata::new(received_timestamp);
             }
         }
 
@@ -1874,6 +1876,8 @@ impl EnvelopeProcessorService {
         } = message;
 
         let received = relay_common::time::instant_to_date_time(start_time);
+        let received_timestamp = UnixTimestamp::from_secs(received.timestamp() as u64);
+
         let clock_drift_processor =
             ClockDriftProcessor::new(sent_at, received).at_least(MINIMUM_CLOCK_DRIFT);
 
@@ -1903,7 +1907,7 @@ impl EnvelopeProcessorService {
             for bucket in &mut buckets {
                 clock_drift_processor.process_timestamp(&mut bucket.timestamp);
                 if !keep_metadata {
-                    bucket.metadata = BucketMetadata::new();
+                    bucket.metadata = BucketMetadata::new(received_timestamp);
                 }
             }
 
@@ -3050,7 +3054,7 @@ mod tests {
                     timestamp: UnixTimestamp::now(),
                     tags: Default::default(),
                     width: 10,
-                    metadata: BucketMetadata::new(),
+                    metadata: BucketMetadata::new(Utc::now()),
                 }],
                 project_state,
             };

@@ -1,3 +1,4 @@
+use chrono::Utc;
 use std::collections::BTreeMap;
 
 use relay_common::time::UnixTimestamp;
@@ -62,7 +63,9 @@ where
             value,
             timestamp,
             tags: extract_tags(instance, &metric_spec.tags),
-            metadata: BucketMetadata::new(),
+            // For extracted metrics we assume the `received_at` timestamp is equivalent to the time
+            // in which the metric is extracted.
+            metadata: BucketMetadata::new(Utc::now()),
         });
     }
 
