@@ -2583,6 +2583,7 @@ version = "0.1.0"
 dependencies = [
  "memory-stats",
  "relay-dynamic-config",
+ "serde",
  "serde_json",
 ]
 
