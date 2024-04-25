@@ -160,6 +160,20 @@
 <a href="#158" id="158">158</a>
 <a href="#159" id="159">159</a>
 <a href="#160" id="160">160</a>
+<a href="#161" id="161">161</a>
+<a href="#162" id="162">162</a>
+<a href="#163" id="163">163</a>
+<a href="#164" id="164">164</a>
+<a href="#165" id="165">165</a>
+<a href="#166" id="166">166</a>
+<a href="#167" id="167">167</a>
+<a href="#168" id="168">168</a>
+<a href="#169" id="169">169</a>
+<a href="#170" id="170">170</a>
+<a href="#171" id="171">171</a>
+<a href="#172" id="172">172</a>
+<a href="#173" id="173">173</a>
+<a href="#174" id="174">174</a>
 </pre></div><pre class="rust"><code><span class="attr">#[cfg(feature = <span class="string">"jsonschema"</span>)]
 </span><span class="kw">use </span>relay_jsonschema_derive::JsonSchema;
 <span class="kw">use </span>relay_protocol::{Annotated, Array, Empty, FromValue, IntoValue, Object, Value};
@@ -211,6 +225,15 @@
     </span><span class="attr">#[metastructure(skip_serialization = <span class="string">"empty_deep"</span>)]
     </span><span class="kw">pub </span>integrations: Annotated&lt;Array&lt;String&gt;&gt;,
 
+    <span class="doccomment">/// List of features that are enabled in the SDK. _Optional._
+    ///
+    /// A list of feature names identifying enabled SDK features. This list
+    /// should contain all enabled SDK features. On some SDKs, enabling a feature in the
+    /// options also adds an integration. We encourage tracking such features with either
+    /// integrations or features but not both to reduce the payload size.
+    </span><span class="attr">#[metastructure(skip_serialization = <span class="string">"empty_deep"</span>)]
+    </span><span class="kw">pub </span>features: Annotated&lt;Array&lt;String&gt;&gt;,
+
     <span class="doccomment">/// List of installed and loaded SDK packages. _Optional._
     ///
     /// A list of packages that were installed as part of this SDK or the activated integrations.
@@ -258,6 +281,9 @@
   "integrations": [
     "actix"
   ],
+  "features": [
+    "feature1"
+  ],
   "packages": [
     {
       "name": "cargo:sentry",
@@ -275,6 +301,7 @@
             name: Annotated::new(<span class="string">"sentry.rust"</span>.to_string()),
             version: Annotated::new(<span class="string">"1.0.0"</span>.to_string()),
             integrations: Annotated::new(<span class="macro">vec!</span>[Annotated::new(<span class="string">"actix"</span>.to_string())]),
+            features: Annotated::new(<span class="macro">vec!</span>[Annotated::new(<span class="string">"feature1"</span>.to_string())]),
             packages: Annotated::new(<span class="macro">vec!</span>[
                 Annotated::new(ClientSdkPackage {
                     name: Annotated::new(<span class="string">"cargo:sentry"</span>.to_string()),
@@ -311,6 +338,7 @@
             name: Annotated::new(<span class="string">"sentry.rust"</span>.to_string()),
             version: Annotated::new(<span class="string">"1.0.0"</span>.to_string()),
             integrations: Annotated::empty(),
+            features: Annotated::empty(),
             packages: Annotated::empty(),
             client_ip: Annotated::new(IpAddr(<span class="string">"127.0.0.1"</span>.to_owned())),
             other: Default::default(),
