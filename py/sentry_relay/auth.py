@@ -1,5 +1,7 @@
 import json
 import uuid
+from typing import Callable, Any
+
 from sentry_relay._lowlevel import lib
 from sentry_relay.utils import (
     RustObject,
@@ -38,10 +40,16 @@ class PublicKey(RustObject):
             return self._methodcall(lib.relay_publickey_verify, buf, sig)
         return self._methodcall(lib.relay_publickey_verify_timestamp, buf, sig, max_age)
 
-    def unpack(self, buf, sig, max_age=None):
+    def unpack(
+        self,
+        buf,
+        sig,
+        max_age=None,
+        json_loads: Callable[[str | bytes], Any] = json.loads,
+    ):
         if not self.verify(buf, sig, max_age):
             raise UnpackErrorBadSignature("invalid signature")
-        return json.loads(buf)
+        return json_loads(buf)
 
     def __str__(self):
         return decode_str(self._methodcall(lib.relay_publickey_to_string), free=True)
@@ -64,7 +72,8 @@ class SecretKey(RustObject):
         return decode_str(self._methodcall(lib.relay_secretkey_sign, buf), free=True)
 
     def pack(self, data):
-        packed = json.dumps(data, separators=(",", ":")).encode("utf8")
+        # TODO(@anonrig): Look into separators requirement
+        packed = json.dumps(data, separators=(",", ":")).encode()
         return packed, self.sign(packed)
 
     def __str__(self):
@@ -86,7 +95,13 @@ def generate_relay_id():
     return decode_uuid(rustcall(lib.relay_generate_relay_id))
 
 
-def create_register_challenge(data, signature, secret, max_age=60):
+def create_register_challenge(
+    data,
+    signature,
+    secret,
+    max_age=60,
+    json_loads: Callable[[str | bytes], Any] = json.loads,
+):
     challenge_json = rustcall(
         lib.relay_create_register_challenge,
         make_buf(data),
@@ -95,14 +110,20 @@ def create_register_challenge(data, signature, secret, max_age=60):
         max_age,
     )
 
-    challenge = json.loads(decode_str(challenge_json, free=True))
+    challenge = json_loads(decode_str(challenge_json, free=True))
     return {
         "relay_id": uuid.UUID(challenge["relay_id"]),
         "token": challenge["token"],
     }
 
 
-def validate_register_response(data, signature, secret, max_age=60):
+def validate_register_response(
+    data,
+    signature,
+    secret,
+    max_age=60,
+    json_loads: Callable[[str | bytes], Any] = json.loads,
+):
     response_json = rustcall(
         lib.relay_validate_register_response,
         make_buf(data),
@@ -111,7 +132,7 @@ def validate_register_response(data, signature, secret, max_age=60):
         max_age,
     )
 
-    response = json.loads(decode_str(response_json, free=True))
+    response = json_loads(decode_str(response_json, free=True))
     return {
         "relay_id": uuid.UUID(response["relay_id"]),
         "token": response["token"],

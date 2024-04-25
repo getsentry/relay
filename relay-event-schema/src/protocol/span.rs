@@ -303,6 +303,18 @@ pub struct SpanData {
     #[metastructure(field = "sentry.sdk.name")]
     pub sdk_name: Annotated<String>,
 
+    /// Slow Frames
+    #[metastructure(field = "sentry.frames.slow", legacy_alias = "frames.slow")]
+    pub frames_slow: Annotated<Value>,
+
+    /// Frozen Frames
+    #[metastructure(field = "sentry.frames.frozen", legacy_alias = "frames.frozen")]
+    pub frames_frozen: Annotated<Value>,
+
+    /// Total Frames
+    #[metastructure(field = "sentry.frames.total", legacy_alias = "frames.total")]
+    pub frames_total: Annotated<Value>,
+
     /// Other fields in `span.data`.
     #[metastructure(additional_properties, pii = "true", retain = "true")]
     other: Object<Value>,
@@ -497,7 +509,10 @@ mod tests {
         "code.filepath": "task.py",
         "code.lineno": 123,
         "code.function": "fn()",
-        "code.namespace": "ns"
+        "code.namespace": "ns",
+        "frames.slow": 1,
+        "frames.frozen": 2,
+        "frames.total": 9
     }"#;
         let data = Annotated::<SpanData>::from_json(data)
             .unwrap()
@@ -547,6 +562,15 @@ mod tests {
             user: ~,
             replay_id: ~,
             sdk_name: ~,
+            frames_slow: I64(
+                1,
+            ),
+            frames_frozen: I64(
+                2,
+            ),
+            frames_total: I64(
+                9,
+            ),
             other: {
                 "bar": String(
                     "3",

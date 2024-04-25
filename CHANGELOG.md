@@ -2,7 +2,6 @@
 
 ## Unreleased
 
-
 **Bug fixes:**
 
 - Respect country code TLDs when scrubbing span tags. ([#3458](https://github.com/getsentry/relay/pull/3458))
@@ -12,6 +11,7 @@
 - Use same keys for OTel span attributes and Sentry span data. ([#3457](https://github.com/getsentry/relay/pull/3457))
 - Support passing owner when upserting Monitors. ([#3468](https://github.com/getsentry/relay/pull/3468))
 - Add `features` to ClientSDKInfo ([#3478](https://github.com/getsentry/relay/pull/3478)
+- Extract `frames.slow`, `frames.frozen`, and `frames.total` metrics from mobile spans. ([#3473](https://github.com/getsentry/relay/pull/3473))
 
 **Internal**:
 
