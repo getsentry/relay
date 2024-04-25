@@ -174,12 +174,12 @@ def test_feedback_with_attachment_in_same_envelope(
 
     if use_feedback_topic:
         mini_sentry.set_global_config_option("feedback.ingest-topic.rollout-rate", 1.0)
-        feedback_consumer = feedback_consumer(timeout=20)
         other_consumer = events_consumer(timeout=20)
+        feedback_consumer = feedback_consumer(timeout=20)
     else:
         mini_sentry.set_global_config_option("feedback.ingest-topic.rollout-rate", 0.0)
-        feedback_consumer = events_consumer(timeout=20)
         other_consumer = feedback_consumer(timeout=20)
+        feedback_consumer = events_consumer(timeout=20)
     attachments_consumer = attachments_consumer(timeout=20)
 
     feedback = generate_feedback_sdk_event()
