@@ -874,12 +874,16 @@ expression: "(&event.value().unwrap().spans, metrics)"
             timestamp: UnixTimestamp(1597976303),
             width: 0,
             name: MetricName(
-                "d:spans/mobile.frames_delay@second",
+                "g:spans/mobile.frames_delay@second",
             ),
-            value: Distribution(
-                [
-                    0.1,
-                ],
+            value: Gauge(
+                GaugeValue {
+                    last: 0.1,
+                    min: 0.1,
+                    max: 0.1,
+                    sum: 0.1,
+                    count: 1,
+                },
             ),
             tags: {
                 "device.class": "1",
