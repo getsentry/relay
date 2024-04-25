@@ -1596,6 +1596,7 @@
 <a href="#1594" id="1594">1594</a>
 <a href="#1595" id="1595">1595</a>
 <a href="#1596" id="1596">1596</a>
+<a href="#1597" id="1597">1597</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_common::time::UnixTimestamp;
 <span class="kw">use </span>relay_dynamic_config::MetricExtractionConfig;
 <span class="kw">use </span>relay_event_schema::protocol::{Event, Span};
@@ -2753,7 +2754,8 @@
                     "data": {
                         "frames.slow": 1,
                         "frames.frozen": 2,
-                        "frames.total": 9
+                        "frames.total": 9,
+                        "frames.delay": 0.1
                     }
                 },
                 {
