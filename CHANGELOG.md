@@ -13,6 +13,7 @@
 - Support passing owner when upserting Monitors. ([#3468](https://github.com/getsentry/relay/pull/3468))
 - Add `features` to ClientSDKInfo ([#3478](https://github.com/getsentry/relay/pull/3478)
 - Extract `frames.slow`, `frames.frozen`, and `frames.total` metrics from mobile spans. ([#3473](https://github.com/getsentry/relay/pull/3473))
+- Extract `frames.delay` metric from mobile spans. ([#3472](https://github.com/getsentry/relay/pull/3472))
 
 **Internal**:
 
