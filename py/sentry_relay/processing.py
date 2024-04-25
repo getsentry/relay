@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from typing import Callable, Any
 
 from sentry_relay._lowlevel import lib, ffi
 from sentry_relay.utils import (
@@ -11,7 +12,6 @@ from sentry_relay.utils import (
     attached_refs,
     make_buf,
 )
-
 
 __all__ = [
     "split_chunks",
@@ -49,13 +49,18 @@ def _init_valid_platforms() -> frozenset[str]:
 VALID_PLATFORMS = _init_valid_platforms()
 
 
-def split_chunks(string, remarks):
+def split_chunks(
+    string,
+    remarks,
+    json_dumps: Callable[[Any], Any] = json.dumps,
+    json_loads: Callable[[str | bytes], Any] = json.loads,
+):
     json_chunks = rustcall(
         lib.relay_split_chunks,
         encode_str(string),
-        encode_str(json.dumps(remarks)),
+        encode_str(json_dumps(remarks)),
     )
-    return json.loads(decode_str(json_chunks, free=True))
+    return json_loads(decode_str(json_chunks, free=True))
 
 
 def meta_with_chunks(data, meta):
@@ -101,8 +106,10 @@ class StoreNormalizer(RustObject):
     __init__ = object.__init__
     __slots__ = ("__weakref__",)
 
-    def __new__(cls, geoip_lookup=None, **config):
-        config = json.dumps(config)
+    def __new__(
+        cls, geoip_lookup=None, json_dumps: Callable[[Any], Any] = json.dumps, **config
+    ):
+        config = json_dumps(config)
         geoptr = geoip_lookup._get_objptr() if geoip_lookup is not None else ffi.NULL
         rv = cls._from_objptr(
             rustcall(lib.relay_store_normalizer_new, encode_str(config), geoptr)
@@ -111,16 +118,22 @@ class StoreNormalizer(RustObject):
             attached_refs[rv] = geoip_lookup
         return rv
 
-    def normalize_event(self, event=None, raw_event=None):
+    def normalize_event(
+        self,
+        event=None,
+        raw_event=None,
+        json_loads: Callable[[str | bytes], Any] = json.loads,
+    ):
         if raw_event is None:
             raw_event = _serialize_event(event)
 
         event = _encode_raw_event(raw_event)
         rv = self._methodcall(lib.relay_store_normalizer_normalize_event, event)
-        return json.loads(decode_str(rv, free=True))
+        return json_loads(decode_str(rv, free=True))
 
 
 def _serialize_event(event):
+    # TODO(@anonrig): Look into ensure_ascii requirement
     raw_event = json.dumps(event, ensure_ascii=False)
     if isinstance(raw_event, str):
         raw_event = raw_event.encode("utf-8", errors="replace")
@@ -194,39 +207,52 @@ def validate_pii_config(config):
         raise ValueError(error)
 
 
-def convert_datascrubbing_config(config):
+def convert_datascrubbing_config(
+    config,
+    json_dumps: Callable[[Any], Any] = json.dumps,
+    json_loads: Callable[[str | bytes], Any] = json.loads,
+):
     """
     Convert an old datascrubbing config to the new PII config format.
     """
-    raw_config = encode_str(json.dumps(config))
+    raw_config = encode_str(json_dumps(config))
     raw_rv = rustcall(lib.relay_convert_datascrubbing_config, raw_config)
-    return json.loads(decode_str(raw_rv, free=True))
+    return json_loads(decode_str(raw_rv, free=True))
 
 
-def pii_strip_event(config, event):
+def pii_strip_event(
+    config,
+    event,
+    json_dumps: Callable[[Any], Any] = json.dumps,
+    json_loads: Callable[[str | bytes], Any] = json.loads,
+):
     """
     Scrub an event using new PII stripping config.
     """
-    raw_config = encode_str(json.dumps(config))
-    raw_event = encode_str(json.dumps(event))
+    raw_config = encode_str(json_dumps(config))
+    raw_event = encode_str(json_dumps(event))
     raw_rv = rustcall(lib.relay_pii_strip_event, raw_config, raw_event)
-    return json.loads(decode_str(raw_rv, free=True))
+    return json_loads(decode_str(raw_rv, free=True))
 
 
-def pii_selector_suggestions_from_event(event):
+def pii_selector_suggestions_from_event(
+    event,
+    json_dumps: Callable[[Any], Any] = json.dumps,
+    json_loads: Callable[[str | bytes], Any] = json.loads,
+):
     """
     Walk through the event and collect selectors that can be applied to it in a
     PII config. This function is used in the UI to provide auto-completion of
     selectors.
     """
-    raw_event = encode_str(json.dumps(event))
+    raw_event = encode_str(json_dumps(event))
     raw_rv = rustcall(lib.relay_pii_selector_suggestions_from_event, raw_event)
-    return json.loads(decode_str(raw_rv, free=True))
+    return json_loads(decode_str(raw_rv, free=True))
 
 
-def parse_release(release):
+def parse_release(release, json_loads: Callable[[str | bytes], Any] = json.loads):
     """Parses a release string into a dictionary of its components."""
-    return json.loads(
+    return json_loads(
         decode_str(rustcall(lib.relay_parse_release, encode_str(release)), free=True)
     )
 
@@ -283,7 +309,11 @@ def validate_project_config(config, strict: bool):
         raise ValueError(error)
 
 
-def normalize_global_config(config):
+def normalize_global_config(
+    config,
+    json_dumps: Callable[[Any], Any] = json.dumps,
+    json_loads: Callable[[str | bytes], Any] = json.loads,
+):
     """Normalize the global config.
 
     Normalization consists of deserializing and serializing back the given
@@ -292,11 +322,14 @@ def normalize_global_config(config):
     normalized one.
 
     :param config: the global config to validate.
+    :param json_dumps: a function that stringifies python objects
+    :param json_loads: a function that parses and converts JSON strings
     """
-    serialized = json.dumps(config)
+    serialized = json_dumps(config)
     normalized = rustcall(lib.normalize_global_config, encode_str(serialized))
     rv = decode_str(normalized, free=True)
     try:
-        return json.loads(rv)
-    except json.JSONDecodeError:
+        return json_loads(rv)
+    except Exception:
+        # Catch all errors since json.loads implementation can change.
         raise ValueError(rv)
