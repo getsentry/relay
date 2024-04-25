@@ -2,11 +2,13 @@ use std::str::FromStr;
 
 use chrono::{TimeZone, Utc};
 use opentelemetry_proto::tonic::common::v1::any_value::Value as OtelValue;
+use opentelemetry_proto::tonic::common::v1::{AnyValue, KeyValue};
 
 use crate::otel_trace::{status::StatusCode as OtelStatusCode, Span as OtelSpan};
 use crate::status_codes;
 use relay_event_schema::protocol::{
-    EventId, Span as EventSpan, SpanData, SpanId, SpanStatus, Timestamp, TraceId,
+    EventId, MetricSummary, MetricsSummary, Span as EventSpan, SpanData, SpanId, SpanStatus,
+    Timestamp, TraceId,
 };
 use relay_protocol::{Annotated, FromValue, Object};
 
@@ -70,6 +72,43 @@ fn otel_value_to_span_id(value: OtelValue) -> Option<String> {
     }
 }
 
+fn otel_value_to_metric_summary(value: AnyValue) -> Option<MetricSummary> {
+    let value = value.value?;
+    let OtelValue::KvlistValue(value) = value else {
+        return None;
+    };
+    let mut summary = MetricSummary::default();
+    for KeyValue { key, value } in value.values {
+        let value = value?.value?;
+        match value {
+            OtelValue::IntValue(n) if key == "count" => {
+                summary.count = u64::try_from(n).ok()?.into();
+            }
+            OtelValue::DoubleValue(f) if key == "min" => {
+                summary.min = f.into();
+            }
+            OtelValue::DoubleValue(f) if key == "max" => {
+                summary.max = f.into();
+            }
+            OtelValue::DoubleValue(f) if key == "sum" => {
+                summary.sum = f.into();
+            }
+            OtelValue::KvlistValue(list) if key == "tags" => {
+                let tags = summary.tags.get_or_insert_with(Default::default);
+                for KeyValue { key, value } in list.values {
+                    let OtelValue::StringValue(value) = value?.value? else {
+                        return None;
+                    };
+                    tags.insert(key, value.into());
+                }
+            }
+            _ => return None,
+        }
+    }
+
+    Some(summary)
+}
+
 /// Transform an OtelSpan to a Sentry span.
 pub fn otel_to_sentry_span(otel_span: OtelSpan) -> EventSpan {
     let mut exclusive_time_ms = 0f64;
@@ -103,6 +142,7 @@ pub fn otel_to_sentry_span(otel_span: OtelSpan) -> EventSpan {
     let mut platform = None;
     let mut segment_id = None;
     let mut profile_id = None;
+    let mut metrics_summary = MetricsSummary::default();
     for attribute in attributes.into_iter() {
         if let Some(value) = attribute.value.and_then(|v| v.value) {
             match attribute.key.as_str() {
@@ -153,7 +193,22 @@ pub fn otel_to_sentry_span(otel_span: OtelSpan) -> EventSpan {
                 "sentry.profile.id" => {
                     profile_id = otel_value_to_span_id(value);
                 }
-                _other => {
+                other => {
+                    if let Some(metric_name) = other.strip_prefix("sentry.metrics_summary.") {
+                        if let OtelValue::ArrayValue(entries) = value {
+                            let summaries =
+                                metrics_summary.0.entry(metric_name.to_owned()).or_default();
+                            let summaries = summaries.get_or_insert_with(Default::default);
+                            for field in entries.values {
+                                if let Some(summary) = otel_value_to_metric_summary(field) {
+                                    summaries.push(summary.into());
+                                }
+                            }
+
+                            continue;
+                        }
+                    }
+
                     let key = attribute.key;
                     match value {
                         OtelValue::ArrayValue(_) => {}
@@ -210,6 +265,7 @@ pub fn otel_to_sentry_span(otel_span: OtelSpan) -> EventSpan {
         timestamp: Timestamp(end_timestamp).into(),
         trace_id: TraceId(trace_id).into(),
         platform: platform.into(),
+        _metrics_summary: metrics_summary.into(),
         ..Default::default()
     }
 }
@@ -473,13 +529,68 @@ mod tests {
                     "value": {
                         "stringValue": "my 1st transaction"
                     }
+                },
+                {
+                    "key": "sentry.metrics_summary.some_metric",
+                    "value": {
+                        "arrayValue": {
+                            "values": [
+                                {
+                                    "value": {
+                                        "kvlistValue": {
+                                            "values": [
+                                                {
+                                                    "key": "min",
+                                                    "value": {
+                                                        "doubleValue": 1.0
+                                                    }
+                                                },
+                                                {
+                                                    "key": "max",
+                                                    "value": {
+                                                        "doubleValue": 2.0
+                                                    }
+                                                },
+                                                {
+                                                    "key": "sum",
+                                                    "value": {
+                                                        "doubleValue": 3.0
+                                                    }
+                                                },
+                                                {
+                                                    "key": "count",
+                                                    "value": {
+                                                        "intValue": 2
+                                                    }
+                                                },
+                                                {
+                                                    "key": "tags",
+                                                    "value": {
+                                                        "kvlistValue": {
+                                                            "values": [
+                                                                {
+                                                                    "key": "environment",
+                                                                    "value": {
+                                                                        "stringValue": "test"
+                                                                    }
+                                                                }
+                                                            ]
+                                                        }
+                                                    }
+                                                }
+                                            ]
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
                 }
             ]
         }"#;
+
         let otel_span: OtelSpan = serde_json::from_str(json).unwrap();
         let span_from_otel = otel_to_sentry_span(otel_span);
-
-        // TODO: measurements, metrics_summary
 
         insta::assert_debug_snapshot!(span_from_otel, @r###"
         Span {
@@ -533,6 +644,7 @@ mod tests {
                 cache_hit: ~,
                 cache_item_size: ~,
                 http_response_status_code: ~,
+                ai_pipeline_name: ~,
                 ai_input_messages: ~,
                 ai_completion_tokens_used: ~,
                 ai_prompt_tokens_used: ~,
@@ -545,12 +657,30 @@ mod tests {
                 user: ~,
                 replay_id: ~,
                 sdk_name: "sentry.php",
+                frames_slow: ~,
+                frames_frozen: ~,
+                frames_total: ~,
+                frames_delay: ~,
                 other: {},
             },
             sentry_tags: ~,
             received: ~,
             measurements: ~,
-            _metrics_summary: ~,
+            _metrics_summary: MetricsSummary(
+                {
+                    "some_metric": [
+                        MetricSummary {
+                            min: 1.0,
+                            max: 2.0,
+                            sum: 3.0,
+                            count: 2,
+                            tags: {
+                                "environment": "test",
+                            },
+                        },
+                    ],
+                },
+            ),
             platform: "php",
             was_transaction: ~,
             other: {},
