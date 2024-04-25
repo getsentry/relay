@@ -49,6 +49,15 @@ pub struct ClientSdkInfo {
     #[metastructure(skip_serialization = "empty_deep")]
     pub integrations: Annotated<Array<String>>,
 
+    /// List of features that are enabled in the SDK. _Optional._
+    ///
+    /// A list of feature names identifying enabled SDK features. This list
+    /// should contain all enabled SDK features. On some SDKs, enabling a feature in the
+    /// options also adds an integration. We encourage tracking such features with either
+    /// integrations or features but not both to reduce the payload size.
+    #[metastructure(skip_serialization = "empty_deep")]
+    pub features: Annotated<Array<String>>,
+
     /// List of installed and loaded SDK packages. _Optional._
     ///
     /// A list of packages that were installed as part of this SDK or the activated integrations.
@@ -96,6 +105,9 @@ mod tests {
   "integrations": [
     "actix"
   ],
+  "features": [
+    "feature1"
+  ],
   "packages": [
     {
       "name": "cargo:sentry",
@@ -113,6 +125,7 @@ mod tests {
             name: Annotated::new("sentry.rust".to_string()),
             version: Annotated::new("1.0.0".to_string()),
             integrations: Annotated::new(vec![Annotated::new("actix".to_string())]),
+            features: Annotated::new(vec![Annotated::new("feature1".to_string())]),
             packages: Annotated::new(vec![
                 Annotated::new(ClientSdkPackage {
                     name: Annotated::new("cargo:sentry".to_string()),
@@ -149,6 +162,7 @@ mod tests {
             name: Annotated::new("sentry.rust".to_string()),
             version: Annotated::new("1.0.0".to_string()),
             integrations: Annotated::empty(),
+            features: Annotated::empty(),
             packages: Annotated::empty(),
             client_ip: Annotated::new(IpAddr("127.0.0.1".to_owned())),
             other: Default::default(),
