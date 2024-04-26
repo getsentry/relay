@@ -315,13 +315,12 @@ mod tests {
         let processor = create_test_processor(Default::default());
         let (outcome_aggregator, test_store) = testutils::processor_services();
 
+        let mut envelopes = ProcessingGroup::split_envelope(*envelope);
+        assert_eq!(envelopes.len(), 1);
+        let (group, envelope) = envelopes.pop().unwrap();
+
         let message = ProcessEnvelope {
-            envelope: ManagedEnvelope::standalone(
-                envelope,
-                outcome_aggregator,
-                test_store,
-                ProcessingGroup::Transaction,
-            ),
+            envelope: ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store, group),
             project_state: Arc::new(ProjectState::allowed()),
             sampling_project_state,
             reservoir_counters: ReservoirCounters::default(),
