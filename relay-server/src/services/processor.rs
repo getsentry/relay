@@ -3001,6 +3001,7 @@ mod tests {
             quotas: vec![mock_quota("foo"), mock_quota("bar")],
             filters: Default::default(),
             options: Options::default(),
+            metric_extraction: Default::default(),
         };
 
         let project_quotas = vec![mock_quota("baz"), mock_quota("qux")];

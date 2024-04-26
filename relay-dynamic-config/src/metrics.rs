@@ -1,6 +1,6 @@
 //! Dynamic configuration for metrics extraction from sessions and transactions.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use relay_base_schema::data_category::DataCategory;
 use relay_cardinality::CardinalityLimit;
@@ -170,12 +170,45 @@ impl TransactionMetricsConfig {
     }
 }
 
+/// Global templates for metric extraction.
+///
+/// Templates can be enabled or disabled by project configs.
+#[derive(Clone, Default, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MetricExtractionTemplates {
+    #[serde(skip_serializing_if = "BTreeMap::is_empty")]
+    pub templates: BTreeMap<String, MetricExtractionTemplate>,
+}
+
+/// TODO: docs
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct MetricExtractionTemplate {
+    /// Whether the set is enabled by default.
+    ///
+    /// Project configs can overwrite this flag to opt-in or out of a set.
+    pub is_enabled: bool,
+
+    /// A list of metric specifications to extract.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub metrics: Vec<MetricSpec>,
+
+    /// A list of tags to add to previously extracted metrics.
+    ///
+    /// These tags add further tags to a range of metrics. If some metrics already have a matching
+    /// tag extracted, the existing tag is left unchanged.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub tags: Vec<TagMapping>,
+}
+
 /// Configuration for generic extraction of metrics from all data categories.
 #[derive(Clone, Default, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MetricExtractionConfig {
     /// Versioning of metrics extraction. Relay skips extraction if the version is not supported.
     pub version: u16,
+
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub global_templates: BTreeMap<String, MetricExtractionTemplateOverride>,
 
     /// A list of metric specifications to extract.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -222,8 +255,9 @@ impl MetricExtractionConfig {
     pub fn empty() -> Self {
         Self {
             version: Self::VERSION,
-            metrics: Vec::new(),
-            tags: Vec::new(),
+            global_templates: BTreeMap::new(),
+            metrics: Default::default(),
+            tags: Default::default(),
             _conditional_tags_extended: false,
             _span_metrics_extended: false,
         }
@@ -240,6 +274,12 @@ impl MetricExtractionConfig {
             && self.is_supported()
             && !(self.metrics.is_empty() && self.tags.is_empty())
     }
+}
+
+/// TODO: docs
+#[derive(Clone, Default, Debug, Serialize, Deserialize)]
+pub struct MetricExtractionTemplateOverride {
+    pub is_enabled: bool,
 }
 
 /// Specification for a metric to extract from some data.
