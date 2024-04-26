@@ -791,6 +791,16 @@
 <a href="#789" id="789">789</a>
 <a href="#790" id="790">790</a>
 <a href="#791" id="791">791</a>
+<a href="#792" id="792">792</a>
+<a href="#793" id="793">793</a>
+<a href="#794" id="794">794</a>
+<a href="#795" id="795">795</a>
+<a href="#796" id="796">796</a>
+<a href="#797" id="797">797</a>
+<a href="#798" id="798">798</a>
+<a href="#799" id="799">799</a>
+<a href="#800" id="800">800</a>
+<a href="#801" id="801">801</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_base_schema::data_category::DataCategory;
 <span class="kw">use </span>relay_event_normalization::utils::MAX_DURATION_MOBILE_MS;
 <span class="kw">use </span>relay_protocol::RuleCondition;
@@ -830,7 +840,14 @@
     <span class="string">"cache.delete_item"</span>,
 ];
 
-<span class="kw">const </span>QUEUE_SPAN_OPS: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span>str] = <span class="kw-2">&amp;</span>[<span class="string">"queue.task.celery"</span>, <span class="string">"queue.submit.celery"</span>];
+<span class="kw">const </span>QUEUE_SPAN_OPS: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span>str] = <span class="kw-2">&amp;</span>[
+    <span class="string">"queue.task.*"</span>,
+    <span class="string">"queue.submit.*"</span>,
+    <span class="string">"queue.task"</span>,
+    <span class="string">"queue.submit"</span>,
+    <span class="string">"queue.publish"</span>,
+    <span class="string">"queue.process"</span>,
+];
 
 <span class="doccomment">/// Adds configuration for extracting metrics from spans.
 ///
@@ -952,9 +969,12 @@
         | is_cache.clone())
         &amp; duration_condition.clone();
 
-    <span class="kw">let </span>know_modules_condition =
-        (is_db.clone() | is_resource.clone() | is_mobile.clone() | is_http.clone())
-            &amp; duration_condition.clone();
+    <span class="kw">let </span>know_modules_condition = (is_db.clone()
+        | is_resource.clone()
+        | is_mobile.clone()
+        | is_http.clone()
+        | is_queue_op.clone())
+        &amp; duration_condition.clone();
     <span class="kw">let </span>self_time_tags = <span class="macro">vec!</span>[
         <span class="comment">// All modules:
         </span>Tag::with_key(<span class="string">"environment"</span>)
