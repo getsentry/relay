@@ -51,13 +51,20 @@ pub fn extract_metrics(
     config: &MetricExtractionConfig,
     max_tag_value_size: usize,
     span_extraction_sample_rate: Option<f32>,
+    received_at: UnixTimestamp,
 ) -> Vec<Bucket> {
-    let mut metrics = generic::extract_metrics(event, config);
+    let mut metrics = generic::extract_metrics(event, config, received_at);
 
     // If spans were already extracted for an event,
     // we rely on span processing to extract metrics.
     if !spans_extracted && sample(span_extraction_sample_rate.unwrap_or(1.0)) {
-        extract_span_metrics_for_event(event, config, max_tag_value_size, &mut metrics);
+        extract_span_metrics_for_event(
+            event,
+            config,
+            max_tag_value_size,
+            &mut metrics,
+            received_at,
+        );
     }
 
     metrics
@@ -68,16 +75,21 @@ fn extract_span_metrics_for_event(
     config: &MetricExtractionConfig,
     max_tag_value_size: usize,
     output: &mut Vec<Bucket>,
+    received_at: UnixTimestamp,
 ) {
     relay_statsd::metric!(timer(RelayTimers::EventProcessingSpanMetricsExtraction), {
         if let Some(transaction_span) = extract_transaction_span(event, max_tag_value_size) {
-            output.extend(generic::extract_metrics(&transaction_span, config));
+            output.extend(generic::extract_metrics(
+                &transaction_span,
+                config,
+                received_at,
+            ));
         }
 
         if let Some(spans) = event.spans.value() {
             for annotated_span in spans {
                 if let Some(span) = annotated_span.value() {
-                    output.extend(generic::extract_metrics(span, config));
+                    output.extend(generic::extract_metrics(span, config, received_at));
                 }
             }
         }
@@ -1100,7 +1112,14 @@ mod tests {
         project.sanitize();
 
         let config = project.metric_extraction.ok().unwrap();
-        let metrics = extract_metrics(event.value().unwrap(), false, &config, 200, None);
+        let metrics = extract_metrics(
+            event.value().unwrap(),
+            false,
+            &config,
+            200,
+            None,
+            UnixTimestamp::from_secs(1615889440),
+        );
         insta::assert_debug_snapshot!(metrics);
     }
 
@@ -1248,7 +1267,14 @@ mod tests {
         project.sanitize();
 
         let config = project.metric_extraction.ok().unwrap();
-        let metrics = extract_metrics(event.value().unwrap(), false, &config, 200, None);
+        let metrics = extract_metrics(
+            event.value().unwrap(),
+            false,
+            &config,
+            200,
+            None,
+            UnixTimestamp::from_secs(1615889440),
+        );
         insta::assert_debug_snapshot!((&event.value().unwrap().spans, metrics));
     }
 
@@ -1309,7 +1335,14 @@ mod tests {
         project.sanitize();
 
         let config = project.metric_extraction.ok().unwrap();
-        let metrics = extract_metrics(event.value().unwrap(), false, &config, 200, None);
+        let metrics = extract_metrics(
+            event.value().unwrap(),
+            false,
+            &config,
+            200,
+            None,
+            UnixTimestamp::from_secs(1615889440),
+        );
 
         // When transaction.op:ui.load and mobile:true, HTTP spans still get both
         // exclusive_time metrics:
@@ -1345,7 +1378,14 @@ mod tests {
         project.sanitize();
 
         let config = project.metric_extraction.ok().unwrap();
-        let metrics = extract_metrics(event.value().unwrap(), false, &config, 200, None);
+        let metrics = extract_metrics(
+            event.value().unwrap(),
+            false,
+            &config,
+            200,
+            None,
+            UnixTimestamp::from_secs(1615889440),
+        );
 
         let usage_metrics = metrics
             .into_iter()
@@ -1369,7 +1409,11 @@ mod tests {
         config.sanitize(); // apply defaults for span extraction
 
         let extraction_config = config.metric_extraction.ok().unwrap();
-        generic::extract_metrics(span, &extraction_config)
+        generic::extract_metrics(
+            span,
+            &extraction_config,
+            UnixTimestamp::from_secs(1615889440),
+        )
     }
 
     /// Helper function for span metric extraction tests.
@@ -1571,7 +1615,14 @@ mod tests {
         project.sanitize();
 
         let config = project.metric_extraction.ok().unwrap();
-        let metrics = extract_metrics(event.value().unwrap(), false, &config, 200, None);
+        let metrics = extract_metrics(
+            event.value().unwrap(),
+            false,
+            &config,
+            200,
+            None,
+            UnixTimestamp::from_secs(1615889440),
+        );
 
         assert_eq!(metrics.len(), 4);
 

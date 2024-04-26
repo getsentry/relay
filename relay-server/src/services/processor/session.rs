@@ -215,6 +215,7 @@ fn process_session(
             client,
             extracted_metrics,
             metrics_config.should_extract_abnormal_mechanism(),
+            received,
         );
         item.set_metrics_extracted(true);
     }
@@ -284,7 +285,7 @@ fn process_session_aggregates(
         )
     });
 
-    // Aftter timestamp validation, aggregates could now be empty
+    // After timestamp validation, aggregates could now be empty
     if session.aggregates.is_empty() {
         return false;
     }
@@ -306,6 +307,7 @@ fn process_session_aggregates(
                 client,
                 extracted_metrics,
                 metrics_config.should_extract_abnormal_mechanism(),
+                received,
             );
             item.set_metrics_extracted(true);
         }

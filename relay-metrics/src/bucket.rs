@@ -1,4 +1,3 @@
-use chrono::{Date, DateTime, Utc};
 use std::cmp::min;
 use std::collections::{BTreeMap, BTreeSet};
 use std::hash::Hash;
@@ -1281,7 +1280,10 @@ mod tests {
             .collect::<Result<Vec<_>, _>>()
             .unwrap();
 
-        let json_metrics: Vec<Bucket> = serde_json::from_str(json).unwrap();
+        let mut json_metrics: Vec<Bucket> = serde_json::from_str(json).unwrap();
+        for json_metric in &mut json_metrics {
+            json_metric.metadata.received_at = timestamp;
+        }
 
         assert_eq!(statsd_metrics, json_metrics);
     }
@@ -1293,7 +1295,8 @@ mod tests {
 
         let timestamp = UnixTimestamp::from_secs(1615889449);
         let statsd_metric = Bucket::parse(text.as_bytes(), timestamp, timestamp).unwrap();
-        let json_metric: Bucket = serde_json::from_str(json).unwrap();
+        let mut json_metric: Bucket = serde_json::from_str(json).unwrap();
+        json_metric.metadata.received_at = timestamp;
 
         assert_eq!(statsd_metric, json_metric);
     }
@@ -1338,6 +1341,7 @@ mod tests {
                 },
                 metadata: BucketMetadata {
                     merges: 1,
+                    received_at: UnixTimestamp(1615889440),
                 },
             },
         ]
@@ -1356,7 +1360,9 @@ mod tests {
           }
         ]"#;
 
-        let buckets = serde_json::from_str::<Vec<Bucket>>(json).unwrap();
+        let mut buckets = serde_json::from_str::<Vec<Bucket>>(json).unwrap();
+        buckets[0].metadata = BucketMetadata::new(UnixTimestamp::from_secs(1615889440));
+
         insta::assert_debug_snapshot!(buckets, @r###"
         [
             Bucket {
@@ -1371,6 +1377,7 @@ mod tests {
                 tags: {},
                 metadata: BucketMetadata {
                     merges: 1,
+                    received_at: UnixTimestamp(1615889440),
                 },
             },
         ]

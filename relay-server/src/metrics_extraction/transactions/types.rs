@@ -1,4 +1,3 @@
-use chrono::Utc;
 use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::fmt::Display;
@@ -55,7 +54,7 @@ pub enum TransactionMetric {
 }
 
 impl IntoMetric for TransactionMetric {
-    fn into_metric(self, timestamp: UnixTimestamp) -> Bucket {
+    fn into_metric(self, timestamp: UnixTimestamp, received_at: UnixTimestamp) -> Bucket {
         let namespace = MetricNamespace::Transactions;
 
         let (name, value, unit, tags) = match self {
@@ -121,9 +120,7 @@ impl IntoMetric for TransactionMetric {
             name: mri.to_string().into(),
             value,
             tags,
-            // For extracted metrics we assume the `received_at` timestamp is equivalent to the time
-            // in which the metric is extracted.
-            metadata: BucketMetadata::new(Utc::now()),
+            metadata: BucketMetadata::new(received_at),
         }
     }
 }

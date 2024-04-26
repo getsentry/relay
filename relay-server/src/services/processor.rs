@@ -1170,6 +1170,13 @@ impl EnvelopeProcessorService {
                 return Ok(());
             }
 
+            let Some(received_at) =
+                UnixTimestamp::from_datetime(state.managed_envelope.received_at())
+            else {
+                relay_log::error!("invalid received at timestamp for metric extraction");
+                return Ok(());
+            };
+
             if let Some(config) = config {
                 let metrics = crate::metrics_extraction::event::extract_metrics(
                     event,
@@ -1184,6 +1191,7 @@ impl EnvelopeProcessorService {
                         .current()
                         .options
                         .span_extraction_sample_rate,
+                    received_at,
                 );
                 state.event_metrics_extracted |= !metrics.is_empty();
                 state.extracted_metrics.project_metrics.extend(metrics);
@@ -1207,6 +1215,7 @@ impl EnvelopeProcessorService {
                         transaction_from_dsc,
                         sampling_result,
                         has_profile: state.profile_id.is_some(),
+                        received_at,
                     };
 
                     state.extracted_metrics.extend(extractor.extract(event)?);
@@ -3054,7 +3063,7 @@ mod tests {
                     timestamp: UnixTimestamp::now(),
                     tags: Default::default(),
                     width: 10,
-                    metadata: BucketMetadata::new(Utc::now()),
+                    metadata: BucketMetadata::new(UnixTimestamp::now()),
                 }],
                 project_state,
             };
@@ -3362,7 +3371,8 @@ mod tests {
                 tags,
             };
 
-            let metric: Bucket = measurement.into_metric(UnixTimestamp::now());
+            let metric: Bucket =
+                measurement.into_metric(UnixTimestamp::now(), UnixTimestamp::now());
             metric.name.len() - unit.to_string().len() - name.len()
         };
         assert_eq!(

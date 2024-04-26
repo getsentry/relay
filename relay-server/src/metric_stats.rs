@@ -263,7 +263,12 @@ mod tests {
         let (ms, mut receiver) = create_metric_stats(1.0);
 
         let scoping = scoping();
-        let mut bucket = Bucket::parse(b"rt@millisecond:57|d", UnixTimestamp::now()).unwrap();
+        let mut bucket = Bucket::parse(
+            b"rt@millisecond:57|d",
+            UnixTimestamp::now(),
+            UnixTimestamp::now(),
+        )
+        .unwrap();
 
         ms.track_metric(scoping, &bucket.clone(), Outcome::Accepted);
 
@@ -456,7 +461,12 @@ mod tests {
         let (ms, mut receiver) = create_metric_stats(0.0);
 
         let scoping = scoping();
-        let bucket = Bucket::parse(b"rt@millisecond:57|d", UnixTimestamp::now()).unwrap();
+        let bucket = Bucket::parse(
+            b"rt@millisecond:57|d",
+            UnixTimestamp::now(),
+            UnixTimestamp::now(),
+        )
+        .unwrap();
         ms.track_metric(scoping, &bucket, Outcome::Accepted);
 
         drop(ms);
@@ -469,8 +479,12 @@ mod tests {
         let (ms, mut receiver) = create_metric_stats(1.0);
 
         let scoping = scoping();
-        let bucket =
-            Bucket::parse(b"transactions/rt@millisecond:57|d", UnixTimestamp::now()).unwrap();
+        let bucket = Bucket::parse(
+            b"transactions/rt@millisecond:57|d",
+            UnixTimestamp::now(),
+            UnixTimestamp::now(),
+        )
+        .unwrap();
         ms.track_metric(scoping, &bucket, Outcome::Accepted);
 
         drop(ms);

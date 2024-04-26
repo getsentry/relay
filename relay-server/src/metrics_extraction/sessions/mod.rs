@@ -1,3 +1,4 @@
+use chrono::{DateTime, Utc};
 use relay_common::time::UnixTimestamp;
 use relay_event_schema::protocol::{
     AbnormalMechanism, SessionAttributes, SessionErrored, SessionLike, SessionStatus,
@@ -30,6 +31,7 @@ pub fn extract_session_metrics<T: SessionLike>(
     client: Option<&str>,
     target: &mut Vec<Bucket>,
     extract_abnormal_mechanism: bool,
+    received: DateTime<Utc>,
 ) {
     let timestamp = match UnixTimestamp::from_datetime(session.started()) {
         Some(ts) => ts,
@@ -37,6 +39,17 @@ pub fn extract_session_metrics<T: SessionLike>(
             relay_log::error!(
                 timestamp = %session.started(),
                 "invalid session started timestamp"
+            );
+            return;
+        }
+    };
+
+    let received_at = match UnixTimestamp::from_datetime(received) {
+        Some(ts) => ts,
+        None => {
+            relay_log::error!(
+                timestamp = %session.started(),
+                "invalid session received at timestamp"
             );
             return;
         }
@@ -59,7 +72,7 @@ pub fn extract_session_metrics<T: SessionLike>(
                     common_tags: common_tags.clone(),
                 },
             }
-            .into_metric(timestamp),
+            .into_metric(timestamp, received_at),
         );
     }
 
@@ -70,7 +83,7 @@ pub fn extract_session_metrics<T: SessionLike>(
                 session_id,
                 tags: common_tags.clone(),
             }
-            .into_metric(timestamp),
+            .into_metric(timestamp, received_at),
 
             SessionErrored::Aggregated(count) => SessionMetric::Session {
                 counter: count.into(),
@@ -79,7 +92,7 @@ pub fn extract_session_metrics<T: SessionLike>(
                     common_tags: common_tags.clone(),
                 },
             }
-            .into_metric(timestamp),
+            .into_metric(timestamp, received_at),
         });
 
         if let Some(distinct_id) = nil_to_none(session.distinct_id()) {
@@ -92,7 +105,7 @@ pub fn extract_session_metrics<T: SessionLike>(
                         common_tags: common_tags.clone(),
                     },
                 }
-                .into_metric(timestamp),
+                .into_metric(timestamp, received_at),
             );
         }
     } else if let Some(distinct_id) = nil_to_none(session.distinct_id()) {
@@ -108,7 +121,7 @@ pub fn extract_session_metrics<T: SessionLike>(
                     common_tags: common_tags.clone(),
                 },
             }
-            .into_metric(timestamp),
+            .into_metric(timestamp, received_at),
         )
     }
 
@@ -123,7 +136,7 @@ pub fn extract_session_metrics<T: SessionLike>(
                     common_tags: common_tags.clone(),
                 },
             }
-            .into_metric(timestamp),
+            .into_metric(timestamp, received_at),
         );
 
         if let Some(distinct_id) = nil_to_none(session.distinct_id()) {
@@ -143,7 +156,7 @@ pub fn extract_session_metrics<T: SessionLike>(
                         common_tags: common_tags.clone(),
                     },
                 }
-                .into_metric(timestamp),
+                .into_metric(timestamp, received_at),
             )
         }
     }
@@ -157,7 +170,7 @@ pub fn extract_session_metrics<T: SessionLike>(
                     common_tags: common_tags.clone(),
                 },
             }
-            .into_metric(timestamp),
+            .into_metric(timestamp, received_at),
         );
 
         if let Some(distinct_id) = nil_to_none(session.distinct_id()) {
@@ -170,7 +183,7 @@ pub fn extract_session_metrics<T: SessionLike>(
                         common_tags,
                     },
                 }
-                .into_metric(timestamp),
+                .into_metric(timestamp, received_at),
             );
         }
     }
@@ -232,6 +245,7 @@ mod tests {
             Some(client),
             &mut metrics,
             true,
+            Utc::now(),
         );
 
         assert_eq!(metrics.len(), 2);
@@ -270,7 +284,14 @@ mod tests {
         )
         .unwrap();
 
-        extract_session_metrics(&session.attributes, &session, None, &mut metrics, true);
+        extract_session_metrics(
+            &session.attributes,
+            &session,
+            None,
+            &mut metrics,
+            true,
+            Utc::now(),
+        );
 
         // A none-initial update which is not errored/crashed/abnormal will only emit a user metric.
         assert_eq!(metrics.len(), 1);
@@ -309,7 +330,14 @@ mod tests {
             (update3, 2),
         ] {
             let mut metrics = vec![];
-            extract_session_metrics(&update.attributes, &update, None, &mut metrics, true);
+            extract_session_metrics(
+                &update.attributes,
+                &update,
+                None,
+                &mut metrics,
+                true,
+                Utc::now(),
+            );
 
             assert_eq!(metrics.len(), expected_metrics);
 
@@ -346,7 +374,14 @@ mod tests {
 
         let mut metrics = vec![];
 
-        extract_session_metrics(&session.attributes, &session, None, &mut metrics, true);
+        extract_session_metrics(
+            &session.attributes,
+            &session,
+            None,
+            &mut metrics,
+            true,
+            Utc::now(),
+        );
 
         assert_eq!(metrics.len(), 4);
 
@@ -397,7 +432,14 @@ mod tests {
 
             let mut metrics = vec![];
 
-            extract_session_metrics(&session.attributes, &session, None, &mut metrics, true);
+            extract_session_metrics(
+                &session.attributes,
+                &session,
+                None,
+                &mut metrics,
+                true,
+                Utc::now(),
+            );
 
             assert_eq!(metrics.len(), 4);
 
@@ -464,6 +506,7 @@ mod tests {
         )
         .unwrap();
 
+        let timestamp = UnixTimestamp::from_secs(1615889440);
         for aggregate in &session.aggregates {
             extract_session_metrics(
                 &session.attributes,
@@ -471,6 +514,7 @@ mod tests {
                 Some(client),
                 &mut metrics,
                 true,
+                timestamp.as_datetime().unwrap(),
             );
         }
 
@@ -493,6 +537,7 @@ mod tests {
                 },
                 metadata: BucketMetadata {
                     merges: 1,
+                    received_at: UnixTimestamp(1615889440),
                 },
             },
             Bucket {
@@ -512,6 +557,7 @@ mod tests {
                 },
                 metadata: BucketMetadata {
                     merges: 1,
+                    received_at: UnixTimestamp(1615889440),
                 },
             },
             Bucket {
@@ -531,6 +577,7 @@ mod tests {
                 },
                 metadata: BucketMetadata {
                     merges: 1,
+                    received_at: UnixTimestamp(1615889440),
                 },
             },
             Bucket {
@@ -550,6 +597,7 @@ mod tests {
                 },
                 metadata: BucketMetadata {
                     merges: 1,
+                    received_at: UnixTimestamp(1615889440),
                 },
             },
             Bucket {
@@ -569,6 +617,7 @@ mod tests {
                 },
                 metadata: BucketMetadata {
                     merges: 1,
+                    received_at: UnixTimestamp(1615889440),
                 },
             },
             Bucket {
@@ -588,6 +637,7 @@ mod tests {
                 },
                 metadata: BucketMetadata {
                     merges: 1,
+                    received_at: UnixTimestamp(1615889440),
                 },
             },
             Bucket {
@@ -609,6 +659,7 @@ mod tests {
                 },
                 metadata: BucketMetadata {
                     merges: 1,
+                    received_at: UnixTimestamp(1615889440),
                 },
             },
         ]

@@ -251,6 +251,7 @@ pub struct TransactionExtractor<'a> {
     pub transaction_from_dsc: Option<&'a str>,
     pub sampling_result: &'a SamplingResult,
     pub has_profile: bool,
+    pub received_at: UnixTimestamp,
 }
 
 impl TransactionExtractor<'_> {
@@ -335,7 +336,7 @@ impl TransactionExtractor<'_> {
                         unit: measurement.unit.value().copied().unwrap_or_default(),
                         tags: measurement_tags,
                     }
-                    .into_metric(timestamp),
+                    .into_metric(timestamp, self.received_at),
                 );
             }
         }
@@ -374,7 +375,7 @@ impl TransactionExtractor<'_> {
                                 value,
                                 tags: tags.clone(),
                             }
-                            .into_metric(timestamp),
+                            .into_metric(timestamp, self.received_at),
                         );
                     }
                 }
@@ -388,7 +389,7 @@ impl TransactionExtractor<'_> {
                     has_profile: self.has_profile,
                 },
             }
-            .into_metric(timestamp),
+            .into_metric(timestamp, self.received_at),
         );
 
         // Duration
@@ -409,7 +410,7 @@ impl TransactionExtractor<'_> {
                         universal_tags: tags.clone(),
                     },
                 }
-                .into_metric(timestamp),
+                .into_metric(timestamp, self.received_at),
             );
 
             // Lower cardinality duration
@@ -419,7 +420,7 @@ impl TransactionExtractor<'_> {
                     value: duration,
                     tags: light_tags,
                 }
-                .into_metric(timestamp),
+                .into_metric(timestamp, self.received_at),
             );
         } else {
             relay_log::error!(
@@ -451,7 +452,7 @@ impl TransactionExtractor<'_> {
             TransactionMetric::CountPerRootProject {
                 tags: root_counter_tags,
             }
-            .into_metric(timestamp),
+            .into_metric(timestamp, self.received_at),
         );
 
         // User
@@ -462,7 +463,7 @@ impl TransactionExtractor<'_> {
                         value: value.clone(),
                         tags,
                     }
-                    .into_metric(timestamp),
+                    .into_metric(timestamp, self.received_at),
                 );
             }
         }
@@ -624,6 +625,7 @@ mod tests {
             transaction_from_dsc: Some("test_transaction"),
             sampling_result: &SamplingResult::Pending,
             has_profile: false,
+            received_at: UnixTimestamp::from_secs(1615889440),
         };
 
         let extracted = extractor.extract(event.value().unwrap()).unwrap();
@@ -695,6 +697,7 @@ mod tests {
                 },
                 metadata: BucketMetadata {
                     merges: 1,
+                    received_at: UnixTimestamp(1615889440),
                 },
             },
             Bucket {
@@ -725,6 +728,7 @@ mod tests {
                 },
                 metadata: BucketMetadata {
                     merges: 1,
+                    received_at: UnixTimestamp(1615889440),
                 },
             },
             Bucket {
@@ -749,6 +753,7 @@ mod tests {
                 },
                 metadata: BucketMetadata {
                     merges: 1,
+                    received_at: UnixTimestamp(1615889440),
                 },
             },
             Bucket {
@@ -773,6 +778,7 @@ mod tests {
                 },
                 metadata: BucketMetadata {
                     merges: 1,
+                    received_at: UnixTimestamp(1615889440),
                 },
             },
             Bucket {
@@ -797,6 +803,7 @@ mod tests {
                 },
                 metadata: BucketMetadata {
                     merges: 1,
+                    received_at: UnixTimestamp(1615889440),
                 },
             },
             Bucket {
@@ -826,6 +833,7 @@ mod tests {
                 },
                 metadata: BucketMetadata {
                     merges: 1,
+                    received_at: UnixTimestamp(1615889440),
                 },
             },
             Bucket {
@@ -840,6 +848,7 @@ mod tests {
                 tags: {},
                 metadata: BucketMetadata {
                     merges: 1,
+                    received_at: UnixTimestamp(1615889440),
                 },
             },
             Bucket {
@@ -869,6 +878,7 @@ mod tests {
                 },
                 metadata: BucketMetadata {
                     merges: 1,
+                    received_at: UnixTimestamp(1615889440),
                 },
             },
             Bucket {
@@ -888,6 +898,7 @@ mod tests {
                 },
                 metadata: BucketMetadata {
                     merges: 1,
+                    received_at: UnixTimestamp(1615889440),
                 },
             },
             Bucket {
@@ -917,6 +928,7 @@ mod tests {
                 },
                 metadata: BucketMetadata {
                     merges: 1,
+                    received_at: UnixTimestamp(1615889440),
                 },
             },
         ]
@@ -955,6 +967,7 @@ mod tests {
             transaction_from_dsc: Some("test_transaction"),
             sampling_result: &SamplingResult::Pending,
             has_profile: false,
+            received_at: UnixTimestamp::from_secs(1615889440),
         };
 
         let extracted = extractor.extract(event.value().unwrap()).unwrap();
@@ -979,6 +992,7 @@ mod tests {
                 },
                 metadata: BucketMetadata {
                     merges: 1,
+                    received_at: UnixTimestamp(1615889440),
                 },
             },
             Bucket {
@@ -999,6 +1013,7 @@ mod tests {
                 },
                 metadata: BucketMetadata {
                     merges: 1,
+                    received_at: UnixTimestamp(1615889440),
                 },
             },
             Bucket {
@@ -1019,6 +1034,7 @@ mod tests {
                 },
                 metadata: BucketMetadata {
                     merges: 1,
+                    received_at: UnixTimestamp(1615889440),
                 },
             },
             Bucket {
@@ -1033,6 +1049,7 @@ mod tests {
                 tags: {},
                 metadata: BucketMetadata {
                     merges: 1,
+                    received_at: UnixTimestamp(1615889440),
                 },
             },
             Bucket {
@@ -1053,6 +1070,7 @@ mod tests {
                 },
                 metadata: BucketMetadata {
                     merges: 1,
+                    received_at: UnixTimestamp(1615889440),
                 },
             },
             Bucket {
@@ -1071,6 +1089,7 @@ mod tests {
                 },
                 metadata: BucketMetadata {
                     merges: 1,
+                    received_at: UnixTimestamp(1615889440),
                 },
             },
         ]
@@ -1106,6 +1125,7 @@ mod tests {
             transaction_from_dsc: Some("test_transaction"),
             sampling_result: &SamplingResult::Pending,
             has_profile: false,
+            received_at: UnixTimestamp::from_secs(1615889440),
         };
 
         let extracted = extractor.extract(event.value().unwrap()).unwrap();
@@ -1130,6 +1150,7 @@ mod tests {
                 },
                 metadata: BucketMetadata {
                     merges: 1,
+                    received_at: UnixTimestamp(1615889440),
                 },
             },
             Bucket {
@@ -1151,6 +1172,7 @@ mod tests {
                 },
                 metadata: BucketMetadata {
                     merges: 1,
+                    received_at: UnixTimestamp(1615889440),
                 },
             },
             Bucket {
@@ -1165,6 +1187,7 @@ mod tests {
                 tags: {},
                 metadata: BucketMetadata {
                     merges: 1,
+                    received_at: UnixTimestamp(1615889440),
                 },
             },
             Bucket {
@@ -1185,6 +1208,7 @@ mod tests {
                 },
                 metadata: BucketMetadata {
                     merges: 1,
+                    received_at: UnixTimestamp(1615889440),
                 },
             },
             Bucket {
@@ -1203,6 +1227,7 @@ mod tests {
                 },
                 metadata: BucketMetadata {
                     merges: 1,
+                    received_at: UnixTimestamp(1615889440),
                 },
             },
         ]
@@ -1237,6 +1262,7 @@ mod tests {
             transaction_from_dsc: Some("test_transaction"),
             sampling_result: &SamplingResult::Pending,
             has_profile: false,
+            received_at: UnixTimestamp::from_secs(1615889440),
         };
 
         let extracted = extractor.extract(event.value().unwrap()).unwrap();
@@ -1312,6 +1338,7 @@ mod tests {
             transaction_from_dsc: Some("test_transaction"),
             sampling_result: &SamplingResult::Pending,
             has_profile: false,
+            received_at: UnixTimestamp::from_secs(1615889440),
         };
 
         let extracted = extractor.extract(event.value().unwrap()).unwrap();
@@ -1335,6 +1362,7 @@ mod tests {
                 },
                 metadata: BucketMetadata {
                     merges: 1,
+                    received_at: UnixTimestamp(1615889440),
                 },
             },
             Bucket {
@@ -1356,6 +1384,7 @@ mod tests {
                 },
                 metadata: BucketMetadata {
                     merges: 1,
+                    received_at: UnixTimestamp(1615889440),
                 },
             },
             Bucket {
@@ -1376,6 +1405,7 @@ mod tests {
                 },
                 metadata: BucketMetadata {
                     merges: 1,
+                    received_at: UnixTimestamp(1615889440),
                 },
             },
             Bucket {
@@ -1390,6 +1420,7 @@ mod tests {
                 tags: {},
                 metadata: BucketMetadata {
                     merges: 1,
+                    received_at: UnixTimestamp(1615889440),
                 },
             },
             Bucket {
@@ -1410,6 +1441,7 @@ mod tests {
                 },
                 metadata: BucketMetadata {
                     merges: 1,
+                    received_at: UnixTimestamp(1615889440),
                 },
             },
             Bucket {
@@ -1428,6 +1460,7 @@ mod tests {
                 },
                 metadata: BucketMetadata {
                     merges: 1,
+                    received_at: UnixTimestamp(1615889440),
                 },
             },
         ]
@@ -1453,6 +1486,7 @@ mod tests {
             transaction_from_dsc: Some("test_transaction"),
             sampling_result: &SamplingResult::Pending,
             has_profile: false,
+            received_at: UnixTimestamp::from_secs(1615889440),
         };
 
         let extracted = extractor.extract(event.value().unwrap()).unwrap();
@@ -1492,6 +1526,7 @@ mod tests {
             transaction_from_dsc: Some("test_transaction"),
             sampling_result: &SamplingResult::Pending,
             has_profile: false,
+            received_at: UnixTimestamp::from_secs(1615889440),
         };
 
         let extracted = extractor.extract(event.value().unwrap()).unwrap();
@@ -1560,6 +1595,7 @@ mod tests {
             transaction_from_dsc: Some("test_transaction"),
             sampling_result: &SamplingResult::Pending,
             has_profile: false,
+            received_at: UnixTimestamp::from_secs(1615889440),
         };
 
         let extracted = extractor.extract(event.value().unwrap()).unwrap();
@@ -1577,6 +1613,7 @@ mod tests {
                 tags: {},
                 metadata: BucketMetadata {
                     merges: 1,
+                    received_at: UnixTimestamp(1615889440),
                 },
             },
             Bucket {
@@ -1597,6 +1634,7 @@ mod tests {
                 },
                 metadata: BucketMetadata {
                     merges: 1,
+                    received_at: UnixTimestamp(1615889440),
                 },
             },
             Bucket {
@@ -1613,6 +1651,7 @@ mod tests {
                 tags: {},
                 metadata: BucketMetadata {
                     merges: 1,
+                    received_at: UnixTimestamp(1615889440),
                 },
             },
         ]
@@ -1654,6 +1693,7 @@ mod tests {
             transaction_from_dsc: Some("test_transaction"),
             sampling_result: &SamplingResult::Pending,
             has_profile: false,
+            received_at: UnixTimestamp::from_secs(1615889440),
         };
 
         let extracted = extractor.extract(event.value().unwrap()).unwrap();
@@ -1687,6 +1727,7 @@ mod tests {
             transaction_from_dsc: Some("test_transaction"),
             sampling_result: &SamplingResult::Pending,
             has_profile: false,
+            received_at: UnixTimestamp::from_secs(1615889440),
         };
 
         let extracted = extractor.extract(event.value().unwrap()).unwrap();
@@ -1724,6 +1765,7 @@ mod tests {
             transaction_from_dsc: Some("root_transaction"),
             sampling_result: &SamplingResult::Pending,
             has_profile: false,
+            received_at: UnixTimestamp::from_secs(1615889440),
         };
 
         let extracted = extractor.extract(event.value().unwrap()).unwrap();
@@ -1744,6 +1786,7 @@ mod tests {
                 },
                 metadata: BucketMetadata {
                     merges: 1,
+                    received_at: UnixTimestamp(1615889440),
                 },
             },
         ]
@@ -1989,6 +2032,7 @@ mod tests {
             transaction_from_dsc: Some("test_transaction"),
             sampling_result: &SamplingResult::Pending,
             has_profile: false,
+            received_at: UnixTimestamp::from_secs(1615889440),
         };
 
         let extracted = extractor.extract(event.value().unwrap()).unwrap();
@@ -2084,6 +2128,7 @@ mod tests {
             transaction_from_dsc: Some("test_transaction"),
             sampling_result: &SamplingResult::Pending,
             has_profile: false,
+            received_at: UnixTimestamp::from_secs(1615889440),
         };
 
         let extracted = extractor.extract(event.value().unwrap()).unwrap();
@@ -2106,6 +2151,7 @@ mod tests {
                 },
                 metadata: BucketMetadata {
                     merges: 1,
+                    received_at: UnixTimestamp(1615889440),
                 },
             },
             Bucket {
@@ -2120,6 +2166,7 @@ mod tests {
                 tags: {},
                 metadata: BucketMetadata {
                     merges: 1,
+                    received_at: UnixTimestamp(1615889440),
                 },
             },
             Bucket {
@@ -2139,6 +2186,7 @@ mod tests {
                 },
                 metadata: BucketMetadata {
                     merges: 1,
+                    received_at: UnixTimestamp(1615889440),
                 },
             },
             Bucket {
@@ -2155,6 +2203,7 @@ mod tests {
                 tags: {},
                 metadata: BucketMetadata {
                     merges: 1,
+                    received_at: UnixTimestamp(1615889440),
                 },
             },
         ]

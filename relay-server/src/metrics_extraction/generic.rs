@@ -1,4 +1,3 @@
-use chrono::Utc;
 use std::collections::BTreeMap;
 
 use relay_common::time::UnixTimestamp;
@@ -24,7 +23,11 @@ pub trait Extractable: Getter {
 /// The instance must have a valid timestamp; if the timestamp is missing or invalid, no metrics are
 /// extracted. Timestamp and clock drift correction should occur before metrics extraction to ensure
 /// valid timestamps.
-pub fn extract_metrics<T>(instance: &T, config: &MetricExtractionConfig) -> Vec<Bucket>
+pub fn extract_metrics<T>(
+    instance: &T,
+    config: &MetricExtractionConfig,
+    received_at: UnixTimestamp,
+) -> Vec<Bucket>
 where
     T: Extractable,
 {
@@ -63,9 +66,7 @@ where
             value,
             timestamp,
             tags: extract_tags(instance, &metric_spec.tags),
-            // For extracted metrics we assume the `received_at` timestamp is equivalent to the time
-            // in which the metric is extracted.
-            metadata: BucketMetadata::new(Utc::now()),
+            metadata: BucketMetadata::new(received_at),
         });
     }
 
@@ -186,7 +187,11 @@ mod tests {
         });
         let config = serde_json::from_value(config_json).unwrap();
 
-        let metrics = extract_metrics(event.value().unwrap(), &config);
+        let metrics = extract_metrics(
+            event.value().unwrap(),
+            &config,
+            UnixTimestamp::from_secs(1615889440),
+        );
         insta::assert_debug_snapshot!(metrics, @r###"
         [
             Bucket {
@@ -201,6 +206,7 @@ mod tests {
                 tags: {},
                 metadata: BucketMetadata {
                     merges: 1,
+                    received_at: UnixTimestamp(1615889440),
                 },
             },
         ]
@@ -228,7 +234,11 @@ mod tests {
         });
         let config = serde_json::from_value(config_json).unwrap();
 
-        let metrics = extract_metrics(event.value().unwrap(), &config);
+        let metrics = extract_metrics(
+            event.value().unwrap(),
+            &config,
+            UnixTimestamp::from_secs(1615889440),
+        );
         insta::assert_debug_snapshot!(metrics, @r###"
         [
             Bucket {
@@ -245,6 +255,7 @@ mod tests {
                 tags: {},
                 metadata: BucketMetadata {
                     merges: 1,
+                    received_at: UnixTimestamp(1615889440),
                 },
             },
         ]
@@ -274,7 +285,11 @@ mod tests {
         });
         let config = serde_json::from_value(config_json).unwrap();
 
-        let metrics = extract_metrics(event.value().unwrap(), &config);
+        let metrics = extract_metrics(
+            event.value().unwrap(),
+            &config,
+            UnixTimestamp::from_secs(1615889440),
+        );
         insta::assert_debug_snapshot!(metrics, @r###"
         [
             Bucket {
@@ -291,6 +306,7 @@ mod tests {
                 tags: {},
                 metadata: BucketMetadata {
                     merges: 1,
+                    received_at: UnixTimestamp(1615889440),
                 },
             },
         ]
@@ -332,7 +348,11 @@ mod tests {
         });
         let config = serde_json::from_value(config_json).unwrap();
 
-        let metrics = extract_metrics(event.value().unwrap(), &config);
+        let metrics = extract_metrics(
+            event.value().unwrap(),
+            &config,
+            UnixTimestamp::from_secs(1615889440),
+        );
         insta::assert_debug_snapshot!(metrics, @r###"
         [
             Bucket {
@@ -351,6 +371,7 @@ mod tests {
                 },
                 metadata: BucketMetadata {
                     merges: 1,
+                    received_at: UnixTimestamp(1615889440),
                 },
             },
         ]
@@ -391,7 +412,11 @@ mod tests {
         });
         let config = serde_json::from_value(config_json).unwrap();
 
-        let metrics = extract_metrics(event.value().unwrap(), &config);
+        let metrics = extract_metrics(
+            event.value().unwrap(),
+            &config,
+            UnixTimestamp::from_secs(1615889440),
+        );
         insta::assert_debug_snapshot!(metrics, @r###"
         [
             Bucket {
@@ -408,6 +433,7 @@ mod tests {
                 },
                 metadata: BucketMetadata {
                     merges: 1,
+                    received_at: UnixTimestamp(1615889440),
                 },
             },
         ]
@@ -452,7 +478,11 @@ mod tests {
         });
         let config = serde_json::from_value(config_json).unwrap();
 
-        let metrics = extract_metrics(event.value().unwrap(), &config);
+        let metrics = extract_metrics(
+            event.value().unwrap(),
+            &config,
+            UnixTimestamp::from_secs(1615889440),
+        );
         insta::assert_debug_snapshot!(metrics, @r###"
         [
             Bucket {
@@ -469,6 +499,7 @@ mod tests {
                 },
                 metadata: BucketMetadata {
                     merges: 1,
+                    received_at: UnixTimestamp(1615889440),
                 },
             },
         ]
@@ -521,7 +552,11 @@ mod tests {
         });
         let config = serde_json::from_value(config_json).unwrap();
 
-        let metrics = extract_metrics(event.value().unwrap(), &config);
+        let metrics = extract_metrics(
+            event.value().unwrap(),
+            &config,
+            UnixTimestamp::from_secs(1615889440),
+        );
         insta::assert_debug_snapshot!(metrics, @r###"
         [
             Bucket {
@@ -538,6 +573,7 @@ mod tests {
                 tags: {},
                 metadata: BucketMetadata {
                     merges: 1,
+                    received_at: UnixTimestamp(1615889440),
                 },
             },
         ]
