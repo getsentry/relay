@@ -880,7 +880,6 @@ impl fmt::Debug for Aggregator {
 #[cfg(test)]
 mod tests {
     use similar_asserts::assert_eq;
-    use std::cmp::max;
 
     use super::*;
     use crate::{dist, GaugeValue};
@@ -1488,7 +1487,7 @@ mod tests {
         let bucket2 = some_bucket(Some(UnixTimestamp::from_secs(999994711)));
 
         // We create a bucket with 3 merges and monotonically increasing timestamps.
-        let mut bucket3 = some_bucket(Some(UnixTimestamp::from_secs(999995811)));
+        let mut bucket3 = some_bucket(Some(UnixTimestamp::from_secs(999994711)));
         bucket3
             .metadata
             .merge(BucketMetadata::new(UnixTimestamp::from_secs(999997811)));
@@ -1510,12 +1509,8 @@ mod tests {
         insta::assert_debug_snapshot!(buckets_metadata, @r###"
         [
             BucketMetadata {
-                merges: 2,
+                merges: 5,
                 received_at: UnixTimestamp(999994711),
-            },
-            BucketMetadata {
-                merges: 3,
-                received_at: UnixTimestamp(999995811),
             },
         ]
         "###);
