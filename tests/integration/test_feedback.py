@@ -169,21 +169,18 @@ def test_feedback_with_attachment_in_same_envelope(
     mini_sentry.add_basic_project_config(
         42, extra={"config": {"features": ["organizations:user-feedback-ingest"]}}
     )
-    mini_sentry.set_global_config_option(
-        "feedback.ingest-topic.rollout-rate", 1.0 if use_feedback_topic else 0.0
-    )
     # Test will only pass with this option set
     mini_sentry.set_global_config_option("feedback.ingest-inline-attachments", True)
 
     if use_feedback_topic:
         mini_sentry.set_global_config_option("feedback.ingest-topic.rollout-rate", 1.0)
-        feedback_consumer_ = feedback_consumer(timeout=20)
         other_consumer = events_consumer(timeout=20)
+        feedback_consumer = feedback_consumer(timeout=20)
     else:
         mini_sentry.set_global_config_option("feedback.ingest-topic.rollout-rate", 0.0)
-        feedback_consumer_ = events_consumer(timeout=20)
         other_consumer = feedback_consumer(timeout=20)
-    attachments_consumer_ = attachments_consumer(timeout=20)
+        feedback_consumer = events_consumer(timeout=20)
+    attachments_consumer = attachments_consumer(timeout=20)
 
     feedback = generate_feedback_sdk_event()
     event_id = feedback["event_id"]
@@ -213,14 +210,14 @@ def test_feedback_with_attachment_in_same_envelope(
     # attachment data (relaxed version of test_attachments.py)
     received_contents = {}  # attachment id -> bytes
     while set(received_contents.values()) != {attachment_contents}:
-        chunk, v = attachments_consumer_.get_attachment_chunk()
+        chunk, v = attachments_consumer.get_attachment_chunk()
         received_contents[v["id"]] = received_contents.get(v["id"], b"") + chunk
         assert v["event_id"] == event_id
         assert v["project_id"] == project_id
     assert len(received_contents) == 1
 
     # attachment headers
-    attachment_event = attachments_consumer_.get_individual_attachment()
+    attachment_event = attachments_consumer.get_individual_attachment()
     assert attachment_event["event_id"] == event_id
     assert attachment_event["project_id"] == project_id
     attachment = attachment_event["attachment"]
@@ -229,7 +226,7 @@ def test_feedback_with_attachment_in_same_envelope(
     assert attachment["size"] == attachment_headers["length"]
 
     # feedback event sent to correct topic
-    event, message = feedback_consumer_.get_event()
+    event, message = feedback_consumer.get_event()
     assert event["type"] == "feedback"
 
     parsed_feedback = json.loads(message["payload"])
@@ -240,4 +237,4 @@ def test_feedback_with_attachment_in_same_envelope(
     other_consumer.assert_empty()
 
     # test message wasn't sent to attachments topic
-    attachments_consumer_.assert_empty()
+    attachments_consumer.assert_empty()
