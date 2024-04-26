@@ -170,17 +170,78 @@ impl TransactionMetricsConfig {
     }
 }
 
+/// Combined view of global and project-specific metrics extraction configs.
+pub struct CombinedMetricsConfig<'a> {
+    global: &'a MetricExtractionTemplates,
+    project: &'a MetricExtractionConfig,
+}
+
+impl<'a> CombinedMetricsConfig<'a> {
+    /// Creates a new combined view from two references.
+    pub fn new(global: &'a MetricExtractionTemplates, project: &'a MetricExtractionConfig) -> Self {
+        Self { global, project }
+    }
+
+    /// Returns an iterator of metric specs.
+    pub fn metrics(&self) -> impl Iterator<Item = &MetricSpec> {
+        let project = self.project.metrics.iter();
+        let enabled_global = self
+            .enabled_templates()
+            .flat_map(|template| template.metrics.iter());
+
+        project.chain(enabled_global)
+    }
+
+    /// Returns an iterator of tag mappings.
+    pub fn tags(&self) -> impl Iterator<Item = &TagMapping> {
+        let project = self.project.tags.iter();
+        let enabled_global = self
+            .enabled_templates()
+            .flat_map(|template| template.tags.iter());
+
+        project.chain(enabled_global)
+    }
+
+    fn enabled_templates(&self) -> impl Iterator<Item = &MetricExtractionTemplate> {
+        self.global.templates.iter().filter_map(|(key, template)| {
+            let is_enabled_by_override =
+                self.project.global_templates.get(key).map(|c| c.is_enabled);
+            let is_enabled = is_enabled_by_override.unwrap_or(template.is_enabled);
+
+            is_enabled.then_some(template)
+        })
+    }
+}
+
+impl<'a> From<&'a MetricExtractionConfig> for CombinedMetricsConfig<'a> {
+    fn from(value: &'a MetricExtractionConfig) -> Self {
+        Self::new(MetricExtractionTemplates::EMPTY, value)
+    }
+}
+
 /// Global templates for metric extraction.
 ///
 /// Templates can be enabled or disabled by project configs.
 #[derive(Clone, Default, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MetricExtractionTemplates {
+    /// Mapping from template name to metrics specs & tags.
     #[serde(skip_serializing_if = "BTreeMap::is_empty")]
     pub templates: BTreeMap<String, MetricExtractionTemplate>,
 }
 
-/// TODO: docs
+impl MetricExtractionTemplates {
+    const EMPTY: &'static Self = &Self {
+        templates: BTreeMap::new(),
+    };
+
+    /// Returns `true` if the continaed templates are empty.
+    pub fn is_empty(&self) -> bool {
+        self.templates.is_empty()
+    }
+}
+
+/// Set of metrics & tags that can be enabled or disabled as a group.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct MetricExtractionTemplate {
     /// Whether the set is enabled by default.
@@ -207,6 +268,10 @@ pub struct MetricExtractionConfig {
     /// Versioning of metrics extraction. Relay skips extraction if the version is not supported.
     pub version: u16,
 
+    /// Configuration of global templates.
+    ///
+    /// The templates themselves are configured in [`crate::GlobalConfig`],
+    /// but can be enabled or disabled here.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub global_templates: BTreeMap<String, MetricExtractionTemplateOverride>,
 
@@ -276,9 +341,12 @@ impl MetricExtractionConfig {
     }
 }
 
-/// TODO: docs
+/// Configures metrics extraction templates.
+///
+/// Project configs can enable or disable globally defined templates.
 #[derive(Clone, Default, Debug, Serialize, Deserialize)]
 pub struct MetricExtractionTemplateOverride {
+    /// `true` if a template should be enabled.
     pub is_enabled: bool,
 }
 

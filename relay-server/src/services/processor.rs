@@ -20,7 +20,7 @@ use relay_base_schema::project::{ProjectId, ProjectKey};
 use relay_cogs::{AppFeature, Cogs, FeatureWeights, ResourceId, Token};
 use relay_common::time::UnixTimestamp;
 use relay_config::{Config, HttpEncoding, NormalizationLevel, RelayMode};
-use relay_dynamic_config::{ErrorBoundary, Feature};
+use relay_dynamic_config::{CombinedMetricsConfig, ErrorBoundary, Feature};
 use relay_event_normalization::{
     normalize_event, validate_event_timestamps, validate_transaction, ClockDriftProcessor,
     DynamicMeasurementsConfig, EventValidationConfig, GeoIpLookup, MeasurementsConfig,
@@ -1164,6 +1164,7 @@ impl EnvelopeProcessorService {
             ErrorBoundary::Ok(ref config) if config.is_enabled() => Some(config),
             _ => None,
         };
+        let global = self.inner.global_config.current();
 
         if let Some(event) = state.event.value() {
             if state.event_metrics_extracted {
@@ -1171,19 +1172,17 @@ impl EnvelopeProcessorService {
             }
 
             if let Some(config) = config {
+                let combined_config = CombinedMetricsConfig::new(&global.metric_extraction, config);
+
                 let metrics = crate::metrics_extraction::event::extract_metrics(
                     event,
                     state.spans_extracted,
-                    config,
+                    &combined_config,
                     self.inner
                         .config
                         .aggregator_config_for(MetricNamespace::Spans)
                         .max_tag_value_length,
-                    self.inner
-                        .global_config
-                        .current()
-                        .options
-                        .span_extraction_sample_rate,
+                    global.options.span_extraction_sample_rate,
                 );
                 state.event_metrics_extracted |= !metrics.is_empty();
                 state.extracted_metrics.project_metrics.extend(metrics);

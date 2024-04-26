@@ -6,7 +6,9 @@ use std::sync::Arc;
 use chrono::{DateTime, Utc};
 use relay_base_schema::events::EventType;
 use relay_config::Config;
-use relay_dynamic_config::{ErrorBoundary, Feature, GlobalConfig, ProjectConfig};
+use relay_dynamic_config::{
+    CombinedMetricsConfig, ErrorBoundary, Feature, GlobalConfig, ProjectConfig,
+};
 use relay_event_normalization::normalize_transaction_name;
 use relay_event_normalization::{
     normalize_measurements, normalize_performance_score, normalize_user_agent_info_generic,
@@ -120,7 +122,10 @@ pub fn process(
                 return ItemAction::Drop(Outcome::Invalid(DiscardReason::Internal));
             };
             relay_log::trace!("Extracting metrics from standalone span {:?}", span.span_id);
-            let metrics = extract_metrics(span, config);
+            let metrics = extract_metrics(
+                span,
+                &CombinedMetricsConfig::new(&Default::default(), config),
+            );
             state.extracted_metrics.project_metrics.extend(metrics);
             item.set_metrics_extracted(true);
         }

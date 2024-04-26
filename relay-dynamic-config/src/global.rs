@@ -43,8 +43,11 @@ pub struct GlobalConfig {
     ///
     /// These are merged with rules in project configs before
     /// applying.
-    #[serde(skip_serializing_if = "metrics_extraction_empty")]
-    pub metric_extraction: ErrorBoundary<MetricExtractionTemplates>,
+    #[serde(
+        deserialize_with = "default_on_error",
+        skip_serializing_if = "MetricExtractionTemplates::is_empty"
+    )]
+    pub metric_extraction: MetricExtractionTemplates,
 }
 
 impl GlobalConfig {
@@ -76,13 +79,6 @@ fn is_err_or_empty(filters_config: &ErrorBoundary<GenericFiltersConfig>) -> bool
     match filters_config {
         ErrorBoundary::Err(_) => true,
         ErrorBoundary::Ok(config) => config.version == 0 && config.filters.is_empty(),
-    }
-}
-
-fn metrics_extraction_empty(config: &ErrorBoundary<MetricExtractionTemplates>) -> bool {
-    match config {
-        ErrorBoundary::Err(_) => false,
-        ErrorBoundary::Ok(config) => config.templates.is_empty(),
     }
 }
 
