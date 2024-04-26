@@ -469,7 +469,7 @@ jobs:
         # Skip for dependabot or if it's a fork as the image cannot be uploaded to ghcr since this test attempts to pull
         # the image from ghcr
         if: "!github.event.pull_request.head.repo.fork && github.actor != 'dependabot[bot]'"
-        uses: getsentry/action-self-hosted-e2e-tests@478325df96e27abcdd6f8544519fe9f18b57ca76
+        uses: getsentry/action-self-hosted-e2e-tests@267fab2add9e173029c1e09ecfd82e04688d7c44
         with:
           project_name: relay
           image_url: ghcr.io/getsentry/relay:${{ github.event.pull_request.head.sha || github.sha }}
