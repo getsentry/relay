@@ -325,6 +325,22 @@ def test_validate_project_config():
     assert str(e.value) == 'json atom at path ".foobar" is missing from rhs'
 
 
+def test_validate_cardinality_limit_config():
+    config = {
+        "id": "project-override-custom",
+        "window": {"windowSeconds": 3600, "granularitySeconds": 600},
+        "limit": 1000,
+        "namespace": "custom",
+        "scope": "name",
+    }
+    # Does not raise:
+    sentry_relay.validate_cardinality_limit_config(json.dumps(config), strict=True)
+    config["foobar"] = "foo"
+    with pytest.raises(ValueError) as e:
+        sentry_relay.validate_cardinality_limit_config(json.dumps(config), strict=True)
+    assert str(e.value) == 'json atom at path ".foobar" is missing from rhs'
+
+
 def test_global_config_equal_normalization():
     config = {"measurements": {"maxCustomMeasurements": 0}}
     assert config == sentry_relay.normalize_global_config(config)

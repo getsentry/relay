@@ -124,7 +124,7 @@ enum RelayDataCategory {
    * MetricHour
    *
    * Reserved by billing to summarize the bucketed product of metric volume
-   * and metric cardinality.  Defined here so as not to clash with future
+   * and metric cardinality. Defined here so as not to clash with future
    * categories.
    */
   RELAY_DATA_CATEGORY_METRIC_HOUR = 19,
@@ -563,7 +563,7 @@ void relay_geoip_lookup_free(struct RelayGeoIpLookup *lookup);
 const struct RelayStr *relay_valid_platforms(uintptr_t *size_out);
 
 /**
- * Creates a new normalization processor.
+ * Creates a new normalization config.
  */
 struct RelayStoreNormalizer *relay_store_normalizer_new(const struct RelayStr *config,
                                                         const struct RelayGeoIpLookup *_geoip_lookup);
@@ -657,6 +657,14 @@ struct RelayStr relay_validate_sampling_configuration(const struct RelayStr *val
  */
 struct RelayStr relay_validate_project_config(const struct RelayStr *value,
                                               bool strict);
+
+/**
+ * Validate cardinality limit config.
+ *
+ * If `strict` is true, checks for unknown fields in the input.
+ */
+struct RelayStr relay_validate_cardinality_limit_config(const struct RelayStr *value,
+                                                        bool strict);
 
 /**
  * Normalize a global config.

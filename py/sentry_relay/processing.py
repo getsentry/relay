@@ -31,6 +31,7 @@ __all__ = [
     "validate_sampling_condition",
     "validate_sampling_configuration",
     "validate_project_config",
+    "validate_cardinality_limit_config",
     "normalize_global_config",
 ]
 
@@ -304,6 +305,20 @@ def validate_project_config(config, strict: bool):
     """
     assert isinstance(config, str)
     raw_error = rustcall(lib.relay_validate_project_config, encode_str(config), strict)
+    error = decode_str(raw_error, free=True)
+    if error:
+        raise ValueError(error)
+
+
+def validate_cardinality_limit_config(config, strict: bool):
+    """Validate the cardinality limit config.
+
+    :param strict: Whether or not to check for unknown fields.
+    """
+    assert isinstance(config, str)
+    raw_error = rustcall(
+        lib.relay_validate_cardinality_limit_config, encode_str(config), strict
+    )
     error = decode_str(raw_error, free=True)
     if error:
         raise ValueError(error)
