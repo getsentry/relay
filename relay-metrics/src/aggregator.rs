@@ -900,8 +900,8 @@ mod tests {
         }
     }
 
-    fn some_bucket() -> Bucket {
-        let timestamp = UnixTimestamp::from_secs(999994711);
+    fn some_bucket(timestamp: Option<UnixTimestamp>) -> Bucket {
+        let timestamp = timestamp.map_or(UnixTimestamp::from_secs(999994711), |t| t);
         Bucket {
             timestamp,
             width: 0,
@@ -918,7 +918,7 @@ mod tests {
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
         let mut aggregator = Aggregator::new(test_config());
 
-        let bucket1 = some_bucket();
+        let bucket1 = some_bucket(None);
 
         let mut bucket2 = bucket1.clone();
         bucket2.value = BucketValue::counter(43.into());
@@ -1008,7 +1008,7 @@ mod tests {
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
         let mut aggregator = Aggregator::new(config);
 
-        let bucket1 = some_bucket();
+        let bucket1 = some_bucket(None);
 
         let mut bucket2 = bucket1.clone();
         bucket2.timestamp = UnixTimestamp::from_secs(999994712);
@@ -1071,8 +1071,12 @@ mod tests {
         let mut aggregator = Aggregator::new(config);
 
         // It's OK to have same metric with different projects:
-        aggregator.merge(project_key1, some_bucket(), None).unwrap();
-        aggregator.merge(project_key2, some_bucket(), None).unwrap();
+        aggregator
+            .merge(project_key1, some_bucket(None), None)
+            .unwrap();
+        aggregator
+            .merge(project_key2, some_bucket(None), None)
+            .unwrap();
 
         assert_eq!(aggregator.buckets.len(), 2);
     }
@@ -1480,17 +1484,17 @@ mod tests {
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
         let mut aggregator = Aggregator::new(config);
 
-        let bucket1 = some_bucket();
-        let bucket2 = some_bucket();
+        let bucket1 = some_bucket(Some(UnixTimestamp::from_secs(999994711)));
+        let bucket2 = some_bucket(Some(UnixTimestamp::from_secs(999994711)));
 
-        // Create a bucket with already 3 merges and with a timestamp that is 1 minute older than
-        // the one of both buckets.
-        let timestamp = UnixTimestamp::from_secs(
-            max(bucket1.timestamp.as_secs(), bucket2.timestamp.as_secs()) + 60,
-        );
-        let mut bucket3 = some_bucket();
-        bucket3.metadata.merge(BucketMetadata::new(timestamp));
-        bucket3.metadata.merge(BucketMetadata::new(timestamp));
+        // We create a bucket with 3 merges and monotonically increasing timestamps.
+        let mut bucket3 = some_bucket(Some(UnixTimestamp::from_secs(999995811)));
+        bucket3
+            .metadata
+            .merge(BucketMetadata::new(UnixTimestamp::from_secs(999997811)));
+        bucket3
+            .metadata
+            .merge(BucketMetadata::new(UnixTimestamp::from_secs(999999811)));
 
         aggregator
             .merge(project_key, bucket1.clone(), None)
@@ -1502,19 +1506,16 @@ mod tests {
             .merge(project_key, bucket3.clone(), None)
             .unwrap();
 
-        let buckets: Vec<_> = aggregator.buckets.values().map(|v| &v.metadata).collect();
-
-        // We expect the received_at to be the smallest of all of them.
-        let received_at = buckets[0].received_at;
-        assert_eq!(received_at, bucket1.timestamp);
-        assert_eq!(received_at, bucket2.timestamp);
-        assert_eq!(received_at, bucket3.timestamp);
-
-        insta::assert_debug_snapshot!(buckets, @r###"
+        let buckets_metadata: Vec<_> = aggregator.buckets.values().map(|v| &v.metadata).collect();
+        insta::assert_debug_snapshot!(buckets_metadata, @r###"
         [
             BucketMetadata {
-                merges: 5,
+                merges: 2,
                 received_at: UnixTimestamp(999994711),
+            },
+            BucketMetadata {
+                merges: 3,
+                received_at: UnixTimestamp(999995811),
             },
         ]
         "###);

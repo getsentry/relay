@@ -818,7 +818,6 @@ impl Default for ParseBuckets<'_> {
             slice: &[],
             // The timestamp will never be returned.
             timestamp: UnixTimestamp::from_secs(4711),
-            // TODO: check if we want a specific value here.
             received_at: UnixTimestamp::from_secs(4711),
         }
     }
