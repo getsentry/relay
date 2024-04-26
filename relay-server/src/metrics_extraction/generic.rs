@@ -615,6 +615,23 @@ mod tests {
         let event = Event::from_value(event_json.into());
 
         let metrics = extract_metrics(event.value().unwrap(), combined);
-        insta::assert_debug_snapshot!(metrics, @"");
+        insta::assert_debug_snapshot!(metrics, @r###"
+        [
+            Bucket {
+                timestamp: UnixTimestamp(1597976302),
+                width: 0,
+                name: MetricName(
+                    "c:unsupported/counter@none",
+                ),
+                value: Counter(
+                    1.0,
+                ),
+                tags: {},
+                metadata: BucketMetadata {
+                    merges: 1,
+                },
+            },
+        ]
+        "###);
     }
 }

@@ -52,7 +52,7 @@ pub fn extract_metrics(
     max_tag_value_size: usize,
     span_extraction_sample_rate: Option<f32>,
 ) -> Vec<Bucket> {
-    let mut metrics = generic::extract_metrics(event, config);
+    let mut metrics = generic::extract_metrics(event, config.clone());
 
     // If spans were already extracted for an event,
     // we rely on span processing to extract metrics.
@@ -71,13 +71,13 @@ fn extract_span_metrics_for_event(
 ) {
     relay_statsd::metric!(timer(RelayTimers::EventProcessingSpanMetricsExtraction), {
         if let Some(transaction_span) = extract_transaction_span(event, max_tag_value_size) {
-            output.extend(generic::extract_metrics(&transaction_span, config));
+            output.extend(generic::extract_metrics(&transaction_span, config.clone()));
         }
 
         if let Some(spans) = event.spans.value() {
             for annotated_span in spans {
                 if let Some(span) = annotated_span.value() {
-                    output.extend(generic::extract_metrics(span, config));
+                    output.extend(generic::extract_metrics(span, config.clone()));
                 }
             }
         }
