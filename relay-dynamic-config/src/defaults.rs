@@ -37,7 +37,14 @@ const CACHE_SPAN_OPS: &[&str] = &[
     "cache.delete_item",
 ];
 
-const QUEUE_SPAN_OPS: &[&str] = &["queue.task.celery", "queue.submit.celery"];
+const QUEUE_SPAN_OPS: &[&str] = &[
+    "queue.task.*",
+    "queue.submit.*",
+    "queue.task",
+    "queue.submit",
+    "queue.publish",
+    "queue.process",
+];
 
 /// Adds configuration for extracting metrics from spans.
 ///
@@ -159,9 +166,12 @@ fn span_metrics(
         | is_cache.clone())
         & duration_condition.clone();
 
-    let know_modules_condition =
-        (is_db.clone() | is_resource.clone() | is_mobile.clone() | is_http.clone())
-            & duration_condition.clone();
+    let know_modules_condition = (is_db.clone()
+        | is_resource.clone()
+        | is_mobile.clone()
+        | is_http.clone()
+        | is_queue_op.clone())
+        & duration_condition.clone();
     let self_time_tags = vec![
         // All modules:
         Tag::with_key("environment")
