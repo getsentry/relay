@@ -1,5 +1,5 @@
 [package]
-name = "memory-flame-chart"
+name = "project-config-memory"
 version = "0.1.0"
 edition = "2021"
 
@@ -10,6 +10,7 @@ memory-stats = "1.0"
 relay-dynamic-config = { path = "../../relay-dynamic-config" }
 serde = "1.0.198"
 serde_json = "1.0.116"
+stats_alloc = "0.1.10"
 
 [lints]
 workspace = true
