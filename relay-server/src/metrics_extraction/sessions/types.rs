@@ -1,14 +1,13 @@
 use std::collections::BTreeMap;
 use std::fmt::{self, Display};
 
-use uuid::Uuid;
-
 use relay_common::time::UnixTimestamp;
 use relay_event_schema::protocol::SessionStatus;
 use relay_metrics::{
     Bucket, BucketMetadata, BucketValue, CounterType, MetricNamespace, MetricResourceIdentifier,
     MetricUnit,
 };
+use uuid::Uuid;
 
 use crate::metrics_extraction::IntoMetric;
 

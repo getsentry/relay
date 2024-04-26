@@ -769,9 +769,8 @@ pub struct BucketMetadata {
 
     /// Received timestamp of the first metric in this bucket.
     ///
-    /// This field is used for internal tracking purposes, and we want to set/override it
-    /// based on a configuration parameter. If the parameter is not set, the value will be
-    /// merged with well-defined semantics.
+    /// This field should be set to the time in which the first metric of a specific bucket was
+    /// received in the outermost internal Relay.
     pub received_at: Option<UnixTimestamp>,
 }
 

@@ -46,8 +46,6 @@ pub fn process(
 ) {
     use relay_event_normalization::RemoveOtherProcessor;
 
-    let received_at = state.managed_envelope.start_time();
-
     let span_metrics_extraction_config = match state.project_state.config.metric_extraction {
         ErrorBoundary::Ok(ref config) if config.is_enabled() => Some(config),
         _ => None,
@@ -122,7 +120,7 @@ pub fn process(
                 return ItemAction::Drop(Outcome::Invalid(DiscardReason::Internal));
             };
             relay_log::trace!("Extracting metrics from standalone span {:?}", span.span_id);
-            let metrics = extract_metrics(span, config, UnixTimestamp::from_instant(received_at));
+            let metrics = extract_metrics(span, config);
             state.extracted_metrics.project_metrics.extend(metrics);
             item.set_metrics_extracted(true);
         }

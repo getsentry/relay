@@ -732,6 +732,9 @@ pub struct ProcessMetrics {
     /// The value of the Envelope's [`sent_at`](Envelope::sent_at) header for clock drift
     /// correction.
     pub sent_at: Option<DateTime<Utc>>,
+    /// Whether to override the [`received_at`] field in the [`BucketMetadata`] with the current
+    /// receive time of the instance.
+    pub override_received_at_metadata: bool,
 }
 
 #[derive(Debug)]
@@ -744,6 +747,9 @@ pub struct ProcessBatchedMetrics {
     pub start_time: Instant,
     /// The instant at which the request was received.
     pub sent_at: Option<DateTime<Utc>>,
+    /// Whether to override the [`received_at`] field in the [`BucketMetadata`] with the current
+    /// receive time of the instance.
+    pub override_received_at_metadata: bool,
 }
 
 /// Parses a list of metric meta items and pushes them to the project cache for aggregation.
@@ -1798,6 +1804,7 @@ impl EnvelopeProcessorService {
             start_time,
             sent_at,
             keep_metadata,
+            override_received_at_metadata,
         } = message;
 
         let received = relay_common::time::instant_to_date_time(start_time);
@@ -1854,7 +1861,11 @@ impl EnvelopeProcessorService {
         for bucket in &mut buckets {
             clock_drift_processor.process_timestamp(&mut bucket.timestamp);
             if !keep_metadata {
-                bucket.metadata = BucketMetadata::new(received_timestamp);
+                bucket.metadata = BucketMetadata::default();
+            }
+
+            if override_received_at_metadata {
+                bucket.metadata.received_at = Some(received_timestamp)
             }
         }
 
@@ -1873,6 +1884,7 @@ impl EnvelopeProcessorService {
             keep_metadata,
             start_time,
             sent_at,
+            override_received_at_metadata,
         } = message;
 
         let received = relay_common::time::instant_to_date_time(start_time);
@@ -1907,7 +1919,11 @@ impl EnvelopeProcessorService {
             for bucket in &mut buckets {
                 clock_drift_processor.process_timestamp(&mut bucket.timestamp);
                 if !keep_metadata {
-                    bucket.metadata = BucketMetadata::new(received_timestamp);
+                    bucket.metadata = BucketMetadata::default();
+                }
+
+                if override_received_at_metadata {
+                    bucket.metadata.received_at = Some(received_timestamp)
                 }
             }
 
