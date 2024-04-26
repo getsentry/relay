@@ -510,6 +510,7 @@
 <a href="#508" id="508">508</a>
 <a href="#509" id="509">509</a>
 <a href="#510" id="510">510</a>
+<a href="#511" id="511">511</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::HashMap;
 <span class="kw">use </span>std::fs::File;
 <span class="kw">use </span>std::io::BufReader;
@@ -679,11 +680,12 @@
     </span>)]
     </span><span class="kw">pub </span>feedback_ingest_topic_rollout_rate: f32,
 
-    <span class="doccomment">/// Flag for handling feedback and attachments in the same envelope. Temporary FF for fast-revert
-    /// (will remove after user feedback GA release).
+    <span class="doccomment">/// Flag for handling feedback and attachments in the same envelope. This is for the SDK team to send less requests
+    /// for the user feedback screenshots feature. Prior to this change, feedback sent w/attachments would be produced
+    /// to the attachments topic, rather than its own topic. The items are now split up accordingly.
     ///
-    /// Enabling this will also separate the logic for producing feedback, to its own match case in
-    /// StoreService::store_envelope
+    /// This option is used as a temporary FF/kill-switch to toggle back to the old code path in relay's StoreService.
+    /// This is for testing convenience and will be removed after user feedback's GA release.
     </span><span class="attr">#[serde(
         rename = <span class="string">"feedback.ingest-inline-attachments"</span>,
         deserialize_with = <span class="string">"default_on_error"</span>,
