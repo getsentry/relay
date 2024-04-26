@@ -28,7 +28,6 @@ where
     T: Extractable,
 {
     let mut metrics = Vec::new();
-    let mut mris_seen = BTreeSet::new();
 
     let Some(timestamp) = instance.timestamp() else {
         relay_log::error!("invalid event timestamp for metric extraction");
@@ -37,11 +36,6 @@ where
 
     for metric_spec in config.metrics() {
         if metric_spec.category != instance.category() {
-            continue;
-        }
-
-        let is_new = mris_seen.insert(metric_spec.mri.as_str());
-        if !is_new {
             continue;
         }
 
@@ -562,69 +556,6 @@ mod tests {
                     [
                         1.0,
                     ],
-                ),
-                tags: {},
-                metadata: BucketMetadata {
-                    merges: 1,
-                },
-            },
-        ]
-        "###);
-    }
-
-    #[test]
-    fn extract_metrics_once() {
-        // With multiple metric templates, MRIs might be accidentally enabled twice.
-        // Make sure we only extract once.
-        let global = serde_json::from_value::<MetricExtractionTemplates>(serde_json::json!({
-            "templates": {
-                "template1": {
-                    "is_enabled": true,
-                    "metrics": [
-                        {
-                            "category": "transaction",
-                            "mri": "c:duplicate/counter@none"
-                        }
-                    ],
-                    "tags": []
-                }
-            }
-        }))
-        .unwrap();
-        let project = serde_json::from_value::<MetricExtractionConfig>(serde_json::json!({
-            "version": 1,
-            "metrics": [
-                {
-                    "category": "transaction",
-                    "mri": "c:duplicate/counter@none"
-                }
-            ]
-        }))
-        .unwrap();
-
-        let combined = CombinedMetricExtractionConfig::new(&global, &project);
-
-        let event_json = json!({
-            "type": "transaction",
-            "timestamp": 1597976302.0,
-            "measurements": {
-                "valid": {"value": 1.0},
-                "invalid": {"value": 0.0},
-            }
-        });
-        let event = Event::from_value(event_json.into());
-
-        let metrics = extract_metrics(event.value().unwrap(), combined);
-        insta::assert_debug_snapshot!(metrics, @r###"
-        [
-            Bucket {
-                timestamp: UnixTimestamp(1597976302),
-                width: 0,
-                name: MetricName(
-                    "c:unsupported/counter@none",
-                ),
-                value: Counter(
-                    1.0,
                 ),
                 tags: {},
                 metadata: BucketMetadata {
