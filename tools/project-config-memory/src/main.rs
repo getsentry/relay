@@ -37,5 +37,11 @@ fn main() {
         .unwrap();
 
     let after = memory_stats().unwrap().physical_mem;
-    println!("{},{}", json.len(), after - before);
+    let diff = after - before;
+    println!(
+        "{},{},{}",
+        json.len(),
+        diff,
+        diff as f64 / json.len() as f64
+    );
 }
