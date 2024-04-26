@@ -1155,7 +1155,8 @@ mod tests {
                     "data": {
                         "frames.slow": 1,
                         "frames.frozen": 2,
-                        "frames.total": 9
+                        "frames.total": 9,
+                        "frames.delay": 0.1
                     }
                 },
                 {

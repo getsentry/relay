@@ -660,6 +660,7 @@ mod tests {
                 frames_slow: ~,
                 frames_frozen: ~,
                 frames_total: ~,
+                frames_delay: ~,
                 other: {},
             },
             sentry_tags: ~,
