@@ -536,7 +536,7 @@ fn normalize(
     normalize_performance_score(&mut event, performance_score);
     span.measurements = event.measurements;
 
-    tag_extraction::extract_measurements(span);
+    tag_extraction::extract_measurements(span, is_mobile);
 
     process_value(
         annotated_span,
