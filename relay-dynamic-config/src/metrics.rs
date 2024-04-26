@@ -172,12 +172,12 @@ impl TransactionMetricsConfig {
 
 /// Combined view of global and project-specific metrics extraction configs.
 #[derive(Debug, Clone)]
-pub struct CombinedMetricsConfig<'a> {
+pub struct CombinedMetricExtractionConfig<'a> {
     global: &'a MetricExtractionTemplates,
     project: &'a MetricExtractionConfig,
 }
 
-impl<'a> CombinedMetricsConfig<'a> {
+impl<'a> CombinedMetricExtractionConfig<'a> {
     /// Creates a new combined view from two references.
     pub fn new(global: &'a MetricExtractionTemplates, project: &'a MetricExtractionConfig) -> Self {
         Self { global, project }
@@ -214,7 +214,7 @@ impl<'a> CombinedMetricsConfig<'a> {
     }
 }
 
-impl<'a> From<&'a MetricExtractionConfig> for CombinedMetricsConfig<'a> {
+impl<'a> From<&'a MetricExtractionConfig> for CombinedMetricExtractionConfig<'a> {
     fn from(value: &'a MetricExtractionConfig) -> Self {
         Self::new(MetricExtractionTemplates::EMPTY, value)
     }
@@ -703,7 +703,7 @@ mod tests {
             "global_templates": {}
         }))
         .unwrap();
-        let combined = CombinedMetricsConfig::new(&global, &project);
+        let combined = CombinedMetricExtractionConfig::new(&global, &project);
 
         assert_eq!(
             combined
@@ -732,7 +732,7 @@ mod tests {
             }
         }))
         .unwrap();
-        let combined = CombinedMetricsConfig::new(&global, &project);
+        let combined = CombinedMetricExtractionConfig::new(&global, &project);
 
         assert_eq!(
             combined

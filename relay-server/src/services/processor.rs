@@ -20,7 +20,7 @@ use relay_base_schema::project::{ProjectId, ProjectKey};
 use relay_cogs::{AppFeature, Cogs, FeatureWeights, ResourceId, Token};
 use relay_common::time::UnixTimestamp;
 use relay_config::{Config, HttpEncoding, NormalizationLevel, RelayMode};
-use relay_dynamic_config::{CombinedMetricsConfig, ErrorBoundary, Feature};
+use relay_dynamic_config::{CombinedMetricExtractionConfig, ErrorBoundary, Feature};
 use relay_event_normalization::{
     normalize_event, validate_event_timestamps, validate_transaction, ClockDriftProcessor,
     DynamicMeasurementsConfig, EventValidationConfig, GeoIpLookup, MeasurementsConfig,
@@ -1172,12 +1172,13 @@ impl EnvelopeProcessorService {
             }
 
             if let Some(config) = config {
-                let combined_config = CombinedMetricsConfig::new(&global.metric_extraction, config);
+                let combined_config =
+                    CombinedMetricExtractionConfig::new(&global.metric_extraction, config);
 
                 let metrics = crate::metrics_extraction::event::extract_metrics(
                     event,
                     state.spans_extracted,
-                    &combined_config,
+                    combined_config,
                     self.inner
                         .config
                         .aggregator_config_for(MetricNamespace::Spans)

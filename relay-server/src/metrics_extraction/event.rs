@@ -1,5 +1,5 @@
 use relay_common::time::UnixTimestamp;
-use relay_dynamic_config::CombinedMetricsConfig;
+use relay_dynamic_config::CombinedMetricExtractionConfig;
 use relay_event_schema::protocol::{Event, Span};
 use relay_metrics::Bucket;
 use relay_quotas::DataCategory;
@@ -48,7 +48,7 @@ impl Extractable for Span {
 pub fn extract_metrics(
     event: &Event,
     spans_extracted: bool,
-    config: &CombinedMetricsConfig,
+    config: CombinedMetricExtractionConfig,
     max_tag_value_size: usize,
     span_extraction_sample_rate: Option<f32>,
 ) -> Vec<Bucket> {
@@ -65,7 +65,7 @@ pub fn extract_metrics(
 
 fn extract_span_metrics_for_event(
     event: &Event,
-    config: &CombinedMetricsConfig,
+    config: CombinedMetricExtractionConfig,
     max_tag_value_size: usize,
     output: &mut Vec<Bucket>,
 ) {
@@ -1101,7 +1101,7 @@ mod tests {
 
         let config = project.metric_extraction.ok().unwrap();
         let combined_config = (&config).into();
-        let metrics = extract_metrics(event.value().unwrap(), false, &combined_config, 200, None);
+        let metrics = extract_metrics(event.value().unwrap(), false, combined_config, 200, None);
         insta::assert_debug_snapshot!(metrics);
     }
 
@@ -1251,7 +1251,7 @@ mod tests {
 
         let config = project.metric_extraction.ok().unwrap();
         let combined_config = (&config).into();
-        let metrics = extract_metrics(event.value().unwrap(), false, &combined_config, 200, None);
+        let metrics = extract_metrics(event.value().unwrap(), false, combined_config, 200, None);
         insta::assert_debug_snapshot!((&event.value().unwrap().spans, metrics));
     }
 
@@ -1313,7 +1313,7 @@ mod tests {
 
         let config = project.metric_extraction.ok().unwrap();
         let combined_config = (&config).into();
-        let metrics = extract_metrics(event.value().unwrap(), false, &combined_config, 200, None);
+        let metrics = extract_metrics(event.value().unwrap(), false, combined_config, 200, None);
 
         // When transaction.op:ui.load and mobile:true, HTTP spans still get both
         // exclusive_time metrics:
@@ -1350,7 +1350,7 @@ mod tests {
 
         let config = project.metric_extraction.ok().unwrap();
         let combined_config = (&config).into();
-        let metrics = extract_metrics(event.value().unwrap(), false, &combined_config, 200, None);
+        let metrics = extract_metrics(event.value().unwrap(), false, combined_config, 200, None);
 
         let usage_metrics = metrics
             .into_iter()
@@ -1376,7 +1376,7 @@ mod tests {
         let extraction_config = config.metric_extraction.ok().unwrap();
         generic::extract_metrics(
             span,
-            &CombinedMetricsConfig::new(&Default::default(), &extraction_config),
+            CombinedMetricExtractionConfig::from(&extraction_config),
         )
     }
 
@@ -1580,7 +1580,7 @@ mod tests {
 
         let config = project.metric_extraction.ok().unwrap();
         let combined_config = (&config).into();
-        let metrics = extract_metrics(event.value().unwrap(), false, &combined_config, 200, None);
+        let metrics = extract_metrics(event.value().unwrap(), false, combined_config, 200, None);
 
         assert_eq!(metrics.len(), 4);
 

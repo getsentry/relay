@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use relay_common::time::UnixTimestamp;
-use relay_dynamic_config::{CombinedMetricsConfig, TagMapping, TagSource, TagSpec};
+use relay_dynamic_config::{CombinedMetricExtractionConfig, TagMapping, TagSource, TagSpec};
 
 use relay_metrics::{
     Bucket, BucketMetadata, BucketValue, FiniteF64, MetricResourceIdentifier, MetricType,
@@ -23,7 +23,7 @@ pub trait Extractable: Getter {
 /// The instance must have a valid timestamp; if the timestamp is missing or invalid, no metrics are
 /// extracted. Timestamp and clock drift correction should occur before metrics extraction to ensure
 /// valid timestamps.
-pub fn extract_metrics<T>(instance: &T, config: &CombinedMetricsConfig) -> Vec<Bucket>
+pub fn extract_metrics<T>(instance: &T, config: CombinedMetricExtractionConfig) -> Vec<Bucket>
 where
     T: Extractable,
 {
@@ -195,7 +195,7 @@ mod tests {
 
         let metrics = extract_metrics(
             event.value().unwrap(),
-            &CombinedMetricsConfig::from(&config),
+            CombinedMetricExtractionConfig::from(&config),
         );
         insta::assert_debug_snapshot!(metrics, @r###"
         [
@@ -240,7 +240,7 @@ mod tests {
 
         let metrics = extract_metrics(
             event.value().unwrap(),
-            &CombinedMetricsConfig::from(&config),
+            CombinedMetricExtractionConfig::from(&config),
         );
         insta::assert_debug_snapshot!(metrics, @r###"
         [
@@ -289,7 +289,7 @@ mod tests {
 
         let metrics = extract_metrics(
             event.value().unwrap(),
-            &CombinedMetricsConfig::from(&config),
+            CombinedMetricExtractionConfig::from(&config),
         );
         insta::assert_debug_snapshot!(metrics, @r###"
         [
@@ -350,7 +350,7 @@ mod tests {
 
         let metrics = extract_metrics(
             event.value().unwrap(),
-            &CombinedMetricsConfig::from(&config),
+            CombinedMetricExtractionConfig::from(&config),
         );
         insta::assert_debug_snapshot!(metrics, @r###"
         [
@@ -412,7 +412,7 @@ mod tests {
 
         let metrics = extract_metrics(
             event.value().unwrap(),
-            &CombinedMetricsConfig::from(&config),
+            CombinedMetricExtractionConfig::from(&config),
         );
         insta::assert_debug_snapshot!(metrics, @r###"
         [
@@ -476,7 +476,7 @@ mod tests {
 
         let metrics = extract_metrics(
             event.value().unwrap(),
-            &CombinedMetricsConfig::from(&config),
+            CombinedMetricExtractionConfig::from(&config),
         );
         insta::assert_debug_snapshot!(metrics, @r###"
         [
@@ -548,7 +548,7 @@ mod tests {
 
         let metrics = extract_metrics(
             event.value().unwrap(),
-            &CombinedMetricsConfig::from(&config),
+            CombinedMetricExtractionConfig::from(&config),
         );
         insta::assert_debug_snapshot!(metrics, @r###"
         [
@@ -602,7 +602,7 @@ mod tests {
         }))
         .unwrap();
 
-        let combined = CombinedMetricsConfig::new(&global, &project);
+        let combined = CombinedMetricExtractionConfig::new(&global, &project);
 
         let event_json = json!({
             "type": "transaction",
@@ -614,7 +614,7 @@ mod tests {
         });
         let event = Event::from_value(event_json.into());
 
-        let metrics = extract_metrics(event.value().unwrap(), &combined);
+        let metrics = extract_metrics(event.value().unwrap(), combined);
         insta::assert_debug_snapshot!(metrics, @"");
     }
 }
