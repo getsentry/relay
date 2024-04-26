@@ -215,7 +215,6 @@ fn process_session(
             client,
             extracted_metrics,
             metrics_config.should_extract_abnormal_mechanism(),
-            received,
         );
         item.set_metrics_extracted(true);
     }
@@ -307,7 +306,6 @@ fn process_session_aggregates(
                 client,
                 extracted_metrics,
                 metrics_config.should_extract_abnormal_mechanism(),
-                received,
             );
             item.set_metrics_extracted(true);
         }

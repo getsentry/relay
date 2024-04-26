@@ -768,7 +768,11 @@ pub struct BucketMetadata {
     pub merges: NonZeroU32,
 
     /// Received timestamp of the first metric in this bucket.
-    pub received_at: UnixTimestamp,
+    ///
+    /// This field is used for internal tracking purposes, and we want to set/override it
+    /// based on a configuration parameter. If the parameter is not set, the value will be
+    /// merged with well-defined semantics.
+    pub received_at: Option<UnixTimestamp>,
 }
 
 impl BucketMetadata {
@@ -778,7 +782,7 @@ impl BucketMetadata {
     pub fn new(received_at: UnixTimestamp) -> Self {
         Self {
             merges: NonZeroU32::MIN,
-            received_at,
+            received_at: Some(received_at),
         }
     }
 
@@ -786,15 +790,23 @@ impl BucketMetadata {
     pub fn is_default(&self) -> bool {
         let Self {
             merges,
-            received_at: _,
+            received_at,
         } = self;
-        *merges == NonZeroU32::MIN
+
+        *merges == NonZeroU32::MIN && received_at.is_none()
     }
 
     /// Merges another metadata object into the current one.
     pub fn merge(&mut self, other: Self) {
         self.merges = self.merges.saturating_add(other.merges.get());
-        self.received_at = min(self.received_at, other.received_at)
+        self.received_at = match (self.received_at, other.received_at) {
+            (Some(received_at), None) => Some(received_at),
+            (None, Some(received_at)) => Some(received_at),
+            (Some(left_received_at), Some(right_received_at)) => {
+                Some(min(left_received_at, right_received_at))
+            }
+            (None, None) => None,
+        };
     }
 }
 
@@ -1281,7 +1293,7 @@ mod tests {
 
         let mut json_metrics: Vec<Bucket> = serde_json::from_str(json).unwrap();
         for json_metric in &mut json_metrics {
-            json_metric.metadata.received_at = timestamp;
+            json_metric.metadata.received_at = Some(timestamp);
         }
 
         assert_eq!(statsd_metrics, json_metrics);
@@ -1295,7 +1307,7 @@ mod tests {
         let timestamp = UnixTimestamp::from_secs(1615889449);
         let statsd_metric = Bucket::parse(text.as_bytes(), timestamp, timestamp).unwrap();
         let mut json_metric: Bucket = serde_json::from_str(json).unwrap();
-        json_metric.metadata.received_at = timestamp;
+        json_metric.metadata.received_at = Some(timestamp);
 
         assert_eq!(statsd_metric, json_metric);
     }

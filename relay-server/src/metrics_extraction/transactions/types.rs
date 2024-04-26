@@ -54,7 +54,7 @@ pub enum TransactionMetric {
 }
 
 impl IntoMetric for TransactionMetric {
-    fn into_metric(self, timestamp: UnixTimestamp, received_at: UnixTimestamp) -> Bucket {
+    fn into_metric(self, timestamp: UnixTimestamp) -> Bucket {
         let namespace = MetricNamespace::Transactions;
 
         let (name, value, unit, tags) = match self {
@@ -120,7 +120,9 @@ impl IntoMetric for TransactionMetric {
             name: mri.to_string().into(),
             value,
             tags,
-            metadata: BucketMetadata::new(received_at),
+            // For extracted metrics we assume the `received_at` timestamp is equivalent to the time
+            // in which the metric is extracted.
+            metadata: BucketMetadata::new(UnixTimestamp::now()),
         }
     }
 }

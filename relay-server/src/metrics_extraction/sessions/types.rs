@@ -97,7 +97,7 @@ impl From<SessionSessionTags> for BTreeMap<String, String> {
 }
 
 impl IntoMetric for SessionMetric {
-    fn into_metric(self, timestamp: UnixTimestamp, received_at: UnixTimestamp) -> Bucket {
+    fn into_metric(self, timestamp: UnixTimestamp) -> Bucket {
         let name = self.to_string();
 
         let (value, tags) = match self {
@@ -126,7 +126,9 @@ impl IntoMetric for SessionMetric {
             name: mri.to_string().into(),
             value,
             tags,
-            metadata: BucketMetadata::new(received_at),
+            // For extracted metrics we assume the `received_at` timestamp is equivalent to the time
+            // in which the metric is extracted.
+            metadata: BucketMetadata::new(UnixTimestamp::now()),
         }
     }
 }
