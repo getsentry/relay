@@ -639,6 +639,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 frames_slow: ~,
                 frames_frozen: ~,
                 frames_total: ~,
+                frames_delay: ~,
                 other: {},
             },
             sentry_tags: {
@@ -726,6 +727,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 frames_slow: ~,
                 frames_frozen: ~,
                 frames_total: ~,
+                frames_delay: ~,
                 other: {},
             },
             sentry_tags: {
