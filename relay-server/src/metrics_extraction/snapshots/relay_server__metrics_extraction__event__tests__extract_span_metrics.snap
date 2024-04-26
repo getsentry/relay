@@ -11815,6 +11815,306 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "span.category": "queue",
+            "span.op": "queue.publish",
+            "transaction": "gEt /api/:version/users/",
+            "transaction.op": "myop",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1702474613),
+        width: 0,
+        name: MetricName(
+            "d:spans/exclusive_time_light@millisecond",
+        ),
+        value: Distribution(
+            [
+                32.000065,
+            ],
+        ),
+        tags: {
+            "span.category": "queue",
+            "span.op": "queue.publish",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1702474613),
+        width: 0,
+        name: MetricName(
+            "d:spans/duration@millisecond",
+        ),
+        value: Distribution(
+            [
+                32.000065,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "span.op": "queue.publish",
+            "transaction": "gEt /api/:version/users/",
+            "transaction.op": "myop",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1702474613),
+        width: 0,
+        name: MetricName(
+            "g:spans/self_time@millisecond",
+        ),
+        value: Gauge(
+            GaugeValue {
+                last: 32.000065,
+                min: 32.000065,
+                max: 32.000065,
+                sum: 32.000065,
+                count: 1,
+            },
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "span.category": "queue",
+            "span.op": "queue.publish",
+            "transaction": "gEt /api/:version/users/",
+            "transaction.op": "myop",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1702474613),
+        width: 0,
+        name: MetricName(
+            "g:spans/self_time_light@millisecond",
+        ),
+        value: Gauge(
+            GaugeValue {
+                last: 32.000065,
+                min: 32.000065,
+                max: 32.000065,
+                sum: 32.000065,
+                count: 1,
+            },
+        ),
+        tags: {
+            "span.category": "queue",
+            "span.op": "queue.publish",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1702474613),
+        width: 0,
+        name: MetricName(
+            "g:spans/total_time@millisecond",
+        ),
+        value: Gauge(
+            GaugeValue {
+                last: 32.000065,
+                min: 32.000065,
+                max: 32.000065,
+                sum: 32.000065,
+                count: 1,
+            },
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "span.op": "queue.publish",
+            "transaction": "gEt /api/:version/users/",
+            "transaction.op": "myop",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1702474613),
+        width: 0,
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1702474613),
+        width: 0,
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
+        value: Distribution(
+            [
+                32.000065,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "span.category": "queue",
+            "span.op": "queue.process",
+            "transaction": "gEt /api/:version/users/",
+            "transaction.op": "myop",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1702474613),
+        width: 0,
+        name: MetricName(
+            "d:spans/exclusive_time_light@millisecond",
+        ),
+        value: Distribution(
+            [
+                32.000065,
+            ],
+        ),
+        tags: {
+            "span.category": "queue",
+            "span.op": "queue.process",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1702474613),
+        width: 0,
+        name: MetricName(
+            "d:spans/duration@millisecond",
+        ),
+        value: Distribution(
+            [
+                32.000065,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "span.op": "queue.process",
+            "transaction": "gEt /api/:version/users/",
+            "transaction.op": "myop",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1702474613),
+        width: 0,
+        name: MetricName(
+            "g:spans/self_time@millisecond",
+        ),
+        value: Gauge(
+            GaugeValue {
+                last: 32.000065,
+                min: 32.000065,
+                max: 32.000065,
+                sum: 32.000065,
+                count: 1,
+            },
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "span.category": "queue",
+            "span.op": "queue.process",
+            "transaction": "gEt /api/:version/users/",
+            "transaction.op": "myop",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1702474613),
+        width: 0,
+        name: MetricName(
+            "g:spans/self_time_light@millisecond",
+        ),
+        value: Gauge(
+            GaugeValue {
+                last: 32.000065,
+                min: 32.000065,
+                max: 32.000065,
+                sum: 32.000065,
+                count: 1,
+            },
+        ),
+        tags: {
+            "span.category": "queue",
+            "span.op": "queue.process",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1702474613),
+        width: 0,
+        name: MetricName(
+            "g:spans/total_time@millisecond",
+        ),
+        value: Gauge(
+            GaugeValue {
+                last: 32.000065,
+                min: 32.000065,
+                max: 32.000065,
+                sum: 32.000065,
+                count: 1,
+            },
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "span.op": "queue.process",
+            "transaction": "gEt /api/:version/users/",
+            "transaction.op": "myop",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1702474613),
+        width: 0,
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1702474613),
+        width: 0,
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
+        value: Distribution(
+            [
+                32.000065,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
             "span.op": "ai.run.langchain",
             "transaction": "gEt /api/:version/users/",
             "transaction.op": "myop",
