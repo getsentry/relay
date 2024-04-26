@@ -171,6 +171,7 @@ impl TransactionMetricsConfig {
 }
 
 /// Combined view of global and project-specific metrics extraction configs.
+#[derive(Debug, Clone)]
 pub struct CombinedMetricsConfig<'a> {
     global: &'a MetricExtractionTemplates,
     project: &'a MetricExtractionConfig,
@@ -652,5 +653,100 @@ mod tests {
         let json = r#"{"metrics": ["d:spans/*"], "tags": [{"key":"foo","field":"bar"}]}"#;
         let mapping: TagMapping = serde_json::from_str(json).unwrap();
         assert!(mapping.metrics[0].compiled().is_match("d:spans/foo"));
+    }
+
+    fn templates() -> MetricExtractionTemplates {
+        serde_json::from_value::<MetricExtractionTemplates>(serde_json::json!({
+            "templates": {
+                "template1": {
+                    "is_enabled": false,
+                    "metrics": [{
+                        "category": "transaction",
+                        "mri": "c:metric1/counter@none",
+                    }],
+                    "tags": [
+                        {
+                            "metrics": ["c:metric1/counter@none"],
+                            "tags": [{
+                                "key": "tag1",
+                                "value": "value1"
+                            }]
+                        }
+                    ]
+                },
+                "template2": {
+                    "is_enabled": true,
+                    "metrics": [{
+                        "category": "transaction",
+                        "mri": "c:metric2/counter@none",
+                    }],
+                    "tags": [
+                        {
+                            "metrics": ["c:metric2/counter@none"],
+                            "tags": [{
+                                "key": "tag2",
+                                "value": "value2"
+                            }]
+                        }
+                    ]
+                }
+            }
+        }))
+        .unwrap()
+    }
+
+    #[test]
+    fn metrics_extraction_global_defaults() {
+        let global = templates();
+        let project: MetricExtractionConfig = serde_json::from_value(serde_json::json!({
+            "version": 1,
+            "global_templates": {}
+        }))
+        .unwrap();
+        let combined = CombinedMetricsConfig::new(&global, &project);
+
+        assert_eq!(
+            combined
+                .metrics()
+                .map(|m| m.mri.as_str())
+                .collect::<Vec<_>>(),
+            vec!["c:metric2/counter@none"]
+        );
+        assert_eq!(
+            combined
+                .tags()
+                .map(|t| t.tags[0].key.as_str())
+                .collect::<Vec<_>>(),
+            vec!["tag2"]
+        );
+    }
+
+    #[test]
+    fn metrics_extraction_override() {
+        let global = templates();
+        let project: MetricExtractionConfig = serde_json::from_value(serde_json::json!({
+            "version": 1,
+            "globalTemplates": {
+                "template1": {"is_enabled": true},
+                "template2": {"is_enabled": false}
+            }
+        }))
+        .unwrap();
+        let combined = CombinedMetricsConfig::new(&global, &project);
+
+        assert_eq!(
+            combined
+                .metrics()
+                .map(|m| m.mri.as_str())
+                .collect::<Vec<_>>(),
+            vec!["c:metric1/counter@none"]
+        );
+        assert_eq!(
+            combined
+                .tags()
+                .map(|t| t.tags[0].key.as_str())
+                .collect::<Vec<_>>(),
+            vec!["tag1"]
+        );
     }
 }

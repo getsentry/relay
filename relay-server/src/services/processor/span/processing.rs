@@ -124,7 +124,7 @@ pub fn process(
             relay_log::trace!("Extracting metrics from standalone span {:?}", span.span_id);
             let metrics = extract_metrics(
                 span,
-                &CombinedMetricsConfig::new(&Default::default(), config),
+                &CombinedMetricsConfig::new(&global_config.metric_extraction, config),
             );
             state.extracted_metrics.project_metrics.extend(metrics);
             item.set_metrics_extracted(true);
