@@ -5,6 +5,7 @@
 **Bug fixes:**
 
 - Respect country code TLDs when scrubbing span tags. ([#3458](https://github.com/getsentry/relay/pull/3458))
+- Extract HTTP status code from span data when sent as integers. ([#3491](https://github.com/getsentry/relay/pull/3491))
 
 **Features**:
 
