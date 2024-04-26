@@ -33,12 +33,12 @@ pub fn http_status_code_from_span(span: &Span) -> Option<String> {
         .value()
         .and_then(|data| data.http_response_status_code.value())
         .map(|v| match v {
-            Value::String(s) => s.as_str().to_string(),
-            Value::I64(i) => i.to_string(),
-            _ => String::new(),
+            Value::String(s) => Some(s.as_str().to_string()),
+            Value::I64(i) => Some(i.to_string()),
+            _ => None,
         })
     {
-        return Some(status_code);
+        return status_code;
     }
 
     // For SDKs which put the HTTP status code into the span tags.
