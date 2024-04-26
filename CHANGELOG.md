@@ -24,6 +24,8 @@
 
 - Emit gauges for total and self times for spans. ([#3448](https://github.com/getsentry/relay/pull/3448))
 - Collect exclusive_time_light metrics for `cache.*` spans. ([#3466](https://github.com/getsentry/relay/pull/3466))
+- Add metrics extraction config to global config. ([#3490](https://github.com/getsentry/relay/pull/3490))
+
 
 ## 24.4.1
 
