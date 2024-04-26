@@ -1219,6 +1219,28 @@ mod tests {
                     "start_timestamp": 1597976300.0000000,
                     "timestamp": 1597976303.0000000,
                     "trace_id": "ff62a8b040f340bda5d830223def1d81"
+                },
+                {
+                    "op": "http.client",
+                    "description": "www.example.com",
+                    "span_id": "bd429c44b67a3eb2",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976303.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "data": {
+                        "http.response.status_code": "200"
+                    }
+                },
+                {
+                    "op": "http.client",
+                    "description": "www.example.com",
+                    "span_id": "bd429c44b67a3eb2",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976303.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "data": {
+                        "http.response.status_code": 200
+                    }
                 }
             ]
         }
