@@ -660,6 +660,7 @@ mod tests {
                 frames_slow: ~,
                 frames_frozen: ~,
                 frames_total: ~,
+                frames_delay: ~,
                 messaging_message_retry_count: ~,
                 messaging_message_receive_latency: ~,
                 messaging_message_body_size: ~,

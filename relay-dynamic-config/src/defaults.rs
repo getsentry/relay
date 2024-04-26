@@ -739,6 +739,38 @@ fn span_metrics(
         },
         MetricSpec {
             category: DataCategory::Span,
+            mri: "g:spans/mobile.frames_delay@second".into(),
+            field: Some("span.measurements.frames.delay.value".into()),
+            condition: Some(is_mobile.clone() & duration_condition.clone()),
+            tags: vec![
+                Tag::with_key("transaction")
+                    .from_field("span.sentry_tags.transaction")
+                    .always(),
+                Tag::with_key("environment")
+                    .from_field("span.sentry_tags.environment")
+                    .always(),
+                Tag::with_key("release")
+                    .from_field("span.sentry_tags.release")
+                    .always(),
+                Tag::with_key("span.description")
+                    .from_field("span.sentry_tags.description")
+                    .always(),
+                Tag::with_key("span.op")
+                    .from_field("span.sentry_tags.op")
+                    .always(),
+                Tag::with_key("span.group")
+                    .from_field("span.sentry_tags.group")
+                    .always(),
+                Tag::with_key("device.class")
+                    .from_field("span.sentry_tags.device.class")
+                    .always(),
+                Tag::with_key("os.name")
+                    .from_field("span.sentry_tags.os.name")
+                    .always(),
+            ],
+        },
+        MetricSpec {
+            category: DataCategory::Span,
             mri: "g:spans/messaging.message.body.size@byte".into(),
             field: Some("span.measurements.messaging.message.body.size".into()),
             condition: Some(is_queue_op.clone()),

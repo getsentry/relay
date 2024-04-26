@@ -1079,6 +1079,26 @@ mod tests {
                 {
                     "timestamp": 1702474613.0495,
                     "start_timestamp": 1702474613.0175,
+                    "description": "sentry.tasks.post_process.post_process_group",
+                    "op": "queue.publish",
+                    "span_id": "9b01bd820a083e63",
+                    "parent_span_id": "a1e13f3f06239d69",
+                    "trace_id": "922dda2462ea4ac2b6a4b339bee90863",
+                    "data": {}
+                },
+                {
+                    "timestamp": 1702474613.0495,
+                    "start_timestamp": 1702474613.0175,
+                    "description": "sentry.tasks.post_process.post_process_group",
+                    "op": "queue.process",
+                    "span_id": "9b01bd820a083e63",
+                    "parent_span_id": "a1e13f3f06239d69",
+                    "trace_id": "922dda2462ea4ac2b6a4b339bee90863",
+                    "data": {}
+                },
+                {
+                    "timestamp": 1702474613.0495,
+                    "start_timestamp": 1702474613.0175,
                     "description": "ConcurrentStream",
                     "op": "ai.run.langchain",
                     "origin": "auto.langchain",
@@ -1191,7 +1211,8 @@ mod tests {
                     "data": {
                         "frames.slow": 1,
                         "frames.frozen": 2,
-                        "frames.total": 9
+                        "frames.total": 9,
+                        "frames.delay": 0.1
                     }
                 },
                 {

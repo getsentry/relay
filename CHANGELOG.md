@@ -2,15 +2,23 @@
 
 ## Unreleased
 
+**Breaking Changes**:
+
+- Stop supporting dynamic sampling mode `"total"`, which adjusted for the client sample rate. ([#3474](https://github.com/getsentry/relay/pull/3474))
+
 **Bug fixes:**
 
 - Respect country code TLDs when scrubbing span tags. ([#3458](https://github.com/getsentry/relay/pull/3458))
 
 **Features**:
 
+- Separate the logic for producing UserReportV2 events (user feedback) and handle attachments in the same envelope as feedback. ([#3403](https://github.com/getsentry/relay/pull/3403))
 - Use same keys for OTel span attributes and Sentry span data. ([#3457](https://github.com/getsentry/relay/pull/3457))
 - Support passing owner when upserting Monitors. ([#3468](https://github.com/getsentry/relay/pull/3468))
+- Add `features` to ClientSDKInfo ([#3478](https://github.com/getsentry/relay/pull/3478)
 - Extract `frames.slow`, `frames.frozen`, and `frames.total` metrics from mobile spans. ([#3473](https://github.com/getsentry/relay/pull/3473))
+- Extract `frames.delay` metric from mobile spans. ([#3472](https://github.com/getsentry/relay/pull/3472))
+- Consider "Bearer" (case-insensitive) a password. PII will scrub all strings matching that substring. ([#3484](https://github.com/getsentry/relay/pull/3484))
 
 **Internal**:
 
@@ -33,6 +41,11 @@
 
 ## 24.4.0
 
+**Breaking changes**:
+
+- Kafka topic configuration keys now support the default topic name. The previous aliases `metrics` and `metrics_transactions` are no longer supported if configuring topics manually. Use `ingest-metrics` or `metrics_sessions` instead of `metrics`, and `ingest-performance-metrics` or `metrics_generic` instead of `metrics_transactions`. ([#3361](https://github.com/getsentry/relay/pull/3361))
+- Remove `ShardedProducer` and related code. The sharded configuration for Kafka is no longer supported. ([#3415](https://github.com/getsentry/relay/pull/3415))
+
 **Bug fixes:**
 
 - Fix performance regression in disk spooling by using page counts to estimate the spool size. ([#3379](https://github.com/getsentry/relay/pull/3379))
@@ -41,8 +54,6 @@
 
 **Features**:
 
-- **Breaking change:** Kafka topic configuration keys now support the default topic name. The previous aliases `metrics` and `metrics_transactions` are no longer supported if configuring topics manually. Use `ingest-metrics` or `metrics_sessions` instead of `metrics`, and `ingest-performance-metrics` or `metrics_generic` instead of `metrics_transactions`. ([#3361](https://github.com/getsentry/relay/pull/3361))
-- **Breaking change:** Remove `ShardedProducer` and related code. The sharded configuration for Kafka is no longer supported. ([#3415](https://github.com/getsentry/relay/pull/3415))
 - Add support for continuous profiling. ([#3270](https://github.com/getsentry/relay/pull/3270))
 - Add support for Reporting API for CSP reports ([#3277](https://github.com/getsentry/relay/pull/3277))
 - Extract op and description while converting opentelemetry spans to sentry spans. ([#3287](https://github.com/getsentry/relay/pull/3287))
@@ -50,12 +61,12 @@
 - Support for AI token metrics ([#3250](https://github.com/getsentry/relay/pull/3250))
 - Accept integers in `event.user.username`. ([#3328](https://github.com/getsentry/relay/pull/3328))
 - Produce user feedback to ingest-feedback-events topic, with rollout rate. ([#3344](https://github.com/getsentry/relay/pull/3344))
-- Extract `cache.item_size` and `cache.hit` data into span indexed ([#3367]https://github.com/getsentry/relay/pull/3367)
+- Extract `cache.item_size` and `cache.hit` data into span indexed ([#3367](https://github.com/getsentry/relay/pull/3367))
 - Allow IP addresses in metrics domain tag. ([#3365](https://github.com/getsentry/relay/pull/3365))
 - Support the full unicode character set via UTF-8 encoding for metric tags submitted via the statsd format. Certain restricted characters require escape sequences, see [docs](https://develop.sentry.dev/sdk/metrics/#normalization) for the precise rules. ([#3358](https://github.com/getsentry/relay/pull/3358))
 - Stop extracting count_per_segment and count_per_op metrics. ([#3380](https://github.com/getsentry/relay/pull/3380))
 - Add `cardinality_limited` outcome with id `6`. ([#3389](https://github.com/getsentry/relay/pull/3389))
-- Extract `cache.item_size` and `cache.hit` metrics. ([#3371]https://github.com/getsentry/relay/pull/3371)
+- Extract `cache.item_size` and `cache.hit` metrics. ([#3371](https://github.com/getsentry/relay/pull/3371))
 - Optionally convert segment spans to transactions for compatibility. ([#3375](https://github.com/getsentry/relay/pull/3375))
 - Extract scrubbed IP addresses into the `span.domain` tag. ([#3383](https://github.com/getsentry/relay/pull/3383))
 
