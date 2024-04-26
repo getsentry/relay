@@ -33,7 +33,7 @@ jobs:
 
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.10'
+          python-version: "3.10"
 
       - name: Install Rust Toolchain
         run: rustup toolchain install stable --profile minimal --component clippy rustfmt rust-docs --no-self-update
@@ -144,7 +144,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ['3.10']
+        python-version: ["3.10"]
 
     # Skip redundant checks for binary releases
     if: "!startsWith(github.ref, 'refs/heads/release/')"
@@ -387,7 +387,7 @@ jobs:
 
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.10'
+          python-version: "3.10"
 
       - run: make test-integration
         env:
@@ -444,6 +444,37 @@ jobs:
         run: |
           echo "Testing against ${RELAY_TEST_IMAGE}"
           make test-relay-integration
+
+  self-hosted-end-to-end:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    needs: build
+
+    # Skip redundant checks for library releases
+    if: "!startsWith(github.ref, 'refs/heads/release-library/')"
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Download Docker Image
+        uses: actions/download-artifact@v3
+        with:
+          name: relay-docker-image
+
+      - name: Import Docker Image
+        run: docker load -i relay-docker-image.tgz
+
+      - name: Run Sentry self-hosted e2e CI
+        # Skip for dependabot or if it's a fork as the image cannot be uploaded to ghcr since this test attempts to pull
+        # the image from ghcr
+        if: "!github.event.pull_request.head.repo.fork && github.actor != 'dependabot[bot]'"
+        uses: getsentry/action-self-hosted-e2e-tests@478325df96e27abcdd6f8544519fe9f18b57ca76
+        with:
+          project_name: relay
+          image_url: ghcr.io/getsentry/relay:${{ github.event.pull_request.head.sha || github.sha }}
+          docker_repo: getsentry/relay
+          docker_password: ${{ secrets.DOCKER_HUB_RW_TOKEN }}
 
   publish-to-dockerhub:
     name: Publish Relay to DockerHub
