@@ -4787,7 +4787,7 @@
 
         event::finalize(state, <span class="kw-2">&amp;</span><span class="self">self</span>.inner.config)<span class="question-mark">?</span>;
         <span class="self">self</span>.normalize_event(state)<span class="question-mark">?</span>;
-        dynamic_sampling::normalize(state);
+        dynamic_sampling::ensure_dsc(state);
         <span class="kw">let </span>filter_run = event::filter(state, <span class="kw-2">&amp;</span><span class="self">self</span>.inner.global_config.current())<span class="question-mark">?</span>;
 
         <span class="kw">let </span><span class="kw-2">mut </span>sampling_should_drop = <span class="bool-val">false</span>;

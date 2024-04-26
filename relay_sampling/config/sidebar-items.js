@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["DecayingFunction","RuleType","SamplingMode","SamplingValue"],"struct":["RuleId","SamplingConfig","SamplingRule","TimeRange"]};
+window.SIDEBAR_ITEMS = {"enum":["DecayingFunction","RuleType","SamplingValue"],"struct":["RuleId","SamplingConfig","SamplingRule","TimeRange"]};

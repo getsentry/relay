@@ -556,47 +556,6 @@
 <a href="#554" id="554">554</a>
 <a href="#555" id="555">555</a>
 <a href="#556" id="556">556</a>
-<a href="#557" id="557">557</a>
-<a href="#558" id="558">558</a>
-<a href="#559" id="559">559</a>
-<a href="#560" id="560">560</a>
-<a href="#561" id="561">561</a>
-<a href="#562" id="562">562</a>
-<a href="#563" id="563">563</a>
-<a href="#564" id="564">564</a>
-<a href="#565" id="565">565</a>
-<a href="#566" id="566">566</a>
-<a href="#567" id="567">567</a>
-<a href="#568" id="568">568</a>
-<a href="#569" id="569">569</a>
-<a href="#570" id="570">570</a>
-<a href="#571" id="571">571</a>
-<a href="#572" id="572">572</a>
-<a href="#573" id="573">573</a>
-<a href="#574" id="574">574</a>
-<a href="#575" id="575">575</a>
-<a href="#576" id="576">576</a>
-<a href="#577" id="577">577</a>
-<a href="#578" id="578">578</a>
-<a href="#579" id="579">579</a>
-<a href="#580" id="580">580</a>
-<a href="#581" id="581">581</a>
-<a href="#582" id="582">582</a>
-<a href="#583" id="583">583</a>
-<a href="#584" id="584">584</a>
-<a href="#585" id="585">585</a>
-<a href="#586" id="586">586</a>
-<a href="#587" id="587">587</a>
-<a href="#588" id="588">588</a>
-<a href="#589" id="589">589</a>
-<a href="#590" id="590">590</a>
-<a href="#591" id="591">591</a>
-<a href="#592" id="592">592</a>
-<a href="#593" id="593">593</a>
-<a href="#594" id="594">594</a>
-<a href="#595" id="595">595</a>
-<a href="#596" id="596">596</a>
-<a href="#597" id="597">597</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Dynamic sampling rule configuration.
 
 </span><span class="kw">use </span>std::fmt;
@@ -637,10 +596,6 @@
     /// two arrays are merged together.
     </span><span class="attr">#[serde(default, skip_serializing)]
     </span><span class="kw">pub </span>rules_v2: Vec&lt;SamplingRule&gt;,
-
-    <span class="doccomment">/// Defines which population of items a dynamic sample rate applies to.
-    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">"is_default"</span>)]
-    </span><span class="kw">pub </span>mode: SamplingMode,
 }
 
 <span class="kw">impl </span>SamplingConfig {
@@ -679,7 +634,6 @@
             version: SAMPLING_CONFIG_VERSION,
             rules: <span class="macro">vec!</span>[],
             rules_v2: <span class="macro">vec!</span>[],
-            mode: SamplingMode::default(),
         }
     }
 }
@@ -881,42 +835,6 @@
             }
             DecayingFunction::Constant =&gt; <span class="prelude-val">Some</span>(sample_rate),
         }
-    }
-}
-
-<span class="doccomment">/// Defines which population of items a dynamic sample rate applies to.
-///
-/// SDKs with client side sampling reduce the number of items sent to Relay, where dynamic sampling
-/// occurs. The sampling mode controlls whether the sample rate is relative to the original
-/// population of items before client-side sampling, or relative to the number received by Relay
-/// after client-side sampling.
-</span><span class="attr">#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = <span class="string">"camelCase"</span>)]
-</span><span class="kw">pub enum </span>SamplingMode {
-    <span class="doccomment">/// The sample rate is based on the number of events received by Relay.
-    ///
-    /// Server-side dynamic sampling occurs on top of potential client-side sampling in the SDK. For
-    /// example, if the SDK samples at 50% and the server sampling rate is set at 10%, the resulting
-    /// effective sample rate is 5%.
-    </span>Received,
-    <span class="doccomment">/// The sample rate is based on the original number of events in the client.
-    ///
-    /// Server-side sampling compensates potential client-side sampling in the SDK. For example, if
-    /// the SDK samples at 50% and the server sampling rate is set at 10%, the resulting effective
-    /// sample rate is 10%.
-    ///
-    /// In this mode, the server sampling rate is capped by the client's sampling rate. Rules with a
-    /// higher sample rate than what the client is sending are effectively inactive.
-    </span>Total,
-
-    <span class="doccomment">/// Catch-all variant for forward compatibility.
-    </span><span class="attr">#[serde(other)]
-    </span>Unsupported,
-}
-
-<span class="kw">impl </span>Default <span class="kw">for </span>SamplingMode {
-    <span class="kw">fn </span>default() -&gt; <span class="self">Self </span>{
-        <span class="self">Self</span>::Received
     }
 }
 
