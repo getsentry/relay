@@ -695,7 +695,9 @@ mod tests {
                 },
                 metadata: BucketMetadata {
                     merges: 1,
-                    received_at: UnixTimestamp(1615889440),
+                    received_at: Some(
+                        UnixTimestamp(0),
+                    ),
                 },
             },
             Bucket {
@@ -726,7 +728,9 @@ mod tests {
                 },
                 metadata: BucketMetadata {
                     merges: 1,
-                    received_at: UnixTimestamp(1615889440),
+                    received_at: Some(
+                        UnixTimestamp(0),
+                    ),
                 },
             },
             Bucket {
@@ -751,7 +755,9 @@ mod tests {
                 },
                 metadata: BucketMetadata {
                     merges: 1,
-                    received_at: UnixTimestamp(1615889440),
+                    received_at: Some(
+                        UnixTimestamp(0),
+                    ),
                 },
             },
             Bucket {
@@ -776,7 +782,9 @@ mod tests {
                 },
                 metadata: BucketMetadata {
                     merges: 1,
-                    received_at: UnixTimestamp(1615889440),
+                    received_at: Some(
+                        UnixTimestamp(0),
+                    ),
                 },
             },
             Bucket {
@@ -801,7 +809,9 @@ mod tests {
                 },
                 metadata: BucketMetadata {
                     merges: 1,
-                    received_at: UnixTimestamp(1615889440),
+                    received_at: Some(
+                        UnixTimestamp(0),
+                    ),
                 },
             },
             Bucket {
@@ -831,7 +841,9 @@ mod tests {
                 },
                 metadata: BucketMetadata {
                     merges: 1,
-                    received_at: UnixTimestamp(1615889440),
+                    received_at: Some(
+                        UnixTimestamp(0),
+                    ),
                 },
             },
             Bucket {
@@ -846,7 +858,9 @@ mod tests {
                 tags: {},
                 metadata: BucketMetadata {
                     merges: 1,
-                    received_at: UnixTimestamp(1615889440),
+                    received_at: Some(
+                        UnixTimestamp(0),
+                    ),
                 },
             },
             Bucket {
@@ -876,7 +890,9 @@ mod tests {
                 },
                 metadata: BucketMetadata {
                     merges: 1,
-                    received_at: UnixTimestamp(1615889440),
+                    received_at: Some(
+                        UnixTimestamp(0),
+                    ),
                 },
             },
             Bucket {
@@ -896,7 +912,9 @@ mod tests {
                 },
                 metadata: BucketMetadata {
                     merges: 1,
-                    received_at: UnixTimestamp(1615889440),
+                    received_at: Some(
+                        UnixTimestamp(0),
+                    ),
                 },
             },
             Bucket {
@@ -926,7 +944,9 @@ mod tests {
                 },
                 metadata: BucketMetadata {
                     merges: 1,
-                    received_at: UnixTimestamp(1615889440),
+                    received_at: Some(
+                        UnixTimestamp(0),
+                    ),
                 },
             },
         ]
@@ -989,7 +1009,9 @@ mod tests {
                 },
                 metadata: BucketMetadata {
                     merges: 1,
-                    received_at: UnixTimestamp(1615889440),
+                    received_at: Some(
+                        UnixTimestamp(0),
+                    ),
                 },
             },
             Bucket {
@@ -1010,7 +1032,9 @@ mod tests {
                 },
                 metadata: BucketMetadata {
                     merges: 1,
-                    received_at: UnixTimestamp(1615889440),
+                    received_at: Some(
+                        UnixTimestamp(0),
+                    ),
                 },
             },
             Bucket {
@@ -1031,7 +1055,9 @@ mod tests {
                 },
                 metadata: BucketMetadata {
                     merges: 1,
-                    received_at: UnixTimestamp(1615889440),
+                    received_at: Some(
+                        UnixTimestamp(0),
+                    ),
                 },
             },
             Bucket {
@@ -1046,7 +1072,9 @@ mod tests {
                 tags: {},
                 metadata: BucketMetadata {
                     merges: 1,
-                    received_at: UnixTimestamp(1615889440),
+                    received_at: Some(
+                        UnixTimestamp(0),
+                    ),
                 },
             },
             Bucket {
@@ -1067,7 +1095,9 @@ mod tests {
                 },
                 metadata: BucketMetadata {
                     merges: 1,
-                    received_at: UnixTimestamp(1615889440),
+                    received_at: Some(
+                        UnixTimestamp(0),
+                    ),
                 },
             },
             Bucket {
@@ -1086,7 +1116,9 @@ mod tests {
                 },
                 metadata: BucketMetadata {
                     merges: 1,
-                    received_at: UnixTimestamp(1615889440),
+                    received_at: Some(
+                        UnixTimestamp(0),
+                    ),
                 },
             },
         ]
@@ -1146,7 +1178,9 @@ mod tests {
                 },
                 metadata: BucketMetadata {
                     merges: 1,
-                    received_at: UnixTimestamp(1615889440),
+                    received_at: Some(
+                        UnixTimestamp(0),
+                    ),
                 },
             },
             Bucket {
@@ -1168,7 +1202,9 @@ mod tests {
                 },
                 metadata: BucketMetadata {
                     merges: 1,
-                    received_at: UnixTimestamp(1615889440),
+                    received_at: Some(
+                        UnixTimestamp(0),
+                    ),
                 },
             },
             Bucket {
@@ -1183,7 +1219,9 @@ mod tests {
                 tags: {},
                 metadata: BucketMetadata {
                     merges: 1,
-                    received_at: UnixTimestamp(1615889440),
+                    received_at: Some(
+                        UnixTimestamp(0),
+                    ),
                 },
             },
             Bucket {
@@ -1204,7 +1242,9 @@ mod tests {
                 },
                 metadata: BucketMetadata {
                     merges: 1,
-                    received_at: UnixTimestamp(1615889440),
+                    received_at: Some(
+                        UnixTimestamp(0),
+                    ),
                 },
             },
             Bucket {
@@ -1223,7 +1263,9 @@ mod tests {
                 },
                 metadata: BucketMetadata {
                     merges: 1,
-                    received_at: UnixTimestamp(1615889440),
+                    received_at: Some(
+                        UnixTimestamp(0),
+                    ),
                 },
             },
         ]
@@ -1356,7 +1398,9 @@ mod tests {
                 },
                 metadata: BucketMetadata {
                     merges: 1,
-                    received_at: UnixTimestamp(1615889440),
+                    received_at: Some(
+                        UnixTimestamp(0),
+                    ),
                 },
             },
             Bucket {
@@ -1378,7 +1422,9 @@ mod tests {
                 },
                 metadata: BucketMetadata {
                     merges: 1,
-                    received_at: UnixTimestamp(1615889440),
+                    received_at: Some(
+                        UnixTimestamp(0),
+                    ),
                 },
             },
             Bucket {
@@ -1399,7 +1445,9 @@ mod tests {
                 },
                 metadata: BucketMetadata {
                     merges: 1,
-                    received_at: UnixTimestamp(1615889440),
+                    received_at: Some(
+                        UnixTimestamp(0),
+                    ),
                 },
             },
             Bucket {
@@ -1414,7 +1462,9 @@ mod tests {
                 tags: {},
                 metadata: BucketMetadata {
                     merges: 1,
-                    received_at: UnixTimestamp(1615889440),
+                    received_at: Some(
+                        UnixTimestamp(0),
+                    ),
                 },
             },
             Bucket {
@@ -1435,7 +1485,9 @@ mod tests {
                 },
                 metadata: BucketMetadata {
                     merges: 1,
-                    received_at: UnixTimestamp(1615889440),
+                    received_at: Some(
+                        UnixTimestamp(0),
+                    ),
                 },
             },
             Bucket {
@@ -1454,7 +1506,9 @@ mod tests {
                 },
                 metadata: BucketMetadata {
                     merges: 1,
-                    received_at: UnixTimestamp(1615889440),
+                    received_at: Some(
+                        UnixTimestamp(0),
+                    ),
                 },
             },
         ]
@@ -1604,7 +1658,9 @@ mod tests {
                 tags: {},
                 metadata: BucketMetadata {
                     merges: 1,
-                    received_at: UnixTimestamp(1615889440),
+                    received_at: Some(
+                        UnixTimestamp(0),
+                    ),
                 },
             },
             Bucket {
@@ -1625,7 +1681,9 @@ mod tests {
                 },
                 metadata: BucketMetadata {
                     merges: 1,
-                    received_at: UnixTimestamp(1615889440),
+                    received_at: Some(
+                        UnixTimestamp(0),
+                    ),
                 },
             },
             Bucket {
@@ -1642,7 +1700,9 @@ mod tests {
                 tags: {},
                 metadata: BucketMetadata {
                     merges: 1,
-                    received_at: UnixTimestamp(1615889440),
+                    received_at: Some(
+                        UnixTimestamp(0),
+                    ),
                 },
             },
         ]
@@ -1774,7 +1834,9 @@ mod tests {
                 },
                 metadata: BucketMetadata {
                     merges: 1,
-                    received_at: UnixTimestamp(1615889440),
+                    received_at: Some(
+                        UnixTimestamp(0),
+                    ),
                 },
             },
         ]
@@ -2137,7 +2199,9 @@ mod tests {
                 },
                 metadata: BucketMetadata {
                     merges: 1,
-                    received_at: UnixTimestamp(1615889440),
+                    received_at: Some(
+                        UnixTimestamp(0),
+                    ),
                 },
             },
             Bucket {
@@ -2152,7 +2216,9 @@ mod tests {
                 tags: {},
                 metadata: BucketMetadata {
                     merges: 1,
-                    received_at: UnixTimestamp(1615889440),
+                    received_at: Some(
+                        UnixTimestamp(0),
+                    ),
                 },
             },
             Bucket {
@@ -2172,7 +2238,9 @@ mod tests {
                 },
                 metadata: BucketMetadata {
                     merges: 1,
-                    received_at: UnixTimestamp(1615889440),
+                    received_at: Some(
+                        UnixTimestamp(0),
+                    ),
                 },
             },
             Bucket {
@@ -2189,7 +2257,9 @@ mod tests {
                 tags: {},
                 metadata: BucketMetadata {
                     merges: 1,
-                    received_at: UnixTimestamp(1615889440),
+                    received_at: Some(
+                        UnixTimestamp(0),
+                    ),
                 },
             },
         ]

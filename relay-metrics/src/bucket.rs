@@ -777,7 +777,7 @@ pub struct BucketMetadata {
 impl BucketMetadata {
     /// Creates a fresh metadata instance.
     ///
-    /// The new metadata is initialized with `1` merge.
+    /// The new metadata is initialized with `1` merge and a given [`received_at`] timestamp.
     pub fn new(received_at: UnixTimestamp) -> Self {
         Self {
             merges: NonZeroU32::MIN,
@@ -811,7 +811,10 @@ impl BucketMetadata {
 
 impl Default for BucketMetadata {
     fn default() -> Self {
-        Self::new(UnixTimestamp::now())
+        Self {
+            merges: NonZeroU32::MIN,
+            received_at: None,
+        }
     }
 }
 
@@ -949,7 +952,9 @@ mod tests {
             tags: {},
             metadata: BucketMetadata {
                 merges: 1,
-                received_at: UnixTimestamp(4711),
+                received_at: Some(
+                    UnixTimestamp(4711),
+                ),
             },
         }
         "###);
@@ -983,7 +988,9 @@ mod tests {
             tags: {},
             metadata: BucketMetadata {
                 merges: 1,
-                received_at: UnixTimestamp(4711),
+                received_at: Some(
+                    UnixTimestamp(4711),
+                ),
             },
         }
         "###);
@@ -1035,7 +1042,9 @@ mod tests {
             tags: {},
             metadata: BucketMetadata {
                 merges: 1,
-                received_at: UnixTimestamp(4711),
+                received_at: Some(
+                    UnixTimestamp(4711),
+                ),
             },
         }
         "###);
@@ -1095,7 +1104,9 @@ mod tests {
             tags: {},
             metadata: BucketMetadata {
                 merges: 1,
-                received_at: UnixTimestamp(4711),
+                received_at: Some(
+                    UnixTimestamp(4711),
+                ),
             },
         }
         "###);
@@ -1125,7 +1136,9 @@ mod tests {
             tags: {},
             metadata: BucketMetadata {
                 merges: 1,
-                received_at: UnixTimestamp(4711),
+                received_at: Some(
+                    UnixTimestamp(4711),
+                ),
             },
         }
         "###);
@@ -1149,7 +1162,9 @@ mod tests {
             tags: {},
             metadata: BucketMetadata {
                 merges: 1,
-                received_at: UnixTimestamp(4711),
+                received_at: Some(
+                    UnixTimestamp(4711),
+                ),
             },
         }
         "###);
@@ -1351,7 +1366,9 @@ mod tests {
                 },
                 metadata: BucketMetadata {
                     merges: 1,
-                    received_at: UnixTimestamp(1615889440),
+                    received_at: Some(
+                        UnixTimestamp(1615889440),
+                    ),
                 },
             },
         ]
@@ -1387,7 +1404,9 @@ mod tests {
                 tags: {},
                 metadata: BucketMetadata {
                     merges: 1,
-                    received_at: UnixTimestamp(1615889440),
+                    received_at: Some(
+                        UnixTimestamp(1615889440),
+                    ),
                 },
             },
         ]

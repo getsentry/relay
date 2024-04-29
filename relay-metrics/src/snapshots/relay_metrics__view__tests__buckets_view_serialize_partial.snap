@@ -13,6 +13,10 @@ expression: partials
       "tags": {
         "bar": "baz",
         "foo": ""
+      },
+      "metadata": {
+        "merges": 1,
+        "received_at": 5000
       }
     },
     {
@@ -27,6 +31,10 @@ expression: partials
       "tags": {
         "bar": "baz",
         "foo": ""
+      },
+      "metadata": {
+        "merges": 1,
+        "received_at": 5000
       }
     }
   ],
@@ -44,6 +52,10 @@ expression: partials
       "tags": {
         "bar": "baz",
         "foo": ""
+      },
+      "metadata": {
+        "merges": 1,
+        "received_at": 5000
       }
     },
     {
@@ -53,7 +65,11 @@ expression: partials
       "type": "s",
       "value": [
         42
-      ]
+      ],
+      "metadata": {
+        "merges": 1,
+        "received_at": 5000
+      }
     }
   ],
   [
@@ -64,7 +80,11 @@ expression: partials
       "type": "s",
       "value": [
         75
-      ]
+      ],
+      "metadata": {
+        "merges": 1,
+        "received_at": 5000
+      }
     }
   ],
   [
@@ -79,6 +99,10 @@ expression: partials
         "max": 42.0,
         "sum": 220.0,
         "count": 85
+      },
+      "metadata": {
+        "merges": 1,
+        "received_at": 5000
       }
     }
   ]

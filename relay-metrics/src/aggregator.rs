@@ -1510,7 +1510,9 @@ mod tests {
         [
             BucketMetadata {
                 merges: 5,
-                received_at: UnixTimestamp(999994711),
+                received_at: Some(
+                    UnixTimestamp(999994711),
+                ),
             },
         ]
         "###);

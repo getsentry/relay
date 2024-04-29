@@ -56,15 +56,20 @@ where
             continue;
         };
 
+        // For extracted metrics we assume the `received_at` timestamp is equivalent to the time
+        // in which the metric is extracted.
+        #[cfg(not(test))]
+        let received_at = UnixTimestamp::now();
+        #[cfg(test)]
+        let received_at = UnixTimestamp::from_secs(0);
+
         metrics.push(Bucket {
             name: mri.to_string().into(),
             width: 0,
             value,
             timestamp,
             tags: extract_tags(instance, &metric_spec.tags),
-            // For extracted metrics we assume the `received_at` timestamp is equivalent to the time
-            // in which the metric is extracted.
-            metadata: BucketMetadata::new(UnixTimestamp::now()),
+            metadata: BucketMetadata::new(received_at),
         });
     }
 
@@ -200,7 +205,9 @@ mod tests {
                 tags: {},
                 metadata: BucketMetadata {
                     merges: 1,
-                    received_at: Any,
+                    received_at: Some(
+                        UnixTimestamp(0),
+                    ),
                 },
             },
         ]
@@ -245,7 +252,9 @@ mod tests {
                 tags: {},
                 metadata: BucketMetadata {
                     merges: 1,
-                    received_at: ?,
+                    received_at: Some(
+                        UnixTimestamp(0),
+                    ),
                 },
             },
         ]
@@ -292,7 +301,9 @@ mod tests {
                 tags: {},
                 metadata: BucketMetadata {
                     merges: 1,
-                    received_at: ?,
+                    received_at: Some(
+                        UnixTimestamp(0),
+                    ),
                 },
             },
         ]
@@ -353,7 +364,9 @@ mod tests {
                 },
                 metadata: BucketMetadata {
                     merges: 1,
-                    received_at: ?,
+                    received_at: Some(
+                        UnixTimestamp(0),
+                    ),
                 },
             },
         ]
@@ -411,7 +424,9 @@ mod tests {
                 },
                 metadata: BucketMetadata {
                     merges: 1,
-                    received_at: ?,
+                    received_at: Some(
+                        UnixTimestamp(0),
+                    ),
                 },
             },
         ]
@@ -473,7 +488,9 @@ mod tests {
                 },
                 metadata: BucketMetadata {
                     merges: 1,
-                    received_at: ?,
+                    received_at: Some(
+                        UnixTimestamp(0),
+                    ),
                 },
             },
         ]
@@ -543,7 +560,9 @@ mod tests {
                 tags: {},
                 metadata: BucketMetadata {
                     merges: 1,
-                    received_at: ?,
+                    received_at: Some(
+                        UnixTimestamp(0),
+                    ),
                 },
             },
         ]
