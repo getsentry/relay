@@ -244,6 +244,29 @@
 <a href="#242" id="242">242</a>
 <a href="#243" id="243">243</a>
 <a href="#244" id="244">244</a>
+<a href="#245" id="245">245</a>
+<a href="#246" id="246">246</a>
+<a href="#247" id="247">247</a>
+<a href="#248" id="248">248</a>
+<a href="#249" id="249">249</a>
+<a href="#250" id="250">250</a>
+<a href="#251" id="251">251</a>
+<a href="#252" id="252">252</a>
+<a href="#253" id="253">253</a>
+<a href="#254" id="254">254</a>
+<a href="#255" id="255">255</a>
+<a href="#256" id="256">256</a>
+<a href="#257" id="257">257</a>
+<a href="#258" id="258">258</a>
+<a href="#259" id="259">259</a>
+<a href="#260" id="260">260</a>
+<a href="#261" id="261">261</a>
+<a href="#262" id="262">262</a>
+<a href="#263" id="263">263</a>
+<a href="#264" id="264">264</a>
+<a href="#265" id="265">265</a>
+<a href="#266" id="266">266</a>
+<a href="#267" id="267">267</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! **Deprecated.** Utilities for extracting common event fields.
 //!
 //! This utility module is being phased out. Functionality in this module should be moved to the
@@ -252,6 +275,7 @@
 </span><span class="kw">use </span>std::f64::consts::SQRT_2;
 
 <span class="kw">use </span>relay_event_schema::protocol::{Event, ResponseContext, Span, TraceContext, User};
+<span class="kw">use </span>relay_protocol::Value;
 
 <span class="doccomment">/// Used to decide when to extract mobile-specific tags.
 </span><span class="kw">pub const </span>MOBILE_SDKS: [<span class="kw-2">&amp;</span>str; <span class="number">4</span>] = [
@@ -277,10 +301,14 @@
         .data
         .value()
         .and_then(|data| data.http_response_status_code.value())
-        .and_then(|v| v.as_str())
-        .map(|v| v.to_string())
+        .map(|v| <span class="kw">match </span>v {
+            Value::String(s) =&gt; <span class="prelude-val">Some</span>(s.as_str().to_owned()),
+            Value::I64(i) =&gt; <span class="prelude-val">Some</span>(i.to_string()),
+            Value::U64(u) =&gt; <span class="prelude-val">Some</span>(u.to_string()),
+            <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
+        })
     {
-        <span class="kw">return </span><span class="prelude-val">Some</span>(status_code);
+        <span class="kw">return </span>status_code;
     }
 
     <span class="comment">// For SDKs which put the HTTP status code into the span tags.
@@ -440,8 +468,8 @@
 
 <span class="attr">#[cfg(test)]
 </span><span class="kw">mod </span>tests {
-    <span class="kw">use </span><span class="kw">crate</span>::utils::get_event_user_tag;
-    <span class="kw">use </span>relay_event_schema::protocol::User;
+    <span class="kw">use </span><span class="kw">crate</span>::utils::{get_event_user_tag, http_status_code_from_span};
+    <span class="kw">use </span>relay_event_schema::protocol::{Span, User};
     <span class="kw">use </span>relay_protocol::Annotated;
 
     <span class="attr">#[test]
@@ -486,6 +514,24 @@
         <span class="kw">let </span>user = User::default();
 
         <span class="macro">assert!</span>(get_event_user_tag(<span class="kw-2">&amp;</span>user).is_none());
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_extracts_http_status_code_when_int() {
+        <span class="kw">let </span>span = Annotated::&lt;Span&gt;::from_json(
+            <span class="string">r#"{
+                "data": {
+                    "http.response.status_code": 400
+                }
+            }"#</span>,
+        )
+        .unwrap()
+        .into_value()
+        .unwrap();
+
+        <span class="kw">let </span>result = http_status_code_from_span(<span class="kw-2">&amp;</span>span);
+
+        <span class="macro">assert_eq!</span>(result, <span class="prelude-val">Some</span>(<span class="string">"400"</span>.to_string()));
     }
 }
 </code></pre></div></section></main></body></html>
