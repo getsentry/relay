@@ -507,6 +507,7 @@ impl StoreService {
             BucketViewValue::Gauge(g) => MetricValue::Gauge(g),
         };
 
+        // TODO: propagate the `received_at` field upstream.
         Ok(MetricKafkaMessage {
             org_id: organization_id,
             project_id,
