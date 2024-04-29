@@ -443,7 +443,7 @@ jobs:
             /home/runner/.gsutil/tracker-files \
             /home/runner/.gsutil/tracker-files/upload_TRACKER_*.rc.zip__JSON.url \
           || true
-          gsutil -m cp -L gsutil.log ./libs.tar ./relay-debug.zip ./relay.src.zip ./release-name \
+          gsutil -m cp -L gsutil.log ./libs.tar ./relay.debug.zip ./relay.src.zip ./release-name \
             "gs://dicd-team-devinfra-cd--relay/deployment-assets/${REVISION}/${{ matrix.image_name }}/" || status=$? && status=$?
           cat gsutil.log
           exit "$status"
