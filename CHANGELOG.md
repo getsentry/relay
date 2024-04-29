@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 24.4.2
 
 **Breaking Changes**:
 
