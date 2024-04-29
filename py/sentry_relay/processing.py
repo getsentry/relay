@@ -309,7 +309,7 @@ def normalize_project_config(
     :param json_loads: a function that parses and converts JSON strings
     """
     serialized = json_dumps(config)
-    normalized = rustcall(lib.normalize_project_config, encode_str(serialized))
+    normalized = rustcall(lib.relay_normalize_project_config, encode_str(serialized))
     rv = decode_str(normalized, free=True)
     try:
         return json_loads(rv)
@@ -335,7 +335,7 @@ def normalize_global_config(
     :param json_loads: a function that parses and converts JSON strings
     """
     serialized = json_dumps(config)
-    normalized = rustcall(lib.normalize_global_config, encode_str(serialized))
+    normalized = rustcall(lib.relay_normalize_global_config, encode_str(serialized))
     rv = decode_str(normalized, free=True)
     try:
         return json_loads(rv)

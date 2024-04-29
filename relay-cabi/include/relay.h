@@ -651,16 +651,15 @@ struct RelayStr relay_validate_rule_condition(const struct RelayStr *value);
 struct RelayStr relay_validate_sampling_configuration(const struct RelayStr *value);
 
 /**
- * Validate entire project config.
+ * Normalize a project config.
  *
  * If `strict` is true, checks for unknown fields in the input.
  */
-struct RelayStr relay_validate_project_config(const struct RelayStr *value,
-                                              bool strict);
+struct RelayStr relay_normalize_project_config(const struct RelayStr *value);
 
 /**
  * Normalize a global config.
  */
-struct RelayStr normalize_global_config(const struct RelayStr *value);
+struct RelayStr relay_normalize_global_config(const struct RelayStr *value);
 
 #endif /* RELAY_H_INCLUDED */

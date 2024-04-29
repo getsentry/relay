@@ -474,7 +474,7 @@ pub unsafe extern "C" fn relay_validate_sampling_configuration(value: *const Rel
 /// Normalize a project config.
 #[no_mangle]
 #[relay_ffi::catch_unwind]
-pub unsafe extern "C" fn normalize_project_config(value: *const RelayStr) -> RelayStr {
+pub unsafe extern "C" fn relay_normalize_project_config(value: *const RelayStr) -> RelayStr {
     let value = (*value).as_str();
     match normalize_json::<ProjectConfig>(value) {
         Ok(normalized) => RelayStr::from_string(normalized),
@@ -485,7 +485,7 @@ pub unsafe extern "C" fn normalize_project_config(value: *const RelayStr) -> Rel
 /// Normalize a global config.
 #[no_mangle]
 #[relay_ffi::catch_unwind]
-pub unsafe extern "C" fn normalize_global_config(value: *const RelayStr) -> RelayStr {
+pub unsafe extern "C" fn relay_normalize_global_config(value: *const RelayStr) -> RelayStr {
     let value = (*value).as_str();
     match normalize_json::<GlobalConfig>(value) {
         Ok(normalized) => RelayStr::from_string(normalized),
