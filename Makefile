@@ -24,7 +24,7 @@ release: setup-git ## build production binary of the relay with debug info
 .PHONY: release
 
 build-linux-release: setup-git ## build linux release of the relay
-	cd relay && cargo build --release --locked $(if ${RELAY_FEATURES}, --features ${RELAY_FEATURES}) --target=${TARGET}
+	cd relay && cargo build --release --locked $(if ${RELAY_FEATURES}, --features ${RELAY_FEATURES})
 	objcopy --only-keep-debug target/${TARGET}/release/relay{,.debug}
 	objcopy --strip-debug --strip-unneeded target/${TARGET}/release/relay
 	objcopy --add-gnu-debuglink target/${TARGET}/release/relay{.debug,}
@@ -32,7 +32,7 @@ build-linux-release: setup-git ## build linux release of the relay
 
 collect-source-bundle: setup-git ## copy the built relay binary to current folder and collects debug bundles
 	mv target/${TARGET}/release/relay ./relay-bin
-	zip relay-debug.zip target/${TARGET}/release/relay.debug
+	zip relay.debug.zip target/${TARGET}/release/relay.debug
 	sentry-cli --version
 	sentry-cli difutil bundle-sources target/${TARGET}/release/relay.debug
 	mv target/${TARGET}/release/relay.src.zip ./relay.src.zip

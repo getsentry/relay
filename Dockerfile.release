@@ -1,5 +1,7 @@
 FROM debian:bookworm-slim
 
+ARG TARGETPLATFORM
+
 RUN apt-get update \
   && apt-get install -y ca-certificates gosu curl --no-install-recommends \
   && apt-get clean \
@@ -20,8 +22,10 @@ WORKDIR /work
 
 EXPOSE 3000
 
-COPY ./relay-bin /bin/relay
-COPY relay-debug.zip relay.src.zip /opt/
+COPY $TARGETPLATFORM/relay /bin/relay
+RUN chmod +x /bin/relay
+COPY $TARGETPLATFORM/relay.debug.zip /opt/relay.debug.zip
+COPY $TARGETPLATFORM/relay.src.zip /opt/relay.src.zip
 
 COPY ./docker-entrypoint.sh /
 ENTRYPOINT ["/bin/bash", "/docker-entrypoint.sh"]

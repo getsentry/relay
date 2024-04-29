@@ -174,11 +174,12 @@ pub struct Options {
     )]
     pub feedback_ingest_topic_rollout_rate: f32,
 
-    /// Flag for handling feedback and attachments in the same envelope. Temporary FF for fast-revert
-    /// (will remove after user feedback GA release).
+    /// Flag for handling feedback and attachments in the same envelope. This is for the SDK team to send less requests
+    /// for the user feedback screenshots feature. Prior to this change, feedback sent w/attachments would be produced
+    /// to the attachments topic, rather than its own topic. The items are now split up accordingly.
     ///
-    /// Enabling this will also separate the logic for producing feedback, to its own match case in
-    /// StoreService::store_envelope
+    /// This option is used as a temporary FF/kill-switch to toggle back to the old code path in relay's StoreService.
+    /// This is for testing convenience and will be removed after user feedback's GA release.
     #[serde(
         rename = "feedback.ingest-inline-attachments",
         deserialize_with = "default_on_error",
