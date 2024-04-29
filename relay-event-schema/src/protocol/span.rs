@@ -319,6 +319,10 @@ pub struct SpanData {
     #[metastructure(field = "frames.delay")]
     pub frames_delay: Annotated<Value>,
 
+    // Messaging Destination Name
+    #[metastructure(field = "messaging.destination.name")]
+    pub messaging_destination_name: Annotated<Value>,
+
     /// Other fields in `span.data`.
     #[metastructure(additional_properties, pii = "true", retain = "true")]
     other: Object<Value>,
