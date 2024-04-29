@@ -43,11 +43,8 @@ pub struct GlobalConfig {
     ///
     /// These are merged with rules in project configs before
     /// applying.
-    #[serde(
-        deserialize_with = "default_on_error",
-        skip_serializing_if = "MetricExtractionSets::is_empty"
-    )]
-    pub metric_extraction: MetricExtractionGroups,
+    #[serde(skip_serializing_if = "is_ok_and_empty")]
+    pub metric_extraction: ErrorBoundary<MetricExtractionGroups>,
 }
 
 impl GlobalConfig {
@@ -352,6 +349,13 @@ where
             Ok(T::default())
         }
     }
+}
+
+fn is_ok_and_empty(value: &ErrorBoundary<MetricExtractionGroups>) -> bool {
+    matches!(
+        value,
+        &ErrorBoundary::Ok(MetricExtractionGroups { ref groups }) if groups.is_empty()
+    )
 }
 
 #[cfg(test)]

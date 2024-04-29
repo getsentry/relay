@@ -12,7 +12,7 @@ use relay_dynamic_config::{
 use relay_event_normalization::normalize_transaction_name;
 use relay_event_normalization::{
     normalize_measurements, normalize_performance_score, normalize_user_agent_info_generic,
-    span::tag_extraction, validate_span, DynamicMeasurementsConfig, MeasurementsConfig,
+    span::tag_extraction, validate_span, CombinedMeasurementsConfig, MeasurementsConfig,
     PerformanceScoreConfig, RawUserAgentInfo, TransactionsProcessor,
 };
 use relay_event_schema::processor::{process_value, ProcessingState};
@@ -122,9 +122,14 @@ pub fn process(
                 return ItemAction::Drop(Outcome::Invalid(DiscardReason::Internal));
             };
             relay_log::trace!("Extracting metrics from standalone span {:?}", span.span_id);
+
+            let ErrorBoundary::Ok(global_metrics_config) = &global_config.metric_extraction else {
+                return ItemAction::Drop(Outcome::Invalid(DiscardReason::Internal));
+            };
+
             let metrics = extract_metrics(
                 span,
-                CombinedMetricExtractionConfig::new(&global_config.metric_extraction, config),
+                &CombinedMetricExtractionConfig::new(global_metrics_config, config),
             );
             state.extracted_metrics.project_metrics.extend(metrics);
             item.set_metrics_extracted(true);
@@ -379,7 +384,7 @@ struct NormalizeSpanConfig<'a> {
     /// Has an optional [`relay_event_normalization::MeasurementsConfig`] from both the project and the global level.
     /// If at least one is provided, then normalization will truncate custom measurements
     /// and add units of known built-in measurements.
-    measurements: Option<DynamicMeasurementsConfig<'a>>,
+    measurements: Option<CombinedMeasurementsConfig<'a>>,
     /// The maximum length for names of custom measurements.
     ///
     /// Measurements with longer names are removed from the transaction event and replaced with a
@@ -403,7 +408,7 @@ fn get_normalize_span_config<'a>(
         max_tag_value_size: config
             .aggregator_config_for(MetricNamespace::Spans)
             .max_tag_value_length,
-        measurements: Some(DynamicMeasurementsConfig::new(
+        measurements: Some(CombinedMeasurementsConfig::new(
             project_measurements_config,
             global_measurements_config,
         )),

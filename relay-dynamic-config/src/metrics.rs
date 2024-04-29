@@ -115,7 +115,7 @@ pub struct CustomMeasurementConfig {
 ///      - Delay metrics extraction for indexed transactions.
 ///  - 4: Adds support for `RuleConfigs` with string comparisons.
 ///  - 5: No change, bumped together with [`MetricExtractionConfig::MAX_SUPPORTED_VERSION`].
-const TRANSACTION_EXTRACT_VERSION: u16 = 5;
+const TRANSACTION_EXTRACT_MAX_SUPPORTED_VERSION: u16 = 5;
 
 /// Deprecated. Defines whether URL transactions should be considered low cardinality.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
@@ -162,7 +162,7 @@ impl TransactionMetricsConfig {
 
     /// Returns `true` if metrics extraction is enabled and compatible with this Relay.
     pub fn is_enabled(&self) -> bool {
-        self.version > 0 && self.version <= TRANSACTION_EXTRACT_VERSION
+        self.version > 0 && self.version <= TRANSACTION_EXTRACT_MAX_SUPPORTED_VERSION
     }
 
     /// Returns `true` if usage should be tracked through a dedicated metric.
@@ -214,8 +214,8 @@ impl<'a> CombinedMetricExtractionConfig<'a> {
     }
 }
 
-#[cfg(test)]
 impl<'a> From<&'a MetricExtractionConfig> for CombinedMetricExtractionConfig<'a> {
+    /// Creates a combined config with an empty global component. Used in tests.
     fn from(value: &'a MetricExtractionConfig) -> Self {
         Self::new(MetricExtractionGroups::EMPTY, value)
     }
@@ -233,7 +233,7 @@ pub struct MetricExtractionGroups {
 }
 
 impl MetricExtractionGroups {
-    #[cfg(test)]
+    /// Empty config, used in tests.
     const EMPTY: &'static Self = &Self {
         groups: BTreeMap::new(),
     };
@@ -700,7 +700,7 @@ mod tests {
     }
 
     #[test]
-    fn metrics_extraction_global_defaults() {
+    fn metric_extraction_global_defaults() {
         let global = templates();
         let project: MetricExtractionConfig = serde_json::from_value(serde_json::json!({
             "version": 1,
@@ -726,7 +726,7 @@ mod tests {
     }
 
     #[test]
-    fn metrics_extraction_override() {
+    fn metric_extraction_override() {
         let global = templates();
         let project: MetricExtractionConfig = serde_json::from_value(serde_json::json!({
             "version": 1,
