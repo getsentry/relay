@@ -20,7 +20,7 @@ impl ForwardedFor {
     ///
     /// The Sentry SaaS infrastructure sets this header.
     const SENTRY_FORWARDED_HEADER: &'static str = "X-Sentry-Forwarded-For";
-    /// Cloudflare forwards the client ip in its own [`X-Vercel-Forwarded-For`] header.
+    /// Vercel forwards the client ip in its own [`X-Vercel-Forwarded-For`] header.
     ///
     /// [`X-Vercel-Forwarded-For`](https://vercel.com/docs/concepts/edge-network/headers#x-vercel-forwarded-for)
     const VERCEL_FORWARDED_HEADER: &'static str = "X-Vercel-Forwarded-For";
