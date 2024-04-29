@@ -521,7 +521,8 @@ mod tests {
         "frames.slow": 1,
         "frames.frozen": 2,
         "frames.total": 9,
-        "frames.delay": 100
+        "frames.delay": 100,
+        "messaging.destination.name": "default"
     }"#;
         let data = Annotated::<SpanData>::from_json(data)
             .unwrap()
@@ -582,6 +583,9 @@ mod tests {
             ),
             frames_delay: I64(
                 100,
+            ),
+            messaging_destination_name: String(
+                "default",
             ),
             other: {
                 "bar": String(

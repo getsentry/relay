@@ -1028,7 +1028,9 @@ mod tests {
                     "span_id": "9b01bd820a083e63",
                     "parent_span_id": "a1e13f3f06239d69",
                     "trace_id": "922dda2462ea4ac2b6a4b339bee90863",
-                    "data": {}
+                    "data": {
+                        "messaging.destination.name": "default"
+                    }
                 },
                 {
                     "timestamp": 1702474613.0495,
@@ -1038,7 +1040,9 @@ mod tests {
                     "span_id": "9b01bd820a083e63",
                     "parent_span_id": "a1e13f3f06239d69",
                     "trace_id": "922dda2462ea4ac2b6a4b339bee90863",
-                    "data": {}
+                    "data": {
+                        "messaging.destination.name": "default"
+                    }
                 },
                 {
                     "timestamp": 1702474613.0495,
@@ -1048,7 +1052,9 @@ mod tests {
                     "span_id": "9b01bd820a083e63",
                     "parent_span_id": "a1e13f3f06239d69",
                     "trace_id": "922dda2462ea4ac2b6a4b339bee90863",
-                    "data": {}
+                    "data": {
+                        "messaging.destination.name": "default"
+                    }
                 },
                 {
                     "timestamp": 1702474613.0495,
@@ -1058,7 +1064,9 @@ mod tests {
                     "span_id": "9b01bd820a083e63",
                     "parent_span_id": "a1e13f3f06239d69",
                     "trace_id": "922dda2462ea4ac2b6a4b339bee90863",
-                    "data": {}
+                    "data": {
+                        "messaging.destination.name": "default"
+                    }
                 },
                 {
                     "timestamp": 1702474613.0495,

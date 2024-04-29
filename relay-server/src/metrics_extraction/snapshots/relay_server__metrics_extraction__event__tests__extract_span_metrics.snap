@@ -11215,6 +11215,7 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "messaging.destination.name": "default",
             "span.category": "queue",
             "span.op": "queue.task.celery",
             "transaction": "gEt /api/:version/users/",
@@ -11236,6 +11237,7 @@ expression: metrics
             ],
         ),
         tags: {
+            "messaging.destination.name": "default",
             "span.category": "queue",
             "span.op": "queue.task.celery",
         },
@@ -11281,6 +11283,7 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "messaging.destination.name": "default",
             "span.category": "queue",
             "span.op": "queue.task.celery",
             "transaction": "gEt /api/:version/users/",
@@ -11306,6 +11309,7 @@ expression: metrics
             },
         ),
         tags: {
+            "messaging.destination.name": "default",
             "span.category": "queue",
             "span.op": "queue.task.celery",
         },
@@ -11365,6 +11369,7 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "messaging.destination.name": "default",
             "span.category": "queue",
             "span.op": "queue.submit.celery",
             "transaction": "gEt /api/:version/users/",
@@ -11386,6 +11391,7 @@ expression: metrics
             ],
         ),
         tags: {
+            "messaging.destination.name": "default",
             "span.category": "queue",
             "span.op": "queue.submit.celery",
         },
@@ -11431,6 +11437,7 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "messaging.destination.name": "default",
             "span.category": "queue",
             "span.op": "queue.submit.celery",
             "transaction": "gEt /api/:version/users/",
@@ -11456,6 +11463,7 @@ expression: metrics
             },
         ),
         tags: {
+            "messaging.destination.name": "default",
             "span.category": "queue",
             "span.op": "queue.submit.celery",
         },
@@ -11515,6 +11523,7 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "messaging.destination.name": "default",
             "span.category": "queue",
             "span.op": "queue.publish",
             "transaction": "gEt /api/:version/users/",
@@ -11536,6 +11545,7 @@ expression: metrics
             ],
         ),
         tags: {
+            "messaging.destination.name": "default",
             "span.category": "queue",
             "span.op": "queue.publish",
         },
@@ -11581,6 +11591,7 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "messaging.destination.name": "default",
             "span.category": "queue",
             "span.op": "queue.publish",
             "transaction": "gEt /api/:version/users/",
@@ -11606,6 +11617,7 @@ expression: metrics
             },
         ),
         tags: {
+            "messaging.destination.name": "default",
             "span.category": "queue",
             "span.op": "queue.publish",
         },
@@ -11665,6 +11677,7 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "messaging.destination.name": "default",
             "span.category": "queue",
             "span.op": "queue.process",
             "transaction": "gEt /api/:version/users/",
@@ -11686,6 +11699,7 @@ expression: metrics
             ],
         ),
         tags: {
+            "messaging.destination.name": "default",
             "span.category": "queue",
             "span.op": "queue.process",
         },
@@ -11731,6 +11745,7 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "messaging.destination.name": "default",
             "span.category": "queue",
             "span.op": "queue.process",
             "transaction": "gEt /api/:version/users/",
@@ -11756,6 +11771,7 @@ expression: metrics
             },
         ),
         tags: {
+            "messaging.destination.name": "default",
             "span.category": "queue",
             "span.op": "queue.process",
         },

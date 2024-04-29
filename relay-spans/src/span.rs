@@ -661,6 +661,7 @@ mod tests {
                 frames_frozen: ~,
                 frames_total: ~,
                 frames_delay: ~,
+                messaging_destination_name: ~,
                 other: {},
             },
             sentry_tags: ~,

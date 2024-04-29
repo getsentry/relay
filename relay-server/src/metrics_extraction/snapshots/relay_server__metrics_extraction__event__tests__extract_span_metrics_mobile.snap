@@ -119,6 +119,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 frames_delay: F64(
                     0.1,
                 ),
+                messaging_destination_name: ~,
                 other: {},
             },
             sentry_tags: {
@@ -417,6 +418,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 frames_frozen: ~,
                 frames_total: ~,
                 frames_delay: ~,
+                messaging_destination_name: ~,
                 other: {},
             },
             sentry_tags: {
@@ -505,6 +507,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 frames_frozen: ~,
                 frames_total: ~,
                 frames_delay: ~,
+                messaging_destination_name: ~,
                 other: {},
             },
             sentry_tags: {
@@ -640,6 +643,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 frames_frozen: ~,
                 frames_total: ~,
                 frames_delay: ~,
+                messaging_destination_name: ~,
                 other: {},
             },
             sentry_tags: {
@@ -728,6 +732,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 frames_frozen: ~,
                 frames_total: ~,
                 frames_delay: ~,
+                messaging_destination_name: ~,
                 other: {},
             },
             sentry_tags: {
