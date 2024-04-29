@@ -3349,6 +3349,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "psl"
+version = "2.1.33"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a93553389d84c7a76edf270a88b43fc2dcbc6a1fed546dd2a0f99df5ed4444b6"
+dependencies = [
+ "psl-types",
+]
+
+[[package]]
+name = "psl-types"
+version = "2.0.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "33cb294fe86a74cbcf50d4445b37da762029549ebeea341421c7c70370f86cac"
+
+[[package]]
 name = "quick-error"
 version = "1.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3629,7 +3644,7 @@ dependencies = [
 
 [[package]]
 name = "relay-cabi"
-version = "0.8.57"
+version = "0.8.58"
 dependencies = [
  "anyhow",
  "chrono",
@@ -3785,6 +3800,7 @@ dependencies = [
  "maxminddb",
  "md5",
  "once_cell",
+ "psl",
  "regex",
  "relay-base-schema",
  "relay-common",
@@ -4182,6 +4198,7 @@ dependencies = [
  "chrono",
  "enumset",
  "hex",
+ "insta",
  "once_cell",
  "opentelemetry-proto",
  "relay-event-schema",

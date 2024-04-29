@@ -156,7 +156,7 @@ class ConsumerBase:
         self.consumer = consumer
         self.test_producer = kafka_producer(options)
         self.topic_name = topic_name
-        self.timeout = timeout or 1
+        self.timeout = timeout or 2
 
         # Connect to the topic and poll a first test message.
         # First poll takes forever, the next ones are fast.
@@ -277,7 +277,9 @@ def transactions_consumer(kafka_consumer):
 
 @pytest.fixture
 def attachments_consumer(kafka_consumer):
-    return lambda: AttachmentsConsumer(*kafka_consumer("attachments"))
+    return lambda timeout=None: AttachmentsConsumer(
+        timeout=timeout, *kafka_consumer("attachments")
+    )
 
 
 @pytest.fixture

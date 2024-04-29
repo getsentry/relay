@@ -165,7 +165,7 @@ pub struct SpanData {
 
     /// The client's browser name.
     #[metastructure(field = "browser.name")]
-    pub browser_name: Annotated<Value>,
+    pub browser_name: Annotated<String>,
 
     /// The source code file name that identifies the code unit as uniquely as possible.
     #[metastructure(field = "code.filepath", pii = "maybe")]
@@ -200,11 +200,11 @@ pub struct SpanData {
     pub db_system: Annotated<Value>,
 
     /// The sentry environment.
-    #[metastructure(field = "environment")]
+    #[metastructure(field = "sentry.environment", legacy_alias = "environment")]
     pub environment: Annotated<String>,
 
     /// The release version of the project.
-    #[metastructure(field = "release")]
+    #[metastructure(field = "sentry.release", legacy_alias = "release")]
     pub release: Annotated<LenientString>,
 
     /// The decoded body size of the response (in bytes).
@@ -247,6 +247,10 @@ pub struct SpanData {
     #[metastructure(field = "http.response.status_code", legacy_alias = "status_code")]
     pub http_response_status_code: Annotated<Value>,
 
+    /// The 'name' field of the ancestor span with op ai.pipeline.*
+    #[metastructure(field = "ai.pipeline.name")]
+    pub ai_pipeline_name: Annotated<Value>,
+
     /// The input messages to an AI model call
     #[metastructure(field = "ai.input_messages")]
     pub ai_input_messages: Annotated<Value>,
@@ -271,10 +275,13 @@ pub struct SpanData {
     #[metastructure(field = "thread.name")]
     pub thread_name: Annotated<Value>,
 
-    /// Origin Transaction name of the span.
+    /// Name of the segment that this span belongs to (see `segment_id`).
+    ///
+    /// This corresponds to the transaction name in the transaction-based model.
     ///
     /// For INP spans, this is the route name where the interaction occurred.
-    pub transaction: Annotated<String>,
+    #[metastructure(field = "sentry.segment.name", legacy_alias = "transaction")]
+    pub segment_name: Annotated<String>,
 
     /// Name of the UI component (e.g. React).
     #[metastructure(field = "ui.component_name")]
@@ -289,8 +296,28 @@ pub struct SpanData {
     pub user: Annotated<Value>,
 
     /// Replay ID
-    #[metastructure(field = "replay_id")]
+    #[metastructure(field = "sentry.replay.id", legacy_alias = "replay_id")]
     pub replay_id: Annotated<Value>,
+
+    /// The sentry SDK (see [`crate::protocol::ClientSdkInfo`]).
+    #[metastructure(field = "sentry.sdk.name")]
+    pub sdk_name: Annotated<String>,
+
+    /// Slow Frames
+    #[metastructure(field = "sentry.frames.slow", legacy_alias = "frames.slow")]
+    pub frames_slow: Annotated<Value>,
+
+    /// Frozen Frames
+    #[metastructure(field = "sentry.frames.frozen", legacy_alias = "frames.frozen")]
+    pub frames_frozen: Annotated<Value>,
+
+    /// Total Frames
+    #[metastructure(field = "sentry.frames.total", legacy_alias = "frames.total")]
+    pub frames_total: Annotated<Value>,
+
+    // Frames Delay (in seconds)
+    #[metastructure(field = "frames.delay")]
+    pub frames_delay: Annotated<Value>,
 
     /// Other fields in `span.data`.
     #[metastructure(additional_properties, pii = "true", retain = "true")]
@@ -301,7 +328,7 @@ impl Getter for SpanData {
     fn get_value(&self, path: &str) -> Option<Val<'_>> {
         Some(match path {
             "app_start_type" => self.app_start_type.value()?.into(),
-            "browser\\.name" => self.browser_name.value()?.into(),
+            "browser\\.name" => self.browser_name.as_str()?.into(),
             "code\\.filepath" => self.code_filepath.value()?.into(),
             "code\\.function" => self.code_function.value()?.into(),
             "code\\.lineno" => self.code_lineno.value()?.into(),
@@ -327,7 +354,7 @@ impl Getter for SpanData {
             "thread\\.name" => self.thread_name.value()?.into(),
             "ui\\.component_name" => self.ui_component_name.value()?.into(),
             "url\\.scheme" => self.url_scheme.value()?.into(),
-            "transaction" => self.transaction.as_str()?.into(),
+            "transaction" => self.segment_name.as_str()?.into(),
             _ => {
                 let escaped = path.replace("\\.", "\0");
                 let mut path = escaped.split('.').map(|s| s.replace('\0', "."));
@@ -486,7 +513,11 @@ mod tests {
         "code.filepath": "task.py",
         "code.lineno": 123,
         "code.function": "fn()",
-        "code.namespace": "ns"
+        "code.namespace": "ns",
+        "frames.slow": 1,
+        "frames.frozen": 2,
+        "frames.total": 9,
+        "frames.delay": 100
     }"#;
         let data = Annotated::<SpanData>::from_json(data)
             .unwrap()
@@ -523,17 +554,31 @@ mod tests {
             cache_hit: ~,
             cache_item_size: ~,
             http_response_status_code: ~,
+            ai_pipeline_name: ~,
             ai_input_messages: ~,
             ai_completion_tokens_used: ~,
             ai_prompt_tokens_used: ~,
             ai_total_tokens_used: ~,
             ai_responses: ~,
             thread_name: ~,
-            transaction: ~,
+            segment_name: ~,
             ui_component_name: ~,
             url_scheme: ~,
             user: ~,
             replay_id: ~,
+            sdk_name: ~,
+            frames_slow: I64(
+                1,
+            ),
+            frames_frozen: I64(
+                2,
+            ),
+            frames_total: I64(
+                9,
+            ),
+            frames_delay: I64(
+                100,
+            ),
             other: {
                 "bar": String(
                     "3",

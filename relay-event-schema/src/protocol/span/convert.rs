@@ -1,5 +1,5 @@
 //! This module defines bidirectional field mappings between spans and transactions.
-use crate::protocol::{Contexts, Event, ProfileContext, Span, TraceContext};
+use crate::protocol::{BrowserContext, Contexts, Event, ProfileContext, Span, TraceContext};
 
 use relay_base_schema::events::EventType;
 use relay_protocol::Annotated;
@@ -40,15 +40,18 @@ macro_rules! context_write_path (
 );
 
 macro_rules! event_write_path(
+    ($event:expr, contexts browser $context_field:ident) => {
+        context_write_path!($event, BrowserContext, $context_field)
+    };
     ($event:expr, contexts trace $context_field:ident) => {
         context_write_path!($event, TraceContext, $context_field)
     };
     ($event:expr, contexts profile $context_field:ident) => {
         context_write_path!($event, ProfileContext, $context_field)
     };
-    ($event:expr, $path_root:ident $(. $path_segment:ident)*) => {
+    ($event:expr, $path_root:ident $($path_segment:ident)*) => {
         {
-            write_path!($event, $path_root $(. $path_segment:ident)*)
+            write_path!($event, $path_root $($path_segment)*)
         }
     };
 );
@@ -63,17 +66,20 @@ macro_rules! context_value (
 );
 
 macro_rules! event_value(
+    ($event:expr, contexts browser $context_field:ident) => {
+        context_value!($event, BrowserContext, $context_field)
+    };
     ($event:expr, contexts trace $context_field:ident) => {
         context_value!($event, TraceContext, $context_field)
     };
     ($event:expr, contexts profile $context_field:ident) => {
         context_value!($event, ProfileContext, $context_field)
     };
-    ($event:expr, $path_root:ident $(. $path_segment:ident)*) => {
+    ($event:expr, $path_root:ident $($path_segment:ident)*) => {
         {
             let value = ($event).$path_root.value();
             $(
-                let value = value.and_then(|value|&value.$path_segment.value());
+                let value = value.and_then(|value|value.$path_segment.value());
             )*
             value
         }
@@ -137,6 +143,7 @@ macro_rules! map_fields {
 map_fields!(
     span._metrics_summary <=> event._metrics_summary,
     span.description <=> event.transaction,
+    span.data.segment_name <=> event.transaction,
     span.measurements <=> event.measurements,
     span.platform <=> event.platform,
     span.received <=> event.received,
@@ -153,7 +160,9 @@ map_fields!(
     span.trace_id <=> event.contexts.trace.trace_id,
     span.profile_id <=> event.contexts.profile.profile_id,
     span.data.release <=> event.release,
-    span.data.environment <=> event.environment
+    span.data.environment <=> event.environment,
+    span.data.browser_name <=> event.contexts.browser.name,
+    span.data.sdk_name <=> event.client_sdk.name
     ;
     span.is_segment <= true,
     span.was_transaction <= true
@@ -165,6 +174,8 @@ map_fields!(
 mod tests {
     use relay_protocol::Annotated;
 
+    use crate::protocol::SpanData;
+
     use super::*;
 
     #[test]
@@ -172,9 +183,13 @@ mod tests {
         let event = Annotated::<Event>::from_json(
             r#"{
                 "type": "transaction",
+                "platform": "php",
+                "sdk": {"name": "sentry.php"},
                 "release": "myapp@1.0.0",
                 "environment": "prod",
+                "transaction": "my 1st transaction",
                 "contexts": {
+                    "browser": {"name": "Chrome"},
                     "profile": {"profile_id": "a0aaaaaaaaaaaaaaaaaaaaaaaaaaaaab"},
                     "trace": {
                         "trace_id": "4C79F60C11214EB38604F4AE0781BFB2",
@@ -217,7 +232,7 @@ mod tests {
             timestamp: ~,
             start_timestamp: ~,
             exclusive_time: 123.4,
-            description: ~,
+            description: "my 1st transaction",
             op: "myop",
             span_id: SpanId(
                 "fa90fdead5f74052",
@@ -240,7 +255,7 @@ mod tests {
             ),
             data: SpanData {
                 app_start_type: ~,
-                browser_name: ~,
+                browser_name: "Chrome",
                 code_filepath: ~,
                 code_lineno: ~,
                 code_function: ~,
@@ -260,17 +275,23 @@ mod tests {
                 cache_hit: ~,
                 cache_item_size: ~,
                 http_response_status_code: ~,
+                ai_pipeline_name: ~,
                 ai_input_messages: ~,
                 ai_completion_tokens_used: ~,
                 ai_prompt_tokens_used: ~,
                 ai_total_tokens_used: ~,
                 ai_responses: ~,
                 thread_name: ~,
-                transaction: ~,
+                segment_name: "my 1st transaction",
                 ui_component_name: ~,
                 url_scheme: ~,
                 user: ~,
                 replay_id: ~,
+                sdk_name: "sentry.php",
+                frames_slow: ~,
+                frames_frozen: ~,
+                frames_total: ~,
+                frames_delay: ~,
                 other: {},
             },
             sentry_tags: ~,
@@ -300,7 +321,7 @@ mod tests {
                     ],
                 },
             ),
-            platform: ~,
+            platform: "php",
             was_transaction: true,
             other: {},
         }
@@ -308,6 +329,23 @@ mod tests {
 
         let roundtripped = Event::try_from(&span_from_event).unwrap();
         assert_eq!(event, roundtripped);
+    }
+
+    #[test]
+    fn segment_name_takes_precedence_over_description() {
+        let span = Span {
+            is_segment: true.into(),
+            description: "This is the description".to_owned().into(),
+            data: SpanData {
+                segment_name: "This is the segment name".to_owned().into(),
+                ..Default::default()
+            }
+            .into(),
+            ..Default::default()
+        };
+        let event = Event::try_from(&span).unwrap();
+
+        assert_eq!(event.transaction.as_str(), Some("This is the segment name"));
     }
 
     #[test]

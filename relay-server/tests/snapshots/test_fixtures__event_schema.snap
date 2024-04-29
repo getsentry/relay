@@ -735,6 +735,20 @@ expression: "relay_event_schema::protocol::event_json_schema()"
             "version"
           ],
           "properties": {
+            "features": {
+              "description": " List of features that are enabled in the SDK. _Optional._\n\n A list of feature names identifying enabled SDK features. This list\n should contain all enabled SDK features. On some SDKs, enabling a feature in the\n options also adds an integration. We encourage tracking such features with either\n integrations or features but not both to reduce the payload size.",
+              "default": null,
+              "type": [
+                "array",
+                "null"
+              ],
+              "items": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
             "integrations": {
               "description": " List of integrations that are enabled in the SDK. _Optional._\n\n The list should have all enabled integrations, including default integrations. Default\n integrations are included because different SDK releases may contain different default\n integrations.",
               "default": null,

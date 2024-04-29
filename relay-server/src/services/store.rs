@@ -55,12 +55,14 @@ struct Producer {
 }
 
 impl Producer {
-    pub fn create(config: &Arc<Config>) -> anyhow::Result<Self> {
+    pub fn create(config: &Config) -> anyhow::Result<Self> {
         let mut client_builder = KafkaClient::builder();
 
-        for topic in KafkaTopic::iter()
-            .filter(|t| **t != KafkaTopic::Outcomes || **t != KafkaTopic::OutcomesBilling)
-        {
+        for topic in KafkaTopic::iter().filter(|t| {
+            // Outcomes should not be sent from the store forwarder.
+            // See `KafkaOutcomesProducer`.
+            **t != KafkaTopic::Outcomes && **t != KafkaTopic::OutcomesBilling
+        }) {
             let kafka_config = &config.kafka_config(*topic)?;
             client_builder = client_builder.add_kafka_topic_config(*topic, kafka_config)?;
         }
@@ -187,13 +189,19 @@ impl StoreService {
         let retention = envelope.retention();
         let event_id = envelope.event_id();
 
+        let feedback_ingest_same_envelope_attachments = self
+            .global_config
+            .current()
+            .options
+            .feedback_ingest_same_envelope_attachments;
+
         let event_item = envelope.as_mut().take_item_by(|item| {
             matches!(
-                item.ty(),
-                ItemType::Event
-                    | ItemType::Transaction
-                    | ItemType::Security
-                    | ItemType::UserReportV2
+                (item.ty(), feedback_ingest_same_envelope_attachments),
+                (ItemType::Event, _)
+                    | (ItemType::Transaction, _)
+                    | (ItemType::Security, _)
+                    | (ItemType::UserReportV2, false)
             )
         });
         let client = envelope.meta().client();
@@ -240,6 +248,17 @@ impl StoreService {
                         scoping.project_id,
                         start_time,
                         item,
+                    )?;
+                }
+                ItemType::UserReportV2 if feedback_ingest_same_envelope_attachments => {
+                    let remote_addr = envelope.meta().client_addr().map(|addr| addr.to_string());
+                    self.produce_user_report_v2(
+                        event_id.ok_or(StoreError::NoEventId)?,
+                        scoping.project_id,
+                        scoping.organization_id,
+                        start_time,
+                        item,
+                        remote_addr,
                     )?;
                 }
                 ItemType::Profile => self.produce_profile(
@@ -669,6 +688,36 @@ impl StoreService {
         });
 
         self.produce(KafkaTopic::Attachments, message)
+    }
+
+    fn produce_user_report_v2(
+        &self,
+        event_id: EventId,
+        project_id: ProjectId,
+        organization_id: u64,
+        start_time: Instant,
+        item: &Item,
+        remote_addr: Option<String>,
+    ) -> Result<(), StoreError> {
+        // check rollout rate option (effectively a FF) to determine whether to produce to new infra
+        let global_config = self.global_config.current();
+        let feedback_ingest_topic_rollout_rate =
+            global_config.options.feedback_ingest_topic_rollout_rate;
+        let topic = if is_rolled_out(organization_id, feedback_ingest_topic_rollout_rate) {
+            KafkaTopic::Feedback
+        } else {
+            KafkaTopic::Events
+        };
+
+        let message = KafkaMessage::Event(EventKafkaMessage {
+            project_id,
+            event_id,
+            payload: item.payload(),
+            start_time: UnixTimestamp::from_instant(start_time).as_secs(),
+            remote_addr,
+            attachments: vec![],
+        });
+        self.produce(topic, message)
     }
 
     fn send_metric_message(
@@ -1357,6 +1406,7 @@ struct SpanKafkaMessage<'a> {
     event_id: Option<EventId>,
     #[serde(rename(deserialize = "exclusive_time"))]
     exclusive_time_ms: f64,
+    #[serde(default)]
     is_segment: bool,
 
     #[serde(borrow, default, skip_serializing_if = "Option::is_none")]
@@ -1745,6 +1795,20 @@ mod tests {
             assert!(event.attachments.len() == number_of_attachments);
         } else {
             panic!("No event found")
+        }
+    }
+
+    #[test]
+    fn disallow_outcomes() {
+        let config = Config::default();
+        let producer = Producer::create(&config).unwrap();
+
+        for topic in [KafkaTopic::Outcomes, KafkaTopic::OutcomesBilling] {
+            let res = producer
+                .client
+                .send(topic, b"0123456789abcdef", None, "foo", b"");
+
+            assert!(matches!(res, Err(ClientError::InvalidTopicName)));
         }
     }
 }

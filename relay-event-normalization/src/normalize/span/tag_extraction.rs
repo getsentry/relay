@@ -8,7 +8,7 @@ use std::ops::ControlFlow;
 
 use once_cell::sync::Lazy;
 use regex::Regex;
-use relay_base_schema::metrics::{InformationUnit, MetricUnit};
+use relay_base_schema::metrics::{DurationUnit, InformationUnit, MetricUnit};
 use relay_event_schema::protocol::{
     AppContext, BrowserContext, Event, Measurement, OsContext, Span, Timestamp, TraceContext,
 };
@@ -47,6 +47,8 @@ pub enum SpanTagKey {
 
     // Specific to spans
     Action,
+    /// The group of the ancestral span with op ai.pipeline.*
+    AIPipelineGroup,
     Category,
     Description,
     Domain,
@@ -94,6 +96,7 @@ impl SpanTagKey {
             SpanTagKey::Platform => "platform",
 
             SpanTagKey::Action => "action",
+            SpanTagKey::AIPipelineGroup => "ai_pipeline_group",
             SpanTagKey::Category => "category",
             SpanTagKey::Description => "description",
             SpanTagKey::Domain => "domain",
@@ -194,7 +197,7 @@ pub fn extract_span_tags(event: &Event, spans: &mut [Annotated<Span>], max_tag_v
                 .collect(),
         );
 
-        extract_measurements(span);
+        extract_measurements(span, is_mobile);
     }
 }
 
@@ -462,6 +465,19 @@ pub fn extract_tags(
             span_tags.insert(SpanTagKey::Description, truncated);
         }
 
+        if category == Some("ai") {
+            if let Some(ai_pipeline_name) = span
+                .data
+                .value()
+                .and_then(|data| data.ai_pipeline_name.value())
+                .and_then(|val| val.as_str())
+            {
+                let mut ai_pipeline_group = format!("{:?}", md5::compute(ai_pipeline_name));
+                ai_pipeline_group.truncate(16);
+                span_tags.insert(SpanTagKey::AIPipelineGroup, ai_pipeline_group);
+            }
+        }
+
         if span_op.starts_with("resource.") {
             // TODO: Remove response size tags once product uses measurements instead.
             if let Some(data) = span.data.value() {
@@ -505,8 +521,10 @@ pub fn extract_tags(
         }
         if let Some(measurements) = span.measurements.value() {
             if span_op.starts_with("ui.interaction.") && measurements.contains_key("inp") {
-                if let Some(transaction) =
-                    span.data.value().and_then(|data| data.transaction.as_str())
+                if let Some(transaction) = span
+                    .data
+                    .value()
+                    .and_then(|data| data.segment_name.as_str())
                 {
                     span_tags.insert(SpanTagKey::Transaction, transaction.into());
                 }
@@ -572,20 +590,15 @@ pub fn extract_tags(
         }
     }
 
-    if let Some(browser_name) = span
-        .data
-        .value()
-        .and_then(|data| data.browser_name.value())
-        .and_then(|browser_name| browser_name.as_str())
-    {
-        span_tags.insert(SpanTagKey::BrowserName, browser_name.into());
+    if let Some(browser_name) = span.data.value().and_then(|data| data.browser_name.value()) {
+        span_tags.insert(SpanTagKey::BrowserName, browser_name.clone());
     }
 
     span_tags
 }
 
 /// Copies specific numeric values from span data to span measurements.
-pub fn extract_measurements(span: &mut Span) {
+pub fn extract_measurements(span: &mut Span, is_mobile: bool) {
     let Some(span_op) = span.op.as_str() else {
         return;
     };
@@ -639,6 +652,38 @@ pub fn extract_measurements(span: &mut Span) {
                         Measurement {
                             value: value.into(),
                             unit: MetricUnit::Information(InformationUnit::Byte).into(),
+                        }
+                        .into(),
+                    );
+                }
+            }
+        }
+    }
+
+    if is_mobile {
+        if let Some(data) = span.data.value() {
+            for (field, key, unit) in [
+                (&data.frames_frozen, "frames.frozen", MetricUnit::None),
+                (&data.frames_slow, "frames.slow", MetricUnit::None),
+                (&data.frames_total, "frames.total", MetricUnit::None),
+                (
+                    &data.frames_delay,
+                    "frames.delay",
+                    MetricUnit::Duration(DurationUnit::Second),
+                ),
+            ] {
+                if let Some(value) = match field.value() {
+                    Some(Value::F64(f)) => Some(*f),
+                    Some(Value::I64(i)) => Some(*i as f64),
+                    Some(Value::U64(u)) => Some(*u as f64),
+                    _ => None,
+                } {
+                    let measurements = span.measurements.get_or_insert_with(Default::default);
+                    measurements.insert(
+                        key.into(),
+                        Measurement {
+                            value: value.into(),
+                            unit: unit.into(),
                         }
                         .into(),
                     );
@@ -797,6 +842,7 @@ fn span_op_to_category(op: &str) -> Option<&str> {
             Some(prefix @ "ui"),
             Some(category @ ("react" | "vue" | "svelte" | "angular" | "ember")),
         )
+        | (Some(prefix @ "ai"), Some(category @ "pipeline"))
         | (
             Some(prefix @ "function"),
             Some(category @ ("nextjs" | "remix" | "gpc" | "aws" | "azure")),
@@ -804,10 +850,10 @@ fn span_op_to_category(op: &str) -> Option<&str> {
         // Main categories (only keep first part):
         (
             category @ Some(
-                "app" | "browser" | "cache" | "console" | "db" | "event" | "file" | "graphql"
-                | "grpc" | "http" | "measure" | "middleware" | "navigation" | "pageload" | "queue"
-                | "resource" | "rpc" | "serialize" | "subprocess" | "template" | "topic" | "view"
-                | "websocket",
+                "ai" | "app" | "browser" | "cache" | "console" | "db" | "event" | "file"
+                | "graphql" | "grpc" | "http" | "measure" | "middleware" | "navigation"
+                | "pageload" | "queue" | "resource" | "rpc" | "serialize" | "subprocess"
+                | "template" | "topic" | "view" | "websocket",
             ),
             _,
         ) => category,
@@ -1454,6 +1500,26 @@ LIMIT 1
                         },
                         "hash": "8e7b6caca435801d",
                         "same_process_as_parent": true
+                    },
+                    {
+                        "timestamp": 1711007391.034472,
+                        "start_timestamp": 1711007391.217212,
+                        "exclusive_time": 0.18274,
+                        "description": "GET http://data.application.co.uk/feed.json",
+                        "op": "http.client",
+                        "span_id": "37983b2fc748728f",
+                        "parent_span_id": "a1bdf3c7d2afe10e",
+                        "trace_id": "2920522dedff493ebe5d84da7be4319f",
+                        "data": {
+                            "http.request_method": "GET",
+                            "http.response.status_code": 200,
+                            "http.fragment": "",
+                            "http.query": "",
+                            "reason": "OK",
+                            "url": "http://data.application.co.uk/feed.json"
+                        },
+                        "hash": "6a4358018e7bdcac",
+                        "same_process_as_parent": true
                     }
                 ]
             }
@@ -1468,9 +1534,11 @@ LIMIT 1
 
         let span_1 = &event.spans.value().unwrap()[0];
         let span_2 = &event.spans.value().unwrap()[1];
+        let span_3 = &event.spans.value().unwrap()[2];
 
         let tags_1 = get_value!(span_1.sentry_tags).unwrap();
         let tags_2 = get_value!(span_2.sentry_tags).unwrap();
+        let tags_3 = get_value!(span_3.sentry_tags).unwrap();
 
         // Allow loopback IPs
         assert_eq!(
@@ -1488,6 +1556,16 @@ LIMIT 1
             Some("GET http://*.*.*.*")
         );
         assert_eq!(tags_2.get("domain").unwrap().as_str(), Some("*.*.*.*"));
+
+        // Parse ccTLDs
+        assert_eq!(
+            tags_3.get("description").unwrap().as_str(),
+            Some("GET http://*.application.co.uk")
+        );
+        assert_eq!(
+            tags_3.get("domain").unwrap().as_str(),
+            Some("*.application.co.uk")
+        );
     }
 
     #[test]

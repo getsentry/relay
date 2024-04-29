@@ -1043,7 +1043,27 @@ mod tests {
                 {
                     "timestamp": 1702474613.0495,
                     "start_timestamp": 1702474613.0175,
-                    "description": "Autofix Pipeline",
+                    "description": "sentry.tasks.post_process.post_process_group",
+                    "op": "queue.publish",
+                    "span_id": "9b01bd820a083e63",
+                    "parent_span_id": "a1e13f3f06239d69",
+                    "trace_id": "922dda2462ea4ac2b6a4b339bee90863",
+                    "data": {}
+                },
+                {
+                    "timestamp": 1702474613.0495,
+                    "start_timestamp": 1702474613.0175,
+                    "description": "sentry.tasks.post_process.post_process_group",
+                    "op": "queue.process",
+                    "span_id": "9b01bd820a083e63",
+                    "parent_span_id": "a1e13f3f06239d69",
+                    "trace_id": "922dda2462ea4ac2b6a4b339bee90863",
+                    "data": {}
+                },
+                {
+                    "timestamp": 1702474613.0495,
+                    "start_timestamp": 1702474613.0175,
+                    "description": "ConcurrentStream",
                     "op": "ai.run.langchain",
                     "origin": "auto.langchain",
                     "span_id": "9c01bd820a083e63",
@@ -1052,6 +1072,24 @@ mod tests {
                     "measurements": {
                         "ai_total_tokens_used": {
                             "value": 20
+                        }
+                    },
+                    "data": {
+                        "ai.pipeline.name": "Autofix Pipeline"
+                    }
+                },
+                {
+                    "timestamp": 1702474613.0495,
+                    "start_timestamp": 1702474613.0175,
+                    "description": "Autofix Pipeline",
+                    "op": "ai.pipeline.langchain",
+                    "origin": "auto.langchain",
+                    "span_id": "9c01bd820a083e63",
+                    "parent_span_id": "a1e13f3f06239d69",
+                    "trace_id": "922dda2462ea4ac2b6a4b339bee90863",
+                    "measurements": {
+                        "ai_total_tokens_used": {
+                            "value": 30
                         }
                     }
                 }
@@ -1062,6 +1100,7 @@ mod tests {
         let mut event = Annotated::from_json(json).unwrap();
         let features = FeatureSet(BTreeSet::from([
             Feature::ExtractSpansAndSpanMetricsFromEvent,
+            Feature::DoubleWriteSpanDistributionMetricsAsGauges,
         ]));
 
         // Normalize first, to make sure that all things are correct as in the real pipeline:
@@ -1132,7 +1171,13 @@ mod tests {
                     "span_id": "bd429c44b67a3eb2",
                     "start_timestamp": 1597976300.0000000,
                     "timestamp": 1597976303.0000000,
-                    "trace_id": "ff62a8b040f340bda5d830223def1d81"
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "data": {
+                        "frames.slow": 1,
+                        "frames.frozen": 2,
+                        "frames.total": 9,
+                        "frames.delay": 0.1
+                    }
                 },
                 {
                     "op": "app.start.cold",
@@ -1380,7 +1425,7 @@ mod tests {
         let metrics = extract_span_metrics_mobile("app.start.cold", 181000.0);
         assert_eq!(
             metrics.iter().map(|m| &*m.name).collect::<Vec<_>>(),
-            vec!["c:spans/usage@none", "d:spans/exclusive_time@millisecond"]
+            vec!["c:spans/usage@none", "d:spans/exclusive_time@millisecond",]
         );
     }
 
@@ -1402,7 +1447,7 @@ mod tests {
         let metrics = extract_span_metrics_mobile("app.start.warm", 181000.0);
         assert_eq!(
             metrics.iter().map(|m| &*m.name).collect::<Vec<_>>(),
-            vec!["c:spans/usage@none", "d:spans/exclusive_time@millisecond"]
+            vec!["c:spans/usage@none", "d:spans/exclusive_time@millisecond",]
         );
     }
 
@@ -1424,7 +1469,7 @@ mod tests {
         let metrics = extract_span_metrics_mobile("ui.load.initial_display", 181000.0);
         assert_eq!(
             metrics.iter().map(|m| &*m.name).collect::<Vec<_>>(),
-            vec!["c:spans/usage@none", "d:spans/exclusive_time@millisecond"]
+            vec!["c:spans/usage@none", "d:spans/exclusive_time@millisecond",]
         );
     }
 
@@ -1446,7 +1491,7 @@ mod tests {
         let metrics = extract_span_metrics_mobile("ui.load.full_display", 181000.0);
         assert_eq!(
             metrics.iter().map(|m| &*m.name).collect::<Vec<_>>(),
-            vec!["c:spans/usage@none", "d:spans/exclusive_time@millisecond"]
+            vec!["c:spans/usage@none", "d:spans/exclusive_time@millisecond",]
         );
     }
 
@@ -1550,6 +1595,7 @@ mod tests {
         let metrics = extract_metrics(event.value().unwrap(), false, &config, 200, None);
 
         assert_eq!(metrics.len(), 4);
+
         assert_eq!(&*metrics[0].name, "c:spans/usage@none");
 
         assert_eq!(&*metrics[1].name, "d:spans/exclusive_time@millisecond");
