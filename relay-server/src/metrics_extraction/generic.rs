@@ -161,7 +161,6 @@ fn read_metric_value(
 
 #[cfg(test)]
 mod tests {
-    use relay_dynamic_config::{MetricExtractionConfig, MetricExtractionTemplates};
     use relay_event_schema::protocol::Event;
     use relay_protocol::FromValue;
     use serde_json::json;

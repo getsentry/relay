@@ -245,6 +245,7 @@ impl MetricExtractionTemplates {
 
 /// Set of metrics & tags that can be enabled or disabled as a group.
 #[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct MetricExtractionTemplate {
     /// Whether the set is enabled by default.
     ///
@@ -347,6 +348,7 @@ impl MetricExtractionConfig {
 ///
 /// Project configs can enable or disable globally defined templates.
 #[derive(Clone, Default, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct MetricExtractionTemplateOverride {
     /// `true` if a template should be enabled.
     pub is_enabled: bool,
@@ -660,7 +662,7 @@ mod tests {
         serde_json::from_value::<MetricExtractionTemplates>(serde_json::json!({
             "templates": {
                 "template1": {
-                    "is_enabled": false,
+                    "isEnabled": false,
                     "metrics": [{
                         "category": "transaction",
                         "mri": "c:metric1/counter@none",
@@ -676,7 +678,7 @@ mod tests {
                     ]
                 },
                 "template2": {
-                    "is_enabled": true,
+                    "isEnabled": true,
                     "metrics": [{
                         "category": "transaction",
                         "mri": "c:metric2/counter@none",
@@ -728,8 +730,8 @@ mod tests {
         let project: MetricExtractionConfig = serde_json::from_value(serde_json::json!({
             "version": 1,
             "globalTemplates": {
-                "template1": {"is_enabled": true},
-                "template2": {"is_enabled": false}
+                "template1": {"isEnabled": true},
+                "template2": {"isEnabled": false}
             }
         }))
         .unwrap();
