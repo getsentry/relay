@@ -114,7 +114,8 @@ pub struct CustomMeasurementConfig {
 ///      - Emit a `usage` metric and use it for rate limiting.
 ///      - Delay metrics extraction for indexed transactions.
 ///  - 4: Adds support for `RuleConfigs` with string comparisons.
-const TRANSACTION_EXTRACT_VERSION: u16 = 4;
+///  - 5: No change, bumped together with [`MetricExtractionConfig::MAX_SUPPORTED_VERSION`].
+const TRANSACTION_EXTRACT_VERSION: u16 = 5;
 
 /// Deprecated. Defines whether URL transactions should be considered low cardinality.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
@@ -313,14 +314,14 @@ impl MetricExtractionConfig {
     /// The latest version for this config struct.
     ///
     /// This is the maximum version supported by this Relay instance.
-    pub const VERSION: u16 = 2;
+    pub const MAX_SUPPORTED_VERSION: u16 = 3;
 
     /// Returns an empty `MetricExtractionConfig` with the latest version.
     ///
     /// As opposed to `default()`, this will be enabled once populated with specs.
     pub fn empty() -> Self {
         Self {
-            version: Self::VERSION,
+            version: Self::MAX_SUPPORTED_VERSION,
             global_templates: BTreeMap::new(),
             metrics: Default::default(),
             tags: Default::default(),
@@ -331,7 +332,7 @@ impl MetricExtractionConfig {
 
     /// Returns `true` if the version of this metric extraction config is supported.
     pub fn is_supported(&self) -> bool {
-        self.version <= Self::VERSION
+        self.version <= Self::MAX_SUPPORTED_VERSION
     }
 
     /// Returns `true` if metric extraction is configured and compatible with this Relay.
@@ -575,7 +576,7 @@ pub fn convert_conditional_tagging(project_config: &mut ProjectConfig) {
 
     config._conditional_tags_extended = true;
     if config.version == 0 {
-        config.version = MetricExtractionConfig::VERSION;
+        config.version = MetricExtractionConfig::MAX_SUPPORTED_VERSION;
     }
 }
 
