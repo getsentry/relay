@@ -16,8 +16,7 @@ use relay_kafka::{
 };
 use relay_metrics::aggregator::{AggregatorConfig, ShiftKey};
 use relay_metrics::{
-    AggregatorServiceConfig, BucketMetadata, Condition, Field, MetricNamespace,
-    ScopedAggregatorConfig,
+    AggregatorServiceConfig, Condition, Field, MetricNamespace, ScopedAggregatorConfig,
 };
 use relay_redis::RedisConfig;
 use serde::de::{DeserializeOwned, Unexpected, Visitor};

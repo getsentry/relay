@@ -1,4 +1,3 @@
-use chrono::{DateTime, Utc};
 use relay_common::time::UnixTimestamp;
 use relay_event_schema::protocol::{
     AbnormalMechanism, SessionAttributes, SessionErrored, SessionLike, SessionStatus,
