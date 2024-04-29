@@ -2987,8 +2987,12 @@ mod tests {
         CommonTags, TransactionMeasurementTags, TransactionMetric,
     };
     use crate::metrics_extraction::IntoMetric;
-    use crate::testutils::{self, create_test_processor};
+    use crate::testutils::{
+        self, create_test_processor, create_test_processor_with_custom_service,
+    };
 
+    use crate::services::processor;
+    use relay_event_schema::protocol::Context::App;
     #[cfg(feature = "processing")]
     use {
         relay_dynamic_config::Options,
@@ -3070,7 +3074,7 @@ mod tests {
                     timestamp: UnixTimestamp::now(),
                     tags: Default::default(),
                     width: 10,
-                    metadata: BucketMetadata::new(UnixTimestamp::now()),
+                    metadata: BucketMetadata::default(),
                 }],
                 project_state,
             };
@@ -3385,5 +3389,56 @@ mod tests {
             hardcoded_value, derived_value,
             "Update `MEASUREMENT_MRI_OVERHEAD` if the naming scheme changed."
         );
+    }
+
+    #[tokio::test]
+    async fn test_process_metrics_bucket_metadata() {
+        let mut token = Cogs::noop().timed(ResourceId::Relay, AppFeature::Unattributed);
+
+        let mut item = Item::new(ItemType::Statsd);
+        item.set_payload(
+            ContentType::Text,
+            "transactions/foo:3182887624:4267882815|s",
+        );
+
+        let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
+        let start_time = Instant::now();
+        let message = ProcessMetrics {
+            items: vec![item],
+            project_key,
+            keep_metadata: true,
+            start_time,
+            sent_at: Some(Utc::now()),
+            override_received_at_metadata: true,
+        };
+
+        let config = {
+            let config_json = serde_json::json!({
+                "processing": {
+                    "enabled": true,
+                    "kafka_config": [],
+                    "redis": {
+                        "server": std::env::var("RELAY_REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379".to_owned()),
+                    }
+                },
+                "sentry_metrics": {
+                    "override_received_at_metadata": true
+                }
+            });
+            Config::from_json_value(config_json).unwrap()
+        };
+
+        let (project_cache, mut project_cache_rx) = Addr::custom();
+        let processor =
+            create_test_processor_with_custom_service(config, Some(project_cache.clone()));
+        processor.handle_process_metrics(&mut token, message);
+
+        drop(project_cache);
+        let value = project_cache_rx.recv().await.unwrap();
+        if let ProjectCache::MergeBuckets(merge_buckets) = value {
+            assert_eq!(merge_buckets.buckets(), vec![]);
+        } else {
+            panic!();
+        }
     }
 }
