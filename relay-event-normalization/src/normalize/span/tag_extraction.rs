@@ -8,7 +8,7 @@ use std::ops::ControlFlow;
 
 use once_cell::sync::Lazy;
 use regex::Regex;
-use relay_base_schema::metrics::{InformationUnit, MetricUnit};
+use relay_base_schema::metrics::{DurationUnit, InformationUnit, MetricUnit};
 use relay_event_schema::protocol::{
     AppContext, BrowserContext, Event, Measurement, OsContext, Span, Timestamp, TraceContext,
 };
@@ -662,10 +662,15 @@ pub fn extract_measurements(span: &mut Span, is_mobile: bool) {
 
     if is_mobile {
         if let Some(data) = span.data.value() {
-            for (field, key) in [
-                (&data.frames_frozen, "frames.frozen"),
-                (&data.frames_slow, "frames.slow"),
-                (&data.frames_total, "frames.total"),
+            for (field, key, unit) in [
+                (&data.frames_frozen, "frames.frozen", MetricUnit::None),
+                (&data.frames_slow, "frames.slow", MetricUnit::None),
+                (&data.frames_total, "frames.total", MetricUnit::None),
+                (
+                    &data.frames_delay,
+                    "frames.delay",
+                    MetricUnit::Duration(DurationUnit::Second),
+                ),
             ] {
                 if let Some(value) = match field.value() {
                     Some(Value::F64(f)) => Some(*f),
@@ -678,7 +683,7 @@ pub fn extract_measurements(span: &mut Span, is_mobile: bool) {
                         key.into(),
                         Measurement {
                             value: value.into(),
-                            unit: MetricUnit::None.into(),
+                            unit: unit.into(),
                         }
                         .into(),
                     );

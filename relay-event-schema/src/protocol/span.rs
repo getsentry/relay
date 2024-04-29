@@ -315,6 +315,10 @@ pub struct SpanData {
     #[metastructure(field = "sentry.frames.total", legacy_alias = "frames.total")]
     pub frames_total: Annotated<Value>,
 
+    // Frames Delay (in seconds)
+    #[metastructure(field = "frames.delay")]
+    pub frames_delay: Annotated<Value>,
+
     /// Other fields in `span.data`.
     #[metastructure(additional_properties, pii = "true", retain = "true")]
     other: Object<Value>,
@@ -512,7 +516,8 @@ mod tests {
         "code.namespace": "ns",
         "frames.slow": 1,
         "frames.frozen": 2,
-        "frames.total": 9
+        "frames.total": 9,
+        "frames.delay": 100
     }"#;
         let data = Annotated::<SpanData>::from_json(data)
             .unwrap()
@@ -570,6 +575,9 @@ mod tests {
             ),
             frames_total: I64(
                 9,
+            ),
+            frames_delay: I64(
+                100,
             ),
             other: {
                 "bar": String(

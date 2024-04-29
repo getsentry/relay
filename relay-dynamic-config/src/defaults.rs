@@ -37,7 +37,14 @@ const CACHE_SPAN_OPS: &[&str] = &[
     "cache.delete_item",
 ];
 
-const QUEUE_SPAN_OPS: &[&str] = &["queue.task.celery", "queue.submit.celery"];
+const QUEUE_SPAN_OPS: &[&str] = &[
+    "queue.task.*",
+    "queue.submit.*",
+    "queue.task",
+    "queue.submit",
+    "queue.publish",
+    "queue.process",
+];
 
 /// Adds configuration for extracting metrics from spans.
 ///
@@ -159,9 +166,12 @@ fn span_metrics(
         | is_cache.clone())
         & duration_condition.clone();
 
-    let know_modules_condition =
-        (is_db.clone() | is_resource.clone() | is_mobile.clone() | is_http.clone())
-            & duration_condition.clone();
+    let know_modules_condition = (is_db.clone()
+        | is_resource.clone()
+        | is_mobile.clone()
+        | is_http.clone()
+        | is_queue_op.clone())
+        & duration_condition.clone();
     let self_time_tags = vec![
         // All modules:
         Tag::with_key("environment")
@@ -699,6 +709,38 @@ fn span_metrics(
             category: DataCategory::Span,
             mri: "g:spans/mobile.total_frames@none".into(),
             field: Some("span.measurements.frames.total.value".into()),
+            condition: Some(is_mobile.clone() & duration_condition.clone()),
+            tags: vec![
+                Tag::with_key("transaction")
+                    .from_field("span.sentry_tags.transaction")
+                    .always(),
+                Tag::with_key("environment")
+                    .from_field("span.sentry_tags.environment")
+                    .always(),
+                Tag::with_key("release")
+                    .from_field("span.sentry_tags.release")
+                    .always(),
+                Tag::with_key("span.description")
+                    .from_field("span.sentry_tags.description")
+                    .always(),
+                Tag::with_key("span.op")
+                    .from_field("span.sentry_tags.op")
+                    .always(),
+                Tag::with_key("span.group")
+                    .from_field("span.sentry_tags.group")
+                    .always(),
+                Tag::with_key("device.class")
+                    .from_field("span.sentry_tags.device.class")
+                    .always(),
+                Tag::with_key("os.name")
+                    .from_field("span.sentry_tags.os.name")
+                    .always(),
+            ],
+        },
+        MetricSpec {
+            category: DataCategory::Span,
+            mri: "g:spans/mobile.frames_delay@second".into(),
+            field: Some("span.measurements.frames.delay.value".into()),
             condition: Some(is_mobile.clone() & duration_condition.clone()),
             tags: vec![
                 Tag::with_key("transaction")
