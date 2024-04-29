@@ -30,7 +30,7 @@ __all__ = [
     "validate_rule_condition",
     "validate_sampling_condition",
     "validate_sampling_configuration",
-    "validate_project_config",
+    "normalize_project_config",
     "normalize_global_config",
 ]
 
@@ -297,16 +297,25 @@ def validate_sampling_configuration(condition):
         raise ValueError(error)
 
 
-def validate_project_config(config, strict: bool):
-    """Validate the whole project config.
+def normalize_project_config(
+    config,
+    json_dumps: Callable[[Any], Any] = json.dumps,
+    json_loads: Callable[[str | bytes], Any] = json.loads,
+):
+    """Normalize a project config.
 
-    :param strict: Whether or not to check for unknown fields.
+    :param config: the project config to validate.
+    :param json_dumps: a function that stringifies python objects
+    :param json_loads: a function that parses and converts JSON strings
     """
-    assert isinstance(config, str)
-    raw_error = rustcall(lib.relay_validate_project_config, encode_str(config), strict)
-    error = decode_str(raw_error, free=True)
-    if error:
-        raise ValueError(error)
+    serialized = json_dumps(config)
+    normalized = rustcall(lib.normalize_project_config, encode_str(serialized))
+    rv = decode_str(normalized, free=True)
+    try:
+        return json_loads(rv)
+    except Exception:
+        # Catch all errors since json.loads implementation can change.
+        raise ValueError(rv)
 
 
 def normalize_global_config(
