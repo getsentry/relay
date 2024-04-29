@@ -33,8 +33,9 @@ pub fn http_status_code_from_span(span: &Span) -> Option<String> {
         .value()
         .and_then(|data| data.http_response_status_code.value())
         .map(|v| match v {
-            Value::String(s) => Some(s.as_str().to_string()),
+            Value::String(s) => Some(s.as_str().to_owned()),
             Value::I64(i) => Some(i.to_string()),
+            Value::U64(u) => Some(u.to_string()),
             _ => None,
         })
     {
