@@ -242,6 +242,10 @@ fn span_metrics(
         Tag::with_key("cache.hit")
             .from_field("span.sentry_tags.cache.hit")
             .when(is_cache.clone()),
+        // Queue module
+        Tag::with_key("messaging.destination.name")
+            .from_field("span.sentry_tags.messaging.destination.name")
+            .when(is_queue_op.clone()),
     ];
     let self_time_light_tags = vec![
         Tag::with_key("environment")
@@ -293,6 +297,10 @@ fn span_metrics(
         Tag::with_key("cache.hit")
             .from_field("span.sentry_tags.cache.hit")
             .when(is_cache.clone()),
+        // Queue module
+        Tag::with_key("messaging.destination.name")
+            .from_field("span.sentry_tags.messaging.destination.name")
+            .when(is_queue_op.clone()),
     ];
     let total_time_tags = vec![
         // All modules:
