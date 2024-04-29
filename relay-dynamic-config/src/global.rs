@@ -10,7 +10,7 @@ use relay_quotas::Quota;
 use serde::{de, Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::{ErrorBoundary, MetricExtractionTemplates};
+use crate::{ErrorBoundary, MetricExtractionGroups};
 
 /// A dynamic configuration for all Relays passed down from Sentry.
 ///
@@ -45,9 +45,9 @@ pub struct GlobalConfig {
     /// applying.
     #[serde(
         deserialize_with = "default_on_error",
-        skip_serializing_if = "MetricExtractionTemplates::is_empty"
+        skip_serializing_if = "MetricExtractionSets::is_empty"
     )]
-    pub metric_extraction: MetricExtractionTemplates,
+    pub metric_extraction: MetricExtractionGroups,
 }
 
 impl GlobalConfig {
@@ -356,7 +356,6 @@ where
 
 #[cfg(test)]
 mod tests {
-
     use super::*;
 
     #[test]

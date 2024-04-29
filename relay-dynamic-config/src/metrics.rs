@@ -174,13 +174,13 @@ impl TransactionMetricsConfig {
 /// Combined view of global and project-specific metrics extraction configs.
 #[derive(Debug, Clone)]
 pub struct CombinedMetricExtractionConfig<'a> {
-    global: &'a MetricExtractionTemplates,
+    global: &'a MetricExtractionGroups,
     project: &'a MetricExtractionConfig,
 }
 
 impl<'a> CombinedMetricExtractionConfig<'a> {
     /// Creates a new combined view from two references.
-    pub fn new(global: &'a MetricExtractionTemplates, project: &'a MetricExtractionConfig) -> Self {
+    pub fn new(global: &'a MetricExtractionGroups, project: &'a MetricExtractionConfig) -> Self {
         Self { global, project }
     }
 
@@ -204,10 +204,9 @@ impl<'a> CombinedMetricExtractionConfig<'a> {
         project.chain(enabled_global)
     }
 
-    fn enabled_templates(&self) -> impl Iterator<Item = &MetricExtractionTemplate> {
-        self.global.templates.iter().filter_map(|(key, template)| {
-            let is_enabled_by_override =
-                self.project.global_templates.get(key).map(|c| c.is_enabled);
+    fn enabled_templates(&self) -> impl Iterator<Item = &MetricExtractionGroup> {
+        self.global.groups.iter().filter_map(|(key, template)| {
+            let is_enabled_by_override = self.project.global_groups.get(key).map(|c| c.is_enabled);
             let is_enabled = is_enabled_by_override.unwrap_or(template.is_enabled);
 
             is_enabled.then_some(template)
@@ -215,38 +214,40 @@ impl<'a> CombinedMetricExtractionConfig<'a> {
     }
 }
 
+#[cfg(test)]
 impl<'a> From<&'a MetricExtractionConfig> for CombinedMetricExtractionConfig<'a> {
     fn from(value: &'a MetricExtractionConfig) -> Self {
-        Self::new(MetricExtractionTemplates::EMPTY, value)
+        Self::new(MetricExtractionGroups::EMPTY, value)
     }
 }
 
-/// Global templates for metric extraction.
+/// global groups for metric extraction.
 ///
 /// Templates can be enabled or disabled by project configs.
 #[derive(Clone, Default, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct MetricExtractionTemplates {
-    /// Mapping from template name to metrics specs & tags.
+pub struct MetricExtractionGroups {
+    /// Mapping from group name to metrics specs & tags.
     #[serde(skip_serializing_if = "BTreeMap::is_empty")]
-    pub templates: BTreeMap<String, MetricExtractionTemplate>,
+    pub groups: BTreeMap<String, MetricExtractionGroup>,
 }
 
-impl MetricExtractionTemplates {
+impl MetricExtractionGroups {
+    #[cfg(test)]
     const EMPTY: &'static Self = &Self {
-        templates: BTreeMap::new(),
+        groups: BTreeMap::new(),
     };
 
     /// Returns `true` if the continaed templates are empty.
     pub fn is_empty(&self) -> bool {
-        self.templates.is_empty()
+        self.groups.is_empty()
     }
 }
 
-/// Set of metrics & tags that can be enabled or disabled as a group.
+/// Group of metrics & tags that can be enabled or disabled as a group.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct MetricExtractionTemplate {
+pub struct MetricExtractionGroup {
     /// Whether the set is enabled by default.
     ///
     /// Project configs can overwrite this flag to opt-in or out of a set.
@@ -271,12 +272,12 @@ pub struct MetricExtractionConfig {
     /// Versioning of metrics extraction. Relay skips extraction if the version is not supported.
     pub version: u16,
 
-    /// Configuration of global templates.
+    /// Configuration of global metric groups.
     ///
-    /// The templates themselves are configured in [`crate::GlobalConfig`],
+    /// The groups themselves are configured in [`crate::GlobalConfig`],
     /// but can be enabled or disabled here.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
-    pub global_templates: BTreeMap<String, MetricExtractionTemplateOverride>,
+    pub global_groups: BTreeMap<String, MetricExtractionGroupOverride>,
 
     /// A list of metric specifications to extract.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -323,7 +324,7 @@ impl MetricExtractionConfig {
     pub fn empty() -> Self {
         Self {
             version: Self::MAX_SUPPORTED_VERSION,
-            global_templates: BTreeMap::new(),
+            global_groups: BTreeMap::new(),
             metrics: Default::default(),
             tags: Default::default(),
             _conditional_tags_extended: false,
@@ -344,12 +345,12 @@ impl MetricExtractionConfig {
     }
 }
 
-/// Configures metrics extraction templates.
+/// Configures global metrics extraction groups.
 ///
-/// Project configs can enable or disable globally defined templates.
+/// Project configs can enable or disable globally defined groups.
 #[derive(Clone, Default, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct MetricExtractionTemplateOverride {
+pub struct MetricExtractionGroupOverride {
     /// `true` if a template should be enabled.
     pub is_enabled: bool,
 }
@@ -658,10 +659,10 @@ mod tests {
         assert!(mapping.metrics[0].compiled().is_match("d:spans/foo"));
     }
 
-    fn templates() -> MetricExtractionTemplates {
-        serde_json::from_value::<MetricExtractionTemplates>(serde_json::json!({
-            "templates": {
-                "template1": {
+    fn templates() -> MetricExtractionGroups {
+        serde_json::from_value::<MetricExtractionGroups>(serde_json::json!({
+            "sets": {
+                "set1": {
                     "isEnabled": false,
                     "metrics": [{
                         "category": "transaction",
@@ -677,7 +678,7 @@ mod tests {
                         }
                     ]
                 },
-                "template2": {
+                "set2": {
                     "isEnabled": true,
                     "metrics": [{
                         "category": "transaction",
@@ -730,8 +731,8 @@ mod tests {
         let project: MetricExtractionConfig = serde_json::from_value(serde_json::json!({
             "version": 1,
             "globalTemplates": {
-                "template1": {"isEnabled": true},
-                "template2": {"isEnabled": false}
+                "set1": {"isEnabled": true},
+                "set2": {"isEnabled": false}
             }
         }))
         .unwrap();
