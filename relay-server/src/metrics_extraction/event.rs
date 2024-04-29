@@ -48,16 +48,16 @@ impl Extractable for Span {
 pub fn extract_metrics(
     event: &Event,
     spans_extracted: bool,
-    config: CombinedMetricExtractionConfig,
+    config: &CombinedMetricExtractionConfig,
     max_tag_value_size: usize,
     span_extraction_sample_rate: Option<f32>,
 ) -> Vec<Bucket> {
-    let mut metrics = generic::extract_metrics(event, config.clone());
+    let mut metrics = generic::extract_metrics(event, config);
 
     // If spans were already extracted for an event,
     // we rely on span processing to extract metrics.
     if !spans_extracted && sample(span_extraction_sample_rate.unwrap_or(1.0)) {
-        extract_span_metrics_for_event(event, config, max_tag_value_size, &mut metrics);
+        extract_span_metrics_for_event(event, &config, max_tag_value_size, &mut metrics);
     }
 
     metrics
@@ -65,19 +65,19 @@ pub fn extract_metrics(
 
 fn extract_span_metrics_for_event(
     event: &Event,
-    config: CombinedMetricExtractionConfig,
+    config: &CombinedMetricExtractionConfig,
     max_tag_value_size: usize,
     output: &mut Vec<Bucket>,
 ) {
     relay_statsd::metric!(timer(RelayTimers::EventProcessingSpanMetricsExtraction), {
         if let Some(transaction_span) = extract_transaction_span(event, max_tag_value_size) {
-            output.extend(generic::extract_metrics(&transaction_span, config.clone()));
+            output.extend(generic::extract_metrics(&transaction_span, config));
         }
 
         if let Some(spans) = event.spans.value() {
             for annotated_span in spans {
                 if let Some(span) = annotated_span.value() {
-                    output.extend(generic::extract_metrics(span, config.clone()));
+                    output.extend(generic::extract_metrics(span, config));
                 }
             }
         }
@@ -1376,7 +1376,7 @@ mod tests {
         let extraction_config = config.metric_extraction.ok().unwrap();
         generic::extract_metrics(
             span,
-            CombinedMetricExtractionConfig::from(&extraction_config),
+            &CombinedMetricExtractionConfig::from(&extraction_config),
         )
     }
 
