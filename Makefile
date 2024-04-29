@@ -32,7 +32,7 @@ build-linux-release: setup-git ## build linux release of the relay
 
 collect-source-bundle: setup-git ## copy the built relay binary to current folder and collects debug bundles
 	mv target/${TARGET}/release/relay ./relay-bin
-	zip relay.debug.zip target/${TARGET}/release/relay.debug
+	zip relay-debug.zip target/${TARGET}/release/relay.debug
 	sentry-cli --version
 	sentry-cli difutil bundle-sources target/${TARGET}/release/relay.debug
 	mv target/${TARGET}/release/relay.src.zip ./relay.src.zip
