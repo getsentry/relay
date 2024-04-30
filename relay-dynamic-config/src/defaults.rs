@@ -250,6 +250,10 @@ fn span_metrics(transaction_extraction_enabled: bool) -> impl IntoIterator<Item 
                 Tag::with_key("cache.hit")
                     .from_field("span.sentry_tags.cache.hit")
                     .when(is_cache.clone()),
+                // Queue module
+                Tag::with_key("messaging.destination.name")
+                    .from_field("span.sentry_tags.messaging.destination.name")
+                    .when(is_queue_op.clone()),
             ],
         },
         MetricSpec {
@@ -309,6 +313,10 @@ fn span_metrics(transaction_extraction_enabled: bool) -> impl IntoIterator<Item 
                 Tag::with_key("cache.hit")
                     .from_field("span.sentry_tags.cache.hit")
                     .when(is_cache.clone()),
+                // Queue module
+                Tag::with_key("messaging.destination.name")
+                    .from_field("span.sentry_tags.messaging.destination.name")
+                    .when(is_queue_op.clone()),
             ],
         },
         MetricSpec {

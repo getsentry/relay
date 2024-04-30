@@ -74,6 +74,7 @@ pub enum SpanTagKey {
     ReplayId,
     CacheHit,
     TraceStatus,
+    MessagingDestinationName,
 }
 
 impl SpanTagKey {
@@ -118,6 +119,7 @@ impl SpanTagKey {
             SpanTagKey::AppStartType => "app_start_type",
             SpanTagKey::ReplayId => "replay_id",
             SpanTagKey::TraceStatus => "trace.status",
+            SpanTagKey::MessagingDestinationName => "messaging.destination.name",
         }
     }
 }
@@ -437,6 +439,17 @@ pub fn extract_tags(
             {
                 let tag_value = if *cache_hit { "true" } else { "false" };
                 span_tags.insert(SpanTagKey::CacheHit, tag_value.to_owned());
+            }
+        }
+
+        if span_op.starts_with("queue.") {
+            if let Some(destination) = span
+                .data
+                .value()
+                .and_then(|data| data.messaging_destination_name.value())
+                .and_then(|value| value.as_str())
+            {
+                span_tags.insert(SpanTagKey::MessagingDestinationName, destination.into());
             }
         }
 
@@ -1755,7 +1768,7 @@ LIMIT 1
                 }
             }
         "#;
-        let span = Annotated::<Span>::from_json(json)
+        let span: Span = Annotated::<Span>::from_json(json)
             .unwrap()
             .into_value()
             .unwrap();
@@ -1807,6 +1820,33 @@ LIMIT 1
         assert_eq!(
             tags.get("trace.status"),
             Some(&Annotated::new("ok".to_string()))
+        );
+    }
+
+    #[test]
+    fn test_queue_tags() {
+        let json = r#"
+            {
+                "op": "queue.task",
+                "span_id": "bd429c44b67a3eb1",
+                "start_timestamp": 1597976300.0000000,
+                "timestamp": 1597976302.0000000,
+                "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                "data": {
+                    "messaging.destination.name": "default",
+                    "messaging.message.body.size": 100
+                }
+            }
+        "#;
+        let span: Span = Annotated::<Span>::from_json(json)
+            .unwrap()
+            .into_value()
+            .unwrap();
+        let tags = extract_tags(&span, 200, None, None, false, None);
+
+        assert_eq!(
+            tags.get(&SpanTagKey::MessagingDestinationName),
+            Some(&"default".to_string())
         );
     }
 
