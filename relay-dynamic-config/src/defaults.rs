@@ -4,7 +4,7 @@ use relay_protocol::RuleCondition;
 use serde_json::Number;
 
 use crate::metrics::MetricSpec;
-use crate::Tag;
+use crate::{Feature, MetricExtractionConfig, ProjectConfig, Tag};
 
 /// A list of `span.op` patterns that indicate databases that should be skipped.
 const DISABLED_DATABASES: &[&str] = &["*clickhouse*", "*compile*", "*mongodb*", "db.orm"];
@@ -43,6 +43,46 @@ const QUEUE_SPAN_OPS: &[&str] = &[
     "queue.publish",
     "queue.process",
 ];
+
+pub fn add_span_metrics(project_config: &mut ProjectConfig) {
+    if !project_config
+        .features
+        .has(Feature::ExtractSpansAndSpanMetricsFromEvent)
+    {
+        return;
+    }
+
+    let config = project_config
+        .metric_extraction
+        .get_or_insert_with(MetricExtractionConfig::empty);
+
+    if !config.is_supported() || config._span_metrics_extended {
+        return;
+    }
+
+    // Enable the hardcoded span metrics group:
+    config
+        .global_groups
+        .entry("spans_hardcoded".to_owned())
+        .or_default()
+        .is_enabled = true;
+
+    if project_config
+        .features
+        .has(Feature::ExtractTransactionFromSegmentSpan)
+    {
+        let spans_hardcoded_tx = config
+            .global_groups
+            .entry("spans_hardcoded_tx".to_owned())
+            .or_default();
+        spans_hardcoded_tx.is_enabled = true;
+    }
+
+    config._span_metrics_extended = true;
+    if config.version == 0 {
+        config.version = MetricExtractionConfig::MAX_SUPPORTED_VERSION;
+    }
+}
 
 /// Configuration for extracting metrics from spans.
 ///

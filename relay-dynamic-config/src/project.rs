@@ -10,6 +10,7 @@ use relay_sampling::SamplingConfig;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+use crate::defaults;
 use crate::error_boundary::ErrorBoundary;
 use crate::feature::FeatureSet;
 use crate::metrics::{
@@ -94,24 +95,10 @@ impl ProjectConfig {
 
         metrics::convert_conditional_tagging(self);
 
-        self.sanitize_metrics_extraction();
+        defaults::add_span_metrics(self);
 
         if let Some(ErrorBoundary::Ok(ref mut sampling_config)) = self.sampling {
             sampling_config.normalize();
-        }
-    }
-
-    fn sanitize_metrics_extraction(&mut self) {
-        let config = self
-            .metric_extraction
-            .get_or_insert_with(MetricExtractionConfig::empty);
-
-        // We set this flag to true to prevent downstream relays from adding duplicate config.
-        // Span metrics are now configured in global config.
-        config._span_metrics_extended = true;
-
-        if config.version == 0 {
-            config.version = MetricExtractionConfig::MAX_SUPPORTED_VERSION;
         }
     }
 }
