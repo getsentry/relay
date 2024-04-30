@@ -557,7 +557,7 @@ jobs:
     timeout-minutes: 25
     # temporary, remove once we are confident the action is working
     continue-on-error: true
-    needs: build
+    needs: build-docker
 
     # Skip redundant checks for library releases
     if: "!startsWith(github.ref, 'refs/heads/release-library/')"
