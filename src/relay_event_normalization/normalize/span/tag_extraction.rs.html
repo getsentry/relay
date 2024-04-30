@@ -1869,6 +1869,46 @@
 <a href="#1867" id="1867">1867</a>
 <a href="#1868" id="1868">1868</a>
 <a href="#1869" id="1869">1869</a>
+<a href="#1870" id="1870">1870</a>
+<a href="#1871" id="1871">1871</a>
+<a href="#1872" id="1872">1872</a>
+<a href="#1873" id="1873">1873</a>
+<a href="#1874" id="1874">1874</a>
+<a href="#1875" id="1875">1875</a>
+<a href="#1876" id="1876">1876</a>
+<a href="#1877" id="1877">1877</a>
+<a href="#1878" id="1878">1878</a>
+<a href="#1879" id="1879">1879</a>
+<a href="#1880" id="1880">1880</a>
+<a href="#1881" id="1881">1881</a>
+<a href="#1882" id="1882">1882</a>
+<a href="#1883" id="1883">1883</a>
+<a href="#1884" id="1884">1884</a>
+<a href="#1885" id="1885">1885</a>
+<a href="#1886" id="1886">1886</a>
+<a href="#1887" id="1887">1887</a>
+<a href="#1888" id="1888">1888</a>
+<a href="#1889" id="1889">1889</a>
+<a href="#1890" id="1890">1890</a>
+<a href="#1891" id="1891">1891</a>
+<a href="#1892" id="1892">1892</a>
+<a href="#1893" id="1893">1893</a>
+<a href="#1894" id="1894">1894</a>
+<a href="#1895" id="1895">1895</a>
+<a href="#1896" id="1896">1896</a>
+<a href="#1897" id="1897">1897</a>
+<a href="#1898" id="1898">1898</a>
+<a href="#1899" id="1899">1899</a>
+<a href="#1900" id="1900">1900</a>
+<a href="#1901" id="1901">1901</a>
+<a href="#1902" id="1902">1902</a>
+<a href="#1903" id="1903">1903</a>
+<a href="#1904" id="1904">1904</a>
+<a href="#1905" id="1905">1905</a>
+<a href="#1906" id="1906">1906</a>
+<a href="#1907" id="1907">1907</a>
+<a href="#1908" id="1908">1908</a>
+<a href="#1909" id="1909">1909</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Logic for persisting items into `span.sentry_tags` and `span.measurements` fields.
 //! These are then used for metrics extraction.
 </span><span class="kw">use </span>std::borrow::Cow;
@@ -1945,6 +1985,7 @@
     ReplayId,
     CacheHit,
     TraceStatus,
+    MessagingDestinationName,
 }
 
 <span class="kw">impl </span>SpanTagKey {
@@ -1989,6 +2030,7 @@
             SpanTagKey::AppStartType =&gt; <span class="string">"app_start_type"</span>,
             SpanTagKey::ReplayId =&gt; <span class="string">"replay_id"</span>,
             SpanTagKey::TraceStatus =&gt; <span class="string">"trace.status"</span>,
+            SpanTagKey::MessagingDestinationName =&gt; <span class="string">"messaging.destination.name"</span>,
         }
     }
 }
@@ -2308,6 +2350,17 @@
             {
                 <span class="kw">let </span>tag_value = <span class="kw">if </span><span class="kw-2">*</span>cache_hit { <span class="string">"true" </span>} <span class="kw">else </span>{ <span class="string">"false" </span>};
                 span_tags.insert(SpanTagKey::CacheHit, tag_value.to_owned());
+            }
+        }
+
+        <span class="kw">if </span>span_op.starts_with(<span class="string">"queue."</span>) {
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(destination) = span
+                .data
+                .value()
+                .and_then(|data| data.messaging_destination_name.value())
+                .and_then(|value| value.as_str())
+            {
+                span_tags.insert(SpanTagKey::MessagingDestinationName, destination.into());
             }
         }
 
@@ -3626,7 +3679,7 @@ LIMIT 1
                 }
             }
         "#</span>;
-        <span class="kw">let </span>span = Annotated::&lt;Span&gt;::from_json(json)
+        <span class="kw">let </span>span: Span = Annotated::&lt;Span&gt;::from_json(json)
             .unwrap()
             .into_value()
             .unwrap();
@@ -3678,6 +3731,33 @@ LIMIT 1
         <span class="macro">assert_eq!</span>(
             tags.get(<span class="string">"trace.status"</span>),
             <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>Annotated::new(<span class="string">"ok"</span>.to_string()))
+        );
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_queue_tags() {
+        <span class="kw">let </span>json = <span class="string">r#"
+            {
+                "op": "queue.task",
+                "span_id": "bd429c44b67a3eb1",
+                "start_timestamp": 1597976300.0000000,
+                "timestamp": 1597976302.0000000,
+                "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                "data": {
+                    "messaging.destination.name": "default",
+                    "messaging.message.body.size": 100
+                }
+            }
+        "#</span>;
+        <span class="kw">let </span>span: Span = Annotated::&lt;Span&gt;::from_json(json)
+            .unwrap()
+            .into_value()
+            .unwrap();
+        <span class="kw">let </span>tags = extract_tags(<span class="kw-2">&amp;</span>span, <span class="number">200</span>, <span class="prelude-val">None</span>, <span class="prelude-val">None</span>, <span class="bool-val">false</span>, <span class="prelude-val">None</span>);
+
+        <span class="macro">assert_eq!</span>(
+            tags.get(<span class="kw-2">&amp;</span>SpanTagKey::MessagingDestinationName),
+            <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="string">"default"</span>.to_string())
         );
     }
 

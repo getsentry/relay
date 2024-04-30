@@ -789,6 +789,14 @@
 <a href="#787" id="787">787</a>
 <a href="#788" id="788">788</a>
 <a href="#789" id="789">789</a>
+<a href="#790" id="790">790</a>
+<a href="#791" id="791">791</a>
+<a href="#792" id="792">792</a>
+<a href="#793" id="793">793</a>
+<a href="#794" id="794">794</a>
+<a href="#795" id="795">795</a>
+<a href="#796" id="796">796</a>
+<a href="#797" id="797">797</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_base_schema::data_category::DataCategory;
 <span class="kw">use </span>relay_event_normalization::utils::MAX_DURATION_MOBILE_MS;
 <span class="kw">use </span>relay_protocol::RuleCondition;
@@ -1041,6 +1049,10 @@
                 </span>Tag::with_key(<span class="string">"cache.hit"</span>)
                     .from_field(<span class="string">"span.sentry_tags.cache.hit"</span>)
                     .when(is_cache.clone()),
+                <span class="comment">// Queue module
+                </span>Tag::with_key(<span class="string">"messaging.destination.name"</span>)
+                    .from_field(<span class="string">"span.sentry_tags.messaging.destination.name"</span>)
+                    .when(is_queue_op.clone()),
             ],
         },
         MetricSpec {
@@ -1100,6 +1112,10 @@
                 </span>Tag::with_key(<span class="string">"cache.hit"</span>)
                     .from_field(<span class="string">"span.sentry_tags.cache.hit"</span>)
                     .when(is_cache.clone()),
+                <span class="comment">// Queue module
+                </span>Tag::with_key(<span class="string">"messaging.destination.name"</span>)
+                    .from_field(<span class="string">"span.sentry_tags.messaging.destination.name"</span>)
+                    .when(is_queue_op.clone()),
             ],
         },
         MetricSpec {

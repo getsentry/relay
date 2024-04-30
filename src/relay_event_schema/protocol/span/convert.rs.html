@@ -366,6 +366,7 @@
 <a href="#364" id="364">364</a>
 <a href="#365" id="365">365</a>
 <a href="#366" id="366">366</a>
+<a href="#367" id="367">367</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module defines bidirectional field mappings between spans and transactions.
 </span><span class="kw">use </span><span class="kw">crate</span>::protocol::{BrowserContext, Contexts, Event, ProfileContext, Span, TraceContext};
 
@@ -660,6 +661,7 @@
                 frames_frozen: ~,
                 frames_total: ~,
                 frames_delay: ~,
+                messaging_destination_name: ~,
                 messaging_message_retry_count: ~,
                 messaging_message_receive_latency: ~,
                 messaging_message_body_size: ~,
