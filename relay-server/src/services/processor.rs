@@ -2947,7 +2947,7 @@ struct CombinedQuotas<'a> {
 
 #[cfg(feature = "processing")]
 impl<'a> CombinedQuotas<'a> {
-    /// Returns a new [`DynamicQuotas`]
+    /// Returns a new [`CombinedQuotas`].
     pub fn new(global_config: &'a GlobalConfig, project_quotas: &'a [Quota]) -> Self {
         Self {
             global_quotas: &global_config.quotas,

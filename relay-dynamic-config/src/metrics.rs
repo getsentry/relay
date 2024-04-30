@@ -181,6 +181,14 @@ pub struct CombinedMetricExtractionConfig<'a> {
 impl<'a> CombinedMetricExtractionConfig<'a> {
     /// Creates a new combined view from two references.
     pub fn new(global: &'a MetricExtractionGroups, project: &'a MetricExtractionConfig) -> Self {
+        for key in project.global_groups.keys() {
+            if !global.groups.contains_key(key) {
+                relay_log::error!(
+                    "Metrics group configured for project missing in global config: {key}"
+                )
+            }
+        }
+
         Self { global, project }
     }
 
