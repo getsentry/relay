@@ -657,10 +657,8 @@ impl Project {
         aggregator: Addr<Aggregator>,
         #[allow(unused_variables)] envelope_processor: Addr<EnvelopeProcessor>,
         outcome_aggregator: Addr<TrackOutcome>,
-        metric_stats: MetricStats,
-        mode: ExtractionMode,
-        project_state: Arc<ProjectState>,
-        mut buckets: Vec<Bucket>,
+        project_state: &ProjectState,
+        buckets: Vec<Bucket>,
     ) {
         let Some(scoping) = self.scoping() else {
             relay_log::error!(
@@ -676,22 +674,8 @@ impl Project {
             return;
         }
 
-        // Re-run feature flag checks since the project might not have been loaded when the buckets
-        // were initially ingested, or feature flags have changed in the meanwhile.
-        buckets = self.filter_buckets(
-            outcome_aggregator.clone(),
-            metric_stats,
-            mode,
-            &project_state,
-            buckets,
-        );
-        if buckets.is_empty() {
-            return;
-        }
-
-        // Check rate limits if necessary:
+        // Check rate limits if necessary.
         let quotas = project_state.config.quotas.clone();
-
         let extraction_mode = project_state.get_extraction_mode();
         let buckets = match MetricsLimiter::create(buckets, quotas, scoping, extraction_mode) {
             Ok(mut bucket_limiter) => {
@@ -712,7 +696,6 @@ impl Project {
             }
             Err(buckets) => buckets,
         };
-
         if buckets.is_empty() {
             return;
         };
@@ -764,9 +747,7 @@ impl Project {
                         aggregator,
                         envelope_processor,
                         outcome_aggregator,
-                        metric_stats,
-                        mode,
-                        state,
+                        &state,
                         buckets,
                     );
                 }
@@ -996,13 +977,23 @@ impl Project {
         if let Some(buckets) = buckets {
             if project_enabled && !buckets.is_empty() {
                 relay_log::debug!("sending metrics from metricsbuffer to aggregator");
+
+                let buckets = self.filter_buckets(
+                    outcome_aggregator.clone(),
+                    metric_stats,
+                    state.get_extraction_mode(),
+                    &state,
+                    buckets,
+                );
+                if buckets.is_empty() {
+                    return;
+                }
+
                 self.rate_limit_and_merge_buckets(
                     aggregator,
                     envelope_processor,
                     outcome_aggregator,
-                    metric_stats,
-                    state.get_extraction_mode(),
-                    state,
+                    &state,
                     buckets,
                 );
             }
