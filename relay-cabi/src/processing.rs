@@ -488,9 +488,7 @@ pub unsafe extern "C" fn relay_validate_project_config(
     }
 }
 
-/// Validate cardinality limit config.
-///
-/// If `strict` is true, checks for unknown fields in the input.
+/// Normalize a cardinality limit config.
 #[no_mangle]
 #[relay_ffi::catch_unwind]
 pub unsafe extern "C" fn normalize_cardinality_limit_config(value: *const RelayStr) -> RelayStr {
