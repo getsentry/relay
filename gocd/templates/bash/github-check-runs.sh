@@ -5,5 +5,5 @@
     "${GO_REVISION_RELAY_REPO}" \
     "Integration Tests" \
     "Test All Features (ubuntu-latest)" \
-    "Push GCR Docker Image (relay)" \
-    "Push GCR Docker Image (relay-pop)"
+    "Publish Relay to GCR (relay)" \
+    "Publish Relay to GCR (relay-pop)"

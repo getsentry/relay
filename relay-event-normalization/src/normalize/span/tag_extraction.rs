@@ -74,6 +74,7 @@ pub enum SpanTagKey {
     ReplayId,
     CacheHit,
     TraceStatus,
+    MessagingDestinationName,
 }
 
 impl SpanTagKey {
@@ -118,6 +119,7 @@ impl SpanTagKey {
             SpanTagKey::AppStartType => "app_start_type",
             SpanTagKey::ReplayId => "replay_id",
             SpanTagKey::TraceStatus => "trace.status",
+            SpanTagKey::MessagingDestinationName => "messaging.destination.name",
         }
     }
 }
@@ -440,6 +442,17 @@ pub fn extract_tags(
             }
         }
 
+        if span_op.starts_with("queue.") {
+            if let Some(destination) = span
+                .data
+                .value()
+                .and_then(|data| data.messaging_destination_name.value())
+                .and_then(|value| value.as_str())
+            {
+                span_tags.insert(SpanTagKey::MessagingDestinationName, destination.into());
+            }
+        }
+
         if let Some(scrubbed_desc) = scrubbed_description {
             // Truncating the span description's tag value is, for now,
             // a temporary solution to not get large descriptions dropped. The
@@ -652,6 +665,42 @@ pub fn extract_measurements(span: &mut Span, is_mobile: bool) {
                         Measurement {
                             value: value.into(),
                             unit: MetricUnit::Information(InformationUnit::Byte).into(),
+                        }
+                        .into(),
+                    );
+                }
+            }
+        }
+    }
+
+    if span_op.starts_with("queue.") {
+        if let Some(data) = span.data.value() {
+            for (field, key) in [
+                (
+                    &data.messaging_message_retry_count,
+                    "messaging.message.retry.count",
+                ),
+                (
+                    &data.messaging_message_receive_latency,
+                    "messaging.message.receive.latency",
+                ),
+                (
+                    &data.messaging_message_body_size,
+                    "messaging.message.body.size",
+                ),
+            ] {
+                if let Some(value) = match field.value() {
+                    Some(Value::F64(f)) => Some(*f),
+                    Some(Value::I64(i)) => Some(*i as f64),
+                    Some(Value::U64(u)) => Some(*u as f64),
+                    _ => None,
+                } {
+                    let measurements = span.measurements.get_or_insert_with(Default::default);
+                    measurements.insert(
+                        key.into(),
+                        Measurement {
+                            value: value.into(),
+                            unit: MetricUnit::None.into(),
                         }
                         .into(),
                     );
@@ -1719,7 +1768,7 @@ LIMIT 1
                 }
             }
         "#;
-        let span = Annotated::<Span>::from_json(json)
+        let span: Span = Annotated::<Span>::from_json(json)
             .unwrap()
             .into_value()
             .unwrap();
@@ -1771,6 +1820,33 @@ LIMIT 1
         assert_eq!(
             tags.get("trace.status"),
             Some(&Annotated::new("ok".to_string()))
+        );
+    }
+
+    #[test]
+    fn test_queue_tags() {
+        let json = r#"
+            {
+                "op": "queue.task",
+                "span_id": "bd429c44b67a3eb1",
+                "start_timestamp": 1597976300.0000000,
+                "timestamp": 1597976302.0000000,
+                "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                "data": {
+                    "messaging.destination.name": "default",
+                    "messaging.message.body.size": 100
+                }
+            }
+        "#;
+        let span: Span = Annotated::<Span>::from_json(json)
+            .unwrap()
+            .into_value()
+            .unwrap();
+        let tags = extract_tags(&span, 200, None, None, false, None);
+
+        assert_eq!(
+            tags.get(&SpanTagKey::MessagingDestinationName),
+            Some(&"default".to_string())
         );
     }
 
