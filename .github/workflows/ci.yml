@@ -237,12 +237,12 @@ jobs:
           llvm-objcopy --add-gnu-debuglink "${RELAY_BIN}"{.debug,}
 
           cross-util run --target "${{ matrix.target }}" -- "sentry-cli difutil bundle-sources ${RELAY_BIN}.debug"
-          zip "${RELAY_BIN}.debug.zip" "${RELAY_BIN}.debug"
+          zip "${RELAY_BIN}-debug.zip" "${RELAY_BIN}.debug"
 
       - name: Prepare Artifacts
         run: |
           mkdir -p "artifacts/${DOCKER_PLATFORM}"
-          cp "${RELAY_BIN}"{,.debug.zip,.src.zip} "artifacts/${DOCKER_PLATFORM}"
+          cp "${RELAY_BIN}"{,-debug.zip,.src.zip} "artifacts/${DOCKER_PLATFORM}"
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
@@ -430,7 +430,7 @@ jobs:
           VERSION="$(docker run --rm "${GHCR_DOCKER_IMAGE}:${REVISION}" --version | cut -d" " -f2)"
           echo "${{ matrix.image_name }}@${VERSION}+${REVISION}" > release-name
 
-          docker run --rm --entrypoint cat "${GHCR_DOCKER_IMAGE}:${REVISION}" /opt/relay.debug.zip > relay.debug.zip
+          docker run --rm --entrypoint cat "${GHCR_DOCKER_IMAGE}:${REVISION}" /opt/relay-debug.zip > relay-debug.zip
           docker run --rm --entrypoint cat "${GHCR_DOCKER_IMAGE}:${REVISION}" /opt/relay.src.zip > relay.src.zip
           docker run --rm --entrypoint tar "${GHCR_DOCKER_IMAGE}:${REVISION}" -cf - /lib/x86_64-linux-gnu > libs.tar
 
