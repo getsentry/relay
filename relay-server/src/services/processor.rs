@@ -20,9 +20,7 @@ use relay_base_schema::project::{ProjectId, ProjectKey};
 use relay_cogs::{AppFeature, Cogs, FeatureWeights, ResourceId, Token};
 use relay_common::time::UnixTimestamp;
 use relay_config::{Config, HttpEncoding, NormalizationLevel, RelayMode};
-use relay_dynamic_config::{
-    CombinedMetricExtractionConfig, ErrorBoundary, Feature, MetricExtractionGroups,
-};
+use relay_dynamic_config::{CombinedMetricExtractionConfig, ErrorBoundary, Feature};
 use relay_event_normalization::{
     normalize_event, validate_event_timestamps, validate_transaction, ClockDriftProcessor,
     CombinedMeasurementsConfig, EventValidationConfig, GeoIpLookup, MeasurementsConfig,
@@ -57,7 +55,7 @@ use {
     relay_cardinality::{
         CardinalityLimit, CardinalityLimiter, RedisSetLimiter, RedisSetLimiterOptions,
     },
-    relay_dynamic_config::{CardinalityLimiterMode, GlobalConfig},
+    relay_dynamic_config::{CardinalityLimiterMode, GlobalConfig, MetricExtractionGroups},
     relay_metrics::{Aggregator, RedisMetricMetaStore},
     relay_quotas::{Quota, RateLimitingError, RedisRateLimiter},
     relay_redis::RedisPool,
@@ -1179,6 +1177,7 @@ impl EnvelopeProcessorService {
         let global = self.inner.global_config.current();
         let global_config = match &global.metric_extraction {
             ErrorBoundary::Ok(global_config) => global_config,
+            #[allow(unused_variables)]
             ErrorBoundary::Err(e) => {
                 if_processing!(self.inner.config, {
                     // Config is invalid, but we will try to extract what we can with just the
