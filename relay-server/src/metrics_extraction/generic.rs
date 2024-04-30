@@ -23,6 +23,9 @@ pub trait Extractable: Getter {
 /// The instance must have a valid timestamp; if the timestamp is missing or invalid, no metrics are
 /// extracted. Timestamp and clock drift correction should occur before metrics extraction to ensure
 /// valid timestamps.
+///
+/// Any MRI can be defined multiple times in the config (this will create multiple buckets), but
+/// for every tag in a bucket, there can be only one value. The first encountered tag value wins.
 pub fn extract_metrics<T>(instance: &T, config: &CombinedMetricExtractionConfig<'_>) -> Vec<Bucket>
 where
     T: Extractable,

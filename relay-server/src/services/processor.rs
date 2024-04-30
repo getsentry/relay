@@ -20,7 +20,9 @@ use relay_base_schema::project::{ProjectId, ProjectKey};
 use relay_cogs::{AppFeature, Cogs, FeatureWeights, ResourceId, Token};
 use relay_common::time::UnixTimestamp;
 use relay_config::{Config, HttpEncoding, NormalizationLevel, RelayMode};
-use relay_dynamic_config::{CombinedMetricExtractionConfig, ErrorBoundary, Feature};
+use relay_dynamic_config::{
+    CombinedMetricExtractionConfig, ErrorBoundary, Feature, MetricExtractionGroups,
+};
 use relay_event_normalization::{
     normalize_event, validate_event_timestamps, validate_transaction, ClockDriftProcessor,
     CombinedMeasurementsConfig, EventValidationConfig, GeoIpLookup, MeasurementsConfig,
@@ -110,6 +112,16 @@ macro_rules! if_processing {
     ($config:expr, $if_true:block) => {
         #[cfg(feature = "processing")] {
             if $config.processing_enabled() $if_true
+        }
+    };
+    ($config:expr, $if_true:block else $if_false:block) => {
+        {
+            #[cfg(feature = "processing")] {
+                if $config.processing_enabled() $if_true else $if_false
+            }
+            #[cfg(not(feature = "processing"))] {
+                $if_false
+            }
         }
     };
 }
@@ -1165,10 +1177,20 @@ impl EnvelopeProcessorService {
             _ => None,
         };
         let global = self.inner.global_config.current();
-        let ErrorBoundary::Ok(global_config) = &global.metric_extraction else {
-            // If there's an error with global metrics extraction, it is safe to assume that this
-            // Relay instance is not up-to-date, and we should skip extraction.
-            return Ok(());
+        let global_config = match &global.metric_extraction {
+            ErrorBoundary::Ok(global_config) => global_config,
+            ErrorBoundary::Err(e) => {
+                if_processing!(self.inner.config, {
+                    // Config is invalid, but we will try to extract what we can with just the
+                    // project config.
+                    relay_log::error!("Failed to parse global extraction config {e}");
+                    MetricExtractionGroups::EMPTY
+                } else {
+                    // If there's an error with global metrics extraction, it is safe to assume that this
+                    // Relay instance is not up-to-date, and we should skip extraction.
+                    return Ok(());
+                })
+            }
         };
 
         if let Some(event) = state.event.value() {

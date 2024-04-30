@@ -233,12 +233,12 @@ pub struct MetricExtractionGroups {
 }
 
 impl MetricExtractionGroups {
-    /// Empty config, used in tests.
-    const EMPTY: &'static Self = &Self {
+    /// Empty config, used in tests and as a fallback.
+    pub const EMPTY: &'static Self = &Self {
         groups: BTreeMap::new(),
     };
 
-    /// Returns `true` if the continaed templates are empty.
+    /// Returns `true` if the contained groups are empty.
     pub fn is_empty(&self) -> bool {
         self.groups.is_empty()
     }
