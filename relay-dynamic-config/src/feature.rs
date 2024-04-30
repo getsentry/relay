@@ -90,14 +90,6 @@ pub enum Feature {
     #[serde(rename = "projects:extract-transaction-from-segment-span")]
     ExtractTransactionFromSegmentSpan,
 
-    /// Double write span distribution metrics as gauges.
-    ///
-    /// This is to transition to a cheaper way to store span metrics where we only use averages.
-    ///
-    /// Serialized as `projects:span-metrics-double-write-distributions-as-gauges`.
-    #[serde(rename = "projects:span-metrics-double-write-distributions-as-gauges")]
-    DoubleWriteSpanDistributionMetricsAsGauges,
-
     /// Deprecated, still forwarded for older downstream Relays.
     #[doc(hidden)]
     #[serde(rename = "organizations:transaction-name-mark-scrubbed-as-sanitized")]
