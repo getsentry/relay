@@ -451,6 +451,13 @@
 <a href="#449" id="449">449</a>
 <a href="#450" id="450">450</a>
 <a href="#451" id="451">451</a>
+<a href="#452" id="452">452</a>
+<a href="#453" id="453">453</a>
+<a href="#454" id="454">454</a>
+<a href="#455" id="455">455</a>
+<a href="#456" id="456">456</a>
+<a href="#457" id="457">457</a>
+<a href="#458" id="458">458</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Contains the sessions related processor code.
 
 </span><span class="kw">use </span>std::error::Error;
@@ -674,6 +681,13 @@
 
     <span class="comment">// Drop the session if metrics have been extracted in this or a prior Relay
     </span><span class="kw">if </span>item.metrics_extracted() {
+        <span class="kw">return </span><span class="bool-val">false</span>;
+    } <span class="kw">else if </span>config.processing_enabled() {
+        <span class="macro">relay_log::error!</span>(
+            <span class="string">"Session metrics extraction disabled on a processing Relay, \
+            make sure you're running an up to date Relay matching the Sentry \
+            version."
+        </span>);
         <span class="kw">return </span><span class="bool-val">false</span>;
     }
 
