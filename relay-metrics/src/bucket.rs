@@ -760,7 +760,7 @@ pub struct BucketMetadata {
 impl BucketMetadata {
     /// Creates a fresh metadata instance.
     ///
-    /// The new metadata is initialized with `1` merge and a given [`received_at`] timestamp.
+    /// The new metadata is initialized with `1` merge and a given `received_at` timestamp.
     pub fn new(received_at: UnixTimestamp) -> Self {
         Self {
             merges: NonZeroU32::MIN,
@@ -930,9 +930,7 @@ mod tests {
             tags: {},
             metadata: BucketMetadata {
                 merges: 1,
-                received_at: Some(
-                    UnixTimestamp(4711),
-                ),
+                received_at: None,
             },
         }
         "###);
@@ -966,9 +964,7 @@ mod tests {
             tags: {},
             metadata: BucketMetadata {
                 merges: 1,
-                received_at: Some(
-                    UnixTimestamp(4711),
-                ),
+                received_at: None,
             },
         }
         "###);
@@ -1020,9 +1016,7 @@ mod tests {
             tags: {},
             metadata: BucketMetadata {
                 merges: 1,
-                received_at: Some(
-                    UnixTimestamp(4711),
-                ),
+                received_at: None,
             },
         }
         "###);
@@ -1082,9 +1076,7 @@ mod tests {
             tags: {},
             metadata: BucketMetadata {
                 merges: 1,
-                received_at: Some(
-                    UnixTimestamp(4711),
-                ),
+                received_at: None,
             },
         }
         "###);
@@ -1114,9 +1106,7 @@ mod tests {
             tags: {},
             metadata: BucketMetadata {
                 merges: 1,
-                received_at: Some(
-                    UnixTimestamp(4711),
-                ),
+                received_at: None,
             },
         }
         "###);
@@ -1140,9 +1130,7 @@ mod tests {
             tags: {},
             metadata: BucketMetadata {
                 merges: 1,
-                received_at: Some(
-                    UnixTimestamp(4711),
-                ),
+                received_at: None,
             },
         }
         "###);
@@ -1283,10 +1271,7 @@ mod tests {
             .collect::<Result<Vec<_>, _>>()
             .unwrap();
 
-        let mut json_metrics: Vec<Bucket> = serde_json::from_str(json).unwrap();
-        for json_metric in &mut json_metrics {
-            json_metric.metadata.received_at = Some(timestamp);
-        }
+        let json_metrics: Vec<Bucket> = serde_json::from_str(json).unwrap();
 
         assert_eq!(statsd_metrics, json_metrics);
     }
@@ -1298,8 +1283,7 @@ mod tests {
 
         let timestamp = UnixTimestamp::from_secs(1615889449);
         let statsd_metric = Bucket::parse(text.as_bytes(), timestamp).unwrap();
-        let mut json_metric: Bucket = serde_json::from_str(json).unwrap();
-        json_metric.metadata.received_at = Some(timestamp);
+        let json_metric: Bucket = serde_json::from_str(json).unwrap();
 
         assert_eq!(statsd_metric, json_metric);
     }

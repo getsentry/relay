@@ -732,7 +732,7 @@ pub struct ProcessMetrics {
     /// The value of the Envelope's [`sent_at`](Envelope::sent_at) header for clock drift
     /// correction.
     pub sent_at: Option<DateTime<Utc>>,
-    /// Whether to override the [`received_at`] field in the [`BucketMetadata`] with the current
+    /// Whether to override the `received_at` field in the `BucketMetadata` with the current
     /// receive time of the instance.
     pub override_received_at_metadata: bool,
 }
@@ -747,7 +747,7 @@ pub struct ProcessBatchedMetrics {
     pub start_time: Instant,
     /// The instant at which the request was received.
     pub sent_at: Option<DateTime<Utc>>,
-    /// Whether to override the [`received_at`] field in the [`BucketMetadata`] with the current
+    /// Whether to override the `received_at` field in the `BucketMetadata` with the current
     /// receive time of the instance.
     pub override_received_at_metadata: bool,
 }

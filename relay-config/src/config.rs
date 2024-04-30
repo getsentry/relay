@@ -524,7 +524,7 @@ struct SentryMetrics {
     ///
     /// Defaults to 5.
     pub meta_locations_max: usize,
-    /// Whether to override the [`received_at`] field in the [`BucketMetadata`] with the current
+    /// Whether to override the `received_at` field in the `BucketMetadata` with the current
     /// receive time of the instance.
     pub override_received_at_metadata: bool,
 }
@@ -1951,7 +1951,7 @@ impl Config {
         Duration::from_secs(self.values.sentry_metrics.meta_locations_expiry)
     }
 
-    /// Returns whether we want to override the [`received_at`] field of [`BucketMetadata`].
+    /// Returns whether we want to override the `received_at` field of `BucketMetadata`.
     pub fn metrics_override_received_at_metadata(&self) -> bool {
         self.values.sentry_metrics.override_received_at_metadata
     }
