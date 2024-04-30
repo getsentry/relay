@@ -554,6 +554,18 @@
 <a href="#552" id="552">552</a>
 <a href="#553" id="553">553</a>
 <a href="#554" id="554">554</a>
+<a href="#555" id="555">555</a>
+<a href="#556" id="556">556</a>
+<a href="#557" id="557">557</a>
+<a href="#558" id="558">558</a>
+<a href="#559" id="559">559</a>
+<a href="#560" id="560">560</a>
+<a href="#561" id="561">561</a>
+<a href="#562" id="562">562</a>
+<a href="#563" id="563">563</a>
+<a href="#564" id="564">564</a>
+<a href="#565" id="565">565</a>
+<a href="#566" id="566">566</a>
 </pre></div><pre class="rust"><code><span class="comment">// TODO: Fix casts between RelayGeoIpLookup and GeoIpLookup
 </span><span class="attr">#![allow(clippy::cast_ptr_alignment)]
 #![deny(unused_must_use)]
@@ -566,6 +578,7 @@
 <span class="kw">use </span>std::sync::OnceLock;
 
 <span class="kw">use </span>chrono::{DateTime, Utc};
+<span class="kw">use </span>relay_cardinality::CardinalityLimit;
 <span class="kw">use </span>relay_common::glob::{glob_match_bytes, GlobOptions};
 <span class="kw">use </span>relay_dynamic_config::{normalize_json, validate_json, GlobalConfig, ProjectConfig};
 <span class="kw">use </span>relay_event_normalization::{
@@ -1039,6 +1052,17 @@
     <span class="kw">let </span>value = (<span class="kw-2">*</span>value).as_str();
     <span class="kw">match </span>validate_json::&lt;ProjectConfig&gt;(value, strict) {
         <span class="prelude-val">Ok</span>(()) =&gt; RelayStr::default(),
+        <span class="prelude-val">Err</span>(e) =&gt; RelayStr::from_string(e.to_string()),
+    }
+}
+
+<span class="doccomment">/// Normalize a cardinality limit config.
+</span><span class="attr">#[no_mangle]
+#[relay_ffi::catch_unwind]
+</span><span class="kw">pub unsafe extern </span><span class="string">"C" </span><span class="kw">fn </span>normalize_cardinality_limit_config(value: <span class="kw-2">*const </span>RelayStr) -&gt; RelayStr {
+    <span class="kw">let </span>value = (<span class="kw-2">*</span>value).as_str();
+    <span class="kw">match </span>normalize_json::&lt;CardinalityLimit&gt;(value) {
+        <span class="prelude-val">Ok</span>(normalized) =&gt; RelayStr::from_string(normalized),
         <span class="prelude-val">Err</span>(e) =&gt; RelayStr::from_string(e.to_string()),
     }
 }
