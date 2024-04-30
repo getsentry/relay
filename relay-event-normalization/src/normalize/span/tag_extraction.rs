@@ -660,6 +660,42 @@ pub fn extract_measurements(span: &mut Span, is_mobile: bool) {
         }
     }
 
+    if span_op.starts_with("queue.") {
+        if let Some(data) = span.data.value() {
+            for (field, key) in [
+                (
+                    &data.messaging_message_retry_count,
+                    "messaging.message.retry.count",
+                ),
+                (
+                    &data.messaging_message_receive_latency,
+                    "messaging.message.receive.latency",
+                ),
+                (
+                    &data.messaging_message_body_size,
+                    "messaging.message.body.size",
+                ),
+            ] {
+                if let Some(value) = match field.value() {
+                    Some(Value::F64(f)) => Some(*f),
+                    Some(Value::I64(i)) => Some(*i as f64),
+                    Some(Value::U64(u)) => Some(*u as f64),
+                    _ => None,
+                } {
+                    let measurements = span.measurements.get_or_insert_with(Default::default);
+                    measurements.insert(
+                        key.into(),
+                        Measurement {
+                            value: value.into(),
+                            unit: MetricUnit::None.into(),
+                        }
+                        .into(),
+                    );
+                }
+            }
+        }
+    }
+
     if is_mobile {
         if let Some(data) = span.data.value() {
             for (field, key, unit) in [

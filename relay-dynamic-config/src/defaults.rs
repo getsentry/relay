@@ -766,6 +766,23 @@ fn span_metrics(transaction_extraction_enabled: bool) -> impl IntoIterator<Item 
                     .always(),
             ],
         },
+        MetricSpec {
+            category: DataCategory::Span,
+            mri: "g:spans/messaging.message.receive.latency@millisecond".into(),
+            field: Some("span.measurements.messaging.message.receive.latency.value".into()),
+            condition: Some(is_queue_op.clone()),
+            tags: vec![
+                Tag::with_key("environment")
+                    .from_field("span.sentry_tags.environment")
+                    .always(),
+                Tag::with_key("span.op")
+                    .from_field("span.sentry_tags.op")
+                    .always(),
+                Tag::with_key("transaction")
+                    .from_field("span.sentry_tags.transaction")
+                    .always(),
+            ],
+        },
     ];
 
     metrics

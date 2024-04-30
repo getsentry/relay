@@ -119,6 +119,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 frames_delay: F64(
                     0.1,
                 ),
+                messaging_message_retry_count: ~,
+                messaging_message_receive_latency: ~,
+                messaging_message_body_size: ~,
                 other: {},
             },
             sentry_tags: {
@@ -417,6 +420,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 frames_frozen: ~,
                 frames_total: ~,
                 frames_delay: ~,
+                messaging_message_retry_count: ~,
+                messaging_message_receive_latency: ~,
+                messaging_message_body_size: ~,
                 other: {},
             },
             sentry_tags: {
@@ -505,6 +511,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 frames_frozen: ~,
                 frames_total: ~,
                 frames_delay: ~,
+                messaging_message_retry_count: ~,
+                messaging_message_receive_latency: ~,
+                messaging_message_body_size: ~,
                 other: {},
             },
             sentry_tags: {
@@ -640,6 +649,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 frames_frozen: ~,
                 frames_total: ~,
                 frames_delay: ~,
+                messaging_message_retry_count: ~,
+                messaging_message_receive_latency: ~,
+                messaging_message_body_size: ~,
                 other: {},
             },
             sentry_tags: {
@@ -728,6 +740,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 frames_frozen: ~,
                 frames_total: ~,
                 frames_delay: ~,
+                messaging_message_retry_count: ~,
+                messaging_message_receive_latency: ~,
+                messaging_message_body_size: ~,
                 other: {},
             },
             sentry_tags: {

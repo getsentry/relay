@@ -319,6 +319,18 @@ pub struct SpanData {
     #[metastructure(field = "frames.delay")]
     pub frames_delay: Annotated<Value>,
 
+    /// Message Retry Count
+    #[metastructure(field = "messaging.message.retry.count")]
+    pub messaging_message_retry_count: Annotated<Value>,
+
+    /// Message Receive Latency
+    #[metastructure(field = "messaging.message.receive.latency")]
+    pub messaging_message_receive_latency: Annotated<Value>,
+
+    /// Message Body Size
+    #[metastructure(field = "messaging.message.body.size")]
+    pub messaging_message_body_size: Annotated<Value>,
+
     /// Other fields in `span.data`.
     #[metastructure(additional_properties, pii = "true", retain = "true")]
     other: Object<Value>,
@@ -517,7 +529,10 @@ mod tests {
         "frames.slow": 1,
         "frames.frozen": 2,
         "frames.total": 9,
-        "frames.delay": 100
+        "frames.delay": 100,
+        "messaging.message.retry.count": 3,
+        "messaging.message.receive.latency": 40,
+        "messaging.message.body.size": 100
     }"#;
         let data = Annotated::<SpanData>::from_json(data)
             .unwrap()
@@ -577,6 +592,15 @@ mod tests {
                 9,
             ),
             frames_delay: I64(
+                100,
+            ),
+            messaging_message_retry_count: I64(
+                3,
+            ),
+            messaging_message_receive_latency: I64(
+                40,
+            ),
+            messaging_message_body_size: I64(
                 100,
             ),
             other: {
