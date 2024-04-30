@@ -563,17 +563,6 @@ jobs:
     if: "!startsWith(github.ref, 'refs/heads/release-library/')"
 
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v3
-
-      - name: Download Docker Image
-        uses: actions/download-artifact@v3
-        with:
-          name: relay-docker-image
-
-      - name: Import Docker Image
-        run: docker load -i relay-docker-image.tgz
-
       - name: Run Sentry self-hosted e2e CI
         # Skip for dependabot or if it's a fork as the image cannot be uploaded to ghcr since this test attempts to pull
         # the image from ghcr
