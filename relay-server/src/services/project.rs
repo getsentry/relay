@@ -1,5 +1,4 @@
 use std::collections::BTreeSet;
-use std::mem;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -1023,6 +1022,7 @@ impl Project {
     /// take precedence.
     ///
     /// [`ValidateEnvelope`]: crate::services::project_cache::ValidateEnvelope
+    #[allow(clippy::too_many_arguments)]
     pub fn update_state(
         &mut self,
         project_cache: Addr<ProjectCache>,
