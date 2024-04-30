@@ -563,6 +563,9 @@ jobs:
     if: "!startsWith(github.ref, 'refs/heads/release-library/')"
 
     steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
       - name: Run Sentry self-hosted e2e CI
         # Skip for dependabot or if it's a fork as the image cannot be uploaded to ghcr since this test attempts to pull
         # the image from ghcr
