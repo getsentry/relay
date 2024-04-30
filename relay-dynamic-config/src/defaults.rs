@@ -254,6 +254,9 @@ fn span_metrics(transaction_extraction_enabled: bool) -> impl IntoIterator<Item 
                 Tag::with_key("messaging.destination.name")
                     .from_field("span.sentry_tags.messaging.destination.name")
                     .when(is_queue_op.clone()),
+                Tag::with_key("trace.status")
+                    .from_field("span.sentry_tags.trace.status")
+                    .when(is_queue_op.clone()),
             ],
         },
         MetricSpec {
@@ -316,6 +319,9 @@ fn span_metrics(transaction_extraction_enabled: bool) -> impl IntoIterator<Item 
                 // Queue module
                 Tag::with_key("messaging.destination.name")
                     .from_field("span.sentry_tags.messaging.destination.name")
+                    .when(is_queue_op.clone()),
+                Tag::with_key("trace.status")
+                    .from_field("span.sentry_tags.trace.status")
                     .when(is_queue_op.clone()),
             ],
         },
@@ -788,6 +794,9 @@ fn span_metrics(transaction_extraction_enabled: bool) -> impl IntoIterator<Item 
                     .always(),
                 Tag::with_key("transaction")
                     .from_field("span.sentry_tags.transaction")
+                    .always(),
+                Tag::with_key("messaging.destination.name")
+                    .from_field("span.sentry_tags.messaging.destination.name")
                     .always(),
             ],
         },
