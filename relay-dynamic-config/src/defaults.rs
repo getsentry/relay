@@ -769,7 +769,7 @@ fn span_metrics(transaction_extraction_enabled: bool) -> impl IntoIterator<Item 
         MetricSpec {
             category: DataCategory::Span,
             mri: "g:spans/messaging.message.receive.latency@millisecond".into(),
-            field: Some("span.messaging.message.receive.latency".into()),
+            field: Some("span.measurements.messaging.message.receive.latency.value".into()),
             condition: Some(is_queue_op.clone()),
             tags: vec![
                 Tag::with_key("environment")
