@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 24.4.2
 
 **Breaking Changes**:
 
@@ -27,6 +27,7 @@
 - Emit gauges for total and self times for spans. ([#3448](https://github.com/getsentry/relay/pull/3448))
 - Collect exclusive_time_light metrics for `cache.*` spans. ([#3466](https://github.com/getsentry/relay/pull/3466))
 - Build and publish ARM docker images for Relay. ([#3272](https://github.com/getsentry/relay/pull/3272)).
+- Remove `MetricMeta` feature flag and use `CustomMetrics` instead. ([#3503](https://github.com/getsentry/relay/pull/3503))
 
 ## 24.4.1
 

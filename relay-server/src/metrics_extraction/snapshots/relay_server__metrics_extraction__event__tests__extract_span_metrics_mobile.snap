@@ -120,6 +120,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
                     0.1,
                 ),
                 messaging_destination_name: ~,
+                messaging_message_retry_count: ~,
+                messaging_message_receive_latency: ~,
+                messaging_message_body_size: ~,
                 other: {},
             },
             sentry_tags: {
@@ -419,6 +422,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 frames_total: ~,
                 frames_delay: ~,
                 messaging_destination_name: ~,
+                messaging_message_retry_count: ~,
+                messaging_message_receive_latency: ~,
+                messaging_message_body_size: ~,
                 other: {},
             },
             sentry_tags: {
@@ -508,6 +514,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 frames_total: ~,
                 frames_delay: ~,
                 messaging_destination_name: ~,
+                messaging_message_retry_count: ~,
+                messaging_message_receive_latency: ~,
+                messaging_message_body_size: ~,
                 other: {},
             },
             sentry_tags: {
@@ -644,6 +653,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 frames_total: ~,
                 frames_delay: ~,
                 messaging_destination_name: ~,
+                messaging_message_retry_count: ~,
+                messaging_message_receive_latency: ~,
+                messaging_message_body_size: ~,
                 other: {},
             },
             sentry_tags: {
@@ -733,6 +745,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 frames_total: ~,
                 frames_delay: ~,
                 messaging_destination_name: ~,
+                messaging_message_retry_count: ~,
+                messaging_message_receive_latency: ~,
+                messaging_message_body_size: ~,
                 other: {},
             },
             sentry_tags: {

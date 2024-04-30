@@ -24,7 +24,7 @@ EXPOSE 3000
 
 COPY $TARGETPLATFORM/relay /bin/relay
 RUN chmod +x /bin/relay
-COPY $TARGETPLATFORM/relay.debug.zip /opt/relay.debug.zip
+COPY $TARGETPLATFORM/relay-debug.zip /opt/relay-debug.zip
 COPY $TARGETPLATFORM/relay.src.zip /opt/relay.src.zip
 
 COPY ./docker-entrypoint.sh /

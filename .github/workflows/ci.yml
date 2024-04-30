@@ -33,7 +33,7 @@ jobs:
 
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.10'
+          python-version: "3.10"
 
       - name: Install Rust Toolchain
         run: rustup toolchain install stable --profile minimal --component clippy rustfmt rust-docs --no-self-update
@@ -144,7 +144,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ['3.10']
+        python-version: ["3.10"]
 
     # Skip redundant checks for binary releases
     if: "!startsWith(github.ref, 'refs/heads/release/')"
@@ -194,14 +194,14 @@ jobs:
     env:
       RELAY_BIN: "target/${{ matrix.target }}/release/relay"
       FEATURES: |-
-        ${{fromJson('{ 
-          "relay": "processing,crash-handler", 
+        ${{fromJson('{
+          "relay": "processing,crash-handler",
           "relay-pop": "crash-handler"
         }')[matrix.image_name] }}
       DOCKER_PLATFORM: |-
-        ${{fromJson('{ 
+        ${{fromJson('{
           "x86_64-unknown-linux-gnu": "linux/amd64",
-          "aarch64-unknown-linux-gnu": "linux/arm64" 
+          "aarch64-unknown-linux-gnu": "linux/arm64"
         }')[matrix.target] }}
       # Fix editor: '
 
@@ -237,12 +237,12 @@ jobs:
           llvm-objcopy --add-gnu-debuglink "${RELAY_BIN}"{.debug,}
 
           cross-util run --target "${{ matrix.target }}" -- "sentry-cli difutil bundle-sources ${RELAY_BIN}.debug"
-          zip "${RELAY_BIN}.debug.zip" "${RELAY_BIN}.debug"
+          zip "${RELAY_BIN}-debug.zip" "${RELAY_BIN}.debug"
 
       - name: Prepare Artifacts
         run: |
           mkdir -p "artifacts/${DOCKER_PLATFORM}"
-          cp "${RELAY_BIN}"{,.debug.zip,.src.zip} "artifacts/${DOCKER_PLATFORM}"
+          cp "${RELAY_BIN}"{,-debug.zip,.src.zip} "artifacts/${DOCKER_PLATFORM}"
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
@@ -430,7 +430,7 @@ jobs:
           VERSION="$(docker run --rm "${GHCR_DOCKER_IMAGE}:${REVISION}" --version | cut -d" " -f2)"
           echo "${{ matrix.image_name }}@${VERSION}+${REVISION}" > release-name
 
-          docker run --rm --entrypoint cat "${GHCR_DOCKER_IMAGE}:${REVISION}" /opt/relay.debug.zip > relay.debug.zip
+          docker run --rm --entrypoint cat "${GHCR_DOCKER_IMAGE}:${REVISION}" /opt/relay-debug.zip > relay-debug.zip
           docker run --rm --entrypoint cat "${GHCR_DOCKER_IMAGE}:${REVISION}" /opt/relay.src.zip > relay.src.zip
           docker run --rm --entrypoint tar "${GHCR_DOCKER_IMAGE}:${REVISION}" -cf - /lib/x86_64-linux-gnu > libs.tar
 
@@ -502,7 +502,7 @@ jobs:
 
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.10'
+          python-version: "3.10"
 
       - run: make test-integration
         env:
@@ -552,3 +552,27 @@ jobs:
           echo "Testing against ${RELAY_TEST_IMAGE}"
           make test-relay-integration
 
+  self-hosted-end-to-end:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    # temporary, remove once we are confident the action is working
+    continue-on-error: true
+    needs: build-docker
+
+    # Skip redundant checks for library releases
+    if: "!startsWith(github.ref, 'refs/heads/release-library/')"
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Run Sentry self-hosted e2e CI
+        # Skip for dependabot or if it's a fork as the image cannot be uploaded to ghcr since this test attempts to pull
+        # the image from ghcr
+        if: "!github.event.pull_request.head.repo.fork && github.actor != 'dependabot[bot]'"
+        uses: getsentry/action-self-hosted-e2e-tests@267fab2add9e173029c1e09ecfd82e04688d7c44
+        with:
+          project_name: relay
+          image_url: ghcr.io/getsentry/relay:${{ github.event.pull_request.head.sha || github.sha }}
+          docker_repo: getsentry/relay
+          docker_password: ${{ secrets.DOCKER_HUB_RW_TOKEN }}

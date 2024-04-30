@@ -1029,7 +1029,10 @@ mod tests {
                     "parent_span_id": "a1e13f3f06239d69",
                     "trace_id": "922dda2462ea4ac2b6a4b339bee90863",
                     "data": {
-                        "messaging.destination.name": "default"
+                        "messaging.destination.name": "default",
+                        "messaging.message.receive.latency": 100,
+                        "messaging.message.retry.count": 2,
+                        "messaging.message.body.size": 1000
                     }
                 },
                 {
@@ -1041,7 +1044,10 @@ mod tests {
                     "parent_span_id": "a1e13f3f06239d69",
                     "trace_id": "922dda2462ea4ac2b6a4b339bee90863",
                     "data": {
-                        "messaging.destination.name": "default"
+                        "messaging.destination.name": "default",
+                        "messaging.message.receive.latency": 100,
+                        "messaging.message.retry.count": 2,
+                        "messaging.message.body.size": 1000
                     }
                 },
                 {
@@ -1053,7 +1059,10 @@ mod tests {
                     "parent_span_id": "a1e13f3f06239d69",
                     "trace_id": "922dda2462ea4ac2b6a4b339bee90863",
                     "data": {
-                        "messaging.destination.name": "default"
+                        "messaging.destination.name": "default",
+                        "messaging.message.receive.latency": 100,
+                        "messaging.message.retry.count": 2,
+                        "messaging.message.body.size": 1000
                     }
                 },
                 {
@@ -1065,7 +1074,10 @@ mod tests {
                     "parent_span_id": "a1e13f3f06239d69",
                     "trace_id": "922dda2462ea4ac2b6a4b339bee90863",
                     "data": {
-                        "messaging.destination.name": "default"
+                        "messaging.destination.name": "default",
+                        "messaging.message.receive.latency": 100,
+                        "messaging.message.retry.count": 2,
+                        "messaging.message.body.size": 1000
                     }
                 },
                 {
@@ -1108,7 +1120,6 @@ mod tests {
         let mut event = Annotated::from_json(json).unwrap();
         let features = FeatureSet(BTreeSet::from([
             Feature::ExtractSpansAndSpanMetricsFromEvent,
-            Feature::DoubleWriteSpanDistributionMetricsAsGauges,
         ]));
 
         // Normalize first, to make sure that all things are correct as in the real pipeline:
