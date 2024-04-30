@@ -1638,7 +1638,6 @@
 <a href="#1636" id="1636">1636</a>
 <a href="#1637" id="1637">1637</a>
 <a href="#1638" id="1638">1638</a>
-<a href="#1639" id="1639">1639</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_common::time::UnixTimestamp;
 <span class="kw">use </span>relay_dynamic_config::MetricExtractionConfig;
 <span class="kw">use </span>relay_event_schema::protocol::{Event, Span};
@@ -2741,7 +2740,6 @@
         <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::from_json(json).unwrap();
         <span class="kw">let </span>features = FeatureSet(BTreeSet::from([
             Feature::ExtractSpansAndSpanMetricsFromEvent,
-            Feature::DoubleWriteSpanDistributionMetricsAsGauges,
         ]));
 
         <span class="comment">// Normalize first, to make sure that all things are correct as in the real pipeline:
