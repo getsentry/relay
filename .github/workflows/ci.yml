@@ -183,100 +183,181 @@ jobs:
     timeout-minutes: 30
     strategy:
       matrix:
-        # the arm64 build takes too long, so disable for now
-        arch: [amd64]
         image_name: [relay, relay-pop]
+        target: [x86_64-unknown-linux-gnu, aarch64-unknown-linux-gnu]
 
-    name: Build Docker Image
+    name: Build Relay Binary
     runs-on: ubuntu-latest
 
-    # Skip redundant checks for library releases
     if: "!startsWith(github.ref, 'refs/heads/release-library/')"
 
     env:
-      IMG_BASE: ghcr.io/getsentry/${{ matrix.image_name }}
-      IMG_DEPS: ghcr.io/getsentry/${{ matrix.image_name }}-deps:${{ matrix.arch }}
-      # GITHUB_SHA in pull requests points to the merge commit
-      IMG_VERSIONED: ghcr.io/getsentry/${{ matrix.image_name }}:${{ github.event.pull_request.head.sha || github.sha }}
-      ARCH: ${{ matrix.arch }}
+      RELAY_BIN: "target/${{ matrix.target }}/release/relay"
+      FEATURES: |-
+        ${{fromJson('{
+          "relay": "processing,crash-handler",
+          "relay-pop": "crash-handler"
+        }')[matrix.image_name] }}
+      DOCKER_PLATFORM: |-
+        ${{fromJson('{
+          "x86_64-unknown-linux-gnu": "linux/amd64",
+          "aarch64-unknown-linux-gnu": "linux/arm64"
+        }')[matrix.target] }}
+      # Fix editor: '
 
     steps:
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y llvm
+
       - uses: actions/checkout@v4
         with:
           submodules: recursive
 
+      - uses: dtolnay/rust-toolchain@stable
       - uses: swatinem/rust-cache@v2
         with:
-          key: ${{ github.job }}-${{ matrix.arch }}
+          key: "${{ github.job }}-${{ matrix.target }}-${{ matrix.image_name }}"
 
-      - run: docker run --rm --privileged tonistiigi/binfmt --install arm64
-        if: matrix.arch == 'arm64'
+      - name: Install Cross
+        # We need a nightly version of cross for `cross-util`.
+        run: cargo install cross --git https://github.com/cross-rs/cross --rev 085092c
 
-      - name: Build
+      - name: Compile
         run: |
-          # Get the latest stable rust toolchain version available
-          TOOLCHAIN=$(curl -s 'https://static.rust-lang.org/dist/channel-rust-stable.toml' | awk '/\[pkg.rust\]/ {getline;print;}' | sed -r 's/^version = "([0-9.]+) .*/\1/')
-          ./scripts/build-docker-image.sh "$ARCH" "$TOOLCHAIN" ${{ matrix.image_name }}
+          export PATH="/home/runner/.cargo/bin/:$PATH"
 
-      - name: Export Docker Image
-        run: docker save -o ${{ matrix.image_name }}-docker-image.tgz $IMG_VERSIONED
+          cross build --release --locked --features "${FEATURES}" --target "${{ matrix.target }}"
 
-      - name: Upload Docker Image to Artifact
-        uses: actions/upload-artifact@v3
+      - name: Split debug info
+        run: |
+          llvm-objcopy --only-keep-debug "${RELAY_BIN}"{,.debug}
+          llvm-objcopy --strip-debug --strip-unneeded "${RELAY_BIN}"
+          llvm-objcopy --add-gnu-debuglink "${RELAY_BIN}"{.debug,}
+
+          cross-util run --target "${{ matrix.target }}" -- "sentry-cli difutil bundle-sources ${RELAY_BIN}.debug"
+          zip "${RELAY_BIN}-debug.zip" "${RELAY_BIN}.debug"
+
+      - name: Prepare Artifacts
+        run: |
+          mkdir -p "artifacts/${DOCKER_PLATFORM}"
+          cp "${RELAY_BIN}"{,-debug.zip,.src.zip} "artifacts/${DOCKER_PLATFORM}"
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
         with:
           retention-days: 1
-          name: ${{ matrix.image_name }}-docker-image
-          path: ${{ matrix.image_name }}-docker-image.tgz
+          name: ${{ matrix.image_name }}@${{ matrix.target }}
+          path: "./artifacts/*"
 
-      - name: Push to ghcr.io
-        # Do not run this on forks as they do not have access to secrets
-        if: "!github.event.pull_request.head.repo.fork && github.actor != 'dependabot[bot]'"
-        run: |
-          set -euxo pipefail
-          docker login --username '${{ github.actor }}' --password '${{ secrets.GITHUB_TOKEN }}' ghcr.io
-          docker push $IMG_DEPS
-          docker push $IMG_VERSIONED
-
-      - name: Push nightly to ghcr.io
-        if: github.ref == 'refs/heads/master'
-        run: |
-          set -euxo pipefail
-          docker tag "$IMG_VERSIONED" "$IMG_BASE:nightly"
-          docker push "$IMG_BASE:nightly"
-
-  push-prod-image:
+  build-docker:
     timeout-minutes: 5
     needs: build
+
+    name: Build Docker Image
+    runs-on: ubuntu-latest
 
     strategy:
       matrix:
         image_name: [relay, relay-pop]
 
-    name: Push GCR Docker Image
+    env:
+      PLATFORMS: "linux/amd64,linux/arm64"
+      DOCKER_IMAGE: "ghcr.io/getsentry/${{ matrix.image_name }}"
+      REVISION: "${{ github.event.pull_request.head.sha || github.sha }}"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: "${{ matrix.image_name }}@*"
+          merge-multiple: true
+
+      - name: Build and push to ghcr.io
+        if: "!github.event.pull_request.head.repo.fork && github.actor != 'dependabot[bot]'"
+        run: |
+          docker login --username '${{ github.actor }}' --password '${{ secrets.GITHUB_TOKEN }}' ghcr.io
+
+          docker buildx build \
+            --platform "${PLATFORMS}" \
+            --tag "${DOCKER_IMAGE}:${REVISION}" \
+            $( [[ "${GITHUB_REF}" == "refs/heads/master" ]] && printf %s "--tag ${DOCKER_IMAGE}:nightly" ) \
+            --file Dockerfile.release \
+            --push .
+
+  publish-to-dockerhub:
+    needs: build-docker
+
+    runs-on: ubuntu-20.04
+    name: Publish Relay to DockerHub
+
+    strategy:
+      matrix:
+        image_name: [relay] # Don't publish relay-pop (for now)
+
+    if: ${{ (github.ref_name == 'master') }}
+
+    env:
+      GHCR_DOCKER_IMAGE: "ghcr.io/getsentry/${{ matrix.image_name }}"
+      DH_DOCKER_IMAGE: "getsentry/${{ matrix.image_name }}"
+      REVISION: "${{ github.event.pull_request.head.sha || github.sha }}"
+
+    steps:
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3.5.0
+
+      - name: Install regctl
+        uses: regclient/actions/regctl-installer@2dac4eff5925ed07edbfe12d2d11af6304df29a6
+
+      - name: Login to DockerHub
+        run: docker login --username=sentrybuilder --password ${{ secrets.DOCKER_HUB_RW_TOKEN }}
+
+      - name: Copy Image from GHCR to DockerHub
+        run: |
+          # We push 3 tags to Dockerhub:
+          # 1) the full sha of the commit
+          regctl image copy "${GHCR_DOCKER_IMAGE}:${REVISION}" "${DH_DOCKER_IMAGE}:${REVISION}"
+
+          # 2) the short sha
+          SHORT_SHA=$(echo ${GITHUB_SHA} | cut -c1-8)
+          regctl image copy "${GHCR_DOCKER_IMAGE}:${REVISION}" "${DH_DOCKER_IMAGE}:${SHORT_SHA}"
+
+          # 3) nightly
+          regctl image copy "${GHCR_DOCKER_IMAGE}:nightly" "${DH_DOCKER_IMAGE}:nightly"
+
+  publish-to-gcr:
+    timeout-minutes: 5
+    needs: build-docker
+
+    name: Publish Relay to GCR
     runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        image_name: [relay, relay-pop]
 
     # required for google auth
     permissions:
       contents: "read"
       id-token: "write"
 
+    env:
+      GHCR_DOCKER_IMAGE: "ghcr.io/getsentry/${{ matrix.image_name }}"
+      GCR_DOCKER_IMAGE: "us.gcr.io/sentryio/${{ matrix.image_name }}"
+      REVISION: "${{ github.event.pull_request.head.sha || github.sha }}"
+
     # Skip redundant checks for library releases
     # Skip for dependabot and if run on a fork
     if: "!startsWith(github.ref, 'refs/heads/release-library/') && !github.event.pull_request.head.repo.fork && github.actor != 'dependabot[bot]'"
 
-    env:
-      # GITHUB_SHA in pull requests points to the merge commit
-      REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
-      IMG_VERSIONED: ghcr.io/getsentry/${{ matrix.image_name }}:${{ github.event.pull_request.head.sha || github.sha }}
-
     steps:
-      - name: Download Docker Image
-        uses: actions/download-artifact@v3
-        with:
-          name: ${{ matrix.image_name }}-docker-image
-
-      - name: Import Docker Image
-        run: docker load -i ${{ matrix.image_name }}-docker-image.tgz
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3.5.0
 
       - name: Google Auth
         id: auth
@@ -296,28 +377,62 @@ jobs:
         run: |
           gcloud auth configure-docker us.gcr.io
 
-      - name: Push to us.gcr.io
-        run: |
-          set -euxo pipefail
-          docker tag "$IMG_VERSIONED" "us.gcr.io/sentryio/${{ matrix.image_name }}:$REVISION"
-          docker push "us.gcr.io/sentryio/${{ matrix.image_name }}:$REVISION"
+      - name: Install regctl
+        uses: regclient/actions/regctl-installer@2dac4eff5925ed07edbfe12d2d11af6304df29a6
 
-      - name: Push nightly to us.gcr.io
+      - name: Copy Image from GHCR to GCR
+        run: regctl image copy "${GHCR_DOCKER_IMAGE}:${REVISION}" "${GCR_DOCKER_IMAGE}:${REVISION}"
+
+      - name: Copy Nightly from GHCR to GCR
         if: github.ref == 'refs/heads/master'
-        run: |
-          set -euxo pipefail
-          docker tag "$IMG_VERSIONED" "us.gcr.io/sentryio/${{ matrix.image_name }}:nightly"
-          docker push "us.gcr.io/sentryio/${{ matrix.image_name }}:nightly"
+        run: regctl image copy "${GHCR_DOCKER_IMAGE}:nightly" "${GCR_DOCKER_IMAGE}:nightly"
+
+  gocd-artifacts:
+    timeout-minutes: 5
+    needs: build-docker
+
+    name: Upload build artifacts to gocd
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        image_name: [relay, relay-pop]
+
+    # required for google auth
+    permissions:
+      contents: "read"
+      id-token: "write"
+
+    env:
+      GHCR_DOCKER_IMAGE: "ghcr.io/getsentry/${{ matrix.image_name }}"
+      REVISION: "${{ github.event.pull_request.head.sha || github.sha }}"
+
+    if: "!startsWith(github.ref, 'refs/heads/release-library/') && !github.event.pull_request.head.repo.fork && github.actor != 'dependabot[bot]'"
+
+    steps:
+      - name: Google Auth
+        id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: projects/868781662168/locations/global/workloadIdentityPools/prod-github/providers/github-oidc-pool
+          service_account: gha-gcr-push@sac-prod-sa.iam.gserviceaccount.com
+
+      - name: "Set up Cloud SDK"
+        uses: "google-github-actions/setup-gcloud@v2"
+        with:
+          # https://github.com/google-github-actions/auth#authenticating-via-workload-identity-federation
+          # You must use the Cloud SDK version 390.0.0 or later to authenticate the bq and gsutil tools.
+          version: ">= 390.0.0"
 
       - name: Upload gocd deployment assets
         run: |
           set -euxo pipefail
-          VERSION="$(docker run --rm "$IMG_VERSIONED" --version | cut -d" " -f2)"
-          echo "relay@$VERSION+$REVISION" > release-name
+          VERSION="$(docker run --rm "${GHCR_DOCKER_IMAGE}:${REVISION}" --version | cut -d" " -f2)"
+          echo "${{ matrix.image_name }}@${VERSION}+${REVISION}" > release-name
 
-          docker run --rm --entrypoint cat "$IMG_VERSIONED" /opt/relay-debug.zip > relay-debug.zip
-          docker run --rm --entrypoint cat "$IMG_VERSIONED" /opt/relay.src.zip > relay.src.zip
-          docker run --rm --entrypoint tar "$IMG_VERSIONED" -cf - /lib/x86_64-linux-gnu > libs.tar
+          docker run --rm --entrypoint cat "${GHCR_DOCKER_IMAGE}:${REVISION}" /opt/relay-debug.zip > relay-debug.zip
+          docker run --rm --entrypoint cat "${GHCR_DOCKER_IMAGE}:${REVISION}" /opt/relay.src.zip > relay.src.zip
+          docker run --rm --entrypoint tar "${GHCR_DOCKER_IMAGE}:${REVISION}" -cf - /lib/x86_64-linux-gnu > libs.tar
 
           # debugging for mysterious "Couldn't write tracker file" issue:
           (env | grep runner) || true
@@ -329,7 +444,7 @@ jobs:
             /home/runner/.gsutil/tracker-files/upload_TRACKER_*.rc.zip__JSON.url \
           || true
           gsutil -m cp -L gsutil.log ./libs.tar ./relay-debug.zip ./relay.src.zip ./release-name \
-            "gs://dicd-team-devinfra-cd--relay/deployment-assets/$REVISION/${{ matrix.image_name }}/" || status=$? && status=$?
+            "gs://dicd-team-devinfra-cd--relay/deployment-assets/${REVISION}/${{ matrix.image_name }}/" || status=$? && status=$?
           cat gsutil.log
           exit "$status"
 
@@ -397,7 +512,7 @@ jobs:
     name: Sentry-Relay Integration Tests
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    needs: build
+    needs: build-docker
 
     # Skip redundant checks for library releases
     if: "!startsWith(github.ref, 'refs/heads/release-library/')"
@@ -428,14 +543,6 @@ jobs:
           snuba: true
           kafka: true
           symbolicator: true
-
-      - name: Download Docker Image
-        uses: actions/download-artifact@v3
-        with:
-          name: relay-docker-image
-
-      - name: Import Docker Image
-        run: docker load -i relay-docker-image.tgz
 
       - name: Run Sentry integration tests
         working-directory: sentry
