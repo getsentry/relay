@@ -1100,7 +1100,6 @@ mod tests {
         let mut event = Annotated::from_json(json).unwrap();
         let features = FeatureSet(BTreeSet::from([
             Feature::ExtractSpansAndSpanMetricsFromEvent,
-            Feature::DoubleWriteSpanDistributionMetricsAsGauges,
         ]));
 
         // Normalize first, to make sure that all things are correct as in the real pipeline:
