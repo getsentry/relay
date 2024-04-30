@@ -1,5 +1,17 @@
 # Changelog
 
+### Unreleased
+
+**Breaking Changes**:
+
+**Bug fixes:**
+
+- Extract `cache.item_size` from measurements instead of data. ([#3510](https://github.com/getsentry/relay/pull/3510))
+
+**Features**:
+
+**Internal**:
+
 ## 24.4.2
 
 **Breaking Changes**:

@@ -1991,6 +1991,27 @@ expression: metrics
         timestamp: UnixTimestamp(1597976302),
         width: 0,
         name: MetricName(
+            "d:spans/cache.item_size@byte",
+        ),
+        value: Distribution(
+            [
+                8.0,
+            ],
+        ),
+        tags: {
+            "cache.hit": "false",
+            "environment": "fake_environment",
+            "span.op": "cache.get_item",
+            "transaction": "gEt /api/:version/users/",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
             "c:spans/usage@none",
         ),
         value: Counter(
@@ -4959,6 +4980,27 @@ expression: metrics
             "span.op": "cache.get_item",
             "transaction": "gEt /api/:version/users/",
             "transaction.op": "myop",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "d:spans/cache.item_size@byte",
+        ),
+        value: Distribution(
+            [
+                10.0,
+            ],
+        ),
+        tags: {
+            "cache.hit": "false",
+            "environment": "fake_environment",
+            "span.op": "cache.get_item",
+            "transaction": "gEt /api/:version/users/",
         },
         metadata: BucketMetadata {
             merges: 1,
