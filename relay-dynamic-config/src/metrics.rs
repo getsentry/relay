@@ -221,7 +221,7 @@ impl<'a> From<&'a MetricExtractionConfig> for CombinedMetricExtractionConfig<'a>
     }
 }
 
-/// global groups for metric extraction.
+/// Global groups for metric extraction.
 ///
 /// Templates can be enabled or disabled by project configs.
 #[derive(Clone, Default, Debug, Serialize, Deserialize)]
