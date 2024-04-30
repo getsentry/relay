@@ -277,7 +277,9 @@ def transactions_consumer(kafka_consumer):
 
 @pytest.fixture
 def attachments_consumer(kafka_consumer):
-    return lambda: AttachmentsConsumer(*kafka_consumer("attachments"))
+    return lambda timeout=None: AttachmentsConsumer(
+        timeout=timeout, *kafka_consumer("attachments")
+    )
 
 
 @pytest.fixture

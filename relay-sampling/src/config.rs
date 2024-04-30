@@ -38,10 +38,6 @@ pub struct SamplingConfig {
     /// two arrays are merged together.
     #[serde(default, skip_serializing)]
     pub rules_v2: Vec<SamplingRule>,
-
-    /// Defines which population of items a dynamic sample rate applies to.
-    #[serde(default, skip_serializing_if = "is_default")]
-    pub mode: SamplingMode,
 }
 
 impl SamplingConfig {
@@ -80,7 +76,6 @@ impl Default for SamplingConfig {
             version: SAMPLING_CONFIG_VERSION,
             rules: vec![],
             rules_v2: vec![],
-            mode: SamplingMode::default(),
         }
     }
 }
@@ -282,42 +277,6 @@ impl DecayingFunction {
             }
             DecayingFunction::Constant => Some(sample_rate),
         }
-    }
-}
-
-/// Defines which population of items a dynamic sample rate applies to.
-///
-/// SDKs with client side sampling reduce the number of items sent to Relay, where dynamic sampling
-/// occurs. The sampling mode controlls whether the sample rate is relative to the original
-/// population of items before client-side sampling, or relative to the number received by Relay
-/// after client-side sampling.
-#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub enum SamplingMode {
-    /// The sample rate is based on the number of events received by Relay.
-    ///
-    /// Server-side dynamic sampling occurs on top of potential client-side sampling in the SDK. For
-    /// example, if the SDK samples at 50% and the server sampling rate is set at 10%, the resulting
-    /// effective sample rate is 5%.
-    Received,
-    /// The sample rate is based on the original number of events in the client.
-    ///
-    /// Server-side sampling compensates potential client-side sampling in the SDK. For example, if
-    /// the SDK samples at 50% and the server sampling rate is set at 10%, the resulting effective
-    /// sample rate is 10%.
-    ///
-    /// In this mode, the server sampling rate is capped by the client's sampling rate. Rules with a
-    /// higher sample rate than what the client is sending are effectively inactive.
-    Total,
-
-    /// Catch-all variant for forward compatibility.
-    #[serde(other)]
-    Unsupported,
-}
-
-impl Default for SamplingMode {
-    fn default() -> Self {
-        Self::Received
     }
 }
 
