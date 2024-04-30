@@ -772,6 +772,23 @@
 <a href="#770" id="770">770</a>
 <a href="#771" id="771">771</a>
 <a href="#772" id="772">772</a>
+<a href="#773" id="773">773</a>
+<a href="#774" id="774">774</a>
+<a href="#775" id="775">775</a>
+<a href="#776" id="776">776</a>
+<a href="#777" id="777">777</a>
+<a href="#778" id="778">778</a>
+<a href="#779" id="779">779</a>
+<a href="#780" id="780">780</a>
+<a href="#781" id="781">781</a>
+<a href="#782" id="782">782</a>
+<a href="#783" id="783">783</a>
+<a href="#784" id="784">784</a>
+<a href="#785" id="785">785</a>
+<a href="#786" id="786">786</a>
+<a href="#787" id="787">787</a>
+<a href="#788" id="788">788</a>
+<a href="#789" id="789">789</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_base_schema::data_category::DataCategory;
 <span class="kw">use </span>relay_event_normalization::utils::MAX_DURATION_MOBILE_MS;
 <span class="kw">use </span>relay_protocol::RuleCondition;
@@ -1537,6 +1554,23 @@
                     .always(),
                 Tag::with_key(<span class="string">"os.name"</span>)
                     .from_field(<span class="string">"span.sentry_tags.os.name"</span>)
+                    .always(),
+            ],
+        },
+        MetricSpec {
+            category: DataCategory::Span,
+            mri: <span class="string">"g:spans/messaging.message.receive.latency@millisecond"</span>.into(),
+            field: <span class="prelude-val">Some</span>(<span class="string">"span.measurements.messaging.message.receive.latency.value"</span>.into()),
+            condition: <span class="prelude-val">Some</span>(is_queue_op.clone()),
+            tags: <span class="macro">vec!</span>[
+                Tag::with_key(<span class="string">"environment"</span>)
+                    .from_field(<span class="string">"span.sentry_tags.environment"</span>)
+                    .always(),
+                Tag::with_key(<span class="string">"span.op"</span>)
+                    .from_field(<span class="string">"span.sentry_tags.op"</span>)
+                    .always(),
+                Tag::with_key(<span class="string">"transaction"</span>)
+                    .from_field(<span class="string">"span.sentry_tags.transaction"</span>)
                     .always(),
             ],
         },
