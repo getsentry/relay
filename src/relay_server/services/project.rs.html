@@ -1704,6 +1704,7 @@
 <a href="#1702" id="1702">1702</a>
 <a href="#1703" id="1703">1703</a>
 <a href="#1704" id="1704">1704</a>
+<a href="#1705" id="1705">1705</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeSet;
 <span class="kw">use </span>std::sync::Arc;
 <span class="kw">use </span>std::time::Duration;
@@ -2443,8 +2444,9 @@
     ) {
         <span class="kw">let </span>state = <span class="self">self</span>.state_value();
 
-        <span class="comment">// Only track metadata if the feature is enabled or we don't know yet whether it is enabled.
-        </span><span class="kw">if </span>!state.map_or(<span class="bool-val">true</span>, |state| state.has_feature(Feature::MetricMeta)) {
+        <span class="comment">// Only track metadata if custom metrics are enabled, or we don't know yet whether they are
+        // enabled.
+        </span><span class="kw">if </span>!state.map_or(<span class="bool-val">true</span>, |state| state.has_feature(Feature::CustomMetrics)) {
             <span class="macro">relay_log::trace!</span>(
                 <span class="string">"metric meta feature flag not enabled for project {}"</span>,
                 <span class="self">self</span>.project_key
@@ -2483,7 +2485,7 @@
         <span class="comment">// All relevant info has been gathered, consider us flushed.
         </span><span class="self">self</span>.has_pending_metric_meta = <span class="bool-val">false</span>;
 
-        <span class="kw">if </span>!state.has_feature(Feature::MetricMeta) {
+        <span class="kw">if </span>!state.has_feature(Feature::CustomMetrics) {
             <span class="macro">relay_log::debug!</span>(
                 <span class="string">"clearing metric meta aggregator, because project {} does not have feature flag enabled"</span>,
                 <span class="self">self</span>.project_key,
