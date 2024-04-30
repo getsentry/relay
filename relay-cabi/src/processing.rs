@@ -493,13 +493,10 @@ pub unsafe extern "C" fn relay_validate_project_config(
 /// If `strict` is true, checks for unknown fields in the input.
 #[no_mangle]
 #[relay_ffi::catch_unwind]
-pub unsafe extern "C" fn relay_validate_cardinality_limit_config(
-    value: *const RelayStr,
-    strict: bool,
-) -> RelayStr {
+pub unsafe extern "C" fn normalize_cardinality_limit_config(value: *const RelayStr) -> RelayStr {
     let value = (*value).as_str();
-    match validate_json::<CardinalityLimit>(value, strict) {
-        Ok(()) => RelayStr::default(),
+    match normalize_json::<CardinalityLimit>(value) {
+        Ok(normalized) => RelayStr::from_string(normalized),
         Err(e) => RelayStr::from_string(e.to_string()),
     }
 }

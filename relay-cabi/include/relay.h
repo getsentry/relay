@@ -663,8 +663,7 @@ struct RelayStr relay_validate_project_config(const struct RelayStr *value,
  *
  * If `strict` is true, checks for unknown fields in the input.
  */
-struct RelayStr relay_validate_cardinality_limit_config(const struct RelayStr *value,
-                                                        bool strict);
+struct RelayStr normalize_cardinality_limit_config(const struct RelayStr *value);
 
 /**
  * Normalize a global config.

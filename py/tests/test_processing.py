@@ -325,20 +325,51 @@ def test_validate_project_config():
     assert str(e.value) == 'json atom at path ".foobar" is missing from rhs'
 
 
-def test_validate_cardinality_limit_config():
+def test_cardinality_limit_config_equal_normalization():
     config = {
         "id": "project-override-custom",
         "window": {"windowSeconds": 3600, "granularitySeconds": 600},
         "limit": 1000,
         "namespace": "custom",
         "scope": "name",
+        "passive": True,
+        "report": True,
     }
-    # Does not raise:
-    sentry_relay.validate_cardinality_limit_config(json.dumps(config), strict=True)
-    config["foobar"] = "foo"
+    sentry_relay.normalize_cardinality_limit_config(config)
+    assert config == sentry_relay.normalize_cardinality_limit_config(config)
+
+
+def test_cardinality_limit_config_subset_normalized():
+    config = {
+        "id": "project-override-custom",
+        "window": {"windowSeconds": 3600, "granularitySeconds": 600},
+        "limit": 1000,
+        "namespace": "custom",
+        "scope": "name",
+        "passive": False,
+        "report": False,
+        "unknown": "value",
+    }
+    normalized = sentry_relay.normalize_cardinality_limit_config(config)
+    config.pop("passive")
+    config.pop("report")
+    config.pop("unknown")
+    assert config == normalized
+
+
+def test_cardinality_limit_config_unparsable():
+    config = {
+        "id": "project-override-custom",
+        "window": {"windowSeconds": 3600, "granularitySeconds": 600},
+        "limit": -1,
+        "namespace": "custom",
+        "scope": "name",
+    }
     with pytest.raises(ValueError) as e:
-        sentry_relay.validate_cardinality_limit_config(json.dumps(config), strict=True)
-    assert str(e.value) == 'json atom at path ".foobar" is missing from rhs'
+        sentry_relay.normalize_cardinality_limit_config(config)
+    assert (
+        str(e.value) == "invalid value: integer `-1`, expected u32 at line 1 column 107"
+    )
 
 
 def test_global_config_equal_normalization():
