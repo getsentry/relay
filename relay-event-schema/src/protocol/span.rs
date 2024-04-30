@@ -320,15 +320,15 @@ pub struct SpanData {
     pub frames_delay: Annotated<Value>,
 
     /// Message Retry Count
-    #[metastructure(field = "sentry.messaging.message.retry.count")]
+    #[metastructure(field = "messaging.message.retry.count")]
     pub messaging_message_retry_count: Annotated<Value>,
 
     /// Message Receive Latency
-    #[metastructure(field = "sentry.messaging.message.receive.latency")]
+    #[metastructure(field = "messaging.message.receive.latency")]
     pub messaging_message_receive_latency: Annotated<Value>,
 
     /// Message Body Size
-    #[metastructure(field = "sentry.messaging.message.body.size")]
+    #[metastructure(field = "messaging.message.body.size")]
     pub messaging_message_body_size: Annotated<Value>,
 
     /// Other fields in `span.data`.
@@ -529,7 +529,10 @@ mod tests {
         "frames.slow": 1,
         "frames.frozen": 2,
         "frames.total": 9,
-        "frames.delay": 100
+        "frames.delay": 100,
+        "messaging.message.retry.count": 3,
+        "messaging.message.receive.latency": 40,
+        "messaging.message.body.size": 100
     }"#;
         let data = Annotated::<SpanData>::from_json(data)
             .unwrap()
@@ -591,9 +594,15 @@ mod tests {
             frames_delay: I64(
                 100,
             ),
-            messaging_message_retry_count: ~,
-            messaging_message_receive_latency: ~,
-            messaging_message_body_size: ~,
+            messaging_message_retry_count: I64(
+                3,
+            ),
+            messaging_message_receive_latency: I64(
+                40,
+            ),
+            messaging_message_body_size: I64(
+                100,
+            ),
             other: {
                 "bar": String(
                     "3",
