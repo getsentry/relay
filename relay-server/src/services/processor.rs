@@ -1817,9 +1817,7 @@ impl EnvelopeProcessorService {
         for item in items {
             let payload = item.payload();
             if item.ty() == &ItemType::Statsd {
-                for bucket_result in
-                    Bucket::parse_all(&payload, received_timestamp, received_timestamp)
-                {
+                for bucket_result in Bucket::parse_all(&payload, received_timestamp) {
                     match bucket_result {
                         Ok(bucket) => buckets.push(bucket),
                         Err(error) => relay_log::debug!(
@@ -1865,7 +1863,7 @@ impl EnvelopeProcessorService {
             }
 
             if override_received_at_metadata {
-                bucket.metadata.received_at = Some(received_timestamp)
+                bucket.metadata.received_at = Some(received_timestamp);
             }
         }
 
@@ -1901,6 +1899,7 @@ impl EnvelopeProcessorService {
         let buckets = match serde_json::from_slice(&payload) {
             Ok(Wrapper { buckets }) => buckets,
             Err(error) => {
+                println!("{:?}", error);
                 relay_log::debug!(
                     error = &error as &dyn Error,
                     "failed to parse batched metrics",
@@ -2991,8 +2990,6 @@ mod tests {
         self, create_test_processor, create_test_processor_with_custom_service,
     };
 
-    use crate::services::processor;
-    use relay_event_schema::protocol::Context::App;
     #[cfg(feature = "processing")]
     use {
         relay_dynamic_config::Options,
@@ -3394,35 +3391,13 @@ mod tests {
     #[tokio::test]
     async fn test_process_metrics_bucket_metadata() {
         let mut token = Cogs::noop().timed(ResourceId::Relay, AppFeature::Unattributed);
-
-        let mut item = Item::new(ItemType::Statsd);
-        item.set_payload(
-            ContentType::Text,
-            "transactions/foo:3182887624:4267882815|s",
-        );
-
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
         let start_time = Instant::now();
-        let message = ProcessMetrics {
-            items: vec![item],
-            project_key,
-            keep_metadata: true,
-            start_time,
-            sent_at: Some(Utc::now()),
-            override_received_at_metadata: true,
-        };
-
         let config = {
             let config_json = serde_json::json!({
                 "processing": {
                     "enabled": true,
                     "kafka_config": [],
-                    "redis": {
-                        "server": std::env::var("RELAY_REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379".to_owned()),
-                    }
-                },
-                "sentry_metrics": {
-                    "override_received_at_metadata": true
                 }
             });
             Config::from_json_value(config_json).unwrap()
@@ -3431,14 +3406,139 @@ mod tests {
         let (project_cache, mut project_cache_rx) = Addr::custom();
         let processor =
             create_test_processor_with_custom_service(config, Some(project_cache.clone()));
-        processor.handle_process_metrics(&mut token, message);
 
-        drop(project_cache);
-        let value = project_cache_rx.recv().await.unwrap();
-        if let ProjectCache::MergeBuckets(merge_buckets) = value {
-            assert_eq!(merge_buckets.buckets(), vec![]);
-        } else {
-            panic!();
+        let mut item = Item::new(ItemType::Statsd);
+        item.set_payload(
+            ContentType::Text,
+            "transactions/foo:3182887624:4267882815|s",
+        );
+        for (override_received_at_metadata, expected_received_at) in [
+            (true, Some(UnixTimestamp::from_instant(start_time))),
+            (false, None),
+        ] {
+            let message = ProcessMetrics {
+                items: vec![item.clone()],
+                project_key,
+                keep_metadata: true,
+                start_time,
+                sent_at: Some(Utc::now()),
+                override_received_at_metadata,
+            };
+            processor.handle_process_metrics(&mut token, message);
+
+            let value = project_cache_rx.recv().await.unwrap();
+            if let ProjectCache::MergeBuckets(merge_buckets) = value {
+                let buckets = merge_buckets.buckets();
+                assert_eq!(buckets.len(), 1);
+                assert_eq!(buckets[0].metadata.received_at, expected_received_at);
+            } else {
+                panic!();
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn test_process_batched_metrics_bucket_metadata() {
+        let mut token = Cogs::noop().timed(ResourceId::Relay, AppFeature::Unattributed);
+        let start_time = Instant::now();
+        let config = {
+            let config_json = serde_json::json!({
+                "processing": {
+                    "enabled": true,
+                    "kafka_config": [],
+                }
+            });
+            Config::from_json_value(config_json).unwrap()
+        };
+
+        let (project_cache, mut project_cache_rx) = Addr::custom();
+        let processor =
+            create_test_processor_with_custom_service(config, Some(project_cache.clone()));
+
+        let payload_no_metadata = r#"{
+    "buckets": {
+        "a94ae32be2584e0bbd7a4cbb95971fee": [
+            {
+                "timestamp": 1615889440,
+                "width": 0,
+                "name": "d:custom/endpoint.response_time@millisecond",
+                "type": "d",
+                "value": [
+                  36.0,
+                  49.0,
+                  57.0,
+                  68.0
+                ],
+                "tags": {
+                  "route": "user_index"
+                }
+            }
+        ]
+    }
+}
+"#;
+
+        let payload_metadata = r#"{
+    "buckets": {
+        "a94ae32be2584e0bbd7a4cbb95971fee": [
+            {
+                "timestamp": 1615889440,
+                "width": 0,
+                "name": "d:custom/endpoint.response_time@millisecond",
+                "type": "d",
+                "value": [
+                  36.0,
+                  49.0,
+                  57.0,
+                  68.0
+                ],
+                "tags": {
+                  "route": "user_index"
+                },
+                "metadata": {
+                  "merges": 1,
+                  "received_at": 1615889440
+                }
+            }
+        ]
+    }
+}
+"#;
+        for (override_received_at_metadata, payload, expected_received_at) in [
+            (
+                true,
+                payload_no_metadata,
+                Some(UnixTimestamp::from_instant(start_time)),
+            ),
+            (false, payload_no_metadata, None),
+            (
+                true,
+                payload_metadata,
+                Some(UnixTimestamp::from_instant(start_time)),
+            ),
+            (
+                false,
+                payload_metadata,
+                Some(UnixTimestamp::from_secs(1615889440)),
+            ),
+        ] {
+            let message = ProcessBatchedMetrics {
+                payload: Bytes::from(payload),
+                keep_metadata: true,
+                start_time,
+                sent_at: Some(Utc::now()),
+                override_received_at_metadata,
+            };
+            processor.handle_process_batched_metrics(&mut token, message);
+
+            let value = project_cache_rx.recv().await.unwrap();
+            if let ProjectCache::MergeBuckets(merge_buckets) = value {
+                let buckets = merge_buckets.buckets();
+                assert_eq!(buckets.len(), 1);
+                assert_eq!(buckets[0].metadata.received_at, expected_received_at)
+            } else {
+                panic!();
+            }
         }
     }
 }
