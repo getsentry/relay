@@ -188,7 +188,7 @@ impl<'a> CombinedMetricExtractionConfig<'a> {
     pub fn metrics(&self) -> impl Iterator<Item = &MetricSpec> {
         let project = self.project.metrics.iter();
         let enabled_global = self
-            .enabled_templates()
+            .enabled_groups()
             .flat_map(|template| template.metrics.iter());
 
         project.chain(enabled_global)
@@ -198,13 +198,13 @@ impl<'a> CombinedMetricExtractionConfig<'a> {
     pub fn tags(&self) -> impl Iterator<Item = &TagMapping> {
         let project = self.project.tags.iter();
         let enabled_global = self
-            .enabled_templates()
+            .enabled_groups()
             .flat_map(|template| template.tags.iter());
 
         project.chain(enabled_global)
     }
 
-    fn enabled_templates(&self) -> impl Iterator<Item = &MetricExtractionGroup> {
+    fn enabled_groups(&self) -> impl Iterator<Item = &MetricExtractionGroup> {
         self.global.groups.iter().filter_map(|(key, template)| {
             let is_enabled_by_override = self.project.global_groups.get(key).map(|c| c.is_enabled);
             let is_enabled = is_enabled_by_override.unwrap_or(template.is_enabled);
@@ -659,10 +659,10 @@ mod tests {
         assert!(mapping.metrics[0].compiled().is_match("d:spans/foo"));
     }
 
-    fn templates() -> MetricExtractionGroups {
+    fn groups() -> MetricExtractionGroups {
         serde_json::from_value::<MetricExtractionGroups>(serde_json::json!({
-            "sets": {
-                "set1": {
+            "groups": {
+                "group1": {
                     "isEnabled": false,
                     "metrics": [{
                         "category": "transaction",
@@ -678,7 +678,7 @@ mod tests {
                         }
                     ]
                 },
-                "set2": {
+                "group2": {
                     "isEnabled": true,
                     "metrics": [{
                         "category": "transaction",
@@ -701,7 +701,7 @@ mod tests {
 
     #[test]
     fn metric_extraction_global_defaults() {
-        let global = templates();
+        let global = groups();
         let project: MetricExtractionConfig = serde_json::from_value(serde_json::json!({
             "version": 1,
             "global_templates": {}
@@ -727,12 +727,12 @@ mod tests {
 
     #[test]
     fn metric_extraction_override() {
-        let global = templates();
+        let global = groups();
         let project: MetricExtractionConfig = serde_json::from_value(serde_json::json!({
             "version": 1,
-            "globalTemplates": {
-                "set1": {"isEnabled": true},
-                "set2": {"isEnabled": false}
+            "globalGroups": {
+                "group1": {"isEnabled": true},
+                "group2": {"isEnabled": false}
             }
         }))
         .unwrap();
