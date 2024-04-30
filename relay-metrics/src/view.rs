@@ -726,8 +726,7 @@ mod tests {
 
     #[test]
     fn test_bucket_view_select_counter() {
-        let timestamp = UnixTimestamp::from_secs(5000);
-        let bucket = Bucket::parse(b"b0:1|c", timestamp).unwrap();
+        let bucket = Bucket::parse(b"b0:1|c", UnixTimestamp::from_secs(5000)).unwrap();
 
         let view = BucketView::new(&bucket).select(0..1).unwrap();
         assert_eq!(view.len(), 1);
@@ -739,8 +738,7 @@ mod tests {
 
     #[test]
     fn test_bucket_view_select_invalid_counter() {
-        let timestamp = UnixTimestamp::from_secs(5000);
-        let bucket = Bucket::parse(b"b0:1|c", timestamp).unwrap();
+        let bucket = Bucket::parse(b"b0:1|c", UnixTimestamp::from_secs(5000)).unwrap();
 
         assert!(BucketView::new(&bucket).select(0..0).is_none());
         assert!(BucketView::new(&bucket).select(0..2).is_none());
@@ -749,8 +747,7 @@ mod tests {
 
     #[test]
     fn test_bucket_view_select_distribution() {
-        let timestamp = UnixTimestamp::from_secs(5000);
-        let bucket = Bucket::parse(b"b2:1:2:3:5:5|d", timestamp).unwrap();
+        let bucket = Bucket::parse(b"b2:1:2:3:5:5|d", UnixTimestamp::from_secs(5000)).unwrap();
 
         let view = BucketView::new(&bucket).select(0..3).unwrap();
         assert_eq!(view.len(), 3);
@@ -774,8 +771,7 @@ mod tests {
 
     #[test]
     fn test_bucket_view_select_invalid_distribution() {
-        let timestamp = UnixTimestamp::from_secs(5000);
-        let bucket = Bucket::parse(b"b2:1:2:3:5:5|d", timestamp).unwrap();
+        let bucket = Bucket::parse(b"b2:1:2:3:5:5|d", UnixTimestamp::from_secs(5000)).unwrap();
 
         assert!(BucketView::new(&bucket).select(0..6).is_none());
         assert!(BucketView::new(&bucket).select(5..6).is_none());
@@ -784,8 +780,7 @@ mod tests {
 
     #[test]
     fn test_bucket_view_select_set() {
-        let timestamp = UnixTimestamp::from_secs(5000);
-        let bucket = Bucket::parse(b"b3:42:75|s", timestamp).unwrap();
+        let bucket = Bucket::parse(b"b3:42:75|s", UnixTimestamp::from_secs(5000)).unwrap();
         let s = [42, 75].into();
 
         let view = BucketView::new(&bucket).select(0..2).unwrap();
@@ -801,8 +796,7 @@ mod tests {
 
     #[test]
     fn test_bucket_view_select_invalid_set() {
-        let timestamp = UnixTimestamp::from_secs(5000);
-        let bucket = Bucket::parse(b"b3:42:75|s", timestamp).unwrap();
+        let bucket = Bucket::parse(b"b3:42:75|s", UnixTimestamp::from_secs(5000)).unwrap();
 
         assert!(BucketView::new(&bucket).select(0..3).is_none());
         assert!(BucketView::new(&bucket).select(2..5).is_none());
@@ -811,8 +805,8 @@ mod tests {
 
     #[test]
     fn test_bucket_view_select_gauge() {
-        let timestamp = UnixTimestamp::from_secs(5000);
-        let bucket = Bucket::parse(b"b4:25:17:42:220:85|g", timestamp).unwrap();
+        let bucket =
+            Bucket::parse(b"b4:25:17:42:220:85|g", UnixTimestamp::from_secs(5000)).unwrap();
 
         let view = BucketView::new(&bucket).select(0..5).unwrap();
         assert_eq!(view.len(), 5);
@@ -830,8 +824,8 @@ mod tests {
 
     #[test]
     fn test_bucket_view_select_invalid_gauge() {
-        let timestamp = UnixTimestamp::from_secs(5000);
-        let bucket = Bucket::parse(b"b4:25:17:42:220:85|g", timestamp).unwrap();
+        let bucket =
+            Bucket::parse(b"b4:25:17:42:220:85|g", UnixTimestamp::from_secs(5000)).unwrap();
 
         assert!(BucketView::new(&bucket).select(0..1).is_none());
         assert!(BucketView::new(&bucket).select(0..4).is_none());
