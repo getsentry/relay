@@ -672,7 +672,7 @@ impl Bucket {
     /// ```
     /// use relay_metrics::{Bucket, UnixTimestamp};
     ///
-    /// let bucket = Bucket::parse(b"response_time@millisecond:57|d", UnixTimestamp::now(), None)
+    /// let bucket = Bucket::parse(b"response_time@millisecond:57|d", UnixTimestamp::now())
     ///     .expect("metric should parse");
     /// ```
     pub fn parse(slice: &[u8], timestamp: UnixTimestamp) -> Result<Self, ParseMetricError> {
@@ -692,7 +692,6 @@ impl Bucket {
     /// # Example
     ///
     /// ```
-    /// use serde::de::Unexpected::Unit;
     /// use relay_metrics::{Bucket, UnixTimestamp};
     ///
     /// let data = br#"
