@@ -737,8 +737,9 @@ impl Project {
     ) {
         let state = self.state_value();
 
-        // Only track metadata if the feature is enabled or we don't know yet whether it is enabled.
-        if !state.map_or(true, |state| state.has_feature(Feature::MetricMeta)) {
+        // Only track metadata if custom metrics are enabled, or we don't know yet whether they are
+        // enabled.
+        if !state.map_or(true, |state| state.has_feature(Feature::CustomMetrics)) {
             relay_log::trace!(
                 "metric meta feature flag not enabled for project {}",
                 self.project_key
@@ -777,7 +778,7 @@ impl Project {
         // All relevant info has been gathered, consider us flushed.
         self.has_pending_metric_meta = false;
 
-        if !state.has_feature(Feature::MetricMeta) {
+        if !state.has_feature(Feature::CustomMetrics) {
             relay_log::debug!(
                 "clearing metric meta aggregator, because project {} does not have feature flag enabled",
                 self.project_key,
