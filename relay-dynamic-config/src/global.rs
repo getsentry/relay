@@ -11,7 +11,7 @@ use relay_quotas::Quota;
 use serde::{de, Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::{defaults, ErrorBoundary, MetricExtractionGroups};
+use crate::{defaults, ErrorBoundary, MetricExtractionGroup, MetricExtractionGroups};
 
 /// A dynamic configuration for all Relays passed down from Sentry.
 ///
@@ -81,9 +81,9 @@ impl GlobalConfig {
                 // We only define these groups if they haven't been defined by the upstream yet.
                 // This ensures that the innermost Relay always defines the metrics.
                 if let Entry::Vacant(entry) = config.groups.entry(group_name) {
-                    entry.insert(crate::MetricExtractionGroup {
+                    entry.insert(MetricExtractionGroup {
                         is_enabled: false, // must be enabled via project config
-                        metrics: metrics.to_vec(),
+                        metrics,
                         tags: Default::default(),
                     });
                 }

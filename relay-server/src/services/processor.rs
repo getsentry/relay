@@ -1170,7 +1170,7 @@ impl EnvelopeProcessorService {
         // will upsert this configuration from transaction and conditional tagging fields, even if
         // it is not present in the actual project config payload. Once transaction metric
         // extraction is moved to generic metrics, this can be converted into an early return.
-        let config = match state.project_state.config.metric_extraction {
+        let config = match &state.project_state.config.metric_extraction {
             ErrorBoundary::Ok(ref config) if config.is_enabled() => Some(config),
             _ => None,
         };
@@ -1187,6 +1187,7 @@ impl EnvelopeProcessorService {
                 } else {
                     // If there's an error with global metrics extraction, it is safe to assume that this
                     // Relay instance is not up-to-date, and we should skip extraction.
+                    relay_log::debug!("Failed to parse global extraction config {e}");
                     return Ok(());
                 })
             }
