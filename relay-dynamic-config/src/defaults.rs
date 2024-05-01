@@ -63,7 +63,7 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
     // Enable the hardcoded span metrics group:
     config
         .global_groups
-        .entry("spans_hardcoded".to_owned())
+        .entry("span_metrics".to_owned())
         .or_default()
         .is_enabled = true;
 
@@ -71,11 +71,11 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
         .features
         .has(Feature::ExtractTransactionFromSegmentSpan)
     {
-        let spans_hardcoded_tx = config
+        let span_metrics_tx = config
             .global_groups
-            .entry("spans_hardcoded_tx".to_owned())
+            .entry("span_metrics_tx".to_owned())
             .or_default();
-        spans_hardcoded_tx.is_enabled = true;
+        span_metrics_tx.is_enabled = true;
     }
 
     config._span_metrics_extended = true;
@@ -170,7 +170,7 @@ pub fn hardcoded_span_metrics() -> Vec<(String, Vec<MetricSpec>)> {
         & duration_condition.clone();
     vec![
         (
-            "spans_hardcoded".to_owned(),
+            "span_metrics".to_owned(),
             vec![
                 MetricSpec {
                     category: DataCategory::Span,
@@ -748,7 +748,7 @@ pub fn hardcoded_span_metrics() -> Vec<(String, Vec<MetricSpec>)> {
             ],
         ),
         (
-            "spans_hardcoded_tx".to_owned(),
+            "span_metrics_tx".to_owned(),
             vec![MetricSpec {
                 category: DataCategory::Span,
                 mri: "d:transactions/measurements.score.total@ratio".into(),
