@@ -261,7 +261,11 @@ fn span_metrics(transaction_extraction_enabled: bool) -> impl IntoIterator<Item 
                 Tag::with_key("environment")
                     .from_field("span.sentry_tags.environment")
                     .when(
-                        is_db.clone() | is_resource.clone() | is_mobile.clone() | is_http.clone(),
+                        is_db.clone()
+                            | is_resource.clone()
+                            | is_mobile.clone()
+                            | is_http.clone()
+                            | is_cache.clone(),
                     ),
                 Tag::with_key("transaction.op")
                     .from_field("span.sentry_tags.transaction.op")
