@@ -1156,7 +1156,8 @@ mod tests {
             "contexts": {
                 "trace": {
                     "trace_id": "ff62a8b040f340bda5d830223def1d81",
-                    "span_id": "bd429c44b67a3eb4"
+                    "span_id": "bd429c44b67a3eb4",
+                    "op": "ui.load"
                 },
                 "device": {
                     "family": "iOS",
