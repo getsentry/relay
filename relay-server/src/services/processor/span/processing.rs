@@ -654,6 +654,13 @@ fn validate(span: &mut Annotated<Span>) -> Result<(), ValidationError> {
 
 fn convert_to_transaction(annotated_span: &Annotated<Span>) -> Option<Event> {
     let span = annotated_span.value()?;
+    let span_op = span.op.value()?;
+
+    // HACK: This is an exception from the JS SDK v8 and we do not want to turn it into a transaction.
+    if span_op == "http.client" && span.parent_span_id.is_empty() {
+        return None;
+    }
+
     relay_log::trace!("Extracting transaction for span {:?}", &span.span_id);
     Event::try_from(span).ok()
 }
