@@ -836,6 +836,7 @@
 <a href="#834" id="834">834</a>
 <a href="#835" id="835">835</a>
 <a href="#836" id="836">836</a>
+<a href="#837" id="837">837</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_base_schema::data_category::DataCategory;
 <span class="kw">use </span>relay_event_normalization::utils::MAX_DURATION_MOBILE_MS;
 <span class="kw">use </span>relay_protocol::RuleCondition;
@@ -1119,7 +1120,8 @@
                                 is_db.clone()
                                     | is_resource.clone()
                                     | is_mobile.clone()
-                                    | is_http.clone(),
+                                    | is_http.clone()
+                                    | is_cache.clone(),
                             ),
                         Tag::with_key(<span class="string">"transaction.op"</span>)
                             .from_field(<span class="string">"span.sentry_tags.transaction.op"</span>)
@@ -1226,7 +1228,7 @@
                 MetricSpec {
                     category: DataCategory::Span,
                     mri: <span class="string">"d:spans/cache.item_size@byte"</span>.into(),
-                    field: <span class="prelude-val">Some</span>(<span class="string">"span.data.cache\\.item_size"</span>.into()),
+                    field: <span class="prelude-val">Some</span>(<span class="string">"span.measurements.cache.item_size.value"</span>.into()),
                     condition: <span class="prelude-val">Some</span>(is_cache.clone()),
                     tags: <span class="macro">vec!</span>[
                         Tag::with_key(<span class="string">"environment"</span>)
