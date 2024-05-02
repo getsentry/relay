@@ -212,7 +212,7 @@
 <span class="kw">use </span>relay_metrics::{Bucket, BucketValue, FiniteF64, MetricNamespace, SetView};
 <span class="kw">use </span>serde::Serialize;
 
-<span class="kw">static </span>BASE64: data_encoding::Encoding = data_encoding::BASE64;
+<span class="kw">static </span>BASE64_NOPAD: data_encoding::Encoding = data_encoding::BASE64_NOPAD;
 
 <span class="kw">pub struct </span>BucketEncoder&lt;<span class="lifetime">'a</span>&gt; {
     global_config: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>GlobalConfig,
@@ -352,7 +352,7 @@
 }
 
 <span class="kw">fn </span>base64&lt;T: Encodable&gt;(data: T, buffer: <span class="kw-2">&amp;mut </span>String) -&gt; io::Result&lt;ArrayEncoding&lt;T&gt;&gt; {
-    <span class="kw">let </span><span class="kw-2">mut </span>writer = EncoderWriteAdapter(BASE64.new_encoder(buffer));
+    <span class="kw">let </span><span class="kw-2">mut </span>writer = EncoderWriteAdapter(BASE64_NOPAD.new_encoder(buffer));
     data.write_to(<span class="kw-2">&amp;mut </span>writer)<span class="question-mark">?</span>;
     drop(writer);
 
@@ -363,7 +363,7 @@
 
 <span class="kw">fn </span>zstd&lt;T: Encodable&gt;(data: T, buffer: <span class="kw-2">&amp;mut </span>String) -&gt; io::Result&lt;ArrayEncoding&lt;T&gt;&gt; {
     <span class="kw">let </span><span class="kw-2">mut </span>writer = zstd::Encoder::new(
-        EncoderWriteAdapter(BASE64.new_encoder(buffer)),
+        EncoderWriteAdapter(BASE64_NOPAD.new_encoder(buffer)),
         zstd::DEFAULT_COMPRESSION_LEVEL,
     )<span class="question-mark">?</span>;
 
