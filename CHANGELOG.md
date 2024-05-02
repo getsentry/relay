@@ -7,6 +7,7 @@
 - Add metrics extraction config to global config. ([#3490](https://github.com/getsentry/relay/pull/3490), [#3504](https://github.com/getsentry/relay/pull/3504))
 - Extract `cache.item_size` from measurements instead of data. ([#3510](https://github.com/getsentry/relay/pull/3510))
 - Collect `enviornment` tag as part of exclusive_time_light for cache spans. ([#3510](https://github.com/getsentry/relay/pull/3510))
+- Forward `span.data` on the Kafka message. ([#3523](https://github.com/getsentry/relay/pull/3523))
 
 ## 24.4.2
 
