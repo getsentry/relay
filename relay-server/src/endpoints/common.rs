@@ -277,9 +277,6 @@ fn queue_envelope(
                 sent_at: envelope.sent_at(),
                 project_key: envelope.meta().public_key(),
                 keep_metadata: envelope.meta().is_from_internal_relay(),
-                override_received_at_metadata: state
-                    .config()
-                    .metrics_override_received_at_metadata(),
             });
         }
 

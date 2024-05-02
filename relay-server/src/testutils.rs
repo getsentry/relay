@@ -19,7 +19,6 @@ use crate::services::global_config::GlobalConfigHandle;
 use crate::services::outcome::TrackOutcome;
 use crate::services::processor::{self, EnvelopeProcessorService};
 use crate::services::project::ProjectState;
-use crate::services::project_cache::ProjectCache;
 use crate::services::test_store::TestStore;
 #[cfg(feature = "processing")]
 use crate::utils::BufferGuard;
@@ -156,17 +155,10 @@ pub fn create_test_processor(config: Config) -> EnvelopeProcessorService {
     )
 }
 
-pub fn create_test_processor_with_custom_service(
+pub fn create_test_processor_with_addrs(
     config: Config,
-    override_project_cache: Option<Addr<ProjectCache>>,
+    addrs: processor::Addrs,
 ) -> EnvelopeProcessorService {
-    let (outcome_aggregator, _) = mock_service("outcome_aggregator", (), |&mut (), _| {});
-    let project_cache =
-        override_project_cache.map_or(mock_service("project_cache", (), |&mut (), _| {}).0, |v| v);
-    let (upstream_relay, _) = mock_service("upstream_relay", (), |&mut (), _| {});
-    let (test_store, _) = mock_service("test_store", (), |&mut (), _| {});
-    let (aggregator, _) = mock_service("aggregator", (), |&mut (), _| {});
-
     #[cfg(feature = "processing")]
     let redis = config
         .redis()
@@ -180,21 +172,11 @@ pub fn create_test_processor_with_custom_service(
         Cogs::noop(),
         #[cfg(feature = "processing")]
         redis,
-        processor::Addrs {
-            envelope_processor: Addr::dummy(),
-            outcome_aggregator,
-            project_cache,
-            upstream_relay,
-            test_store,
-            #[cfg(feature = "processing")]
-            aggregator: aggregator.clone(),
-            #[cfg(feature = "processing")]
-            store_forwarder: None,
-        },
+        addrs,
         MetricStats::new(
             config,
             GlobalConfigHandle::fixed(Default::default()),
-            aggregator,
+            Addr::dummy(),
         ),
         #[cfg(feature = "processing")]
         Arc::new(BufferGuard::new(usize::MAX)),

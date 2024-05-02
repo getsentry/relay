@@ -34,6 +34,14 @@ where
         return metrics;
     };
 
+    // For extracted metrics we assume the `received_at` timestamp is equivalent to the time
+    // in which the metric is extracted.
+    let received_at = if cfg!(not(test)) {
+        UnixTimestamp::now()
+    } else {
+        UnixTimestamp::from_secs(0)
+    };
+
     for metric_spec in &config.metrics {
         if metric_spec.category != instance.category() {
             continue;
@@ -55,13 +63,6 @@ where
         let Some(value) = read_metric_value(instance, metric_spec.field.as_deref(), mri.ty) else {
             continue;
         };
-
-        // For extracted metrics we assume the `received_at` timestamp is equivalent to the time
-        // in which the metric is extracted.
-        #[cfg(not(test))]
-        let received_at = UnixTimestamp::now();
-        #[cfg(test)]
-        let received_at = UnixTimestamp::from_secs(0);
 
         metrics.push(Bucket {
             name: mri.to_string().into(),

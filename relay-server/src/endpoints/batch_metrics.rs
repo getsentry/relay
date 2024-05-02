@@ -23,7 +23,6 @@ pub async fn handle(
         keep_metadata: body.relay.internal,
         start_time: start_time.into_inner(),
         sent_at: None,
-        override_received_at_metadata: state.config().metrics_override_received_at_metadata(),
     });
 
     (StatusCode::ACCEPTED, axum::Json(SendMetricsResponse {})).into_response()

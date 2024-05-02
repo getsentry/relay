@@ -1,4 +1,3 @@
-use std::cmp::min;
 use std::collections::{BTreeMap, BTreeSet};
 use std::hash::Hash;
 use std::iter::FusedIterator;
@@ -784,10 +783,7 @@ impl BucketMetadata {
         self.received_at = match (self.received_at, other.received_at) {
             (Some(received_at), None) => Some(received_at),
             (None, Some(received_at)) => Some(received_at),
-            (Some(left_received_at), Some(right_received_at)) => {
-                Some(min(left_received_at, right_received_at))
-            }
-            (None, None) => None,
+            (left, right) => left.min(right),
         };
     }
 }
@@ -1445,5 +1441,41 @@ mod tests {
 
         let serialized = serde_json::to_string_pretty(&buckets).unwrap();
         assert_eq!(json, serialized);
+    }
+
+    // TODO: add merges tests of metadata.
+    #[test]
+    fn test_bucket_metadata_merge() {
+        let mut metadata = BucketMetadata::default();
+
+        let other_metadata = BucketMetadata::default();
+        metadata.merge(other_metadata);
+        assert_eq!(
+            metadata,
+            BucketMetadata {
+                merges: NonZeroU32::new(2).unwrap(),
+                received_at: None
+            }
+        );
+
+        let other_metadata = BucketMetadata::new(UnixTimestamp::from_secs(10));
+        metadata.merge(other_metadata);
+        assert_eq!(
+            metadata,
+            BucketMetadata {
+                merges: NonZeroU32::new(3).unwrap(),
+                received_at: Some(UnixTimestamp::from_secs(10))
+            }
+        );
+
+        let other_metadata = BucketMetadata::new(UnixTimestamp::from_secs(20));
+        metadata.merge(other_metadata);
+        assert_eq!(
+            metadata,
+            BucketMetadata {
+                merges: NonZeroU32::new(4).unwrap(),
+                received_at: Some(UnixTimestamp::from_secs(10))
+            }
+        );
     }
 }

@@ -524,9 +524,6 @@ struct SentryMetrics {
     ///
     /// Defaults to 5.
     pub meta_locations_max: usize,
-    /// Whether to override the `received_at` field in the `BucketMetadata` with the current
-    /// receive time of the instance.
-    pub override_received_at_metadata: bool,
 }
 
 impl Default for SentryMetrics {
@@ -534,7 +531,6 @@ impl Default for SentryMetrics {
         Self {
             meta_locations_expiry: 15 * 24 * 60 * 60,
             meta_locations_max: 5,
-            override_received_at_metadata: false,
         }
     }
 }
@@ -1949,11 +1945,6 @@ impl Config {
     /// Returns the expiry for code locations.
     pub fn metrics_meta_locations_expiry(&self) -> Duration {
         Duration::from_secs(self.values.sentry_metrics.meta_locations_expiry)
-    }
-
-    /// Returns whether we want to override the `received_at` field of `BucketMetadata`.
-    pub fn metrics_override_received_at_metadata(&self) -> bool {
-        self.values.sentry_metrics.override_received_at_metadata
     }
 
     /// Returns the default timeout for all upstream HTTP requests.

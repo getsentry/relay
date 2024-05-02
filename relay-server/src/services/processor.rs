@@ -732,9 +732,6 @@ pub struct ProcessMetrics {
     /// The value of the Envelope's [`sent_at`](Envelope::sent_at) header for clock drift
     /// correction.
     pub sent_at: Option<DateTime<Utc>>,
-    /// Whether to override the `received_at` field in the `BucketMetadata` with the current
-    /// receive time of the instance.
-    pub override_received_at_metadata: bool,
 }
 
 #[derive(Debug)]
@@ -747,9 +744,6 @@ pub struct ProcessBatchedMetrics {
     pub start_time: Instant,
     /// The instant at which the request was received.
     pub sent_at: Option<DateTime<Utc>>,
-    /// Whether to override the `received_at` field in the `BucketMetadata` with the current
-    /// receive time of the instance.
-    pub override_received_at_metadata: bool,
 }
 
 /// Parses a list of metric meta items and pushes them to the project cache for aggregation.
@@ -937,6 +931,22 @@ pub struct Addrs {
     pub test_store: Addr<TestStore>,
     #[cfg(feature = "processing")]
     pub store_forwarder: Option<Addr<Store>>,
+}
+
+impl Default for Addrs {
+    fn default() -> Self {
+        Addrs {
+            envelope_processor: Addr::dummy(),
+            project_cache: Addr::dummy(),
+            outcome_aggregator: Addr::dummy(),
+            #[cfg(feature = "processing")]
+            aggregator: Addr::dummy(),
+            upstream_relay: Addr::dummy(),
+            test_store: Addr::dummy(),
+            #[cfg(feature = "processing")]
+            store_forwarder: None,
+        }
+    }
 }
 
 struct InnerProcessor {
@@ -1804,7 +1814,6 @@ impl EnvelopeProcessorService {
             start_time,
             sent_at,
             keep_metadata,
-            override_received_at_metadata,
         } = message;
 
         let received = relay_common::time::instant_to_date_time(start_time);
@@ -1859,11 +1868,7 @@ impl EnvelopeProcessorService {
         for bucket in &mut buckets {
             clock_drift_processor.process_timestamp(&mut bucket.timestamp);
             if !keep_metadata {
-                bucket.metadata = BucketMetadata::default();
-            }
-
-            if override_received_at_metadata {
-                bucket.metadata.received_at = Some(received_timestamp);
+                bucket.metadata = BucketMetadata::new(received_timestamp);
             }
         }
 
@@ -1882,7 +1887,6 @@ impl EnvelopeProcessorService {
             keep_metadata,
             start_time,
             sent_at,
-            override_received_at_metadata,
         } = message;
 
         let received = relay_common::time::instant_to_date_time(start_time);
@@ -1899,7 +1903,6 @@ impl EnvelopeProcessorService {
         let buckets = match serde_json::from_slice(&payload) {
             Ok(Wrapper { buckets }) => buckets,
             Err(error) => {
-                println!("{:?}", error);
                 relay_log::debug!(
                     error = &error as &dyn Error,
                     "failed to parse batched metrics",
@@ -1918,11 +1921,7 @@ impl EnvelopeProcessorService {
             for bucket in &mut buckets {
                 clock_drift_processor.process_timestamp(&mut bucket.timestamp);
                 if !keep_metadata {
-                    bucket.metadata = BucketMetadata::default();
-                }
-
-                if override_received_at_metadata {
-                    bucket.metadata.received_at = Some(received_timestamp)
+                    bucket.metadata = BucketMetadata::new(received_timestamp);
                 }
             }
 
@@ -2986,9 +2985,7 @@ mod tests {
         CommonTags, TransactionMeasurementTags, TransactionMetric,
     };
     use crate::metrics_extraction::IntoMetric;
-    use crate::testutils::{
-        self, create_test_processor, create_test_processor_with_custom_service,
-    };
+    use crate::testutils::{self, create_test_processor, create_test_processor_with_addrs};
 
     #[cfg(feature = "processing")]
     use {
@@ -3404,36 +3401,39 @@ mod tests {
         };
 
         let (project_cache, mut project_cache_rx) = Addr::custom();
-        let processor =
-            create_test_processor_with_custom_service(config, Some(project_cache.clone()));
+        let processor = create_test_processor_with_addrs(
+            config,
+            Addrs {
+                project_cache,
+                ..Default::default()
+            },
+        );
 
         let mut item = Item::new(ItemType::Statsd);
         item.set_payload(
             ContentType::Text,
             "transactions/foo:3182887624:4267882815|s",
         );
-        for (override_received_at_metadata, expected_received_at) in [
-            (true, Some(UnixTimestamp::from_instant(start_time))),
-            (false, None),
+        for (keep_metadata, expected_received_at) in [
+            (false, Some(UnixTimestamp::from_instant(start_time))),
+            (true, None),
         ] {
             let message = ProcessMetrics {
                 items: vec![item.clone()],
                 project_key,
-                keep_metadata: true,
+                keep_metadata,
                 start_time,
                 sent_at: Some(Utc::now()),
-                override_received_at_metadata,
             };
             processor.handle_process_metrics(&mut token, message);
 
             let value = project_cache_rx.recv().await.unwrap();
-            if let ProjectCache::MergeBuckets(merge_buckets) = value {
-                let buckets = merge_buckets.buckets();
-                assert_eq!(buckets.len(), 1);
-                assert_eq!(buckets[0].metadata.received_at, expected_received_at);
-            } else {
-                panic!();
-            }
+            let ProjectCache::MergeBuckets(merge_buckets) = value else {
+                panic!()
+            };
+            let buckets = merge_buckets.buckets();
+            assert_eq!(buckets.len(), 1);
+            assert_eq!(buckets[0].metadata.received_at, expected_received_at);
         }
     }
 
@@ -3452,8 +3452,13 @@ mod tests {
         };
 
         let (project_cache, mut project_cache_rx) = Addr::custom();
-        let processor =
-            create_test_processor_with_custom_service(config, Some(project_cache.clone()));
+        let processor = create_test_processor_with_addrs(
+            config,
+            Addrs {
+                project_cache,
+                ..Default::default()
+            },
+        );
 
         let payload_no_metadata = r#"{
     "buckets": {
@@ -3504,41 +3509,39 @@ mod tests {
     }
 }
 "#;
-        for (override_received_at_metadata, payload, expected_received_at) in [
+        for (keep_metadata, payload, expected_received_at) in [
             (
-                true,
+                false,
                 payload_no_metadata,
                 Some(UnixTimestamp::from_instant(start_time)),
             ),
-            (false, payload_no_metadata, None),
+            (true, payload_no_metadata, None),
             (
-                true,
+                false,
                 payload_metadata,
                 Some(UnixTimestamp::from_instant(start_time)),
             ),
             (
-                false,
+                true,
                 payload_metadata,
                 Some(UnixTimestamp::from_secs(1615889440)),
             ),
         ] {
             let message = ProcessBatchedMetrics {
                 payload: Bytes::from(payload),
-                keep_metadata: true,
+                keep_metadata,
                 start_time,
                 sent_at: Some(Utc::now()),
-                override_received_at_metadata,
             };
             processor.handle_process_batched_metrics(&mut token, message);
 
             let value = project_cache_rx.recv().await.unwrap();
-            if let ProjectCache::MergeBuckets(merge_buckets) = value {
-                let buckets = merge_buckets.buckets();
-                assert_eq!(buckets.len(), 1);
-                assert_eq!(buckets[0].metadata.received_at, expected_received_at)
-            } else {
-                panic!();
-            }
+            let ProjectCache::MergeBuckets(merge_buckets) = value else {
+                panic!()
+            };
+            let buckets = merge_buckets.buckets();
+            assert_eq!(buckets.len(), 1);
+            assert_eq!(buckets[0].metadata.received_at, expected_received_at);
         }
     }
 }
