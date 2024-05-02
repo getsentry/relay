@@ -2627,7 +2627,14 @@ impl Service for EnvelopeProcessorService {
     type Interface = EnvelopeProcessor;
 
     fn spawn_handler(self, mut rx: relay_system::Receiver<Self::Interface>) {
-        let thread_count = self.inner.config.cpu_concurrency();
+        // Adjust thread count for small cpu counts to not have too many idle cores
+        // and distribute workload better.
+        let thread_count = match self.inner.config.cpu_concurrency() {
+            0 | 1 => 1,
+            2 | 3 => 2,
+            4 => 3,
+            conc => conc - 2,
+        };
         relay_log::info!("starting {thread_count} envelope processing workers");
 
         tokio::spawn(async move {
