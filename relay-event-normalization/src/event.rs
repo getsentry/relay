@@ -32,7 +32,7 @@ use crate::span::tag_extraction::extract_span_tags_from_event;
 use crate::utils::{self, get_event_user_tag, MAX_DURATION_MOBILE_MS};
 use crate::{
     breakdowns, event_error, legacy, mechanism, remove_other, schema, span, stacktrace,
-    transactions, trimming, user_agent, BreakdownsConfig, DynamicMeasurementsConfig, GeoIpLookup,
+    transactions, trimming, user_agent, BreakdownsConfig, CombinedMeasurementsConfig, GeoIpLookup,
     MaxChars, PerformanceScoreConfig, RawUserAgentInfo, SpanDescriptionRule, TransactionNameConfig,
 };
 
@@ -90,7 +90,7 @@ pub struct NormalizationConfig<'a> {
     /// Has an optional [`crate::MeasurementsConfig`] from both the project and the global level.
     /// If at least one is provided, then normalization will truncate custom measurements
     /// and add units of known built-in measurements.
-    pub measurements: Option<DynamicMeasurementsConfig<'a>>,
+    pub measurements: Option<CombinedMeasurementsConfig<'a>>,
 
     /// Emit breakdowns based on given configuration.
     pub breakdowns_config: Option<&'a BreakdownsConfig>,
@@ -804,7 +804,7 @@ fn normalize_user_agent(_event: &mut Event, normalize_user_agent: Option<bool>) 
 /// Ensures measurements interface is only present for transaction events.
 fn normalize_event_measurements(
     event: &mut Event,
-    measurements_config: Option<DynamicMeasurementsConfig>,
+    measurements_config: Option<CombinedMeasurementsConfig>,
     max_mri_len: Option<usize>,
 ) {
     if event.ty.value() != Some(&EventType::Transaction) {
@@ -826,7 +826,7 @@ fn normalize_event_measurements(
 pub fn normalize_measurements(
     measurements: &mut Measurements,
     meta: &mut Meta,
-    measurements_config: Option<DynamicMeasurementsConfig>,
+    measurements_config: Option<CombinedMeasurementsConfig>,
     max_mri_len: Option<usize>,
     start_timestamp: Option<Timestamp>,
     end_timestamp: Option<Timestamp>,
@@ -1277,7 +1277,7 @@ fn normalize_units(measurements: &mut Measurements) {
 fn remove_invalid_measurements(
     measurements: &mut Measurements,
     meta: &mut Meta,
-    measurements_config: DynamicMeasurementsConfig,
+    measurements_config: CombinedMeasurementsConfig,
     max_name_and_unit_len: Option<usize>,
 ) {
     let max_custom_measurements = measurements_config.max_custom_measurements().unwrap_or(0);
@@ -1629,7 +1629,7 @@ mod tests {
         .unwrap();
 
         let dynamic_measurement_config =
-            DynamicMeasurementsConfig::new(Some(&project_measurement_config), None);
+            CombinedMeasurementsConfig::new(Some(&project_measurement_config), None);
 
         normalize_event_measurements(&mut event, Some(dynamic_measurement_config), None);
 
@@ -1991,7 +1991,7 @@ mod tests {
             ..Default::default()
         };
 
-        let dynamic_config = DynamicMeasurementsConfig::new(Some(&measurements_config), None);
+        let dynamic_config = CombinedMeasurementsConfig::new(Some(&measurements_config), None);
 
         // Just for clarity.
         // Checks that there is 1 measurement before processing.
@@ -2895,7 +2895,7 @@ mod tests {
         .unwrap();
 
         let dynamic_measurement_config =
-            DynamicMeasurementsConfig::new(Some(&project_measurement_config), None);
+            CombinedMeasurementsConfig::new(Some(&project_measurement_config), None);
 
         normalize_event_measurements(&mut event, Some(dynamic_measurement_config), None);
 

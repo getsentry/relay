@@ -113,18 +113,18 @@ pub fn normalize_app_start_spans(event: &mut Event) {
 /// Container for global and project level [`MeasurementsConfig`]. The purpose is to handle
 /// the merging logic.
 #[derive(Clone, Debug)]
-pub struct DynamicMeasurementsConfig<'a> {
+pub struct CombinedMeasurementsConfig<'a> {
     project: Option<&'a MeasurementsConfig>,
     global: Option<&'a MeasurementsConfig>,
 }
 
-impl<'a> DynamicMeasurementsConfig<'a> {
-    /// Constructor for [`DynamicMeasurementsConfig`].
+impl<'a> CombinedMeasurementsConfig<'a> {
+    /// Constructor for [`CombinedMeasurementsConfig`].
     pub fn new(
         project: Option<&'a MeasurementsConfig>,
         global: Option<&'a MeasurementsConfig>,
     ) -> Self {
-        DynamicMeasurementsConfig { project, global }
+        CombinedMeasurementsConfig { project, global }
     }
 
     /// Returns an iterator over the merged builtin measurement keys.
@@ -260,7 +260,7 @@ mod tests {
             builtin_measurements: vec![baz.clone(), bar.clone()],
             max_custom_measurements: 4,
         };
-        let dynamic_config = DynamicMeasurementsConfig::new(Some(&proj), Some(&glob));
+        let dynamic_config = CombinedMeasurementsConfig::new(Some(&proj), Some(&glob));
 
         let keys = dynamic_config.builtin_measurement_keys().collect_vec();
 
@@ -270,7 +270,7 @@ mod tests {
     #[test]
     fn test_max_custom_measurement() {
         // Empty configs will return a None value for max measurements.
-        let dynamic_config = DynamicMeasurementsConfig::new(None, None);
+        let dynamic_config = CombinedMeasurementsConfig::new(None, None);
         assert!(dynamic_config.max_custom_measurements().is_none());
 
         let proj = MeasurementsConfig {
@@ -284,15 +284,15 @@ mod tests {
         };
 
         // If only project level measurement config is there, return its max custom measurement variable.
-        let dynamic_config = DynamicMeasurementsConfig::new(Some(&proj), None);
+        let dynamic_config = CombinedMeasurementsConfig::new(Some(&proj), None);
         assert_eq!(dynamic_config.max_custom_measurements().unwrap(), 3);
 
         // Same logic for when only global level measurement config exists.
-        let dynamic_config = DynamicMeasurementsConfig::new(None, Some(&glob));
+        let dynamic_config = CombinedMeasurementsConfig::new(None, Some(&glob));
         assert_eq!(dynamic_config.max_custom_measurements().unwrap(), 4);
 
         // If both is available, pick the smallest number.
-        let dynamic_config = DynamicMeasurementsConfig::new(Some(&proj), Some(&glob));
+        let dynamic_config = CombinedMeasurementsConfig::new(Some(&proj), Some(&glob));
         assert_eq!(dynamic_config.max_custom_measurements().unwrap(), 3);
     }
 

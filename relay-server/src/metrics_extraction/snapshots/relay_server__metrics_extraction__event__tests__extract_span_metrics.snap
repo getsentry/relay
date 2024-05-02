@@ -5859,6 +5859,7 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "messaging.destination.name": "default",
             "span.category": "queue",
             "span.op": "queue.task.celery",
             "transaction": "gEt /api/:version/users/",
@@ -5880,6 +5881,7 @@ expression: metrics
             ],
         ),
         tags: {
+            "messaging.destination.name": "default",
             "span.category": "queue",
             "span.op": "queue.task.celery",
         },
@@ -5959,6 +5961,7 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "messaging.destination.name": "default",
             "span.category": "queue",
             "span.op": "queue.submit.celery",
             "transaction": "gEt /api/:version/users/",
@@ -5980,6 +5983,7 @@ expression: metrics
             ],
         ),
         tags: {
+            "messaging.destination.name": "default",
             "span.category": "queue",
             "span.op": "queue.submit.celery",
         },
@@ -6059,6 +6063,7 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "messaging.destination.name": "default",
             "span.category": "queue",
             "span.op": "queue.publish",
             "transaction": "gEt /api/:version/users/",
@@ -6080,6 +6085,7 @@ expression: metrics
             ],
         ),
         tags: {
+            "messaging.destination.name": "default",
             "span.category": "queue",
             "span.op": "queue.publish",
         },
@@ -6159,6 +6165,7 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "messaging.destination.name": "default",
             "span.category": "queue",
             "span.op": "queue.process",
             "transaction": "gEt /api/:version/users/",
@@ -6180,6 +6187,7 @@ expression: metrics
             ],
         ),
         tags: {
+            "messaging.destination.name": "default",
             "span.category": "queue",
             "span.op": "queue.process",
         },
@@ -6227,158 +6235,6 @@ expression: metrics
             "environment": "fake_environment",
             "span.op": "queue.process",
             "transaction": "gEt /api/:version/users/",
-        },
-        metadata: BucketMetadata {
-            merges: 1,
-        },
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1702474613),
-        width: 0,
-        name: MetricName(
-            "c:spans/usage@none",
-        ),
-        value: Counter(
-            1.0,
-        ),
-        tags: {},
-        metadata: BucketMetadata {
-            merges: 1,
-        },
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1702474613),
-        width: 0,
-        name: MetricName(
-            "d:spans/exclusive_time@millisecond",
-        ),
-        value: Distribution(
-            [
-                32.000065,
-            ],
-        ),
-        tags: {
-            "environment": "fake_environment",
-            "span.category": "queue",
-            "span.op": "queue.publish",
-            "transaction": "gEt /api/:version/users/",
-            "transaction.op": "myop",
-        },
-        metadata: BucketMetadata {
-            merges: 1,
-        },
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1702474613),
-        width: 0,
-        name: MetricName(
-            "d:spans/exclusive_time_light@millisecond",
-        ),
-        value: Distribution(
-            [
-                32.000065,
-            ],
-        ),
-        tags: {
-            "span.category": "queue",
-            "span.op": "queue.publish",
-        },
-        metadata: BucketMetadata {
-            merges: 1,
-        },
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1702474613),
-        width: 0,
-        name: MetricName(
-            "d:spans/duration@millisecond",
-        ),
-        value: Distribution(
-            [
-                32.000065,
-            ],
-        ),
-        tags: {
-            "environment": "fake_environment",
-            "span.op": "queue.publish",
-            "transaction": "gEt /api/:version/users/",
-            "transaction.op": "myop",
-        },
-        metadata: BucketMetadata {
-            merges: 1,
-        },
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1702474613),
-        width: 0,
-        name: MetricName(
-            "c:spans/usage@none",
-        ),
-        value: Counter(
-            1.0,
-        ),
-        tags: {},
-        metadata: BucketMetadata {
-            merges: 1,
-        },
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1702474613),
-        width: 0,
-        name: MetricName(
-            "d:spans/exclusive_time@millisecond",
-        ),
-        value: Distribution(
-            [
-                32.000065,
-            ],
-        ),
-        tags: {
-            "environment": "fake_environment",
-            "span.category": "queue",
-            "span.op": "queue.process",
-            "transaction": "gEt /api/:version/users/",
-            "transaction.op": "myop",
-        },
-        metadata: BucketMetadata {
-            merges: 1,
-        },
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1702474613),
-        width: 0,
-        name: MetricName(
-            "d:spans/exclusive_time_light@millisecond",
-        ),
-        value: Distribution(
-            [
-                32.000065,
-            ],
-        ),
-        tags: {
-            "span.category": "queue",
-            "span.op": "queue.process",
-        },
-        metadata: BucketMetadata {
-            merges: 1,
-        },
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1702474613),
-        width: 0,
-        name: MetricName(
-            "d:spans/duration@millisecond",
-        ),
-        value: Distribution(
-            [
-                32.000065,
-            ],
-        ),
-        tags: {
-            "environment": "fake_environment",
-            "span.op": "queue.process",
-            "transaction": "gEt /api/:version/users/",
-            "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,

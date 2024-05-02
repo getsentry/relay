@@ -319,6 +319,10 @@ pub struct SpanData {
     #[metastructure(field = "frames.delay")]
     pub frames_delay: Annotated<Value>,
 
+    // Messaging Destination Name
+    #[metastructure(field = "messaging.destination.name")]
+    pub messaging_destination_name: Annotated<Value>,
+
     /// Message Retry Count
     #[metastructure(field = "messaging.message.retry.count")]
     pub messaging_message_retry_count: Annotated<Value>,
@@ -530,6 +534,7 @@ mod tests {
         "frames.frozen": 2,
         "frames.total": 9,
         "frames.delay": 100,
+        "messaging.destination.name": "default",
         "messaging.message.retry.count": 3,
         "messaging.message.receive.latency": 40,
         "messaging.message.body.size": 100
@@ -593,6 +598,9 @@ mod tests {
             ),
             frames_delay: I64(
                 100,
+            ),
+            messaging_destination_name: String(
+                "default",
             ),
             messaging_message_retry_count: I64(
                 3,

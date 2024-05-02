@@ -1,9 +1,10 @@
 # Changelog
 
-### Unreleased
+## Unreleased
 
-**Bug fixes:**
+**Internal**:
 
+- Add metrics extraction config to global config. ([#3490](https://github.com/getsentry/relay/pull/3490), [#3504](https://github.com/getsentry/relay/pull/3504))
 - Extract `cache.item_size` from measurements instead of data. ([#3510](https://github.com/getsentry/relay/pull/3510))
 - Collect `enviornment` tag as part of exclusive_time_light for cache spans. ([#3510](https://github.com/getsentry/relay/pull/3510))
 
@@ -35,6 +36,7 @@
 - Collect exclusive_time_light metrics for `cache.*` spans. ([#3466](https://github.com/getsentry/relay/pull/3466))
 - Build and publish ARM docker images for Relay. ([#3272](https://github.com/getsentry/relay/pull/3272)).
 - Remove `MetricMeta` feature flag and use `CustomMetrics` instead. ([#3503](https://github.com/getsentry/relay/pull/3503))
+- Collect `transaction.op` as tag for frame metrics. ([#3512](https://github.com/getsentry/relay/pull/3512))
 
 ## 24.4.1
 
