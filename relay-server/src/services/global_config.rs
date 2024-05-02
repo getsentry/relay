@@ -311,11 +311,14 @@ impl GlobalConfigService {
                 let is_ready = response.global_status.map_or(true, |stat| stat.is_ready());
 
                 match response.global {
-                    Some(global_config) if is_ready => {
+                    Some(mut global_config) if is_ready => {
                         // Log the first time we receive a global config from upstream.
                         if !self.global_config_watch.borrow().is_ready() {
                             relay_log::info!("received global config from upstream");
                         }
+
+                        global_config.normalize();
+
                         self.global_config_watch
                             .send_replace(Status::Ready(Arc::new(global_config)));
                         success = true;

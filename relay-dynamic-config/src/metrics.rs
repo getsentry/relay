@@ -349,7 +349,7 @@ impl MetricExtractionConfig {
     pub fn is_enabled(&self) -> bool {
         self.version > 0
             && self.is_supported()
-            && !(self.metrics.is_empty() && self.tags.is_empty())
+            && !(self.metrics.is_empty() && self.tags.is_empty() && self.global_groups.is_empty())
     }
 }
 
