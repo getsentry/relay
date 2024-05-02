@@ -1,5 +1,5 @@
 use relay_common::time::UnixTimestamp;
-use relay_dynamic_config::MetricExtractionConfig;
+use relay_dynamic_config::CombinedMetricExtractionConfig;
 use relay_event_schema::protocol::{Event, Span};
 use relay_metrics::Bucket;
 use relay_quotas::DataCategory;
@@ -48,7 +48,7 @@ impl Extractable for Span {
 pub fn extract_metrics(
     event: &Event,
     spans_extracted: bool,
-    config: &MetricExtractionConfig,
+    config: &CombinedMetricExtractionConfig<'_>,
     max_tag_value_size: usize,
     span_extraction_sample_rate: Option<f32>,
 ) -> Vec<Bucket> {
@@ -65,7 +65,7 @@ pub fn extract_metrics(
 
 fn extract_span_metrics_for_event(
     event: &Event,
-    config: &MetricExtractionConfig,
+    config: &CombinedMetricExtractionConfig<'_>,
     max_tag_value_size: usize,
     output: &mut Vec<Bucket>,
 ) {
@@ -86,15 +86,43 @@ fn extract_span_metrics_for_event(
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeSet;
+
     use chrono::{DateTime, Utc};
     use insta::assert_debug_snapshot;
-    use relay_dynamic_config::{Feature, FeatureSet, ProjectConfig};
+    use once_cell::sync::Lazy;
+    use relay_dynamic_config::{
+        Feature, FeatureSet, GlobalConfig, MetricExtractionConfig, MetricExtractionGroups,
+        ProjectConfig,
+    };
     use relay_event_normalization::{normalize_event, NormalizationConfig};
     use relay_event_schema::protocol::Timestamp;
     use relay_protocol::Annotated;
-    use std::collections::BTreeSet;
 
     use super::*;
+
+    static GLOBAL_CONFIG: Lazy<MetricExtractionGroups> = Lazy::new(|| {
+        let mut global = GlobalConfig::default();
+        global.normalize(); // defines metrics extraction rules
+        global.metric_extraction.ok().unwrap()
+    });
+
+    static PROJECT_CONFIG: Lazy<MetricExtractionConfig> = Lazy::new(|| {
+        let features = FeatureSet(BTreeSet::from([
+            Feature::ExtractSpansAndSpanMetricsFromEvent,
+        ]));
+
+        let mut project = ProjectConfig {
+            features,
+            ..ProjectConfig::default()
+        };
+        project.sanitize(); // enables metrics extraction rules
+        project.metric_extraction.ok().unwrap()
+    });
+
+    fn combined_config() -> CombinedMetricExtractionConfig<'static> {
+        CombinedMetricExtractionConfig::new(&GLOBAL_CONFIG, &PROJECT_CONFIG)
+    }
 
     #[test]
     fn test_extract_span_metrics() {
@@ -1028,7 +1056,12 @@ mod tests {
                     "span_id": "9b01bd820a083e63",
                     "parent_span_id": "a1e13f3f06239d69",
                     "trace_id": "922dda2462ea4ac2b6a4b339bee90863",
-                    "data": {}
+                    "data": {
+                        "messaging.destination.name": "default",
+                        "messaging.message.receive.latency": 100,
+                        "messaging.message.retry.count": 2,
+                        "messaging.message.body.size": 1000
+                    }
                 },
                 {
                     "timestamp": 1702474613.0495,
@@ -1038,7 +1071,42 @@ mod tests {
                     "span_id": "9b01bd820a083e63",
                     "parent_span_id": "a1e13f3f06239d69",
                     "trace_id": "922dda2462ea4ac2b6a4b339bee90863",
-                    "data": {}
+                    "data": {
+                        "messaging.destination.name": "default",
+                        "messaging.message.receive.latency": 100,
+                        "messaging.message.retry.count": 2,
+                        "messaging.message.body.size": 1000
+                    }
+                },
+                {
+                    "timestamp": 1702474613.0495,
+                    "start_timestamp": 1702474613.0175,
+                    "description": "sentry.tasks.post_process.post_process_group",
+                    "op": "queue.publish",
+                    "span_id": "9b01bd820a083e63",
+                    "parent_span_id": "a1e13f3f06239d69",
+                    "trace_id": "922dda2462ea4ac2b6a4b339bee90863",
+                    "data": {
+                        "messaging.destination.name": "default",
+                        "messaging.message.receive.latency": 100,
+                        "messaging.message.retry.count": 2,
+                        "messaging.message.body.size": 1000
+                    }
+                },
+                {
+                    "timestamp": 1702474613.0495,
+                    "start_timestamp": 1702474613.0175,
+                    "description": "sentry.tasks.post_process.post_process_group",
+                    "op": "queue.process",
+                    "span_id": "9b01bd820a083e63",
+                    "parent_span_id": "a1e13f3f06239d69",
+                    "trace_id": "922dda2462ea4ac2b6a4b339bee90863",
+                    "data": {
+                        "messaging.destination.name": "default",
+                        "messaging.message.receive.latency": 100,
+                        "messaging.message.retry.count": 2,
+                        "messaging.message.body.size": 1000
+                    }
                 },
                 {
                     "timestamp": 1702474613.0495,
@@ -1078,10 +1146,6 @@ mod tests {
         "#;
 
         let mut event = Annotated::from_json(json).unwrap();
-        let features = FeatureSet(BTreeSet::from([
-            Feature::ExtractSpansAndSpanMetricsFromEvent,
-            Feature::DoubleWriteSpanDistributionMetricsAsGauges,
-        ]));
 
         // Normalize first, to make sure that all things are correct as in the real pipeline:
         normalize_event(
@@ -1092,15 +1156,7 @@ mod tests {
             },
         );
 
-        // Create a project config with the relevant feature flag. Sanitize to fill defaults.
-        let mut project = ProjectConfig {
-            features,
-            ..ProjectConfig::default()
-        };
-        project.sanitize();
-
-        let config = project.metric_extraction.ok().unwrap();
-        let metrics = extract_metrics(event.value().unwrap(), false, &config, 200, None);
+        let metrics = extract_metrics(event.value().unwrap(), false, &combined_config(), 200, None);
         insta::assert_debug_snapshot!(metrics);
     }
 
@@ -1117,7 +1173,8 @@ mod tests {
             "contexts": {
                 "trace": {
                     "trace_id": "ff62a8b040f340bda5d830223def1d81",
-                    "span_id": "bd429c44b67a3eb4"
+                    "span_id": "bd429c44b67a3eb4",
+                    "op": "ui.load"
                 },
                 "device": {
                     "family": "iOS",
@@ -1220,6 +1277,28 @@ mod tests {
                     "start_timestamp": 1597976300.0000000,
                     "timestamp": 1597976303.0000000,
                     "trace_id": "ff62a8b040f340bda5d830223def1d81"
+                },
+                {
+                    "op": "http.client",
+                    "description": "www.example.com",
+                    "span_id": "bd429c44b67a3eb2",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976303.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "data": {
+                        "http.response.status_code": "200"
+                    }
+                },
+                {
+                    "op": "http.client",
+                    "description": "www.example.com",
+                    "span_id": "bd429c44b67a3eb2",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976303.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "data": {
+                        "http.response.status_code": 200
+                    }
                 }
             ]
         }
@@ -1239,17 +1318,7 @@ mod tests {
             },
         );
 
-        // Create a project config with the relevant feature flag. Sanitize to fill defaults.
-        let mut project = ProjectConfig {
-            features: [Feature::ExtractSpansAndSpanMetricsFromEvent]
-                .into_iter()
-                .collect(),
-            ..ProjectConfig::default()
-        };
-        project.sanitize();
-
-        let config = project.metric_extraction.ok().unwrap();
-        let metrics = extract_metrics(event.value().unwrap(), false, &config, 200, None);
+        let metrics = extract_metrics(event.value().unwrap(), false, &combined_config(), 200, None);
         insta::assert_debug_snapshot!((&event.value().unwrap().spans, metrics));
     }
 
@@ -1300,17 +1369,7 @@ mod tests {
         "#;
         let event = Annotated::from_json(json).unwrap();
 
-        // Create a project config with the relevant feature flag. Sanitize to fill defaults.
-        let mut project = ProjectConfig {
-            features: [Feature::ExtractSpansAndSpanMetricsFromEvent]
-                .into_iter()
-                .collect(),
-            ..ProjectConfig::default()
-        };
-        project.sanitize();
-
-        let config = project.metric_extraction.ok().unwrap();
-        let metrics = extract_metrics(event.value().unwrap(), false, &config, 200, None);
+        let metrics = extract_metrics(event.value().unwrap(), false, &combined_config(), 200, None);
 
         // When transaction.op:ui.load and mobile:true, HTTP spans still get both
         // exclusive_time metrics:
@@ -1336,41 +1395,18 @@ mod tests {
             },
         );
 
-        // Create a project config with the relevant feature flag. Sanitize to fill defaults.
-        let mut project = ProjectConfig {
-            features: [Feature::ExtractSpansAndSpanMetricsFromEvent]
-                .into_iter()
-                .collect(),
-            ..ProjectConfig::default()
-        };
-        project.sanitize();
-
-        let config = project.metric_extraction.ok().unwrap();
-        let metrics = extract_metrics(event.value().unwrap(), false, &config, 200, None);
+        let metrics = extract_metrics(event.value().unwrap(), false, &combined_config(), 200, None);
 
         let usage_metrics = metrics
             .into_iter()
             .filter(|b| &*b.name == "c:spans/usage@none")
             .collect::<Vec<_>>();
 
-        let expected_usage = 10; // We count all spans received by Relay, plus one for the transaction
+        let expected_usage = 12; // We count all spans received by Relay, plus one for the transaction
         assert_eq!(usage_metrics.len(), expected_usage);
         for m in usage_metrics {
             assert!(m.tags.is_empty());
         }
-    }
-
-    /// Helper function for span metric extraction tests.
-    fn extract_span_metrics(span: &Span) -> Vec<Bucket> {
-        let mut config = ProjectConfig::default();
-        config
-            .features
-            .0
-            .insert(Feature::ExtractSpansAndSpanMetricsFromEvent);
-        config.sanitize(); // apply defaults for span extraction
-
-        let extraction_config = config.metric_extraction.ok().unwrap();
-        generic::extract_metrics(span, &extraction_config)
     }
 
     /// Helper function for span metric extraction tests.
@@ -1384,7 +1420,7 @@ mod tests {
         span.op.set_value(Some(span_op.into()));
         span.exclusive_time.set_value(Some(duration_millis));
 
-        extract_span_metrics(&span)
+        generic::extract_metrics(&span, &combined_config())
     }
 
     #[test]
@@ -1490,8 +1526,11 @@ mod tests {
                 "ttfd": "ttfd"
             }
         }"#;
-        let span = Annotated::from_json(span).unwrap().into_value().unwrap();
-        let metrics = extract_span_metrics(&span);
+        let span = Annotated::<Span>::from_json(span)
+            .unwrap()
+            .into_value()
+            .unwrap();
+        let metrics = generic::extract_metrics(&span, &combined_config());
 
         assert!(!metrics.is_empty());
         for metric in metrics {
@@ -1528,8 +1567,8 @@ mod tests {
                 }
             }
         "#;
-        let span = Annotated::from_json(json).unwrap();
-        let metrics = extract_span_metrics(span.value().unwrap());
+        let span = Annotated::<Span>::from_json(json).unwrap();
+        let metrics = generic::extract_metrics(span.value().unwrap(), &combined_config());
 
         for mri in [
             "d:spans/webvital.inp@millisecond",
@@ -1562,17 +1601,7 @@ mod tests {
             "#;
         let event = Annotated::<Event>::from_json(event).unwrap();
 
-        // Create a project config with the relevant feature flag. Sanitize to fill defaults.
-        let mut project = ProjectConfig {
-            features: [Feature::ExtractSpansAndSpanMetricsFromEvent]
-                .into_iter()
-                .collect(),
-            ..ProjectConfig::default()
-        };
-        project.sanitize();
-
-        let config = project.metric_extraction.ok().unwrap();
-        let metrics = extract_metrics(event.value().unwrap(), false, &config, 200, None);
+        let metrics = extract_metrics(event.value().unwrap(), false, &combined_config(), 200, None);
 
         assert_eq!(metrics.len(), 4);
 

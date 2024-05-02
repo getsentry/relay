@@ -1,3 +1,4 @@
+use std::collections::btree_map::Entry;
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::BufReader;
@@ -10,7 +11,7 @@ use relay_quotas::Quota;
 use serde::{de, Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::ErrorBoundary;
+use crate::{defaults, ErrorBoundary, MetricExtractionGroup, MetricExtractionGroups};
 
 /// A dynamic configuration for all Relays passed down from Sentry.
 ///
@@ -38,6 +39,13 @@ pub struct GlobalConfig {
         skip_serializing_if = "is_default"
     )]
     pub options: Options,
+
+    /// Configuration for global metrics extraction rules.
+    ///
+    /// These are merged with rules in project configs before
+    /// applying.
+    #[serde(skip_serializing_if = "is_ok_and_empty")]
+    pub metric_extraction: ErrorBoundary<MetricExtractionGroups>,
 }
 
 impl GlobalConfig {
@@ -61,6 +69,25 @@ impl GlobalConfig {
         match &self.filters {
             ErrorBoundary::Err(_) => None,
             ErrorBoundary::Ok(f) => Some(f),
+        }
+    }
+
+    /// Modifies the global config after deserialization.
+    ///
+    /// - Adds hard-coded groups to metrics extraction configs.
+    pub fn normalize(&mut self) {
+        if let ErrorBoundary::Ok(config) = &mut self.metric_extraction {
+            for (group_name, metrics) in defaults::hardcoded_span_metrics() {
+                // We only define these groups if they haven't been defined by the upstream yet.
+                // This ensures that the innermost Relay always defines the metrics.
+                if let Entry::Vacant(entry) = config.groups.entry(group_name) {
+                    entry.insert(MetricExtractionGroup {
+                        is_enabled: false, // must be enabled via project config
+                        metrics,
+                        tags: Default::default(),
+                    });
+                }
+            }
         }
     }
 }
@@ -167,11 +194,12 @@ pub struct Options {
     )]
     pub feedback_ingest_topic_rollout_rate: f32,
 
-    /// Flag for handling feedback and attachments in the same envelope. Temporary FF for fast-revert
-    /// (will remove after user feedback GA release).
+    /// Flag for handling feedback and attachments in the same envelope. This is for the SDK team to send less requests
+    /// for the user feedback screenshots feature. Prior to this change, feedback sent w/attachments would be produced
+    /// to the attachments topic, rather than its own topic. The items are now split up accordingly.
     ///
-    /// Enabling this will also separate the logic for producing feedback, to its own match case in
-    /// StoreService::store_envelope
+    /// This option is used as a temporary FF/kill-switch to toggle back to the old code path in relay's StoreService.
+    /// This is for testing convenience and will be removed after user feedback's GA release.
     #[serde(
         rename = "feedback.ingest-inline-attachments",
         deserialize_with = "default_on_error",
@@ -344,9 +372,15 @@ where
     }
 }
 
+fn is_ok_and_empty(value: &ErrorBoundary<MetricExtractionGroups>) -> bool {
+    matches!(
+        value,
+        &ErrorBoundary::Ok(MetricExtractionGroups { ref groups }) if groups.is_empty()
+    )
+}
+
 #[cfg(test)]
 mod tests {
-
     use super::*;
 
     #[test]

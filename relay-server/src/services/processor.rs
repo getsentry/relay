@@ -20,10 +20,10 @@ use relay_base_schema::project::{ProjectId, ProjectKey};
 use relay_cogs::{AppFeature, Cogs, FeatureWeights, ResourceId, Token};
 use relay_common::time::UnixTimestamp;
 use relay_config::{Config, HttpEncoding, NormalizationLevel, RelayMode};
-use relay_dynamic_config::{ErrorBoundary, Feature};
+use relay_dynamic_config::{CombinedMetricExtractionConfig, ErrorBoundary, Feature};
 use relay_event_normalization::{
     normalize_event, validate_event_timestamps, validate_transaction, ClockDriftProcessor,
-    DynamicMeasurementsConfig, EventValidationConfig, GeoIpLookup, MeasurementsConfig,
+    CombinedMeasurementsConfig, EventValidationConfig, GeoIpLookup, MeasurementsConfig,
     NormalizationConfig, RawUserAgentInfo, TransactionNameConfig, TransactionValidationConfig,
 };
 use relay_event_schema::processor::ProcessingAction;
@@ -55,7 +55,7 @@ use {
     relay_cardinality::{
         CardinalityLimit, CardinalityLimiter, RedisSetLimiter, RedisSetLimiterOptions,
     },
-    relay_dynamic_config::{CardinalityLimiterMode, GlobalConfig},
+    relay_dynamic_config::{CardinalityLimiterMode, GlobalConfig, MetricExtractionGroups},
     relay_metrics::{Aggregator, RedisMetricMetaStore},
     relay_quotas::{Quota, RateLimitingError, RedisRateLimiter},
     relay_redis::RedisPool,
@@ -110,6 +110,16 @@ macro_rules! if_processing {
     ($config:expr, $if_true:block) => {
         #[cfg(feature = "processing")] {
             if $config.processing_enabled() $if_true
+        }
+    };
+    ($config:expr, $if_true:block else $if_false:block) => {
+        {
+            #[cfg(feature = "processing")] {
+                if $config.processing_enabled() $if_true else $if_false
+            }
+            #[cfg(not(feature = "processing"))] {
+                $if_false
+            }
         }
     };
 }
@@ -1112,7 +1122,7 @@ impl EnvelopeProcessorService {
 
         let project_state = &state.project_state;
         let global_config = self.inner.global_config.current();
-        let quotas = DynamicQuotas::new(&global_config, project_state.get_quotas());
+        let quotas = CombinedQuotas::new(&global_config, project_state.get_quotas());
 
         if quotas.is_empty() {
             return Ok(());
@@ -1173,9 +1183,27 @@ impl EnvelopeProcessorService {
         // will upsert this configuration from transaction and conditional tagging fields, even if
         // it is not present in the actual project config payload. Once transaction metric
         // extraction is moved to generic metrics, this can be converted into an early return.
-        let config = match state.project_state.config.metric_extraction {
+        let config = match &state.project_state.config.metric_extraction {
             ErrorBoundary::Ok(ref config) if config.is_enabled() => Some(config),
             _ => None,
+        };
+        let global = self.inner.global_config.current();
+        let global_config = match &global.metric_extraction {
+            ErrorBoundary::Ok(global_config) => global_config,
+            #[allow(unused_variables)]
+            ErrorBoundary::Err(e) => {
+                if_processing!(self.inner.config, {
+                    // Config is invalid, but we will try to extract what we can with just the
+                    // project config.
+                    relay_log::error!("Failed to parse global extraction config {e}");
+                    MetricExtractionGroups::EMPTY
+                } else {
+                    // If there's an error with global metrics extraction, it is safe to assume that this
+                    // Relay instance is not up-to-date, and we should skip extraction.
+                    relay_log::debug!("Failed to parse global extraction config {e}");
+                    return Ok(());
+                })
+            }
         };
 
         if let Some(event) = state.event.value() {
@@ -1184,19 +1212,17 @@ impl EnvelopeProcessorService {
             }
 
             if let Some(config) = config {
+                let combined_config = CombinedMetricExtractionConfig::new(global_config, config);
+
                 let metrics = crate::metrics_extraction::event::extract_metrics(
                     event,
                     state.spans_extracted,
-                    config,
+                    &combined_config,
                     self.inner
                         .config
                         .aggregator_config_for(MetricNamespace::Spans)
                         .max_tag_value_length,
-                    self.inner
-                        .global_config
-                        .current()
-                        .options
-                        .span_extraction_sample_rate,
+                    global.options.span_extraction_sample_rate,
                 );
                 state.event_metrics_extracted |= !metrics.is_empty();
                 state.extracted_metrics.project_metrics.extend(metrics);
@@ -1345,7 +1371,7 @@ impl EnvelopeProcessorService {
                 span_description_rules: state.project_state.config.span_description_rules.as_ref(),
                 geoip_lookup: self.inner.geoip_lookup.as_ref(),
                 enable_trimming: true,
-                measurements: Some(DynamicMeasurementsConfig::new(
+                measurements: Some(CombinedMeasurementsConfig::new(
                     state.project_state.config().measurements.as_ref(),
                     global_config.measurements.as_ref(),
                 )),
@@ -2081,7 +2107,7 @@ impl EnvelopeProcessorService {
 
         if let Some(rate_limiter) = self.inner.rate_limiter.as_ref() {
             let global_config = self.inner.global_config.current();
-            let quotas = DynamicQuotas::new(&global_config, bucket_limiter.quotas());
+            let quotas = CombinedQuotas::new(&global_config, bucket_limiter.quotas());
 
             // We set over_accept_once such that the limit is actually reached, which allows subsequent
             // calls with quantity=0 to be rate limited.
@@ -2132,7 +2158,7 @@ impl EnvelopeProcessorService {
         &self,
         scoping: Scoping,
         buckets: Vec<Bucket>,
-        quotas: DynamicQuotas<'_>,
+        quotas: CombinedQuotas<'_>,
         mode: ExtractionMode,
     ) -> Vec<Bucket> {
         let Some(rate_limiter) = self.inner.rate_limiter.as_ref() else {
@@ -2159,7 +2185,7 @@ impl EnvelopeProcessorService {
         &self,
         item_scoping: relay_quotas::ItemScoping,
         buckets: Vec<Bucket>,
-        quotas: DynamicQuotas<'_>,
+        quotas: CombinedQuotas<'_>,
         mode: ExtractionMode,
         rate_limiter: &RedisRateLimiter,
     ) -> Vec<Bucket> {
@@ -2305,7 +2331,7 @@ impl EnvelopeProcessorService {
             let limits = project_state.get_cardinality_limits();
 
             let buckets = self.cardinality_limit_buckets(scoping, limits, buckets, mode);
-            let quotas = DynamicQuotas::new(&global_config, project_state.get_quotas());
+            let quotas = CombinedQuotas::new(&global_config, project_state.get_quotas());
 
             let buckets = self.rate_limit_buckets_by_namespace(scoping, buckets, quotas, mode);
 
@@ -2928,14 +2954,14 @@ impl UpstreamRequest for SendMetricsRequest {
 /// Container for global and project level [`Quota`].
 #[cfg(feature = "processing")]
 #[derive(Copy, Clone)]
-struct DynamicQuotas<'a> {
+struct CombinedQuotas<'a> {
     global_quotas: &'a [Quota],
     project_quotas: &'a [Quota],
 }
 
 #[cfg(feature = "processing")]
-impl<'a> DynamicQuotas<'a> {
-    /// Returns a new [`DynamicQuotas`]
+impl<'a> CombinedQuotas<'a> {
+    /// Returns a new [`CombinedQuotas`].
     pub fn new(global_config: &'a GlobalConfig, project_quotas: &'a [Quota]) -> Self {
         Self {
             global_quotas: &global_config.quotas,
@@ -2955,7 +2981,7 @@ impl<'a> DynamicQuotas<'a> {
 }
 
 #[cfg(feature = "processing")]
-impl<'a> IntoIterator for DynamicQuotas<'a> {
+impl<'a> IntoIterator for CombinedQuotas<'a> {
     type Item = &'a Quota;
     type IntoIter = Chain<Iter<'a, Quota>, Iter<'a, Quota>>;
 
@@ -3014,11 +3040,12 @@ mod tests {
             quotas: vec![mock_quota("foo"), mock_quota("bar")],
             filters: Default::default(),
             options: Options::default(),
+            metric_extraction: Default::default(),
         };
 
         let project_quotas = vec![mock_quota("baz"), mock_quota("qux")];
 
-        let dynamic_quotas = DynamicQuotas::new(&global_config, &project_quotas);
+        let dynamic_quotas = CombinedQuotas::new(&global_config, &project_quotas);
 
         assert_eq!(dynamic_quotas.len(), 4);
         assert!(!dynamic_quotas.is_empty());

@@ -31,6 +31,7 @@ __all__ = [
     "validate_sampling_condition",
     "validate_sampling_configuration",
     "validate_project_config",
+    "normalize_cardinality_limit_config",
     "normalize_global_config",
 ]
 
@@ -307,6 +308,34 @@ def validate_project_config(config, strict: bool):
     error = decode_str(raw_error, free=True)
     if error:
         raise ValueError(error)
+
+
+def normalize_cardinality_limit_config(
+    config,
+    json_dumps: Callable[[Any], Any] = json.dumps,
+    json_loads: Callable[[str | bytes], Any] = json.loads,
+):
+    """Normalize the cardinality limit config.
+
+    Normalization consists of deserializing and serializing back the given
+    cardinality limit config. If deserializing fails, throw an exception. Note that even if
+    the roundtrip doesn't produce errors, the given config may differ from
+    normalized one.
+
+    :param config: the cardinality limit config to validate.
+    :param json_dumps: a function that stringifies python objects
+    :param json_loads: a function that parses and converts JSON strings
+    """
+    serialized = json_dumps(config)
+    normalized = rustcall(
+        lib.normalize_cardinality_limit_config, encode_str(serialized)
+    )
+    rv = decode_str(normalized, free=True)
+    try:
+        return json_loads(rv)
+    except Exception:
+        # Catch all errors since json.loads implementation can change.
+        raise ValueError(rv)
 
 
 def normalize_global_config(

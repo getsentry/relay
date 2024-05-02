@@ -10,6 +10,7 @@ from time import sleep
 import pytest
 from flask import Response, abort
 from requests.exceptions import HTTPError
+from sentry_sdk.envelope import Envelope
 
 
 def test_store(mini_sentry, relay_chain):
@@ -1441,3 +1442,46 @@ def test_relay_chain_normalization(
     ingested, _ = events_consumer.get_event(timeout=1)
     assert ingested["dist"] == "foo"
     assert ingested["other"] is None
+
+
+def test_error_with_type_transaction_fixed_by_inference(
+    mini_sentry, events_consumer, relay_with_processing, relay, relay_credentials
+):
+    """
+    Ensure Relay sets the correct type for bogus payloads of errors with
+    `type=transaction` some clients send.
+    """
+    project_id = 42
+    mini_sentry.add_basic_project_config(project_id)
+    events_consumer = events_consumer()
+
+    credentials = relay_credentials()
+    processing = relay_with_processing(
+        static_relays={
+            credentials["id"]: {
+                "public_key": credentials["public_key"],
+                "internal": True,
+            },
+        },
+        options={"normalization": {"level": "disabled"}},
+    )
+    relay = relay(
+        processing,
+        credentials=credentials,
+        options={
+            "normalization": {
+                "level": "full",
+            }
+        },
+    )
+
+    bogus_error = make_error({"event_id": "cbf6960622e14a45abc1f03b2055b186"})
+    bogus_error["type"] = "transaction"
+    envelope = Envelope()
+    envelope.add_event(bogus_error)
+
+    relay.send_envelope(project_id, envelope)
+
+    ingested, _ = events_consumer.get_event(timeout=7)
+    assert ingested["type"] == "error"
+    events_consumer.assert_empty()

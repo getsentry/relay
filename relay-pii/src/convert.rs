@@ -1619,4 +1619,41 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         }
         "###);
     }
+
+    #[test]
+    fn test_bearer_tokens_scrubbed() {
+        let mut data = Event::from_value(
+            serde_json::json!({
+                "threads": {
+                    "values": [
+                        {
+                            "stacktrace": {
+                                "frames": [
+                                    {
+                                        "vars": {
+                                            "request": {
+                                                "headers": [
+                                                    [
+                                                        "AuthToken",
+                                                        "b'Bearer A1BBC234QWERTY0987MNBV012765HJKL'"
+                                                    ]
+                                                ]
+                                            }
+                                        }
+                                    }
+
+                                ]
+                            }
+                        }
+                    ]
+                }
+            })
+            .into(),
+        );
+
+        let pii_config = simple_enabled_pii_config();
+        let mut pii_processor = PiiProcessor::new(pii_config.compiled());
+        process_value(&mut data, &mut pii_processor, ProcessingState::root()).unwrap();
+        assert_annotated_snapshot!(data);
+    }
 }
