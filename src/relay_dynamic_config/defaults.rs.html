@@ -827,6 +827,15 @@
 <a href="#825" id="825">825</a>
 <a href="#826" id="826">826</a>
 <a href="#827" id="827">827</a>
+<a href="#828" id="828">828</a>
+<a href="#829" id="829">829</a>
+<a href="#830" id="830">830</a>
+<a href="#831" id="831">831</a>
+<a href="#832" id="832">832</a>
+<a href="#833" id="833">833</a>
+<a href="#834" id="834">834</a>
+<a href="#835" id="835">835</a>
+<a href="#836" id="836">836</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_base_schema::data_category::DataCategory;
 <span class="kw">use </span>relay_event_normalization::utils::MAX_DURATION_MOBILE_MS;
 <span class="kw">use </span>relay_protocol::RuleCondition;
@@ -1093,6 +1102,9 @@
                         </span>Tag::with_key(<span class="string">"messaging.destination.name"</span>)
                             .from_field(<span class="string">"span.sentry_tags.messaging.destination.name"</span>)
                             .when(is_queue_op.clone()),
+                        Tag::with_key(<span class="string">"trace.status"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.trace.status"</span>)
+                            .when(is_queue_op.clone()),
                     ],
                 },
                 MetricSpec {
@@ -1158,6 +1170,9 @@
                         <span class="comment">// Queue module
                         </span>Tag::with_key(<span class="string">"messaging.destination.name"</span>)
                             .from_field(<span class="string">"span.sentry_tags.messaging.destination.name"</span>)
+                            .when(is_queue_op.clone()),
+                        Tag::with_key(<span class="string">"trace.status"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.trace.status"</span>)
                             .when(is_queue_op.clone()),
                     ],
                 },
@@ -1614,6 +1629,9 @@
                             .always(),
                         Tag::with_key(<span class="string">"transaction"</span>)
                             .from_field(<span class="string">"span.sentry_tags.transaction"</span>)
+                            .always(),
+                        Tag::with_key(<span class="string">"messaging.destination.name"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.messaging.destination.name"</span>)
                             .always(),
                     ],
                 },
