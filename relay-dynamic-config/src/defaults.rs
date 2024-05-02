@@ -44,6 +44,10 @@ const QUEUE_SPAN_OPS: &[&str] = &[
     "queue.process",
 ];
 
+/// Conditionally enables metrics extraction groups from the global config.
+///
+/// Depending on feature flags, groups are either enabled or not.
+/// This configuration is temporarily hard-coded here. It will later be provided by the upstream.
 pub fn add_span_metrics(project_config: &mut ProjectConfig) {
     if !project_config
         .features
