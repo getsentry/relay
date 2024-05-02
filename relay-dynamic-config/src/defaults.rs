@@ -264,6 +264,9 @@ pub fn hardcoded_span_metrics() -> Vec<(String, Vec<MetricSpec>)> {
                         Tag::with_key("messaging.destination.name")
                             .from_field("span.sentry_tags.messaging.destination.name")
                             .when(is_queue_op.clone()),
+                        Tag::with_key("trace.status")
+                            .from_field("span.sentry_tags.trace.status")
+                            .when(is_queue_op.clone()),
                     ],
                 },
                 MetricSpec {
@@ -329,6 +332,9 @@ pub fn hardcoded_span_metrics() -> Vec<(String, Vec<MetricSpec>)> {
                         // Queue module
                         Tag::with_key("messaging.destination.name")
                             .from_field("span.sentry_tags.messaging.destination.name")
+                            .when(is_queue_op.clone()),
+                        Tag::with_key("trace.status")
+                            .from_field("span.sentry_tags.trace.status")
                             .when(is_queue_op.clone()),
                     ],
                 },
@@ -785,6 +791,9 @@ pub fn hardcoded_span_metrics() -> Vec<(String, Vec<MetricSpec>)> {
                             .always(),
                         Tag::with_key("transaction")
                             .from_field("span.sentry_tags.transaction")
+                            .always(),
+                        Tag::with_key("messaging.destination.name")
+                            .from_field("span.sentry_tags.messaging.destination.name")
                             .always(),
                     ],
                 },
