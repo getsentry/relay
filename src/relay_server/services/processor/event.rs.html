@@ -861,6 +861,14 @@
 <a href="#859" id="859">859</a>
 <a href="#860" id="860">860</a>
 <a href="#861" id="861">861</a>
+<a href="#862" id="862">862</a>
+<a href="#863" id="863">863</a>
+<a href="#864" id="864">864</a>
+<a href="#865" id="865">865</a>
+<a href="#866" id="866">866</a>
+<a href="#867" id="867">867</a>
+<a href="#868" id="868">868</a>
+<a href="#869" id="869">869</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Event processor related code.
 
 </span><span class="kw">use </span>std::error::Error;
@@ -935,10 +943,16 @@
         <span class="macro">relay_log::trace!</span>(<span class="string">"processing json event"</span>);
         sample_rates = item.take_sample_rates();
         <span class="macro">metric!</span>(timer(RelayTimers::EventProcessingDeserialize), {
+            <span class="kw">let </span>(<span class="kw-2">mut </span>annotated_event, len) = event_from_json_payload(item, <span class="prelude-val">None</span>)<span class="question-mark">?</span>;
             <span class="comment">// Event items can never include transactions, so retain the event type and let
-            // inference deal with this during store normalization.
-            </span>event_from_json_payload(item, <span class="prelude-val">None</span>)<span class="question-mark">?
-        </span>})
+            // inference deal with this during normalization.
+            </span><span class="kw">if let </span><span class="prelude-val">Some</span>(event) = annotated_event.value_mut() {
+                <span class="kw">if </span>config.normalization_level().is_enabled() {
+                    event.ty.set_value(<span class="prelude-val">None</span>);
+                }
+            }
+            (annotated_event, len)
+        })
     } <span class="kw">else if let </span><span class="prelude-val">Some</span>(<span class="kw-2">mut </span>item) = transaction_item {
         <span class="macro">relay_log::trace!</span>(<span class="string">"processing json transaction"</span>);
         sample_rates = item.take_sample_rates();
@@ -1320,7 +1334,9 @@
         .map_err(ProcessingError::InvalidJson)<span class="question-mark">?</span>;
 
     <span class="kw">if let </span><span class="prelude-val">Some</span>(event_value) = event.value_mut() {
-        event_value.ty.set_value(event_type);
+        <span class="kw">if </span>event_type.is_some() {
+            event_value.ty.set_value(event_type);
+        }
     }
 
     <span class="prelude-val">Ok</span>((event, item.len()))
