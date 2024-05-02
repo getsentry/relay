@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-dynamic-config/src/defaults.rs`."><title>defaults.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-5bc39a1768837dd0.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="relay_dynamic_config" data-themes="" data-resource-suffix="" data-rustdoc-version="1.77.2 (25ef9e3d8 2024-04-09)" data-channel="1.77.2" data-search-js="search-dd67cee4cfa65049.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../static.files/storage-4c98445ec4002617.js"></script><script defer src="../../static.files/src-script-e66d777a5a92e9b2.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-48f368f3872407c8.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-04d5337699b92874.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-dynamic-config/src/defaults.rs`."><title>defaults.rs - source</title><script> if (window.location.protocol !== "file:") document.write(`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2">`)</script><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-e935ef01ae1c1829.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="relay_dynamic_config" data-themes="" data-resource-suffix="" data-rustdoc-version="1.78.0 (9b00956e5 2024-04-29)" data-channel="1.78.0" data-search-js="search-42d8da7a6b9792c2.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../static.files/storage-4c98445ec4002617.js"></script><script defer src="../../static.files/src-script-e66d777a5a92e9b2.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-12cf3b4f4f9dc36d.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-04d5337699b92874.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title">
             <h2>Files</h2></div></nav><div class="sidebar-resizer"></div>
     <main><nav class="sub"><form class="search-form"><span></span><div id="sidebar-button" tabindex="-1"><a href="../../relay_dynamic_config/all.html" title="show sidebar"></a></div><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
@@ -809,15 +809,31 @@
 <a href="#807" id="807">807</a>
 <a href="#808" id="808">808</a>
 <a href="#809" id="809">809</a>
+<a href="#810" id="810">810</a>
+<a href="#811" id="811">811</a>
+<a href="#812" id="812">812</a>
+<a href="#813" id="813">813</a>
+<a href="#814" id="814">814</a>
+<a href="#815" id="815">815</a>
+<a href="#816" id="816">816</a>
+<a href="#817" id="817">817</a>
+<a href="#818" id="818">818</a>
+<a href="#819" id="819">819</a>
+<a href="#820" id="820">820</a>
+<a href="#821" id="821">821</a>
+<a href="#822" id="822">822</a>
+<a href="#823" id="823">823</a>
+<a href="#824" id="824">824</a>
+<a href="#825" id="825">825</a>
+<a href="#826" id="826">826</a>
+<a href="#827" id="827">827</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_base_schema::data_category::DataCategory;
 <span class="kw">use </span>relay_event_normalization::utils::MAX_DURATION_MOBILE_MS;
 <span class="kw">use </span>relay_protocol::RuleCondition;
 <span class="kw">use </span>serde_json::Number;
 
-<span class="kw">use </span><span class="kw">crate</span>::feature::Feature;
-<span class="kw">use </span><span class="kw">crate</span>::metrics::{MetricExtractionConfig, MetricSpec};
-<span class="kw">use </span><span class="kw">crate</span>::project::ProjectConfig;
-<span class="kw">use </span><span class="kw">crate</span>::Tag;
+<span class="kw">use </span><span class="kw">crate</span>::metrics::MetricSpec;
+<span class="kw">use crate</span>::{Feature, MetricExtractionConfig, ProjectConfig, Tag};
 
 <span class="doccomment">/// A list of `span.op` patterns that indicate databases that should be skipped.
 </span><span class="kw">const </span>DISABLED_DATABASES: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span>str] = <span class="kw-2">&amp;</span>[<span class="string">"*clickhouse*"</span>, <span class="string">"*compile*"</span>, <span class="string">"*mongodb*"</span>, <span class="string">"db.orm"</span>];
@@ -857,11 +873,10 @@
     <span class="string">"queue.process"</span>,
 ];
 
-<span class="doccomment">/// Adds configuration for extracting metrics from spans.
+<span class="doccomment">/// Conditionally enables metrics extraction groups from the global config.
 ///
+/// Depending on feature flags, groups are either enabled or not.
 /// This configuration is temporarily hard-coded here. It will later be provided by the upstream.
-/// This requires the `SpanMetricsExtraction` feature. This feature should be set to `false` if the
-/// default should no longer be placed.
 </span><span class="kw">pub fn </span>add_span_metrics(project_config: <span class="kw-2">&amp;mut </span>ProjectConfig) {
     <span class="kw">if </span>!project_config
         .features
@@ -878,11 +893,25 @@
         <span class="kw">return</span>;
     }
 
-    config.metrics.extend(span_metrics(
-        project_config
-            .features
-            .has(Feature::ExtractTransactionFromSegmentSpan),
-    ));
+    <span class="comment">// Enable the hardcoded span metrics group:
+    </span>config
+        .global_groups
+        .entry(<span class="string">"span_metrics"</span>.to_owned())
+        .or_default()
+        .is_enabled = <span class="bool-val">true</span>;
+
+    <span class="comment">// Enable transaction metrics for span (score.total), but only if double-write to transactions
+    // is disabled.
+    </span><span class="kw">if </span>!project_config
+        .features
+        .has(Feature::ExtractTransactionFromSegmentSpan)
+    {
+        <span class="kw">let </span>span_metrics_tx = config
+            .global_groups
+            .entry(<span class="string">"span_metrics_tx"</span>.to_owned())
+            .or_default();
+        span_metrics_tx.is_enabled = <span class="bool-val">true</span>;
+    }
 
     config._span_metrics_extended = <span class="bool-val">true</span>;
     <span class="kw">if </span>config.version == <span class="number">0 </span>{
@@ -890,14 +919,11 @@
     }
 }
 
-<span class="doccomment">/// Metrics with tags applied as required.
-</span><span class="kw">fn </span>span_metrics(transaction_extraction_enabled: bool) -&gt; <span class="kw">impl </span>IntoIterator&lt;Item = MetricSpec&gt; {
-    <span class="kw">let </span>score_total_transaction_metric = <span class="kw">if </span>transaction_extraction_enabled {
-        RuleCondition::never()
-    } <span class="kw">else </span>{
-        RuleCondition::all()
-    };
-
+<span class="doccomment">/// Configuration for extracting metrics from spans.
+///
+/// These metrics are added to [`crate::GlobalConfig`] by the service and enabled
+/// by project configs in sentry.
+</span><span class="kw">pub fn </span>hardcoded_span_metrics() -&gt; Vec&lt;(String, Vec&lt;MetricSpec&gt;)&gt; {
     <span class="kw">let </span>is_ai = RuleCondition::glob(<span class="string">"span.op"</span>, <span class="string">"ai.*"</span>);
 
     <span class="kw">let </span>is_db = RuleCondition::eq(<span class="string">"span.sentry_tags.category"</span>, <span class="string">"db"</span>)
@@ -977,645 +1003,655 @@
         | is_http.clone()
         | is_queue_op.clone())
         &amp; duration_condition.clone();
-
-    <span class="kw">let </span>metrics = <span class="macro">vec!</span>[
-        MetricSpec {
-            category: DataCategory::Span,
-            mri: <span class="string">"c:spans/usage@none"</span>.into(),
-            field: <span class="prelude-val">None</span>,
-            condition: <span class="prelude-val">None</span>,
-            tags: <span class="macro">vec!</span>[],
-        },
-        MetricSpec {
-            category: DataCategory::Span,
-            mri: <span class="string">"d:spans/exclusive_time@millisecond"</span>.into(),
-            field: <span class="prelude-val">Some</span>(<span class="string">"span.exclusive_time"</span>.into()),
-            condition: <span class="prelude-val">None</span>,
-            tags: <span class="macro">vec!</span>[
-                <span class="comment">// All modules:
-                </span>Tag::with_key(<span class="string">"environment"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.environment"</span>)
-                    .always(),
-                Tag::with_key(<span class="string">"span.op"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.op"</span>)
-                    .always(),
-                Tag::with_key(<span class="string">"transaction"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.transaction"</span>)
-                    .always(),
-                Tag::with_key(<span class="string">"transaction.op"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.transaction.op"</span>)
-                    .always(),
-                <span class="comment">// Know modules:
-                </span>Tag::with_key(<span class="string">"transaction.method"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.transaction.method"</span>)
-                    .when(is_db.clone() | is_mobile.clone() | is_http.clone()), <span class="comment">// groups by method + txn, e.g. `GET /users`
-                </span>Tag::with_key(<span class="string">"span.action"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.action"</span>)
-                    .when(is_db.clone()),
-                Tag::with_key(<span class="string">"span.category"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.category"</span>)
-                    .when(know_modules_condition.clone()),
-                Tag::with_key(<span class="string">"span.description"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.description"</span>)
-                    .when(know_modules_condition.clone()),
-                Tag::with_key(<span class="string">"span.domain"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.domain"</span>)
-                    .when(is_db.clone() | is_resource.clone() | is_http.clone()),
-                Tag::with_key(<span class="string">"span.group"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.group"</span>)
-                    .when(know_modules_condition.clone()),
-                <span class="comment">// Mobile module:
-                </span>Tag::with_key(<span class="string">"device.class"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.device.class"</span>)
-                    .when(is_mobile.clone()),
-                Tag::with_key(<span class="string">"os.name"</span>) <span class="comment">// TODO: might not be needed on both `exclusive_time` metrics
-                    </span>.from_field(<span class="string">"span.sentry_tags.os.name"</span>)
-                    .when(is_mobile.clone()),
-                Tag::with_key(<span class="string">"release"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.release"</span>)
-                    .when(is_mobile.clone()),
-                Tag::with_key(<span class="string">"ttfd"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.ttfd"</span>)
-                    .when(is_mobile.clone()),
-                Tag::with_key(<span class="string">"ttid"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.ttid"</span>)
-                    .when(is_mobile.clone()),
-                Tag::with_key(<span class="string">"span.main_thread"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.main_thread"</span>)
-                    .when(is_mobile.clone()),
-                Tag::with_key(<span class="string">"app_start_type"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.app_start_type"</span>)
-                    .when(is_mobile.clone()),
-                <span class="comment">// Resource module:
-                </span>Tag::with_key(<span class="string">"file_extension"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.file_extension"</span>)
-                    .when(is_resource.clone()),
-                Tag::with_key(<span class="string">"resource.render_blocking_status"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.resource.render_blocking_status"</span>)
-                    .when(is_resource.clone()),
-                <span class="comment">// HTTP module:
-                </span>Tag::with_key(<span class="string">"span.status_code"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.status_code"</span>)
-                    .when(is_http.clone()),
-                <span class="comment">// Cache module
-                </span>Tag::with_key(<span class="string">"cache.hit"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.cache.hit"</span>)
-                    .when(is_cache.clone()),
-                <span class="comment">// Queue module
-                </span>Tag::with_key(<span class="string">"messaging.destination.name"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.messaging.destination.name"</span>)
-                    .when(is_queue_op.clone()),
-            ],
-        },
-        MetricSpec {
-            category: DataCategory::Span,
-            mri: <span class="string">"d:spans/exclusive_time_light@millisecond"</span>.into(),
-            field: <span class="prelude-val">Some</span>(<span class="string">"span.exclusive_time"</span>.into()),
-            condition: <span class="prelude-val">Some</span>(exclusive_time_light_condition.clone()),
-            tags: <span class="macro">vec!</span>[
-                Tag::with_key(<span class="string">"environment"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.environment"</span>)
-                    .when(
-                        is_db.clone() | is_resource.clone() | is_mobile.clone() | is_http.clone(),
+    <span class="macro">vec!</span>[
+        (
+            <span class="string">"span_metrics"</span>.to_owned(),
+            <span class="macro">vec!</span>[
+                MetricSpec {
+                    category: DataCategory::Span,
+                    mri: <span class="string">"c:spans/usage@none"</span>.into(),
+                    field: <span class="prelude-val">None</span>,
+                    condition: <span class="prelude-val">None</span>,
+                    tags: <span class="macro">vec!</span>[],
+                },
+                MetricSpec {
+                    category: DataCategory::Span,
+                    mri: <span class="string">"d:spans/exclusive_time@millisecond"</span>.into(),
+                    field: <span class="prelude-val">Some</span>(<span class="string">"span.exclusive_time"</span>.into()),
+                    condition: <span class="prelude-val">None</span>,
+                    tags: <span class="macro">vec!</span>[
+                        <span class="comment">// All modules:
+                        </span>Tag::with_key(<span class="string">"environment"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.environment"</span>)
+                            .always(),
+                        Tag::with_key(<span class="string">"span.op"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.op"</span>)
+                            .always(),
+                        Tag::with_key(<span class="string">"transaction"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.transaction"</span>)
+                            .always(),
+                        Tag::with_key(<span class="string">"transaction.op"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.transaction.op"</span>)
+                            .always(),
+                        <span class="comment">// Know modules:
+                        </span>Tag::with_key(<span class="string">"transaction.method"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.transaction.method"</span>)
+                            .when(is_db.clone() | is_mobile.clone() | is_http.clone()), <span class="comment">// groups by method + txn, e.g. `GET /users`
+                        </span>Tag::with_key(<span class="string">"span.action"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.action"</span>)
+                            .when(is_db.clone()),
+                        Tag::with_key(<span class="string">"span.category"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.category"</span>)
+                            .when(know_modules_condition.clone()),
+                        Tag::with_key(<span class="string">"span.description"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.description"</span>)
+                            .when(know_modules_condition.clone()),
+                        Tag::with_key(<span class="string">"span.domain"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.domain"</span>)
+                            .when(is_db.clone() | is_resource.clone() | is_http.clone()),
+                        Tag::with_key(<span class="string">"span.group"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.group"</span>)
+                            .when(know_modules_condition.clone()),
+                        <span class="comment">// Mobile module:
+                        </span>Tag::with_key(<span class="string">"device.class"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.device.class"</span>)
+                            .when(is_mobile.clone()),
+                        Tag::with_key(<span class="string">"os.name"</span>) <span class="comment">// TODO: might not be needed on both `exclusive_time` metrics
+                            </span>.from_field(<span class="string">"span.sentry_tags.os.name"</span>)
+                            .when(is_mobile.clone()),
+                        Tag::with_key(<span class="string">"release"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.release"</span>)
+                            .when(is_mobile.clone()),
+                        Tag::with_key(<span class="string">"ttfd"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.ttfd"</span>)
+                            .when(is_mobile.clone()),
+                        Tag::with_key(<span class="string">"ttid"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.ttid"</span>)
+                            .when(is_mobile.clone()),
+                        Tag::with_key(<span class="string">"span.main_thread"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.main_thread"</span>)
+                            .when(is_mobile.clone()),
+                        Tag::with_key(<span class="string">"app_start_type"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.app_start_type"</span>)
+                            .when(is_mobile.clone()),
+                        <span class="comment">// Resource module:
+                        </span>Tag::with_key(<span class="string">"file_extension"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.file_extension"</span>)
+                            .when(is_resource.clone()),
+                        Tag::with_key(<span class="string">"resource.render_blocking_status"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.resource.render_blocking_status"</span>)
+                            .when(is_resource.clone()),
+                        <span class="comment">// HTTP module:
+                        </span>Tag::with_key(<span class="string">"span.status_code"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.status_code"</span>)
+                            .when(is_http.clone()),
+                        <span class="comment">// Cache module
+                        </span>Tag::with_key(<span class="string">"cache.hit"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.cache.hit"</span>)
+                            .when(is_cache.clone()),
+                        <span class="comment">// Queue module
+                        </span>Tag::with_key(<span class="string">"messaging.destination.name"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.messaging.destination.name"</span>)
+                            .when(is_queue_op.clone()),
+                    ],
+                },
+                MetricSpec {
+                    category: DataCategory::Span,
+                    mri: <span class="string">"d:spans/exclusive_time_light@millisecond"</span>.into(),
+                    field: <span class="prelude-val">Some</span>(<span class="string">"span.exclusive_time"</span>.into()),
+                    condition: <span class="prelude-val">Some</span>(exclusive_time_light_condition.clone()),
+                    tags: <span class="macro">vec!</span>[
+                        Tag::with_key(<span class="string">"environment"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.environment"</span>)
+                            .when(
+                                is_db.clone()
+                                    | is_resource.clone()
+                                    | is_mobile.clone()
+                                    | is_http.clone(),
+                            ),
+                        Tag::with_key(<span class="string">"transaction.op"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.transaction.op"</span>)
+                            .when(is_mobile.clone()),
+                        Tag::with_key(<span class="string">"span.action"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.action"</span>)
+                            .when(is_db.clone()),
+                        Tag::with_key(<span class="string">"span.category"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.category"</span>)
+                            .always(),
+                        Tag::with_key(<span class="string">"span.description"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.description"</span>)
+                            .always(),
+                        Tag::with_key(<span class="string">"span.domain"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.domain"</span>)
+                            .when(is_db.clone() | is_resource.clone() | is_http.clone()),
+                        Tag::with_key(<span class="string">"span.group"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.group"</span>)
+                            .always(),
+                        Tag::with_key(<span class="string">"span.op"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.op"</span>)
+                            .always(),
+                        <span class="comment">// Mobile:
+                        </span>Tag::with_key(<span class="string">"device.class"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.device.class"</span>)
+                            .when(is_mobile.clone()),
+                        Tag::with_key(<span class="string">"os.name"</span>) <span class="comment">// TODO: might not be needed on both `exclusive_time` metrics
+                            </span>.from_field(<span class="string">"span.sentry_tags.os.name"</span>)
+                            .when(is_mobile.clone()),
+                        Tag::with_key(<span class="string">"release"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.release"</span>)
+                            .when(is_mobile.clone()),
+                        <span class="comment">// Resource module:
+                        </span>Tag::with_key(<span class="string">"file_extension"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.file_extension"</span>)
+                            .when(is_resource.clone()),
+                        Tag::with_key(<span class="string">"resource.render_blocking_status"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.resource.render_blocking_status"</span>)
+                            .when(is_resource.clone()),
+                        <span class="comment">// HTTP module:
+                        </span>Tag::with_key(<span class="string">"span.status_code"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.status_code"</span>)
+                            .when(is_http.clone()),
+                        <span class="comment">// Cache module
+                        </span>Tag::with_key(<span class="string">"cache.hit"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.cache.hit"</span>)
+                            .when(is_cache.clone()),
+                        <span class="comment">// Queue module
+                        </span>Tag::with_key(<span class="string">"messaging.destination.name"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.messaging.destination.name"</span>)
+                            .when(is_queue_op.clone()),
+                    ],
+                },
+                MetricSpec {
+                    category: DataCategory::Span,
+                    mri: <span class="string">"d:spans/duration@millisecond"</span>.into(),
+                    field: <span class="prelude-val">Some</span>(<span class="string">"span.duration"</span>.into()),
+                    condition: <span class="prelude-val">None</span>,
+                    tags: <span class="macro">vec!</span>[
+                        <span class="comment">// All modules:
+                        </span>Tag::with_key(<span class="string">"environment"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.environment"</span>)
+                            .always(),
+                        Tag::with_key(<span class="string">"span.op"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.op"</span>)
+                            .always(),
+                        Tag::with_key(<span class="string">"transaction"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.transaction"</span>)
+                            .always(),
+                        Tag::with_key(<span class="string">"transaction.op"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.transaction.op"</span>)
+                            .always(),
+                        Tag::with_key(<span class="string">"span.group"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.group"</span>)
+                            .when(
+                                is_ai.clone()
+                                    | know_modules_condition.clone()
+                                    | app_start_condition.clone(),
+                            ),
+                        Tag::with_key(<span class="string">"span.category"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.category"</span>)
+                            .when(is_ai.clone()),
+                        Tag::with_key(<span class="string">"span.description"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.description"</span>)
+                            .when(is_ai.clone() | app_start_condition.clone()),
+                        <span class="comment">// Mobile module:
+                        </span>Tag::with_key(<span class="string">"device.class"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.device.class"</span>)
+                            .when(app_start_condition.clone()),
+                        Tag::with_key(<span class="string">"release"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.release"</span>)
+                            .when(app_start_condition.clone()),
+                        Tag::with_key(<span class="string">"os.name"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.os.name"</span>)
+                            .when(app_start_condition.clone()),
+                        Tag::with_key(<span class="string">"app_start_type"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.app_start_type"</span>)
+                            .when(app_start_condition.clone()),
+                    ],
+                },
+                MetricSpec {
+                    category: DataCategory::Span,
+                    mri: <span class="string">"d:spans/cache.item_size@byte"</span>.into(),
+                    field: <span class="prelude-val">Some</span>(<span class="string">"span.data.cache\\.item_size"</span>.into()),
+                    condition: <span class="prelude-val">Some</span>(is_cache.clone()),
+                    tags: <span class="macro">vec!</span>[
+                        Tag::with_key(<span class="string">"environment"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.environment"</span>)
+                            .always(), <span class="comment">// already guarded by condition on metric
+                        </span>Tag::with_key(<span class="string">"span.op"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.op"</span>)
+                            .always(), <span class="comment">// already guarded by condition on metric
+                        </span>Tag::with_key(<span class="string">"transaction"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.transaction"</span>)
+                            .always(), <span class="comment">// already guarded by condition on metric
+                        </span>Tag::with_key(<span class="string">"cache.hit"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.cache.hit"</span>)
+                            .always(), <span class="comment">// already guarded by condition on metric
+                    </span>],
+                },
+                MetricSpec {
+                    category: DataCategory::Span,
+                    mri: <span class="string">"d:spans/http.response_content_length@byte"</span>.into(),
+                    field: <span class="prelude-val">Some</span>(<span class="string">"span.data.http\\.response_content_length"</span>.into()),
+                    condition: <span class="prelude-val">Some</span>(
+                        is_resource.clone()
+                            &amp; RuleCondition::gt(<span class="string">"span.data.http\\.response_content_length"</span>, <span class="number">0</span>),
                     ),
-                Tag::with_key(<span class="string">"transaction.op"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.transaction.op"</span>)
-                    .when(is_mobile.clone()),
-                Tag::with_key(<span class="string">"span.action"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.action"</span>)
-                    .when(is_db.clone()),
-                Tag::with_key(<span class="string">"span.category"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.category"</span>)
-                    .always(),
-                Tag::with_key(<span class="string">"span.description"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.description"</span>)
-                    .always(),
-                Tag::with_key(<span class="string">"span.domain"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.domain"</span>)
-                    .when(is_db.clone() | is_resource.clone() | is_http.clone()),
-                Tag::with_key(<span class="string">"span.group"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.group"</span>)
-                    .always(),
-                Tag::with_key(<span class="string">"span.op"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.op"</span>)
-                    .always(),
-                <span class="comment">// Mobile:
-                </span>Tag::with_key(<span class="string">"device.class"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.device.class"</span>)
-                    .when(is_mobile.clone()),
-                Tag::with_key(<span class="string">"os.name"</span>) <span class="comment">// TODO: might not be needed on both `exclusive_time` metrics
-                    </span>.from_field(<span class="string">"span.sentry_tags.os.name"</span>)
-                    .when(is_mobile.clone()),
-                Tag::with_key(<span class="string">"release"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.release"</span>)
-                    .when(is_mobile.clone()),
-                <span class="comment">// Resource module:
-                </span>Tag::with_key(<span class="string">"file_extension"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.file_extension"</span>)
-                    .when(is_resource.clone()),
-                Tag::with_key(<span class="string">"resource.render_blocking_status"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.resource.render_blocking_status"</span>)
-                    .when(is_resource.clone()),
-                <span class="comment">// HTTP module:
-                </span>Tag::with_key(<span class="string">"span.status_code"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.status_code"</span>)
-                    .when(is_http.clone()),
-                <span class="comment">// Cache module
-                </span>Tag::with_key(<span class="string">"cache.hit"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.cache.hit"</span>)
-                    .when(is_cache.clone()),
-                <span class="comment">// Queue module
-                </span>Tag::with_key(<span class="string">"messaging.destination.name"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.messaging.destination.name"</span>)
-                    .when(is_queue_op.clone()),
-            ],
-        },
-        MetricSpec {
-            category: DataCategory::Span,
-            mri: <span class="string">"d:spans/duration@millisecond"</span>.into(),
-            field: <span class="prelude-val">Some</span>(<span class="string">"span.duration"</span>.into()),
-            condition: <span class="prelude-val">None</span>,
-            tags: <span class="macro">vec!</span>[
-                <span class="comment">// All modules:
-                </span>Tag::with_key(<span class="string">"environment"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.environment"</span>)
-                    .always(),
-                Tag::with_key(<span class="string">"span.op"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.op"</span>)
-                    .always(),
-                Tag::with_key(<span class="string">"transaction"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.transaction"</span>)
-                    .always(),
-                Tag::with_key(<span class="string">"transaction.op"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.transaction.op"</span>)
-                    .always(),
-                Tag::with_key(<span class="string">"span.group"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.group"</span>)
-                    .when(
-                        is_ai.clone()
-                            | know_modules_condition.clone()
-                            | app_start_condition.clone(),
+                    tags: <span class="macro">vec!</span>[
+                        Tag::with_key(<span class="string">"environment"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.environment"</span>)
+                            .always(), <span class="comment">// already guarded by condition on metric
+                        </span>Tag::with_key(<span class="string">"file_extension"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.file_extension"</span>)
+                            .always(), <span class="comment">// already guarded by condition on metric
+                        </span>Tag::with_key(<span class="string">"resource.render_blocking_status"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.resource.render_blocking_status"</span>)
+                            .always(), <span class="comment">// already guarded by condition on metric
+                        </span>Tag::with_key(<span class="string">"span.description"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.description"</span>)
+                            .always(), <span class="comment">// already guarded by condition on metric
+                        </span>Tag::with_key(<span class="string">"span.domain"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.domain"</span>)
+                            .always(), <span class="comment">// already guarded by condition on metric
+                        </span>Tag::with_key(<span class="string">"span.group"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.group"</span>)
+                            .always(), <span class="comment">// already guarded by condition on metric
+                        </span>Tag::with_key(<span class="string">"span.op"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.op"</span>)
+                            .always(), <span class="comment">// already guarded by condition on metric
+                        </span>Tag::with_key(<span class="string">"transaction"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.transaction"</span>)
+                            .always(), <span class="comment">// already guarded by condition on metric
+                    </span>],
+                },
+                MetricSpec {
+                    category: DataCategory::Span,
+                    mri: <span class="string">"d:spans/http.decoded_response_content_length@byte"</span>.into(),
+                    field: <span class="prelude-val">Some</span>(<span class="string">"span.data.http\\.decoded_response_content_length"</span>.into()),
+                    condition: <span class="prelude-val">Some</span>(
+                        is_resource.clone()
+                            &amp; RuleCondition::gt(
+                                <span class="string">"span.data.http\\.decoded_response_content_length"</span>,
+                                <span class="number">0</span>,
+                            ),
                     ),
-                Tag::with_key(<span class="string">"span.category"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.category"</span>)
-                    .when(is_ai.clone()),
-                Tag::with_key(<span class="string">"span.description"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.description"</span>)
-                    .when(is_ai.clone() | app_start_condition.clone()),
-                <span class="comment">// Mobile module:
-                </span>Tag::with_key(<span class="string">"device.class"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.device.class"</span>)
-                    .when(app_start_condition.clone()),
-                Tag::with_key(<span class="string">"release"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.release"</span>)
-                    .when(app_start_condition.clone()),
-                Tag::with_key(<span class="string">"os.name"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.os.name"</span>)
-                    .when(app_start_condition.clone()),
-                Tag::with_key(<span class="string">"app_start_type"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.app_start_type"</span>)
-                    .when(app_start_condition.clone()),
+                    tags: <span class="macro">vec!</span>[
+                        Tag::with_key(<span class="string">"environment"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.environment"</span>)
+                            .always(), <span class="comment">// already guarded by condition on metric
+                        </span>Tag::with_key(<span class="string">"file_extension"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.file_extension"</span>)
+                            .always(), <span class="comment">// already guarded by condition on metric
+                        </span>Tag::with_key(<span class="string">"resource.render_blocking_status"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.resource.render_blocking_status"</span>)
+                            .always(), <span class="comment">// already guarded by condition on metric
+                        </span>Tag::with_key(<span class="string">"span.description"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.description"</span>)
+                            .always(), <span class="comment">// already guarded by condition on metric
+                        </span>Tag::with_key(<span class="string">"span.domain"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.domain"</span>)
+                            .always(), <span class="comment">// already guarded by condition on metric
+                        </span>Tag::with_key(<span class="string">"span.group"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.group"</span>)
+                            .always(), <span class="comment">// already guarded by condition on metric
+                        </span>Tag::with_key(<span class="string">"span.op"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.op"</span>)
+                            .always(), <span class="comment">// already guarded by condition on metric
+                    </span>],
+                },
+                MetricSpec {
+                    category: DataCategory::Span,
+                    mri: <span class="string">"d:spans/http.response_transfer_size@byte"</span>.into(),
+                    field: <span class="prelude-val">Some</span>(<span class="string">"span.data.http\\.response_transfer_size"</span>.into()),
+                    condition: <span class="prelude-val">Some</span>(
+                        is_resource
+                            &amp; RuleCondition::gt(<span class="string">"span.data.http\\.response_transfer_size"</span>, <span class="number">0</span>),
+                    ),
+                    tags: <span class="macro">vec!</span>[
+                        Tag::with_key(<span class="string">"environment"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.environment"</span>)
+                            .always(), <span class="comment">// already guarded by condition on metric
+                        </span>Tag::with_key(<span class="string">"file_extension"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.file_extension"</span>)
+                            .always(), <span class="comment">// already guarded by condition on metric
+                        </span>Tag::with_key(<span class="string">"resource.render_blocking_status"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.resource.render_blocking_status"</span>)
+                            .always(), <span class="comment">// already guarded by condition on metric
+                        </span>Tag::with_key(<span class="string">"span.description"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.description"</span>)
+                            .always(), <span class="comment">// already guarded by condition on metric
+                        </span>Tag::with_key(<span class="string">"span.domain"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.domain"</span>)
+                            .always(), <span class="comment">// already guarded by condition on metric
+                        </span>Tag::with_key(<span class="string">"span.group"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.group"</span>)
+                            .always(), <span class="comment">// already guarded by condition on metric
+                        </span>Tag::with_key(<span class="string">"span.op"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.op"</span>)
+                            .always(), <span class="comment">// already guarded by condition on metric
+                    </span>],
+                },
+                MetricSpec {
+                    category: DataCategory::Span,
+                    mri: <span class="string">"c:spans/ai.total_tokens.used@none"</span>.into(),
+                    field: <span class="prelude-val">Some</span>(<span class="string">"span.measurements.ai_total_tokens_used.value"</span>.into()),
+                    condition: <span class="prelude-val">Some</span>(is_ai.clone()),
+                    tags: <span class="macro">vec!</span>[
+                        Tag::with_key(<span class="string">"span.op"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.op"</span>)
+                            .always(),
+                        Tag::with_key(<span class="string">"environment"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.environment"</span>)
+                            .always(),
+                        Tag::with_key(<span class="string">"release"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.release"</span>)
+                            .always(),
+                        Tag::with_key(<span class="string">"span.origin"</span>)
+                            .from_field(<span class="string">"span.origin"</span>)
+                            .always(),
+                        Tag::with_key(<span class="string">"span.category"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.category"</span>)
+                            .always(), <span class="comment">// already guarded by condition on metric
+                        </span>Tag::with_key(<span class="string">"span.ai.pipeline.group"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.ai_pipeline_group"</span>)
+                            .always(), <span class="comment">// already guarded by condition on metric
+                        </span>Tag::with_key(<span class="string">"span.description"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.description"</span>)
+                            .always(), <span class="comment">// already guarded by condition on metric
+                        </span>Tag::with_key(<span class="string">"span.group"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.group"</span>)
+                            .always(), <span class="comment">// already guarded by condition on metric
+                        </span>Tag::with_key(<span class="string">"span.op"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.op"</span>)
+                            .always(), <span class="comment">// already guarded by condition on metric
+                    </span>],
+                },
+                MetricSpec {
+                    category: DataCategory::Span,
+                    mri: <span class="string">"d:spans/webvital.score.total@ratio"</span>.into(),
+                    field: <span class="prelude-val">Some</span>(<span class="string">"span.measurements.score.total.value"</span>.into()),
+                    condition: <span class="prelude-val">Some</span>(is_allowed_browser.clone()),
+                    tags: <span class="macro">vec!</span>[
+                        Tag::with_key(<span class="string">"span.op"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.op"</span>)
+                            .always(),
+                        Tag::with_key(<span class="string">"transaction.op"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.transaction.op"</span>)
+                            .always(),
+                        Tag::with_key(<span class="string">"transaction"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.transaction"</span>)
+                            .always(),
+                        Tag::with_key(<span class="string">"environment"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.environment"</span>)
+                            .always(),
+                        Tag::with_key(<span class="string">"release"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.release"</span>)
+                            .always(),
+                        Tag::with_key(<span class="string">"browser.name"</span>)
+                            .from_field(<span class="string">"span.browser.name"</span>)
+                            .always(), <span class="comment">// already guarded by condition on metric
+                    </span>],
+                },
+                MetricSpec {
+                    category: DataCategory::Span,
+                    mri: <span class="string">"d:spans/webvital.score.inp@ratio"</span>.into(),
+                    field: <span class="prelude-val">Some</span>(<span class="string">"span.measurements.score.inp.value"</span>.into()),
+                    condition: <span class="prelude-val">Some</span>(is_allowed_browser.clone()),
+                    tags: <span class="macro">vec!</span>[
+                        Tag::with_key(<span class="string">"span.op"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.op"</span>)
+                            .always(),
+                        Tag::with_key(<span class="string">"transaction"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.transaction"</span>)
+                            .always(),
+                        Tag::with_key(<span class="string">"environment"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.environment"</span>)
+                            .always(),
+                        Tag::with_key(<span class="string">"release"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.release"</span>)
+                            .always(),
+                        Tag::with_key(<span class="string">"browser.name"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.browser.name"</span>)
+                            .always(), <span class="comment">// already guarded by condition on metric
+                    </span>],
+                },
+                MetricSpec {
+                    category: DataCategory::Span,
+                    mri: <span class="string">"d:spans/webvital.score.weight.inp@ratio"</span>.into(),
+                    field: <span class="prelude-val">Some</span>(<span class="string">"span.measurements.score.weight.inp.value"</span>.into()),
+                    condition: <span class="prelude-val">Some</span>(is_allowed_browser.clone()),
+                    tags: <span class="macro">vec!</span>[
+                        Tag::with_key(<span class="string">"span.op"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.op"</span>)
+                            .always(),
+                        Tag::with_key(<span class="string">"transaction"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.transaction"</span>)
+                            .always(),
+                        Tag::with_key(<span class="string">"environment"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.environment"</span>)
+                            .always(),
+                        Tag::with_key(<span class="string">"release"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.release"</span>)
+                            .always(),
+                        Tag::with_key(<span class="string">"browser.name"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.browser.name"</span>)
+                            .always(), <span class="comment">// already guarded by condition on metric
+                    </span>],
+                },
+                MetricSpec {
+                    category: DataCategory::Span,
+                    mri: <span class="string">"d:spans/webvital.inp@millisecond"</span>.into(),
+                    field: <span class="prelude-val">Some</span>(<span class="string">"span.measurements.inp.value"</span>.into()),
+                    condition: <span class="prelude-val">Some</span>(is_allowed_browser.clone()),
+                    tags: <span class="macro">vec!</span>[
+                        Tag::with_key(<span class="string">"span.op"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.op"</span>)
+                            .always(),
+                        Tag::with_key(<span class="string">"transaction"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.transaction"</span>)
+                            .always(),
+                        Tag::with_key(<span class="string">"environment"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.environment"</span>)
+                            .always(),
+                        Tag::with_key(<span class="string">"release"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.release"</span>)
+                            .always(),
+                        Tag::with_key(<span class="string">"browser.name"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.browser.name"</span>)
+                            .always(), <span class="comment">// already guarded by condition on metric
+                    </span>],
+                },
+                MetricSpec {
+                    category: DataCategory::Span,
+                    mri: <span class="string">"g:spans/mobile.slow_frames@none"</span>.into(),
+                    field: <span class="prelude-val">Some</span>(<span class="string">"span.measurements.frames.slow.value"</span>.into()),
+                    condition: <span class="prelude-val">Some</span>(is_mobile.clone() &amp; duration_condition.clone()),
+                    tags: <span class="macro">vec!</span>[
+                        Tag::with_key(<span class="string">"transaction.op"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.transaction.op"</span>)
+                            .always(),
+                        Tag::with_key(<span class="string">"transaction"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.transaction"</span>)
+                            .always(),
+                        Tag::with_key(<span class="string">"environment"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.environment"</span>)
+                            .always(),
+                        Tag::with_key(<span class="string">"release"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.release"</span>)
+                            .always(),
+                        Tag::with_key(<span class="string">"span.description"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.description"</span>)
+                            .always(),
+                        Tag::with_key(<span class="string">"span.op"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.op"</span>)
+                            .always(),
+                        Tag::with_key(<span class="string">"span.group"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.group"</span>)
+                            .always(),
+                        Tag::with_key(<span class="string">"device.class"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.device.class"</span>)
+                            .always(),
+                        Tag::with_key(<span class="string">"os.name"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.os.name"</span>)
+                            .always(),
+                    ],
+                },
+                MetricSpec {
+                    category: DataCategory::Span,
+                    mri: <span class="string">"g:spans/mobile.frozen_frames@none"</span>.into(),
+                    field: <span class="prelude-val">Some</span>(<span class="string">"span.measurements.frames.frozen.value"</span>.into()),
+                    condition: <span class="prelude-val">Some</span>(is_mobile.clone() &amp; duration_condition.clone()),
+                    tags: <span class="macro">vec!</span>[
+                        Tag::with_key(<span class="string">"transaction.op"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.transaction.op"</span>)
+                            .always(),
+                        Tag::with_key(<span class="string">"transaction"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.transaction"</span>)
+                            .always(),
+                        Tag::with_key(<span class="string">"environment"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.environment"</span>)
+                            .always(),
+                        Tag::with_key(<span class="string">"release"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.release"</span>)
+                            .always(),
+                        Tag::with_key(<span class="string">"span.description"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.description"</span>)
+                            .always(),
+                        Tag::with_key(<span class="string">"span.op"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.op"</span>)
+                            .always(),
+                        Tag::with_key(<span class="string">"span.group"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.group"</span>)
+                            .always(),
+                        Tag::with_key(<span class="string">"device.class"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.device.class"</span>)
+                            .always(),
+                        Tag::with_key(<span class="string">"os.name"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.os.name"</span>)
+                            .always(),
+                    ],
+                },
+                MetricSpec {
+                    category: DataCategory::Span,
+                    mri: <span class="string">"g:spans/mobile.total_frames@none"</span>.into(),
+                    field: <span class="prelude-val">Some</span>(<span class="string">"span.measurements.frames.total.value"</span>.into()),
+                    condition: <span class="prelude-val">Some</span>(is_mobile.clone() &amp; duration_condition.clone()),
+                    tags: <span class="macro">vec!</span>[
+                        Tag::with_key(<span class="string">"transaction.op"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.transaction.op"</span>)
+                            .always(),
+                        Tag::with_key(<span class="string">"transaction"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.transaction"</span>)
+                            .always(),
+                        Tag::with_key(<span class="string">"environment"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.environment"</span>)
+                            .always(),
+                        Tag::with_key(<span class="string">"release"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.release"</span>)
+                            .always(),
+                        Tag::with_key(<span class="string">"span.description"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.description"</span>)
+                            .always(),
+                        Tag::with_key(<span class="string">"span.op"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.op"</span>)
+                            .always(),
+                        Tag::with_key(<span class="string">"span.group"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.group"</span>)
+                            .always(),
+                        Tag::with_key(<span class="string">"device.class"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.device.class"</span>)
+                            .always(),
+                        Tag::with_key(<span class="string">"os.name"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.os.name"</span>)
+                            .always(),
+                    ],
+                },
+                MetricSpec {
+                    category: DataCategory::Span,
+                    mri: <span class="string">"g:spans/mobile.frames_delay@second"</span>.into(),
+                    field: <span class="prelude-val">Some</span>(<span class="string">"span.measurements.frames.delay.value"</span>.into()),
+                    condition: <span class="prelude-val">Some</span>(is_mobile.clone() &amp; duration_condition.clone()),
+                    tags: <span class="macro">vec!</span>[
+                        Tag::with_key(<span class="string">"transaction.op"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.transaction.op"</span>)
+                            .always(),
+                        Tag::with_key(<span class="string">"transaction"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.transaction"</span>)
+                            .always(),
+                        Tag::with_key(<span class="string">"environment"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.environment"</span>)
+                            .always(),
+                        Tag::with_key(<span class="string">"release"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.release"</span>)
+                            .always(),
+                        Tag::with_key(<span class="string">"span.description"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.description"</span>)
+                            .always(),
+                        Tag::with_key(<span class="string">"span.op"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.op"</span>)
+                            .always(),
+                        Tag::with_key(<span class="string">"span.group"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.group"</span>)
+                            .always(),
+                        Tag::with_key(<span class="string">"device.class"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.device.class"</span>)
+                            .always(),
+                        Tag::with_key(<span class="string">"os.name"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.os.name"</span>)
+                            .always(),
+                    ],
+                },
+                MetricSpec {
+                    category: DataCategory::Span,
+                    mri: <span class="string">"g:spans/messaging.message.receive.latency@millisecond"</span>.into(),
+                    field: <span class="prelude-val">Some</span>(<span class="string">"span.measurements.messaging.message.receive.latency.value"</span>.into()),
+                    condition: <span class="prelude-val">Some</span>(is_queue_op.clone()),
+                    tags: <span class="macro">vec!</span>[
+                        Tag::with_key(<span class="string">"environment"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.environment"</span>)
+                            .always(),
+                        Tag::with_key(<span class="string">"span.op"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.op"</span>)
+                            .always(),
+                        Tag::with_key(<span class="string">"transaction"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.transaction"</span>)
+                            .always(),
+                    ],
+                },
             ],
-        },
-        MetricSpec {
-            category: DataCategory::Span,
-            mri: <span class="string">"d:spans/cache.item_size@byte"</span>.into(),
-            field: <span class="prelude-val">Some</span>(<span class="string">"span.data.cache\\.item_size"</span>.into()),
-            condition: <span class="prelude-val">Some</span>(is_cache.clone()),
-            tags: <span class="macro">vec!</span>[
-                Tag::with_key(<span class="string">"environment"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.environment"</span>)
-                    .always(), <span class="comment">// already guarded by condition on metric
-                </span>Tag::with_key(<span class="string">"span.op"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.op"</span>)
-                    .always(), <span class="comment">// already guarded by condition on metric
-                </span>Tag::with_key(<span class="string">"transaction"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.transaction"</span>)
-                    .always(), <span class="comment">// already guarded by condition on metric
-                </span>Tag::with_key(<span class="string">"cache.hit"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.cache.hit"</span>)
-                    .always(), <span class="comment">// already guarded by condition on metric
-            </span>],
-        },
-        MetricSpec {
-            category: DataCategory::Span,
-            mri: <span class="string">"d:spans/http.response_content_length@byte"</span>.into(),
-            field: <span class="prelude-val">Some</span>(<span class="string">"span.data.http\\.response_content_length"</span>.into()),
-            condition: <span class="prelude-val">Some</span>(
-                is_resource.clone()
-                    &amp; RuleCondition::gt(<span class="string">"span.data.http\\.response_content_length"</span>, <span class="number">0</span>),
-            ),
-            tags: <span class="macro">vec!</span>[
-                Tag::with_key(<span class="string">"environment"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.environment"</span>)
-                    .always(), <span class="comment">// already guarded by condition on metric
-                </span>Tag::with_key(<span class="string">"file_extension"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.file_extension"</span>)
-                    .always(), <span class="comment">// already guarded by condition on metric
-                </span>Tag::with_key(<span class="string">"resource.render_blocking_status"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.resource.render_blocking_status"</span>)
-                    .always(), <span class="comment">// already guarded by condition on metric
-                </span>Tag::with_key(<span class="string">"span.description"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.description"</span>)
-                    .always(), <span class="comment">// already guarded by condition on metric
-                </span>Tag::with_key(<span class="string">"span.domain"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.domain"</span>)
-                    .always(), <span class="comment">// already guarded by condition on metric
-                </span>Tag::with_key(<span class="string">"span.group"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.group"</span>)
-                    .always(), <span class="comment">// already guarded by condition on metric
-                </span>Tag::with_key(<span class="string">"span.op"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.op"</span>)
-                    .always(), <span class="comment">// already guarded by condition on metric
-                </span>Tag::with_key(<span class="string">"transaction"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.transaction"</span>)
-                    .always(), <span class="comment">// already guarded by condition on metric
-            </span>],
-        },
-        MetricSpec {
-            category: DataCategory::Span,
-            mri: <span class="string">"d:spans/http.decoded_response_content_length@byte"</span>.into(),
-            field: <span class="prelude-val">Some</span>(<span class="string">"span.data.http\\.decoded_response_content_length"</span>.into()),
-            condition: <span class="prelude-val">Some</span>(
-                is_resource.clone()
-                    &amp; RuleCondition::gt(<span class="string">"span.data.http\\.decoded_response_content_length"</span>, <span class="number">0</span>),
-            ),
-            tags: <span class="macro">vec!</span>[
-                Tag::with_key(<span class="string">"environment"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.environment"</span>)
-                    .always(), <span class="comment">// already guarded by condition on metric
-                </span>Tag::with_key(<span class="string">"file_extension"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.file_extension"</span>)
-                    .always(), <span class="comment">// already guarded by condition on metric
-                </span>Tag::with_key(<span class="string">"resource.render_blocking_status"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.resource.render_blocking_status"</span>)
-                    .always(), <span class="comment">// already guarded by condition on metric
-                </span>Tag::with_key(<span class="string">"span.description"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.description"</span>)
-                    .always(), <span class="comment">// already guarded by condition on metric
-                </span>Tag::with_key(<span class="string">"span.domain"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.domain"</span>)
-                    .always(), <span class="comment">// already guarded by condition on metric
-                </span>Tag::with_key(<span class="string">"span.group"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.group"</span>)
-                    .always(), <span class="comment">// already guarded by condition on metric
-                </span>Tag::with_key(<span class="string">"span.op"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.op"</span>)
-                    .always(), <span class="comment">// already guarded by condition on metric
-            </span>],
-        },
-        MetricSpec {
-            category: DataCategory::Span,
-            mri: <span class="string">"d:spans/http.response_transfer_size@byte"</span>.into(),
-            field: <span class="prelude-val">Some</span>(<span class="string">"span.data.http\\.response_transfer_size"</span>.into()),
-            condition: <span class="prelude-val">Some</span>(
-                is_resource &amp; RuleCondition::gt(<span class="string">"span.data.http\\.response_transfer_size"</span>, <span class="number">0</span>),
-            ),
-            tags: <span class="macro">vec!</span>[
-                Tag::with_key(<span class="string">"environment"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.environment"</span>)
-                    .always(), <span class="comment">// already guarded by condition on metric
-                </span>Tag::with_key(<span class="string">"file_extension"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.file_extension"</span>)
-                    .always(), <span class="comment">// already guarded by condition on metric
-                </span>Tag::with_key(<span class="string">"resource.render_blocking_status"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.resource.render_blocking_status"</span>)
-                    .always(), <span class="comment">// already guarded by condition on metric
-                </span>Tag::with_key(<span class="string">"span.description"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.description"</span>)
-                    .always(), <span class="comment">// already guarded by condition on metric
-                </span>Tag::with_key(<span class="string">"span.domain"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.domain"</span>)
-                    .always(), <span class="comment">// already guarded by condition on metric
-                </span>Tag::with_key(<span class="string">"span.group"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.group"</span>)
-                    .always(), <span class="comment">// already guarded by condition on metric
-                </span>Tag::with_key(<span class="string">"span.op"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.op"</span>)
-                    .always(), <span class="comment">// already guarded by condition on metric
-            </span>],
-        },
-        MetricSpec {
-            category: DataCategory::Span,
-            mri: <span class="string">"c:spans/ai.total_tokens.used@none"</span>.into(),
-            field: <span class="prelude-val">Some</span>(<span class="string">"span.measurements.ai_total_tokens_used.value"</span>.into()),
-            condition: <span class="prelude-val">Some</span>(is_ai.clone()),
-            tags: <span class="macro">vec!</span>[
-                Tag::with_key(<span class="string">"span.op"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.op"</span>)
-                    .always(),
-                Tag::with_key(<span class="string">"environment"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.environment"</span>)
-                    .always(),
-                Tag::with_key(<span class="string">"release"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.release"</span>)
-                    .always(),
-                Tag::with_key(<span class="string">"span.origin"</span>)
-                    .from_field(<span class="string">"span.origin"</span>)
-                    .always(),
-                Tag::with_key(<span class="string">"span.category"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.category"</span>)
-                    .always(), <span class="comment">// already guarded by condition on metric
-                </span>Tag::with_key(<span class="string">"span.ai.pipeline.group"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.ai_pipeline_group"</span>)
-                    .always(), <span class="comment">// already guarded by condition on metric
-                </span>Tag::with_key(<span class="string">"span.description"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.description"</span>)
-                    .always(), <span class="comment">// already guarded by condition on metric
-                </span>Tag::with_key(<span class="string">"span.group"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.group"</span>)
-                    .always(), <span class="comment">// already guarded by condition on metric
-                </span>Tag::with_key(<span class="string">"span.op"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.op"</span>)
-                    .always(), <span class="comment">// already guarded by condition on metric
-            </span>],
-        },
-        MetricSpec {
-            category: DataCategory::Span,
-            mri: <span class="string">"d:spans/webvital.score.total@ratio"</span>.into(),
-            field: <span class="prelude-val">Some</span>(<span class="string">"span.measurements.score.total.value"</span>.into()),
-            condition: <span class="prelude-val">Some</span>(is_allowed_browser.clone()),
-            tags: <span class="macro">vec!</span>[
-                Tag::with_key(<span class="string">"span.op"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.op"</span>)
-                    .always(),
-                Tag::with_key(<span class="string">"transaction.op"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.transaction.op"</span>)
-                    .always(),
-                Tag::with_key(<span class="string">"transaction"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.transaction"</span>)
-                    .always(),
-                Tag::with_key(<span class="string">"environment"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.environment"</span>)
-                    .always(),
-                Tag::with_key(<span class="string">"release"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.release"</span>)
-                    .always(),
-                Tag::with_key(<span class="string">"browser.name"</span>)
-                    .from_field(<span class="string">"span.browser.name"</span>)
-                    .always(), <span class="comment">// already guarded by condition on metric
-            </span>],
-        },
-        MetricSpec {
-            category: DataCategory::Span,
-            mri: <span class="string">"d:transactions/measurements.score.total@ratio"</span>.into(),
-            field: <span class="prelude-val">Some</span>(<span class="string">"span.measurements.score.total.value"</span>.into()),
-            condition: <span class="prelude-val">Some</span>(
-                <span class="comment">// If transactions are extracted from spans, the transaction processing pipeline
-                // will take care of this metric.
-                </span>score_total_transaction_metric
-                    &amp; is_allowed_browser.clone()
-                    &amp; RuleCondition::eq(<span class="string">"span.was_transaction"</span>, <span class="bool-val">false</span>),
-            ),
-            tags: <span class="macro">vec!</span>[
-                Tag::with_key(<span class="string">"span.op"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.op"</span>)
-                    .always(),
-                Tag::with_key(<span class="string">"transaction.op"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.transaction.op"</span>)
-                    .always(),
-                Tag::with_key(<span class="string">"transaction"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.transaction"</span>)
-                    .always(),
-                Tag::with_key(<span class="string">"environment"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.environment"</span>)
-                    .always(),
-                Tag::with_key(<span class="string">"release"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.release"</span>)
-                    .always(),
-                Tag::with_key(<span class="string">"browser.name"</span>)
-                    .from_field(<span class="string">"span.browser.name"</span>)
-                    .always(), <span class="comment">// already guarded by condition on metric
-            </span>],
-        },
-        MetricSpec {
-            category: DataCategory::Span,
-            mri: <span class="string">"d:spans/webvital.score.inp@ratio"</span>.into(),
-            field: <span class="prelude-val">Some</span>(<span class="string">"span.measurements.score.inp.value"</span>.into()),
-            condition: <span class="prelude-val">Some</span>(is_allowed_browser.clone()),
-            tags: <span class="macro">vec!</span>[
-                Tag::with_key(<span class="string">"span.op"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.op"</span>)
-                    .always(),
-                Tag::with_key(<span class="string">"transaction"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.transaction"</span>)
-                    .always(),
-                Tag::with_key(<span class="string">"environment"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.environment"</span>)
-                    .always(),
-                Tag::with_key(<span class="string">"release"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.release"</span>)
-                    .always(),
-                Tag::with_key(<span class="string">"browser.name"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.browser.name"</span>)
-                    .always(), <span class="comment">// already guarded by condition on metric
-            </span>],
-        },
-        MetricSpec {
-            category: DataCategory::Span,
-            mri: <span class="string">"d:spans/webvital.score.weight.inp@ratio"</span>.into(),
-            field: <span class="prelude-val">Some</span>(<span class="string">"span.measurements.score.weight.inp.value"</span>.into()),
-            condition: <span class="prelude-val">Some</span>(is_allowed_browser.clone()),
-            tags: <span class="macro">vec!</span>[
-                Tag::with_key(<span class="string">"span.op"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.op"</span>)
-                    .always(),
-                Tag::with_key(<span class="string">"transaction"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.transaction"</span>)
-                    .always(),
-                Tag::with_key(<span class="string">"environment"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.environment"</span>)
-                    .always(),
-                Tag::with_key(<span class="string">"release"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.release"</span>)
-                    .always(),
-                Tag::with_key(<span class="string">"browser.name"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.browser.name"</span>)
-                    .always(), <span class="comment">// already guarded by condition on metric
-            </span>],
-        },
-        MetricSpec {
-            category: DataCategory::Span,
-            mri: <span class="string">"d:spans/webvital.inp@millisecond"</span>.into(),
-            field: <span class="prelude-val">Some</span>(<span class="string">"span.measurements.inp.value"</span>.into()),
-            condition: <span class="prelude-val">Some</span>(is_allowed_browser),
-            tags: <span class="macro">vec!</span>[
-                Tag::with_key(<span class="string">"span.op"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.op"</span>)
-                    .always(),
-                Tag::with_key(<span class="string">"transaction"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.transaction"</span>)
-                    .always(),
-                Tag::with_key(<span class="string">"environment"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.environment"</span>)
-                    .always(),
-                Tag::with_key(<span class="string">"release"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.release"</span>)
-                    .always(),
-                Tag::with_key(<span class="string">"browser.name"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.browser.name"</span>)
-                    .always(), <span class="comment">// already guarded by condition on metric
-            </span>],
-        },
-        MetricSpec {
-            category: DataCategory::Span,
-            mri: <span class="string">"g:spans/mobile.slow_frames@none"</span>.into(),
-            field: <span class="prelude-val">Some</span>(<span class="string">"span.measurements.frames.slow.value"</span>.into()),
-            condition: <span class="prelude-val">Some</span>(is_mobile.clone() &amp; duration_condition.clone()),
-            tags: <span class="macro">vec!</span>[
-                Tag::with_key(<span class="string">"transaction.op"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.transaction.op"</span>)
-                    .always(),
-                Tag::with_key(<span class="string">"transaction"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.transaction"</span>)
-                    .always(),
-                Tag::with_key(<span class="string">"environment"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.environment"</span>)
-                    .always(),
-                Tag::with_key(<span class="string">"release"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.release"</span>)
-                    .always(),
-                Tag::with_key(<span class="string">"span.description"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.description"</span>)
-                    .always(),
-                Tag::with_key(<span class="string">"span.op"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.op"</span>)
-                    .always(),
-                Tag::with_key(<span class="string">"span.group"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.group"</span>)
-                    .always(),
-                Tag::with_key(<span class="string">"device.class"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.device.class"</span>)
-                    .always(),
-                Tag::with_key(<span class="string">"os.name"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.os.name"</span>)
-                    .always(),
-            ],
-        },
-        MetricSpec {
-            category: DataCategory::Span,
-            mri: <span class="string">"g:spans/mobile.frozen_frames@none"</span>.into(),
-            field: <span class="prelude-val">Some</span>(<span class="string">"span.measurements.frames.frozen.value"</span>.into()),
-            condition: <span class="prelude-val">Some</span>(is_mobile.clone() &amp; duration_condition.clone()),
-            tags: <span class="macro">vec!</span>[
-                Tag::with_key(<span class="string">"transaction.op"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.transaction.op"</span>)
-                    .always(),
-                Tag::with_key(<span class="string">"transaction"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.transaction"</span>)
-                    .always(),
-                Tag::with_key(<span class="string">"environment"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.environment"</span>)
-                    .always(),
-                Tag::with_key(<span class="string">"release"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.release"</span>)
-                    .always(),
-                Tag::with_key(<span class="string">"span.description"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.description"</span>)
-                    .always(),
-                Tag::with_key(<span class="string">"span.op"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.op"</span>)
-                    .always(),
-                Tag::with_key(<span class="string">"span.group"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.group"</span>)
-                    .always(),
-                Tag::with_key(<span class="string">"device.class"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.device.class"</span>)
-                    .always(),
-                Tag::with_key(<span class="string">"os.name"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.os.name"</span>)
-                    .always(),
-            ],
-        },
-        MetricSpec {
-            category: DataCategory::Span,
-            mri: <span class="string">"g:spans/mobile.total_frames@none"</span>.into(),
-            field: <span class="prelude-val">Some</span>(<span class="string">"span.measurements.frames.total.value"</span>.into()),
-            condition: <span class="prelude-val">Some</span>(is_mobile.clone() &amp; duration_condition.clone()),
-            tags: <span class="macro">vec!</span>[
-                Tag::with_key(<span class="string">"transaction.op"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.transaction.op"</span>)
-                    .always(),
-                Tag::with_key(<span class="string">"transaction"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.transaction"</span>)
-                    .always(),
-                Tag::with_key(<span class="string">"environment"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.environment"</span>)
-                    .always(),
-                Tag::with_key(<span class="string">"release"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.release"</span>)
-                    .always(),
-                Tag::with_key(<span class="string">"span.description"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.description"</span>)
-                    .always(),
-                Tag::with_key(<span class="string">"span.op"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.op"</span>)
-                    .always(),
-                Tag::with_key(<span class="string">"span.group"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.group"</span>)
-                    .always(),
-                Tag::with_key(<span class="string">"device.class"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.device.class"</span>)
-                    .always(),
-                Tag::with_key(<span class="string">"os.name"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.os.name"</span>)
-                    .always(),
-            ],
-        },
-        MetricSpec {
-            category: DataCategory::Span,
-            mri: <span class="string">"g:spans/mobile.frames_delay@second"</span>.into(),
-            field: <span class="prelude-val">Some</span>(<span class="string">"span.measurements.frames.delay.value"</span>.into()),
-            condition: <span class="prelude-val">Some</span>(is_mobile.clone() &amp; duration_condition.clone()),
-            tags: <span class="macro">vec!</span>[
-                Tag::with_key(<span class="string">"transaction.op"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.transaction.op"</span>)
-                    .always(),
-                Tag::with_key(<span class="string">"transaction"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.transaction"</span>)
-                    .always(),
-                Tag::with_key(<span class="string">"environment"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.environment"</span>)
-                    .always(),
-                Tag::with_key(<span class="string">"release"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.release"</span>)
-                    .always(),
-                Tag::with_key(<span class="string">"span.description"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.description"</span>)
-                    .always(),
-                Tag::with_key(<span class="string">"span.op"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.op"</span>)
-                    .always(),
-                Tag::with_key(<span class="string">"span.group"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.group"</span>)
-                    .always(),
-                Tag::with_key(<span class="string">"device.class"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.device.class"</span>)
-                    .always(),
-                Tag::with_key(<span class="string">"os.name"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.os.name"</span>)
-                    .always(),
-            ],
-        },
-        MetricSpec {
-            category: DataCategory::Span,
-            mri: <span class="string">"g:spans/messaging.message.receive.latency@millisecond"</span>.into(),
-            field: <span class="prelude-val">Some</span>(<span class="string">"span.measurements.messaging.message.receive.latency.value"</span>.into()),
-            condition: <span class="prelude-val">Some</span>(is_queue_op.clone()),
-            tags: <span class="macro">vec!</span>[
-                Tag::with_key(<span class="string">"environment"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.environment"</span>)
-                    .always(),
-                Tag::with_key(<span class="string">"span.op"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.op"</span>)
-                    .always(),
-                Tag::with_key(<span class="string">"transaction"</span>)
-                    .from_field(<span class="string">"span.sentry_tags.transaction"</span>)
-                    .always(),
-            ],
-        },
-    ];
-
-    metrics
+        ),
+        (
+            <span class="string">"span_metrics_tx"</span>.to_owned(),
+            <span class="macro">vec!</span>[MetricSpec {
+                category: DataCategory::Span,
+                mri: <span class="string">"d:transactions/measurements.score.total@ratio"</span>.into(),
+                field: <span class="prelude-val">Some</span>(<span class="string">"span.measurements.score.total.value"</span>.into()),
+                condition: <span class="prelude-val">Some</span>(
+                    <span class="comment">// If transactions are extracted from spans, the transaction processing pipeline
+                    // will take care of this metric.
+                    </span>is_allowed_browser.clone() &amp; RuleCondition::eq(<span class="string">"span.was_transaction"</span>, <span class="bool-val">false</span>),
+                ),
+                tags: <span class="macro">vec!</span>[
+                    Tag::with_key(<span class="string">"span.op"</span>)
+                        .from_field(<span class="string">"span.sentry_tags.op"</span>)
+                        .always(),
+                    Tag::with_key(<span class="string">"transaction.op"</span>)
+                        .from_field(<span class="string">"span.sentry_tags.transaction.op"</span>)
+                        .always(),
+                    Tag::with_key(<span class="string">"transaction"</span>)
+                        .from_field(<span class="string">"span.sentry_tags.transaction"</span>)
+                        .always(),
+                    Tag::with_key(<span class="string">"environment"</span>)
+                        .from_field(<span class="string">"span.sentry_tags.environment"</span>)
+                        .always(),
+                    Tag::with_key(<span class="string">"release"</span>)
+                        .from_field(<span class="string">"span.sentry_tags.release"</span>)
+                        .always(),
+                    Tag::with_key(<span class="string">"browser.name"</span>)
+                        .from_field(<span class="string">"span.browser.name"</span>)
+                        .always(), <span class="comment">// already guarded by condition on metric
+                </span>],
+            }],
+        ),
+    ]
 }
 </code></pre></div></section></main></body></html>
