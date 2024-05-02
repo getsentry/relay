@@ -1843,7 +1843,7 @@ impl EnvelopeProcessorService {
         } = message;
 
         let received = relay_common::time::instant_to_date_time(start_time);
-        let received_timestamp = UnixTimestamp::from_secs(received.timestamp() as u64);
+        let received_timestamp = UnixTimestamp::from_instant(start_time);
 
         let clock_drift_processor =
             ClockDriftProcessor::new(sent_at, received).at_least(MINIMUM_CLOCK_DRIFT);
@@ -1916,7 +1916,7 @@ impl EnvelopeProcessorService {
         } = message;
 
         let received = relay_common::time::instant_to_date_time(start_time);
-        let received_timestamp = UnixTimestamp::from_secs(received.timestamp() as u64);
+        let received_timestamp = UnixTimestamp::from_instant(start_time);
 
         let clock_drift_processor =
             ClockDriftProcessor::new(sent_at, received).at_least(MINIMUM_CLOCK_DRIFT);
@@ -3417,15 +3417,7 @@ mod tests {
         let mut token = Cogs::noop().timed(ResourceId::Relay, AppFeature::Unattributed);
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
         let start_time = Instant::now();
-        let config = {
-            let config_json = serde_json::json!({
-                "processing": {
-                    "enabled": true,
-                    "kafka_config": [],
-                }
-            });
-            Config::from_json_value(config_json).unwrap()
-        };
+        let config = Config::default();
 
         let (project_cache, mut project_cache_rx) = Addr::custom();
         let processor = create_test_processor_with_addrs(
@@ -3468,15 +3460,7 @@ mod tests {
     async fn test_process_batched_metrics_bucket_metadata() {
         let mut token = Cogs::noop().timed(ResourceId::Relay, AppFeature::Unattributed);
         let start_time = Instant::now();
-        let config = {
-            let config_json = serde_json::json!({
-                "processing": {
-                    "enabled": true,
-                    "kafka_config": [],
-                }
-            });
-            Config::from_json_value(config_json).unwrap()
-        };
+        let config = Config::default();
 
         let (project_cache, mut project_cache_rx) = Addr::custom();
         let processor = create_test_processor_with_addrs(

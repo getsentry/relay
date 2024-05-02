@@ -1296,12 +1296,15 @@ mod tests {
             "width": 10,
             "tags": {
                 "route": "user_index"
+            },
+            "metadata": {
+                "merges": 1,
+                "received_at": 1615889440
             }
           }
         ]"#;
 
-        let mut buckets = serde_json::from_str::<Vec<Bucket>>(json).unwrap();
-        buckets[0].metadata = BucketMetadata::new(UnixTimestamp::from_secs(1615889440));
+        let buckets = serde_json::from_str::<Vec<Bucket>>(json).unwrap();
 
         insta::assert_debug_snapshot!(buckets, @r###"
         [
@@ -1341,12 +1344,15 @@ mod tests {
             "value": 4,
             "type": "c",
             "timestamp": 1615889440,
-            "width": 10
+            "width": 10,
+            "metadata": {
+                "merges": 1,
+                "received_at": 1615889440
+            }
           }
         ]"#;
 
-        let mut buckets = serde_json::from_str::<Vec<Bucket>>(json).unwrap();
-        buckets[0].metadata = BucketMetadata::new(UnixTimestamp::from_secs(1615889440));
+        let buckets = serde_json::from_str::<Vec<Bucket>>(json).unwrap();
 
         insta::assert_debug_snapshot!(buckets, @r###"
         [
