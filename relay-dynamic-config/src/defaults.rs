@@ -652,6 +652,9 @@ fn span_metrics(transaction_extraction_enabled: bool) -> impl IntoIterator<Item 
             field: Some("span.measurements.frames.slow.value".into()),
             condition: Some(is_mobile.clone() & duration_condition.clone()),
             tags: vec![
+                Tag::with_key("transaction.op")
+                    .from_field("span.sentry_tags.transaction.op")
+                    .always(),
                 Tag::with_key("transaction")
                     .from_field("span.sentry_tags.transaction")
                     .always(),
@@ -684,6 +687,9 @@ fn span_metrics(transaction_extraction_enabled: bool) -> impl IntoIterator<Item 
             field: Some("span.measurements.frames.frozen.value".into()),
             condition: Some(is_mobile.clone() & duration_condition.clone()),
             tags: vec![
+                Tag::with_key("transaction.op")
+                    .from_field("span.sentry_tags.transaction.op")
+                    .always(),
                 Tag::with_key("transaction")
                     .from_field("span.sentry_tags.transaction")
                     .always(),
@@ -716,6 +722,9 @@ fn span_metrics(transaction_extraction_enabled: bool) -> impl IntoIterator<Item 
             field: Some("span.measurements.frames.total.value".into()),
             condition: Some(is_mobile.clone() & duration_condition.clone()),
             tags: vec![
+                Tag::with_key("transaction.op")
+                    .from_field("span.sentry_tags.transaction.op")
+                    .always(),
                 Tag::with_key("transaction")
                     .from_field("span.sentry_tags.transaction")
                     .always(),
@@ -748,6 +757,9 @@ fn span_metrics(transaction_extraction_enabled: bool) -> impl IntoIterator<Item 
             field: Some("span.measurements.frames.delay.value".into()),
             condition: Some(is_mobile.clone() & duration_condition.clone()),
             tags: vec![
+                Tag::with_key("transaction.op")
+                    .from_field("span.sentry_tags.transaction.op")
+                    .always(),
                 Tag::with_key("transaction")
                     .from_field("span.sentry_tags.transaction")
                     .always(),
