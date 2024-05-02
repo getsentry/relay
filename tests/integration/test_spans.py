@@ -120,6 +120,10 @@ def test_span_extraction(
     transaction_span = spans_consumer.get_span()
     del transaction_span["received"]
     assert transaction_span == {
+        "data": {
+            "sentry.sdk.name": "raven-node",
+            "sentry.segment.name": "hi",
+        },
         "description": "hi",
         "duration_ms": duration_ms,
         "event_id": "cbf6960622e14a45abc1f03b2055b186",
@@ -853,6 +857,10 @@ def test_span_extraction_with_metrics_summary(
     transaction_span = spans_consumer.get_span()
     del transaction_span["received"]
     assert transaction_span == {
+        "data": {
+            "sentry.sdk.name": "raven-node",
+            "sentry.segment.name": "hi",
+        },
         "description": "hi",
         "duration_ms": duration_ms,
         "event_id": "cbf6960622e14a45abc1f03b2055b186",
@@ -1026,6 +1034,10 @@ def test_span_extraction_with_ddm_missing_values(
     transaction_span = spans_consumer.get_span()
     del transaction_span["received"]
     assert transaction_span == {
+        "data": {
+            "sentry.sdk.name": "raven-node",
+            "sentry.segment.name": "hi",
+        },
         "description": "hi",
         "duration_ms": duration_ms,
         "event_id": "cbf6960622e14a45abc1f03b2055b186",
