@@ -205,26 +205,25 @@ pub struct Options {
 
     /// If enabled, runs full normalization in non-processing Relays.
     ///
-    /// `None` and `Some(false)` are equivalent and NOOPs. Doesn't apply to processing Relays.
-    ///  Outdated relays with a stale protocol/normalization receiving this flag
-    ///  will not forward unknown fields. Disabling the flag solves this
-    ///  behavior.
+    /// Doesn't apply to processing Relays. Outdated relays with a stale
+    /// protocol/normalization receiving this flag will not forward unknown
+    /// fields. Disabling the flag solves this behavior.
     #[serde(
+        default,
         rename = "relay.force_full_normalization",
         deserialize_with = "default_on_error",
         skip_serializing_if = "is_default"
     )]
-    pub force_full_normalization: Option<bool>,
+    pub force_full_normalization: bool,
 
     /// If enabled, disables normalization in processing Relays.
-    ///
-    /// `None` and `Some(false)` are equivalent and NOOPs.
     #[serde(
+        default,
         rename = "relay.disable_normalization.processing",
         deserialize_with = "default_on_error",
         skip_serializing_if = "is_default"
     )]
-    pub processing_disable_normalization: Option<bool>,
+    pub processing_disable_normalization: bool,
 
     /// All other unknown options.
     #[serde(flatten)]

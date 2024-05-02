@@ -1255,13 +1255,11 @@ impl EnvelopeProcessorService {
         let options = &self.inner.global_config.current().options;
 
         let full_normalization = if self.inner.config.processing_enabled()
-            && matches!(options.processing_disable_normalization, Some(true))
+            && options.processing_disable_normalization
             && (state.envelope().meta().is_from_internal_relay())
         {
             return Ok(());
-        } else if !self.inner.config.processing_enabled()
-            && matches!(options.force_full_normalization, Some(true))
-        {
+        } else if !self.inner.config.processing_enabled() && options.force_full_normalization {
             true
         } else {
             match self.inner.config.normalization_level() {
