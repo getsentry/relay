@@ -278,7 +278,7 @@ pub fn hardcoded_span_metrics() -> Vec<(String, Vec<MetricSpec>)> {
                                 is_db.clone()
                                     | is_resource.clone()
                                     | is_mobile.clone()
-                                    | is_http.clone(),
+                                    | is_http.clone()
                                     | is_cache.clone(),
                             ),
                         Tag::with_key("transaction.op")
