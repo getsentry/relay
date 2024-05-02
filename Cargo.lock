@@ -3654,6 +3654,7 @@ dependencies = [
  "regex",
  "relay-auth",
  "relay-base-schema",
+ "relay-cardinality",
  "relay-common",
  "relay-dynamic-config",
  "relay-event-normalization",
