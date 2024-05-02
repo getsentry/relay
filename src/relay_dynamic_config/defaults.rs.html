@@ -797,6 +797,18 @@
 <a href="#795" id="795">795</a>
 <a href="#796" id="796">796</a>
 <a href="#797" id="797">797</a>
+<a href="#798" id="798">798</a>
+<a href="#799" id="799">799</a>
+<a href="#800" id="800">800</a>
+<a href="#801" id="801">801</a>
+<a href="#802" id="802">802</a>
+<a href="#803" id="803">803</a>
+<a href="#804" id="804">804</a>
+<a href="#805" id="805">805</a>
+<a href="#806" id="806">806</a>
+<a href="#807" id="807">807</a>
+<a href="#808" id="808">808</a>
+<a href="#809" id="809">809</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_base_schema::data_category::DataCategory;
 <span class="kw">use </span>relay_event_normalization::utils::MAX_DURATION_MOBILE_MS;
 <span class="kw">use </span>relay_protocol::RuleCondition;
@@ -1451,6 +1463,9 @@
             field: <span class="prelude-val">Some</span>(<span class="string">"span.measurements.frames.slow.value"</span>.into()),
             condition: <span class="prelude-val">Some</span>(is_mobile.clone() &amp; duration_condition.clone()),
             tags: <span class="macro">vec!</span>[
+                Tag::with_key(<span class="string">"transaction.op"</span>)
+                    .from_field(<span class="string">"span.sentry_tags.transaction.op"</span>)
+                    .always(),
                 Tag::with_key(<span class="string">"transaction"</span>)
                     .from_field(<span class="string">"span.sentry_tags.transaction"</span>)
                     .always(),
@@ -1483,6 +1498,9 @@
             field: <span class="prelude-val">Some</span>(<span class="string">"span.measurements.frames.frozen.value"</span>.into()),
             condition: <span class="prelude-val">Some</span>(is_mobile.clone() &amp; duration_condition.clone()),
             tags: <span class="macro">vec!</span>[
+                Tag::with_key(<span class="string">"transaction.op"</span>)
+                    .from_field(<span class="string">"span.sentry_tags.transaction.op"</span>)
+                    .always(),
                 Tag::with_key(<span class="string">"transaction"</span>)
                     .from_field(<span class="string">"span.sentry_tags.transaction"</span>)
                     .always(),
@@ -1515,6 +1533,9 @@
             field: <span class="prelude-val">Some</span>(<span class="string">"span.measurements.frames.total.value"</span>.into()),
             condition: <span class="prelude-val">Some</span>(is_mobile.clone() &amp; duration_condition.clone()),
             tags: <span class="macro">vec!</span>[
+                Tag::with_key(<span class="string">"transaction.op"</span>)
+                    .from_field(<span class="string">"span.sentry_tags.transaction.op"</span>)
+                    .always(),
                 Tag::with_key(<span class="string">"transaction"</span>)
                     .from_field(<span class="string">"span.sentry_tags.transaction"</span>)
                     .always(),
@@ -1547,6 +1568,9 @@
             field: <span class="prelude-val">Some</span>(<span class="string">"span.measurements.frames.delay.value"</span>.into()),
             condition: <span class="prelude-val">Some</span>(is_mobile.clone() &amp; duration_condition.clone()),
             tags: <span class="macro">vec!</span>[
+                Tag::with_key(<span class="string">"transaction.op"</span>)
+                    .from_field(<span class="string">"span.sentry_tags.transaction.op"</span>)
+                    .always(),
                 Tag::with_key(<span class="string">"transaction"</span>)
                     .from_field(<span class="string">"span.sentry_tags.transaction"</span>)
                     .always(),

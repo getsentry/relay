@@ -1666,6 +1666,7 @@
 <a href="#1664" id="1664">1664</a>
 <a href="#1665" id="1665">1665</a>
 <a href="#1666" id="1666">1666</a>
+<a href="#1667" id="1667">1667</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_common::time::UnixTimestamp;
 <span class="kw">use </span>relay_dynamic_config::CombinedMetricExtractionConfig;
 <span class="kw">use </span>relay_event_schema::protocol::{Event, Span};
@@ -2825,7 +2826,8 @@
             "contexts": {
                 "trace": {
                     "trace_id": "ff62a8b040f340bda5d830223def1d81",
-                    "span_id": "bd429c44b67a3eb4"
+                    "span_id": "bd429c44b67a3eb4",
+                    "op": "ui.load"
                 },
                 "device": {
                     "family": "iOS",
