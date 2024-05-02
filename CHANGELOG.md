@@ -4,7 +4,7 @@
 
 **Internal**:
 
-- Add metrics extraction config to global config. ([#3490](https://github.com/getsentry/relay/pull/3490))
+- Add metrics extraction config to global config. ([#3490](https://github.com/getsentry/relay/pull/3490), [#3504](https://github.com/getsentry/relay/pull/3504))
 
 ## 24.4.2
 

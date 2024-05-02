@@ -94,7 +94,6 @@ impl ProjectConfig {
         self.quotas.retain(Quota::is_valid);
 
         metrics::convert_conditional_tagging(self);
-
         defaults::add_span_metrics(self);
 
         if let Some(ErrorBoundary::Ok(ref mut sampling_config)) = self.sampling {
