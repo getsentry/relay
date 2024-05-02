@@ -75,7 +75,7 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
 
     config._span_metrics_extended = true;
     if config.version == 0 {
-        config.version = MetricExtractionConfig::VERSION;
+        config.version = MetricExtractionConfig::MAX_SUPPORTED_VERSION;
     }
 }
 

@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Internal**:
+
+- Add metrics extraction config to global config. ([#3490](https://github.com/getsentry/relay/pull/3490))
+
 ## 24.4.2
 
 **Breaking Changes**:
