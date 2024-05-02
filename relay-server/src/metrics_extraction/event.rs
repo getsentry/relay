@@ -1526,7 +1526,10 @@ mod tests {
                 "ttfd": "ttfd"
             }
         }"#;
-        let span = Annotated::<Span>::from_json(span).unwrap().into_value().unwrap();
+        let span = Annotated::<Span>::from_json(span)
+            .unwrap()
+            .into_value()
+            .unwrap();
         let metrics = generic::extract_metrics(&span, &combined_config());
 
         assert!(!metrics.is_empty());
