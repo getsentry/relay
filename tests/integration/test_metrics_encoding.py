@@ -8,15 +8,19 @@ from .test_metrics import TEST_CONFIG, metrics_by_name
 
 
 def b64_set(*values):
-    return base64.b64encode(
-        b"".join(struct.pack("<I", value) for value in values)
-    ).decode("ascii")
+    return (
+        base64.b64encode(b"".join(struct.pack("<I", value) for value in values))
+        .decode("ascii")
+        .rstrip("=")
+    )
 
 
 def b64_dist(*values):
-    return base64.b64encode(
-        b"".join(struct.pack("<d", value) for value in values)
-    ).decode("ascii")
+    return (
+        base64.b64encode(b"".join(struct.pack("<d", value) for value in values))
+        .decode("ascii")
+        .rstrip("=")
+    )
 
 
 def assert_zstd_set(value, *expected):
@@ -36,7 +40,9 @@ def assert_zstd_dist(value, *expected):
 
 
 def zstd_decompress(data):
-    with zstd.ZstdDecompressor().stream_reader(base64.b64decode(data)) as decompressor:
+    with zstd.ZstdDecompressor().stream_reader(
+        base64.b64decode(data + "==")
+    ) as decompressor:
         return decompressor.read()
 
 
