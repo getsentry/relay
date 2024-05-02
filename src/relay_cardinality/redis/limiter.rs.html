@@ -2052,7 +2052,7 @@
                         cardinality: <span class="number">1
                     </span>}]
                 );
-                <span class="macro">assert!</span>(rejected.reports.get(<span class="kw-2">&amp;</span>limits[<span class="number">3</span>]).is_none());
+                <span class="macro">assert!</span>(!rejected.reports.contains_key(<span class="kw-2">&amp;</span>limits[<span class="number">3</span>]));
             } <span class="kw">else </span>{
                 <span class="comment">// Coming from cache.
                 </span><span class="macro">assert!</span>(rejected.reports.is_empty());
