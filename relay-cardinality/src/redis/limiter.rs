@@ -920,7 +920,7 @@ mod tests {
                         cardinality: 1
                     }]
                 );
-                assert!(rejected.reports.get(&limits[3]).is_none());
+                assert!(!rejected.reports.contains_key(&limits[3]));
             } else {
                 // Coming from cache.
                 assert!(rejected.reports.is_empty());
