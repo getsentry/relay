@@ -1,5 +1,5 @@
 use relay_common::time::UnixTimestamp;
-use relay_dynamic_config::MetricExtractionConfig;
+use relay_dynamic_config::CombinedMetricExtractionConfig;
 use relay_event_schema::protocol::{Event, Span};
 use relay_metrics::Bucket;
 use relay_quotas::DataCategory;
@@ -48,7 +48,7 @@ impl Extractable for Span {
 pub fn extract_metrics(
     event: &Event,
     spans_extracted: bool,
-    config: &MetricExtractionConfig,
+    config: &CombinedMetricExtractionConfig<'_>,
     max_tag_value_size: usize,
     span_extraction_sample_rate: Option<f32>,
 ) -> Vec<Bucket> {
@@ -65,7 +65,7 @@ pub fn extract_metrics(
 
 fn extract_span_metrics_for_event(
     event: &Event,
-    config: &MetricExtractionConfig,
+    config: &CombinedMetricExtractionConfig<'_>,
     max_tag_value_size: usize,
     output: &mut Vec<Bucket>,
 ) {
@@ -1028,7 +1028,12 @@ mod tests {
                     "span_id": "9b01bd820a083e63",
                     "parent_span_id": "a1e13f3f06239d69",
                     "trace_id": "922dda2462ea4ac2b6a4b339bee90863",
-                    "data": {}
+                    "data": {
+                        "messaging.destination.name": "default",
+                        "messaging.message.receive.latency": 100,
+                        "messaging.message.retry.count": 2,
+                        "messaging.message.body.size": 1000
+                    }
                 },
                 {
                     "timestamp": 1702474613.0495,
@@ -1038,7 +1043,12 @@ mod tests {
                     "span_id": "9b01bd820a083e63",
                     "parent_span_id": "a1e13f3f06239d69",
                     "trace_id": "922dda2462ea4ac2b6a4b339bee90863",
-                    "data": {}
+                    "data": {
+                        "messaging.destination.name": "default",
+                        "messaging.message.receive.latency": 100,
+                        "messaging.message.retry.count": 2,
+                        "messaging.message.body.size": 1000
+                    }
                 },
                 {
                     "timestamp": 1702474613.0495,
@@ -1048,7 +1058,12 @@ mod tests {
                     "span_id": "9b01bd820a083e63",
                     "parent_span_id": "a1e13f3f06239d69",
                     "trace_id": "922dda2462ea4ac2b6a4b339bee90863",
-                    "data": {}
+                    "data": {
+                        "messaging.destination.name": "default",
+                        "messaging.message.receive.latency": 100,
+                        "messaging.message.retry.count": 2,
+                        "messaging.message.body.size": 1000
+                    }
                 },
                 {
                     "timestamp": 1702474613.0495,
@@ -1058,7 +1073,12 @@ mod tests {
                     "span_id": "9b01bd820a083e63",
                     "parent_span_id": "a1e13f3f06239d69",
                     "trace_id": "922dda2462ea4ac2b6a4b339bee90863",
-                    "data": {}
+                    "data": {
+                        "messaging.destination.name": "default",
+                        "messaging.message.receive.latency": 100,
+                        "messaging.message.retry.count": 2,
+                        "messaging.message.body.size": 1000
+                    }
                 },
                 {
                     "timestamp": 1702474613.0495,
@@ -1119,7 +1139,8 @@ mod tests {
         project.sanitize();
 
         let config = project.metric_extraction.ok().unwrap();
-        let metrics = extract_metrics(event.value().unwrap(), false, &config, 200, None);
+        let combined_config = (&config).into();
+        let metrics = extract_metrics(event.value().unwrap(), false, &combined_config, 200, None);
         insta::assert_debug_snapshot!(metrics);
     }
 
@@ -1136,7 +1157,8 @@ mod tests {
             "contexts": {
                 "trace": {
                     "trace_id": "ff62a8b040f340bda5d830223def1d81",
-                    "span_id": "bd429c44b67a3eb4"
+                    "span_id": "bd429c44b67a3eb4",
+                    "op": "ui.load"
                 },
                 "device": {
                     "family": "iOS",
@@ -1290,7 +1312,8 @@ mod tests {
         project.sanitize();
 
         let config = project.metric_extraction.ok().unwrap();
-        let metrics = extract_metrics(event.value().unwrap(), false, &config, 200, None);
+        let combined_config = (&config).into();
+        let metrics = extract_metrics(event.value().unwrap(), false, &combined_config, 200, None);
         insta::assert_debug_snapshot!((&event.value().unwrap().spans, metrics));
     }
 
@@ -1351,7 +1374,8 @@ mod tests {
         project.sanitize();
 
         let config = project.metric_extraction.ok().unwrap();
-        let metrics = extract_metrics(event.value().unwrap(), false, &config, 200, None);
+        let combined_config = (&config).into();
+        let metrics = extract_metrics(event.value().unwrap(), false, &combined_config, 200, None);
 
         // When transaction.op:ui.load and mobile:true, HTTP spans still get both
         // exclusive_time metrics:
@@ -1387,7 +1411,8 @@ mod tests {
         project.sanitize();
 
         let config = project.metric_extraction.ok().unwrap();
-        let metrics = extract_metrics(event.value().unwrap(), false, &config, 200, None);
+        let combined_config = (&config).into();
+        let metrics = extract_metrics(event.value().unwrap(), false, &combined_config, 200, None);
 
         let usage_metrics = metrics
             .into_iter()
@@ -1411,7 +1436,10 @@ mod tests {
         config.sanitize(); // apply defaults for span extraction
 
         let extraction_config = config.metric_extraction.ok().unwrap();
-        generic::extract_metrics(span, &extraction_config)
+        generic::extract_metrics(
+            span,
+            &CombinedMetricExtractionConfig::from(&extraction_config),
+        )
     }
 
     /// Helper function for span metric extraction tests.
@@ -1613,7 +1641,8 @@ mod tests {
         project.sanitize();
 
         let config = project.metric_extraction.ok().unwrap();
-        let metrics = extract_metrics(event.value().unwrap(), false, &config, 200, None);
+        let combined_config = (&config).into();
+        let metrics = extract_metrics(event.value().unwrap(), false, &combined_config, 200, None);
 
         assert_eq!(metrics.len(), 4);
 

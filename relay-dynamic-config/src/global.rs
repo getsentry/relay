@@ -10,7 +10,7 @@ use relay_quotas::Quota;
 use serde::{de, Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::ErrorBoundary;
+use crate::{ErrorBoundary, MetricExtractionGroups};
 
 /// A dynamic configuration for all Relays passed down from Sentry.
 ///
@@ -38,6 +38,13 @@ pub struct GlobalConfig {
         skip_serializing_if = "is_default"
     )]
     pub options: Options,
+
+    /// Configuration for global metrics extraction rules.
+    ///
+    /// These are merged with rules in project configs before
+    /// applying.
+    #[serde(skip_serializing_if = "is_ok_and_empty")]
+    pub metric_extraction: ErrorBoundary<MetricExtractionGroups>,
 }
 
 impl GlobalConfig {
@@ -368,9 +375,15 @@ where
     }
 }
 
+fn is_ok_and_empty(value: &ErrorBoundary<MetricExtractionGroups>) -> bool {
+    matches!(
+        value,
+        &ErrorBoundary::Ok(MetricExtractionGroups { ref groups }) if groups.is_empty()
+    )
+}
+
 #[cfg(test)]
 mod tests {
-
     use super::*;
 
     #[test]

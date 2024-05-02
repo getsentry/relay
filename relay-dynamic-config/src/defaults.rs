@@ -75,7 +75,7 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
 
     config._span_metrics_extended = true;
     if config.version == 0 {
-        config.version = MetricExtractionConfig::VERSION;
+        config.version = MetricExtractionConfig::MAX_SUPPORTED_VERSION;
     }
 }
 
@@ -250,6 +250,10 @@ fn span_metrics(transaction_extraction_enabled: bool) -> impl IntoIterator<Item 
                 Tag::with_key("cache.hit")
                     .from_field("span.sentry_tags.cache.hit")
                     .when(is_cache.clone()),
+                // Queue module
+                Tag::with_key("messaging.destination.name")
+                    .from_field("span.sentry_tags.messaging.destination.name")
+                    .when(is_queue_op.clone()),
             ],
         },
         MetricSpec {
@@ -309,6 +313,10 @@ fn span_metrics(transaction_extraction_enabled: bool) -> impl IntoIterator<Item 
                 Tag::with_key("cache.hit")
                     .from_field("span.sentry_tags.cache.hit")
                     .when(is_cache.clone()),
+                // Queue module
+                Tag::with_key("messaging.destination.name")
+                    .from_field("span.sentry_tags.messaging.destination.name")
+                    .when(is_queue_op.clone()),
             ],
         },
         MetricSpec {
@@ -644,6 +652,9 @@ fn span_metrics(transaction_extraction_enabled: bool) -> impl IntoIterator<Item 
             field: Some("span.measurements.frames.slow.value".into()),
             condition: Some(is_mobile.clone() & duration_condition.clone()),
             tags: vec![
+                Tag::with_key("transaction.op")
+                    .from_field("span.sentry_tags.transaction.op")
+                    .always(),
                 Tag::with_key("transaction")
                     .from_field("span.sentry_tags.transaction")
                     .always(),
@@ -676,6 +687,9 @@ fn span_metrics(transaction_extraction_enabled: bool) -> impl IntoIterator<Item 
             field: Some("span.measurements.frames.frozen.value".into()),
             condition: Some(is_mobile.clone() & duration_condition.clone()),
             tags: vec![
+                Tag::with_key("transaction.op")
+                    .from_field("span.sentry_tags.transaction.op")
+                    .always(),
                 Tag::with_key("transaction")
                     .from_field("span.sentry_tags.transaction")
                     .always(),
@@ -708,6 +722,9 @@ fn span_metrics(transaction_extraction_enabled: bool) -> impl IntoIterator<Item 
             field: Some("span.measurements.frames.total.value".into()),
             condition: Some(is_mobile.clone() & duration_condition.clone()),
             tags: vec![
+                Tag::with_key("transaction.op")
+                    .from_field("span.sentry_tags.transaction.op")
+                    .always(),
                 Tag::with_key("transaction")
                     .from_field("span.sentry_tags.transaction")
                     .always(),
@@ -740,6 +757,9 @@ fn span_metrics(transaction_extraction_enabled: bool) -> impl IntoIterator<Item 
             field: Some("span.measurements.frames.delay.value".into()),
             condition: Some(is_mobile.clone() & duration_condition.clone()),
             tags: vec![
+                Tag::with_key("transaction.op")
+                    .from_field("span.sentry_tags.transaction.op")
+                    .always(),
                 Tag::with_key("transaction")
                     .from_field("span.sentry_tags.transaction")
                     .always(),
@@ -763,6 +783,23 @@ fn span_metrics(transaction_extraction_enabled: bool) -> impl IntoIterator<Item 
                     .always(),
                 Tag::with_key("os.name")
                     .from_field("span.sentry_tags.os.name")
+                    .always(),
+            ],
+        },
+        MetricSpec {
+            category: DataCategory::Span,
+            mri: "g:spans/messaging.message.receive.latency@millisecond".into(),
+            field: Some("span.measurements.messaging.message.receive.latency.value".into()),
+            condition: Some(is_queue_op.clone()),
+            tags: vec![
+                Tag::with_key("environment")
+                    .from_field("span.sentry_tags.environment")
+                    .always(),
+                Tag::with_key("span.op")
+                    .from_field("span.sentry_tags.op")
+                    .always(),
+                Tag::with_key("transaction")
+                    .from_field("span.sentry_tags.transaction")
                     .always(),
             ],
         },
