@@ -423,6 +423,18 @@ fn get_normalize_span_config<'a>(
 
 fn set_segment_attributes(span: &mut Annotated<Span>) {
     let Some(span) = span.value_mut() else { return };
+    let Some(span_op) = span.op.value() else {
+        return;
+    };
+
+    // Identify INP spans and make sure they are not wrapped in a segment.
+    if span_op.starts_with("ui.interaction.") {
+        span.is_segment = false.into();
+        span.parent_span_id = None.into();
+        span.segment_id = None.into();
+        return;
+    }
+
     let Some(span_id) = span.span_id.value() else {
         return;
     };
@@ -836,6 +848,37 @@ mod tests {
     fn segment_only_parent() {
         let mut span: Annotated<Span> = Annotated::from_json(
             r#"{
+         "parent_span_id": "fa90fdead5f74051"
+     }"#,
+        )
+        .unwrap();
+        set_segment_attributes(&mut span);
+        assert_eq!(get_value!(span.is_segment), None);
+        assert_eq!(get_value!(span.segment_id), None);
+    }
+
+    #[test]
+    fn not_segment_but_inp_span() {
+        let mut span: Annotated<Span> = Annotated::from_json(
+            r#"{
+         "op": "ui.interaction.click",
+         "is_segment": false,
+         "parent_span_id": "fa90fdead5f74051"
+     }"#,
+        )
+        .unwrap();
+        set_segment_attributes(&mut span);
+        assert_eq!(get_value!(span.is_segment), None);
+        assert_eq!(get_value!(span.segment_id), None);
+    }
+
+    #[test]
+    fn segment_but_inp_span() {
+        let mut span: Annotated<Span> = Annotated::from_json(
+            r#"{
+         "op": "ui.interaction.click",
+         "segment_id": "fa90fdead5f74051",
+         "is_segment": true,
          "parent_span_id": "fa90fdead5f74051"
      }"#,
         )
