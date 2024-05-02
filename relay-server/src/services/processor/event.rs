@@ -72,9 +72,15 @@ pub fn extract<G: EventProcessing>(
         relay_log::trace!("processing json event");
         sample_rates = item.take_sample_rates();
         metric!(timer(RelayTimers::EventProcessingDeserialize), {
+            let (mut annotated_event, len) = event_from_json_payload(item, None)?;
             // Event items can never include transactions, so retain the event type and let
-            // inference deal with this during store normalization.
-            event_from_json_payload(item, None)?
+            // inference deal with this during normalization.
+            if let Some(event) = annotated_event.value_mut() {
+                if matches!(event.ty.value(), Some(EventType::Transaction)) {
+                    event.ty.set_value(None);
+                }
+            }
+            (annotated_event, len)
         })
     } else if let Some(mut item) = transaction_item {
         relay_log::trace!("processing json transaction");

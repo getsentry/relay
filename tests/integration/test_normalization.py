@@ -19,13 +19,11 @@ def get_test_data(name):
     return input, output
 
 
-def assert_ingested_event(expected, ingested):
-    drop_props = ["timestamp", "received", "ingest_path", "_metrics"]
-    for prop in drop_props:
-        expected.pop(prop, None)
-        ingested.pop(prop, None)
-
-    assert expected == ingested, "Ingested event does not match the expected snapshot"
+def drop_props(payload):
+    props = ["timestamp", "received", "ingest_path", "_metrics"]
+    for prop in props:
+        payload.pop(prop, None)
+    return payload
 
 
 def test_relay_with_full_normalization(mini_sentry, relay):
@@ -40,7 +38,7 @@ def test_relay_with_full_normalization(mini_sentry, relay):
 
     relay.send_event(project_id, input)
     ingested = mini_sentry.captured_events.get(timeout=10).get_event()
-    assert_ingested_event(expected, ingested)
+    assert drop_props(expected) == drop_props(ingested)
 
 
 def test_processing(mini_sentry, events_consumer, relay_with_processing):
@@ -53,7 +51,7 @@ def test_processing(mini_sentry, events_consumer, relay_with_processing):
 
     processing.send_event(project_id, input)
     ingested, _ = events_consumer.get_event(timeout=10)
-    assert_ingested_event(expected, ingested)
+    assert drop_props(expected) == drop_props(ingested)
 
 
 def test_relay_chain(
@@ -86,4 +84,4 @@ def test_relay_chain(
 
     relay.send_event(project_id, input)
     ingested, _ = events_consumer.get_event(timeout=10)
-    assert_ingested_event(expected, ingested)
+    assert drop_props(expected) == drop_props(ingested)
