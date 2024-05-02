@@ -503,7 +503,7 @@ mod tests {
     use relay_dynamic_config::AcceptTransactionNames;
     use relay_event_normalization::{
         normalize_event, set_default_transaction_source, validate_event_timestamps,
-        validate_transaction, BreakdownsConfig, DynamicMeasurementsConfig, EventValidationConfig,
+        validate_transaction, BreakdownsConfig, CombinedMeasurementsConfig, EventValidationConfig,
         MeasurementsConfig, NormalizationConfig, PerformanceScoreConfig, PerformanceScoreProfile,
         PerformanceScoreWeightedComponent, TransactionValidationConfig,
     };
@@ -1358,7 +1358,7 @@ mod tests {
         ))
         .unwrap();
 
-        let config = DynamicMeasurementsConfig::new(Some(&measurements_config), None);
+        let config = CombinedMeasurementsConfig::new(Some(&measurements_config), None);
 
         normalize_event(
             &mut event,

@@ -3,10 +3,8 @@ use relay_event_normalization::utils::MAX_DURATION_MOBILE_MS;
 use relay_protocol::RuleCondition;
 use serde_json::Number;
 
-use crate::feature::Feature;
-use crate::metrics::{MetricExtractionConfig, MetricSpec};
-use crate::project::ProjectConfig;
-use crate::Tag;
+use crate::metrics::MetricSpec;
+use crate::{Feature, MetricExtractionConfig, ProjectConfig, Tag};
 
 /// A list of `span.op` patterns that indicate databases that should be skipped.
 const DISABLED_DATABASES: &[&str] = &["*clickhouse*", "*compile*", "*mongodb*", "db.orm"];
@@ -46,11 +44,10 @@ const QUEUE_SPAN_OPS: &[&str] = &[
     "queue.process",
 ];
 
-/// Adds configuration for extracting metrics from spans.
+/// Conditionally enables metrics extraction groups from the global config.
 ///
+/// Depending on feature flags, groups are either enabled or not.
 /// This configuration is temporarily hard-coded here. It will later be provided by the upstream.
-/// This requires the `SpanMetricsExtraction` feature. This feature should be set to `false` if the
-/// default should no longer be placed.
 pub fn add_span_metrics(project_config: &mut ProjectConfig) {
     if !project_config
         .features
@@ -67,32 +64,37 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
         return;
     }
 
-    config.metrics.extend(span_metrics(
-        project_config
-            .features
-            .has(Feature::ExtractTransactionFromSegmentSpan),
-        project_config
-            .features
-            .has(Feature::DoubleWriteSpanDistributionMetricsAsGauges),
-    ));
+    // Enable the hardcoded span metrics group:
+    config
+        .global_groups
+        .entry("span_metrics".to_owned())
+        .or_default()
+        .is_enabled = true;
+
+    // Enable transaction metrics for span (score.total), but only if double-write to transactions
+    // is disabled.
+    if !project_config
+        .features
+        .has(Feature::ExtractTransactionFromSegmentSpan)
+    {
+        let span_metrics_tx = config
+            .global_groups
+            .entry("span_metrics_tx".to_owned())
+            .or_default();
+        span_metrics_tx.is_enabled = true;
+    }
 
     config._span_metrics_extended = true;
     if config.version == 0 {
-        config.version = MetricExtractionConfig::VERSION;
+        config.version = MetricExtractionConfig::MAX_SUPPORTED_VERSION;
     }
 }
 
-/// Metrics with tags applied as required.
-fn span_metrics(
-    transaction_extraction_enabled: bool,
-    double_write_distributions_as_gauges: bool,
-) -> impl IntoIterator<Item = MetricSpec> {
-    let score_total_transaction_metric = if transaction_extraction_enabled {
-        RuleCondition::never()
-    } else {
-        RuleCondition::all()
-    };
-
+/// Configuration for extracting metrics from spans.
+///
+/// These metrics are added to [`crate::GlobalConfig`] by the service and enabled
+/// by project configs in sentry.
+pub fn hardcoded_span_metrics() -> Vec<(String, Vec<MetricSpec>)> {
     let is_ai = RuleCondition::glob("span.op", "ai.*");
 
     let is_db = RuleCondition::eq("span.sentry_tags.category", "db")
@@ -172,630 +174,654 @@ fn span_metrics(
         | is_http.clone()
         | is_queue_op.clone())
         & duration_condition.clone();
-    let self_time_tags = vec![
-        // All modules:
-        Tag::with_key("environment")
-            .from_field("span.sentry_tags.environment")
-            .always(),
-        Tag::with_key("span.op")
-            .from_field("span.sentry_tags.op")
-            .always(),
-        Tag::with_key("transaction")
-            .from_field("span.sentry_tags.transaction")
-            .always(),
-        Tag::with_key("transaction.op")
-            .from_field("span.sentry_tags.transaction.op")
-            .always(),
-        // Know modules:
-        Tag::with_key("transaction.method")
-            .from_field("span.sentry_tags.transaction.method")
-            .when(is_db.clone() | is_mobile.clone() | is_http.clone()), // groups by method + txn, e.g. `GET /users`
-        Tag::with_key("span.action")
-            .from_field("span.sentry_tags.action")
-            .when(is_db.clone()),
-        Tag::with_key("span.category")
-            .from_field("span.sentry_tags.category")
-            .when(know_modules_condition.clone()),
-        Tag::with_key("span.description")
-            .from_field("span.sentry_tags.description")
-            .when(know_modules_condition.clone()),
-        Tag::with_key("span.domain")
-            .from_field("span.sentry_tags.domain")
-            .when(is_db.clone() | is_resource.clone() | is_http.clone()),
-        Tag::with_key("span.group")
-            .from_field("span.sentry_tags.group")
-            .when(know_modules_condition.clone()),
-        // Mobile module:
-        Tag::with_key("device.class")
-            .from_field("span.sentry_tags.device.class")
-            .when(is_mobile.clone()),
-        Tag::with_key("os.name") // TODO: might not be needed on both `exclusive_time` metrics
-            .from_field("span.sentry_tags.os.name")
-            .when(is_mobile.clone()),
-        Tag::with_key("release")
-            .from_field("span.sentry_tags.release")
-            .when(is_mobile.clone()),
-        Tag::with_key("ttfd")
-            .from_field("span.sentry_tags.ttfd")
-            .when(is_mobile.clone()),
-        Tag::with_key("ttid")
-            .from_field("span.sentry_tags.ttid")
-            .when(is_mobile.clone()),
-        Tag::with_key("span.main_thread")
-            .from_field("span.sentry_tags.main_thread")
-            .when(is_mobile.clone()),
-        Tag::with_key("app_start_type")
-            .from_field("span.sentry_tags.app_start_type")
-            .when(is_mobile.clone()),
-        // Resource module:
-        Tag::with_key("file_extension")
-            .from_field("span.sentry_tags.file_extension")
-            .when(is_resource.clone()),
-        Tag::with_key("resource.render_blocking_status")
-            .from_field("span.sentry_tags.resource.render_blocking_status")
-            .when(is_resource.clone()),
-        // HTTP module:
-        Tag::with_key("span.status_code")
-            .from_field("span.sentry_tags.status_code")
-            .when(is_http.clone()),
-        // Cache module
-        Tag::with_key("cache.hit")
-            .from_field("span.sentry_tags.cache.hit")
-            .when(is_cache.clone()),
-    ];
-    let self_time_light_tags = vec![
-        Tag::with_key("environment")
-            .from_field("span.sentry_tags.environment")
-            .when(is_db.clone() | is_resource.clone() | is_mobile.clone() | is_http.clone()),
-        Tag::with_key("transaction.op")
-            .from_field("span.sentry_tags.transaction.op")
-            .when(is_mobile.clone()),
-        Tag::with_key("span.action")
-            .from_field("span.sentry_tags.action")
-            .when(is_db.clone()),
-        Tag::with_key("span.category")
-            .from_field("span.sentry_tags.category")
-            .always(),
-        Tag::with_key("span.description")
-            .from_field("span.sentry_tags.description")
-            .always(),
-        Tag::with_key("span.domain")
-            .from_field("span.sentry_tags.domain")
-            .when(is_db.clone() | is_resource.clone() | is_http.clone()),
-        Tag::with_key("span.group")
-            .from_field("span.sentry_tags.group")
-            .always(),
-        Tag::with_key("span.op")
-            .from_field("span.sentry_tags.op")
-            .always(),
-        // Mobile:
-        Tag::with_key("device.class")
-            .from_field("span.sentry_tags.device.class")
-            .when(is_mobile.clone()),
-        Tag::with_key("os.name") // TODO: might not be needed on both `exclusive_time` metrics
-            .from_field("span.sentry_tags.os.name")
-            .when(is_mobile.clone()),
-        Tag::with_key("release")
-            .from_field("span.sentry_tags.release")
-            .when(is_mobile.clone()),
-        // Resource module:
-        Tag::with_key("file_extension")
-            .from_field("span.sentry_tags.file_extension")
-            .when(is_resource.clone()),
-        Tag::with_key("resource.render_blocking_status")
-            .from_field("span.sentry_tags.resource.render_blocking_status")
-            .when(is_resource.clone()),
-        // HTTP module:
-        Tag::with_key("span.status_code")
-            .from_field("span.sentry_tags.status_code")
-            .when(is_http.clone()),
-        // Cache module
-        Tag::with_key("cache.hit")
-            .from_field("span.sentry_tags.cache.hit")
-            .when(is_cache.clone()),
-    ];
-    let total_time_tags = vec![
-        // All modules:
-        Tag::with_key("environment")
-            .from_field("span.sentry_tags.environment")
-            .always(),
-        Tag::with_key("span.op")
-            .from_field("span.sentry_tags.op")
-            .always(),
-        Tag::with_key("transaction")
-            .from_field("span.sentry_tags.transaction")
-            .always(),
-        Tag::with_key("transaction.op")
-            .from_field("span.sentry_tags.transaction.op")
-            .always(),
-        Tag::with_key("span.group")
-            .from_field("span.sentry_tags.group")
-            .when(is_ai.clone() | know_modules_condition.clone() | app_start_condition.clone()),
-        Tag::with_key("span.category")
-            .from_field("span.sentry_tags.category")
-            .when(is_ai.clone()),
-        Tag::with_key("span.description")
-            .from_field("span.sentry_tags.description")
-            .when(is_ai.clone() | app_start_condition.clone()),
-        // Mobile module:
-        Tag::with_key("device.class")
-            .from_field("span.sentry_tags.device.class")
-            .when(app_start_condition.clone()),
-        Tag::with_key("release")
-            .from_field("span.sentry_tags.release")
-            .when(app_start_condition.clone()),
-        Tag::with_key("os.name")
-            .from_field("span.sentry_tags.os.name")
-            .when(app_start_condition.clone()),
-        Tag::with_key("app_start_type")
-            .from_field("span.sentry_tags.app_start_type")
-            .when(app_start_condition.clone()),
-    ];
-
-    let mut metrics = vec![
-        MetricSpec {
-            category: DataCategory::Span,
-            mri: "c:spans/usage@none".into(),
-            field: None,
-            condition: None,
-            tags: vec![],
-        },
-        MetricSpec {
-            category: DataCategory::Span,
-            mri: "d:spans/exclusive_time@millisecond".into(),
-            field: Some("span.exclusive_time".into()),
-            condition: None,
-            tags: self_time_tags.clone(),
-        },
-        MetricSpec {
-            category: DataCategory::Span,
-            mri: "d:spans/exclusive_time_light@millisecond".into(),
-            field: Some("span.exclusive_time".into()),
-            condition: Some(exclusive_time_light_condition.clone()),
-            tags: self_time_light_tags.clone(),
-        },
-        MetricSpec {
-            category: DataCategory::Span,
-            mri: "d:spans/duration@millisecond".into(),
-            field: Some("span.duration".into()),
-            condition: None,
-            tags: total_time_tags.clone(),
-        },
-        MetricSpec {
-            category: DataCategory::Span,
-            mri: "d:spans/cache.item_size@byte".into(),
-            field: Some("span.data.cache\\.item_size".into()),
-            condition: Some(is_cache.clone()),
-            tags: vec![
-                Tag::with_key("environment")
-                    .from_field("span.sentry_tags.environment")
-                    .always(), // already guarded by condition on metric
-                Tag::with_key("span.op")
-                    .from_field("span.sentry_tags.op")
-                    .always(), // already guarded by condition on metric
-                Tag::with_key("transaction")
-                    .from_field("span.sentry_tags.transaction")
-                    .always(), // already guarded by condition on metric
-                Tag::with_key("cache.hit")
-                    .from_field("span.sentry_tags.cache.hit")
-                    .always(), // already guarded by condition on metric
+    vec![
+        (
+            "span_metrics".to_owned(),
+            vec![
+                MetricSpec {
+                    category: DataCategory::Span,
+                    mri: "c:spans/usage@none".into(),
+                    field: None,
+                    condition: None,
+                    tags: vec![],
+                },
+                MetricSpec {
+                    category: DataCategory::Span,
+                    mri: "d:spans/exclusive_time@millisecond".into(),
+                    field: Some("span.exclusive_time".into()),
+                    condition: None,
+                    tags: vec![
+                        // All modules:
+                        Tag::with_key("environment")
+                            .from_field("span.sentry_tags.environment")
+                            .always(),
+                        Tag::with_key("span.op")
+                            .from_field("span.sentry_tags.op")
+                            .always(),
+                        Tag::with_key("transaction")
+                            .from_field("span.sentry_tags.transaction")
+                            .always(),
+                        Tag::with_key("transaction.op")
+                            .from_field("span.sentry_tags.transaction.op")
+                            .always(),
+                        // Know modules:
+                        Tag::with_key("transaction.method")
+                            .from_field("span.sentry_tags.transaction.method")
+                            .when(is_db.clone() | is_mobile.clone() | is_http.clone()), // groups by method + txn, e.g. `GET /users`
+                        Tag::with_key("span.action")
+                            .from_field("span.sentry_tags.action")
+                            .when(is_db.clone()),
+                        Tag::with_key("span.category")
+                            .from_field("span.sentry_tags.category")
+                            .when(know_modules_condition.clone()),
+                        Tag::with_key("span.description")
+                            .from_field("span.sentry_tags.description")
+                            .when(know_modules_condition.clone()),
+                        Tag::with_key("span.domain")
+                            .from_field("span.sentry_tags.domain")
+                            .when(is_db.clone() | is_resource.clone() | is_http.clone()),
+                        Tag::with_key("span.group")
+                            .from_field("span.sentry_tags.group")
+                            .when(know_modules_condition.clone()),
+                        // Mobile module:
+                        Tag::with_key("device.class")
+                            .from_field("span.sentry_tags.device.class")
+                            .when(is_mobile.clone()),
+                        Tag::with_key("os.name") // TODO: might not be needed on both `exclusive_time` metrics
+                            .from_field("span.sentry_tags.os.name")
+                            .when(is_mobile.clone()),
+                        Tag::with_key("release")
+                            .from_field("span.sentry_tags.release")
+                            .when(is_mobile.clone()),
+                        Tag::with_key("ttfd")
+                            .from_field("span.sentry_tags.ttfd")
+                            .when(is_mobile.clone()),
+                        Tag::with_key("ttid")
+                            .from_field("span.sentry_tags.ttid")
+                            .when(is_mobile.clone()),
+                        Tag::with_key("span.main_thread")
+                            .from_field("span.sentry_tags.main_thread")
+                            .when(is_mobile.clone()),
+                        Tag::with_key("app_start_type")
+                            .from_field("span.sentry_tags.app_start_type")
+                            .when(is_mobile.clone()),
+                        // Resource module:
+                        Tag::with_key("file_extension")
+                            .from_field("span.sentry_tags.file_extension")
+                            .when(is_resource.clone()),
+                        Tag::with_key("resource.render_blocking_status")
+                            .from_field("span.sentry_tags.resource.render_blocking_status")
+                            .when(is_resource.clone()),
+                        // HTTP module:
+                        Tag::with_key("span.status_code")
+                            .from_field("span.sentry_tags.status_code")
+                            .when(is_http.clone()),
+                        // Cache module
+                        Tag::with_key("cache.hit")
+                            .from_field("span.sentry_tags.cache.hit")
+                            .when(is_cache.clone()),
+                        // Queue module
+                        Tag::with_key("messaging.destination.name")
+                            .from_field("span.sentry_tags.messaging.destination.name")
+                            .when(is_queue_op.clone()),
+                    ],
+                },
+                MetricSpec {
+                    category: DataCategory::Span,
+                    mri: "d:spans/exclusive_time_light@millisecond".into(),
+                    field: Some("span.exclusive_time".into()),
+                    condition: Some(exclusive_time_light_condition.clone()),
+                    tags: vec![
+                        Tag::with_key("environment")
+                            .from_field("span.sentry_tags.environment")
+                            .when(
+                                is_db.clone()
+                                    | is_resource.clone()
+                                    | is_mobile.clone()
+                                    | is_http.clone(),
+                            ),
+                        Tag::with_key("transaction.op")
+                            .from_field("span.sentry_tags.transaction.op")
+                            .when(is_mobile.clone()),
+                        Tag::with_key("span.action")
+                            .from_field("span.sentry_tags.action")
+                            .when(is_db.clone()),
+                        Tag::with_key("span.category")
+                            .from_field("span.sentry_tags.category")
+                            .always(),
+                        Tag::with_key("span.description")
+                            .from_field("span.sentry_tags.description")
+                            .always(),
+                        Tag::with_key("span.domain")
+                            .from_field("span.sentry_tags.domain")
+                            .when(is_db.clone() | is_resource.clone() | is_http.clone()),
+                        Tag::with_key("span.group")
+                            .from_field("span.sentry_tags.group")
+                            .always(),
+                        Tag::with_key("span.op")
+                            .from_field("span.sentry_tags.op")
+                            .always(),
+                        // Mobile:
+                        Tag::with_key("device.class")
+                            .from_field("span.sentry_tags.device.class")
+                            .when(is_mobile.clone()),
+                        Tag::with_key("os.name") // TODO: might not be needed on both `exclusive_time` metrics
+                            .from_field("span.sentry_tags.os.name")
+                            .when(is_mobile.clone()),
+                        Tag::with_key("release")
+                            .from_field("span.sentry_tags.release")
+                            .when(is_mobile.clone()),
+                        // Resource module:
+                        Tag::with_key("file_extension")
+                            .from_field("span.sentry_tags.file_extension")
+                            .when(is_resource.clone()),
+                        Tag::with_key("resource.render_blocking_status")
+                            .from_field("span.sentry_tags.resource.render_blocking_status")
+                            .when(is_resource.clone()),
+                        // HTTP module:
+                        Tag::with_key("span.status_code")
+                            .from_field("span.sentry_tags.status_code")
+                            .when(is_http.clone()),
+                        // Cache module
+                        Tag::with_key("cache.hit")
+                            .from_field("span.sentry_tags.cache.hit")
+                            .when(is_cache.clone()),
+                        // Queue module
+                        Tag::with_key("messaging.destination.name")
+                            .from_field("span.sentry_tags.messaging.destination.name")
+                            .when(is_queue_op.clone()),
+                    ],
+                },
+                MetricSpec {
+                    category: DataCategory::Span,
+                    mri: "d:spans/duration@millisecond".into(),
+                    field: Some("span.duration".into()),
+                    condition: None,
+                    tags: vec![
+                        // All modules:
+                        Tag::with_key("environment")
+                            .from_field("span.sentry_tags.environment")
+                            .always(),
+                        Tag::with_key("span.op")
+                            .from_field("span.sentry_tags.op")
+                            .always(),
+                        Tag::with_key("transaction")
+                            .from_field("span.sentry_tags.transaction")
+                            .always(),
+                        Tag::with_key("transaction.op")
+                            .from_field("span.sentry_tags.transaction.op")
+                            .always(),
+                        Tag::with_key("span.group")
+                            .from_field("span.sentry_tags.group")
+                            .when(
+                                is_ai.clone()
+                                    | know_modules_condition.clone()
+                                    | app_start_condition.clone(),
+                            ),
+                        Tag::with_key("span.category")
+                            .from_field("span.sentry_tags.category")
+                            .when(is_ai.clone()),
+                        Tag::with_key("span.description")
+                            .from_field("span.sentry_tags.description")
+                            .when(is_ai.clone() | app_start_condition.clone()),
+                        // Mobile module:
+                        Tag::with_key("device.class")
+                            .from_field("span.sentry_tags.device.class")
+                            .when(app_start_condition.clone()),
+                        Tag::with_key("release")
+                            .from_field("span.sentry_tags.release")
+                            .when(app_start_condition.clone()),
+                        Tag::with_key("os.name")
+                            .from_field("span.sentry_tags.os.name")
+                            .when(app_start_condition.clone()),
+                        Tag::with_key("app_start_type")
+                            .from_field("span.sentry_tags.app_start_type")
+                            .when(app_start_condition.clone()),
+                    ],
+                },
+                MetricSpec {
+                    category: DataCategory::Span,
+                    mri: "d:spans/cache.item_size@byte".into(),
+                    field: Some("span.data.cache\\.item_size".into()),
+                    condition: Some(is_cache.clone()),
+                    tags: vec![
+                        Tag::with_key("environment")
+                            .from_field("span.sentry_tags.environment")
+                            .always(), // already guarded by condition on metric
+                        Tag::with_key("span.op")
+                            .from_field("span.sentry_tags.op")
+                            .always(), // already guarded by condition on metric
+                        Tag::with_key("transaction")
+                            .from_field("span.sentry_tags.transaction")
+                            .always(), // already guarded by condition on metric
+                        Tag::with_key("cache.hit")
+                            .from_field("span.sentry_tags.cache.hit")
+                            .always(), // already guarded by condition on metric
+                    ],
+                },
+                MetricSpec {
+                    category: DataCategory::Span,
+                    mri: "d:spans/http.response_content_length@byte".into(),
+                    field: Some("span.data.http\\.response_content_length".into()),
+                    condition: Some(
+                        is_resource.clone()
+                            & RuleCondition::gt("span.data.http\\.response_content_length", 0),
+                    ),
+                    tags: vec![
+                        Tag::with_key("environment")
+                            .from_field("span.sentry_tags.environment")
+                            .always(), // already guarded by condition on metric
+                        Tag::with_key("file_extension")
+                            .from_field("span.sentry_tags.file_extension")
+                            .always(), // already guarded by condition on metric
+                        Tag::with_key("resource.render_blocking_status")
+                            .from_field("span.sentry_tags.resource.render_blocking_status")
+                            .always(), // already guarded by condition on metric
+                        Tag::with_key("span.description")
+                            .from_field("span.sentry_tags.description")
+                            .always(), // already guarded by condition on metric
+                        Tag::with_key("span.domain")
+                            .from_field("span.sentry_tags.domain")
+                            .always(), // already guarded by condition on metric
+                        Tag::with_key("span.group")
+                            .from_field("span.sentry_tags.group")
+                            .always(), // already guarded by condition on metric
+                        Tag::with_key("span.op")
+                            .from_field("span.sentry_tags.op")
+                            .always(), // already guarded by condition on metric
+                        Tag::with_key("transaction")
+                            .from_field("span.sentry_tags.transaction")
+                            .always(), // already guarded by condition on metric
+                    ],
+                },
+                MetricSpec {
+                    category: DataCategory::Span,
+                    mri: "d:spans/http.decoded_response_content_length@byte".into(),
+                    field: Some("span.data.http\\.decoded_response_content_length".into()),
+                    condition: Some(
+                        is_resource.clone()
+                            & RuleCondition::gt(
+                                "span.data.http\\.decoded_response_content_length",
+                                0,
+                            ),
+                    ),
+                    tags: vec![
+                        Tag::with_key("environment")
+                            .from_field("span.sentry_tags.environment")
+                            .always(), // already guarded by condition on metric
+                        Tag::with_key("file_extension")
+                            .from_field("span.sentry_tags.file_extension")
+                            .always(), // already guarded by condition on metric
+                        Tag::with_key("resource.render_blocking_status")
+                            .from_field("span.sentry_tags.resource.render_blocking_status")
+                            .always(), // already guarded by condition on metric
+                        Tag::with_key("span.description")
+                            .from_field("span.sentry_tags.description")
+                            .always(), // already guarded by condition on metric
+                        Tag::with_key("span.domain")
+                            .from_field("span.sentry_tags.domain")
+                            .always(), // already guarded by condition on metric
+                        Tag::with_key("span.group")
+                            .from_field("span.sentry_tags.group")
+                            .always(), // already guarded by condition on metric
+                        Tag::with_key("span.op")
+                            .from_field("span.sentry_tags.op")
+                            .always(), // already guarded by condition on metric
+                    ],
+                },
+                MetricSpec {
+                    category: DataCategory::Span,
+                    mri: "d:spans/http.response_transfer_size@byte".into(),
+                    field: Some("span.data.http\\.response_transfer_size".into()),
+                    condition: Some(
+                        is_resource
+                            & RuleCondition::gt("span.data.http\\.response_transfer_size", 0),
+                    ),
+                    tags: vec![
+                        Tag::with_key("environment")
+                            .from_field("span.sentry_tags.environment")
+                            .always(), // already guarded by condition on metric
+                        Tag::with_key("file_extension")
+                            .from_field("span.sentry_tags.file_extension")
+                            .always(), // already guarded by condition on metric
+                        Tag::with_key("resource.render_blocking_status")
+                            .from_field("span.sentry_tags.resource.render_blocking_status")
+                            .always(), // already guarded by condition on metric
+                        Tag::with_key("span.description")
+                            .from_field("span.sentry_tags.description")
+                            .always(), // already guarded by condition on metric
+                        Tag::with_key("span.domain")
+                            .from_field("span.sentry_tags.domain")
+                            .always(), // already guarded by condition on metric
+                        Tag::with_key("span.group")
+                            .from_field("span.sentry_tags.group")
+                            .always(), // already guarded by condition on metric
+                        Tag::with_key("span.op")
+                            .from_field("span.sentry_tags.op")
+                            .always(), // already guarded by condition on metric
+                    ],
+                },
+                MetricSpec {
+                    category: DataCategory::Span,
+                    mri: "c:spans/ai.total_tokens.used@none".into(),
+                    field: Some("span.measurements.ai_total_tokens_used.value".into()),
+                    condition: Some(is_ai.clone()),
+                    tags: vec![
+                        Tag::with_key("span.op")
+                            .from_field("span.sentry_tags.op")
+                            .always(),
+                        Tag::with_key("environment")
+                            .from_field("span.sentry_tags.environment")
+                            .always(),
+                        Tag::with_key("release")
+                            .from_field("span.sentry_tags.release")
+                            .always(),
+                        Tag::with_key("span.origin")
+                            .from_field("span.origin")
+                            .always(),
+                        Tag::with_key("span.category")
+                            .from_field("span.sentry_tags.category")
+                            .always(), // already guarded by condition on metric
+                        Tag::with_key("span.ai.pipeline.group")
+                            .from_field("span.sentry_tags.ai_pipeline_group")
+                            .always(), // already guarded by condition on metric
+                        Tag::with_key("span.description")
+                            .from_field("span.sentry_tags.description")
+                            .always(), // already guarded by condition on metric
+                        Tag::with_key("span.group")
+                            .from_field("span.sentry_tags.group")
+                            .always(), // already guarded by condition on metric
+                        Tag::with_key("span.op")
+                            .from_field("span.sentry_tags.op")
+                            .always(), // already guarded by condition on metric
+                    ],
+                },
+                MetricSpec {
+                    category: DataCategory::Span,
+                    mri: "d:spans/webvital.score.total@ratio".into(),
+                    field: Some("span.measurements.score.total.value".into()),
+                    condition: Some(is_allowed_browser.clone()),
+                    tags: vec![
+                        Tag::with_key("span.op")
+                            .from_field("span.sentry_tags.op")
+                            .always(),
+                        Tag::with_key("transaction.op")
+                            .from_field("span.sentry_tags.transaction.op")
+                            .always(),
+                        Tag::with_key("transaction")
+                            .from_field("span.sentry_tags.transaction")
+                            .always(),
+                        Tag::with_key("environment")
+                            .from_field("span.sentry_tags.environment")
+                            .always(),
+                        Tag::with_key("release")
+                            .from_field("span.sentry_tags.release")
+                            .always(),
+                        Tag::with_key("browser.name")
+                            .from_field("span.browser.name")
+                            .always(), // already guarded by condition on metric
+                    ],
+                },
+                MetricSpec {
+                    category: DataCategory::Span,
+                    mri: "d:spans/webvital.score.inp@ratio".into(),
+                    field: Some("span.measurements.score.inp.value".into()),
+                    condition: Some(is_allowed_browser.clone()),
+                    tags: vec![
+                        Tag::with_key("span.op")
+                            .from_field("span.sentry_tags.op")
+                            .always(),
+                        Tag::with_key("transaction")
+                            .from_field("span.sentry_tags.transaction")
+                            .always(),
+                        Tag::with_key("environment")
+                            .from_field("span.sentry_tags.environment")
+                            .always(),
+                        Tag::with_key("release")
+                            .from_field("span.sentry_tags.release")
+                            .always(),
+                        Tag::with_key("browser.name")
+                            .from_field("span.sentry_tags.browser.name")
+                            .always(), // already guarded by condition on metric
+                    ],
+                },
+                MetricSpec {
+                    category: DataCategory::Span,
+                    mri: "d:spans/webvital.score.weight.inp@ratio".into(),
+                    field: Some("span.measurements.score.weight.inp.value".into()),
+                    condition: Some(is_allowed_browser.clone()),
+                    tags: vec![
+                        Tag::with_key("span.op")
+                            .from_field("span.sentry_tags.op")
+                            .always(),
+                        Tag::with_key("transaction")
+                            .from_field("span.sentry_tags.transaction")
+                            .always(),
+                        Tag::with_key("environment")
+                            .from_field("span.sentry_tags.environment")
+                            .always(),
+                        Tag::with_key("release")
+                            .from_field("span.sentry_tags.release")
+                            .always(),
+                        Tag::with_key("browser.name")
+                            .from_field("span.sentry_tags.browser.name")
+                            .always(), // already guarded by condition on metric
+                    ],
+                },
+                MetricSpec {
+                    category: DataCategory::Span,
+                    mri: "d:spans/webvital.inp@millisecond".into(),
+                    field: Some("span.measurements.inp.value".into()),
+                    condition: Some(is_allowed_browser.clone()),
+                    tags: vec![
+                        Tag::with_key("span.op")
+                            .from_field("span.sentry_tags.op")
+                            .always(),
+                        Tag::with_key("transaction")
+                            .from_field("span.sentry_tags.transaction")
+                            .always(),
+                        Tag::with_key("environment")
+                            .from_field("span.sentry_tags.environment")
+                            .always(),
+                        Tag::with_key("release")
+                            .from_field("span.sentry_tags.release")
+                            .always(),
+                        Tag::with_key("browser.name")
+                            .from_field("span.sentry_tags.browser.name")
+                            .always(), // already guarded by condition on metric
+                    ],
+                },
+                MetricSpec {
+                    category: DataCategory::Span,
+                    mri: "g:spans/mobile.slow_frames@none".into(),
+                    field: Some("span.measurements.frames.slow.value".into()),
+                    condition: Some(is_mobile.clone() & duration_condition.clone()),
+                    tags: vec![
+                        Tag::with_key("transaction.op")
+                            .from_field("span.sentry_tags.transaction.op")
+                            .always(),
+                        Tag::with_key("transaction")
+                            .from_field("span.sentry_tags.transaction")
+                            .always(),
+                        Tag::with_key("environment")
+                            .from_field("span.sentry_tags.environment")
+                            .always(),
+                        Tag::with_key("release")
+                            .from_field("span.sentry_tags.release")
+                            .always(),
+                        Tag::with_key("span.description")
+                            .from_field("span.sentry_tags.description")
+                            .always(),
+                        Tag::with_key("span.op")
+                            .from_field("span.sentry_tags.op")
+                            .always(),
+                        Tag::with_key("span.group")
+                            .from_field("span.sentry_tags.group")
+                            .always(),
+                        Tag::with_key("device.class")
+                            .from_field("span.sentry_tags.device.class")
+                            .always(),
+                        Tag::with_key("os.name")
+                            .from_field("span.sentry_tags.os.name")
+                            .always(),
+                    ],
+                },
+                MetricSpec {
+                    category: DataCategory::Span,
+                    mri: "g:spans/mobile.frozen_frames@none".into(),
+                    field: Some("span.measurements.frames.frozen.value".into()),
+                    condition: Some(is_mobile.clone() & duration_condition.clone()),
+                    tags: vec![
+                        Tag::with_key("transaction.op")
+                            .from_field("span.sentry_tags.transaction.op")
+                            .always(),
+                        Tag::with_key("transaction")
+                            .from_field("span.sentry_tags.transaction")
+                            .always(),
+                        Tag::with_key("environment")
+                            .from_field("span.sentry_tags.environment")
+                            .always(),
+                        Tag::with_key("release")
+                            .from_field("span.sentry_tags.release")
+                            .always(),
+                        Tag::with_key("span.description")
+                            .from_field("span.sentry_tags.description")
+                            .always(),
+                        Tag::with_key("span.op")
+                            .from_field("span.sentry_tags.op")
+                            .always(),
+                        Tag::with_key("span.group")
+                            .from_field("span.sentry_tags.group")
+                            .always(),
+                        Tag::with_key("device.class")
+                            .from_field("span.sentry_tags.device.class")
+                            .always(),
+                        Tag::with_key("os.name")
+                            .from_field("span.sentry_tags.os.name")
+                            .always(),
+                    ],
+                },
+                MetricSpec {
+                    category: DataCategory::Span,
+                    mri: "g:spans/mobile.total_frames@none".into(),
+                    field: Some("span.measurements.frames.total.value".into()),
+                    condition: Some(is_mobile.clone() & duration_condition.clone()),
+                    tags: vec![
+                        Tag::with_key("transaction.op")
+                            .from_field("span.sentry_tags.transaction.op")
+                            .always(),
+                        Tag::with_key("transaction")
+                            .from_field("span.sentry_tags.transaction")
+                            .always(),
+                        Tag::with_key("environment")
+                            .from_field("span.sentry_tags.environment")
+                            .always(),
+                        Tag::with_key("release")
+                            .from_field("span.sentry_tags.release")
+                            .always(),
+                        Tag::with_key("span.description")
+                            .from_field("span.sentry_tags.description")
+                            .always(),
+                        Tag::with_key("span.op")
+                            .from_field("span.sentry_tags.op")
+                            .always(),
+                        Tag::with_key("span.group")
+                            .from_field("span.sentry_tags.group")
+                            .always(),
+                        Tag::with_key("device.class")
+                            .from_field("span.sentry_tags.device.class")
+                            .always(),
+                        Tag::with_key("os.name")
+                            .from_field("span.sentry_tags.os.name")
+                            .always(),
+                    ],
+                },
+                MetricSpec {
+                    category: DataCategory::Span,
+                    mri: "g:spans/mobile.frames_delay@second".into(),
+                    field: Some("span.measurements.frames.delay.value".into()),
+                    condition: Some(is_mobile.clone() & duration_condition.clone()),
+                    tags: vec![
+                        Tag::with_key("transaction.op")
+                            .from_field("span.sentry_tags.transaction.op")
+                            .always(),
+                        Tag::with_key("transaction")
+                            .from_field("span.sentry_tags.transaction")
+                            .always(),
+                        Tag::with_key("environment")
+                            .from_field("span.sentry_tags.environment")
+                            .always(),
+                        Tag::with_key("release")
+                            .from_field("span.sentry_tags.release")
+                            .always(),
+                        Tag::with_key("span.description")
+                            .from_field("span.sentry_tags.description")
+                            .always(),
+                        Tag::with_key("span.op")
+                            .from_field("span.sentry_tags.op")
+                            .always(),
+                        Tag::with_key("span.group")
+                            .from_field("span.sentry_tags.group")
+                            .always(),
+                        Tag::with_key("device.class")
+                            .from_field("span.sentry_tags.device.class")
+                            .always(),
+                        Tag::with_key("os.name")
+                            .from_field("span.sentry_tags.os.name")
+                            .always(),
+                    ],
+                },
+                MetricSpec {
+                    category: DataCategory::Span,
+                    mri: "g:spans/messaging.message.receive.latency@millisecond".into(),
+                    field: Some("span.measurements.messaging.message.receive.latency.value".into()),
+                    condition: Some(is_queue_op.clone()),
+                    tags: vec![
+                        Tag::with_key("environment")
+                            .from_field("span.sentry_tags.environment")
+                            .always(),
+                        Tag::with_key("span.op")
+                            .from_field("span.sentry_tags.op")
+                            .always(),
+                        Tag::with_key("transaction")
+                            .from_field("span.sentry_tags.transaction")
+                            .always(),
+                    ],
+                },
             ],
-        },
-        MetricSpec {
-            category: DataCategory::Span,
-            mri: "d:spans/http.response_content_length@byte".into(),
-            field: Some("span.data.http\\.response_content_length".into()),
-            condition: Some(
-                is_resource.clone()
-                    & RuleCondition::gt("span.data.http\\.response_content_length", 0),
-            ),
-            tags: vec![
-                Tag::with_key("environment")
-                    .from_field("span.sentry_tags.environment")
-                    .always(), // already guarded by condition on metric
-                Tag::with_key("file_extension")
-                    .from_field("span.sentry_tags.file_extension")
-                    .always(), // already guarded by condition on metric
-                Tag::with_key("resource.render_blocking_status")
-                    .from_field("span.sentry_tags.resource.render_blocking_status")
-                    .always(), // already guarded by condition on metric
-                Tag::with_key("span.description")
-                    .from_field("span.sentry_tags.description")
-                    .always(), // already guarded by condition on metric
-                Tag::with_key("span.domain")
-                    .from_field("span.sentry_tags.domain")
-                    .always(), // already guarded by condition on metric
-                Tag::with_key("span.group")
-                    .from_field("span.sentry_tags.group")
-                    .always(), // already guarded by condition on metric
-                Tag::with_key("span.op")
-                    .from_field("span.sentry_tags.op")
-                    .always(), // already guarded by condition on metric
-                Tag::with_key("transaction")
-                    .from_field("span.sentry_tags.transaction")
-                    .always(), // already guarded by condition on metric
-            ],
-        },
-        MetricSpec {
-            category: DataCategory::Span,
-            mri: "d:spans/http.decoded_response_content_length@byte".into(),
-            field: Some("span.data.http\\.decoded_response_content_length".into()),
-            condition: Some(
-                is_resource.clone()
-                    & RuleCondition::gt("span.data.http\\.decoded_response_content_length", 0),
-            ),
-            tags: vec![
-                Tag::with_key("environment")
-                    .from_field("span.sentry_tags.environment")
-                    .always(), // already guarded by condition on metric
-                Tag::with_key("file_extension")
-                    .from_field("span.sentry_tags.file_extension")
-                    .always(), // already guarded by condition on metric
-                Tag::with_key("resource.render_blocking_status")
-                    .from_field("span.sentry_tags.resource.render_blocking_status")
-                    .always(), // already guarded by condition on metric
-                Tag::with_key("span.description")
-                    .from_field("span.sentry_tags.description")
-                    .always(), // already guarded by condition on metric
-                Tag::with_key("span.domain")
-                    .from_field("span.sentry_tags.domain")
-                    .always(), // already guarded by condition on metric
-                Tag::with_key("span.group")
-                    .from_field("span.sentry_tags.group")
-                    .always(), // already guarded by condition on metric
-                Tag::with_key("span.op")
-                    .from_field("span.sentry_tags.op")
-                    .always(), // already guarded by condition on metric
-            ],
-        },
-        MetricSpec {
-            category: DataCategory::Span,
-            mri: "d:spans/http.response_transfer_size@byte".into(),
-            field: Some("span.data.http\\.response_transfer_size".into()),
-            condition: Some(
-                is_resource & RuleCondition::gt("span.data.http\\.response_transfer_size", 0),
-            ),
-            tags: vec![
-                Tag::with_key("environment")
-                    .from_field("span.sentry_tags.environment")
-                    .always(), // already guarded by condition on metric
-                Tag::with_key("file_extension")
-                    .from_field("span.sentry_tags.file_extension")
-                    .always(), // already guarded by condition on metric
-                Tag::with_key("resource.render_blocking_status")
-                    .from_field("span.sentry_tags.resource.render_blocking_status")
-                    .always(), // already guarded by condition on metric
-                Tag::with_key("span.description")
-                    .from_field("span.sentry_tags.description")
-                    .always(), // already guarded by condition on metric
-                Tag::with_key("span.domain")
-                    .from_field("span.sentry_tags.domain")
-                    .always(), // already guarded by condition on metric
-                Tag::with_key("span.group")
-                    .from_field("span.sentry_tags.group")
-                    .always(), // already guarded by condition on metric
-                Tag::with_key("span.op")
-                    .from_field("span.sentry_tags.op")
-                    .always(), // already guarded by condition on metric
-            ],
-        },
-        MetricSpec {
-            category: DataCategory::Span,
-            mri: "c:spans/ai.total_tokens.used@none".into(),
-            field: Some("span.measurements.ai_total_tokens_used.value".into()),
-            condition: Some(is_ai.clone()),
-            tags: vec![
-                Tag::with_key("span.op")
-                    .from_field("span.sentry_tags.op")
-                    .always(),
-                Tag::with_key("environment")
-                    .from_field("span.sentry_tags.environment")
-                    .always(),
-                Tag::with_key("release")
-                    .from_field("span.sentry_tags.release")
-                    .always(),
-                Tag::with_key("span.origin")
-                    .from_field("span.origin")
-                    .always(),
-                Tag::with_key("span.category")
-                    .from_field("span.sentry_tags.category")
-                    .always(), // already guarded by condition on metric
-                Tag::with_key("span.ai.pipeline.group")
-                    .from_field("span.sentry_tags.ai_pipeline_group")
-                    .always(), // already guarded by condition on metric
-                Tag::with_key("span.description")
-                    .from_field("span.sentry_tags.description")
-                    .always(), // already guarded by condition on metric
-                Tag::with_key("span.group")
-                    .from_field("span.sentry_tags.group")
-                    .always(), // already guarded by condition on metric
-                Tag::with_key("span.op")
-                    .from_field("span.sentry_tags.op")
-                    .always(), // already guarded by condition on metric
-            ],
-        },
-        MetricSpec {
-            category: DataCategory::Span,
-            mri: "d:spans/webvital.score.total@ratio".into(),
-            field: Some("span.measurements.score.total.value".into()),
-            condition: Some(is_allowed_browser.clone()),
-            tags: vec![
-                Tag::with_key("span.op")
-                    .from_field("span.sentry_tags.op")
-                    .always(),
-                Tag::with_key("transaction.op")
-                    .from_field("span.sentry_tags.transaction.op")
-                    .always(),
-                Tag::with_key("transaction")
-                    .from_field("span.sentry_tags.transaction")
-                    .always(),
-                Tag::with_key("environment")
-                    .from_field("span.sentry_tags.environment")
-                    .always(),
-                Tag::with_key("release")
-                    .from_field("span.sentry_tags.release")
-                    .always(),
-                Tag::with_key("browser.name")
-                    .from_field("span.browser.name")
-                    .always(), // already guarded by condition on metric
-            ],
-        },
-        MetricSpec {
-            category: DataCategory::Span,
-            mri: "d:transactions/measurements.score.total@ratio".into(),
-            field: Some("span.measurements.score.total.value".into()),
-            condition: Some(
-                // If transactions are extracted from spans, the transaction processing pipeline
-                // will take care of this metric.
-                score_total_transaction_metric
-                    & is_allowed_browser.clone()
-                    & RuleCondition::eq("span.was_transaction", false),
-            ),
-            tags: vec![
-                Tag::with_key("span.op")
-                    .from_field("span.sentry_tags.op")
-                    .always(),
-                Tag::with_key("transaction.op")
-                    .from_field("span.sentry_tags.transaction.op")
-                    .always(),
-                Tag::with_key("transaction")
-                    .from_field("span.sentry_tags.transaction")
-                    .always(),
-                Tag::with_key("environment")
-                    .from_field("span.sentry_tags.environment")
-                    .always(),
-                Tag::with_key("release")
-                    .from_field("span.sentry_tags.release")
-                    .always(),
-                Tag::with_key("browser.name")
-                    .from_field("span.browser.name")
-                    .always(), // already guarded by condition on metric
-            ],
-        },
-        MetricSpec {
-            category: DataCategory::Span,
-            mri: "d:spans/webvital.score.inp@ratio".into(),
-            field: Some("span.measurements.score.inp.value".into()),
-            condition: Some(is_allowed_browser.clone()),
-            tags: vec![
-                Tag::with_key("span.op")
-                    .from_field("span.sentry_tags.op")
-                    .always(),
-                Tag::with_key("transaction")
-                    .from_field("span.sentry_tags.transaction")
-                    .always(),
-                Tag::with_key("environment")
-                    .from_field("span.sentry_tags.environment")
-                    .always(),
-                Tag::with_key("release")
-                    .from_field("span.sentry_tags.release")
-                    .always(),
-                Tag::with_key("browser.name")
-                    .from_field("span.sentry_tags.browser.name")
-                    .always(), // already guarded by condition on metric
-            ],
-        },
-        MetricSpec {
-            category: DataCategory::Span,
-            mri: "d:spans/webvital.score.weight.inp@ratio".into(),
-            field: Some("span.measurements.score.weight.inp.value".into()),
-            condition: Some(is_allowed_browser.clone()),
-            tags: vec![
-                Tag::with_key("span.op")
-                    .from_field("span.sentry_tags.op")
-                    .always(),
-                Tag::with_key("transaction")
-                    .from_field("span.sentry_tags.transaction")
-                    .always(),
-                Tag::with_key("environment")
-                    .from_field("span.sentry_tags.environment")
-                    .always(),
-                Tag::with_key("release")
-                    .from_field("span.sentry_tags.release")
-                    .always(),
-                Tag::with_key("browser.name")
-                    .from_field("span.sentry_tags.browser.name")
-                    .always(), // already guarded by condition on metric
-            ],
-        },
-        MetricSpec {
-            category: DataCategory::Span,
-            mri: "d:spans/webvital.inp@millisecond".into(),
-            field: Some("span.measurements.inp.value".into()),
-            condition: Some(is_allowed_browser),
-            tags: vec![
-                Tag::with_key("span.op")
-                    .from_field("span.sentry_tags.op")
-                    .always(),
-                Tag::with_key("transaction")
-                    .from_field("span.sentry_tags.transaction")
-                    .always(),
-                Tag::with_key("environment")
-                    .from_field("span.sentry_tags.environment")
-                    .always(),
-                Tag::with_key("release")
-                    .from_field("span.sentry_tags.release")
-                    .always(),
-                Tag::with_key("browser.name")
-                    .from_field("span.sentry_tags.browser.name")
-                    .always(), // already guarded by condition on metric
-            ],
-        },
-        MetricSpec {
-            category: DataCategory::Span,
-            mri: "g:spans/mobile.slow_frames@none".into(),
-            field: Some("span.measurements.frames.slow.value".into()),
-            condition: Some(is_mobile.clone() & duration_condition.clone()),
-            tags: vec![
-                Tag::with_key("transaction")
-                    .from_field("span.sentry_tags.transaction")
-                    .always(),
-                Tag::with_key("environment")
-                    .from_field("span.sentry_tags.environment")
-                    .always(),
-                Tag::with_key("release")
-                    .from_field("span.sentry_tags.release")
-                    .always(),
-                Tag::with_key("span.description")
-                    .from_field("span.sentry_tags.description")
-                    .always(),
-                Tag::with_key("span.op")
-                    .from_field("span.sentry_tags.op")
-                    .always(),
-                Tag::with_key("span.group")
-                    .from_field("span.sentry_tags.group")
-                    .always(),
-                Tag::with_key("device.class")
-                    .from_field("span.sentry_tags.device.class")
-                    .always(),
-                Tag::with_key("os.name")
-                    .from_field("span.sentry_tags.os.name")
-                    .always(),
-            ],
-        },
-        MetricSpec {
-            category: DataCategory::Span,
-            mri: "g:spans/mobile.frozen_frames@none".into(),
-            field: Some("span.measurements.frames.frozen.value".into()),
-            condition: Some(is_mobile.clone() & duration_condition.clone()),
-            tags: vec![
-                Tag::with_key("transaction")
-                    .from_field("span.sentry_tags.transaction")
-                    .always(),
-                Tag::with_key("environment")
-                    .from_field("span.sentry_tags.environment")
-                    .always(),
-                Tag::with_key("release")
-                    .from_field("span.sentry_tags.release")
-                    .always(),
-                Tag::with_key("span.description")
-                    .from_field("span.sentry_tags.description")
-                    .always(),
-                Tag::with_key("span.op")
-                    .from_field("span.sentry_tags.op")
-                    .always(),
-                Tag::with_key("span.group")
-                    .from_field("span.sentry_tags.group")
-                    .always(),
-                Tag::with_key("device.class")
-                    .from_field("span.sentry_tags.device.class")
-                    .always(),
-                Tag::with_key("os.name")
-                    .from_field("span.sentry_tags.os.name")
-                    .always(),
-            ],
-        },
-        MetricSpec {
-            category: DataCategory::Span,
-            mri: "g:spans/mobile.total_frames@none".into(),
-            field: Some("span.measurements.frames.total.value".into()),
-            condition: Some(is_mobile.clone() & duration_condition.clone()),
-            tags: vec![
-                Tag::with_key("transaction")
-                    .from_field("span.sentry_tags.transaction")
-                    .always(),
-                Tag::with_key("environment")
-                    .from_field("span.sentry_tags.environment")
-                    .always(),
-                Tag::with_key("release")
-                    .from_field("span.sentry_tags.release")
-                    .always(),
-                Tag::with_key("span.description")
-                    .from_field("span.sentry_tags.description")
-                    .always(),
-                Tag::with_key("span.op")
-                    .from_field("span.sentry_tags.op")
-                    .always(),
-                Tag::with_key("span.group")
-                    .from_field("span.sentry_tags.group")
-                    .always(),
-                Tag::with_key("device.class")
-                    .from_field("span.sentry_tags.device.class")
-                    .always(),
-                Tag::with_key("os.name")
-                    .from_field("span.sentry_tags.os.name")
-                    .always(),
-            ],
-        },
-        MetricSpec {
-            category: DataCategory::Span,
-            mri: "g:spans/mobile.frames_delay@second".into(),
-            field: Some("span.measurements.frames.delay.value".into()),
-            condition: Some(is_mobile.clone() & duration_condition.clone()),
-            tags: vec![
-                Tag::with_key("transaction")
-                    .from_field("span.sentry_tags.transaction")
-                    .always(),
-                Tag::with_key("environment")
-                    .from_field("span.sentry_tags.environment")
-                    .always(),
-                Tag::with_key("release")
-                    .from_field("span.sentry_tags.release")
-                    .always(),
-                Tag::with_key("span.description")
-                    .from_field("span.sentry_tags.description")
-                    .always(),
-                Tag::with_key("span.op")
-                    .from_field("span.sentry_tags.op")
-                    .always(),
-                Tag::with_key("span.group")
-                    .from_field("span.sentry_tags.group")
-                    .always(),
-                Tag::with_key("device.class")
-                    .from_field("span.sentry_tags.device.class")
-                    .always(),
-                Tag::with_key("os.name")
-                    .from_field("span.sentry_tags.os.name")
-                    .always(),
-            ],
-        },
-    ];
-
-    if double_write_distributions_as_gauges {
-        metrics.append(&mut vec![
-            MetricSpec {
+        ),
+        (
+            "span_metrics_tx".to_owned(),
+            vec![MetricSpec {
                 category: DataCategory::Span,
-                mri: "g:spans/self_time@millisecond".into(),
-                field: Some("span.exclusive_time".into()),
-                condition: None,
-                tags: self_time_tags,
-            },
-            MetricSpec {
-                category: DataCategory::Span,
-                mri: "g:spans/self_time_light@millisecond".into(),
-                field: Some("span.exclusive_time".into()),
-                condition: Some(exclusive_time_light_condition),
-                tags: self_time_light_tags,
-            },
-            MetricSpec {
-                category: DataCategory::Span,
-                mri: "g:spans/total_time@millisecond".into(),
-                field: Some("span.duration".into()),
-                condition: None,
-                tags: total_time_tags,
-            },
-        ]);
-    }
-
-    metrics
+                mri: "d:transactions/measurements.score.total@ratio".into(),
+                field: Some("span.measurements.score.total.value".into()),
+                condition: Some(
+                    // If transactions are extracted from spans, the transaction processing pipeline
+                    // will take care of this metric.
+                    is_allowed_browser.clone() & RuleCondition::eq("span.was_transaction", false),
+                ),
+                tags: vec![
+                    Tag::with_key("span.op")
+                        .from_field("span.sentry_tags.op")
+                        .always(),
+                    Tag::with_key("transaction.op")
+                        .from_field("span.sentry_tags.transaction.op")
+                        .always(),
+                    Tag::with_key("transaction")
+                        .from_field("span.sentry_tags.transaction")
+                        .always(),
+                    Tag::with_key("environment")
+                        .from_field("span.sentry_tags.environment")
+                        .always(),
+                    Tag::with_key("release")
+                        .from_field("span.sentry_tags.release")
+                        .always(),
+                    Tag::with_key("browser.name")
+                        .from_field("span.browser.name")
+                        .always(), // already guarded by condition on metric
+                ],
+            }],
+        ),
+    ]
 }
