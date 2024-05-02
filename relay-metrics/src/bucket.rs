@@ -1443,7 +1443,6 @@ mod tests {
         assert_eq!(json, serialized);
     }
 
-    // TODO: add merges tests of metadata.
     #[test]
     fn test_bucket_metadata_merge() {
         let mut metadata = BucketMetadata::default();
