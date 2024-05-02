@@ -76,7 +76,7 @@ pub fn extract<G: EventProcessing>(
             // Event items can never include transactions, so retain the event type and let
             // inference deal with this during normalization.
             if let Some(event) = annotated_event.value_mut() {
-                if matches!(event.ty.value(), Some(EventType::Transaction)) {
+                if config.normalization_level().is_enabled() {
                     event.ty.set_value(None);
                 }
             }
