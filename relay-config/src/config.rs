@@ -586,7 +586,7 @@ struct Limits {
     max_replay_message_size: ByteSize,
     /// The maximum number of threads to spawn for CPU and web work, each.
     ///
-    /// The total number of threads spawned will roughly be `2 * max_thread_count + 1`. Defaults to
+    /// The total number of threads spawned will roughly be `2 * max_thread_count`. Defaults to
     /// the number of logical CPU cores on the host.
     max_thread_count: usize,
     /// The maximum number of seconds a query is allowed to take across retries. Individual requests
