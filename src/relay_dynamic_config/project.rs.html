@@ -243,7 +243,7 @@
     </span><span class="attr">#[serde(alias = <span class="string">"dynamicSampling"</span>, skip_serializing_if = <span class="string">"Option::is_none"</span>)]
     </span><span class="kw">pub </span>sampling: <span class="prelude-ty">Option</span>&lt;ErrorBoundary&lt;SamplingConfig&gt;&gt;,
     <span class="doccomment">/// Configuration for measurements.
-    /// NOTE: do not access directly, use [`relay_event_normalization::DynamicMeasurementsConfig`].
+    /// NOTE: do not access directly, use [`relay_event_normalization::CombinedMeasurementsConfig`].
     </span><span class="attr">#[serde(skip_serializing_if = <span class="string">"Option::is_none"</span>)]
     </span><span class="kw">pub </span>measurements: <span class="prelude-ty">Option</span>&lt;MeasurementsConfig&gt;,
     <span class="doccomment">/// Configuration for operation breakdown. Will be emitted only if present.

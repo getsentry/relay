@@ -3369,6 +3369,32 @@
 <a href="#3367" id="3367">3367</a>
 <a href="#3368" id="3368">3368</a>
 <a href="#3369" id="3369">3369</a>
+<a href="#3370" id="3370">3370</a>
+<a href="#3371" id="3371">3371</a>
+<a href="#3372" id="3372">3372</a>
+<a href="#3373" id="3373">3373</a>
+<a href="#3374" id="3374">3374</a>
+<a href="#3375" id="3375">3375</a>
+<a href="#3376" id="3376">3376</a>
+<a href="#3377" id="3377">3377</a>
+<a href="#3378" id="3378">3378</a>
+<a href="#3379" id="3379">3379</a>
+<a href="#3380" id="3380">3380</a>
+<a href="#3381" id="3381">3381</a>
+<a href="#3382" id="3382">3382</a>
+<a href="#3383" id="3383">3383</a>
+<a href="#3384" id="3384">3384</a>
+<a href="#3385" id="3385">3385</a>
+<a href="#3386" id="3386">3386</a>
+<a href="#3387" id="3387">3387</a>
+<a href="#3388" id="3388">3388</a>
+<a href="#3389" id="3389">3389</a>
+<a href="#3390" id="3390">3390</a>
+<a href="#3391" id="3391">3391</a>
+<a href="#3392" id="3392">3392</a>
+<a href="#3393" id="3393">3393</a>
+<a href="#3394" id="3394">3394</a>
+<a href="#3395" id="3395">3395</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
@@ -3391,10 +3417,10 @@
 <span class="kw">use </span>relay_cogs::{AppFeature, Cogs, FeatureWeights, ResourceId, Token};
 <span class="kw">use </span>relay_common::time::UnixTimestamp;
 <span class="kw">use </span>relay_config::{Config, HttpEncoding, NormalizationLevel, RelayMode};
-<span class="kw">use </span>relay_dynamic_config::{ErrorBoundary, Feature};
+<span class="kw">use </span>relay_dynamic_config::{CombinedMetricExtractionConfig, ErrorBoundary, Feature};
 <span class="kw">use </span>relay_event_normalization::{
     normalize_event, validate_event_timestamps, validate_transaction, ClockDriftProcessor,
-    DynamicMeasurementsConfig, EventValidationConfig, GeoIpLookup, MeasurementsConfig,
+    CombinedMeasurementsConfig, EventValidationConfig, GeoIpLookup, MeasurementsConfig,
     NormalizationConfig, RawUserAgentInfo, TransactionNameConfig, TransactionValidationConfig,
 };
 <span class="kw">use </span>relay_event_schema::processor::ProcessingAction;
@@ -3426,7 +3452,7 @@
     relay_cardinality::{
         CardinalityLimit, CardinalityLimiter, RedisSetLimiter, RedisSetLimiterOptions,
     },
-    relay_dynamic_config::{CardinalityLimiterMode, GlobalConfig},
+    relay_dynamic_config::{CardinalityLimiterMode, GlobalConfig, MetricExtractionGroups},
     relay_metrics::{Aggregator, RedisMetricMetaStore},
     relay_quotas::{Quota, RateLimitingError, RedisRateLimiter},
     relay_redis::RedisPool,
@@ -3482,6 +3508,16 @@
         <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)] </span>{
             <span class="kw">if </span><span class="macro-nonterminal">$config</span>.processing_enabled() <span class="macro-nonterminal">$if_true
         </span>}
+    };
+    (<span class="macro-nonterminal">$config</span>:expr, <span class="macro-nonterminal">$if_true</span>:block <span class="kw">else </span><span class="macro-nonterminal">$if_false</span>:block) =&gt; {
+        {
+            <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)] </span>{
+                <span class="kw">if </span><span class="macro-nonterminal">$config</span>.processing_enabled() <span class="macro-nonterminal">$if_true </span><span class="kw">else </span><span class="macro-nonterminal">$if_false
+            </span>}
+            <span class="attr">#[cfg(not(feature = <span class="string">"processing"</span>))] </span>{
+                <span class="macro-nonterminal">$if_false
+            </span>}
+        }
     };
 }
 
@@ -4470,7 +4506,7 @@
 
         <span class="kw">let </span>project_state = <span class="kw-2">&amp;</span>state.project_state;
         <span class="kw">let </span>global_config = <span class="self">self</span>.inner.global_config.current();
-        <span class="kw">let </span>quotas = DynamicQuotas::new(<span class="kw-2">&amp;</span>global_config, project_state.get_quotas());
+        <span class="kw">let </span>quotas = CombinedQuotas::new(<span class="kw-2">&amp;</span>global_config, project_state.get_quotas());
 
         <span class="kw">if </span>quotas.is_empty() {
             <span class="kw">return </span><span class="prelude-val">Ok</span>(());
@@ -4535,6 +4571,23 @@
             ErrorBoundary::Ok(<span class="kw-2">ref </span>config) <span class="kw">if </span>config.is_enabled() =&gt; <span class="prelude-val">Some</span>(config),
             <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
         };
+        <span class="kw">let </span>global = <span class="self">self</span>.inner.global_config.current();
+        <span class="kw">let </span>global_config = <span class="kw">match </span><span class="kw-2">&amp;</span>global.metric_extraction {
+            ErrorBoundary::Ok(global_config) =&gt; global_config,
+            <span class="attr">#[allow(unused_variables)]
+            </span>ErrorBoundary::Err(e) =&gt; {
+                <span class="macro">if_processing!</span>(<span class="self">self</span>.inner.config, {
+                    <span class="comment">// Config is invalid, but we will try to extract what we can with just the
+                    // project config.
+                    </span><span class="macro">relay_log::error!</span>(<span class="string">"Failed to parse global extraction config {e}"</span>);
+                    MetricExtractionGroups::EMPTY
+                } <span class="kw">else </span>{
+                    <span class="comment">// If there's an error with global metrics extraction, it is safe to assume that this
+                    // Relay instance is not up-to-date, and we should skip extraction.
+                    </span><span class="kw">return </span><span class="prelude-val">Ok</span>(());
+                })
+            }
+        };
 
         <span class="kw">if let </span><span class="prelude-val">Some</span>(event) = state.event.value() {
             <span class="kw">if </span>state.event_metrics_extracted {
@@ -4542,19 +4595,17 @@
             }
 
             <span class="kw">if let </span><span class="prelude-val">Some</span>(config) = config {
+                <span class="kw">let </span>combined_config = CombinedMetricExtractionConfig::new(global_config, config);
+
                 <span class="kw">let </span>metrics = <span class="kw">crate</span>::metrics_extraction::event::extract_metrics(
                     event,
                     state.spans_extracted,
-                    config,
+                    <span class="kw-2">&amp;</span>combined_config,
                     <span class="self">self</span>.inner
                         .config
                         .aggregator_config_for(MetricNamespace::Spans)
                         .max_tag_value_length,
-                    <span class="self">self</span>.inner
-                        .global_config
-                        .current()
-                        .options
-                        .span_extraction_sample_rate,
+                    global.options.span_extraction_sample_rate,
                 );
                 state.event_metrics_extracted |= !metrics.is_empty();
                 state.extracted_metrics.project_metrics.extend(metrics);
@@ -4703,7 +4754,7 @@
                 span_description_rules: state.project_state.config.span_description_rules.as_ref(),
                 geoip_lookup: <span class="self">self</span>.inner.geoip_lookup.as_ref(),
                 enable_trimming: <span class="bool-val">true</span>,
-                measurements: <span class="prelude-val">Some</span>(DynamicMeasurementsConfig::new(
+                measurements: <span class="prelude-val">Some</span>(CombinedMeasurementsConfig::new(
                     state.project_state.config().measurements.as_ref(),
                     global_config.measurements.as_ref(),
                 )),
@@ -5439,7 +5490,7 @@
 
         <span class="kw">if let </span><span class="prelude-val">Some</span>(rate_limiter) = <span class="self">self</span>.inner.rate_limiter.as_ref() {
             <span class="kw">let </span>global_config = <span class="self">self</span>.inner.global_config.current();
-            <span class="kw">let </span>quotas = DynamicQuotas::new(<span class="kw-2">&amp;</span>global_config, bucket_limiter.quotas());
+            <span class="kw">let </span>quotas = CombinedQuotas::new(<span class="kw-2">&amp;</span>global_config, bucket_limiter.quotas());
 
             <span class="comment">// We set over_accept_once such that the limit is actually reached, which allows subsequent
             // calls with quantity=0 to be rate limited.
@@ -5490,7 +5541,7 @@
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         scoping: Scoping,
         buckets: Vec&lt;Bucket&gt;,
-        quotas: DynamicQuotas&lt;<span class="lifetime">'_</span>&gt;,
+        quotas: CombinedQuotas&lt;<span class="lifetime">'_</span>&gt;,
         mode: ExtractionMode,
     ) -&gt; Vec&lt;Bucket&gt; {
         <span class="kw">let </span><span class="prelude-val">Some</span>(rate_limiter) = <span class="self">self</span>.inner.rate_limiter.as_ref() <span class="kw">else </span>{
@@ -5517,7 +5568,7 @@
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         item_scoping: relay_quotas::ItemScoping,
         buckets: Vec&lt;Bucket&gt;,
-        quotas: DynamicQuotas&lt;<span class="lifetime">'_</span>&gt;,
+        quotas: CombinedQuotas&lt;<span class="lifetime">'_</span>&gt;,
         mode: ExtractionMode,
         rate_limiter: <span class="kw-2">&amp;</span>RedisRateLimiter,
     ) -&gt; Vec&lt;Bucket&gt; {
@@ -5663,7 +5714,7 @@
             <span class="kw">let </span>limits = project_state.get_cardinality_limits();
 
             <span class="kw">let </span>buckets = <span class="self">self</span>.cardinality_limit_buckets(scoping, limits, buckets, mode);
-            <span class="kw">let </span>quotas = DynamicQuotas::new(<span class="kw-2">&amp;</span>global_config, project_state.get_quotas());
+            <span class="kw">let </span>quotas = CombinedQuotas::new(<span class="kw-2">&amp;</span>global_config, project_state.get_quotas());
 
             <span class="kw">let </span>buckets = <span class="self">self</span>.rate_limit_buckets_by_namespace(scoping, buckets, quotas, mode);
 
@@ -6286,14 +6337,14 @@
 <span class="doccomment">/// Container for global and project level [`Quota`].
 </span><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
 #[derive(Copy, Clone)]
-</span><span class="kw">struct </span>DynamicQuotas&lt;<span class="lifetime">'a</span>&gt; {
+</span><span class="kw">struct </span>CombinedQuotas&lt;<span class="lifetime">'a</span>&gt; {
     global_quotas: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>[Quota],
     project_quotas: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>[Quota],
 }
 
 <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-</span><span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; DynamicQuotas&lt;<span class="lifetime">'a</span>&gt; {
-    <span class="doccomment">/// Returns a new [`DynamicQuotas`]
+</span><span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; CombinedQuotas&lt;<span class="lifetime">'a</span>&gt; {
+    <span class="doccomment">/// Returns a new [`CombinedQuotas`].
     </span><span class="kw">pub fn </span>new(global_config: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>GlobalConfig, project_quotas: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>[Quota]) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{
             global_quotas: <span class="kw-2">&amp;</span>global_config.quotas,
@@ -6313,7 +6364,7 @@
 }
 
 <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-</span><span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; IntoIterator <span class="kw">for </span>DynamicQuotas&lt;<span class="lifetime">'a</span>&gt; {
+</span><span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; IntoIterator <span class="kw">for </span>CombinedQuotas&lt;<span class="lifetime">'a</span>&gt; {
     <span class="kw">type </span>Item = <span class="kw-2">&amp;</span><span class="lifetime">'a </span>Quota;
     <span class="kw">type </span>IntoIter = Chain&lt;Iter&lt;<span class="lifetime">'a</span>, Quota&gt;, Iter&lt;<span class="lifetime">'a</span>, Quota&gt;&gt;;
 
@@ -6372,11 +6423,12 @@
             quotas: <span class="macro">vec!</span>[mock_quota(<span class="string">"foo"</span>), mock_quota(<span class="string">"bar"</span>)],
             filters: Default::default(),
             options: Options::default(),
+            metric_extraction: Default::default(),
         };
 
         <span class="kw">let </span>project_quotas = <span class="macro">vec!</span>[mock_quota(<span class="string">"baz"</span>), mock_quota(<span class="string">"qux"</span>)];
 
-        <span class="kw">let </span>dynamic_quotas = DynamicQuotas::new(<span class="kw-2">&amp;</span>global_config, <span class="kw-2">&amp;</span>project_quotas);
+        <span class="kw">let </span>dynamic_quotas = CombinedQuotas::new(<span class="kw-2">&amp;</span>global_config, <span class="kw-2">&amp;</span>project_quotas);
 
         <span class="macro">assert_eq!</span>(dynamic_quotas.len(), <span class="number">4</span>);
         <span class="macro">assert!</span>(!dynamic_quotas.is_empty());

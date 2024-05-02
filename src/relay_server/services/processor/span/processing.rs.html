@@ -837,6 +837,16 @@
 <a href="#835" id="835">835</a>
 <a href="#836" id="836">836</a>
 <a href="#837" id="837">837</a>
+<a href="#838" id="838">838</a>
+<a href="#839" id="839">839</a>
+<a href="#840" id="840">840</a>
+<a href="#841" id="841">841</a>
+<a href="#842" id="842">842</a>
+<a href="#843" id="843">843</a>
+<a href="#844" id="844">844</a>
+<a href="#845" id="845">845</a>
+<a href="#846" id="846">846</a>
+<a href="#847" id="847">847</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Contains the processing-only functionality.
 
 </span><span class="kw">use </span>std::error::Error;
@@ -845,11 +855,13 @@
 <span class="kw">use </span>chrono::{DateTime, Utc};
 <span class="kw">use </span>relay_base_schema::events::EventType;
 <span class="kw">use </span>relay_config::Config;
-<span class="kw">use </span>relay_dynamic_config::{ErrorBoundary, Feature, GlobalConfig, ProjectConfig};
+<span class="kw">use </span>relay_dynamic_config::{
+    CombinedMetricExtractionConfig, ErrorBoundary, Feature, GlobalConfig, ProjectConfig,
+};
 <span class="kw">use </span>relay_event_normalization::normalize_transaction_name;
 <span class="kw">use </span>relay_event_normalization::{
     normalize_measurements, normalize_performance_score, normalize_user_agent_info_generic,
-    span::tag_extraction, validate_span, DynamicMeasurementsConfig, MeasurementsConfig,
+    span::tag_extraction, validate_span, CombinedMeasurementsConfig, MeasurementsConfig,
     PerformanceScoreConfig, RawUserAgentInfo, TransactionsProcessor,
 };
 <span class="kw">use </span>relay_event_schema::processor::{process_value, ProcessingState};
@@ -959,7 +971,15 @@
                 <span class="kw">return </span>ItemAction::Drop(Outcome::Invalid(DiscardReason::Internal));
             };
             <span class="macro">relay_log::trace!</span>(<span class="string">"Extracting metrics from standalone span {:?}"</span>, span.span_id);
-            <span class="kw">let </span>metrics = extract_metrics(span, config);
+
+            <span class="kw">let </span>ErrorBoundary::Ok(global_metrics_config) = <span class="kw-2">&amp;</span>global_config.metric_extraction <span class="kw">else </span>{
+                <span class="kw">return </span>ItemAction::Drop(Outcome::Invalid(DiscardReason::Internal));
+            };
+
+            <span class="kw">let </span>metrics = extract_metrics(
+                span,
+                <span class="kw-2">&amp;</span>CombinedMetricExtractionConfig::new(global_metrics_config, config),
+            );
             state.extracted_metrics.project_metrics.extend(metrics);
             item.set_metrics_extracted(<span class="bool-val">true</span>);
         }
@@ -1213,7 +1233,7 @@
     /// Has an optional [`relay_event_normalization::MeasurementsConfig`] from both the project and the global level.
     /// If at least one is provided, then normalization will truncate custom measurements
     /// and add units of known built-in measurements.
-    </span>measurements: <span class="prelude-ty">Option</span>&lt;DynamicMeasurementsConfig&lt;<span class="lifetime">'a</span>&gt;&gt;,
+    </span>measurements: <span class="prelude-ty">Option</span>&lt;CombinedMeasurementsConfig&lt;<span class="lifetime">'a</span>&gt;&gt;,
     <span class="doccomment">/// The maximum length for names of custom measurements.
     ///
     /// Measurements with longer names are removed from the transaction event and replaced with a
@@ -1237,7 +1257,7 @@
         max_tag_value_size: config
             .aggregator_config_for(MetricNamespace::Spans)
             .max_tag_value_length,
-        measurements: <span class="prelude-val">Some</span>(DynamicMeasurementsConfig::new(
+        measurements: <span class="prelude-val">Some</span>(CombinedMeasurementsConfig::new(
             project_measurements_config,
             global_measurements_config,
         )),

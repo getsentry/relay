@@ -1658,8 +1658,16 @@
 <a href="#1656" id="1656">1656</a>
 <a href="#1657" id="1657">1657</a>
 <a href="#1658" id="1658">1658</a>
+<a href="#1659" id="1659">1659</a>
+<a href="#1660" id="1660">1660</a>
+<a href="#1661" id="1661">1661</a>
+<a href="#1662" id="1662">1662</a>
+<a href="#1663" id="1663">1663</a>
+<a href="#1664" id="1664">1664</a>
+<a href="#1665" id="1665">1665</a>
+<a href="#1666" id="1666">1666</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_common::time::UnixTimestamp;
-<span class="kw">use </span>relay_dynamic_config::MetricExtractionConfig;
+<span class="kw">use </span>relay_dynamic_config::CombinedMetricExtractionConfig;
 <span class="kw">use </span>relay_event_schema::protocol::{Event, Span};
 <span class="kw">use </span>relay_metrics::Bucket;
 <span class="kw">use </span>relay_quotas::DataCategory;
@@ -1708,7 +1716,7 @@
 </span><span class="kw">pub fn </span>extract_metrics(
     event: <span class="kw-2">&amp;</span>Event,
     spans_extracted: bool,
-    config: <span class="kw-2">&amp;</span>MetricExtractionConfig,
+    config: <span class="kw-2">&amp;</span>CombinedMetricExtractionConfig&lt;<span class="lifetime">'_</span>&gt;,
     max_tag_value_size: usize,
     span_extraction_sample_rate: <span class="prelude-ty">Option</span>&lt;f32&gt;,
 ) -&gt; Vec&lt;Bucket&gt; {
@@ -1725,7 +1733,7 @@
 
 <span class="kw">fn </span>extract_span_metrics_for_event(
     event: <span class="kw-2">&amp;</span>Event,
-    config: <span class="kw-2">&amp;</span>MetricExtractionConfig,
+    config: <span class="kw-2">&amp;</span>CombinedMetricExtractionConfig&lt;<span class="lifetime">'_</span>&gt;,
     max_tag_value_size: usize,
     output: <span class="kw-2">&amp;mut </span>Vec&lt;Bucket&gt;,
 ) {
@@ -2799,7 +2807,8 @@
         project.sanitize();
 
         <span class="kw">let </span>config = project.metric_extraction.ok().unwrap();
-        <span class="kw">let </span>metrics = extract_metrics(event.value().unwrap(), <span class="bool-val">false</span>, <span class="kw-2">&amp;</span>config, <span class="number">200</span>, <span class="prelude-val">None</span>);
+        <span class="kw">let </span>combined_config = (<span class="kw-2">&amp;</span>config).into();
+        <span class="kw">let </span>metrics = extract_metrics(event.value().unwrap(), <span class="bool-val">false</span>, <span class="kw-2">&amp;</span>combined_config, <span class="number">200</span>, <span class="prelude-val">None</span>);
         <span class="macro">insta::assert_debug_snapshot!</span>(metrics);
     }
 
@@ -2970,7 +2979,8 @@
         project.sanitize();
 
         <span class="kw">let </span>config = project.metric_extraction.ok().unwrap();
-        <span class="kw">let </span>metrics = extract_metrics(event.value().unwrap(), <span class="bool-val">false</span>, <span class="kw-2">&amp;</span>config, <span class="number">200</span>, <span class="prelude-val">None</span>);
+        <span class="kw">let </span>combined_config = (<span class="kw-2">&amp;</span>config).into();
+        <span class="kw">let </span>metrics = extract_metrics(event.value().unwrap(), <span class="bool-val">false</span>, <span class="kw-2">&amp;</span>combined_config, <span class="number">200</span>, <span class="prelude-val">None</span>);
         <span class="macro">insta::assert_debug_snapshot!</span>((<span class="kw-2">&amp;</span>event.value().unwrap().spans, metrics));
     }
 
@@ -3031,7 +3041,8 @@
         project.sanitize();
 
         <span class="kw">let </span>config = project.metric_extraction.ok().unwrap();
-        <span class="kw">let </span>metrics = extract_metrics(event.value().unwrap(), <span class="bool-val">false</span>, <span class="kw-2">&amp;</span>config, <span class="number">200</span>, <span class="prelude-val">None</span>);
+        <span class="kw">let </span>combined_config = (<span class="kw-2">&amp;</span>config).into();
+        <span class="kw">let </span>metrics = extract_metrics(event.value().unwrap(), <span class="bool-val">false</span>, <span class="kw-2">&amp;</span>combined_config, <span class="number">200</span>, <span class="prelude-val">None</span>);
 
         <span class="comment">// When transaction.op:ui.load and mobile:true, HTTP spans still get both
         // exclusive_time metrics:
@@ -3067,7 +3078,8 @@
         project.sanitize();
 
         <span class="kw">let </span>config = project.metric_extraction.ok().unwrap();
-        <span class="kw">let </span>metrics = extract_metrics(event.value().unwrap(), <span class="bool-val">false</span>, <span class="kw-2">&amp;</span>config, <span class="number">200</span>, <span class="prelude-val">None</span>);
+        <span class="kw">let </span>combined_config = (<span class="kw-2">&amp;</span>config).into();
+        <span class="kw">let </span>metrics = extract_metrics(event.value().unwrap(), <span class="bool-val">false</span>, <span class="kw-2">&amp;</span>combined_config, <span class="number">200</span>, <span class="prelude-val">None</span>);
 
         <span class="kw">let </span>usage_metrics = metrics
             .into_iter()
@@ -3091,7 +3103,10 @@
         config.sanitize(); <span class="comment">// apply defaults for span extraction
 
         </span><span class="kw">let </span>extraction_config = config.metric_extraction.ok().unwrap();
-        generic::extract_metrics(span, <span class="kw-2">&amp;</span>extraction_config)
+        generic::extract_metrics(
+            span,
+            <span class="kw-2">&amp;</span>CombinedMetricExtractionConfig::from(<span class="kw-2">&amp;</span>extraction_config),
+        )
     }
 
     <span class="doccomment">/// Helper function for span metric extraction tests.
@@ -3293,7 +3308,8 @@
         project.sanitize();
 
         <span class="kw">let </span>config = project.metric_extraction.ok().unwrap();
-        <span class="kw">let </span>metrics = extract_metrics(event.value().unwrap(), <span class="bool-val">false</span>, <span class="kw-2">&amp;</span>config, <span class="number">200</span>, <span class="prelude-val">None</span>);
+        <span class="kw">let </span>combined_config = (<span class="kw-2">&amp;</span>config).into();
+        <span class="kw">let </span>metrics = extract_metrics(event.value().unwrap(), <span class="bool-val">false</span>, <span class="kw-2">&amp;</span>combined_config, <span class="number">200</span>, <span class="prelude-val">None</span>);
 
         <span class="macro">assert_eq!</span>(metrics.len(), <span class="number">4</span>);
 

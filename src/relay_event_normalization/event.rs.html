@@ -3739,7 +3739,7 @@
 <span class="kw">use </span><span class="kw">crate</span>::utils::{<span class="self">self</span>, get_event_user_tag, MAX_DURATION_MOBILE_MS};
 <span class="kw">use crate</span>::{
     breakdowns, event_error, legacy, mechanism, remove_other, schema, span, stacktrace,
-    transactions, trimming, user_agent, BreakdownsConfig, DynamicMeasurementsConfig, GeoIpLookup,
+    transactions, trimming, user_agent, BreakdownsConfig, CombinedMeasurementsConfig, GeoIpLookup,
     MaxChars, PerformanceScoreConfig, RawUserAgentInfo, SpanDescriptionRule, TransactionNameConfig,
 };
 
@@ -3797,7 +3797,7 @@
     /// Has an optional [`crate::MeasurementsConfig`] from both the project and the global level.
     /// If at least one is provided, then normalization will truncate custom measurements
     /// and add units of known built-in measurements.
-    </span><span class="kw">pub </span>measurements: <span class="prelude-ty">Option</span>&lt;DynamicMeasurementsConfig&lt;<span class="lifetime">'a</span>&gt;&gt;,
+    </span><span class="kw">pub </span>measurements: <span class="prelude-ty">Option</span>&lt;CombinedMeasurementsConfig&lt;<span class="lifetime">'a</span>&gt;&gt;,
 
     <span class="doccomment">/// Emit breakdowns based on given configuration.
     </span><span class="kw">pub </span>breakdowns_config: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>BreakdownsConfig&gt;,
@@ -4511,7 +4511,7 @@
 <span class="doccomment">/// Ensures measurements interface is only present for transaction events.
 </span><span class="kw">fn </span>normalize_event_measurements(
     event: <span class="kw-2">&amp;mut </span>Event,
-    measurements_config: <span class="prelude-ty">Option</span>&lt;DynamicMeasurementsConfig&gt;,
+    measurements_config: <span class="prelude-ty">Option</span>&lt;CombinedMeasurementsConfig&gt;,
     max_mri_len: <span class="prelude-ty">Option</span>&lt;usize&gt;,
 ) {
     <span class="kw">if </span>event.ty.value() != <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>EventType::Transaction) {
@@ -4533,7 +4533,7 @@
 </span><span class="kw">pub fn </span>normalize_measurements(
     measurements: <span class="kw-2">&amp;mut </span>Measurements,
     meta: <span class="kw-2">&amp;mut </span>Meta,
-    measurements_config: <span class="prelude-ty">Option</span>&lt;DynamicMeasurementsConfig&gt;,
+    measurements_config: <span class="prelude-ty">Option</span>&lt;CombinedMeasurementsConfig&gt;,
     max_mri_len: <span class="prelude-ty">Option</span>&lt;usize&gt;,
     start_timestamp: <span class="prelude-ty">Option</span>&lt;Timestamp&gt;,
     end_timestamp: <span class="prelude-ty">Option</span>&lt;Timestamp&gt;,
@@ -4984,7 +4984,7 @@
 </span><span class="kw">fn </span>remove_invalid_measurements(
     measurements: <span class="kw-2">&amp;mut </span>Measurements,
     meta: <span class="kw-2">&amp;mut </span>Meta,
-    measurements_config: DynamicMeasurementsConfig,
+    measurements_config: CombinedMeasurementsConfig,
     max_name_and_unit_len: <span class="prelude-ty">Option</span>&lt;usize&gt;,
 ) {
     <span class="kw">let </span>max_custom_measurements = measurements_config.max_custom_measurements().unwrap_or(<span class="number">0</span>);
@@ -5336,7 +5336,7 @@
         .unwrap();
 
         <span class="kw">let </span>dynamic_measurement_config =
-            DynamicMeasurementsConfig::new(<span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>project_measurement_config), <span class="prelude-val">None</span>);
+            CombinedMeasurementsConfig::new(<span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>project_measurement_config), <span class="prelude-val">None</span>);
 
         normalize_event_measurements(<span class="kw-2">&amp;mut </span>event, <span class="prelude-val">Some</span>(dynamic_measurement_config), <span class="prelude-val">None</span>);
 
@@ -5698,7 +5698,7 @@
             ..Default::default()
         };
 
-        <span class="kw">let </span>dynamic_config = DynamicMeasurementsConfig::new(<span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>measurements_config), <span class="prelude-val">None</span>);
+        <span class="kw">let </span>dynamic_config = CombinedMeasurementsConfig::new(<span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>measurements_config), <span class="prelude-val">None</span>);
 
         <span class="comment">// Just for clarity.
         // Checks that there is 1 measurement before processing.
@@ -6602,7 +6602,7 @@
         .unwrap();
 
         <span class="kw">let </span>dynamic_measurement_config =
-            DynamicMeasurementsConfig::new(<span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>project_measurement_config), <span class="prelude-val">None</span>);
+            CombinedMeasurementsConfig::new(<span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>project_measurement_config), <span class="prelude-val">None</span>);
 
         normalize_event_measurements(<span class="kw-2">&amp;mut </span>event, <span class="prelude-val">Some</span>(dynamic_measurement_config), <span class="prelude-val">None</span>);
 

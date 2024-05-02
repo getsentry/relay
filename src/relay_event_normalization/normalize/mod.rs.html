@@ -1870,18 +1870,18 @@
 <span class="doccomment">/// Container for global and project level [`MeasurementsConfig`]. The purpose is to handle
 /// the merging logic.
 </span><span class="attr">#[derive(Clone, Debug)]
-</span><span class="kw">pub struct </span>DynamicMeasurementsConfig&lt;<span class="lifetime">'a</span>&gt; {
+</span><span class="kw">pub struct </span>CombinedMeasurementsConfig&lt;<span class="lifetime">'a</span>&gt; {
     project: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>MeasurementsConfig&gt;,
     global: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>MeasurementsConfig&gt;,
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; DynamicMeasurementsConfig&lt;<span class="lifetime">'a</span>&gt; {
-    <span class="doccomment">/// Constructor for [`DynamicMeasurementsConfig`].
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; CombinedMeasurementsConfig&lt;<span class="lifetime">'a</span>&gt; {
+    <span class="doccomment">/// Constructor for [`CombinedMeasurementsConfig`].
     </span><span class="kw">pub fn </span>new(
         project: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>MeasurementsConfig&gt;,
         global: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>MeasurementsConfig&gt;,
     ) -&gt; <span class="self">Self </span>{
-        DynamicMeasurementsConfig { project, global }
+        CombinedMeasurementsConfig { project, global }
     }
 
     <span class="doccomment">/// Returns an iterator over the merged builtin measurement keys.
@@ -2017,7 +2017,7 @@
             </span>builtin_measurements: <span class="macro">vec!</span>[baz.clone(), bar.clone()],
             max_custom_measurements: <span class="number">4</span>,
         };
-        <span class="kw">let </span>dynamic_config = DynamicMeasurementsConfig::new(<span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>proj), <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>glob));
+        <span class="kw">let </span>dynamic_config = CombinedMeasurementsConfig::new(<span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>proj), <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>glob));
 
         <span class="kw">let </span>keys = dynamic_config.builtin_measurement_keys().collect_vec();
 
@@ -2027,7 +2027,7 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_max_custom_measurement() {
         <span class="comment">// Empty configs will return a None value for max measurements.
-        </span><span class="kw">let </span>dynamic_config = DynamicMeasurementsConfig::new(<span class="prelude-val">None</span>, <span class="prelude-val">None</span>);
+        </span><span class="kw">let </span>dynamic_config = CombinedMeasurementsConfig::new(<span class="prelude-val">None</span>, <span class="prelude-val">None</span>);
         <span class="macro">assert!</span>(dynamic_config.max_custom_measurements().is_none());
 
         <span class="kw">let </span>proj = MeasurementsConfig {
@@ -2041,15 +2041,15 @@
         };
 
         <span class="comment">// If only project level measurement config is there, return its max custom measurement variable.
-        </span><span class="kw">let </span>dynamic_config = DynamicMeasurementsConfig::new(<span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>proj), <span class="prelude-val">None</span>);
+        </span><span class="kw">let </span>dynamic_config = CombinedMeasurementsConfig::new(<span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>proj), <span class="prelude-val">None</span>);
         <span class="macro">assert_eq!</span>(dynamic_config.max_custom_measurements().unwrap(), <span class="number">3</span>);
 
         <span class="comment">// Same logic for when only global level measurement config exists.
-        </span><span class="kw">let </span>dynamic_config = DynamicMeasurementsConfig::new(<span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>glob));
+        </span><span class="kw">let </span>dynamic_config = CombinedMeasurementsConfig::new(<span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>glob));
         <span class="macro">assert_eq!</span>(dynamic_config.max_custom_measurements().unwrap(), <span class="number">4</span>);
 
         <span class="comment">// If both is available, pick the smallest number.
-        </span><span class="kw">let </span>dynamic_config = DynamicMeasurementsConfig::new(<span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>proj), <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>glob));
+        </span><span class="kw">let </span>dynamic_config = CombinedMeasurementsConfig::new(<span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>proj), <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>glob));
         <span class="macro">assert_eq!</span>(dynamic_config.max_custom_measurements().unwrap(), <span class="number">3</span>);
     }
 

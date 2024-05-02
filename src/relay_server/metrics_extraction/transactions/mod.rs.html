@@ -2668,7 +2668,7 @@
     <span class="kw">use </span>relay_dynamic_config::AcceptTransactionNames;
     <span class="kw">use </span>relay_event_normalization::{
         normalize_event, set_default_transaction_source, validate_event_timestamps,
-        validate_transaction, BreakdownsConfig, DynamicMeasurementsConfig, EventValidationConfig,
+        validate_transaction, BreakdownsConfig, CombinedMeasurementsConfig, EventValidationConfig,
         MeasurementsConfig, NormalizationConfig, PerformanceScoreConfig, PerformanceScoreProfile,
         PerformanceScoreWeightedComponent, TransactionValidationConfig,
     };
@@ -3460,7 +3460,7 @@
         ))
         .unwrap();
 
-        <span class="kw">let </span>config = DynamicMeasurementsConfig::new(<span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>measurements_config), <span class="prelude-val">None</span>);
+        <span class="kw">let </span>config = CombinedMeasurementsConfig::new(<span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>measurements_config), <span class="prelude-val">None</span>);
 
         normalize_event(
             <span class="kw-2">&amp;mut </span>event,
