@@ -544,6 +544,28 @@
 <a href="#542" id="542">542</a>
 <a href="#543" id="543">543</a>
 <a href="#544" id="544">544</a>
+<a href="#545" id="545">545</a>
+<a href="#546" id="546">546</a>
+<a href="#547" id="547">547</a>
+<a href="#548" id="548">548</a>
+<a href="#549" id="549">549</a>
+<a href="#550" id="550">550</a>
+<a href="#551" id="551">551</a>
+<a href="#552" id="552">552</a>
+<a href="#553" id="553">553</a>
+<a href="#554" id="554">554</a>
+<a href="#555" id="555">555</a>
+<a href="#556" id="556">556</a>
+<a href="#557" id="557">557</a>
+<a href="#558" id="558">558</a>
+<a href="#559" id="559">559</a>
+<a href="#560" id="560">560</a>
+<a href="#561" id="561">561</a>
+<a href="#562" id="562">562</a>
+<a href="#563" id="563">563</a>
+<a href="#564" id="564">564</a>
+<a href="#565" id="565">565</a>
+<a href="#566" id="566">566</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::btree_map::Entry;
 <span class="kw">use </span>std::collections::HashMap;
 <span class="kw">use </span>std::fs::File;
@@ -768,6 +790,28 @@
         skip_serializing_if = <span class="string">"is_default"
     </span>)]
     </span><span class="kw">pub </span>span_extraction_sample_rate: <span class="prelude-ty">Option</span>&lt;f32&gt;,
+
+    <span class="doccomment">/// If enabled, runs full normalization in non-processing Relays.
+    ///
+    /// Doesn't apply to processing Relays. Outdated relays with a stale
+    /// protocol/normalization receiving this flag will not forward unknown
+    /// fields. Disabling the flag solves this behavior.
+    </span><span class="attr">#[serde(
+        default,
+        rename = <span class="string">"relay.force_full_normalization"</span>,
+        deserialize_with = <span class="string">"default_on_error"</span>,
+        skip_serializing_if = <span class="string">"is_default"
+    </span>)]
+    </span><span class="kw">pub </span>force_full_normalization: bool,
+
+    <span class="doccomment">/// If enabled, disables normalization in processing Relays.
+    </span><span class="attr">#[serde(
+        default,
+        rename = <span class="string">"relay.disable_normalization.processing"</span>,
+        deserialize_with = <span class="string">"default_on_error"</span>,
+        skip_serializing_if = <span class="string">"is_default"
+    </span>)]
+    </span><span class="kw">pub </span>processing_disable_normalization: bool,
 
     <span class="doccomment">/// All other unknown options.
     </span><span class="attr">#[serde(flatten)]

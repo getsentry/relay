@@ -3396,6 +3396,17 @@
 <a href="#3394" id="3394">3394</a>
 <a href="#3395" id="3395">3395</a>
 <a href="#3396" id="3396">3396</a>
+<a href="#3397" id="3397">3397</a>
+<a href="#3398" id="3398">3398</a>
+<a href="#3399" id="3399">3399</a>
+<a href="#3400" id="3400">3400</a>
+<a href="#3401" id="3401">3401</a>
+<a href="#3402" id="3402">3402</a>
+<a href="#3403" id="3403">3403</a>
+<a href="#3404" id="3404">3404</a>
+<a href="#3405" id="3405">3405</a>
+<a href="#3406" id="3406">3406</a>
+<a href="#3407" id="3407">3407</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
@@ -4651,24 +4662,35 @@
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;G&gt;,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ProcessingError&gt; {
-        <span class="kw">let </span>full_normalization = <span class="kw">match </span><span class="self">self</span>.inner.config.normalization_level() {
-            NormalizationLevel::Disabled =&gt; {
-                <span class="comment">// We assume envelopes coming from an internal relay have
-                // already been normalized. During incidents, like a PoP region
-                // not being available, envelopes can go to other PoP regions or
-                // directly to processing relays. Events should be fully
-                // normalized, independently of the ingestion path.
-                </span><span class="kw">if </span><span class="self">self</span>.inner.config.processing_enabled()
-                    &amp;&amp; (!state.envelope().meta().is_from_internal_relay())
-                {
-                    <span class="bool-val">true
-                </span>} <span class="kw">else </span>{
-                    <span class="macro">relay_log::trace!</span>(<span class="string">"Skipping event normalization"</span>);
-                    <span class="kw">return </span><span class="prelude-val">Ok</span>(());
+        <span class="kw">let </span>options = <span class="kw-2">&amp;</span><span class="self">self</span>.inner.global_config.current().options;
+
+        <span class="kw">let </span>full_normalization = <span class="kw">if </span><span class="self">self</span>.inner.config.processing_enabled()
+            &amp;&amp; options.processing_disable_normalization
+            &amp;&amp; (state.envelope().meta().is_from_internal_relay())
+        {
+            <span class="kw">return </span><span class="prelude-val">Ok</span>(());
+        } <span class="kw">else if </span>!<span class="self">self</span>.inner.config.processing_enabled() &amp;&amp; options.force_full_normalization {
+            <span class="bool-val">true
+        </span>} <span class="kw">else </span>{
+            <span class="kw">match </span><span class="self">self</span>.inner.config.normalization_level() {
+                NormalizationLevel::Disabled =&gt; {
+                    <span class="comment">// We assume envelopes coming from an internal relay have
+                    // already been normalized. During incidents, like a PoP region
+                    // not being available, envelopes can go to other PoP regions or
+                    // directly to processing relays. Events should be fully
+                    // normalized, independently of the ingestion path.
+                    </span><span class="kw">if </span><span class="self">self</span>.inner.config.processing_enabled()
+                        &amp;&amp; (!state.envelope().meta().is_from_internal_relay())
+                    {
+                        <span class="bool-val">true
+                    </span>} <span class="kw">else </span>{
+                        <span class="macro">relay_log::trace!</span>(<span class="string">"Skipping event normalization"</span>);
+                        <span class="kw">return </span><span class="prelude-val">Ok</span>(());
+                    }
                 }
+                NormalizationLevel::Full =&gt; <span class="bool-val">true</span>,
+                NormalizationLevel::Default =&gt; <span class="self">self</span>.inner.config.processing_enabled(),
             }
-            NormalizationLevel::Full =&gt; <span class="bool-val">true</span>,
-            NormalizationLevel::Default =&gt; <span class="self">self</span>.inner.config.processing_enabled(),
         };
 
         <span class="kw">if let </span><span class="prelude-val">Some</span>(sampling_state) = state.sampling_project_state.clone() {
