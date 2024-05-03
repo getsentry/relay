@@ -174,6 +174,85 @@ pub fn hardcoded_span_metrics() -> Vec<(String, Vec<MetricSpec>)> {
         | is_http.clone()
         | is_queue_op.clone())
         & duration_condition.clone();
+    let span_time_tags = vec![
+        // All modules:
+        Tag::with_key("environment")
+            .from_field("span.sentry_tags.environment")
+            .always(),
+        Tag::with_key("span.op")
+            .from_field("span.sentry_tags.op")
+            .always(),
+        Tag::with_key("transaction")
+            .from_field("span.sentry_tags.transaction")
+            .always(),
+        Tag::with_key("transaction.op")
+            .from_field("span.sentry_tags.transaction.op")
+            .always(),
+        // Most modules
+        Tag::with_key("span.group")
+            .from_field("span.sentry_tags.group")
+            .when(is_ai.clone() | know_modules_condition.clone() | app_start_condition.clone()),
+        Tag::with_key("span.category")
+            .from_field("span.sentry_tags.category")
+            .when(is_ai.clone() | know_modules_condition.clone()),
+        Tag::with_key("span.description")
+            .from_field("span.sentry_tags.description")
+            .when(is_ai.clone() | know_modules_condition.clone()),
+        // Know modules:
+        Tag::with_key("transaction.method")
+            .from_field("span.sentry_tags.transaction.method")
+            .when(is_db.clone() | is_mobile.clone() | is_http.clone()), // groups by method + txn, e.g. `GET /users`
+        Tag::with_key("span.action")
+            .from_field("span.sentry_tags.action")
+            .when(is_db.clone()),
+        Tag::with_key("span.domain")
+            .from_field("span.sentry_tags.domain")
+            .when(is_db.clone() | is_resource.clone() | is_http.clone()),
+        // Mobile module:
+        Tag::with_key("device.class")
+            .from_field("span.sentry_tags.device.class")
+            .when(is_mobile.clone()),
+        Tag::with_key("os.name") // TODO: might not be needed on both `exclusive_time` metrics
+            .from_field("span.sentry_tags.os.name")
+            .when(is_mobile.clone() | app_start_condition.clone()),
+        Tag::with_key("release")
+            .from_field("span.sentry_tags.release")
+            .when(is_mobile.clone() | app_start_condition.clone()),
+        Tag::with_key("ttfd")
+            .from_field("span.sentry_tags.ttfd")
+            .when(is_mobile.clone()),
+        Tag::with_key("ttid")
+            .from_field("span.sentry_tags.ttid")
+            .when(is_mobile.clone()),
+        Tag::with_key("span.main_thread")
+            .from_field("span.sentry_tags.main_thread")
+            .when(is_mobile.clone()),
+        Tag::with_key("app_start_type")
+            .from_field("span.sentry_tags.app_start_type")
+            .when(is_mobile.clone()),
+        // Resource module:
+        Tag::with_key("file_extension")
+            .from_field("span.sentry_tags.file_extension")
+            .when(is_resource.clone()),
+        Tag::with_key("resource.render_blocking_status")
+            .from_field("span.sentry_tags.resource.render_blocking_status")
+            .when(is_resource.clone()),
+        // HTTP module:
+        Tag::with_key("span.status_code")
+            .from_field("span.sentry_tags.status_code")
+            .when(is_http.clone()),
+        // Cache module
+        Tag::with_key("cache.hit")
+            .from_field("span.sentry_tags.cache.hit")
+            .when(is_cache.clone()),
+        // Queue module
+        Tag::with_key("messaging.destination.name")
+            .from_field("span.sentry_tags.messaging.destination.name")
+            .when(is_queue_op.clone()),
+        Tag::with_key("trace.status")
+            .from_field("span.sentry_tags.trace.status")
+            .when(is_queue_op.clone()),
+    ];
     vec![
         (
             "span_metrics".to_owned(),
@@ -190,84 +269,7 @@ pub fn hardcoded_span_metrics() -> Vec<(String, Vec<MetricSpec>)> {
                     mri: "d:spans/exclusive_time@millisecond".into(),
                     field: Some("span.exclusive_time".into()),
                     condition: None,
-                    tags: vec![
-                        // All modules:
-                        Tag::with_key("environment")
-                            .from_field("span.sentry_tags.environment")
-                            .always(),
-                        Tag::with_key("span.op")
-                            .from_field("span.sentry_tags.op")
-                            .always(),
-                        Tag::with_key("transaction")
-                            .from_field("span.sentry_tags.transaction")
-                            .always(),
-                        Tag::with_key("transaction.op")
-                            .from_field("span.sentry_tags.transaction.op")
-                            .always(),
-                        // Know modules:
-                        Tag::with_key("transaction.method")
-                            .from_field("span.sentry_tags.transaction.method")
-                            .when(is_db.clone() | is_mobile.clone() | is_http.clone()), // groups by method + txn, e.g. `GET /users`
-                        Tag::with_key("span.action")
-                            .from_field("span.sentry_tags.action")
-                            .when(is_db.clone()),
-                        Tag::with_key("span.category")
-                            .from_field("span.sentry_tags.category")
-                            .when(know_modules_condition.clone()),
-                        Tag::with_key("span.description")
-                            .from_field("span.sentry_tags.description")
-                            .when(know_modules_condition.clone()),
-                        Tag::with_key("span.domain")
-                            .from_field("span.sentry_tags.domain")
-                            .when(is_db.clone() | is_resource.clone() | is_http.clone()),
-                        Tag::with_key("span.group")
-                            .from_field("span.sentry_tags.group")
-                            .when(know_modules_condition.clone()),
-                        // Mobile module:
-                        Tag::with_key("device.class")
-                            .from_field("span.sentry_tags.device.class")
-                            .when(is_mobile.clone()),
-                        Tag::with_key("os.name") // TODO: might not be needed on both `exclusive_time` metrics
-                            .from_field("span.sentry_tags.os.name")
-                            .when(is_mobile.clone()),
-                        Tag::with_key("release")
-                            .from_field("span.sentry_tags.release")
-                            .when(is_mobile.clone()),
-                        Tag::with_key("ttfd")
-                            .from_field("span.sentry_tags.ttfd")
-                            .when(is_mobile.clone()),
-                        Tag::with_key("ttid")
-                            .from_field("span.sentry_tags.ttid")
-                            .when(is_mobile.clone()),
-                        Tag::with_key("span.main_thread")
-                            .from_field("span.sentry_tags.main_thread")
-                            .when(is_mobile.clone()),
-                        Tag::with_key("app_start_type")
-                            .from_field("span.sentry_tags.app_start_type")
-                            .when(is_mobile.clone()),
-                        // Resource module:
-                        Tag::with_key("file_extension")
-                            .from_field("span.sentry_tags.file_extension")
-                            .when(is_resource.clone()),
-                        Tag::with_key("resource.render_blocking_status")
-                            .from_field("span.sentry_tags.resource.render_blocking_status")
-                            .when(is_resource.clone()),
-                        // HTTP module:
-                        Tag::with_key("span.status_code")
-                            .from_field("span.sentry_tags.status_code")
-                            .when(is_http.clone()),
-                        // Cache module
-                        Tag::with_key("cache.hit")
-                            .from_field("span.sentry_tags.cache.hit")
-                            .when(is_cache.clone()),
-                        // Queue module
-                        Tag::with_key("messaging.destination.name")
-                            .from_field("span.sentry_tags.messaging.destination.name")
-                            .when(is_queue_op.clone()),
-                        Tag::with_key("trace.status")
-                            .from_field("span.sentry_tags.trace.status")
-                            .when(is_queue_op.clone()),
-                    ],
+                    tags: span_time_tags.clone(),
                 },
                 MetricSpec {
                     category: DataCategory::Span,
@@ -344,47 +346,7 @@ pub fn hardcoded_span_metrics() -> Vec<(String, Vec<MetricSpec>)> {
                     mri: "d:spans/duration@millisecond".into(),
                     field: Some("span.duration".into()),
                     condition: None,
-                    tags: vec![
-                        // All modules:
-                        Tag::with_key("environment")
-                            .from_field("span.sentry_tags.environment")
-                            .always(),
-                        Tag::with_key("span.op")
-                            .from_field("span.sentry_tags.op")
-                            .always(),
-                        Tag::with_key("transaction")
-                            .from_field("span.sentry_tags.transaction")
-                            .always(),
-                        Tag::with_key("transaction.op")
-                            .from_field("span.sentry_tags.transaction.op")
-                            .always(),
-                        Tag::with_key("span.group")
-                            .from_field("span.sentry_tags.group")
-                            .when(
-                                is_ai.clone()
-                                    | know_modules_condition.clone()
-                                    | app_start_condition.clone(),
-                            ),
-                        Tag::with_key("span.category")
-                            .from_field("span.sentry_tags.category")
-                            .when(is_ai.clone()),
-                        Tag::with_key("span.description")
-                            .from_field("span.sentry_tags.description")
-                            .when(is_ai.clone() | app_start_condition.clone()),
-                        // Mobile module:
-                        Tag::with_key("device.class")
-                            .from_field("span.sentry_tags.device.class")
-                            .when(app_start_condition.clone()),
-                        Tag::with_key("release")
-                            .from_field("span.sentry_tags.release")
-                            .when(app_start_condition.clone()),
-                        Tag::with_key("os.name")
-                            .from_field("span.sentry_tags.os.name")
-                            .when(app_start_condition.clone()),
-                        Tag::with_key("app_start_type")
-                            .from_field("span.sentry_tags.app_start_type")
-                            .when(app_start_condition.clone()),
-                    ],
+                    tags: span_time_tags.clone(),
                 },
                 MetricSpec {
                     category: DataCategory::Span,
