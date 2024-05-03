@@ -28,7 +28,7 @@ pub struct ScopedAggregatorConfig {
 #[serde(tag = "op", rename_all = "lowercase")]
 pub enum Condition {
     /// Checks for equality on a specific field.
-    Eq(Field),
+    Eq(FieldCondition),
     /// Matches if all conditions are true.
     And {
         /// Inner rules to combine.
@@ -60,15 +60,15 @@ impl Condition {
 /// Defines a field and a field value to compare to when a [`Condition`] is evaluated.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(tag = "field", content = "value", rename_all = "lowercase")]
-pub enum Field {
+pub enum FieldCondition {
     /// Field that allows comparison to a metric or bucket's namespace.
     Namespace(MetricNamespace),
 }
 
-impl Field {
+impl FieldCondition {
     fn matches(&self, namespace: Option<MetricNamespace>) -> bool {
         match (self, namespace) {
-            (Field::Namespace(expected), Some(actual)) => expected == &actual,
+            (FieldCondition::Namespace(expected), Some(actual)) => expected == &actual,
             _ => false,
         }
     }

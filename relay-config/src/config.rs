@@ -16,7 +16,7 @@ use relay_kafka::{
 };
 use relay_metrics::aggregator::{AggregatorConfig, ShiftKey};
 use relay_metrics::{
-    AggregatorServiceConfig, Condition, Field, MetricNamespace, ScopedAggregatorConfig,
+    AggregatorServiceConfig, Condition, FieldCondition, MetricNamespace, ScopedAggregatorConfig,
 };
 use relay_redis::RedisConfig;
 use serde::de::{DeserializeOwned, Unexpected, Visitor};
@@ -2398,7 +2398,9 @@ impl Config {
     pub fn aggregator_config_for(&self, namespace: MetricNamespace) -> &AggregatorServiceConfig {
         for entry in &self.values.secondary_aggregators {
             match entry.condition {
-                Condition::Eq(Field::Namespace(ns)) if ns == namespace => return &entry.config,
+                Condition::Eq(FieldCondition::Namespace(ns)) if ns == namespace => {
+                    return &entry.config
+                }
                 _ => (),
             }
         }
