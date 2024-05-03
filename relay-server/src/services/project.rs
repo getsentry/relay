@@ -12,7 +12,6 @@ use relay_filter::{matches_any_origin, FilterStatKey};
 use relay_metrics::aggregator::AggregatorConfig;
 use relay_metrics::{
     aggregator, Aggregator, Bucket, MergeBuckets, MetaAggregator, MetricMeta, MetricNamespace,
-    MetricResourceIdentifier,
 };
 use relay_quotas::{DataCategory, MetricNamespaceScoping, Quota, RateLimits, Scoping};
 use relay_sampling::evaluation::ReservoirCounters;
@@ -648,7 +647,7 @@ impl Project {
             outcome_aggregator.clone(),
             metric_stats,
             extraction_mode,
-            &state,
+            state,
             buckets,
         );
 
@@ -1254,14 +1253,13 @@ fn is_metric_namespace_valid(state: &ProjectState, namespace: &MetricNamespace) 
 
 #[cfg(test)]
 mod tests {
-    use itertools::assert_equal;
     use std::collections::BTreeMap;
     use std::sync::Mutex;
 
     use crate::services::global_config::GlobalConfigHandle;
     use relay_common::glob3::GlobPatterns;
     use relay_common::time::UnixTimestamp;
-    use relay_dynamic_config::{GlobalConfig, Options, TagBlock};
+    use relay_dynamic_config::{GlobalConfig, TagBlock};
     use relay_metrics::BucketValue;
     use relay_test::mock_service;
     use serde_json::json;
