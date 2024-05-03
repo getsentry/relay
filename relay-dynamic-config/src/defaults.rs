@@ -197,7 +197,7 @@ pub fn hardcoded_span_metrics() -> Vec<(String, Vec<MetricSpec>)> {
             .when(is_ai.clone() | know_modules_condition.clone()),
         Tag::with_key("span.description")
             .from_field("span.sentry_tags.description")
-            .when(is_ai.clone() | know_modules_condition.clone()),
+            .when(is_ai.clone() | know_modules_condition.clone() | app_start_condition.clone()),
         // Know modules:
         Tag::with_key("transaction.method")
             .from_field("span.sentry_tags.transaction.method")
