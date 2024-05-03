@@ -303,6 +303,10 @@ pub struct SpanData {
     #[metastructure(field = "sentry.sdk.name")]
     pub sdk_name: Annotated<String>,
 
+    /// The sentry SDK version (see [`crate::protocol::ClientSdkInfo`]).
+    #[metastructure(field = "sentry.sdk.version")]
+    pub sdk_version: Annotated<String>,
+
     /// Slow Frames
     #[metastructure(field = "sentry.frames.slow", legacy_alias = "frames.slow")]
     pub frames_slow: Annotated<Value>,
