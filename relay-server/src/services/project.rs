@@ -422,7 +422,7 @@ enum State {
 impl State {
     fn state_value(&self) -> Option<Arc<ProjectState>> {
         match self {
-            State::Cached(state) => Some(Arc::clone(state)),
+            State::Cached(state) => Some(state.clone()),
             State::Pending(_) => None,
         }
     }
@@ -633,12 +633,24 @@ impl Project {
         aggregator: Addr<Aggregator>,
         #[allow(unused_variables)] envelope_processor: Addr<EnvelopeProcessor>,
         outcome_aggregator: Addr<TrackOutcome>,
-        project_state: &ProjectState,
+        metric_stats: MetricStats,
+        state: &ProjectState,
         buckets: Vec<Bucket>,
     ) {
         if buckets.is_empty() {
             return;
         }
+
+        let extraction_mode = state.get_extraction_mode();
+
+        // Pre-process buckets to make sure they are valid.
+        let buckets = self.pre_process_buckets(
+            outcome_aggregator.clone(),
+            metric_stats,
+            extraction_mode,
+            &state,
+            buckets,
+        );
 
         let Some(scoping) = self.scoping() else {
             relay_log::error!(
@@ -649,14 +661,13 @@ impl Project {
         };
 
         // Only send if the project state is valid, otherwise drop the buckets.
-        if project_state.check_disabled(self.config.as_ref()).is_err() {
+        if state.check_disabled(self.config.as_ref()).is_err() {
             relay_log::trace!("project state invalid: dropping {} buckets", buckets.len());
             return;
         }
 
         // Check rate limits if necessary.
-        let quotas = project_state.config.quotas.clone();
-        let extraction_mode = project_state.get_extraction_mode();
+        let quotas = state.config.quotas.clone();
         let buckets = match MetricsLimiter::create(buckets, quotas, scoping, extraction_mode) {
             Ok(mut bucket_limiter) => {
                 let cached_rate_limits = self.rate_limits().clone();
@@ -700,33 +711,23 @@ impl Project {
 
         match &mut self.state {
             State::Cached(state) => {
-                let state = Arc::clone(state);
-                let mode = state.get_extraction_mode();
+                let state = state.clone();
 
-                let buckets = self.pre_process_buckets(
-                    outcome_aggregator.clone(),
-                    metric_stats.clone(),
-                    mode,
+                // We can send metrics straight to the aggregator.
+                relay_log::debug!("sending metrics straight to aggregator");
+
+                // TODO: When the state is present but expired, we should send buckets
+                // to the metrics buffer instead. In practice, the project state should be
+                // refreshed at the time when the buckets emerge from the aggregator though.
+
+                self.rate_limit_and_merge_buckets(
+                    aggregator,
+                    envelope_processor,
+                    outcome_aggregator,
+                    metric_stats,
                     &state,
                     buckets,
                 );
-
-                if !buckets.is_empty() {
-                    // We can send metrics straight to the aggregator.
-                    relay_log::debug!("sending metrics straight to aggregator");
-
-                    // TODO: When the state is present but expired, we should send buckets
-                    // to the metrics buffer instead. In practice, the project state should be
-                    // refreshed at the time when the buckets emerge from the aggregator though.
-
-                    self.rate_limit_and_merge_buckets(
-                        aggregator,
-                        envelope_processor,
-                        outcome_aggregator,
-                        &state,
-                        buckets,
-                    );
-                }
             }
             State::Pending(inner_agg) => {
                 // We need to queue the metrics in a temporary aggregator until the project state becomes available.
@@ -953,19 +954,11 @@ impl Project {
         if let Some(buckets) = buckets {
             if project_enabled && !buckets.is_empty() {
                 relay_log::debug!("sending metrics from metricsbuffer to aggregator");
-
-                let buckets = self.pre_process_buckets(
-                    outcome_aggregator.clone(),
-                    metric_stats,
-                    state.get_extraction_mode(),
-                    &state,
-                    buckets,
-                );
-
                 self.rate_limit_and_merge_buckets(
                     aggregator,
                     envelope_processor,
                     outcome_aggregator,
+                    metric_stats,
                     &state,
                     buckets,
                 );
@@ -1272,8 +1265,28 @@ mod tests {
     use relay_metrics::BucketValue;
     use relay_test::mock_service;
     use serde_json::json;
+    use tokio::sync::mpsc::UnboundedReceiver;
 
     use super::*;
+
+    fn create_metric_stats() -> (MetricStats, UnboundedReceiver<Aggregator>) {
+        let config = Config::from_json_value(json!({
+            "processing": {
+                "enabled": true,
+                "kafka_config": [],
+            }
+        }))
+        .unwrap();
+
+        let mut global_config = GlobalConfig::default();
+        global_config.options.metric_stats_rollout_rate = 1.0;
+        let global_config = GlobalConfigHandle::fixed(global_config);
+
+        let (addr, receiver) = Addr::custom();
+        let ms = MetricStats::new(Arc::new(config), global_config, addr);
+
+        (ms, receiver)
+    }
 
     #[test]
     fn get_state_expired() {
@@ -1495,12 +1508,14 @@ mod tests {
         let (aggregator, mut aggregator_rx) = Addr::custom();
         let (envelope_processor, _) = Addr::custom();
         let (outcome_aggregator, _) = Addr::custom();
+        let (metric_stats, _) = create_metric_stats();
 
         let project = create_project(None);
         project.rate_limit_and_merge_buckets(
             aggregator,
             envelope_processor,
             outcome_aggregator,
+            metric_stats,
             &project.state_value().unwrap(),
             vec![create_transaction_metric()],
         );
@@ -1517,6 +1532,7 @@ mod tests {
         let (aggregator, mut aggregator_rx) = Addr::custom();
         let (envelope_processor, _) = Addr::custom();
         let (outcome_aggregator, _) = Addr::custom();
+        let (metric_stats, _) = create_metric_stats();
 
         let project = create_project(Some(json!({
             "quotas": [{
@@ -1531,6 +1547,7 @@ mod tests {
             aggregator,
             envelope_processor,
             outcome_aggregator,
+            metric_stats,
             &project.state_value().unwrap(),
             vec![create_transaction_metric()],
         );
@@ -1555,12 +1572,14 @@ mod tests {
         let (aggregator, mut aggregator_rx) = Addr::custom();
         let (envelope_processor, _) = Addr::custom();
         let (outcome_aggregator, _) = Addr::custom();
+        let (metric_stats, _) = create_metric_stats();
 
         let project = create_project(None);
         project.rate_limit_and_merge_buckets(
             aggregator,
             envelope_processor,
             outcome_aggregator,
+            metric_stats,
             &project.state_value().unwrap(),
             vec![create_transaction_bucket()],
         );
@@ -1577,6 +1596,7 @@ mod tests {
         let (aggregator, mut aggregator_rx) = Addr::custom();
         let (envelope_processor, _) = Addr::custom();
         let (outcome_aggregator, _) = Addr::custom();
+        let (metric_stats, _) = create_metric_stats();
 
         let project = create_project(Some(json!({
             "quotas": [{
@@ -1591,6 +1611,7 @@ mod tests {
             aggregator,
             envelope_processor,
             outcome_aggregator,
+            metric_stats,
             &project.state_value().unwrap(),
             vec![create_transaction_bucket()],
         );
