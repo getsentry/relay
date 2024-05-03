@@ -182,12 +182,63 @@
 <a href="#180" id="180">180</a>
 <a href="#181" id="181">181</a>
 <a href="#182" id="182">182</a>
+<a href="#183" id="183">183</a>
+<a href="#184" id="184">184</a>
+<a href="#185" id="185">185</a>
+<a href="#186" id="186">186</a>
+<a href="#187" id="187">187</a>
+<a href="#188" id="188">188</a>
+<a href="#189" id="189">189</a>
+<a href="#190" id="190">190</a>
+<a href="#191" id="191">191</a>
+<a href="#192" id="192">192</a>
+<a href="#193" id="193">193</a>
+<a href="#194" id="194">194</a>
+<a href="#195" id="195">195</a>
+<a href="#196" id="196">196</a>
+<a href="#197" id="197">197</a>
+<a href="#198" id="198">198</a>
+<a href="#199" id="199">199</a>
+<a href="#200" id="200">200</a>
+<a href="#201" id="201">201</a>
+<a href="#202" id="202">202</a>
+<a href="#203" id="203">203</a>
+<a href="#204" id="204">204</a>
+<a href="#205" id="205">205</a>
+<a href="#206" id="206">206</a>
+<a href="#207" id="207">207</a>
+<a href="#208" id="208">208</a>
+<a href="#209" id="209">209</a>
+<a href="#210" id="210">210</a>
+<a href="#211" id="211">211</a>
+<a href="#212" id="212">212</a>
+<a href="#213" id="213">213</a>
+<a href="#214" id="214">214</a>
+<a href="#215" id="215">215</a>
+<a href="#216" id="216">216</a>
+<a href="#217" id="217">217</a>
+<a href="#218" id="218">218</a>
+<a href="#219" id="219">219</a>
+<a href="#220" id="220">220</a>
+<a href="#221" id="221">221</a>
+<a href="#222" id="222">222</a>
+<a href="#223" id="223">223</a>
+<a href="#224" id="224">224</a>
+<a href="#225" id="225">225</a>
+<a href="#226" id="226">226</a>
+<a href="#227" id="227">227</a>
+<a href="#228" id="228">228</a>
+<a href="#229" id="229">229</a>
+<a href="#230" id="230">230</a>
+<a href="#231" id="231">231</a>
+<a href="#232" id="232">232</a>
+<a href="#233" id="233">233</a>
+<a href="#234" id="234">234</a>
+<a href="#235" id="235">235</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Routing logic for metrics. Metrics from different namespaces may be routed to different aggregators,
 //! with their own limits, bucket intervals, etc.
 
-</span><span class="kw">use </span>std::collections::BTreeMap;
-
-<span class="kw">use </span>itertools::Itertools;
+</span><span class="kw">use </span>itertools::Itertools;
 <span class="kw">use </span>relay_system::{Addr, NoResponse, Recipient, Service};
 <span class="kw">use </span>serde::{Deserialize, Serialize};
 
@@ -214,15 +265,51 @@
 #[serde(tag = <span class="string">"op"</span>, rename_all = <span class="string">"lowercase"</span>)]
 </span><span class="kw">pub enum </span>Condition {
     <span class="doccomment">/// Checks for equality on a specific field.
-    </span>Eq(Field),
+    </span>Eq(FieldCondition),
+    <span class="doccomment">/// Matches if all conditions are true.
+    </span>And {
+        <span class="doccomment">/// Inner rules to combine.
+        </span>inner: Vec&lt;Condition&gt;,
+    },
+    <span class="doccomment">/// Matches if any condition is true.
+    </span>Or {
+        <span class="doccomment">/// Inner rules to combine.
+        </span>inner: Vec&lt;Condition&gt;,
+    },
+    <span class="doccomment">/// Inverts the condition.
+    </span>Not {
+        <span class="doccomment">/// Inner rule to negate.
+        </span>inner: Box&lt;Condition&gt;,
+    },
+}
+
+<span class="kw">impl </span>Condition {
+    <span class="doccomment">/// Checks if the condition matches the given namespace.
+    </span><span class="kw">pub fn </span>matches(<span class="kw-2">&amp;</span><span class="self">self</span>, namespace: <span class="prelude-ty">Option</span>&lt;MetricNamespace&gt;) -&gt; bool {
+        <span class="kw">match </span><span class="self">self </span>{
+            Condition::Eq(field) =&gt; field.matches(namespace),
+            Condition::And { inner } =&gt; inner.iter().all(|cond| cond.matches(namespace)),
+            Condition::Or { inner } =&gt; inner.iter().any(|cond| cond.matches(namespace)),
+            Condition::Not { inner } =&gt; !inner.matches(namespace),
+        }
+    }
 }
 
 <span class="doccomment">/// Defines a field and a field value to compare to when a [`Condition`] is evaluated.
 </span><span class="attr">#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(tag = <span class="string">"field"</span>, content = <span class="string">"value"</span>, rename_all = <span class="string">"lowercase"</span>)]
-</span><span class="kw">pub enum </span>Field {
+</span><span class="kw">pub enum </span>FieldCondition {
     <span class="doccomment">/// Field that allows comparison to a metric or bucket's namespace.
     </span>Namespace(MetricNamespace),
+}
+
+<span class="kw">impl </span>FieldCondition {
+    <span class="kw">fn </span>matches(<span class="kw-2">&amp;</span><span class="self">self</span>, namespace: <span class="prelude-ty">Option</span>&lt;MetricNamespace&gt;) -&gt; bool {
+        <span class="kw">match </span>(<span class="self">self</span>, namespace) {
+            (FieldCondition::Namespace(expected), <span class="prelude-val">Some</span>(actual)) =&gt; expected == <span class="kw-2">&amp;</span>actual,
+            <span class="kw">_ </span>=&gt; <span class="bool-val">false</span>,
+        }
+    }
 }
 
 <span class="doccomment">/// Service that routes metrics &amp; metric buckets to the appropriate aggregator.
@@ -231,29 +318,22 @@
 /// Metrics are routed to the first aggregator which matches the configuration's [`Condition`].
 /// If no condition matches, the metric/bucket is routed to the `default_aggregator`.
 </span><span class="kw">pub struct </span>RouterService {
-    default_aggregator: AggregatorService,
-    secondary_aggregators: BTreeMap&lt;MetricNamespace, AggregatorService&gt;,
+    default_config: AggregatorServiceConfig,
+    secondary_configs: Vec&lt;ScopedAggregatorConfig&gt;,
+    receiver: <span class="prelude-ty">Option</span>&lt;Recipient&lt;FlushBuckets, NoResponse&gt;&gt;,
 }
 
 <span class="kw">impl </span>RouterService {
     <span class="doccomment">/// Create a new router service.
     </span><span class="kw">pub fn </span>new(
-        aggregator_config: AggregatorServiceConfig,
-        secondary_aggregators: Vec&lt;ScopedAggregatorConfig&gt;,
+        default_config: AggregatorServiceConfig,
+        secondary_configs: Vec&lt;ScopedAggregatorConfig&gt;,
         receiver: <span class="prelude-ty">Option</span>&lt;Recipient&lt;FlushBuckets, NoResponse&gt;&gt;,
     ) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{
-            default_aggregator: AggregatorService::new(aggregator_config, receiver.clone()),
-            secondary_aggregators: secondary_aggregators
-                .into_iter()
-                .map(|c| {
-                    <span class="kw">let </span>Condition::Eq(Field::Namespace(namespace)) = c.condition;
-                    (
-                        namespace,
-                        AggregatorService::named(c.name, c.config, receiver.clone()),
-                    )
-                })
-                .collect(),
+            default_config,
+            secondary_configs,
+            receiver,
         }
     }
 }
@@ -284,33 +364,42 @@
 
 <span class="doccomment">/// Helper struct that holds the [`Addr`]s of started aggregators.
 </span><span class="kw">struct </span>StartedRouter {
-    default_aggregator: Addr&lt;Aggregator&gt;,
-    secondary_aggregators: BTreeMap&lt;MetricNamespace, Addr&lt;Aggregator&gt;&gt;,
+    default: Addr&lt;Aggregator&gt;,
+    secondary: Vec&lt;(Condition, Addr&lt;Aggregator&gt;)&gt;,
 }
 
 <span class="kw">impl </span>StartedRouter {
     <span class="kw">fn </span>start(router: RouterService) -&gt; <span class="self">Self </span>{
+        <span class="kw">let </span>RouterService {
+            default_config,
+            secondary_configs,
+            receiver,
+        } = router;
+
+        <span class="kw">let </span>secondary = secondary_configs
+            .into_iter()
+            .map(|scoped| {
+                <span class="kw">let </span>addr = AggregatorService::new(scoped.config, receiver.clone()).start();
+                (scoped.condition, addr)
+            })
+            .collect();
+
         <span class="self">Self </span>{
-            default_aggregator: router.default_aggregator.start(),
-            secondary_aggregators: router
-                .secondary_aggregators
-                .into_iter()
-                .map(|(key, service)| (key, service.start()))
-                .collect(),
+            default: AggregatorService::new(default_config, receiver).start(),
+            secondary,
         }
     }
 
     <span class="kw">fn </span>handle_message(<span class="kw-2">&amp;mut </span><span class="self">self</span>, msg: Aggregator) {
         <span class="kw">match </span>msg {
             Aggregator::AcceptsMetrics(<span class="kw">_</span>, sender) =&gt; {
-                <span class="kw">let </span>requests: Vec&lt;<span class="kw">_</span>&gt; = <span class="prelude-val">Some</span>(<span class="self">self</span>.default_aggregator.send(AcceptsMetrics))
-                    .into_iter()
-                    .chain(
-                        <span class="self">self</span>.secondary_aggregators
-                            .values_mut()
-                            .map(|agg| agg.send(AcceptsMetrics)),
-                    )
-                    .collect();
+                <span class="kw">let </span>requests = <span class="self">self
+                    </span>.secondary
+                    .iter()
+                    .map(|(<span class="kw">_</span>, agg)| agg.send(AcceptsMetrics))
+                    .chain(<span class="prelude-val">Some</span>(<span class="self">self</span>.default.send(AcceptsMetrics)))
+                    .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
+
                 tokio::spawn(<span class="kw">async </span>{
                     <span class="kw">let </span><span class="kw-2">mut </span>accepts = <span class="bool-val">true</span>;
                     <span class="kw">for </span>req <span class="kw">in </span>requests {
@@ -331,11 +420,12 @@
             .into_iter()
             .group_by(|bucket| bucket.name.try_namespace());
 
-        <span class="comment">// TODO: Parse MRI only once, move validation from Aggregator here.
-        </span><span class="kw">for </span>(namespace, group) <span class="kw">in </span>metrics_by_namespace.into_iter() {
-            <span class="kw">let </span>aggregator = namespace
-                .and_then(|ns| <span class="self">self</span>.secondary_aggregators.get(<span class="kw-2">&amp;</span>ns))
-                .unwrap_or(<span class="kw-2">&amp;</span><span class="self">self</span>.default_aggregator);
+        <span class="kw">for </span>(namespace, group) <span class="kw">in </span>metrics_by_namespace.into_iter() {
+            <span class="kw">let </span>aggregator = <span class="self">self
+                </span>.secondary
+                .iter()
+                .find_map(|(cond, addr)| cond.matches(namespace).then_some(addr))
+                .unwrap_or(<span class="kw-2">&amp;</span><span class="self">self</span>.default);
 
             aggregator.send(MergeBuckets::new(message.project_key, group.collect()));
         }
@@ -362,6 +452,22 @@
         )
         "###
         </span>);
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>condition_multiple_namespaces() {
+        <span class="kw">let </span>json = <span class="macro">json!</span>({
+            <span class="string">"op"</span>: <span class="string">"or"</span>,
+            <span class="string">"inner"</span>: [
+                {<span class="string">"op"</span>: <span class="string">"eq"</span>, <span class="string">"field"</span>: <span class="string">"namespace"</span>, <span class="string">"value"</span>: <span class="string">"spans"</span>},
+                {<span class="string">"op"</span>: <span class="string">"eq"</span>, <span class="string">"field"</span>: <span class="string">"namespace"</span>, <span class="string">"value"</span>: <span class="string">"custom"</span>}
+            ]
+        });
+
+        <span class="kw">let </span>condition = serde_json::from_value::&lt;Condition&gt;(json).unwrap();
+        <span class="macro">assert!</span>(condition.matches(<span class="prelude-val">Some</span>(MetricNamespace::Spans)));
+        <span class="macro">assert!</span>(condition.matches(<span class="prelude-val">Some</span>(MetricNamespace::Custom)));
+        <span class="macro">assert!</span>(!condition.matches(<span class="prelude-val">Some</span>(MetricNamespace::Transactions)));
     }
 }
 </code></pre></div></section></main></body></html>

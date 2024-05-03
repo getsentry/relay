@@ -2474,9 +2474,6 @@
 <a href="#2472" id="2472">2472</a>
 <a href="#2473" id="2473">2473</a>
 <a href="#2474" id="2474">2474</a>
-<a href="#2475" id="2475">2475</a>
-<a href="#2476" id="2476">2476</a>
-<a href="#2477" id="2477">2477</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::io::Write;
@@ -2494,9 +2491,7 @@
     TopicAssignments,
 };
 <span class="kw">use </span>relay_metrics::aggregator::{AggregatorConfig, ShiftKey};
-<span class="kw">use </span>relay_metrics::{
-    AggregatorServiceConfig, Condition, Field, MetricNamespace, ScopedAggregatorConfig,
-};
+<span class="kw">use </span>relay_metrics::{AggregatorServiceConfig, MetricNamespace, ScopedAggregatorConfig};
 <span class="kw">use </span>relay_redis::RedisConfig;
 <span class="kw">use </span>serde::de::{DeserializeOwned, Unexpected, Visitor};
 <span class="kw">use </span>serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -4883,9 +4878,8 @@
     <span class="doccomment">/// Returns aggregator config for a given metrics namespace.
     </span><span class="kw">pub fn </span>aggregator_config_for(<span class="kw-2">&amp;</span><span class="self">self</span>, namespace: MetricNamespace) -&gt; <span class="kw-2">&amp;</span>AggregatorServiceConfig {
         <span class="kw">for </span>entry <span class="kw">in </span><span class="kw-2">&amp;</span><span class="self">self</span>.values.secondary_aggregators {
-            <span class="kw">match </span>entry.condition {
-                Condition::Eq(Field::Namespace(ns)) <span class="kw">if </span>ns == namespace =&gt; <span class="kw">return </span><span class="kw-2">&amp;</span>entry.config,
-                <span class="kw">_ </span>=&gt; (),
+            <span class="kw">if </span>entry.condition.matches(<span class="prelude-val">Some</span>(namespace)) {
+                <span class="kw">return </span><span class="kw-2">&amp;</span>entry.config;
             }
         }
         <span class="kw-2">&amp;</span><span class="self">self</span>.values.aggregator
