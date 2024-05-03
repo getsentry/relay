@@ -90,7 +90,12 @@ pub(crate) fn scrub_span_description(
                 }
             }
             ("resource", ty) => scrub_resource(ty, description),
-            ("ai", sub) if sub.starts_with("run.") || sub.starts_with("pipeline.") => {
+            ("ai", sub)
+                if sub.starts_with("run.")
+                    || sub == "run"
+                    || sub.starts_with("pipeline.")
+                    || sub == "pipeline" =>
+            {
                 // ai.run.* and ai.pipeline.* are low cardinality (<100 per org) and describe
                 // the names of nodes of an AI pipeline.
                 Some(description.to_owned())
