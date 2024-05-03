@@ -1321,14 +1321,21 @@ def test_kafka_ssl(relay_with_processing):
 
 
 @pytest.mark.parametrize(
+    "force_full_normalization",
+    [False, True],
+)
+@pytest.mark.parametrize(
     "normalization_level",
     ["disabled", "default", "full"],
 )
 def test_relay_normalization(
-    mini_sentry,
-    relay,
-    normalization_level,
+    mini_sentry, relay, normalization_level, force_full_normalization
 ):
+    if force_full_normalization:
+        mini_sentry.global_config["options"] = {
+            "relay.force_full_normalization": True,
+        }
+
     project_id = 42
     mini_sentry.add_basic_project_config(project_id)
     relay = relay(
@@ -1341,26 +1348,34 @@ def test_relay_normalization(
 
     ingested = mini_sentry.captured_events.get(timeout=1).get_event()
 
-    if normalization_level == "disabled":
+    if not force_full_normalization and normalization_level == "disabled":
+        assert not force_full_normalization
         assert ingested["dist"] == "   foo   "
         assert ingested["other"] == {"should i be deleted": True}
-    elif normalization_level == "default":
+    elif not force_full_normalization and normalization_level == "default":
         assert ingested["dist"] == "foo"
         assert ingested["other"] == {"should i be deleted": True}
     else:
+        assert force_full_normalization or normalization_level == "full"
         assert ingested["dist"] == "foo"
         assert ingested["other"] is None
 
 
 @pytest.mark.parametrize(
-    "normalization_level, from_internal, expect_full_normalization",
+    "disable_normalization, normalization_level, from_internal, expect_full_normalization",
     [
-        ("disabled", False, True),
-        ("disabled", True, False),
-        ("default", False, True),
-        ("default", True, True),
-        ("full", False, True),
-        ("full", True, True),
+        (False, "disabled", False, True),
+        (True, "disabled", False, True),
+        (False, "disabled", True, False),
+        (True, "disabled", True, False),
+        (False, "default", False, True),
+        (True, "default", False, True),
+        (False, "default", True, True),
+        (True, "default", True, False),
+        (False, "full", False, True),
+        (True, "full", False, True),
+        (False, "full", True, True),
+        (True, "full", True, False),
     ],
 )
 def test_processing_relay_normalization(
@@ -1371,7 +1386,13 @@ def test_processing_relay_normalization(
     normalization_level,
     from_internal,
     expect_full_normalization,
+    disable_normalization,
 ):
+    if disable_normalization:
+        mini_sentry.global_config["options"] = {
+            "relay.disable_normalization.processing": True,
+        }
+
     project_id = 42
     mini_sentry.add_basic_project_config(project_id)
     events_consumer = events_consumer()
@@ -1409,9 +1430,33 @@ def test_processing_relay_normalization(
         assert ingested["other"] == {"should i be deleted": True}
 
 
+@pytest.mark.parametrize(
+    "force_relay_normalization, disable_processing_normalization",
+    [
+        (False, False),
+        (False, True),
+        (True, False),
+        (True, True),
+    ],
+)
 def test_relay_chain_normalization(
-    mini_sentry, events_consumer, relay_with_processing, relay, relay_credentials
+    mini_sentry,
+    events_consumer,
+    relay_with_processing,
+    relay,
+    relay_credentials,
+    force_relay_normalization,
+    disable_processing_normalization,
 ):
+    if force_relay_normalization:
+        mini_sentry.global_config["options"] = {
+            "relay.force_full_normalization": True,
+        }
+    if disable_processing_normalization:
+        mini_sentry.global_config["options"] = {
+            "relay.disable_normalization.processing": True,
+        }
+
     project_id = 42
     mini_sentry.add_basic_project_config(project_id)
     events_consumer = events_consumer()

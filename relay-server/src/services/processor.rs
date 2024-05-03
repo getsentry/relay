@@ -1253,24 +1253,35 @@ impl EnvelopeProcessorService {
         &self,
         state: &mut ProcessEnvelopeState<G>,
     ) -> Result<(), ProcessingError> {
-        let full_normalization = match self.inner.config.normalization_level() {
-            NormalizationLevel::Disabled => {
-                // We assume envelopes coming from an internal relay have
-                // already been normalized. During incidents, like a PoP region
-                // not being available, envelopes can go to other PoP regions or
-                // directly to processing relays. Events should be fully
-                // normalized, independently of the ingestion path.
-                if self.inner.config.processing_enabled()
-                    && (!state.envelope().meta().is_from_internal_relay())
-                {
-                    true
-                } else {
-                    relay_log::trace!("Skipping event normalization");
-                    return Ok(());
+        let options = &self.inner.global_config.current().options;
+
+        let full_normalization = if self.inner.config.processing_enabled()
+            && options.processing_disable_normalization
+            && (state.envelope().meta().is_from_internal_relay())
+        {
+            return Ok(());
+        } else if !self.inner.config.processing_enabled() && options.force_full_normalization {
+            true
+        } else {
+            match self.inner.config.normalization_level() {
+                NormalizationLevel::Disabled => {
+                    // We assume envelopes coming from an internal relay have
+                    // already been normalized. During incidents, like a PoP region
+                    // not being available, envelopes can go to other PoP regions or
+                    // directly to processing relays. Events should be fully
+                    // normalized, independently of the ingestion path.
+                    if self.inner.config.processing_enabled()
+                        && (!state.envelope().meta().is_from_internal_relay())
+                    {
+                        true
+                    } else {
+                        relay_log::trace!("Skipping event normalization");
+                        return Ok(());
+                    }
                 }
+                NormalizationLevel::Full => true,
+                NormalizationLevel::Default => self.inner.config.processing_enabled(),
             }
-            NormalizationLevel::Full => true,
-            NormalizationLevel::Default => self.inner.config.processing_enabled(),
         };
 
         if let Some(sampling_state) = state.sampling_project_state.clone() {
