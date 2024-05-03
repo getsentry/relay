@@ -44,7 +44,7 @@ impl AsRef<str> for TraceId {
 /// A 16-character hex string as described in the W3C trace context spec.
 #[derive(Clone, Debug, Default, Eq, Hash, PartialEq, Empty, IntoValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
-pub struct SpanId(pub String);
+pub struct SpanId(pub u64);
 
 relay_common::impl_str_serde!(SpanId, "a span identifier");
 
@@ -52,28 +52,29 @@ impl FromStr for SpanId {
     type Err = Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Ok(SpanId(s.to_string()))
+        Ok(SpanId(
+            u64::from_str_radix(s, 16).map_err(|_| Error::invalid("invalid span id"))?,
+        ))
     }
 }
 
 impl fmt::Display for SpanId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.0)
+        write!(f, "{:x}", self.0)
     }
 }
 
 impl FromValue for SpanId {
     fn from_value(value: Annotated<Value>) -> Annotated<Self> {
         match value {
-            Annotated(Some(Value::String(value)), mut meta) => {
-                if !is_hex_string(&value, 16) || value.bytes().all(|x| x == b'0') {
-                    meta.add_error(Error::invalid("not a valid span id"));
+            Annotated(Some(Value::String(value)), mut meta) => match SpanId::from_str(&value) {
+                Ok(value) => Annotated(Some(value), meta),
+                Err(e) => {
+                    meta.add_error(e);
                     meta.set_original_value(Some(value));
                     Annotated(None, meta)
-                } else {
-                    Annotated(Some(SpanId(value.to_ascii_lowercase())), meta)
                 }
-            }
+            },
             Annotated(None, meta) => Annotated(None, meta),
             Annotated(Some(value), mut meta) => {
                 meta.add_error(Error::expected("span id"));
@@ -81,12 +82,6 @@ impl FromValue for SpanId {
                 Annotated(None, meta)
             }
         }
-    }
-}
-
-impl AsRef<str> for SpanId {
-    fn as_ref(&self) -> &str {
-        &self.0
     }
 }
 
@@ -296,8 +291,8 @@ mod tests {
 }"#;
         let context = Annotated::new(Context::Trace(Box::new(TraceContext {
             trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
-            span_id: Annotated::new(SpanId("fa90fdead5f74052".into())),
-            parent_span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
+            span_id: Annotated::new(SpanId(0xfa90fdead5f74052)),
+            parent_span_id: Annotated::new(SpanId(0xfa90fdead5f74053)),
             op: Annotated::new("http".into()),
             status: Annotated::new(SpanStatus::Ok),
             exclusive_time: Annotated::new(0.0),
@@ -349,7 +344,7 @@ mod tests {
 }"#;
         let context = Annotated::new(Context::Trace(Box::new(TraceContext {
             trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
-            span_id: Annotated::new(SpanId("fa90fdead5f74052".into())),
+            span_id: Annotated::new(SpanId(0xfa90fdead5f74052)),
             ..Default::default()
         })));
 
@@ -368,7 +363,7 @@ mod tests {
 }"#;
         let context = Annotated::new(Context::Trace(Box::new(TraceContext {
             trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
-            span_id: Annotated::new(SpanId("fa90fdead5f74052".into())),
+            span_id: Annotated::new(SpanId(0xfa90fdead5f74052)),
             data: Annotated::new(Data {
                 route: Annotated::new(Route {
                     name: Annotated::new("HomeRoute".into()),

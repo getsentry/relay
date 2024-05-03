@@ -690,7 +690,7 @@ mod tests {
                 "trace".into(),
                 ContextInner(Context::Trace(Box::new(TraceContext {
                     trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
-                    span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
+                    span_id: Annotated::new(SpanId(0xfa90fdead5f74053)),
                     exclusive_time: 1000.0.into(),
                     ..Default::default()
                 })))

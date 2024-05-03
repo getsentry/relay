@@ -7,6 +7,7 @@
 //! unpack it before it's forwarded down the line.
 //!
 use std::collections::{BTreeMap, HashMap};
+use std::str::FromStr;
 
 use android_trace_log::chrono::{DateTime, Utc};
 use android_trace_log::{AndroidTraceLog, Clock, Vm};
@@ -233,7 +234,7 @@ pub fn parse_android_profile(
 
     if let Some(segment_id) = transaction_metadata.get("segment_id") {
         if let Some(transaction_metadata) = profile.metadata.transaction.as_mut() {
-            transaction_metadata.segment_id = Some(SpanId(segment_id.to_owned()));
+            transaction_metadata.segment_id = SpanId::from_str(segment_id).ok();
         }
     }
 
