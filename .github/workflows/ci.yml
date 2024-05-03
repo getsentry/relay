@@ -186,16 +186,23 @@ jobs:
     if: "!startsWith(github.ref, 'refs/heads/release-library/')"
 
     env:
-      RUN_ALL: "${{ github.ref == 'refs/heads/master' || contains(github.event.pull_request.labels.*.name, 'Trigger: Full-Build') }}"
+      FULL_CI: "${{
+        github.ref == 'refs/heads/master'
+        || contains(github.event.pull_request.labels.*.name, 'Trigger: Full-CI')
+      }}"
 
     steps:
       - id: set-outputs
         run: |
-          echo $RUN_ALL
-
-          echo 'image_names=["relay", "relay-pop"]' >> $GITHUB_OUTPUT
-          echo "targets=[x86_64-unknown-linux-gnu, aarch64-unknown-linux-gnu]" >> $GITHUB_OUTPUT
-
+          if [[ "$FULL_CI" == "true" ]]; then
+            echo "Running full CI"
+            echo 'image_names=["relay", "relay-pop"]' >> $GITHUB_OUTPUT
+            echo 'targets=["x86_64-unknown-linux-gnu", "aarch64-unknown-linux-gnu"]' >> $GITHUB_OUTPUT
+          else
+            echo "Skipping some CI steps"
+            echo 'image_names=["relay"]' >> $GITHUB_OUTPUT
+            echo 'targets=["x86_64-unknown-linux-gnu"]' >> $GITHUB_OUTPUT
+          fi
     outputs:
       image_names: "${{ steps.set-outputs.outputs.image_names }}"
       targets: "${{ steps.set-outputs.outputs.targets }}"
@@ -277,14 +284,14 @@ jobs:
 
   build-docker:
     timeout-minutes: 5
-    needs: build
+    needs: [build-setup, build]
 
     name: Build Docker Image
     runs-on: ubuntu-latest
 
     strategy:
       matrix:
-        image_name: [relay, relay-pop]
+        image_name: ${{ fromJson(needs.build-setup.outputs.image_names) }}
 
     env:
       PLATFORMS: "linux/amd64,linux/arm64"
@@ -315,7 +322,7 @@ jobs:
             --push .
 
   publish-to-dockerhub:
-    needs: build-docker
+    needs: [build-setup, build-docker]
 
     runs-on: ubuntu-20.04
     name: Publish Relay to DockerHub
@@ -356,14 +363,14 @@ jobs:
 
   publish-to-gcr:
     timeout-minutes: 5
-    needs: build-docker
+    needs: [build-setup, build-docker]
 
     name: Publish Relay to GCR
     runs-on: ubuntu-latest
 
     strategy:
       matrix:
-        image_name: [relay, relay-pop]
+        image_name: ${{ fromJson(needs.build-setup.outputs.image_names) }}
 
     # required for google auth
     permissions:
@@ -413,14 +420,14 @@ jobs:
 
   gocd-artifacts:
     timeout-minutes: 5
-    needs: build-docker
+    needs: [build-setup, build-docker]
 
     name: Upload build artifacts to gocd
     runs-on: ubuntu-latest
 
     strategy:
       matrix:
-        image_name: [relay, relay-pop]
+        image_name: ${{ fromJson(needs.build-setup.outputs.image_names) }}
 
     # required for google auth
     permissions:
