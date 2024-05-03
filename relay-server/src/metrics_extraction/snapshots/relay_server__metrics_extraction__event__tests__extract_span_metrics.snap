@@ -2233,6 +2233,7 @@ expression: metrics
         ),
         tags: {
             "cache.hit": "false",
+            "environment": "fake_environment",
             "span.category": "cache",
             "span.description": "GET *",
             "span.group": "37e3d9fab1ae9162",
@@ -2267,6 +2268,27 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "d:spans/cache.item_size@byte",
+        ),
+        value: Distribution(
+            [
+                8.0,
+            ],
+        ),
+        tags: {
+            "cache.hit": "false",
+            "environment": "fake_environment",
+            "span.op": "cache.get_item",
+            "transaction": "gEt /api/:version/users/",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
         },
     },
     Bucket {
@@ -5633,6 +5655,7 @@ expression: metrics
         ),
         tags: {
             "cache.hit": "false",
+            "environment": "fake_environment",
             "span.category": "cache",
             "span.description": "GET *",
             "span.group": "37e3d9fab1ae9162",
@@ -5667,6 +5690,27 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "d:spans/cache.item_size@byte",
+        ),
+        value: Distribution(
+            [
+                10.0,
+            ],
+        ),
+        tags: {
+            "cache.hit": "false",
+            "environment": "fake_environment",
+            "span.op": "cache.get_item",
+            "transaction": "gEt /api/:version/users/",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
         },
     },
     Bucket {
@@ -5724,6 +5768,7 @@ expression: metrics
         ),
         tags: {
             "cache.hit": "true",
+            "environment": "fake_environment",
             "span.category": "cache",
             "span.description": "GET *",
             "span.group": "37e3d9fab1ae9162",
@@ -6642,6 +6687,7 @@ expression: metrics
             "messaging.destination.name": "default",
             "span.category": "queue",
             "span.op": "queue.task.celery",
+            "trace.status": "ok",
             "transaction": "gEt /api/:version/users/",
             "transaction.op": "myop",
         },
@@ -6667,6 +6713,7 @@ expression: metrics
             "messaging.destination.name": "default",
             "span.category": "queue",
             "span.op": "queue.task.celery",
+            "trace.status": "ok",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -6716,6 +6763,7 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "messaging.destination.name": "default",
             "span.op": "queue.task.celery",
             "transaction": "gEt /api/:version/users/",
         },
@@ -6759,6 +6807,7 @@ expression: metrics
             "messaging.destination.name": "default",
             "span.category": "queue",
             "span.op": "queue.submit.celery",
+            "trace.status": "ok",
             "transaction": "gEt /api/:version/users/",
             "transaction.op": "myop",
         },
@@ -6784,6 +6833,7 @@ expression: metrics
             "messaging.destination.name": "default",
             "span.category": "queue",
             "span.op": "queue.submit.celery",
+            "trace.status": "ok",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -6833,6 +6883,7 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "messaging.destination.name": "default",
             "span.op": "queue.submit.celery",
             "transaction": "gEt /api/:version/users/",
         },
@@ -6876,6 +6927,7 @@ expression: metrics
             "messaging.destination.name": "default",
             "span.category": "queue",
             "span.op": "queue.publish",
+            "trace.status": "ok",
             "transaction": "gEt /api/:version/users/",
             "transaction.op": "myop",
         },
@@ -6901,6 +6953,7 @@ expression: metrics
             "messaging.destination.name": "default",
             "span.category": "queue",
             "span.op": "queue.publish",
+            "trace.status": "ok",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -6950,6 +7003,7 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "messaging.destination.name": "default",
             "span.op": "queue.publish",
             "transaction": "gEt /api/:version/users/",
         },
@@ -6993,6 +7047,7 @@ expression: metrics
             "messaging.destination.name": "default",
             "span.category": "queue",
             "span.op": "queue.process",
+            "trace.status": "ok",
             "transaction": "gEt /api/:version/users/",
             "transaction.op": "myop",
         },
@@ -7018,6 +7073,7 @@ expression: metrics
             "messaging.destination.name": "default",
             "span.category": "queue",
             "span.op": "queue.process",
+            "trace.status": "ok",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -7067,6 +7123,7 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "messaging.destination.name": "default",
             "span.op": "queue.process",
             "transaction": "gEt /api/:version/users/",
         },

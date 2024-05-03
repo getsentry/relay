@@ -264,6 +264,9 @@ pub fn hardcoded_span_metrics() -> Vec<(String, Vec<MetricSpec>)> {
                         Tag::with_key("messaging.destination.name")
                             .from_field("span.sentry_tags.messaging.destination.name")
                             .when(is_queue_op.clone()),
+                        Tag::with_key("trace.status")
+                            .from_field("span.sentry_tags.trace.status")
+                            .when(is_queue_op.clone()),
                     ],
                 },
                 MetricSpec {
@@ -278,7 +281,8 @@ pub fn hardcoded_span_metrics() -> Vec<(String, Vec<MetricSpec>)> {
                                 is_db.clone()
                                     | is_resource.clone()
                                     | is_mobile.clone()
-                                    | is_http.clone(),
+                                    | is_http.clone()
+                                    | is_cache.clone(),
                             ),
                         Tag::with_key("transaction.op")
                             .from_field("span.sentry_tags.transaction.op")
@@ -329,6 +333,9 @@ pub fn hardcoded_span_metrics() -> Vec<(String, Vec<MetricSpec>)> {
                         // Queue module
                         Tag::with_key("messaging.destination.name")
                             .from_field("span.sentry_tags.messaging.destination.name")
+                            .when(is_queue_op.clone()),
+                        Tag::with_key("trace.status")
+                            .from_field("span.sentry_tags.trace.status")
                             .when(is_queue_op.clone()),
                     ],
                 },
@@ -382,7 +389,7 @@ pub fn hardcoded_span_metrics() -> Vec<(String, Vec<MetricSpec>)> {
                 MetricSpec {
                     category: DataCategory::Span,
                     mri: "d:spans/cache.item_size@byte".into(),
-                    field: Some("span.data.cache\\.item_size".into()),
+                    field: Some("span.measurements.cache.item_size.value".into()),
                     condition: Some(is_cache.clone()),
                     tags: vec![
                         Tag::with_key("environment")
@@ -785,6 +792,9 @@ pub fn hardcoded_span_metrics() -> Vec<(String, Vec<MetricSpec>)> {
                             .always(),
                         Tag::with_key("transaction")
                             .from_field("span.sentry_tags.transaction")
+                            .always(),
+                        Tag::with_key("messaging.destination.name")
+                            .from_field("span.sentry_tags.messaging.destination.name")
                             .always(),
                     ],
                 },
