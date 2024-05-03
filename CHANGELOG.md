@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Bug fixes:**
+
+- Properly handle AI metrics from the Python SDK's `@ai_track` decorator ([#3539](https://github.com/getsentry/relay/pull/3539))
+
 **Internal**:
 
 - Add metrics extraction config to global config. ([#3490](https://github.com/getsentry/relay/pull/3490), [#3504](https://github.com/getsentry/relay/pull/3504))
