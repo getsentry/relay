@@ -3644,7 +3644,7 @@ dependencies = [
 
 [[package]]
 name = "relay-cabi"
-version = "0.8.58"
+version = "0.8.60"
 dependencies = [
  "anyhow",
  "chrono",
@@ -3654,6 +3654,7 @@ dependencies = [
  "regex",
  "relay-auth",
  "relay-base-schema",
+ "relay-cardinality",
  "relay-common",
  "relay-dynamic-config",
  "relay-event-normalization",
@@ -3758,7 +3759,6 @@ name = "relay-dynamic-config"
 version = "24.4.2"
 dependencies = [
  "anyhow",
- "assert-json-diff",
  "indexmap 2.2.5",
  "insta",
  "relay-auth",
