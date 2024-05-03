@@ -28,6 +28,7 @@
 - Collect exclusive_time_light metrics for `cache.*` spans. ([#3466](https://github.com/getsentry/relay/pull/3466))
 - Build and publish ARM docker images for Relay. ([#3272](https://github.com/getsentry/relay/pull/3272)).
 - Remove `MetricMeta` feature flag and use `CustomMetrics` instead. ([#3503](https://github.com/getsentry/relay/pull/3503))
+- Emit negative outcomes for denied metrics. ([#3508](https://github.com/getsentry/relay/pull/3508))
 
 ## 24.4.1
 
