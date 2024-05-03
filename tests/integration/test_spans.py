@@ -496,6 +496,7 @@ def test_span_ingestion(
 
     assert spans == [
         {
+            "data": {"browser.name": "Chrome"},
             "description": "my 1st OTel span",
             "duration_ms": 500,
             "exclusive_time_ms": 500.0,
@@ -514,6 +515,7 @@ def test_span_ingestion(
             "trace_id": "89143b0763095bd9c9955e8175d1fb23",
         },
         {
+            "data": {"browser.name": "Chrome"},
             "description": "https://example.com/p/blah.js",
             "duration_ms": 1500,
             "exclusive_time_ms": 345.0,
@@ -537,6 +539,7 @@ def test_span_ingestion(
             "trace_id": "ff62a8b040f340bda5d830223def1d81",
         },
         {
+            "data": {"browser.name": "Chrome"},
             "description": r"test \" with \" escaped \" chars",
             "duration_ms": 1500,
             "exclusive_time_ms": 345.0,
@@ -551,6 +554,7 @@ def test_span_ingestion(
             "trace_id": "ff62a8b040f340bda5d830223def1d81",
         },
         {
+            "data": {"browser.name": "Python Requests"},
             "description": "my 2nd OTel span",
             "duration_ms": 500,
             "exclusive_time_ms": 500.0,
@@ -568,6 +572,7 @@ def test_span_ingestion(
             "trace_id": "89143b0763095bd9c9955e8175d1fb24",
         },
         {
+            "data": {"browser.name": "Chrome"},
             "duration_ms": 1500,
             "exclusive_time_ms": 345.0,
             "is_segment": False,
@@ -584,6 +589,7 @@ def test_span_ingestion(
             "trace_id": "ff62a8b040f340bda5d830223def1d81",
         },
         {
+            "data": {"browser.name": "Python Requests"},
             "description": "my 3rd protobuf OTel span",
             "duration_ms": 500,
             "exclusive_time_ms": 500.0,
@@ -1268,6 +1274,7 @@ def test_span_ingestion_with_performance_scores(
 
     assert spans == [
         {
+            "data": {"browser.name": "Python Requests"},
             "duration_ms": 1500,
             "exclusive_time_ms": 345.0,
             "is_segment": True,
@@ -1302,6 +1309,12 @@ def test_span_ingestion_with_performance_scores(
             },
         },
         {
+            "data": {
+                "browser.name": "Python Requests",
+                "sentry.replay.id": "8477286c8e5148b386b71ade38374d58",
+                "sentry.segment.name": "/page/with/click/interaction/*/*",
+                "user": "admin@sentry.io",
+            },
             "duration_ms": 1500,
             "exclusive_time_ms": 345.0,
             "is_segment": True,
