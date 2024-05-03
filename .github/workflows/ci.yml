@@ -194,19 +194,24 @@ jobs:
     steps:
       - id: set-outputs
         run: |
+          echo "full_ci=$FULL_CI" >> $GITHUB_OUTPUT
+
           if [[ "$FULL_CI" == "true" ]]; then
             echo "Running full CI"
             echo 'image_names=["relay", "relay-pop"]' >> $GITHUB_OUTPUT
             echo 'targets=["x86_64-unknown-linux-gnu", "aarch64-unknown-linux-gnu"]' >> $GITHUB_OUTPUT
+            echo 'platforms=["linux/amd64","linux/arm64"]' >> $GITHUB_OUTPUT
           else
             echo "Skipping some CI steps"
             echo 'image_names=["relay"]' >> $GITHUB_OUTPUT
             echo 'targets=["x86_64-unknown-linux-gnu"]' >> $GITHUB_OUTPUT
+            echo 'platforms=["linux/amd64"]' >> $GITHUB_OUTPUT
           fi
     outputs:
       image_names: "${{ steps.set-outputs.outputs.image_names }}"
       targets: "${{ steps.set-outputs.outputs.targets }}"
-
+      platforms: "${{ steps.set-outputs.outputs.platforms }}"
+      full_ci: "${{ steps.set-outputs.outputs.full_ci }}"
 
   build:
     needs: build-setup
@@ -215,7 +220,7 @@ jobs:
     strategy:
       matrix:
         image_name: ${{ fromJson(needs.build-setup.outputs.image_names) }}
-        target: ${{ fromJson(needs.build-setup.outputs.targets ) }}
+        target: ${{ fromJson(needs.build-setup.outputs.targets) }}
 
     name: Build Relay Binary
     runs-on: ubuntu-latest
@@ -294,7 +299,7 @@ jobs:
         image_name: ${{ fromJson(needs.build-setup.outputs.image_names) }}
 
     env:
-      PLATFORMS: "linux/amd64,linux/arm64"
+      PLATFORMS: "${{ join(fromJSON(needs.build-setup.outputs.platforms), ',') }}"
       DOCKER_IMAGE: "ghcr.io/getsentry/${{ matrix.image_name }}"
       REVISION: "${{ github.event.pull_request.head.sha || github.sha }}"
 
@@ -384,7 +389,7 @@ jobs:
 
     # Skip redundant checks for library releases
     # Skip for dependabot and if run on a fork
-    if: "!startsWith(github.ref, 'refs/heads/release-library/') && !github.event.pull_request.head.repo.fork && github.actor != 'dependabot[bot]'"
+    if: "!startsWith(github.ref, 'refs/heads/release-library/') && !github.event.pull_request.head.repo.fork && github.actor != 'dependabot[bot]' && "
 
     steps:
       - name: Install cosign
