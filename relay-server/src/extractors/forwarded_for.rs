@@ -9,26 +9,51 @@ use axum::http::HeaderMap;
 pub struct ForwardedFor(String);
 
 impl ForwardedFor {
-    const FORWARDED_HEADER: &'static str = "X-Forwarded-For";
-    const VERCEL_FORWARDED_HEADER: &'static str = "X-Vercel-Forwarded-For";
-    const SENTRY_FORWARDED_HEADER: &'static str = "X-Sentry-Forwarded-For";
-
-    /// We prefer the SENTRY_FORWARDED_HEADER over the standard header because our infrastructure
-    /// puts the contents of the incoming FORWARDED_HEADER into SENTRY_FORWARDED_HEADER for security
-    /// reasons. This also is a way for users who can't mutate the regular FORWARDED_HEADER to still
-    /// tell Sentry about forwarded ip.
+    /// The defacto standard header for identifying the originating IP address of a client, [`X-Forwarded-For`].
     ///
-    /// In Vercel environments the FORWARDED_HEADER value could be overwritten (which also makes the
-    /// SENTRY_FORWARDED_HEADER value inaccruate). This leads us to rely on the
-    /// VERCEL_FORWARDED_HEADER as the source of truth instead.
-    /// `https://vercel.com/docs/concepts/edge-network/headers#x-vercel-forwarded-for`
-    fn get_forwarded_for_ip(header_map: &HeaderMap) -> &str {
-        header_map
-            .get(Self::VERCEL_FORWARDED_HEADER)
-            .or_else(|| header_map.get(Self::SENTRY_FORWARDED_HEADER))
-            .or_else(|| header_map.get(Self::FORWARDED_HEADER))
-            .and_then(|v| v.to_str().ok())
-            .unwrap_or("")
+    /// [`X-Forwarded-For`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/X-Forwarded-For)
+    const FORWARDED_HEADER: &'static str = "X-Forwarded-For";
+    /// Sentry's custom forwarded for header.
+    ///
+    /// Clients or proxies can use `X-Sentry-Forwarded-For` when they cannot control the value of
+    /// the [`X-Forwarded-For`](Self::FORWARDED_HEADER) header.
+    ///
+    /// The Sentry SaaS infrastructure sets this header.
+    const SENTRY_FORWARDED_HEADER: &'static str = "X-Sentry-Forwarded-For";
+    /// Vercel forwards the client ip in its own [`X-Vercel-Forwarded-For`] header.
+    ///
+    /// [`X-Vercel-Forwarded-For`](https://vercel.com/docs/concepts/edge-network/headers#x-vercel-forwarded-for)
+    const VERCEL_FORWARDED_HEADER: &'static str = "X-Vercel-Forwarded-For";
+    /// Cloudflare forwards the client ip in its own [`CF-Connecting-IP`] header.
+    ///
+    /// [`CF-Connecting-IP`](https://developers.cloudflare.com/fundamentals/reference/http-request-headers/#cf-connecting-ip)
+    const CLOUDFLARE_FORWARDED_HEADER: &'static str = "CF-Connecting-IP";
+
+    /// Extracts the clients ip from a [`HeaderMap`].
+    ///
+    /// The function prioritizes more specific vendor headers over the more generic/common headers
+    /// to allow clients to override and modify headers even when they do not have control over
+    /// reverse proxies.
+    ///
+    /// First match wins in order:
+    /// - [`Self::VERCEL_FORWARDED_HEADER`]
+    /// - [`Self::CLOUDFLARE_FORWARDED_HEADER`]
+    /// - [`Self::SENTRY_FORWARDED_HEADER`]
+    /// - [`Self::FORWARDED_HEADER`].
+    fn get_forwarded_for_ip(header_map: &HeaderMap) -> Option<&str> {
+        // List of headers to check from highest to lowest priority.
+        let headers = [
+            Self::VERCEL_FORWARDED_HEADER,
+            Self::CLOUDFLARE_FORWARDED_HEADER,
+            Self::SENTRY_FORWARDED_HEADER,
+            Self::FORWARDED_HEADER,
+        ];
+
+        headers
+            .into_iter()
+            .flat_map(|header| header_map.get(header))
+            .flat_map(|value| value.to_str().ok())
+            .find(|value| !value.is_empty())
     }
 
     pub fn into_inner(self) -> String {
@@ -59,16 +84,15 @@ where
         let peer_addr = ConnectInfo::<SocketAddr>::from_request_parts(parts, state)
             .await
             .map(|ConnectInfo(peer)| peer.ip().to_string())
-            .unwrap_or_default();
+            .ok();
 
         let forwarded = Self::get_forwarded_for_ip(&parts.headers);
 
-        Ok(ForwardedFor(if forwarded.is_empty() {
-            peer_addr
-        } else if peer_addr.is_empty() {
-            forwarded.to_string()
-        } else {
-            format!("{forwarded}, {peer_addr}")
+        Ok(ForwardedFor(match (forwarded, peer_addr) {
+            (None, None) => String::new(),
+            (None, Some(peer_addr)) => peer_addr,
+            (Some(forwarded), None) => forwarded.to_owned(),
+            (Some(forwarded), Some(peer_addr)) => format!("{forwarded}, {peer_addr}"),
         }))
     }
 }
@@ -95,7 +119,27 @@ mod tests {
 
         let forwarded = ForwardedFor::get_forwarded_for_ip(&headermap);
 
-        assert_eq!(forwarded, vercel_ip);
+        assert_eq!(forwarded, Some(vercel_ip));
+    }
+
+    #[test]
+    fn test_prefer_cf_forwarded() {
+        let cf_ip = "192.158.1.38";
+        let other_ip = "111.222.3.44";
+
+        let mut headermap = HeaderMap::default();
+        headermap.insert(
+            ForwardedFor::CLOUDFLARE_FORWARDED_HEADER,
+            HeaderValue::from_str(cf_ip).unwrap(),
+        );
+        headermap.insert(
+            ForwardedFor::FORWARDED_HEADER,
+            HeaderValue::from_str(other_ip).unwrap(),
+        );
+
+        let forwarded = ForwardedFor::get_forwarded_for_ip(&headermap);
+
+        assert_eq!(forwarded, Some(cf_ip));
     }
 
     #[test]
@@ -115,7 +159,7 @@ mod tests {
 
         let forwarded = ForwardedFor::get_forwarded_for_ip(&headermap);
 
-        assert_eq!(forwarded, sentry_ip);
+        assert_eq!(forwarded, Some(sentry_ip));
     }
 
     /// If there's no vercel or sentry header then use the normal `X-Forwarded-For`-header.
@@ -131,17 +175,29 @@ mod tests {
 
         let forwarded = ForwardedFor::get_forwarded_for_ip(&headermap);
 
-        assert_eq!(forwarded, other_ip);
+        assert_eq!(forwarded, Some(other_ip));
     }
 
     #[test]
-    fn test_get_empty_string_if_invalid_header() {
+    fn test_get_none_if_empty_header() {
+        let mut headermap = HeaderMap::default();
+        headermap.insert(
+            ForwardedFor::FORWARDED_HEADER,
+            HeaderValue::from_str("").unwrap(),
+        );
+
+        let forwarded = ForwardedFor::get_forwarded_for_ip(&headermap);
+        assert!(forwarded.is_none());
+    }
+
+    #[test]
+    fn test_get_none_if_invalid_header() {
         let other_ip = "111.222.3.44";
 
         let mut headermap = HeaderMap::default();
         headermap.insert("X-Invalid-Header", HeaderValue::from_str(other_ip).unwrap());
 
         let forwarded = ForwardedFor::get_forwarded_for_ip(&headermap);
-        assert!(forwarded.is_empty());
+        assert!(forwarded.is_none());
     }
 }

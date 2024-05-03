@@ -324,6 +324,53 @@ def test_normalize_project_config():
     assert config != normalized
 
 
+def test_cardinality_limit_config_equal_normalization():
+    config = {
+        "id": "project-override-custom",
+        "window": {"windowSeconds": 3600, "granularitySeconds": 600},
+        "limit": 1000,
+        "namespace": "custom",
+        "scope": "name",
+        "passive": True,
+        "report": True,
+    }
+    sentry_relay.normalize_cardinality_limit_config(config)
+    assert config == sentry_relay.normalize_cardinality_limit_config(config)
+
+
+def test_cardinality_limit_config_subset_normalized():
+    config = {
+        "id": "project-override-custom",
+        "window": {"windowSeconds": 3600, "granularitySeconds": 600},
+        "limit": 1000,
+        "namespace": "custom",
+        "scope": "name",
+        "passive": False,
+        "report": False,
+        "unknown": "value",
+    }
+    normalized = sentry_relay.normalize_cardinality_limit_config(config)
+    config.pop("passive")
+    config.pop("report")
+    config.pop("unknown")
+    assert config == normalized
+
+
+def test_cardinality_limit_config_unparsable():
+    config = {
+        "id": "project-override-custom",
+        "window": {"windowSeconds": 3600, "granularitySeconds": 600},
+        "limit": -1,
+        "namespace": "custom",
+        "scope": "name",
+    }
+    with pytest.raises(ValueError) as e:
+        sentry_relay.normalize_cardinality_limit_config(config)
+    assert (
+        str(e.value) == "invalid value: integer `-1`, expected u32 at line 1 column 107"
+    )
+
+
 def test_global_config_equal_normalization():
     config = {"measurements": {"maxCustomMeasurements": 0}}
     assert config == sentry_relay.normalize_global_config(config)

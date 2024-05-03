@@ -6,6 +6,7 @@
 use std::f64::consts::SQRT_2;
 
 use relay_event_schema::protocol::{Event, ResponseContext, Span, TraceContext, User};
+use relay_protocol::Value;
 
 /// Used to decide when to extract mobile-specific tags.
 pub const MOBILE_SDKS: [&str; 4] = [
@@ -31,10 +32,14 @@ pub fn http_status_code_from_span(span: &Span) -> Option<String> {
         .data
         .value()
         .and_then(|data| data.http_response_status_code.value())
-        .and_then(|v| v.as_str())
-        .map(|v| v.to_string())
+        .map(|v| match v {
+            Value::String(s) => Some(s.as_str().to_owned()),
+            Value::I64(i) => Some(i.to_string()),
+            Value::U64(u) => Some(u.to_string()),
+            _ => None,
+        })
     {
-        return Some(status_code);
+        return status_code;
     }
 
     // For SDKs which put the HTTP status code into the span tags.
@@ -194,8 +199,8 @@ pub fn calculate_cdf_score(value: f64, p10: f64, p50: f64) -> f64 {
 
 #[cfg(test)]
 mod tests {
-    use crate::utils::get_event_user_tag;
-    use relay_event_schema::protocol::User;
+    use crate::utils::{get_event_user_tag, http_status_code_from_span};
+    use relay_event_schema::protocol::{Span, User};
     use relay_protocol::Annotated;
 
     #[test]
@@ -240,5 +245,23 @@ mod tests {
         let user = User::default();
 
         assert!(get_event_user_tag(&user).is_none());
+    }
+
+    #[test]
+    fn test_extracts_http_status_code_when_int() {
+        let span = Annotated::<Span>::from_json(
+            r#"{
+                "data": {
+                    "http.response.status_code": 400
+                }
+            }"#,
+        )
+        .unwrap()
+        .into_value()
+        .unwrap();
+
+        let result = http_status_code_from_span(&span);
+
+        assert_eq!(result, Some("400".to_string()));
     }
 }

@@ -10,6 +10,7 @@ use std::slice;
 use std::sync::OnceLock;
 
 use chrono::{DateTime, Utc};
+use relay_cardinality::CardinalityLimit;
 use relay_common::glob::{glob_match_bytes, GlobOptions};
 use relay_dynamic_config::{normalize_json, GlobalConfig, ProjectConfig};
 use relay_event_normalization::{
@@ -477,6 +478,17 @@ pub unsafe extern "C" fn relay_validate_sampling_configuration(value: *const Rel
 pub unsafe extern "C" fn relay_normalize_project_config(value: *const RelayStr) -> RelayStr {
     let value = (*value).as_str();
     match normalize_json::<ProjectConfig>(value) {
+        Ok(normalized) => RelayStr::from_string(normalized),
+        Err(e) => RelayStr::from_string(e.to_string()),
+    }
+}
+
+/// Normalize a cardinality limit config.
+#[no_mangle]
+#[relay_ffi::catch_unwind]
+pub unsafe extern "C" fn normalize_cardinality_limit_config(value: *const RelayStr) -> RelayStr {
+    let value = (*value).as_str();
+    match normalize_json::<CardinalityLimit>(value) {
         Ok(normalized) => RelayStr::from_string(normalized),
         Err(e) => RelayStr::from_string(e.to_string()),
     }
