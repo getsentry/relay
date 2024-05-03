@@ -47,7 +47,8 @@ pub enum Condition {
 }
 
 impl Condition {
-    fn matches(&self, namespace: Option<MetricNamespace>) -> bool {
+    /// Checks if the condition matches the given namespace.
+    pub fn matches(&self, namespace: Option<MetricNamespace>) -> bool {
         match self {
             Condition::Eq(field) => field.matches(namespace),
             Condition::And { inner } => inner.iter().all(|cond| cond.matches(namespace)),
