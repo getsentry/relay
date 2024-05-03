@@ -15,8 +15,8 @@ use crate::protocol::{
     AppContext, Breadcrumb, Breakdowns, BrowserContext, ClientSdkInfo, Contexts, Csp, DebugMeta,
     DefaultContext, DeviceContext, EventType, Exception, ExpectCt, ExpectStaple, Fingerprint, Hpkp,
     LenientString, Level, LogEntry, Measurements, Metrics, MetricsSummary, OsContext,
-    ProfileContext, RelayInfo, Request, ResponseContext, Span, Stacktrace, Tags, TemplateInfo,
-    Thread, Timestamp, TraceContext, TransactionInfo, User, Values,
+    ProfileContext, RelayInfo, Request, ResponseContext, Span, SpanId, Stacktrace, Tags,
+    TemplateInfo, Thread, Timestamp, TraceContext, TransactionInfo, User, Values,
 };
 
 /// Wrapper around a UUID with slightly different formatting.
@@ -64,6 +64,16 @@ impl FromStr for EventId {
 }
 
 relay_common::impl_str_serde!(EventId, "an event identifier");
+
+impl TryFrom<&SpanId> for EventId {
+    type Error = ();
+
+    fn try_from(value: &SpanId) -> Result<Self, Self::Error> {
+        // TODO: Represent SpanId as bytes / u64 so we can call `Uuid::from_u64_pair`.
+        let s = format!("0000000000000000{value}");
+        s.parse().map_err(|_| ())
+    }
+}
 
 #[derive(Debug, FromValue, IntoValue, ProcessValue, Empty, Clone, PartialEq)]
 pub struct ExtraValue(#[metastructure(max_depth = 7, max_bytes = 16_384)] pub Value);

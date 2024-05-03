@@ -195,9 +195,6 @@ pub fn process(
 
     let mut transaction_count = 0;
     for mut transaction in extracted_transactions {
-        // Give each transaction event a new random ID:
-        transaction.id = EventId::new().into();
-
         // Enqueue a full processing request for every extracted transaction item.
         match Envelope::try_from_event(state.envelope().headers().clone(), transaction) {
             Ok(mut envelope) => {
