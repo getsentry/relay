@@ -8,6 +8,7 @@ on:
       - release-library/**
 
   pull_request:
+    types: [labeled]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
