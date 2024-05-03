@@ -183,7 +183,6 @@ impl StartedRouter {
             .into_iter()
             .group_by(|bucket| bucket.name.try_namespace());
 
-        // TODO: Parse MRI only once, move validation from Aggregator here.
         for (namespace, group) in metrics_by_namespace.into_iter() {
             let aggregator = self
                 .secondary
