@@ -1,8 +1,6 @@
 //! Routing logic for metrics. Metrics from different namespaces may be routed to different aggregators,
 //! with their own limits, bucket intervals, etc.
 
-use std::collections::BTreeMap;
-
 use itertools::Itertools;
 use relay_system::{Addr, NoResponse, Recipient, Service};
 use serde::{Deserialize, Serialize};
@@ -31,6 +29,23 @@ pub struct ScopedAggregatorConfig {
 pub enum Condition {
     /// Checks for equality on a specific field.
     Eq(Field),
+    /// Matches if all conditions are true.
+    And(Vec<Condition>),
+    /// Matches if any condition is true.
+    Or(Vec<Condition>),
+    /// Inverts the condition.
+    Not(Box<Condition>),
+}
+
+impl Condition {
+    fn matches(&self, namespace: Option<MetricNamespace>) -> bool {
+        match self {
+            Condition::Eq(field) => field.matches(namespace),
+            Condition::And(conditions) => conditions.iter().all(|cond| cond.matches(namespace)),
+            Condition::Or(conditions) => conditions.iter().any(|cond| cond.matches(namespace)),
+            Condition::Not(cond) => !cond.matches(namespace),
+        }
+    }
 }
 
 /// Defines a field and a field value to compare to when a [`Condition`] is evaluated.
@@ -41,35 +56,37 @@ pub enum Field {
     Namespace(MetricNamespace),
 }
 
+impl Field {
+    fn matches(&self, namespace: Option<MetricNamespace>) -> bool {
+        match (self, namespace) {
+            (Field::Namespace(expected), Some(actual)) => expected == &actual,
+            _ => false,
+        }
+    }
+}
+
 /// Service that routes metrics & metric buckets to the appropriate aggregator.
 ///
 /// Each aggregator gets its own configuration.
 /// Metrics are routed to the first aggregator which matches the configuration's [`Condition`].
 /// If no condition matches, the metric/bucket is routed to the `default_aggregator`.
 pub struct RouterService {
-    default_aggregator: AggregatorService,
-    secondary_aggregators: BTreeMap<MetricNamespace, AggregatorService>,
+    default_config: AggregatorServiceConfig,
+    secondary_configs: Vec<ScopedAggregatorConfig>,
+    receiver: Option<Recipient<FlushBuckets, NoResponse>>,
 }
 
 impl RouterService {
     /// Create a new router service.
     pub fn new(
-        aggregator_config: AggregatorServiceConfig,
-        secondary_aggregators: Vec<ScopedAggregatorConfig>,
+        default_config: AggregatorServiceConfig,
+        secondary_configs: Vec<ScopedAggregatorConfig>,
         receiver: Option<Recipient<FlushBuckets, NoResponse>>,
     ) -> Self {
         Self {
-            default_aggregator: AggregatorService::new(aggregator_config, receiver.clone()),
-            secondary_aggregators: secondary_aggregators
-                .into_iter()
-                .map(|c| {
-                    let Condition::Eq(Field::Namespace(namespace)) = c.condition;
-                    (
-                        namespace,
-                        AggregatorService::named(c.name, c.config, receiver.clone()),
-                    )
-                })
-                .collect(),
+            default_config,
+            secondary_configs,
+            receiver,
         }
     }
 }
@@ -100,33 +117,42 @@ impl Service for RouterService {
 
 /// Helper struct that holds the [`Addr`]s of started aggregators.
 struct StartedRouter {
-    default_aggregator: Addr<Aggregator>,
-    secondary_aggregators: BTreeMap<MetricNamespace, Addr<Aggregator>>,
+    default: Addr<Aggregator>,
+    secondary: Vec<(Condition, Addr<Aggregator>)>,
 }
 
 impl StartedRouter {
     fn start(router: RouterService) -> Self {
+        let RouterService {
+            default_config,
+            secondary_configs,
+            receiver,
+        } = router;
+
+        let secondary = secondary_configs
+            .into_iter()
+            .map(|scoped| {
+                let addr = AggregatorService::new(scoped.config, receiver.clone()).start();
+                (scoped.condition, addr)
+            })
+            .collect();
+
         Self {
-            default_aggregator: router.default_aggregator.start(),
-            secondary_aggregators: router
-                .secondary_aggregators
-                .into_iter()
-                .map(|(key, service)| (key, service.start()))
-                .collect(),
+            default: AggregatorService::new(default_config, receiver).start(),
+            secondary,
         }
     }
 
     fn handle_message(&mut self, msg: Aggregator) {
         match msg {
             Aggregator::AcceptsMetrics(_, sender) => {
-                let requests: Vec<_> = Some(self.default_aggregator.send(AcceptsMetrics))
-                    .into_iter()
-                    .chain(
-                        self.secondary_aggregators
-                            .values_mut()
-                            .map(|agg| agg.send(AcceptsMetrics)),
-                    )
-                    .collect();
+                let requests = self
+                    .secondary
+                    .iter()
+                    .map(|(_, agg)| agg.send(AcceptsMetrics))
+                    .chain(Some(self.default.send(AcceptsMetrics)))
+                    .collect::<Vec<_>>();
+
                 tokio::spawn(async {
                     let mut accepts = true;
                     for req in requests {
@@ -149,9 +175,11 @@ impl StartedRouter {
 
         // TODO: Parse MRI only once, move validation from Aggregator here.
         for (namespace, group) in metrics_by_namespace.into_iter() {
-            let aggregator = namespace
-                .and_then(|ns| self.secondary_aggregators.get(&ns))
-                .unwrap_or(&self.default_aggregator);
+            let aggregator = self
+                .secondary
+                .iter()
+                .find_map(|(cond, addr)| cond.matches(namespace).then_some(addr))
+                .unwrap_or(&self.default);
 
             aggregator.send(MergeBuckets::new(message.project_key, group.collect()));
         }
