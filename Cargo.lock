@@ -3759,7 +3759,6 @@ name = "relay-dynamic-config"
 version = "24.4.2"
 dependencies = [
  "anyhow",
- "assert-json-diff",
  "indexmap 2.2.5",
  "insta",
  "relay-auth",
