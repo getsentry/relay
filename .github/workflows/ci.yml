@@ -179,12 +179,36 @@ jobs:
       - name: Run Python Tests
         run: pytest -v py
 
+  build-setup:
+    name: Setup build metadata
+    runs-on: ubuntu-latest
+
+    if: "!startsWith(github.ref, 'refs/heads/release-library/')"
+
+    env:
+      RUN_ALL: "${{ github.ref == 'refs/heads/master' || contains(github.event.pull_request.labels.*.name, 'Trigger: Full-Build') }}"
+
+    steps:
+      - id: set-outputs
+        run: |
+          echo $RUN_ALL
+
+          echo 'image_names=["relay", "relay-pop"]' >> $GITHUB_OUTPUT
+          echo "targets=[x86_64-unknown-linux-gnu, aarch64-unknown-linux-gnu]" >> $GITHUB_OUTPUT
+
+    outputs:
+      image_names: "${{ steps.set-outputs.outputs.image_names }}"
+      targets: "${{ steps.set-outputs.outputs.targets }}"
+
+
   build:
+    needs: build-setup
     timeout-minutes: 30
+
     strategy:
       matrix:
-        image_name: [relay, relay-pop]
-        target: [x86_64-unknown-linux-gnu, aarch64-unknown-linux-gnu]
+        image_name: ${{ fromJson(needs.build-setup.outputs.image_names) }}
+        target: ${{ fromJson(needs.build-setup.outputs.targets ) }}
 
     name: Build Relay Binary
     runs-on: ubuntu-latest
