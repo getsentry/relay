@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.8.59
 
 - Expose cardinality limit config normalization. ([3489](https://github.com/getsentry/relay/pull/3489))
 - Consider "Bearer" (case-insensitive) a password. PII will scrub all strings matching that substring. ([#3484](https://github.com/getsentry/relay/pull/3484))
