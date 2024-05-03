@@ -378,9 +378,9 @@
 
         <span class="kw">let </span>secondary = secondary_configs
             .into_iter()
-            .map(|scoped| {
-                <span class="kw">let </span>addr = AggregatorService::new(scoped.config, receiver.clone()).start();
-                (scoped.condition, addr)
+            .map(|c| {
+                <span class="kw">let </span>addr = AggregatorService::named(c.name, c.config, receiver.clone()).start();
+                (c.condition, addr)
             })
             .collect();
 
