@@ -30,20 +30,29 @@ pub enum Condition {
     /// Checks for equality on a specific field.
     Eq(Field),
     /// Matches if all conditions are true.
-    And(Vec<Condition>),
+    And {
+        /// Inner rules to combine.
+        inner: Vec<Condition>,
+    },
     /// Matches if any condition is true.
-    Or(Vec<Condition>),
+    Or {
+        /// Inner rules to combine.
+        inner: Vec<Condition>,
+    },
     /// Inverts the condition.
-    Not(Box<Condition>),
+    Not {
+        /// Inner rule to negate.
+        inner: Box<Condition>,
+    },
 }
 
 impl Condition {
     fn matches(&self, namespace: Option<MetricNamespace>) -> bool {
         match self {
             Condition::Eq(field) => field.matches(namespace),
-            Condition::And(conditions) => conditions.iter().all(|cond| cond.matches(namespace)),
-            Condition::Or(conditions) => conditions.iter().any(|cond| cond.matches(namespace)),
-            Condition::Not(cond) => !cond.matches(namespace),
+            Condition::And { inner } => inner.iter().all(|cond| cond.matches(namespace)),
+            Condition::Or { inner } => inner.iter().any(|cond| cond.matches(namespace)),
+            Condition::Not { inner } => !inner.matches(namespace),
         }
     }
 }
