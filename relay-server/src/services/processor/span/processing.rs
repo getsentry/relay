@@ -16,7 +16,7 @@ use relay_event_normalization::{
     PerformanceScoreConfig, RawUserAgentInfo, TransactionsProcessor,
 };
 use relay_event_schema::processor::{process_value, ProcessingState};
-use relay_event_schema::protocol::{BrowserContext, Contexts, Event, EventId, Span, SpanData};
+use relay_event_schema::protocol::{BrowserContext, Contexts, Event, Span, SpanData};
 use relay_log::protocol::{Attachment, AttachmentType};
 use relay_metrics::{aggregator::AggregatorConfig, MetricNamespace, UnixTimestamp};
 use relay_pii::PiiProcessor;
@@ -194,7 +194,7 @@ pub fn process(
     });
 
     let mut transaction_count = 0;
-    for mut transaction in extracted_transactions {
+    for transaction in extracted_transactions {
         // Enqueue a full processing request for every extracted transaction item.
         match Envelope::try_from_event(state.envelope().headers().clone(), transaction) {
             Ok(mut envelope) => {
