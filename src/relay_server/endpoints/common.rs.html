@@ -459,6 +459,11 @@
 <a href="#457" id="457">457</a>
 <a href="#458" id="458">458</a>
 <a href="#459" id="459">459</a>
+<a href="#460" id="460">460</a>
+<a href="#461" id="461">461</a>
+<a href="#462" id="462">462</a>
+<a href="#463" id="463">463</a>
+<a href="#464" id="464">464</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Common facilities for ingesting events through store-like endpoints.
 
 </span><span class="kw">use </span>axum::http::{header, StatusCode};
@@ -511,7 +516,7 @@
     <span class="attr">#[error(<span class="string">"invalid request body"</span>)]
     </span>InvalidBody(<span class="attr">#[source] </span>std::io::Error),
 
-    <span class="attr">#[error(<span class="string">"invalid JSON data"</span>)]
+    <span class="attr">#[error(<span class="string">"invalid JSON data: {0:?}"</span>)]
     </span>InvalidJson(<span class="attr">#[source] </span>serde_json::Error),
 
     <span class="attr">#[error(<span class="string">"invalid messagepack data"</span>)]
@@ -597,6 +602,11 @@
         <span class="macro">metric!</span>(counter(RelayCounters::EnvelopeRejected) += <span class="number">1</span>);
         <span class="kw">if </span>response.status().is_server_error() {
             <span class="macro">relay_log::error!</span>(
+                error = <span class="kw-2">&amp;</span><span class="self">self </span><span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>std::error::Error,
+                <span class="string">"error handling request"
+            </span>);
+        } <span class="kw">else if </span>response.status().is_client_error() {
+            <span class="macro">relay_log::debug!</span>(
                 error = <span class="kw-2">&amp;</span><span class="self">self </span><span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>std::error::Error,
                 <span class="string">"error handling request"
             </span>);
