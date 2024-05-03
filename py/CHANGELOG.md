@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.8.60
 
 - Expose project config normalization. Drop support for `validate_project_config`. ([#3495](https://github.com/getsentry/relay/pull/3495))
 
