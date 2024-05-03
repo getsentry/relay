@@ -51,13 +51,13 @@ def metrics_by_name(metrics_consumer, count, timeout=None):
     return metrics
 
 
-def metrics_without_keys(received_metrics, keys):
+def metrics_without_keys(metrics, keys):
     """
     Returns all the metrics in the metrics item in a sorted fashion and without specified keys.
     """
     return [
-        {key: value for key, value in received_metric.items() if key not in keys}
-        for received_metric in sorted(received_metrics, key=lambda x: x["name"])
+        {key: value for key, value in metric.items() if key not in keys}
+        for metric in sorted(metrics, key=lambda x: x["name"])
     ]
 
 
