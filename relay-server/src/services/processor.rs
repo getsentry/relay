@@ -1409,7 +1409,11 @@ impl EnvelopeProcessorService {
             unreal::expand(state, &self.inner.config)?;
         });
 
-        event::extract(state, &self.inner.config)?;
+        event::extract(
+            state,
+            &self.inner.config,
+            &self.inner.global_config.current(),
+        )?;
 
         if_processing!(self.inner.config, {
             unreal::process(state)?;
@@ -1444,7 +1448,11 @@ impl EnvelopeProcessorService {
         state: &mut ProcessEnvelopeState<TransactionGroup>,
     ) -> Result<(), ProcessingError> {
         profile::filter(state);
-        event::extract(state, &self.inner.config)?;
+        event::extract(
+            state,
+            &self.inner.config,
+            &self.inner.global_config.current(),
+        )?;
         profile::transfer_id(state);
 
         if_processing!(self.inner.config, {

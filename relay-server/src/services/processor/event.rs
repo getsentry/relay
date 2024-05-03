@@ -40,6 +40,7 @@ use crate::utils::{self, ChunkedFormDataAggregator, FormDataIter};
 pub fn extract<G: EventProcessing>(
     state: &mut ProcessEnvelopeState<G>,
     config: &Config,
+    global_config: &GlobalConfig,
 ) -> Result<(), ProcessingError> {
     let envelope = &mut state.envelope_mut();
 
@@ -67,6 +68,13 @@ pub fn extract<G: EventProcessing>(
         return Err(ProcessingError::DuplicateItem(duplicate.ty().clone()));
     }
 
+    let is_normalization_enabled =
+        if config.processing_enabled() && global_config.options.processing_disable_normalization {
+            false
+        } else {
+            config.normalization_level().is_enabled()
+        };
+
     let mut sample_rates = None;
     let (event, event_len) = if let Some(mut item) = event_item.or(security_item) {
         relay_log::trace!("processing json event");
@@ -76,7 +84,7 @@ pub fn extract<G: EventProcessing>(
             // Event items can never include transactions, so retain the event type and let
             // inference deal with this during normalization.
             if let Some(event) = annotated_event.value_mut() {
-                if config.normalization_level().is_enabled() {
+                if is_normalization_enabled {
                     event.ty.set_value(None);
                 }
             }
