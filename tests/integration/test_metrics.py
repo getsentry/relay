@@ -53,7 +53,7 @@ def metrics_by_name(metrics_consumer, count, timeout=None):
 
 def metrics_without_keys(metrics, keys):
     """
-    Returns all the metrics in the metrics item in a sorted fashion and without specified keys.
+    Returns all the metrics in the metrics item sorted by name and without specified keys.
     """
     return [
         {key: value for key, value in metric.items() if key not in keys}
