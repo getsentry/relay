@@ -1065,6 +1065,13 @@ pub enum NormalizationLevel {
     Full,
 }
 
+impl NormalizationLevel {
+    /// Whether normalization is enabled (i.e. not disabled).
+    pub fn is_enabled(&self) -> bool {
+        !matches!(self, NormalizationLevel::Disabled)
+    }
+}
+
 /// Configuration values for the outcome aggregator
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(default)]

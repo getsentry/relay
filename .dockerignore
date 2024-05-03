@@ -13,3 +13,6 @@
 
 !docker-entrypoint.sh
 !Makefile
+
+# CI files necessary for building the docker file
+!linux/

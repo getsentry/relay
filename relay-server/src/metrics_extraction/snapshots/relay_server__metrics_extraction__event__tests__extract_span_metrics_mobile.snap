@@ -42,6 +42,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "trace.status": "unknown",
                 "transaction": "gEt /api/:version/users/",
                 "transaction.method": "GET",
+                "transaction.op": "ui.load",
                 "ttid": "ttid",
             },
             received: ~,
@@ -119,6 +120,10 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 frames_delay: F64(
                     0.1,
                 ),
+                messaging_destination_name: ~,
+                messaging_message_retry_count: ~,
+                messaging_message_receive_latency: ~,
+                messaging_message_body_size: ~,
                 other: {},
             },
             sentry_tags: {
@@ -134,6 +139,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "trace.status": "unknown",
                 "transaction": "gEt /api/:version/users/",
                 "transaction.method": "GET",
+                "transaction.op": "ui.load",
                 "ttid": "ttid",
             },
             received: ~,
@@ -204,6 +210,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "trace.status": "unknown",
                 "transaction": "gEt /api/:version/users/",
                 "transaction.method": "GET",
+                "transaction.op": "ui.load",
                 "ttid": "ttid",
             },
             received: ~,
@@ -250,6 +257,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "trace.status": "unknown",
                 "transaction": "gEt /api/:version/users/",
                 "transaction.method": "GET",
+                "transaction.op": "ui.load",
                 "ttid": "ttid",
             },
             received: ~,
@@ -298,6 +306,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "trace.status": "unknown",
                 "transaction": "gEt /api/:version/users/",
                 "transaction.method": "GET",
+                "transaction.op": "ui.load",
                 "ttid": "ttid",
             },
             received: ~,
@@ -346,6 +355,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "trace.status": "unknown",
                 "transaction": "gEt /api/:version/users/",
                 "transaction.method": "GET",
+                "transaction.op": "ui.load",
                 "ttid": "ttid",
             },
             received: ~,
@@ -417,6 +427,10 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 frames_frozen: ~,
                 frames_total: ~,
                 frames_delay: ~,
+                messaging_destination_name: ~,
+                messaging_message_retry_count: ~,
+                messaging_message_receive_latency: ~,
+                messaging_message_body_size: ~,
                 other: {},
             },
             sentry_tags: {
@@ -434,6 +448,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "trace.status": "unknown",
                 "transaction": "gEt /api/:version/users/",
                 "transaction.method": "GET",
+                "transaction.op": "ui.load",
                 "ttid": "ttid",
             },
             received: ~,
@@ -505,6 +520,10 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 frames_frozen: ~,
                 frames_total: ~,
                 frames_delay: ~,
+                messaging_destination_name: ~,
+                messaging_message_retry_count: ~,
+                messaging_message_receive_latency: ~,
+                messaging_message_body_size: ~,
                 other: {},
             },
             sentry_tags: {
@@ -520,6 +539,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "trace.status": "unknown",
                 "transaction": "gEt /api/:version/users/",
                 "transaction.method": "GET",
+                "transaction.op": "ui.load",
                 "ttid": "ttid",
             },
             received: ~,
@@ -569,6 +589,193 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "trace.status": "unknown",
                 "transaction": "gEt /api/:version/users/",
                 "transaction.method": "GET",
+                "transaction.op": "ui.load",
+                "ttid": "ttid",
+            },
+            received: ~,
+            measurements: ~,
+            _metrics_summary: ~,
+            platform: ~,
+            was_transaction: ~,
+            other: {},
+        },
+        Span {
+            timestamp: Timestamp(
+                2020-08-21T02:18:23Z,
+            ),
+            start_timestamp: Timestamp(
+                2020-08-21T02:18:20Z,
+            ),
+            exclusive_time: 3000.0,
+            description: "www.example.com",
+            op: "http.client",
+            span_id: SpanId(
+                "bd429c44b67a3eb2",
+            ),
+            parent_span_id: ~,
+            trace_id: TraceId(
+                "ff62a8b040f340bda5d830223def1d81",
+            ),
+            segment_id: ~,
+            is_segment: ~,
+            status: ~,
+            tags: ~,
+            origin: ~,
+            profile_id: ~,
+            data: SpanData {
+                app_start_type: ~,
+                browser_name: ~,
+                code_filepath: ~,
+                code_lineno: ~,
+                code_function: ~,
+                code_namespace: ~,
+                db_operation: ~,
+                db_system: ~,
+                environment: ~,
+                release: ~,
+                http_decoded_response_content_length: ~,
+                http_request_method: ~,
+                http_response_content_length: ~,
+                http_response_transfer_size: ~,
+                resource_render_blocking_status: ~,
+                server_address: ~,
+                cache_hit: ~,
+                cache_item_size: ~,
+                http_response_status_code: String(
+                    "200",
+                ),
+                ai_pipeline_name: ~,
+                ai_input_messages: ~,
+                ai_completion_tokens_used: ~,
+                ai_prompt_tokens_used: ~,
+                ai_total_tokens_used: ~,
+                ai_responses: ~,
+                thread_name: ~,
+                segment_name: ~,
+                ui_component_name: ~,
+                url_scheme: ~,
+                user: ~,
+                replay_id: ~,
+                sdk_name: ~,
+                frames_slow: ~,
+                frames_frozen: ~,
+                frames_total: ~,
+                frames_delay: ~,
+                messaging_destination_name: ~,
+                messaging_message_retry_count: ~,
+                messaging_message_receive_latency: ~,
+                messaging_message_body_size: ~,
+                other: {},
+            },
+            sentry_tags: {
+                "app_start_type": "warm",
+                "category": "http",
+                "device.class": "1",
+                "mobile": "true",
+                "op": "http.client",
+                "os.name": "iOS",
+                "platform": "cocoa",
+                "release": "1.2.3",
+                "sdk.name": "sentry.javascript.react-native",
+                "sdk.version": "unknown",
+                "status_code": "200",
+                "trace.status": "unknown",
+                "transaction": "gEt /api/:version/users/",
+                "transaction.method": "GET",
+                "transaction.op": "ui.load",
+                "ttid": "ttid",
+            },
+            received: ~,
+            measurements: ~,
+            _metrics_summary: ~,
+            platform: ~,
+            was_transaction: ~,
+            other: {},
+        },
+        Span {
+            timestamp: Timestamp(
+                2020-08-21T02:18:23Z,
+            ),
+            start_timestamp: Timestamp(
+                2020-08-21T02:18:20Z,
+            ),
+            exclusive_time: 3000.0,
+            description: "www.example.com",
+            op: "http.client",
+            span_id: SpanId(
+                "bd429c44b67a3eb2",
+            ),
+            parent_span_id: ~,
+            trace_id: TraceId(
+                "ff62a8b040f340bda5d830223def1d81",
+            ),
+            segment_id: ~,
+            is_segment: ~,
+            status: ~,
+            tags: ~,
+            origin: ~,
+            profile_id: ~,
+            data: SpanData {
+                app_start_type: ~,
+                browser_name: ~,
+                code_filepath: ~,
+                code_lineno: ~,
+                code_function: ~,
+                code_namespace: ~,
+                db_operation: ~,
+                db_system: ~,
+                environment: ~,
+                release: ~,
+                http_decoded_response_content_length: ~,
+                http_request_method: ~,
+                http_response_content_length: ~,
+                http_response_transfer_size: ~,
+                resource_render_blocking_status: ~,
+                server_address: ~,
+                cache_hit: ~,
+                cache_item_size: ~,
+                http_response_status_code: I64(
+                    200,
+                ),
+                ai_pipeline_name: ~,
+                ai_input_messages: ~,
+                ai_completion_tokens_used: ~,
+                ai_prompt_tokens_used: ~,
+                ai_total_tokens_used: ~,
+                ai_responses: ~,
+                thread_name: ~,
+                segment_name: ~,
+                ui_component_name: ~,
+                url_scheme: ~,
+                user: ~,
+                replay_id: ~,
+                sdk_name: ~,
+                frames_slow: ~,
+                frames_frozen: ~,
+                frames_total: ~,
+                frames_delay: ~,
+                messaging_destination_name: ~,
+                messaging_message_retry_count: ~,
+                messaging_message_receive_latency: ~,
+                messaging_message_body_size: ~,
+                other: {},
+            },
+            sentry_tags: {
+                "app_start_type": "warm",
+                "category": "http",
+                "device.class": "1",
+                "mobile": "true",
+                "op": "http.client",
+                "os.name": "iOS",
+                "platform": "cocoa",
+                "release": "1.2.3",
+                "sdk.name": "sentry.javascript.react-native",
+                "sdk.version": "unknown",
+                "status_code": "200",
+                "trace.status": "unknown",
+                "transaction": "gEt /api/:version/users/",
+                "transaction.method": "GET",
+                "transaction.op": "ui.load",
                 "ttid": "ttid",
             },
             received: ~,
@@ -606,8 +813,40 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 ],
             ),
             tags: {
-                "span.op": "default",
+                "app_start_type": "warm",
+                "device.class": "1",
+                "os.name": "iOS",
+                "release": "1.2.3",
+                "span.description": "gEt /api/:version/users/",
+                "span.group": "368c4046e9831b12",
+                "span.op": "ui.load",
                 "transaction": "gEt /api/:version/users/",
+                "transaction.method": "GET",
+                "transaction.op": "ui.load",
+            },
+            metadata: BucketMetadata {
+                merges: 1,
+            },
+        },
+        Bucket {
+            timestamp: UnixTimestamp(1619420400),
+            width: 0,
+            name: MetricName(
+                "d:spans/exclusive_time_light@millisecond",
+            ),
+            value: Distribution(
+                [
+                    59000.0,
+                ],
+            ),
+            tags: {
+                "device.class": "1",
+                "os.name": "iOS",
+                "release": "1.2.3",
+                "span.description": "gEt /api/:version/users/",
+                "span.group": "368c4046e9831b12",
+                "span.op": "ui.load",
+                "transaction.op": "ui.load",
             },
             metadata: BucketMetadata {
                 merges: 1,
@@ -625,8 +864,10 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 ],
             ),
             tags: {
-                "span.op": "default",
+                "span.group": "368c4046e9831b12",
+                "span.op": "ui.load",
                 "transaction": "gEt /api/:version/users/",
+                "transaction.op": "ui.load",
             },
             metadata: BucketMetadata {
                 merges: 1,
@@ -666,6 +907,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "span.op": "app.start.cold",
                 "transaction": "gEt /api/:version/users/",
                 "transaction.method": "GET",
+                "transaction.op": "ui.load",
                 "ttid": "ttid",
             },
             metadata: BucketMetadata {
@@ -689,6 +931,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "release": "1.2.3",
                 "span.category": "app",
                 "span.op": "app.start.cold",
+                "transaction.op": "ui.load",
             },
             metadata: BucketMetadata {
                 merges: 1,
@@ -708,6 +951,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
             tags: {
                 "span.op": "app.start.cold",
                 "transaction": "gEt /api/:version/users/",
+                "transaction.op": "ui.load",
             },
             metadata: BucketMetadata {
                 merges: 1,
@@ -746,6 +990,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "span.op": "ui.load.initial_display",
                 "transaction": "gEt /api/:version/users/",
                 "transaction.method": "GET",
+                "transaction.op": "ui.load",
                 "ttid": "ttid",
             },
             metadata: BucketMetadata {
@@ -768,6 +1013,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "os.name": "iOS",
                 "release": "1.2.3",
                 "span.op": "ui.load.initial_display",
+                "transaction.op": "ui.load",
             },
             metadata: BucketMetadata {
                 merges: 1,
@@ -787,6 +1033,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
             tags: {
                 "span.op": "ui.load.initial_display",
                 "transaction": "gEt /api/:version/users/",
+                "transaction.op": "ui.load",
             },
             metadata: BucketMetadata {
                 merges: 1,
@@ -813,6 +1060,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "release": "1.2.3",
                 "span.op": "ui.load.initial_display",
                 "transaction": "gEt /api/:version/users/",
+                "transaction.op": "ui.load",
             },
             metadata: BucketMetadata {
                 merges: 1,
@@ -839,6 +1087,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "release": "1.2.3",
                 "span.op": "ui.load.initial_display",
                 "transaction": "gEt /api/:version/users/",
+                "transaction.op": "ui.load",
             },
             metadata: BucketMetadata {
                 merges: 1,
@@ -865,6 +1114,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "release": "1.2.3",
                 "span.op": "ui.load.initial_display",
                 "transaction": "gEt /api/:version/users/",
+                "transaction.op": "ui.load",
             },
             metadata: BucketMetadata {
                 merges: 1,
@@ -891,6 +1141,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "release": "1.2.3",
                 "span.op": "ui.load.initial_display",
                 "transaction": "gEt /api/:version/users/",
+                "transaction.op": "ui.load",
             },
             metadata: BucketMetadata {
                 merges: 1,
@@ -932,6 +1183,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "span.op": "app.start.cold",
                 "transaction": "gEt /api/:version/users/",
                 "transaction.method": "GET",
+                "transaction.op": "ui.load",
                 "ttid": "ttid",
             },
             metadata: BucketMetadata {
@@ -957,6 +1209,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "span.description": "Cold Start",
                 "span.group": "2d675185edfeb30c",
                 "span.op": "app.start.cold",
+                "transaction.op": "ui.load",
             },
             metadata: BucketMetadata {
                 merges: 1,
@@ -982,6 +1235,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "span.group": "2d675185edfeb30c",
                 "span.op": "app.start.cold",
                 "transaction": "gEt /api/:version/users/",
+                "transaction.op": "ui.load",
             },
             metadata: BucketMetadata {
                 merges: 1,
@@ -1015,6 +1269,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
             tags: {
                 "span.op": "custom.op",
                 "transaction": "gEt /api/:version/users/",
+                "transaction.op": "ui.load",
             },
             metadata: BucketMetadata {
                 merges: 1,
@@ -1034,6 +1289,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
             tags: {
                 "span.op": "custom.op",
                 "transaction": "gEt /api/:version/users/",
+                "transaction.op": "ui.load",
             },
             metadata: BucketMetadata {
                 merges: 1,
@@ -1074,6 +1330,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "span.op": "contentprovider.load",
                 "transaction": "gEt /api/:version/users/",
                 "transaction.method": "GET",
+                "transaction.op": "ui.load",
                 "ttid": "ttid",
             },
             metadata: BucketMetadata {
@@ -1098,6 +1355,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "span.description": "io.sentry.android.core.SentryPerformanceProvider.onCreate",
                 "span.group": "cfb484dec50a18c9",
                 "span.op": "contentprovider.load",
+                "transaction.op": "ui.load",
             },
             metadata: BucketMetadata {
                 merges: 1,
@@ -1118,6 +1376,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "span.group": "cfb484dec50a18c9",
                 "span.op": "contentprovider.load",
                 "transaction": "gEt /api/:version/users/",
+                "transaction.op": "ui.load",
             },
             metadata: BucketMetadata {
                 merges: 1,
@@ -1158,6 +1417,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "span.op": "application.load",
                 "transaction": "gEt /api/:version/users/",
                 "transaction.method": "GET",
+                "transaction.op": "ui.load",
                 "ttid": "ttid",
             },
             metadata: BucketMetadata {
@@ -1182,6 +1442,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "span.description": "io.sentry.samples.android.MyApplication.onCreate",
                 "span.group": "a928f42bab6aff5b",
                 "span.op": "application.load",
+                "transaction.op": "ui.load",
             },
             metadata: BucketMetadata {
                 merges: 1,
@@ -1202,6 +1463,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "span.group": "a928f42bab6aff5b",
                 "span.op": "application.load",
                 "transaction": "gEt /api/:version/users/",
+                "transaction.op": "ui.load",
             },
             metadata: BucketMetadata {
                 merges: 1,
@@ -1242,6 +1504,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "span.op": "activity.load",
                 "transaction": "gEt /api/:version/users/",
                 "transaction.method": "GET",
+                "transaction.op": "ui.load",
                 "ttid": "ttid",
             },
             metadata: BucketMetadata {
@@ -1266,6 +1529,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "span.description": "io.sentry.samples.android.MainActivity.onCreate",
                 "span.group": "6d931be5b5897006",
                 "span.op": "activity.load",
+                "transaction.op": "ui.load",
             },
             metadata: BucketMetadata {
                 merges: 1,
@@ -1286,6 +1550,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "span.group": "6d931be5b5897006",
                 "span.op": "activity.load",
                 "transaction": "gEt /api/:version/users/",
+                "transaction.op": "ui.load",
             },
             metadata: BucketMetadata {
                 merges: 1,
@@ -1324,6 +1589,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "span.op": "process.load",
                 "transaction": "gEt /api/:version/users/",
                 "transaction.method": "GET",
+                "transaction.op": "ui.load",
                 "ttid": "ttid",
             },
             metadata: BucketMetadata {
@@ -1346,6 +1612,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "os.name": "iOS",
                 "release": "1.2.3",
                 "span.op": "process.load",
+                "transaction.op": "ui.load",
             },
             metadata: BucketMetadata {
                 merges: 1,
@@ -1365,6 +1632,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
             tags: {
                 "span.op": "process.load",
                 "transaction": "gEt /api/:version/users/",
+                "transaction.op": "ui.load",
             },
             metadata: BucketMetadata {
                 merges: 1,
@@ -1396,8 +1664,43 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 ],
             ),
             tags: {
+                "app_start_type": "warm",
+                "device.class": "1",
+                "os.name": "iOS",
+                "release": "1.2.3",
+                "span.category": "file",
+                "span.description": "*",
+                "span.group": "3389dae361af79b0",
                 "span.op": "file.read",
                 "transaction": "gEt /api/:version/users/",
+                "transaction.method": "GET",
+                "transaction.op": "ui.load",
+                "ttid": "ttid",
+            },
+            metadata: BucketMetadata {
+                merges: 1,
+            },
+        },
+        Bucket {
+            timestamp: UnixTimestamp(1597976303),
+            width: 0,
+            name: MetricName(
+                "d:spans/exclusive_time_light@millisecond",
+            ),
+            value: Distribution(
+                [
+                    3000.0,
+                ],
+            ),
+            tags: {
+                "device.class": "1",
+                "os.name": "iOS",
+                "release": "1.2.3",
+                "span.category": "file",
+                "span.description": "*",
+                "span.group": "3389dae361af79b0",
+                "span.op": "file.read",
+                "transaction.op": "ui.load",
             },
             metadata: BucketMetadata {
                 merges: 1,
@@ -1415,8 +1718,182 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 ],
             ),
             tags: {
+                "span.group": "3389dae361af79b0",
                 "span.op": "file.read",
                 "transaction": "gEt /api/:version/users/",
+                "transaction.op": "ui.load",
+            },
+            metadata: BucketMetadata {
+                merges: 1,
+            },
+        },
+        Bucket {
+            timestamp: UnixTimestamp(1597976303),
+            width: 0,
+            name: MetricName(
+                "c:spans/usage@none",
+            ),
+            value: Counter(
+                1.0,
+            ),
+            tags: {},
+            metadata: BucketMetadata {
+                merges: 1,
+            },
+        },
+        Bucket {
+            timestamp: UnixTimestamp(1597976303),
+            width: 0,
+            name: MetricName(
+                "d:spans/exclusive_time@millisecond",
+            ),
+            value: Distribution(
+                [
+                    3000.0,
+                ],
+            ),
+            tags: {
+                "app_start_type": "warm",
+                "device.class": "1",
+                "os.name": "iOS",
+                "release": "1.2.3",
+                "span.category": "http",
+                "span.op": "http.client",
+                "span.status_code": "200",
+                "transaction": "gEt /api/:version/users/",
+                "transaction.method": "GET",
+                "transaction.op": "ui.load",
+                "ttid": "ttid",
+            },
+            metadata: BucketMetadata {
+                merges: 1,
+            },
+        },
+        Bucket {
+            timestamp: UnixTimestamp(1597976303),
+            width: 0,
+            name: MetricName(
+                "d:spans/exclusive_time_light@millisecond",
+            ),
+            value: Distribution(
+                [
+                    3000.0,
+                ],
+            ),
+            tags: {
+                "device.class": "1",
+                "os.name": "iOS",
+                "release": "1.2.3",
+                "span.category": "http",
+                "span.op": "http.client",
+                "span.status_code": "200",
+                "transaction.op": "ui.load",
+            },
+            metadata: BucketMetadata {
+                merges: 1,
+            },
+        },
+        Bucket {
+            timestamp: UnixTimestamp(1597976303),
+            width: 0,
+            name: MetricName(
+                "d:spans/duration@millisecond",
+            ),
+            value: Distribution(
+                [
+                    3000.0,
+                ],
+            ),
+            tags: {
+                "span.op": "http.client",
+                "transaction": "gEt /api/:version/users/",
+                "transaction.op": "ui.load",
+            },
+            metadata: BucketMetadata {
+                merges: 1,
+            },
+        },
+        Bucket {
+            timestamp: UnixTimestamp(1597976303),
+            width: 0,
+            name: MetricName(
+                "c:spans/usage@none",
+            ),
+            value: Counter(
+                1.0,
+            ),
+            tags: {},
+            metadata: BucketMetadata {
+                merges: 1,
+            },
+        },
+        Bucket {
+            timestamp: UnixTimestamp(1597976303),
+            width: 0,
+            name: MetricName(
+                "d:spans/exclusive_time@millisecond",
+            ),
+            value: Distribution(
+                [
+                    3000.0,
+                ],
+            ),
+            tags: {
+                "app_start_type": "warm",
+                "device.class": "1",
+                "os.name": "iOS",
+                "release": "1.2.3",
+                "span.category": "http",
+                "span.op": "http.client",
+                "span.status_code": "200",
+                "transaction": "gEt /api/:version/users/",
+                "transaction.method": "GET",
+                "transaction.op": "ui.load",
+                "ttid": "ttid",
+            },
+            metadata: BucketMetadata {
+                merges: 1,
+            },
+        },
+        Bucket {
+            timestamp: UnixTimestamp(1597976303),
+            width: 0,
+            name: MetricName(
+                "d:spans/exclusive_time_light@millisecond",
+            ),
+            value: Distribution(
+                [
+                    3000.0,
+                ],
+            ),
+            tags: {
+                "device.class": "1",
+                "os.name": "iOS",
+                "release": "1.2.3",
+                "span.category": "http",
+                "span.op": "http.client",
+                "span.status_code": "200",
+                "transaction.op": "ui.load",
+            },
+            metadata: BucketMetadata {
+                merges: 1,
+            },
+        },
+        Bucket {
+            timestamp: UnixTimestamp(1597976303),
+            width: 0,
+            name: MetricName(
+                "d:spans/duration@millisecond",
+            ),
+            value: Distribution(
+                [
+                    3000.0,
+                ],
+            ),
+            tags: {
+                "span.op": "http.client",
+                "transaction": "gEt /api/:version/users/",
+                "transaction.op": "ui.load",
             },
             metadata: BucketMetadata {
                 merges: 1,

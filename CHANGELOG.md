@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+**Internal**:
+
+- Add metrics extraction config to global config. ([#3490](https://github.com/getsentry/relay/pull/3490), [#3504](https://github.com/getsentry/relay/pull/3504))
+- Extract `cache.item_size` from measurements instead of data. ([#3510](https://github.com/getsentry/relay/pull/3510))
+- Collect `enviornment` tag as part of exclusive_time_light for cache spans. ([#3510](https://github.com/getsentry/relay/pull/3510))
+
+## 24.4.2
+
 **Breaking Changes**:
 
 - Stop supporting dynamic sampling mode `"total"`, which adjusted for the client sample rate. ([#3474](https://github.com/getsentry/relay/pull/3474))
@@ -9,6 +17,7 @@
 **Bug fixes:**
 
 - Respect country code TLDs when scrubbing span tags. ([#3458](https://github.com/getsentry/relay/pull/3458))
+- Extract HTTP status code from span data when sent as integers. ([#3491](https://github.com/getsentry/relay/pull/3491))
 
 **Features**:
 
@@ -19,11 +28,15 @@
 - Extract `frames.slow`, `frames.frozen`, and `frames.total` metrics from mobile spans. ([#3473](https://github.com/getsentry/relay/pull/3473))
 - Extract `frames.delay` metric from mobile spans. ([#3472](https://github.com/getsentry/relay/pull/3472))
 - Consider "Bearer" (case-insensitive) a password. PII will scrub all strings matching that substring. ([#3484](https://github.com/getsentry/relay/pull/3484))
+- Add support for `CF-Connecting-IP` header. ([#3496](https://github.com/getsentry/relay/pull/3496))
 
 **Internal**:
 
 - Emit gauges for total and self times for spans. ([#3448](https://github.com/getsentry/relay/pull/3448))
 - Collect exclusive_time_light metrics for `cache.*` spans. ([#3466](https://github.com/getsentry/relay/pull/3466))
+- Build and publish ARM docker images for Relay. ([#3272](https://github.com/getsentry/relay/pull/3272)).
+- Remove `MetricMeta` feature flag and use `CustomMetrics` instead. ([#3503](https://github.com/getsentry/relay/pull/3503))
+- Collect `transaction.op` as tag for frame metrics. ([#3512](https://github.com/getsentry/relay/pull/3512))
 
 ## 24.4.1
 

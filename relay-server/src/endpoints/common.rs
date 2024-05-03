@@ -50,7 +50,7 @@ pub enum BadStoreRequest {
     #[error("invalid request body")]
     InvalidBody(#[source] std::io::Error),
 
-    #[error("invalid JSON data")]
+    #[error("invalid JSON data: {0:?}")]
     InvalidJson(#[source] serde_json::Error),
 
     #[error("invalid messagepack data")]
@@ -136,6 +136,11 @@ impl IntoResponse for BadStoreRequest {
         metric!(counter(RelayCounters::EnvelopeRejected) += 1);
         if response.status().is_server_error() {
             relay_log::error!(
+                error = &self as &dyn std::error::Error,
+                "error handling request"
+            );
+        } else if response.status().is_client_error() {
+            relay_log::debug!(
                 error = &self as &dyn std::error::Error,
                 "error handling request"
             );
