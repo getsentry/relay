@@ -43,11 +43,22 @@ def metrics_by_name(metrics_consumer, count, timeout=None):
 
     for _ in range(count):
         metric, metric_headers = metrics_consumer.get_metric(timeout)
+        metric = metrics_without_keys([metric], keys={"metadata"})[0]
         metrics[metric["name"]] = metric
         metrics["headers"][metric["name"]] = metric_headers
 
     metrics_consumer.assert_empty()
     return metrics
+
+
+def metrics_without_keys(received_metrics, keys):
+    """
+    Returns all the metrics in the metrics item in a sorted fashion and without specified keys.
+    """
+    return [
+        {key: value for key, value in received_metric.items() if key not in keys}
+        for received_metric in sorted(received_metrics, key=lambda x: x["name"])
+    ]
 
 
 def metrics_by_name_group_by_project(metrics_consumer, timeout=None):
@@ -186,8 +197,9 @@ def test_metrics(mini_sentry, relay):
     metrics_item = envelope.items[0]
     assert metrics_item.type == "metric_buckets"
 
-    received_metrics = json.loads(metrics_item.get_bytes().decode())
-    received_metrics = sorted(received_metrics, key=lambda x: x["name"])
+    received_metrics = metrics_without_keys(
+        json.loads(metrics_item.get_bytes().decode()), keys={"metadata"}
+    )
     assert received_metrics == [
         {
             "timestamp": timestamp,
@@ -222,8 +234,10 @@ def test_metrics_backdated(mini_sentry, relay):
     metrics_item = envelope.items[0]
     assert metrics_item.type == "metric_buckets"
 
-    received_metrics = metrics_item.get_bytes()
-    assert json.loads(received_metrics.decode()) == [
+    received_metrics = metrics_without_keys(
+        json.loads(metrics_item.get_bytes().decode()), keys={"metadata"}
+    )
+    assert received_metrics == [
         {
             "timestamp": timestamp,
             "width": 1,
@@ -366,8 +380,7 @@ def test_global_metrics(mini_sentry, relay):
     metrics_batch = mini_sentry.captured_metrics.get(timeout=5)
     assert mini_sentry.captured_metrics.qsize() == 0  # we had only one batch
 
-    metrics = sorted(metrics_batch[public_key], key=lambda x: x["name"])
-
+    metrics = metrics_without_keys(metrics_batch[public_key], keys={"metadata"})
     assert metrics == [
         {
             "timestamp": timestamp,
@@ -449,7 +462,7 @@ def test_global_metrics_batching(mini_sentry, relay):
     with pytest.raises(queue.Empty):
         mini_sentry.captured_metrics.get(timeout=1)
 
-    assert batch1[public_key] == [
+    assert metrics_without_keys(batch1[public_key], keys={"metadata"}) == [
         {
             "timestamp": timestamp,
             "width": 1,
@@ -459,7 +472,7 @@ def test_global_metrics_batching(mini_sentry, relay):
         }
     ]
 
-    assert batch2[public_key] == [
+    assert metrics_without_keys(batch2[public_key], keys={"metadata"}) == [
         {
             "timestamp": timestamp,
             "width": 1,
@@ -807,12 +820,7 @@ def test_transaction_metrics(
         transactions_consumer.assert_empty()
     else:
         event, _ = transactions_consumer.get_event()
-        if with_external_relay:
-            # there is some rounding error while serializing/deserializing
-            # timestamps... haven't investigated too closely
-            span_time = 9.910107
-        else:
-            span_time = 9.910106
+        span_time = 9.910106
 
         assert event["breakdowns"] == {
             "span_ops": {
@@ -1247,8 +1255,10 @@ def test_graceful_shutdown(mini_sentry, relay):
     assert len(envelope.items) == 1
     metrics_item = envelope.items[0]
     assert metrics_item.type == "metric_buckets"
-    received_metrics = json.loads(metrics_item.get_bytes().decode())
-    received_metrics = sorted(received_metrics, key=lambda x: x["name"])
+
+    received_metrics = metrics_without_keys(
+        json.loads(metrics_item.get_bytes().decode()), keys={"metadata"}
+    )
     assert received_metrics == [
         {
             "timestamp": future_timestamp,
@@ -1460,8 +1470,10 @@ def test_generic_metric_extraction(mini_sentry, relay):
 
     item = envelope.items[0]
     assert item.headers.get("type") == "metric_buckets"
-    metrics = json.loads(item.get_bytes().decode())
 
+    metrics = metrics_without_keys(
+        json.loads(item.get_bytes().decode()), keys={"metadata"}
+    )
     assert {
         "timestamp": int(timestamp.timestamp()),
         "width": 1,
@@ -1807,8 +1819,9 @@ def test_profiles_metrics(mini_sentry, relay):
     metrics_item = envelope.items[0]
     assert metrics_item.type == "metric_buckets"
 
-    received_metrics = json.loads(metrics_item.get_bytes().decode())
-    received_metrics = sorted(received_metrics, key=lambda x: x["name"])
+    received_metrics = metrics_without_keys(
+        json.loads(metrics_item.get_bytes().decode()), keys={"metadata"}
+    )
     assert received_metrics == [
         {
             "timestamp": timestamp,
