@@ -568,33 +568,10 @@ impl Project {
         self.last_updated_at = Instant::now();
     }
 
-    /// Applies **cached** rate limits to the given metrics or metrics buckets.
-    fn rate_limit_buckets(
-        &self,
-        outcome_aggregator: Addr<TrackOutcome>,
-        mode: ExtractionMode,
-        state: &ProjectState,
-        buckets: Vec<Bucket>,
-    ) -> Vec<Bucket> {
-        if buckets.is_empty() {
-            return buckets;
-        }
-
-        let Some(scoping) = self.scoping() else {
-            return buckets;
-        };
-
-        match MetricsLimiter::create(buckets, &state.config.quotas, scoping, mode) {
-            Ok(mut limiter) => {
-                limiter.enforce_limits(&self.rate_limits, outcome_aggregator);
-                limiter.into_buckets()
-            }
-            Err(metrics) => metrics,
-        }
-    }
-
-    /// Removes metric buckets that are not allowed to be ingested and reports denied buckets.
-    fn filter_buckets(
+    /// Pre-processes a vector of buckets by performing the following:
+    /// - Filtering all buckets that have invalid MRI, disabled namespace or denied name.
+    /// - Reporting outcomes and metric stats for all filtered buckets.
+    fn pre_process_buckets(
         &self,
         outcome_aggregator: Addr<TrackOutcome>,
         metric_stats: MetricStats,
@@ -607,12 +584,12 @@ impl Project {
         let accepted_buckets = buckets
             .into_iter()
             .filter_map(|mut bucket| {
-                let Ok(mri) = MetricResourceIdentifier::parse(&bucket.name) else {
+                let Some(namespace) = bucket.name.try_namespace() else {
                     relay_log::trace!(mri = &*bucket.name, "dropping metrics with invalid MRI");
                     return None;
                 };
 
-                if !is_metric_namespace_valid(state, &mri.namespace) {
+                if !is_metric_namespace_valid(state, &namespace) {
                     relay_log::trace!(mri = &*bucket.name, "dropping metric in disabled namespace");
                     return None;
                 };
@@ -659,6 +636,10 @@ impl Project {
         project_state: &ProjectState,
         buckets: Vec<Bucket>,
     ) {
+        if buckets.is_empty() {
+            return;
+        }
+
         let Some(scoping) = self.scoping() else {
             relay_log::error!(
                 "there is no scoping due to missing project id: dropping {} buckets",
@@ -687,7 +668,6 @@ impl Project {
                 if !was_rate_limited && self.config.processing_enabled() {
                     // If there were no cached rate limits active, let the processor check redis:
                     envelope_processor.send(RateLimitBuckets { bucket_limiter });
-
                     return;
                 }
 
@@ -723,16 +703,13 @@ impl Project {
                 let state = Arc::clone(state);
                 let mode = state.get_extraction_mode();
 
-                let buckets = self.filter_buckets(
+                let buckets = self.pre_process_buckets(
                     outcome_aggregator.clone(),
                     metric_stats.clone(),
                     mode,
                     &state,
                     buckets,
                 );
-
-                let buckets =
-                    self.rate_limit_buckets(outcome_aggregator.clone(), mode, &state, buckets);
 
                 if !buckets.is_empty() {
                     // We can send metrics straight to the aggregator.
@@ -977,16 +954,13 @@ impl Project {
             if project_enabled && !buckets.is_empty() {
                 relay_log::debug!("sending metrics from metricsbuffer to aggregator");
 
-                let buckets = self.filter_buckets(
+                let buckets = self.pre_process_buckets(
                     outcome_aggregator.clone(),
                     metric_stats,
                     state.get_extraction_mode(),
                     &state,
                     buckets,
                 );
-                if buckets.is_empty() {
-                    return;
-                }
 
                 self.rate_limit_and_merge_buckets(
                     aggregator,
@@ -1287,13 +1261,14 @@ fn is_metric_namespace_valid(state: &ProjectState, namespace: &MetricNamespace) 
 
 #[cfg(test)]
 mod tests {
+    use itertools::assert_equal;
     use std::collections::BTreeMap;
     use std::sync::Mutex;
 
     use crate::services::global_config::GlobalConfigHandle;
     use relay_common::glob3::GlobPatterns;
     use relay_common::time::UnixTimestamp;
-    use relay_dynamic_config::{GlobalConfig, TagBlock};
+    use relay_dynamic_config::{GlobalConfig, Options, TagBlock};
     use relay_metrics::BucketValue;
     use relay_test::mock_service;
     use serde_json::json;
@@ -1433,20 +1408,6 @@ mod tests {
         }
     }
 
-    #[tokio::test]
-    async fn test_rate_limit_incoming_metrics() {
-        let (outcome_aggregator, _) = mock_service("outcome_aggregator", (), |&mut (), _| {});
-        let project = create_project(None);
-        let metrics = project.rate_limit_buckets(
-            outcome_aggregator,
-            ExtractionMode::Usage,
-            &project.state_value().unwrap(),
-            vec![create_transaction_metric()],
-        );
-
-        assert!(metrics.len() == 1);
-    }
-
     /// Checks that the project doesn't send buckets to the aggregator from its metricsbuffer
     /// if it haven't received a project state.
     #[tokio::test]
@@ -1530,8 +1491,33 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_rate_limit_incoming_metrics() {
+        let (aggregator, mut aggregator_rx) = Addr::custom();
+        let (envelope_processor, _) = Addr::custom();
+        let (outcome_aggregator, _) = Addr::custom();
+
+        let project = create_project(None);
+        project.rate_limit_and_merge_buckets(
+            aggregator,
+            envelope_processor,
+            outcome_aggregator,
+            &project.state_value().unwrap(),
+            vec![create_transaction_metric()],
+        );
+
+        let value = aggregator_rx.recv().await.unwrap();
+        let Aggregator::MergeBuckets(merge_buckets) = value else {
+            panic!();
+        };
+        assert_eq!(merge_buckets.buckets().len(), 1);
+    }
+
+    #[tokio::test]
     async fn test_rate_limit_incoming_metrics_no_quota() {
-        let (outcome_aggregator, _) = mock_service("outcome_aggregator", (), |&mut (), _| {});
+        let (aggregator, mut aggregator_rx) = Addr::custom();
+        let (envelope_processor, _) = Addr::custom();
+        let (outcome_aggregator, _) = Addr::custom();
+
         let project = create_project(Some(json!({
             "quotas": [{
                "id": "foo",
@@ -1541,15 +1527,16 @@ mod tests {
                "reasonCode": "foo",
            }]
         })));
-
-        let metrics = project.rate_limit_buckets(
+        project.rate_limit_and_merge_buckets(
+            aggregator,
+            envelope_processor,
             outcome_aggregator,
-            ExtractionMode::Usage,
             &project.state_value().unwrap(),
             vec![create_transaction_metric()],
         );
 
-        assert!(metrics.is_empty());
+        let value = aggregator_rx.recv().await;
+        assert!(value.is_none());
     }
 
     fn create_transaction_bucket() -> Bucket {
@@ -1565,21 +1552,32 @@ mod tests {
 
     #[tokio::test]
     async fn test_rate_limit_incoming_buckets() {
-        let (outcome_aggregator, _) = mock_service("outcome_aggregator", (), |&mut (), _| {});
+        let (aggregator, mut aggregator_rx) = Addr::custom();
+        let (envelope_processor, _) = Addr::custom();
+        let (outcome_aggregator, _) = Addr::custom();
+
         let project = create_project(None);
-        let metrics = project.rate_limit_buckets(
+        project.rate_limit_and_merge_buckets(
+            aggregator,
+            envelope_processor,
             outcome_aggregator,
-            ExtractionMode::Usage,
             &project.state_value().unwrap(),
             vec![create_transaction_bucket()],
         );
 
-        assert_eq!(metrics.len(), 1);
+        let value = aggregator_rx.recv().await.unwrap();
+        let Aggregator::MergeBuckets(merge_buckets) = value else {
+            panic!();
+        };
+        assert_eq!(merge_buckets.buckets().len(), 1);
     }
 
     #[tokio::test]
     async fn test_rate_limit_incoming_buckets_no_quota() {
-        let (outcome_aggregator, _) = mock_service("outcome_aggregator", (), |&mut (), _| {});
+        let (aggregator, mut aggregator_rx) = Addr::custom();
+        let (envelope_processor, _) = Addr::custom();
+        let (outcome_aggregator, _) = Addr::custom();
+
         let project = create_project(Some(json!({
             "quotas": [{
                "id": "foo",
@@ -1589,15 +1587,16 @@ mod tests {
                "reasonCode": "foo",
            }]
         })));
-
-        let metrics = project.rate_limit_buckets(
+        project.rate_limit_and_merge_buckets(
+            aggregator,
+            envelope_processor,
             outcome_aggregator,
-            ExtractionMode::Usage,
             &project.state_value().unwrap(),
             vec![create_transaction_bucket()],
         );
 
-        assert!(metrics.is_empty());
+        let value = aggregator_rx.recv().await;
+        assert!(value.is_none());
     }
 
     fn get_test_bucket(name: &str, tags: BTreeMap<String, String>) -> Bucket {
@@ -1776,5 +1775,72 @@ mod tests {
         let back_to_str = serde_json::to_string(&deny_list).unwrap();
 
         assert_eq!(input_str, back_to_str);
+    }
+
+    fn create_custom_bucket_with_name(name: String) -> Bucket {
+        Bucket {
+            name: format!("d:custom/{name}@byte").into(),
+            value: BucketValue::Counter(1.into()),
+            timestamp: UnixTimestamp::now(),
+            tags: Default::default(),
+            width: 10,
+            metadata: Default::default(),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_pre_process_buckets_with_custom_namespace() {
+        let (aggregator, mut aggregator_rx) = Addr::custom();
+        let (outcome_aggregator, _) = Addr::custom();
+        let config = Config::from_json_value(json!({
+            "processing": {
+                "enabled": true,
+                "kafka_config": [],
+            }
+        }))
+        .unwrap();
+        let mut global_config = GlobalConfig::default();
+        global_config.options.metric_stats_rollout_rate = 1.0;
+        let global_config = GlobalConfigHandle::fixed(global_config);
+        let metric_stats = MetricStats::new(Arc::new(config), global_config, aggregator);
+
+        let project = create_project(Some(json!({
+            "metrics": {
+                "deniedNames": ["*cpu_time*"]
+            },
+            "features": [
+                "organizations:custom-metrics"
+            ]
+        })));
+        let buckets = vec![
+            create_custom_bucket_with_name("cpu_time".into()),
+            create_custom_bucket_with_name("memory_usage".into()),
+        ];
+        let pre_processed_buckets = project.pre_process_buckets(
+            outcome_aggregator,
+            metric_stats,
+            ExtractionMode::Usage,
+            &project.state_value().unwrap(),
+            vec![
+                create_custom_bucket_with_name("cpu_time".into()),
+                create_custom_bucket_with_name("memory_usage".into()),
+            ],
+        );
+
+        // We assert that one metric passes all the pre-processing.
+        assert_eq!(pre_processed_buckets.len(), 1);
+        assert_eq!(pre_processed_buckets[0], buckets[1]);
+
+        // We assert that one metric is emitted by metric stats.
+        let value = aggregator_rx.recv().await.unwrap();
+        let Aggregator::MergeBuckets(merge_buckets) = value else {
+            panic!();
+        };
+        let merge_buckets = merge_buckets.buckets();
+        assert_eq!(merge_buckets.len(), 1);
+        assert_eq!(
+            merge_buckets[0].tags.get("mri").unwrap().as_str(),
+            &*buckets[0].name
+        );
     }
 }

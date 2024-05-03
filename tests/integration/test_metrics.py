@@ -1844,7 +1844,7 @@ def test_metrics_with_denied_names(
 
     relay = relay_with_processing(options=TEST_CONFIG)
 
-    metrics_payload = f"custom/cpu_time@millisecond:10|d|#foo:bar\ncustom/memory_usage@byte:10|d|#foo:bar"
+    metrics_payload = "custom/cpu_time@millisecond:10|d|#foo:bar\ncustom/memory_usage@byte:10|d|#foo:bar"
     relay.send_metrics(project_id, metrics_payload)
 
     metrics = metrics_by_name(metrics_consumer, 2)
