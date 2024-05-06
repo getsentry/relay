@@ -943,6 +943,22 @@ pub struct Addrs {
     pub store_forwarder: Option<Addr<Store>>,
 }
 
+impl Default for Addrs {
+    fn default() -> Self {
+        Addrs {
+            envelope_processor: Addr::dummy(),
+            project_cache: Addr::dummy(),
+            outcome_aggregator: Addr::dummy(),
+            #[cfg(feature = "processing")]
+            aggregator: Addr::dummy(),
+            upstream_relay: Addr::dummy(),
+            test_store: Addr::dummy(),
+            #[cfg(feature = "processing")]
+            store_forwarder: None,
+        }
+    }
+}
+
 struct InnerProcessor {
     config: Arc<Config>,
     global_config: GlobalConfigHandle,
@@ -1846,7 +1862,7 @@ impl EnvelopeProcessorService {
         } = message;
 
         let received = relay_common::time::instant_to_date_time(start_time);
-        let received_timestamp = UnixTimestamp::from_secs(received.timestamp() as u64);
+        let received_timestamp = UnixTimestamp::from_instant(start_time);
 
         let clock_drift_processor =
             ClockDriftProcessor::new(sent_at, received).at_least(MINIMUM_CLOCK_DRIFT);
@@ -1897,7 +1913,7 @@ impl EnvelopeProcessorService {
         for bucket in &mut buckets {
             clock_drift_processor.process_timestamp(&mut bucket.timestamp);
             if !keep_metadata {
-                bucket.metadata = BucketMetadata::new();
+                bucket.metadata = BucketMetadata::new(received_timestamp);
             }
         }
 
@@ -1919,6 +1935,8 @@ impl EnvelopeProcessorService {
         } = message;
 
         let received = relay_common::time::instant_to_date_time(start_time);
+        let received_timestamp = UnixTimestamp::from_instant(start_time);
+
         let clock_drift_processor =
             ClockDriftProcessor::new(sent_at, received).at_least(MINIMUM_CLOCK_DRIFT);
 
@@ -1948,7 +1966,7 @@ impl EnvelopeProcessorService {
             for bucket in &mut buckets {
                 clock_drift_processor.process_timestamp(&mut bucket.timestamp);
                 if !keep_metadata {
-                    bucket.metadata = BucketMetadata::new();
+                    bucket.metadata = BucketMetadata::new(received_timestamp);
                 }
             }
 
@@ -3012,7 +3030,7 @@ mod tests {
         CommonTags, TransactionMeasurementTags, TransactionMetric,
     };
     use crate::metrics_extraction::IntoMetric;
-    use crate::testutils::{self, create_test_processor};
+    use crate::testutils::{self, create_test_processor, create_test_processor_with_addrs};
 
     #[cfg(feature = "processing")]
     use {
@@ -3096,7 +3114,7 @@ mod tests {
                     timestamp: UnixTimestamp::now(),
                     tags: Default::default(),
                     width: 10,
-                    metadata: BucketMetadata::new(),
+                    metadata: BucketMetadata::default(),
                 }],
                 project_state,
             };
@@ -3411,5 +3429,149 @@ mod tests {
             hardcoded_value, derived_value,
             "Update `MEASUREMENT_MRI_OVERHEAD` if the naming scheme changed."
         );
+    }
+
+    #[tokio::test]
+    async fn test_process_metrics_bucket_metadata() {
+        let mut token = Cogs::noop().timed(ResourceId::Relay, AppFeature::Unattributed);
+        let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
+        let start_time = Instant::now();
+        let config = Config::default();
+
+        let (project_cache, mut project_cache_rx) = Addr::custom();
+        let processor = create_test_processor_with_addrs(
+            config,
+            Addrs {
+                project_cache,
+                ..Default::default()
+            },
+        );
+
+        let mut item = Item::new(ItemType::Statsd);
+        item.set_payload(
+            ContentType::Text,
+            "transactions/foo:3182887624:4267882815|s",
+        );
+        for (keep_metadata, expected_received_at) in [
+            (false, Some(UnixTimestamp::from_instant(start_time))),
+            (true, None),
+        ] {
+            let message = ProcessMetrics {
+                items: vec![item.clone()],
+                project_key,
+                keep_metadata,
+                start_time,
+                sent_at: Some(Utc::now()),
+            };
+            processor.handle_process_metrics(&mut token, message);
+
+            let value = project_cache_rx.recv().await.unwrap();
+            let ProjectCache::MergeBuckets(merge_buckets) = value else {
+                panic!()
+            };
+            let buckets = merge_buckets.buckets();
+            assert_eq!(buckets.len(), 1);
+            assert_eq!(buckets[0].metadata.received_at, expected_received_at);
+        }
+    }
+
+    #[tokio::test]
+    async fn test_process_batched_metrics_bucket_metadata() {
+        let mut token = Cogs::noop().timed(ResourceId::Relay, AppFeature::Unattributed);
+        let start_time = Instant::now();
+        let config = Config::default();
+
+        let (project_cache, mut project_cache_rx) = Addr::custom();
+        let processor = create_test_processor_with_addrs(
+            config,
+            Addrs {
+                project_cache,
+                ..Default::default()
+            },
+        );
+
+        let payload_no_metadata = r#"{
+    "buckets": {
+        "a94ae32be2584e0bbd7a4cbb95971fee": [
+            {
+                "timestamp": 1615889440,
+                "width": 0,
+                "name": "d:custom/endpoint.response_time@millisecond",
+                "type": "d",
+                "value": [
+                  36.0,
+                  49.0,
+                  57.0,
+                  68.0
+                ],
+                "tags": {
+                  "route": "user_index"
+                }
+            }
+        ]
+    }
+}
+"#;
+
+        let payload_metadata = r#"{
+    "buckets": {
+        "a94ae32be2584e0bbd7a4cbb95971fee": [
+            {
+                "timestamp": 1615889440,
+                "width": 0,
+                "name": "d:custom/endpoint.response_time@millisecond",
+                "type": "d",
+                "value": [
+                  36.0,
+                  49.0,
+                  57.0,
+                  68.0
+                ],
+                "tags": {
+                  "route": "user_index"
+                },
+                "metadata": {
+                  "merges": 1,
+                  "received_at": 1615889440
+                }
+            }
+        ]
+    }
+}
+"#;
+        for (keep_metadata, payload, expected_received_at) in [
+            (
+                false,
+                payload_no_metadata,
+                Some(UnixTimestamp::from_instant(start_time)),
+            ),
+            (true, payload_no_metadata, None),
+            (
+                false,
+                payload_metadata,
+                Some(UnixTimestamp::from_instant(start_time)),
+            ),
+            (
+                true,
+                payload_metadata,
+                Some(UnixTimestamp::from_secs(1615889440)),
+            ),
+        ] {
+            let message = ProcessBatchedMetrics {
+                payload: Bytes::from(payload),
+                keep_metadata,
+                start_time,
+                sent_at: Some(Utc::now()),
+            };
+            processor.handle_process_batched_metrics(&mut token, message);
+
+            let value = project_cache_rx.recv().await.unwrap();
+            let ProjectCache::MergeBuckets(merge_buckets) = value else {
+                panic!()
+            };
+            let buckets = merge_buckets.buckets();
+            assert_eq!(buckets.len(), 1);
+            assert_eq!(buckets[0].metadata.received_at, expected_received_at);
+        }
     }
 }
