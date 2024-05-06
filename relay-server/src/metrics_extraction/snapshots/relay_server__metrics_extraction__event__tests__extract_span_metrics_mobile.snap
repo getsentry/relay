@@ -108,6 +108,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 user: ~,
                 replay_id: ~,
                 sdk_name: ~,
+                sdk_version: ~,
                 frames_slow: I64(
                     1,
                 ),
@@ -423,6 +424,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 user: ~,
                 replay_id: ~,
                 sdk_name: ~,
+                sdk_version: ~,
                 frames_slow: ~,
                 frames_frozen: ~,
                 frames_total: ~,
@@ -516,6 +518,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 user: ~,
                 replay_id: ~,
                 sdk_name: ~,
+                sdk_version: ~,
                 frames_slow: ~,
                 frames_frozen: ~,
                 frames_total: ~,
@@ -657,6 +660,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 user: ~,
                 replay_id: ~,
                 sdk_name: ~,
+                sdk_version: ~,
                 frames_slow: ~,
                 frames_frozen: ~,
                 frames_total: ~,
@@ -750,6 +754,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 user: ~,
                 replay_id: ~,
                 sdk_name: ~,
+                sdk_version: ~,
                 frames_slow: ~,
                 frames_frozen: ~,
                 frames_total: ~,
@@ -799,6 +804,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
             tags: {},
             metadata: BucketMetadata {
                 merges: 1,
+                received_at: Some(
+                    UnixTimestamp(0),
+                ),
             },
         },
         Bucket {
@@ -826,6 +834,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
             },
             metadata: BucketMetadata {
                 merges: 1,
+                received_at: Some(
+                    UnixTimestamp(0),
+                ),
             },
         },
         Bucket {
@@ -850,6 +861,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
             },
             metadata: BucketMetadata {
                 merges: 1,
+                received_at: Some(
+                    UnixTimestamp(0),
+                ),
             },
         },
         Bucket {
@@ -877,6 +891,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
             },
             metadata: BucketMetadata {
                 merges: 1,
+                received_at: Some(
+                    UnixTimestamp(0),
+                ),
             },
         },
         Bucket {
@@ -891,6 +908,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
             tags: {},
             metadata: BucketMetadata {
                 merges: 1,
+                received_at: Some(
+                    UnixTimestamp(0),
+                ),
             },
         },
         Bucket {
@@ -918,6 +938,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
             },
             metadata: BucketMetadata {
                 merges: 1,
+                received_at: Some(
+                    UnixTimestamp(0),
+                ),
             },
         },
         Bucket {
@@ -941,6 +964,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
             },
             metadata: BucketMetadata {
                 merges: 1,
+                received_at: Some(
+                    UnixTimestamp(0),
+                ),
             },
         },
         Bucket {
@@ -968,6 +994,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
             },
             metadata: BucketMetadata {
                 merges: 1,
+                received_at: Some(
+                    UnixTimestamp(0),
+                ),
             },
         },
         Bucket {
@@ -982,6 +1011,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
             tags: {},
             metadata: BucketMetadata {
                 merges: 1,
+                received_at: Some(
+                    UnixTimestamp(0),
+                ),
             },
         },
         Bucket {
@@ -1008,6 +1040,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
             },
             metadata: BucketMetadata {
                 merges: 1,
+                received_at: Some(
+                    UnixTimestamp(0),
+                ),
             },
         },
         Bucket {
@@ -1030,6 +1065,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
             },
             metadata: BucketMetadata {
                 merges: 1,
+                received_at: Some(
+                    UnixTimestamp(0),
+                ),
             },
         },
         Bucket {
@@ -1056,6 +1094,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
             },
             metadata: BucketMetadata {
                 merges: 1,
+                received_at: Some(
+                    UnixTimestamp(0),
+                ),
             },
         },
         Bucket {
@@ -1083,6 +1124,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
             },
             metadata: BucketMetadata {
                 merges: 1,
+                received_at: Some(
+                    UnixTimestamp(0),
+                ),
             },
         },
         Bucket {
@@ -1110,6 +1154,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
             },
             metadata: BucketMetadata {
                 merges: 1,
+                received_at: Some(
+                    UnixTimestamp(0),
+                ),
             },
         },
         Bucket {
@@ -1137,6 +1184,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
             },
             metadata: BucketMetadata {
                 merges: 1,
+                received_at: Some(
+                    UnixTimestamp(0),
+                ),
             },
         },
         Bucket {
@@ -1164,6 +1214,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
             },
             metadata: BucketMetadata {
                 merges: 1,
+                received_at: Some(
+                    UnixTimestamp(0),
+                ),
             },
         },
         Bucket {
@@ -1178,6 +1231,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
             tags: {},
             metadata: BucketMetadata {
                 merges: 1,
+                received_at: Some(
+                    UnixTimestamp(0),
+                ),
             },
         },
         Bucket {
@@ -1207,6 +1263,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
             },
             metadata: BucketMetadata {
                 merges: 1,
+                received_at: Some(
+                    UnixTimestamp(0),
+                ),
             },
         },
         Bucket {
@@ -1232,6 +1291,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
             },
             metadata: BucketMetadata {
                 merges: 1,
+                received_at: Some(
+                    UnixTimestamp(0),
+                ),
             },
         },
         Bucket {
@@ -1261,6 +1323,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
             },
             metadata: BucketMetadata {
                 merges: 1,
+                received_at: Some(
+                    UnixTimestamp(0),
+                ),
             },
         },
         Bucket {
@@ -1275,6 +1340,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
             tags: {},
             metadata: BucketMetadata {
                 merges: 1,
+                received_at: Some(
+                    UnixTimestamp(0),
+                ),
             },
         },
         Bucket {
@@ -1295,6 +1363,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
             },
             metadata: BucketMetadata {
                 merges: 1,
+                received_at: Some(
+                    UnixTimestamp(0),
+                ),
             },
         },
         Bucket {
@@ -1315,6 +1386,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
             },
             metadata: BucketMetadata {
                 merges: 1,
+                received_at: Some(
+                    UnixTimestamp(0),
+                ),
             },
         },
         Bucket {
@@ -1329,6 +1403,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
             tags: {},
             metadata: BucketMetadata {
                 merges: 1,
+                received_at: Some(
+                    UnixTimestamp(0),
+                ),
             },
         },
         Bucket {
@@ -1357,6 +1434,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
             },
             metadata: BucketMetadata {
                 merges: 1,
+                received_at: Some(
+                    UnixTimestamp(0),
+                ),
             },
         },
         Bucket {
@@ -1381,6 +1461,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
             },
             metadata: BucketMetadata {
                 merges: 1,
+                received_at: Some(
+                    UnixTimestamp(0),
+                ),
             },
         },
         Bucket {
@@ -1409,6 +1492,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
             },
             metadata: BucketMetadata {
                 merges: 1,
+                received_at: Some(
+                    UnixTimestamp(0),
+                ),
             },
         },
         Bucket {
@@ -1423,6 +1509,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
             tags: {},
             metadata: BucketMetadata {
                 merges: 1,
+                received_at: Some(
+                    UnixTimestamp(0),
+                ),
             },
         },
         Bucket {
@@ -1451,6 +1540,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
             },
             metadata: BucketMetadata {
                 merges: 1,
+                received_at: Some(
+                    UnixTimestamp(0),
+                ),
             },
         },
         Bucket {
@@ -1475,6 +1567,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
             },
             metadata: BucketMetadata {
                 merges: 1,
+                received_at: Some(
+                    UnixTimestamp(0),
+                ),
             },
         },
         Bucket {
@@ -1503,6 +1598,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
             },
             metadata: BucketMetadata {
                 merges: 1,
+                received_at: Some(
+                    UnixTimestamp(0),
+                ),
             },
         },
         Bucket {
@@ -1517,6 +1615,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
             tags: {},
             metadata: BucketMetadata {
                 merges: 1,
+                received_at: Some(
+                    UnixTimestamp(0),
+                ),
             },
         },
         Bucket {
@@ -1545,6 +1646,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
             },
             metadata: BucketMetadata {
                 merges: 1,
+                received_at: Some(
+                    UnixTimestamp(0),
+                ),
             },
         },
         Bucket {
@@ -1569,6 +1673,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
             },
             metadata: BucketMetadata {
                 merges: 1,
+                received_at: Some(
+                    UnixTimestamp(0),
+                ),
             },
         },
         Bucket {
@@ -1597,6 +1704,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
             },
             metadata: BucketMetadata {
                 merges: 1,
+                received_at: Some(
+                    UnixTimestamp(0),
+                ),
             },
         },
         Bucket {
@@ -1611,6 +1721,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
             tags: {},
             metadata: BucketMetadata {
                 merges: 1,
+                received_at: Some(
+                    UnixTimestamp(0),
+                ),
             },
         },
         Bucket {
@@ -1637,6 +1750,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
             },
             metadata: BucketMetadata {
                 merges: 1,
+                received_at: Some(
+                    UnixTimestamp(0),
+                ),
             },
         },
         Bucket {
@@ -1659,6 +1775,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
             },
             metadata: BucketMetadata {
                 merges: 1,
+                received_at: Some(
+                    UnixTimestamp(0),
+                ),
             },
         },
         Bucket {
@@ -1685,6 +1804,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
             },
             metadata: BucketMetadata {
                 merges: 1,
+                received_at: Some(
+                    UnixTimestamp(0),
+                ),
             },
         },
         Bucket {
@@ -1699,6 +1821,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
             tags: {},
             metadata: BucketMetadata {
                 merges: 1,
+                received_at: Some(
+                    UnixTimestamp(0),
+                ),
             },
         },
         Bucket {
@@ -1728,6 +1853,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
             },
             metadata: BucketMetadata {
                 merges: 1,
+                received_at: Some(
+                    UnixTimestamp(0),
+                ),
             },
         },
         Bucket {
@@ -1753,6 +1881,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
             },
             metadata: BucketMetadata {
                 merges: 1,
+                received_at: Some(
+                    UnixTimestamp(0),
+                ),
             },
         },
         Bucket {
@@ -1782,6 +1913,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
             },
             metadata: BucketMetadata {
                 merges: 1,
+                received_at: Some(
+                    UnixTimestamp(0),
+                ),
             },
         },
         Bucket {
@@ -1796,6 +1930,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
             tags: {},
             metadata: BucketMetadata {
                 merges: 1,
+                received_at: Some(
+                    UnixTimestamp(0),
+                ),
             },
         },
         Bucket {
@@ -1824,6 +1961,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
             },
             metadata: BucketMetadata {
                 merges: 1,
+                received_at: Some(
+                    UnixTimestamp(0),
+                ),
             },
         },
         Bucket {
@@ -1848,6 +1988,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
             },
             metadata: BucketMetadata {
                 merges: 1,
+                received_at: Some(
+                    UnixTimestamp(0),
+                ),
             },
         },
         Bucket {
@@ -1876,6 +2019,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
             },
             metadata: BucketMetadata {
                 merges: 1,
+                received_at: Some(
+                    UnixTimestamp(0),
+                ),
             },
         },
         Bucket {
@@ -1890,6 +2036,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
             tags: {},
             metadata: BucketMetadata {
                 merges: 1,
+                received_at: Some(
+                    UnixTimestamp(0),
+                ),
             },
         },
         Bucket {
@@ -1918,6 +2067,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
             },
             metadata: BucketMetadata {
                 merges: 1,
+                received_at: Some(
+                    UnixTimestamp(0),
+                ),
             },
         },
         Bucket {
@@ -1942,6 +2094,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
             },
             metadata: BucketMetadata {
                 merges: 1,
+                received_at: Some(
+                    UnixTimestamp(0),
+                ),
             },
         },
         Bucket {
@@ -1970,6 +2125,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
             },
             metadata: BucketMetadata {
                 merges: 1,
+                received_at: Some(
+                    UnixTimestamp(0),
+                ),
             },
         },
     ],

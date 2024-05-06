@@ -65,11 +65,12 @@ fn otel_value_to_string(value: OtelValue) -> Option<String> {
 }
 
 fn otel_value_to_span_id(value: OtelValue) -> Option<String> {
-    match value {
-        OtelValue::StringValue(s) => Some(s),
-        OtelValue::BytesValue(b) => Some(hex::encode(b)),
-        _ => None,
-    }
+    let decoded = match value {
+        OtelValue::StringValue(s) => hex::decode(s).ok()?,
+        OtelValue::BytesValue(b) => b,
+        _ => None?,
+    };
+    Some(hex::encode(decoded))
 }
 
 fn otel_value_to_metric_summary(value: AnyValue) -> Option<MetricSummary> {
@@ -191,7 +192,7 @@ pub fn otel_to_sentry_span(otel_span: OtelSpan) -> EventSpan {
                     segment_id = otel_value_to_span_id(value);
                 }
                 "sentry.profile.id" => {
-                    profile_id = otel_value_to_span_id(value);
+                    profile_id = otel_value_to_string(value);
                 }
                 other => {
                     if let Some(metric_name) = other.strip_prefix("sentry.metrics_summary.") {
@@ -521,7 +522,7 @@ mod tests {
                 {
                     "key" : "sentry.segment.id",
                     "value": {
-                        "stringValue": "fa90fdead5f74052"
+                        "stringValue": "FA90FDEAD5F74052"
                     }
                 },
                 {
@@ -657,6 +658,7 @@ mod tests {
                 user: ~,
                 replay_id: ~,
                 sdk_name: "sentry.php",
+                sdk_version: ~,
                 frames_slow: ~,
                 frames_frozen: ~,
                 frames_total: ~,
@@ -690,5 +692,14 @@ mod tests {
             other: {},
         }
         "###);
+    }
+
+    #[test]
+    fn uppercase_span_id() {
+        let input = OtelValue::StringValue("FA90FDEAD5F74052".to_owned());
+        assert_eq!(
+            otel_value_to_span_id(input).as_deref(),
+            Some("fa90fdead5f74052")
+        );
     }
 }
