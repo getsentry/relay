@@ -1626,6 +1626,8 @@
 <a href="#1624" id="1624">1624</a>
 <a href="#1625" id="1625">1625</a>
 <a href="#1626" id="1626">1626</a>
+<a href="#1627" id="1627">1627</a>
+<a href="#1628" id="1628">1628</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_common::time::UnixTimestamp;
 <span class="kw">use </span>relay_dynamic_config::CombinedMetricExtractionConfig;
 <span class="kw">use </span>relay_event_schema::protocol::{Event, Span};
@@ -3162,7 +3164,9 @@
 
         <span class="macro">assert!</span>(!metrics.is_empty());
         <span class="kw">for </span>metric <span class="kw">in </span>metrics {
-            <span class="kw">if </span><span class="kw-2">&amp;*</span>metric.name == <span class="string">"d:spans/exclusive_time@millisecond" </span>{
+            <span class="kw">if </span><span class="kw-2">&amp;*</span>metric.name == <span class="string">"d:spans/exclusive_time@millisecond"
+                </span>|| <span class="kw-2">&amp;*</span>metric.name == <span class="string">"d:spans/duration@millisecond"
+            </span>{
                 <span class="macro">assert_eq!</span>(metric.tag(<span class="string">"ttid"</span>), <span class="prelude-val">Some</span>(<span class="string">"ttid"</span>));
                 <span class="macro">assert_eq!</span>(metric.tag(<span class="string">"ttfd"</span>), <span class="prelude-val">Some</span>(<span class="string">"ttfd"</span>));
             } <span class="kw">else </span>{
