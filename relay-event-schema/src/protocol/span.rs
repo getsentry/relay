@@ -591,6 +591,7 @@ mod tests {
             user: ~,
             replay_id: ~,
             sdk_name: ~,
+            sdk_version: ~,
             frames_slow: I64(
                 1,
             ),
