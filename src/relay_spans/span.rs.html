@@ -694,6 +694,16 @@
 <a href="#692" id="692">692</a>
 <a href="#693" id="693">693</a>
 <a href="#694" id="694">694</a>
+<a href="#695" id="695">695</a>
+<a href="#696" id="696">696</a>
+<a href="#697" id="697">697</a>
+<a href="#698" id="698">698</a>
+<a href="#699" id="699">699</a>
+<a href="#700" id="700">700</a>
+<a href="#701" id="701">701</a>
+<a href="#702" id="702">702</a>
+<a href="#703" id="703">703</a>
+<a href="#704" id="704">704</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::str::FromStr;
 
 <span class="kw">use </span>chrono::{TimeZone, Utc};
@@ -761,11 +771,12 @@
 }
 
 <span class="kw">fn </span>otel_value_to_span_id(value: OtelValue) -&gt; <span class="prelude-ty">Option</span>&lt;String&gt; {
-    <span class="kw">match </span>value {
-        OtelValue::StringValue(s) =&gt; <span class="prelude-val">Some</span>(s),
-        OtelValue::BytesValue(b) =&gt; <span class="prelude-val">Some</span>(hex::encode(b)),
-        <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
-    }
+    <span class="kw">let </span>decoded = <span class="kw">match </span>value {
+        OtelValue::StringValue(s) =&gt; hex::decode(s).ok()<span class="question-mark">?</span>,
+        OtelValue::BytesValue(b) =&gt; b,
+        <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span><span class="question-mark">?</span>,
+    };
+    <span class="prelude-val">Some</span>(hex::encode(decoded))
 }
 
 <span class="kw">fn </span>otel_value_to_metric_summary(value: AnyValue) -&gt; <span class="prelude-ty">Option</span>&lt;MetricSummary&gt; {
@@ -887,7 +898,7 @@
                     segment_id = otel_value_to_span_id(value);
                 }
                 <span class="string">"sentry.profile.id" </span>=&gt; {
-                    profile_id = otel_value_to_span_id(value);
+                    profile_id = otel_value_to_string(value);
                 }
                 other =&gt; {
                     <span class="kw">if let </span><span class="prelude-val">Some</span>(metric_name) = other.strip_prefix(<span class="string">"sentry.metrics_summary."</span>) {
@@ -1217,7 +1228,7 @@
                 {
                     "key" : "sentry.segment.id",
                     "value": {
-                        "stringValue": "fa90fdead5f74052"
+                        "stringValue": "FA90FDEAD5F74052"
                     }
                 },
                 {
@@ -1386,6 +1397,15 @@
             other: {},
         }
         "###</span>);
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>uppercase_span_id() {
+        <span class="kw">let </span>input = OtelValue::StringValue(<span class="string">"FA90FDEAD5F74052"</span>.to_owned());
+        <span class="macro">assert_eq!</span>(
+            otel_value_to_span_id(input).as_deref(),
+            <span class="prelude-val">Some</span>(<span class="string">"fa90fdead5f74052"</span>)
+        );
     }
 }
 </code></pre></div></section></main></body></html>
