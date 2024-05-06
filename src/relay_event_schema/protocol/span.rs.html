@@ -633,6 +633,11 @@
 <a href="#631" id="631">631</a>
 <a href="#632" id="632">632</a>
 <a href="#633" id="633">633</a>
+<a href="#634" id="634">634</a>
+<a href="#635" id="635">635</a>
+<a href="#636" id="636">636</a>
+<a href="#637" id="637">637</a>
+<a href="#638" id="638">638</a>
 </pre></div><pre class="rust"><code><span class="kw">mod </span>convert;
 
 <span class="attr">#[cfg(feature = <span class="string">"jsonschema"</span>)]
@@ -938,6 +943,10 @@
     </span><span class="attr">#[metastructure(field = <span class="string">"sentry.sdk.name"</span>)]
     </span><span class="kw">pub </span>sdk_name: Annotated&lt;String&gt;,
 
+    <span class="doccomment">/// The sentry SDK version (see [`crate::protocol::ClientSdkInfo`]).
+    </span><span class="attr">#[metastructure(field = <span class="string">"sentry.sdk.version"</span>)]
+    </span><span class="kw">pub </span>sdk_version: Annotated&lt;String&gt;,
+
     <span class="doccomment">/// Slow Frames
     </span><span class="attr">#[metastructure(field = <span class="string">"sentry.frames.slow"</span>, legacy_alias = <span class="string">"frames.slow"</span>)]
     </span><span class="kw">pub </span>frames_slow: Annotated&lt;Value&gt;,
@@ -1222,6 +1231,7 @@
             user: ~,
             replay_id: ~,
             sdk_name: ~,
+            sdk_version: ~,
             frames_slow: I64(
                 1,
             ),

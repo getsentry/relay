@@ -367,6 +367,8 @@
 <a href="#365" id="365">365</a>
 <a href="#366" id="366">366</a>
 <a href="#367" id="367">367</a>
+<a href="#368" id="368">368</a>
+<a href="#369" id="369">369</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module defines bidirectional field mappings between spans and transactions.
 </span><span class="kw">use </span><span class="kw">crate</span>::protocol::{BrowserContext, Contexts, Event, ProfileContext, Span, TraceContext};
 
@@ -531,7 +533,8 @@
     span.data.release &lt;=&gt; event.release,
     span.data.environment &lt;=&gt; event.environment,
     span.data.browser_name &lt;=&gt; event.contexts.browser.name,
-    span.data.sdk_name &lt;=&gt; event.client_sdk.name
+    span.data.sdk_name &lt;=&gt; event.client_sdk.name,
+    span.data.sdk_version &lt;=&gt; event.client_sdk.version
     ;
     span.is_segment &lt;= <span class="bool-val">true</span>,
     span.was_transaction &lt;= <span class="bool-val">true
@@ -553,7 +556,7 @@
             <span class="string">r#"{
                 "type": "transaction",
                 "platform": "php",
-                "sdk": {"name": "sentry.php"},
+                "sdk": {"name": "sentry.php", "version": "1.2.3"},
                 "release": "myapp@1.0.0",
                 "environment": "prod",
                 "transaction": "my 1st transaction",
@@ -657,6 +660,7 @@
                 user: ~,
                 replay_id: ~,
                 sdk_name: "sentry.php",
+                sdk_version: "1.2.3",
                 frames_slow: ~,
                 frames_frozen: ~,
                 frames_total: ~,
