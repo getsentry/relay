@@ -1124,6 +1124,9 @@ mod tests {
                     "measurements": {
                         "ai_total_tokens_used": {
                             "value": 20
+                        },
+                        "ai_total_cost": {
+                            "value": 0.0002
                         }
                     },
                     "data": {

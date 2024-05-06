@@ -274,18 +274,6 @@ pub struct SpanData {
     #[metastructure(field = "ai.input_messages")]
     pub ai_input_messages: Annotated<Value>,
 
-    /// The number of tokens used to generate the response to an AI call
-    #[metastructure(field = "ai.completion_tokens.used", pii = "false")]
-    pub ai_completion_tokens_used: Annotated<Value>,
-
-    /// The number of tokens used to process a request for an AI call
-    #[metastructure(field = "ai.prompt_tokens.used", pii = "false")]
-    pub ai_prompt_tokens_used: Annotated<Value>,
-
-    /// The total number of tokens used to for an AI call
-    #[metastructure(field = "ai.total_tokens.used", pii = "false")]
-    pub ai_total_tokens_used: Annotated<Value>,
-
     /// The responses to an AI model call
     #[metastructure(field = "ai.responses")]
     pub ai_responses: Annotated<Value>,
@@ -631,9 +619,6 @@ mod tests {
             ai_pipeline_name: ~,
             ai_model_id: ~,
             ai_input_messages: ~,
-            ai_completion_tokens_used: ~,
-            ai_prompt_tokens_used: ~,
-            ai_total_tokens_used: ~,
             ai_responses: ~,
             thread_name: ~,
             segment_name: ~,

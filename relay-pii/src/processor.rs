@@ -1338,43 +1338,6 @@ mod tests {
     }
 
     #[test]
-    fn test_ai_token_values() {
-        let mut span = Span::from_value(
-            json!({
-                "data": {
-                    "ai.total_tokens.used": 30,
-                    "ai.prompt_tokens.used": 20,
-                    "ai.completion_tokens.used": 10,
-                }
-            })
-            .into(),
-        );
-
-        let pii_config = serde_json::from_value::<PiiConfig>(json!({
-            "applications": {
-                "$object": ["@password"],
-            }
-        }))
-        .expect("invalid json config");
-
-        let mut pii_processor = PiiProcessor::new(pii_config.compiled());
-        process_value(&mut span, &mut pii_processor, ProcessingState::root()).unwrap();
-
-        assert_eq!(
-            Val::from(get_value!(span.data.ai_total_tokens_used!)).as_u64(),
-            Some(30),
-        );
-        assert_eq!(
-            Val::from(get_value!(span.data.ai_prompt_tokens_used!)).as_u64(),
-            Some(20),
-        );
-        assert_eq!(
-            Val::from(get_value!(span.data.ai_completion_tokens_used!)).as_u64(),
-            Some(10),
-        );
-    }
-
-    #[test]
     fn test_scrub_breadcrumb_data_http_not_scrubbed() {
         let mut breadcrumb: Annotated<Breadcrumb> = Annotated::from_json(
             r#"{
