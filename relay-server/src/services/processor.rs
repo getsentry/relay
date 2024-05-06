@@ -2630,9 +2630,8 @@ impl Service for EnvelopeProcessorService {
         // Adjust thread count for small cpu counts to not have too many idle cores
         // and distribute workload better.
         let thread_count = match self.inner.config.cpu_concurrency() {
-            0 | 1 => 1,
-            2 | 3 => 2,
-            4 => 3,
+            conc @ 0..=2 => conc.max(1),
+            conc @ 3..=4 => conc - 1,
             conc => conc - 2,
         };
         relay_log::info!("starting {thread_count} envelope processing workers");
