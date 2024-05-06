@@ -90,16 +90,14 @@ pub(crate) fn scrub_span_description(
                 }
             }
             ("resource", ty) => scrub_resource(ty, description),
-            ("ai", sub)
-                if sub.starts_with("run.")
-                    || sub == "run"
-                    || sub.starts_with("pipeline.")
-                    || sub == "pipeline" =>
-            {
-                // ai.run.* and ai.pipeline.* are low cardinality (<100 per org) and describe
-                // the names of nodes of an AI pipeline.
-                Some(description.to_owned())
-            }
+            ("ai", sub) => match sub.split_once('.').unwrap_or((sub, "")) {
+                ("run" | "pipeline", _) => {
+                    // ai.run.* and ai.pipeline.* are low cardinality (<100 per org) and describe
+                    // the names of nodes of an AI pipeline.
+                    Some(description.to_owned())
+                }
+                _ => None,
+            },
             ("ui", "load") => {
                 // `ui.load` spans contain component names like `ListAppViewController`, so
                 // they _should_ be low-cardinality.
