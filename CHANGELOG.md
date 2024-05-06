@@ -8,6 +8,7 @@
 - Extract `cache.item_size` from measurements instead of data. ([#3510](https://github.com/getsentry/relay/pull/3510))
 - Collect `enviornment` tag as part of exclusive_time_light for cache spans. ([#3510](https://github.com/getsentry/relay/pull/3510))
 - Emit negative outcomes for denied metrics. ([#3508](https://github.com/getsentry/relay/pull/3508))
+- Emit negative outcomes when metrics are rejected because of a disabled namespace. ([#3544](https://github.com/getsentry/relay/pull/3544))
 
 ## 24.4.2
 
