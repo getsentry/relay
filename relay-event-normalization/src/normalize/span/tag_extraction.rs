@@ -649,30 +649,40 @@ pub fn extract_measurements(span: &mut Span, is_mobile: bool) {
     }
 
     if span_op.starts_with("ai.") {
-        if let Some(ai_total_tokens_used) = span
+        let total_tokens_used = span
             .measurements
             .value()
-            .and_then(|m| m.get_value("ai_total_tokens_used"))
+            .and_then(|m| m.get_value("ai_total_tokens_used"));
+        let prompt_tokens_used = span
+            .measurements
+            .value()
+            .and_then(|m| m.get_value("ai_prompt_tokens_used"));
+        let completion_tokens_used = span
+            .measurements
+            .value()
+            .and_then(|m| m.get_value("ai_completion_tokens_used"));
+        if let Some(model_id) = span
+            .data
+            .value()
+            .and_then(|d| d.ai_model_id.value())
+            .and_then(|val| val.as_str())
         {
-            if let Some(model_id) = span
-                .data
-                .value()
-                .and_then(|d| d.ai_model_id.value())
-                .and_then(|val| val.as_str())
-            {
-                if let Some(model_cost_per_1k_tokens) = calculate_ai_model_cost(model_id) {
-                    let total_cost = ai_total_tokens_used / 1000.0 * model_cost_per_1k_tokens;
-                    span.measurements
-                        .get_or_insert_with(Default::default)
-                        .insert(
-                            "ai_total_cost".to_owned(),
-                            Measurement {
-                                value: total_cost.into(),
-                                unit: MetricUnit::None.into(),
-                            }
-                            .into(),
-                        );
-                }
+            if let Some(total_cost) = calculate_ai_model_cost(
+                model_id,
+                prompt_tokens_used,
+                completion_tokens_used,
+                total_tokens_used,
+            ) {
+                span.measurements
+                    .get_or_insert_with(Default::default)
+                    .insert(
+                        "ai_total_cost".to_owned(),
+                        Measurement {
+                            value: total_cost.into(),
+                            unit: MetricUnit::None.into(),
+                        }
+                        .into(),
+                    );
             }
         }
     }
@@ -1485,12 +1495,12 @@ LIMIT 1
                         "trace_id": "922dda2462ea4ac2b6a4b339bee90863",
                         "measurements": {
                             "ai_total_tokens_used": {
-                                "value": 900
+                                "value": 1000000
                             }
                         },
                         "data": {
                             "ai.pipeline.name": "Autofix Pipeline",
-                            "ai.model_id": "gpt-4-32k"
+                            "ai.model_id": "claude-2.1"
                         }
                     }
                 ]
