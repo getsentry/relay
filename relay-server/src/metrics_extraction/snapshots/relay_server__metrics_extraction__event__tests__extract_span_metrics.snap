@@ -15,6 +15,9 @@ expression: metrics
         tags: {},
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -36,6 +39,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -57,6 +63,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -71,6 +80,9 @@ expression: metrics
         tags: {},
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -92,6 +104,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -113,6 +128,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -127,6 +145,9 @@ expression: metrics
         tags: {},
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -153,6 +174,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -176,6 +200,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -191,13 +218,20 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "span.category": "http",
+            "span.description": "GET http://domain.tld",
+            "span.domain": "domain.tld",
             "span.group": "d9dc18637d441612",
             "span.op": "http.client",
             "transaction": "gEt /api/:version/users/",
+            "transaction.method": "POST",
             "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -212,6 +246,9 @@ expression: metrics
         tags: {},
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -238,6 +275,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -261,6 +301,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -276,13 +319,20 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "span.category": "http",
+            "span.description": "POST http://domain.tld",
+            "span.domain": "domain.tld",
             "span.group": "25faf23529f71d3e",
             "span.op": "http.client",
             "transaction": "gEt /api/:version/users/",
+            "transaction.method": "POST",
             "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -297,6 +347,9 @@ expression: metrics
         tags: {},
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -323,6 +376,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -346,6 +402,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -361,13 +420,20 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "span.category": "http",
+            "span.description": "PUT http://domain.tld",
+            "span.domain": "domain.tld",
             "span.group": "488f09b46e5978be",
             "span.op": "http.client",
             "transaction": "gEt /api/:version/users/",
+            "transaction.method": "POST",
             "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -382,6 +448,9 @@ expression: metrics
         tags: {},
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -407,6 +476,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -429,6 +501,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -444,13 +519,19 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "span.category": "http",
+            "span.description": "GET *",
             "span.group": "37e3d9fab1ae9162",
             "span.op": "http.client",
             "transaction": "gEt /api/:version/users/",
+            "transaction.method": "POST",
             "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -465,6 +546,9 @@ expression: metrics
         tags: {},
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -491,6 +575,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -514,6 +601,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -529,13 +619,20 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "span.category": "http",
+            "span.description": "GET *",
             "span.group": "37e3d9fab1ae9162",
             "span.op": "http.client",
+            "span.status_code": "500",
             "transaction": "gEt /api/:version/users/",
+            "transaction.method": "POST",
             "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -550,6 +647,9 @@ expression: metrics
         tags: {},
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -577,6 +677,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -601,6 +704,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -616,13 +722,21 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "span.category": "http",
+            "span.description": "POST http://127.0.0.1:1234",
+            "span.domain": "127.0.0.1:1234",
             "span.group": "464fe695f9cf639c",
             "span.op": "http.client",
+            "span.status_code": "200",
             "transaction": "gEt /api/:version/users/",
+            "transaction.method": "POST",
             "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -637,6 +751,9 @@ expression: metrics
         tags: {},
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -664,6 +781,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -688,6 +808,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -703,13 +826,21 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "span.category": "http",
+            "span.description": "POST http://*.domain.tld:1234",
+            "span.domain": "*.domain.tld:1234",
             "span.group": "86818d1c74ecfc66",
             "span.op": "http.client",
+            "span.status_code": "200",
             "transaction": "gEt /api/:version/users/",
+            "transaction.method": "POST",
             "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -724,6 +855,9 @@ expression: metrics
         tags: {},
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -751,6 +885,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -775,6 +912,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -790,13 +930,21 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "span.category": "http",
+            "span.description": "POST http://targetdomain.tld:1234",
+            "span.domain": "targetdomain.tld:1234",
             "span.group": "72ab88b506cb04b2",
             "span.op": "http.client",
+            "span.status_code": "200",
             "transaction": "gEt /api/:version/users/",
+            "transaction.method": "POST",
             "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -811,6 +959,9 @@ expression: metrics
         tags: {},
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -838,6 +989,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -862,6 +1016,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -877,13 +1034,21 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "span.category": "http",
+            "span.description": "POST http://targetdomain:1234",
+            "span.domain": "targetdomain:1234",
             "span.group": "c8e531abe96ff360",
             "span.op": "http.client",
+            "span.status_code": "200",
             "transaction": "gEt /api/:version/users/",
+            "transaction.method": "POST",
             "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -898,6 +1063,9 @@ expression: metrics
         tags: {},
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -925,6 +1093,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -949,6 +1120,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -964,13 +1138,21 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "span.category": "http",
+            "span.description": "POST http://*.domain.tld:1234",
+            "span.domain": "*.domain.tld:1234",
             "span.group": "86818d1c74ecfc66",
             "span.op": "http.client",
+            "span.status_code": "200",
             "transaction": "gEt /api/:version/users/",
+            "transaction.method": "POST",
             "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -985,6 +1167,9 @@ expression: metrics
         tags: {},
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -1012,6 +1197,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -1036,6 +1224,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -1051,13 +1242,21 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "span.category": "http",
+            "span.description": "POST http://*.domain.tld:1234",
+            "span.domain": "*.domain.tld:1234",
             "span.group": "86818d1c74ecfc66",
             "span.op": "http.client",
+            "span.status_code": "200",
             "transaction": "gEt /api/:version/users/",
+            "transaction.method": "POST",
             "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -1072,6 +1271,9 @@ expression: metrics
         tags: {},
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -1099,6 +1301,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -1123,6 +1328,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -1138,13 +1346,21 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "span.action": "SELECT",
+            "span.category": "db",
+            "span.description": "SeLeCt column FROM tAbLe WHERE id IN (%s)",
+            "span.domain": "table",
             "span.group": "f4a7fef06db3d88e",
             "span.op": "db.sql.query",
             "transaction": "gEt /api/:version/users/",
+            "transaction.method": "POST",
             "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -1159,6 +1375,9 @@ expression: metrics
         tags: {},
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -1186,6 +1405,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -1210,6 +1432,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -1225,13 +1450,21 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "span.action": "SELECT",
+            "span.category": "db",
+            "span.description": "select column FROM table WHERE id IN (%s)",
+            "span.domain": "table",
             "span.group": "4f9711d2d09963b9",
             "span.op": "db",
             "transaction": "gEt /api/:version/users/",
+            "transaction.method": "POST",
             "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -1246,6 +1479,9 @@ expression: metrics
         tags: {},
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -1271,6 +1507,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -1293,6 +1532,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -1308,12 +1550,19 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "span.action": "INSERT",
+            "span.category": "db",
+            "span.domain": "table",
             "span.op": "db.sql.query",
             "transaction": "gEt /api/:version/users/",
+            "transaction.method": "POST",
             "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -1328,6 +1577,9 @@ expression: metrics
         tags: {},
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -1355,6 +1607,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -1379,6 +1634,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -1394,13 +1652,21 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "span.action": "INSERT",
+            "span.category": "db",
+            "span.description": "INSERT INTO from_date (..) VALUES (%s)",
+            "span.domain": ",from_date,",
             "span.group": "e4ea457c8e7e4109",
             "span.op": "db.sql.query",
             "transaction": "gEt /api/:version/users/",
+            "transaction.method": "POST",
             "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -1415,6 +1681,9 @@ expression: metrics
         tags: {},
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -1440,6 +1709,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -1462,6 +1734,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -1477,12 +1752,19 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "span.action": "INSERT",
+            "span.category": "db",
+            "span.domain": "table",
             "span.op": "db",
             "transaction": "gEt /api/:version/users/",
+            "transaction.method": "POST",
             "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -1497,6 +1779,9 @@ expression: metrics
         tags: {},
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -1524,6 +1809,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -1548,6 +1836,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -1563,13 +1854,21 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "span.action": "SELECT",
+            "span.category": "db",
+            "span.description": "SELECT * FROM table WHERE id IN (val)",
+            "span.domain": "table",
             "span.group": "03cb381cee3f1463",
             "span.op": "db.sql.query",
             "transaction": "gEt /api/:version/users/",
+            "transaction.method": "POST",
             "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -1584,6 +1883,9 @@ expression: metrics
         tags: {},
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -1611,6 +1913,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -1635,6 +1940,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -1650,13 +1958,21 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "span.action": "SELECT",
+            "span.category": "db",
+            "span.description": "SELECT col FROM table WHERE col = %s",
+            "span.domain": ",table,",
             "span.group": "e0f7e81a59b030ba",
             "span.op": "db",
             "transaction": "gEt /api/:version/users/",
+            "transaction.method": "POST",
             "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -1671,6 +1987,9 @@ expression: metrics
         tags: {},
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -1696,6 +2015,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -1718,6 +2040,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -1733,12 +2058,19 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "span.action": "DELETE",
+            "span.category": "db",
+            "span.domain": "table",
             "span.op": "db",
             "transaction": "gEt /api/:version/users/",
+            "transaction.method": "POST",
             "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -1753,6 +2085,9 @@ expression: metrics
         tags: {},
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -1778,6 +2113,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -1800,6 +2138,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -1815,12 +2156,19 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "span.action": "UPDATE",
+            "span.category": "db",
+            "span.domain": "table",
             "span.op": "db",
             "transaction": "gEt /api/:version/users/",
+            "transaction.method": "POST",
             "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -1835,6 +2183,9 @@ expression: metrics
         tags: {},
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -1861,6 +2212,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -1884,6 +2238,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -1899,13 +2256,20 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "span.action": "SAVEPOINT",
+            "span.category": "db",
+            "span.description": "SAVEPOINT %s",
             "span.group": "3f955cbde39e04b9",
             "span.op": "db",
             "transaction": "gEt /api/:version/users/",
+            "transaction.method": "POST",
             "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -1920,6 +2284,9 @@ expression: metrics
         tags: {},
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -1942,6 +2309,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -1965,6 +2335,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -1979,6 +2352,7 @@ expression: metrics
             ],
         ),
         tags: {
+            "cache.hit": "false",
             "environment": "fake_environment",
             "span.op": "cache.get_item",
             "transaction": "gEt /api/:version/users/",
@@ -1986,6 +2360,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -2007,6 +2384,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -2021,6 +2401,9 @@ expression: metrics
         tags: {},
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -2047,6 +2430,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -2070,6 +2456,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -2085,13 +2474,20 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "span.action": "GET",
+            "span.category": "db",
+            "span.description": "GET *",
             "span.group": "37e3d9fab1ae9162",
             "span.op": "db.redis",
             "transaction": "gEt /api/:version/users/",
+            "transaction.method": "POST",
             "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -2106,6 +2502,9 @@ expression: metrics
         tags: {},
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -2132,6 +2531,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -2155,6 +2557,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -2170,13 +2575,20 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "span.action": "GET",
+            "span.category": "db",
+            "span.description": "GET *",
             "span.group": "37e3d9fab1ae9162",
             "span.op": "db.redis",
             "transaction": "gEt /api/:version/users/",
+            "transaction.method": "POST",
             "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -2191,6 +2603,9 @@ expression: metrics
         tags: {},
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -2217,6 +2632,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -2240,6 +2658,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -2255,13 +2676,20 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "span.action": "SET",
+            "span.category": "db",
+            "span.description": "SET *",
             "span.group": "46b2cac4b418f556",
             "span.op": "db.redis",
             "transaction": "gEt /api/:version/users/",
+            "transaction.method": "POST",
             "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -2276,6 +2704,9 @@ expression: metrics
         tags: {},
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -2302,6 +2733,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -2326,6 +2760,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -2341,6 +2778,10 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "file_extension": "js",
+            "span.category": "resource",
+            "span.description": "http://domain/static/myscript-*.js",
+            "span.domain": "domain",
             "span.group": "022f81fdf31228bf",
             "span.op": "resource.script",
             "transaction": "gEt /api/:version/users/",
@@ -2348,6 +2789,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -2362,6 +2806,9 @@ expression: metrics
         tags: {},
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -2383,6 +2830,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -2404,6 +2854,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -2418,6 +2871,9 @@ expression: metrics
         tags: {},
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -2443,6 +2899,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -2465,6 +2924,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -2480,12 +2942,19 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "span.action": "DELETE",
+            "span.category": "db",
+            "span.domain": "table",
             "span.op": "db.sql.query",
             "transaction": "gEt /api/:version/users/",
+            "transaction.method": "POST",
             "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -2500,6 +2969,9 @@ expression: metrics
         tags: {},
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -2521,6 +2993,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -2542,6 +3017,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -2556,6 +3034,9 @@ expression: metrics
         tags: {},
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -2581,6 +3062,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -2603,6 +3087,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -2618,12 +3105,19 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "span.action": "DELETE",
+            "span.category": "db",
+            "span.domain": "table",
             "span.op": "db.sql.activerecord",
             "transaction": "gEt /api/:version/users/",
+            "transaction.method": "POST",
             "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -2638,6 +3132,9 @@ expression: metrics
         tags: {},
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -2662,6 +3159,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -2683,6 +3183,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -2698,12 +3201,18 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "span.action": "SAVEPOINT",
+            "span.category": "db",
             "span.op": "db.redis.command",
             "transaction": "gEt /api/:version/users/",
+            "transaction.method": "POST",
             "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -2718,6 +3227,9 @@ expression: metrics
         tags: {},
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -2739,6 +3251,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -2760,6 +3275,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -2774,6 +3292,9 @@ expression: metrics
         tags: {},
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -2789,12 +3310,18 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "release": "1.2.3",
+            "span.description": "Cold Start",
+            "span.group": "2d675185edfeb30c",
             "span.op": "app.start.cold",
             "transaction": "gEt /api/:version/users/",
             "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -2819,6 +3346,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -2833,6 +3363,9 @@ expression: metrics
         tags: {},
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -2860,6 +3393,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -2885,6 +3421,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -2900,6 +3439,11 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "file_extension": "css",
+            "resource.render_blocking_status": "blocking",
+            "span.category": "resource",
+            "span.description": "https://*.domain.com/*/*.css",
+            "span.domain": "*.domain.com",
             "span.group": "d744fa0716ef1142",
             "span.op": "resource.css",
             "transaction": "gEt /api/:version/users/",
@@ -2907,6 +3451,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -2932,6 +3479,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -2956,6 +3506,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -2980,6 +3533,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -2994,6 +3550,9 @@ expression: metrics
         tags: {},
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -3021,6 +3580,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -3046,6 +3608,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -3061,6 +3626,11 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "file_extension": "js",
+            "resource.render_blocking_status": "blocking",
+            "span.category": "resource",
+            "span.description": "/static/myscript-*.js",
+            "span.domain": "*.example.com:5688",
             "span.group": "89bda2e660f6236c",
             "span.op": "resource.script",
             "transaction": "gEt /api/:version/users/",
@@ -3068,6 +3638,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -3093,6 +3666,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -3117,6 +3693,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -3141,6 +3720,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -3155,6 +3737,9 @@ expression: metrics
         tags: {},
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -3176,6 +3761,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -3197,6 +3785,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -3211,6 +3802,9 @@ expression: metrics
         tags: {},
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -3237,6 +3831,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -3260,6 +3857,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -3275,13 +3875,20 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "span.category": "http",
+            "span.description": "GET http://domain.tld",
+            "span.domain": "domain.tld",
             "span.group": "d9dc18637d441612",
             "span.op": "http.client",
             "transaction": "gEt /api/:version/users/",
+            "transaction.method": "POST",
             "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -3296,6 +3903,9 @@ expression: metrics
         tags: {},
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -3322,6 +3932,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -3345,6 +3958,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -3360,13 +3976,20 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "span.category": "http",
+            "span.description": "POST http://domain.tld",
+            "span.domain": "domain.tld",
             "span.group": "25faf23529f71d3e",
             "span.op": "http.client",
             "transaction": "gEt /api/:version/users/",
+            "transaction.method": "POST",
             "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -3381,6 +4004,9 @@ expression: metrics
         tags: {},
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -3407,6 +4033,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -3430,6 +4059,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -3445,13 +4077,20 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "span.category": "http",
+            "span.description": "PUT http://domain.tld",
+            "span.domain": "domain.tld",
             "span.group": "488f09b46e5978be",
             "span.op": "http.client",
             "transaction": "gEt /api/:version/users/",
+            "transaction.method": "POST",
             "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -3466,6 +4105,9 @@ expression: metrics
         tags: {},
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -3491,6 +4133,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -3513,6 +4158,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -3528,13 +4176,19 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "span.category": "http",
+            "span.description": "GET *",
             "span.group": "37e3d9fab1ae9162",
             "span.op": "http.client",
             "transaction": "gEt /api/:version/users/",
+            "transaction.method": "POST",
             "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -3549,6 +4203,9 @@ expression: metrics
         tags: {},
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -3576,6 +4233,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -3600,6 +4260,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -3615,13 +4278,21 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "span.category": "http",
+            "span.description": "POST http://127.0.0.1:1234",
+            "span.domain": "127.0.0.1:1234",
             "span.group": "464fe695f9cf639c",
             "span.op": "http.client",
+            "span.status_code": "200",
             "transaction": "gEt /api/:version/users/",
+            "transaction.method": "POST",
             "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -3636,6 +4307,9 @@ expression: metrics
         tags: {},
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -3663,6 +4337,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -3687,6 +4364,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -3702,13 +4382,21 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "span.category": "http",
+            "span.description": "POST http://*.domain.tld:1234",
+            "span.domain": "*.domain.tld:1234",
             "span.group": "86818d1c74ecfc66",
             "span.op": "http.client",
+            "span.status_code": "200",
             "transaction": "gEt /api/:version/users/",
+            "transaction.method": "POST",
             "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -3723,6 +4411,9 @@ expression: metrics
         tags: {},
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -3750,6 +4441,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -3774,6 +4468,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -3789,13 +4486,21 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "span.category": "http",
+            "span.description": "POST http://targetdomain.tld:1234",
+            "span.domain": "targetdomain.tld:1234",
             "span.group": "72ab88b506cb04b2",
             "span.op": "http.client",
+            "span.status_code": "200",
             "transaction": "gEt /api/:version/users/",
+            "transaction.method": "POST",
             "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -3810,6 +4515,9 @@ expression: metrics
         tags: {},
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -3837,6 +4545,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -3861,6 +4572,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -3876,13 +4590,21 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "span.category": "http",
+            "span.description": "POST http://targetdomain:1234",
+            "span.domain": "targetdomain:1234",
             "span.group": "c8e531abe96ff360",
             "span.op": "http.client",
+            "span.status_code": "200",
             "transaction": "gEt /api/:version/users/",
+            "transaction.method": "POST",
             "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -3897,6 +4619,9 @@ expression: metrics
         tags: {},
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -3924,6 +4649,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -3948,6 +4676,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -3963,13 +4694,21 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "span.category": "http",
+            "span.description": "POST http://*.domain.tld:1234",
+            "span.domain": "*.domain.tld:1234",
             "span.group": "86818d1c74ecfc66",
             "span.op": "http.client",
+            "span.status_code": "200",
             "transaction": "gEt /api/:version/users/",
+            "transaction.method": "POST",
             "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -3984,6 +4723,9 @@ expression: metrics
         tags: {},
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -4011,6 +4753,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -4035,6 +4780,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -4050,13 +4798,21 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "span.category": "http",
+            "span.description": "POST http://*.domain.tld:1234",
+            "span.domain": "*.domain.tld:1234",
             "span.group": "86818d1c74ecfc66",
             "span.op": "http.client",
+            "span.status_code": "200",
             "transaction": "gEt /api/:version/users/",
+            "transaction.method": "POST",
             "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -4071,6 +4827,9 @@ expression: metrics
         tags: {},
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -4098,6 +4857,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -4122,6 +4884,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -4137,13 +4902,21 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "span.action": "SELECT",
+            "span.category": "db",
+            "span.description": "SeLeCt column FROM tAbLe WHERE id IN (%s)",
+            "span.domain": "table",
             "span.group": "f4a7fef06db3d88e",
             "span.op": "db.sql.query",
             "transaction": "gEt /api/:version/users/",
+            "transaction.method": "POST",
             "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -4158,6 +4931,9 @@ expression: metrics
         tags: {},
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -4185,6 +4961,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -4209,6 +4988,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -4224,13 +5006,21 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "span.action": "SELECT",
+            "span.category": "db",
+            "span.description": "select column FROM table WHERE id IN (%s)",
+            "span.domain": "table",
             "span.group": "4f9711d2d09963b9",
             "span.op": "db",
             "transaction": "gEt /api/:version/users/",
+            "transaction.method": "POST",
             "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -4245,6 +5035,9 @@ expression: metrics
         tags: {},
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -4270,6 +5063,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -4292,6 +5088,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -4307,12 +5106,19 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "span.action": "INSERT",
+            "span.category": "db",
+            "span.domain": "table",
             "span.op": "db.sql.query",
             "transaction": "gEt /api/:version/users/",
+            "transaction.method": "POST",
             "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -4327,6 +5133,9 @@ expression: metrics
         tags: {},
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -4354,6 +5163,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -4378,6 +5190,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -4393,13 +5208,21 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "span.action": "INSERT",
+            "span.category": "db",
+            "span.description": "INSERT INTO from_date (..) VALUES (%s)",
+            "span.domain": ",from_date,",
             "span.group": "e4ea457c8e7e4109",
             "span.op": "db.sql.query",
             "transaction": "gEt /api/:version/users/",
+            "transaction.method": "POST",
             "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -4414,6 +5237,9 @@ expression: metrics
         tags: {},
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -4439,6 +5265,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -4461,6 +5290,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -4476,12 +5308,19 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "span.action": "INSERT",
+            "span.category": "db",
+            "span.domain": "table",
             "span.op": "db",
             "transaction": "gEt /api/:version/users/",
+            "transaction.method": "POST",
             "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -4496,6 +5335,9 @@ expression: metrics
         tags: {},
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -4523,6 +5365,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -4547,6 +5392,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -4562,13 +5410,21 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "span.action": "SELECT",
+            "span.category": "db",
+            "span.description": "SELECT * FROM table WHERE id IN (val)",
+            "span.domain": "table",
             "span.group": "03cb381cee3f1463",
             "span.op": "db.sql.query",
             "transaction": "gEt /api/:version/users/",
+            "transaction.method": "POST",
             "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -4583,6 +5439,9 @@ expression: metrics
         tags: {},
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -4610,6 +5469,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -4634,6 +5496,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -4649,13 +5514,21 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "span.action": "SELECT",
+            "span.category": "db",
+            "span.description": "SELECT col FROM table WHERE col = %s",
+            "span.domain": ",table,",
             "span.group": "e0f7e81a59b030ba",
             "span.op": "db",
             "transaction": "gEt /api/:version/users/",
+            "transaction.method": "POST",
             "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -4670,6 +5543,9 @@ expression: metrics
         tags: {},
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -4695,6 +5571,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -4717,6 +5596,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -4732,12 +5614,19 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "span.action": "DELETE",
+            "span.category": "db",
+            "span.domain": "table",
             "span.op": "db",
             "transaction": "gEt /api/:version/users/",
+            "transaction.method": "POST",
             "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -4752,6 +5641,9 @@ expression: metrics
         tags: {},
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -4777,6 +5669,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -4799,6 +5694,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -4814,12 +5712,19 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "span.action": "UPDATE",
+            "span.category": "db",
+            "span.domain": "table",
             "span.op": "db",
             "transaction": "gEt /api/:version/users/",
+            "transaction.method": "POST",
             "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -4834,6 +5739,9 @@ expression: metrics
         tags: {},
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -4860,6 +5768,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -4883,6 +5794,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -4898,13 +5812,20 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "span.action": "SAVEPOINT",
+            "span.category": "db",
+            "span.description": "SAVEPOINT %s",
             "span.group": "3f955cbde39e04b9",
             "span.op": "db",
             "transaction": "gEt /api/:version/users/",
+            "transaction.method": "POST",
             "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -4919,6 +5840,9 @@ expression: metrics
         tags: {},
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -4941,6 +5865,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -4964,6 +5891,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -4978,6 +5908,7 @@ expression: metrics
             ],
         ),
         tags: {
+            "cache.hit": "false",
             "environment": "fake_environment",
             "span.op": "cache.get_item",
             "transaction": "gEt /api/:version/users/",
@@ -4985,6 +5916,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -5006,6 +5940,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -5020,6 +5957,9 @@ expression: metrics
         tags: {},
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -5042,6 +5982,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -5065,6 +6008,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -5079,6 +6025,7 @@ expression: metrics
             ],
         ),
         tags: {
+            "cache.hit": "true",
             "environment": "fake_environment",
             "span.op": "cache.get_item",
             "transaction": "gEt /api/:version/users/",
@@ -5086,6 +6033,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -5100,6 +6050,9 @@ expression: metrics
         tags: {},
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -5126,6 +6079,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -5149,6 +6105,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -5164,13 +6123,20 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "span.action": "GET",
+            "span.category": "db",
+            "span.description": "GET *",
             "span.group": "37e3d9fab1ae9162",
             "span.op": "db.redis",
             "transaction": "gEt /api/:version/users/",
+            "transaction.method": "POST",
             "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -5185,6 +6151,9 @@ expression: metrics
         tags: {},
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -5211,6 +6180,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -5234,6 +6206,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -5249,13 +6224,20 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "span.action": "GET",
+            "span.category": "db",
+            "span.description": "GET *",
             "span.group": "37e3d9fab1ae9162",
             "span.op": "db.redis",
             "transaction": "gEt /api/:version/users/",
+            "transaction.method": "POST",
             "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -5270,6 +6252,9 @@ expression: metrics
         tags: {},
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -5296,6 +6281,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -5319,6 +6307,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -5334,13 +6325,20 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "span.action": "SET",
+            "span.category": "db",
+            "span.description": "SET *",
             "span.group": "46b2cac4b418f556",
             "span.op": "db.redis",
             "transaction": "gEt /api/:version/users/",
+            "transaction.method": "POST",
             "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -5355,6 +6353,9 @@ expression: metrics
         tags: {},
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -5380,6 +6381,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -5403,6 +6407,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -5418,6 +6425,9 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "span.category": "resource",
+            "span.description": "browser-extension://*",
+            "span.domain": "*",
             "span.group": "3e92c536f98104b2",
             "span.op": "resource.script",
             "transaction": "gEt /api/:version/users/",
@@ -5425,6 +6435,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -5439,6 +6452,9 @@ expression: metrics
         tags: {},
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -5465,6 +6481,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -5489,6 +6508,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -5504,6 +6526,10 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "file_extension": "js",
+            "span.category": "resource",
+            "span.description": "http://domain/static/myscript-*.js",
+            "span.domain": "domain",
             "span.group": "022f81fdf31228bf",
             "span.op": "resource.script",
             "transaction": "gEt /api/:version/users/",
@@ -5511,6 +6537,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -5525,6 +6554,9 @@ expression: metrics
         tags: {},
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -5552,6 +6584,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -5577,6 +6612,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -5592,6 +6630,11 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "file_extension": "css",
+            "resource.render_blocking_status": "blocking",
+            "span.category": "resource",
+            "span.description": "https://*.domain.com/*/*.CSS",
+            "span.domain": "*.domain.com",
             "span.group": "7f402250846262be",
             "span.op": "resource.css",
             "transaction": "gEt /api/:version/users/",
@@ -5599,6 +6642,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -5624,6 +6670,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -5648,6 +6697,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -5672,6 +6724,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -5686,6 +6741,9 @@ expression: metrics
         tags: {},
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -5710,6 +6768,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -5732,6 +6793,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -5747,6 +6811,8 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "span.category": "resource",
+            "span.description": "*/zero-length-*",
             "span.group": "c7d3c9d83f92123a",
             "span.op": "resource.script",
             "transaction": "gEt /api/:version/users/",
@@ -5754,6 +6820,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -5768,6 +6837,9 @@ expression: metrics
         tags: {},
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -5789,6 +6861,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -5809,6 +6884,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -5830,6 +6908,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -5844,6 +6925,9 @@ expression: metrics
         tags: {},
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -5868,6 +6952,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -5889,6 +6976,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -5904,12 +6994,18 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "messaging.destination.name": "default",
+            "span.category": "queue",
             "span.op": "queue.task.celery",
+            "trace.status": "ok",
             "transaction": "gEt /api/:version/users/",
             "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -5935,6 +7031,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -5949,6 +7048,9 @@ expression: metrics
         tags: {},
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -5973,6 +7075,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -5994,6 +7099,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -6009,12 +7117,18 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "messaging.destination.name": "default",
+            "span.category": "queue",
             "span.op": "queue.submit.celery",
+            "trace.status": "ok",
             "transaction": "gEt /api/:version/users/",
             "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -6040,6 +7154,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -6054,6 +7171,9 @@ expression: metrics
         tags: {},
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -6078,6 +7198,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -6099,6 +7222,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -6114,12 +7240,18 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "messaging.destination.name": "default",
+            "span.category": "queue",
             "span.op": "queue.publish",
+            "trace.status": "ok",
             "transaction": "gEt /api/:version/users/",
             "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -6145,6 +7277,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -6159,6 +7294,9 @@ expression: metrics
         tags: {},
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -6183,6 +7321,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -6204,6 +7345,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -6219,12 +7363,18 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "messaging.destination.name": "default",
+            "span.category": "queue",
             "span.op": "queue.process",
+            "trace.status": "ok",
             "transaction": "gEt /api/:version/users/",
             "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -6250,6 +7400,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -6264,6 +7417,9 @@ expression: metrics
         tags: {},
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -6279,12 +7435,18 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "span.category": "ai",
+            "span.description": "ConcurrentStream",
+            "span.group": "fdd5a729aef245ba",
             "span.op": "ai.run.langchain",
             "transaction": "gEt /api/:version/users/",
             "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -6306,6 +7468,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -6330,6 +7495,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -6353,6 +7521,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -6367,6 +7538,9 @@ expression: metrics
         tags: {},
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -6382,12 +7556,18 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "span.category": "ai.pipeline",
+            "span.description": "Autofix Pipeline",
+            "span.group": "86148ae2d6c09430",
             "span.op": "ai.pipeline.langchain",
             "transaction": "gEt /api/:version/users/",
             "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -6409,6 +7589,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -6433,6 +7616,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
     Bucket {
@@ -6455,6 +7641,9 @@ expression: metrics
         },
         metadata: BucketMetadata {
             merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
         },
     },
 ]

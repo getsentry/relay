@@ -17,7 +17,6 @@ workspace = true
 
 [dependencies]
 anyhow = { workspace = true }
-assert-json-diff = { workspace = true }
 relay-auth = { workspace = true }
 relay-base-schema = { workspace = true }
 relay-cardinality = { workspace = true }

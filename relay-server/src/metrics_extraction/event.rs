@@ -1534,7 +1534,9 @@ mod tests {
 
         assert!(!metrics.is_empty());
         for metric in metrics {
-            if &*metric.name == "d:spans/exclusive_time@millisecond" {
+            if &*metric.name == "d:spans/exclusive_time@millisecond"
+                || &*metric.name == "d:spans/duration@millisecond"
+            {
                 assert_eq!(metric.tag("ttid"), Some("ttid"));
                 assert_eq!(metric.tag("ttfd"), Some("ttfd"));
             } else {

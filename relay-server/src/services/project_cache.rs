@@ -625,6 +625,7 @@ impl ProjectCacheBroker {
         let aggregator = self.services.aggregator.clone();
         let envelope_processor = self.services.envelope_processor.clone();
         let outcome_aggregator = self.services.outcome_aggregator.clone();
+        let metric_stats = self.metric_stats.clone();
 
         self.get_or_create_project(project_key).update_state(
             project_cache,
@@ -632,6 +633,7 @@ impl ProjectCacheBroker {
             state.clone(),
             envelope_processor,
             outcome_aggregator,
+            metric_stats,
             no_cache,
         );
 
@@ -812,6 +814,7 @@ impl ProjectCacheBroker {
         let aggregator = self.services.aggregator.clone();
         let outcome_aggregator = self.services.outcome_aggregator.clone();
         let envelope_processor = self.services.envelope_processor.clone();
+        let metric_stats = self.metric_stats.clone();
 
         let project = self.get_or_create_project(message.project_key());
         project.prefetch(project_cache, false);
@@ -819,6 +822,7 @@ impl ProjectCacheBroker {
             aggregator,
             outcome_aggregator,
             envelope_processor,
+            metric_stats,
             message.buckets(),
         );
     }

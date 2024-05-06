@@ -291,7 +291,7 @@ fn process_session_aggregates(
         )
     });
 
-    // Aftter timestamp validation, aggregates could now be empty
+    // After timestamp validation, aggregates could now be empty
     if session.aggregates.is_empty() {
         return false;
     }
