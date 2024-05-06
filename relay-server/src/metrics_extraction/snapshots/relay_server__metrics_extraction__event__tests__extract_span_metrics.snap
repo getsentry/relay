@@ -7530,6 +7530,32 @@ expression: metrics
         timestamp: UnixTimestamp(1702474613),
         width: 0,
         name: MetricName(
+            "c:spans/ai.total_cost@none",
+        ),
+        value: Counter(
+            0.0002,
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "release": "1.2.3",
+            "span.ai.pipeline.group": "86148ae2d6c09430",
+            "span.category": "ai",
+            "span.description": "ConcurrentStream",
+            "span.group": "fdd5a729aef245ba",
+            "span.op": "ai.run.langchain",
+            "span.origin": "auto.langchain",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1702474613),
+        width: 0,
+        name: MetricName(
             "c:spans/usage@none",
         ),
         value: Counter(
