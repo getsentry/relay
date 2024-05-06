@@ -6,6 +6,7 @@ use std::fmt::Write;
 use std::net::IpAddr;
 use std::ops::ControlFlow;
 
+use crate::normalize::ai_model_costs::calculate_ai_model_cost;
 use once_cell::sync::Lazy;
 use regex::Regex;
 use relay_base_schema::metrics::{DurationUnit, InformationUnit, MetricUnit};
@@ -643,6 +644,35 @@ pub fn extract_measurements(span: &mut Span, is_mobile: bool) {
                     }
                     .into(),
                 );
+            }
+        }
+    }
+
+    if span_op.starts_with("ai.") {
+        if let Some(ai_total_tokens_used) = span
+            .measurements
+            .value()
+            .and_then(|m| m.get_value("ai_total_tokens_used"))
+        {
+            if let Some(model_id) = span
+                .data
+                .value()
+                .and_then(|d| d.ai_model_id.value())
+                .and_then(|val| val.as_str())
+            {
+                if let Some(model_cost_per_1k_tokens) = calculate_ai_model_cost(model_id) {
+                    let total_cost = ai_total_tokens_used / 1000.0 * model_cost_per_1k_tokens;
+                    span.measurements
+                        .get_or_insert_with(Default::default)
+                        .insert(
+                            "ai_total_cost".to_owned(),
+                            Measurement {
+                                value: total_cost.into(),
+                                unit: MetricUnit::None.into(),
+                            }
+                            .into(),
+                        );
+                }
             }
         }
     }
@@ -1438,6 +1468,42 @@ LIMIT 1
             Some("http://example.com")
         );
         assert!(!tags_3.contains_key("raw_domain"));
+    }
+
+    #[test]
+    fn test_ai_metrics() {
+        let json = r#"
+            {
+                "spans": [
+                    {
+                        "timestamp": 1702474613.0495,
+                        "start_timestamp": 1702474613.0175,
+                        "description": "OpenAI ",
+                        "op": "ai.chat_completions.openai",
+                        "span_id": "9c01bd820a083e63",
+                        "parent_span_id": "a1e13f3f06239d69",
+                        "trace_id": "922dda2462ea4ac2b6a4b339bee90863",
+                        "measurements": {
+                            "ai_total_tokens_used": {
+                                "value": 900
+                            }
+                        },
+                        "data": {
+                            "ai.pipeline.name": "Autofix Pipeline",
+                            "ai.model_id": "gpt-4-32k"
+                        }
+                    }
+                ]
+            }
+        "#;
+
+        let mut event = Annotated::<Event>::from_json(json)
+            .unwrap()
+            .into_value()
+            .unwrap();
+
+        extract_span_tags_from_event(&mut event, 200);
+        assert_debug_snapshot!(event);
     }
 
     #[test]
