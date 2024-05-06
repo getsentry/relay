@@ -309,12 +309,6 @@
 <a href="#307" id="307">307</a>
 <a href="#308" id="308">308</a>
 <a href="#309" id="309">309</a>
-<a href="#310" id="310">310</a>
-<a href="#311" id="311">311</a>
-<a href="#312" id="312">312</a>
-<a href="#313" id="313">313</a>
-<a href="#314" id="314">314</a>
-<a href="#315" id="315">315</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! The Sentry relay server application.
 //!
 //! This module contains the [`run`] function which starts the relay server. It responds on
@@ -593,7 +587,7 @@
 <span class="kw">use </span>relay_config::Config;
 <span class="kw">use </span>relay_system::{Controller, Service};
 
-<span class="kw">use </span><span class="kw">crate</span>::service::{Runtimes, ServiceState};
+<span class="kw">use </span><span class="kw">crate</span>::service::ServiceState;
 <span class="kw">use </span><span class="kw">crate</span>::services::server::HttpServer;
 
 <span class="doccomment">/// Runs a relay web server and spawns all internal worker threads.
@@ -608,23 +602,17 @@
     <span class="comment">// Creates the main runtime.
     </span><span class="kw">let </span>main_runtime = <span class="kw">crate</span>::service::create_runtime(<span class="string">"main-rt"</span>, config.cpu_concurrency());
 
-    <span class="comment">// Create secondary service runtimes.
-    //
-    // Runtimes must not be dropped within other runtimes, so keep them alive here.
-    </span><span class="kw">let </span>runtimes = Runtimes::new(<span class="kw-2">&amp;</span>config);
-
     <span class="comment">// Run the system and block until a shutdown signal is sent to this process. Inside, start a
     // web server and run all relevant services. See the `actors` module documentation for more
     // information on all services.
     </span>main_runtime.block_on(<span class="kw">async </span>{
         Controller::start(config.shutdown_timeout());
-        <span class="kw">let </span>service = ServiceState::start(config.clone(), <span class="kw-2">&amp;</span>runtimes)<span class="question-mark">?</span>;
+        <span class="kw">let </span>service = ServiceState::start(config.clone())<span class="question-mark">?</span>;
         HttpServer::new(config, service.clone())<span class="question-mark">?</span>.start();
         Controller::shutdown_handle().finished().<span class="kw">await</span>;
         anyhow::Ok(())
     })<span class="question-mark">?</span>;
 
-    drop(runtimes);
     drop(main_runtime);
 
     <span class="macro">relay_log::info!</span>(<span class="string">"relay shutdown complete"</span>);

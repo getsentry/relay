@@ -3577,6 +3577,12 @@
 <a href="#3575" id="3575">3575</a>
 <a href="#3576" id="3576">3576</a>
 <a href="#3577" id="3577">3577</a>
+<a href="#3578" id="3578">3578</a>
+<a href="#3579" id="3579">3579</a>
+<a href="#3580" id="3580">3580</a>
+<a href="#3581" id="3581">3581</a>
+<a href="#3582" id="3582">3582</a>
+<a href="#3583" id="3583">3583</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
@@ -6243,7 +6249,13 @@
     <span class="kw">type </span>Interface = EnvelopeProcessor;
 
     <span class="kw">fn </span>spawn_handler(<span class="self">self</span>, <span class="kw-2">mut </span>rx: relay_system::Receiver&lt;<span class="self">Self</span>::Interface&gt;) {
-        <span class="kw">let </span>thread_count = <span class="self">self</span>.inner.config.cpu_concurrency();
+        <span class="comment">// Adjust thread count for small cpu counts to not have too many idle cores
+        // and distribute workload better.
+        </span><span class="kw">let </span>thread_count = <span class="kw">match </span><span class="self">self</span>.inner.config.cpu_concurrency() {
+            conc @ <span class="number">0</span>..=<span class="number">2 </span>=&gt; conc.max(<span class="number">1</span>),
+            conc @ <span class="number">3</span>..=<span class="number">4 </span>=&gt; conc - <span class="number">1</span>,
+            conc =&gt; conc - <span class="number">2</span>,
+        };
         <span class="macro">relay_log::info!</span>(<span class="string">"starting {thread_count} envelope processing workers"</span>);
 
         tokio::spawn(<span class="kw">async move </span>{
