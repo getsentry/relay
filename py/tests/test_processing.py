@@ -1,4 +1,3 @@
-import json
 import sentry_relay
 
 import pytest
@@ -315,14 +314,14 @@ def test_validate_sampling_configuration():
     sentry_relay.validate_sampling_configuration(config)
 
 
-def test_validate_project_config():
+def test_normalize_project_config():
     config = {"allowedDomains": ["*"], "trustedRelays": [], "piiConfig": None}
-    # Does not raise:
-    sentry_relay.validate_project_config(json.dumps(config), strict=True)
+    normalized = sentry_relay.normalize_project_config(config)
+    assert config == normalized
+
     config["foobar"] = True
-    with pytest.raises(ValueError) as e:
-        sentry_relay.validate_project_config(json.dumps(config), strict=True)
-    assert str(e.value) == 'json atom at path ".foobar" is missing from rhs'
+    normalized = sentry_relay.normalize_project_config(config)
+    assert config != normalized
 
 
 def test_cardinality_limit_config_equal_normalization():

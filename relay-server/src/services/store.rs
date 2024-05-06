@@ -12,7 +12,7 @@ use relay_base_schema::data_category::DataCategory;
 use relay_base_schema::project::ProjectId;
 use relay_common::time::{instant_to_date_time, UnixTimestamp};
 use relay_config::Config;
-use relay_event_schema::protocol::{EventId, SessionStatus, VALID_PLATFORMS};
+use relay_event_schema::protocol::{EventId, VALID_PLATFORMS};
 
 use relay_kafka::{ClientError, KafkaClient, KafkaTopic, Message};
 use relay_metrics::{
@@ -507,6 +507,8 @@ impl StoreService {
             BucketViewValue::Gauge(g) => MetricValue::Gauge(g),
         };
 
+        // TODO: propagate the `received_at` field upstream.
+        // https://github.com/getsentry/relay/issues/3515
         Ok(MetricKafkaMessage {
             org_id: organization_id,
             project_id,
@@ -1276,25 +1278,6 @@ struct UserReportKafkaMessage {
     // Used for KafkaMessage::key
     #[serde(skip)]
     event_id: EventId,
-}
-
-#[derive(Clone, Debug, Serialize)]
-struct SessionKafkaMessage {
-    org_id: u64,
-    project_id: ProjectId,
-    session_id: Uuid,
-    distinct_id: Uuid,
-    quantity: u32,
-    seq: u64,
-    received: f64,
-    started: f64,
-    duration: Option<f64>,
-    status: SessionStatus,
-    errors: u16,
-    release: String,
-    environment: Option<String>,
-    sdk: Option<String>,
-    retention_days: u16,
 }
 
 #[derive(Clone, Debug, Serialize)]

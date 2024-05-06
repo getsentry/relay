@@ -155,6 +155,34 @@ pub fn create_test_processor(config: Config) -> EnvelopeProcessorService {
     )
 }
 
+pub fn create_test_processor_with_addrs(
+    config: Config,
+    addrs: processor::Addrs,
+) -> EnvelopeProcessorService {
+    #[cfg(feature = "processing")]
+    let redis = config
+        .redis()
+        .filter(|_| config.processing_enabled())
+        .map(|redis_config| relay_redis::RedisPool::new(redis_config).unwrap());
+
+    let config = Arc::new(config);
+    EnvelopeProcessorService::new(
+        Arc::clone(&config),
+        GlobalConfigHandle::fixed(Default::default()),
+        Cogs::noop(),
+        #[cfg(feature = "processing")]
+        redis,
+        addrs,
+        MetricStats::new(
+            config,
+            GlobalConfigHandle::fixed(Default::default()),
+            Addr::dummy(),
+        ),
+        #[cfg(feature = "processing")]
+        Arc::new(BufferGuard::new(usize::MAX)),
+    )
+}
+
 pub fn processor_services() -> (Addr<TrackOutcome>, Addr<TestStore>) {
     let (outcome_aggregator, _) = mock_service("outcome_aggregator", (), |&mut (), _| {});
     let (test_store, _) = mock_service("test_store", (), |&mut (), _| {});

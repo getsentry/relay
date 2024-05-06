@@ -162,7 +162,8 @@ map_fields!(
     span.data.release <=> event.release,
     span.data.environment <=> event.environment,
     span.data.browser_name <=> event.contexts.browser.name,
-    span.data.sdk_name <=> event.client_sdk.name
+    span.data.sdk_name <=> event.client_sdk.name,
+    span.data.sdk_version <=> event.client_sdk.version
     ;
     span.is_segment <= true,
     span.was_transaction <= true
@@ -184,7 +185,7 @@ mod tests {
             r#"{
                 "type": "transaction",
                 "platform": "php",
-                "sdk": {"name": "sentry.php"},
+                "sdk": {"name": "sentry.php", "version": "1.2.3"},
                 "release": "myapp@1.0.0",
                 "environment": "prod",
                 "transaction": "my 1st transaction",
@@ -288,6 +289,7 @@ mod tests {
                 user: ~,
                 replay_id: ~,
                 sdk_name: "sentry.php",
+                sdk_version: "1.2.3",
                 frames_slow: ~,
                 frames_frozen: ~,
                 frames_total: ~,

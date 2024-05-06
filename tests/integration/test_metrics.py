@@ -43,11 +43,22 @@ def metrics_by_name(metrics_consumer, count, timeout=None):
 
     for _ in range(count):
         metric, metric_headers = metrics_consumer.get_metric(timeout)
+        metric = metrics_without_keys([metric], keys={"metadata"})[0]
         metrics[metric["name"]] = metric
         metrics["headers"][metric["name"]] = metric_headers
 
     metrics_consumer.assert_empty()
     return metrics
+
+
+def metrics_without_keys(metrics, keys):
+    """
+    Returns all the metrics in the metrics item sorted by name and without specified keys.
+    """
+    return [
+        {key: value for key, value in metric.items() if key not in keys}
+        for metric in sorted(metrics, key=lambda x: x["name"])
+    ]
 
 
 def metrics_by_name_group_by_project(metrics_consumer, timeout=None):
@@ -186,8 +197,9 @@ def test_metrics(mini_sentry, relay):
     metrics_item = envelope.items[0]
     assert metrics_item.type == "metric_buckets"
 
-    received_metrics = json.loads(metrics_item.get_bytes().decode())
-    received_metrics = sorted(received_metrics, key=lambda x: x["name"])
+    received_metrics = metrics_without_keys(
+        json.loads(metrics_item.get_bytes().decode()), keys={"metadata"}
+    )
     assert received_metrics == [
         {
             "timestamp": timestamp,
@@ -222,8 +234,10 @@ def test_metrics_backdated(mini_sentry, relay):
     metrics_item = envelope.items[0]
     assert metrics_item.type == "metric_buckets"
 
-    received_metrics = metrics_item.get_bytes()
-    assert json.loads(received_metrics.decode()) == [
+    received_metrics = metrics_without_keys(
+        json.loads(metrics_item.get_bytes().decode()), keys={"metadata"}
+    )
+    assert received_metrics == [
         {
             "timestamp": timestamp,
             "width": 1,
@@ -366,8 +380,7 @@ def test_global_metrics(mini_sentry, relay):
     metrics_batch = mini_sentry.captured_metrics.get(timeout=5)
     assert mini_sentry.captured_metrics.qsize() == 0  # we had only one batch
 
-    metrics = sorted(metrics_batch[public_key], key=lambda x: x["name"])
-
+    metrics = metrics_without_keys(metrics_batch[public_key], keys={"metadata"})
     assert metrics == [
         {
             "timestamp": timestamp,
@@ -449,7 +462,7 @@ def test_global_metrics_batching(mini_sentry, relay):
     with pytest.raises(queue.Empty):
         mini_sentry.captured_metrics.get(timeout=1)
 
-    assert batch1[public_key] == [
+    assert metrics_without_keys(batch1[public_key], keys={"metadata"}) == [
         {
             "timestamp": timestamp,
             "width": 1,
@@ -459,7 +472,7 @@ def test_global_metrics_batching(mini_sentry, relay):
         }
     ]
 
-    assert batch2[public_key] == [
+    assert metrics_without_keys(batch2[public_key], keys={"metadata"}) == [
         {
             "timestamp": timestamp,
             "width": 1,
@@ -1247,8 +1260,10 @@ def test_graceful_shutdown(mini_sentry, relay):
     assert len(envelope.items) == 1
     metrics_item = envelope.items[0]
     assert metrics_item.type == "metric_buckets"
-    received_metrics = json.loads(metrics_item.get_bytes().decode())
-    received_metrics = sorted(received_metrics, key=lambda x: x["name"])
+
+    received_metrics = metrics_without_keys(
+        json.loads(metrics_item.get_bytes().decode()), keys={"metadata"}
+    )
     assert received_metrics == [
         {
             "timestamp": future_timestamp,
@@ -1460,8 +1475,10 @@ def test_generic_metric_extraction(mini_sentry, relay):
 
     item = envelope.items[0]
     assert item.headers.get("type") == "metric_buckets"
-    metrics = json.loads(item.get_bytes().decode())
 
+    metrics = metrics_without_keys(
+        json.loads(item.get_bytes().decode()), keys={"metadata"}
+    )
     assert {
         "timestamp": int(timestamp.timestamp()),
         "width": 1,
@@ -1807,8 +1824,9 @@ def test_profiles_metrics(mini_sentry, relay):
     metrics_item = envelope.items[0]
     assert metrics_item.type == "metric_buckets"
 
-    received_metrics = json.loads(metrics_item.get_bytes().decode())
-    received_metrics = sorted(received_metrics, key=lambda x: x["name"])
+    received_metrics = metrics_without_keys(
+        json.loads(metrics_item.get_bytes().decode()), keys={"metadata"}
+    )
     assert received_metrics == [
         {
             "timestamp": timestamp,
@@ -1825,3 +1843,33 @@ def test_profiles_metrics(mini_sentry, relay):
             "type": "c",
         },
     ]
+
+
+def test_metrics_with_denied_names(
+    mini_sentry, relay_with_processing, metrics_consumer
+):
+    metrics_consumer = metrics_consumer()
+
+    mini_sentry.global_config["options"]["relay.metric-stats.rollout-rate"] = 1.0
+
+    project_id = 42
+    mini_sentry.add_full_project_config(project_id)
+    project_config = mini_sentry.project_configs[project_id]["config"]
+    project_config["features"] = ["organizations:custom-metrics"]
+    project_config["metrics"] = {
+        "deniedNames": ["d:custom/cpu_time*"],
+    }
+
+    relay = relay_with_processing(options=TEST_CONFIG)
+
+    metrics_payload = "custom/cpu_time@millisecond:10|d|#foo:bar\ncustom/memory_usage@byte:10|d|#foo:bar"
+    relay.send_metrics(project_id, metrics_payload)
+
+    metrics = metrics_by_name(metrics_consumer, 2)
+
+    volume_metric = metrics["c:metric_stats/volume@none"]
+    assert volume_metric["value"] == 1.0
+    assert volume_metric["tags"]["outcome.id"] == "1"
+    assert volume_metric["tags"]["outcome.reason"] == "denied-name"
+
+    assert "d:custom/memory_usage@byte" in metrics
