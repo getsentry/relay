@@ -102,19 +102,6 @@ pub fn process(
             _ => return ItemAction::Keep,
         };
 
-        if let Some(span) = annotated_span.value() {
-            metric!(timer(RelayTimers::EventProcessingFiltering), {
-                if let Err(filter_stat_key) = relay_filter::should_filter(
-                    span,
-                    client_ip,
-                    filter_settings,
-                    global_config.filters(),
-                ) {
-                    return ItemAction::Drop(Outcome::Filtered(filter_stat_key));
-                }
-            });
-        }
-
         set_segment_attributes(&mut annotated_span);
 
         if should_extract_transactions && !item.transaction_extracted() {
@@ -133,6 +120,23 @@ pub fn process(
             relay_log::debug!("failed to normalize span: {}", e);
             return ItemAction::Drop(Outcome::Invalid(DiscardReason::Internal));
         };
+
+        if let Some(span) = annotated_span.value() {
+            metric!(timer(RelayTimers::EventProcessingFiltering), {
+                if let Err(filter_stat_key) = relay_filter::should_filter(
+                    span,
+                    client_ip,
+                    filter_settings,
+                    global_config.filters(),
+                ) {
+                    relay_log::trace!(
+                        "filtering span {:?} that matched an inbound filter",
+                        span.span_id
+                    );
+                    return ItemAction::Drop(Outcome::Filtered(filter_stat_key));
+                }
+            });
+        }
 
         if let Some(config) = span_metrics_extraction_config {
             let Some(span) = annotated_span.value_mut() else {

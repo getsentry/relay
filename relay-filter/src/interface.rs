@@ -129,7 +129,7 @@ impl Filterable for Span {
     }
 
     fn release(&self) -> Option<&str> {
-        None
+        self.data.value().and_then(|d| d.release.as_str())
     }
 
     fn transaction(&self) -> Option<&str> {

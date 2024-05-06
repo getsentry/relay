@@ -1556,3 +1556,50 @@ def test_span_extraction_with_tags(
     assert transaction_span["tags"] == expected_tags
 
     spans_consumer.assert_empty()
+
+
+def test_span_filtering_with_generic_inbound_filter(
+    mini_sentry, relay_with_processing, spans_consumer
+):
+    mini_sentry.global_config["filters"] = {
+        "version": 1,
+        "filters": [
+            {
+                "id": "first-releases",
+                "isEnabled": True,
+                "condition": {
+                    "op": "eq",
+                    "name": "span.release",
+                    "value": "1.0",
+                },
+            }
+        ],
+    }
+
+    relay = relay_with_processing(options=TEST_CONFIG)
+    project_id = 42
+    mini_sentry.add_full_project_config(project_id)
+
+    spans_consumer = spans_consumer()
+
+    event = make_transaction({"event_id": "cbf6960622e14a45abc1f03b2055b186"})
+    end = datetime.now(timezone.utc) - timedelta(seconds=1)
+    duration = timedelta(milliseconds=500)
+    start = end - duration
+    event["spans"] = [
+        {
+            "description": "GET /api/0/organizations/?member=1",
+            "op": "http",
+            "parent_span_id": "aaaaaaaaaaaaaaaa",
+            "span_id": "bbbbbbbbbbbbbbbb",
+            "start_timestamp": start.isoformat(),
+            "timestamp": end.isoformat(),
+            "trace_id": "ff62a8b040f340bda5d830223def1d81",
+            "data": {"release": "1.0"},
+        },
+    ]
+
+    relay.send_event(project_id, event)
+
+    spans = spans_consumer.get_spans(max_attempts=2)
+    assert len(spans) == 0
