@@ -3407,6 +3407,14 @@
 <a href="#3405" id="3405">3405</a>
 <a href="#3406" id="3406">3406</a>
 <a href="#3407" id="3407">3407</a>
+<a href="#3408" id="3408">3408</a>
+<a href="#3409" id="3409">3409</a>
+<a href="#3410" id="3410">3410</a>
+<a href="#3411" id="3411">3411</a>
+<a href="#3412" id="3412">3412</a>
+<a href="#3413" id="3413">3413</a>
+<a href="#3414" id="3414">3414</a>
+<a href="#3415" id="3415">3415</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
@@ -4818,7 +4826,11 @@
             unreal::expand(state, <span class="kw-2">&amp;</span><span class="self">self</span>.inner.config)<span class="question-mark">?</span>;
         });
 
-        event::extract(state, <span class="kw-2">&amp;</span><span class="self">self</span>.inner.config)<span class="question-mark">?</span>;
+        event::extract(
+            state,
+            <span class="kw-2">&amp;</span><span class="self">self</span>.inner.config,
+            <span class="kw-2">&amp;</span><span class="self">self</span>.inner.global_config.current(),
+        )<span class="question-mark">?</span>;
 
         <span class="macro">if_processing!</span>(<span class="self">self</span>.inner.config, {
             unreal::process(state)<span class="question-mark">?</span>;
@@ -4853,7 +4865,11 @@
         state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;TransactionGroup&gt;,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ProcessingError&gt; {
         profile::filter(state);
-        event::extract(state, <span class="kw-2">&amp;</span><span class="self">self</span>.inner.config)<span class="question-mark">?</span>;
+        event::extract(
+            state,
+            <span class="kw-2">&amp;</span><span class="self">self</span>.inner.config,
+            <span class="kw-2">&amp;</span><span class="self">self</span>.inner.global_config.current(),
+        )<span class="question-mark">?</span>;
         profile::transfer_id(state);
 
         <span class="macro">if_processing!</span>(<span class="self">self</span>.inner.config, {

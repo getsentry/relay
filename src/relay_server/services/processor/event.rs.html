@@ -869,6 +869,14 @@
 <a href="#867" id="867">867</a>
 <a href="#868" id="868">868</a>
 <a href="#869" id="869">869</a>
+<a href="#870" id="870">870</a>
+<a href="#871" id="871">871</a>
+<a href="#872" id="872">872</a>
+<a href="#873" id="873">873</a>
+<a href="#874" id="874">874</a>
+<a href="#875" id="875">875</a>
+<a href="#876" id="876">876</a>
+<a href="#877" id="877">877</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Event processor related code.
 
 </span><span class="kw">use </span>std::error::Error;
@@ -911,6 +919,7 @@
 </span><span class="kw">pub fn </span>extract&lt;G: EventProcessing&gt;(
     state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;G&gt;,
     config: <span class="kw-2">&amp;</span>Config,
+    global_config: <span class="kw-2">&amp;</span>GlobalConfig,
 ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ProcessingError&gt; {
     <span class="kw">let </span>envelope = <span class="kw-2">&amp;mut </span>state.envelope_mut();
 
@@ -938,6 +947,13 @@
         <span class="kw">return </span><span class="prelude-val">Err</span>(ProcessingError::DuplicateItem(duplicate.ty().clone()));
     }
 
+    <span class="kw">let </span>is_normalization_enabled =
+        <span class="kw">if </span>config.processing_enabled() &amp;&amp; global_config.options.processing_disable_normalization {
+            <span class="bool-val">false
+        </span>} <span class="kw">else </span>{
+            config.normalization_level().is_enabled()
+        };
+
     <span class="kw">let </span><span class="kw-2">mut </span>sample_rates = <span class="prelude-val">None</span>;
     <span class="kw">let </span>(event, event_len) = <span class="kw">if let </span><span class="prelude-val">Some</span>(<span class="kw-2">mut </span>item) = event_item.or(security_item) {
         <span class="macro">relay_log::trace!</span>(<span class="string">"processing json event"</span>);
@@ -947,7 +963,7 @@
             <span class="comment">// Event items can never include transactions, so retain the event type and let
             // inference deal with this during normalization.
             </span><span class="kw">if let </span><span class="prelude-val">Some</span>(event) = annotated_event.value_mut() {
-                <span class="kw">if </span>config.normalization_level().is_enabled() {
+                <span class="kw">if </span>is_normalization_enabled {
                     event.ty.set_value(<span class="prelude-val">None</span>);
                 }
             }
