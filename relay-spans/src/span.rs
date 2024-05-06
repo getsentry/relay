@@ -646,6 +646,7 @@ mod tests {
                 cache_item_size: ~,
                 http_response_status_code: ~,
                 ai_pipeline_name: ~,
+                ai_model_id: ~,
                 ai_input_messages: ~,
                 ai_responses: ~,
                 thread_name: ~,
