@@ -1,6 +1,7 @@
 //! Envelope context type and helpers to ensure outcomes.
 
 use std::fmt::{Debug, Display};
+use std::marker::PhantomData;
 use std::mem::size_of;
 use std::ops::{Deref, DerefMut};
 use std::time::Instant;
@@ -82,7 +83,7 @@ impl Display for InvalidProcessingGroupType {
 impl std::error::Error for InvalidProcessingGroupType {}
 
 /// A wrapper for [`ManagedEnvelope`] with assigned processing group type.
-pub struct TypedEnvelope<G>(ManagedEnvelope, G);
+pub struct TypedEnvelope<G>(ManagedEnvelope, PhantomData<G>);
 
 impl<G> TypedEnvelope<G> {
     /// Changes the typed of the current envelope to processed.
@@ -105,8 +106,8 @@ impl<G> TypedEnvelope<G> {
     ///
     /// Note: this method is private to make sure that only `TryFrom` implementation is used, which
     /// requires the check for the error if conversion is failing.
-    fn new(managed_envelope: ManagedEnvelope, group: G) -> Self {
-        Self(managed_envelope, group)
+    fn new(managed_envelope: ManagedEnvelope, _ty: G) -> Self {
+        Self(managed_envelope, PhantomData::<G> {})
     }
 }
 

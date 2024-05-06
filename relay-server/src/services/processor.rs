@@ -688,6 +688,10 @@ impl<'a, Group> ProcessEnvelopeState<'a, Group> {
         self.managed_envelope.reject_event(outcome);
     }
 
+    /// Expose the sampling reservoir for the current processing group.
+    ///
+    /// The sampling reservoir has so far been intended to count transactions.
+    /// We should not apply it to any other data type.
     fn sampling_reservoir(&self) -> Option<&ReservoirEvaluator<'a>> {
         match self.managed_envelope.group() {
             ProcessingGroup::Transaction => Some(&self.reservoir),
