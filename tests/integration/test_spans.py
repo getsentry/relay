@@ -289,7 +289,7 @@ def envelope_with_spans(
                                 },
                             },
                             {
-                                "key": "sentry.exclusive_time_ns",
+                                "key": "sentry.exclusive_time_nano",
                                 "value": {
                                     "intValue": int(
                                         (end - start).total_seconds() * 1e9
@@ -384,7 +384,7 @@ def make_otel_span(start, end):
                                 "endTimeUnixNano": int(end.timestamp() * 1e9),
                                 "attributes": [
                                     {
-                                        "key": "sentry.exclusive_time_ns",
+                                        "key": "sentry.exclusive_time_nano",
                                         "value": {
                                             "intValue": int(
                                                 (end - start).total_seconds() * 1e9
@@ -465,7 +465,7 @@ def test_span_ingestion(
         end_time_unix_nano=int(end.timestamp() * 1e9),
         attributes=[
             KeyValue(
-                key="sentry.exclusive_time_ns",
+                key="sentry.exclusive_time_nano",
                 value=AnyValue(int_value=int(duration.total_seconds() * 1e9)),
             ),
         ],
