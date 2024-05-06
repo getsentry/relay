@@ -5,6 +5,7 @@
 **Internal**:
 
 - Add metrics extraction config to global config. ([#3490](https://github.com/getsentry/relay/pull/3490), [#3504](https://github.com/getsentry/relay/pull/3504))
+- Adjust worker thread distribution of internal services. ([#3516](https://github.com/getsentry/relay/pull/3516))
 - Extract `cache.item_size` from measurements instead of data. ([#3510](https://github.com/getsentry/relay/pull/3510))
 - Collect `enviornment` tag as part of exclusive_time_light for cache spans. ([#3510](https://github.com/getsentry/relay/pull/3510))
 - Tag span duration metric like exclusive time. ([#3524](https://github.com/getsentry/relay/pull/3524))
