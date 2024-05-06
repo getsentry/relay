@@ -877,7 +877,7 @@
                 <span class="string">"http.route" </span>| <span class="string">"url.path" </span>=&gt; {
                     http_route = otel_value_to_string(value);
                 }
-                key <span class="kw">if </span>key.contains(<span class="string">"exclusive_time_ns"</span>) =&gt; {
+                key <span class="kw">if </span>key.contains(<span class="string">"exclusive_time_nano"</span>) =&gt; {
                     <span class="kw">let </span>value = <span class="kw">match </span>value {
                         OtelValue::IntValue(v) =&gt; v <span class="kw">as </span>f64,
                         OtelValue::DoubleValue(v) =&gt; v,
@@ -1031,7 +1031,7 @@
                     }
                 },
                 {
-                    "key": "sentry.exclusive_time_ns",
+                    "key": "sentry.exclusive_time_nano",
                     "value": {
                         "intValue": 1000000000
                     }
@@ -1058,7 +1058,7 @@
     }
 
     <span class="attr">#[test]
-    </span><span class="kw">fn </span>parse_span_with_exclusive_time_ns_attribute() {
+    </span><span class="kw">fn </span>parse_span_with_exclusive_time_nano_attribute() {
         <span class="kw">let </span>json = <span class="string">r#"{
             "traceId": "89143b0763095bd9c9955e8175d1fb23",
             "spanId": "e342abb1214ca181",
@@ -1069,7 +1069,7 @@
             "endTimeUnixNano": 1697620454980078800,
             "attributes": [
                 {
-                    "key": "sentry.exclusive_time_ns",
+                    "key": "sentry.exclusive_time_nano",
                     "value": {
                         "intValue": 3200000000
                     }
@@ -1082,7 +1082,7 @@
     }
 
     <span class="attr">#[test]
-    </span><span class="kw">fn </span>parse_span_no_exclusive_time_ns_attribute() {
+    </span><span class="kw">fn </span>parse_span_no_exclusive_time_nano_attribute() {
         <span class="kw">let </span>json = <span class="string">r#"{
             "traceId": "89143b0763095bd9c9955e8175d1fb23",
             "spanId": "e342abb1214ca181",
