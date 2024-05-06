@@ -1,4 +1,3 @@
-import json
 import sentry_relay
 
 import pytest
@@ -315,14 +314,61 @@ def test_validate_sampling_configuration():
     sentry_relay.validate_sampling_configuration(config)
 
 
-def test_validate_project_config():
+def test_normalize_project_config():
     config = {"allowedDomains": ["*"], "trustedRelays": [], "piiConfig": None}
-    # Does not raise:
-    sentry_relay.validate_project_config(json.dumps(config), strict=True)
+    normalized = sentry_relay.normalize_project_config(config)
+    assert config == normalized
+
     config["foobar"] = True
+    normalized = sentry_relay.normalize_project_config(config)
+    assert config != normalized
+
+
+def test_cardinality_limit_config_equal_normalization():
+    config = {
+        "id": "project-override-custom",
+        "window": {"windowSeconds": 3600, "granularitySeconds": 600},
+        "limit": 1000,
+        "namespace": "custom",
+        "scope": "name",
+        "passive": True,
+        "report": True,
+    }
+    sentry_relay.normalize_cardinality_limit_config(config)
+    assert config == sentry_relay.normalize_cardinality_limit_config(config)
+
+
+def test_cardinality_limit_config_subset_normalized():
+    config = {
+        "id": "project-override-custom",
+        "window": {"windowSeconds": 3600, "granularitySeconds": 600},
+        "limit": 1000,
+        "namespace": "custom",
+        "scope": "name",
+        "passive": False,
+        "report": False,
+        "unknown": "value",
+    }
+    normalized = sentry_relay.normalize_cardinality_limit_config(config)
+    config.pop("passive")
+    config.pop("report")
+    config.pop("unknown")
+    assert config == normalized
+
+
+def test_cardinality_limit_config_unparsable():
+    config = {
+        "id": "project-override-custom",
+        "window": {"windowSeconds": 3600, "granularitySeconds": 600},
+        "limit": -1,
+        "namespace": "custom",
+        "scope": "name",
+    }
     with pytest.raises(ValueError) as e:
-        sentry_relay.validate_project_config(json.dumps(config), strict=True)
-    assert str(e.value) == 'json atom at path ".foobar" is missing from rhs'
+        sentry_relay.normalize_cardinality_limit_config(config)
+    assert (
+        str(e.value) == "invalid value: integer `-1`, expected u32 at line 1 column 107"
+    )
 
 
 def test_global_config_equal_normalization():

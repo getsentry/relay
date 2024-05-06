@@ -6,11 +6,13 @@ use std::sync::Arc;
 use chrono::{DateTime, Utc};
 use relay_base_schema::events::EventType;
 use relay_config::Config;
-use relay_dynamic_config::{ErrorBoundary, Feature, GlobalConfig, ProjectConfig};
+use relay_dynamic_config::{
+    CombinedMetricExtractionConfig, ErrorBoundary, Feature, GlobalConfig, ProjectConfig,
+};
 use relay_event_normalization::normalize_transaction_name;
 use relay_event_normalization::{
     normalize_measurements, normalize_performance_score, normalize_user_agent_info_generic,
-    span::tag_extraction, validate_span, DynamicMeasurementsConfig, MeasurementsConfig,
+    span::tag_extraction, validate_span, CombinedMeasurementsConfig, MeasurementsConfig,
     PerformanceScoreConfig, RawUserAgentInfo, TransactionsProcessor,
 };
 use relay_event_schema::processor::{process_value, ProcessingState};
@@ -120,7 +122,15 @@ pub fn process(
                 return ItemAction::Drop(Outcome::Invalid(DiscardReason::Internal));
             };
             relay_log::trace!("Extracting metrics from standalone span {:?}", span.span_id);
-            let metrics = extract_metrics(span, config);
+
+            let ErrorBoundary::Ok(global_metrics_config) = &global_config.metric_extraction else {
+                return ItemAction::Drop(Outcome::Invalid(DiscardReason::Internal));
+            };
+
+            let metrics = extract_metrics(
+                span,
+                &CombinedMetricExtractionConfig::new(global_metrics_config, config),
+            );
             state.extracted_metrics.project_metrics.extend(metrics);
             item.set_metrics_extracted(true);
         }
@@ -374,7 +384,7 @@ struct NormalizeSpanConfig<'a> {
     /// Has an optional [`relay_event_normalization::MeasurementsConfig`] from both the project and the global level.
     /// If at least one is provided, then normalization will truncate custom measurements
     /// and add units of known built-in measurements.
-    measurements: Option<DynamicMeasurementsConfig<'a>>,
+    measurements: Option<CombinedMeasurementsConfig<'a>>,
     /// The maximum length for names of custom measurements.
     ///
     /// Measurements with longer names are removed from the transaction event and replaced with a
@@ -398,7 +408,7 @@ fn get_normalize_span_config<'a>(
         max_tag_value_size: config
             .aggregator_config_for(MetricNamespace::Spans)
             .max_tag_value_length,
-        measurements: Some(DynamicMeasurementsConfig::new(
+        measurements: Some(CombinedMeasurementsConfig::new(
             project_measurements_config,
             global_measurements_config,
         )),
@@ -413,6 +423,17 @@ fn get_normalize_span_config<'a>(
 
 fn set_segment_attributes(span: &mut Annotated<Span>) {
     let Some(span) = span.value_mut() else { return };
+
+    // Identify INP spans and make sure they are not wrapped in a segment.
+    if let Some(span_op) = span.op.value() {
+        if span_op.starts_with("ui.interaction.") {
+            span.is_segment = None.into();
+            span.parent_span_id = None.into();
+            span.segment_id = None.into();
+            return;
+        }
+    }
+
     let Some(span_id) = span.span_id.value() else {
         return;
     };
@@ -484,7 +505,7 @@ fn normalize(
         .and_then(|v| v.name.value())
     {
         let data = span.data.value_mut().get_or_insert_with(SpanData::default);
-        data.browser_name = Annotated::new(browser_name.to_owned().into());
+        data.browser_name = Annotated::new(browser_name.to_owned());
     }
 
     if let Annotated(Some(ref mut measurement_values), ref mut meta) = span.measurements {
@@ -504,7 +525,7 @@ fn normalize(
         .data
         .value_mut()
         .as_mut()
-        .map(|data| &mut data.transaction)
+        .map(|data| &mut data.segment_name)
     {
         normalize_transaction_name(transaction, &project_config.tx_name_rules);
     }
@@ -527,7 +548,7 @@ fn normalize(
     normalize_performance_score(&mut event, performance_score);
     span.measurements = event.measurements;
 
-    tag_extraction::extract_measurements(span);
+    tag_extraction::extract_measurements(span, is_mobile);
 
     process_value(
         annotated_span,
@@ -632,6 +653,14 @@ fn validate(span: &mut Annotated<Span>) -> Result<(), ValidationError> {
 
 fn convert_to_transaction(annotated_span: &Annotated<Span>) -> Option<Event> {
     let span = annotated_span.value()?;
+
+    // HACK: This is an exception from the JS SDK v8 and we do not want to turn it into a transaction.
+    if let Some(span_op) = span.op.value() {
+        if span_op == "http.client" && span.parent_span_id.is_empty() {
+            return None;
+        }
+    }
+
     relay_log::trace!("Extracting transaction for span {:?}", &span.span_id);
     Event::try_from(span).ok()
 }
@@ -826,6 +855,37 @@ mod tests {
     fn segment_only_parent() {
         let mut span: Annotated<Span> = Annotated::from_json(
             r#"{
+         "parent_span_id": "fa90fdead5f74051"
+     }"#,
+        )
+        .unwrap();
+        set_segment_attributes(&mut span);
+        assert_eq!(get_value!(span.is_segment), None);
+        assert_eq!(get_value!(span.segment_id), None);
+    }
+
+    #[test]
+    fn not_segment_but_inp_span() {
+        let mut span: Annotated<Span> = Annotated::from_json(
+            r#"{
+         "op": "ui.interaction.click",
+         "is_segment": false,
+         "parent_span_id": "fa90fdead5f74051"
+     }"#,
+        )
+        .unwrap();
+        set_segment_attributes(&mut span);
+        assert_eq!(get_value!(span.is_segment), None);
+        assert_eq!(get_value!(span.segment_id), None);
+    }
+
+    #[test]
+    fn segment_but_inp_span() {
+        let mut span: Annotated<Span> = Annotated::from_json(
+            r#"{
+         "op": "ui.interaction.click",
+         "segment_id": "fa90fdead5f74051",
+         "is_segment": true,
          "parent_span_id": "fa90fdead5f74051"
      }"#,
         )

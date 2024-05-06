@@ -150,7 +150,6 @@ pub struct SamplingEvaluator<'a> {
     now: DateTime<Utc>,
     rule_ids: Vec<RuleId>,
     factor: f64,
-    client_sample_rate: Option<f64>,
     reservoir: Option<&'a ReservoirEvaluator<'a>>,
 }
 
@@ -161,7 +160,6 @@ impl<'a> SamplingEvaluator<'a> {
             now,
             rule_ids: vec![],
             factor: 1.0,
-            client_sample_rate: None,
             reservoir: None,
         }
     }
@@ -169,12 +167,6 @@ impl<'a> SamplingEvaluator<'a> {
     /// Sets a [`ReservoirEvaluator`].
     pub fn set_reservoir(mut self, reservoir: &'a ReservoirEvaluator) -> Self {
         self.reservoir = Some(reservoir);
-        self
-    }
-
-    /// Sets a new client sample rate value.
-    pub fn adjust_client_sample_rate(mut self, client_sample_rate: Option<f64>) -> Self {
-        self.client_sample_rate = client_sample_rate;
         self
     }
 
@@ -228,9 +220,7 @@ impl<'a> SamplingEvaluator<'a> {
             }
             SamplingValue::SampleRate { value } => {
                 let sample_rate = rule.apply_decaying_fn(value, self.now)?;
-                let adjusted = self
-                    .adjusted_sample_rate(sample_rate * self.factor)
-                    .clamp(0.0, 1.0);
+                let adjusted = (sample_rate * self.factor).clamp(0.0, 1.0);
 
                 self.rule_ids.push(rule.id);
                 Some(adjusted)
@@ -246,36 +236,6 @@ impl<'a> SamplingEvaluator<'a> {
                 self.rule_ids.push(rule.id);
                 // If the reservoir has not yet reached its limit, we want to sample 100%.
                 Some(1.0)
-            }
-        }
-    }
-
-    /// Tries to negate the client side sampling if the evaluator has been provided
-    /// with a client sample rate.
-    fn adjusted_sample_rate(&self, rule_sample_rate: f64) -> f64 {
-        let Some(client_sample_rate) = self.client_sample_rate else {
-            return rule_sample_rate;
-        };
-
-        if client_sample_rate <= 0.0 {
-            // client_sample_rate is 0, which is bogus because the SDK should've dropped the
-            // envelope. In that case let's pretend the sample rate was not sent, because clearly
-            // the sampling decision across the trace is still 1. The most likely explanation is
-            // that the SDK is reporting its own sample rate setting instead of the one from the
-            // continued trace.
-            //
-            // since we write back the client_sample_rate into the event's trace context, it should
-            // be possible to find those values + sdk versions via snuba
-            relay_log::warn!("client sample rate is <= 0");
-            rule_sample_rate
-        } else {
-            let adjusted_sample_rate = (rule_sample_rate / client_sample_rate).clamp(0.0, 1.0);
-            if adjusted_sample_rate.is_infinite() || adjusted_sample_rate.is_nan() {
-                relay_log::error!("adjusted sample rate ended up being nan/inf");
-                debug_assert!(false);
-                rule_sample_rate
-            } else {
-                adjusted_sample_rate
             }
         }
     }
@@ -500,49 +460,6 @@ mod tests {
         // After 3 samples we have reached the limit, and the following rules are not sampled.
         assert!(!evaluator.evaluate(rule, limit, None));
         assert!(!evaluator.evaluate(rule, limit, None));
-    }
-
-    #[test]
-    fn test_adjust_sample_rate() {
-        // return the same as input if no client sample rate set in the sampling evaluator.
-        let eval = SamplingEvaluator::new(Utc::now());
-        assert_eq!(eval.adjusted_sample_rate(0.2), 0.2);
-
-        let eval = eval.adjust_client_sample_rate(Some(0.5));
-        assert_eq!(eval.adjusted_sample_rate(0.2), 0.4);
-
-        // tests that it doesn't exceed 1.0.
-        let eval = eval.adjust_client_sample_rate(Some(0.005));
-        assert_eq!(eval.adjusted_sample_rate(0.2), 1.0);
-
-        // tests that it doesn't go below 0.0.
-        let eval = eval.adjust_client_sample_rate(Some(0.005));
-        assert_eq!(eval.adjusted_sample_rate(-0.2), 0.0);
-    }
-
-    /// Checks that server side sampling can correctly negate any client side sampling if configured to.
-    #[test]
-    fn test_adjust_by_client_sample_rate() {
-        let rules = simple_sampling_rules(vec![
-            (RuleCondition::all(), SamplingValue::Factor { value: 0.5 }),
-            (
-                RuleCondition::all(),
-                SamplingValue::SampleRate { value: 0.25 },
-            ),
-        ]);
-
-        let dsc = mocked_dsc_with_getter_values(vec![]);
-
-        let res = SamplingEvaluator::new(Utc::now())
-            .adjust_client_sample_rate(Some(0.2))
-            .match_rules(Uuid::default(), &dsc, rules.iter());
-
-        let ControlFlow::Break(sampling_match) = res else {
-            panic!();
-        };
-
-        // ((0.5 * 0.25) / 0.2) == 0.625
-        assert_eq!(sampling_match.sample_rate(), 0.625);
     }
 
     #[test]

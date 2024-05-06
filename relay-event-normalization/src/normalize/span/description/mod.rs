@@ -2,15 +2,14 @@
 mod resource;
 mod sql;
 use once_cell::sync::Lazy;
+use psl;
 #[cfg(test)]
 pub use sql::{scrub_queries, Mode};
 
+use relay_event_schema::protocol::Span;
 use std::borrow::Cow;
 use std::net::{Ipv4Addr, Ipv6Addr};
 use std::path::Path;
-
-use itertools::Itertools;
-use relay_event_schema::protocol::Span;
 use url::{Host, Url};
 
 use crate::regexes::{
@@ -91,11 +90,14 @@ pub(crate) fn scrub_span_description(
                 }
             }
             ("resource", ty) => scrub_resource(ty, description),
-            ("ai", sub) if sub.starts_with("run.") || sub.starts_with("pipeline.") => {
-                // ai.run.* and ai.pipeline.* are low cardinality (<100 per org) and describe
-                // the names of nodes of an AI pipeline.
-                Some(description.to_owned())
-            }
+            ("ai", sub) => match sub.split_once('.').unwrap_or((sub, "")) {
+                ("run" | "pipeline", _) => {
+                    // ai.run.* and ai.pipeline.* are low cardinality (<100 per org) and describe
+                    // the names of nodes of an AI pipeline.
+                    Some(description.to_owned())
+                }
+                _ => None,
+            },
             ("ui", "load") => {
                 // `ui.load` spans contain component names like `ListAppViewController`, so
                 // they _should_ be low-cardinality.
@@ -279,6 +281,7 @@ pub fn scrub_ipv6(ip: Ipv6Addr) -> &'static str {
 /// use relay_event_normalization::span::description::scrub_domain_name;
 ///
 /// assert_eq!(scrub_domain_name("my.domain.com"), "*.domain.com");
+/// assert_eq!(scrub_domain_name("data.bbc.co.uk"), "*.bbc.co.uk");
 /// assert_eq!(scrub_domain_name("hello world"), "hello world");
 /// ```
 pub fn scrub_domain_name(domain: &str) -> Cow<'_, str> {
@@ -286,18 +289,33 @@ pub fn scrub_domain_name(domain: &str) -> Cow<'_, str> {
         return Cow::Borrowed(domain);
     }
 
-    let mut tokens = domain.rsplitn(3, '.');
-    let tld = tokens.next();
-    let domain = tokens.next();
-    let prefix = tokens.next().map(|_| "*");
+    let parsed_domain = psl::domain(domain.as_bytes());
 
-    Cow::Owned(
-        prefix
-            .iter()
-            .chain(domain.iter())
-            .chain(tld.iter())
-            .join("."),
-    )
+    let Some(parsed_domain) = parsed_domain else {
+        // If parsing fails, return the original string
+        return Cow::Borrowed(domain);
+    };
+
+    let suffix = parsed_domain.suffix().as_bytes();
+    let Some(second_level_domain) = parsed_domain.as_bytes().strip_suffix(suffix) else {
+        return Cow::Borrowed(domain);
+    };
+
+    let subdomain = domain
+        .as_bytes()
+        .strip_suffix(suffix)
+        .and_then(|s| s.strip_suffix(second_level_domain));
+
+    match subdomain {
+        None | Some(b"") => Cow::Borrowed(domain),
+        Some(_subdomain) => {
+            let scrubbed = [b"*.", second_level_domain, suffix].concat();
+            match String::from_utf8(scrubbed) {
+                Ok(s) => Cow::Owned(s),
+                Err(_) => Cow::Borrowed(domain),
+            }
+        }
+    }
 }
 
 /// Concatenate an optional host and an optional port.
@@ -640,6 +658,27 @@ mod tests {
         "GET data:image/png;base64,drtfghaksjfdhaeh/blah/blah/blah",
         "http.client",
         "GET data:image/*"
+    );
+
+    span_description_test!(
+        simple_cctld,
+        "GET http://bbc.co.uk",
+        "http.client",
+        "GET http://bbc.co.uk"
+    );
+
+    span_description_test!(
+        longer_cctld,
+        "GET http://www.radio1.bbc.co.uk",
+        "http.client",
+        "GET http://*.bbc.co.uk"
+    );
+
+    span_description_test!(
+        complicated_tld,
+        "GET https://application.www.xn--85x722f.xn--55qx5d.cn",
+        "http.client",
+        "GET https://*.xn--85x722f.xn--55qx5d.cn"
     );
 
     span_description_test!(

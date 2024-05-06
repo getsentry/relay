@@ -118,6 +118,7 @@ pest_derive = "2.1.0"
 pin-project-lite = "0.2.12"
 pretty-hex = "0.3.0"
 proc-macro2 = "1.0.8"
+psl = "2.1.33"
 quote = "1.0.2"
 r2d2 = "0.8.10"
 rand = "0.8.5"
@@ -152,7 +153,7 @@ sha2 = "0.10.6"
 similar-asserts = "1.4.2"
 smallvec = { version = "1.11.2", features = ["serde"] }
 sqlparser = "0.44.0"
-sqlx = { version = "0.7.3", default-features = false }
+sqlx = { version = "0.7.4", default-features = false }
 statsdproxy = { version = "0.1.2", default-features = false }
 symbolic-common = { version = "12.1.2", default-features = false }
 symbolic-unreal = { version = "12.1.2", default-features = false }

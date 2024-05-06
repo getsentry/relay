@@ -40,6 +40,7 @@ use crate::utils::{self, ChunkedFormDataAggregator, FormDataIter};
 pub fn extract<G: EventProcessing>(
     state: &mut ProcessEnvelopeState<G>,
     config: &Config,
+    global_config: &GlobalConfig,
 ) -> Result<(), ProcessingError> {
     let envelope = &mut state.envelope_mut();
 
@@ -67,14 +68,27 @@ pub fn extract<G: EventProcessing>(
         return Err(ProcessingError::DuplicateItem(duplicate.ty().clone()));
     }
 
+    let is_normalization_enabled =
+        if config.processing_enabled() && global_config.options.processing_disable_normalization {
+            false
+        } else {
+            config.normalization_level().is_enabled()
+        };
+
     let mut sample_rates = None;
     let (event, event_len) = if let Some(mut item) = event_item.or(security_item) {
         relay_log::trace!("processing json event");
         sample_rates = item.take_sample_rates();
         metric!(timer(RelayTimers::EventProcessingDeserialize), {
+            let (mut annotated_event, len) = event_from_json_payload(item, None)?;
             // Event items can never include transactions, so retain the event type and let
-            // inference deal with this during store normalization.
-            event_from_json_payload(item, None)?
+            // inference deal with this during normalization.
+            if let Some(event) = annotated_event.value_mut() {
+                if is_normalization_enabled {
+                    event.ty.set_value(None);
+                }
+            }
+            (annotated_event, len)
         })
     } else if let Some(mut item) = transaction_item {
         relay_log::trace!("processing json transaction");
@@ -457,7 +471,9 @@ fn event_from_json_payload(
         .map_err(ProcessingError::InvalidJson)?;
 
     if let Some(event_value) = event.value_mut() {
-        event_value.ty.set_value(event_type);
+        if event_type.is_some() {
+            event_value.ty.set_value(event_type);
+        }
     }
 
     Ok((event, item.len()))

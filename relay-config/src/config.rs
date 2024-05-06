@@ -11,13 +11,11 @@ use anyhow::Context;
 use relay_auth::{generate_key_pair, generate_relay_id, PublicKey, RelayId, SecretKey};
 use relay_common::Dsn;
 use relay_kafka::{
-    ConfigError as KafkaConfigError, KafkaConfig, KafkaConfigParam, KafkaTopic, TopicAssignment,
+    ConfigError as KafkaConfigError, KafkaConfigParam, KafkaParams, KafkaTopic, TopicAssignment,
     TopicAssignments,
 };
 use relay_metrics::aggregator::{AggregatorConfig, ShiftKey};
-use relay_metrics::{
-    AggregatorServiceConfig, Condition, Field, MetricNamespace, ScopedAggregatorConfig,
-};
+use relay_metrics::{AggregatorServiceConfig, MetricNamespace, ScopedAggregatorConfig};
 use relay_redis::RedisConfig;
 use serde::de::{DeserializeOwned, Unexpected, Visitor};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -586,7 +584,7 @@ struct Limits {
     max_replay_message_size: ByteSize,
     /// The maximum number of threads to spawn for CPU and web work, each.
     ///
-    /// The total number of threads spawned will roughly be `2 * max_thread_count + 1`. Defaults to
+    /// The total number of threads spawned will roughly be `2 * max_thread_count`. Defaults to
     /// the number of logical CPU cores on the host.
     max_thread_count: usize,
     /// The maximum number of seconds a query is allowed to take across retries. Individual requests
@@ -1065,6 +1063,13 @@ pub enum NormalizationLevel {
     /// It includes steps that break future compatibility and should only run in
     /// the last layer of relays.
     Full,
+}
+
+impl NormalizationLevel {
+    /// Whether normalization is enabled (i.e. not disabled).
+    pub fn is_enabled(&self) -> bool {
+        !matches!(self, NormalizationLevel::Disabled)
+    }
 }
 
 /// Configuration values for the outcome aggregator
@@ -2236,7 +2241,7 @@ impl Config {
     }
 
     /// Configuration name and list of Kafka configuration parameters for a given topic.
-    pub fn kafka_config(&self, topic: KafkaTopic) -> Result<KafkaConfig, KafkaConfigError> {
+    pub fn kafka_config(&self, topic: KafkaTopic) -> Result<KafkaParams, KafkaConfigError> {
         self.values.processing.topics.get(topic).kafka_config(
             &self.values.processing.kafka_config,
             &self.values.processing.secondary_kafka_configs,
@@ -2397,9 +2402,8 @@ impl Config {
     /// Returns aggregator config for a given metrics namespace.
     pub fn aggregator_config_for(&self, namespace: MetricNamespace) -> &AggregatorServiceConfig {
         for entry in &self.values.secondary_aggregators {
-            match entry.condition {
-                Condition::Eq(Field::Namespace(ns)) if ns == namespace => return &entry.config,
-                _ => (),
+            if entry.condition.matches(Some(namespace)) {
+                return &entry.config;
             }
         }
         &self.values.aggregator

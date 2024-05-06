@@ -222,6 +222,13 @@ fn process_session(
     // Drop the session if metrics have been extracted in this or a prior Relay
     if item.metrics_extracted() {
         return false;
+    } else if config.processing_enabled() {
+        relay_log::error!(
+            "Session metrics extraction disabled on a processing Relay, \
+            make sure you're running an up to date Relay matching the Sentry \
+            version."
+        );
+        return false;
     }
 
     if changed {
@@ -284,7 +291,7 @@ fn process_session_aggregates(
         )
     });
 
-    // Aftter timestamp validation, aggregates could now be empty
+    // After timestamp validation, aggregates could now be empty
     if session.aggregates.is_empty() {
         return false;
     }

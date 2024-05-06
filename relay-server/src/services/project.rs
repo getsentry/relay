@@ -8,11 +8,10 @@ use relay_base_schema::project::{ProjectId, ProjectKey};
 use relay_cardinality::CardinalityLimit;
 use relay_config::Config;
 use relay_dynamic_config::{ErrorBoundary, Feature, LimitedProjectConfig, Metrics, ProjectConfig};
-use relay_filter::matches_any_origin;
+use relay_filter::{matches_any_origin, FilterStatKey};
 use relay_metrics::aggregator::AggregatorConfig;
 use relay_metrics::{
     aggregator, Aggregator, Bucket, MergeBuckets, MetaAggregator, MetricMeta, MetricNamespace,
-    MetricResourceIdentifier,
 };
 use relay_quotas::{DataCategory, MetricNamespaceScoping, Quota, RateLimits, Scoping};
 use relay_sampling::evaluation::ReservoirCounters;
@@ -30,6 +29,7 @@ use crate::services::processor::{EncodeMetricMeta, EnvelopeProcessor, ProjectMet
 use crate::services::project_cache::{CheckedEnvelope, ProjectCache, RequestUpdate};
 
 use crate::extractors::RequestMeta;
+use crate::metric_stats::MetricStats;
 use crate::statsd::RelayCounters;
 use crate::utils::{
     self, EnvelopeLimiter, ExtractionMode, ManagedEnvelope, MetricsLimiter, RetryBackoff,
@@ -421,7 +421,7 @@ enum State {
 impl State {
     fn state_value(&self) -> Option<Arc<ProjectState>> {
         match self {
-            State::Cached(state) => Some(Arc::clone(state)),
+            State::Cached(state) => Some(state.clone()),
             State::Pending(_) => None,
         }
     }
@@ -567,70 +567,90 @@ impl Project {
         self.last_updated_at = Instant::now();
     }
 
-    /// Removes metrics that should not be ingested.
-    ///
-    ///  - Removes metrics from unsupported or disabled use cases.
-    ///  - Applies **cached** rate limits to the given metrics or metrics buckets.
-    fn rate_limit_metrics(
+    /// Pre-processes a vector of buckets by performing the following:
+    /// - Filtering all buckets that have invalid MRI, disabled namespace or denied name.
+    /// - Reporting outcomes and metric stats for all filtered buckets.
+    fn pre_process_buckets(
         &self,
-        state: &ProjectState,
-        mut metrics: Vec<Bucket>,
         outcome_aggregator: Addr<TrackOutcome>,
+        metric_stats: MetricStats,
+        mode: ExtractionMode,
+        state: &ProjectState,
+        buckets: Vec<Bucket>,
     ) -> Vec<Bucket> {
-        Self::filter_metrics(state, &mut metrics);
+        let mut denied_buckets = vec![];
 
-        if metrics.is_empty() {
-            return metrics;
-        }
+        let accepted_buckets = buckets
+            .into_iter()
+            .filter_map(|mut bucket| {
+                let Some(namespace) = bucket.name.try_namespace() else {
+                    relay_log::trace!(mri = &*bucket.name, "dropping metrics with invalid MRI");
+                    return None;
+                };
 
-        let Some(scoping) = self.scoping() else {
-            return metrics;
-        };
+                if !is_metric_namespace_valid(state, &namespace) {
+                    relay_log::trace!(mri = &*bucket.name, "dropping metric in disabled namespace");
+                    return None;
+                };
 
-        let mode = state.get_extraction_mode();
-        match MetricsLimiter::create(metrics, &state.config.quotas, scoping, mode) {
-            Ok(mut limiter) => {
-                limiter.enforce_limits(&self.rate_limits, outcome_aggregator);
-                limiter.into_buckets()
-            }
-            Err(metrics) => metrics,
-        }
-    }
+                if let ErrorBoundary::Ok(metric_config) = &state.config.metrics {
+                    if metric_config.denied_names.is_match(&*bucket.name) {
+                        relay_log::trace!(
+                            mri = &*bucket.name,
+                            "dropping metrics due to block list"
+                        );
+                        denied_buckets.push(bucket);
+                        return None;
+                    }
 
-    /// Remove metric buckets that are not allowed to be ingested.
-    fn filter_metrics(state: &ProjectState, metrics: &mut Vec<Bucket>) {
-        metrics.retain_mut(|bucket| {
-            let Ok(mri) = MetricResourceIdentifier::parse(&bucket.name) else {
-                relay_log::trace!(mri = &*bucket.name, "dropping metrics with invalid MRI");
-                return false;
-            };
-
-            if !is_metric_namespace_valid(state, &mri.namespace) {
-                relay_log::trace!(mri = &*bucket.name, "dropping metric in disabled namespace");
-                return false;
-            };
-
-            if let ErrorBoundary::Ok(metric_config) = &state.config.metrics {
-                if metric_config.denied_names.is_match(&*bucket.name) {
-                    relay_log::trace!(mri = &*bucket.name, "dropping metrics due to block list");
-                    return false;
+                    remove_matching_bucket_tags(metric_config, &mut bucket);
                 }
 
-                remove_matching_bucket_tags(metric_config, bucket);
-            }
+                Some(bucket)
+            })
+            .collect();
 
-            true
-        });
+        if !denied_buckets.is_empty() {
+            let scoping = self.scoping();
+            if let Some(scoping) = scoping {
+                utils::reject_metrics(
+                    &outcome_aggregator,
+                    &metric_stats,
+                    utils::extract_metric_quantities(&denied_buckets, mode),
+                    scoping,
+                    Outcome::Filtered(FilterStatKey::DeniedName),
+                    &denied_buckets,
+                );
+            }
+        }
+
+        accepted_buckets
     }
 
     fn rate_limit_and_merge_buckets(
         &self,
-        project_state: Arc<ProjectState>,
-        mut buckets: Vec<Bucket>,
         aggregator: Addr<Aggregator>,
         #[allow(unused_variables)] envelope_processor: Addr<EnvelopeProcessor>,
         outcome_aggregator: Addr<TrackOutcome>,
+        metric_stats: MetricStats,
+        state: &ProjectState,
+        buckets: Vec<Bucket>,
     ) {
+        if buckets.is_empty() {
+            return;
+        }
+
+        let extraction_mode = state.get_extraction_mode();
+
+        // Pre-process buckets to make sure they are valid.
+        let buckets = self.pre_process_buckets(
+            outcome_aggregator.clone(),
+            metric_stats,
+            extraction_mode,
+            state,
+            buckets,
+        );
+
         let Some(scoping) = self.scoping() else {
             relay_log::error!(
                 "there is no scoping due to missing project id: dropping {} buckets",
@@ -640,22 +660,13 @@ impl Project {
         };
 
         // Only send if the project state is valid, otherwise drop the buckets.
-        if project_state.check_disabled(self.config.as_ref()).is_err() {
+        if state.check_disabled(self.config.as_ref()).is_err() {
             relay_log::trace!("project state invalid: dropping {} buckets", buckets.len());
             return;
         }
 
-        // Re-run feature flag checks since the project might not have been loaded when the buckets
-        // were initially ingested, or feature flags have changed in the meanwhile.
-        Self::filter_metrics(&project_state, &mut buckets);
-        if buckets.is_empty() {
-            return;
-        }
-
-        // Check rate limits if necessary:
-        let quotas = project_state.config.quotas.clone();
-
-        let extraction_mode = project_state.get_extraction_mode();
+        // Check rate limits if necessary.
+        let quotas = state.config.quotas.clone();
         let buckets = match MetricsLimiter::create(buckets, quotas, scoping, extraction_mode) {
             Ok(mut bucket_limiter) => {
                 let cached_rate_limits = self.rate_limits().clone();
@@ -667,7 +678,6 @@ impl Project {
                 if !was_rate_limited && self.config.processing_enabled() {
                     // If there were no cached rate limits active, let the processor check redis:
                     envelope_processor.send(RateLimitBuckets { bucket_limiter });
-
                     return;
                 }
 
@@ -675,7 +685,6 @@ impl Project {
             }
             Err(buckets) => buckets,
         };
-
         if buckets.is_empty() {
             return;
         };
@@ -691,6 +700,7 @@ impl Project {
         aggregator: Addr<Aggregator>,
         outcome_aggregator: Addr<TrackOutcome>,
         envelope_processor: Addr<EnvelopeProcessor>,
+        metric_stats: MetricStats,
         buckets: Vec<Bucket>,
     ) {
         if !self.metrics_allowed() {
@@ -700,26 +710,23 @@ impl Project {
 
         match &mut self.state {
             State::Cached(state) => {
-                let state = Arc::clone(state);
+                let state = state.clone();
 
-                let buckets = self.rate_limit_metrics(&state, buckets, outcome_aggregator.clone());
+                // We can send metrics straight to the aggregator.
+                relay_log::debug!("sending metrics straight to aggregator");
 
-                if !buckets.is_empty() {
-                    // We can send metrics straight to the aggregator.
-                    relay_log::debug!("sending metrics straight to aggregator");
+                // TODO: When the state is present but expired, we should send buckets
+                // to the metrics buffer instead. In practice, the project state should be
+                // refreshed at the time when the buckets emerge from the aggregator though.
 
-                    // TODO: When the state is present but expired, we should send buckets
-                    // to the metrics buffer instead. In practice, the project state should be
-                    // refreshed at the time when the buckets emerge from the aggregator though.
-
-                    self.rate_limit_and_merge_buckets(
-                        state,
-                        buckets,
-                        aggregator,
-                        envelope_processor,
-                        outcome_aggregator,
-                    );
-                }
+                self.rate_limit_and_merge_buckets(
+                    aggregator,
+                    envelope_processor,
+                    outcome_aggregator,
+                    metric_stats,
+                    &state,
+                    buckets,
+                );
             }
             State::Pending(inner_agg) => {
                 // We need to queue the metrics in a temporary aggregator until the project state becomes available.
@@ -736,8 +743,9 @@ impl Project {
     ) {
         let state = self.state_value();
 
-        // Only track metadata if the feature is enabled or we don't know yet whether it is enabled.
-        if !state.map_or(true, |state| state.has_feature(Feature::MetricMeta)) {
+        // Only track metadata if custom metrics are enabled, or we don't know yet whether they are
+        // enabled.
+        if !state.map_or(true, |state| state.has_feature(Feature::CustomMetrics)) {
             relay_log::trace!(
                 "metric meta feature flag not enabled for project {}",
                 self.project_key
@@ -776,7 +784,7 @@ impl Project {
         // All relevant info has been gathered, consider us flushed.
         self.has_pending_metric_meta = false;
 
-        if !state.has_feature(Feature::MetricMeta) {
+        if !state.has_feature(Feature::CustomMetrics) {
             relay_log::debug!(
                 "clearing metric meta aggregator, because project {} does not have feature flag enabled",
                 self.project_key,
@@ -937,6 +945,7 @@ impl Project {
         aggregator: Addr<Aggregator>,
         envelope_processor: Addr<EnvelopeProcessor>,
         outcome_aggregator: Addr<TrackOutcome>,
+        metric_stats: MetricStats,
     ) {
         let project_enabled = state.check_disabled(self.config.as_ref()).is_ok();
         let buckets = self.state.set_state(state.clone());
@@ -945,11 +954,12 @@ impl Project {
             if project_enabled && !buckets.is_empty() {
                 relay_log::debug!("sending metrics from metricsbuffer to aggregator");
                 self.rate_limit_and_merge_buckets(
-                    state,
-                    buckets,
                     aggregator,
                     envelope_processor,
                     outcome_aggregator,
+                    metric_stats,
+                    &state,
+                    buckets,
                 );
             }
         }
@@ -978,6 +988,7 @@ impl Project {
     /// take precedence.
     ///
     /// [`ValidateEnvelope`]: crate::services::project_cache::ValidateEnvelope
+    #[allow(clippy::too_many_arguments)]
     pub fn update_state(
         &mut self,
         project_cache: Addr<ProjectCache>,
@@ -985,6 +996,7 @@ impl Project {
         mut state: Arc<ProjectState>,
         envelope_processor: Addr<EnvelopeProcessor>,
         outcome_aggregator: Addr<TrackOutcome>,
+        metric_stats: MetricStats,
         no_cache: bool,
     ) {
         // Initiate the backoff if the incoming state is invalid. Reset it otherwise.
@@ -1016,6 +1028,7 @@ impl Project {
                 aggregator,
                 envelope_processor.clone(),
                 outcome_aggregator,
+                metric_stats,
             ),
         }
 
@@ -1138,6 +1151,7 @@ impl Project {
     pub fn check_buckets(
         &mut self,
         outcome_aggregator: Addr<TrackOutcome>,
+        metric_stats: MetricStats,
         mut buckets: Vec<Bucket>,
     ) -> Option<(Scoping, ProjectMetrics)> {
         let Some(project_state) = self.valid_state() else {
@@ -1185,13 +1199,13 @@ impl Project {
                 relay_log::debug!("dropping {} buckets due to rate limit", quantities.buckets);
 
                 let reason_code = limits.longest().and_then(|limit| limit.reason_code.clone());
-                utils::reject_metrics::<Vec<Bucket>>(
+                utils::reject_metrics(
                     &outcome_aggregator,
+                    &metric_stats,
                     quantities,
                     scoping,
                     Outcome::RateLimited(reason_code),
-                    None,
-                    None,
+                    &buckets,
                 );
 
                 buckets.retain(|bucket| bucket.name.try_namespace() != Some(namespace));
@@ -1242,14 +1256,35 @@ mod tests {
     use std::collections::BTreeMap;
     use std::sync::Mutex;
 
+    use crate::services::global_config::GlobalConfigHandle;
     use relay_common::glob3::GlobPatterns;
     use relay_common::time::UnixTimestamp;
-    use relay_dynamic_config::TagBlock;
+    use relay_dynamic_config::{GlobalConfig, TagBlock};
     use relay_metrics::BucketValue;
     use relay_test::mock_service;
     use serde_json::json;
+    use tokio::sync::mpsc::UnboundedReceiver;
 
     use super::*;
+
+    fn create_metric_stats() -> (MetricStats, UnboundedReceiver<Aggregator>) {
+        let config = Config::from_json_value(json!({
+            "processing": {
+                "enabled": true,
+                "kafka_config": [],
+            }
+        }))
+        .unwrap();
+
+        let mut global_config = GlobalConfig::default();
+        global_config.options.metric_stats_rollout_rate = 1.0;
+        let global_config = GlobalConfigHandle::fixed(global_config);
+
+        let (addr, receiver) = Addr::custom();
+        let ms = MetricStats::new(Arc::new(config), global_config, addr);
+
+        (ms, receiver)
+    }
 
     #[test]
     fn get_state_expired() {
@@ -1291,8 +1326,13 @@ mod tests {
     async fn test_stale_cache() {
         let (addr, _) = mock_service("project_cache", (), |&mut (), _| {});
         let (aggregator, _) = mock_service("aggregator", (), |&mut (), _| {});
-        let (outcome_aggregator, _) = mock_service("outcome_aggreggator", (), |&mut (), _| {});
+        let (outcome_aggregator, _) = mock_service("outcome_aggregator", (), |&mut (), _| {});
         let (envelope_processor, _) = mock_service("envelope_processor", (), |&mut (), _| {});
+        let metric_stats = MetricStats::new(
+            Arc::new(Config::default()),
+            GlobalConfigHandle::fixed(GlobalConfig::default()),
+            Addr::custom().0,
+        );
         let config = Arc::new(
             Config::from_json_value(json!(
                 {
@@ -1326,6 +1366,7 @@ mod tests {
             Arc::new(ProjectState::err()),
             envelope_processor.clone(),
             outcome_aggregator.clone(),
+            metric_stats.clone(),
             false,
         );
         // Since we got invalid project state we still keep the old one meaning there
@@ -1349,6 +1390,7 @@ mod tests {
             Arc::new(ProjectState::err()),
             envelope_processor,
             outcome_aggregator,
+            metric_stats,
             false,
         );
         project.fetch_state(addr, false);
@@ -1377,19 +1419,6 @@ mod tests {
         }
     }
 
-    #[tokio::test]
-    async fn test_rate_limit_incoming_metrics() {
-        let (addr, _) = mock_service("track-outcome", (), |&mut (), _| {});
-        let project = create_project(None);
-        let metrics = project.rate_limit_metrics(
-            &project.state_value().unwrap(),
-            vec![create_transaction_metric()],
-            addr,
-        );
-
-        assert!(metrics.len() == 1);
-    }
-
     /// Checks that the project doesn't send buckets to the aggregator from its metricsbuffer
     /// if it haven't received a project state.
     #[tokio::test]
@@ -1406,9 +1435,20 @@ mod tests {
         });
 
         let buckets = vec![create_transaction_bucket()];
-        let (outcome_aggregator, _) = mock_service("outcome_aggreggator", (), |&mut (), _| {});
+        let (outcome_aggregator, _) = mock_service("outcome_aggregator", (), |&mut (), _| {});
         let (envelope_processor, _) = mock_service("envelope_processor", (), |&mut (), _| {});
-        project.merge_buckets(aggregator, outcome_aggregator, envelope_processor, buckets);
+        let metric_stats = MetricStats::new(
+            Arc::new(Config::default()),
+            GlobalConfigHandle::fixed(GlobalConfig::default()),
+            Addr::custom().0,
+        );
+        project.merge_buckets(
+            aggregator,
+            outcome_aggregator,
+            envelope_processor,
+            metric_stats,
+            buckets,
+        );
         handle.await.unwrap();
 
         let buckets_received = *bucket_state.lock().unwrap();
@@ -1431,12 +1471,18 @@ mod tests {
         });
 
         let buckets = vec![create_transaction_bucket()];
-        let (outcome_aggregator, _) = mock_service("outcome_aggreggator", (), |&mut (), _| {});
+        let (outcome_aggregator, _) = mock_service("outcome_aggregator", (), |&mut (), _| {});
         let (envelope_processor, _) = mock_service("envelope_processor", (), |&mut (), _| {});
+        let metric_stats = MetricStats::new(
+            Arc::new(Config::default()),
+            GlobalConfigHandle::fixed(GlobalConfig::default()),
+            Addr::custom().0,
+        );
         project.merge_buckets(
             aggregator.clone(),
             outcome_aggregator.clone(),
             envelope_processor.clone(),
+            metric_stats.clone(),
             buckets.clone(),
         );
         let mut project_state = ProjectState::allowed();
@@ -1447,6 +1493,7 @@ mod tests {
             aggregator,
             envelope_processor,
             outcome_aggregator,
+            metric_stats,
         );
         handle.await.unwrap(); // state isnt updated until we await.
 
@@ -1455,8 +1502,36 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_rate_limit_incoming_metrics() {
+        let (aggregator, mut aggregator_rx) = Addr::custom();
+        let (envelope_processor, _) = Addr::custom();
+        let (outcome_aggregator, _) = Addr::custom();
+        let (metric_stats, _) = create_metric_stats();
+
+        let project = create_project(None);
+        project.rate_limit_and_merge_buckets(
+            aggregator,
+            envelope_processor,
+            outcome_aggregator,
+            metric_stats,
+            &project.state_value().unwrap(),
+            vec![create_transaction_metric()],
+        );
+
+        let value = aggregator_rx.recv().await.unwrap();
+        let Aggregator::MergeBuckets(merge_buckets) = value else {
+            panic!();
+        };
+        assert_eq!(merge_buckets.buckets().len(), 1);
+    }
+
+    #[tokio::test]
     async fn test_rate_limit_incoming_metrics_no_quota() {
-        let (addr, _) = mock_service("track-outcome", (), |&mut (), _| {});
+        let (aggregator, mut aggregator_rx) = Addr::custom();
+        let (envelope_processor, _) = Addr::custom();
+        let (outcome_aggregator, _) = Addr::custom();
+        let (metric_stats, _) = create_metric_stats();
+
         let project = create_project(Some(json!({
             "quotas": [{
                "id": "foo",
@@ -1466,14 +1541,17 @@ mod tests {
                "reasonCode": "foo",
            }]
         })));
-
-        let metrics = project.rate_limit_metrics(
+        project.rate_limit_and_merge_buckets(
+            aggregator,
+            envelope_processor,
+            outcome_aggregator,
+            metric_stats,
             &project.state_value().unwrap(),
             vec![create_transaction_metric()],
-            addr,
         );
 
-        assert!(metrics.is_empty());
+        let value = aggregator_rx.recv().await;
+        assert!(value.is_none());
     }
 
     fn create_transaction_bucket() -> Bucket {
@@ -1489,20 +1567,35 @@ mod tests {
 
     #[tokio::test]
     async fn test_rate_limit_incoming_buckets() {
-        let (addr, _) = mock_service("track-outcome", (), |&mut (), _| {});
+        let (aggregator, mut aggregator_rx) = Addr::custom();
+        let (envelope_processor, _) = Addr::custom();
+        let (outcome_aggregator, _) = Addr::custom();
+        let (metric_stats, _) = create_metric_stats();
+
         let project = create_project(None);
-        let metrics = project.rate_limit_metrics(
+        project.rate_limit_and_merge_buckets(
+            aggregator,
+            envelope_processor,
+            outcome_aggregator,
+            metric_stats,
             &project.state_value().unwrap(),
             vec![create_transaction_bucket()],
-            addr,
         );
 
-        assert!(metrics.len() == 1);
+        let value = aggregator_rx.recv().await.unwrap();
+        let Aggregator::MergeBuckets(merge_buckets) = value else {
+            panic!();
+        };
+        assert_eq!(merge_buckets.buckets().len(), 1);
     }
 
     #[tokio::test]
     async fn test_rate_limit_incoming_buckets_no_quota() {
-        let (addr, _) = mock_service("track-outcome", (), |&mut (), _| {});
+        let (aggregator, mut aggregator_rx) = Addr::custom();
+        let (envelope_processor, _) = Addr::custom();
+        let (outcome_aggregator, _) = Addr::custom();
+        let (metric_stats, _) = create_metric_stats();
+
         let project = create_project(Some(json!({
             "quotas": [{
                "id": "foo",
@@ -1512,14 +1605,17 @@ mod tests {
                "reasonCode": "foo",
            }]
         })));
-
-        let metrics = project.rate_limit_metrics(
+        project.rate_limit_and_merge_buckets(
+            aggregator,
+            envelope_processor,
+            outcome_aggregator,
+            metric_stats,
             &project.state_value().unwrap(),
             vec![create_transaction_bucket()],
-            addr,
         );
 
-        assert!(metrics.is_empty());
+        let value = aggregator_rx.recv().await;
+        assert!(value.is_none());
     }
 
     fn get_test_bucket(name: &str, tags: BTreeMap<String, String>) -> Bucket {
@@ -1698,5 +1794,72 @@ mod tests {
         let back_to_str = serde_json::to_string(&deny_list).unwrap();
 
         assert_eq!(input_str, back_to_str);
+    }
+
+    fn create_custom_bucket_with_name(name: String) -> Bucket {
+        Bucket {
+            name: format!("d:custom/{name}@byte").into(),
+            value: BucketValue::Counter(1.into()),
+            timestamp: UnixTimestamp::now(),
+            tags: Default::default(),
+            width: 10,
+            metadata: Default::default(),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_pre_process_buckets_with_custom_namespace() {
+        let (aggregator, mut aggregator_rx) = Addr::custom();
+        let (outcome_aggregator, _) = Addr::custom();
+        let config = Config::from_json_value(json!({
+            "processing": {
+                "enabled": true,
+                "kafka_config": [],
+            }
+        }))
+        .unwrap();
+        let mut global_config = GlobalConfig::default();
+        global_config.options.metric_stats_rollout_rate = 1.0;
+        let global_config = GlobalConfigHandle::fixed(global_config);
+        let metric_stats = MetricStats::new(Arc::new(config), global_config, aggregator);
+
+        let project = create_project(Some(json!({
+            "metrics": {
+                "deniedNames": ["*cpu_time*"]
+            },
+            "features": [
+                "organizations:custom-metrics"
+            ]
+        })));
+        let buckets = vec![
+            create_custom_bucket_with_name("cpu_time".into()),
+            create_custom_bucket_with_name("memory_usage".into()),
+        ];
+        let pre_processed_buckets = project.pre_process_buckets(
+            outcome_aggregator,
+            metric_stats,
+            ExtractionMode::Usage,
+            &project.state_value().unwrap(),
+            vec![
+                create_custom_bucket_with_name("cpu_time".into()),
+                create_custom_bucket_with_name("memory_usage".into()),
+            ],
+        );
+
+        // We assert that one metric passes all the pre-processing.
+        assert_eq!(pre_processed_buckets.len(), 1);
+        assert_eq!(pre_processed_buckets[0], buckets[1]);
+
+        // We assert that one metric is emitted by metric stats.
+        let value = aggregator_rx.recv().await.unwrap();
+        let Aggregator::MergeBuckets(merge_buckets) = value else {
+            panic!();
+        };
+        let merge_buckets = merge_buckets.buckets();
+        assert_eq!(merge_buckets.len(), 1);
+        assert_eq!(
+            merge_buckets[0].tags.get("mri").unwrap().as_str(),
+            &*buckets[0].name
+        );
     }
 }

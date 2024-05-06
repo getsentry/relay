@@ -65,6 +65,7 @@ impl FromRedisValue for CardinalityScriptResult {
             return Err(redis::RedisError::from((
                 redis::ErrorKind::TypeError,
                 "Expected a sequence from the cardinality script",
+                format!("{v:?}"),
             )));
         };
 

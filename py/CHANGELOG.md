@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.8.60
+
+- Expose project config normalization. Drop support for `validate_project_config`. ([#3495](https://github.com/getsentry/relay/pull/3495))
+
+## 0.8.59
+
+- Expose cardinality limit config normalization. ([3489](https://github.com/getsentry/relay/pull/3489))
+- Consider "Bearer" (case-insensitive) a password. PII will scrub all strings matching that substring. ([#3484](https://github.com/getsentry/relay/pull/3484))
+
+## 0.8.58
+
+- Add ability to change the json parser. ([#3480](https://github.com/getsentry/relay/pull/3480))
+
 ## 0.8.57
 
 - Add a data category for metirc hours.  [#3384](https://github.com/getsentry/relay/pull/3384)
