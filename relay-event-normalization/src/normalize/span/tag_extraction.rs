@@ -1513,7 +1513,18 @@ LIMIT 1
             .unwrap();
 
         extract_span_tags_from_event(&mut event, 200);
-        assert_debug_snapshot!(event);
+        let span = event.spans.value().unwrap()[0].value().unwrap();
+        assert_eq!(
+            span.measurements
+                .value()
+                .unwrap()
+                .get("ai_total_cost")
+                .unwrap()
+                .value()
+                .unwrap()
+                .value,
+            8.0.into()
+        );
     }
 
     #[test]
