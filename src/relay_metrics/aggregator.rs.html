@@ -1499,6 +1499,27 @@
 <a href="#1497" id="1497">1497</a>
 <a href="#1498" id="1498">1498</a>
 <a href="#1499" id="1499">1499</a>
+<a href="#1500" id="1500">1500</a>
+<a href="#1501" id="1501">1501</a>
+<a href="#1502" id="1502">1502</a>
+<a href="#1503" id="1503">1503</a>
+<a href="#1504" id="1504">1504</a>
+<a href="#1505" id="1505">1505</a>
+<a href="#1506" id="1506">1506</a>
+<a href="#1507" id="1507">1507</a>
+<a href="#1508" id="1508">1508</a>
+<a href="#1509" id="1509">1509</a>
+<a href="#1510" id="1510">1510</a>
+<a href="#1511" id="1511">1511</a>
+<a href="#1512" id="1512">1512</a>
+<a href="#1513" id="1513">1513</a>
+<a href="#1514" id="1514">1514</a>
+<a href="#1515" id="1515">1515</a>
+<a href="#1516" id="1516">1516</a>
+<a href="#1517" id="1517">1517</a>
+<a href="#1518" id="1518">1518</a>
+<a href="#1519" id="1519">1519</a>
+<a href="#1520" id="1520">1520</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Core functionality of metrics aggregation.
 
 </span><span class="kw">use </span>std::collections::hash_map::Entry;
@@ -2400,14 +2421,15 @@
         }
     }
 
-    <span class="kw">fn </span>some_bucket() -&gt; Bucket {
+    <span class="kw">fn </span>some_bucket(timestamp: <span class="prelude-ty">Option</span>&lt;UnixTimestamp&gt;) -&gt; Bucket {
+        <span class="kw">let </span>timestamp = timestamp.map_or(UnixTimestamp::from_secs(<span class="number">999994711</span>), |t| t);
         Bucket {
-            timestamp: UnixTimestamp::from_secs(<span class="number">999994711</span>),
+            timestamp,
             width: <span class="number">0</span>,
             name: <span class="string">"c:transactions/foo"</span>.into(),
             value: BucketValue::counter(<span class="number">42</span>.into()),
             tags: BTreeMap::new(),
-            metadata: BucketMetadata::new(),
+            metadata: BucketMetadata::new(timestamp),
         }
     }
 
@@ -2417,7 +2439,7 @@
         <span class="kw">let </span>project_key = ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap();
         <span class="kw">let </span><span class="kw-2">mut </span>aggregator = Aggregator::new(test_config());
 
-        <span class="kw">let </span>bucket1 = some_bucket();
+        <span class="kw">let </span>bucket1 = some_bucket(<span class="prelude-val">None</span>);
 
         <span class="kw">let </span><span class="kw-2">mut </span>bucket2 = bucket1.clone();
         bucket2.value = BucketValue::counter(<span class="number">43</span>.into());
@@ -2507,7 +2529,7 @@
         <span class="kw">let </span>project_key = ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap();
         <span class="kw">let </span><span class="kw-2">mut </span>aggregator = Aggregator::new(config);
 
-        <span class="kw">let </span>bucket1 = some_bucket();
+        <span class="kw">let </span>bucket1 = some_bucket(<span class="prelude-val">None</span>);
 
         <span class="kw">let </span><span class="kw-2">mut </span>bucket2 = bucket1.clone();
         bucket2.timestamp = UnixTimestamp::from_secs(<span class="number">999994712</span>);
@@ -2570,8 +2592,12 @@
         <span class="kw">let </span><span class="kw-2">mut </span>aggregator = Aggregator::new(config);
 
         <span class="comment">// It's OK to have same metric with different projects:
-        </span>aggregator.merge(project_key1, some_bucket(), <span class="prelude-val">None</span>).unwrap();
-        aggregator.merge(project_key2, some_bucket(), <span class="prelude-val">None</span>).unwrap();
+        </span>aggregator
+            .merge(project_key1, some_bucket(<span class="prelude-val">None</span>), <span class="prelude-val">None</span>)
+            .unwrap();
+        aggregator
+            .merge(project_key2, some_bucket(<span class="prelude-val">None</span>), <span class="prelude-val">None</span>)
+            .unwrap();
 
         <span class="macro">assert_eq!</span>(aggregator.buckets.len(), <span class="number">2</span>);
     }
@@ -2652,13 +2678,14 @@
         </span><span class="kw">let </span><span class="kw-2">mut </span>aggregator = Aggregator::new(test_config());
         <span class="kw">let </span>project_key = ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fed"</span>).unwrap();
 
+        <span class="kw">let </span>timestamp = UnixTimestamp::from_secs(<span class="number">999994711</span>);
         <span class="kw">let </span>bucket = Bucket {
-            timestamp: UnixTimestamp::from_secs(<span class="number">999994711</span>),
+            timestamp,
             width: <span class="number">0</span>,
             name: <span class="string">"c:transactions/foo@none"</span>.into(),
             value: BucketValue::counter(<span class="number">42</span>.into()),
             tags: BTreeMap::new(),
-            metadata: BucketMetadata::new(),
+            metadata: BucketMetadata::new(timestamp),
         };
         <span class="kw">let </span>bucket_key = BucketKey {
             project_key,
@@ -2908,13 +2935,14 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_aggregator_cost_enforcement_total() {
+        <span class="kw">let </span>timestamp = UnixTimestamp::from_secs(<span class="number">999994711</span>);
         <span class="kw">let </span>bucket = Bucket {
-            timestamp: UnixTimestamp::from_secs(<span class="number">999994711</span>),
+            timestamp,
             width: <span class="number">0</span>,
             name: <span class="string">"c:transactions/foo"</span>.into(),
             value: BucketValue::counter(<span class="number">42</span>.into()),
             tags: BTreeMap::new(),
-            metadata: BucketMetadata::new(),
+            metadata: BucketMetadata::new(timestamp),
         };
 
         <span class="kw">let </span><span class="kw-2">mut </span>aggregator = Aggregator::new(test_config());
@@ -2939,13 +2967,14 @@
         <span class="kw">let </span><span class="kw-2">mut </span>config = test_config();
         config.max_project_key_bucket_bytes = <span class="prelude-val">Some</span>(<span class="number">1</span>);
 
+        <span class="kw">let </span>timestamp = UnixTimestamp::from_secs(<span class="number">999994711</span>);
         <span class="kw">let </span>bucket = Bucket {
-            timestamp: UnixTimestamp::from_secs(<span class="number">999994711</span>),
+            timestamp,
             width: <span class="number">0</span>,
             name: <span class="string">"c:transactions/foo"</span>.into(),
             value: BucketValue::counter(<span class="number">42</span>.into()),
             tags: BTreeMap::new(),
-            metadata: BucketMetadata::new(),
+            metadata: BucketMetadata::new(timestamp),
         };
 
         <span class="kw">let </span><span class="kw-2">mut </span>aggregator = Aggregator::new(config);
@@ -2976,23 +3005,36 @@
         <span class="kw">let </span>project_key = ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap();
         <span class="kw">let </span><span class="kw-2">mut </span>aggregator = Aggregator::new(config);
 
-        <span class="kw">let </span>bucket1 = some_bucket();
-        <span class="kw">let </span>bucket2 = some_bucket();
+        <span class="kw">let </span>bucket1 = some_bucket(<span class="prelude-val">Some</span>(UnixTimestamp::from_secs(<span class="number">999994711</span>)));
+        <span class="kw">let </span>bucket2 = some_bucket(<span class="prelude-val">Some</span>(UnixTimestamp::from_secs(<span class="number">999994711</span>)));
 
-        <span class="comment">// Create a bucket with already 3 merges.
-        </span><span class="kw">let </span><span class="kw-2">mut </span>bucket3 = some_bucket();
-        bucket3.metadata.merge(BucketMetadata::new());
-        bucket3.metadata.merge(BucketMetadata::new());
+        <span class="comment">// We create a bucket with 3 merges and monotonically increasing timestamps.
+        </span><span class="kw">let </span><span class="kw-2">mut </span>bucket3 = some_bucket(<span class="prelude-val">Some</span>(UnixTimestamp::from_secs(<span class="number">999994711</span>)));
+        bucket3
+            .metadata
+            .merge(BucketMetadata::new(UnixTimestamp::from_secs(<span class="number">999997811</span>)));
+        bucket3
+            .metadata
+            .merge(BucketMetadata::new(UnixTimestamp::from_secs(<span class="number">999999811</span>)));
 
-        aggregator.merge(project_key, bucket1, <span class="prelude-val">None</span>).unwrap();
-        aggregator.merge(project_key, bucket2, <span class="prelude-val">None</span>).unwrap();
-        aggregator.merge(project_key, bucket3, <span class="prelude-val">None</span>).unwrap();
+        aggregator
+            .merge(project_key, bucket1.clone(), <span class="prelude-val">None</span>)
+            .unwrap();
+        aggregator
+            .merge(project_key, bucket2.clone(), <span class="prelude-val">None</span>)
+            .unwrap();
+        aggregator
+            .merge(project_key, bucket3.clone(), <span class="prelude-val">None</span>)
+            .unwrap();
 
-        <span class="kw">let </span>buckets: Vec&lt;<span class="kw">_</span>&gt; = aggregator.buckets.values().map(|v| <span class="kw-2">&amp;</span>v.metadata).collect();
-        <span class="macro">insta::assert_debug_snapshot!</span>(buckets, @<span class="string">r###"
+        <span class="kw">let </span>buckets_metadata: Vec&lt;<span class="kw">_</span>&gt; = aggregator.buckets.values().map(|v| <span class="kw-2">&amp;</span>v.metadata).collect();
+        <span class="macro">insta::assert_debug_snapshot!</span>(buckets_metadata, @<span class="string">r###"
         [
             BucketMetadata {
                 merges: 5,
+                received_at: Some(
+                    UnixTimestamp(999994711),
+                ),
             },
         ]
         "###</span>);

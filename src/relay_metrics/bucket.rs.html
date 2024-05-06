@@ -1410,6 +1410,82 @@
 <a href="#1408" id="1408">1408</a>
 <a href="#1409" id="1409">1409</a>
 <a href="#1410" id="1410">1410</a>
+<a href="#1411" id="1411">1411</a>
+<a href="#1412" id="1412">1412</a>
+<a href="#1413" id="1413">1413</a>
+<a href="#1414" id="1414">1414</a>
+<a href="#1415" id="1415">1415</a>
+<a href="#1416" id="1416">1416</a>
+<a href="#1417" id="1417">1417</a>
+<a href="#1418" id="1418">1418</a>
+<a href="#1419" id="1419">1419</a>
+<a href="#1420" id="1420">1420</a>
+<a href="#1421" id="1421">1421</a>
+<a href="#1422" id="1422">1422</a>
+<a href="#1423" id="1423">1423</a>
+<a href="#1424" id="1424">1424</a>
+<a href="#1425" id="1425">1425</a>
+<a href="#1426" id="1426">1426</a>
+<a href="#1427" id="1427">1427</a>
+<a href="#1428" id="1428">1428</a>
+<a href="#1429" id="1429">1429</a>
+<a href="#1430" id="1430">1430</a>
+<a href="#1431" id="1431">1431</a>
+<a href="#1432" id="1432">1432</a>
+<a href="#1433" id="1433">1433</a>
+<a href="#1434" id="1434">1434</a>
+<a href="#1435" id="1435">1435</a>
+<a href="#1436" id="1436">1436</a>
+<a href="#1437" id="1437">1437</a>
+<a href="#1438" id="1438">1438</a>
+<a href="#1439" id="1439">1439</a>
+<a href="#1440" id="1440">1440</a>
+<a href="#1441" id="1441">1441</a>
+<a href="#1442" id="1442">1442</a>
+<a href="#1443" id="1443">1443</a>
+<a href="#1444" id="1444">1444</a>
+<a href="#1445" id="1445">1445</a>
+<a href="#1446" id="1446">1446</a>
+<a href="#1447" id="1447">1447</a>
+<a href="#1448" id="1448">1448</a>
+<a href="#1449" id="1449">1449</a>
+<a href="#1450" id="1450">1450</a>
+<a href="#1451" id="1451">1451</a>
+<a href="#1452" id="1452">1452</a>
+<a href="#1453" id="1453">1453</a>
+<a href="#1454" id="1454">1454</a>
+<a href="#1455" id="1455">1455</a>
+<a href="#1456" id="1456">1456</a>
+<a href="#1457" id="1457">1457</a>
+<a href="#1458" id="1458">1458</a>
+<a href="#1459" id="1459">1459</a>
+<a href="#1460" id="1460">1460</a>
+<a href="#1461" id="1461">1461</a>
+<a href="#1462" id="1462">1462</a>
+<a href="#1463" id="1463">1463</a>
+<a href="#1464" id="1464">1464</a>
+<a href="#1465" id="1465">1465</a>
+<a href="#1466" id="1466">1466</a>
+<a href="#1467" id="1467">1467</a>
+<a href="#1468" id="1468">1468</a>
+<a href="#1469" id="1469">1469</a>
+<a href="#1470" id="1470">1470</a>
+<a href="#1471" id="1471">1471</a>
+<a href="#1472" id="1472">1472</a>
+<a href="#1473" id="1473">1473</a>
+<a href="#1474" id="1474">1474</a>
+<a href="#1475" id="1475">1475</a>
+<a href="#1476" id="1476">1476</a>
+<a href="#1477" id="1477">1477</a>
+<a href="#1478" id="1478">1478</a>
+<a href="#1479" id="1479">1479</a>
+<a href="#1480" id="1480">1480</a>
+<a href="#1481" id="1481">1481</a>
+<a href="#1482" id="1482">1482</a>
+<a href="#1483" id="1483">1483</a>
+<a href="#1484" id="1484">1484</a>
+<a href="#1485" id="1485">1485</a>
+<a href="#1486" id="1486">1486</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
 <span class="kw">use </span>std::hash::Hash;
 <span class="kw">use </span>std::iter::FusedIterator;
@@ -1914,7 +1990,7 @@
     /// # Statsd Format
     ///
     /// In statsd, timestamps are part of the `|`-separated list following values. Timestamps start
-    /// with with the literal character `'T'` followed by the UNIX timestamp.
+    /// with the literal character `'T'` followed by the UNIX timestamp.
     ///
     /// The timestamp must be a positive integer in decimal notation representing the value of the
     /// UNIX timestamp.
@@ -2160,33 +2236,52 @@
     /// For example: Merging two un-merged buckets will yield a total
     /// of `2` merges.
     </span><span class="kw">pub </span>merges: NonZeroU32,
+
+    <span class="doccomment">/// Received timestamp of the first metric in this bucket.
+    ///
+    /// This field should be set to the time in which the first metric of a specific bucket was
+    /// received in the outermost internal Relay.
+    </span><span class="kw">pub </span>received_at: <span class="prelude-ty">Option</span>&lt;UnixTimestamp&gt;,
 }
 
 <span class="kw">impl </span>BucketMetadata {
     <span class="doccomment">/// Creates a fresh metadata instance.
     ///
-    /// The new metadata is initialized with `1` merge.
-    </span><span class="kw">pub fn </span>new() -&gt; <span class="self">Self </span>{
+    /// The new metadata is initialized with `1` merge and a given `received_at` timestamp.
+    </span><span class="kw">pub fn </span>new(received_at: UnixTimestamp) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{
             merges: NonZeroU32::MIN,
+            received_at: <span class="prelude-val">Some</span>(received_at),
         }
     }
 
     <span class="doccomment">/// Whether the metadata does not contain more information than the default.
     </span><span class="kw">pub fn </span>is_default(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
-        <span class="kw">let </span><span class="self">Self </span>{ merges } = <span class="self">self</span>;
-        <span class="kw-2">*</span>merges == NonZeroU32::MIN
+        <span class="kw">let </span><span class="self">Self </span>{
+            merges,
+            received_at,
+        } = <span class="self">self</span>;
+
+        <span class="kw-2">*</span>merges == NonZeroU32::MIN &amp;&amp; received_at.is_none()
     }
 
     <span class="doccomment">/// Merges another metadata object into the current one.
     </span><span class="kw">pub fn </span>merge(<span class="kw-2">&amp;mut </span><span class="self">self</span>, other: <span class="self">Self</span>) {
         <span class="self">self</span>.merges = <span class="self">self</span>.merges.saturating_add(other.merges.get());
+        <span class="self">self</span>.received_at = <span class="kw">match </span>(<span class="self">self</span>.received_at, other.received_at) {
+            (<span class="prelude-val">Some</span>(received_at), <span class="prelude-val">None</span>) =&gt; <span class="prelude-val">Some</span>(received_at),
+            (<span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(received_at)) =&gt; <span class="prelude-val">Some</span>(received_at),
+            (left, right) =&gt; left.min(right),
+        };
     }
 }
 
 <span class="kw">impl </span>Default <span class="kw">for </span>BucketMetadata {
     <span class="kw">fn </span>default() -&gt; <span class="self">Self </span>{
-        <span class="self">Self</span>::new()
+        <span class="self">Self </span>{
+            merges: NonZeroU32::MIN,
+            received_at: <span class="prelude-val">None</span>,
+        }
     }
 }
 
@@ -2319,6 +2414,7 @@
             tags: {},
             metadata: BucketMetadata {
                 merges: 1,
+                received_at: None,
             },
         }
         "###</span>);
@@ -2352,6 +2448,7 @@
             tags: {},
             metadata: BucketMetadata {
                 merges: 1,
+                received_at: None,
             },
         }
         "###</span>);
@@ -2403,6 +2500,7 @@
             tags: {},
             metadata: BucketMetadata {
                 merges: 1,
+                received_at: None,
             },
         }
         "###</span>);
@@ -2462,6 +2560,7 @@
             tags: {},
             metadata: BucketMetadata {
                 merges: 1,
+                received_at: None,
             },
         }
         "###</span>);
@@ -2491,6 +2590,7 @@
             tags: {},
             metadata: BucketMetadata {
                 merges: 1,
+                received_at: None,
             },
         }
         "###</span>);
@@ -2514,6 +2614,7 @@
             tags: {},
             metadata: BucketMetadata {
                 merges: 1,
+                received_at: None,
             },
         }
         "###</span>);
@@ -2683,11 +2784,16 @@
             "width": 10,
             "tags": {
                 "route": "user_index"
+            },
+            "metadata": {
+                "merges": 1,
+                "received_at": 1615889440
             }
           }
         ]"#</span>;
 
         <span class="kw">let </span>buckets = serde_json::from_str::&lt;Vec&lt;Bucket&gt;&gt;(json).unwrap();
+
         <span class="macro">insta::assert_debug_snapshot!</span>(buckets, @<span class="string">r###"
         [
             Bucket {
@@ -2709,6 +2815,9 @@
                 },
                 metadata: BucketMetadata {
                     merges: 1,
+                    received_at: Some(
+                        UnixTimestamp(1615889440),
+                    ),
                 },
             },
         ]
@@ -2723,11 +2832,16 @@
             "value": 4,
             "type": "c",
             "timestamp": 1615889440,
-            "width": 10
+            "width": 10,
+            "metadata": {
+                "merges": 1,
+                "received_at": 1615889440
+            }
           }
         ]"#</span>;
 
         <span class="kw">let </span>buckets = serde_json::from_str::&lt;Vec&lt;Bucket&gt;&gt;(json).unwrap();
+
         <span class="macro">insta::assert_debug_snapshot!</span>(buckets, @<span class="string">r###"
         [
             Bucket {
@@ -2742,6 +2856,9 @@
                 tags: {},
                 metadata: BucketMetadata {
                     merges: 1,
+                    received_at: Some(
+                        UnixTimestamp(1615889440),
+                    ),
                 },
             },
         ]
@@ -2818,6 +2935,41 @@
 
         <span class="kw">let </span>serialized = serde_json::to_string_pretty(<span class="kw-2">&amp;</span>buckets).unwrap();
         <span class="macro">assert_eq!</span>(json, serialized);
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_bucket_metadata_merge() {
+        <span class="kw">let </span><span class="kw-2">mut </span>metadata = BucketMetadata::default();
+
+        <span class="kw">let </span>other_metadata = BucketMetadata::default();
+        metadata.merge(other_metadata);
+        <span class="macro">assert_eq!</span>(
+            metadata,
+            BucketMetadata {
+                merges: NonZeroU32::new(<span class="number">2</span>).unwrap(),
+                received_at: <span class="prelude-val">None
+            </span>}
+        );
+
+        <span class="kw">let </span>other_metadata = BucketMetadata::new(UnixTimestamp::from_secs(<span class="number">10</span>));
+        metadata.merge(other_metadata);
+        <span class="macro">assert_eq!</span>(
+            metadata,
+            BucketMetadata {
+                merges: NonZeroU32::new(<span class="number">3</span>).unwrap(),
+                received_at: <span class="prelude-val">Some</span>(UnixTimestamp::from_secs(<span class="number">10</span>))
+            }
+        );
+
+        <span class="kw">let </span>other_metadata = BucketMetadata::new(UnixTimestamp::from_secs(<span class="number">20</span>));
+        metadata.merge(other_metadata);
+        <span class="macro">assert_eq!</span>(
+            metadata,
+            BucketMetadata {
+                merges: NonZeroU32::new(<span class="number">4</span>).unwrap(),
+                received_at: <span class="prelude-val">Some</span>(UnixTimestamp::from_secs(<span class="number">10</span>))
+            }
+        );
     }
 }
 </code></pre></div></section></main></body></html>

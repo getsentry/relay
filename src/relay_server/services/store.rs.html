@@ -1795,6 +1795,8 @@
 <a href="#1793" id="1793">1793</a>
 <a href="#1794" id="1794">1794</a>
 <a href="#1795" id="1795">1795</a>
+<a href="#1796" id="1796">1796</a>
+<a href="#1797" id="1797">1797</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module contains the service that forwards events and attachments to the Sentry store.
 //! The service uses Kafka topics to forward data to Sentry
 
@@ -2304,7 +2306,9 @@
             BucketViewValue::Gauge(g) =&gt; MetricValue::Gauge(g),
         };
 
-        <span class="prelude-val">Ok</span>(MetricKafkaMessage {
+        <span class="comment">// TODO: propagate the `received_at` field upstream.
+        // https://github.com/getsentry/relay/issues/3515
+        </span><span class="prelude-val">Ok</span>(MetricKafkaMessage {
             org_id: organization_id,
             project_id,
             name: view.name(),

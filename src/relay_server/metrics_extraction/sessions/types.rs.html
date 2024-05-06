@@ -141,6 +141,14 @@
 <a href="#139" id="139">139</a>
 <a href="#140" id="140">140</a>
 <a href="#141" id="141">141</a>
+<a href="#142" id="142">142</a>
+<a href="#143" id="143">143</a>
+<a href="#144" id="144">144</a>
+<a href="#145" id="145">145</a>
+<a href="#146" id="146">146</a>
+<a href="#147" id="147">147</a>
+<a href="#148" id="148">148</a>
+<a href="#149" id="149">149</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::fmt::{<span class="self">self</span>, Display};
 
@@ -262,13 +270,21 @@
             unit: MetricUnit::None,
         };
 
+        <span class="comment">// For extracted metrics we assume the `received_at` timestamp is equivalent to the time
+        // in which the metric is extracted.
+        </span><span class="kw">let </span>received_at = <span class="kw">if </span><span class="macro">cfg!</span>(not(test)) {
+            UnixTimestamp::now()
+        } <span class="kw">else </span>{
+            UnixTimestamp::from_secs(<span class="number">0</span>)
+        };
+
         Bucket {
             timestamp,
             width: <span class="number">0</span>,
             name: mri.to_string().into(),
             value,
             tags,
-            metadata: BucketMetadata::new(),
+            metadata: BucketMetadata::new(received_at),
         }
     }
 }
