@@ -1,5 +1,5 @@
 //! This file maps AI model IDs to their respective costs.
-//! Adapted from https =>//github.com/langchain-ai/langchain/blob/5b6d1a907df8a7af0f47c5ffd394b3673d9539e5/libs/community/langchain_community/callbacks/openai_info.py#L4
+//! Adapted from https://github.com/langchain-ai/langchain/blob/5b6d1a907df8a7af0f47c5ffd394b3673d9539e5/libs/community/langchain_community/callbacks/openai_info.py#L4
 
 /// Cost is in US dollars per thousand tokens
 fn calculate_cost_per_1k_tokens(model_id: &str, for_completion: bool) -> Option<f64> {
@@ -127,6 +127,8 @@ fn calculate_cost_per_1k_tokens(model_id: &str, for_completion: bool) -> Option<
         _ => None,
     }
 }
+
+/// Calculated cost is in US dollars.
 pub fn calculate_ai_model_cost(
     model_id: &str,
     prompt_tokens_used: Option<f64>,
