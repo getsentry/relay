@@ -200,10 +200,10 @@ def test_span_extraction_with_sampling(
 
     relay.send_event(project_id, event)
 
-    spans = list(spans_consumer.get_spans(max_attempts=2))
+    spans = spans_consumer.get_spans(max_attempts=2)
     assert len(spans) == expected_spans
 
-    metrics = list(metrics_consumer.get_metrics())
+    metrics = metrics_consumer.get_metrics()
     span_metrics = [m for (m, _) in metrics if ":spans/" in m["name"]]
     assert len(span_metrics) == expected_metrics
 
@@ -482,7 +482,7 @@ def test_span_ingestion(
         headers={"Content-Type": "application/x-protobuf"},
     )
 
-    spans = list(spans_consumer.get_spans(timeout=10.0, max_attempts=6))
+    spans = spans_consumer.get_spans(timeout=10.0, max_attempts=6)
 
     for span in spans:
         span.pop("received", None)
@@ -1120,7 +1120,7 @@ def test_span_reject_invalid_timestamps(
     )
     relay.send_envelope(project_id, envelope)
 
-    spans = list(spans_consumer.get_spans(timeout=10.0, max_attempts=1))
+    spans = spans_consumer.get_spans(timeout=10.0, max_attempts=1)
 
     assert len(spans) == 1
     assert spans[0]["description"] == "span with valid timestamps"
@@ -1246,7 +1246,7 @@ def test_span_ingestion_with_performance_scores(
     )
     relay.send_envelope(project_id, envelope)
 
-    spans = list(spans_consumer.get_spans(timeout=10.0, max_attempts=2))
+    spans = spans_consumer.get_spans(timeout=10.0, max_attempts=2)
 
     for span in spans:
         span.pop("received", None)
@@ -1358,7 +1358,7 @@ def test_rate_limit_indexed_consistent(
 
     # First batch passes
     relay.send_envelope(project_id, envelope)
-    spans = list(spans_consumer.get_spans(max_attempts=4, timeout=10))
+    spans = spans_consumer.get_spans(max_attempts=4, timeout=10)
     assert len(spans) == 4
     assert summarize_outcomes() == {(16, 0): 4}  # SpanIndexed, Accepted
 
@@ -1420,14 +1420,14 @@ def test_rate_limit_indexed_consistent_extracted(
 
     # First send should be accepted.
     relay.send_event(project_id, event)
-    spans = list(spans_consumer.get_spans(max_attempts=2, timeout=10))
+    spans = spans_consumer.get_spans(max_attempts=2, timeout=10)
     # one for the transaction, one for the contained span
     assert len(spans) == 2
     assert summarize_outcomes() == {(16, 0): 2}  # SpanIndexed, Accepted
 
     # Second send should be rejected immediately.
     relay.send_event(project_id, event)
-    spans = list(spans_consumer.get_spans(max_attempts=1, timeout=2))
+    spans = spans_consumer.get_spans(max_attempts=1, timeout=2)
     assert len(spans) == 0  # all rejected
     assert summarize_outcomes() == {(16, 2): 2}  # SpanIndexed, RateLimited
 
@@ -1477,9 +1477,9 @@ def test_rate_limit_metrics_consistent(
 
     # First batch passes (we over-accept once)
     relay.send_envelope(project_id, envelope)
-    spans = list(spans_consumer.get_spans(max_attempts=4, timeout=10))
+    spans = spans_consumer.get_spans(max_attempts=4, timeout=10)
     assert len(spans) == 4
-    metrics = list(metrics_consumer.get_metrics())
+    metrics = metrics_consumer.get_metrics()
     assert len(metrics) > 0
     assert all(headers == [("namespace", b"spans")] for _, headers in metrics), metrics
 
@@ -1488,9 +1488,9 @@ def test_rate_limit_metrics_consistent(
 
     # Second batch is limited
     relay.send_envelope(project_id, envelope)
-    spans = list(spans_consumer.get_spans(max_attempts=1, timeout=2))
+    spans = spans_consumer.get_spans(max_attempts=1, timeout=2)
     assert len(spans) == 0
-    metrics = list(metrics_consumer.get_metrics())
+    metrics = metrics_consumer.get_metrics()
     assert len(metrics) == 0
     assert summarize_outcomes() == {
         (16, 2): 4,  # SpanIndexed, RateLimited
