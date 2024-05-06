@@ -8,6 +8,7 @@
 - Extract `cache.item_size` from measurements instead of data. ([#3510](https://github.com/getsentry/relay/pull/3510))
 - Collect `enviornment` tag as part of exclusive_time_light for cache spans. ([#3510](https://github.com/getsentry/relay/pull/3510))
 - Emit negative outcomes for denied metrics. ([#3508](https://github.com/getsentry/relay/pull/3508))
+- Remove generators from consumers in integration tests ([#3545](https://github.com/getsentry/relay/pull/3545))
 
 ## 24.4.2
 

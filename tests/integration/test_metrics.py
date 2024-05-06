@@ -1550,7 +1550,7 @@ def test_span_metrics_secondary_aggregator(
     )
     processing.send_transaction(project_id, transaction)
 
-    metrics = list(metrics_consumer.get_metrics())
+    metrics = metrics_consumer.get_metrics()
 
     # Transaction metrics are still aggregated:
     assert all([m[0]["name"].startswith("spans", 2) for m in metrics])
