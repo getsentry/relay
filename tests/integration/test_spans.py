@@ -122,6 +122,7 @@ def test_span_extraction(
     assert transaction_span == {
         "data": {
             "sentry.sdk.name": "raven-node",
+            "sentry.sdk.version": "2.6.3",
             "sentry.segment.name": "hi",
         },
         "description": "hi",
@@ -872,6 +873,7 @@ def test_span_extraction_with_metrics_summary(
     assert transaction_span == {
         "data": {
             "sentry.sdk.name": "raven-node",
+            "sentry.sdk.version": "2.6.3",
             "sentry.segment.name": "hi",
         },
         "description": "hi",
@@ -1049,6 +1051,7 @@ def test_span_extraction_with_ddm_missing_values(
     assert transaction_span == {
         "data": {
             "sentry.sdk.name": "raven-node",
+            "sentry.sdk.version": "2.6.3",
             "sentry.segment.name": "hi",
         },
         "description": "hi",
