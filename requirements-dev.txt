@@ -19,7 +19,7 @@ PyYAML==6.0.1
 redis==4.5.4
 requests==2.31.0
 sentry_sdk==1.14.0
-werkzeug==2.2.3
+werkzeug==3.0.1
 zstandard==0.18.0
 
 # typing things
