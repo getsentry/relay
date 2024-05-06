@@ -169,7 +169,7 @@ pub fn calculate_ai_model_cost(
     }
     if let Some(total_tokens) = total_tokens_used {
         calculate_cost_per_1k_tokens(normalized_model_id.as_str(), false)
-            .and_then(|cost| Some(cost * (total_tokens / 1000.0)))
+            .map(|cost| cost * (total_tokens / 1000.0))
     } else {
         None
     }
