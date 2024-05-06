@@ -98,6 +98,10 @@
 <a href="#96" id="96">96</a>
 <a href="#97" id="97">97</a>
 <a href="#98" id="98">98</a>
+<a href="#99" id="99">99</a>
+<a href="#100" id="100">100</a>
+<a href="#101" id="101">101</a>
+<a href="#102" id="102">102</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::fmt;
 
@@ -136,6 +140,9 @@
     <span class="doccomment">/// Filtered due to the fact that it was a call to a filtered transaction
     </span>FilteredTransactions,
 
+    <span class="doccomment">/// Filtered due to name being denied.
+    </span>DeniedName,
+
     <span class="doccomment">/// Filtered due to a generic filter.
     </span>GenericFilter(String),
 }
@@ -165,6 +172,7 @@
             FilterStatKey::WebCrawlers =&gt; <span class="string">"web-crawlers"</span>,
             FilterStatKey::InvalidCsp =&gt; <span class="string">"invalid-csp"</span>,
             FilterStatKey::FilteredTransactions =&gt; <span class="string">"filtered-transaction"</span>,
+            FilterStatKey::DeniedName =&gt; <span class="string">"denied-name"</span>,
             FilterStatKey::GenericFilter(filter_identifier) =&gt; {
                 <span class="kw">return </span>Cow::Owned(filter_identifier);
             }

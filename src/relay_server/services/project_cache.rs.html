@@ -1503,6 +1503,10 @@
 <a href="#1501" id="1501">1501</a>
 <a href="#1502" id="1502">1502</a>
 <a href="#1503" id="1503">1503</a>
+<a href="#1504" id="1504">1504</a>
+<a href="#1505" id="1505">1505</a>
+<a href="#1506" id="1506">1506</a>
+<a href="#1507" id="1507">1507</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
 <span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::sync::Arc;
@@ -2130,6 +2134,7 @@
         <span class="kw">let </span>aggregator = <span class="self">self</span>.services.aggregator.clone();
         <span class="kw">let </span>envelope_processor = <span class="self">self</span>.services.envelope_processor.clone();
         <span class="kw">let </span>outcome_aggregator = <span class="self">self</span>.services.outcome_aggregator.clone();
+        <span class="kw">let </span>metric_stats = <span class="self">self</span>.metric_stats.clone();
 
         <span class="self">self</span>.get_or_create_project(project_key).update_state(
             project_cache,
@@ -2137,6 +2142,7 @@
             state.clone(),
             envelope_processor,
             outcome_aggregator,
+            metric_stats,
             no_cache,
         );
 
@@ -2317,6 +2323,7 @@
         <span class="kw">let </span>aggregator = <span class="self">self</span>.services.aggregator.clone();
         <span class="kw">let </span>outcome_aggregator = <span class="self">self</span>.services.outcome_aggregator.clone();
         <span class="kw">let </span>envelope_processor = <span class="self">self</span>.services.envelope_processor.clone();
+        <span class="kw">let </span>metric_stats = <span class="self">self</span>.metric_stats.clone();
 
         <span class="kw">let </span>project = <span class="self">self</span>.get_or_create_project(message.project_key());
         project.prefetch(project_cache, <span class="bool-val">false</span>);
@@ -2324,6 +2331,7 @@
             aggregator,
             outcome_aggregator,
             envelope_processor,
+            metric_stats,
             message.buckets(),
         );
     }
