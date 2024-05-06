@@ -32,9 +32,7 @@ use relay_event_schema::protocol::{
 };
 use relay_filter::FilterStatKey;
 use relay_metrics::aggregator::AggregatorConfig;
-use relay_metrics::{
-    Bucket, BucketMetadata, BucketView, BucketsView, MergeBuckets, MetricMeta, MetricNamespace,
-};
+use relay_metrics::{Bucket, BucketMetadata, BucketView, BucketsView, MetricMeta, MetricNamespace};
 use relay_pii::PiiConfigError;
 use relay_profiling::ProfileId;
 use relay_protocol::{Annotated, Value};
@@ -56,7 +54,7 @@ use {
         CardinalityLimit, CardinalityLimiter, RedisSetLimiter, RedisSetLimiterOptions,
     },
     relay_dynamic_config::{CardinalityLimiterMode, GlobalConfig, MetricExtractionGroups},
-    relay_metrics::{Aggregator, RedisMetricMetaStore},
+    relay_metrics::{Aggregator, MergeBuckets, RedisMetricMetaStore},
     relay_quotas::{Quota, RateLimitingError, RedisRateLimiter},
     relay_redis::RedisPool,
     std::iter::Chain,
@@ -76,7 +74,9 @@ use crate::services::global_config::GlobalConfigHandle;
 use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::services::processor::event::FiltersStatus;
 use crate::services::project::ProjectState;
-use crate::services::project_cache::{AddMetricMeta, ProjectCache, UpdateRateLimits};
+use crate::services::project_cache::{
+    AddMetricBuckets, AddMetricMeta, ProjectCache, UpdateRateLimits,
+};
 use crate::services::test_store::{Capture, TestStore};
 use crate::services::upstream::{
     SendRequest, UpstreamRelay, UpstreamRequest, UpstreamRequestError,
@@ -556,7 +556,10 @@ impl ExtractedMetrics {
         let project_key = envelope.meta().public_key();
 
         if !self.project_metrics.is_empty() {
-            project_cache.send(MergeBuckets::new(project_key, self.project_metrics));
+            project_cache.send(AddMetricBuckets {
+                project_key,
+                buckets: self.project_metrics,
+            });
         }
 
         if !self.sampling_metrics.is_empty() {
@@ -567,10 +570,10 @@ impl ExtractedMetrics {
             // dependent_project_with_tracing  -> metrics goes to root
             // root_project_with_tracing       -> metrics goes to root == self
             let sampling_project_key = utils::get_sampling_key(envelope).unwrap_or(project_key);
-            project_cache.send(MergeBuckets::new(
-                sampling_project_key,
-                self.sampling_metrics,
-            ));
+            project_cache.send(AddMetricBuckets {
+                project_key: sampling_project_key,
+                buckets: self.sampling_metrics,
+            });
         }
     }
 }
@@ -1831,7 +1834,7 @@ impl EnvelopeProcessorService {
     fn handle_process_metrics(&self, cogs: &mut Token, message: ProcessMetrics) {
         let ProcessMetrics {
             items,
-            project_key: public_key,
+            project_key,
             start_time,
             sent_at,
             keep_metadata,
@@ -1896,10 +1899,10 @@ impl EnvelopeProcessorService {
         cogs.update(relay_metrics::cogs::BySize(&buckets));
 
         relay_log::trace!("merging metric buckets into project cache");
-        self.inner
-            .addrs
-            .project_cache
-            .send(MergeBuckets::new(public_key, buckets));
+        self.inner.addrs.project_cache.send(AddMetricBuckets {
+            project_key,
+            buckets,
+        });
     }
 
     fn handle_process_batched_metrics(&self, cogs: &mut Token, message: ProcessBatchedMetrics) {
@@ -1932,7 +1935,7 @@ impl EnvelopeProcessorService {
         };
 
         let mut feature_weights = FeatureWeights::none();
-        for (public_key, mut buckets) in buckets {
+        for (project_key, mut buckets) in buckets {
             if buckets.is_empty() {
                 continue;
             }
@@ -1947,10 +1950,10 @@ impl EnvelopeProcessorService {
             feature_weights = feature_weights.merge(relay_metrics::cogs::BySize(&buckets).into());
 
             relay_log::trace!("merging metric buckets into project cache");
-            self.inner
-                .addrs
-                .project_cache
-                .send(MergeBuckets::new(public_key, buckets));
+            self.inner.addrs.project_cache.send(AddMetricBuckets {
+                project_key,
+                buckets,
+            });
         }
 
         if !feature_weights.is_empty() {
