@@ -339,6 +339,10 @@ pub struct SpanData {
     #[metastructure(field = "messaging.message.body.size")]
     pub messaging_message_body_size: Annotated<Value>,
 
+    /// Message ID
+    #[metastructure(field = "messaging.message.id")]
+    pub messaging_message_id: Annotated<Value>,
+
     /// Other fields in `span.data`.
     #[metastructure(additional_properties, pii = "true", retain = "true")]
     other: Object<Value>,
@@ -541,7 +545,8 @@ mod tests {
         "messaging.destination.name": "default",
         "messaging.message.retry.count": 3,
         "messaging.message.receive.latency": 40,
-        "messaging.message.body.size": 100
+        "messaging.message.body.size": 100,
+        "messaging.message.id": "abc123"
     }"#;
         let data = Annotated::<SpanData>::from_json(data)
             .unwrap()
@@ -615,6 +620,9 @@ mod tests {
             ),
             messaging_message_body_size: I64(
                 100,
+            ),
+            messaging_message_id: String(
+                "abc123",
             ),
             other: {
                 "bar": String(

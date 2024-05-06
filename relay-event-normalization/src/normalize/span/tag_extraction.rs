@@ -688,6 +688,7 @@ pub fn extract_measurements(span: &mut Span, is_mobile: bool) {
                     &data.messaging_message_body_size,
                     "messaging.message.body.size",
                 ),
+                (&data.messaging_message_id, "messaging.message.id"),
             ] {
                 if let Some(value) = match field.value() {
                     Some(Value::F64(f)) => Some(*f),
