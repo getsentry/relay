@@ -29,9 +29,11 @@ static NORMALIZER_REGEX: Lazy<Regex> = Lazy::new(|| {
         ((?-x)(?P<single_quoted_strs>N?'(?:\\'|[^'])*(?:'|$)(::\w+(\[\]?)?)?)) |
         # Capture placeholders.
         (   (?P<placeholder> (?:\?+|\$\d+|%(?:\(\w+\))?s|:\w+) (::\w+(\[\]?)?)? )   ) |
-        # Capture numbers.
         # Capture ODBC escape sequence.
         ((?-x)(?P<odbc_escape_sequence>\{(?:ts?|d)\s+'.+'\})) |
+        # UUIDs
+        ([0-9a-f]{8}.?[0-9a-f]{4}.?[0-9a-f]{4}.?[0-9a-f]{4}.?[0-9a-f]{12}) |
+        # Capture numbers.
         ((?-x)(?P<number>(-?\b(?:[0-9]+\.)?[0-9]+(?:[eE][+-]?[0-9]+)?\b)(::\w+(\[\]?)?)?)) |
         # Hex constants
         ((?-x)(?P<hex>(\b0x[0-9a-f]+\b)(::\w+(\[\]?)?)?)) |
@@ -995,6 +997,24 @@ mod tests {
         alter_index_hex,
         "ALTER INDEX name_0123456789abcdef0123456789abcdef RENAME TO new_name_0123456789abcdef0123456789abcdef",
         "ALTER INDEX name_{%s} RENAME TO new_name_{%s}"
+    );
+
+    scrub_sql_test!(
+        fallback_uuid,
+        "HGET 25670916-0893-11Ef-951c-d6111b55c015",
+        "HGET %s"
+    );
+
+    scrub_sql_test!(
+        fallback_uuid_no_sep,
+        "HGET 25670916089311Ef951cd6111b55c015",
+        "HGET %s"
+    );
+
+    scrub_sql_test!(
+        fallback_uuid_underscores,
+        "HGET 25670916_0893_11Ef_951c_d6111b55c015",
+        "HGET %s"
     );
 
     scrub_sql_test!(
