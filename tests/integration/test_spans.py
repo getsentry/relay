@@ -1578,28 +1578,36 @@ def test_span_filtering_with_generic_inbound_filter(
 
     relay = relay_with_processing(options=TEST_CONFIG)
     project_id = 42
-    mini_sentry.add_full_project_config(project_id)
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = ["organizations:standalone-span-ingestion"]
 
     spans_consumer = spans_consumer()
 
-    event = make_transaction({"event_id": "cbf6960622e14a45abc1f03b2055b186"})
     end = datetime.now(timezone.utc) - timedelta(seconds=1)
     duration = timedelta(milliseconds=500)
     start = end - duration
-    event["spans"] = [
-        {
-            "description": "GET /api/0/organizations/?member=1",
-            "op": "http",
-            "parent_span_id": "aaaaaaaaaaaaaaaa",
-            "span_id": "bbbbbbbbbbbbbbbb",
-            "start_timestamp": start.isoformat(),
-            "timestamp": end.isoformat(),
-            "trace_id": "ff62a8b040f340bda5d830223def1d81",
-            "data": {"release": "1.0"},
-        },
-    ]
+    envelope = Envelope()
+    envelope.add_item(
+        Item(
+            type="span",
+            payload=PayloadRef(
+                bytes=json.dumps(
+                    {
+                        "description": "organizations/metrics/data",
+                        "op": "default",
+                        "span_id": "cd429c44b67a3eb1",
+                        "segment_id": "968cff94913ebb07",
+                        "start_timestamp": start.timestamp(),
+                        "timestamp": end.timestamp() + 1,
+                        "exclusive_time": 345.0,  # The SDK knows that this span has a lower exclusive time
+                        "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    },
+                ).encode()
+            ),
+        )
+    )
 
-    relay.send_event(project_id, event)
+    relay.send_envelope(project_id, envelope)
 
-    spans = spans_consumer.get_spans(max_attempts=2)
+    spans = spans_consumer.get_spans(timeout=10.0, max_attempts=6)
     assert len(spans) == 0

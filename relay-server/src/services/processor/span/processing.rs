@@ -142,7 +142,7 @@ pub fn process(
             let Some(span) = annotated_span.value_mut() else {
                 return ItemAction::Drop(Outcome::Invalid(DiscardReason::Internal));
             };
-            relay_log::trace!("Extracting metrics from standalone span {:?}", span.span_id);
+            relay_log::trace!("extracting metrics from standalone span {:?}", span.span_id);
 
             let ErrorBoundary::Ok(global_metrics_config) = &global_config.metric_extraction else {
                 return ItemAction::Drop(Outcome::Invalid(DiscardReason::Internal));
