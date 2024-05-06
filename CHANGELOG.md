@@ -24,6 +24,7 @@
 - Emit negative outcomes when metrics are rejected because of a disabled namespace. ([#3544](https://github.com/getsentry/relay/pull/3544))
 - Add AI model costs to global config. ([#3579](https://github.com/getsentry/relay/pull/3579))
 - Add support for `event.` in the `Span` `Getter` implementation. ([#3577](https://github.com/getsentry/relay/pull/3577))
+- Add a calculated measurement based on the AI model and the tokens used ([#3554](https://github.com/getsentry/relay/pull/3554))
 
 ## 24.4.2
 
