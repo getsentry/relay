@@ -658,6 +658,7 @@ mod tests {
                 user: ~,
                 replay_id: ~,
                 sdk_name: "sentry.php",
+                sdk_version: ~,
                 frames_slow: ~,
                 frames_frozen: ~,
                 frames_total: ~,
