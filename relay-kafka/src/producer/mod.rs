@@ -7,6 +7,7 @@ use std::fmt;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+use rdkafka::error::KafkaResult;
 use rdkafka::message::{Header, OwnedHeaders};
 use rdkafka::producer::{BaseRecord, Producer as _};
 use rdkafka::ClientConfig;
@@ -93,6 +94,25 @@ impl Producer {
             topic_name,
             producer,
         }
+    }
+
+    fn validate_topic(&self) -> KafkaResult<()> {
+        let client = self.producer.client();
+        let _meta = client.fetch_metadata(Some(&self.topic_name), Duration::from_secs(5))?;
+        let meta = client.fetch_metadata(Some(&self.topic_name), Duration::from_secs(5))?;
+
+        println!("============================ START");
+        for topic in meta.topics() {
+            println!(
+                "{}: {} | error:{:?}",
+                self.topic_name,
+                topic.name(),
+                topic.error()
+            );
+        }
+        println!("============================ END");
+
+        Ok(())
     }
 }
 
@@ -200,10 +220,9 @@ impl KafkaClientBuilder {
         let config_name = config_name.map(str::to_string);
 
         if let Some(producer) = self.reused_producers.get(&config_name) {
-            self.producers.insert(
-                topic,
-                Producer::new((*topic_name).to_string(), Arc::clone(producer)),
-            );
+            let producer = Producer::new((*topic_name).to_string(), Arc::clone(producer));
+            producer.validate_topic().unwrap();
+            self.producers.insert(topic, producer);
             return Ok(self);
         }
 
@@ -219,8 +238,10 @@ impl KafkaClientBuilder {
 
         self.reused_producers
             .insert(config_name, Arc::clone(&producer));
-        self.producers
-            .insert(topic, Producer::new((*topic_name).to_string(), producer));
+
+        let producer = Producer::new((*topic_name).to_string(), producer);
+        producer.validate_topic().unwrap();
+        self.producers.insert(topic, producer);
 
         Ok(self)
     }
