@@ -5,7 +5,6 @@ use url::Url;
 use relay_event_schema::protocol::{
     Csp, Event, EventType, Exception, LogEntry, Replay, Span, Values,
 };
-use relay_protocol::Empty;
 
 /// A data item to which filters can be applied.
 pub trait Filterable {

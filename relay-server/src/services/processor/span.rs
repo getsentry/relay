@@ -4,7 +4,6 @@ use relay_dynamic_config::{Feature, GlobalConfig};
 use relay_event_normalization::span::tag_extraction;
 use relay_event_schema::protocol::{Event, Span};
 use relay_protocol::Annotated;
-use std::net::IpAddr;
 
 use crate::services::processor::SpanGroup;
 use crate::{services::processor::ProcessEnvelopeState, utils::ItemAction};
@@ -17,7 +16,6 @@ use crate::services::outcome::{DiscardReason, Outcome};
 use crate::statsd::RelayTimers;
 #[cfg(feature = "processing")]
 pub use processing::*;
-use relay_filter::{GenericFiltersConfig, ProjectFiltersConfig};
 use relay_statsd::metric;
 
 pub fn filter(state: &mut ProcessEnvelopeState<SpanGroup>, global_config: &GlobalConfig) {
