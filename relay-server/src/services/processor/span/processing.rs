@@ -31,8 +31,9 @@ use crate::services::processor::{
     Addrs, ProcessEnvelope, ProcessEnvelopeState, ProcessingError, ProcessingGroup, SpanGroup,
     TransactionGroup,
 };
-use crate::statsd::{RelayCounters, RelayHistograms};
+use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
 use crate::utils::{sample, BufferGuard, ItemAction};
+use relay_statsd::metric;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -78,6 +79,9 @@ pub fn process(
         .project_state
         .has_feature(Feature::ExtractTransactionFromSegmentSpan);
 
+    let client_ip = state.managed_envelope.envelope().meta().client_addr();
+    let filter_settings = &state.project_state.config.filter_settings;
+
     state.managed_envelope.retain_items(|item| {
         let mut annotated_span = match item.ty() {
             ItemType::OtelSpan => match serde_json::from_slice::<OtelSpan>(&item.payload()) {
@@ -97,6 +101,19 @@ pub fn process(
 
             _ => return ItemAction::Keep,
         };
+
+        if let Some(span) = annotated_span.value() {
+            metric!(timer(RelayTimers::EventProcessingFiltering), {
+                if let Err(filter_stat_key) = relay_filter::should_filter(
+                    span,
+                    client_ip,
+                    filter_settings,
+                    global_config.filters(),
+                ) {
+                    return ItemAction::Drop(Outcome::Filtered(filter_stat_key));
+                }
+            });
+        }
 
         set_segment_attributes(&mut annotated_span);
 

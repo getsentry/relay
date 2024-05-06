@@ -1626,7 +1626,7 @@ impl EnvelopeProcessorService {
         &self,
         state: &mut ProcessEnvelopeState<SpanGroup>,
     ) -> Result<(), ProcessingError> {
-        span::filter(state, &self.inner.global_config.current());
+        span::filter(state);
 
         if_processing!(self.inner.config, {
             let global_config = self.inner.global_config.current();
