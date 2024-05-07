@@ -606,6 +606,11 @@ def test_span_ingestion(
         ]
 
         assert len(transactions) == expected_transactions
+        assert sorted([transaction["event_id"] for transaction in transactions]) == [
+            "0000000000000000a342abb1214ca181",
+            "0000000000000000b0429c44b67a3eb1",
+            "0000000000000000d342abb1214ca182",
+        ]
         for transaction in transactions:
             # Not checking all individual fields here, most should be tested in convert.rs
 

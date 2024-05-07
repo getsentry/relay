@@ -1,4 +1,5 @@
 //! This module defines bidirectional field mappings between spans and transactions.
+
 use crate::protocol::{BrowserContext, Contexts, Event, ProfileContext, Span, TraceContext};
 
 use relay_base_schema::events::EventType;
@@ -86,6 +87,16 @@ macro_rules! event_value(
     };
 );
 
+#[derive(Debug, thiserror::Error)]
+pub enum TryFromSpanError {
+    #[error("span is not a segment")]
+    NotASegment,
+    #[error("span has no span ID")]
+    MissingSpanId,
+    #[error("failed to parse event ID")]
+    InvalidSpanId(#[from] uuid::Error),
+}
+
 /// Implements the conversion between transaction events and segment spans.
 ///
 /// Invoking this macro implements both `From<&Event> for Span` and `From<&Span> for Event`.
@@ -112,17 +123,17 @@ macro_rules! map_fields {
             }
         }
 
-        impl TryFrom<&Span> for Event {
-            type Error = ();
+        impl<'a> TryFrom<&'a Span> for Event {
+            type Error = TryFromSpanError;
 
-            fn try_from(span: &Span) -> Result<Self, ()> {
+            fn try_from(span: &Span) -> Result<Self, Self::Error> {
                 let mut event = Event::default();
-                let span_id = span.span_id.value().ok_or(())?;
+                let span_id = span.span_id.value().ok_or(TryFromSpanError::MissingSpanId)?;
                 event.id = Annotated::new(span_id.try_into()?);
 
                 if !span.is_segment.value().unwrap_or(&false) {
                     // Only segment spans can become transactions.
-                    return Err(());
+                    return Err(TryFromSpanError::NotASegment);
                 }
 
                 $(
