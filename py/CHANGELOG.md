@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Update data category metirc hours to metric seconds. [#3558](https://github.com/getsentry/relay/pull/3558)
+
 ## 0.8.60
 
 - Expose project config normalization. Drop support for `validate_project_config`. ([#3495](https://github.com/getsentry/relay/pull/3495))
@@ -15,7 +19,7 @@
 
 ## 0.8.57
 
-- Add a data category for metirc hours.  [#3384](https://github.com/getsentry/relay/pull/3384)
+- Add a data category for metirc hours. [#3384](https://github.com/getsentry/relay/pull/3384)
 
 ## 0.8.56
 
@@ -67,7 +71,6 @@
 ## 0.8.44
 
 - Add ability to block metrics matching a glob pattern. ([#2954](https://github.com/getsentry/relay/pull/2954))
-
 
 ## 0.8.43
 
@@ -158,10 +161,7 @@ This release requires Python 3.8 or later.
 - Add filter based on transaction names. ([#2118](https://github.com/getsentry/relay/pull/2118))
 - Add `lock` attribute to the frame protocol. ([#2171](https://github.com/getsentry/relay/pull/2171))
 
-
 ## 0.8.25
-
-
 
 ## 0.8.24
 
