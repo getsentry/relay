@@ -36,6 +36,9 @@ use relay_config::Config;
 use crate::middlewares;
 use crate::service::ServiceState;
 
+/// Size limit for internal batch endpoints.
+const BATCH_JSON_BODY_LIMIT: usize = 50_000_000; // 50 MB
+
 #[rustfmt::skip]
 pub fn routes<B>(config: &Config) -> Router<ServiceState, B>
 where
@@ -69,7 +72,7 @@ where
     let batch_routes = Router::new()
         .route("/api/0/relays/outcomes/", post(batch_outcomes::handle))
         .route("/api/0/relays/metrics/", post(batch_metrics::handle))
-        .route_layer(DefaultBodyLimit::disable());
+        .route_layer(DefaultBodyLimit::max(BATCH_JSON_BODY_LIMIT));
 
     // Ingestion routes pointing to /api/:project_id/
     let store_routes = Router::new()
