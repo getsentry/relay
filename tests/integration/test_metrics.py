@@ -509,6 +509,7 @@ def test_metrics_with_processing(mini_sentry, relay_with_processing, metrics_con
         "value": 42.0,
         "type": "c",
         "timestamp": timestamp,
+        "received_at": timestamp,
     }
 
     assert metrics["headers"]["c:custom/bar@second"] == [("namespace", b"custom")]
@@ -521,6 +522,7 @@ def test_metrics_with_processing(mini_sentry, relay_with_processing, metrics_con
         "value": 17.0,
         "type": "c",
         "timestamp": timestamp,
+        "received_at": timestamp,
     }
 
 
@@ -560,6 +562,7 @@ def test_global_metrics_with_processing(
         "value": 42.0,
         "type": "c",
         "timestamp": timestamp,
+        "received_at": timestamp,
     }
 
     assert metrics["headers"]["c:custom/bar@second"] == [("namespace", b"custom")]
@@ -572,6 +575,7 @@ def test_global_metrics_with_processing(
         "value": 17.0,
         "type": "c",
         "timestamp": timestamp,
+        "received_at": timestamp,
     }
 
 
@@ -603,6 +607,7 @@ def test_metrics_full(mini_sentry, relay, relay_with_processing, metrics_consume
 
     metric, _ = metrics_consumer.get_metric(timeout=6)
     metric.pop("timestamp")
+    metric.pop("received_at")
     assert metric == {
         "org_id": 1,
         "project_id": project_id,
@@ -703,6 +708,7 @@ def test_session_metrics_processing(
             "release": "sentry-test@1.0.0",
             "session.status": "init",
         },
+        "received_at": int(timestamp.timestamp()),
     }
 
     assert metrics["s:sessions/user@none"] == {
@@ -718,6 +724,7 @@ def test_session_metrics_processing(
             "environment": "production",
             "release": "sentry-test@1.0.0",
         },
+        "received_at": int(timestamp.timestamp()),
     }
 
 
@@ -852,6 +859,7 @@ def test_transaction_metrics(
             "platform": "other",
             "transaction.status": "unknown",
         },
+        "received_at": int(timestamp.timestamp()),
     }
 
     assert metrics["c:spans/usage@none"]["value"] == 2
@@ -899,6 +907,7 @@ def test_transaction_metrics(
         "name": "c:transactions/count_per_root_project@none",
         "type": "c",
         "value": 2.0,
+        "received_at": int(timestamp.timestamp()),
     }
 
 
@@ -964,6 +973,7 @@ def test_transaction_metrics_count_per_root_project(
         "name": "c:transactions/count_per_root_project@none",
         "type": "c",
         "value": 1.0,
+        "received_at": int(timestamp.timestamp()),
     }
     assert metrics_by_project[42]["c:transactions/count_per_root_project@none"] == {
         "timestamp": int(timestamp.timestamp()),
@@ -974,6 +984,7 @@ def test_transaction_metrics_count_per_root_project(
         "name": "c:transactions/count_per_root_project@none",
         "type": "c",
         "value": 2.0,
+        "received_at": int(timestamp.timestamp()),
     }
 
 
