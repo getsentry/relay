@@ -105,9 +105,7 @@ impl HealthCheckService {
         project_cache: Addr<ProjectCache>,
     ) -> Self {
         Self {
-            system: System::new_with_specifics(
-                RefreshKind::new().with_memory(MemoryRefreshKind::everything()),
-            ),
+            system: System::new(),
             aggregator,
             upstream_relay,
             project_cache,
