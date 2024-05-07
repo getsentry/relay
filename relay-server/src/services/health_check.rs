@@ -237,26 +237,26 @@ impl Service for HealthCheckService {
             let shutdown = Controller::shutdown_handle();
 
             while shutdown.get().is_none() {
-                let ready = relay_statsd::metric!(
+                let _ = update_tx.send(StatusUpdate::new(relay_statsd::metric!(
                     timer(RelayTimers::HealthCheckDuration),
                     type = "readiness",
                     { self.check_readiness().await }
-                );
+                )));
 
-                let _ = update_tx.send(StatusUpdate::new(ready));
                 tokio::time::sleep(check_interval).await;
             }
+
+            // Shutdown marks readiness health check as unhealthy.
+            update_tx.send(StatusUpdate::new(Status::Unhealthy)).ok();
         });
 
         tokio::spawn(async move {
-            let shutdown = Controller::shutdown_handle();
-
             while let Some(HealthCheck(message, sender)) = rx.recv().await {
                 let update = update_rx.borrow();
 
                 sender.send(if matches!(message, IsHealthy::Liveness) {
                     Status::Healthy
-                } else if shutdown.get().is_some() || update.instant.elapsed() >= status_timeout {
+                } else if update.instant.elapsed() >= status_timeout {
                     Status::Unhealthy
                 } else {
                     update.status
