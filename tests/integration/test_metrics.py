@@ -1873,3 +1873,37 @@ def test_metrics_with_denied_names(
     assert volume_metric["tags"]["outcome.reason"] == "denied-name"
 
     assert "d:custom/memory_usage@byte" in metrics
+
+
+@pytest.mark.parametrize("mode", ["default", "chain"])
+def test_metrics_received_at(
+    mini_sentry, relay, relay_with_processing, relay_credentials, metrics_consumer, mode
+):
+    metrics_consumer = metrics_consumer()
+
+    if mode == "default":
+        relay = relay_with_processing(options=TEST_CONFIG)
+    elif mode == "chain":
+        credentials = relay_credentials()
+        static_relays = {
+            credentials["id"]: {
+                "public_key": credentials["public_key"],
+                "internal": True,
+            },
+        }
+        relay = relay(
+            relay_with_processing(options=TEST_CONFIG, static_relays=static_relays),
+            options=TEST_CONFIG,
+            credentials=credentials,
+        )
+
+    project_id = 42
+    project_config = mini_sentry.add_basic_project_config(project_id)
+    project_config["config"]["features"] = [
+        "organizations:custom-metrics",
+    ]
+
+    relay.send_metrics(project_id, "custom/foo:1337|d")
+
+    metric, _ = metrics_consumer.get_metric()
+    assert "received_at" in metric

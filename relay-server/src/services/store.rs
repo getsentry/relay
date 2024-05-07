@@ -507,8 +507,6 @@ impl StoreService {
             BucketViewValue::Gauge(g) => MetricValue::Gauge(g),
         };
 
-        // TODO: propagate the `received_at` field upstream.
-        // https://github.com/getsentry/relay/issues/3515
         Ok(MetricKafkaMessage {
             org_id: organization_id,
             project_id,
@@ -517,6 +515,7 @@ impl StoreService {
             timestamp: view.timestamp(),
             tags: view.tags(),
             retention_days,
+            received_at: view.metadata().received_at,
         })
     }
 
@@ -1290,6 +1289,8 @@ struct MetricKafkaMessage<'a> {
     timestamp: UnixTimestamp,
     tags: &'a BTreeMap<String, String>,
     retention_days: u16,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    received_at: Option<UnixTimestamp>,
 }
 
 #[derive(Clone, Debug, Serialize)]
