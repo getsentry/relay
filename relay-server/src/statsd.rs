@@ -653,6 +653,12 @@ pub enum RelayCounters {
     /// Counts how many transactions were created from segment spans.
     #[cfg(feature = "processing")]
     TransactionsFromSpans,
+
+    /// Counter for every time a decision on whether to run normalization is made.
+    ///
+    /// This metric is tagged with:
+    /// - `reason`: the reason that was made in the decision.
+    NormalizationDecision,
 }
 
 impl CounterMetric for RelayCounters {
@@ -693,6 +699,7 @@ impl CounterMetric for RelayCounters {
             RelayCounters::DynamicSamplingDecision => "dynamic_sampling_decision",
             #[cfg(feature = "processing")]
             RelayCounters::TransactionsFromSpans => "transactions_from_spans",
+            RelayCounters::NormalizationDecision => "normalization_decision",
         }
     }
 }

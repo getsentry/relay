@@ -1278,8 +1278,16 @@ impl EnvelopeProcessorService {
             && options.processing_disable_normalization
             && (state.envelope().meta().is_from_internal_relay())
         {
+            metric!(
+                counter(RelayCounters::NormalizationDecision) += 1,
+                reason = "ff-skip"
+            );
             return Ok(());
         } else if !self.inner.config.processing_enabled() && options.force_full_normalization {
+            metric!(
+                counter(RelayCounters::NormalizationDecision) += 1,
+                reason = "ff-full"
+            );
             true
         } else {
             match self.inner.config.normalization_level() {
@@ -1292,14 +1300,39 @@ impl EnvelopeProcessorService {
                     if self.inner.config.processing_enabled()
                         && (!state.envelope().meta().is_from_internal_relay())
                     {
+                        metric!(
+                            counter(RelayCounters::NormalizationDecision) += 1,
+                            reason = "disabled_config-full"
+                        );
                         true
                     } else {
+                        metric!(
+                            counter(RelayCounters::NormalizationDecision) += 1,
+                            reason = "disabled_config-skip"
+                        );
                         relay_log::trace!("Skipping event normalization");
                         return Ok(());
                     }
                 }
-                NormalizationLevel::Full => true,
-                NormalizationLevel::Default => self.inner.config.processing_enabled(),
+                NormalizationLevel::Full => {
+                    metric!(
+                        counter(RelayCounters::NormalizationDecision) += 1,
+                        reason = "full_config-full"
+                    );
+                    true
+                }
+                NormalizationLevel::Default => {
+                    let rv = self.inner.config.processing_enabled();
+                    metric!(
+                        counter(RelayCounters::NormalizationDecision) += 1,
+                        reason = if rv {
+                            "default_config-full"
+                        } else {
+                            "default_config-partial"
+                        }
+                    );
+                    rv
+                }
             }
         };
 
