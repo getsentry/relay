@@ -510,7 +510,7 @@ mod tests {
             relative_end_ns: 30,
             relative_start_ns: 10,
             trace_id: EventId::new(),
-            segment_id: Some(SpanId("bd2eb23da2beb459".to_string())),
+            segment_id: Some(SpanId(0xbd2eb23da2beb459)),
         });
         profile.profile.stacks.push(vec![0]);
         profile.profile.samples.extend([
@@ -562,7 +562,7 @@ mod tests {
             relative_end_ns: 100,
             relative_start_ns: 50,
             trace_id: EventId::new(),
-            segment_id: Some(SpanId("bd2eb23da2beb459".to_string())),
+            segment_id: Some(SpanId(0xbd2eb23da2beb459)),
         });
         profile.profile.stacks.push(vec![0]);
         profile.profile.samples.extend(vec![
@@ -610,7 +610,7 @@ mod tests {
             relative_end_ns: 100,
             relative_start_ns: 0,
             trace_id: EventId::new(),
-            segment_id: Some(SpanId("bd2eb23da2beb459".to_string())),
+            segment_id: Some(SpanId(0xbd2eb23da2beb459)),
         };
 
         profile.metadata.transactions.push(transaction.clone());
@@ -671,7 +671,7 @@ mod tests {
             relative_end_ns: 100,
             relative_start_ns: 0,
             trace_id: EventId::new(),
-            segment_id: Some(SpanId("bd2eb23da2beb459".to_string())),
+            segment_id: Some(SpanId(0xbd2eb23da2beb459)),
         };
 
         profile.metadata.transaction = Some(transaction);
@@ -785,7 +785,7 @@ mod tests {
             relative_end_ns: 100,
             relative_start_ns: 0,
             trace_id: EventId::new(),
-            segment_id: Some(SpanId("bd2eb23da2beb459".to_string())),
+            segment_id: Some(SpanId(0xbd2eb23da2beb459)),
         };
 
         profile.metadata.transaction = Some(transaction);

@@ -252,10 +252,10 @@ mod tests {
         assert_eq!(
             extract_span_exclusive_times(&event),
             HashMap::from_iter([
-                (&SpanId("aaaaaaaaaaaaaaaa".to_string()), 1123.0),
-                (&SpanId("bbbbbbbbbbbbbbbb".to_string()), 3000.0),
-                (&SpanId("cccccccccccccccc".to_string()), 2500.0),
-                (&SpanId("dddddddddddddddd".to_string()), 1877.0)
+                (&SpanId(0xaaaaaaaaaaaaaaaa), 1123.0),
+                (&SpanId(0xbbbbbbbbbbbbbbbb), 3000.0),
+                (&SpanId(0xcccccccccccccccc), 2500.0),
+                (&SpanId(0xdddddddddddddddd), 1877.0)
             ]),
         );
     }
@@ -299,10 +299,10 @@ mod tests {
         assert_eq!(
             extract_span_exclusive_times(&event),
             HashMap::from_iter([
-                (&SpanId("aaaaaaaaaaaaaaaa".to_string()), 4000.0),
-                (&SpanId("bbbbbbbbbbbbbbbb".to_string()), 400.0),
-                (&SpanId("cccccccccccccccc".to_string()), 400.0),
-                (&SpanId("dddddddddddddddd".to_string()), 200.0),
+                (&SpanId(0xaaaaaaaaaaaaaaaa), 4000.0),
+                (&SpanId(0xbbbbbbbbbbbbbbbb), 400.0),
+                (&SpanId(0xcccccccccccccccc), 400.0),
+                (&SpanId(0xdddddddddddddddd), 200.0),
             ])
         );
     }
@@ -346,10 +346,10 @@ mod tests {
         assert_eq!(
             extract_span_exclusive_times(&event),
             HashMap::from_iter([
-                (&SpanId("aaaaaaaaaaaaaaaa".to_string()), 4000.0),
-                (&SpanId("bbbbbbbbbbbbbbbb".to_string()), 400.0),
-                (&SpanId("cccccccccccccccc".to_string()), 400.0),
-                (&SpanId("dddddddddddddddd".to_string()), 400.0),
+                (&SpanId(0xaaaaaaaaaaaaaaaa), 4000.0),
+                (&SpanId(0xbbbbbbbbbbbbbbbb), 400.0),
+                (&SpanId(0xcccccccccccccccc), 400.0),
+                (&SpanId(0xdddddddddddddddd), 400.0),
             ])
         );
     }
@@ -393,10 +393,10 @@ mod tests {
         assert_eq!(
             extract_span_exclusive_times(&event),
             HashMap::from_iter([
-                (&SpanId("aaaaaaaaaaaaaaaa".to_string()), 4000.0),
-                (&SpanId("bbbbbbbbbbbbbbbb".to_string()), 1000.0),
-                (&SpanId("cccccccccccccccc".to_string()), 400.0),
-                (&SpanId("dddddddddddddddd".to_string()), 400.0),
+                (&SpanId(0xaaaaaaaaaaaaaaaa), 4000.0),
+                (&SpanId(0xbbbbbbbbbbbbbbbb), 1000.0),
+                (&SpanId(0xcccccccccccccccc), 400.0),
+                (&SpanId(0xdddddddddddddddd), 400.0),
             ])
         );
     }
@@ -440,10 +440,10 @@ mod tests {
         assert_eq!(
             extract_span_exclusive_times(&event),
             HashMap::from_iter([
-                (&SpanId("aaaaaaaaaaaaaaaa".to_string()), 4000.0),
-                (&SpanId("bbbbbbbbbbbbbbbb".to_string()), 200.0),
-                (&SpanId("cccccccccccccccc".to_string()), 600.0),
-                (&SpanId("dddddddddddddddd".to_string()), 600.0),
+                (&SpanId(0xaaaaaaaaaaaaaaaa), 4000.0),
+                (&SpanId(0xbbbbbbbbbbbbbbbb), 200.0),
+                (&SpanId(0xcccccccccccccccc), 600.0),
+                (&SpanId(0xdddddddddddddddd), 600.0),
             ])
         );
     }
@@ -487,10 +487,10 @@ mod tests {
         assert_eq!(
             extract_span_exclusive_times(&event),
             HashMap::from_iter([
-                (&SpanId("aaaaaaaaaaaaaaaa".to_string()), 4000.0),
-                (&SpanId("bbbbbbbbbbbbbbbb".to_string()), 0.0),
-                (&SpanId("cccccccccccccccc".to_string()), 800.0),
-                (&SpanId("dddddddddddddddd".to_string()), 800.0),
+                (&SpanId(0xaaaaaaaaaaaaaaaa), 4000.0),
+                (&SpanId(0xbbbbbbbbbbbbbbbb), 0.0),
+                (&SpanId(0xcccccccccccccccc), 800.0),
+                (&SpanId(0xdddddddddddddddd), 800.0),
             ])
         );
     }
@@ -536,10 +536,10 @@ mod tests {
         assert_eq!(
             extract_span_exclusive_times(&event),
             HashMap::from_iter([
-                (&SpanId("aaaaaaaaaaaaaaaa".to_string()), 4000.0),
-                (&SpanId("bbbbbbbbbbbbbbbb".to_string()), 600.0),
-                (&SpanId("cccccccccccccccc".to_string()), 400.0),
-                (&SpanId("dddddddddddddddd".to_string()), 400.0),
+                (&SpanId(0xaaaaaaaaaaaaaaaa), 4000.0),
+                (&SpanId(0xbbbbbbbbbbbbbbbb), 600.0),
+                (&SpanId(0xcccccccccccccccc), 400.0),
+                (&SpanId(0xdddddddddddddddd), 400.0),
             ])
         );
     }
