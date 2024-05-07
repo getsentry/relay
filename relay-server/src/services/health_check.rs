@@ -241,7 +241,8 @@ impl Service for HealthCheckService {
 
         let (status_tx, status_rx) = watch::channel(Statuses::healthy());
         let check_interval = monitor.config.health_sys_info_refresh_interval();
-        let status_timeout = 2 * check_interval;
+        // Add 10% buffer to the internal timeouts to avoid race conditions.
+        let status_timeout = (check_interval + monitor.config.health_probe_timeout()) * 1.1;
 
         tokio::spawn(async move {
             let shutdown = Controller::shutdown_handle();
