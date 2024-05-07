@@ -3583,6 +3583,9 @@
 <a href="#3581" id="3581">3581</a>
 <a href="#3582" id="3582">3582</a>
 <a href="#3583" id="3583">3583</a>
+<a href="#3584" id="3584">3584</a>
+<a href="#3585" id="3585">3585</a>
+<a href="#3586" id="3586">3586</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
@@ -3617,9 +3620,7 @@
 };
 <span class="kw">use </span>relay_filter::FilterStatKey;
 <span class="kw">use </span>relay_metrics::aggregator::AggregatorConfig;
-<span class="kw">use </span>relay_metrics::{
-    Bucket, BucketMetadata, BucketView, BucketsView, MergeBuckets, MetricMeta, MetricNamespace,
-};
+<span class="kw">use </span>relay_metrics::{Bucket, BucketMetadata, BucketView, BucketsView, MetricMeta, MetricNamespace};
 <span class="kw">use </span>relay_pii::PiiConfigError;
 <span class="kw">use </span>relay_profiling::ProfileId;
 <span class="kw">use </span>relay_protocol::{Annotated, Value};
@@ -3641,7 +3642,7 @@
         CardinalityLimit, CardinalityLimiter, RedisSetLimiter, RedisSetLimiterOptions,
     },
     relay_dynamic_config::{CardinalityLimiterMode, GlobalConfig, MetricExtractionGroups},
-    relay_metrics::{Aggregator, RedisMetricMetaStore},
+    relay_metrics::{Aggregator, MergeBuckets, RedisMetricMetaStore},
     relay_quotas::{Quota, RateLimitingError, RedisRateLimiter},
     relay_redis::RedisPool,
     std::iter::Chain,
@@ -3661,7 +3662,9 @@
 <span class="kw">use </span><span class="kw">crate</span>::services::outcome::{DiscardReason, Outcome, TrackOutcome};
 <span class="kw">use </span><span class="kw">crate</span>::services::processor::event::FiltersStatus;
 <span class="kw">use </span><span class="kw">crate</span>::services::project::ProjectState;
-<span class="kw">use </span><span class="kw">crate</span>::services::project_cache::{AddMetricMeta, ProjectCache, UpdateRateLimits};
+<span class="kw">use </span><span class="kw">crate</span>::services::project_cache::{
+    AddMetricBuckets, AddMetricMeta, ProjectCache, UpdateRateLimits,
+};
 <span class="kw">use </span><span class="kw">crate</span>::services::test_store::{Capture, TestStore};
 <span class="kw">use </span><span class="kw">crate</span>::services::upstream::{
     SendRequest, UpstreamRelay, UpstreamRequest, UpstreamRequestError,
@@ -4141,7 +4144,10 @@
         <span class="kw">let </span>project_key = envelope.meta().public_key();
 
         <span class="kw">if </span>!<span class="self">self</span>.project_metrics.is_empty() {
-            project_cache.send(MergeBuckets::new(project_key, <span class="self">self</span>.project_metrics));
+            project_cache.send(AddMetricBuckets {
+                project_key,
+                buckets: <span class="self">self</span>.project_metrics,
+            });
         }
 
         <span class="kw">if </span>!<span class="self">self</span>.sampling_metrics.is_empty() {
@@ -4152,10 +4158,10 @@
             // dependent_project_with_tracing  -&gt; metrics goes to root
             // root_project_with_tracing       -&gt; metrics goes to root == self
             </span><span class="kw">let </span>sampling_project_key = utils::get_sampling_key(envelope).unwrap_or(project_key);
-            project_cache.send(MergeBuckets::new(
-                sampling_project_key,
-                <span class="self">self</span>.sampling_metrics,
-            ));
+            project_cache.send(AddMetricBuckets {
+                project_key: sampling_project_key,
+                buckets: <span class="self">self</span>.sampling_metrics,
+            });
         }
     }
 }
@@ -5440,7 +5446,7 @@
     <span class="kw">fn </span>handle_process_metrics(<span class="kw-2">&amp;</span><span class="self">self</span>, cogs: <span class="kw-2">&amp;mut </span>Token, message: ProcessMetrics) {
         <span class="kw">let </span>ProcessMetrics {
             items,
-            project_key: public_key,
+            project_key,
             start_time,
             sent_at,
             keep_metadata,
@@ -5505,10 +5511,10 @@
         cogs.update(relay_metrics::cogs::BySize(<span class="kw-2">&amp;</span>buckets));
 
         <span class="macro">relay_log::trace!</span>(<span class="string">"merging metric buckets into project cache"</span>);
-        <span class="self">self</span>.inner
-            .addrs
-            .project_cache
-            .send(MergeBuckets::new(public_key, buckets));
+        <span class="self">self</span>.inner.addrs.project_cache.send(AddMetricBuckets {
+            project_key,
+            buckets,
+        });
     }
 
     <span class="kw">fn </span>handle_process_batched_metrics(<span class="kw-2">&amp;</span><span class="self">self</span>, cogs: <span class="kw-2">&amp;mut </span>Token, message: ProcessBatchedMetrics) {
@@ -5543,7 +5549,7 @@
         };
 
         <span class="kw">let </span><span class="kw-2">mut </span>feature_weights = FeatureWeights::none();
-        <span class="kw">for </span>(public_key, <span class="kw-2">mut </span>buckets) <span class="kw">in </span>buckets {
+        <span class="kw">for </span>(project_key, <span class="kw-2">mut </span>buckets) <span class="kw">in </span>buckets {
             <span class="kw">if </span>buckets.is_empty() {
                 <span class="kw">continue</span>;
             }
@@ -5558,10 +5564,10 @@
             feature_weights = feature_weights.merge(relay_metrics::cogs::BySize(<span class="kw-2">&amp;</span>buckets).into());
 
             <span class="macro">relay_log::trace!</span>(<span class="string">"merging metric buckets into project cache"</span>);
-            <span class="self">self</span>.inner
-                .addrs
-                .project_cache
-                .send(MergeBuckets::new(public_key, buckets));
+            <span class="self">self</span>.inner.addrs.project_cache.send(AddMetricBuckets {
+                project_key,
+                buckets,
+            });
         }
 
         <span class="kw">if </span>!feature_weights.is_empty() {
