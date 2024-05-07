@@ -84,8 +84,9 @@ impl Statuses {
     }
 }
 
+/// Service implementing the [`HealthCheck`] interface.
 #[derive(Debug)]
-struct HealthCheckMonitor {
+pub struct HealthCheckService {
     config: Arc<Config>,
     aggregator: Addr<Aggregator>,
     upstream_relay: Addr<UpstreamRelay>,
@@ -93,7 +94,27 @@ struct HealthCheckMonitor {
     system: System,
 }
 
-impl HealthCheckMonitor {
+impl HealthCheckService {
+    /// Creates a new instance of the HealthCheck service.
+    ///
+    /// The service does not run. To run the service, use [`start`](Self::start).
+    pub fn new(
+        config: Arc<Config>,
+        aggregator: Addr<Aggregator>,
+        upstream_relay: Addr<UpstreamRelay>,
+        project_cache: Addr<ProjectCache>,
+    ) -> Self {
+        Self {
+            system: System::new_with_specifics(
+                RefreshKind::new().with_memory(MemoryRefreshKind::everything()),
+            ),
+            aggregator,
+            upstream_relay,
+            project_cache,
+            config,
+        }
+    }
+
     fn system_memory_probe(&mut self) -> Status {
         self.system
             .refresh_memory_specifics(MemoryRefreshKind::new().with_ram());
@@ -203,46 +224,14 @@ impl HealthCheckMonitor {
     }
 }
 
-/// Service implementing the [`HealthCheck`] interface.
-#[derive(Debug)]
-pub struct HealthCheckService {
-    monitor: HealthCheckMonitor,
-}
-
-impl HealthCheckService {
-    /// Creates a new instance of the HealthCheck service.
-    ///
-    /// The service does not run. To run the service, use [`start`](Self::start).
-    pub fn new(
-        config: Arc<Config>,
-        aggregator: Addr<Aggregator>,
-        upstream_relay: Addr<UpstreamRelay>,
-        project_cache: Addr<ProjectCache>,
-    ) -> Self {
-        let monitor = HealthCheckMonitor {
-            system: System::new_with_specifics(
-                RefreshKind::new().with_memory(MemoryRefreshKind::everything()),
-            ),
-            aggregator,
-            upstream_relay,
-            project_cache,
-            config,
-        };
-
-        HealthCheckService { monitor }
-    }
-}
-
 impl Service for HealthCheckService {
     type Interface = HealthCheck;
 
-    fn spawn_handler(self, mut rx: relay_system::Receiver<Self::Interface>) {
-        let Self { mut monitor } = self;
-
+    fn spawn_handler(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
         let (status_tx, status_rx) = watch::channel(Statuses::healthy());
-        let check_interval = monitor.config.health_sys_info_refresh_interval();
+        let check_interval = self.config.health_sys_info_refresh_interval();
         // Add 10% buffer to the internal timeouts to avoid race conditions.
-        let status_timeout = (check_interval + monitor.config.health_probe_timeout()) * 1.1;
+        let status_timeout = (check_interval + self.config.health_probe_timeout()).mul_f64(1.1);
 
         tokio::spawn(async move {
             let shutdown = Controller::shutdown_handle();
@@ -251,7 +240,7 @@ impl Service for HealthCheckService {
                 let ready = relay_statsd::metric!(
                     timer(RelayTimers::HealthCheckDuration),
                     type = "readiness",
-                    { monitor.check_readiness(&shutdown).await }
+                    { self.check_readiness(&shutdown).await }
                 );
 
                 let _ = status_tx.send(Statuses {
