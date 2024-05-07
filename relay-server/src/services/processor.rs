@@ -3475,10 +3475,10 @@ mod tests {
             processor.handle_process_metrics(&mut token, message);
 
             let value = project_cache_rx.recv().await.unwrap();
-            let ProjectCache::MergeBuckets(merge_buckets) = value else {
+            let ProjectCache::AddMetricBuckets(add_metric_buckets) = value else {
                 panic!()
             };
-            let buckets = merge_buckets.buckets();
+            let buckets = add_metric_buckets.buckets;
             assert_eq!(buckets.len(), 1);
             assert_eq!(buckets[0].metadata.received_at, expected_received_at);
         }
@@ -3575,10 +3575,10 @@ mod tests {
             processor.handle_process_batched_metrics(&mut token, message);
 
             let value = project_cache_rx.recv().await.unwrap();
-            let ProjectCache::MergeBuckets(merge_buckets) = value else {
+            let ProjectCache::AddMetricBuckets(add_metric_buckets) = value else {
                 panic!()
             };
-            let buckets = merge_buckets.buckets();
+            let buckets = add_metric_buckets.buckets;
             assert_eq!(buckets.len(), 1);
             assert_eq!(buckets[0].metadata.received_at, expected_received_at);
         }
