@@ -4,6 +4,7 @@ use std::collections::hash_map::Entry;
 use std::collections::{BTreeMap, HashMap};
 use std::error::Error;
 use std::hash::Hasher;
+use std::marker::PhantomData;
 use std::time::Duration;
 use std::{fmt, mem};
 
@@ -459,6 +460,27 @@ impl fmt::Debug for CostTracker {
     }
 }
 
+/// The minimum trait requirements an [`Aggregator`] can work with.
+///
+/// The aggregator accepts buckets with this type and also returns
+/// aggregated with the same type again.
+///
+/// The aggregator being generic over the contained buckets allows
+/// type safety when aggregating buckets in different states.
+pub trait AggregatorBuckets: Sized + IntoIterator<Item = Bucket> {
+    /// Reconstructs the type from the internal representation in the aggregator.
+    ///
+    /// This should only be called by the aggregator and bypass invariants
+    /// which otherwise would be enforced by the type.
+    fn from_aggregator(buckets: Vec<Bucket>) -> Self;
+}
+
+impl AggregatorBuckets for Vec<Bucket> {
+    fn from_aggregator(buckets: Vec<Bucket>) -> Self {
+        buckets
+    }
+}
+
 /// A collector of [`Bucket`] submissions.
 ///
 /// # Aggregation
@@ -479,14 +501,33 @@ impl fmt::Debug for CostTracker {
 /// Metrics are uniquely identified by the combination of their name, type and unit. It is allowed
 /// to send metrics of different types and units under the same name. For example, sending a metric
 /// once as set and once as distribution will result in two actual metrics being recorded.
-pub struct Aggregator {
+pub struct Aggregator<T = Vec<Bucket>> {
     name: String,
     config: AggregatorConfig,
     buckets: HashMap<BucketKey, QueuedBucket>,
     cost_tracker: CostTracker,
+    _state: PhantomData<T>,
 }
 
-impl Aggregator {
+impl<T> Aggregator<T> {
+    /// Create a new aggregator.
+    pub fn new(config: AggregatorConfig) -> Self {
+        Self::named("default".to_owned(), config)
+    }
+
+    /// Like [`Self::new`], but with a provided name.
+    pub fn named(name: String, config: AggregatorConfig) -> Self {
+        Self {
+            name,
+            config,
+            buckets: HashMap::new(),
+            cost_tracker: CostTracker::default(),
+            _state: PhantomData,
+        }
+    }
+}
+
+impl<T: AggregatorBuckets> Aggregator<T> {
     /// Returns the name of the aggregator.
     pub fn name(&self) -> &str {
         self.name.as_str()
@@ -503,7 +544,7 @@ impl Aggregator {
     }
 
     /// Converts this aggregator into a vector of [`Bucket`].
-    pub fn into_buckets(self) -> Vec<Bucket> {
+    pub fn into_buckets(self) -> T {
         relay_statsd::metric!(
             gauge(MetricGauges::Buckets) = self.bucket_count() as u64,
             aggregator = &self.name,
@@ -511,7 +552,8 @@ impl Aggregator {
 
         let bucket_interval = self.config.bucket_interval;
 
-        self.buckets
+        let buckets = self
+            .buckets
             .into_iter()
             .map(|(key, entry)| Bucket {
                 timestamp: key.timestamp,
@@ -521,13 +563,15 @@ impl Aggregator {
                 tags: key.tags,
                 metadata: entry.metadata,
             })
-            .collect()
+            .collect();
+
+        T::from_aggregator(buckets)
     }
 
     /// Pop and return the buckets that are eligible for flushing out according to bucket interval.
     ///
     /// Note that this function is primarily intended for tests.
-    pub fn pop_flush_buckets(&mut self, force: bool) -> HashMap<ProjectKey, Vec<Bucket>> {
+    pub fn pop_flush_buckets(&mut self, force: bool) -> HashMap<ProjectKey, T> {
         relay_statsd::metric!(
             gauge(MetricGauges::Buckets) = self.bucket_count() as u64,
             aggregator = &self.name,
@@ -595,6 +639,9 @@ impl Aggregator {
         }
 
         buckets
+            .into_iter()
+            .map(|(k, v)| (k, T::from_aggregator(v)))
+            .collect()
     }
 
     /// Wrapper for [`AggregatorConfig::get_bucket_timestamp`].
@@ -708,14 +755,12 @@ impl Aggregator {
     /// Merges all given `buckets` into this aggregator.
     ///
     /// Buckets that do not exist yet will be created.
-    pub fn merge_all<I>(
+    pub fn merge_all(
         &mut self,
         project_key: ProjectKey,
-        buckets: I,
+        buckets: T,
         max_total_bucket_bytes: Option<usize>,
-    ) where
-        I: IntoIterator<Item = Bucket>,
-    {
+    ) {
         for bucket in buckets.into_iter() {
             if let Err(error) = self.merge(project_key, bucket, max_total_bucket_bytes) {
                 match &error.kind {
@@ -731,29 +776,15 @@ impl Aggregator {
             }
         }
     }
-
-    /// Create a new aggregator.
-    pub fn new(config: AggregatorConfig) -> Self {
-        Self::named("default".to_owned(), config)
-    }
-
-    /// Like [`Self::new`], but with a provided name.
-    pub fn named(name: String, config: AggregatorConfig) -> Self {
-        Self {
-            name,
-            config,
-            buckets: HashMap::new(),
-            cost_tracker: CostTracker::default(),
-        }
-    }
 }
 
-impl fmt::Debug for Aggregator {
+impl<T> fmt::Debug for Aggregator<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct(std::any::type_name::<Self>())
             .field("config", &self.config)
             .field("buckets", &self.buckets)
             .field("receiver", &format_args!("Recipient<FlushBuckets>"))
+            .field("_state", &std::any::type_name::<T>())
             .finish()
     }
 }
@@ -913,7 +944,7 @@ mod tests {
     fn test_aggregator_merge_counters() {
         relay_test::setup();
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
-        let mut aggregator = Aggregator::new(test_config());
+        let mut aggregator: Aggregator = Aggregator::new(test_config());
 
         let bucket1 = some_bucket(None);
 
@@ -1003,7 +1034,7 @@ mod tests {
         config.bucket_interval = 10;
 
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
-        let mut aggregator = Aggregator::new(config);
+        let mut aggregator: Aggregator = Aggregator::new(config);
 
         let bucket1 = some_bucket(None);
 
@@ -1065,7 +1096,7 @@ mod tests {
         let project_key1 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
         let project_key2 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
 
-        let mut aggregator = Aggregator::new(config);
+        let mut aggregator: Aggregator = Aggregator::new(config);
 
         // It's OK to have same metric with different projects:
         aggregator
@@ -1151,7 +1182,7 @@ mod tests {
     #[test]
     fn test_aggregator_cost_tracking() {
         // Make sure that the right cost is added / subtracted
-        let mut aggregator = Aggregator::new(test_config());
+        let mut aggregator: Aggregator = Aggregator::new(test_config());
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
 
         let timestamp = UnixTimestamp::from_secs(999994711);
@@ -1233,7 +1264,7 @@ mod tests {
             ..Default::default()
         };
 
-        let aggregator = Aggregator::new(config);
+        let aggregator: Aggregator = Aggregator::new(config);
 
         assert!(matches!(
             aggregator
@@ -1419,7 +1450,7 @@ mod tests {
             metadata: BucketMetadata::new(timestamp),
         };
 
-        let mut aggregator = Aggregator::new(test_config());
+        let mut aggregator: Aggregator = Aggregator::new(test_config());
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
 
         aggregator
@@ -1451,7 +1482,7 @@ mod tests {
             metadata: BucketMetadata::new(timestamp),
         };
 
-        let mut aggregator = Aggregator::new(config);
+        let mut aggregator: Aggregator = Aggregator::new(config);
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
 
         aggregator.merge(project_key, bucket.clone(), None).unwrap();
@@ -1477,7 +1508,7 @@ mod tests {
         config.bucket_interval = 10;
 
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
-        let mut aggregator = Aggregator::new(config);
+        let mut aggregator: Aggregator = Aggregator::new(config);
 
         let bucket1 = some_bucket(Some(UnixTimestamp::from_secs(999994711)));
         let bucket2 = some_bucket(Some(UnixTimestamp::from_secs(999994711)));
