@@ -84,6 +84,7 @@ fn calculate_cost_per_1k_tokens(model_id: &str, for_completion: bool) -> Option<
         ("davinci-002-finetuned", false) => Some(0.012),
         ("gpt-3.5-turbo-0613-finetuned", false) => Some(0.012),
         ("gpt-3.5-turbo-1106-finetuned", false) => Some(0.012),
+
         // Fine-tuned OpenAI output
         ("babbage-002-finetuned", true) => Some(0.0016),
         ("davinci-002-finetuned", true) => Some(0.012),
@@ -123,6 +124,18 @@ fn calculate_cost_per_1k_tokens(model_id: &str, for_completion: bool) -> Option<
         // Anthropic Claude 2 output
         (s, true) if s.starts_with("claude-2.") => Some(0.024),
         (s, true) if s.starts_with("claude-instant") => Some(0.0024),
+
+        // Cohere command input
+        ("command", false) => Some(0.001),
+        ("command-light", false) => Some(0.0003),
+        ("command-r", false) => Some(0.0005),
+        ("command-r-plus", false) => Some(0.003),
+
+        // Cohere command output
+        ("command", true) => Some(0.002),
+        ("command-light", true) => Some(0.0006),
+        ("command-r", true) => Some(0.0015),
+        ("command-r-plus", true) => Some(0.015),
 
         _ => None,
     }

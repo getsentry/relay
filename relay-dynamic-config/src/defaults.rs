@@ -507,7 +507,7 @@ pub fn hardcoded_span_metrics() -> Vec<(String, Vec<MetricSpec>)> {
                 },
                 MetricSpec {
                     category: DataCategory::Span,
-                    mri: "c:spans/ai.total_cost@none".into(),
+                    mri: "c:spans/ai.total_cost@usd".into(),
                     field: Some("span.measurements.ai_total_cost.value".into()),
                     condition: Some(is_ai.clone()),
                     tags: vec![
