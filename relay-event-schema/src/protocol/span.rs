@@ -375,6 +375,7 @@ impl Getter for SpanData {
             "ui\\.component_name" => self.ui_component_name.value()?.into(),
             "url\\.scheme" => self.url_scheme.value()?.into(),
             "transaction" => self.segment_name.as_str()?.into(),
+            "release" => self.release.as_str()?.into(),
             _ => {
                 let escaped = path.replace("\\.", "\0");
                 let mut path = escaped.split('.').map(|s| s.replace('\0', "."));
