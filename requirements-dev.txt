@@ -4,8 +4,8 @@
 # See https://github.com/getsentry/pypi#readme
 
 black==24.3.0
-blinker==1.5
-click==8.0.4
+blinker==1.8.2
+click==8.1.7
 flake8==6.0.0
 confluent-kafka==2.1.1
 flask==3.0.3
