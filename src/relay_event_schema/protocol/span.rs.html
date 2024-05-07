@@ -638,6 +638,14 @@
 <a href="#636" id="636">636</a>
 <a href="#637" id="637">637</a>
 <a href="#638" id="638">638</a>
+<a href="#639" id="639">639</a>
+<a href="#640" id="640">640</a>
+<a href="#641" id="641">641</a>
+<a href="#642" id="642">642</a>
+<a href="#643" id="643">643</a>
+<a href="#644" id="644">644</a>
+<a href="#645" id="645">645</a>
+<a href="#646" id="646">646</a>
 </pre></div><pre class="rust"><code><span class="kw">mod </span>convert;
 
 <span class="attr">#[cfg(feature = <span class="string">"jsonschema"</span>)]
@@ -979,6 +987,10 @@
     </span><span class="attr">#[metastructure(field = <span class="string">"messaging.message.body.size"</span>)]
     </span><span class="kw">pub </span>messaging_message_body_size: Annotated&lt;Value&gt;,
 
+    <span class="doccomment">/// Message ID
+    </span><span class="attr">#[metastructure(field = <span class="string">"messaging.message.id"</span>)]
+    </span><span class="kw">pub </span>messaging_message_id: Annotated&lt;Value&gt;,
+
     <span class="doccomment">/// Other fields in `span.data`.
     </span><span class="attr">#[metastructure(additional_properties, pii = <span class="string">"true"</span>, retain = <span class="string">"true"</span>)]
     </span>other: Object&lt;Value&gt;,
@@ -1181,7 +1193,8 @@
         "messaging.destination.name": "default",
         "messaging.message.retry.count": 3,
         "messaging.message.receive.latency": 40,
-        "messaging.message.body.size": 100
+        "messaging.message.body.size": 100,
+        "messaging.message.id": "abc123"
     }"#</span>;
         <span class="kw">let </span>data = Annotated::&lt;SpanData&gt;::from_json(data)
             .unwrap()
@@ -1255,6 +1268,9 @@
             ),
             messaging_message_body_size: I64(
                 100,
+            ),
+            messaging_message_id: String(
+                "abc123",
             ),
             other: {
                 "bar": String(

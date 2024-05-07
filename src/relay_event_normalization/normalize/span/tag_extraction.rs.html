@@ -1909,6 +1909,21 @@
 <a href="#1907" id="1907">1907</a>
 <a href="#1908" id="1908">1908</a>
 <a href="#1909" id="1909">1909</a>
+<a href="#1910" id="1910">1910</a>
+<a href="#1911" id="1911">1911</a>
+<a href="#1912" id="1912">1912</a>
+<a href="#1913" id="1913">1913</a>
+<a href="#1914" id="1914">1914</a>
+<a href="#1915" id="1915">1915</a>
+<a href="#1916" id="1916">1916</a>
+<a href="#1917" id="1917">1917</a>
+<a href="#1918" id="1918">1918</a>
+<a href="#1919" id="1919">1919</a>
+<a href="#1920" id="1920">1920</a>
+<a href="#1921" id="1921">1921</a>
+<a href="#1922" id="1922">1922</a>
+<a href="#1923" id="1923">1923</a>
+<a href="#1924" id="1924">1924</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Logic for persisting items into `span.sentry_tags` and `span.measurements` fields.
 //! These are then used for metrics extraction.
 </span><span class="kw">use </span>std::borrow::Cow;
@@ -1986,6 +2001,7 @@
     CacheHit,
     TraceStatus,
     MessagingDestinationName,
+    MessagingMessageId,
 }
 
 <span class="kw">impl </span>SpanTagKey {
@@ -2031,6 +2047,7 @@
             SpanTagKey::ReplayId =&gt; <span class="string">"replay_id"</span>,
             SpanTagKey::TraceStatus =&gt; <span class="string">"trace.status"</span>,
             SpanTagKey::MessagingDestinationName =&gt; <span class="string">"messaging.destination.name"</span>,
+            SpanTagKey::MessagingMessageId =&gt; <span class="string">"messaging.message.id"</span>,
         }
     }
 }
@@ -2361,6 +2378,14 @@
                 .and_then(|value| value.as_str())
             {
                 span_tags.insert(SpanTagKey::MessagingDestinationName, destination.into());
+            }
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(message_id) = span
+                .data
+                .value()
+                .and_then(|data| data.messaging_message_id.value())
+                .and_then(|value| value.as_str())
+            {
+                span_tags.insert(SpanTagKey::MessagingMessageId, message_id.into());
             }
         }
 
@@ -3745,6 +3770,7 @@ LIMIT 1
                 "trace_id": "ff62a8b040f340bda5d830223def1d81",
                 "data": {
                     "messaging.destination.name": "default",
+                    "messaging.message.id": "abc123",
                     "messaging.message.body.size": 100
                 }
             }
@@ -3758,6 +3784,10 @@ LIMIT 1
         <span class="macro">assert_eq!</span>(
             tags.get(<span class="kw-2">&amp;</span>SpanTagKey::MessagingDestinationName),
             <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="string">"default"</span>.to_string())
+        );
+        <span class="macro">assert_eq!</span>(
+            tags.get(<span class="kw-2">&amp;</span>SpanTagKey::MessagingMessageId),
+            <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="string">"abc123"</span>.to_string())
         );
     }
 
