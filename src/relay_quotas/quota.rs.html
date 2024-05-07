@@ -1138,7 +1138,7 @@
             | DataCategory::MetricBucket
             | DataCategory::UserReportV2
             | DataCategory::ProfileChunk
-            | DataCategory::MetricHour =&gt; <span class="prelude-val">Some</span>(<span class="self">Self</span>::Count),
+            | DataCategory::MetricSecond =&gt; <span class="prelude-val">Some</span>(<span class="self">Self</span>::Count),
             DataCategory::Attachment =&gt; <span class="prelude-val">Some</span>(<span class="self">Self</span>::Bytes),
             DataCategory::Session =&gt; <span class="prelude-val">Some</span>(<span class="self">Self</span>::Batched),
             DataCategory::ProfileDuration =&gt; <span class="prelude-val">Some</span>(<span class="self">Self</span>::Milliseconds),

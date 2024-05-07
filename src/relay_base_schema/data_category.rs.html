@@ -282,12 +282,12 @@
     /// This is a count of profile chunks received. It will not be used for billing but will be
     /// useful for customers to track what's being dropped.
     </span>ProfileChunk = <span class="number">18</span>,
-    <span class="doccomment">/// MetricHour
+    <span class="doccomment">/// MetricSecond
     ///
     /// Reserved by billing to summarize the bucketed product of metric volume
     /// and metric cardinality. Defined here so as not to clash with future
     /// categories.
-    </span>MetricHour = <span class="number">19</span>,
+    </span>MetricSecond = <span class="number">19</span>,
     <span class="comment">//
     // IMPORTANT: After adding a new entry to DataCategory, go to the `relay-cabi` subfolder and run
     // `make header` to regenerate the C-binding. This allows using the data category from Python.
@@ -322,7 +322,7 @@
             <span class="string">"span_indexed" </span>=&gt; <span class="self">Self</span>::SpanIndexed,
             <span class="string">"profile_duration" </span>=&gt; <span class="self">Self</span>::ProfileDuration,
             <span class="string">"profile_chunk" </span>=&gt; <span class="self">Self</span>::ProfileChunk,
-            <span class="string">"metric_hour" </span>=&gt; <span class="self">Self</span>::MetricHour,
+            <span class="string">"metric_second" </span>=&gt; <span class="self">Self</span>::MetricSecond,
             <span class="kw">_ </span>=&gt; <span class="self">Self</span>::Unknown,
         }
     }
@@ -350,7 +350,7 @@
             <span class="self">Self</span>::SpanIndexed =&gt; <span class="string">"span_indexed"</span>,
             <span class="self">Self</span>::ProfileDuration =&gt; <span class="string">"profile_duration"</span>,
             <span class="self">Self</span>::ProfileChunk =&gt; <span class="string">"profile_chunk"</span>,
-            <span class="self">Self</span>::MetricHour =&gt; <span class="string">"metric_hour"</span>,
+            <span class="self">Self</span>::MetricSecond =&gt; <span class="string">"metric_second"</span>,
             <span class="self">Self</span>::Unknown =&gt; <span class="string">"unknown"</span>,
         }
     }
