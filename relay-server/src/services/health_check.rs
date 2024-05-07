@@ -209,10 +209,11 @@ impl HealthCheckService {
             return Status::Unhealthy;
         }
 
-        // TODO(ja): log like probe
+        // System memory is sync and requires mutable access, but we still want to log errors.
         let sys_mem = self.system_memory_probe();
 
-        let (auth, agg, proj) = tokio::join!(
+        let (sys_mem, auth, agg, proj) = tokio::join!(
+            self.probe("system memory", async { sys_mem }),
             self.probe("auth", self.auth_probe()),
             self.probe("aggregator", self.aggregator_probe()),
             self.probe("spool health", self.spool_health_probe()),
