@@ -15,6 +15,7 @@
 - Forward `span.data` on the Kafka message. ([#3523](https://github.com/getsentry/relay/pull/3523))
 - Tag span duration metric like exclusive time. ([#3524](https://github.com/getsentry/relay/pull/3524))
 - Emit negative outcomes for denied metrics. ([#3508](https://github.com/getsentry/relay/pull/3508))
+- Increase size limits for internal batch endpoints. ([#3562](https://github.com/getsentry/relay/pull/3562))
 
 ## 24.4.2
 
