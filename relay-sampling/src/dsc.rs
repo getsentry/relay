@@ -37,7 +37,7 @@ pub struct DynamicSamplingContext {
     /// transaction.
     ///
     /// Set on transaction start, or via `scope.transaction`.
-    #[serde(default)]
+    #[serde(default, alias = "segment_name")]
     pub transaction: Option<String>,
     /// The sample rate with which this trace was sampled in the client. This is a float between
     /// `0.0` and `1.0`.

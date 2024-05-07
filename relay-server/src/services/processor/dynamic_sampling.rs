@@ -16,7 +16,7 @@ use relay_statsd::metric;
 use crate::envelope::ItemType;
 use crate::services::outcome::Outcome;
 use crate::services::processor::{
-    profile, EventProcessing, ProcessEnvelopeState, Sampling, TransactionGroup,
+    profile, EventProcessing, ProcessEnvelopeState, ProcessingGroup, Sampling, TransactionGroup,
 };
 use crate::statsd::RelayCounters;
 use crate::utils::{self, sample, ItemAction, SamplingResult};
@@ -70,9 +70,11 @@ where
     // - Tagging whether an incoming error has a sampled trace connected to it.
     // - Computing the actual sampling decision on an incoming transaction.
 
-    match state.project_state.config.transaction_metrics {
-        Some(ErrorBoundary::Ok(ref c)) if c.is_enabled() => (),
-        _ => return SamplingResult::Pending,
+    // For transactions, we require transaction metrics to be enabled before sampling.
+    let transaction_metrics_enabled = matches!(&state.project_state.config.transaction_metrics, Some(ErrorBoundary::Ok(c)) if c.is_enabled());
+    let group = state.managed_envelope.group();
+    if matches!(group, ProcessingGroup::Transaction) && !transaction_metrics_enabled {
+        return SamplingResult::Pending;
     }
 
     let sampling_config = match state.project_state.config.sampling {
