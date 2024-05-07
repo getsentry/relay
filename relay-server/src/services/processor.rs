@@ -1317,12 +1317,6 @@ impl EnvelopeProcessorService {
             }
         };
 
-        if let Some(sampling_state) = state.sampling_project_state.clone() {
-            state
-                .envelope_mut()
-                .parametrize_dsc_transaction(&sampling_state.config.tx_name_rules);
-        }
-
         let request_meta = state.managed_envelope.envelope().meta();
         let client_ipaddr = request_meta.client_addr().map(IpAddr::from);
 
@@ -1662,7 +1656,7 @@ impl EnvelopeProcessorService {
 
     fn process_envelope(
         &self,
-        managed_envelope: ManagedEnvelope,
+        mut managed_envelope: ManagedEnvelope,
         project_id: ProjectId,
         project_state: Arc<ProjectState>,
         sampling_project_state: Option<Arc<ProjectState>>,
@@ -1671,6 +1665,13 @@ impl EnvelopeProcessorService {
         // Get the group from the managed envelope context, and if it's not set, try to guess it
         // from the contents of the envelope.
         let group = managed_envelope.group();
+
+        // Pre-process the envelope headers:
+        if let Some(sampling_state) = sampling_project_state.as_ref() {
+            managed_envelope
+                .envelope_mut()
+                .parametrize_dsc_transaction(&sampling_state.config.tx_name_rules);
+        }
 
         macro_rules! run {
             ($fn:ident) => {{

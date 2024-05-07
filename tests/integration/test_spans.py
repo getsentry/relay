@@ -1569,28 +1569,23 @@ def test_dynamic_sampling(
     spans_consumer = spans_consumer()
     outcomes_consumer = outcomes_consumer()
 
-    relay = relay_with_processing(
-        options={
-            "aggregator": {
-                "bucket_interval": 1,
-                "initial_delay": 0,
-                "debounce_delay": 0,
-                "max_secs_in_past": 2**64 - 1,
-            }
-        }
-    )
     project_id = 42
-    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config = mini_sentry.add_basic_project_config(project_id)
     project_config["config"]["features"] = [
         "organizations:standalone-span-ingestion",
-        # "projects:span-metrics-extraction",
     ]
     project_config["config"]["transactionMetrics"] = {"version": 1}
-    # if extract_transaction:
-    #     project_config["config"]["features"].append(
-    #         "projects:extract-transaction-from-segment-span"
-    #     )
-    project_config["config"]["sampling"] = {
+
+    sampling_config = mini_sentry.add_basic_project_config(43)
+    sampling_public_key = sampling_config["publicKeys"][0]["publicKey"]
+    sampling_config["config"]["txNameRules"] = [
+        {
+            "pattern": "/auth/login/*/**",
+            "expiry": "3022-11-30T00:00:00.000000Z",
+            "redaction": {"method": "replace", "substitution": "*"},
+        }
+    ]
+    sampling_config["config"]["sampling"] = {
         "version": 2,
         "rules": [
             {
@@ -1614,6 +1609,17 @@ def test_dynamic_sampling(
         ],
     }
 
+    relay = relay_with_processing(
+        options={
+            "aggregator": {
+                "bucket_interval": 1,
+                "initial_delay": 0,
+                "debounce_delay": 0,
+                "max_secs_in_past": 2**64 - 1,
+            }
+        }
+    )
+
     duration = timedelta(milliseconds=500)
     end = datetime.now(timezone.utc) - timedelta(seconds=1)
     start = end - duration
@@ -1621,9 +1627,9 @@ def test_dynamic_sampling(
     # 1 - Send OTel span and sentry span via envelope
     envelope = envelope_with_spans(start, end)
     envelope.headers["trace"] = {
-        "public_key": project_config["publicKeys"][0]["publicKey"],
+        "public_key": sampling_public_key,
         "trace_id": "89143b0763095bd9c9955e8175d1fb23",
-        "segment_name": "/auth/login/*",
+        "segment_name": "/auth/login/my_user_name",
     }
 
     relay.send_envelope(project_id, envelope)
@@ -1637,10 +1643,11 @@ def test_dynamic_sampling(
     if sample_rate == 1.0:
         spans = list(spans_consumer.get_spans(timeout=10, max_attempts=4))
         assert len(spans) == 4
-        assert summarize_outcomes() == {(16, 0): 4}  # SpanIndexed, Accepted
+        outcomes = outcomes_consumer.get_outcomes(timeout=0.1)
+        assert summarize_outcomes(outcomes) == {(16, 0): 4}  # SpanIndexed, Accepted
     else:
         outcomes = outcomes_consumer.get_outcomes(timeout=4)
-        assert summarize_outcomes(outcomes) == {(12, 1): 4}  # Span, Filterd
+        assert summarize_outcomes(outcomes) == {(12, 1): 4}  # Span, Filtered
         assert {o["reason"] for o in outcomes} == {"Sampled:1"}
 
     spans_consumer.assert_empty()
