@@ -7530,7 +7530,7 @@ expression: metrics
         timestamp: UnixTimestamp(1702474613),
         width: 0,
         name: MetricName(
-            "c:spans/ai.total_cost@none",
+            "c:spans/ai.total_cost@usd",
         ),
         value: Counter(
             0.0002,
