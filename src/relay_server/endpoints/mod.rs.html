@@ -103,6 +103,13 @@
 <a href="#101" id="101">101</a>
 <a href="#102" id="102">102</a>
 <a href="#103" id="103">103</a>
+<a href="#104" id="104">104</a>
+<a href="#105" id="105">105</a>
+<a href="#106" id="106">106</a>
+<a href="#107" id="107">107</a>
+<a href="#108" id="108">108</a>
+<a href="#109" id="109">109</a>
+<a href="#110" id="110">110</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Web server endpoints.
 //!
 //! This module contains implementations for all supported relay endpoints, as well as a generic
@@ -141,7 +148,10 @@
 <span class="kw">use </span><span class="kw">crate</span>::middlewares;
 <span class="kw">use </span><span class="kw">crate</span>::service::ServiceState;
 
-<span class="attr">#[rustfmt::skip]
+<span class="doccomment">/// Size limit for internal batch endpoints.
+</span><span class="kw">const </span>BATCH_JSON_BODY_LIMIT: usize = <span class="number">50_000_000</span>; <span class="comment">// 50 MB
+
+</span><span class="attr">#[rustfmt::skip]
 </span><span class="kw">pub fn </span>routes&lt;B&gt;(config: <span class="kw-2">&amp;</span>Config) -&gt; Router&lt;ServiceState, B&gt;
 <span class="kw">where
     </span>B: axum::body::HttpBody + Send + <span class="lifetime">'static</span>,
@@ -167,11 +177,14 @@
     </span><span class="kw">let </span>web_routes = Router::new()
         .route(<span class="string">"/api/0/relays/projectconfigs/"</span>, post(project_configs::handle))
         .route(<span class="string">"/api/0/relays/publickeys/"</span>, post(public_keys::handle))
-        .route(<span class="string">"/api/0/relays/outcomes/"</span>, post(batch_outcomes::handle))
-        .route(<span class="string">"/api/0/relays/metrics/"</span>, post(batch_metrics::handle))
         <span class="comment">// Network connectivity check for downstream Relays, same as the internal health check.
         </span>.route(<span class="string">"/api/0/relays/live/"</span>, get(health_check::handle_live))
         .route_layer(DefaultBodyLimit::max(<span class="kw">crate</span>::constants::MAX_JSON_SIZE));
+
+    <span class="kw">let </span>batch_routes = Router::new()
+        .route(<span class="string">"/api/0/relays/outcomes/"</span>, post(batch_outcomes::handle))
+        .route(<span class="string">"/api/0/relays/metrics/"</span>, post(batch_metrics::handle))
+        .route_layer(DefaultBodyLimit::max(BATCH_JSON_BODY_LIMIT));
 
     <span class="comment">// Ingestion routes pointing to /api/:project_id/
     </span><span class="kw">let </span>store_routes = Router::new()
@@ -202,6 +215,7 @@
 
     router.merge(internal_routes)
         .merge(web_routes)
+        .merge(batch_routes)
         .merge(store_routes)
         <span class="comment">// Forward all other API routes to the upstream. This will 404 for non-API routes.
         </span>.fallback(forward::forward)
