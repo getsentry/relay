@@ -3,9 +3,7 @@ use std::sync::Arc;
 use relay_config::{Config, RelayMode};
 use relay_metrics::{AcceptsMetrics, Aggregator};
 use relay_statsd::metric;
-use relay_system::{
-    Addr, AsyncResponse, Controller, FromMessage, Interface, Sender, Service, ShutdownHandle,
-};
+use relay_system::{Addr, AsyncResponse, Controller, FromMessage, Interface, Sender, Service};
 use std::future::Future;
 use sysinfo::{MemoryRefreshKind, System};
 use tokio::sync::watch;
@@ -68,19 +66,21 @@ impl FromMessage<IsHealthy> for HealthCheck {
 }
 
 #[derive(Debug)]
-struct Statuses {
-    live: Status,
-    ready: Status,
+struct StatusUpdate {
+    status: Status,
     instant: Instant,
 }
 
-impl Statuses {
-    pub fn healthy() -> Self {
+impl StatusUpdate {
+    pub fn new(status: Status) -> Self {
         Self {
-            live: Status::Healthy,
-            ready: Status::Healthy,
+            status,
             instant: Instant::now(),
         }
+    }
+
+    pub fn healthy() -> Self {
+        Self::new(Status::Healthy)
     }
 }
 
@@ -208,11 +208,7 @@ impl HealthCheckService {
         }
     }
 
-    async fn check_readiness(&mut self, shutdown: &ShutdownHandle) -> Status {
-        if shutdown.get().is_some() {
-            return Status::Unhealthy;
-        }
-
+    async fn check_readiness(&mut self) -> Status {
         // System memory is sync and requires mutable access, but we still want to log errors.
         let sys_mem = self.system_memory_probe();
 
@@ -232,7 +228,7 @@ impl Service for HealthCheckService {
     type Interface = HealthCheck;
 
     fn spawn_handler(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
-        let (status_tx, status_rx) = watch::channel(Statuses::healthy());
+        let (update_tx, update_rx) = watch::channel(StatusUpdate::healthy());
         let check_interval = self.config.health_sys_info_refresh_interval();
         // Add 10% buffer to the internal timeouts to avoid race conditions.
         let status_timeout = (check_interval + self.config.health_probe_timeout()).mul_f64(1.1);
@@ -240,32 +236,30 @@ impl Service for HealthCheckService {
         tokio::spawn(async move {
             let shutdown = Controller::shutdown_handle();
 
-            loop {
+            while shutdown.get().is_none() {
                 let ready = relay_statsd::metric!(
                     timer(RelayTimers::HealthCheckDuration),
                     type = "readiness",
-                    { self.check_readiness(&shutdown).await }
+                    { self.check_readiness().await }
                 );
 
-                let _ = status_tx.send(Statuses {
-                    live: Status::Healthy,
-                    ready,
-                    instant: Instant::now(),
-                });
-
+                let _ = update_tx.send(StatusUpdate::new(ready));
                 tokio::time::sleep(check_interval).await;
             }
         });
 
         tokio::spawn(async move {
-            while let Some(HealthCheck(message, sender)) = rx.recv().await {
-                let statuses = status_rx.borrow();
-                let is_valid = statuses.instant.elapsed() < status_timeout;
+            let shutdown = Controller::shutdown_handle();
 
-                sender.send(match (is_valid, message) {
-                    (false, _) => Status::Unhealthy,
-                    (_, IsHealthy::Liveness) => statuses.live,
-                    (_, IsHealthy::Readiness) => statuses.ready,
+            while let Some(HealthCheck(message, sender)) = rx.recv().await {
+                let update = update_rx.borrow();
+
+                sender.send(if matches!(message, IsHealthy::Liveness) {
+                    Status::Healthy
+                } else if shutdown.get().is_some() || update.instant.elapsed() >= status_timeout {
+                    Status::Unhealthy
+                } else {
+                    update.status
                 });
             }
         });
