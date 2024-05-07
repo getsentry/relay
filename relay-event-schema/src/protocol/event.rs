@@ -66,12 +66,12 @@ impl FromStr for EventId {
 relay_common::impl_str_serde!(EventId, "an event identifier");
 
 impl TryFrom<&SpanId> for EventId {
-    type Error = ();
+    type Error = <EventId as FromStr>::Err;
 
     fn try_from(value: &SpanId) -> Result<Self, Self::Error> {
         // TODO: Represent SpanId as bytes / u64 so we can call `Uuid::from_u64_pair`.
         let s = format!("0000000000000000{value}");
-        s.parse().map_err(|_| ())
+        s.parse()
     }
 }
 
