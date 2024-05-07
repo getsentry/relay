@@ -7063,10 +7063,10 @@
             processor.handle_process_metrics(<span class="kw-2">&amp;mut </span>token, message);
 
             <span class="kw">let </span>value = project_cache_rx.recv().<span class="kw">await</span>.unwrap();
-            <span class="kw">let </span>ProjectCache::MergeBuckets(merge_buckets) = value <span class="kw">else </span>{
+            <span class="kw">let </span>ProjectCache::AddMetricBuckets(merge_buckets) = value <span class="kw">else </span>{
                 <span class="macro">panic!</span>()
             };
-            <span class="kw">let </span>buckets = merge_buckets.buckets();
+            <span class="kw">let </span>buckets = merge_buckets.buckets;
             <span class="macro">assert_eq!</span>(buckets.len(), <span class="number">1</span>);
             <span class="macro">assert_eq!</span>(buckets[<span class="number">0</span>].metadata.received_at, expected_received_at);
         }
@@ -7163,10 +7163,10 @@
             processor.handle_process_batched_metrics(<span class="kw-2">&amp;mut </span>token, message);
 
             <span class="kw">let </span>value = project_cache_rx.recv().<span class="kw">await</span>.unwrap();
-            <span class="kw">let </span>ProjectCache::MergeBuckets(merge_buckets) = value <span class="kw">else </span>{
+            <span class="kw">let </span>ProjectCache::AddMetricBuckets(merge_buckets) = value <span class="kw">else </span>{
                 <span class="macro">panic!</span>()
             };
-            <span class="kw">let </span>buckets = merge_buckets.buckets();
+            <span class="kw">let </span>buckets = merge_buckets.buckets;
             <span class="macro">assert_eq!</span>(buckets.len(), <span class="number">1</span>);
             <span class="macro">assert_eq!</span>(buckets[<span class="number">0</span>].metadata.received_at, expected_received_at);
         }
