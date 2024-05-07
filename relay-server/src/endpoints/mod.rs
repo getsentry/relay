@@ -94,7 +94,7 @@ where
         .route("/api/:project_id/minidump/", minidump::route(config))
         .route("/api/:project_id/events/:event_id/attachments/", attachments::route(config))
         .route("/api/:project_id/unreal/:sentry_key/", unreal::route(config))
-        .route("/api/:project_id/spans/", spans::route(config))
+    .route("/api/:project_id/spans/", spans::route(config))
         .route_layer(middlewares::cors());
 
     let router = Router::new();
