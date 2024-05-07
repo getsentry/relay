@@ -1060,7 +1060,8 @@ mod tests {
                         "messaging.destination.name": "default",
                         "messaging.message.receive.latency": 100,
                         "messaging.message.retry.count": 2,
-                        "messaging.message.body.size": 1000
+                        "messaging.message.body.size": 1000,
+                        "messaging.message.id": "abc123"
                     }
                 },
                 {
@@ -1075,7 +1076,8 @@ mod tests {
                         "messaging.destination.name": "default",
                         "messaging.message.receive.latency": 100,
                         "messaging.message.retry.count": 2,
-                        "messaging.message.body.size": 1000
+                        "messaging.message.body.size": 1000,
+                        "messaging.message.id": "abc123"
                     }
                 },
                 {
@@ -1090,7 +1092,8 @@ mod tests {
                         "messaging.destination.name": "default",
                         "messaging.message.receive.latency": 100,
                         "messaging.message.retry.count": 2,
-                        "messaging.message.body.size": 1000
+                        "messaging.message.body.size": 1000,
+                        "messaging.message.id": "abc123"
                     }
                 },
                 {
@@ -1105,7 +1108,8 @@ mod tests {
                         "messaging.destination.name": "default",
                         "messaging.message.receive.latency": 100,
                         "messaging.message.retry.count": 2,
-                        "messaging.message.body.size": 1000
+                        "messaging.message.body.size": 1000,
+                        "messaging.message.id": "abc123"
                     }
                 },
                 {
