@@ -1269,6 +1269,16 @@
 <a href="#1267" id="1267">1267</a>
 <a href="#1268" id="1268">1268</a>
 <a href="#1269" id="1269">1269</a>
+<a href="#1270" id="1270">1270</a>
+<a href="#1271" id="1271">1271</a>
+<a href="#1272" id="1272">1272</a>
+<a href="#1273" id="1273">1273</a>
+<a href="#1274" id="1274">1274</a>
+<a href="#1275" id="1275">1275</a>
+<a href="#1276" id="1276">1276</a>
+<a href="#1277" id="1277">1277</a>
+<a href="#1278" id="1278">1278</a>
+<a href="#1279" id="1279">1279</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::str::FromStr;
 
@@ -1286,8 +1296,8 @@
     AppContext, Breadcrumb, Breakdowns, BrowserContext, ClientSdkInfo, Contexts, Csp, DebugMeta,
     DefaultContext, DeviceContext, EventType, Exception, ExpectCt, ExpectStaple, Fingerprint, Hpkp,
     LenientString, Level, LogEntry, Measurements, Metrics, MetricsSummary, OsContext,
-    ProfileContext, RelayInfo, Request, ResponseContext, Span, Stacktrace, Tags, TemplateInfo,
-    Thread, Timestamp, TraceContext, TransactionInfo, User, Values,
+    ProfileContext, RelayInfo, Request, ResponseContext, Span, SpanId, Stacktrace, Tags,
+    TemplateInfo, Thread, Timestamp, TraceContext, TransactionInfo, User, Values,
 };
 
 <span class="doccomment">/// Wrapper around a UUID with slightly different formatting.
@@ -1335,6 +1345,16 @@
 }
 
 <span class="macro">relay_common::impl_str_serde!</span>(EventId, <span class="string">"an event identifier"</span>);
+
+<span class="kw">impl </span>TryFrom&lt;<span class="kw-2">&amp;</span>SpanId&gt; <span class="kw">for </span>EventId {
+    <span class="kw">type </span>Error = &lt;EventId <span class="kw">as </span>FromStr&gt;::Err;
+
+    <span class="kw">fn </span>try_from(value: <span class="kw-2">&amp;</span>SpanId) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, <span class="self">Self</span>::Error&gt; {
+        <span class="comment">// TODO: Represent SpanId as bytes / u64 so we can call `Uuid::from_u64_pair`.
+        </span><span class="kw">let </span>s = <span class="macro">format!</span>(<span class="string">"0000000000000000{value}"</span>);
+        s.parse()
+    }
+}
 
 <span class="attr">#[derive(Debug, FromValue, IntoValue, ProcessValue, Empty, Clone, PartialEq)]
 </span><span class="kw">pub struct </span>ExtraValue(<span class="attr">#[metastructure(max_depth = <span class="number">7</span>, max_bytes = <span class="number">16_384</span>)] </span><span class="kw">pub </span>Value);

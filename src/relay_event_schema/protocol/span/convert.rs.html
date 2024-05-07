@@ -369,7 +369,27 @@
 <a href="#367" id="367">367</a>
 <a href="#368" id="368">368</a>
 <a href="#369" id="369">369</a>
+<a href="#370" id="370">370</a>
+<a href="#371" id="371">371</a>
+<a href="#372" id="372">372</a>
+<a href="#373" id="373">373</a>
+<a href="#374" id="374">374</a>
+<a href="#375" id="375">375</a>
+<a href="#376" id="376">376</a>
+<a href="#377" id="377">377</a>
+<a href="#378" id="378">378</a>
+<a href="#379" id="379">379</a>
+<a href="#380" id="380">380</a>
+<a href="#381" id="381">381</a>
+<a href="#382" id="382">382</a>
+<a href="#383" id="383">383</a>
+<a href="#384" id="384">384</a>
+<a href="#385" id="385">385</a>
+<a href="#386" id="386">386</a>
+<a href="#387" id="387">387</a>
+<a href="#388" id="388">388</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module defines bidirectional field mappings between spans and transactions.
+
 </span><span class="kw">use </span><span class="kw">crate</span>::protocol::{BrowserContext, Contexts, Event, ProfileContext, Span, TraceContext};
 
 <span class="kw">use </span>relay_base_schema::events::EventType;
@@ -457,6 +477,16 @@
     };
 );
 
+<span class="attr">#[derive(Debug, thiserror::Error)]
+</span><span class="kw">pub enum </span>TryFromSpanError {
+    <span class="attr">#[error(<span class="string">"span is not a segment"</span>)]
+    </span>NotASegment,
+    <span class="attr">#[error(<span class="string">"span has no span ID"</span>)]
+    </span>MissingSpanId,
+    <span class="attr">#[error(<span class="string">"failed to parse event ID"</span>)]
+    </span>InvalidSpanId(<span class="attr">#[from] </span>uuid::Error),
+}
+
 <span class="doccomment">/// Implements the conversion between transaction events and segment spans.
 ///
 /// Invoking this macro implements both `From&lt;&amp;Event&gt; for Span` and `From&lt;&amp;Span&gt; for Event`.
@@ -483,15 +513,17 @@
             }
         }
 
-        <span class="kw">impl </span>TryFrom&lt;<span class="kw-2">&amp;</span>Span&gt; <span class="kw">for </span>Event {
-            <span class="kw">type </span>Error = ();
+        <span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; TryFrom&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>Span&gt; <span class="kw">for </span>Event {
+            <span class="kw">type </span>Error = TryFromSpanError;
 
-            <span class="kw">fn </span>try_from(span: <span class="kw-2">&amp;</span>Span) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, ()&gt; {
+            <span class="kw">fn </span>try_from(span: <span class="kw-2">&amp;</span>Span) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, <span class="self">Self</span>::Error&gt; {
                 <span class="kw">let </span><span class="kw-2">mut </span>event = Event::default();
+                <span class="kw">let </span>span_id = span.span_id.value().ok_or(TryFromSpanError::MissingSpanId)<span class="question-mark">?</span>;
+                event.id = Annotated::new(span_id.try_into()<span class="question-mark">?</span>);
 
                 <span class="kw">if </span>!span.is_segment.value().unwrap_or(<span class="kw-2">&amp;</span><span class="bool-val">false</span>) {
                     <span class="comment">// Only segment spans can become transactions.
-                    </span><span class="kw">return </span><span class="prelude-val">Err</span>(());
+                    </span><span class="kw">return </span><span class="prelude-val">Err</span>(TryFromSpanError::NotASegment);
                 }
 
                 $(
@@ -546,7 +578,7 @@
 </span><span class="kw">mod </span>tests {
     <span class="kw">use </span>relay_protocol::Annotated;
 
-    <span class="kw">use </span><span class="kw">crate</span>::protocol::SpanData;
+    <span class="kw">use </span><span class="kw">crate</span>::protocol::{SpanData, SpanId};
 
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
 
@@ -704,13 +736,18 @@
         }
         "###</span>);
 
-        <span class="kw">let </span>roundtripped = Event::try_from(<span class="kw-2">&amp;</span>span_from_event).unwrap();
-        <span class="macro">assert_eq!</span>(event, roundtripped);
+        <span class="kw">let </span><span class="kw-2">mut </span>event_from_span = Event::try_from(<span class="kw-2">&amp;</span>span_from_event).unwrap();
+
+        <span class="kw">let </span>event_id = event_from_span.id.value_mut().take().unwrap();
+        <span class="macro">assert_eq!</span>(<span class="kw-2">&amp;</span>event_id.to_string(), <span class="string">"0000000000000000fa90fdead5f74052"</span>);
+
+        <span class="macro">assert_eq!</span>(event, event_from_span);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>segment_name_takes_precedence_over_description() {
         <span class="kw">let </span>span = Span {
+            span_id: SpanId(<span class="string">"fa90fdead5f74052"</span>.to_owned()).into(),
             is_segment: <span class="bool-val">true</span>.into(),
             description: <span class="string">"This is the description"</span>.to_owned().into(),
             data: SpanData {
@@ -728,6 +765,7 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>no_empty_profile_context() {
         <span class="kw">let </span>span = Span {
+            span_id: SpanId(<span class="string">"fa90fdead5f74052"</span>.to_owned()).into(),
             is_segment: <span class="bool-val">true</span>.into(),
             ..Default::default()
         };
