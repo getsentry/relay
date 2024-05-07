@@ -2964,21 +2964,23 @@ impl UpstreamRequest for SendMetricsRequest {
                 Ok(mut response) => {
                     response.consume().await.ok();
                 }
-                // Request did not arrive, we are responsible for outcomes.
-                Err(error) if !error.is_received() => {
-                    for (scoping, quantities) in self.quantities {
-                        utils::reject_metrics::<&Bucket>(
-                            &self.outcome_aggregator,
-                            &self.metric_stats,
-                            quantities,
-                            scoping,
-                            Outcome::Invalid(DiscardReason::Internal),
-                            None,
-                        );
+                Err(error) => {
+                    // If the request did not arrive at the upstream, we are responsible for outcomes.
+                    // Otherwise, the upstream is responsible to log outcomes.
+                    if !error.is_received() {
+                        for (scoping, quantities) in self.quantities {
+                            utils::reject_metrics::<&Bucket>(
+                                &self.outcome_aggregator,
+                                &self.metric_stats,
+                                quantities,
+                                scoping,
+                                Outcome::Invalid(DiscardReason::Internal),
+                                None,
+                            );
+                        }
                     }
+                    relay_log::error!(error = &error as &dyn Error, "Failed to send metrics batch");
                 }
-                // Upstream is responsible to log outcomes.
-                Err(_received) => (),
             }
         })
     }
