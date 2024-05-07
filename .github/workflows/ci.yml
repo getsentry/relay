@@ -601,7 +601,7 @@ jobs:
 
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Run Sentry self-hosted e2e CI
         # Skip for dependabot or if it's a fork as the image cannot be uploaded to ghcr since this test attempts to pull
