@@ -266,18 +266,21 @@ mod tests {
     use std::collections::BTreeMap;
     use std::sync::Arc;
 
+    use bytes::Bytes;
     use relay_base_schema::project::{ProjectId, ProjectKey};
+    use relay_dynamic_config::TransactionMetricsConfig;
     use relay_event_schema::protocol::{EventId, LenientString};
     use relay_protocol::RuleCondition;
     use relay_sampling::config::{
         DecayingFunction, RuleId, SamplingRule, SamplingValue, TimeRange,
     };
     use relay_sampling::evaluation::{ReservoirCounters, SamplingMatch};
+    use relay_system::Addr;
     use uuid::Uuid;
 
     use crate::envelope::{ContentType, Envelope, Item};
     use crate::extractors::RequestMeta;
-    use crate::services::processor::{ProcessEnvelope, ProcessingGroup};
+    use crate::services::processor::{ProcessEnvelope, ProcessingGroup, SpanGroup};
     use crate::services::project::ProjectState;
     use crate::testutils::{
         self, create_test_processor, new_envelope, state_with_rule_and_condition,
@@ -704,5 +707,73 @@ mod tests {
             compute_sampling_decision(false, None, None, None, Some(&sampling_config), Some(&dsc));
 
         assert_eq!(get_sampling_match(res).sample_rate(), 0.2);
+    }
+
+    fn run_with_reservoir_rule<G>(processing_group: ProcessingGroup) -> SamplingResult
+    where
+        G: Sampling + TryFrom<ProcessingGroup>,
+    {
+        let bytes = Bytes::from(
+            r#"{"dsn":"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42","trace":{"trace_id":"89143b0763095bd9c9955e8175d1fb23","public_key":"e12d836b15bb49d7bbf99e64295d995b"}}"#,
+        );
+        let envelope = Envelope::parse_bytes(bytes).unwrap();
+        let mut state = ProcessEnvelopeState::<G> {
+            event: Annotated::new(Event::default()),
+            event_metrics_extracted: false,
+            spans_extracted: false,
+            metrics: Default::default(),
+            sample_rates: Default::default(),
+            extracted_metrics: Default::default(),
+            project_state: {
+                let mut state = ProjectState::allowed();
+                state.config.transaction_metrics =
+                    Some(ErrorBoundary::Ok(TransactionMetricsConfig {
+                        version: 1,
+                        ..Default::default()
+                    }));
+                Arc::new(state)
+            },
+            sampling_project_state: {
+                let mut state = ProjectState::allowed();
+                state.config.sampling = Some(ErrorBoundary::Ok(SamplingConfig {
+                    version: 2,
+                    rules: vec![SamplingRule {
+                        condition: RuleCondition::all(),
+                        sampling_value: SamplingValue::Reservoir { limit: 0 },
+                        ty: RuleType::Trace,
+                        id: RuleId(1),
+                        time_range: Default::default(),
+                        decaying_fn: Default::default(),
+                    }],
+                    rules_v2: vec![],
+                }));
+                Some(Arc::new(state))
+            },
+            project_id: ProjectId::new(1),
+            managed_envelope: ManagedEnvelope::standalone(
+                envelope,
+                Addr::dummy(),
+                Addr::dummy(),
+                processing_group,
+            )
+            .try_into()
+            .unwrap(),
+            profile_id: None,
+            reservoir: dummy_reservoir(),
+        };
+
+        run(&mut state, &Config::default())
+    }
+
+    #[test]
+    fn test_reservoir_applied_for_transactions() {
+        let result = run_with_reservoir_rule::<TransactionGroup>(ProcessingGroup::Transaction);
+        assert!(matches!(result, SamplingResult::Match(_)));
+    }
+
+    #[test]
+    fn test_reservoir_not_applied_for_spans() {
+        let result = run_with_reservoir_rule::<SpanGroup>(ProcessingGroup::Span);
+        assert!(matches!(result, SamplingResult::NoMatch));
     }
 }

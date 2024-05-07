@@ -103,7 +103,7 @@ impl<'a> ReservoirEvaluator<'a> {
 
         let counter_value = map_guard.entry(rule).or_insert(0);
 
-        if *counter_value < limit {
+        if *counter_value <= limit {
             *counter_value += 1;
             true
         } else {
