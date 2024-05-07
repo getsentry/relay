@@ -1865,6 +1865,65 @@
 <a href="#1863" id="1863">1863</a>
 <a href="#1864" id="1864">1864</a>
 <a href="#1865" id="1865">1865</a>
+<a href="#1866" id="1866">1866</a>
+<a href="#1867" id="1867">1867</a>
+<a href="#1868" id="1868">1868</a>
+<a href="#1869" id="1869">1869</a>
+<a href="#1870" id="1870">1870</a>
+<a href="#1871" id="1871">1871</a>
+<a href="#1872" id="1872">1872</a>
+<a href="#1873" id="1873">1873</a>
+<a href="#1874" id="1874">1874</a>
+<a href="#1875" id="1875">1875</a>
+<a href="#1876" id="1876">1876</a>
+<a href="#1877" id="1877">1877</a>
+<a href="#1878" id="1878">1878</a>
+<a href="#1879" id="1879">1879</a>
+<a href="#1880" id="1880">1880</a>
+<a href="#1881" id="1881">1881</a>
+<a href="#1882" id="1882">1882</a>
+<a href="#1883" id="1883">1883</a>
+<a href="#1884" id="1884">1884</a>
+<a href="#1885" id="1885">1885</a>
+<a href="#1886" id="1886">1886</a>
+<a href="#1887" id="1887">1887</a>
+<a href="#1888" id="1888">1888</a>
+<a href="#1889" id="1889">1889</a>
+<a href="#1890" id="1890">1890</a>
+<a href="#1891" id="1891">1891</a>
+<a href="#1892" id="1892">1892</a>
+<a href="#1893" id="1893">1893</a>
+<a href="#1894" id="1894">1894</a>
+<a href="#1895" id="1895">1895</a>
+<a href="#1896" id="1896">1896</a>
+<a href="#1897" id="1897">1897</a>
+<a href="#1898" id="1898">1898</a>
+<a href="#1899" id="1899">1899</a>
+<a href="#1900" id="1900">1900</a>
+<a href="#1901" id="1901">1901</a>
+<a href="#1902" id="1902">1902</a>
+<a href="#1903" id="1903">1903</a>
+<a href="#1904" id="1904">1904</a>
+<a href="#1905" id="1905">1905</a>
+<a href="#1906" id="1906">1906</a>
+<a href="#1907" id="1907">1907</a>
+<a href="#1908" id="1908">1908</a>
+<a href="#1909" id="1909">1909</a>
+<a href="#1910" id="1910">1910</a>
+<a href="#1911" id="1911">1911</a>
+<a href="#1912" id="1912">1912</a>
+<a href="#1913" id="1913">1913</a>
+<a href="#1914" id="1914">1914</a>
+<a href="#1915" id="1915">1915</a>
+<a href="#1916" id="1916">1916</a>
+<a href="#1917" id="1917">1917</a>
+<a href="#1918" id="1918">1918</a>
+<a href="#1919" id="1919">1919</a>
+<a href="#1920" id="1920">1920</a>
+<a href="#1921" id="1921">1921</a>
+<a href="#1922" id="1922">1922</a>
+<a href="#1923" id="1923">1923</a>
+<a href="#1924" id="1924">1924</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeSet;
 <span class="kw">use </span>std::sync::Arc;
 <span class="kw">use </span>std::time::Duration;
@@ -2288,7 +2347,7 @@
 <span class="kw">impl </span>State {
     <span class="kw">fn </span>state_value(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;Arc&lt;ProjectState&gt;&gt; {
         <span class="kw">match </span><span class="self">self </span>{
-            State::Cached(state) =&gt; <span class="prelude-val">Some</span>(state.clone()),
+            State::Cached(state) =&gt; <span class="prelude-val">Some</span>(Arc::clone(state)),
             State::Pending(<span class="kw">_</span>) =&gt; <span class="prelude-val">None</span>,
         }
     }
@@ -2445,6 +2504,7 @@
         state: <span class="kw-2">&amp;</span>ProjectState,
         buckets: Vec&lt;Bucket&gt;,
     ) -&gt; Vec&lt;Bucket&gt; {
+        <span class="kw">let </span><span class="kw-2">mut </span>disabled_namespace_buckets = <span class="macro">vec!</span>[];
         <span class="kw">let </span><span class="kw-2">mut </span>denied_buckets = <span class="macro">vec!</span>[];
 
         <span class="kw">let </span>accepted_buckets = buckets
@@ -2457,6 +2517,7 @@
 
                 <span class="kw">if </span>!is_metric_namespace_valid(state, <span class="kw-2">&amp;</span>namespace) {
                     <span class="macro">relay_log::trace!</span>(mri = <span class="kw-2">&amp;*</span>bucket.name, <span class="string">"dropping metric in disabled namespace"</span>);
+                    disabled_namespace_buckets.push(bucket);
                     <span class="kw">return </span><span class="prelude-val">None</span>;
                 };
 
@@ -2477,9 +2538,19 @@
             })
             .collect();
 
-        <span class="kw">if </span>!denied_buckets.is_empty() {
-            <span class="kw">let </span>scoping = <span class="self">self</span>.scoping();
-            <span class="kw">if let </span><span class="prelude-val">Some</span>(scoping) = scoping {
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(scoping) = <span class="self">self</span>.scoping() {
+            <span class="kw">if </span>!disabled_namespace_buckets.is_empty() {
+                utils::reject_metrics(
+                    <span class="kw-2">&amp;</span>outcome_aggregator,
+                    <span class="kw-2">&amp;</span>metric_stats,
+                    utils::extract_metric_quantities(<span class="kw-2">&amp;</span>disabled_namespace_buckets, mode),
+                    scoping,
+                    Outcome::Filtered(FilterStatKey::DisabledNamespace),
+                    <span class="kw-2">&amp;</span>disabled_namespace_buckets,
+                );
+            }
+
+            <span class="kw">if </span>!denied_buckets.is_empty() {
                 utils::reject_metrics(
                     <span class="kw-2">&amp;</span>outcome_aggregator,
                     <span class="kw-2">&amp;</span>metric_stats,
@@ -2494,7 +2565,7 @@
         accepted_buckets
     }
 
-    <span class="kw">fn </span>rate_limit_and_merge_buckets(
+    <span class="kw">fn </span>process_and_merge_buckets(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         aggregator: Addr&lt;Aggregator&gt;,
         <span class="attr">#[allow(unused_variables)] </span>envelope_processor: Addr&lt;EnvelopeProcessor&gt;,
@@ -2517,6 +2588,9 @@
             state,
             buckets,
         );
+        <span class="kw">if </span>buckets.is_empty() {
+            <span class="kw">return</span>;
+        }
 
         <span class="kw">let </span><span class="prelude-val">Some</span>(scoping) = <span class="self">self</span>.scoping() <span class="kw">else </span>{
             <span class="macro">relay_log::error!</span>(
@@ -2577,7 +2651,7 @@
 
         <span class="kw">match </span><span class="kw-2">&amp;mut </span><span class="self">self</span>.state {
             State::Cached(state) =&gt; {
-                <span class="kw">let </span>state = state.clone();
+                <span class="kw">let </span>state = Arc::clone(state);
 
                 <span class="comment">// We can send metrics straight to the aggregator.
                 </span><span class="macro">relay_log::debug!</span>(<span class="string">"sending metrics straight to aggregator"</span>);
@@ -2586,7 +2660,7 @@
                 // to the metrics buffer instead. In practice, the project state should be
                 // refreshed at the time when the buckets emerge from the aggregator though.
 
-                </span><span class="self">self</span>.rate_limit_and_merge_buckets(
+                </span><span class="self">self</span>.process_and_merge_buckets(
                     aggregator,
                     envelope_processor,
                     outcome_aggregator,
@@ -2820,7 +2894,7 @@
         <span class="kw">if let </span><span class="prelude-val">Some</span>(buckets) = buckets {
             <span class="kw">if </span>project_enabled &amp;&amp; !buckets.is_empty() {
                 <span class="macro">relay_log::debug!</span>(<span class="string">"sending metrics from metricsbuffer to aggregator"</span>);
-                <span class="self">self</span>.rate_limit_and_merge_buckets(
+                <span class="self">self</span>.process_and_merge_buckets(
                     aggregator,
                     envelope_processor,
                     outcome_aggregator,
@@ -3127,7 +3201,7 @@
     <span class="kw">use </span>relay_common::glob3::GlobPatterns;
     <span class="kw">use </span>relay_common::time::UnixTimestamp;
     <span class="kw">use </span>relay_dynamic_config::{GlobalConfig, TagBlock};
-    <span class="kw">use </span>relay_metrics::BucketValue;
+    <span class="kw">use </span>relay_metrics::{BucketValue, FiniteF64};
     <span class="kw">use </span>relay_test::mock_service;
     <span class="kw">use </span>serde_json::json;
     <span class="kw">use </span>tokio::sync::mpsc::UnboundedReceiver;
@@ -3376,7 +3450,7 @@
         <span class="kw">let </span>(metric_stats, <span class="kw">_</span>) = create_metric_stats();
 
         <span class="kw">let </span>project = create_project(<span class="prelude-val">None</span>);
-        project.rate_limit_and_merge_buckets(
+        project.process_and_merge_buckets(
             aggregator,
             envelope_processor,
             outcome_aggregator,
@@ -3408,7 +3482,7 @@
                <span class="string">"reasonCode"</span>: <span class="string">"foo"</span>,
            }]
         })));
-        project.rate_limit_and_merge_buckets(
+        project.process_and_merge_buckets(
             aggregator,
             envelope_processor,
             outcome_aggregator,
@@ -3440,7 +3514,7 @@
         <span class="kw">let </span>(metric_stats, <span class="kw">_</span>) = create_metric_stats();
 
         <span class="kw">let </span>project = create_project(<span class="prelude-val">None</span>);
-        project.rate_limit_and_merge_buckets(
+        project.process_and_merge_buckets(
             aggregator,
             envelope_processor,
             outcome_aggregator,
@@ -3472,7 +3546,7 @@
                <span class="string">"reasonCode"</span>: <span class="string">"foo"</span>,
            }]
         })));
-        project.rate_limit_and_merge_buckets(
+        project.process_and_merge_buckets(
             aggregator,
             envelope_processor,
             outcome_aggregator,
@@ -3707,10 +3781,7 @@
             metric_stats,
             ExtractionMode::Usage,
             <span class="kw-2">&amp;</span>project.state_value().unwrap(),
-            <span class="macro">vec!</span>[
-                create_custom_bucket_with_name(<span class="string">"cpu_time"</span>.into()),
-                create_custom_bucket_with_name(<span class="string">"memory_usage"</span>.into()),
-            ],
+            buckets.clone(),
         );
 
         <span class="comment">// We assert that one metric passes all the pre-processing.
@@ -3728,6 +3799,53 @@
             merge_buckets[<span class="number">0</span>].tags.get(<span class="string">"mri"</span>).unwrap().as_str(),
             <span class="kw-2">&amp;*</span>buckets[<span class="number">0</span>].name
         );
+    }
+
+    <span class="attr">#[tokio::test]
+    </span><span class="kw">async fn </span>test_pre_process_buckets_with_disabled_custom_namespace() {
+        <span class="kw">let </span>(aggregator, <span class="kw-2">mut </span>aggregator_rx) = Addr::custom();
+        <span class="kw">let </span>(outcome_aggregator, <span class="kw">_</span>) = Addr::custom();
+        <span class="kw">let </span>config = Config::from_json_value(<span class="macro">json!</span>({
+            <span class="string">"processing"</span>: {
+                <span class="string">"enabled"</span>: <span class="bool-val">true</span>,
+                <span class="string">"kafka_config"</span>: [],
+            }
+        }))
+        .unwrap();
+        <span class="kw">let </span><span class="kw-2">mut </span>global_config = GlobalConfig::default();
+        global_config.options.metric_stats_rollout_rate = <span class="number">1.0</span>;
+        <span class="kw">let </span>global_config = GlobalConfigHandle::fixed(global_config);
+        <span class="kw">let </span>metric_stats = MetricStats::new(Arc::new(config), global_config, aggregator);
+
+        <span class="kw">let </span>project = create_project(<span class="prelude-val">None</span>);
+        <span class="kw">let </span>buckets = <span class="macro">vec!</span>[
+            create_custom_bucket_with_name(<span class="string">"cpu_time"</span>.into()),
+            create_custom_bucket_with_name(<span class="string">"memory_usage"</span>.into()),
+        ];
+        <span class="kw">let </span>pre_processed_buckets = project.pre_process_buckets(
+            outcome_aggregator,
+            metric_stats,
+            ExtractionMode::Usage,
+            <span class="kw-2">&amp;</span>project.state_value().unwrap(),
+            buckets.clone(),
+        );
+
+        <span class="comment">// We assert that no metric passes all the pre-processing.
+        </span><span class="macro">assert!</span>(pre_processed_buckets.is_empty());
+
+        <span class="comment">// We assert that two metrics are emitted by metric stats.
+        </span><span class="kw">for _ in </span><span class="number">0</span>..<span class="number">2 </span>{
+            <span class="kw">let </span>value = aggregator_rx.recv().<span class="kw">await</span>.unwrap();
+            <span class="kw">let </span>Aggregator::MergeBuckets(merge_buckets) = value <span class="kw">else </span>{
+                <span class="macro">panic!</span>();
+            };
+            <span class="kw">let </span>merge_buckets = merge_buckets.buckets();
+            <span class="macro">assert_eq!</span>(merge_buckets.len(), <span class="number">1</span>);
+            <span class="kw">let </span>BucketValue::Counter(value) = buckets[<span class="number">0</span>].value <span class="kw">else </span>{
+                <span class="macro">panic!</span>();
+            };
+            <span class="macro">assert_eq!</span>(value, FiniteF64::new(<span class="number">1.0</span>).unwrap());
+        }
     }
 }
 </code></pre></div></section></main></body></html>

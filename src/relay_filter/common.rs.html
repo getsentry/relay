@@ -102,6 +102,10 @@
 <a href="#100" id="100">100</a>
 <a href="#101" id="101">101</a>
 <a href="#102" id="102">102</a>
+<a href="#103" id="103">103</a>
+<a href="#104" id="104">104</a>
+<a href="#105" id="105">105</a>
+<a href="#106" id="106">106</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::fmt;
 
@@ -143,6 +147,9 @@
     <span class="doccomment">/// Filtered due to name being denied.
     </span>DeniedName,
 
+    <span class="doccomment">/// Filtered due to the namespace being disabled.
+    </span>DisabledNamespace,
+
     <span class="doccomment">/// Filtered due to a generic filter.
     </span>GenericFilter(String),
 }
@@ -173,6 +180,7 @@
             FilterStatKey::InvalidCsp =&gt; <span class="string">"invalid-csp"</span>,
             FilterStatKey::FilteredTransactions =&gt; <span class="string">"filtered-transaction"</span>,
             FilterStatKey::DeniedName =&gt; <span class="string">"denied-name"</span>,
+            FilterStatKey::DisabledNamespace =&gt; <span class="string">"disabled-namespace"</span>,
             FilterStatKey::GenericFilter(filter_identifier) =&gt; {
                 <span class="kw">return </span>Cow::Owned(filter_identifier);
             }
