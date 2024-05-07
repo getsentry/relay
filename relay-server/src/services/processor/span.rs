@@ -1,7 +1,5 @@
 //! Processor code related to standalone spans.
 
-#[cfg(feature = "processing")]
-pub use processing::*;
 use relay_dynamic_config::Feature;
 use relay_event_normalization::span::tag_extraction;
 use relay_event_schema::protocol::{Event, Span};
@@ -12,12 +10,13 @@ use crate::{services::processor::ProcessEnvelopeState, utils::ItemAction};
 
 #[cfg(feature = "processing")]
 mod processing;
+#[cfg(feature = "processing")]
+pub use processing::*;
 
 pub fn filter(state: &mut ProcessEnvelopeState<SpanGroup>) {
     let standalone_span_ingestion_disabled = !state
         .project_state
         .has_feature(Feature::StandaloneSpanIngestion);
-
     state.managed_envelope.retain_items(|item| {
         if item.is_span() && standalone_span_ingestion_disabled {
             relay_log::warn!("dropping span because feature is disabled");
