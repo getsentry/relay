@@ -7,7 +7,7 @@ use relay_system::{
     Addr, AsyncResponse, Controller, FromMessage, Interface, Sender, Service, ShutdownHandle,
 };
 use std::future::Future;
-use sysinfo::{MemoryRefreshKind, RefreshKind, System};
+use sysinfo::{MemoryRefreshKind, System};
 use tokio::sync::watch;
 use tokio::time::{timeout, Instant};
 
