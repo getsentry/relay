@@ -2,13 +2,13 @@
 
 ## Unreleased
 
-**Features**:
-
-- Add support for inbound filters on standalone spans. ([#3552](https://github.com/getsentry/relay/pull/3552))
-
 **Bug fixes:**
 
 - Properly handle AI metrics from the Python SDK's `@ai_track` decorator ([#3539](https://github.com/getsentry/relay/pull/3539))
+
+**Features**:
+
+- Add support for inbound filters on standalone spans. ([#3552](https://github.com/getsentry/relay/pull/3552))
 
 **Internal**:
 
