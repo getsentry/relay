@@ -37,7 +37,7 @@ use crate::utils::{
 
 mod metrics;
 
-use self::metrics::{Buckets, PostProject, PreProject};
+use self::metrics::{Buckets, Filtered};
 
 /// The expiry status of a project state. Return value of [`ProjectState::check_expiry`].
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
@@ -419,7 +419,7 @@ enum GetOrFetch<'a> {
 #[derive(Debug)]
 enum State {
     Cached(Arc<ProjectState>),
-    Pending(Box<aggregator::Aggregator<PreProject>>),
+    Pending(Box<aggregator::Aggregator<Buckets<Filtered>>>),
 }
 
 impl State {
@@ -432,7 +432,7 @@ impl State {
 
     /// Sets the cached state using provided `ProjectState`.
     /// If the variant was pending, the buckets will be returned.
-    fn set_state(&mut self, state: Arc<ProjectState>) -> Option<PreProject> {
+    fn set_state(&mut self, state: Arc<ProjectState>) -> Option<Buckets<Filtered>> {
         match std::mem::replace(self, Self::Cached(state)) {
             State::Pending(agg) => Some(agg.into_buckets()),
             State::Cached(_) => None,
@@ -578,7 +578,7 @@ impl Project {
         outcome_aggregator: Addr<TrackOutcome>,
         metric_stats: MetricStats,
         state: &ProjectState,
-        buckets: PreProject,
+        buckets: Buckets<Filtered>,
     ) {
         let Some(scoping) = self.scoping() else {
             relay_log::error!(
@@ -594,12 +594,8 @@ impl Project {
             return;
         }
 
-        let buckets = buckets.transform(metrics::PostProjectTransform {
-            outcome_aggregator: &outcome_aggregator,
-            metric_stats: &metric_stats,
-            scoping,
-            state,
-        });
+        let buckets =
+            buckets.apply_project_state(&outcome_aggregator, &metric_stats, state, scoping);
 
         if buckets.is_empty() {
             return;
@@ -608,7 +604,6 @@ impl Project {
         // Check rate limits if necessary.
         let quotas = state.config.quotas.clone();
         let extraction_mode = state.get_extraction_mode();
-        let buckets: PostProject = buckets; // ensure buckets have been transformed
         let buckets = match MetricsLimiter::create(buckets, quotas, scoping, extraction_mode) {
             Ok(mut bucket_limiter) => {
                 let cached_rate_limits = self.rate_limits().clone();
@@ -650,7 +645,7 @@ impl Project {
             return;
         }
 
-        let buckets = Buckets::new(buckets).transform(metrics::PreProjectTransform { source });
+        let buckets = Buckets::new(buckets).filter_namespaces(source);
 
         match self.state {
             State::Cached(ref state) => {
