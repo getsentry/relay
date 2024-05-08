@@ -5807,7 +5807,7 @@
         rate_limiter: <span class="kw-2">&amp;</span>RedisRateLimiter,
     ) -&gt; Vec&lt;Bucket&gt; {
         <span class="kw">let </span>batch_size = <span class="self">self</span>.inner.config.metrics_max_batch_size_bytes();
-        <span class="kw">let </span>batched_bucket_iter = BucketsView::new(<span class="kw-2">&amp;</span>buckets).by_size(batch_size).flatten();
+        <span class="kw">let </span>batched_bucket_iter = BucketsView::from(<span class="kw-2">&amp;</span>buckets).by_size(batch_size).flatten();
         <span class="kw">let </span>quantities = utils::extract_metric_quantities(batched_bucket_iter, mode);
 
         <span class="comment">// Check with redis if the throughput limit has been exceeded, while also updating

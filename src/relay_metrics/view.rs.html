@@ -1089,33 +1089,6 @@
 <a href="#1087" id="1087">1087</a>
 <a href="#1088" id="1088">1088</a>
 <a href="#1089" id="1089">1089</a>
-<a href="#1090" id="1090">1090</a>
-<a href="#1091" id="1091">1091</a>
-<a href="#1092" id="1092">1092</a>
-<a href="#1093" id="1093">1093</a>
-<a href="#1094" id="1094">1094</a>
-<a href="#1095" id="1095">1095</a>
-<a href="#1096" id="1096">1096</a>
-<a href="#1097" id="1097">1097</a>
-<a href="#1098" id="1098">1098</a>
-<a href="#1099" id="1099">1099</a>
-<a href="#1100" id="1100">1100</a>
-<a href="#1101" id="1101">1101</a>
-<a href="#1102" id="1102">1102</a>
-<a href="#1103" id="1103">1103</a>
-<a href="#1104" id="1104">1104</a>
-<a href="#1105" id="1105">1105</a>
-<a href="#1106" id="1106">1106</a>
-<a href="#1107" id="1107">1107</a>
-<a href="#1108" id="1108">1108</a>
-<a href="#1109" id="1109">1109</a>
-<a href="#1110" id="1110">1110</a>
-<a href="#1111" id="1111">1111</a>
-<a href="#1112" id="1112">1112</a>
-<a href="#1113" id="1113">1113</a>
-<a href="#1114" id="1114">1114</a>
-<a href="#1115" id="1115">1115</a>
-<a href="#1116" id="1116">1116</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_common::time::UnixTimestamp;
 <span class="kw">use </span>serde::ser::{SerializeMap, SerializeSeq};
 <span class="kw">use </span>serde::Serialize;
@@ -1177,9 +1150,10 @@
 ///
 /// Using the above example, iterating over `View 1` yields the buckets:
 /// `[C:1], [C:12], [D:0, 1, 2, 3]`.
-</span><span class="kw">pub struct </span>BucketsView&lt;<span class="lifetime">'a</span>&gt; {
-    <span class="doccomment">/// Source slice of buckets.
-    </span>inner: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>[Bucket],
+</span><span class="attr">#[derive(Clone, Copy)]
+</span><span class="kw">pub struct </span>BucketsView&lt;T&gt; {
+    <span class="doccomment">/// The contained buckets.
+    </span>inner: T,
     <span class="doccomment">/// Start index.
     ///
     /// - Slice index indicates bucket.
@@ -1192,9 +1166,13 @@
     </span>end: Index,
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; BucketsView&lt;<span class="lifetime">'a</span>&gt; {
+<span class="kw">impl</span>&lt;T&gt; BucketsView&lt;T&gt;
+<span class="kw">where
+    </span>T: AsRef&lt;[Bucket]&gt;,
+{
     <span class="doccomment">/// Creates a new buckets view containing all data from the slice.
-    </span><span class="kw">pub fn </span>new(buckets: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>[Bucket]) -&gt; <span class="self">Self </span>{
+    </span><span class="kw">pub fn </span>new(buckets: T) -&gt; <span class="self">Self </span>{
+        <span class="kw">let </span>len = buckets.as_ref().len();
         <span class="self">Self </span>{
             inner: buckets,
             start: Index {
@@ -1202,7 +1180,7 @@
                 bucket: <span class="number">0</span>,
             },
             end: Index {
-                slice: buckets.len(),
+                slice: len,
                 bucket: <span class="number">0</span>,
             },
         }
@@ -1222,39 +1200,66 @@
         <span class="self">self</span>.len() == <span class="number">0
     </span>}
 
+    <span class="doccomment">/// Returns the same bucket view as a bucket view over a slice.
+    </span><span class="kw">pub fn </span>as_slice(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; BucketsView&lt;<span class="kw-2">&amp;</span>[Bucket]&gt; {
+        BucketsView {
+            inner: <span class="self">self</span>.inner.as_ref(),
+            start: <span class="self">self</span>.start,
+            end: <span class="self">self</span>.end,
+        }
+    }
+
     <span class="doccomment">/// Iterator over all buckets in the view.
-    </span><span class="kw">pub fn </span>iter(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; BucketsViewIter&lt;<span class="lifetime">'a</span>&gt; {
-        BucketsViewIter::new(<span class="self">self</span>.inner, <span class="self">self</span>.start, <span class="self">self</span>.end)
+    </span><span class="kw">pub fn </span>iter(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; BucketsViewIter&lt;<span class="lifetime">'_</span>&gt; {
+        BucketsViewIter::new(<span class="self">self</span>.inner.as_ref(), <span class="self">self</span>.start, <span class="self">self</span>.end)
     }
 
     <span class="doccomment">/// Iterator which slices the source view into segments with an approximate size of `size_in_bytes`.
-    </span><span class="kw">pub fn </span>by_size(<span class="kw-2">&amp;</span><span class="self">self</span>, size_in_bytes: usize) -&gt; BucketsViewBySizeIter&lt;<span class="lifetime">'a</span>&gt; {
+    </span><span class="kw">pub fn </span>by_size(<span class="self">self</span>, size_in_bytes: usize) -&gt; BucketsViewBySizeIter&lt;T&gt; {
         BucketsViewBySizeIter::new(<span class="self">self</span>.inner, <span class="self">self</span>.start, <span class="self">self</span>.end, size_in_bytes)
     }
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; fmt::Debug <span class="kw">for </span>BucketsView&lt;<span class="lifetime">'a</span>&gt; {
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; From&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>[Bucket]&gt; <span class="kw">for </span>BucketsView&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>[Bucket]&gt; {
+    <span class="kw">fn </span>from(value: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>[Bucket]) -&gt; <span class="self">Self </span>{
+        <span class="self">Self</span>::new(value)
+    }
+}
+
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; From&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>Vec&lt;Bucket&gt;&gt; <span class="kw">for </span>BucketsView&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>[Bucket]&gt; {
+    <span class="kw">fn </span>from(value: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>Vec&lt;Bucket&gt;) -&gt; <span class="self">Self </span>{
+        <span class="self">Self</span>::new(value.as_slice())
+    }
+}
+
+<span class="kw">impl</span>&lt;T&gt; fmt::Debug <span class="kw">for </span>BucketsView&lt;T&gt;
+<span class="kw">where
+    </span>T: AsRef&lt;[Bucket]&gt;,
+{
     <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
         <span class="kw">let </span>contents = <span class="self">self</span>.iter().collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
         f.debug_tuple(<span class="string">"BucketsView"</span>).field(<span class="kw-2">&amp;</span>contents).finish()
     }
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; IntoIterator <span class="kw">for </span>BucketsView&lt;<span class="lifetime">'a</span>&gt; {
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; IntoIterator <span class="kw">for </span>BucketsView&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>[Bucket]&gt; {
     <span class="kw">type </span>Item = BucketView&lt;<span class="lifetime">'a</span>&gt;;
     <span class="kw">type </span>IntoIter = BucketsViewIter&lt;<span class="lifetime">'a</span>&gt;;
 
     <span class="kw">fn </span>into_iter(<span class="self">self</span>) -&gt; <span class="self">Self</span>::IntoIter {
-        <span class="self">self</span>.iter()
+        BucketsViewIter::new(<span class="self">self</span>.inner, <span class="self">self</span>.start, <span class="self">self</span>.end)
     }
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; IntoIterator <span class="kw">for </span><span class="kw-2">&amp;</span><span class="lifetime">'_ </span>BucketsView&lt;<span class="lifetime">'a</span>&gt; {
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>, T&gt; IntoIterator <span class="kw">for </span><span class="kw-2">&amp;</span><span class="lifetime">'a </span>BucketsView&lt;T&gt;
+<span class="kw">where
+    </span>T: AsRef&lt;[Bucket]&gt;,
+{
     <span class="kw">type </span>Item = BucketView&lt;<span class="lifetime">'a</span>&gt;;
     <span class="kw">type </span>IntoIter = BucketsViewIter&lt;<span class="lifetime">'a</span>&gt;;
 
     <span class="kw">fn </span>into_iter(<span class="self">self</span>) -&gt; <span class="self">Self</span>::IntoIter {
-        <span class="self">self</span>.iter()
+        BucketsViewIter::new(<span class="self">self</span>.inner.as_ref(), <span class="self">self</span>.start, <span class="self">self</span>.end)
     }
 }
 
@@ -1330,9 +1335,9 @@
 <span class="doccomment">/// Iterator slicing a [`BucketsView`] into smaller views constrained by a given size in bytes.
 ///
 </span><span class="comment">// See [`estimate_size`] for how the size of a bucket is calculated.
-</span><span class="kw">pub struct </span>BucketsViewBySizeIter&lt;<span class="lifetime">'a</span>&gt; {
+</span><span class="kw">pub struct </span>BucketsViewBySizeIter&lt;T&gt; {
     <span class="doccomment">/// Source slice.
-    </span>inner: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>[Bucket],
+    </span>inner: T,
     <span class="doccomment">/// Current position in the slice.
     </span>current: Index,
     <span class="doccomment">/// Terminal position.
@@ -1341,11 +1346,11 @@
     </span>max_size_bytes: usize,
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; BucketsViewBySizeIter&lt;<span class="lifetime">'a</span>&gt; {
+<span class="kw">impl</span>&lt;T&gt; BucketsViewBySizeIter&lt;T&gt; {
     <span class="doccomment">/// Creates a new iterator.
     ///
     /// Start and end must be valid indices or iterator may end early.
-    </span><span class="kw">fn </span>new(inner: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>[Bucket], start: Index, end: Index, max_size_bytes: usize) -&gt; <span class="self">Self </span>{
+    </span><span class="kw">fn </span>new(inner: T, start: Index, end: Index, max_size_bytes: usize) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{
             inner,
             end,
@@ -1355,8 +1360,12 @@
     }
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; Iterator <span class="kw">for </span>BucketsViewBySizeIter&lt;<span class="lifetime">'a</span>&gt; {
-    <span class="kw">type </span>Item = BucketsView&lt;<span class="lifetime">'a</span>&gt;;
+<span class="kw">impl</span>&lt;T&gt; Iterator <span class="kw">for </span>BucketsViewBySizeIter&lt;T&gt;
+<span class="kw">where
+    </span>T: AsRef&lt;[Bucket]&gt;,
+    T: Clone,
+{
+    <span class="kw">type </span>Item = BucketsView&lt;T&gt;;
 
     <span class="kw">fn </span>next(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="self">Self</span>::Item&gt; {
         <span class="kw">let </span>start = <span class="self">self</span>.current;
@@ -1370,14 +1379,15 @@
                 <span class="kw">break</span>;
             }
 
+            <span class="kw">let </span>inner = <span class="self">self</span>.inner.as_ref();
             <span class="comment">// Select next potential bucket,
             // this should never overflow because `end` will never go past the slice and
             // we just validated that current is constrained by end.
             </span><span class="macro">debug_assert!</span>(
-                <span class="self">self</span>.current.slice &lt; <span class="self">self</span>.inner.len(),
+                <span class="self">self</span>.current.slice &lt; inner.len(),
                 <span class="string">"invariant violated, iterator pointing past the slice"
             </span>);
-            <span class="kw">let </span>bucket = <span class="self">self</span>.inner.get(<span class="self">self</span>.current.slice)<span class="question-mark">?</span>;
+            <span class="kw">let </span>bucket = inner.get(<span class="self">self</span>.current.slice)<span class="question-mark">?</span>;
 
             <span class="comment">// Selection should never fail, because either we select the entire range,
             // or we previously already split the bucket, which means this range is good.
@@ -1421,14 +1431,17 @@
         <span class="comment">// Current is the current for the next batch now,
         // which means, current is the end for this batch.
         </span><span class="prelude-val">Some</span>(BucketsView {
-            inner: <span class="self">self</span>.inner,
+            inner: <span class="self">self</span>.inner.clone(),
             start,
             end: <span class="self">self</span>.current,
         })
     }
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; Serialize <span class="kw">for </span>BucketsView&lt;<span class="lifetime">'a</span>&gt; {
+<span class="kw">impl</span>&lt;T&gt; Serialize <span class="kw">for </span>BucketsView&lt;T&gt;
+<span class="kw">where
+    </span>T: AsRef&lt;[Bucket]&gt;,
+{
     <span class="kw">fn </span>serialize&lt;S&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, serializer: S) -&gt; <span class="prelude-ty">Result</span>&lt;S::Ok, S::Error&gt;
     <span class="kw">where
         </span>S: serde::Serializer,
@@ -1838,6 +1851,8 @@
 
 <span class="attr">#[cfg(test)]
 </span><span class="kw">mod </span>tests {
+    <span class="kw">use </span>std::sync::Arc;
+
     <span class="kw">use </span>insta::assert_json_snapshot;
 
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
@@ -1951,10 +1966,19 @@
         <span class="macro">assert!</span>(BucketView::new(<span class="kw-2">&amp;</span>bucket).select(<span class="number">5</span>..<span class="number">6</span>).is_none());
     }
 
+    <span class="kw">fn </span>buckets&lt;T&gt;(s: <span class="kw-2">&amp;</span>[u8]) -&gt; T
+    <span class="kw">where
+        </span>T: FromIterator&lt;Bucket&gt;,
+    {
+        <span class="kw">let </span>timestamp = UnixTimestamp::from_secs(<span class="number">5000</span>);
+        Bucket::parse_all(s, timestamp)
+            .collect::&lt;<span class="prelude-ty">Result</span>&lt;T, <span class="kw">_</span>&gt;&gt;()
+            .unwrap()
+    }
+
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_buckets_view_empty() {
-        <span class="kw">let </span>buckets = Vec::new();
-        <span class="kw">let </span>view = BucketsView::new(<span class="kw-2">&amp;</span>buckets);
+        <span class="kw">let </span>view = BucketsView::new(Vec::new());
         <span class="macro">assert_eq!</span>(view.len(), <span class="number">0</span>);
         <span class="macro">assert!</span>(view.is_empty());
         <span class="kw">let </span>partials = view.iter().collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
@@ -1963,18 +1987,9 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_buckets_view_iter_full() {
-        <span class="kw">let </span>b = <span class="string">br#"
-b0:1|c
-b1:12|c
-b2:1:2:3:5:5|d
-b3:42:75|s"#</span>;
+        <span class="kw">let </span>buckets: Vec&lt;<span class="kw">_</span>&gt; = buckets(<span class="string">b"b0:1|c\nb1:12|c\nb2:1:2:3:5:5|d\nb3:42:75|s"</span>);
 
-        <span class="kw">let </span>timestamp = UnixTimestamp::from_secs(<span class="number">5000</span>);
-        <span class="kw">let </span>buckets = Bucket::parse_all(b, timestamp)
-            .collect::&lt;<span class="prelude-ty">Result</span>&lt;Vec&lt;<span class="kw">_</span>&gt;, <span class="kw">_</span>&gt;&gt;()
-            .unwrap();
-
-        <span class="kw">let </span>view = BucketsView::new(<span class="kw-2">&amp;</span>buckets);
+        <span class="kw">let </span>view = BucketsView::from(<span class="kw-2">&amp;</span>buckets);
         <span class="macro">assert_eq!</span>(view.len(), <span class="number">4</span>);
         <span class="macro">assert!</span>(!view.is_empty());
         <span class="kw">let </span>partials = view.iter().collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
@@ -1991,16 +2006,7 @@ b3:42:75|s"#</span>;
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_buckets_view_iter_partial_end() {
-        <span class="kw">let </span>b = <span class="string">br#"
-b0:1|c
-b1:12|c
-b2:1:2:3:5:5|d
-b3:42:75|s"#</span>;
-
-        <span class="kw">let </span>timestamp = UnixTimestamp::from_secs(<span class="number">5000</span>);
-        <span class="kw">let </span>buckets = Bucket::parse_all(b, timestamp)
-            .collect::&lt;<span class="prelude-ty">Result</span>&lt;Vec&lt;<span class="kw">_</span>&gt;, <span class="kw">_</span>&gt;&gt;()
-            .unwrap();
+        <span class="kw">let </span>buckets: Vec&lt;<span class="kw">_</span>&gt; = buckets(<span class="string">b"b0:1|c\nb1:12|c\nb2:1:2:3:5:5|d\nb3:42:75|s"</span>);
 
         <span class="kw">let </span><span class="kw-2">mut </span>view = BucketsView::new(<span class="kw-2">&amp;</span>buckets);
         view.end.slice = <span class="number">2</span>;
@@ -2020,18 +2026,9 @@ b3:42:75|s"#</span>;
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_buckets_view_iter_partial_start() {
-        <span class="kw">let </span>b = <span class="string">br#"
-b0:1|c
-b1:12|c
-b2:1:2:3:5:5|d
-b3:42:75|s"#</span>;
+        <span class="kw">let </span>buckets: Vec&lt;<span class="kw">_</span>&gt; = buckets(<span class="string">b"b0:1|c\nb1:12|c\nb2:1:2:3:5:5|d\nb3:42:75|s"</span>);
 
-        <span class="kw">let </span>timestamp = UnixTimestamp::from_secs(<span class="number">5000</span>);
-        <span class="kw">let </span>buckets = Bucket::parse_all(b, timestamp)
-            .collect::&lt;<span class="prelude-ty">Result</span>&lt;Vec&lt;<span class="kw">_</span>&gt;, <span class="kw">_</span>&gt;&gt;()
-            .unwrap();
-
-        <span class="kw">let </span><span class="kw-2">mut </span>view = BucketsView::new(<span class="kw-2">&amp;</span>buckets);
+        <span class="kw">let </span><span class="kw-2">mut </span>view = BucketsView::new(buckets);
         view.start.slice = <span class="number">2</span>;
         view.start.bucket = <span class="number">3</span>;
         <span class="macro">assert_eq!</span>(view.len(), <span class="number">2</span>);
@@ -2047,18 +2044,9 @@ b3:42:75|s"#</span>;
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_buckets_view_iter_partial_start_and_end() {
-        <span class="kw">let </span>b = <span class="string">br#"
-b0:1|c
-b1:12|c
-b2:1:2:3:5:5|d
-b3:42:75|s"#</span>;
+        <span class="kw">let </span>buckets: Vec&lt;<span class="kw">_</span>&gt; = buckets(<span class="string">b"b0:1|c\nb1:12|c\nb2:1:2:3:5:5|d\nb3:42:75|s"</span>);
 
-        <span class="kw">let </span>timestamp = UnixTimestamp::from_secs(<span class="number">5000</span>);
-        <span class="kw">let </span>buckets = Bucket::parse_all(b, timestamp)
-            .collect::&lt;<span class="prelude-ty">Result</span>&lt;Vec&lt;<span class="kw">_</span>&gt;, <span class="kw">_</span>&gt;&gt;()
-            .unwrap();
-
-        <span class="kw">let </span><span class="kw-2">mut </span>view = BucketsView::new(<span class="kw-2">&amp;</span>buckets);
+        <span class="kw">let </span><span class="kw-2">mut </span>view = BucketsView::from(<span class="kw-2">&amp;</span>buckets);
         view.start.slice = <span class="number">2</span>;
         view.start.bucket = <span class="number">1</span>;
         view.end.slice = <span class="number">3</span>;
@@ -2076,18 +2064,26 @@ b3:42:75|s"#</span>;
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_buckets_view_by_size_small() {
-        <span class="kw">let </span>b = <span class="string">br#"
-b0:1|c
-b1:12|c
-b2:1:2:3:5:5|d
-b3:42:75|s"#</span>;
+        <span class="kw">let </span>buckets: Vec&lt;<span class="kw">_</span>&gt; = buckets(<span class="string">b"b0:1|c\nb1:12|c\nb2:1:2:3:5:5|d\nb3:42:75|s"</span>);
 
-        <span class="kw">let </span>timestamp = UnixTimestamp::from_secs(<span class="number">5000</span>);
-        <span class="kw">let </span>buckets = Bucket::parse_all(b, timestamp)
-            .collect::&lt;<span class="prelude-ty">Result</span>&lt;Vec&lt;<span class="kw">_</span>&gt;, <span class="kw">_</span>&gt;&gt;()
-            .unwrap();
+        <span class="kw">let </span>view = BucketsView::from(<span class="kw-2">&amp;</span>buckets);
+        <span class="kw">let </span>partials = view
+            .by_size(<span class="number">100</span>)
+            .map(|bv| {
+                <span class="kw">let </span>len: usize = bv.iter().map(|b| b.len()).sum();
+                <span class="kw">let </span>size: usize = bv.iter().map(|b| b.estimated_size()).sum();
+                (len, size)
+            })
+            .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
 
-        <span class="kw">let </span>view = BucketsView::new(<span class="kw-2">&amp;</span>buckets);
+        <span class="macro">assert_eq!</span>(partials, <span class="macro">vec!</span>[(<span class="number">1</span>, <span class="number">74</span>), (<span class="number">1</span>, <span class="number">74</span>), (<span class="number">4</span>, <span class="number">98</span>), (<span class="number">1</span>, <span class="number">74</span>), (<span class="number">2</span>, <span class="number">82</span>),]);
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_buckets_view_by_size_small_as_arc() {
+        <span class="kw">let </span>buckets: Arc&lt;<span class="kw">_</span>&gt; = buckets(<span class="string">b"b0:1|c\nb1:12|c\nb2:1:2:3:5:5|d\nb3:42:75|s"</span>);
+
+        <span class="kw">let </span>view = BucketsView::new(buckets);
         <span class="kw">let </span>partials = view
             .by_size(<span class="number">100</span>)
             .map(|bv| {
@@ -2102,18 +2098,9 @@ b3:42:75|s"#</span>;
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_buckets_view_by_size_one_split() {
-        <span class="kw">let </span>b = <span class="string">br#"
-b0:1|c
-b1:12|c
-b2:1:2:3:5:5|d
-b3:42:75|s"#</span>;
+        <span class="kw">let </span>buckets: Vec&lt;<span class="kw">_</span>&gt; = buckets(<span class="string">b"b0:1|c\nb1:12|c\nb2:1:2:3:5:5|d\nb3:42:75|s"</span>);
 
-        <span class="kw">let </span>timestamp = UnixTimestamp::from_secs(<span class="number">5000</span>);
-        <span class="kw">let </span>buckets = Bucket::parse_all(b, timestamp)
-            .collect::&lt;<span class="prelude-ty">Result</span>&lt;Vec&lt;<span class="kw">_</span>&gt;, <span class="kw">_</span>&gt;&gt;()
-            .unwrap();
-
-        <span class="kw">let </span>view = BucketsView::new(<span class="kw-2">&amp;</span>buckets);
+        <span class="kw">let </span>view = BucketsView::from(<span class="kw-2">&amp;</span>buckets);
         <span class="kw">let </span>partials = view
             .by_size(<span class="number">250</span>)
             .map(|bv| {
@@ -2128,18 +2115,9 @@ b3:42:75|s"#</span>;
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_buckets_view_by_size_no_split() {
-        <span class="kw">let </span>b = <span class="string">br#"
-b0:1|c
-b1:12|c
-b2:1:2:3:5:5|d
-b3:42:75|s"#</span>;
+        <span class="kw">let </span>buckets: Vec&lt;<span class="kw">_</span>&gt; = buckets(<span class="string">b"b0:1|c\nb1:12|c\nb2:1:2:3:5:5|d\nb3:42:75|s"</span>);
 
-        <span class="kw">let </span>timestamp = UnixTimestamp::from_secs(<span class="number">5000</span>);
-        <span class="kw">let </span>buckets = Bucket::parse_all(b, timestamp)
-            .collect::&lt;<span class="prelude-ty">Result</span>&lt;Vec&lt;<span class="kw">_</span>&gt;, <span class="kw">_</span>&gt;&gt;()
-            .unwrap();
-
-        <span class="kw">let </span>view = BucketsView::new(<span class="kw-2">&amp;</span>buckets);
+        <span class="kw">let </span>view = BucketsView::from(<span class="kw-2">&amp;</span>buckets);
         <span class="kw">let </span>partials = view
             .by_size(<span class="number">500</span>)
             .map(|bv| {
@@ -2154,18 +2132,9 @@ b3:42:75|s"#</span>;
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_buckets_view_by_size_no_too_small_no_bucket_fits() {
-        <span class="kw">let </span>b = <span class="string">br#"
-b0:1|c
-b1:12|c
-b2:1:2:3:5:5|d
-b3:42:75|s"#</span>;
+        <span class="kw">let </span>buckets: Vec&lt;<span class="kw">_</span>&gt; = buckets(<span class="string">b"b0:1|c\nb1:12|c\nb2:1:2:3:5:5|d\nb3:42:75|s"</span>);
 
-        <span class="kw">let </span>timestamp = UnixTimestamp::from_secs(<span class="number">5000</span>);
-        <span class="kw">let </span>buckets = Bucket::parse_all(b, timestamp)
-            .collect::&lt;<span class="prelude-ty">Result</span>&lt;Vec&lt;<span class="kw">_</span>&gt;, <span class="kw">_</span>&gt;&gt;()
-            .unwrap();
-
-        <span class="kw">let </span>view = BucketsView::new(<span class="kw-2">&amp;</span>buckets);
+        <span class="kw">let </span>view = BucketsView::from(<span class="kw-2">&amp;</span>buckets);
         <span class="kw">let </span>partials = view
             .by_size(<span class="number">50</span>) <span class="comment">// Too small, a bucket requires at least 74 bytes
             </span>.count();
@@ -2175,15 +2144,9 @@ b3:42:75|s"#</span>;
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_buckets_view_by_size_do_not_split_gauge() {
-        <span class="kw">let </span>b = <span class="string">br#"
-transactions/foo:25:17:42:220:85|g"#</span>;
+        <span class="kw">let </span>buckets: Vec&lt;<span class="kw">_</span>&gt; = buckets(<span class="string">b"transactions/foo:25:17:42:220:85|g"</span>);
 
-        <span class="kw">let </span>timestamp = UnixTimestamp::from_secs(<span class="number">5000</span>);
-        <span class="kw">let </span>buckets = Bucket::parse_all(b, timestamp)
-            .collect::&lt;<span class="prelude-ty">Result</span>&lt;Vec&lt;<span class="kw">_</span>&gt;, <span class="kw">_</span>&gt;&gt;()
-            .unwrap();
-
-        <span class="kw">let </span>view = BucketsView::new(<span class="kw-2">&amp;</span>buckets);
+        <span class="kw">let </span>view = BucketsView::from(<span class="kw-2">&amp;</span>buckets);
         <span class="comment">// 100 is too small to fit the gauge, but it is big enough to fit half a gauage,
         // make sure the gauge does not actually get split.
         </span><span class="kw">let </span>partials = view.by_size(<span class="number">100</span>).count();
@@ -2193,38 +2156,21 @@ transactions/foo:25:17:42:220:85|g"#</span>;
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_buckets_view_serialize_full() {
-        <span class="kw">let </span>b = <span class="string">br#"
-b0:1|c
-b1:12|c|#foo,bar:baz
-b2:1:2:3:5:5|d|#foo,bar:baz
-b3:42:75|s
-transactions/foo:25:17:42:220:85|g"#</span>;
-
-        <span class="kw">let </span>timestamp = UnixTimestamp::from_secs(<span class="number">5000</span>);
-        <span class="kw">let </span>buckets = Bucket::parse_all(b, timestamp)
-            .collect::&lt;<span class="prelude-ty">Result</span>&lt;Vec&lt;<span class="kw">_</span>&gt;, <span class="kw">_</span>&gt;&gt;()
-            .unwrap();
+        <span class="kw">let </span>buckets: Vec&lt;<span class="kw">_</span>&gt; = buckets(<span class="string">b"b0:1|c\nb1:12|c|#foo,bar:baz\nb2:1:2:3:5:5|d|#foo,bar:baz b3:42:75|s\ntransactions/foo:25:17:42:220:85|g"</span>);
 
         <span class="macro">assert_eq!</span>(
-            serde_json::to_string(<span class="kw-2">&amp;</span>BucketsView::new(<span class="kw-2">&amp;</span>buckets)).unwrap(),
+            serde_json::to_string(<span class="kw-2">&amp;</span>BucketsView::from(<span class="kw-2">&amp;</span>buckets)).unwrap(),
             serde_json::to_string(<span class="kw-2">&amp;</span>buckets).unwrap()
         );
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_buckets_view_serialize_partial() {
-        <span class="kw">let </span>b = <span class="string">br#"
-b1:12|c|#foo,bar:baz
-b2:1:2:3:5:5|d|#foo,bar:baz
-b3:42:75|s
-b4:25:17:42:220:85|g"#</span>;
+        <span class="kw">let </span>buckets: Arc&lt;[<span class="kw">_</span>]&gt; = buckets(
+            <span class="string">b"b1:12|c|#foo,bar:baz\nb2:1:2:3:5:5|d|#foo,bar:baz\nb3:42:75|s\nb4:25:17:42:220:85|g"</span>,
+        );
 
-        <span class="kw">let </span>timestamp = UnixTimestamp::from_secs(<span class="number">5000</span>);
-        <span class="kw">let </span>buckets = Bucket::parse_all(b, timestamp)
-            .collect::&lt;<span class="prelude-ty">Result</span>&lt;Vec&lt;<span class="kw">_</span>&gt;, <span class="kw">_</span>&gt;&gt;()
-            .unwrap();
-
-        <span class="kw">let </span>view = BucketsView::new(<span class="kw-2">&amp;</span>buckets);
+        <span class="kw">let </span>view = BucketsView::new(buckets);
         <span class="comment">// This creates 4 separate views, spanning 1-2, 2-3, 3, 4.
         // 4 is too big to fit into a view together with the remainder of 3.
         </span><span class="kw">let </span>partials = view.by_size(<span class="number">178</span>).collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
