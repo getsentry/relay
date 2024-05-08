@@ -1653,7 +1653,7 @@ def test_span_filtering_with_generic_inbound_filter(
 
 
 def test_span_filtering_with_releases_inbound_filter(
-    mini_sentry, relay_with_processing, spans_consumer
+    mini_sentry, relay_with_processing, spans_consumer, outcomes_consumer
 ):
     relay = relay_with_processing(options=TEST_CONFIG)
     project_id = 42
@@ -1662,6 +1662,7 @@ def test_span_filtering_with_releases_inbound_filter(
     project_config["config"]["filterSettings"] = {"releases": {"releases": ["1.0"]}}
 
     spans_consumer = spans_consumer()
+    outcomes_consumer = outcomes_consumer()
 
     end = datetime.now(timezone.utc) - timedelta(seconds=1)
     duration = timedelta(milliseconds=500)
@@ -1692,3 +1693,10 @@ def test_span_filtering_with_releases_inbound_filter(
 
     spans = spans_consumer.get_spans(timeout=10.0, max_attempts=6)
     assert len(spans) == 0
+
+    outcomes = outcomes_consumer.get_outcomes()
+    print(outcomes)
+
+    spans_consumer.assert_empty()
+    outcomes_consumer.assert_empty()
+
