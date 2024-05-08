@@ -1579,6 +1579,8 @@ def test_span_metrics_secondary_aggregator(
     processing.send_transaction(project_id, transaction)
 
     metrics = metrics_consumer.get_metrics()
+    for metric in metrics:
+        del metric["received_at"]
 
     # Transaction metrics are still aggregated:
     assert all([m[0]["name"].startswith("spans", 2) for m in metrics])
@@ -1605,7 +1607,7 @@ def test_span_metrics_secondary_aggregator(
                 },
                 "timestamp": int(timestamp.timestamp()),
                 "type": "d",
-                "value": [123],
+                "value": [123.0],
             },
             [("namespace", b"spans")],
         ),
@@ -1618,7 +1620,7 @@ def test_span_metrics_secondary_aggregator(
                 "tags": {"span.op": "default"},
                 "timestamp": int(timestamp.timestamp()),
                 "type": "d",
-                "value": [3],
+                "value": [3.0],
             },
             [("namespace", b"spans")],
         ),

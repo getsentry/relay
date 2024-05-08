@@ -638,6 +638,7 @@ def test_span_ingestion(
     metrics.sort(key=lambda m: (m["name"], sorted(m["tags"].items()), m["timestamp"]))
     for metric in metrics:
         try:
+            del metric["received_at"]
             metric["value"].sort()
         except AttributeError:
             pass
