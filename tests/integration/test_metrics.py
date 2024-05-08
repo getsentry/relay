@@ -1,5 +1,4 @@
 import hashlib
-import unittest
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
@@ -13,7 +12,7 @@ from requests.exceptions import HTTPError
 import queue
 
 from .test_envelope import generate_transaction_item
-from .asserts import time_after, time_within, time_within_delta
+from .asserts import time_after, time_within_delta
 
 TEST_CONFIG = {
     "aggregator": {
