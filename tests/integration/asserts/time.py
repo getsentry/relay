@@ -12,10 +12,12 @@ class _WithinBounds:
         return self._lower_bound <= other <= self._upper_bound
 
 
-def time_within(lower_bound, upper_bound=None):
-    if upper_bound is None:
-        upper_bound = int(datetime.now(tz=timezone.utc).timestamp())
-        
+def time_after(lower_bound):
+    upper_bound = int(datetime.now(tz=timezone.utc).timestamp())
+    return time_within(lower_bound, upper_bound)
+
+
+def time_within(lower_bound, upper_bound):
     assert lower_bound <= upper_bound
     return _WithinBounds(lower_bound, upper_bound)
 
