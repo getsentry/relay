@@ -2450,30 +2450,6 @@
 <a href="#2448" id="2448">2448</a>
 <a href="#2449" id="2449">2449</a>
 <a href="#2450" id="2450">2450</a>
-<a href="#2451" id="2451">2451</a>
-<a href="#2452" id="2452">2452</a>
-<a href="#2453" id="2453">2453</a>
-<a href="#2454" id="2454">2454</a>
-<a href="#2455" id="2455">2455</a>
-<a href="#2456" id="2456">2456</a>
-<a href="#2457" id="2457">2457</a>
-<a href="#2458" id="2458">2458</a>
-<a href="#2459" id="2459">2459</a>
-<a href="#2460" id="2460">2460</a>
-<a href="#2461" id="2461">2461</a>
-<a href="#2462" id="2462">2462</a>
-<a href="#2463" id="2463">2463</a>
-<a href="#2464" id="2464">2464</a>
-<a href="#2465" id="2465">2465</a>
-<a href="#2466" id="2466">2466</a>
-<a href="#2467" id="2467">2467</a>
-<a href="#2468" id="2468">2468</a>
-<a href="#2469" id="2469">2469</a>
-<a href="#2470" id="2470">2470</a>
-<a href="#2471" id="2471">2471</a>
-<a href="#2472" id="2472">2472</a>
-<a href="#2473" id="2473">2473</a>
-<a href="#2474" id="2474">2474</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::io::Write;
@@ -2723,8 +2699,6 @@
     </span><span class="kw">pub </span>outcome_source: <span class="prelude-ty">Option</span>&lt;String&gt;,
     <span class="doccomment">/// shutdown timeout
     </span><span class="kw">pub </span>shutdown_timeout: <span class="prelude-ty">Option</span>&lt;String&gt;,
-    <span class="doccomment">/// AWS Extensions API URL
-    </span><span class="kw">pub </span>aws_runtime_api: <span class="prelude-ty">Option</span>&lt;String&gt;,
 }
 
 <span class="doccomment">/// The relay credentials
@@ -3773,16 +3747,6 @@
     </span><span class="kw">pub </span>static_relays: HashMap&lt;RelayId, RelayInfo&gt;,
 }
 
-<span class="doccomment">/// AWS extension config.
-</span><span class="attr">#[derive(Serialize, Deserialize, Debug, Default)]
-</span><span class="kw">pub struct </span>AwsConfig {
-    <span class="doccomment">/// The host and port of the AWS lambda extensions API.
-    ///
-    /// This value can be found in the `AWS_LAMBDA_RUNTIME_API` environment variable in a Lambda
-    /// Runtime and contains a socket address, usually `"127.0.0.1:9001"`.
-    </span><span class="kw">pub </span>runtime_api: <span class="prelude-ty">Option</span>&lt;String&gt;,
-}
-
 <span class="doccomment">/// GeoIp database configuration options.
 </span><span class="attr">#[derive(Serialize, Deserialize, Debug, Default)]
 </span><span class="kw">pub struct </span>GeoIpConfig {
@@ -3925,8 +3889,6 @@
     </span>secondary_aggregators: Vec&lt;ScopedAggregatorConfig&gt;,
     <span class="attr">#[serde(default)]
     </span>auth: AuthConfig,
-    <span class="attr">#[serde(default)]
-    </span>aws: AwsConfig,
     <span class="attr">#[serde(default)]
     </span>geoip: GeoIpConfig,
     <span class="attr">#[serde(default)]
@@ -4136,11 +4098,6 @@
             <span class="kw">if let </span><span class="prelude-val">Ok</span>(shutdown_timeout) = shutdown_timeout.parse::&lt;u64&gt;() {
                 limits.shutdown_timeout = shutdown_timeout;
             }
-        }
-
-        <span class="kw">let </span>aws = <span class="kw-2">&amp;mut </span><span class="self">self</span>.values.aws;
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(aws_runtime_api) = overrides.aws_runtime_api {
-            aws.runtime_api = <span class="prelude-val">Some</span>(aws_runtime_api);
         }
 
         <span class="prelude-val">Ok</span>(<span class="self">self</span>)
@@ -4894,11 +4851,6 @@
     </span><span class="kw">pub fn </span>accept_unknown_items(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
         <span class="kw">let </span>forward = <span class="self">self</span>.values.routing.accept_unknown_items;
         forward.unwrap_or_else(|| !<span class="self">self</span>.processing_enabled())
-    }
-
-    <span class="doccomment">/// Returns the host and port of the AWS lambda runtime API.
-    </span><span class="kw">pub fn </span>aws_runtime_api(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt; {
-        <span class="self">self</span>.values.aws.runtime_api.as_deref()
     }
 }
 

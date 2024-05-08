@@ -306,13 +306,6 @@
 <a href="#304" id="304">304</a>
 <a href="#305" id="305">305</a>
 <a href="#306" id="306">306</a>
-<a href="#307" id="307">307</a>
-<a href="#308" id="308">308</a>
-<a href="#309" id="309">309</a>
-<a href="#310" id="310">310</a>
-<a href="#311" id="311">311</a>
-<a href="#312" id="312">312</a>
-<a href="#313" id="313">313</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::convert::Infallible;
 <span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::sync::Arc;
@@ -321,7 +314,6 @@
 <span class="kw">use </span>anyhow::{Context, <span class="prelude-ty">Result</span>};
 <span class="kw">use </span>axum::extract::FromRequestParts;
 <span class="kw">use </span>axum::http::request::Parts;
-<span class="kw">use </span>relay_aws_extension::AwsExtension;
 <span class="kw">use </span>relay_cogs::Cogs;
 <span class="kw">use </span>relay_config::Config;
 <span class="kw">use </span>relay_metrics::Aggregator;
@@ -528,12 +520,6 @@
         )
         .start();
         <span class="kw">let </span>relay_cache = RelayCacheService::new(config.clone(), upstream_relay.clone()).start();
-
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(aws_api) = config.aws_runtime_api() {
-            <span class="kw">if let </span><span class="prelude-val">Ok</span>(aws_extension) = AwsExtension::new(aws_api) {
-                aws_extension.start();
-            }
-        }
 
         <span class="kw">let </span>registry = Registry {
             aggregator,
