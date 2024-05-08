@@ -1346,8 +1346,8 @@ pub struct Health {
     /// Shorter intervals will decrease the time it takes the health check endpoint to report
     /// issues, but can also increase sporadic unhealthy responses.
     ///
-    /// Defaults to 3 seconds.
-    pub refresh_interval_secs: u64,
+    /// Defaults to `3000`` (3 seconds).
+    pub refresh_interval_ms: u64,
     /// Maximum memory watermark in bytes.
     ///
     /// By default there is no absolute limit set and the watermark
@@ -1369,7 +1369,7 @@ pub struct Health {
 impl Default for Health {
     fn default() -> Self {
         Self {
-            refresh_interval_secs: 3,
+            refresh_interval_ms: 3000,
             max_memory_bytes: None,
             max_memory_percent: 0.95,
             probe_timeout_ms: 900,
@@ -2296,7 +2296,7 @@ impl Config {
 
     /// Interval to refresh internal health checks.
     pub fn health_refresh_interval(&self) -> Duration {
-        Duration::from_secs(self.values.health.refresh_interval_secs)
+        Duration::from_millis(self.values.health.refresh_interval_ms)
     }
 
     /// Maximum memory watermark in bytes.

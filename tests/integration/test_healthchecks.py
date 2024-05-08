@@ -159,6 +159,9 @@ def test_readiness_disk_spool(mini_sentry, relay):
         config["quotas"] = None
 
         relay_config = {
+            "health": {
+                "refresh_interval_ms": 100,
+            },
             "spool": {
                 # if the config contains max_disk_size and max_memory_size set both to 0, Relay will never passes readiness check
                 "envelopes": {
@@ -185,6 +188,8 @@ def test_readiness_disk_spool(mini_sentry, relay):
         finally:
             # Authentication failures would fail the test
             mini_sentry.test_failures.clear()
+
+        time.sleep(0.1)  # Wait for one refresh interval
 
         response = wait_get(relay, "/api/relay/healthcheck/ready/")
         assert response.status_code == 503
