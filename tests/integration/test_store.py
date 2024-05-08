@@ -10,7 +10,6 @@ from time import sleep
 import pytest
 from flask import Response, abort
 from requests.exceptions import HTTPError
-from sentry_sdk.envelope import Envelope
 
 
 def test_store(mini_sentry, relay_chain):
