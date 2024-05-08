@@ -511,7 +511,7 @@ def test_metrics_with_processing(mini_sentry, relay_with_processing, metrics_con
         "value": 42.0,
         "type": "c",
         "timestamp": time_after(timestamp),
-        "received_at": time_after(timestamp)
+        "received_at": time_after(timestamp),
     }
 
     assert metrics["headers"]["c:custom/bar@second"] == [("namespace", b"custom")]
@@ -524,7 +524,7 @@ def test_metrics_with_processing(mini_sentry, relay_with_processing, metrics_con
         "value": 17.0,
         "type": "c",
         "timestamp": time_after(timestamp),
-        "received_at": time_after(timestamp)
+        "received_at": time_after(timestamp),
     }
 
 
@@ -564,7 +564,7 @@ def test_global_metrics_with_processing(
         "value": 42.0,
         "type": "c",
         "timestamp": time_after(timestamp),
-        "received_at": time_after(timestamp)
+        "received_at": time_after(timestamp),
     }
 
     assert metrics["headers"]["c:custom/bar@second"] == [("namespace", b"custom")]
@@ -577,7 +577,7 @@ def test_global_metrics_with_processing(
         "value": 17.0,
         "type": "c",
         "timestamp": time_after(timestamp),
-        "received_at": time_after(timestamp)
+        "received_at": time_after(timestamp),
     }
 
 
@@ -617,7 +617,7 @@ def test_metrics_full(mini_sentry, relay, relay_with_processing, metrics_consume
         "value": 15.0,
         "type": "c",
         "timestamp": time_after(timestamp),
-        "received_at": time_after(timestamp)
+        "received_at": time_after(timestamp),
     }
 
     metrics_consumer.assert_empty()
@@ -726,7 +726,7 @@ def test_session_metrics_processing(
             "environment": "production",
             "release": "sentry-test@1.0.0",
         },
-        "received_at": time_after(now_timestamp)
+        "received_at": time_after(now_timestamp),
     }
 
 
@@ -862,7 +862,7 @@ def test_transaction_metrics(
             "platform": "other",
             "transaction.status": "unknown",
         },
-        "received_at": time_after(timestamp)
+        "received_at": time_after(timestamp),
     }
 
     assert metrics["c:spans/usage@none"]["value"] == 2
@@ -910,7 +910,7 @@ def test_transaction_metrics(
         "name": "c:transactions/count_per_root_project@none",
         "type": "c",
         "value": 2.0,
-        "received_at": time_after(timestamp)
+        "received_at": time_after(timestamp),
     }
 
 
@@ -977,7 +977,7 @@ def test_transaction_metrics_count_per_root_project(
         "name": "c:transactions/count_per_root_project@none",
         "type": "c",
         "value": 1.0,
-        "received_at": time_after(timestamp)
+        "received_at": time_after(timestamp),
     }
     assert metrics_by_project[42]["c:transactions/count_per_root_project@none"] == {
         "timestamp": time_after(timestamp),
