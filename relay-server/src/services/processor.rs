@@ -9,6 +9,7 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use crate::metric_stats::MetricStats;
+use crate::utils::sample;
 use anyhow::Context;
 use brotli::CompressorWriter as BrotliEncoder;
 use bytes::Bytes;
@@ -1274,13 +1275,13 @@ impl EnvelopeProcessorService {
     ) -> Result<(), ProcessingError> {
         let options = &self.inner.global_config.current().options;
 
-        let full_normalization = if self.inner.config.processing_enabled()
+        let normalization_decision = if self.inner.config.processing_enabled()
             && options.processing_disable_normalization
             && (state.envelope().meta().is_from_internal_relay())
         {
-            return Ok(());
+            "ff-skip"
         } else if !self.inner.config.processing_enabled() && options.force_full_normalization {
-            true
+            "ff-full"
         } else {
             match self.inner.config.normalization_level() {
                 NormalizationLevel::Disabled => {
@@ -1292,16 +1293,35 @@ impl EnvelopeProcessorService {
                     if self.inner.config.processing_enabled()
                         && (!state.envelope().meta().is_from_internal_relay())
                     {
-                        true
+                        "disabled_config-full"
                     } else {
                         relay_log::trace!("Skipping event normalization");
-                        return Ok(());
+                        "disabled_config-skip"
                     }
                 }
-                NormalizationLevel::Full => true,
-                NormalizationLevel::Default => self.inner.config.processing_enabled(),
+                NormalizationLevel::Full => "full_config-full",
+                NormalizationLevel::Default => {
+                    if self.inner.config.processing_enabled() {
+                        "default_config-full"
+                    } else {
+                        "default_config-partial"
+                    }
+                }
             }
         };
+
+        relay_log::configure_scope(|scope| {
+            scope.set_tag("normalization_decision", normalization_decision);
+            if let Some(event) = state.event.value() {
+                scope.set_extra(
+                    "platform",
+                    event.platform.as_str().unwrap_or("<not set>").into(),
+                );
+                scope.set_extra("sdk", event.sdk_name().into());
+            }
+        });
+
+        let full_normalization = self.inner.config.processing_enabled();
 
         if let Some(sampling_state) = state.sampling_project_state.clone() {
             state
@@ -1424,6 +1444,28 @@ impl EnvelopeProcessorService {
         // Events can also contain user reports.
         report::process_user_reports(state);
 
+        let global_options = &self.inner.global_config.current().options;
+        let processing_enabled = self.inner.config.processing_enabled()
+            && !global_options.processing_disable_normalization;
+        let relay_enabled =
+            !self.inner.config.processing_enabled() && global_options.force_full_normalization;
+        let expand_native_decision = if processing_enabled || relay_enabled {
+            "ff-enable"
+        } else if matches!(
+            self.inner.config.normalization_level(),
+            NormalizationLevel::Full
+        ) {
+            "config-enable"
+        } else if self.inner.config.processing_enabled() {
+            "processing"
+        } else {
+            "disabled"
+        };
+
+        relay_log::configure_scope(|scope| {
+            scope.set_tag("expand_native_decision", expand_native_decision);
+        });
+
         if_processing!(self.inner.config, {
             unreal::expand(state, &self.inner.config)?;
         });
@@ -1457,6 +1499,26 @@ impl EnvelopeProcessorService {
         }
 
         attachment::scrub(state);
+
+        let is_error_or_default = state
+            .event
+            .value()
+            .and_then(|e| e.ty.value())
+            .map(|ty| matches!(ty, EventType::Error | EventType::Default))
+            .unwrap_or(false);
+        if is_error_or_default && sample(global_options.normalization_info_sample_rate) {
+            // At this point, the sentry context for the processing of the
+            // current envelope should have the following tags:
+            // - normalization_decision
+            // - expand_native_decision
+            // - extract_event_reset_ty_decision
+            // - ff-processing_disable_normalization
+            // - ff-processing_disable_normalization
+            // And the following context:
+            // - platform
+            // - sdk
+            relay_log::error!("Normalization info");
+        }
 
         Ok(())
     }
@@ -1774,6 +1836,8 @@ impl EnvelopeProcessorService {
             .user_agent()
             .map(str::to_owned);
 
+        let global_options = &self.inner.global_config.current().options;
+
         relay_log::with_scope(
             |scope| {
                 scope.set_tag("project", project_id);
@@ -1783,6 +1847,15 @@ impl EnvelopeProcessorService {
                 if let Some(user_agent) = user_agent {
                     scope.set_extra("user_agent", user_agent.into());
                 }
+
+                scope.set_tag(
+                    "ff-processing_disable_normalization",
+                    global_options.processing_disable_normalization,
+                );
+                scope.set_tag(
+                    "ff-relay_force_full_normalization",
+                    global_options.force_full_normalization,
+                );
             },
             || {
                 match self.process_envelope(

@@ -245,6 +245,17 @@ pub struct Options {
     )]
     pub processing_disable_normalization: bool,
 
+    /// Sample rate for info messages on normalization decisions.
+    ///
+    /// Rate needs to be between `0.0` and `1.0`. If set to `1.0` a
+    /// normalization info message is emitted for each error/default event.
+    #[serde(
+        rename = "relay.normalization_info",
+        deserialize_with = "default_on_error",
+        skip_serializing_if = "is_default"
+    )]
+    pub normalization_info_sample_rate: f32,
+
     /// All other unknown options.
     #[serde(flatten)]
     other: HashMap<String, Value>,
