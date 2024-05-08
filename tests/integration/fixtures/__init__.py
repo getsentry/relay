@@ -107,6 +107,11 @@ class SentryLike:
         self._wait("/api/relay/healthcheck/ready/")
         self._health_check_passed = True
 
+        # Filter out health check failures, which can happen during startup
+        mini_sentry.test_failures = [
+            f for f in mini_sentry.test_failures if "Health check probe" not in str(f)
+        ]
+
     def __repr__(self):
         return f"<{self.__class__.__name__}({repr(self.upstream)})>"
 

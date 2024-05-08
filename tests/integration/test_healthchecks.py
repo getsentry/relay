@@ -172,11 +172,7 @@ def test_readiness_disk_spool(mini_sentry, relay):
             },
         }
 
-        relay = relay(
-            mini_sentry,
-            relay_config,
-            wait_health_check=True,
-        )
+        relay = relay(mini_sentry, relay_config)
 
         # Second sent event can trigger error on the relay size, since the spool is full now.
         # Wrapping this into the try block, to make sure we ignore those errors and just check the health at the end.
