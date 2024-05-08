@@ -229,7 +229,7 @@ impl Service for HealthCheckService {
 
     fn spawn_handler(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
         let (update_tx, update_rx) = watch::channel(StatusUpdate::healthy());
-        let check_interval = self.config.health_sys_info_refresh_interval();
+        let check_interval = self.config.health_refresh_interval();
         // Add 10% buffer to the internal timeouts to avoid race conditions.
         let status_timeout = (check_interval + self.config.health_probe_timeout()).mul_f64(1.1);
 
