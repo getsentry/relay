@@ -6,7 +6,6 @@ use crate::metric_stats::MetricStats;
 use anyhow::{Context, Result};
 use axum::extract::FromRequestParts;
 use axum::http::request::Parts;
-use relay_aws_extension::AwsExtension;
 use relay_cogs::Cogs;
 use relay_config::Config;
 use relay_metrics::Aggregator;
@@ -213,12 +212,6 @@ impl ServiceState {
         )
         .start();
         let relay_cache = RelayCacheService::new(config.clone(), upstream_relay.clone()).start();
-
-        if let Some(aws_api) = config.aws_runtime_api() {
-            if let Ok(aws_extension) = AwsExtension::new(aws_api) {
-                aws_extension.start();
-            }
-        }
 
         let registry = Registry {
             aggregator,

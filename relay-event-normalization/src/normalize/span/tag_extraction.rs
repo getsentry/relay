@@ -75,6 +75,7 @@ pub enum SpanTagKey {
     CacheHit,
     TraceStatus,
     MessagingDestinationName,
+    MessagingMessageId,
 }
 
 impl SpanTagKey {
@@ -120,6 +121,7 @@ impl SpanTagKey {
             SpanTagKey::ReplayId => "replay_id",
             SpanTagKey::TraceStatus => "trace.status",
             SpanTagKey::MessagingDestinationName => "messaging.destination.name",
+            SpanTagKey::MessagingMessageId => "messaging.message.id",
         }
     }
 }
@@ -450,6 +452,14 @@ pub fn extract_tags(
                 .and_then(|value| value.as_str())
             {
                 span_tags.insert(SpanTagKey::MessagingDestinationName, destination.into());
+            }
+            if let Some(message_id) = span
+                .data
+                .value()
+                .and_then(|data| data.messaging_message_id.value())
+                .and_then(|value| value.as_str())
+            {
+                span_tags.insert(SpanTagKey::MessagingMessageId, message_id.into());
             }
         }
 
@@ -1834,6 +1844,7 @@ LIMIT 1
                 "trace_id": "ff62a8b040f340bda5d830223def1d81",
                 "data": {
                     "messaging.destination.name": "default",
+                    "messaging.message.id": "abc123",
                     "messaging.message.body.size": 100
                 }
             }
@@ -1847,6 +1858,10 @@ LIMIT 1
         assert_eq!(
             tags.get(&SpanTagKey::MessagingDestinationName),
             Some(&"default".to_string())
+        );
+        assert_eq!(
+            tags.get(&SpanTagKey::MessagingMessageId),
+            Some(&"abc123".to_string())
         );
     }
 

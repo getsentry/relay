@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Breaking Changes**:
+
+- Remove the AWS lambda extension. ([#3568](https://github.com/getsentry/relay/pull/3568))
+
 **Bug fixes:**
 
 - Properly handle AI metrics from the Python SDK's `@ai_track` decorator ([#3539](https://github.com/getsentry/relay/pull/3539))

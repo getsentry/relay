@@ -121,13 +121,13 @@ enum RelayDataCategory {
    */
   RELAY_DATA_CATEGORY_PROFILE_CHUNK = 18,
   /**
-   * MetricHour
+   * MetricSecond
    *
    * Reserved by billing to summarize the bucketed product of metric volume
    * and metric cardinality. Defined here so as not to clash with future
    * categories.
    */
-  RELAY_DATA_CATEGORY_METRIC_HOUR = 19,
+  RELAY_DATA_CATEGORY_METRIC_SECOND = 19,
   /**
    * Any other data category not known by this Relay.
    */

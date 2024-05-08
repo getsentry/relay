@@ -3619,18 +3619,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "relay-aws-extension"
-version = "24.4.2"
-dependencies = [
- "relay-log",
- "relay-system",
- "reqwest",
- "serde",
- "serde_json",
- "tokio",
-]
-
-[[package]]
 name = "relay-base-schema"
 version = "24.4.2"
 dependencies = [
@@ -4142,7 +4130,6 @@ dependencies = [
  "rand",
  "regex",
  "relay-auth",
- "relay-aws-extension",
  "relay-base-schema",
  "relay-cardinality",
  "relay-cogs",
