@@ -1716,4 +1716,3 @@ def test_span_filtering_with_releases_inbound_filter(
 
     spans_consumer.assert_empty()
     outcomes_consumer.assert_empty()
-
