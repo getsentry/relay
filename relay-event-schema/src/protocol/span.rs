@@ -559,7 +559,10 @@ mod tests {
         "messaging.message.retry.count": 3,
         "messaging.message.receive.latency": 40,
         "messaging.message.body.size": 100,
-        "messaging.message.id": "abc123"
+        "messaging.message.id": "abc123",
+        "user_agent.original": "Chrome",
+        "url.full": "my_url.com",
+        "client.address": "192.168.0.1"
     }"#;
         let data = Annotated::<SpanData>::from_json(data)
             .unwrap()
@@ -637,6 +640,9 @@ mod tests {
             messaging_message_id: String(
                 "abc123",
             ),
+            user_agent_original: "Chrome",
+            url_full: "my_url.com",
+            client_address: "192.168.0.1",
             other: {
                 "bar": String(
                     "3",

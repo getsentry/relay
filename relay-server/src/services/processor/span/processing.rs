@@ -31,9 +31,8 @@ use crate::services::processor::{
     Addrs, ProcessEnvelope, ProcessEnvelopeState, ProcessingError, ProcessingGroup, SpanGroup,
     TransactionGroup,
 };
-use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
+use crate::statsd::{RelayCounters, RelayHistograms};
 use crate::utils::{sample, BufferGuard, ItemAction};
-use relay_statsd::metric;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
