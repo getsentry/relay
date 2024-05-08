@@ -1916,7 +1916,12 @@ def test_metrics_received_at(
         "organizations:custom-metrics",
     ]
 
+    before = int(datetime.now(tz=timezone.utc).timestamp())
+
     relay.send_metrics(project_id, "custom/foo:1337|d")
 
     metric, _ = metrics_consumer.get_metric()
-    assert "received_at" in metric
+
+    after = int(datetime.now(tz=timezone.utc).timestamp())
+
+    assert before <= metric["received_at"] <= after
