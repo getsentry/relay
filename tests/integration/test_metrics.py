@@ -1,4 +1,5 @@
 import hashlib
+import unittest
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
@@ -12,6 +13,7 @@ from requests.exceptions import HTTPError
 import queue
 
 from .test_envelope import generate_transaction_item
+from .asserts import time_within, time_within_delta
 
 TEST_CONFIG = {
     "aggregator": {
@@ -509,7 +511,7 @@ def test_metrics_with_processing(mini_sentry, relay_with_processing, metrics_con
         "value": 42.0,
         "type": "c",
         "timestamp": timestamp,
-        "received_at": timestamp,
+        "received_at": time_within_delta(timestamp),
     }
 
     assert metrics["headers"]["c:custom/bar@second"] == [("namespace", b"custom")]
@@ -522,7 +524,7 @@ def test_metrics_with_processing(mini_sentry, relay_with_processing, metrics_con
         "value": 17.0,
         "type": "c",
         "timestamp": timestamp,
-        "received_at": timestamp,
+        "received_at": time_within_delta(timestamp),
     }
 
 
@@ -562,7 +564,7 @@ def test_global_metrics_with_processing(
         "value": 42.0,
         "type": "c",
         "timestamp": timestamp,
-        "received_at": timestamp,
+        "received_at": time_within_delta(timestamp),
     }
 
     assert metrics["headers"]["c:custom/bar@second"] == [("namespace", b"custom")]
@@ -575,7 +577,7 @@ def test_global_metrics_with_processing(
         "value": 17.0,
         "type": "c",
         "timestamp": timestamp,
-        "received_at": timestamp,
+        "received_at": time_within_delta(timestamp),
     }
 
 
@@ -606,8 +608,6 @@ def test_metrics_full(mini_sentry, relay, relay_with_processing, metrics_consume
     upstream.send_metrics(project_id, f"transactions/foo:3|c|T{timestamp}")
 
     metric, _ = metrics_consumer.get_metric(timeout=6)
-    metric.pop("timestamp")
-    metric.pop("received_at")
     assert metric == {
         "org_id": 1,
         "project_id": project_id,
@@ -616,6 +616,8 @@ def test_metrics_full(mini_sentry, relay, relay_with_processing, metrics_consume
         "tags": {},
         "value": 15.0,
         "type": "c",
+        "timestamp": time_within_delta(timestamp),
+        "received_at": time_within_delta(timestamp)
     }
 
     metrics_consumer.assert_empty()
@@ -677,9 +679,9 @@ def test_session_metrics_processing(
 
     metrics_consumer = metrics_consumer()
 
-    timestamp = datetime.now(tz=timezone.utc)
-    started = timestamp - timedelta(hours=1)
-    session_payload = _session_payload(timestamp=timestamp, started=started)
+    now = datetime.now(tz=timezone.utc)
+    started = now - timedelta(hours=1)
+    session_payload = _session_payload(timestamp=now, started=started)
 
     relay.send_session(
         project_id,
@@ -693,12 +695,13 @@ def test_session_metrics_processing(
 
     metrics = metrics_by_name(metrics_consumer, 2)
 
-    expected_timestamp = int(started.timestamp())
+    now_timestamp = int(now.timestamp())
+    started_timestamp = int(started.timestamp())
     assert metrics["c:sessions/session@none"] == {
         "org_id": 1,
         "project_id": 42,
         "retention_days": 90,
-        "timestamp": expected_timestamp,
+        "timestamp": started_timestamp,
         "name": "c:sessions/session@none",
         "type": "c",
         "value": 1.0,
@@ -708,14 +711,14 @@ def test_session_metrics_processing(
             "release": "sentry-test@1.0.0",
             "session.status": "init",
         },
-        "received_at": int(timestamp.timestamp()),
+        "received_at": time_within_delta(now_timestamp),
     }
 
     assert metrics["s:sessions/user@none"] == {
         "org_id": 1,
         "project_id": 42,
         "retention_days": 90,
-        "timestamp": expected_timestamp,
+        "timestamp": started_timestamp,
         "name": "s:sessions/user@none",
         "type": "s",
         "value": [1617781333],
@@ -724,7 +727,7 @@ def test_session_metrics_processing(
             "environment": "production",
             "release": "sentry-test@1.0.0",
         },
-        "received_at": int(timestamp.timestamp()),
+        "received_at": time_within_delta(now_timestamp),
     }
 
 
@@ -849,8 +852,9 @@ def test_transaction_metrics(
 
     metrics = metrics_by_name(metrics_consumer, count=10, timeout=6)
 
+    timestamp = int(timestamp.timestamp())
     common = {
-        "timestamp": int(timestamp.timestamp()),
+        "timestamp": timestamp,
         "org_id": 1,
         "project_id": 42,
         "retention_days": 90,
@@ -859,7 +863,7 @@ def test_transaction_metrics(
             "platform": "other",
             "transaction.status": "unknown",
         },
-        "received_at": int(timestamp.timestamp()),
+        "received_at": time_within_delta(timestamp),
     }
 
     assert metrics["c:spans/usage@none"]["value"] == 2
@@ -896,7 +900,7 @@ def test_transaction_metrics(
         "value": [9.910106, 9.910106],
     }
     assert metrics["c:transactions/count_per_root_project@none"] == {
-        "timestamp": int(timestamp.timestamp()),
+        "timestamp": timestamp,
         "org_id": 1,
         "project_id": 42,
         "retention_days": 90,
@@ -907,7 +911,7 @@ def test_transaction_metrics(
         "name": "c:transactions/count_per_root_project@none",
         "type": "c",
         "value": 2.0,
-        "received_at": int(timestamp.timestamp()),
+        "received_at": time_within_delta(timestamp),
     }
 
 
@@ -964,8 +968,9 @@ def test_transaction_metrics_count_per_root_project(
 
     metrics_by_project = metrics_by_name_group_by_project(metrics_consumer, timeout=4)
 
+    timestamp = int(timestamp.timestamp())
     assert metrics_by_project[41]["c:transactions/count_per_root_project@none"] == {
-        "timestamp": int(timestamp.timestamp()),
+        "timestamp": timestamp,
         "org_id": 1,
         "project_id": 41,
         "retention_days": 90,
@@ -973,10 +978,10 @@ def test_transaction_metrics_count_per_root_project(
         "name": "c:transactions/count_per_root_project@none",
         "type": "c",
         "value": 1.0,
-        "received_at": int(timestamp.timestamp()),
+        "received_at": time_within_delta(timestamp),
     }
     assert metrics_by_project[42]["c:transactions/count_per_root_project@none"] == {
-        "timestamp": int(timestamp.timestamp()),
+        "timestamp": timestamp,
         "org_id": 1,
         "project_id": 42,
         "retention_days": 90,
@@ -984,7 +989,7 @@ def test_transaction_metrics_count_per_root_project(
         "name": "c:transactions/count_per_root_project@none",
         "type": "c",
         "value": 2.0,
-        "received_at": int(timestamp.timestamp()),
+        "received_at": time_within_delta(timestamp),
     }
 
 
@@ -1922,6 +1927,14 @@ def test_metrics_received_at(
 
     metric, _ = metrics_consumer.get_metric()
 
-    after = int(datetime.now(tz=timezone.utc).timestamp())
-
-    assert before <= metric["received_at"] <= after
+    assert metric == {
+        "org_id": 0,
+        "project_id": 42,
+        "name": "d:custom/foo@none",
+        "type": "d",
+        "value": [1337.0],
+        "timestamp": time_within(before),
+        "tags": {},
+        "retention_days": 90,
+        "received_at": time_within(before),
+    }

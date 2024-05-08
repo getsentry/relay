@@ -1,4 +1,4 @@
-//! Contains helper utils which help to manage the spooler and spooled data.
+//! Contains helper asserts which help to manage the spooler and spooled data.
 
 use std::path::PathBuf;
 

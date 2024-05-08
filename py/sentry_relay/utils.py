@@ -61,7 +61,7 @@ class RustObject(metaclass=_NoDict):
 
     def __del__(self):
         if rustcall is None:
-            # Interpreter is shutting down and our memory management utils are
+            # Interpreter is shutting down and our memory management asserts are
             # gone. Just give up, the process is going away anyway.
             return
 

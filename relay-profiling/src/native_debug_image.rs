@@ -28,8 +28,8 @@ pub struct NativeDebugImage {
 
     #[serde(
         default,
-        deserialize_with = "utils::deserialize_number_from_string",
-        skip_serializing_if = "utils::is_zero"
+        deserialize_with = "asserts::deserialize_number_from_string",
+        skip_serializing_if = "asserts::is_zero"
     )]
     image_size: u64,
 }
