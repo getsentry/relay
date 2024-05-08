@@ -1597,7 +1597,7 @@ def test_span_extraction_with_tags(
 
 
 def test_span_filtering_with_generic_inbound_filter(
-    mini_sentry, relay_with_processing, spans_consumer
+    mini_sentry, relay_with_processing, spans_consumer, outcomes_consumer
 ):
     mini_sentry.global_config["filters"] = {
         "version": 1,
@@ -1620,6 +1620,7 @@ def test_span_filtering_with_generic_inbound_filter(
     project_config["config"]["features"] = ["organizations:standalone-span-ingestion"]
 
     spans_consumer = spans_consumer()
+    outcomes_consumer = outcomes_consumer()
 
     end = datetime.now(timezone.utc) - timedelta(seconds=1)
     duration = timedelta(milliseconds=500)
@@ -1650,6 +1651,17 @@ def test_span_filtering_with_generic_inbound_filter(
 
     spans = spans_consumer.get_spans(timeout=10.0, max_attempts=6)
     assert len(spans) == 0
+
+    def summarize_outcomes():
+        counter = Counter()
+        for outcome in outcomes_consumer.get_outcomes():
+            counter[(outcome["category"], outcome["outcome"])] += outcome["quantity"]
+        return counter
+
+    assert summarize_outcomes() == {(12, 1): 1}
+
+    spans_consumer.assert_empty()
+    outcomes_consumer.assert_empty()
 
 
 def test_span_filtering_with_releases_inbound_filter(
@@ -1694,8 +1706,13 @@ def test_span_filtering_with_releases_inbound_filter(
     spans = spans_consumer.get_spans(timeout=10.0, max_attempts=6)
     assert len(spans) == 0
 
-    outcomes = outcomes_consumer.get_outcomes()
-    print(outcomes)
+    def summarize_outcomes():
+        counter = Counter()
+        for outcome in outcomes_consumer.get_outcomes():
+            counter[(outcome["category"], outcome["outcome"])] += outcome["quantity"]
+        return counter
+
+    assert summarize_outcomes() == {(12, 1): 1}
 
     spans_consumer.assert_empty()
     outcomes_consumer.assert_empty()
