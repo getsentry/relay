@@ -339,6 +339,18 @@ pub struct SpanData {
     #[metastructure(field = "messaging.message.body.size")]
     pub messaging_message_body_size: Annotated<Value>,
 
+    /// Value of the HTTP User-Agent header sent by the client.
+    #[metastructure(field = "user_agent.original")]
+    pub user_agent_original: Annotated<String>,
+
+    /// Absolute URL of a network resource.
+    #[metastructure(field = "url.full")]
+    pub url_full: Annotated<String>,
+
+    /// The client's IP address.
+    #[metastructure(field = "client.address")]
+    pub client_address: Annotated<String>,
+
     /// Other fields in `span.data`.
     #[metastructure(additional_properties, pii = "true", retain = "true")]
     other: Object<Value>,

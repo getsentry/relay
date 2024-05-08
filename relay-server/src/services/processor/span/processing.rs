@@ -122,20 +122,18 @@ pub fn process(
         };
 
         if let Some(span) = annotated_span.value() {
-            metric!(timer(RelayTimers::EventProcessingFiltering), {
-                if let Err(filter_stat_key) = relay_filter::should_filter(
-                    span,
-                    client_ip,
-                    filter_settings,
-                    global_config.filters(),
-                ) {
-                    relay_log::trace!(
-                        "filtering span {:?} that matched an inbound filter",
-                        span.span_id
-                    );
-                    return ItemAction::Drop(Outcome::Filtered(filter_stat_key));
-                }
-            });
+            if let Err(filter_stat_key) = relay_filter::should_filter(
+                span,
+                client_ip,
+                filter_settings,
+                global_config.filters(),
+            ) {
+                relay_log::trace!(
+                    "filtering span {:?} that matched an inbound filter",
+                    span.span_id
+                );
+                return ItemAction::Drop(Outcome::Filtered(filter_stat_key));
+            }
         }
 
         if let Some(config) = span_metrics_extraction_config {

@@ -8,7 +8,7 @@
 
 **Features**:
 
-- Add support for inbound filters on standalone spans. ([#3552](https://github.com/getsentry/relay/pull/3552))
+- Apply legacy inbound filters to standalone spans. ([#3552](https://github.com/getsentry/relay/pull/3552))
 
 **Internal**:
 
