@@ -78,10 +78,6 @@ impl StatusUpdate {
             instant: Instant::now(),
         }
     }
-
-    pub fn healthy() -> Self {
-        Self::new(Status::Healthy)
-    }
 }
 
 /// Service implementing the [`HealthCheck`] interface.
@@ -228,7 +224,7 @@ impl Service for HealthCheckService {
     type Interface = HealthCheck;
 
     fn spawn_handler(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
-        let (update_tx, update_rx) = watch::channel(StatusUpdate::healthy());
+        let (update_tx, update_rx) = watch::channel(StatusUpdate::new(Status::Unhealthy));
         let check_interval = self.config.health_refresh_interval();
         // Add 10% buffer to the internal timeouts to avoid race conditions.
         let status_timeout = (check_interval + self.config.health_probe_timeout()).mul_f64(1.1);
