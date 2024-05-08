@@ -2964,21 +2964,23 @@ impl UpstreamRequest for SendMetricsRequest {
                 Ok(mut response) => {
                     response.consume().await.ok();
                 }
-                // Request did not arrive, we are responsible for outcomes.
-                Err(error) if !error.is_received() => {
-                    for (scoping, quantities) in self.quantities {
-                        utils::reject_metrics::<&Bucket>(
-                            &self.outcome_aggregator,
-                            &self.metric_stats,
-                            quantities,
-                            scoping,
-                            Outcome::Invalid(DiscardReason::Internal),
-                            None,
-                        );
+                Err(error) => {
+                    // If the request did not arrive at the upstream, we are responsible for outcomes.
+                    // Otherwise, the upstream is responsible to log outcomes.
+                    if !error.is_received() {
+                        for (scoping, quantities) in self.quantities {
+                            utils::reject_metrics::<&Bucket>(
+                                &self.outcome_aggregator,
+                                &self.metric_stats,
+                                quantities,
+                                scoping,
+                                Outcome::Invalid(DiscardReason::Internal),
+                                None,
+                            );
+                        }
                     }
+                    relay_log::error!(error = &error as &dyn Error, "Failed to send metrics batch");
                 }
-                // Upstream is responsible to log outcomes.
-                Err(_received) => (),
             }
         })
     }
@@ -3475,10 +3477,10 @@ mod tests {
             processor.handle_process_metrics(&mut token, message);
 
             let value = project_cache_rx.recv().await.unwrap();
-            let ProjectCache::AddMetricBuckets(add_metric_buckets) = value else {
+            let ProjectCache::AddMetricBuckets(merge_buckets) = value else {
                 panic!()
             };
-            let buckets = add_metric_buckets.buckets;
+            let buckets = merge_buckets.buckets;
             assert_eq!(buckets.len(), 1);
             assert_eq!(buckets[0].metadata.received_at, expected_received_at);
         }
@@ -3575,10 +3577,10 @@ mod tests {
             processor.handle_process_batched_metrics(&mut token, message);
 
             let value = project_cache_rx.recv().await.unwrap();
-            let ProjectCache::AddMetricBuckets(add_metric_buckets) = value else {
+            let ProjectCache::AddMetricBuckets(merge_buckets) = value else {
                 panic!()
             };
-            let buckets = add_metric_buckets.buckets;
+            let buckets = merge_buckets.buckets;
             assert_eq!(buckets.len(), 1);
             assert_eq!(buckets[0].metadata.received_at, expected_received_at);
         }

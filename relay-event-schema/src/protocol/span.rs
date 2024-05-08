@@ -339,6 +339,10 @@ pub struct SpanData {
     #[metastructure(field = "messaging.message.body.size")]
     pub messaging_message_body_size: Annotated<Value>,
 
+    /// Message ID
+    #[metastructure(field = "messaging.message.id")]
+    pub messaging_message_id: Annotated<Value>,
+
     /// Value of the HTTP User-Agent header sent by the client.
     #[metastructure(field = "user_agent.original")]
     pub user_agent_original: Annotated<String>,

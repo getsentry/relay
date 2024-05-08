@@ -12,7 +12,6 @@ import pytest
 from .fixtures.gobetween import gobetween  # noqa
 from .fixtures.haproxy import haproxy  # noqa
 from .fixtures.mini_sentry import mini_sentry  # noqa
-from .fixtures.aws_lambda_runtime import aws_lambda_runtime  # noqa
 from .fixtures.relay import (  # noqa
     relay,
     relay_credentials,
