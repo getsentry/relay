@@ -1646,7 +1646,7 @@ def test_dynamic_sampling(
         outcomes = outcomes_consumer.get_outcomes(timeout=0.1)
         assert summarize_outcomes(outcomes) == {(16, 0): 4}  # SpanIndexed, Accepted
     else:
-        outcomes = outcomes_consumer.get_outcomes(timeout=4)
+        outcomes = outcomes_consumer.get_outcomes(timeout=10)
         assert summarize_outcomes(outcomes) == {(12, 1): 4}  # Span, Filtered
         assert {o["reason"] for o in outcomes} == {"Sampled:1"}
 

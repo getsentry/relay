@@ -51,9 +51,9 @@ pub fn process(
     // We only implement trace-based sampling rules for now, which can be computed
     // once for all spans in the envelope.
     let sampling_outcome = match dynamic_sampling::run(state, &config) {
-        SamplingResult::Match(sampling_match) => Some(Outcome::FilteredSampling(
-            sampling_match.into_matched_rules(),
-        )),
+        SamplingResult::Match(sampling_match) if sampling_match.should_drop() => Some(
+            Outcome::FilteredSampling(sampling_match.into_matched_rules()),
+        ),
         _ => None,
     };
 
@@ -145,6 +145,10 @@ pub fn process(
         }
 
         if let Some(sampling_outcome) = &sampling_outcome {
+            relay_log::trace!(
+                "Dropping span because of sampling rule {}",
+                sampling_outcome
+            );
             return ItemAction::Drop(sampling_outcome.clone());
         }
 
