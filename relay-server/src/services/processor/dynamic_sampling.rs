@@ -737,14 +737,26 @@ mod tests {
                 let mut state = ProjectState::allowed();
                 state.config.sampling = Some(ErrorBoundary::Ok(SamplingConfig {
                     version: 2,
-                    rules: vec![SamplingRule {
-                        condition: RuleCondition::all(),
-                        sampling_value: SamplingValue::Reservoir { limit: 0 },
-                        ty: RuleType::Trace,
-                        id: RuleId(1),
-                        time_range: Default::default(),
-                        decaying_fn: Default::default(),
-                    }],
+                    rules: vec![
+                        // Set up a reservoir (only used for transactions):
+                        SamplingRule {
+                            condition: RuleCondition::all(),
+                            sampling_value: SamplingValue::Reservoir { limit: 100 },
+                            ty: RuleType::Trace,
+                            id: RuleId(1),
+                            time_range: Default::default(),
+                            decaying_fn: Default::default(),
+                        },
+                        // Reject everything that does not go into the reservoir:
+                        SamplingRule {
+                            condition: RuleCondition::all(),
+                            sampling_value: SamplingValue::SampleRate { value: 0.0 },
+                            ty: RuleType::Trace,
+                            id: RuleId(2),
+                            time_range: Default::default(),
+                            decaying_fn: Default::default(),
+                        },
+                    ],
                     rules_v2: vec![],
                 }));
                 Some(Arc::new(state))
@@ -768,12 +780,14 @@ mod tests {
     #[test]
     fn test_reservoir_applied_for_transactions() {
         let result = run_with_reservoir_rule::<TransactionGroup>(ProcessingGroup::Transaction);
-        assert!(matches!(result, SamplingResult::Match(_)));
+        // Default sampling rate is 0.0, but transaction is retained because of reservoir:
+        assert!(result.should_keep());
     }
 
     #[test]
     fn test_reservoir_not_applied_for_spans() {
         let result = run_with_reservoir_rule::<SpanGroup>(ProcessingGroup::Span);
-        assert!(matches!(result, SamplingResult::NoMatch));
+        // Default sampling rate is 0.0, and the reservoir does not apply to spans:
+        assert!(result.should_drop());
     }
 }
