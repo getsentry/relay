@@ -15,6 +15,9 @@ use crate::envelope::{Envelope, ItemType};
 use crate::statsd::RelayCounters;
 use once_cell::sync::Lazy;
 
+// List of minimum SDK versions that support Performance at Scale (aka Dynamic Sampling).
+// The list is defined here:
+// https://docs.sentry.io/product/performance/performance-at-scale/getting-started
 static SUPPORTED_SDK_VERSIONS: Lazy<HashMap<&'static str, &'static str>> = Lazy::new(|| {
     let mut supported_sdk_versions = HashMap::new();
 
