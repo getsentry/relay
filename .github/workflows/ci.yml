@@ -592,8 +592,6 @@ jobs:
   self-hosted-end-to-end:
     runs-on: ubuntu-latest
     timeout-minutes: 25
-    # temporary, remove once we are confident the action is working
-    continue-on-error: true
     needs: build-docker
 
     # Skip redundant checks for library releases

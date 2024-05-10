@@ -247,8 +247,6 @@ pub struct OverridableConfig {
     pub outcome_source: Option<String>,
     /// shutdown timeout
     pub shutdown_timeout: Option<String>,
-    /// AWS Extensions API URL
-    pub aws_runtime_api: Option<String>,
 }
 
 /// The relay credentials
@@ -1297,16 +1295,6 @@ pub struct AuthConfig {
     pub static_relays: HashMap<RelayId, RelayInfo>,
 }
 
-/// AWS extension config.
-#[derive(Serialize, Deserialize, Debug, Default)]
-pub struct AwsConfig {
-    /// The host and port of the AWS lambda extensions API.
-    ///
-    /// This value can be found in the `AWS_LAMBDA_RUNTIME_API` environment variable in a Lambda
-    /// Runtime and contains a socket address, usually `"127.0.0.1:9001"`.
-    pub runtime_api: Option<String>,
-}
-
 /// GeoIp database configuration options.
 #[derive(Serialize, Deserialize, Debug, Default)]
 pub struct GeoIpConfig {
@@ -1449,8 +1437,6 @@ struct ConfigValues {
     secondary_aggregators: Vec<ScopedAggregatorConfig>,
     #[serde(default)]
     auth: AuthConfig,
-    #[serde(default)]
-    aws: AwsConfig,
     #[serde(default)]
     geoip: GeoIpConfig,
     #[serde(default)]
@@ -1660,11 +1646,6 @@ impl Config {
             if let Ok(shutdown_timeout) = shutdown_timeout.parse::<u64>() {
                 limits.shutdown_timeout = shutdown_timeout;
             }
-        }
-
-        let aws = &mut self.values.aws;
-        if let Some(aws_runtime_api) = overrides.aws_runtime_api {
-            aws.runtime_api = Some(aws_runtime_api);
         }
 
         Ok(self)
@@ -2418,11 +2399,6 @@ impl Config {
     pub fn accept_unknown_items(&self) -> bool {
         let forward = self.values.routing.accept_unknown_items;
         forward.unwrap_or_else(|| !self.processing_enabled())
-    }
-
-    /// Returns the host and port of the AWS lambda runtime API.
-    pub fn aws_runtime_api(&self) -> Option<&str> {
-        self.values.aws.runtime_api.as_deref()
     }
 }
 

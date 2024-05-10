@@ -18,7 +18,6 @@ dbg_macro = "warn"
 
 [workspace.dependencies]
 relay-auth = { path = "relay-auth" }
-relay-aws-extension = { path = "relay-aws-extension" }
 relay-base-schema = { path = "relay-base-schema" }
 relay-cardinality = { path = "relay-cardinality" }
 relay-cogs = { path = "relay-cogs" }
