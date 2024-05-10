@@ -56,8 +56,7 @@ def test_outcomes_processing(relay_with_processing, mini_sentry, outcomes_consum
     assert outcome.get("remote_addr") is None
 
     # deal with the timestamp separately (we can't control it exactly)
-    timestamp = outcome.get("timestamp")
-    event_emission = datetime.strptime(timestamp, "%Y-%m-%dT%H:%M:%S.%fZ")
+    event_emission = datetime.fromisoformat(outcome.get("timestamp"))
     end = datetime.now(UTC)
     assert start <= event_emission <= end
 
@@ -117,8 +116,7 @@ def test_outcomes_custom_topic(
     assert outcome.get("remote_addr") is None
 
     # deal with the timestamp separately (we can't control it exactly)
-    timestamp = outcome.get("timestamp")
-    event_emission = datetime.strptime(timestamp, "%Y-%m-%dT%H:%M:%S.%fZ")
+    event_emission = datetime.fromisoformat(outcome.get("timestamp"))
     end = datetime.now(UTC)
     assert start <= event_emission <= end
 
