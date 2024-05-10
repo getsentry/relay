@@ -216,7 +216,8 @@ pub fn get_sampling_key(envelope: &Envelope) -> Option<ProjectKey> {
 /// Emits a metric when an [`Event`] is inside an [`Envelope`] without [`DynamicSamplingContext`].
 ///
 /// This function is a temporary function which has been added mainly for debugging purposes. Our
-/// goal with this function is to validate how many times the DSC is not
+/// goal with this function is to validate how many times the DSC is not on an [`Event`] which
+/// should have it.
 fn track_missing_dsc(event: &Event) -> bool {
     let Some(client_sdk_info) = event.client_sdk.value() else {
         return false;
