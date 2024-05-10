@@ -4,11 +4,11 @@
 # See https://github.com/getsentry/pypi#readme
 
 black==24.3.0
-blinker==1.5
-click==8.0.4
+blinker==1.8.2
+click==8.1.7
 flake8==6.0.0
 confluent-kafka==2.1.1
-flask==2.2.2
+flask==3.0.3
 msgpack==1.0.7
 opentelemetry-proto==1.22.0
 pytest-localserver==0.7.0
@@ -19,7 +19,7 @@ PyYAML==6.0.1
 redis==4.5.4
 requests==2.31.0
 sentry_sdk==1.14.0
-werkzeug==2.2.3
+werkzeug==3.0.1
 zstandard==0.18.0
 
 # typing things

@@ -120,6 +120,11 @@ def test_span_extraction(
     transaction_span = spans_consumer.get_span()
     del transaction_span["received"]
     assert transaction_span == {
+        "data": {
+            "sentry.sdk.name": "raven-node",
+            "sentry.sdk.version": "2.6.3",
+            "sentry.segment.name": "hi",
+        },
         "description": "hi",
         "duration_ms": duration_ms,
         "event_id": "cbf6960622e14a45abc1f03b2055b186",
@@ -200,10 +205,10 @@ def test_span_extraction_with_sampling(
 
     relay.send_event(project_id, event)
 
-    spans = list(spans_consumer.get_spans(max_attempts=2))
+    spans = spans_consumer.get_spans(max_attempts=2)
     assert len(spans) == expected_spans
 
-    metrics = list(metrics_consumer.get_metrics())
+    metrics = metrics_consumer.get_metrics()
     span_metrics = [m for (m, _) in metrics if ":spans/" in m["name"]]
     assert len(span_metrics) == expected_metrics
 
@@ -289,7 +294,7 @@ def envelope_with_spans(
                                 },
                             },
                             {
-                                "key": "sentry.exclusive_time_ns",
+                                "key": "sentry.exclusive_time_nano",
                                 "value": {
                                     "intValue": int(
                                         (end - start).total_seconds() * 1e9
@@ -384,7 +389,7 @@ def make_otel_span(start, end):
                                 "endTimeUnixNano": int(end.timestamp() * 1e9),
                                 "attributes": [
                                     {
-                                        "key": "sentry.exclusive_time_ns",
+                                        "key": "sentry.exclusive_time_nano",
                                         "value": {
                                             "intValue": int(
                                                 (end - start).total_seconds() * 1e9
@@ -465,7 +470,7 @@ def test_span_ingestion(
         end_time_unix_nano=int(end.timestamp() * 1e9),
         attributes=[
             KeyValue(
-                key="sentry.exclusive_time_ns",
+                key="sentry.exclusive_time_nano",
                 value=AnyValue(int_value=int(duration.total_seconds() * 1e9)),
             ),
         ],
@@ -482,7 +487,7 @@ def test_span_ingestion(
         headers={"Content-Type": "application/x-protobuf"},
     )
 
-    spans = list(spans_consumer.get_spans(timeout=10.0, max_attempts=6))
+    spans = spans_consumer.get_spans(timeout=10.0, max_attempts=6)
 
     for span in spans:
         span.pop("received", None)
@@ -492,6 +497,7 @@ def test_span_ingestion(
 
     assert spans == [
         {
+            "data": {"browser.name": "Chrome"},
             "description": "my 1st OTel span",
             "duration_ms": 500,
             "exclusive_time_ms": 500.0,
@@ -510,6 +516,7 @@ def test_span_ingestion(
             "trace_id": "89143b0763095bd9c9955e8175d1fb23",
         },
         {
+            "data": {"browser.name": "Chrome"},
             "description": "https://example.com/p/blah.js",
             "duration_ms": 1500,
             "exclusive_time_ms": 345.0,
@@ -533,6 +540,7 @@ def test_span_ingestion(
             "trace_id": "ff62a8b040f340bda5d830223def1d81",
         },
         {
+            "data": {"browser.name": "Chrome"},
             "description": r"test \" with \" escaped \" chars",
             "duration_ms": 1500,
             "exclusive_time_ms": 345.0,
@@ -547,6 +555,7 @@ def test_span_ingestion(
             "trace_id": "ff62a8b040f340bda5d830223def1d81",
         },
         {
+            "data": {"browser.name": "Python Requests"},
             "description": "my 2nd OTel span",
             "duration_ms": 500,
             "exclusive_time_ms": 500.0,
@@ -564,6 +573,7 @@ def test_span_ingestion(
             "trace_id": "89143b0763095bd9c9955e8175d1fb24",
         },
         {
+            "data": {"browser.name": "Chrome"},
             "duration_ms": 1500,
             "exclusive_time_ms": 345.0,
             "is_segment": False,
@@ -580,6 +590,7 @@ def test_span_ingestion(
             "trace_id": "ff62a8b040f340bda5d830223def1d81",
         },
         {
+            "data": {"browser.name": "Python Requests"},
             "description": "my 3rd protobuf OTel span",
             "duration_ms": 500,
             "exclusive_time_ms": 500.0,
@@ -606,6 +617,11 @@ def test_span_ingestion(
         ]
 
         assert len(transactions) == expected_transactions
+        assert sorted([transaction["event_id"] for transaction in transactions]) == [
+            "0000000000000000a342abb1214ca181",
+            "0000000000000000b0429c44b67a3eb1",
+            "0000000000000000d342abb1214ca182",
+        ]
         for transaction in transactions:
             # Not checking all individual fields here, most should be tested in convert.rs
 
@@ -654,8 +670,12 @@ def test_span_ingestion(
             "project_id": 42,
             "retention_days": 90,
             "tags": {
-                "span.op": "resource.script",
+                "file_extension": "js",
+                "span.category": "resource",
+                "span.description": "https://example.com/*/blah.js",
+                "span.domain": "example.com",
                 "span.group": "8a97a9e43588e2bd",
+                "span.op": "resource.script",
             },
             "timestamp": expected_timestamp + 1,
             "type": "d",
@@ -666,7 +686,10 @@ def test_span_ingestion(
             "org_id": 1,
             "project_id": 42,
             "retention_days": 90,
-            "tags": {"span.op": "db.query"},
+            "tags": {
+                "span.category": "db",
+                "span.op": "db.query",
+            },
             "timestamp": expected_timestamp,
             "type": "d",
             "value": [500.0],
@@ -853,6 +876,11 @@ def test_span_extraction_with_metrics_summary(
     transaction_span = spans_consumer.get_span()
     del transaction_span["received"]
     assert transaction_span == {
+        "data": {
+            "sentry.sdk.name": "raven-node",
+            "sentry.sdk.version": "2.6.3",
+            "sentry.segment.name": "hi",
+        },
         "description": "hi",
         "duration_ms": duration_ms,
         "event_id": "cbf6960622e14a45abc1f03b2055b186",
@@ -1026,6 +1054,11 @@ def test_span_extraction_with_ddm_missing_values(
     transaction_span = spans_consumer.get_span()
     del transaction_span["received"]
     assert transaction_span == {
+        "data": {
+            "sentry.sdk.name": "raven-node",
+            "sentry.sdk.version": "2.6.3",
+            "sentry.segment.name": "hi",
+        },
         "description": "hi",
         "duration_ms": duration_ms,
         "event_id": "cbf6960622e14a45abc1f03b2055b186",
@@ -1120,7 +1153,7 @@ def test_span_reject_invalid_timestamps(
     )
     relay.send_envelope(project_id, envelope)
 
-    spans = list(spans_consumer.get_spans(timeout=10.0, max_attempts=1))
+    spans = spans_consumer.get_spans(timeout=10.0, max_attempts=1)
 
     assert len(spans) == 1
     assert spans[0]["description"] == "span with valid timestamps"
@@ -1246,7 +1279,7 @@ def test_span_ingestion_with_performance_scores(
     )
     relay.send_envelope(project_id, envelope)
 
-    spans = list(spans_consumer.get_spans(timeout=10.0, max_attempts=2))
+    spans = spans_consumer.get_spans(timeout=10.0, max_attempts=2)
 
     for span in spans:
         span.pop("received", None)
@@ -1256,13 +1289,13 @@ def test_span_ingestion_with_performance_scores(
 
     assert spans == [
         {
+            "data": {"browser.name": "Python Requests"},
             "duration_ms": 1500,
             "exclusive_time_ms": 345.0,
-            "is_segment": True,
+            "is_segment": False,
             "organization_id": 1,
             "project_id": 42,
             "retention_days": 90,
-            "segment_id": "bd429c44b67a3eb1",
             "sentry_tags": {
                 "browser.name": "Python Requests",
                 "op": "ui.interaction.click",
@@ -1290,14 +1323,19 @@ def test_span_ingestion_with_performance_scores(
             },
         },
         {
+            "data": {
+                "browser.name": "Python Requests",
+                "sentry.replay.id": "8477286c8e5148b386b71ade38374d58",
+                "sentry.segment.name": "/page/with/click/interaction/*/*",
+                "user": "admin@sentry.io",
+            },
             "duration_ms": 1500,
             "exclusive_time_ms": 345.0,
-            "is_segment": True,
+            "is_segment": False,
             "profile_id": "3d9428087fda4ba0936788b70a7587d0",
             "organization_id": 1,
             "project_id": 42,
             "retention_days": 90,
-            "segment_id": "cd429c44b67a3eb1",
             "sentry_tags": {
                 "browser.name": "Python Requests",
                 "op": "ui.interaction.click",
@@ -1358,7 +1396,7 @@ def test_rate_limit_indexed_consistent(
 
     # First batch passes
     relay.send_envelope(project_id, envelope)
-    spans = list(spans_consumer.get_spans(max_attempts=4, timeout=10))
+    spans = spans_consumer.get_spans(max_attempts=4, timeout=10)
     assert len(spans) == 4
     assert summarize_outcomes() == {(16, 0): 4}  # SpanIndexed, Accepted
 
@@ -1420,14 +1458,14 @@ def test_rate_limit_indexed_consistent_extracted(
 
     # First send should be accepted.
     relay.send_event(project_id, event)
-    spans = list(spans_consumer.get_spans(max_attempts=2, timeout=10))
+    spans = spans_consumer.get_spans(max_attempts=2, timeout=10)
     # one for the transaction, one for the contained span
     assert len(spans) == 2
     assert summarize_outcomes() == {(16, 0): 2}  # SpanIndexed, Accepted
 
     # Second send should be rejected immediately.
     relay.send_event(project_id, event)
-    spans = list(spans_consumer.get_spans(max_attempts=1, timeout=2))
+    spans = spans_consumer.get_spans(max_attempts=1, timeout=2)
     assert len(spans) == 0  # all rejected
     assert summarize_outcomes() == {(16, 2): 2}  # SpanIndexed, RateLimited
 
@@ -1477,9 +1515,9 @@ def test_rate_limit_metrics_consistent(
 
     # First batch passes (we over-accept once)
     relay.send_envelope(project_id, envelope)
-    spans = list(spans_consumer.get_spans(max_attempts=4, timeout=10))
+    spans = spans_consumer.get_spans(max_attempts=4, timeout=10)
     assert len(spans) == 4
-    metrics = list(metrics_consumer.get_metrics())
+    metrics = metrics_consumer.get_metrics()
     assert len(metrics) > 0
     assert all(headers == [("namespace", b"spans")] for _, headers in metrics), metrics
 
@@ -1488,9 +1526,9 @@ def test_rate_limit_metrics_consistent(
 
     # Second batch is limited
     relay.send_envelope(project_id, envelope)
-    spans = list(spans_consumer.get_spans(max_attempts=1, timeout=2))
+    spans = spans_consumer.get_spans(max_attempts=1, timeout=2)
     assert len(spans) == 0
-    metrics = list(metrics_consumer.get_metrics())
+    metrics = metrics_consumer.get_metrics()
     assert len(metrics) == 0
     assert summarize_outcomes() == {
         (16, 2): 4,  # SpanIndexed, RateLimited

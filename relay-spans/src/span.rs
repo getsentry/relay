@@ -170,7 +170,7 @@ pub fn otel_to_sentry_span(otel_span: OtelSpan) -> EventSpan {
                 "http.route" | "url.path" => {
                     http_route = otel_value_to_string(value);
                 }
-                key if key.contains("exclusive_time_ns") => {
+                key if key.contains("exclusive_time_nano") => {
                     let value = match value {
                         OtelValue::IntValue(v) => v as f64,
                         OtelValue::DoubleValue(v) => v,
@@ -324,7 +324,7 @@ mod tests {
                     }
                 },
                 {
-                    "key": "sentry.exclusive_time_ns",
+                    "key": "sentry.exclusive_time_nano",
                     "value": {
                         "intValue": 1000000000
                     }
@@ -351,7 +351,7 @@ mod tests {
     }
 
     #[test]
-    fn parse_span_with_exclusive_time_ns_attribute() {
+    fn parse_span_with_exclusive_time_nano_attribute() {
         let json = r#"{
             "traceId": "89143b0763095bd9c9955e8175d1fb23",
             "spanId": "e342abb1214ca181",
@@ -362,7 +362,7 @@ mod tests {
             "endTimeUnixNano": 1697620454980078800,
             "attributes": [
                 {
-                    "key": "sentry.exclusive_time_ns",
+                    "key": "sentry.exclusive_time_nano",
                     "value": {
                         "intValue": 3200000000
                     }
@@ -375,7 +375,7 @@ mod tests {
     }
 
     #[test]
-    fn parse_span_no_exclusive_time_ns_attribute() {
+    fn parse_span_no_exclusive_time_nano_attribute() {
         let json = r#"{
             "traceId": "89143b0763095bd9c9955e8175d1fb23",
             "spanId": "e342abb1214ca181",
@@ -667,6 +667,7 @@ mod tests {
                 messaging_message_retry_count: ~,
                 messaging_message_receive_latency: ~,
                 messaging_message_body_size: ~,
+                messaging_message_id: ~,
                 other: {},
             },
             sentry_tags: ~,

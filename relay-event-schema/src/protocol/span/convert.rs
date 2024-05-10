@@ -1,4 +1,5 @@
 //! This module defines bidirectional field mappings between spans and transactions.
+
 use crate::protocol::{BrowserContext, Contexts, Event, ProfileContext, Span, TraceContext};
 
 use relay_base_schema::events::EventType;
@@ -86,6 +87,16 @@ macro_rules! event_value(
     };
 );
 
+#[derive(Debug, thiserror::Error)]
+pub enum TryFromSpanError {
+    #[error("span is not a segment")]
+    NotASegment,
+    #[error("span has no span ID")]
+    MissingSpanId,
+    #[error("failed to parse event ID")]
+    InvalidSpanId(#[from] uuid::Error),
+}
+
 /// Implements the conversion between transaction events and segment spans.
 ///
 /// Invoking this macro implements both `From<&Event> for Span` and `From<&Span> for Event`.
@@ -112,15 +123,17 @@ macro_rules! map_fields {
             }
         }
 
-        impl TryFrom<&Span> for Event {
-            type Error = ();
+        impl<'a> TryFrom<&'a Span> for Event {
+            type Error = TryFromSpanError;
 
-            fn try_from(span: &Span) -> Result<Self, ()> {
+            fn try_from(span: &Span) -> Result<Self, Self::Error> {
                 let mut event = Event::default();
+                let span_id = span.span_id.value().ok_or(TryFromSpanError::MissingSpanId)?;
+                event.id = Annotated::new(span_id.try_into()?);
 
                 if !span.is_segment.value().unwrap_or(&false) {
                     // Only segment spans can become transactions.
-                    return Err(());
+                    return Err(TryFromSpanError::NotASegment);
                 }
 
                 $(
@@ -175,7 +188,7 @@ map_fields!(
 mod tests {
     use relay_protocol::Annotated;
 
-    use crate::protocol::SpanData;
+    use crate::protocol::{SpanData, SpanId};
 
     use super::*;
 
@@ -298,6 +311,7 @@ mod tests {
                 messaging_message_retry_count: ~,
                 messaging_message_receive_latency: ~,
                 messaging_message_body_size: ~,
+                messaging_message_id: ~,
                 other: {},
             },
             sentry_tags: ~,
@@ -333,13 +347,18 @@ mod tests {
         }
         "###);
 
-        let roundtripped = Event::try_from(&span_from_event).unwrap();
-        assert_eq!(event, roundtripped);
+        let mut event_from_span = Event::try_from(&span_from_event).unwrap();
+
+        let event_id = event_from_span.id.value_mut().take().unwrap();
+        assert_eq!(&event_id.to_string(), "0000000000000000fa90fdead5f74052");
+
+        assert_eq!(event, event_from_span);
     }
 
     #[test]
     fn segment_name_takes_precedence_over_description() {
         let span = Span {
+            span_id: SpanId("fa90fdead5f74052".to_owned()).into(),
             is_segment: true.into(),
             description: "This is the description".to_owned().into(),
             data: SpanData {
@@ -357,6 +376,7 @@ mod tests {
     #[test]
     fn no_empty_profile_context() {
         let span = Span {
+            span_id: SpanId("fa90fdead5f74052".to_owned()).into(),
             is_segment: true.into(),
             ..Default::default()
         };

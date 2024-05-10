@@ -3619,18 +3619,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "relay-aws-extension"
-version = "24.4.2"
-dependencies = [
- "relay-log",
- "relay-system",
- "reqwest",
- "serde",
- "serde_json",
- "tokio",
-]
-
-[[package]]
 name = "relay-base-schema"
 version = "24.4.2"
 dependencies = [
@@ -4142,7 +4130,6 @@ dependencies = [
  "rand",
  "regex",
  "relay-auth",
- "relay-aws-extension",
  "relay-base-schema",
  "relay-cardinality",
  "relay-cogs",
@@ -4658,9 +4645,9 @@ dependencies = [
 
 [[package]]
 name = "sentry-kafka-schemas"
-version = "0.1.66"
+version = "0.1.79"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "23abf836e02bdbb3c33bc6824209000bd23c827843784703602571bb93c26cf1"
+checksum = "e8d651a09ba1a06c066c54cacaf91abb51814a2143996b8b5877b81eecd598db"
 dependencies = [
  "jsonschema",
  "serde",
