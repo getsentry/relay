@@ -12,6 +12,7 @@ use relay_sampling::dsc::{DynamicSamplingContext, TraceUserContext};
 use relay_sampling::evaluation::{SamplingEvaluator, SamplingMatch};
 
 use crate::envelope::{Envelope, ItemType};
+use crate::statsd::RelayCounters;
 use once_cell::sync::Lazy;
 
 static SUPPORTED_SDK_VERSIONS: Lazy<HashMap<&'static str, &'static str>> = Lazy::new(|| {
@@ -270,9 +271,12 @@ fn track_missing_dsc(event: &Event) {
 
     match compare_versions(sdk_version, min_sdk_version) {
         Ordering::Greater | Ordering::Equal => {
-            // TRACK METRIC
+            relay_statsd::metric!(
+                counter(RelayCounters::MissingDynamicSamplingContext) += 1,
+                sdk_name = sdk_name.as_str()
+            );
         }
-        _ => return,
+        _ => (),
     };
 }
 
