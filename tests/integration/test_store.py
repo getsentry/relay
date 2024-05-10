@@ -12,7 +12,7 @@ from flask import Response, abort
 from requests.exceptions import HTTPError
 from sentry_sdk.envelope import Envelope
 
-from .asserts import time_after, time_within_delta
+from .asserts import time_within_delta
 
 
 def test_store(mini_sentry, relay_chain):
