@@ -4,7 +4,6 @@ use std::collections::hash_map::Entry;
 use std::collections::{BTreeMap, HashMap};
 use std::error::Error;
 use std::hash::Hasher;
-use std::marker::PhantomData;
 use std::time::Duration;
 use std::{fmt, mem};
 
@@ -460,27 +459,6 @@ impl fmt::Debug for CostTracker {
     }
 }
 
-/// The minimum trait requirements an [`Aggregator`] can work with.
-///
-/// The aggregator accepts buckets with this type and also returns
-/// aggregated buckets with the same type again.
-///
-/// The aggregator being generic over the contained buckets allows
-/// type safety when aggregating buckets in different states.
-pub trait AggregatorBuckets: Sized + IntoIterator<Item = Bucket> {
-    /// Reconstructs the type from the internal representation in the aggregator.
-    ///
-    /// This should only be called by the aggregator and bypass invariants
-    /// which otherwise would be enforced by the type.
-    fn from_aggregator(buckets: Vec<Bucket>) -> Self;
-}
-
-impl AggregatorBuckets for Vec<Bucket> {
-    fn from_aggregator(buckets: Vec<Bucket>) -> Self {
-        buckets
-    }
-}
-
 /// A collector of [`Bucket`] submissions.
 ///
 /// # Aggregation
@@ -501,15 +479,14 @@ impl AggregatorBuckets for Vec<Bucket> {
 /// Metrics are uniquely identified by the combination of their name, type and unit. It is allowed
 /// to send metrics of different types and units under the same name. For example, sending a metric
 /// once as set and once as distribution will result in two actual metrics being recorded.
-pub struct Aggregator<T = Vec<Bucket>> {
+pub struct Aggregator {
     name: String,
     config: AggregatorConfig,
     buckets: HashMap<BucketKey, QueuedBucket>,
     cost_tracker: CostTracker,
-    _state: PhantomData<T>,
 }
 
-impl<T> Aggregator<T> {
+impl Aggregator {
     /// Create a new aggregator.
     pub fn new(config: AggregatorConfig) -> Self {
         Self::named("default".to_owned(), config)
@@ -522,12 +499,9 @@ impl<T> Aggregator<T> {
             config,
             buckets: HashMap::new(),
             cost_tracker: CostTracker::default(),
-            _state: PhantomData,
         }
     }
-}
 
-impl<T: AggregatorBuckets> Aggregator<T> {
     /// Returns the name of the aggregator.
     pub fn name(&self) -> &str {
         self.name.as_str()
@@ -544,7 +518,7 @@ impl<T: AggregatorBuckets> Aggregator<T> {
     }
 
     /// Converts this aggregator into a vector of [`Bucket`].
-    pub fn into_buckets(self) -> T {
+    pub fn into_buckets(self) -> Vec<Bucket> {
         relay_statsd::metric!(
             gauge(MetricGauges::Buckets) = self.bucket_count() as u64,
             aggregator = &self.name,
@@ -552,8 +526,7 @@ impl<T: AggregatorBuckets> Aggregator<T> {
 
         let bucket_interval = self.config.bucket_interval;
 
-        let buckets = self
-            .buckets
+        self.buckets
             .into_iter()
             .map(|(key, entry)| Bucket {
                 timestamp: key.timestamp,
@@ -563,15 +536,13 @@ impl<T: AggregatorBuckets> Aggregator<T> {
                 tags: key.tags,
                 metadata: entry.metadata,
             })
-            .collect();
-
-        T::from_aggregator(buckets)
+            .collect()
     }
 
     /// Pop and return the buckets that are eligible for flushing out according to bucket interval.
     ///
     /// Note that this function is primarily intended for tests.
-    pub fn pop_flush_buckets(&mut self, force: bool) -> HashMap<ProjectKey, T> {
+    pub fn pop_flush_buckets(&mut self, force: bool) -> HashMap<ProjectKey, Vec<Bucket>> {
         relay_statsd::metric!(
             gauge(MetricGauges::Buckets) = self.bucket_count() as u64,
             aggregator = &self.name,
@@ -639,9 +610,6 @@ impl<T: AggregatorBuckets> Aggregator<T> {
         }
 
         buckets
-            .into_iter()
-            .map(|(k, v)| (k, T::from_aggregator(v)))
-            .collect()
     }
 
     /// Wrapper for [`AggregatorConfig::get_bucket_timestamp`].
@@ -758,7 +726,7 @@ impl<T: AggregatorBuckets> Aggregator<T> {
     pub fn merge_all(
         &mut self,
         project_key: ProjectKey,
-        buckets: T,
+        buckets: impl IntoIterator<Item = Bucket>,
         max_total_bucket_bytes: Option<usize>,
     ) {
         for bucket in buckets.into_iter() {
@@ -778,13 +746,12 @@ impl<T: AggregatorBuckets> Aggregator<T> {
     }
 }
 
-impl<T> fmt::Debug for Aggregator<T> {
+impl fmt::Debug for Aggregator {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct(std::any::type_name::<Self>())
             .field("config", &self.config)
             .field("buckets", &self.buckets)
             .field("receiver", &format_args!("Recipient<FlushBuckets>"))
-            .field("_state", &std::any::type_name::<T>())
             .finish()
     }
 }

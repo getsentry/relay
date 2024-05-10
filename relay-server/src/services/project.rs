@@ -419,7 +419,7 @@ enum GetOrFetch<'a> {
 #[derive(Debug)]
 enum State {
     Cached(Arc<ProjectState>),
-    Pending(Box<aggregator::Aggregator<Buckets<Filtered>>>),
+    Pending(Box<aggregator::Aggregator>),
 }
 
 impl State {
@@ -434,7 +434,7 @@ impl State {
     /// If the variant was pending, the buckets will be returned.
     fn set_state(&mut self, state: Arc<ProjectState>) -> Option<Buckets<Filtered>> {
         match std::mem::replace(self, Self::Cached(state)) {
-            State::Pending(agg) => Some(agg.into_buckets()),
+            State::Pending(agg) => Some(Buckets::new(agg.into_buckets())),
             State::Cached(_) => None,
         }
     }

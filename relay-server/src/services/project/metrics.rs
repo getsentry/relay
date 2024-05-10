@@ -3,7 +3,6 @@ use std::ops::Deref;
 
 use relay_dynamic_config::{ErrorBoundary, Feature, Metrics};
 use relay_filter::FilterStatKey;
-use relay_metrics::aggregator::AggregatorBuckets;
 use relay_metrics::{Bucket, MetricNamespace};
 use relay_quotas::Scoping;
 use relay_system::Addr;
@@ -19,14 +18,14 @@ pub struct WithProjectState;
 
 /// Container for a vector of buckets.
 #[derive(Debug)]
-pub struct Buckets<State = ()> {
+pub struct Buckets<S> {
     buckets: Vec<Bucket>,
-    state: PhantomData<State>,
+    state: PhantomData<S>,
 }
 
-impl Buckets {
+impl<S> Buckets<S> {
     /// Creates a list of buckets in their initial state.
-    pub fn new(buckets: Vec<Bucket>) -> Buckets {
+    pub fn new(buckets: Vec<Bucket>) -> Buckets<S> {
         Self {
             buckets,
             state: PhantomData,
@@ -42,15 +41,6 @@ impl<S> Deref for Buckets<S> {
     }
 }
 
-impl<S> AggregatorBuckets for Buckets<S> {
-    fn from_aggregator(buckets: Vec<Bucket>) -> Self {
-        Self {
-            buckets,
-            state: PhantomData,
-        }
-    }
-}
-
 impl<S> IntoIterator for Buckets<S> {
     type Item = Bucket;
     type IntoIter = std::vec::IntoIter<Bucket>;
@@ -60,7 +50,7 @@ impl<S> IntoIterator for Buckets<S> {
     }
 }
 
-impl Buckets {
+impl Buckets<()> {
     pub fn filter_namespaces(mut self, source: BucketSource) -> Buckets<Filtered> {
         self.buckets.retain(|bucket| match bucket.name.namespace() {
             MetricNamespace::Sessions => true,
@@ -72,10 +62,7 @@ impl Buckets {
             MetricNamespace::Unsupported => false,
         });
 
-        Buckets {
-            buckets: self.buckets,
-            state: PhantomData,
-        }
+        Buckets::new(self.buckets)
     }
 }
 
@@ -140,10 +127,7 @@ impl Buckets<Filtered> {
             );
         }
 
-        Buckets {
-            buckets: self.buckets,
-            state: PhantomData,
-        }
+        Buckets::new(self.buckets)
     }
 }
 
