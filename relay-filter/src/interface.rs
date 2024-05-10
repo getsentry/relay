@@ -136,9 +136,7 @@ impl Filterable for Span {
     }
 
     fn transaction(&self) -> Option<&str> {
-        if self.is_segment.value().map_or(false, |&s| s) {
-            return self.data.value()?.segment_name.as_str();
-        }
+        self.data.value()?.segment_name.as_str()
 
         None
     }
