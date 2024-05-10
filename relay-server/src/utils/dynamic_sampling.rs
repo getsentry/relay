@@ -1,4 +1,6 @@
 //! Functionality for calculating if a trace should be processed or dropped.
+use std::cmp::Ordering;
+use std::collections::HashMap;
 use std::ops::ControlFlow;
 
 use chrono::Utc;
@@ -10,6 +12,115 @@ use relay_sampling::dsc::{DynamicSamplingContext, TraceUserContext};
 use relay_sampling::evaluation::{SamplingEvaluator, SamplingMatch};
 
 use crate::envelope::{Envelope, ItemType};
+use once_cell::sync::Lazy;
+
+static SUPPORTED_SDK_VERSIONS: Lazy<HashMap<&'static str, &'static str>> = Lazy::new(|| {
+    let mut supported_sdk_versions = HashMap::new();
+
+    supported_sdk_versions.insert("sentry-python", "1.7.2");
+    supported_sdk_versions.insert("sentry.python.tornado", "1.7.2");
+    supported_sdk_versions.insert("sentry.python.starlette", "1.7.2");
+    supported_sdk_versions.insert("sentry.python.flask", "1.7.2");
+    supported_sdk_versions.insert("sentry.python.fastapi", "1.7.2");
+    supported_sdk_versions.insert("sentry.python.falcon", "1.7.2");
+    supported_sdk_versions.insert("sentry.python.django", "1.7.2");
+    supported_sdk_versions.insert("sentry.python.bottle", "1.7.2");
+    supported_sdk_versions.insert("sentry.python.aws_lambda", "1.7.2");
+    supported_sdk_versions.insert("sentry.python.aiohttp", "1.7.2");
+    supported_sdk_versions.insert("sentry.python", "1.7.2");
+    supported_sdk_versions.insert("sentry-browser", "7.6.0");
+    supported_sdk_versions.insert("sentry.javascript.angular", "7.6.0");
+    supported_sdk_versions.insert("sentry.javascript.astro", "7.6.0");
+    supported_sdk_versions.insert("sentry.javascript.browser", "7.6.0");
+    supported_sdk_versions.insert("sentry.javascript.ember", "7.6.0");
+    supported_sdk_versions.insert("sentry.javascript.gatsby", "7.6.0");
+    supported_sdk_versions.insert("sentry.javascript.nextjs", "7.6.0");
+    supported_sdk_versions.insert("sentry.javascript.react", "7.6.0");
+    supported_sdk_versions.insert("sentry.javascript.remix", "7.6.0");
+    supported_sdk_versions.insert("sentry.javascript.serverless", "7.6.0");
+    supported_sdk_versions.insert("sentry.javascript.svelte", "7.6.0");
+    supported_sdk_versions.insert("sentry.javascript.vue", "7.6.0");
+    supported_sdk_versions.insert("sentry.javascript.node", "7.6.0");
+    supported_sdk_versions.insert("sentry.javascript.angular-ivy", "7.6.0");
+    supported_sdk_versions.insert("sentry.javascript.sveltekit", "7.6.0");
+    supported_sdk_versions.insert("sentry.javascript.bun", "7.70.0");
+    supported_sdk_versions.insert("sentry-cocoa", "7.23.0");
+    supported_sdk_versions.insert("sentry-objc", "7.23.0");
+    supported_sdk_versions.insert("sentry-swift", "7.23.0");
+    supported_sdk_versions.insert("sentry.cocoa", "7.18.0");
+    supported_sdk_versions.insert("sentry.swift", "7.23.0");
+    supported_sdk_versions.insert("SentrySwift", "7.23.0");
+    supported_sdk_versions.insert("sentry-android", "6.5.0");
+    supported_sdk_versions.insert("sentry.java.android.timber", "6.5.0");
+    supported_sdk_versions.insert("sentry.java.android", "6.5.0");
+    supported_sdk_versions.insert("sentry.native.android", "6.5.0");
+    supported_sdk_versions.insert("sentry-react-native", "4.3.0");
+    supported_sdk_versions.insert("sentry.cocoa.react-native", "4.3.0");
+    supported_sdk_versions.insert("sentry.java.android.react-native", "4.3.0");
+    supported_sdk_versions.insert("sentry.javascript.react-native", "4.3.0");
+    supported_sdk_versions.insert("sentry.native.android.react-native", "4.3.0");
+    supported_sdk_versions.insert("sentry.javascript.react-native.expo", "6.0.0");
+    supported_sdk_versions.insert("sentry.javascript.react.expo", "6.0.0");
+    supported_sdk_versions.insert("dart", "6.11.0");
+    supported_sdk_versions.insert("dart-sentry-client", "6.11.0");
+    supported_sdk_versions.insert("sentry.dart", "6.11.0");
+    supported_sdk_versions.insert("sentry.dart.logging", "6.11.0");
+    supported_sdk_versions.insert("sentry.cocoa.flutter", "6.11.0");
+    supported_sdk_versions.insert("sentry.dart.flutter", "6.11.0");
+    supported_sdk_versions.insert("sentry.java.android.flutter", "6.11.0");
+    supported_sdk_versions.insert("sentry.native.android.flutter", "6.11.0");
+    supported_sdk_versions.insert("sentry.dart.browser", "6.11.0");
+    supported_sdk_versions.insert("sentry-php", "3.9.0");
+    supported_sdk_versions.insert("sentry.php", "3.9.0");
+    supported_sdk_versions.insert("sentry-laravel", "3.0.0");
+    supported_sdk_versions.insert("sentry.php.laravel", "3.0.0");
+    supported_sdk_versions.insert("sentry-symfony", "4.4.0");
+    supported_sdk_versions.insert("sentry.php.symfony", "4.4.0");
+    supported_sdk_versions.insert("Symphony.SentryClient", "4.4.0");
+    supported_sdk_versions.insert("sentry-ruby", "5.5.0");
+    supported_sdk_versions.insert("sentry.ruby", "5.5.0");
+    supported_sdk_versions.insert("sentry.ruby.delayed_job", "5.5.0");
+    supported_sdk_versions.insert("sentry.ruby.rails", "5.5.0");
+    supported_sdk_versions.insert("sentry.ruby.resque", "5.5.0");
+    supported_sdk_versions.insert("sentry.ruby.sidekiq", "5.5.0");
+    supported_sdk_versions.insert("sentry-java", "6.5.0");
+    supported_sdk_versions.insert("sentry.java", "6.5.0");
+    supported_sdk_versions.insert("sentry.java.jul", "6.5.0");
+    supported_sdk_versions.insert("sentry.java.log4j2", "6.5.0");
+    supported_sdk_versions.insert("sentry.java.logback", "6.5.0");
+    supported_sdk_versions.insert("sentry.java.spring", "6.5.0");
+    supported_sdk_versions.insert("sentry.java.spring-boot", "6.5.0");
+    supported_sdk_versions.insert("sentry.java.spring-boot.jakarta", "6.5.0");
+    supported_sdk_versions.insert("sentry.java.spring.jakarta", "6.5.0");
+    supported_sdk_versions.insert("sentry.aspnetcore", "3.22.0");
+    supported_sdk_versions.insert("Sentry.AspNetCore", "3.22.0");
+    supported_sdk_versions.insert("sentry.dotnet", "3.22.0");
+    supported_sdk_versions.insert("sentry.dotnet.android", "3.22.0");
+    supported_sdk_versions.insert("sentry.dotnet.aspnet", "3.22.0");
+    supported_sdk_versions.insert("sentry.dotnet.aspnetcore", "3.22.0");
+    supported_sdk_versions.insert("sentry.dotnet.aspnetcore.grpc", "3.22.0");
+    supported_sdk_versions.insert("sentry.dotnet.atlasproper", "3.22.0");
+    supported_sdk_versions.insert("sentry.dotnet.cocoa", "3.22.0");
+    supported_sdk_versions.insert("sentry.dotnet.ef", "3.22.0");
+    supported_sdk_versions.insert("sentry.dotnet.extensions.logging", "3.22.0");
+    supported_sdk_versions.insert("sentry.dotnet.google-cloud-function", "3.22.0");
+    supported_sdk_versions.insert("sentry.dotnet.log4net", "3.22.0");
+    supported_sdk_versions.insert("sentry.dotnet.maui", "3.22.0");
+    supported_sdk_versions.insert("sentry.dotnet.nlog", "3.22.0");
+    supported_sdk_versions.insert("sentry.dotnet.serilog", "3.22.0");
+    supported_sdk_versions.insert("sentry.dotnet.xamarin", "3.22.0");
+    supported_sdk_versions.insert("sentry.dotnet.xamarin-forms", "3.22.0");
+    supported_sdk_versions.insert("Sentry.Extensions.Logging", "3.22.0");
+    supported_sdk_versions.insert("Sentry.NET", "3.22.0");
+    supported_sdk_versions.insert("Sentry.UWP", "3.22.0");
+    supported_sdk_versions.insert("SentryDotNet", "3.22.0");
+    supported_sdk_versions.insert("SentryDotNet.AspNetCore", "3.22.0");
+    supported_sdk_versions.insert("sentry.dotnet.unity", "0.24.0");
+    supported_sdk_versions.insert("sentry.cocoa.unity", "0.24.0");
+    supported_sdk_versions.insert("sentry.java.android.unity", "0.24.0");
+
+    supported_sdk_versions
+});
 
 /// Represents the specification for sampling an incoming event.
 #[derive(Default, Clone, Debug, PartialEq)]
@@ -99,6 +210,72 @@ pub fn get_sampling_key(envelope: &Envelope) -> Option<ProjectKey> {
     envelope.dsc().map(|dsc| dsc.public_key)
 }
 
+/// Compares two semantic versions.
+///
+/// This function is just temporary since it's used to compare SDK versions when an [`Event`] is
+/// received.
+fn compare_versions(version1: &str, version2: &str) -> std::cmp::Ordering {
+    // Split the version strings into individual numbers
+    let nums1: Vec<&str> = version1.split('.').collect();
+    let nums2: Vec<&str> = version2.split('.').collect();
+
+    // Pad the shorter version with zeros to ensure equal length
+    let length = usize::max(nums1.len(), nums2.len());
+    let nums1 = {
+        let mut padded = vec!["0"; length - nums1.len()];
+        padded.extend(nums1);
+        padded
+    };
+    let nums2 = {
+        let mut padded = vec!["0"; length - nums2.len()];
+        padded.extend(nums2);
+        padded
+    };
+
+    // Compare the numbers from left to right
+    for (num1, num2) in nums1.iter().zip(nums2.iter()) {
+        let num1 = num1.parse::<i32>().unwrap_or(0);
+        let num2 = num2.parse::<i32>().unwrap_or(0);
+
+        match num1.cmp(&num2) {
+            Ordering::Greater => return Ordering::Greater,
+            Ordering::Less => return Ordering::Less,
+            Ordering::Equal => continue,
+        }
+    }
+
+    // All numbers are equal
+    Ordering::Equal
+}
+
+/// Emits a metric when an [`Event`] is inside an [`Envelope`] without [`DynamicSamplingContext`].
+///
+/// This function is a temporary function which has been added mainly for debugging purposes. Our
+/// goal with this function is to validate how many times the DSC is not
+fn track_missing_dsc(event: &Event) {
+    let Some(client_sdk_info) = event.client_sdk.value() else {
+        return;
+    };
+
+    let (Some(sdk_name), Some(sdk_version)) = (
+        client_sdk_info.name.value(),
+        client_sdk_info.version.value(),
+    ) else {
+        return;
+    };
+
+    let Some(min_sdk_version) = SUPPORTED_SDK_VERSIONS.get(sdk_name.as_str()) else {
+        return;
+    };
+
+    match compare_versions(sdk_version, min_sdk_version) {
+        Ordering::Greater | Ordering::Equal => {
+            // TRACK METRIC
+        }
+        _ => return,
+    };
+}
+
 /// Computes a dynamic sampling context from a transaction event.
 ///
 /// Returns `None` if the passed event is not a transaction event, or if it does not contain a
@@ -115,6 +292,8 @@ pub fn dsc_from_event(public_key: ProjectKey, event: &Event) -> Option<DynamicSa
     let trace = event.context::<TraceContext>()?;
     let trace_id = trace.trace_id.value()?.0.parse().ok()?;
     let user = event.user.value();
+
+    track_missing_dsc(event);
 
     Some(DynamicSamplingContext {
         trace_id,
