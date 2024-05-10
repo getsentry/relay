@@ -11,6 +11,9 @@ class _WithinBounds:
         assert isinstance(other, int)
         return self._lower_bound <= other <= self._upper_bound
 
+    def __str__(self):
+        return f"{self._lower_bound} <= x <= {self._upper_bound}"
+
 
 def time_after(lower_bound):
     upper_bound = int(datetime.now(tz=timezone.utc).timestamp())

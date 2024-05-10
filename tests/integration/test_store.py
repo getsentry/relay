@@ -12,6 +12,8 @@ from flask import Response, abort
 from requests.exceptions import HTTPError
 from sentry_sdk.envelope import Envelope
 
+from .asserts import time_after, time_within_delta
+
 
 def test_store(mini_sentry, relay_chain):
     relay = relay_chain()
@@ -660,10 +662,12 @@ def test_rate_limit_metrics_buckets(
     tick = generate_ticks()
 
     def make_bucket(name, type_, values):
+        timestamp_ = next(tick)
+        print(f"TIMESTAMP {timestamp_}")
         return {
             "org_id": 1,
             "project_id": project_id,
-            "timestamp": next(tick),
+            "timestamp": timestamp_,
             "name": name,
             "type": type_,
             "value": values,
@@ -673,6 +677,8 @@ def test_rate_limit_metrics_buckets(
     def send_buckets(buckets):
         relay.send_metrics_buckets(project_id, buckets)
         sleep(0.2)
+
+    timestamp = int(datetime.utcnow().timestamp())
 
     # NOTE: Sending these buckets in multiple envelopes because the order of flushing
     # and also the order of rate limiting is not deterministic.
@@ -723,10 +729,6 @@ def test_rate_limit_metrics_buckets(
 
     # Sort buckets to prevent ordering flakiness:
     produced_buckets.sort(key=lambda b: (b["name"], b["value"]))
-    for bucket in produced_buckets:
-        del bucket["timestamp"]
-        del bucket["received_at"]
-
     assert produced_buckets == [
         {
             "name": "d:sessions/duration@second",
@@ -736,6 +738,8 @@ def test_rate_limit_metrics_buckets(
             "tags": {},
             "type": "d",
             "value": [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
+            "timestamp": time_within_delta(timestamp),
+            "received_at": time_within_delta(timestamp),
         },
         {
             "name": "d:sessions/session@none",
@@ -745,6 +749,8 @@ def test_rate_limit_metrics_buckets(
             "tags": {},
             "type": "c",
             "value": 1.0,
+            "timestamp": time_within_delta(timestamp),
+            "received_at": time_within_delta(timestamp),
         },
         {
             "name": "d:sessions/session@user",
@@ -754,6 +760,8 @@ def test_rate_limit_metrics_buckets(
             "tags": {},
             "type": "s",
             "value": [1254],
+            "timestamp": time_within_delta(timestamp),
+            "received_at": time_within_delta(timestamp),
         },
         {
             "name": "d:transactions/duration@millisecond",
@@ -763,6 +771,8 @@ def test_rate_limit_metrics_buckets(
             "tags": {},
             "type": "d",
             "value": [1.0, 2.0, 3.0],
+            "timestamp": time_within_delta(timestamp),
+            "received_at": time_within_delta(timestamp),
         },
         {
             "name": "d:transactions/duration@millisecond",
@@ -772,6 +782,8 @@ def test_rate_limit_metrics_buckets(
             "tags": {},
             "type": "d",
             "value": violating_bucket,
+            "timestamp": time_within_delta(timestamp),
+            "received_at": time_within_delta(timestamp),
         },
         {
             "name": "d:transactions/measurements.lcp@millisecond",
@@ -781,6 +793,8 @@ def test_rate_limit_metrics_buckets(
             "tags": {},
             "type": "d",
             "value": [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
+            "timestamp": time_within_delta(timestamp),
+            "received_at": time_within_delta(timestamp),
         },
         {
             "name": "d:transactions/measurements.lcp@millisecond",
@@ -790,6 +804,8 @@ def test_rate_limit_metrics_buckets(
             "tags": {},
             "type": "d",
             "value": [2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0],
+            "timestamp": time_within_delta(timestamp),
+            "received_at": time_within_delta(timestamp),
         },
     ]
 

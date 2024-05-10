@@ -410,7 +410,7 @@ def test_global_metrics_no_config(mini_sentry, relay):
     timestamp = int(datetime.now(tz=timezone.utc).timestamp())
     metrics = [
         {
-            "timestamp": time_after(timestamp),
+            "timestamp": timestamp,
             "width": 1,
             "name": "c:transactions/foo@none",
             "value": 17.0,
@@ -695,11 +695,12 @@ def test_session_metrics_processing(
     metrics = metrics_by_name(metrics_consumer, 2)
 
     now_timestamp = int(now.timestamp())
+    started_timestamp = int(started.timestamp())
     assert metrics["c:sessions/session@none"] == {
         "org_id": 1,
         "project_id": 42,
         "retention_days": 90,
-        "timestamp": time_after(now_timestamp),
+        "timestamp": time_after(started_timestamp),
         "name": "c:sessions/session@none",
         "type": "c",
         "value": 1.0,
@@ -716,7 +717,7 @@ def test_session_metrics_processing(
         "org_id": 1,
         "project_id": 42,
         "retention_days": 90,
-        "timestamp": time_after(now_timestamp),
+        "timestamp": time_after(started_timestamp),
         "name": "s:sessions/user@none",
         "type": "s",
         "value": [1617781333],
