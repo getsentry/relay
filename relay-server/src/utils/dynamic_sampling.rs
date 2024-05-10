@@ -119,6 +119,7 @@ static SUPPORTED_SDK_VERSIONS: Lazy<HashMap<&'static str, &'static str>> = Lazy:
     supported_sdk_versions.insert("sentry.dotnet.unity", "0.24.0");
     supported_sdk_versions.insert("sentry.cocoa.unity", "0.24.0");
     supported_sdk_versions.insert("sentry.java.android.unity", "0.24.0");
+    supported_sdk_versions.insert("sentry.go", "0.16.0");
 
     supported_sdk_versions
 });
