@@ -137,8 +137,6 @@ impl Filterable for Span {
 
     fn transaction(&self) -> Option<&str> {
         self.data.value()?.segment_name.as_str()
-
-        None
     }
 
     fn url(&self) -> Option<Url> {
