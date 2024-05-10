@@ -34,15 +34,6 @@ impl Buckets {
     }
 }
 
-impl<S> Buckets<S> {
-    fn migrate<T>(self) -> Buckets<T> {
-        Buckets {
-            buckets: self.buckets,
-            state: PhantomData,
-        }
-    }
-}
-
 impl<S> Deref for Buckets<S> {
     type Target = [Bucket];
 
@@ -81,7 +72,10 @@ impl Buckets {
             MetricNamespace::Unsupported => false,
         });
 
-        self.migrate()
+        Buckets {
+            buckets: self.buckets,
+            state: PhantomData,
+        }
     }
 }
 
@@ -90,7 +84,7 @@ impl Buckets<Filtered> {
         mut self,
         outcome_aggregator: &Addr<TrackOutcome>,
         metric_stats: &MetricStats,
-        state: &ProjectState,
+        project_state: &ProjectState,
         scoping: Scoping,
     ) -> Buckets<WithProjectState> {
         let mut denied_buckets = Vec::new();
@@ -100,13 +94,13 @@ impl Buckets<Filtered> {
             .buckets
             .into_iter()
             .filter_map(|mut bucket| {
-                if !is_metric_namespace_valid(state, bucket.name.namespace()) {
+                if !is_metric_namespace_valid(project_state, bucket.name.namespace()) {
                     relay_log::trace!(mri = &*bucket.name, "dropping metric in disabled namespace");
                     disabled_namespace_buckets.push(bucket);
                     return None;
                 };
 
-                if let ErrorBoundary::Ok(ref metric_config) = state.config.metrics {
+                if let ErrorBoundary::Ok(ref metric_config) = project_state.config.metrics {
                     if metric_config.denied_names.is_match(&*bucket.name) {
                         relay_log::trace!(
                             mri = &*bucket.name,
@@ -123,7 +117,7 @@ impl Buckets<Filtered> {
             })
             .collect();
 
-        let mode = state.get_extraction_mode();
+        let mode = project_state.get_extraction_mode();
         if !disabled_namespace_buckets.is_empty() {
             utils::reject_metrics(
                 outcome_aggregator,
@@ -146,7 +140,10 @@ impl Buckets<Filtered> {
             );
         }
 
-        self.migrate()
+        Buckets {
+            buckets: self.buckets,
+            state: PhantomData,
+        }
     }
 }
 

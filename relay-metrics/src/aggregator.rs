@@ -463,7 +463,7 @@ impl fmt::Debug for CostTracker {
 /// The minimum trait requirements an [`Aggregator`] can work with.
 ///
 /// The aggregator accepts buckets with this type and also returns
-/// aggregated with the same type again.
+/// aggregated buckets with the same type again.
 ///
 /// The aggregator being generic over the contained buckets allows
 /// type safety when aggregating buckets in different states.
