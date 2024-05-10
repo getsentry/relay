@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.8.61
 
 - Update data category metirc hours to metric seconds. [#3558](https://github.com/getsentry/relay/pull/3558)
 
