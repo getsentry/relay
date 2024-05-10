@@ -725,6 +725,7 @@ def test_rate_limit_metrics_buckets(
     produced_buckets.sort(key=lambda b: (b["name"], b["value"]))
     for bucket in produced_buckets:
         del bucket["timestamp"]
+        del bucket["received_at"]
 
     assert produced_buckets == [
         {
