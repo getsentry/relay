@@ -1289,7 +1289,7 @@ struct MetricKafkaMessage<'a> {
     timestamp: UnixTimestamp,
     tags: &'a BTreeMap<String, String>,
     retention_days: u16,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     received_at: Option<UnixTimestamp>,
 }
 
