@@ -297,6 +297,8 @@ pub fn dsc_from_event(public_key: ProjectKey, event: &Event) -> Option<DynamicSa
     let trace_id = trace.trace_id.value()?.0.parse().ok()?;
     let user = event.user.value();
 
+    // When we arrive at this point, we know that a DSC can be built from the event, implying that
+    // the event doesn't have one. We want to track a metric for this.
     track_missing_dsc(event);
 
     Some(DynamicSamplingContext {
@@ -508,5 +510,27 @@ mod tests {
 
         let result = is_trace_fully_sampled(&config, &dsc);
         assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_sdk_versions_comparison() {
+        let minimum_sdk_version = SUPPORTED_SDK_VERSIONS.get("sentry.python.flask").unwrap();
+        let received_sdk_versions = ["1.0.0", "0.1", "1.7.3", "1.10.20", "1.0", "1.7.2"];
+        let expected_comparisons = [
+            Ordering::Less,
+            Ordering::Less,
+            Ordering::Greater,
+            Ordering::Greater,
+            Ordering::Less,
+            Ordering::Equal,
+        ];
+
+        for (received_sdk_version, expected_comparison) in received_sdk_versions
+            .iter()
+            .zip(expected_comparisons.iter())
+        {
+            let comparison = compare_versions(received_sdk_version, minimum_sdk_version);
+            assert_eq!(comparison, *expected_comparison);
+        }
     }
 }
