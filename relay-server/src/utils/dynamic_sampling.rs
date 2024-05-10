@@ -217,28 +217,28 @@ pub fn get_sampling_key(envelope: &Envelope) -> Option<ProjectKey> {
 ///
 /// This function is a temporary function which has been added mainly for debugging purposes. Our
 /// goal with this function is to validate how many times the DSC is not
-fn track_missing_dsc(event: &Event) {
+fn track_missing_dsc(event: &Event) -> bool {
     let Some(client_sdk_info) = event.client_sdk.value() else {
-        return;
+        return false;
     };
 
     let (Some(sdk_name), Some(sdk_version)) = (
         client_sdk_info.name.value(),
         client_sdk_info.version.value(),
     ) else {
-        return;
+        return false;
     };
 
     let Some(min_sdk_version) = SUPPORTED_SDK_VERSIONS.get(sdk_name.as_str()) else {
-        return;
+        return false;
     };
 
     let Ok(req) = VersionReq::parse(format!(">={}", min_sdk_version).as_str()) else {
-        return;
+        return false;
     };
 
     let Ok(version) = Version::parse(sdk_version) else {
-        return;
+        return false;
     };
 
     if req.matches(&version) {
@@ -246,7 +246,11 @@ fn track_missing_dsc(event: &Event) {
             counter(RelayCounters::MissingDynamicSamplingContext) += 1,
             sdk_name = sdk_name.as_str()
         );
+
+        return true;
     }
+
+    false
 }
 
 /// Computes a dynamic sampling context from a transaction event.
@@ -294,7 +298,7 @@ pub fn dsc_from_event(public_key: ProjectKey, event: &Event) -> Option<DynamicSa
 
 #[cfg(test)]
 mod tests {
-    use relay_event_schema::protocol::{EventId, LenientString};
+    use relay_event_schema::protocol::{ClientSdkInfo, EventId, LenientString};
     use relay_protocol::Annotated;
     use relay_protocol::RuleCondition;
     use relay_sampling::config::{RuleId, SamplingRule, SamplingValue};
@@ -479,5 +483,29 @@ mod tests {
 
         let result = is_trace_fully_sampled(&config, &dsc);
         assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_track_missing_dsc_with_supported_sdk_version() {
+        let mut event = mocked_event(EventType::Transaction, "bar", "2.0");
+        event.client_sdk = Annotated::new(ClientSdkInfo {
+            name: Annotated::new("sentry.python.flask".to_string()),
+            version: Annotated::new("1.7.3".to_string()),
+            ..Default::default()
+        });
+
+        assert!(track_missing_dsc(&event));
+    }
+
+    #[test]
+    fn test_track_missing_dsc_with_unsupported_sdk_version() {
+        let mut event = mocked_event(EventType::Transaction, "bar", "2.0");
+        event.client_sdk = Annotated::new(ClientSdkInfo {
+            name: Annotated::new("sentry.python.flask".to_string()),
+            version: Annotated::new("1.0.3".to_string()),
+            ..Default::default()
+        });
+
+        assert!(!track_missing_dsc(&event));
     }
 }
