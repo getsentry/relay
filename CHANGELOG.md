@@ -17,6 +17,7 @@
 - Emit negative outcomes for denied metrics. ([#3508](https://github.com/getsentry/relay/pull/3508))
 - Increase size limits for internal batch endpoints. ([#3562](https://github.com/getsentry/relay/pull/3562))
 - Emit negative outcomes when metrics are rejected because of a disabled namespace. ([#3544](https://github.com/getsentry/relay/pull/3544))
+- Forward `received_at` timestamp for buckets sent to Kafka. ([#3561](https://github.com/getsentry/relay/pull/3561))
 
 ## 24.4.2
 
