@@ -3045,7 +3045,6 @@ mod tests {
 
     #[cfg(feature = "processing")]
     use {
-        relay_dynamic_config::Options,
         relay_metrics::BucketValue,
         relay_quotas::{QuotaScope, ReasonCode},
         relay_test::mock_service,
@@ -3071,11 +3070,8 @@ mod tests {
     #[test]
     fn test_dynamic_quotas() {
         let global_config = GlobalConfig {
-            measurements: None,
             quotas: vec![mock_quota("foo"), mock_quota("bar")],
-            filters: Default::default(),
-            options: Options::default(),
-            metric_extraction: Default::default(),
+            ..Default::default()
         };
 
         let project_quotas = vec![mock_quota("baz"), mock_quota("qux")];
