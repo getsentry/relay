@@ -44,7 +44,7 @@ def test_filters_are_applied(
         filter_settings[key] = filter_config[key]
 
     # create a unique message so we can make sure we don't test with stale data
-    now = datetime.datetime.utcnow()
+    now = datetime.datetime.now(datetime.UTC)
     message_text = f"some message {now.isoformat()}"
 
     event = {
@@ -195,7 +195,7 @@ def test_web_crawlers_filter_are_applied(
     events_consumer = events_consumer(timeout=10)
 
     # create a unique message so we can make sure we don't test with stale data
-    now = datetime.datetime.utcnow()
+    now = datetime.datetime.now(datetime.UTC)
     message_text = f"some message {now.isoformat()}"
 
     event = {
@@ -256,7 +256,7 @@ def test_ignore_transactions_filters_are_applied(
 
     transactions_consumer = transactions_consumer(timeout=10)
 
-    now = datetime.datetime.utcnow()
+    now = datetime.datetime.now(datetime.UTC)
     start_timestamp = (now - datetime.timedelta(minutes=1)).timestamp()
     timestamp = now.timestamp()
 
