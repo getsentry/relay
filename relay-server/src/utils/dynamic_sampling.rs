@@ -124,7 +124,7 @@ pub fn dsc_from_event(public_key: ProjectKey, event: &Event) -> Option<DynamicSa
         public_key,
         release: event.release.as_str().map(str::to_owned),
         environment: event.environment.value().cloned(),
-        transaction: event.transaction.value().cloned(),
+        segment_name: event.transaction.value().cloned(),
         replay_id: None,
         sample_rate: None,
         user: TraceUserContext {
@@ -173,7 +173,7 @@ mod tests {
             public_key: "12345678901234567890123456789012".parse().unwrap(),
             release: release.map(|value| value.to_string()),
             environment: environment.map(|value| value.to_string()),
-            transaction: transaction.map(|value| value.to_string()),
+            segment_name: transaction.map(|value| value.to_string()),
             sample_rate,
             user: Default::default(),
             other: Default::default(),

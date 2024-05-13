@@ -168,11 +168,27 @@ macro_rules! processing_group {
 pub trait EventProcessing {}
 
 /// A trait for processing groups that can be dynamically sampled.
-pub trait Sampling {}
+pub trait Sampling {
+    /// Whether dynamic sampling should run under the given project's conditions.
+    fn supports_sampling(project_state: &ProjectState) -> bool;
+
+    fn supports_reservoir_sampling() -> bool;
+}
 
 processing_group!(TransactionGroup, Transaction);
 impl EventProcessing for TransactionGroup {}
-impl Sampling for TransactionGroup {}
+
+impl Sampling for TransactionGroup {
+    fn supports_sampling(project_state: &ProjectState) -> bool {
+        // For transactions, we require transaction metrics to be enabled before sampling.
+
+        matches!(&project_state.config.transaction_metrics, Some(ErrorBoundary::Ok(c)) if c.is_enabled())
+    }
+
+    fn supports_reservoir_sampling() -> bool {
+        true
+    }
+}
 
 processing_group!(ErrorGroup, Error);
 impl EventProcessing for ErrorGroup {}
@@ -183,7 +199,17 @@ processing_group!(ClientReportGroup, ClientReport);
 processing_group!(ReplayGroup, Replay);
 processing_group!(CheckInGroup, CheckIn);
 processing_group!(SpanGroup, Span);
-impl Sampling for SpanGroup {}
+
+impl Sampling for SpanGroup {
+    fn supports_sampling(project_state: &ProjectState) -> bool {
+        // If no metrics could be extracted, do not sample anything.
+        matches!(&project_state.config().metric_extraction, ErrorBoundary::Ok(c) if c.is_enabled())
+    }
+
+    fn supports_reservoir_sampling() -> bool {
+        true
+    }
+}
 
 processing_group!(ProfileChunkGroup, ProfileChunk);
 processing_group!(MetricsGroup, Metrics);
@@ -1250,7 +1276,7 @@ impl EnvelopeProcessorService {
                         .managed_envelope
                         .envelope()
                         .dsc()
-                        .and_then(|dsc| dsc.transaction.as_deref());
+                        .and_then(|dsc| dsc.segment_name.as_deref());
 
                     let extractor = TransactionExtractor {
                         config: tx_config,
@@ -1658,7 +1684,7 @@ impl EnvelopeProcessorService {
         // from the contents of the envelope.
         let group = managed_envelope.group();
 
-        // Pre-process the envelope headers:
+        // Pre-process the envelope headers.
         if let Some(sampling_state) = sampling_project_state.as_ref() {
             managed_envelope
                 .envelope_mut()

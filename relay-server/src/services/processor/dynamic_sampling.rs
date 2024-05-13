@@ -16,7 +16,7 @@ use relay_statsd::metric;
 use crate::envelope::ItemType;
 use crate::services::outcome::Outcome;
 use crate::services::processor::{
-    profile, EventProcessing, ProcessEnvelopeState, ProcessingGroup, Sampling, TransactionGroup,
+    profile, EventProcessing, ProcessEnvelopeState, Sampling, TransactionGroup,
 };
 use crate::statsd::RelayCounters;
 use crate::utils::{self, sample, ItemAction, SamplingResult};
@@ -62,18 +62,11 @@ pub fn ensure_dsc(state: &mut ProcessEnvelopeState<TransactionGroup>) {
 }
 
 /// Computes the sampling decision on the incoming event
-pub fn run<G>(state: &mut ProcessEnvelopeState<G>, config: &Config) -> SamplingResult
+pub fn run<Group>(state: &mut ProcessEnvelopeState<Group>, config: &Config) -> SamplingResult
 where
-    G: Sampling,
+    Group: Sampling,
 {
-    // Running dynamic sampling involves either:
-    // - Tagging whether an incoming error has a sampled trace connected to it.
-    // - Computing the actual sampling decision on an incoming transaction.
-
-    // For transactions, we require transaction metrics to be enabled before sampling.
-    let transaction_metrics_enabled = matches!(&state.project_state.config.transaction_metrics, Some(ErrorBoundary::Ok(c)) if c.is_enabled());
-    let group = state.managed_envelope.group();
-    if matches!(group, ProcessingGroup::Transaction) && !transaction_metrics_enabled {
+    if !Group::supports_sampling(&state.project_state) {
         return SamplingResult::Pending;
     }
 
@@ -88,10 +81,7 @@ where
         _ => None,
     };
 
-    let reservoir = match group {
-        ProcessingGroup::Transaction => Some(&state.reservoir),
-        _ => None,
-    };
+    let reservoir = Group::supports_reservoir_sampling().then_some(&state.reservoir);
 
     compute_sampling_decision(
         config.processing_enabled(),
@@ -536,7 +526,7 @@ mod tests {
             user: Default::default(),
             replay_id: None,
             environment: None,
-            transaction: Some("transaction1".into()),
+            segment_name: Some("transaction1".into()),
             sample_rate: None,
             sampled: Some(true),
             other: BTreeMap::new(),
@@ -690,7 +680,7 @@ mod tests {
             user: Default::default(),
             replay_id: None,
             environment: None,
-            transaction: Some("transaction1".into()),
+            segment_name: Some("transaction1".into()),
             sample_rate: Some(0.5),
             sampled: Some(true),
             other: BTreeMap::new(),

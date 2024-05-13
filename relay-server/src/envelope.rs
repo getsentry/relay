@@ -1244,7 +1244,7 @@ impl Envelope {
             return;
         };
 
-        let parametrized_transaction = match &dsc.transaction {
+        let parametrized_transaction = match &dsc.segment_name {
             Some(transaction) if transaction.contains('/') => {
                 // Ideally we would only apply transaction rules to transactions with source `url`,
                 // but the DSC does not contain this information. The chance of a transaction rename rule
@@ -1256,7 +1256,7 @@ impl Envelope {
             _ => return,
         };
 
-        dsc.transaction = parametrized_transaction;
+        dsc.segment_name = parametrized_transaction;
     }
 
     /// Returns the dynamic sampling context from envelope headers, if present.
@@ -2080,7 +2080,7 @@ mod tests {
             user: Default::default(),
             replay_id: None,
             environment: None,
-            transaction: Some("/auth/login/test/".into()), // the only important bit for this test
+            segment_name: Some("/auth/login/test/".into()), // the only important bit for this test
             sample_rate: Some(0.5),
             sampled: Some(true),
             other: BTreeMap::new(),
@@ -2108,14 +2108,14 @@ mod tests {
         envelope.set_dsc(dsc.clone());
 
         assert_eq!(
-            envelope.dsc().unwrap().transaction.as_ref().unwrap(),
+            envelope.dsc().unwrap().segment_name.as_ref().unwrap(),
             "/auth/login/test/"
         );
         // parametrize the transaciton name in the dsc.
         envelope.parametrize_dsc_transaction(&[rule]);
 
         assert_eq!(
-            envelope.dsc().unwrap().transaction.as_ref().unwrap(),
+            envelope.dsc().unwrap().segment_name.as_ref().unwrap(),
             "/auth/login/*/"
         );
     }
