@@ -5,14 +5,13 @@ use std::io::BufReader;
 use std::path::Path;
 
 use relay_base_schema::metrics::MetricNamespace;
-use relay_event_normalization::MeasurementsConfig;
+use relay_event_normalization::{MeasurementsConfig, ModelCosts};
 use relay_filter::GenericFiltersConfig;
 use relay_quotas::Quota;
 use serde::{de, Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::ai::ModelCosts;
-use crate::{ai, defaults, ErrorBoundary, MetricExtractionGroup, MetricExtractionGroups};
+use crate::{defaults, ErrorBoundary, MetricExtractionGroup, MetricExtractionGroups};
 
 /// A dynamic configuration for all Relays passed down from Sentry.
 ///
@@ -50,7 +49,7 @@ pub struct GlobalConfig {
 
     /// Configuration for AI span measurements.
     #[serde(skip_serializing_if = "is_missing")]
-    pub ai_model_costs: ErrorBoundary<ai::ModelCosts>,
+    pub ai_model_costs: ErrorBoundary<ModelCosts>,
 }
 
 impl GlobalConfig {
@@ -406,7 +405,7 @@ fn is_ok_and_empty(value: &ErrorBoundary<MetricExtractionGroups>) -> bool {
     )
 }
 
-fn is_missing(value: &ErrorBoundary<ai::ModelCosts>) -> bool {
+fn is_missing(value: &ErrorBoundary<ModelCosts>) -> bool {
     matches!(
         value,
         &ErrorBoundary::Ok(ModelCosts{ version, ref costs }) if version == 0 && costs.is_empty()

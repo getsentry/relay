@@ -7,14 +7,14 @@ use chrono::{DateTime, Utc};
 use relay_base_schema::events::EventType;
 use relay_config::Config;
 use relay_dynamic_config::{
-    CombinedMetricExtractionConfig, ErrorBoundary, Feature, GlobalConfig, ModelCosts, ProjectConfig,
+    CombinedMetricExtractionConfig, ErrorBoundary, Feature, GlobalConfig, ProjectConfig,
 };
-use relay_event_normalization::normalize_transaction_name;
 use relay_event_normalization::{
     normalize_measurements, normalize_performance_score, normalize_user_agent_info_generic,
     span::tag_extraction, validate_span, CombinedMeasurementsConfig, MeasurementsConfig,
     PerformanceScoreConfig, RawUserAgentInfo, TransactionsProcessor,
 };
+use relay_event_normalization::{normalize_transaction_name, ModelCosts};
 use relay_event_schema::processor::{process_value, ProcessingState};
 use relay_event_schema::protocol::{BrowserContext, Contexts, Event, Span, SpanData};
 use relay_log::protocol::{Attachment, AttachmentType};
@@ -26,7 +26,6 @@ use relay_spans::{otel_to_sentry_span, otel_trace::Span as OtelSpan};
 use crate::envelope::{ContentType, Envelope, Item, ItemType};
 use crate::metrics_extraction::generic::extract_metrics;
 use crate::services::outcome::{DiscardReason, Outcome};
-use crate::services::processor::ai::extract_ai_measurements;
 use crate::services::processor::span::extract_transaction_span;
 use crate::services::processor::{
     Addrs, ProcessEnvelope, ProcessEnvelopeState, ProcessingError, ProcessingGroup, SpanGroup,
@@ -34,6 +33,7 @@ use crate::services::processor::{
 };
 use crate::statsd::{RelayCounters, RelayHistograms};
 use crate::utils::{sample, BufferGuard, ItemAction};
+use relay_event_normalization::span::ai::extract_ai_measurements;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -324,13 +324,11 @@ pub fn extract_from_event(
         return;
     };
 
-    let ai_model_costs_config = global_config.ai_model_costs.clone().ok();
     let Some(transaction_span) = extract_transaction_span(
         event,
         config
             .aggregator_config_for(MetricNamespace::Spans)
             .max_tag_value_length,
-        ai_model_costs_config,
     ) else {
         return;
     };
