@@ -253,7 +253,7 @@ pub fn dsc_from_event(public_key: ProjectKey, event: &Event) -> Option<DynamicSa
 
     // When we arrive at this point, we know that a DSC can be built from the event, implying that
     // the event doesn't have one. We want to track a metric when the event should have the DSC
-    // or not based on the SDk version.
+    // or not based on the SDK version.
     let sdk_name = should_have_dsc(event);
     match sdk_name {
         Some(sdk_name) => {
