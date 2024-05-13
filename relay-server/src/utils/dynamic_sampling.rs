@@ -263,7 +263,7 @@ pub fn dsc_from_event(public_key: ProjectKey, event: &Event) -> Option<DynamicSa
                 should_have_dsc = "true"
             );
         }
-        _ => {
+        None => {
             relay_statsd::metric!(
                 counter(RelayCounters::MissingDynamicSamplingContext) += 1,
                 should_have_dsc = "false"
@@ -491,9 +491,7 @@ mod tests {
             ..Default::default()
         });
 
-        let Some(sdk_name) = should_have_dsc(&event) else {
-            panic!();
-        };
+        let sdk_name = should_have_dsc(&event).unwrap();
         assert_eq!(sdk_name, "sentry.python.flask".to_string());
     }
 
