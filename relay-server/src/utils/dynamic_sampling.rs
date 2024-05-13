@@ -213,45 +213,25 @@ pub fn get_sampling_key(envelope: &Envelope) -> Option<ProjectKey> {
     envelope.dsc().map(|dsc| dsc.public_key)
 }
 
-/// Emits a metric when an [`Event`] is inside an [`Envelope`] without [`DynamicSamplingContext`].
+/// Returns `Some` if the event should have the DSC, otherwise returns `None`.
 ///
 /// This function is a temporary function which has been added mainly for debugging purposes. Our
 /// goal with this function is to validate how many times the DSC is not on an [`Event`] which
 /// should have it.
-fn track_missing_dsc(event: &Event) -> bool {
-    let Some(client_sdk_info) = event.client_sdk.value() else {
-        return false;
-    };
+fn should_have_dsc(event: &Event) -> Option<String> {
+    let client_sdk_info = event.client_sdk.value()?;
 
-    let (Some(sdk_name), Some(sdk_version)) = (
-        client_sdk_info.name.value(),
-        client_sdk_info.version.value(),
-    ) else {
-        return false;
-    };
+    let (sdk_name, sdk_version) = (
+        client_sdk_info.name.value()?,
+        client_sdk_info.version.value()?,
+    );
 
-    let Some(min_sdk_version) = SUPPORTED_SDK_VERSIONS.get(sdk_name.as_str()) else {
-        return false;
-    };
+    let min_sdk_version = SUPPORTED_SDK_VERSIONS.get(sdk_name.as_str())?;
 
-    let Ok(req) = VersionReq::parse(format!(">={}", min_sdk_version).as_str()) else {
-        return false;
-    };
+    let req = VersionReq::parse(format!(">={}", min_sdk_version).as_str()).ok()?;
+    let version = Version::parse(sdk_version).ok()?;
 
-    let Ok(version) = Version::parse(sdk_version) else {
-        return false;
-    };
-
-    if req.matches(&version) {
-        relay_statsd::metric!(
-            counter(RelayCounters::MissingDynamicSamplingContext) += 1,
-            sdk_name = sdk_name.as_str()
-        );
-
-        return true;
-    }
-
-    false
+    req.matches(&version).then(|| sdk_name.clone())
 }
 
 /// Computes a dynamic sampling context from a transaction event.
@@ -272,8 +252,24 @@ pub fn dsc_from_event(public_key: ProjectKey, event: &Event) -> Option<DynamicSa
     let user = event.user.value();
 
     // When we arrive at this point, we know that a DSC can be built from the event, implying that
-    // the event doesn't have one. We want to track a metric for this.
-    track_missing_dsc(event);
+    // the event doesn't have one. We want to track a metric when the event should have the DSC
+    // or not based on the SDk version.
+    let sdk_name = should_have_dsc(event);
+    match sdk_name {
+        Some(sdk_name) => {
+            relay_statsd::metric!(
+                counter(RelayCounters::MissingDynamicSamplingContext) += 1,
+                sdk_name = sdk_name.as_str(),
+                should_have_dsc = "true"
+            );
+        }
+        _ => {
+            relay_statsd::metric!(
+                counter(RelayCounters::MissingDynamicSamplingContext) += 1,
+                should_have_dsc = "false"
+            );
+        }
+    }
 
     Some(DynamicSamplingContext {
         trace_id,
@@ -495,7 +491,10 @@ mod tests {
             ..Default::default()
         });
 
-        assert!(track_missing_dsc(&event));
+        let Some(sdk_name) = should_have_dsc(&event) else {
+            panic!();
+        };
+        assert_eq!(sdk_name, "sentry.python.flask".to_string());
     }
 
     #[test]
@@ -507,6 +506,6 @@ mod tests {
             ..Default::default()
         });
 
-        assert!(!track_missing_dsc(&event));
+        assert!(should_have_dsc(&event).is_none());
     }
 }
