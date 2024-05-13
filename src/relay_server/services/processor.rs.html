@@ -5941,12 +5941,12 @@
             } = message;
 
             <span class="kw">let </span>mode = project_state.get_extraction_mode();
-            <span class="kw">let </span>limits = project_state.get_cardinality_limits();
 
-            <span class="kw">let </span>buckets = <span class="self">self</span>.cardinality_limit_buckets(scoping, limits, buckets, mode);
             <span class="kw">let </span>quotas = CombinedQuotas::new(<span class="kw-2">&amp;</span>global_config, project_state.get_quotas());
-
             <span class="kw">let </span>buckets = <span class="self">self</span>.rate_limit_buckets_by_namespace(scoping, buckets, quotas, mode);
+
+            <span class="kw">let </span>limits = project_state.get_cardinality_limits();
+            <span class="kw">let </span>buckets = <span class="self">self</span>.cardinality_limit_buckets(scoping, limits, buckets, mode);
 
             <span class="kw">if </span>buckets.is_empty() {
                 <span class="kw">continue</span>;
