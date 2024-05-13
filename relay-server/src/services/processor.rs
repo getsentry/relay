@@ -2217,7 +2217,7 @@ impl EnvelopeProcessorService {
         rate_limiter: &RedisRateLimiter,
     ) -> Vec<Bucket> {
         let batch_size = self.inner.config.metrics_max_batch_size_bytes();
-        let batched_bucket_iter = BucketsView::new(&buckets).by_size(batch_size).flatten();
+        let batched_bucket_iter = BucketsView::from(&buckets).by_size(batch_size).flatten();
         let quantities = utils::extract_metric_quantities(batched_bucket_iter, mode);
 
         // Check with redis if the throughput limit has been exceeded, while also updating
