@@ -63,7 +63,7 @@ def test_nonchunked_replay_recordings_processing(
     assert replay_recording["project_id"] == project_id
     assert replay_recording["key_id"] == 123
     assert replay_recording["org_id"] == org_id
-    assert type(replay_recording["received"]) == int
+    assert isinstance(replay_recording["received"], int)
     assert replay_recording["retention_days"] == 90
     assert replay_recording["payload"] == payload
     assert replay_recording["type"] == "replay_recording_not_chunked"

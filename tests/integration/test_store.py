@@ -4,7 +4,7 @@ import queue
 import socket
 import threading
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta, timezone
 from time import sleep
 
 import pytest
@@ -265,7 +265,7 @@ def test_store_max_concurrent_requests(mini_sentry, relay):
 
 
 def make_transaction(event):
-    now = datetime.utcnow()
+    now = datetime.now(UTC)
     event.update(
         {
             "type": "transaction",
@@ -568,7 +568,7 @@ def test_rate_limit_metric_bucket(
 
     def generate_ticks():
         # Generate a new timestamp for every bucket, so they do not get merged by the aggregator
-        tick = int(datetime.utcnow().timestamp() // bucket_interval * bucket_interval)
+        tick = int(datetime.now(UTC).timestamp() // bucket_interval * bucket_interval)
         while True:
             yield tick
             tick += bucket_interval
@@ -652,7 +652,7 @@ def test_rate_limit_metrics_buckets(
 
     def generate_ticks():
         # Generate a new timestamp for every bucket, so they do not get merged by the aggregator
-        tick = int(datetime.utcnow().timestamp() // bucket_interval * bucket_interval)
+        tick = int(datetime.now(UTC).timestamp() // bucket_interval * bucket_interval)
         while True:
             yield tick
             tick += bucket_interval

@@ -209,6 +209,7 @@ def relay(mini_sentry, random_port, background_process, config_dir, get_relay_bi
 
         if wait_health_check:
             relay.wait_relay_health_check()
+
             # Filter out health check failures, which can happen during startup
             mini_sentry.test_failures = [
                 f
