@@ -1686,6 +1686,8 @@ impl EnvelopeProcessorService {
 
         // Pre-process the envelope headers.
         if let Some(sampling_state) = sampling_project_state.as_ref() {
+            // Both transactions and standalone span envelopes need a normalized DSC header
+            // to make sampling rules based on the segment/transaction name work correctly.
             managed_envelope
                 .envelope_mut()
                 .parametrize_dsc_transaction(&sampling_state.config.tx_name_rules);
