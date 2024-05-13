@@ -340,61 +340,16 @@
 <a href="#338" id="338">338</a>
 <a href="#339" id="339">339</a>
 <a href="#340" id="340">340</a>
-<a href="#341" id="341">341</a>
-<a href="#342" id="342">342</a>
-<a href="#343" id="343">343</a>
-<a href="#344" id="344">344</a>
-<a href="#345" id="345">345</a>
-<a href="#346" id="346">346</a>
-<a href="#347" id="347">347</a>
-<a href="#348" id="348">348</a>
-<a href="#349" id="349">349</a>
-<a href="#350" id="350">350</a>
-<a href="#351" id="351">351</a>
-<a href="#352" id="352">352</a>
-<a href="#353" id="353">353</a>
-<a href="#354" id="354">354</a>
-<a href="#355" id="355">355</a>
-<a href="#356" id="356">356</a>
-<a href="#357" id="357">357</a>
-<a href="#358" id="358">358</a>
-<a href="#359" id="359">359</a>
-<a href="#360" id="360">360</a>
-<a href="#361" id="361">361</a>
-<a href="#362" id="362">362</a>
-<a href="#363" id="363">363</a>
-<a href="#364" id="364">364</a>
-<a href="#365" id="365">365</a>
-<a href="#366" id="366">366</a>
-<a href="#367" id="367">367</a>
-<a href="#368" id="368">368</a>
-<a href="#369" id="369">369</a>
-<a href="#370" id="370">370</a>
-<a href="#371" id="371">371</a>
-<a href="#372" id="372">372</a>
-<a href="#373" id="373">373</a>
-<a href="#374" id="374">374</a>
-<a href="#375" id="375">375</a>
-<a href="#376" id="376">376</a>
-<a href="#377" id="377">377</a>
-<a href="#378" id="378">378</a>
-<a href="#379" id="379">379</a>
-<a href="#380" id="380">380</a>
-<a href="#381" id="381">381</a>
-<a href="#382" id="382">382</a>
-<a href="#383" id="383">383</a>
-<a href="#384" id="384">384</a>
-</pre></div><pre class="rust"><code><span class="kw">use </span>std::sync::atomic::{AtomicBool, Ordering};
-<span class="kw">use </span>std::sync::{Arc, Mutex, PoisonError};
-<span class="kw">use </span>std::time::{Duration, Instant};
+</pre></div><pre class="rust"><code><span class="kw">use </span>std::sync::Arc;
 
 <span class="kw">use </span>relay_config::{Config, RelayMode};
 <span class="kw">use </span>relay_metrics::{AcceptsMetrics, Aggregator};
 <span class="kw">use </span>relay_statsd::metric;
 <span class="kw">use </span>relay_system::{Addr, AsyncResponse, Controller, FromMessage, Interface, Sender, Service};
 <span class="kw">use </span>std::future::Future;
-<span class="kw">use </span>sysinfo::{MemoryRefreshKind, RefreshKind, System};
-<span class="kw">use </span>tokio::time::timeout;
+<span class="kw">use </span>sysinfo::{MemoryRefreshKind, System};
+<span class="kw">use </span>tokio::sync::watch;
+<span class="kw">use </span>tokio::time::{timeout, Instant};
 
 <span class="kw">use </span><span class="kw">crate</span>::services::project_cache::{ProjectCache, SpoolHealth};
 <span class="kw">use </span><span class="kw">crate</span>::services::upstream::{IsAuthenticated, IsNetworkOutage, UpstreamRelay};
@@ -410,16 +365,6 @@
     /// it's both live/alive and not too busy).
     </span><span class="attr">#[serde(rename = <span class="string">"ready"</span>)]
     </span>Readiness,
-}
-
-<span class="kw">impl </span>IsHealthy {
-    <span class="doccomment">/// Returns the name of the variant, either `liveness` or `healthy`.
-    </span><span class="kw">fn </span>variant(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
-        <span class="kw">match </span><span class="self">self </span>{
-            <span class="self">Self</span>::Liveness =&gt; <span class="string">"liveness"</span>,
-            <span class="self">Self</span>::Readiness =&gt; <span class="string">"readiness"</span>,
-        }
-    }
 }
 
 <span class="doccomment">/// Health check status.
@@ -462,15 +407,29 @@
     }
 }
 
+<span class="attr">#[derive(Debug)]
+</span><span class="kw">struct </span>StatusUpdate {
+    status: Status,
+    instant: Instant,
+}
+
+<span class="kw">impl </span>StatusUpdate {
+    <span class="kw">pub fn </span>new(status: Status) -&gt; <span class="self">Self </span>{
+        <span class="self">Self </span>{
+            status,
+            instant: Instant::now(),
+        }
+    }
+}
+
 <span class="doccomment">/// Service implementing the [`HealthCheck`] interface.
 </span><span class="attr">#[derive(Debug)]
 </span><span class="kw">pub struct </span>HealthCheckService {
-    is_shutting_down: AtomicBool,
     config: Arc&lt;Config&gt;,
     aggregator: Addr&lt;Aggregator&gt;,
     upstream_relay: Addr&lt;UpstreamRelay&gt;,
     project_cache: Addr&lt;ProjectCache&gt;,
-    system: Mutex&lt;SystemInfo&gt;,
+    system: System,
 }
 
 <span class="kw">impl </span>HealthCheckService {
@@ -483,22 +442,29 @@
         upstream_relay: Addr&lt;UpstreamRelay&gt;,
         project_cache: Addr&lt;ProjectCache&gt;,
     ) -&gt; <span class="self">Self </span>{
-        HealthCheckService {
-            is_shutting_down: AtomicBool::new(<span class="bool-val">false</span>),
-            system: Mutex::new(SystemInfo::new(config.health_sys_info_refresh_interval())),
-            config,
+        <span class="self">Self </span>{
+            system: System::new(),
             aggregator,
             upstream_relay,
             project_cache,
+            config,
         }
     }
 
-    <span class="kw">async fn </span>system_memory_probe(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Status {
-        <span class="kw">let </span>memory = {
-            <span class="self">self</span>.system
-                .lock()
-                .unwrap_or_else(PoisonError::into_inner)
-                .memory()
+    <span class="kw">fn </span>system_memory_probe(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; Status {
+        <span class="self">self</span>.system
+            .refresh_memory_specifics(MemoryRefreshKind::new().with_ram());
+
+        <span class="comment">// Use the cgroup if available in case Relay is running in a container.
+        </span><span class="kw">let </span>memory = <span class="kw">match </span><span class="self">self</span>.system.cgroup_limits() {
+            <span class="prelude-val">Some</span>(cgroup) =&gt; Memory {
+                used: cgroup.total_memory.saturating_sub(cgroup.free_memory),
+                total: cgroup.total_memory,
+            },
+            <span class="prelude-val">None </span>=&gt; Memory {
+                used: <span class="self">self</span>.system.used_memory(),
+                total: <span class="self">self</span>.system.total_memory(),
+            },
         };
 
         <span class="macro">metric!</span>(gauge(RelayGauges::SystemMemoryUsed) = memory.used);
@@ -554,6 +520,18 @@
             </span>.map_or(Status::Unhealthy, Status::from)
     }
 
+    <span class="kw">async fn </span>network_outage_probe(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Status {
+        <span class="comment">// Internal metric that we need to be logged in recurring intervals. This is a form of
+        // health check, but it does not contribute to the status of this service.
+        </span><span class="kw">if </span><span class="self">self</span>.config.relay_mode() == RelayMode::Managed {
+            <span class="kw">if let </span><span class="prelude-val">Ok</span>(is_outage) = <span class="self">self</span>.upstream_relay.send(IsNetworkOutage).<span class="kw">await </span>{
+                <span class="macro">metric!</span>(gauge(RelayGauges::NetworkOutage) = u64::from(is_outage));
+            }
+        }
+
+        Status::Healthy
+    }
+
     <span class="kw">async fn </span>probe(<span class="kw-2">&amp;</span><span class="self">self</span>, name: <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str, fut: <span class="kw">impl </span>Future&lt;Output = Status&gt;) -&gt; Status {
         <span class="kw">match </span>timeout(<span class="self">self</span>.config.health_probe_timeout(), fut).<span class="kw">await </span>{
             <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; {
@@ -568,127 +546,61 @@
         }
     }
 
-    <span class="kw">async fn </span>handle_is_healthy(<span class="kw-2">&amp;</span><span class="self">self</span>, message: IsHealthy) -&gt; Status {
-        <span class="kw">let </span>upstream = <span class="self">self</span>.upstream_relay.clone();
+    <span class="kw">async fn </span>check_readiness(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; Status {
+        <span class="comment">// System memory is sync and requires mutable access, but we still want to log errors.
+        </span><span class="kw">let </span>sys_mem = <span class="self">self</span>.system_memory_probe();
 
-        <span class="kw">if </span><span class="self">self</span>.config.relay_mode() == RelayMode::Managed {
-            <span class="kw">let </span>fut = upstream.send(IsNetworkOutage);
-            tokio::spawn(<span class="kw">async move </span>{
-                <span class="kw">if let </span><span class="prelude-val">Ok</span>(is_outage) = fut.<span class="kw">await </span>{
-                    <span class="macro">metric!</span>(gauge(RelayGauges::NetworkOutage) = u64::from(is_outage));
-                }
-            });
-        }
-
-        <span class="kw">if </span><span class="macro">matches!</span>(message, IsHealthy::Liveness) {
-            <span class="kw">return </span>Status::Healthy;
-        }
-
-        <span class="kw">if </span><span class="self">self</span>.is_shutting_down.load(Ordering::Relaxed) {
-            <span class="kw">return </span>Status::Unhealthy;
-        }
-
-        <span class="kw">let </span>(sys_mem, auth, agg, proj) = <span class="macro">tokio::join!</span>(
-            <span class="self">self</span>.probe(<span class="string">"system memory"</span>, <span class="self">self</span>.system_memory_probe()),
+        <span class="kw">let </span>(sys_mem, auth, agg, proj, <span class="kw">_</span>) = <span class="macro">tokio::join!</span>(
+            <span class="self">self</span>.probe(<span class="string">"system memory"</span>, <span class="kw">async </span>{ sys_mem }),
             <span class="self">self</span>.probe(<span class="string">"auth"</span>, <span class="self">self</span>.auth_probe()),
             <span class="self">self</span>.probe(<span class="string">"aggregator"</span>, <span class="self">self</span>.aggregator_probe()),
             <span class="self">self</span>.probe(<span class="string">"spool health"</span>, <span class="self">self</span>.spool_health_probe()),
+            <span class="self">self</span>.probe(<span class="string">"network outage"</span>, <span class="self">self</span>.network_outage_probe()),
         );
 
         Status::from_iter([sys_mem, auth, agg, proj])
-    }
-
-    <span class="kw">async fn </span>handle_message(<span class="kw-2">&amp;</span><span class="self">self</span>, message: HealthCheck) {
-        <span class="kw">let </span>HealthCheck(message, sender) = message;
-
-        <span class="kw">let </span>ty = message.variant();
-        <span class="kw">let </span>response = <span class="macro">relay_statsd::metric!</span>(
-            timer(RelayTimers::HealthCheckDuration),
-            <span class="kw">type </span>= ty,
-            { <span class="self">self</span>.handle_is_healthy(message).<span class="kw">await </span>}
-        );
-
-        sender.send(response);
     }
 }
 
 <span class="kw">impl </span>Service <span class="kw">for </span>HealthCheckService {
     <span class="kw">type </span>Interface = HealthCheck;
 
-    <span class="kw">fn </span>spawn_handler(<span class="self">self</span>, <span class="kw-2">mut </span>rx: relay_system::Receiver&lt;<span class="self">Self</span>::Interface&gt;) {
-        <span class="kw">let </span>service = Arc::new(<span class="self">self</span>);
+    <span class="kw">fn </span>spawn_handler(<span class="kw-2">mut </span><span class="self">self</span>, <span class="kw-2">mut </span>rx: relay_system::Receiver&lt;<span class="self">Self</span>::Interface&gt;) {
+        <span class="kw">let </span>(update_tx, update_rx) = watch::channel(StatusUpdate::new(Status::Unhealthy));
+        <span class="kw">let </span>check_interval = <span class="self">self</span>.config.health_refresh_interval();
+        <span class="comment">// Add 10% buffer to the internal timeouts to avoid race conditions.
+        </span><span class="kw">let </span>status_timeout = (check_interval + <span class="self">self</span>.config.health_probe_timeout()).mul_f64(<span class="number">1.1</span>);
 
         tokio::spawn(<span class="kw">async move </span>{
-            <span class="kw">let </span><span class="kw-2">mut </span>shutdown = Controller::shutdown_handle();
+            <span class="kw">let </span>shutdown = Controller::shutdown_handle();
 
-            <span class="kw">loop </span>{
-                <span class="macro">tokio::select!</span> {
-                    biased;
+            <span class="kw">while </span>shutdown.get().is_none() {
+                <span class="kw">let _ </span>= update_tx.send(StatusUpdate::new(<span class="macro">relay_statsd::metric!</span>(
+                    timer(RelayTimers::HealthCheckDuration),
+                    <span class="kw">type </span>= <span class="string">"readiness"</span>,
+                    { <span class="self">self</span>.check_readiness().<span class="kw">await </span>}
+                )));
 
-                    <span class="prelude-val">Some</span>(message) = rx.recv() =&gt; {
-                        <span class="kw">let </span>service = service.clone();
-                        tokio::spawn(<span class="kw">async move </span>{ service.handle_message(message).<span class="kw">await </span>});
-                    }
-                    <span class="kw">_ </span>= shutdown.notified() =&gt; {
-                        service.is_shutting_down.store(<span class="bool-val">true</span>, Ordering::Relaxed);
-                    }
-                }
+                tokio::time::sleep(check_interval).<span class="kw">await</span>;
+            }
+
+            <span class="comment">// Shutdown marks readiness health check as unhealthy.
+            </span>update_tx.send(StatusUpdate::new(Status::Unhealthy)).ok();
+        });
+
+        tokio::spawn(<span class="kw">async move </span>{
+            <span class="kw">while let </span><span class="prelude-val">Some</span>(HealthCheck(message, sender)) = rx.recv().<span class="kw">await </span>{
+                <span class="kw">let </span>update = update_rx.borrow();
+
+                sender.send(<span class="kw">if </span><span class="macro">matches!</span>(message, IsHealthy::Liveness) {
+                    Status::Healthy
+                } <span class="kw">else if </span>update.instant.elapsed() &gt;= status_timeout {
+                    Status::Unhealthy
+                } <span class="kw">else </span>{
+                    update.status
+                });
             }
         });
-    }
-}
-
-<span class="attr">#[derive(Debug)]
-</span><span class="kw">struct </span>SystemInfo {
-    system: System,
-    last_refresh: Instant,
-    refresh_interval: Duration,
-}
-
-<span class="kw">impl </span>SystemInfo {
-    <span class="doccomment">/// Creates a new [`SystemInfo`] to query system information.
-    ///
-    /// System information updates are debounced with the passed `refresh_interval`.
-    </span><span class="kw">pub fn </span>new(refresh_interval: Duration) -&gt; <span class="self">Self </span>{
-        <span class="kw">let </span>system = System::new_with_specifics(
-            RefreshKind::new().with_memory(MemoryRefreshKind::everything()),
-        );
-
-        <span class="self">Self </span>{
-            system,
-            last_refresh: Instant::now(),
-            refresh_interval,
-        }
-    }
-
-    <span class="doccomment">/// Current snapshot of system memory.
-    ///
-    /// On Linux systems it uses the cgroup limits to determine used and total memory,
-    /// if available.
-    </span><span class="kw">pub fn </span>memory(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; Memory {
-        <span class="self">self</span>.refresh();
-
-        <span class="comment">// Use the cgroup if available in case Relay is running in a container.
-        </span><span class="kw">if let </span><span class="prelude-val">Some</span>(cgroup) = <span class="self">self</span>.system.cgroup_limits() {
-            Memory {
-                used: cgroup.total_memory.saturating_sub(cgroup.free_memory),
-                total: cgroup.total_memory,
-            }
-        } <span class="kw">else </span>{
-            Memory {
-                used: <span class="self">self</span>.system.used_memory(),
-                total: <span class="self">self</span>.system.total_memory(),
-            }
-        }
-    }
-
-    <span class="kw">fn </span>refresh(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
-        <span class="kw">if </span><span class="self">self</span>.last_refresh.elapsed() &gt;= <span class="self">self</span>.refresh_interval {
-            <span class="self">self</span>.system
-                .refresh_memory_specifics(MemoryRefreshKind::new().with_ram());
-
-            <span class="self">self</span>.last_refresh = Instant::now();
-        }
     }
 }
 

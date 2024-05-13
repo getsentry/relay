@@ -2450,6 +2450,9 @@
 <a href="#2448" id="2448">2448</a>
 <a href="#2449" id="2449">2449</a>
 <a href="#2450" id="2450">2450</a>
+<a href="#2451" id="2451">2451</a>
+<a href="#2452" id="2452">2452</a>
+<a href="#2453" id="2453">2453</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::io::Write;
@@ -3781,10 +3784,13 @@
 </span><span class="attr">#[derive(Serialize, Deserialize, Debug)]
 #[serde(default)]
 </span><span class="kw">pub struct </span>Health {
-    <span class="doccomment">/// Interval in which Relay will refresh system information, like current memory usage.
+    <span class="doccomment">/// Interval to refresh internal health checks.
     ///
-    /// Defaults to 3 seconds.
-    </span><span class="kw">pub </span>sys_info_refresh_interval_secs: u64,
+    /// Shorter intervals will decrease the time it takes the health check endpoint to report
+    /// issues, but can also increase sporadic unhealthy responses.
+    ///
+    /// Defaults to `3000`` (3 seconds).
+    </span><span class="kw">pub </span>refresh_interval_ms: u64,
     <span class="doccomment">/// Maximum memory watermark in bytes.
     ///
     /// By default there is no absolute limit set and the watermark
@@ -3806,7 +3812,7 @@
 <span class="kw">impl </span>Default <span class="kw">for </span>Health {
     <span class="kw">fn </span>default() -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{
-            sys_info_refresh_interval_secs: <span class="number">3</span>,
+            refresh_interval_ms: <span class="number">3000</span>,
             max_memory_bytes: <span class="prelude-val">None</span>,
             max_memory_percent: <span class="number">0.95</span>,
             probe_timeout_ms: <span class="number">900</span>,
@@ -4724,9 +4730,9 @@
         Duration::from_secs(<span class="self">self</span>.values.cardinality_limiter.cache_vacuum_interval)
     }
 
-    <span class="doccomment">/// Interval to refresh system information.
-    </span><span class="kw">pub fn </span>health_sys_info_refresh_interval(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Duration {
-        Duration::from_secs(<span class="self">self</span>.values.health.sys_info_refresh_interval_secs)
+    <span class="doccomment">/// Interval to refresh internal health checks.
+    </span><span class="kw">pub fn </span>health_refresh_interval(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Duration {
+        Duration::from_millis(<span class="self">self</span>.values.health.refresh_interval_ms)
     }
 
     <span class="doccomment">/// Maximum memory watermark in bytes.
