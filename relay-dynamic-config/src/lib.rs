@@ -61,7 +61,6 @@
 )]
 #![allow(clippy::derive_partial_eq_without_eq)]
 
-mod ai;
 mod defaults;
 mod error_boundary;
 mod feature;
@@ -70,7 +69,6 @@ mod metrics;
 mod project;
 mod utils;
 
-pub use ai::*;
 pub use error_boundary::*;
 pub use feature::*;
 pub use global::*;

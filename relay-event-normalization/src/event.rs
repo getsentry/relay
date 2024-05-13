@@ -28,12 +28,14 @@ use smallvec::SmallVec;
 use uuid::Uuid;
 
 use crate::normalize::request;
+use crate::span::ai::normalize_ai_measurements;
 use crate::span::tag_extraction::extract_span_tags_from_event;
 use crate::utils::{self, get_event_user_tag, MAX_DURATION_MOBILE_MS};
 use crate::{
     breakdowns, event_error, legacy, mechanism, remove_other, schema, span, stacktrace,
     transactions, trimming, user_agent, BreakdownsConfig, CombinedMeasurementsConfig, GeoIpLookup,
-    MaxChars, PerformanceScoreConfig, RawUserAgentInfo, SpanDescriptionRule, TransactionNameConfig,
+    MaxChars, ModelCosts, PerformanceScoreConfig, RawUserAgentInfo, SpanDescriptionRule,
+    TransactionNameConfig,
 };
 
 /// Configuration for [`normalize_event`].
@@ -132,6 +134,9 @@ pub struct NormalizationConfig<'a> {
     /// Configuration for generating performance score measurements for web vitals
     pub performance_score: Option<&'a PerformanceScoreConfig>,
 
+    /// Configuration for calculating the cost of AI model runs
+    pub ai_model_costs: Option<&'a ModelCosts>,
+
     /// An initialized GeoIP lookup.
     pub geoip_lookup: Option<&'a GeoIpLookup>,
 
@@ -175,6 +180,7 @@ impl<'a> Default for NormalizationConfig<'a> {
             span_description_rules: Default::default(),
             performance_score: Default::default(),
             geoip_lookup: Default::default(),
+            ai_model_costs: Default::default(),
             enable_trimming: false,
             measurements: None,
             normalize_spans: true,
@@ -292,6 +298,7 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) {
         config.max_name_and_unit_len,
     ); // Measurements are part of the metric extraction
     normalize_performance_score(event, config.performance_score);
+    normalize_ai_measurements(event, config.ai_model_costs);
     normalize_breakdowns(event, config.breakdowns_config); // Breakdowns are part of the metric extraction too
     normalize_default_attributes(event, meta, config);
 

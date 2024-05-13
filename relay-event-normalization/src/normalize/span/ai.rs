@@ -1,6 +1,8 @@
+//! AI cost calculation.
+
+use crate::ModelCosts;
 use relay_base_schema::metrics::MetricUnit;
-use relay_dynamic_config::ModelCosts;
-use relay_event_schema::protocol::{Measurement, Span};
+use relay_event_schema::protocol::{Event, Measurement, Span};
 
 /// Calculated cost is in US dollars.
 fn calculate_ai_model_cost(
@@ -77,6 +79,19 @@ pub fn extract_ai_measurements(span: &mut Span, ai_model_costs: &ModelCosts) {
                     }
                     .into(),
                 );
+        }
+    }
+}
+
+/// Extract the ai_total_cost measurements from all of an event's spans
+pub fn normalize_ai_measurements(event: &mut Event, model_costs: Option<&ModelCosts>) {
+    if let Some(model_costs) = model_costs {
+        if let Some(spans) = event.spans.value_mut() {
+            for span in spans {
+                if let Some(mut_span) = span.value_mut() {
+                    extract_ai_measurements(mut_span, model_costs);
+                }
+            }
         }
     }
 }
