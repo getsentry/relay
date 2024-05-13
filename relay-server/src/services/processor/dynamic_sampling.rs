@@ -88,9 +88,14 @@ where
         _ => None,
     };
 
+    let reservoir = match group {
+        ProcessingGroup::Transaction => Some(&state.reservoir),
+        _ => None,
+    };
+
     compute_sampling_decision(
         config.processing_enabled(),
-        state.sampling_reservoir(),
+        reservoir,
         sampling_config,
         state.event.value(),
         root_config,
@@ -162,7 +167,10 @@ fn compute_sampling_decision(
         }
     }
 
-    let mut evaluator = SamplingEvaluator::new(Utc::now(), reservoir);
+    let mut evaluator = match reservoir {
+        Some(reservoir) => SamplingEvaluator::new_with_reservoir(Utc::now(), reservoir),
+        None => SamplingEvaluator::new(Utc::now()),
+    };
 
     if let (Some(event), Some(sampling_state)) = (event, sampling_config) {
         if let Some(seed) = event.id.value().map(|id| id.0) {
@@ -262,7 +270,6 @@ fn forward_unsampled_profiles(
 
 #[cfg(test)]
 mod tests {
-
     use std::collections::BTreeMap;
     use std::sync::Arc;
 
