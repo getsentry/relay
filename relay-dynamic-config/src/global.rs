@@ -11,7 +11,8 @@ use relay_quotas::Quota;
 use serde::{de, Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::{defaults, ErrorBoundary, MetricExtractionGroup, MetricExtractionGroups};
+use crate::ai::ModelCosts;
+use crate::{ai, defaults, ErrorBoundary, MetricExtractionGroup, MetricExtractionGroups};
 
 /// A dynamic configuration for all Relays passed down from Sentry.
 ///
@@ -46,6 +47,10 @@ pub struct GlobalConfig {
     /// applying.
     #[serde(skip_serializing_if = "is_ok_and_empty")]
     pub metric_extraction: ErrorBoundary<MetricExtractionGroups>,
+
+    /// Configuration for AI span measurements.
+    #[serde(skip_serializing_if = "is_missing")]
+    pub ai_model_costs: ErrorBoundary<ai::ModelCosts>,
 }
 
 impl GlobalConfig {
@@ -398,6 +403,13 @@ fn is_ok_and_empty(value: &ErrorBoundary<MetricExtractionGroups>) -> bool {
     matches!(
         value,
         &ErrorBoundary::Ok(MetricExtractionGroups { ref groups }) if groups.is_empty()
+    )
+}
+
+fn is_missing(value: &ErrorBoundary<ai::ModelCosts>) -> bool {
+    matches!(
+        value,
+        &ErrorBoundary::Ok(ModelCosts{ version, ref costs }) if version == 0 && costs.is_empty()
     )
 }
 
