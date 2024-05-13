@@ -7,7 +7,7 @@ use chrono::{DateTime, Utc};
 use relay_base_schema::events::EventType;
 use relay_config::Config;
 use relay_dynamic_config::{
-    CombinedMetricExtractionConfig, ErrorBoundary, Feature, GlobalConfig, ProjectConfig,
+    CombinedMetricExtractionConfig, ErrorBoundary, Feature, GlobalConfig, ModelCosts, ProjectConfig,
 };
 use relay_event_normalization::normalize_transaction_name;
 use relay_event_normalization::{
@@ -26,6 +26,7 @@ use relay_spans::{otel_to_sentry_span, otel_trace::Span as OtelSpan};
 use crate::envelope::{ContentType, Envelope, Item, ItemType};
 use crate::metrics_extraction::generic::extract_metrics;
 use crate::services::outcome::{DiscardReason, Outcome};
+use crate::services::processor::ai::extract_ai_measurements;
 use crate::services::processor::span::extract_transaction_span;
 use crate::services::processor::{
     Addrs, ProcessEnvelope, ProcessEnvelopeState, ProcessingError, ProcessingGroup, SpanGroup,
@@ -52,12 +53,14 @@ pub fn process(
         ErrorBoundary::Ok(ref config) if config.is_enabled() => Some(config),
         _ => None,
     };
+    let ai_model_costs_config = global_config.ai_model_costs.clone().ok();
     let normalize_span_config = get_normalize_span_config(
         config,
         state.managed_envelope.received_at(),
         global_config.measurements.as_ref(),
         state.project_state.config().measurements.as_ref(),
         state.project_state.config().performance_score.as_ref(),
+        ai_model_costs_config.as_ref(),
     );
 
     let meta = state.managed_envelope.envelope().meta();
@@ -321,11 +324,13 @@ pub fn extract_from_event(
         return;
     };
 
+    let ai_model_costs_config = global_config.ai_model_costs.clone().ok();
     let Some(transaction_span) = extract_transaction_span(
         event,
         config
             .aggregator_config_for(MetricNamespace::Spans)
             .max_tag_value_length,
+        ai_model_costs_config,
     ) else {
         return;
     };
@@ -382,6 +387,8 @@ struct NormalizeSpanConfig<'a> {
     /// If at least one is provided, then normalization will truncate custom measurements
     /// and add units of known built-in measurements.
     measurements: Option<CombinedMeasurementsConfig<'a>>,
+    /// Configuration for AI model cost calculation
+    ai_model_costs: Option<&'a ModelCosts>,
     /// The maximum length for names of custom measurements.
     ///
     /// Measurements with longer names are removed from the transaction event and replaced with a
@@ -395,6 +402,7 @@ fn get_normalize_span_config<'a>(
     global_measurements_config: Option<&'a MeasurementsConfig>,
     project_measurements_config: Option<&'a MeasurementsConfig>,
     performance_score: Option<&'a PerformanceScoreConfig>,
+    ai_model_costs: Option<&'a ModelCosts>,
 ) -> NormalizeSpanConfig<'a> {
     let aggregator_config =
         AggregatorConfig::from(config.aggregator_config_for(MetricNamespace::Spans));
@@ -415,6 +423,7 @@ fn get_normalize_span_config<'a>(
                 .saturating_sub(MeasurementsConfig::MEASUREMENT_MRI_OVERHEAD),
         ),
         performance_score,
+        ai_model_costs,
     }
 }
 
@@ -464,12 +473,14 @@ fn normalize(
         max_tag_value_size,
         performance_score,
         measurements,
+        ai_model_costs,
         max_name_and_unit_len,
     } = config;
 
     // This follows the steps of `NormalizeProcessor::process_event`.
     // Ideally, `NormalizeProcessor` would execute these steps generically, i.e. also when calling
     // `process` on it.
+    println!("In normalize function");
 
     process_value(
         annotated_span,
@@ -543,6 +554,9 @@ fn normalize(
         ..Default::default()
     };
     normalize_performance_score(&mut event, performance_score);
+    if let Some(model_costs_config) = ai_model_costs {
+        extract_ai_measurements(span, model_costs_config);
+    }
     span.measurements = event.measurements;
 
     tag_extraction::extract_measurements(span, is_mobile);

@@ -5,7 +5,6 @@ use relay_event_schema::protocol::{Event, VALID_PLATFORMS};
 use relay_protocol::RuleCondition;
 use serde::{Deserialize, Serialize};
 
-mod ai_model_costs;
 pub mod breakdowns;
 pub mod contexts;
 pub mod nel;

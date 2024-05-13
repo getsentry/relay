@@ -70,7 +70,7 @@ fn extract_span_metrics_for_event(
     output: &mut Vec<Bucket>,
 ) {
     relay_statsd::metric!(timer(RelayTimers::EventProcessingSpanMetricsExtraction), {
-        if let Some(transaction_span) = extract_transaction_span(event, max_tag_value_size) {
+        if let Some(transaction_span) = extract_transaction_span(event, max_tag_value_size, None) {
             output.extend(generic::extract_metrics(&transaction_span, config));
         }
 
