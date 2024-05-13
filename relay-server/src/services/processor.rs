@@ -172,6 +172,7 @@ pub trait Sampling {
     /// Whether dynamic sampling should run under the given project's conditions.
     fn supports_sampling(project_state: &ProjectState) -> bool;
 
+    /// Whether reservoir sampling applies to this processing group (a.k.a. data type).
     fn supports_reservoir_sampling() -> bool;
 }
 
@@ -181,7 +182,6 @@ impl EventProcessing for TransactionGroup {}
 impl Sampling for TransactionGroup {
     fn supports_sampling(project_state: &ProjectState) -> bool {
         // For transactions, we require transaction metrics to be enabled before sampling.
-
         matches!(&project_state.config.transaction_metrics, Some(ErrorBoundary::Ok(c)) if c.is_enabled())
     }
 
