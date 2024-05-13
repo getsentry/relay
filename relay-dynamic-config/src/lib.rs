@@ -70,6 +70,7 @@ mod metrics;
 mod project;
 mod utils;
 
+pub use ai::*;
 pub use error_boundary::*;
 pub use feature::*;
 pub use global::*;

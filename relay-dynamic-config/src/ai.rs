@@ -5,10 +5,14 @@ use serde::{Deserialize, Serialize};
 
 const MAX_SUPPORTED_VERSION: u16 = 1;
 
+/// A mapping of AI model types (like GPT-4) to their respective costs.
 #[derive(Clone, Default, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ModelCosts {
+    /// The version of the model cost struct
     pub version: u16,
+
+    /// The mappings of model ID => cost
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub costs: Vec<ModelCost>,
 }
@@ -20,7 +24,7 @@ impl ModelCosts {
     }
 
     /// Gets the cost per 1000 tokens, if defined for the given model.
-    pub fn cost_per_1k_tokens(&self, model_id: &str, for_completion: bool) -> Option<f32> {
+    pub fn cost_per_1k_tokens(&self, model_id: &str, for_completion: bool) -> Option<f64> {
         self.costs
             .iter()
             .find(|cost| cost.matches(model_id, for_completion))
@@ -28,12 +32,13 @@ impl ModelCosts {
     }
 }
 
+/// A single mapping of (AI model ID, input/output, cost)
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ModelCost {
     model_id: LazyGlob,
     for_completion: bool,
-    cost_per_1k_tokens: f32,
+    cost_per_1k_tokens: f64,
 }
 
 impl ModelCost {

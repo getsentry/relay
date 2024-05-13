@@ -100,6 +100,7 @@ mod session;
 mod span;
 pub use span::extract_transaction_span;
 
+mod ai;
 #[cfg(feature = "processing")]
 mod unreal;
 
