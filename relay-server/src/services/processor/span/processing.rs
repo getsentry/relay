@@ -16,7 +16,7 @@ use relay_event_normalization::{
     PerformanceScoreConfig, RawUserAgentInfo, TransactionsProcessor,
 };
 use relay_event_schema::processor::{process_value, ProcessingState};
-use relay_event_schema::protocol::{BrowserContext, Contexts, Event, EventId, Span, SpanData};
+use relay_event_schema::protocol::{BrowserContext, Contexts, Event, Span, SpanData};
 use relay_log::protocol::{Attachment, AttachmentType};
 use relay_metrics::{aggregator::AggregatorConfig, MetricNamespace, UnixTimestamp};
 use relay_pii::PiiProcessor;
@@ -194,10 +194,7 @@ pub fn process(
     });
 
     let mut transaction_count = 0;
-    for mut transaction in extracted_transactions {
-        // Give each transaction event a new random ID:
-        transaction.id = EventId::new().into();
-
+    for transaction in extracted_transactions {
         // Enqueue a full processing request for every extracted transaction item.
         match Envelope::try_from_event(state.envelope().headers().clone(), transaction) {
             Ok(mut envelope) => {
@@ -423,6 +420,17 @@ fn get_normalize_span_config<'a>(
 
 fn set_segment_attributes(span: &mut Annotated<Span>) {
     let Some(span) = span.value_mut() else { return };
+
+    // Identify INP spans and make sure they are not wrapped in a segment.
+    if let Some(span_op) = span.op.value() {
+        if span_op.starts_with("ui.interaction.") {
+            span.is_segment = None.into();
+            span.parent_span_id = None.into();
+            span.segment_id = None.into();
+            return;
+        }
+    }
+
     let Some(span_id) = span.span_id.value() else {
         return;
     };
@@ -642,6 +650,14 @@ fn validate(span: &mut Annotated<Span>) -> Result<(), ValidationError> {
 
 fn convert_to_transaction(annotated_span: &Annotated<Span>) -> Option<Event> {
     let span = annotated_span.value()?;
+
+    // HACK: This is an exception from the JS SDK v8 and we do not want to turn it into a transaction.
+    if let Some(span_op) = span.op.value() {
+        if span_op == "http.client" && span.parent_span_id.is_empty() {
+            return None;
+        }
+    }
+
     relay_log::trace!("Extracting transaction for span {:?}", &span.span_id);
     Event::try_from(span).ok()
 }
@@ -836,6 +852,37 @@ mod tests {
     fn segment_only_parent() {
         let mut span: Annotated<Span> = Annotated::from_json(
             r#"{
+         "parent_span_id": "fa90fdead5f74051"
+     }"#,
+        )
+        .unwrap();
+        set_segment_attributes(&mut span);
+        assert_eq!(get_value!(span.is_segment), None);
+        assert_eq!(get_value!(span.segment_id), None);
+    }
+
+    #[test]
+    fn not_segment_but_inp_span() {
+        let mut span: Annotated<Span> = Annotated::from_json(
+            r#"{
+         "op": "ui.interaction.click",
+         "is_segment": false,
+         "parent_span_id": "fa90fdead5f74051"
+     }"#,
+        )
+        .unwrap();
+        set_segment_attributes(&mut span);
+        assert_eq!(get_value!(span.is_segment), None);
+        assert_eq!(get_value!(span.segment_id), None);
+    }
+
+    #[test]
+    fn segment_but_inp_span() {
+        let mut span: Annotated<Span> = Annotated::from_json(
+            r#"{
+         "op": "ui.interaction.click",
+         "segment_id": "fa90fdead5f74051",
+         "is_segment": true,
          "parent_span_id": "fa90fdead5f74051"
      }"#,
         )

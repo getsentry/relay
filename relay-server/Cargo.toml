@@ -68,7 +68,6 @@ pin-project-lite = { workspace = true }
 rand = { workspace = true }
 regex = { workspace = true }
 relay-auth = { workspace = true }
-relay-aws-extension = { workspace = true }
 relay-base-schema = { workspace = true }
 relay-cardinality = { workspace = true }
 relay-cogs = { workspace = true }

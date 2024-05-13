@@ -116,8 +116,8 @@ class Sentry(SentryLike):
             "publicKeys": [dsn_public_key],
             "rev": "5ceaea8c919811e8ae7daae9fe877901",
             "disabled": False,
-            "lastFetch": datetime.datetime.utcnow().isoformat() + "Z",
-            "lastChange": datetime.datetime.utcnow().isoformat() + "Z",
+            "lastFetch": datetime.datetime.now(datetime.UTC).isoformat(),
+            "lastChange": datetime.datetime.now(datetime.UTC).isoformat(),
             "config": {
                 "allowedDomains": ["*"],
                 "trustedRelays": list(self.iter_public_keys()),
@@ -223,7 +223,7 @@ def mini_sentry(request):  # noqa
         exceptions = data.get("exception", {}).get("values", [])
         exc_msg = ": ".join(e.get("value", "") for e in reversed(exceptions))
         message = data.get("message", {})
-        message = message if type(message) == str else message.get("formatted")
+        message = message if isinstance(message, str) else message.get("formatted")
         return exc_msg or message or "unknown error"
 
     @app.before_request

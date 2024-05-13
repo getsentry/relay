@@ -247,8 +247,6 @@ pub struct OverridableConfig {
     pub outcome_source: Option<String>,
     /// shutdown timeout
     pub shutdown_timeout: Option<String>,
-    /// AWS Extensions API URL
-    pub aws_runtime_api: Option<String>,
 }
 
 /// The relay credentials
@@ -584,7 +582,7 @@ struct Limits {
     max_replay_message_size: ByteSize,
     /// The maximum number of threads to spawn for CPU and web work, each.
     ///
-    /// The total number of threads spawned will roughly be `2 * max_thread_count + 1`. Defaults to
+    /// The total number of threads spawned will roughly be `2 * max_thread_count`. Defaults to
     /// the number of logical CPU cores on the host.
     max_thread_count: usize,
     /// The maximum number of seconds a query is allowed to take across retries. Individual requests
@@ -1297,16 +1295,6 @@ pub struct AuthConfig {
     pub static_relays: HashMap<RelayId, RelayInfo>,
 }
 
-/// AWS extension config.
-#[derive(Serialize, Deserialize, Debug, Default)]
-pub struct AwsConfig {
-    /// The host and port of the AWS lambda extensions API.
-    ///
-    /// This value can be found in the `AWS_LAMBDA_RUNTIME_API` environment variable in a Lambda
-    /// Runtime and contains a socket address, usually `"127.0.0.1:9001"`.
-    pub runtime_api: Option<String>,
-}
-
 /// GeoIp database configuration options.
 #[derive(Serialize, Deserialize, Debug, Default)]
 pub struct GeoIpConfig {
@@ -1341,10 +1329,13 @@ impl Default for CardinalityLimiter {
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(default)]
 pub struct Health {
-    /// Interval in which Relay will refresh system information, like current memory usage.
+    /// Interval to refresh internal health checks.
     ///
-    /// Defaults to 3 seconds.
-    pub sys_info_refresh_interval_secs: u64,
+    /// Shorter intervals will decrease the time it takes the health check endpoint to report
+    /// issues, but can also increase sporadic unhealthy responses.
+    ///
+    /// Defaults to `3000`` (3 seconds).
+    pub refresh_interval_ms: u64,
     /// Maximum memory watermark in bytes.
     ///
     /// By default there is no absolute limit set and the watermark
@@ -1366,7 +1357,7 @@ pub struct Health {
 impl Default for Health {
     fn default() -> Self {
         Self {
-            sys_info_refresh_interval_secs: 3,
+            refresh_interval_ms: 3000,
             max_memory_bytes: None,
             max_memory_percent: 0.95,
             probe_timeout_ms: 900,
@@ -1449,8 +1440,6 @@ struct ConfigValues {
     secondary_aggregators: Vec<ScopedAggregatorConfig>,
     #[serde(default)]
     auth: AuthConfig,
-    #[serde(default)]
-    aws: AwsConfig,
     #[serde(default)]
     geoip: GeoIpConfig,
     #[serde(default)]
@@ -1660,11 +1649,6 @@ impl Config {
             if let Ok(shutdown_timeout) = shutdown_timeout.parse::<u64>() {
                 limits.shutdown_timeout = shutdown_timeout;
             }
-        }
-
-        let aws = &mut self.values.aws;
-        if let Some(aws_runtime_api) = overrides.aws_runtime_api {
-            aws.runtime_api = Some(aws_runtime_api);
         }
 
         Ok(self)
@@ -2291,9 +2275,9 @@ impl Config {
         Duration::from_secs(self.values.cardinality_limiter.cache_vacuum_interval)
     }
 
-    /// Interval to refresh system information.
-    pub fn health_sys_info_refresh_interval(&self) -> Duration {
-        Duration::from_secs(self.values.health.sys_info_refresh_interval_secs)
+    /// Interval to refresh internal health checks.
+    pub fn health_refresh_interval(&self) -> Duration {
+        Duration::from_millis(self.values.health.refresh_interval_ms)
     }
 
     /// Maximum memory watermark in bytes.
@@ -2418,11 +2402,6 @@ impl Config {
     pub fn accept_unknown_items(&self) -> bool {
         let forward = self.values.routing.accept_unknown_items;
         forward.unwrap_or_else(|| !self.processing_enabled())
-    }
-
-    /// Returns the host and port of the AWS lambda runtime API.
-    pub fn aws_runtime_api(&self) -> Option<&str> {
-        self.values.aws.runtime_api.as_deref()
     }
 }
 

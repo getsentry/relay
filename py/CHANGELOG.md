@@ -1,9 +1,20 @@
 # Changelog
 
+### Unreleased
+
+- This release requires Python 3.11 or later. There are no intentionally breaking changes included in this release, but we stopped testing against Python 3.10.
+
+## 0.8.61
+
+- Update data category metirc hours to metric seconds. [#3558](https://github.com/getsentry/relay/pull/3558)
+
+## 0.8.60
+
+- Expose project config normalization. Drop support for `validate_project_config`. ([#3495](https://github.com/getsentry/relay/pull/3495))
+
 ## 0.8.59
 
 - Expose cardinality limit config normalization. ([3489](https://github.com/getsentry/relay/pull/3489))
-- Expose project config normalization. Drop support for `validate_project_config`. ([#3495](https://github.com/getsentry/relay/pull/3495))
 - Consider "Bearer" (case-insensitive) a password. PII will scrub all strings matching that substring. ([#3484](https://github.com/getsentry/relay/pull/3484))
 
 ## 0.8.58
@@ -12,7 +23,7 @@
 
 ## 0.8.57
 
-- Add a data category for metirc hours.  [#3384](https://github.com/getsentry/relay/pull/3384)
+- Add a data category for metirc hours. [#3384](https://github.com/getsentry/relay/pull/3384)
 
 ## 0.8.56
 
@@ -64,7 +75,6 @@
 ## 0.8.44
 
 - Add ability to block metrics matching a glob pattern. ([#2954](https://github.com/getsentry/relay/pull/2954))
-
 
 ## 0.8.43
 
@@ -155,10 +165,7 @@ This release requires Python 3.8 or later.
 - Add filter based on transaction names. ([#2118](https://github.com/getsentry/relay/pull/2118))
 - Add `lock` attribute to the frame protocol. ([#2171](https://github.com/getsentry/relay/pull/2171))
 
-
 ## 0.8.25
-
-
 
 ## 0.8.24
 

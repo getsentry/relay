@@ -7,7 +7,7 @@ use crate::metric_stats::MetricStats;
 use hashbrown::HashSet;
 use relay_base_schema::project::ProjectKey;
 use relay_config::{Config, RelayMode};
-use relay_metrics::{Aggregator, FlushBuckets, MergeBuckets, MetricMeta};
+use relay_metrics::{Aggregator, Bucket, FlushBuckets, MetricMeta};
 use relay_quotas::RateLimits;
 use relay_redis::RedisPool;
 use relay_statsd::metric;
@@ -171,6 +171,18 @@ impl UpdateRateLimits {
     }
 }
 
+/// Add metric buckets to the project.
+///
+/// Metric buckets added via the project are filtered and rate limited
+/// according to the project state.
+///
+/// Adding buckets directly to the aggregator bypasses all of these checks.
+#[derive(Debug)]
+pub struct AddMetricBuckets {
+    pub project_key: ProjectKey,
+    pub buckets: Vec<Bucket>,
+}
+
 /// Add metric metadata to the aggregator.
 #[derive(Debug)]
 pub struct AddMetricMeta {
@@ -215,7 +227,7 @@ pub struct RefreshIndexCache(pub HashSet<QueueKey>);
 /// information.
 ///
 /// There are also higher-level operations, such as [`CheckEnvelope`] and [`ValidateEnvelope`] that
-/// inspect contents of envelopes for ingestion, as well as [`MergeBuckets`] to aggregate metrics
+/// inspect contents of envelopes for ingestion, as well as [`AddMetricBuckets`] to aggregate metrics
 /// associated with a project.
 ///
 /// See the enumerated variants for a full list of available messages for this service.
@@ -229,7 +241,7 @@ pub enum ProjectCache {
     ),
     ValidateEnvelope(ValidateEnvelope),
     UpdateRateLimits(UpdateRateLimits),
-    MergeBuckets(MergeBuckets),
+    AddMetricBuckets(AddMetricBuckets),
     AddMetricMeta(AddMetricMeta),
     FlushBuckets(FlushBuckets),
     UpdateSpoolIndex(UpdateSpoolIndex),
@@ -246,7 +258,7 @@ impl ProjectCache {
             Self::CheckEnvelope(_, _) => "CheckEnvelope",
             Self::ValidateEnvelope(_) => "ValidateEnvelope",
             Self::UpdateRateLimits(_) => "UpdateRateLimits",
-            Self::MergeBuckets(_) => "MergeBuckets",
+            Self::AddMetricBuckets(_) => "AddMetricBuckets",
             Self::AddMetricMeta(_) => "AddMetricMeta",
             Self::FlushBuckets(_) => "FlushBuckets",
             Self::UpdateSpoolIndex(_) => "UpdateSpoolIndex",
@@ -328,11 +340,11 @@ impl FromMessage<UpdateRateLimits> for ProjectCache {
     }
 }
 
-impl FromMessage<MergeBuckets> for ProjectCache {
+impl FromMessage<AddMetricBuckets> for ProjectCache {
     type Response = relay_system::NoResponse;
 
-    fn from_message(message: MergeBuckets, _: ()) -> Self {
-        Self::MergeBuckets(message)
+    fn from_message(message: AddMetricBuckets, _: ()) -> Self {
+        Self::AddMetricBuckets(message)
     }
 }
 
@@ -625,6 +637,7 @@ impl ProjectCacheBroker {
         let aggregator = self.services.aggregator.clone();
         let envelope_processor = self.services.envelope_processor.clone();
         let outcome_aggregator = self.services.outcome_aggregator.clone();
+        let metric_stats = self.metric_stats.clone();
 
         self.get_or_create_project(project_key).update_state(
             project_cache,
@@ -632,6 +645,7 @@ impl ProjectCacheBroker {
             state.clone(),
             envelope_processor,
             outcome_aggregator,
+            metric_stats,
             no_cache,
         );
 
@@ -807,19 +821,21 @@ impl ProjectCacheBroker {
             .merge_rate_limits(message.rate_limits);
     }
 
-    fn handle_merge_buckets(&mut self, message: MergeBuckets) {
+    fn handle_add_metric_buckets(&mut self, message: AddMetricBuckets) {
         let project_cache = self.services.project_cache.clone();
         let aggregator = self.services.aggregator.clone();
         let outcome_aggregator = self.services.outcome_aggregator.clone();
         let envelope_processor = self.services.envelope_processor.clone();
+        let metric_stats = self.metric_stats.clone();
 
-        let project = self.get_or_create_project(message.project_key());
+        let project = self.get_or_create_project(message.project_key);
         project.prefetch(project_cache, false);
         project.merge_buckets(
             aggregator,
             outcome_aggregator,
             envelope_processor,
-            message.buckets(),
+            metric_stats,
+            message.buckets,
         );
     }
 
@@ -981,7 +997,9 @@ impl ProjectCacheBroker {
                         self.handle_validate_envelope(message)
                     }
                     ProjectCache::UpdateRateLimits(message) => self.handle_rate_limits(message),
-                    ProjectCache::MergeBuckets(message) => self.handle_merge_buckets(message),
+                    ProjectCache::AddMetricBuckets(message) => {
+                        self.handle_add_metric_buckets(message)
+                    }
                     ProjectCache::AddMetricMeta(message) => self.handle_add_metric_meta(message),
                     ProjectCache::FlushBuckets(message) => self.handle_flush_buckets(message),
                     ProjectCache::UpdateSpoolIndex(message) => self.handle_buffer_index(message),

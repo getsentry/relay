@@ -4,7 +4,7 @@ import signal
 import time
 import uuid
 from copy import deepcopy
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta, timezone
 from pathlib import Path
 from queue import Empty
 
@@ -33,7 +33,7 @@ def test_outcomes_processing(relay_with_processing, mini_sentry, outcomes_consum
 
     message_text = f"some message {datetime.now()}"
     event_id = "11122233344455566677788899900011"
-    start = datetime.utcnow().replace(
+    start = datetime.now(UTC).replace(
         microsecond=0
     )  # Outcome aggregator rounds down to seconds
 
@@ -56,9 +56,8 @@ def test_outcomes_processing(relay_with_processing, mini_sentry, outcomes_consum
     assert outcome.get("remote_addr") is None
 
     # deal with the timestamp separately (we can't control it exactly)
-    timestamp = outcome.get("timestamp")
-    event_emission = datetime.strptime(timestamp, "%Y-%m-%dT%H:%M:%S.%fZ")
-    end = datetime.utcnow()
+    event_emission = datetime.fromisoformat(outcome.get("timestamp"))
+    end = datetime.now(UTC)
     assert start <= event_emission <= end
 
 
@@ -94,7 +93,7 @@ def test_outcomes_custom_topic(
 
     message_text = f"some message {datetime.now()}"
     event_id = "11122233344455566677788899900011"
-    start = datetime.utcnow().replace(
+    start = datetime.now(UTC).replace(
         microsecond=0
     )  # Outcome aggregator rounds down to seconds
 
@@ -117,9 +116,8 @@ def test_outcomes_custom_topic(
     assert outcome.get("remote_addr") is None
 
     # deal with the timestamp separately (we can't control it exactly)
-    timestamp = outcome.get("timestamp")
-    event_emission = datetime.strptime(timestamp, "%Y-%m-%dT%H:%M:%S.%fZ")
-    end = datetime.utcnow()
+    event_emission = datetime.fromisoformat(outcome.get("timestamp"))
+    end = datetime.now(UTC)
     assert start <= event_emission <= end
 
 
@@ -570,7 +568,7 @@ def _get_event_payload(data_category):
     if data_category == "error":
         return {"message": "hello"}
     elif data_category == "transaction":
-        now = datetime.utcnow()
+        now = datetime.now(UTC)
         return {
             "type": "transaction",
             "timestamp": now.isoformat(),
@@ -720,7 +718,7 @@ def _get_profile_payload(metadata_only=True):
 
 
 def _get_span_payload():
-    now = datetime.utcnow()
+    now = datetime.now(UTC)
     return {
         "op": "default",
         "span_id": "968cff94913ebb07",
@@ -1664,7 +1662,7 @@ def test_global_rate_limit(
     projectconfig = mini_sentry.add_full_project_config(project_id)
     mini_sentry.add_dsn_key_to_project(project_id)
 
-    now = datetime.utcnow().timestamp()
+    now = datetime.now(UTC).timestamp()
 
     projectconfig["config"]["quotas"] = [
         {
@@ -2000,7 +1998,7 @@ def test_global_rate_limit_by_namespace(
         },
     ]
 
-    ts = datetime.utcnow().timestamp()
+    ts = datetime.now(UTC).timestamp()
 
     def send_buckets(n, name, value, ty):
         for i in range(n):

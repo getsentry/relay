@@ -141,9 +141,9 @@ impl StartedRouter {
 
         let secondary = secondary_configs
             .into_iter()
-            .map(|scoped| {
-                let addr = AggregatorService::new(scoped.config, receiver.clone()).start();
-                (scoped.condition, addr)
+            .map(|c| {
+                let addr = AggregatorService::named(c.name, c.config, receiver.clone()).start();
+                (c.condition, addr)
             })
             .collect();
 
