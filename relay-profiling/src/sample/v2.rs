@@ -11,6 +11,7 @@
 //!
 use std::collections::{BTreeMap, HashSet};
 
+use relay_event_schema::protocol::EventId;
 use serde::{Deserialize, Serialize};
 
 use crate::error::ProfileError;
@@ -20,9 +21,9 @@ use crate::sample::{DebugMeta, Frame, ThreadMetadata, Version};
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ProfileMetadata {
     /// Random UUID identifying a chunk
-    pub chunk_id: String,
+    pub chunk_id: EventId,
     /// Random UUID for each profiler session
-    pub profiler_id: String,
+    pub profiler_id: EventId,
 
     #[serde(default, skip_serializing_if = "DebugMeta::is_empty")]
     pub debug_meta: DebugMeta,
@@ -95,6 +96,9 @@ impl ProfileData {
             return Err(ProfileError::NotEnoughSamples);
         }
 
+        // Remove NaN as a side-effect
+        self.sort_samples_by_timestamp();
+
         if !self.all_stacks_referenced_by_samples_exist() {
             return Err(ProfileError::MalformedSamples);
         }
@@ -145,6 +149,12 @@ impl ProfileData {
         self.thread_metadata
             .retain(|thread_id, _| thread_ids.contains(thread_id));
     }
+
+    fn sort_samples_by_timestamp(&mut self) {
+        self.samples.retain(|s| !s.timestamp.is_nan());
+        self.samples
+            .sort_by(|a, b| a.timestamp.partial_cmp(&b.timestamp).unwrap());
+    }
 }
 
 pub fn parse(payload: &[u8]) -> Result<ProfileChunk, ProfileError> {
@@ -154,7 +164,7 @@ pub fn parse(payload: &[u8]) -> Result<ProfileChunk, ProfileError> {
 
 #[cfg(test)]
 mod tests {
-    use crate::sample::v2::parse;
+    use crate::sample::v2::{parse, Frame, ProfileData, Sample};
 
     #[test]
     fn test_roundtrip() {
@@ -164,5 +174,40 @@ mod tests {
         let second_payload = serde_json::to_vec(&first_parse.unwrap()).unwrap();
         let second_parse = parse(&second_payload[..]);
         assert!(second_parse.is_ok(), "{:#?}", second_parse);
+    }
+
+    #[test]
+    fn test_samples_sorted() {
+        let mut chunk = ProfileData {
+            samples: vec![
+                Sample {
+                    stack_id: 0,
+                    thread_id: "1".to_string(),
+                    timestamp: 2000.0,
+                },
+                Sample {
+                    stack_id: 0,
+                    thread_id: "1".to_string(),
+                    timestamp: 1000.0,
+                },
+                Sample {
+                    stack_id: 0,
+                    thread_id: "1".to_string(),
+                    timestamp: f64::NAN,
+                },
+            ],
+            stacks: vec![vec![0]],
+            frames: vec![Frame {
+                ..Default::default()
+            }],
+            thread_metadata: Default::default(),
+        };
+
+        chunk.sort_samples_by_timestamp();
+
+        let timestamps: Vec<f64> = chunk.samples.iter().map(|s| s.timestamp).collect();
+
+        assert_eq!(chunk.samples.len(), 2);
+        assert_eq!(timestamps, vec![1000.0, 2000.0]);
     }
 }
