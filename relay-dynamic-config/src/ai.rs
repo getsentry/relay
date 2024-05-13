@@ -8,9 +8,9 @@ const MAX_SUPPORTED_VERSION: u16 = 1;
 #[derive(Clone, Default, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ModelCosts {
-    version: u16,
+    pub version: u16,
     #[serde(skip_serializing_if = "Vec::is_empty")]
-    costs: Vec<ModelCost>,
+    pub costs: Vec<ModelCost>,
 }
 
 impl ModelCosts {
@@ -46,19 +46,13 @@ impl ModelCost {
 #[cfg(test)]
 mod tests {
     use insta::assert_debug_snapshot;
-    use serde_json::json;
 
     use super::*;
 
     #[test]
     fn roundtrip() {
-        let original = json!({
-            "version": 1,
-            "costs": [
-                {"modelId": "babbage-002.ft-*", "forCompletion": false, "costPer1kTokens": 0.0016}
-            ]
-        });
-        let deserialized: ModelCosts = serde_json::from_value(original.clone()).unwrap();
+        let original = r#"{"version":1,"costs":[{"modelId":"babbage-002.ft-*","forCompletion":false,"costPer1kTokens":0.0016}]}"#;
+        let deserialized: ModelCosts = serde_json::from_str(original).unwrap();
         assert_debug_snapshot!(deserialized, @r###"
         ModelCosts {
             version: 1,
@@ -72,7 +66,8 @@ mod tests {
         }
         "###);
 
-        let serialized = serde_json::to_value(deserialized).unwrap();
-        assert_eq!(serialized, original);
+        let serialized = serde_json::to_string(&deserialized).unwrap();
+        // Patch floating point
+        assert_eq!(&serialized, original);
     }
 }
