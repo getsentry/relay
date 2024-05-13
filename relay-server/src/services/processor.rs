@@ -2355,12 +2355,12 @@ impl EnvelopeProcessorService {
             } = message;
 
             let mode = project_state.get_extraction_mode();
-            let limits = project_state.get_cardinality_limits();
 
-            let buckets = self.cardinality_limit_buckets(scoping, limits, buckets, mode);
             let quotas = CombinedQuotas::new(&global_config, project_state.get_quotas());
-
             let buckets = self.rate_limit_buckets_by_namespace(scoping, buckets, quotas, mode);
+
+            let limits = project_state.get_cardinality_limits();
+            let buckets = self.cardinality_limit_buckets(scoping, limits, buckets, mode);
 
             if buckets.is_empty() {
                 continue;
