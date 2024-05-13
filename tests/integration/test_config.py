@@ -27,4 +27,4 @@ def test_invalid_topics_raise_error(mini_sentry, relay_with_processing):
     assert relay.wait_for_exit() != 0
 
     error = str(mini_sentry.test_failures.pop(0))
-    assert error
+    assert "failed to validate the topic with name" in error
