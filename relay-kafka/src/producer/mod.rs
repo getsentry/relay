@@ -7,7 +7,6 @@ use std::fmt;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use rdkafka::error::KafkaResult;
 use rdkafka::message::{Header, OwnedHeaders};
 use rdkafka::producer::{BaseRecord, Producer as _};
 use rdkafka::ClientConfig;
@@ -56,6 +55,14 @@ pub enum ClientError {
     /// Configuration is wrong and it cannot be used to identify the number of a shard.
     #[error("invalid kafka shard")]
     InvalidShard,
+
+    /// Failed to fetch the metadata of Kafka.
+    #[error("failed to fetch the metadata of Kafka")]
+    MetadataFetchError(rdkafka::error::KafkaError),
+
+    /// Failed to validate the topic.
+    #[error("failed to validate the topic with name {0}: {1:?}")]
+    TopicError(String, rdkafka_sys::rd_kafka_resp_err_t),
 }
 
 /// Describes the type which can be sent using kafka producer provided by this crate.
@@ -96,21 +103,18 @@ impl Producer {
         }
     }
 
-    fn validate_topic(&self) -> KafkaResult<()> {
+    /// Validates the topic by fetching the metadata of the topic directly from Kafka.
+    fn validate_topic(&self) -> Result<(), ClientError> {
         let client = self.producer.client();
-        let _meta = client.fetch_metadata(Some(&self.topic_name), Duration::from_secs(5))?;
-        let meta = client.fetch_metadata(Some(&self.topic_name), Duration::from_secs(5))?;
+        let metadata = client
+            .fetch_metadata(Some(&self.topic_name), Duration::from_secs(5))
+            .map_err(ClientError::MetadataFetchError)?;
 
-        println!("============================ START");
-        for topic in meta.topics() {
-            println!(
-                "{}: {} | error:{:?}",
-                self.topic_name,
-                topic.name(),
-                topic.error()
-            );
+        for topic in metadata.topics() {
+            if let Some(error) = topic.error() {
+                return Err(ClientError::TopicError(topic.name().to_string(), error));
+            }
         }
-        println!("============================ END");
 
         Ok(())
     }
@@ -208,6 +212,7 @@ impl KafkaClientBuilder {
         mut self,
         topic: KafkaTopic,
         params: &KafkaParams,
+        validate_topic: bool,
     ) -> Result<Self, ClientError> {
         let mut client_config = ClientConfig::new();
 
@@ -221,7 +226,9 @@ impl KafkaClientBuilder {
 
         if let Some(producer) = self.reused_producers.get(&config_name) {
             let producer = Producer::new((*topic_name).to_string(), Arc::clone(producer));
-            producer.validate_topic().unwrap();
+            if validate_topic {
+                producer.validate_topic()?;
+            }
             self.producers.insert(topic, producer);
             return Ok(self);
         }
@@ -240,7 +247,9 @@ impl KafkaClientBuilder {
             .insert(config_name, Arc::clone(&producer));
 
         let producer = Producer::new((*topic_name).to_string(), producer);
-        producer.validate_topic().unwrap();
+        if validate_topic {
+            producer.validate_topic()?;
+        }
         self.producers.insert(topic, producer);
 
         Ok(self)

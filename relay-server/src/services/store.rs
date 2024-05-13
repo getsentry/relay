@@ -1,6 +1,7 @@
 //! This module contains the service that forwards events and attachments to the Sentry store.
 //! The service uses Kafka topics to forward data to Sentry
 
+use anyhow::Context;
 use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::error::Error;
@@ -29,6 +30,7 @@ use uuid::Uuid;
 
 use crate::envelope::{AttachmentType, Envelope, Item, ItemType, SourceQuantities};
 use crate::metric_stats::MetricStats;
+use crate::service::ServiceError;
 use crate::services::global_config::GlobalConfigHandle;
 use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::services::processor::Processed;
@@ -64,7 +66,9 @@ impl Producer {
             **t != KafkaTopic::Outcomes && **t != KafkaTopic::OutcomesBilling
         }) {
             let kafka_config = &config.kafka_config(*topic)?;
-            client_builder = client_builder.add_kafka_topic_config(*topic, kafka_config)?;
+            client_builder = client_builder
+                .add_kafka_topic_config(*topic, kafka_config, config.validate_kafka_topics())
+                .context(ServiceError::Kafka)?;
         }
 
         Ok(Self {
