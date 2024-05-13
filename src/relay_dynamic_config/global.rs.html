@@ -566,6 +566,18 @@
 <a href="#564" id="564">564</a>
 <a href="#565" id="565">565</a>
 <a href="#566" id="566">566</a>
+<a href="#567" id="567">567</a>
+<a href="#568" id="568">568</a>
+<a href="#569" id="569">569</a>
+<a href="#570" id="570">570</a>
+<a href="#571" id="571">571</a>
+<a href="#572" id="572">572</a>
+<a href="#573" id="573">573</a>
+<a href="#574" id="574">574</a>
+<a href="#575" id="575">575</a>
+<a href="#576" id="576">576</a>
+<a href="#577" id="577">577</a>
+<a href="#578" id="578">578</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::btree_map::Entry;
 <span class="kw">use </span>std::collections::HashMap;
 <span class="kw">use </span>std::fs::File;
@@ -579,7 +591,8 @@
 <span class="kw">use </span>serde::{de, Deserialize, Serialize};
 <span class="kw">use </span>serde_json::Value;
 
-<span class="kw">use crate</span>::{defaults, ErrorBoundary, MetricExtractionGroup, MetricExtractionGroups};
+<span class="kw">use </span><span class="kw">crate</span>::ai::ModelCosts;
+<span class="kw">use crate</span>::{ai, defaults, ErrorBoundary, MetricExtractionGroup, MetricExtractionGroups};
 
 <span class="doccomment">/// A dynamic configuration for all Relays passed down from Sentry.
 ///
@@ -614,6 +627,10 @@
     /// applying.
     </span><span class="attr">#[serde(skip_serializing_if = <span class="string">"is_ok_and_empty"</span>)]
     </span><span class="kw">pub </span>metric_extraction: ErrorBoundary&lt;MetricExtractionGroups&gt;,
+
+    <span class="doccomment">/// Configuration for AI span measurements.
+    </span><span class="attr">#[serde(skip_serializing_if = <span class="string">"is_missing"</span>)]
+    </span><span class="kw">pub </span>ai_model_costs: ErrorBoundary&lt;ai::ModelCosts&gt;,
 }
 
 <span class="kw">impl </span>GlobalConfig {
@@ -966,6 +983,13 @@
     <span class="macro">matches!</span>(
         value,
         <span class="kw-2">&amp;</span>ErrorBoundary::Ok(MetricExtractionGroups { <span class="kw-2">ref </span>groups }) <span class="kw">if </span>groups.is_empty()
+    )
+}
+
+<span class="kw">fn </span>is_missing(value: <span class="kw-2">&amp;</span>ErrorBoundary&lt;ai::ModelCosts&gt;) -&gt; bool {
+    <span class="macro">matches!</span>(
+        value,
+        <span class="kw-2">&amp;</span>ErrorBoundary::Ok(ModelCosts{ version, <span class="kw-2">ref </span>costs }) <span class="kw">if </span>version == <span class="number">0 </span>&amp;&amp; costs.is_empty()
     )
 }
 
