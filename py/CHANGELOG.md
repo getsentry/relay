@@ -1,8 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Add AI model costs to global config. ([#3579](https://github.com/getsentry/relay/pull/3579))
+
 ## 0.8.61
 
-- Update data category metirc hours to metric seconds. [#3558](https://github.com/getsentry/relay/pull/3558)
+- Update data category metric hours to metric seconds. [#3558](https://github.com/getsentry/relay/pull/3558)
 
 ## 0.8.60
 
