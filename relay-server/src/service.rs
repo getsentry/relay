@@ -3,6 +3,7 @@ use std::fmt;
 use std::sync::Arc;
 
 use crate::metric_stats::MetricStats;
+use crate::metrics::MetricOutcomes;
 use anyhow::{Context, Result};
 use axum::extract::FromRequestParts;
 use axum::http::request::Parts;
@@ -141,6 +142,8 @@ impl ServiceState {
             aggregator.clone(),
         );
 
+        let metric_outcomes = MetricOutcomes::new(metric_stats, outcome_aggregator.clone());
+
         #[cfg(feature = "processing")]
         let store = config
             .processing_enabled()
@@ -149,7 +152,7 @@ impl ServiceState {
                     config.clone(),
                     global_config_handle.clone(),
                     outcome_aggregator.clone(),
-                    metric_stats.clone(),
+                    metric_outcomes.clone(),
                 )
                 .map(|s| s.start())
             })

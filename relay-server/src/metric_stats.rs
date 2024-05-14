@@ -12,6 +12,7 @@ use relay_metrics::{
 use relay_quotas::Scoping;
 use relay_system::Addr;
 
+use crate::metrics::TrackableBucket;
 use crate::services::global_config::GlobalConfigHandle;
 use crate::services::outcome::Outcome;
 use crate::utils::is_rolled_out;
@@ -62,16 +63,17 @@ impl MetricStats {
     }
 
     /// Tracks the metric volume and outcome for the bucket.
-    pub fn track_metric<'a, T>(&self, scoping: Scoping, bucket: T, outcome: Outcome)
-    where
-        T: Into<BucketView<'a>>,
-    {
+    pub fn track_metric<'a, T>(
+        &self,
+        scoping: Scoping,
+        bucket: impl TrackableBucket,
+        outcome: &Outcome,
+    ) {
         if !self.is_enabled(scoping) {
             return;
         }
 
-        let bucket = bucket.into();
-        let Some(volume) = self.to_volume_metric(&bucket, &outcome) else {
+        let Some(volume) = self.to_volume_metric(&bucket, outcome) else {
             return;
         };
 
@@ -125,7 +127,7 @@ impl MetricStats {
         is_rolled_out(organization_id, rate)
     }
 
-    fn to_volume_metric(&self, bucket: &BucketView<'_>, outcome: &Outcome) -> Option<Bucket> {
+    fn to_volume_metric(&self, bucket: impl TrackableBucket, outcome: &Outcome) -> Option<Bucket> {
         let volume = bucket.metadata().merges.get();
         if volume == 0 {
             return None;
@@ -265,13 +267,13 @@ mod tests {
         let scoping = scoping();
         let mut bucket = Bucket::parse(b"rt@millisecond:57|d", UnixTimestamp::now()).unwrap();
 
-        ms.track_metric(scoping, &bucket.clone(), Outcome::Accepted);
+        ms.track_metric(scoping, &bucket, &Outcome::Accepted);
 
         bucket.metadata.merges = bucket.metadata.merges.saturating_add(41);
         ms.track_metric(
             scoping,
             &bucket,
-            Outcome::RateLimited(Some(ReasonCode::new("foobar"))),
+            &Outcome::RateLimited(Some(ReasonCode::new("foobar"))),
         );
 
         drop(ms);
@@ -457,7 +459,7 @@ mod tests {
 
         let scoping = scoping();
         let bucket = Bucket::parse(b"rt@millisecond:57|d", UnixTimestamp::now()).unwrap();
-        ms.track_metric(scoping, &bucket, Outcome::Accepted);
+        ms.track_metric(scoping, &bucket, &Outcome::Accepted);
 
         drop(ms);
 
@@ -471,7 +473,7 @@ mod tests {
         let scoping = scoping();
         let bucket =
             Bucket::parse(b"transactions/rt@millisecond:57|d", UnixTimestamp::now()).unwrap();
-        ms.track_metric(scoping, &bucket, Outcome::Accepted);
+        ms.track_metric(scoping, &bucket, &Outcome::Accepted);
 
         drop(ms);
 

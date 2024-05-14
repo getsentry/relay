@@ -22,6 +22,7 @@ use smallvec::SmallVec;
 use tokio::time::Instant;
 use url::Url;
 
+use crate::metrics::MetricOutcomes;
 use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
 #[cfg(feature = "processing")]
 use crate::services::processor::RateLimitBuckets;
@@ -572,8 +573,7 @@ impl Project {
     /// - Reporting outcomes and metric stats for all filtered buckets.
     fn pre_process_buckets(
         &self,
-        outcome_aggregator: Addr<TrackOutcome>,
-        metric_stats: MetricStats,
+        metric_outcomes: &MetricOutcomes,
         mode: ExtractionMode,
         state: &ProjectState,
         buckets: Vec<Bucket>,
@@ -613,27 +613,19 @@ impl Project {
             .collect();
 
         if let Some(scoping) = self.scoping() {
-            if !disabled_namespace_buckets.is_empty() {
-                utils::reject_metrics(
-                    &outcome_aggregator,
-                    &metric_stats,
-                    utils::extract_metric_quantities(&disabled_namespace_buckets, mode),
-                    scoping,
-                    Outcome::Filtered(FilterStatKey::DisabledNamespace),
-                    &disabled_namespace_buckets,
-                );
-            }
+            metric_outcomes.track(
+                scoping,
+                &disabled_namespace_buckets,
+                mode,
+                Outcome::Filtered(FilterStatKey::DisabledNamespace),
+            );
 
-            if !denied_buckets.is_empty() {
-                utils::reject_metrics(
-                    &outcome_aggregator,
-                    &metric_stats,
-                    utils::extract_metric_quantities(&denied_buckets, mode),
-                    scoping,
-                    Outcome::Filtered(FilterStatKey::DeniedName),
-                    &denied_buckets,
-                );
-            }
+            metric_outcomes.track(
+                scoping,
+                &denied_buckets,
+                mode,
+                Outcome::Filtered(FilterStatKey::DeniedName),
+            );
         }
 
         accepted_buckets
@@ -643,8 +635,7 @@ impl Project {
         &self,
         aggregator: Addr<Aggregator>,
         #[allow(unused_variables)] envelope_processor: Addr<EnvelopeProcessor>,
-        outcome_aggregator: Addr<TrackOutcome>,
-        metric_stats: MetricStats,
+        metric_outcomes: &MetricOutcomes,
         state: &ProjectState,
         buckets: Vec<Bucket>,
     ) {
@@ -655,13 +646,7 @@ impl Project {
         let extraction_mode = state.get_extraction_mode();
 
         // Pre-process buckets to make sure they are valid.
-        let buckets = self.pre_process_buckets(
-            outcome_aggregator.clone(),
-            metric_stats,
-            extraction_mode,
-            state,
-            buckets,
-        );
+        let buckets = self.pre_process_buckets(metric_outcomes, extraction_mode, state, buckets);
         if buckets.is_empty() {
             return;
         }
@@ -713,9 +698,8 @@ impl Project {
     pub fn merge_buckets(
         &mut self,
         aggregator: Addr<Aggregator>,
-        outcome_aggregator: Addr<TrackOutcome>,
+        metric_outcomes: &MetricOutcomes,
         envelope_processor: Addr<EnvelopeProcessor>,
-        metric_stats: MetricStats,
         buckets: Vec<Bucket>,
     ) {
         if !self.metrics_allowed() {
@@ -737,8 +721,7 @@ impl Project {
                 self.process_and_merge_buckets(
                     aggregator,
                     envelope_processor,
-                    outcome_aggregator,
-                    metric_stats,
+                    metric_outcomes,
                     &state,
                     buckets,
                 );
@@ -959,8 +942,7 @@ impl Project {
         state: Arc<ProjectState>,
         aggregator: Addr<Aggregator>,
         envelope_processor: Addr<EnvelopeProcessor>,
-        outcome_aggregator: Addr<TrackOutcome>,
-        metric_stats: MetricStats,
+        metric_outcomes: &MetricOutcomes,
     ) {
         let project_enabled = state.check_disabled(self.config.as_ref()).is_ok();
         let buckets = self.state.set_state(state.clone());
@@ -971,8 +953,7 @@ impl Project {
                 self.process_and_merge_buckets(
                     aggregator,
                     envelope_processor,
-                    outcome_aggregator,
-                    metric_stats,
+                    metric_outcomes,
                     &state,
                     buckets,
                 );
@@ -1165,8 +1146,7 @@ impl Project {
     /// Returns `Some` if metrics are currently allowed.
     pub fn check_buckets(
         &mut self,
-        outcome_aggregator: Addr<TrackOutcome>,
-        metric_stats: MetricStats,
+        metric_outcomes: &MetricOutcomes,
         mut buckets: Vec<Bucket>,
     ) -> Option<(Scoping, ProjectMetrics)> {
         let Some(project_state) = self.valid_state() else {
@@ -1214,13 +1194,11 @@ impl Project {
                 relay_log::debug!("dropping {} buckets due to rate limit", quantities.buckets);
 
                 let reason_code = limits.longest().and_then(|limit| limit.reason_code.clone());
-                utils::reject_metrics(
-                    &outcome_aggregator,
-                    &metric_stats,
-                    quantities,
+                metric_outcomes.track(
                     scoping,
-                    Outcome::RateLimited(reason_code),
                     &buckets,
+                    quantities,
+                    Outcome::RateLimited(reason_code),
                 );
 
                 buckets.retain(|bucket| bucket.name.try_namespace() != Some(namespace));
@@ -1837,6 +1815,7 @@ mod tests {
         global_config.options.metric_stats_rollout_rate = 1.0;
         let global_config = GlobalConfigHandle::fixed(global_config);
         let metric_stats = MetricStats::new(Arc::new(config), global_config, aggregator);
+        let metric_outcomes = MetricOutcomes::new(metric_stats, outcome_aggregator);
 
         let project = create_project(Some(json!({
             "metrics": {
@@ -1851,8 +1830,7 @@ mod tests {
             create_custom_bucket_with_name("memory_usage".into()),
         ];
         let pre_processed_buckets = project.pre_process_buckets(
-            outcome_aggregator,
-            metric_stats,
+            &metric_outcomes,
             ExtractionMode::Usage,
             &project.state_value().unwrap(),
             buckets.clone(),
@@ -1890,6 +1868,7 @@ mod tests {
         global_config.options.metric_stats_rollout_rate = 1.0;
         let global_config = GlobalConfigHandle::fixed(global_config);
         let metric_stats = MetricStats::new(Arc::new(config), global_config, aggregator);
+        let metric_outcomes = MetricOutcomes::new(metric_stats, outcome_aggregator);
 
         let project = create_project(None);
         let buckets = vec![
@@ -1897,8 +1876,7 @@ mod tests {
             create_custom_bucket_with_name("memory_usage".into()),
         ];
         let pre_processed_buckets = project.pre_process_buckets(
-            outcome_aggregator,
-            metric_stats,
+            &metric_outcomes,
             ExtractionMode::Usage,
             &project.state_value().unwrap(),
             buckets.clone(),

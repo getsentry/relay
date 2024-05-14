@@ -8,7 +8,6 @@ use std::pin::Pin;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use crate::metric_stats::MetricStats;
 use anyhow::Context;
 use brotli::CompressorWriter as BrotliEncoder;
 use bytes::Bytes;
@@ -67,6 +66,7 @@ use crate::envelope::{
 };
 use crate::extractors::{PartialDsn, RequestMeta};
 use crate::http;
+use crate::metrics::MetricOutcomes;
 use crate::metrics_extraction::transactions::types::ExtractMetricsError;
 use crate::metrics_extraction::transactions::{ExtractedMetrics, TransactionExtractor};
 use crate::service::ServiceError;
@@ -976,7 +976,7 @@ struct InnerProcessor {
     metric_meta_store: Option<RedisMetricMetaStore>,
     #[cfg(feature = "processing")]
     cardinality_limiter: Option<CardinalityLimiter>,
-    metric_stats: MetricStats,
+    metric_outcomes: MetricOutcomes,
     #[cfg(feature = "processing")]
     buffer_guard: Arc<BufferGuard>,
 }
@@ -989,7 +989,7 @@ impl EnvelopeProcessorService {
         cogs: Cogs,
         #[cfg(feature = "processing")] redis: Option<RedisPool>,
         addrs: Addrs,
-        metric_stats: MetricStats,
+        metric_outcomes: MetricOutcomes,
         #[cfg(feature = "processing")] buffer_guard: Arc<BufferGuard>,
     ) -> Self {
         let geoip_lookup = config.geoip_path().and_then(|p| {
@@ -1030,7 +1030,7 @@ impl EnvelopeProcessorService {
                     )
                 })
                 .map(CardinalityLimiter::new),
-            metric_stats,
+            metric_outcomes,
             config,
             #[cfg(feature = "processing")]
             buffer_guard,
@@ -2230,13 +2230,12 @@ impl EnvelopeProcessorService {
                 );
 
                 let reason_code = limits.longest().and_then(|limit| limit.reason_code.clone());
-                utils::reject_metrics(
-                    &self.inner.addrs.outcome_aggregator,
-                    &self.inner.metric_stats,
-                    quantities,
+
+                self.metric_outcomes.track(
                     *item_scoping.scoping,
-                    Outcome::RateLimited(reason_code),
                     &buckets,
+                    quantities,
+                    Outcome::RateLimited(reason_code),
                 );
 
                 self.inner.addrs.project_cache.send(UpdateRateLimits::new(
@@ -2311,8 +2310,8 @@ impl EnvelopeProcessorService {
         for (limit, reports) in limits.cardinality_reports() {
             for report in reports {
                 self.inner
-                    .metric_stats
-                    .track_cardinality(scoping, limit, report);
+                    .metric_outcomes
+                    .cardinality(scoping, limit, report);
             }
         }
 
@@ -2322,14 +2321,11 @@ impl EnvelopeProcessorService {
 
         let split = limits.into_split();
 
-        // Log outcomes for rejected buckets.
-        utils::reject_metrics(
-            &self.inner.addrs.outcome_aggregator,
-            &self.inner.metric_stats,
-            utils::extract_metric_quantities(&split.rejected, mode),
+        self.inner.metric_outcomes.track(
             scoping,
-            Outcome::CardinalityLimited,
             &split.rejected,
+            mode,
+            Outcome::CardinalityLimited,
         );
 
         split.accepted
@@ -2481,8 +2477,7 @@ impl EnvelopeProcessorService {
             encoded,
             http_encoding,
             quantities,
-            outcome_aggregator: self.inner.addrs.outcome_aggregator.clone(),
-            metric_stats: self.inner.metric_stats.clone(),
+            metric_outcomes: self.inner.metric_outcomes.clone(),
         };
 
         self.inner.addrs.upstream_relay.send(SendRequest(request));
@@ -2912,14 +2907,12 @@ struct SendMetricsRequest {
     unencoded: Bytes,
     /// Serialized metric buckets with the stated HTTP encoding applied.
     encoded: Bytes,
-    /// Encoding (compression) of the payload.
-    http_encoding: HttpEncoding,
     /// Information about the metric quantities in the payload for outcomes.
     quantities: Vec<(Scoping, SourceQuantities)>,
-    /// Address of the outcome aggregator to send outcomes to on error.
-    outcome_aggregator: Addr<TrackOutcome>,
-    /// Metric stats reporter.
-    metric_stats: MetricStats,
+    /// Encoding (compression) of the payload.
+    http_encoding: HttpEncoding,
+    /// Metric outcomes instance to send outcomes on error.
+    metric_outcomes: MetricOutcomes,
 }
 
 impl UpstreamRequest for SendMetricsRequest {
@@ -2965,21 +2958,22 @@ impl UpstreamRequest for SendMetricsRequest {
                     response.consume().await.ok();
                 }
                 Err(error) => {
+                    relay_log::error!(error = &error as &dyn Error, "Failed to send metrics batch");
+
                     // If the request did not arrive at the upstream, we are responsible for outcomes.
                     // Otherwise, the upstream is responsible to log outcomes.
-                    if !error.is_received() {
-                        for (scoping, quantities) in self.quantities {
-                            utils::reject_metrics::<&Bucket>(
-                                &self.outcome_aggregator,
-                                &self.metric_stats,
-                                quantities,
-                                scoping,
-                                Outcome::Invalid(DiscardReason::Internal),
-                                None,
-                            );
-                        }
+                    if error.is_received() {
+                        return;
                     }
-                    relay_log::error!(error = &error as &dyn Error, "Failed to send metrics batch");
+
+                    for (scoping, quantities) in self.quantities {
+                        self.metric_outcomes.track(
+                            scoping,
+                            &[], // TODO(dav1d): provide buckets here
+                            self.quantities,
+                            Outcome::Invalid(DiscardReason::Internal),
+                        );
+                    }
                 }
             }
         })
