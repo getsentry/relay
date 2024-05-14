@@ -1318,6 +1318,7 @@ impl EnvelopeProcessorService {
             .aggregator_config_for(MetricNamespace::Transactions);
 
         let global_config = self.inner.global_config.current();
+        let ai_model_costs = global_config.ai_model_costs.clone().ok();
 
         utils::log_transaction_name_metrics(&mut state.event, |event| {
             let tx_validation_config = TransactionValidationConfig {
@@ -1387,6 +1388,7 @@ impl EnvelopeProcessorService {
                 emit_event_errors: full_normalization,
                 span_description_rules: state.project_state.config.span_description_rules.as_ref(),
                 geoip_lookup: self.inner.geoip_lookup.as_ref(),
+                ai_model_costs: ai_model_costs.as_ref(),
                 enable_trimming: true,
                 measurements: Some(CombinedMeasurementsConfig::new(
                     state.project_state.config().measurements.as_ref(),
