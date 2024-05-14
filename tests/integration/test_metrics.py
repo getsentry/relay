@@ -1,6 +1,6 @@
 import hashlib
 from collections import defaultdict
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta, timezone
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 import json
 import signal
@@ -96,7 +96,7 @@ def test_metrics_proxy_mode_buckets(mini_sentry, relay):
     bucket = {
         "org_id": 1,
         "project_id": project_id,
-        "timestamp": int(datetime.utcnow().timestamp()),
+        "timestamp": int(datetime.now(UTC).timestamp()),
         "name": bucket_name,
         "type": "d",
         "value": [1.0],

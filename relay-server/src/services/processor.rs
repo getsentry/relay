@@ -2390,12 +2390,12 @@ impl EnvelopeProcessorService {
             } = message;
 
             let mode = project_state.get_extraction_mode();
-            let limits = project_state.get_cardinality_limits();
 
-            let buckets = self.cardinality_limit_buckets(scoping, limits, buckets, mode);
             let quotas = CombinedQuotas::new(&global_config, project_state.get_quotas());
-
             let buckets = self.rate_limit_buckets_by_namespace(scoping, buckets, quotas, mode);
+
+            let limits = project_state.get_cardinality_limits();
+            let buckets = self.cardinality_limit_buckets(scoping, limits, buckets, mode);
 
             if buckets.is_empty() {
                 continue;
@@ -3080,7 +3080,6 @@ mod tests {
 
     #[cfg(feature = "processing")]
     use {
-        relay_dynamic_config::Options,
         relay_metrics::BucketValue,
         relay_quotas::{QuotaScope, ReasonCode},
         relay_test::mock_service,
@@ -3106,11 +3105,8 @@ mod tests {
     #[test]
     fn test_dynamic_quotas() {
         let global_config = GlobalConfig {
-            measurements: None,
             quotas: vec![mock_quota("foo"), mock_quota("bar")],
-            filters: Default::default(),
-            options: Options::default(),
-            metric_extraction: Default::default(),
+            ..Default::default()
         };
 
         let project_quotas = vec![mock_quota("baz"), mock_quota("qux")];
