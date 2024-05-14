@@ -8,7 +8,8 @@
 
 **Bug fixes:**
 
-- Properly handle AI metrics from the Python SDK's `@ai_track` decorator ([#3539](https://github.com/getsentry/relay/pull/3539))
+- Properly handle AI metrics from the Python SDK's `@ai_track` decorator. ([#3539](https://github.com/getsentry/relay/pull/3539))
+- Mitigate occasional slowness and timeouts of the healthcheck endpoint. The endpoint will now respond promptly an unhealthy state. ([#3567](https://github.com/getsentry/relay/pull/3567))
 
 **Internal**:
 
@@ -21,6 +22,8 @@
 - Emit negative outcomes for denied metrics. ([#3508](https://github.com/getsentry/relay/pull/3508))
 - Increase size limits for internal batch endpoints. ([#3562](https://github.com/getsentry/relay/pull/3562))
 - Emit negative outcomes when metrics are rejected because of a disabled namespace. ([#3544](https://github.com/getsentry/relay/pull/3544))
+- Add AI model costs to global config. ([#3579](https://github.com/getsentry/relay/pull/3579))
+- Add support for `event.` in the `Span` `Getter` implementation. ([#3577](https://github.com/getsentry/relay/pull/3577))
 
 ## 24.4.2
 
