@@ -238,7 +238,7 @@ impl<Q: AsRef<Vec<Quota>>> MetricsLimiter<Q> {
     ///
     /// Returns Ok if `metrics` contain relevant metrics, `metrics` otherwise.
     pub fn create(
-        buckets: Vec<Bucket>,
+        buckets: impl IntoIterator<Item = Bucket>,
         quotas: Q,
         scoping: Scoping,
         mode: ExtractionMode,

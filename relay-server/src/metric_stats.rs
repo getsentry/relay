@@ -222,6 +222,12 @@ mod tests {
 
     use super::*;
 
+    impl MetricStats {
+        pub fn test() -> (Self, UnboundedReceiver<Aggregator>) {
+            create_metric_stats(1.0)
+        }
+    }
+
     fn create_metric_stats(rollout_rate: f32) -> (MetricStats, UnboundedReceiver<Aggregator>) {
         let config = Config::from_json_value(serde_json::json!({
             "processing": {
