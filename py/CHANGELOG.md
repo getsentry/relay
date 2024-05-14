@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Revert the Python version bump back to Python 3.10.
+
 ## 0.8.63
 
 - This release requires Python 3.11 or later. There are no intentionally breaking changes included in this release, but we stopped testing against Python 3.10.
