@@ -8,13 +8,13 @@
 <p>A log message is similar to the <code>message</code> attribute on the event itself but
 can additionally hold optional parameters.</p>
 <div class="example-wrap"><pre class="language-json"><code>{
-  &quot;message&quot;: {
+  &quot;logentry&quot;: {
     &quot;message&quot;: &quot;My raw message with interpreted strings like %s&quot;,
     &quot;params&quot;: [&quot;this&quot;]
   }
 }
 </code></pre></div><div class="example-wrap"><pre class="language-json"><code>{
-  &quot;message&quot;: {
+  &quot;logentry&quot;: {
     &quot;message&quot;: &quot;My raw message with interpreted strings like {foo}&quot;,
     &quot;params&quot;: {&quot;foo&quot;: &quot;this&quot;}
   }
