@@ -23,6 +23,7 @@ use utils::{Context, ThreadedProducer};
 mod schemas;
 
 const REPORT_FREQUENCY: Duration = Duration::from_secs(1);
+const KAFKA_FETCH_METADATA_TIMEOUT: Duration = Duration::from_secs(30);
 
 /// Kafka producer errors.
 #[derive(Error, Debug)]
@@ -107,7 +108,7 @@ impl Producer {
     fn validate_topic(&self) -> Result<(), ClientError> {
         let client = self.producer.client();
         let metadata = client
-            .fetch_metadata(Some(&self.topic_name), Duration::from_secs(5))
+            .fetch_metadata(Some(&self.topic_name), KAFKA_FETCH_METADATA_TIMEOUT)
             .map_err(ClientError::MetadataFetchError)?;
 
         for topic in metadata.topics() {
