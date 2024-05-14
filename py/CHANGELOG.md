@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.8.64
 
 - Revert the Python version bump back to Python 3.10.
 
