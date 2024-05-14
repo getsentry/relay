@@ -98,7 +98,7 @@ impl ProfileData {
             return Err(ProfileError::NotEnoughSamples);
         }
 
-        self.sort_samples_by_timestamp();
+        self.samples.sort_by_key(|s| s.timestamp);
 
         if !self.all_stacks_referenced_by_samples_exist() {
             return Err(ProfileError::MalformedSamples);
@@ -150,10 +150,6 @@ impl ProfileData {
         self.thread_metadata
             .retain(|thread_id, _| thread_ids.contains(thread_id));
     }
-
-    fn sort_samples_by_timestamp(&mut self) {
-        self.samples.sort_by_key(|s| s.timestamp);
-    }
 }
 
 pub fn parse(payload: &[u8]) -> Result<ProfileChunk, ProfileError> {
@@ -178,7 +174,7 @@ mod tests {
     }
 
     #[test]
-    fn test_samples_sorted() {
+    fn test_samples_are_sorted() {
         let mut chunk = ProfileData {
             samples: vec![
                 Sample {
@@ -192,10 +188,12 @@ mod tests {
                     timestamp: FiniteF64::new(1000.0).unwrap(),
                 },
             ],
+            stacks: vec![vec![0]],
+            frames: vec![Default::default()],
             ..Default::default()
         };
 
-        chunk.sort_samples_by_timestamp();
+        assert!(chunk.normalize("python").is_ok());
 
         let timestamps: Vec<FiniteF64> = chunk.samples.iter().map(|s| s.timestamp).collect();
 
