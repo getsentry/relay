@@ -249,9 +249,9 @@ impl ModelCosts {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ModelCost {
-    model_id: LazyGlob,
-    for_completion: bool,
-    cost_per_1k_tokens: f64,
+    pub(crate) model_id: LazyGlob,
+    pub(crate) for_completion: bool,
+    pub(crate) cost_per_1k_tokens: f64,
 }
 
 impl ModelCost {
@@ -291,7 +291,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn roundtrip() {
+    fn test_model_cost_config() {
         let original = r#"{"version":1,"costs":[{"modelId":"babbage-002.ft-*","forCompletion":false,"costPer1kTokens":0.0016}]}"#;
         let deserialized: ModelCosts = serde_json::from_str(original).unwrap();
         assert_debug_snapshot!(deserialized, @r###"

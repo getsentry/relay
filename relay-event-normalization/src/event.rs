@@ -1418,6 +1418,7 @@ mod tests {
 
     use insta::{assert_debug_snapshot, assert_json_snapshot};
     use itertools::Itertools;
+    use relay_common::glob2::LazyGlob;
     use relay_event_schema::protocol::{
         Breadcrumb, Csp, DebugMeta, DeviceContext, MetricSummary, MetricsSummary, Span, Values,
     };
@@ -1425,7 +1426,7 @@ mod tests {
     use serde_json::json;
 
     use super::*;
-    use crate::{ClientHints, MeasurementsConfig};
+    use crate::{ClientHints, MeasurementsConfig, ModelCost};
 
     const IOS_MOBILE_EVENT: &str = r#"
         {
@@ -2092,6 +2093,111 @@ mod tests {
             },
         )
         "###);
+    }
+
+    #[test]
+    fn test_ai_metrics() {
+        let json = r#"
+            {
+                "spans": [
+                    {
+                        "timestamp": 1702474613.0495,
+                        "start_timestamp": 1702474613.0175,
+                        "description": "OpenAI ",
+                        "op": "ai.chat_completions.openai",
+                        "span_id": "9c01bd820a083e63",
+                        "parent_span_id": "a1e13f3f06239d69",
+                        "trace_id": "922dda2462ea4ac2b6a4b339bee90863",
+                        "measurements": {
+                            "ai_total_tokens_used": {
+                                "value": 1230
+                            }
+                        },
+                        "data": {
+                            "ai.pipeline.name": "Autofix Pipeline",
+                            "ai.model_id": "claude-2.1"
+                        }
+                    },
+                    {
+                        "timestamp": 1702474613.0495,
+                        "start_timestamp": 1702474613.0175,
+                        "description": "OpenAI ",
+                        "op": "ai.chat_completions.openai",
+                        "span_id": "ac01bd820a083e63",
+                        "parent_span_id": "a1e13f3f06239d69",
+                        "trace_id": "922dda2462ea4ac2b6a4b339bee90863",
+                        "measurements": {
+                            "ai_prompt_tokens_used": {
+                                "value": 1000
+                            },
+                            "ai_completion_tokens_used": {
+                                "value": 2000
+                            }
+                        },
+                        "data": {
+                            "ai.pipeline.name": "Autofix Pipeline",
+                            "ai.model_id": "gpt4-21-04"
+                        }
+                    }
+                ]
+            }
+        "#;
+
+        let mut event = Annotated::<Event>::from_json(json).unwrap();
+
+        normalize_event(
+            &mut event,
+            &NormalizationConfig {
+                ai_model_costs: Some(&ModelCosts {
+                    version: 1,
+                    costs: vec![
+                        ModelCost {
+                            model_id: LazyGlob::new("claude-2*".into()),
+                            for_completion: false,
+                            cost_per_1k_tokens: 1.0,
+                        },
+                        ModelCost {
+                            model_id: LazyGlob::new("gpt4-21*".into()),
+                            for_completion: false,
+                            cost_per_1k_tokens: 2.0,
+                        },
+                        ModelCost {
+                            model_id: LazyGlob::new("gpt4-21*".into()),
+                            for_completion: true,
+                            cost_per_1k_tokens: 20.0,
+                        },
+                    ],
+                }),
+                ..NormalizationConfig::default()
+            },
+        );
+
+        let spans = event.value().unwrap().spans.value().unwrap();
+        assert_eq!(spans.len(), 2);
+        assert_eq!(
+            spans
+                .get(0)
+                .unwrap()
+                .value()
+                .unwrap()
+                .measurements
+                .value()
+                .unwrap()
+                .get_value("ai_total_cost"),
+            Some(1.23)
+        );
+        assert_eq!(
+            spans
+                .get(1)
+                .unwrap()
+                .value()
+                .unwrap()
+                .measurements
+                .value()
+                .unwrap()
+                .get_value("ai_total_cost"),
+            Some(20.0 * 2.0 + 2.0)
+        );
     }
 
     #[test]

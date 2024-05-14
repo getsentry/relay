@@ -478,7 +478,6 @@ fn normalize(
     // This follows the steps of `NormalizeProcessor::process_event`.
     // Ideally, `NormalizeProcessor` would execute these steps generically, i.e. also when calling
     // `process` on it.
-    println!("In normalize function");
 
     process_value(
         annotated_span,

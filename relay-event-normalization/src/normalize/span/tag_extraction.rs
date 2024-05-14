@@ -1441,53 +1441,6 @@ LIMIT 1
     }
 
     #[test]
-    fn test_ai_metrics() {
-        let json = r#"
-            {
-                "spans": [
-                    {
-                        "timestamp": 1702474613.0495,
-                        "start_timestamp": 1702474613.0175,
-                        "description": "OpenAI ",
-                        "op": "ai.chat_completions.openai",
-                        "span_id": "9c01bd820a083e63",
-                        "parent_span_id": "a1e13f3f06239d69",
-                        "trace_id": "922dda2462ea4ac2b6a4b339bee90863",
-                        "measurements": {
-                            "ai_total_tokens_used": {
-                                "value": 1000000
-                            }
-                        },
-                        "data": {
-                            "ai.pipeline.name": "Autofix Pipeline",
-                            "ai.model_id": "claude-2.1"
-                        }
-                    }
-                ]
-            }
-        "#;
-
-        let mut event = Annotated::<Event>::from_json(json)
-            .unwrap()
-            .into_value()
-            .unwrap();
-
-        extract_span_tags_from_event(&mut event, 200);
-        let span = event.spans.value().unwrap()[0].value().unwrap();
-        assert_eq!(
-            span.measurements
-                .value()
-                .unwrap()
-                .get("ai_total_cost")
-                .unwrap()
-                .value()
-                .unwrap()
-                .value,
-            8.0.into()
-        );
-    }
-
-    #[test]
     fn test_cache_extraction() {
         let json = r#"
             {
