@@ -635,6 +635,7 @@ impl Project {
         &self,
         aggregator: Addr<Aggregator>,
         #[allow(unused_variables)] envelope_processor: Addr<EnvelopeProcessor>,
+        outcome_aggregator: &Addr<TrackOutcome>,
         metric_outcomes: &MetricOutcomes,
         state: &ProjectState,
         buckets: Vec<Bucket>,
@@ -671,8 +672,11 @@ impl Project {
             Ok(mut bucket_limiter) => {
                 let cached_rate_limits = self.rate_limits().clone();
                 #[allow(unused_variables)]
-                let was_rate_limited =
-                    bucket_limiter.enforce_limits(&cached_rate_limits, outcome_aggregator);
+                let was_rate_limited = bucket_limiter.enforce_limits(
+                    &cached_rate_limits,
+                    metric_outcomes,
+                    outcome_aggregator,
+                );
 
                 #[cfg(feature = "processing")]
                 if !was_rate_limited && self.config.processing_enabled() {
@@ -699,6 +703,7 @@ impl Project {
         &mut self,
         aggregator: Addr<Aggregator>,
         metric_outcomes: &MetricOutcomes,
+        outcome_aggregator: &Addr<TrackOutcome>,
         envelope_processor: Addr<EnvelopeProcessor>,
         buckets: Vec<Bucket>,
     ) {
@@ -722,6 +727,7 @@ impl Project {
                     aggregator,
                     envelope_processor,
                     metric_outcomes,
+                    outcome_aggregator,
                     &state,
                     buckets,
                 );
@@ -942,7 +948,8 @@ impl Project {
         state: Arc<ProjectState>,
         aggregator: Addr<Aggregator>,
         envelope_processor: Addr<EnvelopeProcessor>,
-        metric_outcomes: &MetricOutcomes,
+        outcome_aggregator: Addr<TrackOutcome>,
+        metric_outcomes: MetricOutcomes,
     ) {
         let project_enabled = state.check_disabled(self.config.as_ref()).is_ok();
         let buckets = self.state.set_state(state.clone());
@@ -953,7 +960,8 @@ impl Project {
                 self.process_and_merge_buckets(
                     aggregator,
                     envelope_processor,
-                    metric_outcomes,
+                    &metric_outcomes,
+                    &outcome_aggregator,
                     &state,
                     buckets,
                 );
@@ -992,7 +1000,7 @@ impl Project {
         mut state: Arc<ProjectState>,
         envelope_processor: Addr<EnvelopeProcessor>,
         outcome_aggregator: Addr<TrackOutcome>,
-        metric_stats: MetricStats,
+        metric_outcomes: MetricOutcomes,
         no_cache: bool,
     ) {
         // Initiate the backoff if the incoming state is invalid. Reset it otherwise.
@@ -1024,7 +1032,7 @@ impl Project {
                 aggregator,
                 envelope_processor.clone(),
                 outcome_aggregator,
-                metric_stats,
+                metric_outcomes,
             ),
         }
 
@@ -1190,16 +1198,8 @@ impl Project {
                     .iter()
                     .filter(|bucket| bucket.name.try_namespace() == Some(namespace));
 
-                let quantities = utils::extract_metric_quantities(matching_buckets, mode);
-                relay_log::debug!("dropping {} buckets due to rate limit", quantities.buckets);
-
                 let reason_code = limits.longest().and_then(|limit| limit.reason_code.clone());
-                metric_outcomes.track(
-                    scoping,
-                    &buckets,
-                    quantities,
-                    Outcome::RateLimited(reason_code),
-                );
+                metric_outcomes.track(scoping, &buckets, mode, Outcome::RateLimited(reason_code));
 
                 buckets.retain(|bucket| bucket.name.try_namespace() != Some(namespace));
             }

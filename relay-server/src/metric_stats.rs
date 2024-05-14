@@ -63,12 +63,7 @@ impl MetricStats {
     }
 
     /// Tracks the metric volume and outcome for the bucket.
-    pub fn track_metric<'a, T>(
-        &self,
-        scoping: Scoping,
-        bucket: impl TrackableBucket,
-        outcome: &Outcome,
-    ) {
+    pub fn track_metric(&self, scoping: Scoping, bucket: impl TrackableBucket, outcome: &Outcome) {
         if !self.is_enabled(scoping) {
             return;
         }

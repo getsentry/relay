@@ -13,7 +13,7 @@ use crate::utils::ExtractionMode;
 #[cfg(feature = "processing")]
 use relay_cardinality::{CardinalityLimit, CardinalityReport};
 
-const PROFILE_TAG: &str = "has_profile";
+pub const PROFILE_TAG: &str = "has_profile";
 
 pub struct Track {
     scoping: Scoping,
