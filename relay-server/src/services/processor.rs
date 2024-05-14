@@ -65,8 +65,7 @@ use crate::envelope::{
     self, ContentType, Envelope, EnvelopeError, Item, ItemType, SourceQuantities,
 };
 use crate::extractors::{PartialDsn, RequestMeta};
-use crate::http;
-use crate::metrics::MetricOutcomes;
+use crate::metrics::{extract_quantities, MetricOutcomes};
 use crate::metrics_extraction::transactions::types::ExtractMetricsError;
 use crate::metrics_extraction::transactions::{ExtractedMetrics, TransactionExtractor};
 use crate::service::ServiceError;
@@ -88,6 +87,7 @@ use crate::utils::{
     self, ExtractionMode, InvalidProcessingGroupType, ManagedEnvelope, SamplingResult,
     TypedEnvelope,
 };
+use crate::{http, metrics};
 
 mod attachment;
 mod dynamic_sampling;
@@ -2158,8 +2158,11 @@ impl EnvelopeProcessorService {
             }
 
             if rate_limits.is_limited() {
-                let was_enforced = bucket_limiter
-                    .enforce_limits(&rate_limits, self.inner.addrs.outcome_aggregator.clone());
+                let was_enforced = bucket_limiter.enforce_limits(
+                    &rate_limits,
+                    &self.inner.metric_outcomes,
+                    &self.inner.addrs.outcome_aggregator,
+                );
 
                 if was_enforced {
                     // Update the rate limits in the project cache.
@@ -2219,24 +2222,23 @@ impl EnvelopeProcessorService {
         rate_limiter: &RedisRateLimiter,
     ) -> Vec<Bucket> {
         let batch_size = self.inner.config.metrics_max_batch_size_bytes();
-        let batched_bucket_iter = BucketsView::from(&buckets).by_size(batch_size).flatten();
-        let quantities = utils::extract_metric_quantities(batched_bucket_iter, mode);
+        let quantity = BucketsView::from(&buckets)
+            .by_size(batch_size)
+            .flatten()
+            .count();
 
         // Check with redis if the throughput limit has been exceeded, while also updating
         // the count so that other relays will be updated too.
-        match rate_limiter.is_rate_limited(quotas, item_scoping, quantities.buckets, false) {
+        match rate_limiter.is_rate_limited(quotas, item_scoping, quantity, false) {
             Ok(limits) if limits.is_limited() => {
-                relay_log::debug!(
-                    "dropping {} buckets due to throughput rate limit",
-                    quantities.buckets
-                );
+                relay_log::debug!("dropping {quantity} buckets due to throughput rate limit");
 
                 let reason_code = limits.longest().and_then(|limit| limit.reason_code.clone());
 
-                self.metric_outcomes.track(
+                self.inner.metric_outcomes.track(
                     *item_scoping.scoping,
                     &buckets,
-                    quantities,
+                    mode,
                     Outcome::RateLimited(reason_code),
                 );
 
@@ -2422,12 +2424,12 @@ impl EnvelopeProcessorService {
                 }
 
                 let mut num_batches = 0;
-                for batch in BucketsView::new(&buckets).by_size(batch_size) {
+                for batch in BucketsView::from(&buckets).by_size(batch_size) {
                     let mut envelope =
                         Envelope::from_request(None, RequestMeta::outbound(dsn.clone()));
 
                     let mut item = Item::new(ItemType::MetricBuckets);
-                    item.set_source_quantities(utils::extract_metric_quantities(&batch, mode));
+                    item.set_source_quantities(metrics::extract_quantities(&batch, mode));
                     item.set_payload(ContentType::Json, serde_json::to_vec(&buckets).unwrap());
                     envelope.add_item(item);
 
@@ -2861,7 +2863,7 @@ impl<'a> Partition<'a> {
 
         if let Some(current) = current {
             self.remaining = self.remaining.saturating_sub(current.estimated_size());
-            let quantities = utils::extract_metric_quantities([current.clone()], self.mode);
+            let quantities = metrics::extract_quantities([&current], self.mode);
             self.quantities.push((scoping, quantities));
             self.views
                 .entry(scoping.project_key)
@@ -2971,8 +2973,8 @@ impl UpstreamRequest for SendMetricsRequest {
                     for (scoping, quantities) in self.quantities {
                         self.metric_outcomes.track(
                             scoping,
-                            &[], // TODO(dav1d): provide buckets here
-                            self.quantities,
+                            &[] as &[Bucket], // TODO(dav1d): provide buckets here
+                            quantities,
                             Outcome::Invalid(DiscardReason::Internal),
                         );
                     }

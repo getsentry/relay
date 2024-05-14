@@ -894,8 +894,8 @@ impl Project {
                 self.merge_buckets_into_aggregator(
                     aggregator,
                     envelope_processor,
-                    metric_outcomes,
                     outcome_aggregator,
+                    metric_outcomes,
                     &state,
                     buckets,
                 );

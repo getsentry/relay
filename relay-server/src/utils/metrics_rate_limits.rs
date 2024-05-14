@@ -1,7 +1,7 @@
 //! Quota and rate limiting helpers for metrics and metrics buckets.
 
 use chrono::{DateTime, Utc};
-use itertools::Itertools;
+use itertools::{Either, Itertools};
 use relay_common::time::UnixTimestamp;
 use relay_metrics::{
     Bucket, BucketView, BucketViewValue, MetricNamespace, MetricResourceIdentifier,
@@ -34,32 +34,6 @@ pub struct MetricsLimiter<Q: AsRef<Vec<Quota>> = Vec<Quota>> {
     counts: EntityCounts,
 }
 
-/// Extracts quota information from a list of metric buckets.
-pub fn extract_metric_quantities<'a, I, V>(buckets: I, mode: ExtractionMode) -> SourceQuantities
-where
-    I: IntoIterator<Item = V>,
-    V: Into<BucketView<'a>>,
-{
-    let mut quantities = SourceQuantities::default();
-
-    for bucket in buckets {
-        quantities.buckets += 1;
-        let summary = summarize_bucket(bucket.into(), mode);
-        match summary {
-            BucketSummary::Transactions { count, has_profile } => {
-                quantities.transactions += count;
-                if has_profile {
-                    quantities.profiles += count;
-                }
-            }
-            BucketSummary::Spans(count) => quantities.spans += count,
-            BucketSummary::None => continue,
-        };
-    }
-
-    quantities
-}
-
 /// Whether to extract transaction and profile count based on the usage or duration metric.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ExtractionMode {
@@ -69,8 +43,8 @@ pub enum ExtractionMode {
     Duration,
 }
 
-fn to_counts(summary: BucketSummary) -> EntityCounts {
-    match summary {
+fn to_counts(summary: &BucketSummary) -> EntityCounts {
+    match *summary {
         BucketSummary::Transactions { count, has_profile } => EntityCounts {
             transactions: Some(count),
             spans: None,
@@ -163,7 +137,7 @@ impl<Q: AsRef<Vec<Quota>>> MetricsLimiter<Q> {
         // Accumulate the total counts
         let total_counts = buckets
             .iter()
-            .map(|b| to_counts(b.summary))
+            .map(|b| to_counts(&b.summary))
             .reduce(|a, b| a + b);
         if let Some(counts) = total_counts {
             Ok(Self {
@@ -214,17 +188,15 @@ impl<Q: AsRef<Vec<Quota>>> MetricsLimiter<Q> {
         outcome: Outcome,
         metric_outcomes: &MetricOutcomes,
     ) {
-        // Drop transaction buckets:
         let buckets = std::mem::take(&mut self.buckets);
-        let timestamp = Utc::now();
-
         let (buckets, dropped) = utils::split_off(buckets, |b| match b.summary {
             BucketSummary::Transactions { .. } if category == DataCategory::Transaction => {
-                Some(b.bucket)
+                Either::Right(b.bucket)
             }
-            BucketSummary::Spans(_) if category == DataCategory::Span => Some(b.bucket),
-            _ => None,
+            BucketSummary::Spans(_) if category == DataCategory::Span => Either::Right(b.bucket),
+            _ => Either::Left(b),
         });
+        self.buckets = buckets;
 
         metric_outcomes.track(self.scoping, &dropped, self.mode, outcome);
     }

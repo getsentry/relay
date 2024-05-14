@@ -405,7 +405,6 @@ impl StoreService {
         for mut bucket in buckets {
             let namespace = encoder.prepare(&mut bucket);
 
-            let mut has_success = false;
             // Create a local bucket view to avoid splitting buckets unnecessarily. Since we produce
             // each bucket separately, we only need to split buckets that exceed the size, but not
             // batches.

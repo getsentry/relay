@@ -671,13 +671,20 @@ impl ProjectCacheBroker {
             state,
             no_cache,
         } = message;
+
+        let project_cache = self.services.project_cache.clone();
+        let aggregator = self.services.aggregator.clone();
+        let envelope_processor = self.services.envelope_processor.clone();
+        let outcome_aggregator = self.services.outcome_aggregator.clone();
+        let metric_outcomes = self.metric_outcomes.clone();
+
         self.get_or_create_project(project_key).update_state(
-            &self.services.project_cache,
-            &self.services.aggregator,
+            &project_cache,
+            &aggregator,
             state,
-            &self.services.envelope_processor,
-            &self.services.outcome_aggregator,
-            &self.metric_outcomes,
+            &envelope_processor,
+            &outcome_aggregator,
+            &metric_outcomes,
             no_cache,
         );
 
@@ -855,14 +862,18 @@ impl ProjectCacheBroker {
 
     fn handle_add_metric_buckets(&mut self, message: AddMetricBuckets) {
         let project_cache = self.services.project_cache.clone();
+        let aggregator = self.services.aggregator.clone();
+        let outcome_aggregator = self.services.outcome_aggregator.clone();
+        let envelope_processor = self.services.envelope_processor.clone();
+        let metric_outcomes = self.metric_outcomes.clone();
 
         let project = self.get_or_create_project(message.project_key);
         project.prefetch(project_cache, false);
         project.merge_buckets(
-            &self.services.aggregator,
-            &self.services.outcome_aggregator,
-            &self.metric_outcomes,
-            &self.services.envelope_processor,
+            &aggregator,
+            &outcome_aggregator,
+            &metric_outcomes,
+            &envelope_processor,
             message.buckets,
             message.source,
         );
@@ -876,11 +887,12 @@ impl ProjectCacheBroker {
     }
 
     fn handle_flush_buckets(&mut self, message: FlushBuckets) {
+        let metric_outcomes = self.metric_outcomes.clone();
+
         let mut output = BTreeMap::new();
         for (project_key, buckets) in message.buckets {
-            let outcome_aggregator = self.services.outcome_aggregator.clone();
             let project = self.get_or_create_project(project_key);
-            if let Some((scoping, b)) = project.check_buckets(&self.metric_outcomes, buckets) {
+            if let Some((scoping, b)) = project.check_buckets(&metric_outcomes, buckets) {
                 output.insert(scoping, b);
             }
         }
