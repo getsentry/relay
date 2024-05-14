@@ -34,8 +34,6 @@ fn calculate_ai_model_cost(
 }
 
 /// Extract the ai_total_cost measurement into the span.
-/// Note that this can't go in relay_event_normalization because it uses relay_dynamic_config
-/// which would cause a circular dependency.
 pub fn extract_ai_measurements(span: &mut Span, ai_model_costs: &ModelCosts) {
     let Some(span_op) = span.op.value() else {
         return;

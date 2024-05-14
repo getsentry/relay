@@ -308,8 +308,7 @@ mod tests {
         "###);
 
         let serialized = serde_json::to_string(&deserialized).unwrap();
-        // Patch floating point
-        std::assert_eq!(&serialized, original);
+        assert_eq!(&serialized, original);
     }
 
     #[test]
