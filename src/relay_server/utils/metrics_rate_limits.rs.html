@@ -952,7 +952,7 @@
     ///
     /// Returns Ok if `metrics` contain relevant metrics, `metrics` otherwise.
     </span><span class="kw">pub fn </span>create(
-        buckets: Vec&lt;Bucket&gt;,
+        buckets: <span class="kw">impl </span>IntoIterator&lt;Item = Bucket&gt;,
         quotas: Q,
         scoping: Scoping,
         mode: ExtractionMode,

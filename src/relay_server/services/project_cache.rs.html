@@ -1521,11 +1521,52 @@
 <a href="#1519" id="1519">1519</a>
 <a href="#1520" id="1520">1520</a>
 <a href="#1521" id="1521">1521</a>
+<a href="#1522" id="1522">1522</a>
+<a href="#1523" id="1523">1523</a>
+<a href="#1524" id="1524">1524</a>
+<a href="#1525" id="1525">1525</a>
+<a href="#1526" id="1526">1526</a>
+<a href="#1527" id="1527">1527</a>
+<a href="#1528" id="1528">1528</a>
+<a href="#1529" id="1529">1529</a>
+<a href="#1530" id="1530">1530</a>
+<a href="#1531" id="1531">1531</a>
+<a href="#1532" id="1532">1532</a>
+<a href="#1533" id="1533">1533</a>
+<a href="#1534" id="1534">1534</a>
+<a href="#1535" id="1535">1535</a>
+<a href="#1536" id="1536">1536</a>
+<a href="#1537" id="1537">1537</a>
+<a href="#1538" id="1538">1538</a>
+<a href="#1539" id="1539">1539</a>
+<a href="#1540" id="1540">1540</a>
+<a href="#1541" id="1541">1541</a>
+<a href="#1542" id="1542">1542</a>
+<a href="#1543" id="1543">1543</a>
+<a href="#1544" id="1544">1544</a>
+<a href="#1545" id="1545">1545</a>
+<a href="#1546" id="1546">1546</a>
+<a href="#1547" id="1547">1547</a>
+<a href="#1548" id="1548">1548</a>
+<a href="#1549" id="1549">1549</a>
+<a href="#1550" id="1550">1550</a>
+<a href="#1551" id="1551">1551</a>
+<a href="#1552" id="1552">1552</a>
+<a href="#1553" id="1553">1553</a>
+<a href="#1554" id="1554">1554</a>
+<a href="#1555" id="1555">1555</a>
+<a href="#1556" id="1556">1556</a>
+<a href="#1557" id="1557">1557</a>
+<a href="#1558" id="1558">1558</a>
+<a href="#1559" id="1559">1559</a>
+<a href="#1560" id="1560">1560</a>
+<a href="#1561" id="1561">1561</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
 <span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::sync::Arc;
 <span class="kw">use </span>std::time::Duration;
 
+<span class="kw">use </span><span class="kw">crate</span>::extractors::RequestMeta;
 <span class="kw">use </span><span class="kw">crate</span>::metric_stats::MetricStats;
 <span class="kw">use </span>hashbrown::HashSet;
 <span class="kw">use </span>relay_base_schema::project::ProjectKey;
@@ -1694,6 +1735,32 @@
     }
 }
 
+<span class="doccomment">/// Source information where a metric bucket originates from.
+</span><span class="attr">#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+</span><span class="kw">pub enum </span>BucketSource {
+    <span class="doccomment">/// The metric bucket originated from an internal Relay use case.
+    ///
+    /// The metric bucket originates either from within the same Relay
+    /// or was accepted coming from another Relay which is registered as
+    /// an internal Relay via Relay's configuration.
+    </span>Internal,
+    <span class="doccomment">/// The bucket source originated from an untrusted source.
+    ///
+    /// Managed Relays sending extracted metrics are considered external,
+    /// it's a project use case but it comes from an untrusted source.
+    </span>External,
+}
+
+<span class="kw">impl </span>From&lt;<span class="kw-2">&amp;</span>RequestMeta&gt; <span class="kw">for </span>BucketSource {
+    <span class="kw">fn </span>from(value: <span class="kw-2">&amp;</span>RequestMeta) -&gt; <span class="self">Self </span>{
+        <span class="kw">if </span>value.is_from_internal_relay() {
+            <span class="self">Self</span>::Internal
+        } <span class="kw">else </span>{
+            <span class="self">Self</span>::External
+        }
+    }
+}
+
 <span class="doccomment">/// Add metric buckets to the project.
 ///
 /// Metric buckets added via the project are filtered and rate limited
@@ -1704,6 +1771,18 @@
 </span><span class="kw">pub struct </span>AddMetricBuckets {
     <span class="kw">pub </span>project_key: ProjectKey,
     <span class="kw">pub </span>buckets: Vec&lt;Bucket&gt;,
+    <span class="kw">pub </span>source: BucketSource,
+}
+
+<span class="kw">impl </span>AddMetricBuckets {
+    <span class="doccomment">/// Convenience constructor which creates an internal [`AddMetricBuckets`] message.
+    </span><span class="kw">pub fn </span>internal(project_key: ProjectKey, buckets: Vec&lt;Bucket&gt;) -&gt; <span class="self">Self </span>{
+        <span class="self">Self </span>{
+            project_key,
+            buckets,
+            source: BucketSource::Internal,
+        }
+    }
 }
 
 <span class="doccomment">/// Add metric metadata to the aggregator.
@@ -2359,6 +2438,7 @@
             envelope_processor,
             metric_stats,
             message.buckets,
+            message.source,
         );
     }
 

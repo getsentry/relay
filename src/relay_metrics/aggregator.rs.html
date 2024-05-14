@@ -1514,8 +1514,6 @@
 <a href="#1512" id="1512">1512</a>
 <a href="#1513" id="1513">1513</a>
 <a href="#1514" id="1514">1514</a>
-<a href="#1515" id="1515">1515</a>
-<a href="#1516" id="1516">1516</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Core functionality of metrics aggregation.
 
 </span><span class="kw">use </span>std::collections::hash_map::Entry;
@@ -2005,6 +2003,21 @@
 }
 
 <span class="kw">impl </span>Aggregator {
+    <span class="doccomment">/// Create a new aggregator.
+    </span><span class="kw">pub fn </span>new(config: AggregatorConfig) -&gt; <span class="self">Self </span>{
+        <span class="self">Self</span>::named(<span class="string">"default"</span>.to_owned(), config)
+    }
+
+    <span class="doccomment">/// Like [`Self::new`], but with a provided name.
+    </span><span class="kw">pub fn </span>named(name: String, config: AggregatorConfig) -&gt; <span class="self">Self </span>{
+        <span class="self">Self </span>{
+            name,
+            config,
+            buckets: HashMap::new(),
+            cost_tracker: CostTracker::default(),
+        }
+    }
+
     <span class="doccomment">/// Returns the name of the aggregator.
     </span><span class="kw">pub fn </span>name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>str {
         <span class="self">self</span>.name.as_str()
@@ -2226,14 +2239,12 @@
     <span class="doccomment">/// Merges all given `buckets` into this aggregator.
     ///
     /// Buckets that do not exist yet will be created.
-    </span><span class="kw">pub fn </span>merge_all&lt;I&gt;(
+    </span><span class="kw">pub fn </span>merge_all(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         project_key: ProjectKey,
-        buckets: I,
+        buckets: <span class="kw">impl </span>IntoIterator&lt;Item = Bucket&gt;,
         max_total_bucket_bytes: <span class="prelude-ty">Option</span>&lt;usize&gt;,
-    ) <span class="kw">where
-        </span>I: IntoIterator&lt;Item = Bucket&gt;,
-    {
+    ) {
         <span class="kw">for </span>bucket <span class="kw">in </span>buckets.into_iter() {
             <span class="kw">if let </span><span class="prelude-val">Err</span>(error) = <span class="self">self</span>.merge(project_key, bucket, max_total_bucket_bytes) {
                 <span class="kw">match </span><span class="kw-2">&amp;</span>error.kind {
@@ -2247,21 +2258,6 @@
                     }
                 }
             }
-        }
-    }
-
-    <span class="doccomment">/// Create a new aggregator.
-    </span><span class="kw">pub fn </span>new(config: AggregatorConfig) -&gt; <span class="self">Self </span>{
-        <span class="self">Self</span>::named(<span class="string">"default"</span>.to_owned(), config)
-    }
-
-    <span class="doccomment">/// Like [`Self::new`], but with a provided name.
-    </span><span class="kw">pub fn </span>named(name: String, config: AggregatorConfig) -&gt; <span class="self">Self </span>{
-        <span class="self">Self </span>{
-            name,
-            config,
-            buckets: HashMap::new(),
-            cost_tracker: CostTracker::default(),
         }
     }
 }
@@ -2431,7 +2427,7 @@
     </span><span class="kw">fn </span>test_aggregator_merge_counters() {
         relay_test::setup();
         <span class="kw">let </span>project_key = ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap();
-        <span class="kw">let </span><span class="kw-2">mut </span>aggregator = Aggregator::new(test_config());
+        <span class="kw">let </span><span class="kw-2">mut </span>aggregator: Aggregator = Aggregator::new(test_config());
 
         <span class="kw">let </span>bucket1 = some_bucket(<span class="prelude-val">None</span>);
 
@@ -2521,7 +2517,7 @@
         config.bucket_interval = <span class="number">10</span>;
 
         <span class="kw">let </span>project_key = ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap();
-        <span class="kw">let </span><span class="kw-2">mut </span>aggregator = Aggregator::new(config);
+        <span class="kw">let </span><span class="kw-2">mut </span>aggregator: Aggregator = Aggregator::new(config);
 
         <span class="kw">let </span>bucket1 = some_bucket(<span class="prelude-val">None</span>);
 
@@ -2583,7 +2579,7 @@
         <span class="kw">let </span>project_key1 = ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fed"</span>).unwrap();
         <span class="kw">let </span>project_key2 = ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap();
 
-        <span class="kw">let </span><span class="kw-2">mut </span>aggregator = Aggregator::new(config);
+        <span class="kw">let </span><span class="kw-2">mut </span>aggregator: Aggregator = Aggregator::new(config);
 
         <span class="comment">// It's OK to have same metric with different projects:
         </span>aggregator
@@ -2669,7 +2665,7 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_aggregator_cost_tracking() {
         <span class="comment">// Make sure that the right cost is added / subtracted
-        </span><span class="kw">let </span><span class="kw-2">mut </span>aggregator = Aggregator::new(test_config());
+        </span><span class="kw">let </span><span class="kw-2">mut </span>aggregator: Aggregator = Aggregator::new(test_config());
         <span class="kw">let </span>project_key = ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fed"</span>).unwrap();
 
         <span class="kw">let </span>timestamp = UnixTimestamp::from_secs(<span class="number">999994711</span>);
@@ -2751,7 +2747,7 @@
             ..Default::default()
         };
 
-        <span class="kw">let </span>aggregator = Aggregator::new(config);
+        <span class="kw">let </span>aggregator: Aggregator = Aggregator::new(config);
 
         <span class="macro">assert!</span>(<span class="macro">matches!</span>(
             aggregator
@@ -2937,7 +2933,7 @@
             metadata: BucketMetadata::new(timestamp),
         };
 
-        <span class="kw">let </span><span class="kw-2">mut </span>aggregator = Aggregator::new(test_config());
+        <span class="kw">let </span><span class="kw-2">mut </span>aggregator: Aggregator = Aggregator::new(test_config());
         <span class="kw">let </span>project_key = ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fed"</span>).unwrap();
 
         aggregator
@@ -2969,7 +2965,7 @@
             metadata: BucketMetadata::new(timestamp),
         };
 
-        <span class="kw">let </span><span class="kw-2">mut </span>aggregator = Aggregator::new(config);
+        <span class="kw">let </span><span class="kw-2">mut </span>aggregator: Aggregator = Aggregator::new(config);
         <span class="kw">let </span>project_key = ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fed"</span>).unwrap();
 
         aggregator.merge(project_key, bucket.clone(), <span class="prelude-val">None</span>).unwrap();
@@ -2995,7 +2991,7 @@
         config.bucket_interval = <span class="number">10</span>;
 
         <span class="kw">let </span>project_key = ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap();
-        <span class="kw">let </span><span class="kw-2">mut </span>aggregator = Aggregator::new(config);
+        <span class="kw">let </span><span class="kw-2">mut </span>aggregator: Aggregator = Aggregator::new(config);
 
         <span class="kw">let </span>bucket1 = some_bucket(<span class="prelude-val">Some</span>(UnixTimestamp::from_secs(<span class="number">999994711</span>)));
         <span class="kw">let </span>bucket2 = some_bucket(<span class="prelude-val">Some</span>(UnixTimestamp::from_secs(<span class="number">999994711</span>)));

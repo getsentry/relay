@@ -3584,6 +3584,11 @@
 <a href="#3582" id="3582">3582</a>
 <a href="#3583" id="3583">3583</a>
 <a href="#3584" id="3584">3584</a>
+<a href="#3585" id="3585">3585</a>
+<a href="#3586" id="3586">3586</a>
+<a href="#3587" id="3587">3587</a>
+<a href="#3588" id="3588">3588</a>
+<a href="#3589" id="3589">3589</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
@@ -3661,7 +3666,7 @@
 <span class="kw">use </span><span class="kw">crate</span>::services::processor::event::FiltersStatus;
 <span class="kw">use </span><span class="kw">crate</span>::services::project::ProjectState;
 <span class="kw">use </span><span class="kw">crate</span>::services::project_cache::{
-    AddMetricBuckets, AddMetricMeta, ProjectCache, UpdateRateLimits,
+    AddMetricBuckets, AddMetricMeta, BucketSource, ProjectCache, UpdateRateLimits,
 };
 <span class="kw">use </span><span class="kw">crate</span>::services::test_store::{Capture, TestStore};
 <span class="kw">use </span><span class="kw">crate</span>::services::upstream::{
@@ -4142,10 +4147,10 @@
         <span class="kw">let </span>project_key = envelope.meta().public_key();
 
         <span class="kw">if </span>!<span class="self">self</span>.project_metrics.is_empty() {
-            project_cache.send(AddMetricBuckets {
+            project_cache.send(AddMetricBuckets::internal(
                 project_key,
-                buckets: <span class="self">self</span>.project_metrics,
-            });
+                <span class="self">self</span>.project_metrics,
+            ));
         }
 
         <span class="kw">if </span>!<span class="self">self</span>.sampling_metrics.is_empty() {
@@ -4156,10 +4161,10 @@
             // dependent_project_with_tracing  -&gt; metrics goes to root
             // root_project_with_tracing       -&gt; metrics goes to root == self
             </span><span class="kw">let </span>sampling_project_key = utils::get_sampling_key(envelope).unwrap_or(project_key);
-            project_cache.send(AddMetricBuckets {
-                project_key: sampling_project_key,
-                buckets: <span class="self">self</span>.sampling_metrics,
-            });
+            project_cache.send(AddMetricBuckets::internal(
+                sampling_project_key,
+                <span class="self">self</span>.sampling_metrics,
+            ));
         }
     }
 }
@@ -4325,7 +4330,7 @@
     <span class="doccomment">/// The target project.
     </span><span class="kw">pub </span>project_key: ProjectKey,
     <span class="doccomment">/// Whether to keep or reset the metric metadata.
-    </span><span class="kw">pub </span>keep_metadata: bool,
+    </span><span class="kw">pub </span>source: BucketSource,
     <span class="doccomment">/// The instant at which the request was received.
     </span><span class="kw">pub </span>start_time: Instant,
     <span class="doccomment">/// The value of the Envelope's [`sent_at`](Envelope::sent_at) header for clock drift
@@ -4338,7 +4343,7 @@
     <span class="doccomment">/// Metrics payload in JSON format.
     </span><span class="kw">pub </span>payload: Bytes,
     <span class="doccomment">/// Whether to keep or reset the metric metadata.
-    </span><span class="kw">pub </span>keep_metadata: bool,
+    </span><span class="kw">pub </span>source: BucketSource,
     <span class="doccomment">/// The instant at which the request was received.
     </span><span class="kw">pub </span>start_time: Instant,
     <span class="doccomment">/// The instant at which the request was received.
@@ -5447,7 +5452,7 @@
             project_key,
             start_time,
             sent_at,
-            keep_metadata,
+            source,
         } = message;
 
         <span class="kw">let </span>received = relay_common::time::instant_to_date_time(start_time);
@@ -5501,7 +5506,7 @@
 
         <span class="kw">for </span>bucket <span class="kw">in </span><span class="kw-2">&amp;mut </span>buckets {
             clock_drift_processor.process_timestamp(<span class="kw-2">&amp;mut </span>bucket.timestamp);
-            <span class="kw">if </span>!keep_metadata {
+            <span class="kw">if </span>!<span class="macro">matches!</span>(source, BucketSource::Internal) {
                 bucket.metadata = BucketMetadata::new(received_timestamp);
             }
         }
@@ -5512,13 +5517,14 @@
         <span class="self">self</span>.inner.addrs.project_cache.send(AddMetricBuckets {
             project_key,
             buckets,
+            source,
         });
     }
 
     <span class="kw">fn </span>handle_process_batched_metrics(<span class="kw-2">&amp;</span><span class="self">self</span>, cogs: <span class="kw-2">&amp;mut </span>Token, message: ProcessBatchedMetrics) {
         <span class="kw">let </span>ProcessBatchedMetrics {
             payload,
-            keep_metadata,
+            source,
             start_time,
             sent_at,
         } = message;
@@ -5554,7 +5560,7 @@
 
             <span class="kw">for </span>bucket <span class="kw">in </span><span class="kw-2">&amp;mut </span>buckets {
                 clock_drift_processor.process_timestamp(<span class="kw-2">&amp;mut </span>bucket.timestamp);
-                <span class="kw">if </span>!keep_metadata {
+                <span class="kw">if </span>!<span class="macro">matches!</span>(source, BucketSource::Internal) {
                     bucket.metadata = BucketMetadata::new(received_timestamp);
                 }
             }
@@ -5565,6 +5571,7 @@
             <span class="self">self</span>.inner.addrs.project_cache.send(AddMetricBuckets {
                 project_key,
                 buckets,
+                source,
             });
         }
 
@@ -7045,14 +7052,17 @@
             ContentType::Text,
             <span class="string">"transactions/foo:3182887624:4267882815|s"</span>,
         );
-        <span class="kw">for </span>(keep_metadata, expected_received_at) <span class="kw">in </span>[
-            (<span class="bool-val">false</span>, <span class="prelude-val">Some</span>(UnixTimestamp::from_instant(start_time))),
-            (<span class="bool-val">true</span>, <span class="prelude-val">None</span>),
+        <span class="kw">for </span>(source, expected_received_at) <span class="kw">in </span>[
+            (
+                BucketSource::External,
+                <span class="prelude-val">Some</span>(UnixTimestamp::from_instant(start_time)),
+            ),
+            (BucketSource::Internal, <span class="prelude-val">None</span>),
         ] {
             <span class="kw">let </span>message = ProcessMetrics {
                 items: <span class="macro">vec!</span>[item.clone()],
                 project_key,
-                keep_metadata,
+                source,
                 start_time,
                 sent_at: <span class="prelude-val">Some</span>(Utc::now()),
             };
@@ -7132,27 +7142,27 @@
     }
 }
 "#</span>;
-        <span class="kw">for </span>(keep_metadata, payload, expected_received_at) <span class="kw">in </span>[
+        <span class="kw">for </span>(source, payload, expected_received_at) <span class="kw">in </span>[
             (
-                <span class="bool-val">false</span>,
+                BucketSource::External,
                 payload_no_metadata,
                 <span class="prelude-val">Some</span>(UnixTimestamp::from_instant(start_time)),
             ),
-            (<span class="bool-val">true</span>, payload_no_metadata, <span class="prelude-val">None</span>),
+            (BucketSource::Internal, payload_no_metadata, <span class="prelude-val">None</span>),
             (
-                <span class="bool-val">false</span>,
+                BucketSource::External,
                 payload_metadata,
                 <span class="prelude-val">Some</span>(UnixTimestamp::from_instant(start_time)),
             ),
             (
-                <span class="bool-val">true</span>,
+                BucketSource::Internal,
                 payload_metadata,
                 <span class="prelude-val">Some</span>(UnixTimestamp::from_secs(<span class="number">1615889440</span>)),
             ),
         ] {
             <span class="kw">let </span>message = ProcessBatchedMetrics {
                 payload: Bytes::from(payload),
-                keep_metadata,
+                source,
                 start_time,
                 sent_at: <span class="prelude-val">Some</span>(Utc::now()),
             };

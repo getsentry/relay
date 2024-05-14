@@ -764,6 +764,14 @@
 <a href="#762" id="762">762</a>
 <a href="#763" id="763">763</a>
 <a href="#764" id="764">764</a>
+<a href="#765" id="765">765</a>
+<a href="#766" id="766">766</a>
+<a href="#767" id="767">767</a>
+<a href="#768" id="768">768</a>
+<a href="#769" id="769">769</a>
+<a href="#770" id="770">770</a>
+<a href="#771" id="771">771</a>
+<a href="#772" id="772">772</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Dynamic configuration for metrics extraction from sessions and transactions.
 
 </span><span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
@@ -1403,6 +1411,14 @@
         <span class="kw">let </span>m: Metrics = serde_json::from_str(<span class="string">"{}"</span>).unwrap();
         <span class="macro">assert!</span>(m.is_empty());
         <span class="macro">assert_eq!</span>(m, Metrics::default());
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_serialize_metrics_config_denied_names() {
+        <span class="kw">let </span>input_str = <span class="string">r#"{"deniedNames":["foo","bar"]}"#</span>;
+        <span class="kw">let </span>deny_list: Metrics = serde_json::from_str(input_str).unwrap();
+        <span class="kw">let </span>back_to_str = serde_json::to_string(<span class="kw-2">&amp;</span>deny_list).unwrap();
+        <span class="macro">assert_eq!</span>(input_str, back_to_str);
     }
 
     <span class="attr">#[test]

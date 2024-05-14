@@ -29,6 +29,7 @@
 <a href="#27" id="27">27</a>
 <a href="#28" id="28">28</a>
 <a href="#29" id="29">29</a>
+<a href="#30" id="30">30</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>axum::http::StatusCode;
 <span class="kw">use </span>axum::response::IntoResponse;
 <span class="kw">use </span>serde::{Deserialize, Serialize};
@@ -36,6 +37,7 @@
 <span class="kw">use </span><span class="kw">crate</span>::extractors::{SignedBytes, StartTime};
 <span class="kw">use </span><span class="kw">crate</span>::service::ServiceState;
 <span class="kw">use </span><span class="kw">crate</span>::services::processor::ProcessBatchedMetrics;
+<span class="kw">use </span><span class="kw">crate</span>::services::project_cache::BucketSource;
 
 <span class="attr">#[derive(Debug, Serialize, Deserialize)]
 </span><span class="kw">struct </span>SendMetricsResponse {}
@@ -51,7 +53,7 @@
 
     state.processor().send(ProcessBatchedMetrics {
         payload: body.body,
-        keep_metadata: body.relay.internal,
+        source: BucketSource::Internal,
         start_time: start_time.into_inner(),
         sent_at: <span class="prelude-val">None</span>,
     });

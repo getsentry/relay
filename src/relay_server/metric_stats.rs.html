@@ -480,6 +480,12 @@
 <a href="#478" id="478">478</a>
 <a href="#479" id="479">479</a>
 <a href="#480" id="480">480</a>
+<a href="#481" id="481">481</a>
+<a href="#482" id="482">482</a>
+<a href="#483" id="483">483</a>
+<a href="#484" id="484">484</a>
+<a href="#485" id="485">485</a>
+<a href="#486" id="486">486</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::sync::{Arc, OnceLock};
 
@@ -703,6 +709,12 @@
     <span class="kw">use </span>tokio::sync::mpsc::UnboundedReceiver;
 
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
+
+    <span class="kw">impl </span>MetricStats {
+        <span class="kw">pub fn </span>test() -&gt; (<span class="self">Self</span>, UnboundedReceiver&lt;Aggregator&gt;) {
+            create_metric_stats(<span class="number">1.0</span>)
+        }
+    }
 
     <span class="kw">fn </span>create_metric_stats(rollout_rate: f32) -&gt; (MetricStats, UnboundedReceiver&lt;Aggregator&gt;) {
         <span class="kw">let </span>config = Config::from_json_value(<span class="macro">serde_json::json!</span>({
