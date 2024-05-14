@@ -54,7 +54,7 @@ pub fn create_sampling_context(sample_rate: Option<f64>) -> DynamicSamplingConte
         public_key: "12345678901234567890123456789012".parse().unwrap(),
         release: None,
         environment: None,
-        segment_name: None,
+        transaction: None,
         sample_rate,
         user: Default::default(),
         replay_id: None,

@@ -265,7 +265,7 @@ mod tests {
 
     use bytes::Bytes;
     use relay_base_schema::project::{ProjectId, ProjectKey};
-    use relay_dynamic_config::TransactionMetricsConfig;
+    use relay_dynamic_config::{MetricExtractionConfig, TransactionMetricsConfig};
     use relay_event_schema::protocol::{EventId, LenientString};
     use relay_protocol::RuleCondition;
     use relay_sampling::config::{
@@ -526,7 +526,7 @@ mod tests {
             user: Default::default(),
             replay_id: None,
             environment: None,
-            segment_name: Some("transaction1".into()),
+            transaction: Some("transaction1".into()),
             sample_rate: None,
             sampled: Some(true),
             other: BTreeMap::new(),
@@ -680,7 +680,7 @@ mod tests {
             user: Default::default(),
             replay_id: None,
             environment: None,
-            segment_name: Some("transaction1".into()),
+            transaction: Some("transaction1".into()),
             sample_rate: Some(0.5),
             sampled: Some(true),
             other: BTreeMap::new(),
@@ -732,6 +732,8 @@ mod tests {
             },
             sampling_project_state: {
                 let mut state = ProjectState::allowed();
+                state.config.metric_extraction =
+                    ErrorBoundary::Ok(MetricExtractionConfig::default());
                 state.config.sampling = Some(ErrorBoundary::Ok(SamplingConfig {
                     version: 2,
                     rules: vec![

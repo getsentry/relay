@@ -203,11 +203,11 @@ processing_group!(SpanGroup, Span);
 impl Sampling for SpanGroup {
     fn supports_sampling(project_state: &ProjectState) -> bool {
         // If no metrics could be extracted, do not sample anything.
-        matches!(&project_state.config().metric_extraction, ErrorBoundary::Ok(c) if c.is_enabled())
+        matches!(&project_state.config().metric_extraction, ErrorBoundary::Ok(c) if c.is_supported())
     }
 
     fn supports_reservoir_sampling() -> bool {
-        true
+        false
     }
 }
 
@@ -1276,7 +1276,7 @@ impl EnvelopeProcessorService {
                         .managed_envelope
                         .envelope()
                         .dsc()
-                        .and_then(|dsc| dsc.segment_name.as_deref());
+                        .and_then(|dsc| dsc.transaction.as_deref());
 
                     let extractor = TransactionExtractor {
                         config: tx_config,

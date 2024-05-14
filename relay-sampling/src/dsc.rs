@@ -37,8 +37,8 @@ pub struct DynamicSamplingContext {
     /// field in the starting transaction and set on transaction start, or via `scope.transaction`.
     ///
     /// In the spans-only model, this is the segment name for the segment that started the trace.
-    #[serde(default, alias = "transaction")]
-    pub segment_name: Option<String>,
+    #[serde(default, alias = "segment_name")]
+    pub transaction: Option<String>,
     /// The sample rate with which this trace was sampled in the client. This is a float between
     /// `0.0` and `1.0`.
     #[serde(
@@ -72,7 +72,7 @@ impl Getter for DynamicSamplingContext {
             "environment" => self.environment.as_deref()?.into(),
             "user.id" => or_none(&self.user.user_id)?.into(),
             "user.segment" => or_none(&self.user.user_segment)?.into(),
-            "transaction" => self.segment_name.as_deref()?.into(),
+            "transaction" => self.transaction.as_deref()?.into(),
             "replay_id" => self.replay_id?.into(),
             _ => return None,
         })
@@ -517,7 +517,7 @@ mod tests {
                 user_id: "user-id".into(),
             },
             environment: Some("prod".into()),
-            segment_name: Some("transaction1".into()),
+            transaction: Some("transaction1".into()),
             sample_rate: None,
             replay_id: Some(replay_id),
             sampled: None,
@@ -549,7 +549,7 @@ mod tests {
             release: None,
             user: TraceUserContext::default(),
             environment: None,
-            segment_name: None,
+            transaction: None,
             sample_rate: None,
             replay_id: None,
             sampled: None,
@@ -568,7 +568,7 @@ mod tests {
             release: None,
             user: TraceUserContext::default(),
             environment: None,
-            segment_name: None,
+            transaction: None,
             sample_rate: None,
             replay_id: None,
             sampled: None,

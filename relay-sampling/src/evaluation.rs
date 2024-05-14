@@ -428,7 +428,7 @@ mod tests {
             public_key: "12345678123456781234567812345678".parse().unwrap(),
             release: None,
             environment: None,
-            segment_name: None,
+            transaction: None,
             sample_rate: None,
             user: TraceUserContext::default(),
             replay_id: None,
@@ -442,7 +442,7 @@ mod tests {
                 "trace.environment" => dsc.environment = Some(value.to_owned()),
                 "trace.user.id" => value.clone_into(&mut dsc.user.user_id),
                 "trace.user.segment" => value.clone_into(&mut dsc.user.user_segment),
-                "trace.transaction" => dsc.segment_name = Some(value.to_owned()),
+                "trace.transaction" => dsc.transaction = Some(value.to_owned()),
                 "trace.replay_id" => dsc.replay_id = Some(Uuid::from_str(value).unwrap()),
                 _ => panic!("invalid path"),
             }
