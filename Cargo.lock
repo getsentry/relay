@@ -3994,6 +3994,7 @@ dependencies = [
  "relay-base-schema",
  "relay-event-schema",
  "relay-log",
+ "relay-metrics",
  "relay-protocol",
  "serde",
  "serde_json",

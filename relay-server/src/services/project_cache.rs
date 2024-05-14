@@ -3,6 +3,7 @@ use std::error::Error;
 use std::sync::Arc;
 use std::time::Duration;
 
+use crate::extractors::RequestMeta;
 use crate::metrics::MetricOutcomes;
 use hashbrown::HashSet;
 use relay_base_schema::project::ProjectKey;
@@ -171,6 +172,32 @@ impl UpdateRateLimits {
     }
 }
 
+/// Source information where a metric bucket originates from.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum BucketSource {
+    /// The metric bucket originated from an internal Relay use case.
+    ///
+    /// The metric bucket originates either from within the same Relay
+    /// or was accepted coming from another Relay which is registered as
+    /// an internal Relay via Relay's configuration.
+    Internal,
+    /// The bucket source originated from an untrusted source.
+    ///
+    /// Managed Relays sending extracted metrics are considered external,
+    /// it's a project use case but it comes from an untrusted source.
+    External,
+}
+
+impl From<&RequestMeta> for BucketSource {
+    fn from(value: &RequestMeta) -> Self {
+        if value.is_from_internal_relay() {
+            Self::Internal
+        } else {
+            Self::External
+        }
+    }
+}
+
 /// Add metric buckets to the project.
 ///
 /// Metric buckets added via the project are filtered and rate limited
@@ -181,6 +208,18 @@ impl UpdateRateLimits {
 pub struct AddMetricBuckets {
     pub project_key: ProjectKey,
     pub buckets: Vec<Bucket>,
+    pub source: BucketSource,
+}
+
+impl AddMetricBuckets {
+    /// Convenience constructor which creates an internal [`AddMetricBuckets`] message.
+    pub fn internal(project_key: ProjectKey, buckets: Vec<Bucket>) -> Self {
+        Self {
+            project_key,
+            buckets,
+            source: BucketSource::Internal,
+        }
+    }
 }
 
 /// Add metric metadata to the aggregator.
@@ -825,6 +864,7 @@ impl ProjectCacheBroker {
             &self.metric_outcomes,
             &self.services.envelope_processor,
             message.buckets,
+            message.source,
         );
     }
 
