@@ -3589,6 +3589,8 @@
 <a href="#3587" id="3587">3587</a>
 <a href="#3588" id="3588">3588</a>
 <a href="#3589" id="3589">3589</a>
+<a href="#3590" id="3590">3590</a>
+<a href="#3591" id="3591">3591</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
@@ -4909,6 +4911,7 @@
             .aggregator_config_for(MetricNamespace::Transactions);
 
         <span class="kw">let </span>global_config = <span class="self">self</span>.inner.global_config.current();
+        <span class="kw">let </span>ai_model_costs = global_config.ai_model_costs.clone().ok();
 
         utils::log_transaction_name_metrics(<span class="kw-2">&amp;mut </span>state.event, |event| {
             <span class="kw">let </span>tx_validation_config = TransactionValidationConfig {
@@ -4978,6 +4981,7 @@
                 emit_event_errors: full_normalization,
                 span_description_rules: state.project_state.config.span_description_rules.as_ref(),
                 geoip_lookup: <span class="self">self</span>.inner.geoip_lookup.as_ref(),
+                ai_model_costs: ai_model_costs.as_ref(),
                 enable_trimming: <span class="bool-val">true</span>,
                 measurements: <span class="prelude-val">Some</span>(CombinedMeasurementsConfig::new(
                     state.project_state.config().measurements.as_ref(),

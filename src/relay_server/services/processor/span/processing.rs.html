@@ -894,6 +894,17 @@
 <a href="#892" id="892">892</a>
 <a href="#893" id="893">893</a>
 <a href="#894" id="894">894</a>
+<a href="#895" id="895">895</a>
+<a href="#896" id="896">896</a>
+<a href="#897" id="897">897</a>
+<a href="#898" id="898">898</a>
+<a href="#899" id="899">899</a>
+<a href="#900" id="900">900</a>
+<a href="#901" id="901">901</a>
+<a href="#902" id="902">902</a>
+<a href="#903" id="903">903</a>
+<a href="#904" id="904">904</a>
+<a href="#905" id="905">905</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Contains the processing-only functionality.
 
 </span><span class="kw">use </span>std::error::Error;
@@ -905,12 +916,12 @@
 <span class="kw">use </span>relay_dynamic_config::{
     CombinedMetricExtractionConfig, ErrorBoundary, Feature, GlobalConfig, ProjectConfig,
 };
-<span class="kw">use </span>relay_event_normalization::normalize_transaction_name;
 <span class="kw">use </span>relay_event_normalization::{
     normalize_measurements, normalize_performance_score, normalize_user_agent_info_generic,
     span::tag_extraction, validate_span, CombinedMeasurementsConfig, MeasurementsConfig,
     PerformanceScoreConfig, RawUserAgentInfo, TransactionsProcessor,
 };
+<span class="kw">use </span>relay_event_normalization::{normalize_transaction_name, ModelCosts};
 <span class="kw">use </span>relay_event_schema::processor::{process_value, ProcessingState};
 <span class="kw">use </span>relay_event_schema::protocol::{BrowserContext, Contexts, Event, Span, SpanData};
 <span class="kw">use </span>relay_log::protocol::{Attachment, AttachmentType};
@@ -929,6 +940,7 @@
 };
 <span class="kw">use </span><span class="kw">crate</span>::statsd::{RelayCounters, RelayHistograms};
 <span class="kw">use </span><span class="kw">crate</span>::utils::{sample, BufferGuard, ItemAction};
+<span class="kw">use </span>relay_event_normalization::span::ai::extract_ai_measurements;
 <span class="kw">use </span>thiserror::Error;
 
 <span class="attr">#[derive(Error, Debug)]
@@ -948,12 +960,14 @@
         ErrorBoundary::Ok(<span class="kw-2">ref </span>config) <span class="kw">if </span>config.is_enabled() =&gt; <span class="prelude-val">Some</span>(config),
         <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
     };
+    <span class="kw">let </span>ai_model_costs_config = global_config.ai_model_costs.clone().ok();
     <span class="kw">let </span>normalize_span_config = get_normalize_span_config(
         config,
         state.managed_envelope.received_at(),
         global_config.measurements.as_ref(),
         state.project_state.config().measurements.as_ref(),
         state.project_state.config().performance_score.as_ref(),
+        ai_model_costs_config.as_ref(),
     );
 
     <span class="kw">let </span>meta = state.managed_envelope.envelope().meta();
@@ -1278,6 +1292,8 @@
     /// If at least one is provided, then normalization will truncate custom measurements
     /// and add units of known built-in measurements.
     </span>measurements: <span class="prelude-ty">Option</span>&lt;CombinedMeasurementsConfig&lt;<span class="lifetime">'a</span>&gt;&gt;,
+    <span class="doccomment">/// Configuration for AI model cost calculation
+    </span>ai_model_costs: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>ModelCosts&gt;,
     <span class="doccomment">/// The maximum length for names of custom measurements.
     ///
     /// Measurements with longer names are removed from the transaction event and replaced with a
@@ -1291,6 +1307,7 @@
     global_measurements_config: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>MeasurementsConfig&gt;,
     project_measurements_config: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>MeasurementsConfig&gt;,
     performance_score: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>PerformanceScoreConfig&gt;,
+    ai_model_costs: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>ModelCosts&gt;,
 ) -&gt; NormalizeSpanConfig&lt;<span class="lifetime">'a</span>&gt; {
     <span class="kw">let </span>aggregator_config =
         AggregatorConfig::from(config.aggregator_config_for(MetricNamespace::Spans));
@@ -1311,6 +1328,7 @@
                 .saturating_sub(MeasurementsConfig::MEASUREMENT_MRI_OVERHEAD),
         ),
         performance_score,
+        ai_model_costs,
     }
 }
 
@@ -1360,6 +1378,7 @@
         max_tag_value_size,
         performance_score,
         measurements,
+        ai_model_costs,
         max_name_and_unit_len,
     } = config;
 
@@ -1439,6 +1458,9 @@
         ..Default::default()
     };
     normalize_performance_score(<span class="kw-2">&amp;mut </span>event, performance_score);
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(model_costs_config) = ai_model_costs {
+        extract_ai_measurements(span, model_costs_config);
+    }
     span.measurements = event.measurements;
 
     tag_extraction::extract_measurements(span, is_mobile);

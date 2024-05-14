@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"mod":["description","exclusive_time","tag_extraction"]};
+window.SIDEBAR_ITEMS = {"mod":["ai","description","exclusive_time","tag_extraction"]};
