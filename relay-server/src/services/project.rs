@@ -30,10 +30,10 @@ use crate::services::processor::{EncodeMetricMeta, EnvelopeProcessor, ProjectMet
 use crate::services::project_cache::{BucketSource, CheckedEnvelope, ProjectCache, RequestUpdate};
 
 use crate::extractors::RequestMeta;
-use crate::metric_stats::MetricStats;
+
 use crate::statsd::RelayCounters;
 use crate::utils::{
-    self, EnvelopeLimiter, ExtractionMode, ManagedEnvelope, MetricsLimiter, RetryBackoff,
+    EnvelopeLimiter, ExtractionMode, ManagedEnvelope, MetricsLimiter, RetryBackoff,
 };
 
 mod metrics;
@@ -595,7 +595,7 @@ impl Project {
             return;
         }
 
-        let buckets = buckets.apply_project_state(&metric_outcomes, state, scoping);
+        let buckets = buckets.apply_project_state(metric_outcomes, state, scoping);
 
         if buckets.is_empty() {
             return;
@@ -661,7 +661,7 @@ impl Project {
                     envelope_processor,
                     outcome_aggregator,
                     metric_outcomes,
-                    &state,
+                    state,
                     buckets,
                 );
             }
@@ -987,7 +987,7 @@ impl Project {
         relay_log::debug!("project state {} updated", self.project_key);
         channel.inner.send(state);
 
-        self.after_state_updated(&envelope_processor);
+        self.after_state_updated(envelope_processor);
     }
 
     /// Called after all state validations and after the project state is updated.
@@ -1128,7 +1128,7 @@ impl Project {
 
             if limits.is_limited() {
                 // NB: Until Vec::extract_if is stable, we have to iterate twice.
-                let matching_buckets = buckets
+                let _matching_buckets = buckets
                     .iter()
                     .filter(|bucket| bucket.name.try_namespace() == Some(namespace));
 
@@ -1156,13 +1156,11 @@ impl Project {
 mod tests {
     use std::sync::Mutex;
 
-    use crate::services::global_config::GlobalConfigHandle;
+    use crate::metric_stats::MetricStats;
     use relay_common::time::UnixTimestamp;
-    use relay_dynamic_config::GlobalConfig;
     use relay_metrics::BucketValue;
     use relay_test::mock_service;
     use serde_json::json;
-    use tokio::sync::mpsc::UnboundedReceiver;
 
     use super::*;
 
@@ -1321,11 +1319,12 @@ mod tests {
         project.merge_buckets(
             &aggregator,
             &outcome_aggregator,
-            &envelope_processor,
             &metric_outcomes,
+            &envelope_processor,
             buckets,
             BucketSource::Internal,
         );
+        drop(aggregator);
         handle.await.unwrap();
 
         let buckets_received = *bucket_state.lock().unwrap();
@@ -1350,13 +1349,14 @@ mod tests {
         let buckets = vec![create_transaction_bucket()];
         let (outcome_aggregator, _) = mock_service("outcome_aggregator", (), |&mut (), _| {});
         let (envelope_processor, _) = mock_service("envelope_processor", (), |&mut (), _| {});
-        let metric_outcomes = MetricOutcomes::new(metric_stats, outcome_aggregator.clone());
+        let metric_outcomes =
+            MetricOutcomes::new(MetricStats::test().0, outcome_aggregator.clone());
 
         project.merge_buckets(
             &aggregator,
             &outcome_aggregator,
-            &envelope_processor,
             &metric_outcomes,
+            &envelope_processor,
             buckets.clone(),
             BucketSource::Internal,
         );
@@ -1370,18 +1370,20 @@ mod tests {
             &outcome_aggregator,
             &metric_outcomes,
         );
+        drop(aggregator);
         handle.await.unwrap(); // state isnt updated until we await.
 
         let buckets_received = *bucket_state.lock().unwrap();
         assert!(buckets_received);
     }
 
-    #[tokio::test]
-    async fn test_rate_limit_incoming_metrics() {
+    #[test]
+    fn test_rate_limit_incoming_metrics() {
         let (aggregator, mut aggregator_rx) = Addr::custom();
         let (envelope_processor, _) = Addr::custom();
         let (outcome_aggregator, _) = Addr::custom();
-        let metric_outcomes = MetricOutcomes::new(metric_stats, outcome_aggregator.clone());
+        let metric_outcomes =
+            MetricOutcomes::new(MetricStats::test().0, outcome_aggregator.clone());
 
         let project = create_project(None);
         project.merge_buckets_into_aggregator(
@@ -1392,20 +1394,25 @@ mod tests {
             &project.state_value().unwrap(),
             Buckets::test(vec![create_transaction_metric()]),
         );
+        drop(aggregator);
 
-        let value = aggregator_rx.recv().await.unwrap();
+        let value = aggregator_rx.blocking_recv().unwrap();
         let Aggregator::MergeBuckets(merge_buckets) = value else {
             panic!();
         };
         assert_eq!(merge_buckets.buckets().len(), 1);
+
+        let value = aggregator_rx.blocking_recv();
+        assert!(value.is_none());
     }
 
-    #[tokio::test]
-    async fn test_rate_limit_incoming_metrics_no_quota() {
+    #[test]
+    fn test_rate_limit_incoming_metrics_no_quota() {
         let (aggregator, mut aggregator_rx) = Addr::custom();
         let (envelope_processor, _) = Addr::custom();
         let (outcome_aggregator, _) = Addr::custom();
-        let metric_outcomes = MetricOutcomes::new(metric_stats, outcome_aggregator.clone());
+        let metric_outcomes =
+            MetricOutcomes::new(MetricStats::test().0, outcome_aggregator.clone());
 
         let project = create_project(Some(json!({
             "quotas": [{
@@ -1424,8 +1431,9 @@ mod tests {
             &project.state_value().unwrap(),
             Buckets::test(vec![create_transaction_metric()]),
         );
+        drop(aggregator);
 
-        let value = aggregator_rx.recv().await;
+        let value = aggregator_rx.blocking_recv();
         assert!(value.is_none());
     }
 
@@ -1440,12 +1448,13 @@ mod tests {
         }
     }
 
-    #[tokio::test]
-    async fn test_rate_limit_incoming_buckets() {
+    #[test]
+    fn test_rate_limit_incoming_buckets() {
         let (aggregator, mut aggregator_rx) = Addr::custom();
         let (envelope_processor, _) = Addr::custom();
         let (outcome_aggregator, _) = Addr::custom();
-        let metric_outcomes = MetricOutcomes::new(metric_stats, outcome_aggregator.clone());
+        let metric_outcomes =
+            MetricOutcomes::new(MetricStats::test().0, outcome_aggregator.clone());
 
         let project = create_project(None);
         project.merge_buckets_into_aggregator(
@@ -1456,20 +1465,26 @@ mod tests {
             &project.state_value().unwrap(),
             Buckets::test(vec![create_transaction_bucket()]),
         );
+        drop(aggregator);
+        drop(metric_outcomes);
 
-        let value = aggregator_rx.recv().await.unwrap();
+        let value = aggregator_rx.blocking_recv().unwrap();
         let Aggregator::MergeBuckets(merge_buckets) = value else {
             panic!();
         };
         assert_eq!(merge_buckets.buckets().len(), 1);
+
+        let value = aggregator_rx.blocking_recv();
+        assert!(value.is_none());
     }
 
-    #[tokio::test]
-    async fn test_rate_limit_incoming_buckets_no_quota() {
+    #[test]
+    fn test_rate_limit_incoming_buckets_no_quota() {
         let (aggregator, mut aggregator_rx) = Addr::custom();
         let (envelope_processor, _) = Addr::custom();
         let (outcome_aggregator, _) = Addr::custom();
-        let (metric_stats, _) = create_metric_stats();
+        let metric_outcomes =
+            MetricOutcomes::new(MetricStats::test().0, outcome_aggregator.clone());
 
         let project = create_project(Some(json!({
             "quotas": [{
@@ -1484,12 +1499,13 @@ mod tests {
             &aggregator,
             &envelope_processor,
             &outcome_aggregator,
-            &metric_stats,
+            &metric_outcomes,
             &project.state_value().unwrap(),
             Buckets::test(vec![create_transaction_bucket()]),
         );
+        drop(aggregator);
 
-        let value = aggregator_rx.recv().await;
+        let value = aggregator_rx.blocking_recv();
         assert!(value.is_none());
     }
 }

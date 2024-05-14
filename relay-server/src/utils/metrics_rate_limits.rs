@@ -1,16 +1,12 @@
 //! Quota and rate limiting helpers for metrics and metrics buckets.
 
 use chrono::{DateTime, Utc};
-use itertools::{Either, Itertools};
+use itertools::Either;
 use relay_common::time::UnixTimestamp;
-use relay_metrics::{
-    Bucket, BucketView, BucketViewValue, MetricNamespace, MetricResourceIdentifier,
-};
+use relay_metrics::Bucket;
 use relay_quotas::{DataCategory, Quota, RateLimits, Scoping};
 use relay_system::Addr;
 
-use crate::envelope::SourceQuantities;
-use crate::metric_stats::MetricStats;
 use crate::metrics::{BucketSummary, MetricOutcomes, TrackableBucket, PROFILE_TAG};
 use crate::services::outcome::{Outcome, TrackOutcome};
 use crate::utils;
@@ -207,7 +203,7 @@ impl<Q: AsRef<Vec<Quota>>> MetricsLimiter<Q> {
         timestamp: DateTime<Utc>,
         outcome_aggregator: &Addr<TrackOutcome>,
     ) {
-        if self.counts.profiles > 0 {
+        if self.counts.profiles == 0 {
             return;
         }
 
@@ -291,6 +287,8 @@ mod tests {
     use relay_quotas::QuotaScope;
     use smallvec::smallvec;
 
+    use crate::metric_stats::MetricStats;
+
     use super::*;
 
     fn deny(category: DataCategory) -> Vec<Quota> {
@@ -312,6 +310,7 @@ mod tests {
         quotas: Vec<Quota>,
     ) -> (Vec<Bucket>, Vec<(Outcome, DataCategory, u32)>) {
         let (outcome_sink, mut rx) = Addr::custom();
+        let metric_outcomes = MetricOutcomes::new(MetricStats::test().0, outcome_sink.clone());
 
         let mut limiter = MetricsLimiter::create(
             metrics,
@@ -326,7 +325,7 @@ mod tests {
         )
         .unwrap();
 
-        limiter.enforce_limits(&RateLimits::new(), outcome_sink);
+        limiter.enforce_limits(&RateLimits::new(), &metric_outcomes, &outcome_sink);
         let metrics = limiter.into_buckets();
 
         rx.close();
@@ -335,6 +334,7 @@ mod tests {
             .map(|_| rx.blocking_recv())
             .take_while(|o| o.is_some())
             .flatten()
+            .filter(|o| o.category != DataCategory::MetricBucket)
             .map(|o| (o.outcome, o.category, o.quantity))
             .collect();
 

@@ -65,7 +65,7 @@ use crate::envelope::{
     self, ContentType, Envelope, EnvelopeError, Item, ItemType, SourceQuantities,
 };
 use crate::extractors::{PartialDsn, RequestMeta};
-use crate::metrics::{extract_quantities, MetricOutcomes};
+use crate::metrics::MetricOutcomes;
 use crate::metrics_extraction::transactions::types::ExtractMetricsError;
 use crate::metrics_extraction::transactions::{ExtractedMetrics, TransactionExtractor};
 use crate::service::ServiceError;
@@ -2429,7 +2429,7 @@ impl EnvelopeProcessorService {
                         Envelope::from_request(None, RequestMeta::outbound(dsn.clone()));
 
                     let mut item = Item::new(ItemType::MetricBuckets);
-                    item.set_source_quantities(metrics::extract_quantities(&batch, mode));
+                    item.set_source_quantities(metrics::extract_quantities(batch, mode));
                     item.set_payload(ContentType::Json, serde_json::to_vec(&buckets).unwrap());
                     envelope.add_item(item);
 

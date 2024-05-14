@@ -27,15 +27,15 @@ use serde_json::value::RawValue;
 use serde_json::Deserializer;
 use uuid::Uuid;
 
-use crate::envelope::{AttachmentType, Envelope, Item, ItemType, SourceQuantities};
-use crate::metric_stats::MetricStats;
+use crate::envelope::{AttachmentType, Envelope, Item, ItemType};
+
 use crate::metrics::MetricOutcomes;
 use crate::services::global_config::GlobalConfigHandle;
 use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::services::processor::Processed;
 use crate::statsd::RelayCounters;
 use crate::utils::{
-    self, is_rolled_out, ArrayEncoding, BucketEncoder, ExtractionMode, FormDataIter, TypedEnvelope,
+    is_rolled_out, ArrayEncoding, BucketEncoder, ExtractionMode, FormDataIter, TypedEnvelope,
 };
 
 /// Fallback name used for attachment items without a `filename` header.

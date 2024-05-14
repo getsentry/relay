@@ -15,29 +15,6 @@ use relay_cardinality::{CardinalityLimit, CardinalityReport};
 
 pub const PROFILE_TAG: &str = "has_profile";
 
-pub struct Track {
-    scoping: Scoping,
-    buckets: Vec<Bucket>,
-    quantities: Quantities,
-    outcome: Outcome,
-}
-
-impl Track {
-    pub fn new(
-        scoping: Scoping,
-        buckets: Vec<Bucket>,
-        quantities: impl Into<Quantities>,
-        outcome: Outcome,
-    ) -> Self {
-        Self {
-            scoping,
-            buckets,
-            quantities: quantities.into(),
-            outcome,
-        }
-    }
-}
-
 pub enum Quantities {
     Extract(ExtractionMode),
     Value(SourceQuantities),
@@ -88,15 +65,21 @@ impl MetricOutcomes {
         // Never emit accepted outcomes for surrogate metrics.
         // These are handled from within Sentry.
         if !matches!(outcome, Outcome::Accepted) {
-            let quantities = match quantities.into() {
+            let SourceQuantities {
+                transactions,
+                spans,
+                profiles,
+                buckets,
+            } = match quantities.into() {
                 Quantities::Extract(mode) => extract_quantities(buckets, mode),
                 Quantities::Value(source) => source,
             };
 
             let categories = [
-                (DataCategory::Transaction, quantities.transactions as u32),
-                (DataCategory::Profile, quantities.profiles as u32),
-                (DataCategory::MetricBucket, quantities.buckets as u32),
+                (DataCategory::Transaction, transactions as u32),
+                (DataCategory::Span, spans as u32),
+                (DataCategory::Profile, profiles as u32),
+                (DataCategory::MetricBucket, buckets as u32),
             ];
 
             for (category, quantity) in categories {
@@ -252,7 +235,7 @@ impl TrackableBucket for BucketView<'_> {
     }
 }
 
-pub fn extract_quantities<'a, I, T>(buckets: I, mode: ExtractionMode) -> SourceQuantities
+pub fn extract_quantities<I, T>(buckets: I, mode: ExtractionMode) -> SourceQuantities
 where
     I: IntoIterator<Item = T>,
     T: TrackableBucket,

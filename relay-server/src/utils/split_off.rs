@@ -1,16 +1,6 @@
 use itertools::Either;
 
 /// Splits off items from a vector matching a predicate.
-///
-/// # Examples
-///
-/// ```
-/// let data = vec!["apple", "apple", "orange"];
-///
-/// let (apples, oranges) = split_off(data, |item| (item != "orange").then_some(item));
-/// assert_eq!(apples, vec!["apple", "apple"]);
-/// assert_eq!(oranges, vec!["orange"]);
-/// ```
 pub fn split_off<T, S>(data: Vec<T>, mut f: impl FnMut(T) -> Either<T, S>) -> (Vec<T>, Vec<S>) {
     let mut split = Vec::new();
 
@@ -26,4 +16,24 @@ pub fn split_off<T, S>(data: Vec<T>, mut f: impl FnMut(T) -> Either<T, S>) -> (V
         .collect();
 
     (data, split)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_split_off() {
+        let data = vec!["apple", "apple", "orange"];
+
+        let (apples, oranges) = split_off(data, |item| {
+            if item != "orange" {
+                Either::Left(item)
+            } else {
+                Either::Right(item)
+            }
+        });
+        assert_eq!(apples, vec!["apple", "apple"]);
+        assert_eq!(oranges, vec!["orange"]);
+    }
 }

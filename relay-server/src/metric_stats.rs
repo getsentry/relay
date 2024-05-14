@@ -6,9 +6,7 @@ use relay_cardinality::{CardinalityLimit, CardinalityReport};
 use relay_config::Config;
 #[cfg(feature = "processing")]
 use relay_metrics::GaugeValue;
-use relay_metrics::{
-    Aggregator, Bucket, BucketValue, BucketView, MergeBuckets, MetricName, UnixTimestamp,
-};
+use relay_metrics::{Aggregator, Bucket, BucketValue, MergeBuckets, MetricName, UnixTimestamp};
 use relay_quotas::Scoping;
 use relay_system::Addr;
 
