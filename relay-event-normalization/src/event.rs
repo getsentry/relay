@@ -2176,7 +2176,7 @@ mod tests {
         assert_eq!(spans.len(), 2);
         assert_eq!(
             spans
-                .get(0)
+                .first()
                 .unwrap()
                 .value()
                 .unwrap()
