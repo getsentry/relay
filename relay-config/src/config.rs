@@ -1001,7 +1001,7 @@ pub struct Processing {
     pub topics: TopicAssignments,
     /// Whether to validate the supplied topics by calling Kafka's metadata endpoints.
     #[serde(default)]
-    pub validate_kafka_topics: bool,
+    pub kafka_validate_topics: bool,
     /// Redis hosts to connect to for storing state for rate limits.
     #[serde(default)]
     pub redis: Option<RedisConfig>,
@@ -1028,7 +1028,7 @@ impl Default for Processing {
             kafka_config: Vec::new(),
             secondary_kafka_configs: BTreeMap::new(),
             topics: TopicAssignments::default(),
-            validate_kafka_topics: false,
+            kafka_validate_topics: false,
             redis: None,
             attachment_chunk_size: default_chunk_size(),
             projectconfig_cache_prefix: default_projectconfig_cache_prefix(),
@@ -2237,8 +2237,8 @@ impl Config {
     }
 
     /// Whether to validate the topics against Kafka.
-    pub fn validate_kafka_topics(&self) -> bool {
-        self.values.processing.validate_kafka_topics
+    pub fn kafka_validate_topics(&self) -> bool {
+        self.values.processing.kafka_validate_topics
     }
 
     /// All unused but configured topic assignments.
