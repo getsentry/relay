@@ -168,6 +168,46 @@
 <a href="#166" id="166">166</a>
 <a href="#167" id="167">167</a>
 <a href="#168" id="168">168</a>
+<a href="#169" id="169">169</a>
+<a href="#170" id="170">170</a>
+<a href="#171" id="171">171</a>
+<a href="#172" id="172">172</a>
+<a href="#173" id="173">173</a>
+<a href="#174" id="174">174</a>
+<a href="#175" id="175">175</a>
+<a href="#176" id="176">176</a>
+<a href="#177" id="177">177</a>
+<a href="#178" id="178">178</a>
+<a href="#179" id="179">179</a>
+<a href="#180" id="180">180</a>
+<a href="#181" id="181">181</a>
+<a href="#182" id="182">182</a>
+<a href="#183" id="183">183</a>
+<a href="#184" id="184">184</a>
+<a href="#185" id="185">185</a>
+<a href="#186" id="186">186</a>
+<a href="#187" id="187">187</a>
+<a href="#188" id="188">188</a>
+<a href="#189" id="189">189</a>
+<a href="#190" id="190">190</a>
+<a href="#191" id="191">191</a>
+<a href="#192" id="192">192</a>
+<a href="#193" id="193">193</a>
+<a href="#194" id="194">194</a>
+<a href="#195" id="195">195</a>
+<a href="#196" id="196">196</a>
+<a href="#197" id="197">197</a>
+<a href="#198" id="198">198</a>
+<a href="#199" id="199">199</a>
+<a href="#200" id="200">200</a>
+<a href="#201" id="201">201</a>
+<a href="#202" id="202">202</a>
+<a href="#203" id="203">203</a>
+<a href="#204" id="204">204</a>
+<a href="#205" id="205">205</a>
+<a href="#206" id="206">206</a>
+<a href="#207" id="207">207</a>
+<a href="#208" id="208">208</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Sample Format V2
 //!
 //! This version of the sample format expects a collection of samples to be sent with no reference
@@ -183,6 +223,9 @@
 
 <span class="kw">use </span>serde::{Deserialize, Serialize};
 
+<span class="kw">use </span>relay_event_schema::protocol::EventId;
+<span class="kw">use </span>relay_metrics::FiniteF64;
+
 <span class="kw">use </span><span class="kw">crate</span>::error::ProfileError;
 <span class="kw">use </span><span class="kw">crate</span>::measurements::Measurement;
 <span class="kw">use </span><span class="kw">crate</span>::sample::{DebugMeta, Frame, ThreadMetadata, Version};
@@ -190,9 +233,9 @@
 <span class="attr">#[derive(Debug, Serialize, Deserialize)]
 </span><span class="kw">pub struct </span>ProfileMetadata {
     <span class="doccomment">/// Random UUID identifying a chunk
-    </span><span class="kw">pub </span>chunk_id: String,
+    </span><span class="kw">pub </span>chunk_id: EventId,
     <span class="doccomment">/// Random UUID for each profiler session
-    </span><span class="kw">pub </span>profiler_id: String,
+    </span><span class="kw">pub </span>profiler_id: EventId,
 
     <span class="attr">#[serde(default, skip_serializing_if = <span class="string">"DebugMeta::is_empty"</span>)]
     </span><span class="kw">pub </span>debug_meta: DebugMeta,
@@ -210,7 +253,7 @@
 </span><span class="kw">pub struct </span>Sample {
     <span class="doccomment">/// Unix timestamp in seconds with millisecond precision when the sample
     /// was captured.
-    </span><span class="kw">pub </span>timestamp: f64,
+    </span><span class="kw">pub </span>timestamp: FiniteF64,
     <span class="doccomment">/// Index of the stack in the `stacks` field of the profile.
     </span><span class="kw">pub </span>stack_id: usize,
     <span class="doccomment">/// Thread or queue identifier
@@ -235,7 +278,7 @@
     }
 }
 
-<span class="attr">#[derive(Debug, Serialize, Deserialize)]
+<span class="attr">#[derive(Debug, Default, Serialize, Deserialize)]
 </span><span class="kw">pub struct </span>ProfileData {
     <span class="doccomment">/// `samples` contains the list of samples referencing a stack and thread identifier.
     /// If 2 stack of frames captured at 2 different timestamps are identical, you're expected to
@@ -264,6 +307,8 @@
         <span class="kw">if </span><span class="self">self</span>.samples.is_empty() {
             <span class="kw">return </span><span class="prelude-val">Err</span>(ProfileError::NotEnoughSamples);
         }
+
+        <span class="self">self</span>.samples.sort_by_key(|s| s.timestamp);
 
         <span class="kw">if </span>!<span class="self">self</span>.all_stacks_referenced_by_samples_exist() {
             <span class="kw">return </span><span class="prelude-val">Err</span>(ProfileError::MalformedSamples);
@@ -324,7 +369,9 @@
 
 <span class="attr">#[cfg(test)]
 </span><span class="kw">mod </span>tests {
-    <span class="kw">use </span><span class="kw">crate</span>::sample::v2::parse;
+    <span class="kw">use </span>relay_metrics::FiniteF64;
+
+    <span class="kw">use </span><span class="kw">crate</span>::sample::v2::{parse, ProfileData, Sample};
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_roundtrip() {
@@ -334,6 +381,39 @@
         <span class="kw">let </span>second_payload = serde_json::to_vec(<span class="kw-2">&amp;</span>first_parse.unwrap()).unwrap();
         <span class="kw">let </span>second_parse = parse(<span class="kw-2">&amp;</span>second_payload[..]);
         <span class="macro">assert!</span>(second_parse.is_ok(), <span class="string">"{:#?}"</span>, second_parse);
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_samples_are_sorted() {
+        <span class="kw">let </span><span class="kw-2">mut </span>chunk = ProfileData {
+            samples: <span class="macro">vec!</span>[
+                Sample {
+                    stack_id: <span class="number">0</span>,
+                    thread_id: <span class="string">"1"</span>.into(),
+                    timestamp: FiniteF64::new(<span class="number">2000.0</span>).unwrap(),
+                },
+                Sample {
+                    stack_id: <span class="number">0</span>,
+                    thread_id: <span class="string">"1"</span>.to_string(),
+                    timestamp: FiniteF64::new(<span class="number">1000.0</span>).unwrap(),
+                },
+            ],
+            stacks: <span class="macro">vec!</span>[<span class="macro">vec!</span>[<span class="number">0</span>]],
+            frames: <span class="macro">vec!</span>[Default::default()],
+            ..Default::default()
+        };
+
+        <span class="macro">assert!</span>(chunk.normalize(<span class="string">"python"</span>).is_ok());
+
+        <span class="kw">let </span>timestamps: Vec&lt;FiniteF64&gt; = chunk.samples.iter().map(|s| s.timestamp).collect();
+
+        <span class="macro">assert_eq!</span>(
+            timestamps,
+            <span class="macro">vec!</span>[
+                FiniteF64::new(<span class="number">1000.0</span>).unwrap(),
+                FiniteF64::new(<span class="number">2000.0</span>).unwrap(),
+            ]
+        );
     }
 }
 </code></pre></div></section></main></body></html>
