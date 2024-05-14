@@ -182,7 +182,7 @@ impl ServiceState {
                 #[cfg(feature = "processing")]
                 store_forwarder: store.clone(),
             },
-            metric_stats.clone(),
+            metric_outcomes.clone(),
             #[cfg(feature = "processing")]
             buffer_guard.clone(),
         )
@@ -202,7 +202,7 @@ impl ServiceState {
             config.clone(),
             buffer_guard.clone(),
             project_cache_services,
-            metric_stats,
+            metric_outcomes,
             redis_pool,
         )
         .spawn_handler(project_cache_rx);

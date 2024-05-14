@@ -633,8 +633,8 @@ impl Project {
 
     fn process_and_merge_buckets(
         &self,
-        aggregator: Addr<Aggregator>,
-        #[allow(unused_variables)] envelope_processor: Addr<EnvelopeProcessor>,
+        aggregator: &Addr<Aggregator>,
+        #[allow(unused_variables)] envelope_processor: &Addr<EnvelopeProcessor>,
         outcome_aggregator: &Addr<TrackOutcome>,
         metric_outcomes: &MetricOutcomes,
         state: &ProjectState,
@@ -701,10 +701,10 @@ impl Project {
     /// The buckets will be keyed underneath this project key.
     pub fn merge_buckets(
         &mut self,
-        aggregator: Addr<Aggregator>,
-        metric_outcomes: &MetricOutcomes,
+        aggregator: &Addr<Aggregator>,
         outcome_aggregator: &Addr<TrackOutcome>,
-        envelope_processor: Addr<EnvelopeProcessor>,
+        metric_outcomes: &MetricOutcomes,
+        envelope_processor: &Addr<EnvelopeProcessor>,
         buckets: Vec<Bucket>,
     ) {
         if !self.metrics_allowed() {
@@ -726,8 +726,8 @@ impl Project {
                 self.process_and_merge_buckets(
                     aggregator,
                     envelope_processor,
-                    metric_outcomes,
                     outcome_aggregator,
+                    metric_outcomes,
                     &state,
                     buckets,
                 );
@@ -946,10 +946,10 @@ impl Project {
     fn set_state(
         &mut self,
         state: Arc<ProjectState>,
-        aggregator: Addr<Aggregator>,
-        envelope_processor: Addr<EnvelopeProcessor>,
-        outcome_aggregator: Addr<TrackOutcome>,
-        metric_outcomes: MetricOutcomes,
+        aggregator: &Addr<Aggregator>,
+        envelope_processor: &Addr<EnvelopeProcessor>,
+        outcome_aggregator: &Addr<TrackOutcome>,
+        metric_outcomes: &MetricOutcomes,
     ) {
         let project_enabled = state.check_disabled(self.config.as_ref()).is_ok();
         let buckets = self.state.set_state(state.clone());
@@ -960,8 +960,8 @@ impl Project {
                 self.process_and_merge_buckets(
                     aggregator,
                     envelope_processor,
-                    &metric_outcomes,
-                    &outcome_aggregator,
+                    metric_outcomes,
+                    outcome_aggregator,
                     &state,
                     buckets,
                 );
@@ -995,12 +995,12 @@ impl Project {
     #[allow(clippy::too_many_arguments)]
     pub fn update_state(
         &mut self,
-        project_cache: Addr<ProjectCache>,
-        aggregator: Addr<Aggregator>,
+        project_cache: &Addr<ProjectCache>,
+        aggregator: &Addr<Aggregator>,
         mut state: Arc<ProjectState>,
-        envelope_processor: Addr<EnvelopeProcessor>,
-        outcome_aggregator: Addr<TrackOutcome>,
-        metric_outcomes: MetricOutcomes,
+        envelope_processor: &Addr<EnvelopeProcessor>,
+        outcome_aggregator: &Addr<TrackOutcome>,
+        metric_outcomes: &MetricOutcomes,
         no_cache: bool,
     ) {
         // Initiate the backoff if the incoming state is invalid. Reset it otherwise.
@@ -1030,7 +1030,7 @@ impl Project {
             _ => self.set_state(
                 state.clone(),
                 aggregator,
-                envelope_processor.clone(),
+                envelope_processor,
                 outcome_aggregator,
                 metric_outcomes,
             ),

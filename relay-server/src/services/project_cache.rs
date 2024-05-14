@@ -632,20 +632,13 @@ impl ProjectCacheBroker {
             state,
             no_cache,
         } = message;
-
-        let project_cache = self.services.project_cache.clone();
-        let aggregator = self.services.aggregator.clone();
-        let envelope_processor = self.services.envelope_processor.clone();
-        let outcome_aggregator = self.services.outcome_aggregator.clone();
-        let metric_outcomes = self.metric_outcomes.clone();
-
         self.get_or_create_project(project_key).update_state(
-            project_cache,
-            aggregator,
-            state.clone(),
-            envelope_processor,
-            outcome_aggregator,
-            metric_outcomes,
+            &self.services.project_cache,
+            &self.services.aggregator,
+            state,
+            &self.services.envelope_processor,
+            &self.services.outcome_aggregator,
+            &self.metric_outcomes,
             no_cache,
         );
 
@@ -823,17 +816,14 @@ impl ProjectCacheBroker {
 
     fn handle_add_metric_buckets(&mut self, message: AddMetricBuckets) {
         let project_cache = self.services.project_cache.clone();
-        let aggregator = self.services.aggregator.clone();
-        let outcome_aggregator = self.services.outcome_aggregator.clone();
-        let envelope_processor = self.services.envelope_processor.clone();
 
         let project = self.get_or_create_project(message.project_key);
         project.prefetch(project_cache, false);
         project.merge_buckets(
-            aggregator,
-            outcome_aggregator,
-            envelope_processor,
+            &self.services.aggregator,
+            &self.services.outcome_aggregator,
             &self.metric_outcomes,
+            &self.services.envelope_processor,
             message.buckets,
         );
     }
