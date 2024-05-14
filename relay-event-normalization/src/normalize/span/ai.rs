@@ -44,18 +44,14 @@ pub fn extract_ai_measurements(span: &mut Span, ai_model_costs: &ModelCosts) {
     if !span_op.starts_with("ai.") {
         return;
     }
-    let total_tokens_used = span
-        .measurements
-        .value()
-        .and_then(|m| m.get_value("ai_total_tokens_used"));
-    let prompt_tokens_used = span
-        .measurements
-        .value()
-        .and_then(|m| m.get_value("ai_prompt_tokens_used"));
-    let completion_tokens_used = span
-        .measurements
-        .value()
-        .and_then(|m| m.get_value("ai_completion_tokens_used"));
+
+    let Some(measurements) = span.measurements.value() else {
+        return;
+    };
+
+    let total_tokens_used = measurements.get_value("ai_total_tokens_used");
+    let prompt_tokens_used = measurements.get_value("ai_prompt_tokens_used");
+    let completion_tokens_used = measurements.get_value("ai_completion_tokens_used");
     if let Some(model_id) = span
         .data
         .value()

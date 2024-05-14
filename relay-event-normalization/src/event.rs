@@ -2096,7 +2096,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ai_metrics() {
+    fn test_ai_measurements() {
         let json = r#"
             {
                 "spans": [
