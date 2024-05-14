@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.8.63
 
 - This release requires Python 3.11 or later. There are no intentionally breaking changes included in this release, but we stopped testing against Python 3.10.
 - Add AI model costs to global config. ([#3579](https://github.com/getsentry/relay/pull/3579))
