@@ -34,7 +34,7 @@ use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::services::processor::Processed;
 use crate::statsd::RelayCounters;
 use crate::utils::{
-    self, is_rolled_out, ArrayEncoding, BucketEncoder, ExtractionMode, FormDataIter, TypedEnvelope,
+    self, ArrayEncoding, BucketEncoder, ExtractionMode, FormDataIter, TypedEnvelope,
 };
 
 /// Fallback name used for attachment items without a `filename` header.
@@ -211,16 +211,7 @@ impl StoreService {
         } else if event_item.as_ref().map(|x| x.ty()) == Some(&ItemType::Transaction) {
             KafkaTopic::Transactions
         } else if event_item.as_ref().map(|x| x.ty()) == Some(&ItemType::UserReportV2) {
-            let feedback_ingest_topic_rollout_rate = self
-                .global_config
-                .current()
-                .options
-                .feedback_ingest_topic_rollout_rate;
-            if is_rolled_out(scoping.organization_id, feedback_ingest_topic_rollout_rate) {
-                KafkaTopic::Feedback
-            } else {
-                KafkaTopic::Events
-            }
+            KafkaTopic::Feedback
         } else {
             KafkaTopic::Events
         };
@@ -255,7 +246,6 @@ impl StoreService {
                     self.produce_user_report_v2(
                         event_id.ok_or(StoreError::NoEventId)?,
                         scoping.project_id,
-                        scoping.organization_id,
                         start_time,
                         item,
                         remote_addr,
@@ -696,21 +686,10 @@ impl StoreService {
         &self,
         event_id: EventId,
         project_id: ProjectId,
-        organization_id: u64,
         start_time: Instant,
         item: &Item,
         remote_addr: Option<String>,
     ) -> Result<(), StoreError> {
-        // check rollout rate option (effectively a FF) to determine whether to produce to new infra
-        let global_config = self.global_config.current();
-        let feedback_ingest_topic_rollout_rate =
-            global_config.options.feedback_ingest_topic_rollout_rate;
-        let topic = if is_rolled_out(organization_id, feedback_ingest_topic_rollout_rate) {
-            KafkaTopic::Feedback
-        } else {
-            KafkaTopic::Events
-        };
-
         let message = KafkaMessage::Event(EventKafkaMessage {
             project_id,
             event_id,
@@ -719,7 +698,7 @@ impl StoreService {
             remote_addr,
             attachments: vec![],
         });
-        self.produce(topic, message)
+        self.produce(KafkaTopic::Feedback, message)
     }
 
     fn send_metric_message(

@@ -89,13 +89,11 @@ def assert_expected_feedback(parsed_feedback, sent_feedback):
 
 
 @pytest.mark.parametrize("use_feedback_ingest_v2", (False, True))
-@pytest.mark.parametrize("use_feedback_topic", (False, True))
 def test_feedback_event_with_processing(
     mini_sentry,
     relay_with_processing,
     events_consumer,
     feedback_consumer,
-    use_feedback_topic,
     use_feedback_ingest_v2,
 ):
     mini_sentry.add_basic_project_config(
@@ -105,14 +103,8 @@ def test_feedback_event_with_processing(
         "feedback.ingest-inline-attachments", use_feedback_ingest_v2
     )
 
-    if use_feedback_topic:
-        mini_sentry.set_global_config_option("feedback.ingest-topic.rollout-rate", 1.0)
-        consumer = feedback_consumer(timeout=20)
-        other_consumer = events_consumer(timeout=20)
-    else:
-        mini_sentry.set_global_config_option("feedback.ingest-topic.rollout-rate", 0.0)
-        consumer = events_consumer(timeout=20)
-        other_consumer = feedback_consumer(timeout=20)
+    consumer = feedback_consumer(timeout=20)
+    events_consumer = events_consumer(timeout=20)
 
     feedback = generate_feedback_sdk_event()
     relay = relay_with_processing()
@@ -125,14 +117,13 @@ def test_feedback_event_with_processing(
     # Assert required fields were returned
     assert_expected_feedback(parsed_feedback, feedback)
 
-    # test message wasn't dup'd to the wrong topic
-    other_consumer.assert_empty()
+    # test message wasn't dup'd to the event topic
+    events_consumer.assert_empty()
 
 
 @pytest.mark.parametrize("use_feedback_ingest_v2", (False, True))
-@pytest.mark.parametrize("use_feedback_topic", (False, True))
 def test_feedback_events_without_processing(
-    mini_sentry, relay_chain, use_feedback_topic, use_feedback_ingest_v2
+    mini_sentry, relay_chain, use_feedback_ingest_v2
 ):
     project_id = 42
     mini_sentry.add_basic_project_config(
@@ -141,9 +132,6 @@ def test_feedback_events_without_processing(
     )
     mini_sentry.set_global_config_option(
         "feedback.ingest-inline-attachments", use_feedback_ingest_v2
-    )
-    mini_sentry.set_global_config_option(
-        "feedback.ingest-topic.rollout-rate", 1.0 if use_feedback_topic else 0.0
     )
 
     replay_item = generate_feedback_sdk_event()
@@ -157,14 +145,12 @@ def test_feedback_events_without_processing(
     assert userfeedback.type == "feedback"
 
 
-@pytest.mark.parametrize("use_feedback_topic", (False, True))
 def test_feedback_with_attachment_in_same_envelope(
     mini_sentry,
     relay_with_processing,
     feedback_consumer,
     events_consumer,
     attachments_consumer,
-    use_feedback_topic,
 ):
     mini_sentry.add_basic_project_config(
         42, extra={"config": {"features": ["organizations:user-feedback-ingest"]}}
@@ -172,15 +158,9 @@ def test_feedback_with_attachment_in_same_envelope(
     # Test will only pass with this option set
     mini_sentry.set_global_config_option("feedback.ingest-inline-attachments", True)
 
-    if use_feedback_topic:
-        mini_sentry.set_global_config_option("feedback.ingest-topic.rollout-rate", 1.0)
-        other_consumer = events_consumer(timeout=20)
-        feedback_consumer = feedback_consumer(timeout=20)
-    else:
-        mini_sentry.set_global_config_option("feedback.ingest-topic.rollout-rate", 0.0)
-        other_consumer = feedback_consumer(timeout=20)
-        feedback_consumer = events_consumer(timeout=20)
+    feedback_consumer = feedback_consumer(timeout=20)
     attachments_consumer = attachments_consumer(timeout=20)
+    events_consumer = events_consumer(timeout=20)
 
     feedback = generate_feedback_sdk_event()
     event_id = feedback["event_id"]
@@ -233,8 +213,8 @@ def test_feedback_with_attachment_in_same_envelope(
     # Assert required fields were returned
     assert_expected_feedback(parsed_feedback, feedback)
 
-    # test message wasn't dup'd to the wrong topic
-    other_consumer.assert_empty()
+    # test message wasn't dup'd to the events topic
+    events_consumer.assert_empty()
 
-    # test message wasn't sent to attachments topic
+    # test no extra messages (e.g. the feedback) were sent to the attachments topic
     attachments_consumer.assert_empty()

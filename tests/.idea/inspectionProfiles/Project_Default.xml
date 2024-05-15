@@ -1,0 +1,17 @@
+<component name="InspectionProjectProfileManager">
+  <profile version="1.0">
+    <option name="myName" value="Project Default" />
+    <inspection_tool class="Eslint" enabled="true" level="WARNING" enabled_by_default="true" />
+    <inspection_tool class="PyCompatibilityInspection" enabled="true" level="WEAK WARNING" enabled_by_default="true" editorAttributes="INFO_ATTRIBUTES">
+      <option name="ourVersions">
+        <value>
+          <list size="2">
+            <item index="0" class="java.lang.String" itemvalue="3.13" />
+            <item index="1" class="java.lang.String" itemvalue="3.5" />
+          </list>
+        </value>
+      </option>
+    </inspection_tool>
+    <inspection_tool class="Stylelint" enabled="true" level="ERROR" enabled_by_default="true" />
+  </profile>
+</component>
