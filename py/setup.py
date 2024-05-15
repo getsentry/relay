@@ -117,5 +117,5 @@ setup(
     install_requires=["milksnake>=0.1.6"],
     setup_requires=["milksnake>=0.1.6"],
     milksnake_tasks=[build_native],
-    cmdclass={"sdist": CustomSDist},
+    cmdclass={"sdist": CustomSDist},  # type: ignore
 )

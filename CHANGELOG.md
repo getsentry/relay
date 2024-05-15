@@ -2,11 +2,35 @@
 
 ## Unreleased
 
+**Breaking Changes**:
+
+- Remove the AWS lambda extension. ([#3568](https://github.com/getsentry/relay/pull/3568))
+
+**Bug fixes:**
+
+- Properly handle AI metrics from the Python SDK's `@ai_track` decorator. ([#3539](https://github.com/getsentry/relay/pull/3539))
+- Mitigate occasional slowness and timeouts of the healthcheck endpoint. The endpoint will now respond promptly an unhealthy state. ([#3567](https://github.com/getsentry/relay/pull/3567))
+
+**Features**:
+
+- Apple trace-based sampling rules to standalone spans. ([#3476](https://github.com/getsentry/relay/pull/3476))
+
 **Internal**:
 
 - Add metrics extraction config to global config. ([#3490](https://github.com/getsentry/relay/pull/3490), [#3504](https://github.com/getsentry/relay/pull/3504))
+- Adjust worker thread distribution of internal services. ([#3516](https://github.com/getsentry/relay/pull/3516))
 - Extract `cache.item_size` from measurements instead of data. ([#3510](https://github.com/getsentry/relay/pull/3510))
 - Collect `enviornment` tag as part of exclusive_time_light for cache spans. ([#3510](https://github.com/getsentry/relay/pull/3510))
+- Forward `span.data` on the Kafka message. ([#3523](https://github.com/getsentry/relay/pull/3523))
+- Tag span duration metric like exclusive time. ([#3524](https://github.com/getsentry/relay/pull/3524))
+- Emit negative outcomes for denied metrics. ([#3508](https://github.com/getsentry/relay/pull/3508))
+- Increase size limits for internal batch endpoints. ([#3562](https://github.com/getsentry/relay/pull/3562))
+- Emit negative outcomes when metrics are rejected because of a disabled namespace. ([#3544](https://github.com/getsentry/relay/pull/3544))
+- Add AI model costs to global config. ([#3579](https://github.com/getsentry/relay/pull/3579))
+- Add support for `event.` in the `Span` `Getter` implementation. ([#3577](https://github.com/getsentry/relay/pull/3577))
+- Ensure `chunk_id` and `profiler_id` are UUIDs and sort samples. ([#3588](https://github.com/getsentry/relay/pull/3588))
+- Add a calculated measurement based on the AI model and the tokens used. ([#3554](https://github.com/getsentry/relay/pull/3554))
+
 
 ## 24.4.2
 
@@ -29,6 +53,7 @@
 - Extract `frames.delay` metric from mobile spans. ([#3472](https://github.com/getsentry/relay/pull/3472))
 - Consider "Bearer" (case-insensitive) a password. PII will scrub all strings matching that substring. ([#3484](https://github.com/getsentry/relay/pull/3484))
 - Add support for `CF-Connecting-IP` header. ([#3496](https://github.com/getsentry/relay/pull/3496))
+- Add `received_at` timestamp to `BucketMetadata` to measure the oldest received timestamp of the `Bucket`. ([#3488](https://github.com/getsentry/relay/pull/3488))
 
 **Internal**:
 

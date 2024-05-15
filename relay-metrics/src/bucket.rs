@@ -502,7 +502,7 @@ pub struct Bucket {
     /// # Statsd Format
     ///
     /// In statsd, timestamps are part of the `|`-separated list following values. Timestamps start
-    /// with with the literal character `'T'` followed by the UNIX timestamp.
+    /// with the literal character `'T'` followed by the UNIX timestamp.
     ///
     /// The timestamp must be a positive integer in decimal notation representing the value of the
     /// UNIX timestamp.
@@ -748,33 +748,52 @@ pub struct BucketMetadata {
     /// For example: Merging two un-merged buckets will yield a total
     /// of `2` merges.
     pub merges: NonZeroU32,
+
+    /// Received timestamp of the first metric in this bucket.
+    ///
+    /// This field should be set to the time in which the first metric of a specific bucket was
+    /// received in the outermost internal Relay.
+    pub received_at: Option<UnixTimestamp>,
 }
 
 impl BucketMetadata {
     /// Creates a fresh metadata instance.
     ///
-    /// The new metadata is initialized with `1` merge.
-    pub fn new() -> Self {
+    /// The new metadata is initialized with `1` merge and a given `received_at` timestamp.
+    pub fn new(received_at: UnixTimestamp) -> Self {
         Self {
             merges: NonZeroU32::MIN,
+            received_at: Some(received_at),
         }
     }
 
     /// Whether the metadata does not contain more information than the default.
     pub fn is_default(&self) -> bool {
-        let Self { merges } = self;
-        *merges == NonZeroU32::MIN
+        let Self {
+            merges,
+            received_at,
+        } = self;
+
+        *merges == NonZeroU32::MIN && received_at.is_none()
     }
 
     /// Merges another metadata object into the current one.
     pub fn merge(&mut self, other: Self) {
         self.merges = self.merges.saturating_add(other.merges.get());
+        self.received_at = match (self.received_at, other.received_at) {
+            (Some(received_at), None) => Some(received_at),
+            (None, Some(received_at)) => Some(received_at),
+            (left, right) => left.min(right),
+        };
     }
 }
 
 impl Default for BucketMetadata {
     fn default() -> Self {
-        Self::new()
+        Self {
+            merges: NonZeroU32::MIN,
+            received_at: None,
+        }
     }
 }
 
@@ -907,6 +926,7 @@ mod tests {
             tags: {},
             metadata: BucketMetadata {
                 merges: 1,
+                received_at: None,
             },
         }
         "###);
@@ -940,6 +960,7 @@ mod tests {
             tags: {},
             metadata: BucketMetadata {
                 merges: 1,
+                received_at: None,
             },
         }
         "###);
@@ -991,6 +1012,7 @@ mod tests {
             tags: {},
             metadata: BucketMetadata {
                 merges: 1,
+                received_at: None,
             },
         }
         "###);
@@ -1050,6 +1072,7 @@ mod tests {
             tags: {},
             metadata: BucketMetadata {
                 merges: 1,
+                received_at: None,
             },
         }
         "###);
@@ -1079,6 +1102,7 @@ mod tests {
             tags: {},
             metadata: BucketMetadata {
                 merges: 1,
+                received_at: None,
             },
         }
         "###);
@@ -1102,6 +1126,7 @@ mod tests {
             tags: {},
             metadata: BucketMetadata {
                 merges: 1,
+                received_at: None,
             },
         }
         "###);
@@ -1271,11 +1296,16 @@ mod tests {
             "width": 10,
             "tags": {
                 "route": "user_index"
+            },
+            "metadata": {
+                "merges": 1,
+                "received_at": 1615889440
             }
           }
         ]"#;
 
         let buckets = serde_json::from_str::<Vec<Bucket>>(json).unwrap();
+
         insta::assert_debug_snapshot!(buckets, @r###"
         [
             Bucket {
@@ -1297,6 +1327,9 @@ mod tests {
                 },
                 metadata: BucketMetadata {
                     merges: 1,
+                    received_at: Some(
+                        UnixTimestamp(1615889440),
+                    ),
                 },
             },
         ]
@@ -1311,11 +1344,16 @@ mod tests {
             "value": 4,
             "type": "c",
             "timestamp": 1615889440,
-            "width": 10
+            "width": 10,
+            "metadata": {
+                "merges": 1,
+                "received_at": 1615889440
+            }
           }
         ]"#;
 
         let buckets = serde_json::from_str::<Vec<Bucket>>(json).unwrap();
+
         insta::assert_debug_snapshot!(buckets, @r###"
         [
             Bucket {
@@ -1330,6 +1368,9 @@ mod tests {
                 tags: {},
                 metadata: BucketMetadata {
                     merges: 1,
+                    received_at: Some(
+                        UnixTimestamp(1615889440),
+                    ),
                 },
             },
         ]
@@ -1406,5 +1447,40 @@ mod tests {
 
         let serialized = serde_json::to_string_pretty(&buckets).unwrap();
         assert_eq!(json, serialized);
+    }
+
+    #[test]
+    fn test_bucket_metadata_merge() {
+        let mut metadata = BucketMetadata::default();
+
+        let other_metadata = BucketMetadata::default();
+        metadata.merge(other_metadata);
+        assert_eq!(
+            metadata,
+            BucketMetadata {
+                merges: NonZeroU32::new(2).unwrap(),
+                received_at: None
+            }
+        );
+
+        let other_metadata = BucketMetadata::new(UnixTimestamp::from_secs(10));
+        metadata.merge(other_metadata);
+        assert_eq!(
+            metadata,
+            BucketMetadata {
+                merges: NonZeroU32::new(3).unwrap(),
+                received_at: Some(UnixTimestamp::from_secs(10))
+            }
+        );
+
+        let other_metadata = BucketMetadata::new(UnixTimestamp::from_secs(20));
+        metadata.merge(other_metadata);
+        assert_eq!(
+            metadata,
+            BucketMetadata {
+                merges: NonZeroU32::new(4).unwrap(),
+                received_at: Some(UnixTimestamp::from_secs(10))
+            }
+        );
     }
 }

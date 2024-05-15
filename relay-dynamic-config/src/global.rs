@@ -5,7 +5,7 @@ use std::io::BufReader;
 use std::path::Path;
 
 use relay_base_schema::metrics::MetricNamespace;
-use relay_event_normalization::MeasurementsConfig;
+use relay_event_normalization::{MeasurementsConfig, ModelCosts};
 use relay_filter::GenericFiltersConfig;
 use relay_quotas::Quota;
 use serde::{de, Deserialize, Serialize};
@@ -46,6 +46,10 @@ pub struct GlobalConfig {
     /// applying.
     #[serde(skip_serializing_if = "is_ok_and_empty")]
     pub metric_extraction: ErrorBoundary<MetricExtractionGroups>,
+
+    /// Configuration for AI span measurements.
+    #[serde(skip_serializing_if = "is_missing")]
+    pub ai_model_costs: ErrorBoundary<ModelCosts>,
 }
 
 impl GlobalConfig {
@@ -223,6 +227,28 @@ pub struct Options {
     )]
     pub span_extraction_sample_rate: Option<f32>,
 
+    /// If enabled, runs full normalization in non-processing Relays.
+    ///
+    /// Doesn't apply to processing Relays. Outdated relays with a stale
+    /// protocol/normalization receiving this flag will not forward unknown
+    /// fields. Disabling the flag solves this behavior.
+    #[serde(
+        default,
+        rename = "relay.force_full_normalization",
+        deserialize_with = "default_on_error",
+        skip_serializing_if = "is_default"
+    )]
+    pub force_full_normalization: bool,
+
+    /// If enabled, disables normalization in processing Relays.
+    #[serde(
+        default,
+        rename = "relay.disable_normalization.processing",
+        deserialize_with = "default_on_error",
+        skip_serializing_if = "is_default"
+    )]
+    pub processing_disable_normalization: bool,
+
     /// All other unknown options.
     #[serde(flatten)]
     other: HashMap<String, Value>,
@@ -376,6 +402,13 @@ fn is_ok_and_empty(value: &ErrorBoundary<MetricExtractionGroups>) -> bool {
     matches!(
         value,
         &ErrorBoundary::Ok(MetricExtractionGroups { ref groups }) if groups.is_empty()
+    )
+}
+
+fn is_missing(value: &ErrorBoundary<ModelCosts>) -> bool {
+    matches!(
+        value,
+        &ErrorBoundary::Ok(ModelCosts{ version, ref costs }) if version == 0 && costs.is_empty()
     )
 }
 

@@ -52,6 +52,11 @@ static MANUAL_SHUTDOWN: Lazy<Channel<ShutdownMode>> = Lazy::new(|| watch::channe
 pub struct ShutdownHandle(watch::Receiver<Option<Shutdown>>);
 
 impl ShutdownHandle {
+    /// Returns the current shutdown state.
+    pub fn get(&self) -> Option<Shutdown> {
+        self.0.borrow().clone()
+    }
+
     /// Wait for a shutdown.
     ///
     /// This receives all shutdown signals since the [`Controller`] has been started, even before

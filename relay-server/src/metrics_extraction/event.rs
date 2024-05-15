@@ -1060,7 +1060,8 @@ mod tests {
                         "messaging.destination.name": "default",
                         "messaging.message.receive.latency": 100,
                         "messaging.message.retry.count": 2,
-                        "messaging.message.body.size": 1000
+                        "messaging.message.body.size": 1000,
+                        "messaging.message.id": "abc123"
                     }
                 },
                 {
@@ -1075,7 +1076,8 @@ mod tests {
                         "messaging.destination.name": "default",
                         "messaging.message.receive.latency": 100,
                         "messaging.message.retry.count": 2,
-                        "messaging.message.body.size": 1000
+                        "messaging.message.body.size": 1000,
+                        "messaging.message.id": "abc123"
                     }
                 },
                 {
@@ -1090,7 +1092,8 @@ mod tests {
                         "messaging.destination.name": "default",
                         "messaging.message.receive.latency": 100,
                         "messaging.message.retry.count": 2,
-                        "messaging.message.body.size": 1000
+                        "messaging.message.body.size": 1000,
+                        "messaging.message.id": "abc123"
                     }
                 },
                 {
@@ -1105,7 +1108,8 @@ mod tests {
                         "messaging.destination.name": "default",
                         "messaging.message.receive.latency": 100,
                         "messaging.message.retry.count": 2,
-                        "messaging.message.body.size": 1000
+                        "messaging.message.body.size": 1000,
+                        "messaging.message.id": "abc123"
                     }
                 },
                 {
@@ -1120,6 +1124,9 @@ mod tests {
                     "measurements": {
                         "ai_total_tokens_used": {
                             "value": 20
+                        },
+                        "ai_total_cost": {
+                            "value": 0.0002
                         }
                     },
                     "data": {
@@ -1130,7 +1137,7 @@ mod tests {
                     "timestamp": 1702474613.0495,
                     "start_timestamp": 1702474613.0175,
                     "description": "Autofix Pipeline",
-                    "op": "ai.pipeline.langchain",
+                    "op": "ai.pipeline",
                     "origin": "auto.langchain",
                     "span_id": "9c01bd820a083e63",
                     "parent_span_id": "a1e13f3f06239d69",
@@ -1534,7 +1541,9 @@ mod tests {
 
         assert!(!metrics.is_empty());
         for metric in metrics {
-            if &*metric.name == "d:spans/exclusive_time@millisecond" {
+            if &*metric.name == "d:spans/exclusive_time@millisecond"
+                || &*metric.name == "d:spans/duration@millisecond"
+            {
                 assert_eq!(metric.tag("ttid"), Some("ttid"));
                 assert_eq!(metric.tag("ttfd"), Some("ttfd"));
             } else {

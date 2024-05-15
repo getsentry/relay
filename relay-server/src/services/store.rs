@@ -517,6 +517,8 @@ impl StoreService {
             BucketViewValue::Gauge(g) => MetricValue::Gauge(g),
         };
 
+        // TODO: propagate the `received_at` field upstream.
+        // https://github.com/getsentry/relay/issues/3515
         Ok(MetricKafkaMessage {
             org_id: organization_id,
             project_id,
@@ -1400,6 +1402,8 @@ struct SpanKafkaMessage<'a> {
     #[serde(default)]
     is_segment: bool,
 
+    #[serde(default, skip_serializing_if = "none_or_empty_object")]
+    data: Option<&'a RawValue>,
     #[serde(borrow, default, skip_serializing_if = "Option::is_none")]
     measurements: Option<BTreeMap<Cow<'a, str>, Option<SpanMeasurement>>>,
     #[serde(default)]

@@ -114,13 +114,21 @@ impl IntoMetric for TransactionMetric {
             unit,
         };
 
+        // For extracted metrics we assume the `received_at` timestamp is equivalent to the time
+        // in which the metric is extracted.
+        let received_at = if cfg!(not(test)) {
+            UnixTimestamp::now()
+        } else {
+            UnixTimestamp::from_secs(0)
+        };
+
         Bucket {
             timestamp,
             width: 0,
             name: mri.to_string().into(),
             value,
             tags,
-            metadata: BucketMetadata::new(),
+            metadata: BucketMetadata::new(received_at),
         }
     }
 }

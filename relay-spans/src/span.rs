@@ -65,11 +65,12 @@ fn otel_value_to_string(value: OtelValue) -> Option<String> {
 }
 
 fn otel_value_to_span_id(value: OtelValue) -> Option<String> {
-    match value {
-        OtelValue::StringValue(s) => Some(s),
-        OtelValue::BytesValue(b) => Some(hex::encode(b)),
-        _ => None,
-    }
+    let decoded = match value {
+        OtelValue::StringValue(s) => hex::decode(s).ok()?,
+        OtelValue::BytesValue(b) => b,
+        _ => None?,
+    };
+    Some(hex::encode(decoded))
 }
 
 fn otel_value_to_metric_summary(value: AnyValue) -> Option<MetricSummary> {
@@ -169,7 +170,7 @@ pub fn otel_to_sentry_span(otel_span: OtelSpan) -> EventSpan {
                 "http.route" | "url.path" => {
                     http_route = otel_value_to_string(value);
                 }
-                key if key.contains("exclusive_time_ns") => {
+                key if key.contains("exclusive_time_nano") => {
                     let value = match value {
                         OtelValue::IntValue(v) => v as f64,
                         OtelValue::DoubleValue(v) => v,
@@ -191,7 +192,7 @@ pub fn otel_to_sentry_span(otel_span: OtelSpan) -> EventSpan {
                     segment_id = otel_value_to_span_id(value);
                 }
                 "sentry.profile.id" => {
-                    profile_id = otel_value_to_span_id(value);
+                    profile_id = otel_value_to_string(value);
                 }
                 other => {
                     if let Some(metric_name) = other.strip_prefix("sentry.metrics_summary.") {
@@ -323,7 +324,7 @@ mod tests {
                     }
                 },
                 {
-                    "key": "sentry.exclusive_time_ns",
+                    "key": "sentry.exclusive_time_nano",
                     "value": {
                         "intValue": 1000000000
                     }
@@ -350,7 +351,7 @@ mod tests {
     }
 
     #[test]
-    fn parse_span_with_exclusive_time_ns_attribute() {
+    fn parse_span_with_exclusive_time_nano_attribute() {
         let json = r#"{
             "traceId": "89143b0763095bd9c9955e8175d1fb23",
             "spanId": "e342abb1214ca181",
@@ -361,7 +362,7 @@ mod tests {
             "endTimeUnixNano": 1697620454980078800,
             "attributes": [
                 {
-                    "key": "sentry.exclusive_time_ns",
+                    "key": "sentry.exclusive_time_nano",
                     "value": {
                         "intValue": 3200000000
                     }
@@ -374,7 +375,7 @@ mod tests {
     }
 
     #[test]
-    fn parse_span_no_exclusive_time_ns_attribute() {
+    fn parse_span_no_exclusive_time_nano_attribute() {
         let json = r#"{
             "traceId": "89143b0763095bd9c9955e8175d1fb23",
             "spanId": "e342abb1214ca181",
@@ -521,7 +522,7 @@ mod tests {
                 {
                     "key" : "sentry.segment.id",
                     "value": {
-                        "stringValue": "fa90fdead5f74052"
+                        "stringValue": "FA90FDEAD5F74052"
                     }
                 },
                 {
@@ -645,10 +646,8 @@ mod tests {
                 cache_item_size: ~,
                 http_response_status_code: ~,
                 ai_pipeline_name: ~,
+                ai_model_id: ~,
                 ai_input_messages: ~,
-                ai_completion_tokens_used: ~,
-                ai_prompt_tokens_used: ~,
-                ai_total_tokens_used: ~,
                 ai_responses: ~,
                 thread_name: ~,
                 segment_name: "my 1st transaction",
@@ -657,6 +656,7 @@ mod tests {
                 user: ~,
                 replay_id: ~,
                 sdk_name: "sentry.php",
+                sdk_version: ~,
                 frames_slow: ~,
                 frames_frozen: ~,
                 frames_total: ~,
@@ -665,6 +665,7 @@ mod tests {
                 messaging_message_retry_count: ~,
                 messaging_message_receive_latency: ~,
                 messaging_message_body_size: ~,
+                messaging_message_id: ~,
                 other: {},
             },
             sentry_tags: ~,
@@ -690,5 +691,14 @@ mod tests {
             other: {},
         }
         "###);
+    }
+
+    #[test]
+    fn uppercase_span_id() {
+        let input = OtelValue::StringValue("FA90FDEAD5F74052".to_owned());
+        assert_eq!(
+            otel_value_to_span_id(input).as_deref(),
+            Some("fa90fdead5f74052")
+        );
     }
 }

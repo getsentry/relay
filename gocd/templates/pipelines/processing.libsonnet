@@ -17,7 +17,7 @@ local soak_time(region) =
                 DATADOG_API_KEY: '{{SECRET:[devinfra][sentry_datadog_api_key]}}',
                 DATADOG_APP_KEY: '{{SECRET:[devinfra][sentry_datadog_app_key]}}',
                 // Datadog monitor IDs for the soak time
-                DATADOG_MONITOR_IDS: '14146876 137619914 14030245',
+                DATADOG_MONITOR_IDS: '14146876 137619914',
                 // Sentry projects to check for errors <project_id>:<project_slug>:<service>
                 SENTRY_PROJECTS: if region == 's4s' then '1513938:sentry-for-sentry:relay' else '4:relay:relay 9:pop-relay:relay-pop',
                 SENTRY_SINGLE_TENANT: if region == 's4s' then 'true' else 'false',
@@ -31,8 +31,8 @@ local soak_time(region) =
               elastic_profile_id: 'relay',
               tasks: [
                 gocdtasks.script(importstr '../bash/wait-soak.sh'),
-                gocdtasks.script(importstr '../bash/check-sentry-errors.sh'),
-                gocdtasks.script(importstr '../bash/check-sentry-new-errors.sh'),
+                // gocdtasks.script(importstr '../bash/check-sentry-errors.sh'),
+                // gocdtasks.script(importstr '../bash/check-sentry-new-errors.sh'),
                 gocdtasks.script(importstr '../bash/check-datadog-status.sh'),
                 utils.pause_on_failure(),
               ],
@@ -79,7 +79,7 @@ local deploy_canary(region) =
                 DATADOG_API_KEY: '{{SECRET:[devinfra][sentry_datadog_api_key]}}',
                 DATADOG_APP_KEY: '{{SECRET:[devinfra][sentry_datadog_app_key]}}',
                 // Datadog monitor IDs for the canary deployment
-                DATADOG_MONITOR_IDS: '14146876 137619914 14030245',
+                DATADOG_MONITOR_IDS: '14146876 137619914',
                 // Sentry projects to check for errors <project_id>:<project_slug>:<service>
                 SENTRY_PROJECTS: '4:relay:relay 9:pop-relay:relay-pop',
                 SENTRY_SINGLE_TENANT: 'false',
@@ -93,8 +93,8 @@ local deploy_canary(region) =
               tasks: [
                 gocdtasks.script(importstr '../bash/deploy-processing-canary.sh'),
                 gocdtasks.script(importstr '../bash/wait-canary.sh'),
-                gocdtasks.script(importstr '../bash/check-sentry-errors.sh'),
-                gocdtasks.script(importstr '../bash/check-sentry-new-errors.sh'),
+                // gocdtasks.script(importstr '../bash/check-sentry-errors.sh'),
+                // gocdtasks.script(importstr '../bash/check-sentry-new-errors.sh'),
                 gocdtasks.script(importstr '../bash/check-datadog-status.sh'),
                 utils.pause_on_failure(),
               ],

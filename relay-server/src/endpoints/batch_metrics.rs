@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 use crate::extractors::{SignedBytes, StartTime};
 use crate::service::ServiceState;
 use crate::services::processor::ProcessBatchedMetrics;
+use crate::services::project_cache::BucketSource;
 
 #[derive(Debug, Serialize, Deserialize)]
 struct SendMetricsResponse {}
@@ -20,7 +21,7 @@ pub async fn handle(
 
     state.processor().send(ProcessBatchedMetrics {
         payload: body.body,
-        keep_metadata: body.relay.internal,
+        source: BucketSource::Internal,
         start_time: start_time.into_inner(),
         sent_at: None,
     });

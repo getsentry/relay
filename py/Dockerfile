@@ -4,11 +4,10 @@ FROM amd64/centos:7
 ARG TARGET
 
 # Install tools for cross compiling if the requested target is different from currenly running image and
-# also threat the i686 a little bit special, since we must configure addition things and install different set of libraries
 RUN yum -y update \
     && yum install -y git gcc make curl libffi-devel dnf epel-release ca-certificates \
     perl-core openssl openssl-devel pkgconfig libatomic \
-    && if [ ${TARGET} != "i686" ] && [ "$(uname -m)" != ${TARGET} ]; then \
+    && if [ "$(uname -m)" != ${TARGET} ]; then \
     yum install -y "binutils-${TARGET}-linux-gnu" "gcc-${TARGET}-linux-gnu" "gcc-c++-${TARGET}-linux-gnu" \
     && if [ ${TARGET} == "aarch64" ]; then \
     curl -L -s https://www.centos.org/keys/RPM-GPG-KEY-CentOS-7-aarch64 > /etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-7-aarch64 \
@@ -16,11 +15,6 @@ RUN yum -y update \
     fi \
     && dnf --forcearch "${TARGET}" --release 7 install -y gcc glibc glibc-devel --installroot "/usr/${TARGET}-linux-gnu/sys-root/" || true \
     && ln -s "/usr/${TARGET}-linux-gnu/sys-root/usr/lib64/libgcc_s.so.1" "/usr/${TARGET}-linux-gnu/sys-root/usr/lib64/libgcc_s.so"; \
-    elif [ ${TARGET} == "i686" ]; then \
-    yum install -t -y glibc-devel.i686 libgcc.i686 \
-    && if ! [ -f /usr/lib/libatomic.so ]; then ln -s /usr/lib/libatomic.so.1 /usr/lib/libatomic.so; fi \
-    && RG=$(find /opt -type f -executable -name gcc) \
-    && if ! [ -z $RG ]; then ln -s $RG /usr/bin/i686-linux-gnu-gcc; else ln -s /usr/bin/gcc /usr/bin/i686-linux-gnu-gcc; fi; \
     fi \
     && yum clean all \
     && rm -rf /var/cache/yum

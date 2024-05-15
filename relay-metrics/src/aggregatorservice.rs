@@ -471,13 +471,14 @@ mod tests {
     }
 
     fn some_bucket() -> Bucket {
+        let timestamp = UnixTimestamp::from_secs(999994711);
         Bucket {
-            timestamp: UnixTimestamp::from_secs(999994711),
+            timestamp,
             width: 0,
             name: "c:transactions/foo".into(),
             value: BucketValue::counter(42.into()),
             tags: BTreeMap::new(),
-            metadata: BucketMetadata::new(),
+            metadata: BucketMetadata::new(timestamp),
         }
     }
 

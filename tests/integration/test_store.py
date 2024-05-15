@@ -4,7 +4,7 @@ import queue
 import socket
 import threading
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta, timezone
 from time import sleep
 
 import pytest
@@ -265,7 +265,7 @@ def test_store_max_concurrent_requests(mini_sentry, relay):
 
 
 def make_transaction(event):
-    now = datetime.utcnow()
+    now = datetime.now(UTC)
     event.update(
         {
             "type": "transaction",
@@ -568,7 +568,7 @@ def test_rate_limit_metric_bucket(
 
     def generate_ticks():
         # Generate a new timestamp for every bucket, so they do not get merged by the aggregator
-        tick = int(datetime.utcnow().timestamp() // bucket_interval * bucket_interval)
+        tick = int(datetime.now(UTC).timestamp() // bucket_interval * bucket_interval)
         while True:
             yield tick
             tick += bucket_interval
@@ -652,7 +652,7 @@ def test_rate_limit_metrics_buckets(
 
     def generate_ticks():
         # Generate a new timestamp for every bucket, so they do not get merged by the aggregator
-        tick = int(datetime.utcnow().timestamp() // bucket_interval * bucket_interval)
+        tick = int(datetime.now(UTC).timestamp() // bucket_interval * bucket_interval)
         while True:
             yield tick
             tick += bucket_interval
@@ -1321,14 +1321,21 @@ def test_kafka_ssl(relay_with_processing):
 
 
 @pytest.mark.parametrize(
+    "force_full_normalization",
+    [False, True],
+)
+@pytest.mark.parametrize(
     "normalization_level",
     ["disabled", "default", "full"],
 )
 def test_relay_normalization(
-    mini_sentry,
-    relay,
-    normalization_level,
+    mini_sentry, relay, normalization_level, force_full_normalization
 ):
+    if force_full_normalization:
+        mini_sentry.global_config["options"] = {
+            "relay.force_full_normalization": True,
+        }
+
     project_id = 42
     mini_sentry.add_basic_project_config(project_id)
     relay = relay(
@@ -1341,26 +1348,34 @@ def test_relay_normalization(
 
     ingested = mini_sentry.captured_events.get(timeout=1).get_event()
 
-    if normalization_level == "disabled":
+    if not force_full_normalization and normalization_level == "disabled":
+        assert not force_full_normalization
         assert ingested["dist"] == "   foo   "
         assert ingested["other"] == {"should i be deleted": True}
-    elif normalization_level == "default":
+    elif not force_full_normalization and normalization_level == "default":
         assert ingested["dist"] == "foo"
         assert ingested["other"] == {"should i be deleted": True}
     else:
+        assert force_full_normalization or normalization_level == "full"
         assert ingested["dist"] == "foo"
         assert ingested["other"] is None
 
 
 @pytest.mark.parametrize(
-    "normalization_level, from_internal, expect_full_normalization",
+    "disable_normalization, normalization_level, from_internal, expect_full_normalization",
     [
-        ("disabled", False, True),
-        ("disabled", True, False),
-        ("default", False, True),
-        ("default", True, True),
-        ("full", False, True),
-        ("full", True, True),
+        (False, "disabled", False, True),
+        (True, "disabled", False, True),
+        (False, "disabled", True, False),
+        (True, "disabled", True, False),
+        (False, "default", False, True),
+        (True, "default", False, True),
+        (False, "default", True, True),
+        (True, "default", True, False),
+        (False, "full", False, True),
+        (True, "full", False, True),
+        (False, "full", True, True),
+        (True, "full", True, False),
     ],
 )
 def test_processing_relay_normalization(
@@ -1371,7 +1386,13 @@ def test_processing_relay_normalization(
     normalization_level,
     from_internal,
     expect_full_normalization,
+    disable_normalization,
 ):
+    if disable_normalization:
+        mini_sentry.global_config["options"] = {
+            "relay.disable_normalization.processing": True,
+        }
+
     project_id = 42
     mini_sentry.add_basic_project_config(project_id)
     events_consumer = events_consumer()
@@ -1409,9 +1430,33 @@ def test_processing_relay_normalization(
         assert ingested["other"] == {"should i be deleted": True}
 
 
+@pytest.mark.parametrize(
+    "force_relay_normalization, disable_processing_normalization",
+    [
+        (False, False),
+        (False, True),
+        (True, False),
+        (True, True),
+    ],
+)
 def test_relay_chain_normalization(
-    mini_sentry, events_consumer, relay_with_processing, relay, relay_credentials
+    mini_sentry,
+    events_consumer,
+    relay_with_processing,
+    relay,
+    relay_credentials,
+    force_relay_normalization,
+    disable_processing_normalization,
 ):
+    if force_relay_normalization:
+        mini_sentry.global_config["options"] = {
+            "relay.force_full_normalization": True,
+        }
+    if disable_processing_normalization:
+        mini_sentry.global_config["options"] = {
+            "relay.disable_normalization.processing": True,
+        }
+
     project_id = 42
     mini_sentry.add_basic_project_config(project_id)
     events_consumer = events_consumer()
@@ -1473,6 +1518,57 @@ def test_error_with_type_transaction_fixed_by_inference(
                 "level": "full",
             }
         },
+    )
+
+    bogus_error = make_error({"event_id": "cbf6960622e14a45abc1f03b2055b186"})
+    bogus_error["type"] = "transaction"
+    envelope = Envelope()
+    envelope.add_event(bogus_error)
+
+    relay.send_envelope(project_id, envelope)
+
+    ingested, _ = events_consumer.get_event(timeout=7)
+    assert ingested["type"] == "error"
+    events_consumer.assert_empty()
+
+
+@pytest.mark.parametrize("processing_disable_normalization", [False, True])
+def test_error_with_type_transaction_fixed_by_inference_even_if_only_feature_flags(
+    mini_sentry,
+    events_consumer,
+    relay_with_processing,
+    relay,
+    relay_credentials,
+    processing_disable_normalization,
+):
+    """
+    Ensure Relay sets the correct type for bogus payloads of errors with
+    `type=transaction` some clients send, even if configured by feature flags
+    and not static config.
+    """
+    project_id = 42
+    mini_sentry.add_basic_project_config(project_id)
+    events_consumer = events_consumer()
+
+    if processing_disable_normalization:
+        mini_sentry.global_config["options"] = {
+            "relay.disable_normalization.processing": True,
+        }
+
+    credentials = relay_credentials()
+    processing = relay_with_processing(
+        static_relays={
+            credentials["id"]: {
+                "public_key": credentials["public_key"],
+                "internal": True,
+            },
+        },
+        # normalization.level == 'default'
+    )
+    relay = relay(
+        processing,
+        credentials=credentials,
+        # normalization.level == 'default'
     )
 
     bogus_error = make_error({"event_id": "cbf6960622e14a45abc1f03b2055b186"})
