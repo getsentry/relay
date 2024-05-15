@@ -615,11 +615,11 @@
     <span class="doccomment">/// The environment.
     </span><span class="attr">#[serde(default)]
     </span><span class="kw">pub </span>environment: <span class="prelude-ty">Option</span>&lt;String&gt;,
-    <span class="doccomment">/// The name of the transaction extracted from the `transaction` field in the starting
-    /// transaction.
+    <span class="doccomment">/// In the transaction-based model, this is the name of the transaction extracted from the `transaction`
+    /// field in the starting transaction and set on transaction start, or via `scope.transaction`.
     ///
-    /// Set on transaction start, or via `scope.transaction`.
-    </span><span class="attr">#[serde(default)]
+    /// In the spans-only model, this is the segment name for the segment that started the trace.
+    </span><span class="attr">#[serde(default, alias = <span class="string">"segment_name"</span>)]
     </span><span class="kw">pub </span>transaction: <span class="prelude-ty">Option</span>&lt;String&gt;,
     <span class="doccomment">/// The sample rate with which this trace was sampled in the client. This is a float between
     /// `0.0` and `1.0`.

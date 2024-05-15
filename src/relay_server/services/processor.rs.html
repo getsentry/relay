@@ -3591,6 +3591,41 @@
 <a href="#3589" id="3589">3589</a>
 <a href="#3590" id="3590">3590</a>
 <a href="#3591" id="3591">3591</a>
+<a href="#3592" id="3592">3592</a>
+<a href="#3593" id="3593">3593</a>
+<a href="#3594" id="3594">3594</a>
+<a href="#3595" id="3595">3595</a>
+<a href="#3596" id="3596">3596</a>
+<a href="#3597" id="3597">3597</a>
+<a href="#3598" id="3598">3598</a>
+<a href="#3599" id="3599">3599</a>
+<a href="#3600" id="3600">3600</a>
+<a href="#3601" id="3601">3601</a>
+<a href="#3602" id="3602">3602</a>
+<a href="#3603" id="3603">3603</a>
+<a href="#3604" id="3604">3604</a>
+<a href="#3605" id="3605">3605</a>
+<a href="#3606" id="3606">3606</a>
+<a href="#3607" id="3607">3607</a>
+<a href="#3608" id="3608">3608</a>
+<a href="#3609" id="3609">3609</a>
+<a href="#3610" id="3610">3610</a>
+<a href="#3611" id="3611">3611</a>
+<a href="#3612" id="3612">3612</a>
+<a href="#3613" id="3613">3613</a>
+<a href="#3614" id="3614">3614</a>
+<a href="#3615" id="3615">3615</a>
+<a href="#3616" id="3616">3616</a>
+<a href="#3617" id="3617">3617</a>
+<a href="#3618" id="3618">3618</a>
+<a href="#3619" id="3619">3619</a>
+<a href="#3620" id="3620">3620</a>
+<a href="#3621" id="3621">3621</a>
+<a href="#3622" id="3622">3622</a>
+<a href="#3623" id="3623">3623</a>
+<a href="#3624" id="3624">3624</a>
+<a href="#3625" id="3625">3625</a>
+<a href="#3626" id="3626">3626</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
@@ -3760,8 +3795,28 @@
 /// Should be used only with groups which are responsible for processing envelopes with events.
 </span><span class="kw">pub trait </span>EventProcessing {}
 
+<span class="doccomment">/// A trait for processing groups that can be dynamically sampled.
+</span><span class="kw">pub trait </span>Sampling {
+    <span class="doccomment">/// Whether dynamic sampling should run under the given project's conditions.
+    </span><span class="kw">fn </span>supports_sampling(project_state: <span class="kw-2">&amp;</span>ProjectState) -&gt; bool;
+
+    <span class="doccomment">/// Whether reservoir sampling applies to this processing group (a.k.a. data type).
+    </span><span class="kw">fn </span>supports_reservoir_sampling() -&gt; bool;
+}
+
 <span class="macro">processing_group!</span>(TransactionGroup, Transaction);
 <span class="kw">impl </span>EventProcessing <span class="kw">for </span>TransactionGroup {}
+
+<span class="kw">impl </span>Sampling <span class="kw">for </span>TransactionGroup {
+    <span class="kw">fn </span>supports_sampling(project_state: <span class="kw-2">&amp;</span>ProjectState) -&gt; bool {
+        <span class="comment">// For transactions, we require transaction metrics to be enabled before sampling.
+        </span><span class="macro">matches!</span>(<span class="kw-2">&amp;</span>project_state.config.transaction_metrics, <span class="prelude-val">Some</span>(ErrorBoundary::Ok(c)) <span class="kw">if </span>c.is_enabled())
+    }
+
+    <span class="kw">fn </span>supports_reservoir_sampling() -&gt; bool {
+        <span class="bool-val">true
+    </span>}
+}
 
 <span class="macro">processing_group!</span>(ErrorGroup, Error);
 <span class="kw">impl </span>EventProcessing <span class="kw">for </span>ErrorGroup {}
@@ -3772,6 +3827,18 @@
 <span class="macro">processing_group!</span>(ReplayGroup, Replay);
 <span class="macro">processing_group!</span>(CheckInGroup, CheckIn);
 <span class="macro">processing_group!</span>(SpanGroup, Span);
+
+<span class="kw">impl </span>Sampling <span class="kw">for </span>SpanGroup {
+    <span class="kw">fn </span>supports_sampling(project_state: <span class="kw-2">&amp;</span>ProjectState) -&gt; bool {
+        <span class="comment">// If no metrics could be extracted, do not sample anything.
+        </span><span class="macro">matches!</span>(<span class="kw-2">&amp;</span>project_state.config().metric_extraction, ErrorBoundary::Ok(c) <span class="kw">if </span>c.is_supported())
+    }
+
+    <span class="kw">fn </span>supports_reservoir_sampling() -&gt; bool {
+        <span class="bool-val">false
+    </span>}
+}
+
 <span class="macro">processing_group!</span>(ProfileChunkGroup, ProfileChunk);
 <span class="macro">processing_group!</span>(MetricsGroup, Metrics);
 <span class="macro">processing_group!</span>(ForwardUnknownGroup, ForwardUnknown);
@@ -4896,12 +4963,6 @@
             }
         };
 
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(sampling_state) = state.sampling_project_state.clone() {
-            state
-                .envelope_mut()
-                .parametrize_dsc_transaction(<span class="kw-2">&amp;</span>sampling_state.config.tx_name_rules);
-        }
-
         <span class="kw">let </span>request_meta = state.managed_envelope.envelope().meta();
         <span class="kw">let </span>client_ipaddr = request_meta.client_addr().map(IpAddr::from);
 
@@ -5243,7 +5304,7 @@
 
     <span class="kw">fn </span>process_envelope(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
-        managed_envelope: ManagedEnvelope,
+        <span class="kw-2">mut </span>managed_envelope: ManagedEnvelope,
         project_id: ProjectId,
         project_state: Arc&lt;ProjectState&gt;,
         sampling_project_state: <span class="prelude-ty">Option</span>&lt;Arc&lt;ProjectState&gt;&gt;,
@@ -5252,6 +5313,15 @@
         <span class="comment">// Get the group from the managed envelope context, and if it's not set, try to guess it
         // from the contents of the envelope.
         </span><span class="kw">let </span>group = managed_envelope.group();
+
+        <span class="comment">// Pre-process the envelope headers.
+        </span><span class="kw">if let </span><span class="prelude-val">Some</span>(sampling_state) = sampling_project_state.as_ref() {
+            <span class="comment">// Both transactions and standalone span envelopes need a normalized DSC header
+            // to make sampling rules based on the segment/transaction name work correctly.
+            </span>managed_envelope
+                .envelope_mut()
+                .parametrize_dsc_transaction(<span class="kw-2">&amp;</span>sampling_state.config.tx_name_rules);
+        }
 
         <span class="macro">macro_rules!</span> run {
             (<span class="macro-nonterminal">$</span><span class="kw">fn</span>:<span class="macro-nonterminal">ident</span>) =&gt; {{

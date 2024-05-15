@@ -724,6 +724,74 @@
 <a href="#722" id="722">722</a>
 <a href="#723" id="723">723</a>
 <a href="#724" id="724">724</a>
+<a href="#725" id="725">725</a>
+<a href="#726" id="726">726</a>
+<a href="#727" id="727">727</a>
+<a href="#728" id="728">728</a>
+<a href="#729" id="729">729</a>
+<a href="#730" id="730">730</a>
+<a href="#731" id="731">731</a>
+<a href="#732" id="732">732</a>
+<a href="#733" id="733">733</a>
+<a href="#734" id="734">734</a>
+<a href="#735" id="735">735</a>
+<a href="#736" id="736">736</a>
+<a href="#737" id="737">737</a>
+<a href="#738" id="738">738</a>
+<a href="#739" id="739">739</a>
+<a href="#740" id="740">740</a>
+<a href="#741" id="741">741</a>
+<a href="#742" id="742">742</a>
+<a href="#743" id="743">743</a>
+<a href="#744" id="744">744</a>
+<a href="#745" id="745">745</a>
+<a href="#746" id="746">746</a>
+<a href="#747" id="747">747</a>
+<a href="#748" id="748">748</a>
+<a href="#749" id="749">749</a>
+<a href="#750" id="750">750</a>
+<a href="#751" id="751">751</a>
+<a href="#752" id="752">752</a>
+<a href="#753" id="753">753</a>
+<a href="#754" id="754">754</a>
+<a href="#755" id="755">755</a>
+<a href="#756" id="756">756</a>
+<a href="#757" id="757">757</a>
+<a href="#758" id="758">758</a>
+<a href="#759" id="759">759</a>
+<a href="#760" id="760">760</a>
+<a href="#761" id="761">761</a>
+<a href="#762" id="762">762</a>
+<a href="#763" id="763">763</a>
+<a href="#764" id="764">764</a>
+<a href="#765" id="765">765</a>
+<a href="#766" id="766">766</a>
+<a href="#767" id="767">767</a>
+<a href="#768" id="768">768</a>
+<a href="#769" id="769">769</a>
+<a href="#770" id="770">770</a>
+<a href="#771" id="771">771</a>
+<a href="#772" id="772">772</a>
+<a href="#773" id="773">773</a>
+<a href="#774" id="774">774</a>
+<a href="#775" id="775">775</a>
+<a href="#776" id="776">776</a>
+<a href="#777" id="777">777</a>
+<a href="#778" id="778">778</a>
+<a href="#779" id="779">779</a>
+<a href="#780" id="780">780</a>
+<a href="#781" id="781">781</a>
+<a href="#782" id="782">782</a>
+<a href="#783" id="783">783</a>
+<a href="#784" id="784">784</a>
+<a href="#785" id="785">785</a>
+<a href="#786" id="786">786</a>
+<a href="#787" id="787">787</a>
+<a href="#788" id="788">788</a>
+<a href="#789" id="789">789</a>
+<a href="#790" id="790">790</a>
+<a href="#791" id="791">791</a>
+<a href="#792" id="792">792</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Dynamic sampling processor related code.
 
 </span><span class="kw">use </span>std::ops::ControlFlow;
@@ -742,7 +810,7 @@
 <span class="kw">use </span><span class="kw">crate</span>::envelope::ItemType;
 <span class="kw">use </span><span class="kw">crate</span>::services::outcome::Outcome;
 <span class="kw">use </span><span class="kw">crate</span>::services::processor::{
-    profile, EventProcessing, ProcessEnvelopeState, TransactionGroup,
+    profile, EventProcessing, ProcessEnvelopeState, Sampling, TransactionGroup,
 };
 <span class="kw">use </span><span class="kw">crate</span>::statsd::RelayCounters;
 <span class="kw">use </span><span class="kw">crate</span>::utils::{<span class="self">self</span>, sample, ItemAction, SamplingResult};
@@ -788,43 +856,35 @@
 }
 
 <span class="doccomment">/// Computes the sampling decision on the incoming event
-</span><span class="kw">pub fn </span>run(state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;TransactionGroup&gt;, config: <span class="kw-2">&amp;</span>Config) -&gt; SamplingResult {
-    <span class="comment">// Running dynamic sampling involves either:
-    // - Tagging whether an incoming error has a sampled trace connected to it.
-    // - Computing the actual sampling decision on an incoming transaction.
-    </span><span class="kw">match </span>state.event_type().unwrap_or_default() {
-        EventType::Default | EventType::Error =&gt; {
-            tag_error_with_sampling_decision(state, config);
-            SamplingResult::Pending
-        }
-        EventType::Transaction =&gt; {
-            <span class="kw">match </span>state.project_state.config.transaction_metrics {
-                <span class="prelude-val">Some</span>(ErrorBoundary::Ok(<span class="kw-2">ref </span>c)) <span class="kw">if </span>c.is_enabled() =&gt; (),
-                <span class="kw">_ </span>=&gt; <span class="kw">return </span>SamplingResult::Pending,
-            }
-
-            <span class="kw">let </span>sampling_config = <span class="kw">match </span>state.project_state.config.sampling {
-                <span class="prelude-val">Some</span>(ErrorBoundary::Ok(<span class="kw-2">ref </span>config)) <span class="kw">if </span>!config.unsupported() =&gt; <span class="prelude-val">Some</span>(config),
-                <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
-            };
-
-            <span class="kw">let </span>root_state = state.sampling_project_state.as_ref();
-            <span class="kw">let </span>root_config = <span class="kw">match </span>root_state.and_then(|s| s.config.sampling.as_ref()) {
-                <span class="prelude-val">Some</span>(ErrorBoundary::Ok(<span class="kw-2">ref </span>config)) <span class="kw">if </span>!config.unsupported() =&gt; <span class="prelude-val">Some</span>(config),
-                <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
-            };
-
-            compute_sampling_decision(
-                config.processing_enabled(),
-                <span class="kw-2">&amp;</span>state.reservoir,
-                sampling_config,
-                state.event.value(),
-                root_config,
-                state.envelope().dsc(),
-            )
-        }
-        <span class="kw">_ </span>=&gt; SamplingResult::Pending,
+</span><span class="kw">pub fn </span>run&lt;Group&gt;(state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;Group&gt;, config: <span class="kw-2">&amp;</span>Config) -&gt; SamplingResult
+<span class="kw">where
+    </span>Group: Sampling,
+{
+    <span class="kw">if </span>!Group::supports_sampling(<span class="kw-2">&amp;</span>state.project_state) {
+        <span class="kw">return </span>SamplingResult::Pending;
     }
+
+    <span class="kw">let </span>sampling_config = <span class="kw">match </span>state.project_state.config.sampling {
+        <span class="prelude-val">Some</span>(ErrorBoundary::Ok(<span class="kw-2">ref </span>config)) <span class="kw">if </span>!config.unsupported() =&gt; <span class="prelude-val">Some</span>(config),
+        <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
+    };
+
+    <span class="kw">let </span>root_state = state.sampling_project_state.as_ref();
+    <span class="kw">let </span>root_config = <span class="kw">match </span>root_state.and_then(|s| s.config.sampling.as_ref()) {
+        <span class="prelude-val">Some</span>(ErrorBoundary::Ok(<span class="kw-2">ref </span>config)) <span class="kw">if </span>!config.unsupported() =&gt; <span class="prelude-val">Some</span>(config),
+        <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
+    };
+
+    <span class="kw">let </span>reservoir = Group::supports_reservoir_sampling().then_some(<span class="kw-2">&amp;</span>state.reservoir);
+
+    compute_sampling_decision(
+        config.processing_enabled(),
+        reservoir,
+        sampling_config,
+        state.event.value(),
+        root_config,
+        state.envelope().dsc(),
+    )
 }
 
 <span class="doccomment">/// Apply the dynamic sampling decision from `compute_sampling_decision`.
@@ -866,10 +926,10 @@
     }
 }
 
-<span class="doccomment">/// Computes the sampling decision on the incoming transaction.
+<span class="doccomment">/// Computes the sampling decision on the incoming envelope.
 </span><span class="kw">fn </span>compute_sampling_decision(
     processing_enabled: bool,
-    reservoir: <span class="kw-2">&amp;</span>ReservoirEvaluator,
+    reservoir: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>ReservoirEvaluator&gt;,
     sampling_config: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>SamplingConfig&gt;,
     event: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>Event&gt;,
     root_sampling_config: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>SamplingConfig&gt;,
@@ -891,7 +951,10 @@
         }
     }
 
-    <span class="kw">let </span><span class="kw-2">mut </span>evaluator = SamplingEvaluator::new(Utc::now()).set_reservoir(reservoir);
+    <span class="kw">let </span><span class="kw-2">mut </span>evaluator = <span class="kw">match </span>reservoir {
+        <span class="prelude-val">Some</span>(reservoir) =&gt; SamplingEvaluator::new_with_reservoir(Utc::now(), reservoir),
+        <span class="prelude-val">None </span>=&gt; SamplingEvaluator::new(Utc::now()),
+    };
 
     <span class="kw">if let </span>(<span class="prelude-val">Some</span>(event), <span class="prelude-val">Some</span>(sampling_state)) = (event, sampling_config) {
         <span class="kw">if let </span><span class="prelude-val">Some</span>(seed) = event.id.value().map(|id| id.<span class="number">0</span>) {
@@ -991,22 +1054,24 @@
 
 <span class="attr">#[cfg(test)]
 </span><span class="kw">mod </span>tests {
-
     <span class="kw">use </span>std::collections::BTreeMap;
     <span class="kw">use </span>std::sync::Arc;
 
+    <span class="kw">use </span>bytes::Bytes;
     <span class="kw">use </span>relay_base_schema::project::{ProjectId, ProjectKey};
+    <span class="kw">use </span>relay_dynamic_config::{MetricExtractionConfig, TransactionMetricsConfig};
     <span class="kw">use </span>relay_event_schema::protocol::{EventId, LenientString};
     <span class="kw">use </span>relay_protocol::RuleCondition;
     <span class="kw">use </span>relay_sampling::config::{
         DecayingFunction, RuleId, SamplingRule, SamplingValue, TimeRange,
     };
     <span class="kw">use </span>relay_sampling::evaluation::{ReservoirCounters, SamplingMatch};
+    <span class="kw">use </span>relay_system::Addr;
     <span class="kw">use </span>uuid::Uuid;
 
     <span class="kw">use </span><span class="kw">crate</span>::envelope::{ContentType, Envelope, Item};
     <span class="kw">use </span><span class="kw">crate</span>::extractors::RequestMeta;
-    <span class="kw">use </span><span class="kw">crate</span>::services::processor::{ProcessEnvelope, ProcessingGroup};
+    <span class="kw">use </span><span class="kw">crate</span>::services::processor::{ProcessEnvelope, ProcessingGroup, SpanGroup};
     <span class="kw">use </span><span class="kw">crate</span>::services::project::ProjectState;
     <span class="kw">use </span><span class="kw">crate</span>::testutils::{
         <span class="self">self</span>, create_test_processor, new_envelope, state_with_rule_and_condition,
@@ -1046,13 +1111,12 @@
         <span class="kw">let </span>processor = create_test_processor(Default::default());
         <span class="kw">let </span>(outcome_aggregator, test_store) = testutils::processor_services();
 
+        <span class="kw">let </span><span class="kw-2">mut </span>envelopes = ProcessingGroup::split_envelope(<span class="kw-2">*</span>envelope);
+        <span class="macro">assert_eq!</span>(envelopes.len(), <span class="number">1</span>);
+        <span class="kw">let </span>(group, envelope) = envelopes.pop().unwrap();
+
         <span class="kw">let </span>message = ProcessEnvelope {
-            envelope: ManagedEnvelope::standalone(
-                envelope,
-                outcome_aggregator,
-                test_store,
-                ProcessingGroup::Transaction,
-            ),
+            envelope: ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store, group),
             project_state: Arc::new(ProjectState::allowed()),
             sampling_project_state,
             reservoir_counters: ReservoirCounters::default(),
@@ -1136,7 +1200,7 @@
             // pipeline.
             </span><span class="kw">let </span>res = compute_sampling_decision(
                 <span class="bool-val">false</span>,
-                <span class="kw-2">&amp;</span>dummy_reservoir(),
+                <span class="prelude-val">None</span>,
                 <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>sampling_config),
                 <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>event),
                 <span class="prelude-val">None</span>,
@@ -1183,7 +1247,7 @@
                     .into();
             }
 
-            ProcessEnvelopeState {
+            ProcessEnvelopeState::&lt;TransactionGroup&gt; {
                 event: Annotated::from(event),
                 metrics: Default::default(),
                 sample_rates: <span class="prelude-val">None</span>,
@@ -1349,7 +1413,7 @@
 
         <span class="kw">let </span>res = compute_sampling_decision(
             <span class="bool-val">false</span>,
-            <span class="kw-2">&amp;</span>dummy_reservoir(),
+            <span class="prelude-val">None</span>,
             <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>sampling_config),
             <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>event),
             <span class="prelude-val">None</span>,
@@ -1387,7 +1451,7 @@
         <span class="comment">// Unsupported rule should result in no match if processing is not enabled.
         </span><span class="kw">let </span>res = compute_sampling_decision(
             <span class="bool-val">false</span>,
-            <span class="kw-2">&amp;</span>dummy_reservoir(),
+            <span class="prelude-val">None</span>,
             <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>sampling_config),
             <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>event),
             <span class="prelude-val">None</span>,
@@ -1396,14 +1460,8 @@
         <span class="macro">assert!</span>(res.is_no_match());
 
         <span class="comment">// Match if processing is enabled.
-        </span><span class="kw">let </span>res = compute_sampling_decision(
-            <span class="bool-val">true</span>,
-            <span class="kw-2">&amp;</span>dummy_reservoir(),
-            <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>sampling_config),
-            <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>event),
-            <span class="prelude-val">None</span>,
-            <span class="prelude-val">None</span>,
-        );
+        </span><span class="kw">let </span>res =
+            compute_sampling_decision(<span class="bool-val">true</span>, <span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>sampling_config), <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>event), <span class="prelude-val">None</span>, <span class="prelude-val">None</span>);
         <span class="macro">assert!</span>(res.is_match());
     }
 
@@ -1436,16 +1494,94 @@
             ..SamplingConfig::new()
         };
 
-        <span class="kw">let </span>res = compute_sampling_decision(
-            <span class="bool-val">false</span>,
-            <span class="kw-2">&amp;</span>dummy_reservoir(),
-            <span class="prelude-val">None</span>,
-            <span class="prelude-val">None</span>,
-            <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>sampling_config),
-            <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>dsc),
-        );
+        <span class="kw">let </span>res =
+            compute_sampling_decision(<span class="bool-val">false</span>, <span class="prelude-val">None</span>, <span class="prelude-val">None</span>, <span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>sampling_config), <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>dsc));
 
         <span class="macro">assert_eq!</span>(get_sampling_match(res).sample_rate(), <span class="number">0.2</span>);
+    }
+
+    <span class="kw">fn </span>run_with_reservoir_rule&lt;G&gt;(processing_group: ProcessingGroup) -&gt; SamplingResult
+    <span class="kw">where
+        </span>G: Sampling + TryFrom&lt;ProcessingGroup&gt;,
+    {
+        <span class="kw">let </span>bytes = Bytes::from(
+            <span class="string">r#"{"dsn":"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42","trace":{"trace_id":"89143b0763095bd9c9955e8175d1fb23","public_key":"e12d836b15bb49d7bbf99e64295d995b"}}"#</span>,
+        );
+        <span class="kw">let </span>envelope = Envelope::parse_bytes(bytes).unwrap();
+        <span class="kw">let </span><span class="kw-2">mut </span>state = ProcessEnvelopeState::&lt;G&gt; {
+            event: Annotated::new(Event::default()),
+            event_metrics_extracted: <span class="bool-val">false</span>,
+            spans_extracted: <span class="bool-val">false</span>,
+            metrics: Default::default(),
+            sample_rates: Default::default(),
+            extracted_metrics: Default::default(),
+            project_state: {
+                <span class="kw">let </span><span class="kw-2">mut </span>state = ProjectState::allowed();
+                state.config.transaction_metrics =
+                    <span class="prelude-val">Some</span>(ErrorBoundary::Ok(TransactionMetricsConfig {
+                        version: <span class="number">1</span>,
+                        ..Default::default()
+                    }));
+                Arc::new(state)
+            },
+            sampling_project_state: {
+                <span class="kw">let </span><span class="kw-2">mut </span>state = ProjectState::allowed();
+                state.config.metric_extraction =
+                    ErrorBoundary::Ok(MetricExtractionConfig::default());
+                state.config.sampling = <span class="prelude-val">Some</span>(ErrorBoundary::Ok(SamplingConfig {
+                    version: <span class="number">2</span>,
+                    rules: <span class="macro">vec!</span>[
+                        <span class="comment">// Set up a reservoir (only used for transactions):
+                        </span>SamplingRule {
+                            condition: RuleCondition::all(),
+                            sampling_value: SamplingValue::Reservoir { limit: <span class="number">100 </span>},
+                            ty: RuleType::Trace,
+                            id: RuleId(<span class="number">1</span>),
+                            time_range: Default::default(),
+                            decaying_fn: Default::default(),
+                        },
+                        <span class="comment">// Reject everything that does not go into the reservoir:
+                        </span>SamplingRule {
+                            condition: RuleCondition::all(),
+                            sampling_value: SamplingValue::SampleRate { value: <span class="number">0.0 </span>},
+                            ty: RuleType::Trace,
+                            id: RuleId(<span class="number">2</span>),
+                            time_range: Default::default(),
+                            decaying_fn: Default::default(),
+                        },
+                    ],
+                    rules_v2: <span class="macro">vec!</span>[],
+                }));
+                <span class="prelude-val">Some</span>(Arc::new(state))
+            },
+            project_id: ProjectId::new(<span class="number">1</span>),
+            managed_envelope: ManagedEnvelope::standalone(
+                envelope,
+                Addr::dummy(),
+                Addr::dummy(),
+                processing_group,
+            )
+            .try_into()
+            .unwrap(),
+            profile_id: <span class="prelude-val">None</span>,
+            reservoir: dummy_reservoir(),
+        };
+
+        run(<span class="kw-2">&amp;mut </span>state, <span class="kw-2">&amp;</span>Config::default())
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_reservoir_applied_for_transactions() {
+        <span class="kw">let </span>result = run_with_reservoir_rule::&lt;TransactionGroup&gt;(ProcessingGroup::Transaction);
+        <span class="comment">// Default sampling rate is 0.0, but transaction is retained because of reservoir:
+        </span><span class="macro">assert!</span>(result.should_keep());
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_reservoir_not_applied_for_spans() {
+        <span class="kw">let </span>result = run_with_reservoir_rule::&lt;SpanGroup&gt;(ProcessingGroup::Span);
+        <span class="comment">// Default sampling rate is 0.0, and the reservoir does not apply to spans:
+        </span><span class="macro">assert!</span>(result.should_drop());
     }
 }
 </code></pre></div></section></main></body></html>

@@ -905,6 +905,18 @@
 <a href="#903" id="903">903</a>
 <a href="#904" id="904">904</a>
 <a href="#905" id="905">905</a>
+<a href="#906" id="906">906</a>
+<a href="#907" id="907">907</a>
+<a href="#908" id="908">908</a>
+<a href="#909" id="909">909</a>
+<a href="#910" id="910">910</a>
+<a href="#911" id="911">911</a>
+<a href="#912" id="912">912</a>
+<a href="#913" id="913">913</a>
+<a href="#914" id="914">914</a>
+<a href="#915" id="915">915</a>
+<a href="#916" id="916">916</a>
+<a href="#917" id="917">917</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Contains the processing-only functionality.
 
 </span><span class="kw">use </span>std::error::Error;
@@ -935,11 +947,11 @@
 <span class="kw">use </span><span class="kw">crate</span>::services::outcome::{DiscardReason, Outcome};
 <span class="kw">use </span><span class="kw">crate</span>::services::processor::span::extract_transaction_span;
 <span class="kw">use </span><span class="kw">crate</span>::services::processor::{
-    Addrs, ProcessEnvelope, ProcessEnvelopeState, ProcessingError, ProcessingGroup, SpanGroup,
-    TransactionGroup,
+    dynamic_sampling, Addrs, ProcessEnvelope, ProcessEnvelopeState, ProcessingError,
+    ProcessingGroup, SpanGroup, TransactionGroup,
 };
 <span class="kw">use </span><span class="kw">crate</span>::statsd::{RelayCounters, RelayHistograms};
-<span class="kw">use </span><span class="kw">crate</span>::utils::{sample, BufferGuard, ItemAction};
+<span class="kw">use </span><span class="kw">crate</span>::utils::{sample, BufferGuard, ItemAction, SamplingResult};
 <span class="kw">use </span>relay_event_normalization::span::ai::extract_ai_measurements;
 <span class="kw">use </span>thiserror::Error;
 
@@ -956,13 +968,22 @@
 ) {
     <span class="kw">use </span>relay_event_normalization::RemoveOtherProcessor;
 
+    <span class="comment">// We only implement trace-based sampling rules for now, which can be computed
+    // once for all spans in the envelope.
+    </span><span class="kw">let </span>sampling_outcome = <span class="kw">match </span>dynamic_sampling::run(state, <span class="kw-2">&amp;</span>config) {
+        SamplingResult::Match(sampling_match) <span class="kw">if </span>sampling_match.should_drop() =&gt; <span class="prelude-val">Some</span>(
+            Outcome::FilteredSampling(sampling_match.into_matched_rules()),
+        ),
+        <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
+    };
+
     <span class="kw">let </span>span_metrics_extraction_config = <span class="kw">match </span>state.project_state.config.metric_extraction {
         ErrorBoundary::Ok(<span class="kw-2">ref </span>config) <span class="kw">if </span>config.is_enabled() =&gt; <span class="prelude-val">Some</span>(config),
         <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
     };
     <span class="kw">let </span>ai_model_costs_config = global_config.ai_model_costs.clone().ok();
     <span class="kw">let </span>normalize_span_config = get_normalize_span_config(
-        config,
+        Arc::clone(<span class="kw-2">&amp;</span>config),
         state.managed_envelope.received_at(),
         global_config.measurements.as_ref(),
         state.project_state.config().measurements.as_ref(),
@@ -1045,15 +1066,19 @@
             item.set_metrics_extracted(<span class="bool-val">true</span>);
         }
 
-        <span class="comment">// TODO: dynamic sampling
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(sampling_outcome) = <span class="kw-2">&amp;</span>sampling_outcome {
+            <span class="macro">relay_log::trace!</span>(
+                <span class="string">"Dropping span because of sampling rule {}"</span>,
+                sampling_outcome
+            );
+            <span class="kw">return </span>ItemAction::Drop(sampling_outcome.clone());
+        }
 
-        </span><span class="kw">if let </span><span class="prelude-val">Err</span>(e) = scrub(<span class="kw-2">&amp;mut </span>annotated_span, <span class="kw-2">&amp;</span>state.project_state.config) {
+        <span class="kw">if let </span><span class="prelude-val">Err</span>(e) = scrub(<span class="kw-2">&amp;mut </span>annotated_span, <span class="kw-2">&amp;</span>state.project_state.config) {
             <span class="macro">relay_log::error!</span>(<span class="string">"failed to scrub span: {e}"</span>);
         }
 
-        <span class="comment">// TODO: rate limiting
-
-        // Remove additional fields.
+        <span class="comment">// Remove additional fields.
         </span>process_value(
             <span class="kw-2">&amp;mut </span>annotated_span,
             <span class="kw-2">&amp;mut </span>RemoveOtherProcessor,
@@ -1474,8 +1499,7 @@
     <span class="prelude-val">Ok</span>(())
 }
 
-<span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-</span><span class="kw">fn </span>scrub(
+<span class="kw">fn </span>scrub(
     annotated_span: <span class="kw-2">&amp;mut </span>Annotated&lt;Span&gt;,
     project_config: <span class="kw-2">&amp;</span>ProjectConfig,
 ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ProcessingError&gt; {

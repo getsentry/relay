@@ -797,6 +797,10 @@
 <a href="#795" id="795">795</a>
 <a href="#796" id="796">796</a>
 <a href="#797" id="797">797</a>
+<a href="#798" id="798">798</a>
+<a href="#799" id="799">799</a>
+<a href="#800" id="800">800</a>
+<a href="#801" id="801">801</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Evaluation of dynamic sampling rules.
 
 </span><span class="kw">use </span>std::collections::BTreeMap;
@@ -953,7 +957,17 @@
 }
 
 <span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; SamplingEvaluator&lt;<span class="lifetime">'a</span>&gt; {
-    <span class="doccomment">/// Constructor for [`SamplingEvaluator`].
+    <span class="doccomment">/// Constructs an evaluator with reservoir sampling.
+    </span><span class="kw">pub fn </span>new_with_reservoir(now: DateTime&lt;Utc&gt;, reservoir: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>ReservoirEvaluator&lt;<span class="lifetime">'a</span>&gt;) -&gt; <span class="self">Self </span>{
+        <span class="self">Self </span>{
+            now,
+            rule_ids: <span class="macro">vec!</span>[],
+            factor: <span class="number">1.0</span>,
+            reservoir: <span class="prelude-val">Some</span>(reservoir),
+        }
+    }
+
+    <span class="doccomment">/// Constructs an evaluator without reservoir sampling.
     </span><span class="kw">pub fn </span>new(now: DateTime&lt;Utc&gt;) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{
             now,
@@ -962,12 +976,6 @@
             reservoir: <span class="prelude-val">None</span>,
         }
     }
-
-    <span class="doccomment">/// Sets a [`ReservoirEvaluator`].
-    </span><span class="kw">pub fn </span>set_reservoir(<span class="kw-2">mut </span><span class="self">self</span>, reservoir: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>ReservoirEvaluator) -&gt; <span class="self">Self </span>{
-        <span class="self">self</span>.reservoir = <span class="prelude-val">Some</span>(reservoir);
-        <span class="self">self
-    </span>}
 
     <span class="doccomment">/// Attempts to find a match for sampling rules using `ControlFlow`.
     ///
@@ -1332,19 +1340,19 @@
         // shares state among multiple evaluator instances.
         </span><span class="kw">let </span>reservoir = mock_reservoir_evaluator(<span class="macro">vec!</span>[]);
 
-        <span class="kw">let </span>evaluator = SamplingEvaluator::new(Utc::now()).set_reservoir(<span class="kw-2">&amp;</span>reservoir);
+        <span class="kw">let </span>evaluator = SamplingEvaluator::new_with_reservoir(Utc::now(), <span class="kw-2">&amp;</span>reservoir);
         <span class="kw">let </span>matched_rules =
             get_matched_rules(<span class="kw-2">&amp;</span>evaluator.match_rules(Uuid::default(), <span class="kw-2">&amp;</span>dsc, rules.iter()));
         <span class="comment">// Reservoir rule overrides 0 and 2.
         </span><span class="macro">assert_eq!</span>(<span class="kw-2">&amp;</span>matched_rules, <span class="kw-2">&amp;</span>[<span class="number">1</span>]);
 
-        <span class="kw">let </span>evaluator = SamplingEvaluator::new(Utc::now()).set_reservoir(<span class="kw-2">&amp;</span>reservoir);
+        <span class="kw">let </span>evaluator = SamplingEvaluator::new_with_reservoir(Utc::now(), <span class="kw-2">&amp;</span>reservoir);
         <span class="kw">let </span>matched_rules =
             get_matched_rules(<span class="kw-2">&amp;</span>evaluator.match_rules(Uuid::default(), <span class="kw-2">&amp;</span>dsc, rules.iter()));
         <span class="comment">// Reservoir rule overrides 0 and 2.
         </span><span class="macro">assert_eq!</span>(<span class="kw-2">&amp;</span>matched_rules, <span class="kw-2">&amp;</span>[<span class="number">1</span>]);
 
-        <span class="kw">let </span>evaluator = SamplingEvaluator::new(Utc::now()).set_reservoir(<span class="kw-2">&amp;</span>reservoir);
+        <span class="kw">let </span>evaluator = SamplingEvaluator::new_with_reservoir(Utc::now(), <span class="kw-2">&amp;</span>reservoir);
         <span class="kw">let </span>matched_rules =
             get_matched_rules(<span class="kw-2">&amp;</span>evaluator.match_rules(Uuid::default(), <span class="kw-2">&amp;</span>dsc, rules.iter()));
         <span class="comment">// Reservoir rule reached its limit, rule 0 and 2 are now matched instead.
@@ -1582,7 +1590,7 @@
         <span class="kw">let </span><span class="kw-2">mut </span>rule = mocked_sampling_rule();
 
         <span class="kw">let </span>reservoir = ReservoirEvaluator::new(ReservoirCounters::default());
-        <span class="kw">let </span><span class="kw-2">mut </span>eval = SamplingEvaluator::new(Utc::now()).set_reservoir(<span class="kw-2">&amp;</span>reservoir);
+        <span class="kw">let </span><span class="kw-2">mut </span>eval = SamplingEvaluator::new_with_reservoir(Utc::now(), <span class="kw-2">&amp;</span>reservoir);
 
         rule.sampling_value = SamplingValue::SampleRate { value: <span class="number">1.0 </span>};
         <span class="macro">assert_eq!</span>(eval.try_compute_sample_rate(<span class="kw-2">&amp;</span>rule), <span class="prelude-val">Some</span>(<span class="number">1.0</span>));
