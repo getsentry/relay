@@ -1989,8 +1989,6 @@ LIMIT 1
 
         assert_eq!(tags.get("user"), Some(&Annotated::new("id:1".to_string())));
 
-        assert_eq!(tags.get("user"), Some(&Annotated::new("id:1".to_string())));
-
         assert_eq!(tags.get("user.id"), Some(&Annotated::new("1".to_string())));
 
         assert_eq!(
