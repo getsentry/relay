@@ -239,6 +239,7 @@ impl TrackableBucket for BucketView<'_> {
     }
 }
 
+/// Extracts quota information from a list of metric buckets.
 pub fn extract_quantities<I, T>(buckets: I, mode: ExtractionMode) -> SourceQuantities
 where
     I: IntoIterator<Item = T>,
