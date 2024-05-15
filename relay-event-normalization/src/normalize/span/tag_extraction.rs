@@ -31,6 +31,9 @@ pub enum SpanTagKey {
     // Specific to a transaction
     Release,
     User,
+    UserID,
+    UserUsername,
+    UserEmail,
     Environment,
     Transaction,
     TransactionMethod,
@@ -86,6 +89,9 @@ impl SpanTagKey {
         match self {
             SpanTagKey::Release => "release",
             SpanTagKey::User => "user",
+            SpanTagKey::UserID => "user.id",
+            SpanTagKey::UserUsername => "user.username",
+            SpanTagKey::UserEmail => "user.email",
             SpanTagKey::Environment => "environment",
             SpanTagKey::Transaction => "transaction",
             SpanTagKey::TransactionMethod => "transaction.method",
@@ -213,8 +219,19 @@ fn extract_shared_tags(event: &Event) -> BTreeMap<SpanTagKey, String> {
         tags.insert(SpanTagKey::Release, release.to_owned());
     }
 
-    if let Some(user) = event.user.value().and_then(|u| u.sentry_user.value()) {
-        tags.insert(SpanTagKey::User, user.clone());
+    if let Some(user) = event.user.value() {
+        if let Some(sentry_user) = user.sentry_user.value() {
+            tags.insert(SpanTagKey::User, sentry_user.clone());
+        }
+        if let Some(user_id) = user.id.value() {
+            tags.insert(SpanTagKey::UserID, user_id.as_str().to_owned());
+        }
+        if let Some(user_username) = user.username.value() {
+            tags.insert(SpanTagKey::UserUsername, user_username.as_str().to_owned());
+        }
+        if let Some(user_email) = user.email.value() {
+            tags.insert(SpanTagKey::UserEmail, user_email.clone());
+        }
     }
 
     if let Some(environment) = event.environment.as_str() {
@@ -1920,5 +1937,70 @@ LIMIT 1
 
         assert_eq!(tags.get(&SpanTagKey::Description), None);
         assert_eq!(tags.get(&SpanTagKey::Domain), None);
+    }
+
+    #[test]
+    fn extract_user_into_sentry_tags() {
+        let json = r#"
+            {
+                "type": "transaction",
+                "platform": "javascript",
+                "start_timestamp": "2021-04-26T07:59:01+0100",
+                "timestamp": "2021-04-26T08:00:00+0100",
+                "transaction": "foo",
+                "contexts": {
+                    "trace": {
+                        "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                        "span_id": "bd429c44b67a3eb4"
+                    }
+                },
+                "user": {
+                    "id": "1",
+                    "email": "admin@sentry.io",
+                    "username": "admin"
+                },
+                "spans": [
+                    {
+                        "op": "before_first_display",
+                        "span_id": "bd429c44b67a3eb1",
+                        "start_timestamp": 1597976300.0000000,
+                        "timestamp": 1597976302.0000000,
+                        "trace_id": "ff62a8b040f340bda5d830223def1d81"
+                    }
+                ]
+            }
+        "#;
+
+        let mut event = Annotated::<Event>::from_json(json).unwrap();
+
+        normalize_event(
+            &mut event,
+            &NormalizationConfig {
+                ..Default::default()
+            },
+        );
+
+        let mut event = event.into_value().unwrap();
+        extract_span_tags_from_event(&mut event, 200);
+
+        let span = &event.spans.value().unwrap()[0];
+
+        let tags = span.value().unwrap().sentry_tags.value().unwrap();
+
+        assert_eq!(tags.get("user"), Some(&Annotated::new("id:1".to_string())));
+
+        assert_eq!(tags.get("user"), Some(&Annotated::new("id:1".to_string())));
+
+        assert_eq!(tags.get("user.id"), Some(&Annotated::new("1".to_string())));
+
+        assert_eq!(
+            tags.get("user.username"),
+            Some(&Annotated::new("admin".to_string()))
+        );
+
+        assert_eq!(
+            tags.get("user.email"),
+            Some(&Annotated::new("admin@sentry.io".to_string()))
+        );
     }
 }
