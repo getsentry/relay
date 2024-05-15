@@ -15,14 +15,17 @@ use relay_cardinality::{CardinalityLimit, CardinalityReport};
 
 pub const PROFILE_TAG: &str = "has_profile";
 
+/// Indicates where quantities should be taken from.
 pub enum Quantities {
-    Extract(ExtractionMode),
+    /// Calculates the quantities from the passed buckets using [`ExtractionMode`].
+    FromBuckets(ExtractionMode),
+    /// Uses the provided [`SourceQuantities`].
     Value(SourceQuantities),
 }
 
 impl From<ExtractionMode> for Quantities {
     fn from(value: ExtractionMode) -> Self {
-        Self::Extract(value)
+        Self::FromBuckets(value)
     }
 }
 
@@ -71,7 +74,7 @@ impl MetricOutcomes {
                 profiles,
                 buckets,
             } = match quantities.into() {
-                Quantities::Extract(mode) => extract_quantities(buckets, mode),
+                Quantities::FromBuckets(mode) => extract_quantities(buckets, mode),
                 Quantities::Value(source) => source,
             };
 

@@ -185,7 +185,7 @@ impl<Q: AsRef<Vec<Quota>>> MetricsLimiter<Q> {
         metric_outcomes: &MetricOutcomes,
     ) {
         let buckets = std::mem::take(&mut self.buckets);
-        let (buckets, dropped) = utils::split_off(buckets, |b| match b.summary {
+        let (buckets, dropped) = utils::split_off_map(buckets, |b| match b.summary {
             BucketSummary::Transactions { .. } if category == DataCategory::Transaction => {
                 Either::Right(b.bucket)
             }

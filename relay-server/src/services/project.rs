@@ -33,7 +33,7 @@ use crate::extractors::RequestMeta;
 
 use crate::statsd::RelayCounters;
 use crate::utils::{
-    EnvelopeLimiter, ExtractionMode, ManagedEnvelope, MetricsLimiter, RetryBackoff,
+    self, EnvelopeLimiter, ExtractionMode, ManagedEnvelope, MetricsLimiter, RetryBackoff,
 };
 
 mod metrics;
@@ -1127,15 +1127,13 @@ impl Project {
             );
 
             if limits.is_limited() {
-                // NB: Until Vec::extract_if is stable, we have to iterate twice.
-                let _matching_buckets = buckets
-                    .iter()
-                    .filter(|bucket| bucket.name.try_namespace() == Some(namespace));
+                let rejected;
+                (buckets, rejected) = utils::split_off(buckets, |bucket| {
+                    bucket.name.try_namespace() == Some(namespace)
+                });
 
                 let reason_code = limits.longest().and_then(|limit| limit.reason_code.clone());
-                metric_outcomes.track(scoping, &buckets, mode, Outcome::RateLimited(reason_code));
-
-                buckets.retain(|bucket| bucket.name.try_namespace() != Some(namespace));
+                metric_outcomes.track(scoping, &rejected, mode, Outcome::RateLimited(reason_code));
             }
         }
 
