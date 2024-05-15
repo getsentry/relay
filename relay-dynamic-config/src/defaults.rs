@@ -7,7 +7,13 @@ use crate::metrics::MetricSpec;
 use crate::{Feature, MetricExtractionConfig, ProjectConfig, Tag};
 
 /// A list of `span.op` patterns that indicate databases that should be skipped.
-const DISABLED_DATABASES: &[&str] = &["*clickhouse*", "*compile*", "*mongodb*", "db.orm"];
+const DISABLED_DATABASES: &[&str] = &[
+    "*clickhouse*",
+    "*compile*",
+    "*mongodb*",
+    "*redis*",
+    "db.orm",
+];
 
 /// A list of `span.op` patterns we want to enable for mobile.
 const MOBILE_OPS: &[&str] = &[
