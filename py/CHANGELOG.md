@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Remove publishing of x86 wheels. [#3596](https://github.com/getsentry/relay/pull/3596)
+
 ## 0.8.64
 
 - Revert the Python version bump back to Python 3.10.
