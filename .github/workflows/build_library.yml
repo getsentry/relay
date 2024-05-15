@@ -15,7 +15,6 @@ jobs:
       fail-fast: false
       matrix:
         build-arch:
-          - i686
           - x86_64
           - aarch64
 
