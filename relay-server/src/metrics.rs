@@ -107,6 +107,7 @@ impl MetricOutcomes {
         // Possible solutions to this problem include emitting the merges only if the bucket view is
         // the first of view or distributing uniformly the metadata between split views.
         for bucket in buckets {
+            relay_log::trace!("{:<50} -> {outcome}", bucket.name());
             self.metric_stats.track_metric(scoping, bucket, &outcome)
         }
     }

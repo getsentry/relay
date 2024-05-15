@@ -103,19 +103,23 @@ impl Buckets<Filtered> {
 
         let mode = project_state.get_extraction_mode();
 
-        metric_outcomes.track(
-            scoping,
-            &disabled_namespace_buckets,
-            mode,
-            Outcome::Filtered(FilterStatKey::DisabledNamespace),
-        );
+        if !disabled_namespace_buckets.is_empty() {
+            metric_outcomes.track(
+                scoping,
+                &disabled_namespace_buckets,
+                mode,
+                Outcome::Filtered(FilterStatKey::DisabledNamespace),
+            );
+        }
 
-        metric_outcomes.track(
-            scoping,
-            &denied_buckets,
-            mode,
-            Outcome::Filtered(FilterStatKey::DeniedName),
-        );
+        if !denied_buckets.is_empty() {
+            metric_outcomes.track(
+                scoping,
+                &denied_buckets,
+                mode,
+                Outcome::Filtered(FilterStatKey::DeniedName),
+            );
+        }
 
         Buckets::new(self.buckets)
     }
