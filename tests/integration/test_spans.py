@@ -13,6 +13,7 @@ from opentelemetry.proto.common.v1.common_pb2 import AnyValue, KeyValue
 
 import pytest
 
+from requests import HTTPError
 from sentry_relay.consts import DataCategory
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 
@@ -435,7 +436,7 @@ def test_span_ingestion(
     project_config["config"]["features"] = [
         "organizations:standalone-span-ingestion",
         "projects:span-metrics-extraction",
-        # "projects:span-",
+        "projects:relay-otel-endpoint",
     ]
     project_config["config"]["transactionMetrics"] = {"version": 1}
     if extract_transaction:
@@ -863,6 +864,18 @@ def test_otel_endpoint_disabled(mini_sentry, relay):
     assert outcome["outcome"] == 3  # invalid
     assert outcome["reason"] == "feature_disabled"
 
+    # Second attempt will cause a 403 response:
+    with pytest.raises(HTTPError) as exc_info:
+        relay.send_otel_span(
+            project_id,
+            json=make_otel_span(start, end),
+        )
+    response = exc_info.value.response
+    assert response.status_code == 403
+    assert response.json() == {
+        "detail": "event submission rejected with_reason: FeatureDisabled(OtelEndpoint)"
+    }
+
     # No envelopes were received:
     assert mini_sentry.captured_events.empty()
 
@@ -960,6 +973,7 @@ def test_extracted_transaction_gets_normalized(
     project_config["config"]["features"] = [
         "organizations:standalone-span-ingestion",
         "projects:extract-transaction-from-segment-span",
+        "projects:relay-otel-endpoint",
     ]
 
     transactions_consumer = transactions_consumer()
