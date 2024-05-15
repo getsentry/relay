@@ -385,7 +385,7 @@ jobs:
 
     # Skip redundant checks for library releases
     # Skip for dependabot and if run on a fork
-    if: "!startsWith(github.ref, 'refs/heads/release-library/') && !github.event.pull_request.head.repo.fork && github.actor != 'dependabot[bot]' && needs.build-setup.outputs.full_ci == 'true'"
+    if: "startsWith(github.ref, 'refs/heads/release/') || (!startsWith(github.ref, 'refs/heads/release-library/') && !github.event.pull_request.head.repo.fork && github.actor != 'dependabot[bot]' && needs.build-setup.outputs.full_ci == 'true'")
 
     steps:
       - name: Install cosign
