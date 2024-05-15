@@ -1480,6 +1480,24 @@ LIMIT 1
 
                         },
                         "hash": "e2fae740cccd3781"
+                    },
+                    {
+                        "timestamp": 1694732409.3145,
+                        "start_timestamp": 1694732408.8367,
+                        "exclusive_time": 477.800131,
+                        "description": "get my_key_2",
+                        "op": "cache.get",
+                        "span_id": "97c0ef9770a02f9d",
+                        "parent_span_id": "9756d8d7b2b364ff",
+                        "trace_id": "77aeb1c16bb544a4a39b8d42944947a3",
+                        "data": {
+                            "cache.hit": false,
+                            "cache.item_size": 8,
+                            "thread.id": "6286962688",
+                            "thread.name": "Thread-4 (process_request_thread)"
+
+                        },
+                        "hash": "e2fae740cccd3781"
                     }
                 ]
             }
@@ -1494,13 +1512,17 @@ LIMIT 1
 
         let span_1 = &event.spans.value().unwrap()[0];
         let span_2 = &event.spans.value().unwrap()[1];
+        let span_3 = &event.spans.value().unwrap()[2];
 
         let tags_1 = get_value!(span_1.sentry_tags).unwrap();
         let tags_2 = get_value!(span_2.sentry_tags).unwrap();
+        let tags_3 = get_value!(span_3.sentry_tags).unwrap();
+
         let measurements_1 = span_1.value().unwrap().measurements.value().unwrap();
 
         assert_eq!(tags_1.get("cache.hit").unwrap().as_str(), Some("true"));
         assert_eq!(tags_2.get("cache.hit").unwrap().as_str(), Some("false"));
+        assert_eq!(tags_3.get("cache.hit").unwrap().as_str(), Some("false"));
         assert_debug_snapshot!(measurements_1, @r###"
         Measurements(
             {
