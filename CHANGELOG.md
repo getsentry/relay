@@ -17,6 +17,7 @@
 
 **Internal**:
 
+- Add a counter metric for attachments processed in the same envelope as user feedback. ([#3603](https://github.com/getsentry/relay/pull/3603))
 - Add metrics extraction config to global config. ([#3490](https://github.com/getsentry/relay/pull/3490), [#3504](https://github.com/getsentry/relay/pull/3504))
 - Adjust worker thread distribution of internal services. ([#3516](https://github.com/getsentry/relay/pull/3516))
 - Extract `cache.item_size` from measurements instead of data. ([#3510](https://github.com/getsentry/relay/pull/3510))
@@ -30,7 +31,6 @@
 - Add support for `event.` in the `Span` `Getter` implementation. ([#3577](https://github.com/getsentry/relay/pull/3577))
 - Ensure `chunk_id` and `profiler_id` are UUIDs and sort samples. ([#3588](https://github.com/getsentry/relay/pull/3588))
 - Add a calculated measurement based on the AI model and the tokens used. ([#3554](https://github.com/getsentry/relay/pull/3554))
-
 
 ## 24.4.2
 
