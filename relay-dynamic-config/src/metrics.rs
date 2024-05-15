@@ -640,6 +640,14 @@ mod tests {
     }
 
     #[test]
+    fn test_serialize_metrics_config_denied_names() {
+        let input_str = r#"{"deniedNames":["foo","bar"]}"#;
+        let deny_list: Metrics = serde_json::from_str(input_str).unwrap();
+        let back_to_str = serde_json::to_string(&deny_list).unwrap();
+        assert_eq!(input_str, back_to_str);
+    }
+
+    #[test]
     fn parse_tag_spec_value() {
         let json = r#"{"key":"foo","value":"bar"}"#;
         let spec: TagSpec = serde_json::from_str(json).unwrap();

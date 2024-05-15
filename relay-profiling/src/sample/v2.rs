@@ -13,6 +13,9 @@ use std::collections::{BTreeMap, HashSet};
 
 use serde::{Deserialize, Serialize};
 
+use relay_event_schema::protocol::EventId;
+use relay_metrics::FiniteF64;
+
 use crate::error::ProfileError;
 use crate::measurements::Measurement;
 use crate::sample::{DebugMeta, Frame, ThreadMetadata, Version};
@@ -20,9 +23,9 @@ use crate::sample::{DebugMeta, Frame, ThreadMetadata, Version};
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ProfileMetadata {
     /// Random UUID identifying a chunk
-    pub chunk_id: String,
+    pub chunk_id: EventId,
     /// Random UUID for each profiler session
-    pub profiler_id: String,
+    pub profiler_id: EventId,
 
     #[serde(default, skip_serializing_if = "DebugMeta::is_empty")]
     pub debug_meta: DebugMeta,
@@ -40,7 +43,7 @@ pub struct ProfileMetadata {
 pub struct Sample {
     /// Unix timestamp in seconds with millisecond precision when the sample
     /// was captured.
-    pub timestamp: f64,
+    pub timestamp: FiniteF64,
     /// Index of the stack in the `stacks` field of the profile.
     pub stack_id: usize,
     /// Thread or queue identifier
@@ -65,7 +68,7 @@ impl ProfileChunk {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Default, Serialize, Deserialize)]
 pub struct ProfileData {
     /// `samples` contains the list of samples referencing a stack and thread identifier.
     /// If 2 stack of frames captured at 2 different timestamps are identical, you're expected to
@@ -94,6 +97,8 @@ impl ProfileData {
         if self.samples.is_empty() {
             return Err(ProfileError::NotEnoughSamples);
         }
+
+        self.samples.sort_by_key(|s| s.timestamp);
 
         if !self.all_stacks_referenced_by_samples_exist() {
             return Err(ProfileError::MalformedSamples);
@@ -154,7 +159,9 @@ pub fn parse(payload: &[u8]) -> Result<ProfileChunk, ProfileError> {
 
 #[cfg(test)]
 mod tests {
-    use crate::sample::v2::parse;
+    use relay_metrics::FiniteF64;
+
+    use crate::sample::v2::{parse, ProfileData, Sample};
 
     #[test]
     fn test_roundtrip() {
@@ -164,5 +171,38 @@ mod tests {
         let second_payload = serde_json::to_vec(&first_parse.unwrap()).unwrap();
         let second_parse = parse(&second_payload[..]);
         assert!(second_parse.is_ok(), "{:#?}", second_parse);
+    }
+
+    #[test]
+    fn test_samples_are_sorted() {
+        let mut chunk = ProfileData {
+            samples: vec![
+                Sample {
+                    stack_id: 0,
+                    thread_id: "1".into(),
+                    timestamp: FiniteF64::new(2000.0).unwrap(),
+                },
+                Sample {
+                    stack_id: 0,
+                    thread_id: "1".to_string(),
+                    timestamp: FiniteF64::new(1000.0).unwrap(),
+                },
+            ],
+            stacks: vec![vec![0]],
+            frames: vec![Default::default()],
+            ..Default::default()
+        };
+
+        assert!(chunk.normalize("python").is_ok());
+
+        let timestamps: Vec<FiniteF64> = chunk.samples.iter().map(|s| s.timestamp).collect();
+
+        assert_eq!(
+            timestamps,
+            vec![
+                FiniteF64::new(1000.0).unwrap(),
+                FiniteF64::new(2000.0).unwrap(),
+            ]
+        );
     }
 }

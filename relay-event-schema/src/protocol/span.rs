@@ -266,21 +266,13 @@ pub struct SpanData {
     #[metastructure(field = "ai.pipeline.name")]
     pub ai_pipeline_name: Annotated<Value>,
 
+    /// The Model ID of an AI pipeline, e.g., gpt-4
+    #[metastructure(field = "ai.model_id")]
+    pub ai_model_id: Annotated<Value>,
+
     /// The input messages to an AI model call
     #[metastructure(field = "ai.input_messages")]
     pub ai_input_messages: Annotated<Value>,
-
-    /// The number of tokens used to generate the response to an AI call
-    #[metastructure(field = "ai.completion_tokens.used", pii = "false")]
-    pub ai_completion_tokens_used: Annotated<Value>,
-
-    /// The number of tokens used to process a request for an AI call
-    #[metastructure(field = "ai.prompt_tokens.used", pii = "false")]
-    pub ai_prompt_tokens_used: Annotated<Value>,
-
-    /// The total number of tokens used to for an AI call
-    #[metastructure(field = "ai.total_tokens.used", pii = "false")]
-    pub ai_total_tokens_used: Annotated<Value>,
 
     /// The responses to an AI model call
     #[metastructure(field = "ai.responses")]
@@ -625,10 +617,8 @@ mod tests {
             cache_item_size: ~,
             http_response_status_code: ~,
             ai_pipeline_name: ~,
+            ai_model_id: ~,
             ai_input_messages: ~,
-            ai_completion_tokens_used: ~,
-            ai_prompt_tokens_used: ~,
-            ai_total_tokens_used: ~,
             ai_responses: ~,
             thread_name: ~,
             segment_name: ~,

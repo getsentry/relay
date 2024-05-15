@@ -3632,7 +3632,7 @@ dependencies = [
 
 [[package]]
 name = "relay-cabi"
-version = "0.8.61"
+version = "0.8.64"
 dependencies = [
  "anyhow",
  "chrono",
@@ -3994,6 +3994,7 @@ dependencies = [
  "relay-base-schema",
  "relay-event-schema",
  "relay-log",
+ "relay-metrics",
  "relay-protocol",
  "serde",
  "serde_json",

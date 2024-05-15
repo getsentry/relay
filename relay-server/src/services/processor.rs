@@ -75,7 +75,7 @@ use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::services::processor::event::FiltersStatus;
 use crate::services::project::ProjectState;
 use crate::services::project_cache::{
-    AddMetricBuckets, AddMetricMeta, ProjectCache, UpdateRateLimits,
+    AddMetricBuckets, AddMetricMeta, BucketSource, ProjectCache, UpdateRateLimits,
 };
 use crate::services::test_store::{Capture, TestStore};
 use crate::services::upstream::{
@@ -588,10 +588,10 @@ impl ExtractedMetrics {
         let project_key = envelope.meta().public_key();
 
         if !self.project_metrics.is_empty() {
-            project_cache.send(AddMetricBuckets {
+            project_cache.send(AddMetricBuckets::internal(
                 project_key,
-                buckets: self.project_metrics,
-            });
+                self.project_metrics,
+            ));
         }
 
         if !self.sampling_metrics.is_empty() {
@@ -602,10 +602,10 @@ impl ExtractedMetrics {
             // dependent_project_with_tracing  -> metrics goes to root
             // root_project_with_tracing       -> metrics goes to root == self
             let sampling_project_key = utils::get_sampling_key(envelope).unwrap_or(project_key);
-            project_cache.send(AddMetricBuckets {
-                project_key: sampling_project_key,
-                buckets: self.sampling_metrics,
-            });
+            project_cache.send(AddMetricBuckets::internal(
+                sampling_project_key,
+                self.sampling_metrics,
+            ));
         }
     }
 }
@@ -771,7 +771,7 @@ pub struct ProcessMetrics {
     /// The target project.
     pub project_key: ProjectKey,
     /// Whether to keep or reset the metric metadata.
-    pub keep_metadata: bool,
+    pub source: BucketSource,
     /// The instant at which the request was received.
     pub start_time: Instant,
     /// The value of the Envelope's [`sent_at`](Envelope::sent_at) header for clock drift
@@ -784,7 +784,7 @@ pub struct ProcessBatchedMetrics {
     /// Metrics payload in JSON format.
     pub payload: Bytes,
     /// Whether to keep or reset the metric metadata.
-    pub keep_metadata: bool,
+    pub source: BucketSource,
     /// The instant at which the request was received.
     pub start_time: Instant,
     /// The instant at which the request was received.
@@ -1344,6 +1344,7 @@ impl EnvelopeProcessorService {
             .aggregator_config_for(MetricNamespace::Transactions);
 
         let global_config = self.inner.global_config.current();
+        let ai_model_costs = global_config.ai_model_costs.clone().ok();
 
         utils::log_transaction_name_metrics(&mut state.event, |event| {
             let tx_validation_config = TransactionValidationConfig {
@@ -1413,6 +1414,7 @@ impl EnvelopeProcessorService {
                 emit_event_errors: full_normalization,
                 span_description_rules: state.project_state.config.span_description_rules.as_ref(),
                 geoip_lookup: self.inner.geoip_lookup.as_ref(),
+                ai_model_costs: ai_model_costs.as_ref(),
                 enable_trimming: true,
                 measurements: Some(CombinedMeasurementsConfig::new(
                     state.project_state.config().measurements.as_ref(),
@@ -1896,7 +1898,7 @@ impl EnvelopeProcessorService {
             project_key,
             start_time,
             sent_at,
-            keep_metadata,
+            source,
         } = message;
 
         let received = relay_common::time::instant_to_date_time(start_time);
@@ -1950,7 +1952,7 @@ impl EnvelopeProcessorService {
 
         for bucket in &mut buckets {
             clock_drift_processor.process_timestamp(&mut bucket.timestamp);
-            if !keep_metadata {
+            if !matches!(source, BucketSource::Internal) {
                 bucket.metadata = BucketMetadata::new(received_timestamp);
             }
         }
@@ -1961,13 +1963,14 @@ impl EnvelopeProcessorService {
         self.inner.addrs.project_cache.send(AddMetricBuckets {
             project_key,
             buckets,
+            source,
         });
     }
 
     fn handle_process_batched_metrics(&self, cogs: &mut Token, message: ProcessBatchedMetrics) {
         let ProcessBatchedMetrics {
             payload,
-            keep_metadata,
+            source,
             start_time,
             sent_at,
         } = message;
@@ -2003,7 +2006,7 @@ impl EnvelopeProcessorService {
 
             for bucket in &mut buckets {
                 clock_drift_processor.process_timestamp(&mut bucket.timestamp);
-                if !keep_metadata {
+                if !matches!(source, BucketSource::Internal) {
                     bucket.metadata = BucketMetadata::new(received_timestamp);
                 }
             }
@@ -2014,6 +2017,7 @@ impl EnvelopeProcessorService {
             self.inner.addrs.project_cache.send(AddMetricBuckets {
                 project_key,
                 buckets,
+                source,
             });
         }
 
@@ -3494,14 +3498,17 @@ mod tests {
             ContentType::Text,
             "transactions/foo:3182887624:4267882815|s",
         );
-        for (keep_metadata, expected_received_at) in [
-            (false, Some(UnixTimestamp::from_instant(start_time))),
-            (true, None),
+        for (source, expected_received_at) in [
+            (
+                BucketSource::External,
+                Some(UnixTimestamp::from_instant(start_time)),
+            ),
+            (BucketSource::Internal, None),
         ] {
             let message = ProcessMetrics {
                 items: vec![item.clone()],
                 project_key,
-                keep_metadata,
+                source,
                 start_time,
                 sent_at: Some(Utc::now()),
             };
@@ -3581,27 +3588,27 @@ mod tests {
     }
 }
 "#;
-        for (keep_metadata, payload, expected_received_at) in [
+        for (source, payload, expected_received_at) in [
             (
-                false,
+                BucketSource::External,
                 payload_no_metadata,
                 Some(UnixTimestamp::from_instant(start_time)),
             ),
-            (true, payload_no_metadata, None),
+            (BucketSource::Internal, payload_no_metadata, None),
             (
-                false,
+                BucketSource::External,
                 payload_metadata,
                 Some(UnixTimestamp::from_instant(start_time)),
             ),
             (
-                true,
+                BucketSource::Internal,
                 payload_metadata,
                 Some(UnixTimestamp::from_secs(1615889440)),
             ),
         ] {
             let message = ProcessBatchedMetrics {
                 payload: Bytes::from(payload),
-                keep_metadata,
+                source,
                 start_time,
                 sent_at: Some(Utc::now()),
             };

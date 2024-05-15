@@ -507,6 +507,41 @@ pub fn hardcoded_span_metrics() -> Vec<(String, Vec<MetricSpec>)> {
                 },
                 MetricSpec {
                     category: DataCategory::Span,
+                    mri: "c:spans/ai.total_cost@usd".into(),
+                    field: Some("span.measurements.ai_total_cost.value".into()),
+                    condition: Some(is_ai.clone()),
+                    tags: vec![
+                        Tag::with_key("span.op")
+                            .from_field("span.sentry_tags.op")
+                            .always(),
+                        Tag::with_key("environment")
+                            .from_field("span.sentry_tags.environment")
+                            .always(),
+                        Tag::with_key("release")
+                            .from_field("span.sentry_tags.release")
+                            .always(),
+                        Tag::with_key("span.origin")
+                            .from_field("span.origin")
+                            .always(),
+                        Tag::with_key("span.category")
+                            .from_field("span.sentry_tags.category")
+                            .always(), // already guarded by condition on metric
+                        Tag::with_key("span.ai.pipeline.group")
+                            .from_field("span.sentry_tags.ai_pipeline_group")
+                            .always(), // already guarded by condition on metric
+                        Tag::with_key("span.description")
+                            .from_field("span.sentry_tags.description")
+                            .always(), // already guarded by condition on metric
+                        Tag::with_key("span.group")
+                            .from_field("span.sentry_tags.group")
+                            .always(), // already guarded by condition on metric
+                        Tag::with_key("span.op")
+                            .from_field("span.sentry_tags.op")
+                            .always(), // already guarded by condition on metric
+                    ],
+                },
+                MetricSpec {
+                    category: DataCategory::Span,
                     mri: "d:spans/webvital.score.total@ratio".into(),
                     field: Some("span.measurements.score.total.value".into()),
                     condition: Some(is_allowed_browser.clone()),
