@@ -653,6 +653,14 @@ pub enum RelayCounters {
     /// Counts how many transactions were created from segment spans.
     #[cfg(feature = "processing")]
     TransactionsFromSpans,
+
+    /// The number of attachments processed in the same envelope as a user_report_v2 event.
+    ///
+    /// This metric is tagged with:
+    ///  - `organization_id`: Organization the feedback is sent to
+    ///  - `project_id`: Project the feedback is sent to
+    #[cfg(feature = "processing")]
+    FeedbackAttachments,
 }
 
 impl CounterMetric for RelayCounters {
@@ -693,6 +701,8 @@ impl CounterMetric for RelayCounters {
             RelayCounters::DynamicSamplingDecision => "dynamic_sampling_decision",
             #[cfg(feature = "processing")]
             RelayCounters::TransactionsFromSpans => "transactions_from_spans",
+            #[cfg(feature = "processing")]
+            RelayCounters::FeedbackAttachments => "processing.feedback_attachments",
         }
     }
 }

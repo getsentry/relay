@@ -230,6 +230,7 @@ impl StoreService {
         let mut replay_event = None;
         let mut replay_recording = None;
 
+        let mut has_feedback = false;
         for item in envelope.items() {
             match item.ty() {
                 ItemType::Attachment => {
@@ -251,6 +252,7 @@ impl StoreService {
                     )?;
                 }
                 ItemType::UserReportV2 if feedback_ingest_same_envelope_attachments => {
+                    has_feedback = true;
                     let remote_addr = envelope.meta().client_addr().map(|addr| addr.to_string());
                     self.produce_user_report_v2(
                         event_id.ok_or(StoreError::NoEventId)?,
@@ -344,6 +346,14 @@ impl StoreService {
                     )
                 }
             }
+        }
+
+        if feedback_ingest_same_envelope_attachments && has_feedback && !attachments.is_empty() {
+            metric!(
+                counter(RelayCounters::FeedbackAttachments) += attachments.len() as i64,
+                organization_id = &scoping.organization_id.to_string(),
+                project_id = &scoping.project_id.to_string(),
+            );
         }
 
         if let Some(recording) = replay_recording {
