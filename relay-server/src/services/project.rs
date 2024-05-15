@@ -22,6 +22,7 @@ use smallvec::SmallVec;
 use tokio::time::Instant;
 use url::Url;
 
+use crate::envelope::Envelope;
 use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
 #[cfg(feature = "processing")]
 use crate::services::processor::RateLimitBuckets;
@@ -329,17 +330,23 @@ impl ProjectState {
         Ok(())
     }
 
-    /// Determines whether the given request should be accepted or discarded.
+    /// Determines whether the given envelope should be accepted or discarded.
     ///
-    /// Returns `Ok(())` if the request should be accepted. Returns `Err(DiscardReason)` if the
-    /// request should be discarded, by indicating the reason. The checks preformed for this are:
+    /// Returns `Ok(())` if the envelope should be accepted. Returns `Err(DiscardReason)` if the
+    /// envelope should be discarded, by indicating the reason. The checks preformed for this are:
     ///
     ///  - Allowed origin headers
     ///  - Disabled or unknown projects
     ///  - Disabled project keys (DSN)
-    pub fn check_request(&self, meta: &RequestMeta, config: &Config) -> Result<(), DiscardReason> {
+    ///  - Feature flags
+    pub fn check_envelope(
+        &self,
+        envelope: &Envelope,
+        config: &Config,
+    ) -> Result<(), DiscardReason> {
         // Verify that the stated project id in the DSN matches the public key used to retrieve this
         // project state.
+        let meta = envelope.meta();
         if !self.is_valid_project_id(meta.project_id(), config) {
             return Err(DiscardReason::ProjectId);
         }
@@ -357,6 +364,15 @@ impl ProjectState {
 
         // Check for invalid or disabled projects.
         self.check_disabled(config)?;
+
+        // Check feature.
+        if let Some(disabled_feature) = envelope
+            .required_features()
+            .iter()
+            .find(|f| !self.has_feature(**f))
+        {
+            return Err(DiscardReason::FeatureDisabled(*disabled_feature));
+        }
 
         Ok(())
     }
@@ -1037,7 +1053,7 @@ impl Project {
             scoping = state.scope_request(envelope.envelope().meta());
             envelope.scope(scoping);
 
-            if let Err(reason) = state.check_request(envelope.envelope().meta(), &self.config) {
+            if let Err(reason) = state.check_envelope(envelope.envelope(), &self.config) {
                 envelope.reject(Outcome::Invalid(reason));
                 return Err(reason);
             }

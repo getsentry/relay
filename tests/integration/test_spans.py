@@ -13,6 +13,7 @@ from opentelemetry.proto.common.v1.common_pb2 import AnyValue, KeyValue
 
 import pytest
 
+from sentry_relay.consts import DataCategory
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 
 from .test_store import make_transaction
@@ -434,6 +435,7 @@ def test_span_ingestion(
     project_config["config"]["features"] = [
         "organizations:standalone-span-ingestion",
         "projects:span-metrics-extraction",
+        # "projects:span-",
     ]
     project_config["config"]["transactionMetrics"] = {"version": 1}
     if extract_transaction:
@@ -831,6 +833,38 @@ def test_span_ingestion(
     assert len(score_total_metrics[0]["value"]) == 1
 
     metrics_consumer.assert_empty()
+
+
+def test_otel_endpoint_disabled(mini_sentry, relay):
+    relay = relay(
+        mini_sentry,
+        {
+            "outcomes": {
+                "emit_outcomes": True,
+                "batch_size": 1,
+                "batch_interval": 1,
+                "source": "relay",
+            }
+        },
+    )
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)["config"]
+    project_config["features"] = ["organizations:standalone-span-ingestion"]
+
+    end = datetime.now(timezone.utc) - timedelta(seconds=1)
+    start = end - timedelta(milliseconds=500)
+    relay.send_otel_span(
+        project_id,
+        json=make_otel_span(start, end),
+    )
+
+    (outcome,) = mini_sentry.captured_outcomes.get()["outcomes"]
+    assert outcome["category"] == DataCategory.SPAN
+    assert outcome["outcome"] == 3  # invalid
+    assert outcome["reason"] == "feature_disabled"
+
+    # No envelopes were received:
+    assert mini_sentry.captured_events.empty()
 
 
 def test_span_extraction_with_metrics_summary(
