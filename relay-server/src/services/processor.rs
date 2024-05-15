@@ -167,8 +167,28 @@ macro_rules! processing_group {
 /// Should be used only with groups which are responsible for processing envelopes with events.
 pub trait EventProcessing {}
 
+/// A trait for processing groups that can be dynamically sampled.
+pub trait Sampling {
+    /// Whether dynamic sampling should run under the given project's conditions.
+    fn supports_sampling(project_state: &ProjectState) -> bool;
+
+    /// Whether reservoir sampling applies to this processing group (a.k.a. data type).
+    fn supports_reservoir_sampling() -> bool;
+}
+
 processing_group!(TransactionGroup, Transaction);
 impl EventProcessing for TransactionGroup {}
+
+impl Sampling for TransactionGroup {
+    fn supports_sampling(project_state: &ProjectState) -> bool {
+        // For transactions, we require transaction metrics to be enabled before sampling.
+        matches!(&project_state.config.transaction_metrics, Some(ErrorBoundary::Ok(c)) if c.is_enabled())
+    }
+
+    fn supports_reservoir_sampling() -> bool {
+        true
+    }
+}
 
 processing_group!(ErrorGroup, Error);
 impl EventProcessing for ErrorGroup {}
@@ -179,6 +199,18 @@ processing_group!(ClientReportGroup, ClientReport);
 processing_group!(ReplayGroup, Replay);
 processing_group!(CheckInGroup, CheckIn);
 processing_group!(SpanGroup, Span);
+
+impl Sampling for SpanGroup {
+    fn supports_sampling(project_state: &ProjectState) -> bool {
+        // If no metrics could be extracted, do not sample anything.
+        matches!(&project_state.config().metric_extraction, ErrorBoundary::Ok(c) if c.is_supported())
+    }
+
+    fn supports_reservoir_sampling() -> bool {
+        false
+    }
+}
+
 processing_group!(ProfileChunkGroup, ProfileChunk);
 processing_group!(MetricsGroup, Metrics);
 processing_group!(ForwardUnknownGroup, ForwardUnknown);
@@ -1303,12 +1335,6 @@ impl EnvelopeProcessorService {
             }
         };
 
-        if let Some(sampling_state) = state.sampling_project_state.clone() {
-            state
-                .envelope_mut()
-                .parametrize_dsc_transaction(&sampling_state.config.tx_name_rules);
-        }
-
         let request_meta = state.managed_envelope.envelope().meta();
         let client_ipaddr = request_meta.client_addr().map(IpAddr::from);
 
@@ -1650,7 +1676,7 @@ impl EnvelopeProcessorService {
 
     fn process_envelope(
         &self,
-        managed_envelope: ManagedEnvelope,
+        mut managed_envelope: ManagedEnvelope,
         project_id: ProjectId,
         project_state: Arc<ProjectState>,
         sampling_project_state: Option<Arc<ProjectState>>,
@@ -1659,6 +1685,15 @@ impl EnvelopeProcessorService {
         // Get the group from the managed envelope context, and if it's not set, try to guess it
         // from the contents of the envelope.
         let group = managed_envelope.group();
+
+        // Pre-process the envelope headers.
+        if let Some(sampling_state) = sampling_project_state.as_ref() {
+            // Both transactions and standalone span envelopes need a normalized DSC header
+            // to make sampling rules based on the segment/transaction name work correctly.
+            managed_envelope
+                .envelope_mut()
+                .parametrize_dsc_transaction(&sampling_state.config.tx_name_rules);
+        }
 
         macro_rules! run {
             ($fn:ident) => {{
