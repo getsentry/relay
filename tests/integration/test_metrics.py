@@ -1884,6 +1884,10 @@ def test_histogram_outliers(mini_sentry, relay):
     project_config["transactionMetrics"] = {
         "version": 1,
     }
+    project_config["metricExtraction"] = {
+        "version": 3,
+        "globalGroups": {"histogram_outliers": {"isEnabled": True}},
+    }
     project_config["sampling"] = {  # Drop everything, to trigger metrics extractino
         "version": 2,
         "rules": [
@@ -1930,6 +1934,11 @@ def test_histogram_outliers(mini_sentry, relay):
             if item.type == "metric_buckets":
                 buckets = item.payload.json
                 for bucket in buckets:
-                    tags[bucket["name"]] = bucket.get("tags")
+                    if outlier := bucket.get("tags", {}).get("histogram_outlier"):
+                        tags[bucket["name"]] = outlier
 
-    print(tags)
+    assert tags == {
+        "d:transactions/measurements.fcp@millisecond": "outlier",
+        "d:transactions/duration@millisecond": "inlier",
+        "d:transactions/measurements.lcp@millisecond": "inlier",
+    }
