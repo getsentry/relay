@@ -1,6 +1,7 @@
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use serde::Serialize;
+use serde_json::Value;
 use std::collections::BTreeMap;
 
 use crate::service::ServiceState;
@@ -9,11 +10,12 @@ pub async fn handle(state: ServiceState) -> impl IntoResponse {
     (
         StatusCode::OK,
         axum::Json(FeatureSet {
-            version: 0,
-            features: vec![Feature {
-                key: "hello".to_owned(),
-                value: FeatureValue::String("world".to_owned()),
-            }],
+            version: 1,
+            options: Option {
+                sample_rate: 1.0,
+                traces_sample_rate: 1.0,
+                user_config: Value::Null,
+            },
         }),
     )
 }
@@ -23,21 +25,12 @@ pub async fn handle(state: ServiceState) -> impl IntoResponse {
 #[derive(Debug, Serialize)]
 struct FeatureSet {
     version: u8,
-    features: Vec<Feature>,
+    options: Option,
 }
 
 #[derive(Debug, Serialize)]
-struct Feature {
-    key: String,
-    value: FeatureValue,
-}
-
-#[derive(Debug, Serialize)]
-#[serde(untagged)]
-enum FeatureValue {
-    Bool(bool),
-    Float(f64),
-    Integer(usize),
-    String(String),
-    Object(BTreeMap<String, serde_json::Value>),
+struct Option {
+    sample_rate: f64,
+    traces_sample_rate: f64,
+    user_config: Value,
 }
