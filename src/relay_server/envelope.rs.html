@@ -2122,6 +2122,25 @@
 <a href="#2120" id="2120">2120</a>
 <a href="#2121" id="2121">2121</a>
 <a href="#2122" id="2122">2122</a>
+<a href="#2123" id="2123">2123</a>
+<a href="#2124" id="2124">2124</a>
+<a href="#2125" id="2125">2125</a>
+<a href="#2126" id="2126">2126</a>
+<a href="#2127" id="2127">2127</a>
+<a href="#2128" id="2128">2128</a>
+<a href="#2129" id="2129">2129</a>
+<a href="#2130" id="2130">2130</a>
+<a href="#2131" id="2131">2131</a>
+<a href="#2132" id="2132">2132</a>
+<a href="#2133" id="2133">2133</a>
+<a href="#2134" id="2134">2134</a>
+<a href="#2135" id="2135">2135</a>
+<a href="#2136" id="2136">2136</a>
+<a href="#2137" id="2137">2137</a>
+<a href="#2138" id="2138">2138</a>
+<a href="#2139" id="2139">2139</a>
+<a href="#2140" id="2140">2140</a>
+<a href="#2141" id="2141">2141</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Implementation of event envelopes.
 //!
 //! Envelopes are containers for payloads related to Sentry events. Similar to multipart form data
@@ -2164,7 +2183,7 @@
 
 <span class="kw">use </span>bytes::Bytes;
 <span class="kw">use </span>chrono::{DateTime, Utc};
-<span class="kw">use </span>relay_dynamic_config::ErrorBoundary;
+<span class="kw">use </span>relay_dynamic_config::{ErrorBoundary, Feature};
 <span class="kw">use </span>relay_event_normalization::{normalize_transaction_name, TransactionNameRule};
 <span class="kw">use </span>relay_event_schema::protocol::{Event, EventId, EventType};
 <span class="kw">use </span>relay_protocol::{Annotated, Value};
@@ -3163,6 +3182,13 @@
     </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">"Option::is_none"</span>)]
     </span>trace: <span class="prelude-ty">Option</span>&lt;ErrorBoundary&lt;DynamicSamplingContext&gt;&gt;,
 
+    <span class="doccomment">/// A list of features required to process this envelope.
+    ///
+    /// This is an internal field that should only be set by Relay.
+    /// It is a serializable header such that it persists when spooling.
+    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">"SmallVec::is_empty"</span>)]
+    </span>required_features: SmallVec&lt;[Feature; <span class="number">1</span>]&gt;,
+
     <span class="doccomment">/// Other attributes for forward compatibility.
     </span><span class="attr">#[serde(flatten)]
     </span>other: BTreeMap&lt;String, Value&gt;,
@@ -3203,6 +3229,7 @@
             retention: <span class="self">self</span>.retention,
             sent_at: <span class="self">self</span>.sent_at,
             trace: <span class="self">self</span>.trace,
+            required_features: <span class="self">self</span>.required_features,
             other: <span class="self">self</span>.other,
         })
     }
@@ -3245,6 +3272,7 @@
                 sent_at: <span class="prelude-val">None</span>,
                 other: BTreeMap::new(),
                 trace: <span class="prelude-val">None</span>,
+                required_features: <span class="macro">smallvec::smallvec!</span>[],
             },
             items: Items::new(),
         })
@@ -3398,6 +3426,16 @@
     <span class="doccomment">/// Overrides the dynamic sampling context in envelope headers.
     </span><span class="kw">pub fn </span>set_dsc(<span class="kw-2">&amp;mut </span><span class="self">self</span>, dsc: DynamicSamplingContext) {
         <span class="self">self</span>.headers.trace = <span class="prelude-val">Some</span>(ErrorBoundary::Ok(dsc));
+    }
+
+    <span class="doccomment">/// Features required to process this envelope.
+    </span><span class="kw">pub fn </span>required_features(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>[Feature] {
+        <span class="kw-2">&amp;</span><span class="self">self</span>.headers.required_features
+    }
+
+    <span class="doccomment">/// Add a feature requirement to this envelope.
+    </span><span class="kw">pub fn </span>require_feature(<span class="kw-2">&amp;mut </span><span class="self">self</span>, feature: Feature) {
+        <span class="self">self</span>.headers.required_features.push(feature)
     }
 
     <span class="doccomment">/// Returns the specified header value, if present.

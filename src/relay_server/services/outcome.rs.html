@@ -968,6 +968,11 @@
 <a href="#966" id="966">966</a>
 <a href="#967" id="967">967</a>
 <a href="#968" id="968">968</a>
+<a href="#969" id="969">969</a>
+<a href="#970" id="970">970</a>
+<a href="#971" id="971">971</a>
+<a href="#972" id="972">972</a>
+<a href="#973" id="973">973</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module contains the service that tracks outcomes.
 //!
 //! Outcomes describe the final "fate" of an envelope item. As such, for every item exactly one
@@ -988,6 +993,7 @@
 <span class="kw">use </span>relay_base_schema::project::ProjectId;
 <span class="kw">use </span>relay_common::time::UnixTimestamp;
 <span class="kw">use </span>relay_config::{Config, EmitOutcomes};
+<span class="kw">use </span>relay_dynamic_config::Feature;
 <span class="kw">use </span>relay_event_schema::protocol::{ClientReport, DiscardedEvent, EventId};
 <span class="kw">use </span>relay_filter::FilterStatKey;
 <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
@@ -1347,6 +1353,9 @@
 
     <span class="doccomment">/// (Relay) A span is not valid after normalization.
     </span>InvalidSpan,
+
+    <span class="doccomment">/// (Relay) A required feature is not enabled.
+    </span>FeatureDisabled(Feature),
 }
 
 <span class="kw">impl </span>DiscardReason {
@@ -1391,6 +1400,7 @@
             DiscardReason::InvalidReplayVideoEvent =&gt; <span class="string">"invalid_replay_video"</span>,
             DiscardReason::Profiling(reason) =&gt; reason,
             DiscardReason::InvalidSpan =&gt; <span class="string">"invalid_span"</span>,
+            DiscardReason::FeatureDisabled(<span class="kw">_</span>) =&gt; <span class="string">"feature_disabled"</span>,
         }
     }
 }

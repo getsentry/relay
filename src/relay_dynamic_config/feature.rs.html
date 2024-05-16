@@ -164,12 +164,17 @@
 <a href="#162" id="162">162</a>
 <a href="#163" id="163">163</a>
 <a href="#164" id="164">164</a>
+<a href="#165" id="165">165</a>
+<a href="#166" id="166">166</a>
+<a href="#167" id="167">167</a>
+<a href="#168" id="168">168</a>
+<a href="#169" id="169">169</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeSet;
 
 <span class="kw">use </span>serde::{Deserialize, Serialize};
 
 <span class="doccomment">/// Features exposed by project config.
-</span><span class="attr">#[derive(Clone, Debug, Eq, PartialEq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+</span><span class="attr">#[derive(Clone, Copy, Debug, Eq, PartialEq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 </span><span class="kw">pub enum </span>Feature {
     <span class="doccomment">/// Enables ingestion of Session Replays (Replay Recordings and Replay Events).
     ///
@@ -222,6 +227,11 @@
     /// Serialized as `organizations:standalone-span-ingestion`.
     </span><span class="attr">#[serde(rename = <span class="string">"organizations:standalone-span-ingestion"</span>)]
     </span>StandaloneSpanIngestion,
+    <span class="doccomment">/// Enable standalone span ingestion via the `/spans/` OTel endpoint.
+    ///
+    /// Serialized as `projects:relay-otel-endpoint`.
+    </span><span class="attr">#[serde(rename = <span class="string">"projects:relay-otel-endpoint"</span>)]
+    </span>OtelEndpoint,
     <span class="doccomment">/// Enable processing and extracting data from profiles that would normally be dropped by dynamic sampling.
     ///
     /// This is required for [slowest function aggregation](https://github.com/getsentry/snuba/blob/b5311b404a6bd73a9e1997a46d38e7df88e5f391/snuba/snuba_migrations/functions/0001_functions.py#L209-L256). The profile payload will be dropped on the sentry side.

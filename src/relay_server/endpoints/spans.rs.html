@@ -63,6 +63,8 @@
 <a href="#61" id="61">61</a>
 <a href="#62" id="62">62</a>
 <a href="#63" id="63">63</a>
+<a href="#64" id="64">64</a>
+<a href="#65" id="65">65</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>axum::extract::{DefaultBodyLimit, Json};
 <span class="kw">use </span>axum::http::{Request, StatusCode};
 <span class="kw">use </span>axum::response::IntoResponse;
@@ -72,6 +74,7 @@
 <span class="kw">use </span>bytes::Bytes;
 
 <span class="kw">use </span>relay_config::Config;
+<span class="kw">use </span>relay_dynamic_config::Feature;
 <span class="kw">use </span>relay_spans::otel_trace::TracesData;
 
 <span class="kw">use </span><span class="kw">crate</span>::endpoints::common;
@@ -101,6 +104,7 @@
     };
 
     <span class="kw">let </span><span class="kw-2">mut </span>envelope = Envelope::from_request(<span class="prelude-val">None</span>, meta);
+    envelope.require_feature(Feature::OtelEndpoint);
     <span class="kw">for </span>resource_span <span class="kw">in </span>trace.resource_spans {
         <span class="kw">for </span>scope_span <span class="kw">in </span>resource_span.scope_spans {
             <span class="kw">for </span>span <span class="kw">in </span>scope_span.spans {

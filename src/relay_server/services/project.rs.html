@@ -1509,6 +1509,22 @@
 <a href="#1507" id="1507">1507</a>
 <a href="#1508" id="1508">1508</a>
 <a href="#1509" id="1509">1509</a>
+<a href="#1510" id="1510">1510</a>
+<a href="#1511" id="1511">1511</a>
+<a href="#1512" id="1512">1512</a>
+<a href="#1513" id="1513">1513</a>
+<a href="#1514" id="1514">1514</a>
+<a href="#1515" id="1515">1515</a>
+<a href="#1516" id="1516">1516</a>
+<a href="#1517" id="1517">1517</a>
+<a href="#1518" id="1518">1518</a>
+<a href="#1519" id="1519">1519</a>
+<a href="#1520" id="1520">1520</a>
+<a href="#1521" id="1521">1521</a>
+<a href="#1522" id="1522">1522</a>
+<a href="#1523" id="1523">1523</a>
+<a href="#1524" id="1524">1524</a>
+<a href="#1525" id="1525">1525</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeSet;
 <span class="kw">use </span>std::sync::Arc;
 <span class="kw">use </span>std::time::Duration;
@@ -1533,6 +1549,7 @@
 <span class="kw">use </span>tokio::time::Instant;
 <span class="kw">use </span>url::Url;
 
+<span class="kw">use </span><span class="kw">crate</span>::envelope::Envelope;
 <span class="kw">use </span><span class="kw">crate</span>::metrics::MetricOutcomes;
 <span class="kw">use </span><span class="kw">crate</span>::services::outcome::{DiscardReason, Outcome, TrackOutcome};
 <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
@@ -1841,18 +1858,24 @@
         <span class="prelude-val">Ok</span>(())
     }
 
-    <span class="doccomment">/// Determines whether the given request should be accepted or discarded.
+    <span class="doccomment">/// Determines whether the given envelope should be accepted or discarded.
     ///
-    /// Returns `Ok(())` if the request should be accepted. Returns `Err(DiscardReason)` if the
-    /// request should be discarded, by indicating the reason. The checks preformed for this are:
+    /// Returns `Ok(())` if the envelope should be accepted. Returns `Err(DiscardReason)` if the
+    /// envelope should be discarded, by indicating the reason. The checks preformed for this are:
     ///
     ///  - Allowed origin headers
     ///  - Disabled or unknown projects
     ///  - Disabled project keys (DSN)
-    </span><span class="kw">pub fn </span>check_request(<span class="kw-2">&amp;</span><span class="self">self</span>, meta: <span class="kw-2">&amp;</span>RequestMeta, config: <span class="kw-2">&amp;</span>Config) -&gt; <span class="prelude-ty">Result</span>&lt;(), DiscardReason&gt; {
+    ///  - Feature flags
+    </span><span class="kw">pub fn </span>check_envelope(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        envelope: <span class="kw-2">&amp;</span>Envelope,
+        config: <span class="kw-2">&amp;</span>Config,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), DiscardReason&gt; {
         <span class="comment">// Verify that the stated project id in the DSN matches the public key used to retrieve this
         // project state.
-        </span><span class="kw">if </span>!<span class="self">self</span>.is_valid_project_id(meta.project_id(), config) {
+        </span><span class="kw">let </span>meta = envelope.meta();
+        <span class="kw">if </span>!<span class="self">self</span>.is_valid_project_id(meta.project_id(), config) {
             <span class="kw">return </span><span class="prelude-val">Err</span>(DiscardReason::ProjectId);
         }
 
@@ -1869,6 +1892,15 @@
 
         <span class="comment">// Check for invalid or disabled projects.
         </span><span class="self">self</span>.check_disabled(config)<span class="question-mark">?</span>;
+
+        <span class="comment">// Check feature.
+        </span><span class="kw">if let </span><span class="prelude-val">Some</span>(disabled_feature) = envelope
+            .required_features()
+            .iter()
+            .find(|f| !<span class="self">self</span>.has_feature(<span class="kw-2">**</span>f))
+        {
+            <span class="kw">return </span><span class="prelude-val">Err</span>(DiscardReason::FeatureDisabled(<span class="kw-2">*</span>disabled_feature));
+        }
 
         <span class="prelude-val">Ok</span>(())
     }
@@ -2551,7 +2583,7 @@
             scoping = state.scope_request(envelope.envelope().meta());
             envelope.scope(scoping);
 
-            <span class="kw">if let </span><span class="prelude-val">Err</span>(reason) = state.check_request(envelope.envelope().meta(), <span class="kw-2">&amp;</span><span class="self">self</span>.config) {
+            <span class="kw">if let </span><span class="prelude-val">Err</span>(reason) = state.check_envelope(envelope.envelope(), <span class="kw-2">&amp;</span><span class="self">self</span>.config) {
                 envelope.reject(Outcome::Invalid(reason));
                 <span class="kw">return </span><span class="prelude-val">Err</span>(reason);
             }
