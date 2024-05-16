@@ -930,12 +930,12 @@ impl StoreService {
             }
         };
 
-        span.duration_ms = ((span.end_timestamp - span.start_timestamp) * 1e3) as u32;
+        span.duration_ms = ((span.end_timestamp_micro - span.start_timestamp_micro) * 1e3) as u32;
         span.event_id = event_id;
         span.organization_id = scoping.organization_id;
         span.project_id = scoping.project_id.value();
         span.retention_days = retention_days;
-        span.start_timestamp_ms = (span.start_timestamp * 1e3) as u64;
+        span.start_timestamp_ms = (span.start_timestamp_micro * 1e3) as u64;
 
         if let Some(measurements) = &mut span.measurements {
             measurements.retain(|_, v| {
@@ -990,7 +990,7 @@ impl StoreService {
         };
         let &SpanKafkaMessage {
             duration_ms,
-            end_timestamp,
+            end_timestamp_micro,
             is_segment,
             project_id,
             received,
@@ -1046,7 +1046,7 @@ impl StoreService {
                     KafkaMessage::MetricsSummary(MetricsSummaryKafkaMessage {
                         count,
                         duration_ms,
-                        end_timestamp,
+                        end_timestamp: end_timestamp_micro,
                         group,
                         is_segment,
                         max,
