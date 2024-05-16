@@ -51,6 +51,7 @@ def test_span_extraction(
         project_config["config"]["features"].append("projects:discard-transaction")
 
     event = make_transaction({"event_id": "cbf6960622e14a45abc1f03b2055b186"})
+    event["contexts"]["trace"]["status"] = "success"
     end = datetime.now(timezone.utc) - timedelta(seconds=1)
     duration = timedelta(milliseconds=500)
     start = end - duration
@@ -58,6 +59,7 @@ def test_span_extraction(
         {
             "description": "GET /api/0/organizations/?member=1",
             "op": "http",
+            "status": "success",
             "parent_span_id": "aaaaaaaaaaaaaaaa",
             "span_id": "bbbbbbbbbbbbbbbb",
             "start_timestamp": start.isoformat(),
@@ -106,7 +108,8 @@ def test_span_extraction(
             "platform": "other",
             "sdk.name": "raven-node",
             "sdk.version": "2.6.3",
-            "trace.status": "unknown",
+            "status": "ok",
+            "trace.status": "ok",
             "transaction": "hi",
             "transaction.op": "hi",
         },
@@ -141,7 +144,8 @@ def test_span_extraction(
             "platform": "other",
             "sdk.name": "raven-node",
             "sdk.version": "2.6.3",
-            "trace.status": "unknown",
+            "status": "ok",
+            "trace.status": "ok",
             "transaction": "hi",
             "transaction.op": "hi",
         },
@@ -513,6 +517,7 @@ def test_span_ingestion(
                 "browser.name": "Chrome",
                 "category": "db",
                 "op": "db.query",
+                "status": "unknown",
             },
             "span_id": "a342abb1214ca181",
             "start_timestamp_ms": int(start.timestamp() * 1e3),
@@ -570,6 +575,7 @@ def test_span_ingestion(
             "sentry_tags": {
                 "browser.name": "Python Requests",
                 "op": "default",
+                "status": "unknown",
             },
             "span_id": "d342abb1214ca182",
             "start_timestamp_ms": int(start.timestamp() * 1e3),
@@ -602,7 +608,11 @@ def test_span_ingestion(
             "parent_span_id": "f0f0f0abcdef1234",
             "project_id": 42,
             "retention_days": 90,
-            "sentry_tags": {"browser.name": "Python Requests", "op": "default"},
+            "sentry_tags": {
+                "browser.name": "Python Requests",
+                "op": "default",
+                "status": "unknown",
+            },
             "span_id": "f0b809703e783d00",
             "start_timestamp_ms": int(start.timestamp() * 1e3),
             "trace_id": "89143b0763095bd9c9955e8175d1fb24",
@@ -942,6 +952,7 @@ def test_span_extraction_with_metrics_summary(
             "platform": "other",
             "sdk.name": "raven-node",
             "sdk.version": "2.6.3",
+            "status": "unknown",
             "trace.status": "unknown",
             "transaction": "hi",
             "transaction.op": "hi",
@@ -1122,6 +1133,7 @@ def test_span_extraction_with_ddm_missing_values(
             "platform": "other",
             "sdk.name": "raven-node",
             "sdk.version": "2.6.3",
+            "status": "unknown",
             "trace.status": "unknown",
             "transaction": "hi",
             "transaction.op": "hi",
