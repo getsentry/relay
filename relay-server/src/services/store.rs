@@ -1347,10 +1347,6 @@ struct SpanMeasurement {
 
 #[derive(Debug, Deserialize, Serialize)]
 struct SpanKafkaMessage<'a> {
-    #[serde(skip_serializing)]
-    start_timestamp: f64,
-    #[serde(rename(deserialize = "timestamp"), skip_serializing)]
-    end_timestamp: f64,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     description: Option<&'a RawValue>,
     #[serde(default)]
@@ -1386,11 +1382,16 @@ struct SpanKafkaMessage<'a> {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     sentry_tags: Option<BTreeMap<&'a str, String>>,
     span_id: &'a str,
-    #[serde(default)]
-    start_timestamp_ms: u64,
     #[serde(default, skip_serializing_if = "none_or_empty_object")]
     tags: Option<&'a RawValue>,
     trace_id: EventId,
+
+    #[serde(default)]
+    start_timestamp_ms: u64,
+    #[serde(rename(deserialize = "start_timestamp"))]
+    start_timestamp_micro: f64,
+    #[serde(rename(deserialize = "timestamp"))]
+    end_timestamp_micro: f64,
 
     #[serde(borrow, default, skip_serializing)]
     platform: Cow<'a, str>, // We only use this for logging for now
