@@ -18,6 +18,7 @@ use chrono::{DateTime, SecondsFormat, Utc};
 use relay_base_schema::project::ProjectId;
 use relay_common::time::UnixTimestamp;
 use relay_config::{Config, EmitOutcomes};
+use relay_dynamic_config::Feature;
 use relay_event_schema::protocol::{ClientReport, DiscardedEvent, EventId};
 use relay_filter::FilterStatKey;
 #[cfg(feature = "processing")]
@@ -377,6 +378,9 @@ pub enum DiscardReason {
 
     /// (Relay) A span is not valid after normalization.
     InvalidSpan,
+
+    /// (Relay) A required feature is not enabled.
+    FeatureDisabled(Feature),
 }
 
 impl DiscardReason {
@@ -421,6 +425,7 @@ impl DiscardReason {
             DiscardReason::InvalidReplayVideoEvent => "invalid_replay_video",
             DiscardReason::Profiling(reason) => reason,
             DiscardReason::InvalidSpan => "invalid_span",
+            DiscardReason::FeatureDisabled(_) => "feature_disabled",
         }
     }
 }
