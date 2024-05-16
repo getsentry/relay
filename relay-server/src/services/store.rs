@@ -930,12 +930,13 @@ impl StoreService {
             }
         };
 
-        span.duration_ms = ((span.end_timestamp_micro - span.start_timestamp_micro) * 1e3) as u32;
+        span.duration_ms =
+            ((span.end_timestamp_precise - span.start_timestamp_precise) * 1e3) as u32;
         span.event_id = event_id;
         span.organization_id = scoping.organization_id;
         span.project_id = scoping.project_id.value();
         span.retention_days = retention_days;
-        span.start_timestamp_ms = (span.start_timestamp_micro * 1e3) as u64;
+        span.start_timestamp_ms = (span.start_timestamp_precise * 1e3) as u64;
 
         if let Some(measurements) = &mut span.measurements {
             measurements.retain(|_, v| {
@@ -990,7 +991,7 @@ impl StoreService {
         };
         let &SpanKafkaMessage {
             duration_ms,
-            end_timestamp_micro,
+            end_timestamp_precise,
             is_segment,
             project_id,
             received,
@@ -1046,7 +1047,7 @@ impl StoreService {
                     KafkaMessage::MetricsSummary(MetricsSummaryKafkaMessage {
                         count,
                         duration_ms,
-                        end_timestamp: end_timestamp_micro,
+                        end_timestamp: end_timestamp_precise,
                         group,
                         is_segment,
                         max,
@@ -1389,9 +1390,9 @@ struct SpanKafkaMessage<'a> {
     #[serde(default)]
     start_timestamp_ms: u64,
     #[serde(rename(deserialize = "start_timestamp"))]
-    start_timestamp_micro: f64,
+    start_timestamp_precise: f64,
     #[serde(rename(deserialize = "timestamp"))]
-    end_timestamp_micro: f64,
+    end_timestamp_precise: f64,
 
     #[serde(borrow, default, skip_serializing)]
     platform: Cow<'a, str>, // We only use this for logging for now
