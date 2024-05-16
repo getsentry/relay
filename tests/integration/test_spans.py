@@ -1,24 +1,22 @@
-from collections import Counter
 import json
-from datetime import datetime, timedelta, timezone
 import uuid
-
-from opentelemetry.proto.trace.v1.trace_pb2 import (
-    Span,
-    ScopeSpans,
-    ResourceSpans,
-    TracesData,
-)
-from opentelemetry.proto.common.v1.common_pb2 import AnyValue, KeyValue
+from collections import Counter
+from datetime import datetime, timedelta, timezone
 
 import pytest
-
+from opentelemetry.proto.common.v1.common_pb2 import AnyValue, KeyValue
+from opentelemetry.proto.trace.v1.trace_pb2 import (
+    ResourceSpans,
+    ScopeSpans,
+    Span,
+    TracesData,
+)
 from requests import HTTPError
 from sentry_relay.consts import DataCategory
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 
-from .test_store import make_transaction
 from .test_metrics import TEST_CONFIG
+from .test_store import make_transaction
 
 
 @pytest.mark.parametrize("discard_transaction", [False, True])
@@ -112,12 +110,19 @@ def test_span_extraction(
         },
         "span_id": "bbbbbbbbbbbbbbbb",
         "start_timestamp_ms": int(start.timestamp() * 1e3),
+        "start_timestamp_precise": start.timestamp(),
+        "end_timestamp_precise": start.timestamp() + duration.total_seconds(),
         "trace_id": "ff62a8b040f340bda5d830223def1d81",
     }
 
-    start_timestamp = datetime.fromisoformat(event["start_timestamp"])
-    end_timestamp = datetime.fromisoformat(event["timestamp"])
-    duration_ms = int((end_timestamp - start_timestamp).total_seconds() * 1e3)
+    start_timestamp = datetime.fromisoformat(event["start_timestamp"]).replace(
+        tzinfo=timezone.utc
+    )
+    end_timestamp = datetime.fromisoformat(event["timestamp"]).replace(
+        tzinfo=timezone.utc
+    )
+    duration = (end_timestamp - start_timestamp).total_seconds()
+    duration_ms = int(duration * 1e3)
 
     transaction_span = spans_consumer.get_span()
     del transaction_span["received"]
@@ -146,9 +151,9 @@ def test_span_extraction(
             "transaction.op": "hi",
         },
         "span_id": "968cff94913ebb07",
-        "start_timestamp_ms": int(
-            start_timestamp.replace(tzinfo=timezone.utc).timestamp() * 1e3
-        ),
+        "start_timestamp_ms": int(start_timestamp.timestamp() * 1e3),
+        "start_timestamp_precise": start_timestamp.timestamp(),
+        "end_timestamp_precise": start_timestamp.timestamp() + duration,
         "trace_id": "a0fa8803753e40fd8124b21eeb2986b5",
     }
 
@@ -516,6 +521,8 @@ def test_span_ingestion(
             },
             "span_id": "a342abb1214ca181",
             "start_timestamp_ms": int(start.timestamp() * 1e3),
+            "start_timestamp_precise": start.timestamp(),
+            "end_timestamp_precise": end.timestamp(),
             "trace_id": "89143b0763095bd9c9955e8175d1fb23",
         },
         {
@@ -540,6 +547,8 @@ def test_span_ingestion(
             },
             "span_id": "b0429c44b67a3eb1",
             "start_timestamp_ms": int(start.timestamp() * 1e3),
+            "start_timestamp_precise": start.timestamp(),
+            "end_timestamp_precise": end.timestamp() + 1,
             "trace_id": "ff62a8b040f340bda5d830223def1d81",
         },
         {
@@ -555,6 +564,8 @@ def test_span_ingestion(
             "sentry_tags": {"browser.name": "Chrome", "op": "default"},
             "span_id": "cd429c44b67a3eb1",
             "start_timestamp_ms": int(start.timestamp() * 1e3),
+            "start_timestamp_precise": start.timestamp(),
+            "end_timestamp_precise": end.timestamp() + 1,
             "trace_id": "ff62a8b040f340bda5d830223def1d81",
         },
         {
@@ -573,6 +584,8 @@ def test_span_ingestion(
             },
             "span_id": "d342abb1214ca182",
             "start_timestamp_ms": int(start.timestamp() * 1e3),
+            "start_timestamp_precise": start.timestamp(),
+            "end_timestamp_precise": end.timestamp(),
             "trace_id": "89143b0763095bd9c9955e8175d1fb24",
         },
         {
@@ -590,6 +603,8 @@ def test_span_ingestion(
             },
             "span_id": "ed429c44b67a3eb1",
             "start_timestamp_ms": int(start.timestamp() * 1e3),
+            "start_timestamp_precise": start.timestamp(),
+            "end_timestamp_precise": end.timestamp() + 1,
             "trace_id": "ff62a8b040f340bda5d830223def1d81",
         },
         {
@@ -605,6 +620,8 @@ def test_span_ingestion(
             "sentry_tags": {"browser.name": "Python Requests", "op": "default"},
             "span_id": "f0b809703e783d00",
             "start_timestamp_ms": int(start.timestamp() * 1e3),
+            "start_timestamp_precise": start.timestamp(),
+            "end_timestamp_precise": end.timestamp(),
             "trace_id": "89143b0763095bd9c9955e8175d1fb24",
         },
     ]
@@ -916,9 +933,14 @@ def test_span_extraction_with_metrics_summary(
 
     relay.send_event(project_id, event)
 
-    start_timestamp = datetime.fromisoformat(event["start_timestamp"])
-    end_timestamp = datetime.fromisoformat(event["timestamp"])
-    duration_ms = int((end_timestamp - start_timestamp).total_seconds() * 1e3)
+    start_timestamp = datetime.fromisoformat(event["start_timestamp"]).replace(
+        tzinfo=timezone.utc
+    )
+    end_timestamp = datetime.fromisoformat(event["timestamp"]).replace(
+        tzinfo=timezone.utc
+    )
+    duration = (end_timestamp - start_timestamp).total_seconds()
+    duration_ms = int(duration * 1e3)
 
     transaction_span = spans_consumer.get_span()
     del transaction_span["received"]
@@ -948,8 +970,10 @@ def test_span_extraction_with_metrics_summary(
         },
         "span_id": "968cff94913ebb07",
         "start_timestamp_ms": int(
-            start_timestamp.replace(tzinfo=timezone.utc).timestamp() * 1e3
+            start_timestamp.timestamp() * 1e3,
         ),
+        "start_timestamp_precise": start_timestamp.timestamp(),
+        "end_timestamp_precise": end_timestamp.timestamp(),
         "trace_id": "a0fa8803753e40fd8124b21eeb2986b5",
     }
 
@@ -1093,8 +1117,12 @@ def test_span_extraction_with_ddm_missing_values(
 
     relay.send_event(project_id, event)
 
-    start_timestamp = datetime.fromisoformat(event["start_timestamp"])
-    end_timestamp = datetime.fromisoformat(event["timestamp"])
+    start_timestamp = datetime.fromisoformat(event["start_timestamp"]).replace(
+        tzinfo=timezone.utc
+    )
+    end_timestamp = datetime.fromisoformat(event["timestamp"]).replace(
+        tzinfo=timezone.utc
+    )
     duration_ms = int((end_timestamp - start_timestamp).total_seconds() * 1e3)
 
     metrics_summary["c:spans/some_metric@none"][0].pop("min", None)
@@ -1127,9 +1155,9 @@ def test_span_extraction_with_ddm_missing_values(
             "transaction.op": "hi",
         },
         "span_id": "968cff94913ebb07",
-        "start_timestamp_ms": int(
-            start_timestamp.replace(tzinfo=timezone.utc).timestamp() * 1e3
-        ),
+        "start_timestamp_ms": int(start_timestamp.timestamp() * 1e3),
+        "start_timestamp_precise": start_timestamp.timestamp(),
+        "end_timestamp_precise": end_timestamp.timestamp(),
         "trace_id": "a0fa8803753e40fd8124b21eeb2986b5",
     }
 
@@ -1350,6 +1378,8 @@ def test_span_ingestion_with_performance_scores(
             },
             "span_id": "bd429c44b67a3eb1",
             "start_timestamp_ms": int(start.timestamp() * 1e3),
+            "start_timestamp_precise": start.timestamp(),
+            "end_timestamp_precise": end.timestamp(),
             "trace_id": "ff62a8b040f340bda5d830223def1d81",
             "measurements": {
                 "score.fcp": {"value": 0.14999972769539766},
@@ -1393,6 +1423,8 @@ def test_span_ingestion_with_performance_scores(
             },
             "span_id": "cd429c44b67a3eb1",
             "start_timestamp_ms": int(start.timestamp() * 1e3),
+            "start_timestamp_precise": start.timestamp(),
+            "end_timestamp_precise": end.timestamp(),
             "trace_id": "ff62a8b040f340bda5d830223def1d81",
             "measurements": {
                 "inp": {"value": 100.0},
