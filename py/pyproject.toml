@@ -1,0 +1,21 @@
+[build-system]
+requires = ["maturin>=1.4,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "sentry_relay"
+description = "A python library to access sentry relay functionality."
+requires-python = ">=3.10"
+authors = [
+    { email = "hello@sentry.io" }
+]
+license = { text = "FSL-1.0-Apache-2.0" }
+classifiers = [
+    "Programming Language :: Rust",
+    "Programming Language :: Python :: Implementation :: CPython",
+]
+dynamic = ["version"]
+
+[tool.maturin]
+module-name = "sentry_relay._relay_pyo3"
+manifest-path = "../relay-pyo3/Cargo.toml"

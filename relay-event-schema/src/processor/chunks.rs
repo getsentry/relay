@@ -25,6 +25,8 @@
 use std::borrow::Cow;
 use std::fmt;
 
+use pyo3::prelude::*;
+use pyo3::types::IntoPyDict;
 use relay_protocol::{Meta, Remark, RemarkType};
 use serde::{Deserialize, Serialize};
 
@@ -43,10 +45,31 @@ pub enum Chunk<'a> {
         text: Cow<'a, str>,
         /// The rule that crated this redaction
         rule_id: Cow<'a, str>,
-        /// Type type of remark for this redaction
+        /// Type of remark for this redaction
         #[serde(rename = "remark")]
         ty: RemarkType,
     },
+}
+
+impl<'a> IntoPy<PyObject> for Chunk<'a> {
+    fn into_py(self, py: Python<'_>) -> PyObject {
+        match self {
+            Self::Text { text } => {
+                let dict = [("type", "text"), ("text", &text)].into_py_dict_bound(py);
+                dict.to_object(py)
+            }
+            Self::Redaction { text, rule_id, ty } => {
+                let dict = [
+                    ("type", "redaction"),
+                    ("text", &text),
+                    ("rule_id", &rule_id),
+                    ("ty", &format!("{:?}", ty)),
+                ]
+                .into_py_dict_bound(py);
+                dict.to_object(py)
+            }
+        }
+    }
 }
 
 impl<'a> Chunk<'a> {

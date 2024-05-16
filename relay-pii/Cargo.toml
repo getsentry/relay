@@ -28,6 +28,7 @@ sha1 = { workspace = true }
 smallvec = { workspace = true }
 thiserror = { workspace = true }
 utf16string = { workspace = true }
+pyo3 = { workspace = true, features = ["serde"] }
 
 [dev-dependencies]
 insta = { workspace = true }

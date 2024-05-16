@@ -17,6 +17,7 @@ workspace = true
 
 [dependencies]
 anyhow = { workspace = true }
+pyo3 = { workspace = true, features = ["serde"] }
 relay-auth = { workspace = true }
 relay-base-schema = { workspace = true }
 relay-cardinality = { workspace = true }
@@ -30,6 +31,7 @@ relay-quotas = { workspace = true }
 relay-sampling = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+smallvec = { workspace = true }
 
 [dev-dependencies]
 similar-asserts = { workspace = true }

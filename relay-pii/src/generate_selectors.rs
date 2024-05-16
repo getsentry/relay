@@ -1,5 +1,6 @@
 use std::collections::BTreeSet;
 
+use pyo3::prelude::*;
 use relay_event_schema::processor::{
     self, Pii, ProcessValue, ProcessingResult, ProcessingState, Processor, ValueType,
 };
@@ -12,6 +13,7 @@ use crate::utils;
 
 /// Metadata about a selector found in the event
 #[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Serialize)]
+#[pyclass]
 pub struct SelectorSuggestion {
     /// The selector that users should be able to use to address the underlying value
     pub path: SelectorSpec,

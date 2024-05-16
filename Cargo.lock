@@ -884,7 +884,7 @@ dependencies = [
  "autocfg",
  "cfg-if",
  "crossbeam-utils",
- "memoffset",
+ "memoffset 0.7.1",
  "scopeguard",
 ]
 
@@ -2179,6 +2179,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "indoc"
+version = "2.0.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b248f5224d1d606005e02c97f5aa4e88eeb230488bcc03bc9ca4d7991399f2b5"
+
+[[package]]
 name = "insta"
 version = "1.31.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2542,6 +2548,15 @@ name = "memoffset"
 version = "0.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5de893c32cde5f383baa4c04c5d6dbdd735cfd4a794b0debdb2bb1b421da5ff4"
+dependencies = [
+ "autocfg",
+]
+
+[[package]]
+name = "memoffset"
+version = "0.9.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "488016bfae457b036d996092f6cb448677611ce4449e970ceaf42695203f218a"
 dependencies = [
  "autocfg",
 ]
@@ -3194,6 +3209,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "portable-atomic"
+version = "1.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7170ef9988bc169ba16dd36a7fa041e5c4cbeb6a35b76d4c03daded371eae7c0"
+
+[[package]]
 name = "ppv-lite86"
 version = "0.2.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3331,6 +3352,72 @@ name = "psl-types"
 version = "2.0.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "33cb294fe86a74cbcf50d4445b37da762029549ebeea341421c7c70370f86cac"
+
+[[package]]
+name = "pyo3"
+version = "0.21.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a5e00b96a521718e08e03b1a622f01c8a8deb50719335de3f60b3b3950f069d8"
+dependencies = [
+ "anyhow",
+ "cfg-if",
+ "chrono",
+ "indoc",
+ "libc",
+ "memoffset 0.9.1",
+ "parking_lot",
+ "portable-atomic",
+ "pyo3-build-config",
+ "pyo3-ffi",
+ "pyo3-macros",
+ "serde",
+ "unindent",
+]
+
+[[package]]
+name = "pyo3-build-config"
+version = "0.21.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7883df5835fafdad87c0d888b266c8ec0f4c9ca48a5bed6bbb592e8dedee1b50"
+dependencies = [
+ "once_cell",
+ "target-lexicon",
+]
+
+[[package]]
+name = "pyo3-ffi"
+version = "0.21.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "01be5843dc60b916ab4dad1dca6d20b9b4e6ddc8e15f50c47fe6d85f1fb97403"
+dependencies = [
+ "libc",
+ "pyo3-build-config",
+]
+
+[[package]]
+name = "pyo3-macros"
+version = "0.21.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "77b34069fc0682e11b31dbd10321cbf94808394c56fd996796ce45217dfac53c"
+dependencies = [
+ "proc-macro2",
+ "pyo3-macros-backend",
+ "quote",
+ "syn 2.0.38",
+]
+
+[[package]]
+name = "pyo3-macros-backend"
+version = "0.21.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "08260721f32db5e1a5beae69a55553f56b99bd0e1c3e6e0a5e8851a9d0f5a85c"
+dependencies = [
+ "heck",
+ "proc-macro2",
+ "pyo3-build-config",
+ "quote",
+ "syn 2.0.38",
+]
 
 [[package]]
 name = "quick-error"
@@ -3591,39 +3678,13 @@ dependencies = [
 name = "relay-base-schema"
 version = "24.5.0"
 dependencies = [
+ "pyo3",
  "regex",
  "relay-common",
  "relay-protocol",
  "schemars",
  "serde",
  "serde_json",
-]
-
-[[package]]
-name = "relay-cabi"
-version = "0.8.67"
-dependencies = [
- "anyhow",
- "chrono",
- "json-forensics",
- "lru",
- "once_cell",
- "regex",
- "relay-auth",
- "relay-base-schema",
- "relay-cardinality",
- "relay-common",
- "relay-dynamic-config",
- "relay-event-normalization",
- "relay-event-schema",
- "relay-ffi",
- "relay-pii",
- "relay-protocol",
- "relay-sampling",
- "sentry-release-parser",
- "serde",
- "serde_json",
- "uuid",
 ]
 
 [[package]]
@@ -3714,6 +3775,9 @@ name = "relay-dynamic-config"
 version = "24.5.0"
 dependencies = [
  "anyhow",
+ "indexmap 2.2.5",
+ "insta",
+ "pyo3",
  "relay-auth",
  "relay-base-schema",
  "relay-cardinality",
@@ -3753,6 +3817,7 @@ dependencies = [
  "md5",
  "once_cell",
  "psl",
+ "pyo3",
  "regex",
  "relay-base-schema",
  "relay-common",
@@ -3783,6 +3848,7 @@ dependencies = [
  "debugid",
  "enumset",
  "insta",
+ "pyo3",
  "relay-base-schema",
  "relay-common",
  "relay-event-derive",
@@ -3796,22 +3862,6 @@ dependencies = [
  "thiserror",
  "url",
  "uuid",
-]
-
-[[package]]
-name = "relay-ffi"
-version = "24.5.0"
-dependencies = [
- "anyhow",
- "relay-ffi-macros",
-]
-
-[[package]]
-name = "relay-ffi-macros"
-version = "24.5.0"
-dependencies = [
- "quote",
- "syn 1.0.109",
 ]
 
 [[package]]
@@ -3929,6 +3979,7 @@ dependencies = [
  "pest",
  "pest_derive",
  "pretty-hex",
+ "pyo3",
  "regex",
  "relay-common",
  "relay-event-schema",
@@ -3969,6 +4020,7 @@ version = "24.5.0"
 dependencies = [
  "insta",
  "num-traits",
+ "pyo3",
  "relay-common",
  "relay-protocol-derive",
  "schemars",
@@ -3988,6 +4040,35 @@ dependencies = [
  "quote",
  "syn 1.0.109",
  "synstructure",
+]
+
+[[package]]
+name = "relay-pyo3"
+version = "0.8.64"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "json-forensics",
+ "lru",
+ "once_cell",
+ "pyo3",
+ "regex",
+ "relay-auth",
+ "relay-base-schema",
+ "relay-cardinality",
+ "relay-common",
+ "relay-dynamic-config",
+ "relay-event-normalization",
+ "relay-event-schema",
+ "relay-pii",
+ "relay-protocol",
+ "relay-sampling",
+ "sentry-release-parser",
+ "serde",
+ "serde-pyobject",
+ "serde_json",
+ "strum",
+ "uuid",
 ]
 
 [[package]]
@@ -4664,11 +4745,21 @@ dependencies = [
 
 [[package]]
 name = "serde"
-version = "1.0.189"
+version = "1.0.193"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8e422a44e74ad4001bdc8eede9a4570ab52f71190e9c076d14369f38b9200537"
+checksum = "25dd9975e68d0cb5aa1120c288333fc98731bd1dd12f561e468ea4728c042b89"
 dependencies = [
  "serde_derive",
+]
+
+[[package]]
+name = "serde-pyobject"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "70ffe7ea77d8eba5774068d55b00a4a3a7c6f9fa9b97dd8e3bc8750cc8503fee"
+dependencies = [
+ "pyo3",
+ "serde",
 ]
 
 [[package]]
@@ -4702,9 +4793,9 @@ dependencies = [
 
 [[package]]
 name = "serde_derive"
-version = "1.0.189"
+version = "1.0.193"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1e48d1f918009ce3145511378cf68d613e3b3d9137d67272562080d68a2b32d5"
+checksum = "43576ca501357b9b071ac53cdc7da8ef0cbd9493d8df094cd821777ea6e894d3"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -5232,6 +5323,28 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "73473c0e59e6d5812c5dfe2a064a6444949f089e20eec9a2e5506596494e4623"
 
 [[package]]
+name = "strum"
+version = "0.26.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5d8cec3501a5194c432b2b7976db6b7d10ec95c253208b45f83f7136aa985e29"
+dependencies = [
+ "strum_macros",
+]
+
+[[package]]
+name = "strum_macros"
+version = "0.26.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c6cf59daf282c0a494ba14fd21610a0325f9f90ec9d1231dea26bcb1d696c946"
+dependencies = [
+ "heck",
+ "proc-macro2",
+ "quote",
+ "rustversion",
+ "syn 2.0.38",
+]
+
+[[package]]
 name = "subtle"
 version = "2.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5321,6 +5434,12 @@ dependencies = [
  "once_cell",
  "windows",
 ]
+
+[[package]]
+name = "target-lexicon"
+version = "0.12.14"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e1fc403891a21bcfb7c37834ba66a547a8f402146eba7265b5a6d88059c9ff2f"
 
 [[package]]
 name = "tempfile"
@@ -5885,6 +6004,12 @@ name = "unicode_categories"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39ec24b3121d976906ece63c9daad25b85969647682eee313cb5779fdd69e14e"
+
+[[package]]
+name = "unindent"
+version = "0.2.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c7de7d73e1754487cb58364ee906a499937a0dfabd86bcb980fa99ec8c8fa2ce"
 
 [[package]]
 name = "unsafe-libyaml"

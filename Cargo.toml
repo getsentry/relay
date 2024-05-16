@@ -33,8 +33,6 @@ relay-crash = { path = "relay-crash" }
 relay-dynamic-config = { path = "relay-dynamic-config" }
 relay-event-normalization = { path = "relay-event-normalization" }
 relay-event-schema = { path = "relay-event-schema" }
-relay-ffi = { path = "relay-ffi" }
-relay-ffi-macros = { path = "relay-ffi-macros" }
 relay-filter = { path = "relay-filter" }
 relay-kafka = { path = "relay-kafka" }
 relay-log = { path = "relay-log" }
@@ -123,6 +121,7 @@ pin-project-lite = "0.2.12"
 pretty-hex = "0.3.0"
 proc-macro2 = "1.0.8"
 psl = "2.1.33"
+pyo3 = { version = "0.21.2" }
 quote = "1.0.2"
 r2d2 = "0.8.10"
 rand = "0.8.5"
@@ -148,6 +147,8 @@ serde-transcode = "1.1.1"
 serde_bytes = "0.11"
 serde_json = "1.0.93"
 serde_path_to_error = "0.1.14"
+serde-pyobject = "0.3.0"
+serde_repr = "0.1.16"
 serde_test = "1.0.125"
 serde_urlencoded = "0.7.1"
 serde_yaml = "0.9.17"
@@ -158,6 +159,7 @@ smallvec = { version = "1.11.2", features = ["serde"] }
 sqlparser = "0.44.0"
 sqlx = { version = "0.7.4", default-features = false }
 statsdproxy = { version = "0.1.2", default-features = false }
+strum = { version = "0.26", features = ["derive"] }
 symbolic-common = { version = "12.1.2", default-features = false }
 symbolic-unreal = { version = "12.1.2", default-features = false }
 syn = "1.0.14"

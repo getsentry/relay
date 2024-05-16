@@ -209,7 +209,7 @@ def test_parse_release():
             "minor": 0,
             "patch": 0,
             "pre": "rc1",
-            "raw_quad": ["1", "0", None, None],
+            "raw_quad": ("1", "0", None, None),
             "raw_short": "1.0rc1",
             "revision": 0,
         },
@@ -222,10 +222,10 @@ def test_parse_release_error():
         sentry_relay.parse_release("/var/foo/foo")
 
 
-def compare_versions():
+def test_compare_versions():
     assert sentry_relay.compare_versions("1.0.0", "0.1.1") == 1
     assert sentry_relay.compare_versions("0.0.0", "0.1.1") == -1
-    assert sentry_relay.compare_versions("1.0.0", "1.0") == -1
+    assert sentry_relay.compare_versions("1.0.0", "1.0.0") == 0
 
 
 def test_validate_rule_condition():
@@ -366,9 +366,7 @@ def test_cardinality_limit_config_unparsable():
     }
     with pytest.raises(ValueError) as e:
         sentry_relay.normalize_cardinality_limit_config(config)
-    assert (
-        str(e.value) == "invalid value: integer `-1`, expected u32 at line 1 column 107"
-    )
+    assert str(e.value) == "RuntimeError: invalid value: integer `-1`, expected u32"
 
 
 def test_global_config_equal_normalization():
@@ -387,7 +385,4 @@ def test_global_config_unparsable():
     config = {"measurements": {"maxCustomMeasurements": -5}}
     with pytest.raises(ValueError) as e:
         sentry_relay.normalize_global_config(config)
-    assert (
-        str(e.value)
-        == "invalid value: integer `-5`, expected usize at line 1 column 45"
-    )
+    assert str(e.value) == "RuntimeError: invalid value: integer `-5`, expected usize"

@@ -2,6 +2,7 @@ use std::borrow::Cow;
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::OnceLock;
 
+use pyo3::prelude::*;
 use regex::{Regex, RegexBuilder};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
@@ -224,6 +225,7 @@ impl Vars {
 
 /// A set of named rule configurations.
 #[derive(Serialize, Deserialize, Debug, Default, Clone)]
+#[pyclass]
 pub struct PiiConfig {
     /// A map of custom PII rules.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]

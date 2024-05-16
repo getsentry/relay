@@ -35,6 +35,7 @@ serde_json = { workspace = true }
 serde_urlencoded = { workspace = true }
 smallvec = { workspace = true }
 sqlparser = { workspace = true, features = ["visitor"] }
+pyo3 = { workspace = true, features = ["serde"] }
 
 thiserror = { workspace = true }
 url = { workspace = true }

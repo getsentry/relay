@@ -1,3 +1,4 @@
+use pyo3::prelude::*;
 use std::fmt;
 use std::str::FromStr;
 
@@ -135,6 +136,7 @@ pub struct GroupingConfig {
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 #[metastructure(process_func = "process_event", value_type = "Event")]
+#[pyclass]
 pub struct Event {
     /// Unique identifier of this event.
     ///

@@ -1,11 +1,16 @@
+from sentry_relay import _relay_pyo3
+
 __all__ = []
+__doc__ = _relay_pyo3.__doc__
+
+if hasattr(_relay_pyo3, "__all__"):
+    __all__ = _relay_pyo3.__all__
 
 
 def _import_all():
-    import pkgutil
-
+    submodules = ["auth", "consts", "exceptions", "processing"]
     glob = globals()
-    for _, modname, _ in pkgutil.iter_modules(__path__):
+    for modname in submodules:
         if modname[:1] == "_":
             continue
         mod = __import__("sentry_relay.%s" % modname, glob, glob, ["__name__"])
