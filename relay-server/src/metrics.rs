@@ -13,6 +13,10 @@ use crate::utils::ExtractionMode;
 #[cfg(feature = "processing")]
 use relay_cardinality::{CardinalityLimit, CardinalityReport};
 
+mod minimal;
+
+pub use self::minimal::*;
+
 pub const PROFILE_TAG: &str = "has_profile";
 
 /// Indicates where quantities should be taken from.
