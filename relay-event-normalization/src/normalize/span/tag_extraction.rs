@@ -1982,23 +1982,14 @@ LIMIT 1
         );
 
         let event = event.into_value().unwrap();
-
         let span = &event.spans.value().unwrap()[0];
 
-        let tags = span.value().unwrap().sentry_tags.value().unwrap();
-
-        assert_eq!(tags.get("user"), Some(&Annotated::new("id:1".to_string())));
-
-        assert_eq!(tags.get("user.id"), Some(&Annotated::new("1".to_string())));
-
+        assert_eq!(get_value!(span.sentry_tags["user"]!), "id:1");
+        assert_eq!(get_value!(span.sentry_tags["user.id"]!), "1");
+        assert_eq!(get_value!(span.sentry_tags["user.username"]!), "admin");
         assert_eq!(
-            tags.get("user.username"),
-            Some(&Annotated::new("admin".to_string()))
-        );
-
-        assert_eq!(
-            tags.get("user.email"),
-            Some(&Annotated::new("admin@sentry.io".to_string()))
+            get_value!(span.sentry_tags["user.email"]!),
+            "admin@sentry.io"
         );
     }
 }
