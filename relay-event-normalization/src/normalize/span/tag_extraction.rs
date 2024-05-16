@@ -62,6 +62,7 @@ pub enum SpanTagKey {
     HttpResponseTransferSize,
     ResourceRenderBlockingStatus,
     SpanOp,
+    SpanStatus,
     StatusCode,
     System,
     /// Contributes to Time-To-Initial-Display.
@@ -115,6 +116,7 @@ impl SpanTagKey {
             SpanTagKey::HttpResponseTransferSize => "http.response_transfer_size",
             SpanTagKey::ResourceRenderBlockingStatus => "resource.render_blocking_status",
             SpanTagKey::SpanOp => "op",
+            SpanTagKey::SpanStatus => "status",
             SpanTagKey::StatusCode => "status_code",
             SpanTagKey::System => "system",
             SpanTagKey::TimeToFullDisplay => "ttfd",
@@ -323,6 +325,10 @@ pub fn extract_tags(
         .and_then(|system| system.as_str());
     if let Some(sys) = system {
         span_tags.insert(SpanTagKey::System, sys.to_lowercase());
+    }
+
+    if let Some(status) = span.status.value() {
+        span_tags.insert(SpanTagKey::SpanStatus, status.as_str().to_owned());
     }
 
     if let Some(unsanitized_span_op) = span.op.value() {
@@ -1903,6 +1909,61 @@ LIMIT 1
             Some(&"abc123".to_string())
         );
     }
+    #[test]
+    fn extract_span_status_into_sentry_tags() {
+        let json = r#"
+            {
+                "type": "transaction",
+                "platform": "javascript",
+                "start_timestamp": "2021-04-26T07:59:01+0100",
+                "timestamp": "2021-04-26T08:00:00+0100",
+                "transaction": "foo",
+                "contexts": {
+                    "trace": {
+                        "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                        "span_id": "bd429c44b67a3eb4"
+                    }
+                },
+                "spans": [
+                    {
+                        "op": "before_first_display",
+                        "span_id": "bd429c44b67a3eb1",
+                        "status": "success",
+                        "start_timestamp": 1597976300.0000000,
+                        "timestamp": 1597976302.0000000,
+                        "trace_id": "ff62a8b040f340bda5d830223def1d81"
+                    },
+                    {
+                        "op": "before_first_display",
+                        "span_id": "bd429c44b67a3eb1",
+                        "status": "invalid_argument",
+                        "start_timestamp": 1597976300.0000000,
+                        "timestamp": 1597976302.0000000,
+                        "trace_id": "ff62a8b040f340bda5d830223def1d81"
+                    }
+                ]
+            }
+        "#;
+
+        let mut event = Annotated::<Event>::from_json(json).unwrap();
+
+        normalize_event(
+            &mut event,
+            &NormalizationConfig {
+                enrich_spans: true,
+                ..Default::default()
+            },
+        );
+
+        let spans = get_value!(event.spans!);
+
+        let statuses: Vec<_> = spans
+            .iter()
+            .map(|span| get_value!(span.sentry_tags["status"]!))
+            .collect();
+
+        assert_eq!(statuses, vec!["ok", "invalid_argument"]);
+    }
 
     fn extract_tags_supabase(description: impl Into<String>) -> BTreeMap<SpanTagKey, String> {
         let json = r#"{
@@ -2003,8 +2064,8 @@ LIMIT 1
             },
         );
 
-        let event = event.into_value().unwrap();
-        let span = &event.spans.value().unwrap()[0];
+        let spans = get_value!(event.spans!);
+        let span = &spans[0];
 
         assert_eq!(get_value!(span.sentry_tags["user"]!), "id:1");
         assert_eq!(get_value!(span.sentry_tags["user.id"]!), "1");
