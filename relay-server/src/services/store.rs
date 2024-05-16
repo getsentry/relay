@@ -190,19 +190,10 @@ impl StoreService {
         let retention = envelope.retention();
         let event_id = envelope.event_id();
 
-        let feedback_ingest_same_envelope_attachments = self
-            .global_config
-            .current()
-            .options
-            .feedback_ingest_same_envelope_attachments;
-
         let event_item = envelope.as_mut().take_item_by(|item| {
             matches!(
-                (item.ty(), feedback_ingest_same_envelope_attachments),
-                (ItemType::Event, _)
-                    | (ItemType::Transaction, _)
-                    | (ItemType::Security, _)
-                    | (ItemType::UserReportV2, false)
+                item.ty(),
+                ItemType::Event | ItemType::Transaction | ItemType::Security
             )
         });
         let client = envelope.meta().client();
@@ -251,7 +242,7 @@ impl StoreService {
                         item,
                     )?;
                 }
-                ItemType::UserReportV2 if feedback_ingest_same_envelope_attachments => {
+                ItemType::UserReportV2 => {
                     let remote_addr = envelope.meta().client_addr().map(|addr| addr.to_string());
                     self.produce_user_report_v2(
                         event_id.ok_or(StoreError::NoEventId)?,

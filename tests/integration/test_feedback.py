@@ -96,13 +96,9 @@ def test_feedback_event_with_processing(
     events_consumer,
     feedback_consumer,
     use_feedback_topic,
-    use_feedback_ingest_v2,
 ):
     mini_sentry.add_basic_project_config(
         42, extra={"config": {"features": ["organizations:user-feedback-ingest"]}}
-    )
-    mini_sentry.set_global_config_option(
-        "feedback.ingest-inline-attachments", use_feedback_ingest_v2
     )
 
     if use_feedback_topic:
@@ -132,15 +128,12 @@ def test_feedback_event_with_processing(
 @pytest.mark.parametrize("use_feedback_ingest_v2", (False, True))
 @pytest.mark.parametrize("use_feedback_topic", (False, True))
 def test_feedback_events_without_processing(
-    mini_sentry, relay_chain, use_feedback_topic, use_feedback_ingest_v2
+    mini_sentry, relay_chain, use_feedback_topic
 ):
     project_id = 42
     mini_sentry.add_basic_project_config(
         project_id,
         extra={"config": {"features": ["organizations:user-feedback-ingest"]}},
-    )
-    mini_sentry.set_global_config_option(
-        "feedback.ingest-inline-attachments", use_feedback_ingest_v2
     )
     mini_sentry.set_global_config_option(
         "feedback.ingest-topic.rollout-rate", 1.0 if use_feedback_topic else 0.0
@@ -169,8 +162,6 @@ def test_feedback_with_attachment_in_same_envelope(
     mini_sentry.add_basic_project_config(
         42, extra={"config": {"features": ["organizations:user-feedback-ingest"]}}
     )
-    # Test will only pass with this option set
-    mini_sentry.set_global_config_option("feedback.ingest-inline-attachments", True)
 
     if use_feedback_topic:
         mini_sentry.set_global_config_option("feedback.ingest-topic.rollout-rate", 1.0)
