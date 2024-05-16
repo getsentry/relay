@@ -215,6 +215,8 @@ def category_value(category):
         return 9
     if category == "user_report_v2":
         return 14
+    if category == "metric_bucket":
+        return 15
     assert False, "invalid category"
 
 

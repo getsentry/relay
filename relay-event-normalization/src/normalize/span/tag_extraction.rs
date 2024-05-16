@@ -31,6 +31,9 @@ pub enum SpanTagKey {
     // Specific to a transaction
     Release,
     User,
+    UserID,
+    UserUsername,
+    UserEmail,
     Environment,
     Transaction,
     TransactionMethod,
@@ -87,6 +90,9 @@ impl SpanTagKey {
         match self {
             SpanTagKey::Release => "release",
             SpanTagKey::User => "user",
+            SpanTagKey::UserID => "user.id",
+            SpanTagKey::UserUsername => "user.username",
+            SpanTagKey::UserEmail => "user.email",
             SpanTagKey::Environment => "environment",
             SpanTagKey::Transaction => "transaction",
             SpanTagKey::TransactionMethod => "transaction.method",
@@ -215,8 +221,19 @@ fn extract_shared_tags(event: &Event) -> BTreeMap<SpanTagKey, String> {
         tags.insert(SpanTagKey::Release, release.to_owned());
     }
 
-    if let Some(user) = event.user.value().and_then(|u| u.sentry_user.value()) {
-        tags.insert(SpanTagKey::User, user.clone());
+    if let Some(user) = event.user.value() {
+        if let Some(sentry_user) = user.sentry_user.value() {
+            tags.insert(SpanTagKey::User, sentry_user.clone());
+        }
+        if let Some(user_id) = user.id.value() {
+            tags.insert(SpanTagKey::UserID, user_id.as_str().to_owned());
+        }
+        if let Some(user_username) = user.username.value() {
+            tags.insert(SpanTagKey::UserUsername, user_username.as_str().to_owned());
+        }
+        if let Some(user_email) = user.email.value() {
+            tags.insert(SpanTagKey::UserEmail, user_email.clone());
+        }
     }
 
     if let Some(environment) = event.environment.as_str() {
@@ -1486,6 +1503,24 @@ LIMIT 1
 
                         },
                         "hash": "e2fae740cccd3781"
+                    },
+                    {
+                        "timestamp": 1694732409.3145,
+                        "start_timestamp": 1694732408.8367,
+                        "exclusive_time": 477.800131,
+                        "description": "get my_key_2",
+                        "op": "cache.get",
+                        "span_id": "97c0ef9770a02f9d",
+                        "parent_span_id": "9756d8d7b2b364ff",
+                        "trace_id": "77aeb1c16bb544a4a39b8d42944947a3",
+                        "data": {
+                            "cache.hit": false,
+                            "cache.item_size": 8,
+                            "thread.id": "6286962688",
+                            "thread.name": "Thread-4 (process_request_thread)"
+
+                        },
+                        "hash": "e2fae740cccd3781"
                     }
                 ]
             }
@@ -1500,13 +1535,17 @@ LIMIT 1
 
         let span_1 = &event.spans.value().unwrap()[0];
         let span_2 = &event.spans.value().unwrap()[1];
+        let span_3 = &event.spans.value().unwrap()[2];
 
         let tags_1 = get_value!(span_1.sentry_tags).unwrap();
         let tags_2 = get_value!(span_2.sentry_tags).unwrap();
+        let tags_3 = get_value!(span_3.sentry_tags).unwrap();
+
         let measurements_1 = span_1.value().unwrap().measurements.value().unwrap();
 
         assert_eq!(tags_1.get("cache.hit").unwrap().as_str(), Some("true"));
         assert_eq!(tags_2.get("cache.hit").unwrap().as_str(), Some("false"));
+        assert_eq!(tags_3.get("cache.hit").unwrap().as_str(), Some("false"));
         assert_debug_snapshot!(measurements_1, @r###"
         Measurements(
             {
@@ -1993,5 +2032,59 @@ LIMIT 1
 
         assert_eq!(tags.get(&SpanTagKey::Description), None);
         assert_eq!(tags.get(&SpanTagKey::Domain), None);
+    }
+
+    #[test]
+    fn extract_user_into_sentry_tags() {
+        let json = r#"
+            {
+                "type": "transaction",
+                "platform": "javascript",
+                "start_timestamp": "2021-04-26T07:59:01+0100",
+                "timestamp": "2021-04-26T08:00:00+0100",
+                "transaction": "foo",
+                "contexts": {
+                    "trace": {
+                        "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                        "span_id": "bd429c44b67a3eb4"
+                    }
+                },
+                "user": {
+                    "id": "1",
+                    "email": "admin@sentry.io",
+                    "username": "admin"
+                },
+                "spans": [
+                    {
+                        "op": "before_first_display",
+                        "span_id": "bd429c44b67a3eb1",
+                        "start_timestamp": 1597976300.0000000,
+                        "timestamp": 1597976302.0000000,
+                        "trace_id": "ff62a8b040f340bda5d830223def1d81"
+                    }
+                ]
+            }
+        "#;
+
+        let mut event = Annotated::<Event>::from_json(json).unwrap();
+
+        normalize_event(
+            &mut event,
+            &NormalizationConfig {
+                enrich_spans: true,
+                ..Default::default()
+            },
+        );
+
+        let event = event.into_value().unwrap();
+        let span = &event.spans.value().unwrap()[0];
+
+        assert_eq!(get_value!(span.sentry_tags["user"]!), "id:1");
+        assert_eq!(get_value!(span.sentry_tags["user.id"]!), "1");
+        assert_eq!(get_value!(span.sentry_tags["user.username"]!), "admin");
+        assert_eq!(
+            get_value!(span.sentry_tags["user.email"]!),
+            "admin@sentry.io"
+        );
     }
 }

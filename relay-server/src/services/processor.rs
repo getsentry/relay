@@ -8,7 +8,6 @@ use std::pin::Pin;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use crate::metric_stats::MetricStats;
 use anyhow::Context;
 use brotli::CompressorWriter as BrotliEncoder;
 use bytes::Bytes;
@@ -48,10 +47,11 @@ use tokio::sync::Semaphore;
 #[cfg(feature = "processing")]
 use {
     crate::services::store::{Store, StoreEnvelope},
-    crate::utils::{EnvelopeLimiter, ItemAction, MetricsLimiter},
+    crate::utils::{sample, EnvelopeLimiter, ItemAction, MetricsLimiter},
     itertools::Itertools,
     relay_cardinality::{
-        CardinalityLimit, CardinalityLimiter, RedisSetLimiter, RedisSetLimiterOptions,
+        CardinalityLimit, CardinalityLimiter, CardinalityLimitsSplit, RedisSetLimiter,
+        RedisSetLimiterOptions,
     },
     relay_dynamic_config::{CardinalityLimiterMode, GlobalConfig, MetricExtractionGroups},
     relay_metrics::{Aggregator, MergeBuckets, RedisMetricMetaStore},
@@ -66,7 +66,7 @@ use crate::envelope::{
     self, ContentType, Envelope, EnvelopeError, Item, ItemType, SourceQuantities,
 };
 use crate::extractors::{PartialDsn, RequestMeta};
-use crate::http;
+use crate::metrics::MetricOutcomes;
 use crate::metrics_extraction::transactions::types::ExtractMetricsError;
 use crate::metrics_extraction::transactions::{ExtractedMetrics, TransactionExtractor};
 use crate::service::ServiceError;
@@ -88,6 +88,7 @@ use crate::utils::{
     self, ExtractionMode, InvalidProcessingGroupType, ManagedEnvelope, SamplingResult,
     TypedEnvelope,
 };
+use crate::{http, metrics};
 
 mod attachment;
 mod dynamic_sampling;
@@ -1008,7 +1009,7 @@ struct InnerProcessor {
     metric_meta_store: Option<RedisMetricMetaStore>,
     #[cfg(feature = "processing")]
     cardinality_limiter: Option<CardinalityLimiter>,
-    metric_stats: MetricStats,
+    metric_outcomes: MetricOutcomes,
     #[cfg(feature = "processing")]
     buffer_guard: Arc<BufferGuard>,
 }
@@ -1021,7 +1022,7 @@ impl EnvelopeProcessorService {
         cogs: Cogs,
         #[cfg(feature = "processing")] redis: Option<RedisPool>,
         addrs: Addrs,
-        metric_stats: MetricStats,
+        metric_outcomes: MetricOutcomes,
         #[cfg(feature = "processing")] buffer_guard: Arc<BufferGuard>,
     ) -> Self {
         let geoip_lookup = config.geoip_path().and_then(|p| {
@@ -1062,7 +1063,7 @@ impl EnvelopeProcessorService {
                     )
                 })
                 .map(CardinalityLimiter::new),
-            metric_stats,
+            metric_outcomes,
             config,
             #[cfg(feature = "processing")]
             buffer_guard,
@@ -2195,8 +2196,11 @@ impl EnvelopeProcessorService {
             }
 
             if rate_limits.is_limited() {
-                let was_enforced = bucket_limiter
-                    .enforce_limits(&rate_limits, self.inner.addrs.outcome_aggregator.clone());
+                let was_enforced = bucket_limiter.enforce_limits(
+                    &rate_limits,
+                    &self.inner.metric_outcomes,
+                    &self.inner.addrs.outcome_aggregator,
+                );
 
                 if was_enforced {
                     // Update the rate limits in the project cache.
@@ -2256,26 +2260,24 @@ impl EnvelopeProcessorService {
         rate_limiter: &RedisRateLimiter,
     ) -> Vec<Bucket> {
         let batch_size = self.inner.config.metrics_max_batch_size_bytes();
-        let batched_bucket_iter = BucketsView::from(&buckets).by_size(batch_size).flatten();
-        let quantities = utils::extract_metric_quantities(batched_bucket_iter, mode);
+        let quantity = BucketsView::from(&buckets)
+            .by_size(batch_size)
+            .flatten()
+            .count();
 
         // Check with redis if the throughput limit has been exceeded, while also updating
         // the count so that other relays will be updated too.
-        match rate_limiter.is_rate_limited(quotas, item_scoping, quantities.buckets, false) {
+        match rate_limiter.is_rate_limited(quotas, item_scoping, quantity, false) {
             Ok(limits) if limits.is_limited() => {
-                relay_log::debug!(
-                    "dropping {} buckets due to throughput rate limit",
-                    quantities.buckets
-                );
+                relay_log::debug!("dropping {quantity} buckets due to throughput rate limit");
 
                 let reason_code = limits.longest().and_then(|limit| limit.reason_code.clone());
-                utils::reject_metrics(
-                    &self.inner.addrs.outcome_aggregator,
-                    &self.inner.metric_stats,
-                    quantities,
+
+                self.inner.metric_outcomes.track(
                     *item_scoping.scoping,
-                    Outcome::RateLimited(reason_code),
                     &buckets,
+                    mode,
+                    Outcome::RateLimited(reason_code),
                 );
 
                 self.inner.addrs.project_cache.send(UpdateRateLimits::new(
@@ -2306,8 +2308,6 @@ impl EnvelopeProcessorService {
         buckets: Vec<Bucket>,
         mode: ExtractionMode,
     ) -> Vec<Bucket> {
-        use crate::utils::sample;
-
         let global_config = self.inner.global_config.current();
         let cardinality_limiter_mode = global_config.options.cardinality_limiter_mode;
 
@@ -2350,8 +2350,8 @@ impl EnvelopeProcessorService {
         for (limit, reports) in limits.cardinality_reports() {
             for report in reports {
                 self.inner
-                    .metric_stats
-                    .track_cardinality(scoping, limit, report);
+                    .metric_outcomes
+                    .cardinality(scoping, limit, report);
             }
         }
 
@@ -2359,19 +2359,15 @@ impl EnvelopeProcessorService {
             return limits.into_source();
         }
 
-        let split = limits.into_split();
+        let CardinalityLimitsSplit { accepted, rejected } = limits.into_split();
 
-        // Log outcomes for rejected buckets.
-        utils::reject_metrics(
-            &self.inner.addrs.outcome_aggregator,
-            &self.inner.metric_stats,
-            utils::extract_metric_quantities(&split.rejected, mode),
-            scoping,
-            Outcome::CardinalityLimited,
-            &split.rejected,
-        );
+        if !rejected.is_empty() {
+            self.inner
+                .metric_outcomes
+                .track(scoping, &rejected, mode, Outcome::CardinalityLimited);
+        }
 
-        split.accepted
+        accepted
     }
 
     /// Processes metric buckets and sends them to kafka.
@@ -2463,12 +2459,12 @@ impl EnvelopeProcessorService {
                 }
 
                 let mut num_batches = 0;
-                for batch in BucketsView::new(&buckets).by_size(batch_size) {
+                for batch in BucketsView::from(&buckets).by_size(batch_size) {
                     let mut envelope =
                         Envelope::from_request(None, RequestMeta::outbound(dsn.clone()));
 
                     let mut item = Item::new(ItemType::MetricBuckets);
-                    item.set_source_quantities(utils::extract_metric_quantities(&batch, mode));
+                    item.set_source_quantities(metrics::extract_quantities(batch, mode));
                     item.set_payload(ContentType::Json, serde_json::to_vec(&buckets).unwrap());
                     envelope.add_item(item);
 
@@ -2520,8 +2516,7 @@ impl EnvelopeProcessorService {
             encoded,
             http_encoding,
             quantities,
-            outcome_aggregator: self.inner.addrs.outcome_aggregator.clone(),
-            metric_stats: self.inner.metric_stats.clone(),
+            metric_outcomes: self.inner.metric_outcomes.clone(),
         };
 
         self.inner.addrs.upstream_relay.send(SendRequest(request));
@@ -2903,7 +2898,7 @@ impl<'a> Partition<'a> {
 
         if let Some(current) = current {
             self.remaining = self.remaining.saturating_sub(current.estimated_size());
-            let quantities = utils::extract_metric_quantities([current.clone()], self.mode);
+            let quantities = metrics::extract_quantities([&current], self.mode);
             self.quantities.push((scoping, quantities));
             self.views
                 .entry(scoping.project_key)
@@ -2951,14 +2946,12 @@ struct SendMetricsRequest {
     unencoded: Bytes,
     /// Serialized metric buckets with the stated HTTP encoding applied.
     encoded: Bytes,
-    /// Encoding (compression) of the payload.
-    http_encoding: HttpEncoding,
     /// Information about the metric quantities in the payload for outcomes.
     quantities: Vec<(Scoping, SourceQuantities)>,
-    /// Address of the outcome aggregator to send outcomes to on error.
-    outcome_aggregator: Addr<TrackOutcome>,
-    /// Metric stats reporter.
-    metric_stats: MetricStats,
+    /// Encoding (compression) of the payload.
+    http_encoding: HttpEncoding,
+    /// Metric outcomes instance to send outcomes on error.
+    metric_outcomes: MetricOutcomes,
 }
 
 impl UpstreamRequest for SendMetricsRequest {
@@ -3004,21 +2997,22 @@ impl UpstreamRequest for SendMetricsRequest {
                     response.consume().await.ok();
                 }
                 Err(error) => {
+                    relay_log::error!(error = &error as &dyn Error, "Failed to send metrics batch");
+
                     // If the request did not arrive at the upstream, we are responsible for outcomes.
                     // Otherwise, the upstream is responsible to log outcomes.
-                    if !error.is_received() {
-                        for (scoping, quantities) in self.quantities {
-                            utils::reject_metrics::<&Bucket>(
-                                &self.outcome_aggregator,
-                                &self.metric_stats,
-                                quantities,
-                                scoping,
-                                Outcome::Invalid(DiscardReason::Internal),
-                                None,
-                            );
-                        }
+                    if error.is_received() {
+                        return;
                     }
-                    relay_log::error!(error = &error as &dyn Error, "Failed to send metrics batch");
+
+                    for (scoping, quantities) in self.quantities {
+                        self.metric_outcomes.track(
+                            scoping,
+                            &[] as &[Bucket], // TODO(dav1d): provide buckets here
+                            quantities,
+                            Outcome::Invalid(DiscardReason::Internal),
+                        );
+                    }
                 }
             }
         })
