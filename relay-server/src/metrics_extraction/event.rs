@@ -98,6 +98,7 @@ mod tests {
     use relay_event_normalization::{normalize_event, NormalizationConfig};
     use relay_event_schema::protocol::Timestamp;
     use relay_protocol::Annotated;
+    use serde_json::from_value;
 
     use super::*;
 

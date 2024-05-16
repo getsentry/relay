@@ -2,7 +2,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use relay_base_schema::events::EventType;
 use relay_common::time::UnixTimestamp;
-use relay_dynamic_config::{TagMapping, TransactionMetricsConfig};
+use relay_dynamic_config::{CombinedMetricExtractionConfig, TagMapping, TransactionMetricsConfig};
 use relay_event_normalization::utils as normalize_utils;
 use relay_event_schema::protocol::{
     AsPair, BrowserContext, Event, OsContext, PerformanceScoreContext, TraceContext,
@@ -247,7 +247,7 @@ impl ExtractedMetrics {
 /// A utility that extracts metrics from transactions.
 pub struct TransactionExtractor<'a> {
     pub config: &'a TransactionMetricsConfig,
-    pub generic_tags: &'a [TagMapping],
+    pub generic_config: Option<&'a CombinedMetricExtractionConfig<'a>>,
     pub transaction_from_dsc: Option<&'a str>,
     pub sampling_result: &'a SamplingResult,
     pub has_profile: bool,
@@ -469,8 +469,10 @@ impl TransactionExtractor<'_> {
 
         // Apply shared tags from generic metric extraction. Transaction metrics will adopt generic
         // metric extraction, after which this is done automatically.
-        generic::tmp_apply_tags(&mut metrics.project_metrics, event, self.generic_tags);
-        generic::tmp_apply_tags(&mut metrics.sampling_metrics, event, self.generic_tags);
+        if let Some(generic_config) = self.generic_config {
+            generic::tmp_apply_tags(&mut metrics.project_metrics, event, generic_config.tags());
+            generic::tmp_apply_tags(&mut metrics.sampling_metrics, event, generic_config.tags());
+        }
 
         Ok(metrics)
     }
@@ -500,7 +502,10 @@ fn get_measurement_rating(name: &str, value: f64) -> Option<String> {
 
 #[cfg(test)]
 mod tests {
-    use relay_dynamic_config::AcceptTransactionNames;
+    use relay_dynamic_config::{
+        AcceptTransactionNames, CombinedMetricExtractionConfig, MetricExtractionConfig,
+        MetricExtractionGroups,
+    };
     use relay_event_normalization::{
         normalize_event, set_default_transaction_source, validate_event_timestamps,
         validate_transaction, BreakdownsConfig, CombinedMeasurementsConfig, EventValidationConfig,
@@ -2264,5 +2269,34 @@ mod tests {
             },
         ]
         "###);
+    }
+
+    #[test]
+    fn sets_histogram_outlier_tags() {
+        let config_yml = include_str!("../fixtures/histogram-outliers.yml");
+        let global_config: MetricExtractionGroups = serde_yaml::from_str(config_yml).unwrap();
+        let project_config = MetricExtractionConfig::default();
+        let combined_config = CombinedMetricExtractionConfig::new(&global_config, &project_config);
+
+        let event_json = r#"{
+            "type": "transaction",
+            "transaction": "foo",
+            "timestamp": "2021-04-26T08:00:05+0100",
+            "start_timestamp": "2021-04-26T08:00:00+0100",
+            "platform": "javascript",
+            "contexts": {
+                "trace": {
+                    "op": "pageload"
+                }
+            },
+            "measurements": {
+                "fcp": {"value": 999999999.0},
+                "lcp": {"value": -9999999999.0}
+            }
+        }"#;
+        let event = Annotated::<Event>::from_json(event_json).unwrap();
+
+        let metrics = extract_metrics(event.value().unwrap(), true, &combined_config, 200, None);
+        insta::assert_debug_snapshot!(metrics, @"");
     }
 }

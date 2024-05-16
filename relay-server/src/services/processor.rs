@@ -1278,9 +1278,11 @@ impl EnvelopeProcessorService {
                         .dsc()
                         .and_then(|dsc| dsc.transaction.as_deref());
 
+                    let generic_config =
+                        config.map(|c| CombinedMetricExtractionConfig::new(global_config, c));
                     let extractor = TransactionExtractor {
                         config: tx_config,
-                        generic_tags: config.map(|c| c.tags.as_slice()).unwrap_or_default(),
+                        generic_config: generic_config.as_ref(),
                         transaction_from_dsc,
                         sampling_result,
                         has_profile: state.profile_id.is_some(),
