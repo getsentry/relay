@@ -30,6 +30,8 @@
 - Add support for `event.` in the `Span` `Getter` implementation. ([#3577](https://github.com/getsentry/relay/pull/3577))
 - Ensure `chunk_id` and `profiler_id` are UUIDs and sort samples. ([#3588](https://github.com/getsentry/relay/pull/3588))
 - Add a calculated measurement based on the AI model and the tokens used. ([#3554](https://github.com/getsentry/relay/pull/3554))
+- Add a calculated measurement based on the AI model and the tokens used. ([#3554](https://github.com/getsentry/relay/pull/3554))
+- Extract status for spans. ([#3606](https://github.com/getsentry/relay/pull/3606))
 
 
 ## 24.4.2
