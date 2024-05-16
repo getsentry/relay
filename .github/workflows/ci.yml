@@ -184,6 +184,7 @@ jobs:
     env:
       FULL_CI: "${{
         github.ref == 'refs/heads/master'
+        || startsWith(github.ref, 'refs/heads/release/')
         || contains(github.event.pull_request.labels.*.name, 'Trigger: Full-CI')
       }}"
 

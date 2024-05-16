@@ -7,6 +7,7 @@ use axum_extra::protobuf::Protobuf;
 use bytes::Bytes;
 
 use relay_config::Config;
+use relay_dynamic_config::Feature;
 use relay_spans::otel_trace::TracesData;
 
 use crate::endpoints::common;
@@ -36,6 +37,7 @@ where
     };
 
     let mut envelope = Envelope::from_request(None, meta);
+    envelope.require_feature(Feature::OtelEndpoint);
     for resource_span in trace.resource_spans {
         for scope_span in resource_span.scope_spans {
             for span in scope_span.spans {
