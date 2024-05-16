@@ -47,7 +47,7 @@ jobs:
       matrix:
         include:
           - target: x86_64-apple-darwin
-            py-platform: macosx-14_0_x86_64
+            py-platform: macosx-13_0_x86_64
           - target: aarch64-apple-darwin
             py-platform: macosx-14_0_arm64
 

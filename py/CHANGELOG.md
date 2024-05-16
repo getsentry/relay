@@ -1,9 +1,10 @@
 # Changelog
 
-## Unreleased
+## 0.8.65
 
 - Remove publishing of x86 wheels. [#3596](https://github.com/getsentry/relay/pull/3596)
 - Require minimum macos 14.x for wheels [#3611](https://github.com/getsentry/relay/pull/3611)
+- Significantly reduce size of published wheels [#3610](https://github.com/getsentry/relay/pull/3610)
 
 ## 0.8.64
 
