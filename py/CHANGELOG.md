@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.8.66
+
+### Various fixes & improvements
+
+- release: 0.8.65 (308c2438) by @getsentry-bot
+- ref: size-optimize the relay python library (#3610) by @asottile-sentry
+- ref: use macos arm builders to speed up library build (#3611) by @asottile-sentry
+- ref: Remove x86 wheels (#3596) by @asottile-sentry
+- release: 0.8.64 (5d573299) by @getsentry-bot
+- release: 0.8.63 (97262bb1) by @getsentry-bot
+- release: 0.8.61 (79138b46) by @getsentry-bot
+- ref(metrics): Change MetricHour data category to MetricSecond (#3558) by @mbauer404
+- release: 0.8.60 (ff993878) by @getsentry-bot
+- feat(cabi): normalize_project_config (#3495) by @jjbayer
+- release: 0.8.59 (70641b58) by @getsentry-bot
+
 ## 0.8.65
 
 - Remove publishing of x86 wheels. [#3596](https://github.com/getsentry/relay/pull/3596)
