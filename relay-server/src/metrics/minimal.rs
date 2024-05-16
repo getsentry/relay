@@ -7,11 +7,17 @@ use serde::{de, Deserialize, Deserializer};
 use crate::metrics::{BucketSummary, TrackableBucket};
 use crate::utils::ExtractionMode;
 
+/// Bucket which parses only the minimally required information to implement [`TrackableBucket`].
+///
+/// Note: this can not be used to parse untrusted buckets, there is no normalization of data
+/// happening, e.g. a missing namespace will not turn the bucket into a custom metric bucket.
 #[derive(Deserialize)]
 pub struct MinimalTrackableBucket {
     name: MetricName,
-    tags: Tags,
+    #[serde(flatten)]
     value: MinimalValue,
+    #[serde(default)]
+    tags: Tags,
     #[serde(default)]
     metadata: BucketMetadata,
 }
@@ -118,5 +124,150 @@ impl<'de> Deserialize<'de> for SeqCount {
         }
 
         deserializer.deserialize_seq(Visitor)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use insta::assert_debug_snapshot;
+    use relay_metrics::Bucket;
+
+    use super::*;
+
+    #[test]
+    fn test_seq_count() {
+        let SeqCount(s) = serde_json::from_str("[1, 2, 3, 4, 5]").unwrap();
+        assert_eq!(s, 5);
+
+        let SeqCount(s) = serde_json::from_str("[1, 2, \"mixed\", 4, 5]").unwrap();
+        assert_eq!(s, 5);
+
+        let SeqCount(s) = serde_json::from_str("[]").unwrap();
+        assert_eq!(s, 0);
+    }
+
+    #[test]
+    fn test_buckets() {
+        let json = r#"[
+  {
+    "timestamp": 1615889440,
+    "width": 10,
+    "name": "d:transactions/duration@none",
+    "type": "d",
+    "value": [
+      36.0,
+      49.0,
+      57.0,
+      68.0
+    ],
+    "tags": {
+      "has_profile": "true"
+    }
+  },
+  {
+    "timestamp": 1615889440,
+    "width": 10,
+    "name": "c:transactions/usage@none",
+    "type": "c",
+    "value": 3.0,
+    "tags": {
+      "route": "user_index"
+    }
+  },
+  {
+    "timestamp": 1615889440,
+    "width": 10,
+    "name": "c:spans/usage@none",
+    "type": "c",
+    "value": 3.0,
+    "tags": {
+    }
+  },
+  {
+    "timestamp": 1615889440,
+    "width": 10,
+    "name": "g:custom/unrelated@none",
+    "type": "g",
+    "value": {
+      "last": 25.0,
+      "min": 17.0,
+      "max": 42.0,
+      "sum": 2210.0,
+      "count": 85
+    }
+  },
+  {
+    "timestamp": 1615889440,
+    "width": 10,
+    "name": "s:custom/endpoint.users@none",
+    "type": "s",
+    "value": [
+      3182887624,
+      4267882815
+    ],
+    "tags": {
+      "route": "user_index"
+    }
+  }
+]"#;
+        let buckets: Vec<Bucket> = serde_json::from_str(json).unwrap();
+        let min_buckets: Vec<MinimalTrackableBucket> = serde_json::from_str(json).unwrap();
+
+        for (b, mb) in buckets.iter().zip(min_buckets.iter()) {
+            assert_eq!(b.name(), mb.name());
+            assert_eq!(
+                b.summary(ExtractionMode::Usage),
+                mb.summary(ExtractionMode::Usage)
+            );
+            assert_eq!(
+                b.summary(ExtractionMode::Duration),
+                mb.summary(ExtractionMode::Duration)
+            );
+            assert_eq!(b.metadata, mb.metadata);
+        }
+
+        let duration = min_buckets
+            .iter()
+            .map(|b| b.summary(ExtractionMode::Duration))
+            .collect::<Vec<_>>();
+        let usage = min_buckets
+            .iter()
+            .map(|b| b.summary(ExtractionMode::Usage))
+            .collect::<Vec<_>>();
+
+        assert_debug_snapshot!(duration, @r###"
+        [
+            Transactions {
+                count: 4,
+                has_profile: true,
+            },
+            Transactions {
+                count: 0,
+                has_profile: false,
+            },
+            Spans(
+                3,
+            ),
+            None,
+            None,
+        ]
+        "###);
+        assert_debug_snapshot!(usage, @r###"
+        [
+            Transactions {
+                count: 0,
+                has_profile: true,
+            },
+            Transactions {
+                count: 3,
+                has_profile: false,
+            },
+            Spans(
+                3,
+            ),
+            None,
+            None,
+        ]
+        "###);
     }
 }

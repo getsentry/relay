@@ -2886,7 +2886,7 @@ impl<'a> Partition<'a> {
     /// returned from this function call.
     ///
     /// If this function returns `Some(_)`, the partition is full and should be submitted to the
-    /// upstream immediately. Use [`take_parts`](Self::take_parts) to retrieve the contents of the
+    /// upstream immediately. Use [`Self::take`] to retrieve the contents of the
     /// partition. Afterwards, the caller is responsible to call this function again with the
     /// remaining bucket until it is fully inserted.
     pub fn insert(

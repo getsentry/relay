@@ -131,7 +131,7 @@ impl MetricOutcomes {
 /// The return value of [`TrackableBucket::summary`].
 ///
 /// Contains the count of total transactions or spans that went into this bucket.
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum BucketSummary {
     Transactions {
         count: usize,
