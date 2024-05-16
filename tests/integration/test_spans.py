@@ -1511,7 +1511,7 @@ def test_rate_limit_metrics_consistent(
         counter = Counter()
         for outcome in outcomes_consumer.get_outcomes():
             counter[(outcome["category"], outcome["outcome"])] += outcome["quantity"]
-        return counter
+        return dict(counter)
 
     # First batch passes (we over-accept once)
     relay.send_envelope(project_id, envelope)
@@ -1530,7 +1530,9 @@ def test_rate_limit_metrics_consistent(
     assert len(spans) == 0
     metrics = metrics_consumer.get_metrics()
     assert len(metrics) == 0
-    assert summarize_outcomes() == {
+    outcomes = summarize_outcomes()
+    assert outcomes.pop((15, 2)) > 0  # Metric Bucket, RateLimited
+    assert outcomes == {
         (16, 2): 4,  # SpanIndexed, RateLimited
         (12, 2): 4,  # Span, RateLimited
     }
