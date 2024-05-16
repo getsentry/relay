@@ -349,11 +349,7 @@ impl StoreService {
         }
 
         if feedback_ingest_same_envelope_attachments && has_feedback && !attachments.is_empty() {
-            metric!(
-                counter(RelayCounters::FeedbackAttachments) += attachments.len() as i64,
-                organization_id = &scoping.organization_id.to_string(),
-                project_id = &scoping.project_id.to_string(),
-            );
+            metric!(counter(RelayCounters::FeedbackAttachments) += attachments.len() as i64);
         }
 
         if let Some(recording) = replay_recording {
