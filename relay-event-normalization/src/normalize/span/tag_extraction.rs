@@ -1955,26 +1955,14 @@ LIMIT 1
             },
         );
 
-        let event = event.into_value().unwrap();
+        let spans = get_value!(event.spans!);
 
-        let statuses: Vec<_> = event
-            .spans
-            .value()
-            .unwrap()
+        let statuses: Vec<_> = spans
             .iter()
-            .map(|span| {
-                let tags = span.value().unwrap().sentry_tags.value().unwrap();
-                tags.get("status")
-            })
+            .map(|span| get_value!(span.sentry_tags["status"]!))
             .collect();
 
-        assert_eq!(
-            statuses,
-            vec![
-                Some(&Annotated::new("ok".to_string())),
-                Some(&Annotated::new("invalid_argument".to_string())),
-            ]
-        );
+        assert_eq!(statuses, vec!["ok", "invalid_argument"]);
     }
 
     fn extract_tags_supabase(description: impl Into<String>) -> BTreeMap<SpanTagKey, String> {
@@ -2076,8 +2064,8 @@ LIMIT 1
             },
         );
 
-        let event = event.into_value().unwrap();
-        let span = &event.spans.value().unwrap()[0];
+        let spans = get_value!(event.spans!);
+        let span = &spans[0];
 
         assert_eq!(get_value!(span.sentry_tags["user"]!), "id:1");
         assert_eq!(get_value!(span.sentry_tags["user.id"]!), "1");
