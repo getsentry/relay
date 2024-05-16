@@ -1976,12 +1976,12 @@ LIMIT 1
         normalize_event(
             &mut event,
             &NormalizationConfig {
+                enrich_spans: true,
                 ..Default::default()
             },
         );
 
-        let mut event = event.into_value().unwrap();
-        extract_span_tags_from_event(&mut event, 200);
+        let event = event.into_value().unwrap();
 
         let span = &event.spans.value().unwrap()[0];
 
