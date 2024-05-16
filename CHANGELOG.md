@@ -17,7 +17,6 @@
 
 **Internal**:
 
-- Add a counter metric for attachments processed in the same envelope as user feedback. ([#3603](https://github.com/getsentry/relay/pull/3603))
 - Add metrics extraction config to global config. ([#3490](https://github.com/getsentry/relay/pull/3490), [#3504](https://github.com/getsentry/relay/pull/3504))
 - Adjust worker thread distribution of internal services. ([#3516](https://github.com/getsentry/relay/pull/3516))
 - Extract `cache.item_size` from measurements instead of data. ([#3510](https://github.com/getsentry/relay/pull/3510))
