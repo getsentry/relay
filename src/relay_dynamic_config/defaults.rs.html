@@ -834,6 +834,10 @@
 <a href="#832" id="832">832</a>
 <a href="#833" id="833">833</a>
 <a href="#834" id="834">834</a>
+<a href="#835" id="835">835</a>
+<a href="#836" id="836">836</a>
+<a href="#837" id="837">837</a>
+<a href="#838" id="838">838</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_base_schema::data_category::DataCategory;
 <span class="kw">use </span>relay_event_normalization::utils::MAX_DURATION_MOBILE_MS;
 <span class="kw">use </span>relay_protocol::RuleCondition;
@@ -869,6 +873,10 @@
     <span class="string">"cache.save"</span>,
     <span class="string">"cache.clear"</span>,
     <span class="string">"cache.delete_item"</span>,
+    <span class="string">"cache.get"</span>,
+    <span class="string">"cache.put"</span>,
+    <span class="string">"cache.remove"</span>,
+    <span class="string">"cache.flush"</span>,
 ];
 
 <span class="kw">const </span>QUEUE_SPAN_OPS: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span>str] = <span class="kw-2">&amp;</span>[
