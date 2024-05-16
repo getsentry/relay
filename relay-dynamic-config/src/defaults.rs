@@ -33,6 +33,10 @@ const CACHE_SPAN_OPS: &[&str] = &[
     "cache.save",
     "cache.clear",
     "cache.delete_item",
+    "cache.get",
+    "cache.put",
+    "cache.remove",
+    "cache.flush",
 ];
 
 const QUEUE_SPAN_OPS: &[&str] = &[

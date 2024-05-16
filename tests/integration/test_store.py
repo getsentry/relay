@@ -486,8 +486,9 @@ def test_processing_quotas(
             assert event["logentry"]["formatted"] == f"otherkey{i}"
 
 
+@pytest.mark.parametrize("namespace", ["transactions", "custom"])
 def test_sends_metric_bucket_outcome(
-    mini_sentry, relay_with_processing, outcomes_consumer
+    mini_sentry, relay_with_processing, outcomes_consumer, namespace
 ):
     """
     Checks that with a zero-quota without categories specified we send metric bucket outcomes.
@@ -513,6 +514,7 @@ def test_sends_metric_bucket_outcome(
     projectconfig["config"]["quotas"] = [
         {
             "scope": "organization",
+            "namespace": namespace,
             "limit": 0,
         }
     ]
@@ -795,8 +797,8 @@ def test_rate_limit_metrics_buckets(
     outcomes_consumer.assert_rate_limited(
         reason_code,
         key_id=key_id,
-        categories=["transaction"],
-        quantity=3,
+        categories=["transaction", "metric_bucket"],
+        quantity=5,
     )
 
 

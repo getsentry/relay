@@ -16,19 +16,25 @@ fn matches<F: Filterable>(item: &F) -> bool {
     }
 
     if let Some(url) = item.url() {
+        if url.scheme() == "file" {
+            return true;
+        }
+
         if let Some(host) = url.host_str() {
             for &local_domain in LOCAL_DOMAINS {
-                if host == local_domain {
+                if host_matches_or_is_subdomain_of(host, local_domain) {
                     return true;
                 }
             }
         }
-        if url.scheme() == "file" {
-            return true;
-        }
     }
 
     false
+}
+
+fn host_matches_or_is_subdomain_of(host: &str, domain: &str) -> bool {
+    host.strip_suffix(domain)
+        .map_or(false, |s| s.is_empty() || s.ends_with('.'))
 }
 
 /// Filters events originating from the local host.
@@ -133,7 +139,12 @@ mod tests {
 
     #[test]
     fn test_filter_local_domains() {
-        for domain in &["127.0.0.1", "localhost"] {
+        for domain in &[
+            "127.0.0.1",
+            "localhost",
+            "foo.localhost",
+            "foo.bar.baz.localhost",
+        ] {
             let event = get_event_with_domain(domain);
             let filter_result = should_filter(&event, &FilterConfig { is_enabled: true });
             assert_ne!(filter_result, Ok(()), "Failed to filter domain '{domain}'");
@@ -142,7 +153,14 @@ mod tests {
 
     #[test]
     fn test_dont_filter_non_local_domains() {
-        for domain in &["my.dom.com", "123.123.123.44"] {
+        for domain in &[
+            "my.dom.com",
+            "123.123.123.44",
+            "localhost.com",
+            "foolocalhost",
+            "localhostbar",
+            "alocalhostgoesintoabar",
+        ] {
             let event = get_event_with_domain(domain);
             let filter_result = should_filter(&event, &FilterConfig { is_enabled: true });
             assert_eq!(

@@ -40,7 +40,7 @@ use uuid::Uuid;
 
 use bytes::Bytes;
 use chrono::{DateTime, Utc};
-use relay_dynamic_config::ErrorBoundary;
+use relay_dynamic_config::{ErrorBoundary, Feature};
 use relay_event_normalization::{normalize_transaction_name, TransactionNameRule};
 use relay_event_schema::protocol::{Event, EventId, EventType};
 use relay_protocol::{Annotated, Value};
@@ -1039,6 +1039,13 @@ pub struct EnvelopeHeaders<M = RequestMeta> {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     trace: Option<ErrorBoundary<DynamicSamplingContext>>,
 
+    /// A list of features required to process this envelope.
+    ///
+    /// This is an internal field that should only be set by Relay.
+    /// It is a serializable header such that it persists when spooling.
+    #[serde(default, skip_serializing_if = "SmallVec::is_empty")]
+    required_features: SmallVec<[Feature; 1]>,
+
     /// Other attributes for forward compatibility.
     #[serde(flatten)]
     other: BTreeMap<String, Value>,
@@ -1079,6 +1086,7 @@ impl EnvelopeHeaders<PartialMeta> {
             retention: self.retention,
             sent_at: self.sent_at,
             trace: self.trace,
+            required_features: self.required_features,
             other: self.other,
         })
     }
@@ -1121,6 +1129,7 @@ impl Envelope {
                 sent_at: None,
                 other: BTreeMap::new(),
                 trace: None,
+                required_features: smallvec::smallvec![],
             },
             items: Items::new(),
         })
@@ -1274,6 +1283,16 @@ impl Envelope {
     /// Overrides the dynamic sampling context in envelope headers.
     pub fn set_dsc(&mut self, dsc: DynamicSamplingContext) {
         self.headers.trace = Some(ErrorBoundary::Ok(dsc));
+    }
+
+    /// Features required to process this envelope.
+    pub fn required_features(&self) -> &[Feature] {
+        &self.headers.required_features
+    }
+
+    /// Add a feature requirement to this envelope.
+    pub fn require_feature(&mut self, feature: Feature) {
+        self.headers.required_features.push(feature)
     }
 
     /// Returns the specified header value, if present.
