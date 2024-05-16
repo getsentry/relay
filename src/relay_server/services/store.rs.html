@@ -1770,6 +1770,8 @@
 <a href="#1768" id="1768">1768</a>
 <a href="#1769" id="1769">1769</a>
 <a href="#1770" id="1770">1770</a>
+<a href="#1771" id="1771">1771</a>
+<a href="#1772" id="1772">1772</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module contains the service that forwards events and attachments to the Sentry store.
 //! The service uses Kafka topics to forward data to Sentry
 
@@ -2702,12 +2704,13 @@
             }
         };
 
-        span.duration_ms = ((span.end_timestamp - span.start_timestamp) * <span class="number">1e3</span>) <span class="kw">as </span>u32;
+        span.duration_ms =
+            ((span.end_timestamp_precise - span.start_timestamp_precise) * <span class="number">1e3</span>) <span class="kw">as </span>u32;
         span.event_id = event_id;
         span.organization_id = scoping.organization_id;
         span.project_id = scoping.project_id.value();
         span.retention_days = retention_days;
-        span.start_timestamp_ms = (span.start_timestamp * <span class="number">1e3</span>) <span class="kw">as </span>u64;
+        span.start_timestamp_ms = (span.start_timestamp_precise * <span class="number">1e3</span>) <span class="kw">as </span>u64;
 
         <span class="kw">if let </span><span class="prelude-val">Some</span>(measurements) = <span class="kw-2">&amp;mut </span>span.measurements {
             measurements.retain(|<span class="kw">_</span>, v| {
@@ -2762,7 +2765,7 @@
         };
         <span class="kw">let </span><span class="kw-2">&amp;</span>SpanKafkaMessage {
             duration_ms,
-            end_timestamp,
+            end_timestamp_precise,
             is_segment,
             project_id,
             received,
@@ -2818,7 +2821,7 @@
                     KafkaMessage::MetricsSummary(MetricsSummaryKafkaMessage {
                         count,
                         duration_ms,
-                        end_timestamp,
+                        end_timestamp: end_timestamp_precise,
                         group,
                         is_segment,
                         max,
@@ -3119,10 +3122,6 @@
 
 <span class="attr">#[derive(Debug, Deserialize, Serialize)]
 </span><span class="kw">struct </span>SpanKafkaMessage&lt;<span class="lifetime">'a</span>&gt; {
-    <span class="attr">#[serde(skip_serializing)]
-    </span>start_timestamp: f64,
-    <span class="attr">#[serde(rename(deserialize = <span class="string">"timestamp"</span>), skip_serializing)]
-    </span>end_timestamp: f64,
     <span class="attr">#[serde(default, skip_serializing_if = <span class="string">"Option::is_none"</span>)]
     </span>description: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>RawValue&gt;,
     <span class="attr">#[serde(default)]
@@ -3158,11 +3157,16 @@
     <span class="attr">#[serde(default, skip_serializing_if = <span class="string">"Option::is_none"</span>)]
     </span>sentry_tags: <span class="prelude-ty">Option</span>&lt;BTreeMap&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>str, String&gt;&gt;,
     span_id: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>str,
-    <span class="attr">#[serde(default)]
-    </span>start_timestamp_ms: u64,
     <span class="attr">#[serde(default, skip_serializing_if = <span class="string">"none_or_empty_object"</span>)]
     </span>tags: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>RawValue&gt;,
     trace_id: EventId,
+
+    <span class="attr">#[serde(default)]
+    </span>start_timestamp_ms: u64,
+    <span class="attr">#[serde(rename(deserialize = <span class="string">"start_timestamp"</span>))]
+    </span>start_timestamp_precise: f64,
+    <span class="attr">#[serde(rename(deserialize = <span class="string">"timestamp"</span>))]
+    </span>end_timestamp_precise: f64,
 
     <span class="attr">#[serde(borrow, default, skip_serializing)]
     </span>platform: Cow&lt;<span class="lifetime">'a</span>, str&gt;, <span class="comment">// We only use this for logging for now
