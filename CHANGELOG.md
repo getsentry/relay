@@ -11,6 +11,11 @@
 - Properly handle AI metrics from the Python SDK's `@ai_track` decorator. ([#3539](https://github.com/getsentry/relay/pull/3539))
 - Mitigate occasional slowness and timeouts of the healthcheck endpoint. The endpoint will now respond promptly an unhealthy state. ([#3567](https://github.com/getsentry/relay/pull/3567))
 
+**Features**:
+
+- Apple trace-based sampling rules to standalone spans. ([#3476](https://github.com/getsentry/relay/pull/3476))
+- Localhost inbound filter filters sudomains of localhost. ([#3608](https://github.com/getsentry/relay/pull/3608))
+
 **Internal**:
 
 - Add metrics extraction config to global config. ([#3490](https://github.com/getsentry/relay/pull/3490), [#3504](https://github.com/getsentry/relay/pull/3504))

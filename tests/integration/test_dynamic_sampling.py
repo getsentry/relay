@@ -176,25 +176,6 @@ def _add_trace_info(
         trace_info["sampled"] = sampled
 
 
-def _create_event_envelope(
-    public_key, client_sample_rate=None, trace_id=None, event_id=None, transaction=None
-):
-    envelope = Envelope()
-    event, trace_id, event_id = _create_event_item(
-        trace_id=trace_id, event_id=event_id, transaction=transaction
-    )
-    envelope.add_event(event)
-    _add_trace_info(
-        envelope,
-        trace_id=trace_id,
-        public_key=public_key,
-        client_sample_rate=client_sample_rate,
-        transaction=transaction,
-    )
-
-    return envelope, trace_id, event_id
-
-
 def _create_transaction_envelope(
     public_key,
     client_sample_rate=None,

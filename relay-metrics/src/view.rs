@@ -454,9 +454,32 @@ impl<'a> BucketView<'a> {
 
     /// Returns the metadata for this bucket.
     ///
+    /// The aggregation process of metadata is inheritly lossy, which means
+    /// some metadata, for example the amount of merges, can not be accurately split
+    /// or divided over multiple bucket views.
+    ///
+    /// To compensate for this only a bucket view which contains the start of a bucket
+    /// will yield this metadata, all other views created from the bucket return an
+    /// identity value. Merging all metadata from non-overlapping bucket views must
+    /// yield the same values as stored on the original bucket.
+    ///
+    /// This causes some problems when operations on partial buckets are fallible,
+    /// for example transmitting two bucket views in separate http requests.
+    /// To deal with this Relay needs to prevent the splitting of buckets in the first place,
+    /// by never not creating too large buckets via aggregation in the first place.
+    ///
     /// See also: [`Bucket::metadata`].
-    pub fn metadata(&self) -> &BucketMetadata {
-        &self.inner.metadata
+    pub fn metadata(&self) -> BucketMetadata {
+        let merges = if self.range.start == 0 {
+            self.inner.metadata.merges
+        } else {
+            0
+        };
+
+        BucketMetadata {
+            merges,
+            received_at: self.inner.metadata.received_at,
+        }
     }
 
     /// Number of raw datapoints in this view.
@@ -788,6 +811,12 @@ mod tests {
     }
 
     #[test]
+    fn test_bucket_view_counter_metadata() {
+        let bucket = Bucket::parse(b"b0:1|c", UnixTimestamp::from_secs(5000)).unwrap();
+        assert_eq!(bucket.metadata, BucketView::new(&bucket).metadata());
+    }
+
+    #[test]
     fn test_bucket_view_select_distribution() {
         let bucket = Bucket::parse(b"b2:1:2:3:5:5|d", UnixTimestamp::from_secs(5000)).unwrap();
 
@@ -821,6 +850,26 @@ mod tests {
     }
 
     #[test]
+    fn test_bucket_view_distribution_metadata() {
+        let bucket = Bucket::parse(b"b2:1:2:3:5:5|d", UnixTimestamp::from_secs(5000)).unwrap();
+        assert_eq!(bucket.metadata, BucketView::new(&bucket).metadata());
+
+        assert_eq!(
+            BucketView::new(&bucket).select(0..3).unwrap().metadata(),
+            bucket.metadata
+        );
+
+        let m = BucketView::new(&bucket).select(1..3).unwrap().metadata();
+        assert_eq!(
+            m,
+            BucketMetadata {
+                merges: 0,
+                ..bucket.metadata
+            }
+        );
+    }
+
+    #[test]
     fn test_bucket_view_select_set() {
         let bucket = Bucket::parse(b"b3:42:75|s", UnixTimestamp::from_secs(5000)).unwrap();
         let s = [42, 75].into();
@@ -843,6 +892,26 @@ mod tests {
         assert!(BucketView::new(&bucket).select(0..3).is_none());
         assert!(BucketView::new(&bucket).select(2..5).is_none());
         assert!(BucketView::new(&bucket).select(77..99).is_none());
+    }
+
+    #[test]
+    fn test_bucket_view_set_metadata() {
+        let bucket = Bucket::parse(b"b2:1:2:3:5:5|s", UnixTimestamp::from_secs(5000)).unwrap();
+        assert_eq!(bucket.metadata, BucketView::new(&bucket).metadata());
+
+        assert_eq!(
+            BucketView::new(&bucket).select(0..3).unwrap().metadata(),
+            bucket.metadata
+        );
+
+        let m = BucketView::new(&bucket).select(1..3).unwrap().metadata();
+        assert_eq!(
+            m,
+            BucketMetadata {
+                merges: 0,
+                ..bucket.metadata
+            }
+        );
     }
 
     #[test]
@@ -873,6 +942,13 @@ mod tests {
         assert!(BucketView::new(&bucket).select(0..4).is_none());
         assert!(BucketView::new(&bucket).select(5..5).is_none());
         assert!(BucketView::new(&bucket).select(5..6).is_none());
+    }
+
+    #[test]
+    fn test_bucket_view_gauge_metadata() {
+        let bucket =
+            Bucket::parse(b"b4:25:17:42:220:85|g", UnixTimestamp::from_secs(5000)).unwrap();
+        assert_eq!(BucketView::new(&bucket).metadata(), bucket.metadata);
     }
 
     fn buckets<T>(s: &[u8]) -> T

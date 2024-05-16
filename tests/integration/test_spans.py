@@ -1559,7 +1559,7 @@ def test_rate_limit_metrics_consistent(
         counter = Counter()
         for outcome in outcomes_consumer.get_outcomes():
             counter[(outcome["category"], outcome["outcome"])] += outcome["quantity"]
-        return counter
+        return dict(counter)
 
     # First batch passes (we over-accept once)
     relay.send_envelope(project_id, envelope)
@@ -1578,7 +1578,9 @@ def test_rate_limit_metrics_consistent(
     assert len(spans) == 0
     metrics = metrics_consumer.get_metrics()
     assert len(metrics) == 0
-    assert summarize_outcomes() == {
+    outcomes = summarize_outcomes()
+    assert outcomes.pop((15, 2)) > 0  # Metric Bucket, RateLimited
+    assert outcomes == {
         (16, 2): 4,  # SpanIndexed, RateLimited
         (12, 2): 4,  # Span, RateLimited
     }
@@ -1642,3 +1644,99 @@ def test_span_extraction_with_tags(
     assert transaction_span["tags"] == expected_tags
 
     spans_consumer.assert_empty()
+
+
+@pytest.mark.parametrize("sample_rate", [0.0, 1.0])
+def test_dynamic_sampling(
+    mini_sentry,
+    relay_with_processing,
+    spans_consumer,
+    outcomes_consumer,
+    sample_rate,
+):
+    spans_consumer = spans_consumer()
+    outcomes_consumer = outcomes_consumer()
+
+    project_id = 42
+    project_config = mini_sentry.add_basic_project_config(project_id)
+    project_config["config"]["features"] = [
+        "organizations:standalone-span-ingestion",
+    ]
+    project_config["config"]["transactionMetrics"] = {"version": 1}
+
+    sampling_config = mini_sentry.add_basic_project_config(43)
+    sampling_public_key = sampling_config["publicKeys"][0]["publicKey"]
+    sampling_config["config"]["txNameRules"] = [
+        {
+            "pattern": "/auth/login/*/**",
+            "expiry": "3022-11-30T00:00:00.000000Z",
+            "redaction": {"method": "replace", "substitution": "*"},
+        }
+    ]
+    sampling_config["config"]["sampling"] = {
+        "version": 2,
+        "rules": [
+            {
+                "id": 1,
+                "samplingValue": {"type": "sampleRate", "value": sample_rate},
+                "type": "trace",
+                "condition": {
+                    "op": "and",
+                    "inner": [
+                        {
+                            "op": "eq",
+                            "name": "trace.transaction",
+                            "value": "/auth/login/*",
+                            "options": {
+                                "ignoreCase": True,
+                            },
+                        }
+                    ],
+                },
+            },
+        ],
+    }
+
+    relay = relay_with_processing(
+        options={
+            "aggregator": {
+                "bucket_interval": 1,
+                "initial_delay": 0,
+                "debounce_delay": 0,
+                "max_secs_in_past": 2**64 - 1,
+            }
+        }
+    )
+
+    duration = timedelta(milliseconds=500)
+    end = datetime.now(timezone.utc) - timedelta(seconds=1)
+    start = end - duration
+
+    # 1 - Send OTel span and sentry span via envelope
+    envelope = envelope_with_spans(start, end)
+    envelope.headers["trace"] = {
+        "public_key": sampling_public_key,
+        "trace_id": "89143b0763095bd9c9955e8175d1fb23",
+        "segment_name": "/auth/login/my_user_name",
+    }
+
+    relay.send_envelope(project_id, envelope)
+
+    def summarize_outcomes(outcomes):
+        counter = Counter()
+        for outcome in outcomes:
+            counter[(outcome["category"], outcome["outcome"])] += outcome["quantity"]
+        return counter
+
+    if sample_rate == 1.0:
+        spans = list(spans_consumer.get_spans(timeout=10, max_attempts=4))
+        assert len(spans) == 4
+        outcomes = outcomes_consumer.get_outcomes(timeout=0.1)
+        assert summarize_outcomes(outcomes) == {(16, 0): 4}  # SpanIndexed, Accepted
+    else:
+        outcomes = outcomes_consumer.get_outcomes(timeout=10)
+        assert summarize_outcomes(outcomes) == {(12, 1): 4}  # Span, Filtered
+        assert {o["reason"] for o in outcomes} == {"Sampled:1"}
+
+    spans_consumer.assert_empty()
+    outcomes_consumer.assert_empty()
