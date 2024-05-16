@@ -48,8 +48,8 @@ class CustomSDist(sdist):
 def build_native(spec):
     cmd = ["cargo", "build", "-p", "relay-cabi"]
     if not DEBUG_BUILD:
-        cmd.append("--release")
-        target = "release"
+        cmd.extend(("--profile", "release-cabi"))
+        target = "release-cabi"
     else:
         target = "debug"
 

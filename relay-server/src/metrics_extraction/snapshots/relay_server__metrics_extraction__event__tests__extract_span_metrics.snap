@@ -2418,14 +2418,10 @@ expression: metrics
             ],
         ),
         tags: {
+            "cache.hit": "false",
             "environment": "fake_environment",
-            "span.action": "GET",
-            "span.category": "db",
-            "span.description": "GET *",
-            "span.group": "37e3d9fab1ae9162",
-            "span.op": "db.redis",
+            "span.op": "cache.get",
             "transaction": "gEt /api/:version/users/",
-            "transaction.method": "POST",
             "transaction.op": "myop",
         },
         metadata: BucketMetadata {
@@ -2447,12 +2443,102 @@ expression: metrics
             ],
         ),
         tags: {
+            "cache.hit": "false",
             "environment": "fake_environment",
-            "span.action": "GET",
-            "span.category": "db",
+            "span.category": "cache",
             "span.description": "GET *",
             "span.group": "37e3d9fab1ae9162",
+            "span.op": "cache.get",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "d:spans/duration@millisecond",
+        ),
+        value: Distribution(
+            [
+                2000.0,
+            ],
+        ),
+        tags: {
+            "cache.hit": "false",
+            "environment": "fake_environment",
+            "span.op": "cache.get",
+            "transaction": "gEt /api/:version/users/",
+            "transaction.op": "myop",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "d:spans/cache.item_size@byte",
+        ),
+        value: Distribution(
+            [
+                8.0,
+            ],
+        ),
+        tags: {
+            "cache.hit": "false",
+            "environment": "fake_environment",
+            "span.op": "cache.get",
+            "transaction": "gEt /api/:version/users/",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
+        metadata: BucketMetadata {
+            merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "d:spans/exclusive_time@millisecond",
+        ),
+        value: Distribution(
+            [
+                2000.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
             "span.op": "db.redis",
+            "transaction": "gEt /api/:version/users/",
+            "transaction.op": "myop",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -2474,13 +2560,8 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
-            "span.action": "GET",
-            "span.category": "db",
-            "span.description": "GET *",
-            "span.group": "37e3d9fab1ae9162",
             "span.op": "db.redis",
             "transaction": "gEt /api/:version/users/",
-            "transaction.method": "POST",
             "transaction.op": "myop",
         },
         metadata: BucketMetadata {
@@ -2520,40 +2601,9 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
-            "span.action": "GET",
-            "span.category": "db",
-            "span.description": "GET *",
-            "span.group": "37e3d9fab1ae9162",
             "span.op": "db.redis",
             "transaction": "gEt /api/:version/users/",
-            "transaction.method": "POST",
             "transaction.op": "myop",
-        },
-        metadata: BucketMetadata {
-            merges: 1,
-            received_at: Some(
-                UnixTimestamp(0),
-            ),
-        },
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1597976302),
-        width: 0,
-        name: MetricName(
-            "d:spans/exclusive_time_light@millisecond",
-        ),
-        value: Distribution(
-            [
-                2000.0,
-            ],
-        ),
-        tags: {
-            "environment": "fake_environment",
-            "span.action": "GET",
-            "span.category": "db",
-            "span.description": "GET *",
-            "span.group": "37e3d9fab1ae9162",
-            "span.op": "db.redis",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -2575,13 +2625,8 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
-            "span.action": "GET",
-            "span.category": "db",
-            "span.description": "GET *",
-            "span.group": "37e3d9fab1ae9162",
             "span.op": "db.redis",
             "transaction": "gEt /api/:version/users/",
-            "transaction.method": "POST",
             "transaction.op": "myop",
         },
         metadata: BucketMetadata {
@@ -2621,40 +2666,9 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
-            "span.action": "SET",
-            "span.category": "db",
-            "span.description": "SET *",
-            "span.group": "46b2cac4b418f556",
             "span.op": "db.redis",
             "transaction": "gEt /api/:version/users/",
-            "transaction.method": "POST",
             "transaction.op": "myop",
-        },
-        metadata: BucketMetadata {
-            merges: 1,
-            received_at: Some(
-                UnixTimestamp(0),
-            ),
-        },
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1597976302),
-        width: 0,
-        name: MetricName(
-            "d:spans/exclusive_time_light@millisecond",
-        ),
-        value: Distribution(
-            [
-                2000.0,
-            ],
-        ),
-        tags: {
-            "environment": "fake_environment",
-            "span.action": "SET",
-            "span.category": "db",
-            "span.description": "SET *",
-            "span.group": "46b2cac4b418f556",
-            "span.op": "db.redis",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -2676,13 +2690,8 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
-            "span.action": "SET",
-            "span.category": "db",
-            "span.description": "SET *",
-            "span.group": "46b2cac4b418f556",
             "span.op": "db.redis",
             "transaction": "gEt /api/:version/users/",
-            "transaction.method": "POST",
             "transaction.op": "myop",
         },
         metadata: BucketMetadata {
@@ -3150,36 +3159,9 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
-            "span.action": "SAVEPOINT",
-            "span.category": "db",
             "span.op": "db.redis.command",
             "transaction": "gEt /api/:version/users/",
-            "transaction.method": "POST",
             "transaction.op": "myop",
-        },
-        metadata: BucketMetadata {
-            merges: 1,
-            received_at: Some(
-                UnixTimestamp(0),
-            ),
-        },
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1597976302),
-        width: 0,
-        name: MetricName(
-            "d:spans/exclusive_time_light@millisecond",
-        ),
-        value: Distribution(
-            [
-                2000.0,
-            ],
-        ),
-        tags: {
-            "environment": "fake_environment",
-            "span.action": "SAVEPOINT",
-            "span.category": "db",
-            "span.op": "db.redis.command",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -3201,11 +3183,8 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
-            "span.action": "SAVEPOINT",
-            "span.category": "db",
             "span.op": "db.redis.command",
             "transaction": "gEt /api/:version/users/",
-            "transaction.method": "POST",
             "transaction.op": "myop",
         },
         metadata: BucketMetadata {
@@ -6068,40 +6047,9 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
-            "span.action": "GET",
-            "span.category": "db",
-            "span.description": "GET *",
-            "span.group": "37e3d9fab1ae9162",
             "span.op": "db.redis",
             "transaction": "gEt /api/:version/users/",
-            "transaction.method": "POST",
             "transaction.op": "myop",
-        },
-        metadata: BucketMetadata {
-            merges: 1,
-            received_at: Some(
-                UnixTimestamp(0),
-            ),
-        },
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1597976302),
-        width: 0,
-        name: MetricName(
-            "d:spans/exclusive_time_light@millisecond",
-        ),
-        value: Distribution(
-            [
-                2000.0,
-            ],
-        ),
-        tags: {
-            "environment": "fake_environment",
-            "span.action": "GET",
-            "span.category": "db",
-            "span.description": "GET *",
-            "span.group": "37e3d9fab1ae9162",
-            "span.op": "db.redis",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -6123,13 +6071,8 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
-            "span.action": "GET",
-            "span.category": "db",
-            "span.description": "GET *",
-            "span.group": "37e3d9fab1ae9162",
             "span.op": "db.redis",
             "transaction": "gEt /api/:version/users/",
-            "transaction.method": "POST",
             "transaction.op": "myop",
         },
         metadata: BucketMetadata {
@@ -6169,40 +6112,9 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
-            "span.action": "GET",
-            "span.category": "db",
-            "span.description": "GET *",
-            "span.group": "37e3d9fab1ae9162",
             "span.op": "db.redis",
             "transaction": "gEt /api/:version/users/",
-            "transaction.method": "POST",
             "transaction.op": "myop",
-        },
-        metadata: BucketMetadata {
-            merges: 1,
-            received_at: Some(
-                UnixTimestamp(0),
-            ),
-        },
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1597976302),
-        width: 0,
-        name: MetricName(
-            "d:spans/exclusive_time_light@millisecond",
-        ),
-        value: Distribution(
-            [
-                2000.0,
-            ],
-        ),
-        tags: {
-            "environment": "fake_environment",
-            "span.action": "GET",
-            "span.category": "db",
-            "span.description": "GET *",
-            "span.group": "37e3d9fab1ae9162",
-            "span.op": "db.redis",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -6224,13 +6136,8 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
-            "span.action": "GET",
-            "span.category": "db",
-            "span.description": "GET *",
-            "span.group": "37e3d9fab1ae9162",
             "span.op": "db.redis",
             "transaction": "gEt /api/:version/users/",
-            "transaction.method": "POST",
             "transaction.op": "myop",
         },
         metadata: BucketMetadata {
@@ -6270,40 +6177,9 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
-            "span.action": "SET",
-            "span.category": "db",
-            "span.description": "SET *",
-            "span.group": "46b2cac4b418f556",
             "span.op": "db.redis",
             "transaction": "gEt /api/:version/users/",
-            "transaction.method": "POST",
             "transaction.op": "myop",
-        },
-        metadata: BucketMetadata {
-            merges: 1,
-            received_at: Some(
-                UnixTimestamp(0),
-            ),
-        },
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1597976302),
-        width: 0,
-        name: MetricName(
-            "d:spans/exclusive_time_light@millisecond",
-        ),
-        value: Distribution(
-            [
-                2000.0,
-            ],
-        ),
-        tags: {
-            "environment": "fake_environment",
-            "span.action": "SET",
-            "span.category": "db",
-            "span.description": "SET *",
-            "span.group": "46b2cac4b418f556",
-            "span.op": "db.redis",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -6325,13 +6201,8 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
-            "span.action": "SET",
-            "span.category": "db",
-            "span.description": "SET *",
-            "span.group": "46b2cac4b418f556",
             "span.op": "db.redis",
             "transaction": "gEt /api/:version/users/",
-            "transaction.method": "POST",
             "transaction.op": "myop",
         },
         metadata: BucketMetadata {

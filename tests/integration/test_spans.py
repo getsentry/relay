@@ -13,6 +13,8 @@ from opentelemetry.proto.common.v1.common_pb2 import AnyValue, KeyValue
 
 import pytest
 
+from requests import HTTPError
+from sentry_relay.consts import DataCategory
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 
 from .test_store import make_transaction
@@ -434,6 +436,7 @@ def test_span_ingestion(
     project_config["config"]["features"] = [
         "organizations:standalone-span-ingestion",
         "projects:span-metrics-extraction",
+        "projects:relay-otel-endpoint",
     ]
     project_config["config"]["transactionMetrics"] = {"version": 1}
     if extract_transaction:
@@ -833,6 +836,50 @@ def test_span_ingestion(
     metrics_consumer.assert_empty()
 
 
+def test_otel_endpoint_disabled(mini_sentry, relay):
+    relay = relay(
+        mini_sentry,
+        {
+            "outcomes": {
+                "emit_outcomes": True,
+                "batch_size": 1,
+                "batch_interval": 1,
+                "source": "relay",
+            }
+        },
+    )
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)["config"]
+    project_config["features"] = ["organizations:standalone-span-ingestion"]
+
+    end = datetime.now(timezone.utc) - timedelta(seconds=1)
+    start = end - timedelta(milliseconds=500)
+    relay.send_otel_span(
+        project_id,
+        json=make_otel_span(start, end),
+    )
+
+    (outcome,) = mini_sentry.captured_outcomes.get()["outcomes"]
+    assert outcome["category"] == DataCategory.SPAN
+    assert outcome["outcome"] == 3  # invalid
+    assert outcome["reason"] == "feature_disabled"
+
+    # Second attempt will cause a 403 response:
+    with pytest.raises(HTTPError) as exc_info:
+        relay.send_otel_span(
+            project_id,
+            json=make_otel_span(start, end),
+        )
+    response = exc_info.value.response
+    assert response.status_code == 403
+    assert response.json() == {
+        "detail": "event submission rejected with_reason: FeatureDisabled(OtelEndpoint)"
+    }
+
+    # No envelopes were received:
+    assert mini_sentry.captured_events.empty()
+
+
 def test_span_extraction_with_metrics_summary(
     mini_sentry,
     relay_with_processing,
@@ -926,6 +973,7 @@ def test_extracted_transaction_gets_normalized(
     project_config["config"]["features"] = [
         "organizations:standalone-span-ingestion",
         "projects:extract-transaction-from-segment-span",
+        "projects:relay-otel-endpoint",
     ]
 
     transactions_consumer = transactions_consumer()
@@ -1511,7 +1559,7 @@ def test_rate_limit_metrics_consistent(
         counter = Counter()
         for outcome in outcomes_consumer.get_outcomes():
             counter[(outcome["category"], outcome["outcome"])] += outcome["quantity"]
-        return counter
+        return dict(counter)
 
     # First batch passes (we over-accept once)
     relay.send_envelope(project_id, envelope)
@@ -1530,7 +1578,9 @@ def test_rate_limit_metrics_consistent(
     assert len(spans) == 0
     metrics = metrics_consumer.get_metrics()
     assert len(metrics) == 0
-    assert summarize_outcomes() == {
+    outcomes = summarize_outcomes()
+    assert outcomes.pop((15, 2)) > 0  # Metric Bucket, RateLimited
+    assert outcomes == {
         (16, 2): 4,  # SpanIndexed, RateLimited
         (12, 2): 4,  # Span, RateLimited
     }

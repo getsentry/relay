@@ -5,13 +5,11 @@ use relay_dynamic_config::{ErrorBoundary, Feature, Metrics};
 use relay_filter::FilterStatKey;
 use relay_metrics::{Bucket, MetricNamespace};
 use relay_quotas::Scoping;
-use relay_system::Addr;
 
-use crate::metric_stats::MetricStats;
-use crate::services::outcome::{Outcome, TrackOutcome};
+use crate::metrics::MetricOutcomes;
+use crate::services::outcome::Outcome;
 use crate::services::project::ProjectState;
 use crate::services::project_cache::BucketSource;
-use crate::utils;
 
 pub struct Filtered;
 pub struct WithProjectState;
@@ -69,8 +67,7 @@ impl Buckets<()> {
 impl Buckets<Filtered> {
     pub fn apply_project_state(
         mut self,
-        outcome_aggregator: &Addr<TrackOutcome>,
-        metric_stats: &MetricStats,
+        metric_outcomes: &MetricOutcomes,
         project_state: &ProjectState,
         scoping: Scoping,
     ) -> Buckets<WithProjectState> {
@@ -105,25 +102,22 @@ impl Buckets<Filtered> {
             .collect();
 
         let mode = project_state.get_extraction_mode();
+
         if !disabled_namespace_buckets.is_empty() {
-            utils::reject_metrics(
-                outcome_aggregator,
-                metric_stats,
-                utils::extract_metric_quantities(&disabled_namespace_buckets, mode),
+            metric_outcomes.track(
                 scoping,
-                Outcome::Filtered(FilterStatKey::DisabledNamespace),
                 &disabled_namespace_buckets,
+                mode,
+                Outcome::Filtered(FilterStatKey::DisabledNamespace),
             );
         }
 
         if !denied_buckets.is_empty() {
-            utils::reject_metrics(
-                outcome_aggregator,
-                metric_stats,
-                utils::extract_metric_quantities(&denied_buckets, mode),
+            metric_outcomes.track(
                 scoping,
-                Outcome::Filtered(FilterStatKey::DeniedName),
                 &denied_buckets,
+                mode,
+                Outcome::Filtered(FilterStatKey::DeniedName),
             );
         }
 
@@ -165,6 +159,9 @@ mod tests {
     use relay_common::glob3::GlobPatterns;
     use relay_dynamic_config::TagBlock;
     use relay_metrics::{Aggregator, BucketValue, UnixTimestamp};
+    use relay_system::Addr;
+
+    use crate::metric_stats::MetricStats;
 
     use super::*;
 
@@ -231,6 +228,7 @@ mod tests {
     fn test_apply_project_state() {
         let (outcome_aggregator, _) = Addr::custom();
         let (metric_stats, mut metric_stats_rx) = MetricStats::test();
+        let metric_outcomes = MetricOutcomes::new(metric_stats, outcome_aggregator);
 
         let project_state = {
             let mut project_state = ProjectState::allowed();
@@ -247,8 +245,7 @@ mod tests {
         let buckets = Buckets::test(vec![b1.clone(), b2.clone()]);
 
         let buckets = buckets.apply_project_state(
-            &outcome_aggregator,
-            &metric_stats,
+            &metric_outcomes,
             &project_state,
             Scoping {
                 organization_id: 42,
@@ -278,14 +275,14 @@ mod tests {
     fn test_apply_project_state_with_disabled_custom_namespace() {
         let (outcome_aggregator, _) = Addr::custom();
         let (metric_stats, mut metric_stats_rx) = MetricStats::test();
+        let metric_outcomes = MetricOutcomes::new(metric_stats, outcome_aggregator);
 
         let b1 = create_custom_bucket_with_name("cpu_time".into());
         let b2 = create_custom_bucket_with_name("memory_usage".into());
         let buckets = Buckets::test(vec![b1.clone(), b2.clone()]);
 
         let buckets = buckets.apply_project_state(
-            &outcome_aggregator,
-            &metric_stats,
+            &metric_outcomes,
             &ProjectState::allowed(),
             Scoping {
                 organization_id: 42,
