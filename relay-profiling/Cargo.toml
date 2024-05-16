@@ -4,7 +4,7 @@ authors = ["Sentry <oss@sentry.io>"]
 description = "Profiling processing for Relay"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "24.4.1"
+version = "24.4.2"
 edition = "2021"
 license-file = "../LICENSE.md"
 publish = false
@@ -20,6 +20,7 @@ itertools = { workspace = true }
 relay-base-schema = { workspace = true }
 relay-event-schema = { workspace = true }
 relay-log = { workspace = true }
+relay-metrics = { workspace = true }
 relay-protocol = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }

@@ -2,15 +2,76 @@
 
 ## Unreleased
 
+**Breaking Changes**:
+
+- Remove the AWS lambda extension. ([#3568](https://github.com/getsentry/relay/pull/3568))
+
+**Bug fixes:**
+
+- Properly handle AI metrics from the Python SDK's `@ai_track` decorator. ([#3539](https://github.com/getsentry/relay/pull/3539))
+- Mitigate occasional slowness and timeouts of the healthcheck endpoint. The endpoint will now respond promptly an unhealthy state. ([#3567](https://github.com/getsentry/relay/pull/3567))
+
+**Features**:
+
+- Apple trace-based sampling rules to standalone spans. ([#3476](https://github.com/getsentry/relay/pull/3476))
+- Localhost inbound filter filters sudomains of localhost. ([#3608](https://github.com/getsentry/relay/pull/3608))
+
+**Internal**:
+
+- Add metrics extraction config to global config. ([#3490](https://github.com/getsentry/relay/pull/3490), [#3504](https://github.com/getsentry/relay/pull/3504))
+- Adjust worker thread distribution of internal services. ([#3516](https://github.com/getsentry/relay/pull/3516))
+- Extract `cache.item_size` from measurements instead of data. ([#3510](https://github.com/getsentry/relay/pull/3510))
+- Collect `enviornment` tag as part of exclusive_time_light for cache spans. ([#3510](https://github.com/getsentry/relay/pull/3510))
+- Forward `span.data` on the Kafka message. ([#3523](https://github.com/getsentry/relay/pull/3523))
+- Tag span duration metric like exclusive time. ([#3524](https://github.com/getsentry/relay/pull/3524))
+- Emit negative outcomes for denied metrics. ([#3508](https://github.com/getsentry/relay/pull/3508))
+- Increase size limits for internal batch endpoints. ([#3562](https://github.com/getsentry/relay/pull/3562))
+- Emit negative outcomes when metrics are rejected because of a disabled namespace. ([#3544](https://github.com/getsentry/relay/pull/3544))
+- Add AI model costs to global config. ([#3579](https://github.com/getsentry/relay/pull/3579))
+- Add support for `event.` in the `Span` `Getter` implementation. ([#3577](https://github.com/getsentry/relay/pull/3577))
+- Ensure `chunk_id` and `profiler_id` are UUIDs and sort samples. ([#3588](https://github.com/getsentry/relay/pull/3588))
+- Add a calculated measurement based on the AI model and the tokens used. ([#3554](https://github.com/getsentry/relay/pull/3554))
+- Restrict usage of OTel endpoint. ([#3597](github.com/getsentry/relay/pull/3597))
+- Support new cache span ops in metrics and tag extraction. ([#3598](https://github.com/getsentry/relay/pull/3598))
+- Extract additional user fields for spans. ([#3599](https://github.com/getsentry/relay/pull/3599))
+- Disable `db.redis` span metrics extraction. ([#3600](https://github.com/getsentry/relay/pull/3600))
+
+## 24.4.2
+
+**Breaking Changes**:
+
+- Stop supporting dynamic sampling mode `"total"`, which adjusted for the client sample rate. ([#3474](https://github.com/getsentry/relay/pull/3474))
+
+**Bug fixes:**
+
+- Respect country code TLDs when scrubbing span tags. ([#3458](https://github.com/getsentry/relay/pull/3458))
+- Extract HTTP status code from span data when sent as integers. ([#3491](https://github.com/getsentry/relay/pull/3491))
+
+**Features**:
+
+- Separate the logic for producing UserReportV2 events (user feedback) and handle attachments in the same envelope as feedback. ([#3403](https://github.com/getsentry/relay/pull/3403))
+- Use same keys for OTel span attributes and Sentry span data. ([#3457](https://github.com/getsentry/relay/pull/3457))
+- Support passing owner when upserting Monitors. ([#3468](https://github.com/getsentry/relay/pull/3468))
+- Add `features` to ClientSDKInfo ([#3478](https://github.com/getsentry/relay/pull/3478)
+- Extract `frames.slow`, `frames.frozen`, and `frames.total` metrics from mobile spans. ([#3473](https://github.com/getsentry/relay/pull/3473))
+- Extract `frames.delay` metric from mobile spans. ([#3472](https://github.com/getsentry/relay/pull/3472))
+- Consider "Bearer" (case-insensitive) a password. PII will scrub all strings matching that substring. ([#3484](https://github.com/getsentry/relay/pull/3484))
+- Add support for `CF-Connecting-IP` header. ([#3496](https://github.com/getsentry/relay/pull/3496))
+- Add `received_at` timestamp to `BucketMetadata` to measure the oldest received timestamp of the `Bucket`. ([#3488](https://github.com/getsentry/relay/pull/3488))
+
 **Internal**:
 
 - Emit gauges for total and self times for spans. ([#3448](https://github.com/getsentry/relay/pull/3448))
+- Collect exclusive_time_light metrics for `cache.*` spans. ([#3466](https://github.com/getsentry/relay/pull/3466))
+- Build and publish ARM docker images for Relay. ([#3272](https://github.com/getsentry/relay/pull/3272)).
+- Remove `MetricMeta` feature flag and use `CustomMetrics` instead. ([#3503](https://github.com/getsentry/relay/pull/3503))
+- Collect `transaction.op` as tag for frame metrics. ([#3512](https://github.com/getsentry/relay/pull/3512))
 
 ## 24.4.1
 
 **Features**:
 
-- Add inbound filters for Annotated<Replay> types. ([#3420](https://github.com/getsentry/relay/pull/3420))
+- Add inbound filters for `Annotated<Replay>` types. ([#3420](https://github.com/getsentry/relay/pull/3420))
 - Add Linux distributions to os context. ([#3443](https://github.com/getsentry/relay/pull/3443))
 
 **Internal:**
@@ -18,8 +79,14 @@
 - Emit negative outcomes in metric stats for metrics. ([#3436](https://github.com/getsentry/relay/pull/3436))
 - Add new inbound filter: Permission denied to access property "x" ([#3442](https://github.com/getsentry/relay/pull/3442))
 - Emit negative outcomes for metrics via metric stats in pop relays. ([#3452](https://github.com/getsentry/relay/pull/3452))
+- Extract `ai` category and annotate metrics with it. ([#3449](https://github.com/getsentry/relay/pull/3449))
 
 ## 24.4.0
+
+**Breaking changes**:
+
+- Kafka topic configuration keys now support the default topic name. The previous aliases `metrics` and `metrics_transactions` are no longer supported if configuring topics manually. Use `ingest-metrics` or `metrics_sessions` instead of `metrics`, and `ingest-performance-metrics` or `metrics_generic` instead of `metrics_transactions`. ([#3361](https://github.com/getsentry/relay/pull/3361))
+- Remove `ShardedProducer` and related code. The sharded configuration for Kafka is no longer supported. ([#3415](https://github.com/getsentry/relay/pull/3415))
 
 **Bug fixes:**
 
@@ -29,8 +96,6 @@
 
 **Features**:
 
-- **Breaking change:** Kafka topic configuration keys now support the default topic name. The previous aliases `metrics` and `metrics_transactions` are no longer supported if configuring topics manually. Use `ingest-metrics` or `metrics_sessions` instead of `metrics`, and `ingest-performance-metrics` or `metrics_generic` instead of `metrics_transactions`. ([#3361](https://github.com/getsentry/relay/pull/3361))
-- **Breaking change:** Remove `ShardedProducer` and related code. The sharded configuration for Kafka is no longer supported. ([#3415](https://github.com/getsentry/relay/pull/3415))
 - Add support for continuous profiling. ([#3270](https://github.com/getsentry/relay/pull/3270))
 - Add support for Reporting API for CSP reports ([#3277](https://github.com/getsentry/relay/pull/3277))
 - Extract op and description while converting opentelemetry spans to sentry spans. ([#3287](https://github.com/getsentry/relay/pull/3287))
@@ -38,12 +103,12 @@
 - Support for AI token metrics ([#3250](https://github.com/getsentry/relay/pull/3250))
 - Accept integers in `event.user.username`. ([#3328](https://github.com/getsentry/relay/pull/3328))
 - Produce user feedback to ingest-feedback-events topic, with rollout rate. ([#3344](https://github.com/getsentry/relay/pull/3344))
-- Extract `cache.item_size` and `cache.hit` data into span indexed ([#3367]https://github.com/getsentry/relay/pull/3367)
+- Extract `cache.item_size` and `cache.hit` data into span indexed ([#3367](https://github.com/getsentry/relay/pull/3367))
 - Allow IP addresses in metrics domain tag. ([#3365](https://github.com/getsentry/relay/pull/3365))
 - Support the full unicode character set via UTF-8 encoding for metric tags submitted via the statsd format. Certain restricted characters require escape sequences, see [docs](https://develop.sentry.dev/sdk/metrics/#normalization) for the precise rules. ([#3358](https://github.com/getsentry/relay/pull/3358))
 - Stop extracting count_per_segment and count_per_op metrics. ([#3380](https://github.com/getsentry/relay/pull/3380))
 - Add `cardinality_limited` outcome with id `6`. ([#3389](https://github.com/getsentry/relay/pull/3389))
-- Extract `cache.item_size` and `cache.hit` metrics. ([#3371]https://github.com/getsentry/relay/pull/3371)
+- Extract `cache.item_size` and `cache.hit` metrics. ([#3371](https://github.com/getsentry/relay/pull/3371))
 - Optionally convert segment spans to transactions for compatibility. ([#3375](https://github.com/getsentry/relay/pull/3375))
 - Extract scrubbed IP addresses into the `span.domain` tag. ([#3383](https://github.com/getsentry/relay/pull/3383))
 

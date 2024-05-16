@@ -47,7 +47,7 @@ pub struct ProjectConfig {
     #[serde(alias = "dynamicSampling", skip_serializing_if = "Option::is_none")]
     pub sampling: Option<ErrorBoundary<SamplingConfig>>,
     /// Configuration for measurements.
-    /// NOTE: do not access directly, use [`relay_event_normalization::DynamicMeasurementsConfig`].
+    /// NOTE: do not access directly, use [`relay_event_normalization::CombinedMeasurementsConfig`].
     #[serde(skip_serializing_if = "Option::is_none")]
     pub measurements: Option<MeasurementsConfig>,
     /// Configuration for operation breakdown. Will be emitted only if present.

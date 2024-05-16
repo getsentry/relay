@@ -150,32 +150,28 @@ pub struct SamplingEvaluator<'a> {
     now: DateTime<Utc>,
     rule_ids: Vec<RuleId>,
     factor: f64,
-    client_sample_rate: Option<f64>,
     reservoir: Option<&'a ReservoirEvaluator<'a>>,
 }
 
 impl<'a> SamplingEvaluator<'a> {
-    /// Constructor for [`SamplingEvaluator`].
+    /// Constructs an evaluator with reservoir sampling.
+    pub fn new_with_reservoir(now: DateTime<Utc>, reservoir: &'a ReservoirEvaluator<'a>) -> Self {
+        Self {
+            now,
+            rule_ids: vec![],
+            factor: 1.0,
+            reservoir: Some(reservoir),
+        }
+    }
+
+    /// Constructs an evaluator without reservoir sampling.
     pub fn new(now: DateTime<Utc>) -> Self {
         Self {
             now,
             rule_ids: vec![],
             factor: 1.0,
-            client_sample_rate: None,
             reservoir: None,
         }
-    }
-
-    /// Sets a [`ReservoirEvaluator`].
-    pub fn set_reservoir(mut self, reservoir: &'a ReservoirEvaluator) -> Self {
-        self.reservoir = Some(reservoir);
-        self
-    }
-
-    /// Sets a new client sample rate value.
-    pub fn adjust_client_sample_rate(mut self, client_sample_rate: Option<f64>) -> Self {
-        self.client_sample_rate = client_sample_rate;
-        self
     }
 
     /// Attempts to find a match for sampling rules using `ControlFlow`.
@@ -228,9 +224,7 @@ impl<'a> SamplingEvaluator<'a> {
             }
             SamplingValue::SampleRate { value } => {
                 let sample_rate = rule.apply_decaying_fn(value, self.now)?;
-                let adjusted = self
-                    .adjusted_sample_rate(sample_rate * self.factor)
-                    .clamp(0.0, 1.0);
+                let adjusted = (sample_rate * self.factor).clamp(0.0, 1.0);
 
                 self.rule_ids.push(rule.id);
                 Some(adjusted)
@@ -246,36 +240,6 @@ impl<'a> SamplingEvaluator<'a> {
                 self.rule_ids.push(rule.id);
                 // If the reservoir has not yet reached its limit, we want to sample 100%.
                 Some(1.0)
-            }
-        }
-    }
-
-    /// Tries to negate the client side sampling if the evaluator has been provided
-    /// with a client sample rate.
-    fn adjusted_sample_rate(&self, rule_sample_rate: f64) -> f64 {
-        let Some(client_sample_rate) = self.client_sample_rate else {
-            return rule_sample_rate;
-        };
-
-        if client_sample_rate <= 0.0 {
-            // client_sample_rate is 0, which is bogus because the SDK should've dropped the
-            // envelope. In that case let's pretend the sample rate was not sent, because clearly
-            // the sampling decision across the trace is still 1. The most likely explanation is
-            // that the SDK is reporting its own sample rate setting instead of the one from the
-            // continued trace.
-            //
-            // since we write back the client_sample_rate into the event's trace context, it should
-            // be possible to find those values + sdk versions via snuba
-            relay_log::warn!("client sample rate is <= 0");
-            rule_sample_rate
-        } else {
-            let adjusted_sample_rate = (rule_sample_rate / client_sample_rate).clamp(0.0, 1.0);
-            if adjusted_sample_rate.is_infinite() || adjusted_sample_rate.is_nan() {
-                relay_log::error!("adjusted sample rate ended up being nan/inf");
-                debug_assert!(false);
-                rule_sample_rate
-            } else {
-                adjusted_sample_rate
             }
         }
     }
@@ -503,49 +467,6 @@ mod tests {
     }
 
     #[test]
-    fn test_adjust_sample_rate() {
-        // return the same as input if no client sample rate set in the sampling evaluator.
-        let eval = SamplingEvaluator::new(Utc::now());
-        assert_eq!(eval.adjusted_sample_rate(0.2), 0.2);
-
-        let eval = eval.adjust_client_sample_rate(Some(0.5));
-        assert_eq!(eval.adjusted_sample_rate(0.2), 0.4);
-
-        // tests that it doesn't exceed 1.0.
-        let eval = eval.adjust_client_sample_rate(Some(0.005));
-        assert_eq!(eval.adjusted_sample_rate(0.2), 1.0);
-
-        // tests that it doesn't go below 0.0.
-        let eval = eval.adjust_client_sample_rate(Some(0.005));
-        assert_eq!(eval.adjusted_sample_rate(-0.2), 0.0);
-    }
-
-    /// Checks that server side sampling can correctly negate any client side sampling if configured to.
-    #[test]
-    fn test_adjust_by_client_sample_rate() {
-        let rules = simple_sampling_rules(vec![
-            (RuleCondition::all(), SamplingValue::Factor { value: 0.5 }),
-            (
-                RuleCondition::all(),
-                SamplingValue::SampleRate { value: 0.25 },
-            ),
-        ]);
-
-        let dsc = mocked_dsc_with_getter_values(vec![]);
-
-        let res = SamplingEvaluator::new(Utc::now())
-            .adjust_client_sample_rate(Some(0.2))
-            .match_rules(Uuid::default(), &dsc, rules.iter());
-
-        let ControlFlow::Break(sampling_match) = res else {
-            panic!();
-        };
-
-        // ((0.5 * 0.25) / 0.2) == 0.625
-        assert_eq!(sampling_match.sample_rate(), 0.625);
-    }
-
-    #[test]
     fn test_sample_rate_compounding() {
         let rules = simple_sampling_rules(vec![
             (RuleCondition::all(), SamplingValue::Factor { value: 0.8 }),
@@ -616,19 +537,19 @@ mod tests {
         // shares state among multiple evaluator instances.
         let reservoir = mock_reservoir_evaluator(vec![]);
 
-        let evaluator = SamplingEvaluator::new(Utc::now()).set_reservoir(&reservoir);
+        let evaluator = SamplingEvaluator::new_with_reservoir(Utc::now(), &reservoir);
         let matched_rules =
             get_matched_rules(&evaluator.match_rules(Uuid::default(), &dsc, rules.iter()));
         // Reservoir rule overrides 0 and 2.
         assert_eq!(&matched_rules, &[1]);
 
-        let evaluator = SamplingEvaluator::new(Utc::now()).set_reservoir(&reservoir);
+        let evaluator = SamplingEvaluator::new_with_reservoir(Utc::now(), &reservoir);
         let matched_rules =
             get_matched_rules(&evaluator.match_rules(Uuid::default(), &dsc, rules.iter()));
         // Reservoir rule overrides 0 and 2.
         assert_eq!(&matched_rules, &[1]);
 
-        let evaluator = SamplingEvaluator::new(Utc::now()).set_reservoir(&reservoir);
+        let evaluator = SamplingEvaluator::new_with_reservoir(Utc::now(), &reservoir);
         let matched_rules =
             get_matched_rules(&evaluator.match_rules(Uuid::default(), &dsc, rules.iter()));
         // Reservoir rule reached its limit, rule 0 and 2 are now matched instead.
@@ -866,7 +787,7 @@ mod tests {
         let mut rule = mocked_sampling_rule();
 
         let reservoir = ReservoirEvaluator::new(ReservoirCounters::default());
-        let mut eval = SamplingEvaluator::new(Utc::now()).set_reservoir(&reservoir);
+        let mut eval = SamplingEvaluator::new_with_reservoir(Utc::now(), &reservoir);
 
         rule.sampling_value = SamplingValue::SampleRate { value: 1.0 };
         assert_eq!(eval.try_compute_sample_rate(&rule), Some(1.0));

@@ -37,6 +37,9 @@ use relay_config::Config;
 use crate::middlewares;
 use crate::service::ServiceState;
 
+/// Size limit for internal batch endpoints.
+const BATCH_JSON_BODY_LIMIT: usize = 50_000_000; // 50 MB
+
 #[rustfmt::skip]
 pub fn routes<B>(config: &Config) -> Router<ServiceState, B>
 where
@@ -63,11 +66,14 @@ where
     let web_routes = Router::new()
         .route("/api/0/relays/projectconfigs/", post(project_configs::handle))
         .route("/api/0/relays/publickeys/", post(public_keys::handle))
-        .route("/api/0/relays/outcomes/", post(batch_outcomes::handle))
-        .route("/api/0/relays/metrics/", post(batch_metrics::handle))
         // Network connectivity check for downstream Relays, same as the internal health check.
         .route("/api/0/relays/live/", get(health_check::handle_live))
         .route_layer(DefaultBodyLimit::max(crate::constants::MAX_JSON_SIZE));
+
+    let batch_routes = Router::new()
+        .route("/api/0/relays/outcomes/", post(batch_outcomes::handle))
+        .route("/api/0/relays/metrics/", post(batch_metrics::handle))
+        .route_layer(DefaultBodyLimit::max(BATCH_JSON_BODY_LIMIT));
 
     // Ingestion routes pointing to /api/:project_id/
     let store_routes = Router::new()
@@ -99,6 +105,7 @@ where
 
     router.merge(internal_routes)
         .merge(web_routes)
+        .merge(batch_routes)
         .merge(store_routes)
         // Forward all other API routes to the upstream. This will 404 for non-API routes.
         .fallback(forward::forward)

@@ -15,6 +15,7 @@ use relay_test::mock_service;
 use crate::envelope::{Envelope, Item, ItemType};
 use crate::extractors::RequestMeta;
 use crate::metric_stats::MetricStats;
+use crate::metrics::MetricOutcomes;
 use crate::services::global_config::GlobalConfigHandle;
 use crate::services::outcome::TrackOutcome;
 use crate::services::processor::{self, EnvelopeProcessorService};
@@ -119,6 +120,7 @@ pub fn create_test_processor(config: Config) -> EnvelopeProcessorService {
     let (project_cache, _) = mock_service("project_cache", (), |&mut (), _| {});
     let (upstream_relay, _) = mock_service("upstream_relay", (), |&mut (), _| {});
     let (test_store, _) = mock_service("test_store", (), |&mut (), _| {});
+    #[cfg(feature = "processing")]
     let (aggregator, _) = mock_service("aggregator", (), |&mut (), _| {});
 
     #[cfg(feature = "processing")]
@@ -126,6 +128,8 @@ pub fn create_test_processor(config: Config) -> EnvelopeProcessorService {
         .redis()
         .filter(|_| config.processing_enabled())
         .map(|redis_config| relay_redis::RedisPool::new(redis_config).unwrap());
+
+    let metric_outcomes = MetricOutcomes::new(MetricStats::test().0, outcome_aggregator.clone());
 
     let config = Arc::new(config);
     EnvelopeProcessorService::new(
@@ -145,11 +149,34 @@ pub fn create_test_processor(config: Config) -> EnvelopeProcessorService {
             #[cfg(feature = "processing")]
             store_forwarder: None,
         },
-        MetricStats::new(
-            config,
-            GlobalConfigHandle::fixed(Default::default()),
-            aggregator,
-        ),
+        metric_outcomes,
+        #[cfg(feature = "processing")]
+        Arc::new(BufferGuard::new(usize::MAX)),
+    )
+}
+
+pub fn create_test_processor_with_addrs(
+    config: Config,
+    addrs: processor::Addrs,
+) -> EnvelopeProcessorService {
+    #[cfg(feature = "processing")]
+    let redis = config
+        .redis()
+        .filter(|_| config.processing_enabled())
+        .map(|redis_config| relay_redis::RedisPool::new(redis_config).unwrap());
+
+    let metric_outcomes =
+        MetricOutcomes::new(MetricStats::test().0, addrs.outcome_aggregator.clone());
+
+    let config = Arc::new(config);
+    EnvelopeProcessorService::new(
+        Arc::clone(&config),
+        GlobalConfigHandle::fixed(Default::default()),
+        Cogs::noop(),
+        #[cfg(feature = "processing")]
+        redis,
+        addrs,
+        metric_outcomes,
         #[cfg(feature = "processing")]
         Arc::new(BufferGuard::new(usize::MAX)),
     )

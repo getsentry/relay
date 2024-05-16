@@ -10,8 +10,9 @@ use std::slice;
 use std::sync::OnceLock;
 
 use chrono::{DateTime, Utc};
+use relay_cardinality::CardinalityLimit;
 use relay_common::glob::{glob_match_bytes, GlobOptions};
-use relay_dynamic_config::{normalize_json, validate_json, GlobalConfig, ProjectConfig};
+use relay_dynamic_config::{normalize_json, GlobalConfig, ProjectConfig};
 use relay_event_normalization::{
     normalize_event, validate_event_timestamps, validate_transaction, BreakdownsConfig,
     ClientHints, EventValidationConfig, GeoIpLookup, NormalizationConfig, RawUserAgentInfo,
@@ -272,7 +273,8 @@ pub unsafe extern "C" fn relay_store_normalizer_normalize_event(
         max_tag_value_length: usize::MAX,
         span_description_rules: None,
         performance_score: None,
-        geoip_lookup: None, // only supported in relay
+        geoip_lookup: None,   // only supported in relay
+        ai_model_costs: None, // only supported in relay
         enable_trimming: config.enable_trimming.unwrap_or_default(),
         measurements: None,
         normalize_spans: config.normalize_spans,
@@ -471,18 +473,24 @@ pub unsafe extern "C" fn relay_validate_sampling_configuration(value: *const Rel
     }
 }
 
-/// Validate entire project config.
-///
-/// If `strict` is true, checks for unknown fields in the input.
+/// Normalize a project config.
 #[no_mangle]
 #[relay_ffi::catch_unwind]
-pub unsafe extern "C" fn relay_validate_project_config(
-    value: *const RelayStr,
-    strict: bool,
-) -> RelayStr {
+pub unsafe extern "C" fn relay_normalize_project_config(value: *const RelayStr) -> RelayStr {
     let value = (*value).as_str();
-    match validate_json::<ProjectConfig>(value, strict) {
-        Ok(()) => RelayStr::default(),
+    match normalize_json::<ProjectConfig>(value) {
+        Ok(normalized) => RelayStr::from_string(normalized),
+        Err(e) => RelayStr::from_string(e.to_string()),
+    }
+}
+
+/// Normalize a cardinality limit config.
+#[no_mangle]
+#[relay_ffi::catch_unwind]
+pub unsafe extern "C" fn normalize_cardinality_limit_config(value: *const RelayStr) -> RelayStr {
+    let value = (*value).as_str();
+    match normalize_json::<CardinalityLimit>(value) {
+        Ok(normalized) => RelayStr::from_string(normalized),
         Err(e) => RelayStr::from_string(e.to_string()),
     }
 }
@@ -490,7 +498,7 @@ pub unsafe extern "C" fn relay_validate_project_config(
 /// Normalize a global config.
 #[no_mangle]
 #[relay_ffi::catch_unwind]
-pub unsafe extern "C" fn normalize_global_config(value: *const RelayStr) -> RelayStr {
+pub unsafe extern "C" fn relay_normalize_global_config(value: *const RelayStr) -> RelayStr {
     let value = (*value).as_str();
     match normalize_json::<GlobalConfig>(value) {
         Ok(normalized) => RelayStr::from_string(normalized),

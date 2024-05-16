@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
 use relay_common::time::UnixTimestamp;
-use relay_dynamic_config::{MetricExtractionConfig, TagMapping, TagSource, TagSpec};
+use relay_dynamic_config::{CombinedMetricExtractionConfig, TagMapping, TagSource, TagSpec};
 
 use relay_metrics::{
     Bucket, BucketMetadata, BucketValue, FiniteF64, MetricResourceIdentifier, MetricType,
@@ -23,7 +23,10 @@ pub trait Extractable: Getter {
 /// The instance must have a valid timestamp; if the timestamp is missing or invalid, no metrics are
 /// extracted. Timestamp and clock drift correction should occur before metrics extraction to ensure
 /// valid timestamps.
-pub fn extract_metrics<T>(instance: &T, config: &MetricExtractionConfig) -> Vec<Bucket>
+///
+/// Any MRI can be defined multiple times in the config (this will create multiple buckets), but
+/// for every tag in a bucket, there can be only one value. The first encountered tag value wins.
+pub fn extract_metrics<T>(instance: &T, config: &CombinedMetricExtractionConfig<'_>) -> Vec<Bucket>
 where
     T: Extractable,
 {
@@ -34,7 +37,15 @@ where
         return metrics;
     };
 
-    for metric_spec in &config.metrics {
+    // For extracted metrics we assume the `received_at` timestamp is equivalent to the time
+    // in which the metric is extracted.
+    let received_at = if cfg!(not(test)) {
+        UnixTimestamp::now()
+    } else {
+        UnixTimestamp::from_secs(0)
+    };
+
+    for metric_spec in config.metrics() {
         if metric_spec.category != instance.category() {
             continue;
         }
@@ -62,21 +73,24 @@ where
             value,
             timestamp,
             tags: extract_tags(instance, &metric_spec.tags),
-            metadata: BucketMetadata::new(),
+            metadata: BucketMetadata::new(received_at),
         });
     }
 
     // TODO: Inline this again once transaction metric extraction has been moved to generic metrics.
-    tmp_apply_tags(&mut metrics, instance, &config.tags);
+    tmp_apply_tags(&mut metrics, instance, config.tags());
 
     metrics
 }
 
-pub fn tmp_apply_tags<T>(metrics: &mut [Bucket], instance: &T, mappings: &[TagMapping])
-where
+pub fn tmp_apply_tags<'a, T>(
+    metrics: &mut [Bucket],
+    instance: &T,
+    mappings: impl IntoIterator<Item = &'a TagMapping>,
+) where
     T: Getter,
 {
-    for mapping in mappings {
+    for mapping in mappings.into_iter() {
         let mut lazy_tags = None;
 
         for metric in &mut *metrics {
@@ -183,7 +197,10 @@ mod tests {
         });
         let config = serde_json::from_value(config_json).unwrap();
 
-        let metrics = extract_metrics(event.value().unwrap(), &config);
+        let metrics = extract_metrics(
+            event.value().unwrap(),
+            &CombinedMetricExtractionConfig::from(&config),
+        );
         insta::assert_debug_snapshot!(metrics, @r###"
         [
             Bucket {
@@ -198,6 +215,9 @@ mod tests {
                 tags: {},
                 metadata: BucketMetadata {
                     merges: 1,
+                    received_at: Some(
+                        UnixTimestamp(0),
+                    ),
                 },
             },
         ]
@@ -225,7 +245,10 @@ mod tests {
         });
         let config = serde_json::from_value(config_json).unwrap();
 
-        let metrics = extract_metrics(event.value().unwrap(), &config);
+        let metrics = extract_metrics(
+            event.value().unwrap(),
+            &CombinedMetricExtractionConfig::from(&config),
+        );
         insta::assert_debug_snapshot!(metrics, @r###"
         [
             Bucket {
@@ -242,6 +265,9 @@ mod tests {
                 tags: {},
                 metadata: BucketMetadata {
                     merges: 1,
+                    received_at: Some(
+                        UnixTimestamp(0),
+                    ),
                 },
             },
         ]
@@ -271,7 +297,10 @@ mod tests {
         });
         let config = serde_json::from_value(config_json).unwrap();
 
-        let metrics = extract_metrics(event.value().unwrap(), &config);
+        let metrics = extract_metrics(
+            event.value().unwrap(),
+            &CombinedMetricExtractionConfig::from(&config),
+        );
         insta::assert_debug_snapshot!(metrics, @r###"
         [
             Bucket {
@@ -288,6 +317,9 @@ mod tests {
                 tags: {},
                 metadata: BucketMetadata {
                     merges: 1,
+                    received_at: Some(
+                        UnixTimestamp(0),
+                    ),
                 },
             },
         ]
@@ -329,7 +361,10 @@ mod tests {
         });
         let config = serde_json::from_value(config_json).unwrap();
 
-        let metrics = extract_metrics(event.value().unwrap(), &config);
+        let metrics = extract_metrics(
+            event.value().unwrap(),
+            &CombinedMetricExtractionConfig::from(&config),
+        );
         insta::assert_debug_snapshot!(metrics, @r###"
         [
             Bucket {
@@ -348,6 +383,9 @@ mod tests {
                 },
                 metadata: BucketMetadata {
                     merges: 1,
+                    received_at: Some(
+                        UnixTimestamp(0),
+                    ),
                 },
             },
         ]
@@ -388,7 +426,10 @@ mod tests {
         });
         let config = serde_json::from_value(config_json).unwrap();
 
-        let metrics = extract_metrics(event.value().unwrap(), &config);
+        let metrics = extract_metrics(
+            event.value().unwrap(),
+            &CombinedMetricExtractionConfig::from(&config),
+        );
         insta::assert_debug_snapshot!(metrics, @r###"
         [
             Bucket {
@@ -405,6 +446,9 @@ mod tests {
                 },
                 metadata: BucketMetadata {
                     merges: 1,
+                    received_at: Some(
+                        UnixTimestamp(0),
+                    ),
                 },
             },
         ]
@@ -449,7 +493,10 @@ mod tests {
         });
         let config = serde_json::from_value(config_json).unwrap();
 
-        let metrics = extract_metrics(event.value().unwrap(), &config);
+        let metrics = extract_metrics(
+            event.value().unwrap(),
+            &CombinedMetricExtractionConfig::from(&config),
+        );
         insta::assert_debug_snapshot!(metrics, @r###"
         [
             Bucket {
@@ -466,6 +513,9 @@ mod tests {
                 },
                 metadata: BucketMetadata {
                     merges: 1,
+                    received_at: Some(
+                        UnixTimestamp(0),
+                    ),
                 },
             },
         ]
@@ -518,7 +568,10 @@ mod tests {
         });
         let config = serde_json::from_value(config_json).unwrap();
 
-        let metrics = extract_metrics(event.value().unwrap(), &config);
+        let metrics = extract_metrics(
+            event.value().unwrap(),
+            &CombinedMetricExtractionConfig::from(&config),
+        );
         insta::assert_debug_snapshot!(metrics, @r###"
         [
             Bucket {
@@ -535,6 +588,9 @@ mod tests {
                 tags: {},
                 metadata: BucketMetadata {
                     merges: 1,
+                    received_at: Some(
+                        UnixTimestamp(0),
+                    ),
                 },
             },
         ]

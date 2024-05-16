@@ -5,7 +5,7 @@ use chrono::Utc;
 use relay_base_schema::events::EventType;
 use relay_base_schema::project::ProjectKey;
 use relay_event_schema::protocol::{Event, TraceContext};
-use relay_sampling::config::{RuleType, SamplingConfig, SamplingMode};
+use relay_sampling::config::{RuleType, SamplingConfig};
 use relay_sampling::dsc::{DynamicSamplingContext, TraceUserContext};
 use relay_sampling::evaluation::{SamplingEvaluator, SamplingMatch};
 
@@ -76,13 +76,7 @@ pub fn is_trace_fully_sampled(
         return Some(false);
     }
 
-    let adjustment_rate = match root_project_config.mode {
-        SamplingMode::Total => dsc.sample_rate,
-        _ => None,
-    };
-
-    // TODO(tor): pass correct now timestamp
-    let evaluator = SamplingEvaluator::new(Utc::now()).adjust_client_sample_rate(adjustment_rate);
+    let evaluator = SamplingEvaluator::new(Utc::now());
 
     let rules = root_project_config.filter_rules(RuleType::Trace);
 
@@ -99,8 +93,12 @@ pub fn get_sampling_key(envelope: &Envelope) -> Option<ProjectKey> {
     // If the envelope item is not of type transaction or event, we will not return a sampling key
     // because it doesn't make sense to load the root project state if we don't perform trace
     // sampling.
-    envelope
-        .get_item_by(|item| item.ty() == &ItemType::Transaction || item.ty() == &ItemType::Event)?;
+    envelope.get_item_by(|item| {
+        matches!(
+            item.ty(),
+            ItemType::Transaction | ItemType::Event | ItemType::Span
+        )
+    })?;
     envelope.dsc().map(|dsc| dsc.public_key)
 }
 

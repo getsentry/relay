@@ -28,12 +28,14 @@ use smallvec::SmallVec;
 use uuid::Uuid;
 
 use crate::normalize::request;
+use crate::span::ai::normalize_ai_measurements;
 use crate::span::tag_extraction::extract_span_tags_from_event;
 use crate::utils::{self, get_event_user_tag, MAX_DURATION_MOBILE_MS};
 use crate::{
     breakdowns, event_error, legacy, mechanism, remove_other, schema, span, stacktrace,
-    transactions, trimming, user_agent, BreakdownsConfig, DynamicMeasurementsConfig, GeoIpLookup,
-    MaxChars, PerformanceScoreConfig, RawUserAgentInfo, SpanDescriptionRule, TransactionNameConfig,
+    transactions, trimming, user_agent, BreakdownsConfig, CombinedMeasurementsConfig, GeoIpLookup,
+    MaxChars, ModelCosts, PerformanceScoreConfig, RawUserAgentInfo, SpanDescriptionRule,
+    TransactionNameConfig,
 };
 
 /// Configuration for [`normalize_event`].
@@ -90,7 +92,7 @@ pub struct NormalizationConfig<'a> {
     /// Has an optional [`crate::MeasurementsConfig`] from both the project and the global level.
     /// If at least one is provided, then normalization will truncate custom measurements
     /// and add units of known built-in measurements.
-    pub measurements: Option<DynamicMeasurementsConfig<'a>>,
+    pub measurements: Option<CombinedMeasurementsConfig<'a>>,
 
     /// Emit breakdowns based on given configuration.
     pub breakdowns_config: Option<&'a BreakdownsConfig>,
@@ -131,6 +133,9 @@ pub struct NormalizationConfig<'a> {
 
     /// Configuration for generating performance score measurements for web vitals
     pub performance_score: Option<&'a PerformanceScoreConfig>,
+
+    /// Configuration for calculating the cost of AI model runs
+    pub ai_model_costs: Option<&'a ModelCosts>,
 
     /// An initialized GeoIP lookup.
     pub geoip_lookup: Option<&'a GeoIpLookup>,
@@ -175,6 +180,7 @@ impl<'a> Default for NormalizationConfig<'a> {
             span_description_rules: Default::default(),
             performance_score: Default::default(),
             geoip_lookup: Default::default(),
+            ai_model_costs: Default::default(),
             enable_trimming: false,
             measurements: None,
             normalize_spans: true,
@@ -292,6 +298,7 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) {
         config.max_name_and_unit_len,
     ); // Measurements are part of the metric extraction
     normalize_performance_score(event, config.performance_score);
+    normalize_ai_measurements(event, config.ai_model_costs);
     normalize_breakdowns(event, config.breakdowns_config); // Breakdowns are part of the metric extraction too
     normalize_default_attributes(event, meta, config);
 
@@ -804,7 +811,7 @@ fn normalize_user_agent(_event: &mut Event, normalize_user_agent: Option<bool>) 
 /// Ensures measurements interface is only present for transaction events.
 fn normalize_event_measurements(
     event: &mut Event,
-    measurements_config: Option<DynamicMeasurementsConfig>,
+    measurements_config: Option<CombinedMeasurementsConfig>,
     max_mri_len: Option<usize>,
 ) {
     if event.ty.value() != Some(&EventType::Transaction) {
@@ -826,7 +833,7 @@ fn normalize_event_measurements(
 pub fn normalize_measurements(
     measurements: &mut Measurements,
     meta: &mut Meta,
-    measurements_config: Option<DynamicMeasurementsConfig>,
+    measurements_config: Option<CombinedMeasurementsConfig>,
     max_mri_len: Option<usize>,
     start_timestamp: Option<Timestamp>,
     end_timestamp: Option<Timestamp>,
@@ -1277,7 +1284,7 @@ fn normalize_units(measurements: &mut Measurements) {
 fn remove_invalid_measurements(
     measurements: &mut Measurements,
     meta: &mut Meta,
-    measurements_config: DynamicMeasurementsConfig,
+    measurements_config: CombinedMeasurementsConfig,
     max_name_and_unit_len: Option<usize>,
 ) {
     let max_custom_measurements = measurements_config.max_custom_measurements().unwrap_or(0);
@@ -1411,6 +1418,7 @@ mod tests {
 
     use insta::{assert_debug_snapshot, assert_json_snapshot};
     use itertools::Itertools;
+    use relay_common::glob2::LazyGlob;
     use relay_event_schema::protocol::{
         Breadcrumb, Csp, DebugMeta, DeviceContext, MetricSummary, MetricsSummary, Span, Values,
     };
@@ -1418,7 +1426,7 @@ mod tests {
     use serde_json::json;
 
     use super::*;
-    use crate::{ClientHints, MeasurementsConfig};
+    use crate::{ClientHints, MeasurementsConfig, ModelCost};
 
     const IOS_MOBILE_EVENT: &str = r#"
         {
@@ -1629,7 +1637,7 @@ mod tests {
         .unwrap();
 
         let dynamic_measurement_config =
-            DynamicMeasurementsConfig::new(Some(&project_measurement_config), None);
+            CombinedMeasurementsConfig::new(Some(&project_measurement_config), None);
 
         normalize_event_measurements(&mut event, Some(dynamic_measurement_config), None);
 
@@ -1991,7 +1999,7 @@ mod tests {
             ..Default::default()
         };
 
-        let dynamic_config = DynamicMeasurementsConfig::new(Some(&measurements_config), None);
+        let dynamic_config = CombinedMeasurementsConfig::new(Some(&measurements_config), None);
 
         // Just for clarity.
         // Checks that there is 1 measurement before processing.
@@ -2085,6 +2093,111 @@ mod tests {
             },
         )
         "###);
+    }
+
+    #[test]
+    fn test_ai_measurements() {
+        let json = r#"
+            {
+                "spans": [
+                    {
+                        "timestamp": 1702474613.0495,
+                        "start_timestamp": 1702474613.0175,
+                        "description": "OpenAI ",
+                        "op": "ai.chat_completions.openai",
+                        "span_id": "9c01bd820a083e63",
+                        "parent_span_id": "a1e13f3f06239d69",
+                        "trace_id": "922dda2462ea4ac2b6a4b339bee90863",
+                        "measurements": {
+                            "ai_total_tokens_used": {
+                                "value": 1230
+                            }
+                        },
+                        "data": {
+                            "ai.pipeline.name": "Autofix Pipeline",
+                            "ai.model_id": "claude-2.1"
+                        }
+                    },
+                    {
+                        "timestamp": 1702474613.0495,
+                        "start_timestamp": 1702474613.0175,
+                        "description": "OpenAI ",
+                        "op": "ai.chat_completions.openai",
+                        "span_id": "ac01bd820a083e63",
+                        "parent_span_id": "a1e13f3f06239d69",
+                        "trace_id": "922dda2462ea4ac2b6a4b339bee90863",
+                        "measurements": {
+                            "ai_prompt_tokens_used": {
+                                "value": 1000
+                            },
+                            "ai_completion_tokens_used": {
+                                "value": 2000
+                            }
+                        },
+                        "data": {
+                            "ai.pipeline.name": "Autofix Pipeline",
+                            "ai.model_id": "gpt4-21-04"
+                        }
+                    }
+                ]
+            }
+        "#;
+
+        let mut event = Annotated::<Event>::from_json(json).unwrap();
+
+        normalize_event(
+            &mut event,
+            &NormalizationConfig {
+                ai_model_costs: Some(&ModelCosts {
+                    version: 1,
+                    costs: vec![
+                        ModelCost {
+                            model_id: LazyGlob::new("claude-2*".into()),
+                            for_completion: false,
+                            cost_per_1k_tokens: 1.0,
+                        },
+                        ModelCost {
+                            model_id: LazyGlob::new("gpt4-21*".into()),
+                            for_completion: false,
+                            cost_per_1k_tokens: 2.0,
+                        },
+                        ModelCost {
+                            model_id: LazyGlob::new("gpt4-21*".into()),
+                            for_completion: true,
+                            cost_per_1k_tokens: 20.0,
+                        },
+                    ],
+                }),
+                ..NormalizationConfig::default()
+            },
+        );
+
+        let spans = event.value().unwrap().spans.value().unwrap();
+        assert_eq!(spans.len(), 2);
+        assert_eq!(
+            spans
+                .first()
+                .unwrap()
+                .value()
+                .unwrap()
+                .measurements
+                .value()
+                .unwrap()
+                .get_value("ai_total_cost"),
+            Some(1.23)
+        );
+        assert_eq!(
+            spans
+                .get(1)
+                .unwrap()
+                .value()
+                .unwrap()
+                .measurements
+                .value()
+                .unwrap()
+                .get_value("ai_total_cost"),
+            Some(20.0 * 2.0 + 2.0)
+        );
     }
 
     #[test]
@@ -2895,7 +3008,7 @@ mod tests {
         .unwrap();
 
         let dynamic_measurement_config =
-            DynamicMeasurementsConfig::new(Some(&project_measurement_config), None);
+            CombinedMeasurementsConfig::new(Some(&project_measurement_config), None);
 
         normalize_event_measurements(&mut event, Some(dynamic_measurement_config), None);
 

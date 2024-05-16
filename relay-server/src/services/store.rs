@@ -12,7 +12,7 @@ use relay_base_schema::data_category::DataCategory;
 use relay_base_schema::project::ProjectId;
 use relay_common::time::{instant_to_date_time, UnixTimestamp};
 use relay_config::Config;
-use relay_event_schema::protocol::{EventId, SessionStatus, VALID_PLATFORMS};
+use relay_event_schema::protocol::{EventId, VALID_PLATFORMS};
 
 use relay_kafka::{ClientError, KafkaClient, KafkaTopic, Message};
 use relay_metrics::{
@@ -27,14 +27,15 @@ use serde_json::value::RawValue;
 use serde_json::Deserializer;
 use uuid::Uuid;
 
-use crate::envelope::{AttachmentType, Envelope, Item, ItemType, SourceQuantities};
-use crate::metric_stats::MetricStats;
+use crate::envelope::{AttachmentType, Envelope, Item, ItemType};
+
+use crate::metrics::MetricOutcomes;
 use crate::services::global_config::GlobalConfigHandle;
 use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::services::processor::Processed;
 use crate::statsd::RelayCounters;
 use crate::utils::{
-    self, is_rolled_out, ArrayEncoding, BucketEncoder, ExtractionMode, FormDataIter, TypedEnvelope,
+    is_rolled_out, ArrayEncoding, BucketEncoder, ExtractionMode, FormDataIter, TypedEnvelope,
 };
 
 /// Fallback name used for attachment items without a `filename` header.
@@ -130,7 +131,7 @@ pub struct StoreService {
     config: Arc<Config>,
     global_config: GlobalConfigHandle,
     outcome_aggregator: Addr<TrackOutcome>,
-    metric_stats: MetricStats,
+    metric_outcomes: MetricOutcomes,
     producer: Producer,
 }
 
@@ -139,14 +140,14 @@ impl StoreService {
         config: Arc<Config>,
         global_config: GlobalConfigHandle,
         outcome_aggregator: Addr<TrackOutcome>,
-        metric_stats: MetricStats,
+        metric_outcomes: MetricOutcomes,
     ) -> anyhow::Result<Self> {
         let producer = Producer::create(&config)?;
         Ok(Self {
             config,
             global_config,
             outcome_aggregator,
-            metric_stats,
+            metric_outcomes,
             producer,
         })
     }
@@ -189,13 +190,19 @@ impl StoreService {
         let retention = envelope.retention();
         let event_id = envelope.event_id();
 
+        let feedback_ingest_same_envelope_attachments = self
+            .global_config
+            .current()
+            .options
+            .feedback_ingest_same_envelope_attachments;
+
         let event_item = envelope.as_mut().take_item_by(|item| {
             matches!(
-                item.ty(),
-                ItemType::Event
-                    | ItemType::Transaction
-                    | ItemType::Security
-                    | ItemType::UserReportV2
+                (item.ty(), feedback_ingest_same_envelope_attachments),
+                (ItemType::Event, _)
+                    | (ItemType::Transaction, _)
+                    | (ItemType::Security, _)
+                    | (ItemType::UserReportV2, false)
             )
         });
         let client = envelope.meta().client();
@@ -242,6 +249,17 @@ impl StoreService {
                         scoping.project_id,
                         start_time,
                         item,
+                    )?;
+                }
+                ItemType::UserReportV2 if feedback_ingest_same_envelope_attachments => {
+                    let remote_addr = envelope.meta().client_addr().map(|addr| addr.to_string());
+                    self.produce_user_report_v2(
+                        event_id.ok_or(StoreError::NoEventId)?,
+                        scoping.project_id,
+                        scoping.organization_id,
+                        start_time,
+                        item,
+                        remote_addr,
                     )?;
                 }
                 ItemType::Profile => self.produce_profile(
@@ -381,15 +399,12 @@ impl StoreService {
         let batch_size = self.config.metrics_max_batch_size_bytes();
         let mut error = None;
 
-        let mut dropped_quantities = SourceQuantities::default();
-
         let global_config = self.global_config.current();
         let mut encoder = BucketEncoder::new(&global_config);
 
         for mut bucket in buckets {
             let namespace = encoder.prepare(&mut bucket);
 
-            let mut has_success = false;
             // Create a local bucket view to avoid splitting buckets unnecessarily. Since we produce
             // each bucket separately, we only need to split buckets that exceed the size, but not
             // batches.
@@ -409,49 +424,22 @@ impl StoreService {
                 let result =
                     message.and_then(|message| self.send_metric_message(namespace, message));
 
-                match result {
-                    Ok(()) => {
-                        has_success = true;
-                    }
+                let outcome = match result {
+                    Ok(()) => Outcome::Accepted,
                     Err(e) => {
                         error.get_or_insert(e);
-                        dropped_quantities += utils::extract_metric_quantities([view], mode);
+                        Outcome::Invalid(DiscardReason::Internal)
                     }
-                }
-            }
+                };
 
-            // Tracking the volume here is slightly off, only one of the multiple bucket views can
-            // fail to produce. Since the views are sliced from the original bucket we cannot
-            // correctly attribute the amount of merges (volume) to the amount of slices that
-            // succeeded or not. -> Attribute the entire volume if at least one slice successfully
-            // produced.
-            //
-            // This logic will be improved iterated on and change once we move serialization logic
-            // back into the processor service.
-            self.metric_stats.track_metric(
-                scoping,
-                &bucket,
-                if has_success {
-                    Outcome::Accepted
-                } else {
-                    Outcome::Invalid(DiscardReason::Internal)
-                },
-            );
+                self.metric_outcomes.track(scoping, &[view], mode, outcome);
+            }
         }
 
         if let Some(error) = error {
             relay_log::error!(
                 error = &error as &dyn std::error::Error,
                 "failed to produce metric buckets: {error}"
-            );
-
-            utils::reject_metrics::<&Bucket>(
-                &self.outcome_aggregator,
-                &self.metric_stats,
-                dropped_quantities,
-                scoping,
-                Outcome::Invalid(DiscardReason::Internal),
-                None,
             );
         }
     }
@@ -490,6 +478,8 @@ impl StoreService {
             BucketViewValue::Gauge(g) => MetricValue::Gauge(g),
         };
 
+        // TODO: propagate the `received_at` field upstream.
+        // https://github.com/getsentry/relay/issues/3515
         Ok(MetricKafkaMessage {
             org_id: organization_id,
             project_id,
@@ -671,6 +661,36 @@ impl StoreService {
         });
 
         self.produce(KafkaTopic::Attachments, message)
+    }
+
+    fn produce_user_report_v2(
+        &self,
+        event_id: EventId,
+        project_id: ProjectId,
+        organization_id: u64,
+        start_time: Instant,
+        item: &Item,
+        remote_addr: Option<String>,
+    ) -> Result<(), StoreError> {
+        // check rollout rate option (effectively a FF) to determine whether to produce to new infra
+        let global_config = self.global_config.current();
+        let feedback_ingest_topic_rollout_rate =
+            global_config.options.feedback_ingest_topic_rollout_rate;
+        let topic = if is_rolled_out(organization_id, feedback_ingest_topic_rollout_rate) {
+            KafkaTopic::Feedback
+        } else {
+            KafkaTopic::Events
+        };
+
+        let message = KafkaMessage::Event(EventKafkaMessage {
+            project_id,
+            event_id,
+            payload: item.payload(),
+            start_time: UnixTimestamp::from_instant(start_time).as_secs(),
+            remote_addr,
+            attachments: vec![],
+        });
+        self.produce(topic, message)
     }
 
     fn send_metric_message(
@@ -1232,25 +1252,6 @@ struct UserReportKafkaMessage {
 }
 
 #[derive(Clone, Debug, Serialize)]
-struct SessionKafkaMessage {
-    org_id: u64,
-    project_id: ProjectId,
-    session_id: Uuid,
-    distinct_id: Uuid,
-    quantity: u32,
-    seq: u64,
-    received: f64,
-    started: f64,
-    duration: Option<f64>,
-    status: SessionStatus,
-    errors: u16,
-    release: String,
-    environment: Option<String>,
-    sdk: Option<String>,
-    retention_days: u16,
-}
-
-#[derive(Clone, Debug, Serialize)]
 struct MetricKafkaMessage<'a> {
     org_id: u64,
     project_id: ProjectId,
@@ -1359,8 +1360,11 @@ struct SpanKafkaMessage<'a> {
     event_id: Option<EventId>,
     #[serde(rename(deserialize = "exclusive_time"))]
     exclusive_time_ms: f64,
+    #[serde(default)]
     is_segment: bool,
 
+    #[serde(default, skip_serializing_if = "none_or_empty_object")]
+    data: Option<&'a RawValue>,
     #[serde(borrow, default, skip_serializing_if = "Option::is_none")]
     measurements: Option<BTreeMap<Cow<'a, str>, Option<SpanMeasurement>>>,
     #[serde(default)]

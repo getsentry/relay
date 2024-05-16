@@ -3,7 +3,7 @@ use std::collections::BTreeSet;
 use serde::{Deserialize, Serialize};
 
 /// Features exposed by project config.
-#[derive(Clone, Debug, Eq, PartialEq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub enum Feature {
     /// Enables ingestion of Session Replays (Replay Recordings and Replay Events).
     ///
@@ -56,11 +56,11 @@ pub enum Feature {
     /// Serialized as `organizations:standalone-span-ingestion`.
     #[serde(rename = "organizations:standalone-span-ingestion")]
     StandaloneSpanIngestion,
-    /// Enable metric metadata.
+    /// Enable standalone span ingestion via the `/spans/` OTel endpoint.
     ///
-    /// Serialized as `organizations:metric-meta`.
-    #[serde(rename = "organizations:metric-meta")]
-    MetricMeta,
+    /// Serialized as `projects:relay-otel-endpoint`.
+    #[serde(rename = "projects:relay-otel-endpoint")]
+    OtelEndpoint,
     /// Enable processing and extracting data from profiles that would normally be dropped by dynamic sampling.
     ///
     /// This is required for [slowest function aggregation](https://github.com/getsentry/snuba/blob/b5311b404a6bd73a9e1997a46d38e7df88e5f391/snuba/snuba_migrations/functions/0001_functions.py#L209-L256). The profile payload will be dropped on the sentry side.
@@ -89,14 +89,6 @@ pub enum Feature {
     /// Serialized as `projects:extract-transaction-from-segment-span`.
     #[serde(rename = "projects:extract-transaction-from-segment-span")]
     ExtractTransactionFromSegmentSpan,
-
-    /// Double write span distribution metrics as gauges.
-    ///
-    /// This is to transition to a cheaper way to store span metrics where we only use averages.
-    ///
-    /// Serialized as `projects:span-metrics-double-write-distributions-as-gauges`.
-    #[serde(rename = "projects:span-metrics-double-write-distributions-as-gauges")]
-    DoubleWriteSpanDistributionMetricsAsGauges,
 
     /// Deprecated, still forwarded for older downstream Relays.
     #[doc(hidden)]

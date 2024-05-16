@@ -36,6 +36,12 @@ pub enum FilterStatKey {
     /// Filtered due to the fact that it was a call to a filtered transaction
     FilteredTransactions,
 
+    /// Filtered due to name being denied.
+    DeniedName,
+
+    /// Filtered due to the namespace being disabled.
+    DisabledNamespace,
+
     /// Filtered due to a generic filter.
     GenericFilter(String),
 }
@@ -65,6 +71,8 @@ impl FilterStatKey {
             FilterStatKey::WebCrawlers => "web-crawlers",
             FilterStatKey::InvalidCsp => "invalid-csp",
             FilterStatKey::FilteredTransactions => "filtered-transaction",
+            FilterStatKey::DeniedName => "denied-name",
+            FilterStatKey::DisabledNamespace => "disabled-namespace",
             FilterStatKey::GenericFilter(filter_identifier) => {
                 return Cow::Owned(filter_identifier);
             }

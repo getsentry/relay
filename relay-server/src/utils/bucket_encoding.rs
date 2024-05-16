@@ -4,7 +4,7 @@ use relay_dynamic_config::{BucketEncoding, GlobalConfig};
 use relay_metrics::{Bucket, BucketValue, FiniteF64, MetricNamespace, SetView};
 use serde::Serialize;
 
-static BASE64: data_encoding::Encoding = data_encoding::BASE64;
+static BASE64_NOPAD: data_encoding::Encoding = data_encoding::BASE64_NOPAD;
 
 pub struct BucketEncoder<'a> {
     global_config: &'a GlobalConfig,
@@ -144,7 +144,7 @@ impl<'a, T> DynamicArrayEncoding<'a, T> {
 }
 
 fn base64<T: Encodable>(data: T, buffer: &mut String) -> io::Result<ArrayEncoding<T>> {
-    let mut writer = EncoderWriteAdapter(BASE64.new_encoder(buffer));
+    let mut writer = EncoderWriteAdapter(BASE64_NOPAD.new_encoder(buffer));
     data.write_to(&mut writer)?;
     drop(writer);
 
@@ -155,7 +155,7 @@ fn base64<T: Encodable>(data: T, buffer: &mut String) -> io::Result<ArrayEncodin
 
 fn zstd<T: Encodable>(data: T, buffer: &mut String) -> io::Result<ArrayEncoding<T>> {
     let mut writer = zstd::Encoder::new(
-        EncoderWriteAdapter(BASE64.new_encoder(buffer)),
+        EncoderWriteAdapter(BASE64_NOPAD.new_encoder(buffer)),
         zstd::DEFAULT_COMPRESSION_LEVEL,
     )?;
 

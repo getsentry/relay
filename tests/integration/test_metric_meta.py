@@ -23,7 +23,7 @@ def test_metric_meta(mini_sentry, redis_client, relay_with_processing):
     relay = relay_with_processing()
 
     project_config = mini_sentry.add_full_project_config(project_id)["config"]
-    project_config.setdefault("features", []).append("organizations:metric-meta")
+    project_config.setdefault("features", []).append("organizations:custom-metrics")
 
     location1 = {
         "type": "location",

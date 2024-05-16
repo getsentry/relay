@@ -1,14 +1,13 @@
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex, PoisonError};
-use std::time::{Duration, Instant};
+use std::sync::Arc;
 
 use relay_config::{Config, RelayMode};
 use relay_metrics::{AcceptsMetrics, Aggregator};
 use relay_statsd::metric;
 use relay_system::{Addr, AsyncResponse, Controller, FromMessage, Interface, Sender, Service};
 use std::future::Future;
-use sysinfo::{MemoryRefreshKind, RefreshKind, System};
-use tokio::time::timeout;
+use sysinfo::{MemoryRefreshKind, System};
+use tokio::sync::watch;
+use tokio::time::{timeout, Instant};
 
 use crate::services::project_cache::{ProjectCache, SpoolHealth};
 use crate::services::upstream::{IsAuthenticated, IsNetworkOutage, UpstreamRelay};
@@ -24,16 +23,6 @@ pub enum IsHealthy {
     /// it's both live/alive and not too busy).
     #[serde(rename = "ready")]
     Readiness,
-}
-
-impl IsHealthy {
-    /// Returns the name of the variant, either `liveness` or `healthy`.
-    fn variant(&self) -> &'static str {
-        match self {
-            Self::Liveness => "liveness",
-            Self::Readiness => "readiness",
-        }
-    }
 }
 
 /// Health check status.
@@ -76,15 +65,29 @@ impl FromMessage<IsHealthy> for HealthCheck {
     }
 }
 
+#[derive(Debug)]
+struct StatusUpdate {
+    status: Status,
+    instant: Instant,
+}
+
+impl StatusUpdate {
+    pub fn new(status: Status) -> Self {
+        Self {
+            status,
+            instant: Instant::now(),
+        }
+    }
+}
+
 /// Service implementing the [`HealthCheck`] interface.
 #[derive(Debug)]
 pub struct HealthCheckService {
-    is_shutting_down: AtomicBool,
     config: Arc<Config>,
     aggregator: Addr<Aggregator>,
     upstream_relay: Addr<UpstreamRelay>,
     project_cache: Addr<ProjectCache>,
-    system: Mutex<SystemInfo>,
+    system: System,
 }
 
 impl HealthCheckService {
@@ -97,22 +100,29 @@ impl HealthCheckService {
         upstream_relay: Addr<UpstreamRelay>,
         project_cache: Addr<ProjectCache>,
     ) -> Self {
-        HealthCheckService {
-            is_shutting_down: AtomicBool::new(false),
-            system: Mutex::new(SystemInfo::new(config.health_sys_info_refresh_interval())),
-            config,
+        Self {
+            system: System::new(),
             aggregator,
             upstream_relay,
             project_cache,
+            config,
         }
     }
 
-    async fn system_memory_probe(&self) -> Status {
-        let memory = {
-            self.system
-                .lock()
-                .unwrap_or_else(PoisonError::into_inner)
-                .memory()
+    fn system_memory_probe(&mut self) -> Status {
+        self.system
+            .refresh_memory_specifics(MemoryRefreshKind::new().with_ram());
+
+        // Use the cgroup if available in case Relay is running in a container.
+        let memory = match self.system.cgroup_limits() {
+            Some(cgroup) => Memory {
+                used: cgroup.total_memory.saturating_sub(cgroup.free_memory),
+                total: cgroup.total_memory,
+            },
+            None => Memory {
+                used: self.system.used_memory(),
+                total: self.system.total_memory(),
+            },
         };
 
         metric!(gauge(RelayGauges::SystemMemoryUsed) = memory.used);
@@ -168,6 +178,18 @@ impl HealthCheckService {
             .map_or(Status::Unhealthy, Status::from)
     }
 
+    async fn network_outage_probe(&self) -> Status {
+        // Internal metric that we need to be logged in recurring intervals. This is a form of
+        // health check, but it does not contribute to the status of this service.
+        if self.config.relay_mode() == RelayMode::Managed {
+            if let Ok(is_outage) = self.upstream_relay.send(IsNetworkOutage).await {
+                metric!(gauge(RelayGauges::NetworkOutage) = u64::from(is_outage));
+            }
+        }
+
+        Status::Healthy
+    }
+
     async fn probe(&self, name: &'static str, fut: impl Future<Output = Status>) -> Status {
         match timeout(self.config.health_probe_timeout(), fut).await {
             Err(_) => {
@@ -182,127 +204,61 @@ impl HealthCheckService {
         }
     }
 
-    async fn handle_is_healthy(&self, message: IsHealthy) -> Status {
-        let upstream = self.upstream_relay.clone();
+    async fn check_readiness(&mut self) -> Status {
+        // System memory is sync and requires mutable access, but we still want to log errors.
+        let sys_mem = self.system_memory_probe();
 
-        if self.config.relay_mode() == RelayMode::Managed {
-            let fut = upstream.send(IsNetworkOutage);
-            tokio::spawn(async move {
-                if let Ok(is_outage) = fut.await {
-                    metric!(gauge(RelayGauges::NetworkOutage) = u64::from(is_outage));
-                }
-            });
-        }
-
-        if matches!(message, IsHealthy::Liveness) {
-            return Status::Healthy;
-        }
-
-        if self.is_shutting_down.load(Ordering::Relaxed) {
-            return Status::Unhealthy;
-        }
-
-        let (sys_mem, auth, agg, proj) = tokio::join!(
-            self.probe("system memory", self.system_memory_probe()),
+        let (sys_mem, auth, agg, proj, _) = tokio::join!(
+            self.probe("system memory", async { sys_mem }),
             self.probe("auth", self.auth_probe()),
             self.probe("aggregator", self.aggregator_probe()),
             self.probe("spool health", self.spool_health_probe()),
+            self.probe("network outage", self.network_outage_probe()),
         );
 
         Status::from_iter([sys_mem, auth, agg, proj])
-    }
-
-    async fn handle_message(&self, message: HealthCheck) {
-        let HealthCheck(message, sender) = message;
-
-        let ty = message.variant();
-        let response = relay_statsd::metric!(
-            timer(RelayTimers::HealthCheckDuration),
-            type = ty,
-            { self.handle_is_healthy(message).await }
-        );
-
-        sender.send(response);
     }
 }
 
 impl Service for HealthCheckService {
     type Interface = HealthCheck;
 
-    fn spawn_handler(self, mut rx: relay_system::Receiver<Self::Interface>) {
-        let service = Arc::new(self);
+    fn spawn_handler(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
+        let (update_tx, update_rx) = watch::channel(StatusUpdate::new(Status::Unhealthy));
+        let check_interval = self.config.health_refresh_interval();
+        // Add 10% buffer to the internal timeouts to avoid race conditions.
+        let status_timeout = (check_interval + self.config.health_probe_timeout()).mul_f64(1.1);
 
         tokio::spawn(async move {
-            let mut shutdown = Controller::shutdown_handle();
+            let shutdown = Controller::shutdown_handle();
 
-            loop {
-                tokio::select! {
-                    biased;
+            while shutdown.get().is_none() {
+                let _ = update_tx.send(StatusUpdate::new(relay_statsd::metric!(
+                    timer(RelayTimers::HealthCheckDuration),
+                    type = "readiness",
+                    { self.check_readiness().await }
+                )));
 
-                    Some(message) = rx.recv() => {
-                        let service = service.clone();
-                        tokio::spawn(async move { service.handle_message(message).await });
-                    }
-                    _ = shutdown.notified() => {
-                        service.is_shutting_down.store(true, Ordering::Relaxed);
-                    }
-                }
+                tokio::time::sleep(check_interval).await;
+            }
+
+            // Shutdown marks readiness health check as unhealthy.
+            update_tx.send(StatusUpdate::new(Status::Unhealthy)).ok();
+        });
+
+        tokio::spawn(async move {
+            while let Some(HealthCheck(message, sender)) = rx.recv().await {
+                let update = update_rx.borrow();
+
+                sender.send(if matches!(message, IsHealthy::Liveness) {
+                    Status::Healthy
+                } else if update.instant.elapsed() >= status_timeout {
+                    Status::Unhealthy
+                } else {
+                    update.status
+                });
             }
         });
-    }
-}
-
-#[derive(Debug)]
-struct SystemInfo {
-    system: System,
-    last_refresh: Instant,
-    refresh_interval: Duration,
-}
-
-impl SystemInfo {
-    /// Creates a new [`SystemInfo`] to query system information.
-    ///
-    /// System information updates are debounced with the passed `refresh_interval`.
-    pub fn new(refresh_interval: Duration) -> Self {
-        let system = System::new_with_specifics(
-            RefreshKind::new().with_memory(MemoryRefreshKind::everything()),
-        );
-
-        Self {
-            system,
-            last_refresh: Instant::now(),
-            refresh_interval,
-        }
-    }
-
-    /// Current snapshot of system memory.
-    ///
-    /// On Linux systems it uses the cgroup limits to determine used and total memory,
-    /// if available.
-    pub fn memory(&mut self) -> Memory {
-        self.refresh();
-
-        // Use the cgroup if available in case Relay is running in a container.
-        if let Some(cgroup) = self.system.cgroup_limits() {
-            Memory {
-                used: cgroup.total_memory.saturating_sub(cgroup.free_memory),
-                total: cgroup.total_memory,
-            }
-        } else {
-            Memory {
-                used: self.system.used_memory(),
-                total: self.system.total_memory(),
-            }
-        }
-    }
-
-    fn refresh(&mut self) {
-        if self.last_refresh.elapsed() >= self.refresh_interval {
-            self.system
-                .refresh_memory_specifics(MemoryRefreshKind::new().with_ram());
-
-            self.last_refresh = Instant::now();
-        }
     }
 }
 

@@ -8,7 +8,7 @@ use relay_config::Config;
 use relay_dynamic_config::{ErrorBoundary, Feature, GlobalConfig};
 use relay_event_schema::protocol::{Contexts, Event, TraceContext};
 use relay_protocol::{Annotated, Empty};
-use relay_sampling::config::{RuleType, SamplingMode};
+use relay_sampling::config::RuleType;
 use relay_sampling::evaluation::{ReservoirEvaluator, SamplingEvaluator};
 use relay_sampling::{DynamicSamplingContext, SamplingConfig};
 use relay_statsd::metric;
@@ -16,7 +16,7 @@ use relay_statsd::metric;
 use crate::envelope::ItemType;
 use crate::services::outcome::Outcome;
 use crate::services::processor::{
-    profile, EventProcessing, ProcessEnvelopeState, TransactionGroup,
+    profile, EventProcessing, ProcessEnvelopeState, Sampling, TransactionGroup,
 };
 use crate::statsd::RelayCounters;
 use crate::utils::{self, sample, ItemAction, SamplingResult};
@@ -41,7 +41,7 @@ use crate::utils::{self, sample, ItemAction, SamplingResult};
 /// the main project state.
 ///
 /// If there is no transaction event in the envelope, this function will do nothing.
-pub fn normalize(state: &mut ProcessEnvelopeState<TransactionGroup>) {
+pub fn ensure_dsc(state: &mut ProcessEnvelopeState<TransactionGroup>) {
     if state.envelope().dsc().is_some() && state.sampling_project_state.is_some() {
         return;
     }
@@ -62,43 +62,35 @@ pub fn normalize(state: &mut ProcessEnvelopeState<TransactionGroup>) {
 }
 
 /// Computes the sampling decision on the incoming event
-pub fn run(state: &mut ProcessEnvelopeState<TransactionGroup>, config: &Config) -> SamplingResult {
-    // Running dynamic sampling involves either:
-    // - Tagging whether an incoming error has a sampled trace connected to it.
-    // - Computing the actual sampling decision on an incoming transaction.
-    match state.event_type().unwrap_or_default() {
-        EventType::Default | EventType::Error => {
-            tag_error_with_sampling_decision(state, config);
-            SamplingResult::Pending
-        }
-        EventType::Transaction => {
-            match state.project_state.config.transaction_metrics {
-                Some(ErrorBoundary::Ok(ref c)) if c.is_enabled() => (),
-                _ => return SamplingResult::Pending,
-            }
-
-            let sampling_config = match state.project_state.config.sampling {
-                Some(ErrorBoundary::Ok(ref config)) if !config.unsupported() => Some(config),
-                _ => None,
-            };
-
-            let root_state = state.sampling_project_state.as_ref();
-            let root_config = match root_state.and_then(|s| s.config.sampling.as_ref()) {
-                Some(ErrorBoundary::Ok(ref config)) if !config.unsupported() => Some(config),
-                _ => None,
-            };
-
-            compute_sampling_decision(
-                config.processing_enabled(),
-                &state.reservoir,
-                sampling_config,
-                state.event.value(),
-                root_config,
-                state.envelope().dsc(),
-            )
-        }
-        _ => SamplingResult::Pending,
+pub fn run<Group>(state: &mut ProcessEnvelopeState<Group>, config: &Config) -> SamplingResult
+where
+    Group: Sampling,
+{
+    if !Group::supports_sampling(&state.project_state) {
+        return SamplingResult::Pending;
     }
+
+    let sampling_config = match state.project_state.config.sampling {
+        Some(ErrorBoundary::Ok(ref config)) if !config.unsupported() => Some(config),
+        _ => None,
+    };
+
+    let root_state = state.sampling_project_state.as_ref();
+    let root_config = match root_state.and_then(|s| s.config.sampling.as_ref()) {
+        Some(ErrorBoundary::Ok(ref config)) if !config.unsupported() => Some(config),
+        _ => None,
+    };
+
+    let reservoir = Group::supports_reservoir_sampling().then_some(&state.reservoir);
+
+    compute_sampling_decision(
+        config.processing_enabled(),
+        reservoir,
+        sampling_config,
+        state.event.value(),
+        root_config,
+        state.envelope().dsc(),
+    )
 }
 
 /// Apply the dynamic sampling decision from `compute_sampling_decision`.
@@ -140,10 +132,10 @@ pub fn sample_envelope_items(
     }
 }
 
-/// Computes the sampling decision on the incoming transaction.
+/// Computes the sampling decision on the incoming envelope.
 fn compute_sampling_decision(
     processing_enabled: bool,
-    reservoir: &ReservoirEvaluator,
+    reservoir: Option<&ReservoirEvaluator>,
     sampling_config: Option<&SamplingConfig>,
     event: Option<&Event>,
     root_sampling_config: Option<&SamplingConfig>,
@@ -165,27 +157,10 @@ fn compute_sampling_decision(
         }
     }
 
-    let adjustment_rate = match sampling_config
-        .or(root_sampling_config)
-        .map(|config| config.mode)
-    {
-        Some(SamplingMode::Received) => None,
-        Some(SamplingMode::Total) => dsc.and_then(|dsc| dsc.sample_rate),
-        Some(SamplingMode::Unsupported) => {
-            if processing_enabled {
-                relay_log::error!("found unsupported sampling mode even as processing Relay");
-            }
-            return SamplingResult::NoMatch;
-        }
-        None => {
-            relay_log::error!("cannot sample without at least one sampling config");
-            return SamplingResult::NoMatch;
-        }
+    let mut evaluator = match reservoir {
+        Some(reservoir) => SamplingEvaluator::new_with_reservoir(Utc::now(), reservoir),
+        None => SamplingEvaluator::new(Utc::now()),
     };
-
-    let mut evaluator = SamplingEvaluator::new(Utc::now())
-        .adjust_client_sample_rate(adjustment_rate)
-        .set_reservoir(reservoir);
 
     if let (Some(event), Some(sampling_state)) = (event, sampling_config) {
         if let Some(seed) = event.id.value().map(|id| id.0) {
@@ -285,22 +260,24 @@ fn forward_unsampled_profiles(
 
 #[cfg(test)]
 mod tests {
-
     use std::collections::BTreeMap;
     use std::sync::Arc;
 
+    use bytes::Bytes;
     use relay_base_schema::project::{ProjectId, ProjectKey};
+    use relay_dynamic_config::{MetricExtractionConfig, TransactionMetricsConfig};
     use relay_event_schema::protocol::{EventId, LenientString};
     use relay_protocol::RuleCondition;
     use relay_sampling::config::{
         DecayingFunction, RuleId, SamplingRule, SamplingValue, TimeRange,
     };
     use relay_sampling::evaluation::{ReservoirCounters, SamplingMatch};
+    use relay_system::Addr;
     use uuid::Uuid;
 
     use crate::envelope::{ContentType, Envelope, Item};
     use crate::extractors::RequestMeta;
-    use crate::services::processor::{ProcessEnvelope, ProcessingGroup};
+    use crate::services::processor::{ProcessEnvelope, ProcessingGroup, SpanGroup};
     use crate::services::project::ProjectState;
     use crate::testutils::{
         self, create_test_processor, new_envelope, state_with_rule_and_condition,
@@ -340,13 +317,12 @@ mod tests {
         let processor = create_test_processor(Default::default());
         let (outcome_aggregator, test_store) = testutils::processor_services();
 
+        let mut envelopes = ProcessingGroup::split_envelope(*envelope);
+        assert_eq!(envelopes.len(), 1);
+        let (group, envelope) = envelopes.pop().unwrap();
+
         let message = ProcessEnvelope {
-            envelope: ManagedEnvelope::standalone(
-                envelope,
-                outcome_aggregator,
-                test_store,
-                ProcessingGroup::Transaction,
-            ),
+            envelope: ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store, group),
             project_state: Arc::new(ProjectState::allowed()),
             sampling_project_state,
             reservoir_counters: ReservoirCounters::default(),
@@ -430,7 +406,7 @@ mod tests {
             // pipeline.
             let res = compute_sampling_decision(
                 false,
-                &dummy_reservoir(),
+                None,
                 Some(&sampling_config),
                 Some(&event),
                 None,
@@ -477,7 +453,7 @@ mod tests {
                     .into();
             }
 
-            ProcessEnvelopeState {
+            ProcessEnvelopeState::<TransactionGroup> {
                 event: Annotated::from(event),
                 metrics: Default::default(),
                 sample_rates: None,
@@ -643,7 +619,7 @@ mod tests {
 
         let res = compute_sampling_decision(
             false,
-            &dummy_reservoir(),
+            None,
             Some(&sampling_config),
             Some(&event),
             None,
@@ -681,7 +657,7 @@ mod tests {
         // Unsupported rule should result in no match if processing is not enabled.
         let res = compute_sampling_decision(
             false,
-            &dummy_reservoir(),
+            None,
             Some(&sampling_config),
             Some(&event),
             None,
@@ -690,14 +666,8 @@ mod tests {
         assert!(res.is_no_match());
 
         // Match if processing is enabled.
-        let res = compute_sampling_decision(
-            true,
-            &dummy_reservoir(),
-            Some(&sampling_config),
-            Some(&event),
-            None,
-            None,
-        );
+        let res =
+            compute_sampling_decision(true, None, Some(&sampling_config), Some(&event), None, None);
         assert!(res.is_match());
     }
 
@@ -725,33 +695,98 @@ mod tests {
             decaying_fn: Default::default(),
         };
 
-        let mut sampling_config = SamplingConfig {
+        let sampling_config = SamplingConfig {
             rules: vec![rule],
             ..SamplingConfig::new()
         };
 
-        let res = compute_sampling_decision(
-            false,
-            &dummy_reservoir(),
-            None,
-            None,
-            Some(&sampling_config),
-            Some(&dsc),
-        );
+        let res =
+            compute_sampling_decision(false, None, None, None, Some(&sampling_config), Some(&dsc));
 
         assert_eq!(get_sampling_match(res).sample_rate(), 0.2);
+    }
 
-        sampling_config.mode = SamplingMode::Total;
-
-        let res = compute_sampling_decision(
-            false,
-            &dummy_reservoir(),
-            None,
-            None,
-            Some(&sampling_config),
-            Some(&dsc),
+    fn run_with_reservoir_rule<G>(processing_group: ProcessingGroup) -> SamplingResult
+    where
+        G: Sampling + TryFrom<ProcessingGroup>,
+    {
+        let bytes = Bytes::from(
+            r#"{"dsn":"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42","trace":{"trace_id":"89143b0763095bd9c9955e8175d1fb23","public_key":"e12d836b15bb49d7bbf99e64295d995b"}}"#,
         );
+        let envelope = Envelope::parse_bytes(bytes).unwrap();
+        let mut state = ProcessEnvelopeState::<G> {
+            event: Annotated::new(Event::default()),
+            event_metrics_extracted: false,
+            spans_extracted: false,
+            metrics: Default::default(),
+            sample_rates: Default::default(),
+            extracted_metrics: Default::default(),
+            project_state: {
+                let mut state = ProjectState::allowed();
+                state.config.transaction_metrics =
+                    Some(ErrorBoundary::Ok(TransactionMetricsConfig {
+                        version: 1,
+                        ..Default::default()
+                    }));
+                Arc::new(state)
+            },
+            sampling_project_state: {
+                let mut state = ProjectState::allowed();
+                state.config.metric_extraction =
+                    ErrorBoundary::Ok(MetricExtractionConfig::default());
+                state.config.sampling = Some(ErrorBoundary::Ok(SamplingConfig {
+                    version: 2,
+                    rules: vec![
+                        // Set up a reservoir (only used for transactions):
+                        SamplingRule {
+                            condition: RuleCondition::all(),
+                            sampling_value: SamplingValue::Reservoir { limit: 100 },
+                            ty: RuleType::Trace,
+                            id: RuleId(1),
+                            time_range: Default::default(),
+                            decaying_fn: Default::default(),
+                        },
+                        // Reject everything that does not go into the reservoir:
+                        SamplingRule {
+                            condition: RuleCondition::all(),
+                            sampling_value: SamplingValue::SampleRate { value: 0.0 },
+                            ty: RuleType::Trace,
+                            id: RuleId(2),
+                            time_range: Default::default(),
+                            decaying_fn: Default::default(),
+                        },
+                    ],
+                    rules_v2: vec![],
+                }));
+                Some(Arc::new(state))
+            },
+            project_id: ProjectId::new(1),
+            managed_envelope: ManagedEnvelope::standalone(
+                envelope,
+                Addr::dummy(),
+                Addr::dummy(),
+                processing_group,
+            )
+            .try_into()
+            .unwrap(),
+            profile_id: None,
+            reservoir: dummy_reservoir(),
+        };
 
-        assert_eq!(get_sampling_match(res).sample_rate(), 0.4);
+        run(&mut state, &Config::default())
+    }
+
+    #[test]
+    fn test_reservoir_applied_for_transactions() {
+        let result = run_with_reservoir_rule::<TransactionGroup>(ProcessingGroup::Transaction);
+        // Default sampling rate is 0.0, but transaction is retained because of reservoir:
+        assert!(result.should_keep());
+    }
+
+    #[test]
+    fn test_reservoir_not_applied_for_spans() {
+        let result = run_with_reservoir_rule::<SpanGroup>(ProcessingGroup::Span);
+        // Default sampling rate is 0.0, and the reservoir does not apply to spans:
+        assert!(result.should_drop());
     }
 }

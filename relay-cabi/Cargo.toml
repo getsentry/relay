@@ -1,6 +1,6 @@
 [package]
 name = "relay-cabi"
-version = "0.8.57"
+version = "0.8.66"
 authors = ["Sentry <oss@sentry.io>"]
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
@@ -24,6 +24,7 @@ once_cell = { workspace = true }
 regex = { workspace = true }
 relay-auth = { workspace = true }
 relay-base-schema = { workspace = true }
+relay-cardinality = { workspace = true }
 relay-common = { workspace = true }
 relay-dynamic-config = { workspace = true }
 relay-event-normalization = { workspace = true }

@@ -215,6 +215,8 @@ def category_value(category):
         return 9
     if category == "user_report_v2":
         return 14
+    if category == "metric_bucket":
+        return 15
     assert False, "invalid category"
 
 
@@ -277,7 +279,9 @@ def transactions_consumer(kafka_consumer):
 
 @pytest.fixture
 def attachments_consumer(kafka_consumer):
-    return lambda: AttachmentsConsumer(*kafka_consumer("attachments"))
+    return lambda timeout=None: AttachmentsConsumer(
+        timeout=timeout, *kafka_consumer("attachments")
+    )
 
 
 @pytest.fixture
@@ -353,14 +357,18 @@ class MetricsConsumer(ConsumerBase):
         return json.loads(message.value()), message.headers()
 
     def get_metrics(self, timeout=None, max_attempts=100):
+        metrics = []
+
         for _ in range(max_attempts):
             message = self.poll(timeout=timeout)
 
             if message is None:
-                return
+                break
             else:
                 assert message.error() is None
-                yield json.loads(message.value()), message.headers()
+                metrics.append((json.loads(message.value()), message.headers()))
+
+        return metrics
 
 
 class SessionsConsumer(ConsumerBase):
@@ -491,14 +499,18 @@ class SpansConsumer(ConsumerBase):
         return json.loads(message.value())
 
     def get_spans(self, timeout=None, max_attempts=100):
+        spans = []
+
         for _ in range(max_attempts):
             message = self.poll(timeout=timeout)
 
             if message is None:
-                return
+                break
             else:
                 assert message.error() is None
-                yield json.loads(message.value())
+                spans.append(json.loads(message.value()))
+
+        return spans
 
 
 class ProfileConsumer(ConsumerBase):
@@ -519,14 +531,18 @@ class MetricsSummariesConsumer(ConsumerBase):
         return json.loads(message.value())
 
     def get_metrics_summaries(self, timeout=None, max_attempts=100):
+        metrics_summaries = []
+
         for _ in range(max_attempts):
             message = self.poll(timeout=timeout)
 
             if message is None:
-                return
+                break
             else:
                 assert message.error() is None
-                yield json.loads(message.value())
+                metrics_summaries.append(json.loads(message.value()))
+
+        return metrics_summaries
 
 
 class CogsConsumer(ConsumerBase):

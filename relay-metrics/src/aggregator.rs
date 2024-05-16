@@ -487,6 +487,21 @@ pub struct Aggregator {
 }
 
 impl Aggregator {
+    /// Create a new aggregator.
+    pub fn new(config: AggregatorConfig) -> Self {
+        Self::named("default".to_owned(), config)
+    }
+
+    /// Like [`Self::new`], but with a provided name.
+    pub fn named(name: String, config: AggregatorConfig) -> Self {
+        Self {
+            name,
+            config,
+            buckets: HashMap::new(),
+            cost_tracker: CostTracker::default(),
+        }
+    }
+
     /// Returns the name of the aggregator.
     pub fn name(&self) -> &str {
         self.name.as_str()
@@ -597,125 +612,6 @@ impl Aggregator {
         buckets
     }
 
-    /// Validates the metric name and its tags are correct.
-    ///
-    /// Returns `Err` if the metric should be dropped.
-    fn validate_bucket_key(
-        mut key: BucketKey,
-        aggregator_config: &AggregatorConfig,
-    ) -> Result<BucketKey, AggregateMetricsError> {
-        key = Self::validate_metric_name(key, aggregator_config)?;
-        key = Self::validate_metric_tags(key, aggregator_config);
-        Ok(key)
-    }
-
-    /// Removes invalid characters from metric names.
-    ///
-    /// Returns `Err` if the metric must be dropped.
-    fn validate_metric_name(
-        mut key: BucketKey,
-        aggregator_config: &AggregatorConfig,
-    ) -> Result<BucketKey, AggregateMetricsError> {
-        let metric_name_length = key.metric_name.len();
-        if metric_name_length > aggregator_config.max_name_length {
-            relay_log::configure_scope(|scope| {
-                scope.set_extra(
-                    "bucket.project_key",
-                    key.project_key.as_str().to_owned().into(),
-                );
-                scope.set_extra(
-                    "bucket.metric_name.length",
-                    metric_name_length.to_string().into(),
-                );
-                scope.set_extra(
-                    "aggregator_config.max_name_length",
-                    aggregator_config.max_name_length.to_string().into(),
-                );
-            });
-            return Err(AggregateMetricsErrorKind::InvalidStringLength(key.metric_name).into());
-        }
-
-        if let Err(err) = Self::normalize_metric_name(&mut key) {
-            relay_log::configure_scope(|scope| {
-                scope.set_extra(
-                    "bucket.project_key",
-                    key.project_key.as_str().to_owned().into(),
-                );
-                scope.set_extra("bucket.metric_name", key.metric_name.to_string().into());
-            });
-            return Err(err);
-        }
-
-        Ok(key)
-    }
-
-    fn normalize_metric_name(key: &mut BucketKey) -> Result<(), AggregateMetricsError> {
-        key.metric_name = match MetricResourceIdentifier::parse(&key.metric_name) {
-            Ok(mri) => {
-                if matches!(mri.namespace, MetricNamespace::Unsupported) {
-                    relay_log::debug!("invalid metric namespace {:?}", &key.metric_name);
-                    return Err(
-                        AggregateMetricsErrorKind::UnsupportedNamespace(mri.namespace).into(),
-                    );
-                }
-
-                mri.to_string().into()
-            }
-            Err(_) => {
-                relay_log::debug!("invalid metric name {:?}", &key.metric_name);
-                return Err(
-                    AggregateMetricsErrorKind::InvalidCharacters(key.metric_name.clone()).into(),
-                );
-            }
-        };
-
-        Ok(())
-    }
-
-    /// Removes tags with invalid characters in the key, and validates tag values.
-    ///
-    /// Tag values are validated with `protocol::validate_tag_value`.
-    fn validate_metric_tags(mut key: BucketKey, aggregator_config: &AggregatorConfig) -> BucketKey {
-        let proj_key = key.project_key.as_str();
-        key.tags.retain(|tag_key, tag_value| {
-            if tag_key.len() > aggregator_config.max_tag_key_length {
-                relay_log::configure_scope(|scope| {
-                    scope.set_extra("bucket.project_key", proj_key.to_owned().into());
-                    scope.set_extra("bucket.metric.tag_key", tag_key.to_owned().into());
-                    scope.set_extra(
-                        "aggregator_config.max_tag_key_length",
-                        aggregator_config.max_tag_key_length.to_string().into(),
-                    );
-                });
-                relay_log::debug!("Invalid metric tag key");
-                return false;
-            }
-            if bytecount::num_chars(tag_value.as_bytes()) > aggregator_config.max_tag_value_length {
-                relay_log::configure_scope(|scope| {
-                    scope.set_extra("bucket.project_key", proj_key.to_owned().into());
-                    scope.set_extra("bucket.metric.tag_value", tag_value.to_owned().into());
-                    scope.set_extra(
-                        "aggregator_config.max_tag_value_length",
-                        aggregator_config.max_tag_value_length.to_string().into(),
-                    );
-                });
-                relay_log::debug!("Invalid metric tag value");
-                return false;
-            }
-
-            if protocol::is_valid_tag_key(tag_key) {
-                true
-            } else {
-                relay_log::debug!("invalid metric tag key {tag_key:?}");
-                false
-            }
-        });
-        for (_, tag_value) in key.tags.iter_mut() {
-            protocol::validate_tag_value(tag_value);
-        }
-        key
-    }
-
     /// Wrapper for [`AggregatorConfig::get_bucket_timestamp`].
     ///
     /// Logs a statsd metric for invalid timestamps.
@@ -755,7 +651,7 @@ impl Aggregator {
             metric_name: bucket.name,
             tags: bucket.tags,
         };
-        let key = Self::validate_bucket_key(key, &self.config)?;
+        let key = validate_bucket_key(key, &self.config)?;
 
         // XXX: This is not a great implementation of cost enforcement.
         //
@@ -827,14 +723,12 @@ impl Aggregator {
     /// Merges all given `buckets` into this aggregator.
     ///
     /// Buckets that do not exist yet will be created.
-    pub fn merge_all<I>(
+    pub fn merge_all(
         &mut self,
         project_key: ProjectKey,
-        buckets: I,
+        buckets: impl IntoIterator<Item = Bucket>,
         max_total_bucket_bytes: Option<usize>,
-    ) where
-        I: IntoIterator<Item = Bucket>,
-    {
+    ) {
         for bucket in buckets.into_iter() {
             if let Err(error) = self.merge(project_key, bucket, max_total_bucket_bytes) {
                 match &error.kind {
@@ -850,21 +744,6 @@ impl Aggregator {
             }
         }
     }
-
-    /// Create a new aggregator.
-    pub fn new(config: AggregatorConfig) -> Self {
-        Self::named("default".to_owned(), config)
-    }
-
-    /// Like [`Self::new`], but with a provided name.
-    pub fn named(name: String, config: AggregatorConfig) -> Self {
-        Self {
-            name,
-            config,
-            buckets: HashMap::new(),
-            cost_tracker: CostTracker::default(),
-        }
-    }
 }
 
 impl fmt::Debug for Aggregator {
@@ -875,6 +754,123 @@ impl fmt::Debug for Aggregator {
             .field("receiver", &format_args!("Recipient<FlushBuckets>"))
             .finish()
     }
+}
+
+/// Validates the metric name and its tags are correct.
+///
+/// Returns `Err` if the metric should be dropped.
+fn validate_bucket_key(
+    mut key: BucketKey,
+    aggregator_config: &AggregatorConfig,
+) -> Result<BucketKey, AggregateMetricsError> {
+    key = validate_metric_name(key, aggregator_config)?;
+    key = validate_metric_tags(key, aggregator_config);
+    Ok(key)
+}
+
+/// Removes invalid characters from metric names.
+///
+/// Returns `Err` if the metric must be dropped.
+fn validate_metric_name(
+    mut key: BucketKey,
+    aggregator_config: &AggregatorConfig,
+) -> Result<BucketKey, AggregateMetricsError> {
+    let metric_name_length = key.metric_name.len();
+    if metric_name_length > aggregator_config.max_name_length {
+        relay_log::configure_scope(|scope| {
+            scope.set_extra(
+                "bucket.project_key",
+                key.project_key.as_str().to_owned().into(),
+            );
+            scope.set_extra(
+                "bucket.metric_name.length",
+                metric_name_length.to_string().into(),
+            );
+            scope.set_extra(
+                "aggregator_config.max_name_length",
+                aggregator_config.max_name_length.to_string().into(),
+            );
+        });
+        return Err(AggregateMetricsErrorKind::InvalidStringLength(key.metric_name).into());
+    }
+
+    if let Err(err) = normalize_metric_name(&mut key) {
+        relay_log::configure_scope(|scope| {
+            scope.set_extra(
+                "bucket.project_key",
+                key.project_key.as_str().to_owned().into(),
+            );
+            scope.set_extra("bucket.metric_name", key.metric_name.to_string().into());
+        });
+        return Err(err);
+    }
+
+    Ok(key)
+}
+
+fn normalize_metric_name(key: &mut BucketKey) -> Result<(), AggregateMetricsError> {
+    key.metric_name = match MetricResourceIdentifier::parse(&key.metric_name) {
+        Ok(mri) => {
+            if matches!(mri.namespace, MetricNamespace::Unsupported) {
+                relay_log::debug!("invalid metric namespace {:?}", &key.metric_name);
+                return Err(AggregateMetricsErrorKind::UnsupportedNamespace(mri.namespace).into());
+            }
+
+            mri.to_string().into()
+        }
+        Err(_) => {
+            relay_log::debug!("invalid metric name {:?}", &key.metric_name);
+            return Err(
+                AggregateMetricsErrorKind::InvalidCharacters(key.metric_name.clone()).into(),
+            );
+        }
+    };
+
+    Ok(())
+}
+
+/// Removes tags with invalid characters in the key, and validates tag values.
+///
+/// Tag values are validated with `protocol::validate_tag_value`.
+fn validate_metric_tags(mut key: BucketKey, aggregator_config: &AggregatorConfig) -> BucketKey {
+    let proj_key = key.project_key.as_str();
+    key.tags.retain(|tag_key, tag_value| {
+        if tag_key.len() > aggregator_config.max_tag_key_length {
+            relay_log::configure_scope(|scope| {
+                scope.set_extra("bucket.project_key", proj_key.to_owned().into());
+                scope.set_extra("bucket.metric.tag_key", tag_key.to_owned().into());
+                scope.set_extra(
+                    "aggregator_config.max_tag_key_length",
+                    aggregator_config.max_tag_key_length.to_string().into(),
+                );
+            });
+            relay_log::debug!("Invalid metric tag key");
+            return false;
+        }
+        if bytecount::num_chars(tag_value.as_bytes()) > aggregator_config.max_tag_value_length {
+            relay_log::configure_scope(|scope| {
+                scope.set_extra("bucket.project_key", proj_key.to_owned().into());
+                scope.set_extra("bucket.metric.tag_value", tag_value.to_owned().into());
+                scope.set_extra(
+                    "aggregator_config.max_tag_value_length",
+                    aggregator_config.max_tag_value_length.to_string().into(),
+                );
+            });
+            relay_log::debug!("Invalid metric tag value");
+            return false;
+        }
+
+        if protocol::is_valid_tag_key(tag_key) {
+            true
+        } else {
+            relay_log::debug!("invalid metric tag key {tag_key:?}");
+            false
+        }
+    });
+    for (_, tag_value) in key.tags.iter_mut() {
+        protocol::validate_tag_value(tag_value);
+    }
+    key
 }
 
 #[cfg(test)]
@@ -899,14 +895,15 @@ mod tests {
         }
     }
 
-    fn some_bucket() -> Bucket {
+    fn some_bucket(timestamp: Option<UnixTimestamp>) -> Bucket {
+        let timestamp = timestamp.map_or(UnixTimestamp::from_secs(999994711), |t| t);
         Bucket {
-            timestamp: UnixTimestamp::from_secs(999994711),
+            timestamp,
             width: 0,
             name: "c:transactions/foo".into(),
             value: BucketValue::counter(42.into()),
             tags: BTreeMap::new(),
-            metadata: BucketMetadata::new(),
+            metadata: BucketMetadata::new(timestamp),
         }
     }
 
@@ -914,9 +911,9 @@ mod tests {
     fn test_aggregator_merge_counters() {
         relay_test::setup();
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
-        let mut aggregator = Aggregator::new(test_config());
+        let mut aggregator: Aggregator = Aggregator::new(test_config());
 
-        let bucket1 = some_bucket();
+        let bucket1 = some_bucket(None);
 
         let mut bucket2 = bucket1.clone();
         bucket2.value = BucketValue::counter(43.into());
@@ -1004,9 +1001,9 @@ mod tests {
         config.bucket_interval = 10;
 
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
-        let mut aggregator = Aggregator::new(config);
+        let mut aggregator: Aggregator = Aggregator::new(config);
 
-        let bucket1 = some_bucket();
+        let bucket1 = some_bucket(None);
 
         let mut bucket2 = bucket1.clone();
         bucket2.timestamp = UnixTimestamp::from_secs(999994712);
@@ -1066,11 +1063,15 @@ mod tests {
         let project_key1 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
         let project_key2 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
 
-        let mut aggregator = Aggregator::new(config);
+        let mut aggregator: Aggregator = Aggregator::new(config);
 
         // It's OK to have same metric with different projects:
-        aggregator.merge(project_key1, some_bucket(), None).unwrap();
-        aggregator.merge(project_key2, some_bucket(), None).unwrap();
+        aggregator
+            .merge(project_key1, some_bucket(None), None)
+            .unwrap();
+        aggregator
+            .merge(project_key2, some_bucket(None), None)
+            .unwrap();
 
         assert_eq!(aggregator.buckets.len(), 2);
     }
@@ -1148,16 +1149,17 @@ mod tests {
     #[test]
     fn test_aggregator_cost_tracking() {
         // Make sure that the right cost is added / subtracted
-        let mut aggregator = Aggregator::new(test_config());
+        let mut aggregator: Aggregator = Aggregator::new(test_config());
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
 
+        let timestamp = UnixTimestamp::from_secs(999994711);
         let bucket = Bucket {
-            timestamp: UnixTimestamp::from_secs(999994711),
+            timestamp,
             width: 0,
             name: "c:transactions/foo@none".into(),
             value: BucketValue::counter(42.into()),
             tags: BTreeMap::new(),
-            metadata: BucketMetadata::new(),
+            metadata: BucketMetadata::new(timestamp),
         };
         let bucket_key = BucketKey {
             project_key,
@@ -1229,7 +1231,7 @@ mod tests {
             ..Default::default()
         };
 
-        let aggregator = Aggregator::new(config);
+        let aggregator: Aggregator = Aggregator::new(config);
 
         assert!(matches!(
             aggregator
@@ -1326,7 +1328,7 @@ mod tests {
             },
         };
 
-        let mut bucket_key = Aggregator::validate_bucket_key(bucket_key, &test_config()).unwrap();
+        let mut bucket_key = validate_bucket_key(bucket_key, &test_config()).unwrap();
 
         assert_eq!(bucket_key.tags.len(), 1);
         assert_eq!(
@@ -1336,7 +1338,7 @@ mod tests {
         assert_eq!(bucket_key.tags.get("another\0garbage"), None);
 
         bucket_key.metric_name = "hergus\0bergus".into();
-        Aggregator::validate_bucket_key(bucket_key, &test_config()).unwrap_err();
+        validate_bucket_key(bucket_key, &test_config()).unwrap_err();
     }
 
     #[test]
@@ -1350,7 +1352,7 @@ mod tests {
             metric_name: "c:transactions/a_short_metric".into(),
             tags: BTreeMap::new(),
         };
-        assert!(Aggregator::validate_bucket_key(short_metric, &test_config()).is_ok());
+        assert!(validate_bucket_key(short_metric, &test_config()).is_ok());
 
         let long_metric = BucketKey {
             project_key,
@@ -1358,7 +1360,7 @@ mod tests {
             metric_name: "c:transactions/long_name_a_very_long_name_its_super_long_really_but_like_super_long_probably_the_longest_name_youve_seen_and_even_the_longest_name_ever_its_extremly_long_i_cant_tell_how_long_it_is_because_i_dont_have_that_many_fingers_thus_i_cant_count_the_many_characters_this_long_name_is".into(),
             tags: BTreeMap::new(),
         };
-        let validation = Aggregator::validate_bucket_key(long_metric, &test_config());
+        let validation = validate_bucket_key(long_metric, &test_config());
 
         assert!(matches!(
             validation.unwrap_err(),
@@ -1373,8 +1375,7 @@ mod tests {
             metric_name: "c:transactions/a_short_metric_with_long_tag_key".into(),
             tags: BTreeMap::from([("i_run_out_of_creativity_so_here_we_go_Lorem_Ipsum_is_simply_dummy_text_of_the_printing_and_typesetting_industry_Lorem_Ipsum_has_been_the_industrys_standard_dummy_text_ever_since_the_1500s_when_an_unknown_printer_took_a_galley_of_type_and_scrambled_it_to_make_a_type_specimen_book".into(), "tag_value".into())]),
         };
-        let validation =
-            Aggregator::validate_bucket_key(short_metric_long_tag_key, &test_config()).unwrap();
+        let validation = validate_bucket_key(short_metric_long_tag_key, &test_config()).unwrap();
         assert_eq!(validation.tags.len(), 0);
 
         let short_metric_long_tag_value = BucketKey {
@@ -1383,8 +1384,7 @@ mod tests {
             metric_name: "c:transactions/a_short_metric_with_long_tag_value".into(),
             tags: BTreeMap::from([("tag_key".into(), "i_run_out_of_creativity_so_here_we_go_Lorem_Ipsum_is_simply_dummy_text_of_the_printing_and_typesetting_industry_Lorem_Ipsum_has_been_the_industrys_standard_dummy_text_ever_since_the_1500s_when_an_unknown_printer_took_a_galley_of_type_and_scrambled_it_to_make_a_type_specimen_book".into())]),
         };
-        let validation =
-            Aggregator::validate_bucket_key(short_metric_long_tag_value, &test_config()).unwrap();
+        let validation = validate_bucket_key(short_metric_long_tag_value, &test_config()).unwrap();
         assert_eq!(validation.tags.len(), 0);
     }
 
@@ -1401,22 +1401,23 @@ mod tests {
             metric_name: "c:transactions/a_short_metric".into(),
             tags: BTreeMap::from([("foo".into(), tag_value.clone())]),
         };
-        let validated_bucket = Aggregator::validate_metric_tags(short_metric, &test_config());
+        let validated_bucket = validate_metric_tags(short_metric, &test_config());
         assert_eq!(validated_bucket.tags["foo"], tag_value);
     }
 
     #[test]
     fn test_aggregator_cost_enforcement_total() {
+        let timestamp = UnixTimestamp::from_secs(999994711);
         let bucket = Bucket {
-            timestamp: UnixTimestamp::from_secs(999994711),
+            timestamp,
             width: 0,
             name: "c:transactions/foo".into(),
             value: BucketValue::counter(42.into()),
             tags: BTreeMap::new(),
-            metadata: BucketMetadata::new(),
+            metadata: BucketMetadata::new(timestamp),
         };
 
-        let mut aggregator = Aggregator::new(test_config());
+        let mut aggregator: Aggregator = Aggregator::new(test_config());
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
 
         aggregator
@@ -1438,16 +1439,17 @@ mod tests {
         let mut config = test_config();
         config.max_project_key_bucket_bytes = Some(1);
 
+        let timestamp = UnixTimestamp::from_secs(999994711);
         let bucket = Bucket {
-            timestamp: UnixTimestamp::from_secs(999994711),
+            timestamp,
             width: 0,
             name: "c:transactions/foo".into(),
             value: BucketValue::counter(42.into()),
             tags: BTreeMap::new(),
-            metadata: BucketMetadata::new(),
+            metadata: BucketMetadata::new(timestamp),
         };
 
-        let mut aggregator = Aggregator::new(config);
+        let mut aggregator: Aggregator = Aggregator::new(config);
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
 
         aggregator.merge(project_key, bucket.clone(), None).unwrap();
@@ -1473,25 +1475,38 @@ mod tests {
         config.bucket_interval = 10;
 
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
-        let mut aggregator = Aggregator::new(config);
+        let mut aggregator: Aggregator = Aggregator::new(config);
 
-        let bucket1 = some_bucket();
-        let bucket2 = some_bucket();
+        let bucket1 = some_bucket(Some(UnixTimestamp::from_secs(999994711)));
+        let bucket2 = some_bucket(Some(UnixTimestamp::from_secs(999994711)));
 
-        // Create a bucket with already 3 merges.
-        let mut bucket3 = some_bucket();
-        bucket3.metadata.merge(BucketMetadata::new());
-        bucket3.metadata.merge(BucketMetadata::new());
+        // We create a bucket with 3 merges and monotonically increasing timestamps.
+        let mut bucket3 = some_bucket(Some(UnixTimestamp::from_secs(999994711)));
+        bucket3
+            .metadata
+            .merge(BucketMetadata::new(UnixTimestamp::from_secs(999997811)));
+        bucket3
+            .metadata
+            .merge(BucketMetadata::new(UnixTimestamp::from_secs(999999811)));
 
-        aggregator.merge(project_key, bucket1, None).unwrap();
-        aggregator.merge(project_key, bucket2, None).unwrap();
-        aggregator.merge(project_key, bucket3, None).unwrap();
+        aggregator
+            .merge(project_key, bucket1.clone(), None)
+            .unwrap();
+        aggregator
+            .merge(project_key, bucket2.clone(), None)
+            .unwrap();
+        aggregator
+            .merge(project_key, bucket3.clone(), None)
+            .unwrap();
 
-        let buckets: Vec<_> = aggregator.buckets.values().map(|v| &v.metadata).collect();
-        insta::assert_debug_snapshot!(buckets, @r###"
+        let buckets_metadata: Vec<_> = aggregator.buckets.values().map(|v| &v.metadata).collect();
+        insta::assert_debug_snapshot!(buckets_metadata, @r###"
         [
             BucketMetadata {
                 merges: 5,
+                received_at: Some(
+                    UnixTimestamp(999994711),
+                ),
             },
         ]
         "###);

@@ -12,7 +12,7 @@ use crate::protocol::JsonLenientString;
 ///
 /// ```json
 /// {
-///   "message": {
+///   "logentry": {
 ///     "message": "My raw message with interpreted strings like %s",
 ///     "params": ["this"]
 ///   }
@@ -21,7 +21,7 @@ use crate::protocol::JsonLenientString;
 ///
 /// ```json
 /// {
-///   "message": {
+///   "logentry": {
 ///     "message": "My raw message with interpreted strings like {foo}",
 ///     "params": {"foo": "this"}
 ///   }

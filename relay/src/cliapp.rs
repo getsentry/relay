@@ -141,16 +141,6 @@ pub fn make_app() -> Command {
                             "Maximum number of seconds to wait for pending envelopes on shutdown.",
                         ),
                 )
-                .arg(
-                    Arg::new("aws_runtime_api")
-                        .value_name("address")
-                        .long("aws-runtime-api")
-                        .help(
-                            "Host and port of the AWS lambda extensions API, usually provided in \
-                            the AWS_LAMBDA_RUNTIME_API environment variable. This integrates Relay \
-                            with the lambda execution environment lifecycle.",
-                        ),
-                ),
         )
         .subcommand(
             Command::new("credentials")
