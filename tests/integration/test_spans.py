@@ -1379,7 +1379,7 @@ def test_span_ingestion_with_performance_scores(
             "span_id": "bd429c44b67a3eb1",
             "start_timestamp_ms": int(start.timestamp() * 1e3),
             "start_timestamp_precise": start.timestamp(),
-            "end_timestamp_precise": end.timestamp(),
+            "end_timestamp_precise": end.timestamp() + 1,
             "trace_id": "ff62a8b040f340bda5d830223def1d81",
             "measurements": {
                 "score.fcp": {"value": 0.14999972769539766},
@@ -1424,7 +1424,7 @@ def test_span_ingestion_with_performance_scores(
             "span_id": "cd429c44b67a3eb1",
             "start_timestamp_ms": int(start.timestamp() * 1e3),
             "start_timestamp_precise": start.timestamp(),
-            "end_timestamp_precise": end.timestamp(),
+            "end_timestamp_precise": end.timestamp() + 1,
             "trace_id": "ff62a8b040f340bda5d830223def1d81",
             "measurements": {
                 "inp": {"value": 100.0},
