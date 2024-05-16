@@ -348,7 +348,7 @@ impl StoreService {
             }
         }
 
-        if feedback_ingest_same_envelope_attachments && has_feedback && !attachments.is_empty() {
+        if has_feedback && !attachments.is_empty() {
             metric!(counter(RelayCounters::FeedbackAttachments) += attachments.len() as i64);
         }
 
