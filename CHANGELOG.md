@@ -33,6 +33,7 @@
 - Add a calculated measurement based on the AI model and the tokens used. ([#3554](https://github.com/getsentry/relay/pull/3554))
 - Restrict usage of OTel endpoint. ([#3597](github.com/getsentry/relay/pull/3597))
 - Support new cache span ops in metrics and tag extraction. ([#3598](https://github.com/getsentry/relay/pull/3598))
+- Send microsecond precision timestamps. ([#3613](https://github.com/getsentry/relay/pull/3613))
 - Extract additional user fields for spans. ([#3599](https://github.com/getsentry/relay/pull/3599))
 - Disable `db.redis` span metrics extraction. ([#3600](https://github.com/getsentry/relay/pull/3600))
 
