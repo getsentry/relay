@@ -34,9 +34,7 @@ use crate::services::global_config::GlobalConfigHandle;
 use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::services::processor::Processed;
 use crate::statsd::RelayCounters;
-use crate::utils::{
-    ArrayEncoding, BucketEncoder, ExtractionMode, FormDataIter, TypedEnvelope,
-};
+use crate::utils::{ArrayEncoding, BucketEncoder, ExtractionMode, FormDataIter, TypedEnvelope};
 
 /// Fallback name used for attachment items without a `filename` header.
 const UNNAMED_ATTACHMENT: &str = "Unnamed Attachment";
