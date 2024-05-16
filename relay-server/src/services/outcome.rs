@@ -202,7 +202,7 @@ impl Outcome {
     /// Returns the `reason` code field of this outcome.
     pub fn to_reason(&self) -> Option<Cow<'_, str>> {
         match self {
-            Outcome::Invalid(discard_reason) => Some(Cow::Owned(discard_reason.to_string())),
+            Outcome::Invalid(discard_reason) => Some(Cow::Borrowed(discard_reason.name())),
             Outcome::Filtered(filter_key) => Some(filter_key.clone().name()),
             Outcome::FilteredSampling(rule_ids) => Some(Cow::Owned(format!("Sampled:{rule_ids}"))),
             Outcome::RateLimited(code_opt) => {
