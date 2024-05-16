@@ -155,7 +155,7 @@ pub trait TrackableBucket {
     fn summary(&self, mode: ExtractionMode) -> BucketSummary;
 
     /// Metric bucket metadata.
-    fn metadata(&self) -> &BucketMetadata;
+    fn metadata(&self) -> BucketMetadata;
 }
 
 impl<T: TrackableBucket> TrackableBucket for &T {
@@ -171,7 +171,7 @@ impl<T: TrackableBucket> TrackableBucket for &T {
         (**self).summary(mode)
     }
 
-    fn metadata(&self) -> &BucketMetadata {
+    fn metadata(&self) -> BucketMetadata {
         (**self).metadata()
     }
 }
@@ -189,8 +189,8 @@ impl TrackableBucket for Bucket {
         BucketView::new(self).summary(mode)
     }
 
-    fn metadata(&self) -> &BucketMetadata {
-        &self.metadata
+    fn metadata(&self) -> BucketMetadata {
+        self.metadata
     }
 }
 
@@ -234,7 +234,7 @@ impl TrackableBucket for BucketView<'_> {
         }
     }
 
-    fn metadata(&self) -> &BucketMetadata {
+    fn metadata(&self) -> BucketMetadata {
         self.metadata()
     }
 }

@@ -72,7 +72,7 @@ impl MetricStats {
 
         relay_log::trace!(
             "Tracking volume of {} for mri '{}': {}",
-            bucket.metadata().merges.get(),
+            bucket.metadata().merges,
             bucket.name(),
             outcome
         );
@@ -121,7 +121,7 @@ impl MetricStats {
     }
 
     fn to_volume_metric(&self, bucket: impl TrackableBucket, outcome: &Outcome) -> Option<Bucket> {
-        let volume = bucket.metadata().merges.get();
+        let volume = bucket.metadata().merges;
         if volume == 0 {
             return None;
         }

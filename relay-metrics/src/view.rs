@@ -454,9 +454,32 @@ impl<'a> BucketView<'a> {
 
     /// Returns the metadata for this bucket.
     ///
+    /// The aggregation process of metadata is inheritly lossy, which means
+    /// some metadata, for example the amount of merges, can not be accurately split
+    /// or divided over multiple bucket views.
+    ///
+    /// To compensate for this only a bucket view which contains the start of a bucket
+    /// will yield this metadata, all other views created from the bucket return an
+    /// identity value. Merging all metadata from non-overlapping bucket views must
+    /// yield the same values as stored on the original bucket.
+    ///
+    /// This causes some problems when operations on partial buckets are fallible,
+    /// for example transmitting two bucket views in separate http requests.
+    /// To deal with this Relay needs to prevent the splitting of buckets in the first place,
+    /// by never not creating too large buckets via aggregation in the first place.
+    ///
     /// See also: [`Bucket::metadata`].
-    pub fn metadata(&self) -> &BucketMetadata {
-        &self.inner.metadata
+    pub fn metadata(&self) -> BucketMetadata {
+        let merges = if self.range.start == 0 {
+            self.inner.metadata.merges
+        } else {
+            0
+        };
+
+        BucketMetadata {
+            merges,
+            received_at: self.inner.metadata.received_at,
+        }
     }
 
     /// Number of raw datapoints in this view.
