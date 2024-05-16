@@ -481,11 +481,6 @@
 <a href="#479" id="479">479</a>
 <a href="#480" id="480">480</a>
 <a href="#481" id="481">481</a>
-<a href="#482" id="482">482</a>
-<a href="#483" id="483">483</a>
-<a href="#484" id="484">484</a>
-<a href="#485" id="485">485</a>
-<a href="#486" id="486">486</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::sync::{Arc, OnceLock};
 
@@ -494,12 +489,11 @@
 <span class="kw">use </span>relay_config::Config;
 <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
 </span><span class="kw">use </span>relay_metrics::GaugeValue;
-<span class="kw">use </span>relay_metrics::{
-    Aggregator, Bucket, BucketValue, BucketView, MergeBuckets, MetricName, UnixTimestamp,
-};
+<span class="kw">use </span>relay_metrics::{Aggregator, Bucket, BucketValue, MergeBuckets, MetricName, UnixTimestamp};
 <span class="kw">use </span>relay_quotas::Scoping;
 <span class="kw">use </span>relay_system::Addr;
 
+<span class="kw">use </span><span class="kw">crate</span>::metrics::TrackableBucket;
 <span class="kw">use </span><span class="kw">crate</span>::services::global_config::GlobalConfigHandle;
 <span class="kw">use </span><span class="kw">crate</span>::services::outcome::Outcome;
 <span class="kw">use </span><span class="kw">crate</span>::utils::is_rolled_out;
@@ -550,22 +544,18 @@
     }
 
     <span class="doccomment">/// Tracks the metric volume and outcome for the bucket.
-    </span><span class="kw">pub fn </span>track_metric&lt;<span class="lifetime">'a</span>, T&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, scoping: Scoping, bucket: T, outcome: Outcome)
-    <span class="kw">where
-        </span>T: Into&lt;BucketView&lt;<span class="lifetime">'a</span>&gt;&gt;,
-    {
+    </span><span class="kw">pub fn </span>track_metric(<span class="kw-2">&amp;</span><span class="self">self</span>, scoping: Scoping, bucket: <span class="kw">impl </span>TrackableBucket, outcome: <span class="kw-2">&amp;</span>Outcome) {
         <span class="kw">if </span>!<span class="self">self</span>.is_enabled(scoping) {
             <span class="kw">return</span>;
         }
 
-        <span class="kw">let </span>bucket = bucket.into();
-        <span class="kw">let </span><span class="prelude-val">Some</span>(volume) = <span class="self">self</span>.to_volume_metric(<span class="kw-2">&amp;</span>bucket, <span class="kw-2">&amp;</span>outcome) <span class="kw">else </span>{
+        <span class="kw">let </span><span class="prelude-val">Some</span>(volume) = <span class="self">self</span>.to_volume_metric(<span class="kw-2">&amp;</span>bucket, outcome) <span class="kw">else </span>{
             <span class="kw">return</span>;
         };
 
         <span class="macro">relay_log::trace!</span>(
             <span class="string">"Tracking volume of {} for mri '{}': {}"</span>,
-            bucket.metadata().merges.get(),
+            bucket.metadata().merges,
             bucket.name(),
             outcome
         );
@@ -613,8 +603,8 @@
         is_rolled_out(organization_id, rate)
     }
 
-    <span class="kw">fn </span>to_volume_metric(<span class="kw-2">&amp;</span><span class="self">self</span>, bucket: <span class="kw-2">&amp;</span>BucketView&lt;<span class="lifetime">'_</span>&gt;, outcome: <span class="kw-2">&amp;</span>Outcome) -&gt; <span class="prelude-ty">Option</span>&lt;Bucket&gt; {
-        <span class="kw">let </span>volume = bucket.metadata().merges.get();
+    <span class="kw">fn </span>to_volume_metric(<span class="kw-2">&amp;</span><span class="self">self</span>, bucket: <span class="kw">impl </span>TrackableBucket, outcome: <span class="kw-2">&amp;</span>Outcome) -&gt; <span class="prelude-ty">Option</span>&lt;Bucket&gt; {
+        <span class="kw">let </span>volume = bucket.metadata().merges;
         <span class="kw">if </span>volume == <span class="number">0 </span>{
             <span class="kw">return </span><span class="prelude-val">None</span>;
         }
@@ -759,13 +749,13 @@
         <span class="kw">let </span>scoping = scoping();
         <span class="kw">let </span><span class="kw-2">mut </span>bucket = Bucket::parse(<span class="string">b"rt@millisecond:57|d"</span>, UnixTimestamp::now()).unwrap();
 
-        ms.track_metric(scoping, <span class="kw-2">&amp;</span>bucket.clone(), Outcome::Accepted);
+        ms.track_metric(scoping, <span class="kw-2">&amp;</span>bucket, <span class="kw-2">&amp;</span>Outcome::Accepted);
 
         bucket.metadata.merges = bucket.metadata.merges.saturating_add(<span class="number">41</span>);
         ms.track_metric(
             scoping,
             <span class="kw-2">&amp;</span>bucket,
-            Outcome::RateLimited(<span class="prelude-val">Some</span>(ReasonCode::new(<span class="string">"foobar"</span>))),
+            <span class="kw-2">&amp;</span>Outcome::RateLimited(<span class="prelude-val">Some</span>(ReasonCode::new(<span class="string">"foobar"</span>))),
         );
 
         drop(ms);
@@ -951,7 +941,7 @@
 
         <span class="kw">let </span>scoping = scoping();
         <span class="kw">let </span>bucket = Bucket::parse(<span class="string">b"rt@millisecond:57|d"</span>, UnixTimestamp::now()).unwrap();
-        ms.track_metric(scoping, <span class="kw-2">&amp;</span>bucket, Outcome::Accepted);
+        ms.track_metric(scoping, <span class="kw-2">&amp;</span>bucket, <span class="kw-2">&amp;</span>Outcome::Accepted);
 
         drop(ms);
 
@@ -965,7 +955,7 @@
         <span class="kw">let </span>scoping = scoping();
         <span class="kw">let </span>bucket =
             Bucket::parse(<span class="string">b"transactions/rt@millisecond:57|d"</span>, UnixTimestamp::now()).unwrap();
-        ms.track_metric(scoping, <span class="kw-2">&amp;</span>bucket, Outcome::Accepted);
+        ms.track_metric(scoping, <span class="kw-2">&amp;</span>bucket, <span class="kw-2">&amp;</span>Outcome::Accepted);
 
         drop(ms);
 

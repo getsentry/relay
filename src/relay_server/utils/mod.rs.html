@@ -44,6 +44,8 @@
 <a href="#42" id="42">42</a>
 <a href="#43" id="43">43</a>
 <a href="#44" id="44">44</a>
+<a href="#45" id="45">45</a>
+<a href="#46" id="46">46</a>
 </pre></div><pre class="rust"><code><span class="kw">mod </span>api;
 <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
 </span><span class="kw">mod </span>bucket_encoding;
@@ -60,6 +62,7 @@
 <span class="kw">mod </span>semaphore;
 <span class="kw">mod </span>sizes;
 <span class="kw">mod </span>sleep_handle;
+<span class="kw">mod </span>split_off;
 <span class="kw">mod </span>statsd;
 
 <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
@@ -85,6 +88,7 @@
 <span class="kw">pub use </span><span class="self">self</span>::semaphore::<span class="kw-2">*</span>;
 <span class="kw">pub use </span><span class="self">self</span>::sizes::<span class="kw-2">*</span>;
 <span class="kw">pub use </span><span class="self">self</span>::sleep_handle::<span class="kw-2">*</span>;
+<span class="kw">pub use </span><span class="self">self</span>::split_off::<span class="kw-2">*</span>;
 <span class="kw">pub use </span><span class="self">self</span>::statsd::<span class="kw-2">*</span>;
 <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
 </span><span class="kw">pub use </span><span class="self">self</span>::unreal::<span class="kw-2">*</span>;

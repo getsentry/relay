@@ -311,9 +311,6 @@
 <a href="#309" id="309">309</a>
 <a href="#310" id="310">310</a>
 <a href="#311" id="311">311</a>
-<a href="#312" id="312">312</a>
-<a href="#313" id="313">313</a>
-<a href="#314" id="314">314</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::marker::PhantomData;
 <span class="kw">use </span>std::ops::Deref;
 
@@ -321,13 +318,11 @@
 <span class="kw">use </span>relay_filter::FilterStatKey;
 <span class="kw">use </span>relay_metrics::{Bucket, MetricNamespace};
 <span class="kw">use </span>relay_quotas::Scoping;
-<span class="kw">use </span>relay_system::Addr;
 
-<span class="kw">use </span><span class="kw">crate</span>::metric_stats::MetricStats;
-<span class="kw">use </span><span class="kw">crate</span>::services::outcome::{Outcome, TrackOutcome};
+<span class="kw">use </span><span class="kw">crate</span>::metrics::MetricOutcomes;
+<span class="kw">use </span><span class="kw">crate</span>::services::outcome::Outcome;
 <span class="kw">use </span><span class="kw">crate</span>::services::project::ProjectState;
 <span class="kw">use </span><span class="kw">crate</span>::services::project_cache::BucketSource;
-<span class="kw">use </span><span class="kw">crate</span>::utils;
 
 <span class="kw">pub struct </span>Filtered;
 <span class="kw">pub struct </span>WithProjectState;
@@ -385,8 +380,7 @@
 <span class="kw">impl </span>Buckets&lt;Filtered&gt; {
     <span class="kw">pub fn </span>apply_project_state(
         <span class="kw-2">mut </span><span class="self">self</span>,
-        outcome_aggregator: <span class="kw-2">&amp;</span>Addr&lt;TrackOutcome&gt;,
-        metric_stats: <span class="kw-2">&amp;</span>MetricStats,
+        metric_outcomes: <span class="kw-2">&amp;</span>MetricOutcomes,
         project_state: <span class="kw-2">&amp;</span>ProjectState,
         scoping: Scoping,
     ) -&gt; Buckets&lt;WithProjectState&gt; {
@@ -421,25 +415,22 @@
             .collect();
 
         <span class="kw">let </span>mode = project_state.get_extraction_mode();
+
         <span class="kw">if </span>!disabled_namespace_buckets.is_empty() {
-            utils::reject_metrics(
-                outcome_aggregator,
-                metric_stats,
-                utils::extract_metric_quantities(<span class="kw-2">&amp;</span>disabled_namespace_buckets, mode),
+            metric_outcomes.track(
                 scoping,
-                Outcome::Filtered(FilterStatKey::DisabledNamespace),
                 <span class="kw-2">&amp;</span>disabled_namespace_buckets,
+                mode,
+                Outcome::Filtered(FilterStatKey::DisabledNamespace),
             );
         }
 
         <span class="kw">if </span>!denied_buckets.is_empty() {
-            utils::reject_metrics(
-                outcome_aggregator,
-                metric_stats,
-                utils::extract_metric_quantities(<span class="kw-2">&amp;</span>denied_buckets, mode),
+            metric_outcomes.track(
                 scoping,
-                Outcome::Filtered(FilterStatKey::DeniedName),
                 <span class="kw-2">&amp;</span>denied_buckets,
+                mode,
+                Outcome::Filtered(FilterStatKey::DeniedName),
             );
         }
 
@@ -481,6 +472,9 @@
     <span class="kw">use </span>relay_common::glob3::GlobPatterns;
     <span class="kw">use </span>relay_dynamic_config::TagBlock;
     <span class="kw">use </span>relay_metrics::{Aggregator, BucketValue, UnixTimestamp};
+    <span class="kw">use </span>relay_system::Addr;
+
+    <span class="kw">use </span><span class="kw">crate</span>::metric_stats::MetricStats;
 
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
 
@@ -547,6 +541,7 @@
     </span><span class="kw">fn </span>test_apply_project_state() {
         <span class="kw">let </span>(outcome_aggregator, <span class="kw">_</span>) = Addr::custom();
         <span class="kw">let </span>(metric_stats, <span class="kw-2">mut </span>metric_stats_rx) = MetricStats::test();
+        <span class="kw">let </span>metric_outcomes = MetricOutcomes::new(metric_stats, outcome_aggregator);
 
         <span class="kw">let </span>project_state = {
             <span class="kw">let </span><span class="kw-2">mut </span>project_state = ProjectState::allowed();
@@ -563,8 +558,7 @@
         <span class="kw">let </span>buckets = Buckets::test(<span class="macro">vec!</span>[b1.clone(), b2.clone()]);
 
         <span class="kw">let </span>buckets = buckets.apply_project_state(
-            <span class="kw-2">&amp;</span>outcome_aggregator,
-            <span class="kw-2">&amp;</span>metric_stats,
+            <span class="kw-2">&amp;</span>metric_outcomes,
             <span class="kw-2">&amp;</span>project_state,
             Scoping {
                 organization_id: <span class="number">42</span>,
@@ -594,14 +588,14 @@
     </span><span class="kw">fn </span>test_apply_project_state_with_disabled_custom_namespace() {
         <span class="kw">let </span>(outcome_aggregator, <span class="kw">_</span>) = Addr::custom();
         <span class="kw">let </span>(metric_stats, <span class="kw-2">mut </span>metric_stats_rx) = MetricStats::test();
+        <span class="kw">let </span>metric_outcomes = MetricOutcomes::new(metric_stats, outcome_aggregator);
 
         <span class="kw">let </span>b1 = create_custom_bucket_with_name(<span class="string">"cpu_time"</span>.into());
         <span class="kw">let </span>b2 = create_custom_bucket_with_name(<span class="string">"memory_usage"</span>.into());
         <span class="kw">let </span>buckets = Buckets::test(<span class="macro">vec!</span>[b1.clone(), b2.clone()]);
 
         <span class="kw">let </span>buckets = buckets.apply_project_state(
-            <span class="kw-2">&amp;</span>outcome_aggregator,
-            <span class="kw-2">&amp;</span>metric_stats,
+            <span class="kw-2">&amp;</span>metric_outcomes,
             <span class="kw-2">&amp;</span>ProjectState::allowed(),
             Scoping {
                 organization_id: <span class="number">42</span>,

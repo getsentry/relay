@@ -1561,13 +1561,14 @@
 <a href="#1559" id="1559">1559</a>
 <a href="#1560" id="1560">1560</a>
 <a href="#1561" id="1561">1561</a>
+<a href="#1562" id="1562">1562</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
 <span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::sync::Arc;
 <span class="kw">use </span>std::time::Duration;
 
 <span class="kw">use </span><span class="kw">crate</span>::extractors::RequestMeta;
-<span class="kw">use </span><span class="kw">crate</span>::metric_stats::MetricStats;
+<span class="kw">use </span><span class="kw">crate</span>::metrics::MetricOutcomes;
 <span class="kw">use </span>hashbrown::HashSet;
 <span class="kw">use </span>relay_base_schema::project::ProjectKey;
 <span class="kw">use </span>relay_config::{Config, RelayMode};
@@ -2116,7 +2117,7 @@
 </span><span class="kw">struct </span>ProjectCacheBroker {
     config: Arc&lt;Config&gt;,
     services: Services,
-    metric_stats: MetricStats,
+    metric_outcomes: MetricOutcomes,
     <span class="comment">// Need hashbrown because extract_if is not stable in std yet.
     </span>projects: hashbrown::HashMap&lt;ProjectKey, Project&gt;,
     garbage_disposal: GarbageDisposal&lt;Project&gt;,
@@ -2239,15 +2240,15 @@
         <span class="kw">let </span>aggregator = <span class="self">self</span>.services.aggregator.clone();
         <span class="kw">let </span>envelope_processor = <span class="self">self</span>.services.envelope_processor.clone();
         <span class="kw">let </span>outcome_aggregator = <span class="self">self</span>.services.outcome_aggregator.clone();
-        <span class="kw">let </span>metric_stats = <span class="self">self</span>.metric_stats.clone();
+        <span class="kw">let </span>metric_outcomes = <span class="self">self</span>.metric_outcomes.clone();
 
         <span class="self">self</span>.get_or_create_project(project_key).update_state(
-            project_cache,
-            aggregator,
-            state.clone(),
-            envelope_processor,
-            outcome_aggregator,
-            metric_stats,
+            <span class="kw-2">&amp;</span>project_cache,
+            <span class="kw-2">&amp;</span>aggregator,
+            state,
+            <span class="kw-2">&amp;</span>envelope_processor,
+            <span class="kw-2">&amp;</span>outcome_aggregator,
+            <span class="kw-2">&amp;</span>metric_outcomes,
             no_cache,
         );
 
@@ -2428,15 +2429,15 @@
         <span class="kw">let </span>aggregator = <span class="self">self</span>.services.aggregator.clone();
         <span class="kw">let </span>outcome_aggregator = <span class="self">self</span>.services.outcome_aggregator.clone();
         <span class="kw">let </span>envelope_processor = <span class="self">self</span>.services.envelope_processor.clone();
-        <span class="kw">let </span>metric_stats = <span class="self">self</span>.metric_stats.clone();
+        <span class="kw">let </span>metric_outcomes = <span class="self">self</span>.metric_outcomes.clone();
 
         <span class="kw">let </span>project = <span class="self">self</span>.get_or_create_project(message.project_key);
         project.prefetch(project_cache, <span class="bool-val">false</span>);
         project.merge_buckets(
-            aggregator,
-            outcome_aggregator,
-            envelope_processor,
-            metric_stats,
+            <span class="kw-2">&amp;</span>aggregator,
+            <span class="kw-2">&amp;</span>outcome_aggregator,
+            <span class="kw-2">&amp;</span>metric_outcomes,
+            <span class="kw-2">&amp;</span>envelope_processor,
             message.buckets,
             message.source,
         );
@@ -2450,14 +2451,12 @@
     }
 
     <span class="kw">fn </span>handle_flush_buckets(<span class="kw-2">&amp;mut </span><span class="self">self</span>, message: FlushBuckets) {
+        <span class="kw">let </span>metric_outcomes = <span class="self">self</span>.metric_outcomes.clone();
+
         <span class="kw">let </span><span class="kw-2">mut </span>output = BTreeMap::new();
         <span class="kw">for </span>(project_key, buckets) <span class="kw">in </span>message.buckets {
-            <span class="kw">let </span>outcome_aggregator = <span class="self">self</span>.services.outcome_aggregator.clone();
-            <span class="kw">let </span>metric_stats = <span class="self">self</span>.metric_stats.clone();
             <span class="kw">let </span>project = <span class="self">self</span>.get_or_create_project(project_key);
-            <span class="kw">if let </span><span class="prelude-val">Some</span>((scoping, b)) =
-                project.check_buckets(outcome_aggregator, metric_stats, buckets)
-            {
+            <span class="kw">if let </span><span class="prelude-val">Some</span>((scoping, b)) = project.check_buckets(<span class="kw-2">&amp;</span>metric_outcomes, buckets) {
                 output.insert(scoping, b);
             }
         }
@@ -2622,7 +2621,7 @@
     buffer_guard: Arc&lt;BufferGuard&gt;,
     config: Arc&lt;Config&gt;,
     services: Services,
-    metric_stats: MetricStats,
+    metric_outcomes: MetricOutcomes,
     redis: <span class="prelude-ty">Option</span>&lt;RedisPool&gt;,
 }
 
@@ -2632,14 +2631,14 @@
         config: Arc&lt;Config&gt;,
         buffer_guard: Arc&lt;BufferGuard&gt;,
         services: Services,
-        metric_stats: MetricStats,
+        metric_outcomes: MetricOutcomes,
         redis: <span class="prelude-ty">Option</span>&lt;RedisPool&gt;,
     ) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{
             buffer_guard,
             config,
             services,
-            metric_stats,
+            metric_outcomes,
             redis,
         }
     }
@@ -2653,7 +2652,7 @@
             buffer_guard,
             config,
             services,
-            metric_stats,
+            metric_outcomes,
             redis,
         } = <span class="self">self</span>;
         <span class="kw">let </span>project_cache = services.project_cache.clone();
@@ -2732,7 +2731,7 @@
                 buffer_unspool_backoff: RetryBackoff::new(config.http_max_retry_interval()),
                 buffer,
                 global_config,
-                metric_stats,
+                metric_outcomes,
             };
 
             <span class="kw">loop </span>{
@@ -2807,6 +2806,7 @@
 
 <span class="attr">#[cfg(test)]
 </span><span class="kw">mod </span>tests {
+    <span class="kw">use </span><span class="kw">crate</span>::metric_stats::MetricStats;
     <span class="kw">use </span><span class="kw">crate</span>::services::global_config::GlobalConfigHandle;
     <span class="kw">use </span>relay_dynamic_config::GlobalConfig;
     <span class="kw">use </span>relay_test::mock_service;
@@ -2880,6 +2880,8 @@
             GlobalConfigHandle::fixed(GlobalConfig::default()),
             Addr::custom().<span class="number">0</span>,
         );
+        <span class="kw">let </span>metric_outcomes =
+            MetricOutcomes::new(metric_stats, services.outcome_aggregator.clone());
 
         (
             ProjectCacheBroker {
@@ -2896,7 +2898,7 @@
                 global_config: GlobalConfigStatus::Pending,
                 buffer_unspool_handle: SleepHandle::idle(),
                 buffer_unspool_backoff: RetryBackoff::new(Duration::from_millis(<span class="number">100</span>)),
-                metric_stats,
+                metric_outcomes,
             },
             buffer,
         )

@@ -1489,7 +1489,6 @@
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
 <span class="kw">use </span>std::hash::Hash;
 <span class="kw">use </span>std::iter::FusedIterator;
-<span class="kw">use </span>std::num::NonZeroU32;
 <span class="kw">use </span>std::{fmt, mem};
 
 <span class="kw">use </span>hash32::{FnvHasher, Hasher <span class="kw">as _</span>};
@@ -2226,7 +2225,7 @@
 }
 
 <span class="doccomment">/// Relay internal metadata for a metric bucket.
-</span><span class="attr">#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
+</span><span class="attr">#[derive(Clone, Copy, Debug, PartialEq, Deserialize, Serialize)]
 </span><span class="kw">pub struct </span>BucketMetadata {
     <span class="doccomment">/// How many times the bucket was merged.
     ///
@@ -2235,7 +2234,13 @@
     ///
     /// For example: Merging two un-merged buckets will yield a total
     /// of `2` merges.
-    </span><span class="kw">pub </span>merges: NonZeroU32,
+    ///
+    /// Due to how Relay aggregates metrics and later splits them into multiple
+    /// buckets again, the amount of merges can be zero.
+    /// When splitting a bucket the total volume of the bucket may only be attributed
+    /// to one part or distributed across the resulting buckets, in either case
+    /// values of `0` are possible.
+    </span><span class="kw">pub </span>merges: u32,
 
     <span class="doccomment">/// Received timestamp of the first metric in this bucket.
     ///
@@ -2250,24 +2255,19 @@
     /// The new metadata is initialized with `1` merge and a given `received_at` timestamp.
     </span><span class="kw">pub fn </span>new(received_at: UnixTimestamp) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{
-            merges: NonZeroU32::MIN,
+            merges: <span class="number">1</span>,
             received_at: <span class="prelude-val">Some</span>(received_at),
         }
     }
 
     <span class="doccomment">/// Whether the metadata does not contain more information than the default.
     </span><span class="kw">pub fn </span>is_default(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
-        <span class="kw">let </span><span class="self">Self </span>{
-            merges,
-            received_at,
-        } = <span class="self">self</span>;
-
-        <span class="kw-2">*</span>merges == NonZeroU32::MIN &amp;&amp; received_at.is_none()
-    }
+        <span class="kw-2">&amp;</span><span class="self">Self</span>::default() == <span class="self">self
+    </span>}
 
     <span class="doccomment">/// Merges another metadata object into the current one.
     </span><span class="kw">pub fn </span>merge(<span class="kw-2">&amp;mut </span><span class="self">self</span>, other: <span class="self">Self</span>) {
-        <span class="self">self</span>.merges = <span class="self">self</span>.merges.saturating_add(other.merges.get());
+        <span class="self">self</span>.merges = <span class="self">self</span>.merges.saturating_add(other.merges);
         <span class="self">self</span>.received_at = <span class="kw">match </span>(<span class="self">self</span>.received_at, other.received_at) {
             (<span class="prelude-val">Some</span>(received_at), <span class="prelude-val">None</span>) =&gt; <span class="prelude-val">Some</span>(received_at),
             (<span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(received_at)) =&gt; <span class="prelude-val">Some</span>(received_at),
@@ -2279,7 +2279,7 @@
 <span class="kw">impl </span>Default <span class="kw">for </span>BucketMetadata {
     <span class="kw">fn </span>default() -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{
-            merges: NonZeroU32::MIN,
+            merges: <span class="number">1</span>,
             received_at: <span class="prelude-val">None</span>,
         }
     }
@@ -2946,7 +2946,7 @@
         <span class="macro">assert_eq!</span>(
             metadata,
             BucketMetadata {
-                merges: NonZeroU32::new(<span class="number">2</span>).unwrap(),
+                merges: <span class="number">2</span>,
                 received_at: <span class="prelude-val">None
             </span>}
         );
@@ -2956,7 +2956,7 @@
         <span class="macro">assert_eq!</span>(
             metadata,
             BucketMetadata {
-                merges: NonZeroU32::new(<span class="number">3</span>).unwrap(),
+                merges: <span class="number">3</span>,
                 received_at: <span class="prelude-val">Some</span>(UnixTimestamp::from_secs(<span class="number">10</span>))
             }
         );
@@ -2966,7 +2966,7 @@
         <span class="macro">assert_eq!</span>(
             metadata,
             BucketMetadata {
-                merges: NonZeroU32::new(<span class="number">4</span>).unwrap(),
+                merges: <span class="number">4</span>,
                 received_at: <span class="prelude-val">Some</span>(UnixTimestamp::from_secs(<span class="number">10</span>))
             }
         );

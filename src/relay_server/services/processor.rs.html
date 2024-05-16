@@ -3620,12 +3620,6 @@
 <a href="#3618" id="3618">3618</a>
 <a href="#3619" id="3619">3619</a>
 <a href="#3620" id="3620">3620</a>
-<a href="#3621" id="3621">3621</a>
-<a href="#3622" id="3622">3622</a>
-<a href="#3623" id="3623">3623</a>
-<a href="#3624" id="3624">3624</a>
-<a href="#3625" id="3625">3625</a>
-<a href="#3626" id="3626">3626</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
@@ -3636,7 +3630,6 @@
 <span class="kw">use </span>std::sync::{Arc, Mutex};
 <span class="kw">use </span>std::time::{Duration, Instant};
 
-<span class="kw">use </span><span class="kw">crate</span>::metric_stats::MetricStats;
 <span class="kw">use </span>anyhow::Context;
 <span class="kw">use </span>brotli::CompressorWriter <span class="kw">as </span>BrotliEncoder;
 <span class="kw">use </span>bytes::Bytes;
@@ -3676,10 +3669,11 @@
 <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
 </span><span class="kw">use </span>{
     <span class="kw">crate</span>::services::store::{Store, StoreEnvelope},
-    <span class="kw">crate</span>::utils::{EnvelopeLimiter, ItemAction, MetricsLimiter},
+    <span class="kw">crate</span>::utils::{sample, EnvelopeLimiter, ItemAction, MetricsLimiter},
     itertools::Itertools,
     relay_cardinality::{
-        CardinalityLimit, CardinalityLimiter, RedisSetLimiter, RedisSetLimiterOptions,
+        CardinalityLimit, CardinalityLimiter, CardinalityLimitsSplit, RedisSetLimiter,
+        RedisSetLimiterOptions,
     },
     relay_dynamic_config::{CardinalityLimiterMode, GlobalConfig, MetricExtractionGroups},
     relay_metrics::{Aggregator, MergeBuckets, RedisMetricMetaStore},
@@ -3694,7 +3688,7 @@
     <span class="self">self</span>, ContentType, Envelope, EnvelopeError, Item, ItemType, SourceQuantities,
 };
 <span class="kw">use </span><span class="kw">crate</span>::extractors::{PartialDsn, RequestMeta};
-<span class="kw">use </span><span class="kw">crate</span>::http;
+<span class="kw">use </span><span class="kw">crate</span>::metrics::MetricOutcomes;
 <span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::transactions::types::ExtractMetricsError;
 <span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::transactions::{ExtractedMetrics, TransactionExtractor};
 <span class="kw">use </span><span class="kw">crate</span>::service::ServiceError;
@@ -3716,6 +3710,7 @@
     <span class="self">self</span>, ExtractionMode, InvalidProcessingGroupType, ManagedEnvelope, SamplingResult,
     TypedEnvelope,
 };
+<span class="kw">use crate</span>::{http, metrics};
 
 <span class="kw">mod </span>attachment;
 <span class="kw">mod </span>dynamic_sampling;
@@ -4636,7 +4631,7 @@
     </span>metric_meta_store: <span class="prelude-ty">Option</span>&lt;RedisMetricMetaStore&gt;,
     <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
     </span>cardinality_limiter: <span class="prelude-ty">Option</span>&lt;CardinalityLimiter&gt;,
-    metric_stats: MetricStats,
+    metric_outcomes: MetricOutcomes,
     <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
     </span>buffer_guard: Arc&lt;BufferGuard&gt;,
 }
@@ -4649,7 +4644,7 @@
         cogs: Cogs,
         <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)] </span>redis: <span class="prelude-ty">Option</span>&lt;RedisPool&gt;,
         addrs: Addrs,
-        metric_stats: MetricStats,
+        metric_outcomes: MetricOutcomes,
         <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)] </span>buffer_guard: Arc&lt;BufferGuard&gt;,
     ) -&gt; <span class="self">Self </span>{
         <span class="kw">let </span>geoip_lookup = config.geoip_path().and_then(|p| {
@@ -4690,7 +4685,7 @@
                     )
                 })
                 .map(CardinalityLimiter::new),
-            metric_stats,
+            metric_outcomes,
             config,
             <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
             </span>buffer_guard,
@@ -5823,8 +5818,11 @@
             }
 
             <span class="kw">if </span>rate_limits.is_limited() {
-                <span class="kw">let </span>was_enforced = bucket_limiter
-                    .enforce_limits(<span class="kw-2">&amp;</span>rate_limits, <span class="self">self</span>.inner.addrs.outcome_aggregator.clone());
+                <span class="kw">let </span>was_enforced = bucket_limiter.enforce_limits(
+                    <span class="kw-2">&amp;</span>rate_limits,
+                    <span class="kw-2">&amp;</span><span class="self">self</span>.inner.metric_outcomes,
+                    <span class="kw-2">&amp;</span><span class="self">self</span>.inner.addrs.outcome_aggregator,
+                );
 
                 <span class="kw">if </span>was_enforced {
                     <span class="comment">// Update the rate limits in the project cache.
@@ -5884,26 +5882,24 @@
         rate_limiter: <span class="kw-2">&amp;</span>RedisRateLimiter,
     ) -&gt; Vec&lt;Bucket&gt; {
         <span class="kw">let </span>batch_size = <span class="self">self</span>.inner.config.metrics_max_batch_size_bytes();
-        <span class="kw">let </span>batched_bucket_iter = BucketsView::from(<span class="kw-2">&amp;</span>buckets).by_size(batch_size).flatten();
-        <span class="kw">let </span>quantities = utils::extract_metric_quantities(batched_bucket_iter, mode);
+        <span class="kw">let </span>quantity = BucketsView::from(<span class="kw-2">&amp;</span>buckets)
+            .by_size(batch_size)
+            .flatten()
+            .count();
 
         <span class="comment">// Check with redis if the throughput limit has been exceeded, while also updating
         // the count so that other relays will be updated too.
-        </span><span class="kw">match </span>rate_limiter.is_rate_limited(quotas, item_scoping, quantities.buckets, <span class="bool-val">false</span>) {
+        </span><span class="kw">match </span>rate_limiter.is_rate_limited(quotas, item_scoping, quantity, <span class="bool-val">false</span>) {
             <span class="prelude-val">Ok</span>(limits) <span class="kw">if </span>limits.is_limited() =&gt; {
-                <span class="macro">relay_log::debug!</span>(
-                    <span class="string">"dropping {} buckets due to throughput rate limit"</span>,
-                    quantities.buckets
-                );
+                <span class="macro">relay_log::debug!</span>(<span class="string">"dropping {quantity} buckets due to throughput rate limit"</span>);
 
                 <span class="kw">let </span>reason_code = limits.longest().and_then(|limit| limit.reason_code.clone());
-                utils::reject_metrics(
-                    <span class="kw-2">&amp;</span><span class="self">self</span>.inner.addrs.outcome_aggregator,
-                    <span class="kw-2">&amp;</span><span class="self">self</span>.inner.metric_stats,
-                    quantities,
+
+                <span class="self">self</span>.inner.metric_outcomes.track(
                     <span class="kw-2">*</span>item_scoping.scoping,
-                    Outcome::RateLimited(reason_code),
                     <span class="kw-2">&amp;</span>buckets,
+                    mode,
+                    Outcome::RateLimited(reason_code),
                 );
 
                 <span class="self">self</span>.inner.addrs.project_cache.send(UpdateRateLimits::new(
@@ -5934,8 +5930,6 @@
         buckets: Vec&lt;Bucket&gt;,
         mode: ExtractionMode,
     ) -&gt; Vec&lt;Bucket&gt; {
-        <span class="kw">use </span><span class="kw">crate</span>::utils::sample;
-
         <span class="kw">let </span>global_config = <span class="self">self</span>.inner.global_config.current();
         <span class="kw">let </span>cardinality_limiter_mode = global_config.options.cardinality_limiter_mode;
 
@@ -5978,8 +5972,8 @@
         <span class="kw">for </span>(limit, reports) <span class="kw">in </span>limits.cardinality_reports() {
             <span class="kw">for </span>report <span class="kw">in </span>reports {
                 <span class="self">self</span>.inner
-                    .metric_stats
-                    .track_cardinality(scoping, limit, report);
+                    .metric_outcomes
+                    .cardinality(scoping, limit, report);
             }
         }
 
@@ -5987,19 +5981,15 @@
             <span class="kw">return </span>limits.into_source();
         }
 
-        <span class="kw">let </span>split = limits.into_split();
+        <span class="kw">let </span>CardinalityLimitsSplit { accepted, rejected } = limits.into_split();
 
-        <span class="comment">// Log outcomes for rejected buckets.
-        </span>utils::reject_metrics(
-            <span class="kw-2">&amp;</span><span class="self">self</span>.inner.addrs.outcome_aggregator,
-            <span class="kw-2">&amp;</span><span class="self">self</span>.inner.metric_stats,
-            utils::extract_metric_quantities(<span class="kw-2">&amp;</span>split.rejected, mode),
-            scoping,
-            Outcome::CardinalityLimited,
-            <span class="kw-2">&amp;</span>split.rejected,
-        );
+        <span class="kw">if </span>!rejected.is_empty() {
+            <span class="self">self</span>.inner
+                .metric_outcomes
+                .track(scoping, <span class="kw-2">&amp;</span>rejected, mode, Outcome::CardinalityLimited);
+        }
 
-        split.accepted
+        accepted
     }
 
     <span class="doccomment">/// Processes metric buckets and sends them to kafka.
@@ -6091,12 +6081,12 @@
                 }
 
                 <span class="kw">let </span><span class="kw-2">mut </span>num_batches = <span class="number">0</span>;
-                <span class="kw">for </span>batch <span class="kw">in </span>BucketsView::new(<span class="kw-2">&amp;</span>buckets).by_size(batch_size) {
+                <span class="kw">for </span>batch <span class="kw">in </span>BucketsView::from(<span class="kw-2">&amp;</span>buckets).by_size(batch_size) {
                     <span class="kw">let </span><span class="kw-2">mut </span>envelope =
                         Envelope::from_request(<span class="prelude-val">None</span>, RequestMeta::outbound(dsn.clone()));
 
                     <span class="kw">let </span><span class="kw-2">mut </span>item = Item::new(ItemType::MetricBuckets);
-                    item.set_source_quantities(utils::extract_metric_quantities(<span class="kw-2">&amp;</span>batch, mode));
+                    item.set_source_quantities(metrics::extract_quantities(batch, mode));
                     item.set_payload(ContentType::Json, serde_json::to_vec(<span class="kw-2">&amp;</span>buckets).unwrap());
                     envelope.add_item(item);
 
@@ -6148,8 +6138,7 @@
             encoded,
             http_encoding,
             quantities,
-            outcome_aggregator: <span class="self">self</span>.inner.addrs.outcome_aggregator.clone(),
-            metric_stats: <span class="self">self</span>.inner.metric_stats.clone(),
+            metric_outcomes: <span class="self">self</span>.inner.metric_outcomes.clone(),
         };
 
         <span class="self">self</span>.inner.addrs.upstream_relay.send(SendRequest(request));
@@ -6531,7 +6520,7 @@
 
         <span class="kw">if let </span><span class="prelude-val">Some</span>(current) = current {
             <span class="self">self</span>.remaining = <span class="self">self</span>.remaining.saturating_sub(current.estimated_size());
-            <span class="kw">let </span>quantities = utils::extract_metric_quantities([current.clone()], <span class="self">self</span>.mode);
+            <span class="kw">let </span>quantities = metrics::extract_quantities([<span class="kw-2">&amp;</span>current], <span class="self">self</span>.mode);
             <span class="self">self</span>.quantities.push((scoping, quantities));
             <span class="self">self</span>.views
                 .entry(scoping.project_key)
@@ -6579,14 +6568,12 @@
     </span>unencoded: Bytes,
     <span class="doccomment">/// Serialized metric buckets with the stated HTTP encoding applied.
     </span>encoded: Bytes,
-    <span class="doccomment">/// Encoding (compression) of the payload.
-    </span>http_encoding: HttpEncoding,
     <span class="doccomment">/// Information about the metric quantities in the payload for outcomes.
     </span>quantities: Vec&lt;(Scoping, SourceQuantities)&gt;,
-    <span class="doccomment">/// Address of the outcome aggregator to send outcomes to on error.
-    </span>outcome_aggregator: Addr&lt;TrackOutcome&gt;,
-    <span class="doccomment">/// Metric stats reporter.
-    </span>metric_stats: MetricStats,
+    <span class="doccomment">/// Encoding (compression) of the payload.
+    </span>http_encoding: HttpEncoding,
+    <span class="doccomment">/// Metric outcomes instance to send outcomes on error.
+    </span>metric_outcomes: MetricOutcomes,
 }
 
 <span class="kw">impl </span>UpstreamRequest <span class="kw">for </span>SendMetricsRequest {
@@ -6632,21 +6619,22 @@
                     response.consume().<span class="kw">await</span>.ok();
                 }
                 <span class="prelude-val">Err</span>(error) =&gt; {
+                    <span class="macro">relay_log::error!</span>(error = <span class="kw-2">&amp;</span>error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error, <span class="string">"Failed to send metrics batch"</span>);
+
                     <span class="comment">// If the request did not arrive at the upstream, we are responsible for outcomes.
                     // Otherwise, the upstream is responsible to log outcomes.
-                    </span><span class="kw">if </span>!error.is_received() {
-                        <span class="kw">for </span>(scoping, quantities) <span class="kw">in </span><span class="self">self</span>.quantities {
-                            utils::reject_metrics::&lt;<span class="kw-2">&amp;</span>Bucket&gt;(
-                                <span class="kw-2">&amp;</span><span class="self">self</span>.outcome_aggregator,
-                                <span class="kw-2">&amp;</span><span class="self">self</span>.metric_stats,
-                                quantities,
-                                scoping,
-                                Outcome::Invalid(DiscardReason::Internal),
-                                <span class="prelude-val">None</span>,
-                            );
-                        }
+                    </span><span class="kw">if </span>error.is_received() {
+                        <span class="kw">return</span>;
                     }
-                    <span class="macro">relay_log::error!</span>(error = <span class="kw-2">&amp;</span>error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error, <span class="string">"Failed to send metrics batch"</span>);
+
+                    <span class="kw">for </span>(scoping, quantities) <span class="kw">in </span><span class="self">self</span>.quantities {
+                        <span class="self">self</span>.metric_outcomes.track(
+                            scoping,
+                            <span class="kw-2">&amp;</span>[] <span class="kw">as </span><span class="kw-2">&amp;</span>[Bucket], <span class="comment">// TODO(dav1d): provide buckets here
+                            </span>quantities,
+                            Outcome::Invalid(DiscardReason::Internal),
+                        );
+                    }
                 }
             }
         })

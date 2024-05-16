@@ -29,6 +29,8 @@
 <a href="#27" id="27">27</a>
 <a href="#28" id="28">28</a>
 <a href="#29" id="29">29</a>
+<a href="#30" id="30">30</a>
+<a href="#31" id="31">31</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Relay Cardinality Module
 
 </span><span class="attr">#![warn(missing_docs)]
@@ -47,7 +49,9 @@
 
 <span class="kw">pub use </span><span class="self">self</span>::config::<span class="kw-2">*</span>;
 <span class="kw">pub use </span><span class="self">self</span>::error::<span class="kw-2">*</span>;
-<span class="kw">pub use </span><span class="self">self</span>::limiter::{CardinalityItem, CardinalityLimits, CardinalityReport, Scoping};
+<span class="kw">pub use </span><span class="self">self</span>::limiter::{
+    CardinalityItem, CardinalityLimits, CardinalityLimitsSplit, CardinalityReport, Scoping,
+};
 <span class="attr">#[cfg(feature = <span class="string">"redis"</span>)]
 </span><span class="kw">pub use </span><span class="self">self</span>::redis::{RedisSetLimiter, RedisSetLimiterOptions};
 <span class="kw">pub use </span><span class="self">self</span>::window::SlidingWindow;

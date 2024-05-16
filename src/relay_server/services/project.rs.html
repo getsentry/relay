@@ -1509,26 +1509,6 @@
 <a href="#1507" id="1507">1507</a>
 <a href="#1508" id="1508">1508</a>
 <a href="#1509" id="1509">1509</a>
-<a href="#1510" id="1510">1510</a>
-<a href="#1511" id="1511">1511</a>
-<a href="#1512" id="1512">1512</a>
-<a href="#1513" id="1513">1513</a>
-<a href="#1514" id="1514">1514</a>
-<a href="#1515" id="1515">1515</a>
-<a href="#1516" id="1516">1516</a>
-<a href="#1517" id="1517">1517</a>
-<a href="#1518" id="1518">1518</a>
-<a href="#1519" id="1519">1519</a>
-<a href="#1520" id="1520">1520</a>
-<a href="#1521" id="1521">1521</a>
-<a href="#1522" id="1522">1522</a>
-<a href="#1523" id="1523">1523</a>
-<a href="#1524" id="1524">1524</a>
-<a href="#1525" id="1525">1525</a>
-<a href="#1526" id="1526">1526</a>
-<a href="#1527" id="1527">1527</a>
-<a href="#1528" id="1528">1528</a>
-<a href="#1529" id="1529">1529</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeSet;
 <span class="kw">use </span>std::sync::Arc;
 <span class="kw">use </span>std::time::Duration;
@@ -1553,6 +1533,7 @@
 <span class="kw">use </span>tokio::time::Instant;
 <span class="kw">use </span>url::Url;
 
+<span class="kw">use </span><span class="kw">crate</span>::metrics::MetricOutcomes;
 <span class="kw">use </span><span class="kw">crate</span>::services::outcome::{DiscardReason, Outcome, TrackOutcome};
 <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
 </span><span class="kw">use </span><span class="kw">crate</span>::services::processor::RateLimitBuckets;
@@ -1560,7 +1541,7 @@
 <span class="kw">use </span><span class="kw">crate</span>::services::project_cache::{BucketSource, CheckedEnvelope, ProjectCache, RequestUpdate};
 
 <span class="kw">use </span><span class="kw">crate</span>::extractors::RequestMeta;
-<span class="kw">use </span><span class="kw">crate</span>::metric_stats::MetricStats;
+
 <span class="kw">use </span><span class="kw">crate</span>::statsd::RelayCounters;
 <span class="kw">use </span><span class="kw">crate</span>::utils::{
     <span class="self">self</span>, EnvelopeLimiter, ExtractionMode, ManagedEnvelope, MetricsLimiter, RetryBackoff,
@@ -2104,10 +2085,10 @@
 
     <span class="kw">fn </span>merge_buckets_into_aggregator(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
-        aggregator: Addr&lt;Aggregator&gt;,
-        <span class="attr">#[allow(unused_variables)] </span>envelope_processor: Addr&lt;EnvelopeProcessor&gt;,
-        outcome_aggregator: Addr&lt;TrackOutcome&gt;,
-        metric_stats: MetricStats,
+        aggregator: <span class="kw-2">&amp;</span>Addr&lt;Aggregator&gt;,
+        <span class="attr">#[allow(unused_variables)] </span>envelope_processor: <span class="kw-2">&amp;</span>Addr&lt;EnvelopeProcessor&gt;,
+        outcome_aggregator: <span class="kw-2">&amp;</span>Addr&lt;TrackOutcome&gt;,
+        metric_outcomes: <span class="kw-2">&amp;</span>MetricOutcomes,
         state: <span class="kw-2">&amp;</span>ProjectState,
         buckets: Buckets&lt;Filtered&gt;,
     ) {
@@ -2125,8 +2106,7 @@
             <span class="kw">return</span>;
         }
 
-        <span class="kw">let </span>buckets =
-            buckets.apply_project_state(<span class="kw-2">&amp;</span>outcome_aggregator, <span class="kw-2">&amp;</span>metric_stats, state, scoping);
+        <span class="kw">let </span>buckets = buckets.apply_project_state(metric_outcomes, state, scoping);
 
         <span class="kw">if </span>buckets.is_empty() {
             <span class="kw">return</span>;
@@ -2139,8 +2119,11 @@
             <span class="prelude-val">Ok</span>(<span class="kw-2">mut </span>bucket_limiter) =&gt; {
                 <span class="kw">let </span>cached_rate_limits = <span class="self">self</span>.rate_limits().clone();
                 <span class="attr">#[allow(unused_variables)]
-                </span><span class="kw">let </span>was_rate_limited =
-                    bucket_limiter.enforce_limits(<span class="kw-2">&amp;</span>cached_rate_limits, outcome_aggregator);
+                </span><span class="kw">let </span>was_rate_limited = bucket_limiter.enforce_limits(
+                    <span class="kw-2">&amp;</span>cached_rate_limits,
+                    metric_outcomes,
+                    outcome_aggregator,
+                );
 
                 <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
                 </span><span class="kw">if </span>!was_rate_limited &amp;&amp; <span class="self">self</span>.config.processing_enabled() {
@@ -2164,10 +2147,10 @@
     /// The buckets will be keyed underneath this project key.
     </span><span class="kw">pub fn </span>merge_buckets(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        aggregator: Addr&lt;Aggregator&gt;,
-        outcome_aggregator: Addr&lt;TrackOutcome&gt;,
-        envelope_processor: Addr&lt;EnvelopeProcessor&gt;,
-        metric_stats: MetricStats,
+        aggregator: <span class="kw-2">&amp;</span>Addr&lt;Aggregator&gt;,
+        outcome_aggregator: <span class="kw-2">&amp;</span>Addr&lt;TrackOutcome&gt;,
+        metric_outcomes: <span class="kw-2">&amp;</span>MetricOutcomes,
+        envelope_processor: <span class="kw-2">&amp;</span>Addr&lt;EnvelopeProcessor&gt;,
         buckets: Vec&lt;Bucket&gt;,
         source: BucketSource,
     ) {
@@ -2188,7 +2171,7 @@
                     aggregator,
                     envelope_processor,
                     outcome_aggregator,
-                    metric_stats,
+                    metric_outcomes,
                     state,
                     buckets,
                 );
@@ -2407,10 +2390,10 @@
     <span class="kw">fn </span>set_state(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         state: Arc&lt;ProjectState&gt;,
-        aggregator: Addr&lt;Aggregator&gt;,
-        envelope_processor: Addr&lt;EnvelopeProcessor&gt;,
-        outcome_aggregator: Addr&lt;TrackOutcome&gt;,
-        metric_stats: MetricStats,
+        aggregator: <span class="kw-2">&amp;</span>Addr&lt;Aggregator&gt;,
+        envelope_processor: <span class="kw-2">&amp;</span>Addr&lt;EnvelopeProcessor&gt;,
+        outcome_aggregator: <span class="kw-2">&amp;</span>Addr&lt;TrackOutcome&gt;,
+        metric_outcomes: <span class="kw-2">&amp;</span>MetricOutcomes,
     ) {
         <span class="kw">let </span>project_enabled = state.check_disabled(<span class="self">self</span>.config.as_ref()).is_ok();
         <span class="kw">let </span>buckets = <span class="self">self</span>.state.set_state(state.clone());
@@ -2423,7 +2406,7 @@
                     aggregator,
                     envelope_processor,
                     outcome_aggregator,
-                    metric_stats,
+                    metric_outcomes,
                     <span class="kw-2">&amp;</span>state,
                     buckets,
                 );
@@ -2457,12 +2440,12 @@
     </span><span class="attr">#[allow(clippy::too_many_arguments)]
     </span><span class="kw">pub fn </span>update_state(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        project_cache: Addr&lt;ProjectCache&gt;,
-        aggregator: Addr&lt;Aggregator&gt;,
+        project_cache: <span class="kw-2">&amp;</span>Addr&lt;ProjectCache&gt;,
+        aggregator: <span class="kw-2">&amp;</span>Addr&lt;Aggregator&gt;,
         <span class="kw-2">mut </span>state: Arc&lt;ProjectState&gt;,
-        envelope_processor: Addr&lt;EnvelopeProcessor&gt;,
-        outcome_aggregator: Addr&lt;TrackOutcome&gt;,
-        metric_stats: MetricStats,
+        envelope_processor: <span class="kw-2">&amp;</span>Addr&lt;EnvelopeProcessor&gt;,
+        outcome_aggregator: <span class="kw-2">&amp;</span>Addr&lt;TrackOutcome&gt;,
+        metric_outcomes: <span class="kw-2">&amp;</span>MetricOutcomes,
         no_cache: bool,
     ) {
         <span class="comment">// Initiate the backoff if the incoming state is invalid. Reset it otherwise.
@@ -2492,9 +2475,9 @@
             </span><span class="kw">_ </span>=&gt; <span class="self">self</span>.set_state(
                 state.clone(),
                 aggregator,
-                envelope_processor.clone(),
+                envelope_processor,
                 outcome_aggregator,
-                metric_stats,
+                metric_outcomes,
             ),
         }
 
@@ -2515,7 +2498,7 @@
         </span><span class="macro">relay_log::debug!</span>(<span class="string">"project state {} updated"</span>, <span class="self">self</span>.project_key);
         channel.inner.send(state);
 
-        <span class="self">self</span>.after_state_updated(<span class="kw-2">&amp;</span>envelope_processor);
+        <span class="self">self</span>.after_state_updated(envelope_processor);
     }
 
     <span class="doccomment">/// Called after all state validations and after the project state is updated.
@@ -2616,8 +2599,7 @@
     /// Returns `Some` if metrics are currently allowed.
     </span><span class="kw">pub fn </span>check_buckets(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        outcome_aggregator: Addr&lt;TrackOutcome&gt;,
-        metric_stats: MetricStats,
+        metric_outcomes: <span class="kw-2">&amp;</span>MetricOutcomes,
         <span class="kw-2">mut </span>buckets: Vec&lt;Bucket&gt;,
     ) -&gt; <span class="prelude-ty">Option</span>&lt;(Scoping, ProjectMetrics)&gt; {
         <span class="kw">let </span><span class="prelude-val">Some</span>(project_state) = <span class="self">self</span>.valid_state() <span class="kw">else </span>{
@@ -2656,25 +2638,13 @@
             );
 
             <span class="kw">if </span>limits.is_limited() {
-                <span class="comment">// NB: Until Vec::extract_if is stable, we have to iterate twice.
-                </span><span class="kw">let </span>matching_buckets = buckets
-                    .iter()
-                    .filter(|bucket| bucket.name.try_namespace() == <span class="prelude-val">Some</span>(namespace));
-
-                <span class="kw">let </span>quantities = utils::extract_metric_quantities(matching_buckets, mode);
-                <span class="macro">relay_log::debug!</span>(<span class="string">"dropping {} buckets due to rate limit"</span>, quantities.buckets);
+                <span class="kw">let </span>rejected;
+                (buckets, rejected) = utils::split_off(buckets, |bucket| {
+                    bucket.name.try_namespace() == <span class="prelude-val">Some</span>(namespace)
+                });
 
                 <span class="kw">let </span>reason_code = limits.longest().and_then(|limit| limit.reason_code.clone());
-                utils::reject_metrics(
-                    <span class="kw-2">&amp;</span>outcome_aggregator,
-                    <span class="kw-2">&amp;</span>metric_stats,
-                    quantities,
-                    scoping,
-                    Outcome::RateLimited(reason_code),
-                    <span class="kw-2">&amp;</span>buckets,
-                );
-
-                buckets.retain(|bucket| bucket.name.try_namespace() != <span class="prelude-val">Some</span>(namespace));
+                metric_outcomes.track(scoping, <span class="kw-2">&amp;</span>rejected, mode, Outcome::RateLimited(reason_code));
             }
         }
 
@@ -2695,34 +2665,13 @@
 </span><span class="kw">mod </span>tests {
     <span class="kw">use </span>std::sync::Mutex;
 
-    <span class="kw">use </span><span class="kw">crate</span>::services::global_config::GlobalConfigHandle;
+    <span class="kw">use </span><span class="kw">crate</span>::metric_stats::MetricStats;
     <span class="kw">use </span>relay_common::time::UnixTimestamp;
-    <span class="kw">use </span>relay_dynamic_config::GlobalConfig;
     <span class="kw">use </span>relay_metrics::BucketValue;
     <span class="kw">use </span>relay_test::mock_service;
     <span class="kw">use </span>serde_json::json;
-    <span class="kw">use </span>tokio::sync::mpsc::UnboundedReceiver;
 
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
-
-    <span class="kw">fn </span>create_metric_stats() -&gt; (MetricStats, UnboundedReceiver&lt;Aggregator&gt;) {
-        <span class="kw">let </span>config = Config::from_json_value(<span class="macro">json!</span>({
-            <span class="string">"processing"</span>: {
-                <span class="string">"enabled"</span>: <span class="bool-val">true</span>,
-                <span class="string">"kafka_config"</span>: [],
-            }
-        }))
-        .unwrap();
-
-        <span class="kw">let </span><span class="kw-2">mut </span>global_config = GlobalConfig::default();
-        global_config.options.metric_stats_rollout_rate = <span class="number">1.0</span>;
-        <span class="kw">let </span>global_config = GlobalConfigHandle::fixed(global_config);
-
-        <span class="kw">let </span>(addr, receiver) = Addr::custom();
-        <span class="kw">let </span>ms = MetricStats::new(Arc::new(config), global_config, addr);
-
-        (ms, receiver)
-    }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>get_state_expired() {
@@ -2766,11 +2715,9 @@
         <span class="kw">let </span>(aggregator, <span class="kw">_</span>) = mock_service(<span class="string">"aggregator"</span>, (), |<span class="kw-2">&amp;mut </span>(), <span class="kw">_</span>| {});
         <span class="kw">let </span>(outcome_aggregator, <span class="kw">_</span>) = mock_service(<span class="string">"outcome_aggregator"</span>, (), |<span class="kw-2">&amp;mut </span>(), <span class="kw">_</span>| {});
         <span class="kw">let </span>(envelope_processor, <span class="kw">_</span>) = mock_service(<span class="string">"envelope_processor"</span>, (), |<span class="kw-2">&amp;mut </span>(), <span class="kw">_</span>| {});
-        <span class="kw">let </span>metric_stats = MetricStats::new(
-            Arc::new(Config::default()),
-            GlobalConfigHandle::fixed(GlobalConfig::default()),
-            Addr::custom().<span class="number">0</span>,
-        );
+        <span class="kw">let </span>metric_outcomes =
+            MetricOutcomes::new(MetricStats::test().<span class="number">0</span>, outcome_aggregator.clone());
+
         <span class="kw">let </span>config = Arc::new(
             Config::from_json_value(<span class="macro">json!</span>(
                 {
@@ -2799,12 +2746,12 @@
         <span class="macro">assert!</span>(project.next_fetch_attempt.is_none());
         <span class="comment">// Try to update project with errored project state.
         </span>project.update_state(
-            addr.clone(),
-            aggregator.clone(),
+            <span class="kw-2">&amp;</span>addr,
+            <span class="kw-2">&amp;</span>aggregator,
             Arc::new(ProjectState::err()),
-            envelope_processor.clone(),
-            outcome_aggregator.clone(),
-            metric_stats.clone(),
+            <span class="kw-2">&amp;</span>envelope_processor,
+            <span class="kw-2">&amp;</span>outcome_aggregator,
+            <span class="kw-2">&amp;</span>metric_outcomes,
             <span class="bool-val">false</span>,
         );
         <span class="comment">// Since we got invalid project state we still keep the old one meaning there
@@ -2823,12 +2770,12 @@
         </span><span class="kw">let </span>channel = StateChannel::new();
         project.state_channel = <span class="prelude-val">Some</span>(channel);
         project.update_state(
-            addr.clone(),
-            aggregator.clone(),
+            <span class="kw-2">&amp;</span>addr,
+            <span class="kw-2">&amp;</span>aggregator,
             Arc::new(ProjectState::err()),
-            envelope_processor,
-            outcome_aggregator,
-            metric_stats,
+            <span class="kw-2">&amp;</span>envelope_processor,
+            <span class="kw-2">&amp;</span>outcome_aggregator,
+            <span class="kw-2">&amp;</span>metric_outcomes,
             <span class="bool-val">false</span>,
         );
         project.fetch_state(addr, <span class="bool-val">false</span>);
@@ -2875,19 +2822,18 @@
         <span class="kw">let </span>buckets = <span class="macro">vec!</span>[create_transaction_bucket()];
         <span class="kw">let </span>(outcome_aggregator, <span class="kw">_</span>) = mock_service(<span class="string">"outcome_aggregator"</span>, (), |<span class="kw-2">&amp;mut </span>(), <span class="kw">_</span>| {});
         <span class="kw">let </span>(envelope_processor, <span class="kw">_</span>) = mock_service(<span class="string">"envelope_processor"</span>, (), |<span class="kw-2">&amp;mut </span>(), <span class="kw">_</span>| {});
-        <span class="kw">let </span>metric_stats = MetricStats::new(
-            Arc::new(Config::default()),
-            GlobalConfigHandle::fixed(GlobalConfig::default()),
-            Addr::custom().<span class="number">0</span>,
-        );
+        <span class="kw">let </span>metric_outcomes =
+            MetricOutcomes::new(MetricStats::test().<span class="number">0</span>, outcome_aggregator.clone());
+
         project.merge_buckets(
-            aggregator,
-            outcome_aggregator,
-            envelope_processor,
-            metric_stats,
+            <span class="kw-2">&amp;</span>aggregator,
+            <span class="kw-2">&amp;</span>outcome_aggregator,
+            <span class="kw-2">&amp;</span>metric_outcomes,
+            <span class="kw-2">&amp;</span>envelope_processor,
             buckets,
             BucketSource::Internal,
         );
+        drop(aggregator);
         handle.<span class="kw">await</span>.unwrap();
 
         <span class="kw">let </span>buckets_received = <span class="kw-2">*</span>bucket_state.lock().unwrap();
@@ -2912,16 +2858,14 @@
         <span class="kw">let </span>buckets = <span class="macro">vec!</span>[create_transaction_bucket()];
         <span class="kw">let </span>(outcome_aggregator, <span class="kw">_</span>) = mock_service(<span class="string">"outcome_aggregator"</span>, (), |<span class="kw-2">&amp;mut </span>(), <span class="kw">_</span>| {});
         <span class="kw">let </span>(envelope_processor, <span class="kw">_</span>) = mock_service(<span class="string">"envelope_processor"</span>, (), |<span class="kw-2">&amp;mut </span>(), <span class="kw">_</span>| {});
-        <span class="kw">let </span>metric_stats = MetricStats::new(
-            Arc::new(Config::default()),
-            GlobalConfigHandle::fixed(GlobalConfig::default()),
-            Addr::custom().<span class="number">0</span>,
-        );
+        <span class="kw">let </span>metric_outcomes =
+            MetricOutcomes::new(MetricStats::test().<span class="number">0</span>, outcome_aggregator.clone());
+
         project.merge_buckets(
-            aggregator.clone(),
-            outcome_aggregator.clone(),
-            envelope_processor.clone(),
-            metric_stats.clone(),
+            <span class="kw-2">&amp;</span>aggregator,
+            <span class="kw-2">&amp;</span>outcome_aggregator,
+            <span class="kw-2">&amp;</span>metric_outcomes,
+            <span class="kw-2">&amp;</span>envelope_processor,
             buckets.clone(),
             BucketSource::Internal,
         );
@@ -2930,47 +2874,54 @@
         <span class="comment">// set_state should trigger flushing from the metricsbuffer to aggregator.
         </span>project.set_state(
             Arc::new(project_state),
-            aggregator,
-            envelope_processor,
-            outcome_aggregator,
-            metric_stats,
+            <span class="kw-2">&amp;</span>aggregator,
+            <span class="kw-2">&amp;</span>envelope_processor,
+            <span class="kw-2">&amp;</span>outcome_aggregator,
+            <span class="kw-2">&amp;</span>metric_outcomes,
         );
+        drop(aggregator);
         handle.<span class="kw">await</span>.unwrap(); <span class="comment">// state isnt updated until we await.
 
         </span><span class="kw">let </span>buckets_received = <span class="kw-2">*</span>bucket_state.lock().unwrap();
         <span class="macro">assert!</span>(buckets_received);
     }
 
-    <span class="attr">#[tokio::test]
-    </span><span class="kw">async fn </span>test_rate_limit_incoming_metrics() {
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_rate_limit_incoming_metrics() {
         <span class="kw">let </span>(aggregator, <span class="kw-2">mut </span>aggregator_rx) = Addr::custom();
         <span class="kw">let </span>(envelope_processor, <span class="kw">_</span>) = Addr::custom();
         <span class="kw">let </span>(outcome_aggregator, <span class="kw">_</span>) = Addr::custom();
-        <span class="kw">let </span>(metric_stats, <span class="kw">_</span>) = create_metric_stats();
+        <span class="kw">let </span>metric_outcomes =
+            MetricOutcomes::new(MetricStats::test().<span class="number">0</span>, outcome_aggregator.clone());
 
         <span class="kw">let </span>project = create_project(<span class="prelude-val">None</span>);
         project.merge_buckets_into_aggregator(
-            aggregator,
-            envelope_processor,
-            outcome_aggregator,
-            metric_stats,
+            <span class="kw-2">&amp;</span>aggregator,
+            <span class="kw-2">&amp;</span>envelope_processor,
+            <span class="kw-2">&amp;</span>outcome_aggregator,
+            <span class="kw-2">&amp;</span>metric_outcomes,
             <span class="kw-2">&amp;</span>project.state_value().unwrap(),
             Buckets::test(<span class="macro">vec!</span>[create_transaction_metric()]),
         );
+        drop(aggregator);
 
-        <span class="kw">let </span>value = aggregator_rx.recv().<span class="kw">await</span>.unwrap();
+        <span class="kw">let </span>value = aggregator_rx.blocking_recv().unwrap();
         <span class="kw">let </span>Aggregator::MergeBuckets(merge_buckets) = value <span class="kw">else </span>{
             <span class="macro">panic!</span>();
         };
         <span class="macro">assert_eq!</span>(merge_buckets.buckets().len(), <span class="number">1</span>);
+
+        <span class="kw">let </span>value = aggregator_rx.blocking_recv();
+        <span class="macro">assert!</span>(value.is_none());
     }
 
-    <span class="attr">#[tokio::test]
-    </span><span class="kw">async fn </span>test_rate_limit_incoming_metrics_no_quota() {
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_rate_limit_incoming_metrics_no_quota() {
         <span class="kw">let </span>(aggregator, <span class="kw-2">mut </span>aggregator_rx) = Addr::custom();
         <span class="kw">let </span>(envelope_processor, <span class="kw">_</span>) = Addr::custom();
         <span class="kw">let </span>(outcome_aggregator, <span class="kw">_</span>) = Addr::custom();
-        <span class="kw">let </span>(metric_stats, <span class="kw">_</span>) = create_metric_stats();
+        <span class="kw">let </span>metric_outcomes =
+            MetricOutcomes::new(MetricStats::test().<span class="number">0</span>, outcome_aggregator.clone());
 
         <span class="kw">let </span>project = create_project(<span class="prelude-val">Some</span>(<span class="macro">json!</span>({
             <span class="string">"quotas"</span>: [{
@@ -2982,15 +2933,16 @@
            }]
         })));
         project.merge_buckets_into_aggregator(
-            aggregator,
-            envelope_processor,
-            outcome_aggregator,
-            metric_stats,
+            <span class="kw-2">&amp;</span>aggregator,
+            <span class="kw-2">&amp;</span>envelope_processor,
+            <span class="kw-2">&amp;</span>outcome_aggregator,
+            <span class="kw-2">&amp;</span>metric_outcomes,
             <span class="kw-2">&amp;</span>project.state_value().unwrap(),
             Buckets::test(<span class="macro">vec!</span>[create_transaction_metric()]),
         );
+        drop(aggregator);
 
-        <span class="kw">let </span>value = aggregator_rx.recv().<span class="kw">await</span>;
+        <span class="kw">let </span>value = aggregator_rx.blocking_recv();
         <span class="macro">assert!</span>(value.is_none());
     }
 
@@ -3005,36 +2957,43 @@
         }
     }
 
-    <span class="attr">#[tokio::test]
-    </span><span class="kw">async fn </span>test_rate_limit_incoming_buckets() {
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_rate_limit_incoming_buckets() {
         <span class="kw">let </span>(aggregator, <span class="kw-2">mut </span>aggregator_rx) = Addr::custom();
         <span class="kw">let </span>(envelope_processor, <span class="kw">_</span>) = Addr::custom();
         <span class="kw">let </span>(outcome_aggregator, <span class="kw">_</span>) = Addr::custom();
-        <span class="kw">let </span>(metric_stats, <span class="kw">_</span>) = create_metric_stats();
+        <span class="kw">let </span>metric_outcomes =
+            MetricOutcomes::new(MetricStats::test().<span class="number">0</span>, outcome_aggregator.clone());
 
         <span class="kw">let </span>project = create_project(<span class="prelude-val">None</span>);
         project.merge_buckets_into_aggregator(
-            aggregator,
-            envelope_processor,
-            outcome_aggregator,
-            metric_stats,
+            <span class="kw-2">&amp;</span>aggregator,
+            <span class="kw-2">&amp;</span>envelope_processor,
+            <span class="kw-2">&amp;</span>outcome_aggregator,
+            <span class="kw-2">&amp;</span>metric_outcomes,
             <span class="kw-2">&amp;</span>project.state_value().unwrap(),
             Buckets::test(<span class="macro">vec!</span>[create_transaction_bucket()]),
         );
+        drop(aggregator);
+        drop(metric_outcomes);
 
-        <span class="kw">let </span>value = aggregator_rx.recv().<span class="kw">await</span>.unwrap();
+        <span class="kw">let </span>value = aggregator_rx.blocking_recv().unwrap();
         <span class="kw">let </span>Aggregator::MergeBuckets(merge_buckets) = value <span class="kw">else </span>{
             <span class="macro">panic!</span>();
         };
         <span class="macro">assert_eq!</span>(merge_buckets.buckets().len(), <span class="number">1</span>);
+
+        <span class="kw">let </span>value = aggregator_rx.blocking_recv();
+        <span class="macro">assert!</span>(value.is_none());
     }
 
-    <span class="attr">#[tokio::test]
-    </span><span class="kw">async fn </span>test_rate_limit_incoming_buckets_no_quota() {
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_rate_limit_incoming_buckets_no_quota() {
         <span class="kw">let </span>(aggregator, <span class="kw-2">mut </span>aggregator_rx) = Addr::custom();
         <span class="kw">let </span>(envelope_processor, <span class="kw">_</span>) = Addr::custom();
         <span class="kw">let </span>(outcome_aggregator, <span class="kw">_</span>) = Addr::custom();
-        <span class="kw">let </span>(metric_stats, <span class="kw">_</span>) = create_metric_stats();
+        <span class="kw">let </span>metric_outcomes =
+            MetricOutcomes::new(MetricStats::test().<span class="number">0</span>, outcome_aggregator.clone());
 
         <span class="kw">let </span>project = create_project(<span class="prelude-val">Some</span>(<span class="macro">json!</span>({
             <span class="string">"quotas"</span>: [{
@@ -3046,15 +3005,16 @@
            }]
         })));
         project.merge_buckets_into_aggregator(
-            aggregator,
-            envelope_processor,
-            outcome_aggregator,
-            metric_stats,
+            <span class="kw-2">&amp;</span>aggregator,
+            <span class="kw-2">&amp;</span>envelope_processor,
+            <span class="kw-2">&amp;</span>outcome_aggregator,
+            <span class="kw-2">&amp;</span>metric_outcomes,
             <span class="kw-2">&amp;</span>project.state_value().unwrap(),
             Buckets::test(<span class="macro">vec!</span>[create_transaction_bucket()]),
         );
+        drop(aggregator);
 
-        <span class="kw">let </span>value = aggregator_rx.recv().<span class="kw">await</span>;
+        <span class="kw">let </span>value = aggregator_rx.blocking_recv();
         <span class="macro">assert!</span>(value.is_none());
     }
 }
