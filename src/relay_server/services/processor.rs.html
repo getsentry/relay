@@ -3635,6 +3635,14 @@
 <a href="#3633" id="3633">3633</a>
 <a href="#3634" id="3634">3634</a>
 <a href="#3635" id="3635">3635</a>
+<a href="#3636" id="3636">3636</a>
+<a href="#3637" id="3637">3637</a>
+<a href="#3638" id="3638">3638</a>
+<a href="#3639" id="3639">3639</a>
+<a href="#3640" id="3640">3640</a>
+<a href="#3641" id="3641">3641</a>
+<a href="#3642" id="3642">3642</a>
+<a href="#3643" id="3643">3643</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
@@ -6308,7 +6316,15 @@
             EnvelopeProcessor::SubmitClientReports(<span class="kw">_</span>) =&gt; AppFeature::ClientReports.into(),
             <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
             </span>EnvelopeProcessor::RateLimitBuckets(v) =&gt; {
-                relay_metrics::cogs::ByCount(v.bucket_limiter.buckets()).into()
+                relay_metrics::cogs::ByCount(v.bucket_limiter.buckets().filter(|b| {
+                    <span class="comment">// Only spans and transactions are actually rate limited at this point.
+                    // Other metrics do not cause costs.
+                    </span><span class="macro">matches!</span>(
+                        b.name.try_namespace(),
+                        <span class="prelude-val">Some</span>(MetricNamespace::Spans | MetricNamespace::Transactions)
+                    )
+                }))
+                .into()
             }
         }
     }
