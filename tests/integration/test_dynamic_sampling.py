@@ -253,7 +253,7 @@ def test_it_removes_events(mini_sentry, relay):
     assert outcomes is not None
     outcome = outcomes["outcomes"][0]
     assert outcome.get("outcome") == 1
-    assert outcome.get("reason") == f"Sampled:{rules[0]['id']}"
+    assert outcome.get("reason") == "Sampled:?"
 
 
 def test_it_does_not_sample_error(mini_sentry, relay):
