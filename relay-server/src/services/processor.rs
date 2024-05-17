@@ -2671,7 +2671,13 @@ impl EnvelopeProcessorService {
             EnvelopeProcessor::SubmitClientReports(_) => AppFeature::ClientReports.into(),
             #[cfg(feature = "processing")]
             EnvelopeProcessor::RateLimitBuckets(v) => {
-                relay_metrics::cogs::ByCount(v.bucket_limiter.buckets()).into()
+                relay_metrics::cogs::ByCount(v.bucket_limiter.buckets().filter(|b| {
+                    matches!(
+                        b.name.try_namespace(),
+                        Some(MetricNamespace::Spans | MetricNamespace::Transactions)
+                    )
+                }))
+                .into()
             }
         }
     }
