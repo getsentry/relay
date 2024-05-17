@@ -1721,7 +1721,7 @@ def test_dynamic_sampling(
         "version": 2,
         "rules": [
             {
-                "id": 1,
+                "id": 3001,
                 "samplingValue": {"type": "sampleRate", "value": sample_rate},
                 "type": "trace",
                 "condition": {
@@ -1780,7 +1780,7 @@ def test_dynamic_sampling(
     else:
         outcomes = outcomes_consumer.get_outcomes(timeout=10)
         assert summarize_outcomes(outcomes) == {(12, 1): 4}  # Span, Filtered
-        assert {o["reason"] for o in outcomes} == {"Sampled:1"}
+        assert {o["reason"] for o in outcomes} == {"Sampled:3000"}
 
     spans_consumer.assert_empty()
     outcomes_consumer.assert_empty()

@@ -5,7 +5,7 @@
 //! pipeline, outcomes may not be emitted if the item is accepted.
 
 use std::borrow::Cow;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::error::Error;
 use std::net::IpAddr;
 use std::sync::Arc;
@@ -24,6 +24,7 @@ use relay_filter::FilterStatKey;
 #[cfg(feature = "processing")]
 use relay_kafka::{ClientError, KafkaClient, KafkaTopic};
 use relay_quotas::{DataCategory, ReasonCode, Scoping};
+use relay_sampling::config::RuleId;
 use relay_sampling::evaluation::MatchedRuleIds;
 use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, Interface, NoResponse, Service};
@@ -164,7 +165,7 @@ pub enum Outcome {
     Filtered(FilterStatKey),
 
     /// The event has been filtered by a Sampling Rule
-    FilteredSampling(MatchedRuleIds),
+    FilteredSampling(RuleCategories),
 
     /// The event has been rate limited.
     RateLimited(Option<ReasonCode>),
@@ -248,6 +249,79 @@ impl fmt::Display for Outcome {
             Outcome::ClientDiscard(reason) => write!(f, "discarded by client ({reason})"),
             Outcome::Accepted => write!(f, "accepted"),
         }
+    }
+}
+
+/// A lower-cardinality version of [`RuleId`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum RuleCategory {
+    BoostLowVolumeProjects,
+    BoostEnvironments,
+    IgnoreHealthChecks,
+    BoostKeyTransactions,
+    Recalibration,
+    BoostReplayId,
+    BoostLowVolumeTransactions,
+    BoostLatestReleases,
+    Custom,
+    Other,
+}
+
+impl RuleCategory {
+    fn to_str(self) -> &'static str {
+        match self {
+            Self::BoostLowVolumeProjects => "1000",
+            Self::BoostEnvironments => "1001",
+            Self::IgnoreHealthChecks => "1002",
+            Self::BoostKeyTransactions => "1003",
+            Self::Recalibration => "1004",
+            Self::BoostReplayId => "1005",
+            Self::BoostLowVolumeTransactions => "1400",
+            Self::BoostLatestReleases => "1500",
+            Self::Custom => "3000",
+            Self::Other => "?",
+        }
+    }
+}
+
+impl From<RuleId> for RuleCategory {
+    fn from(value: RuleId) -> Self {
+        match value.0 {
+            1000 => Self::BoostLowVolumeProjects,
+            1001 => Self::BoostEnvironments,
+            1002 => Self::IgnoreHealthChecks,
+            1003 => Self::BoostKeyTransactions,
+            1004 => Self::Recalibration,
+            1005 => Self::BoostReplayId,
+            n if (1400..1500).contains(&n) => Self::BoostLowVolumeTransactions,
+            n if (1500..1600).contains(&n) => Self::BoostLatestReleases,
+            n if (3000..5000).contains(&n) => Self::Custom,
+            _ => Self::Other,
+        }
+    }
+}
+
+/// An ordered set of categories that can be used as outcome reason.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct RuleCategories(pub BTreeSet<RuleCategory>);
+
+impl fmt::Display for RuleCategories {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        for (i, c) in self.0.iter().enumerate() {
+            if i > 0 {
+                write!(f, ",")?;
+            }
+            write!(f, "{}", c.to_str())?;
+        }
+        Ok(())
+    }
+}
+
+impl From<MatchedRuleIds> for RuleCategories {
+    fn from(value: MatchedRuleIds) -> Self {
+        RuleCategories(BTreeSet::from_iter(
+            value.0.into_iter().map(RuleCategory::from),
+        ))
     }
 }
 
@@ -969,5 +1043,19 @@ impl Service for OutcomeProducerService {
             }
             relay_log::info!("OutcomeProducer stopped.");
         });
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn rule_category_stringifies_correctly() {
+        assert_eq!(
+            RuleCategories::from(MatchedRuleIds(vec![RuleId(1), RuleId(3001), RuleId(1414)]))
+                .to_string(),
+            "1400,3000,?"
+        )
     }
 }

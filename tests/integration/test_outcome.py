@@ -798,7 +798,7 @@ def test_outcome_to_client_report(relay, mini_sentry):
         "version": 2,
         "rules": [
             {
-                "id": 1,
+                "id": 3001,
                 "samplingValue": {"type": "sampleRate", "value": 0.0},
                 "type": "transaction",
                 "condition": {
@@ -853,7 +853,7 @@ def test_outcome_to_client_report(relay, mini_sentry):
         "project_id": 42,
         "key_id": 123,
         "outcome": 1,
-        "reason": "Sampled:1",
+        "reason": "Sampled:3000",
         "category": 9,
         "quantity": 1,
     }
@@ -960,7 +960,7 @@ def test_outcomes_aggregate_dynamic_sampling(relay, mini_sentry):
         "version": 2,
         "rules": [
             {
-                "id": 1,
+                "id": 3001,
                 "samplingValue": {"type": "sampleRate", "value": 0.0},
                 "type": "transaction",
                 "condition": {
@@ -1006,7 +1006,7 @@ def test_outcomes_aggregate_dynamic_sampling(relay, mini_sentry):
         "project_id": 42,
         "key_id": 123,
         "outcome": 1,
-        "reason": "Sampled:1",
+        "reason": "Sampled:3000",
         "category": 9,
         "quantity": 2,
     }
@@ -1069,7 +1069,7 @@ def test_graceful_shutdown(relay, mini_sentry):
         "version": 2,
         "rules": [
             {
-                "id": 1,
+                "id": 3001,
                 "samplingValue": {"type": "sampleRate", "value": 0.0},
                 "type": "transaction",
                 "condition": {
@@ -1120,7 +1120,7 @@ def test_graceful_shutdown(relay, mini_sentry):
         "project_id": 42,
         "key_id": 123,
         "outcome": 1,
-        "reason": "Sampled:1",
+        "reason": "Sampled:3000",
         "category": 9,
         "quantity": 1,
     }
@@ -1157,7 +1157,7 @@ def test_profile_outcomes(
         "version": 2,
         "rules": [
             {
-                "id": 1,
+                "id": 3001,
                 "samplingValue": {"type": "sampleRate", "value": 0.0},
                 "type": "transaction",
                 "condition": {
@@ -1242,7 +1242,7 @@ def test_profile_outcomes(
             "outcome": 1,
             "project_id": 42,
             "quantity": 6,  # len(b"foobar")
-            "reason": "Sampled:1",
+            "reason": "Sampled:3000",
             "source": expected_source,
         },
         {
@@ -1252,7 +1252,7 @@ def test_profile_outcomes(
             "outcome": 1,  # Filtered
             "project_id": 42,
             "quantity": 1,
-            "reason": "Sampled:1",
+            "reason": "Sampled:3000",
             "source": expected_source,
         },
         {
@@ -1262,7 +1262,7 @@ def test_profile_outcomes(
             "outcome": 1,  # Filtered
             "project_id": 42,
             "quantity": 1,
-            "reason": "Sampled:1",
+            "reason": "Sampled:3000",
             "source": expected_source,
         },
     ]
@@ -1751,7 +1751,7 @@ def test_span_outcomes(
         "version": 2,
         "rules": [
             {
-                "id": 1,
+                "id": 3001,
                 "samplingValue": {"type": "sampleRate", "value": 0.0},
                 "type": "transaction",
                 "condition": {
@@ -1827,7 +1827,7 @@ def test_span_outcomes(
             "outcome": 1,  # Filtered
             "project_id": 42,
             "quantity": 1,
-            "reason": "Sampled:1",
+            "reason": "Sampled:3000",
             "source": expected_source,
         },
         {

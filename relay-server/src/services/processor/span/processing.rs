@@ -25,7 +25,7 @@ use relay_spans::{otel_to_sentry_span, otel_trace::Span as OtelSpan};
 
 use crate::envelope::{ContentType, Envelope, Item, ItemType};
 use crate::metrics_extraction::generic::extract_metrics;
-use crate::services::outcome::{DiscardReason, Outcome};
+use crate::services::outcome::{DiscardReason, Outcome, RuleCategories};
 use crate::services::processor::span::extract_transaction_span;
 use crate::services::processor::{
     dynamic_sampling, Addrs, ProcessEnvelope, ProcessEnvelopeState, ProcessingError,
@@ -53,7 +53,7 @@ pub fn process(
     // once for all spans in the envelope.
     let sampling_outcome = match dynamic_sampling::run(state, &config) {
         SamplingResult::Match(sampling_match) if sampling_match.should_drop() => Some(
-            Outcome::FilteredSampling(sampling_match.into_matched_rules()),
+            Outcome::FilteredSampling(RuleCategories::from(sampling_match.into_matched_rules())),
         ),
         _ => None,
     };
