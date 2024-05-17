@@ -62,11 +62,9 @@ use {
     symbolic_unreal::{Unreal4Error, Unreal4ErrorKind},
 };
 
-use crate::envelope::{
-    self, ContentType, Envelope, EnvelopeError, Item, ItemType, SourceQuantities,
-};
+use crate::envelope::{self, ContentType, Envelope, EnvelopeError, Item, ItemType};
 use crate::extractors::{PartialDsn, RequestMeta};
-use crate::metrics::MetricOutcomes;
+use crate::metrics::{MetricOutcomes, MinimalTrackableBucket};
 use crate::metrics_extraction::transactions::types::ExtractMetricsError;
 use crate::metrics_extraction::transactions::{ExtractedMetrics, TransactionExtractor};
 use crate::service::ServiceError;
@@ -2481,7 +2479,7 @@ impl EnvelopeProcessorService {
             return;
         }
 
-        let (unencoded, quantities) = partition.take_parts();
+        let (unencoded, project_info) = partition.take();
         let http_encoding = self.inner.config.http_encoding();
         let encoded = match encode_payload(&unencoded, http_encoding) {
             Ok(payload) => payload,
@@ -2496,8 +2494,8 @@ impl EnvelopeProcessorService {
             partition_key: key.map(|k| k.to_string()),
             unencoded,
             encoded,
+            project_info,
             http_encoding,
-            quantities,
             metric_outcomes: self.inner.metric_outcomes.clone(),
         };
 
@@ -2539,9 +2537,9 @@ impl EnvelopeProcessorService {
                 while let Some(bucket) = remaining.take() {
                     let partition = partitions
                         .entry(partition_key)
-                        .or_insert_with(|| Partition::new(batch_size, mode));
+                        .or_insert_with(|| Partition::new(batch_size));
 
-                    if let Some(next) = partition.insert(bucket, *scoping) {
+                    if let Some(next) = partition.insert(bucket, *scoping, mode) {
                         // A part of the bucket could not be inserted. Take the partition and submit
                         // it immediately. Repeat until the final part was inserted. This should
                         // always result in a request, otherwise we would enter an endless loop.
@@ -2849,19 +2847,17 @@ struct Partition<'a> {
     max_size: usize,
     remaining: usize,
     views: HashMap<ProjectKey, Vec<BucketView<'a>>>,
-    quantities: Vec<(Scoping, SourceQuantities)>,
-    mode: ExtractionMode,
+    project_info: HashMap<ProjectKey, (Scoping, ExtractionMode)>,
 }
 
 impl<'a> Partition<'a> {
     /// Creates a new partition with the given maximum size in bytes.
-    pub fn new(size: usize, mode: ExtractionMode) -> Self {
+    pub fn new(size: usize) -> Self {
         Self {
             max_size: size,
             remaining: size,
             views: HashMap::new(),
-            quantities: Vec::new(),
-            mode,
+            project_info: HashMap::new(),
         }
     }
 
@@ -2872,20 +2868,27 @@ impl<'a> Partition<'a> {
     /// returned from this function call.
     ///
     /// If this function returns `Some(_)`, the partition is full and should be submitted to the
-    /// upstream immediately. Use [`take_parts`](Self::take_parts) to retrieve the contents of the
+    /// upstream immediately. Use [`Self::take`] to retrieve the contents of the
     /// partition. Afterwards, the caller is responsible to call this function again with the
     /// remaining bucket until it is fully inserted.
-    pub fn insert(&mut self, bucket: BucketView<'a>, scoping: Scoping) -> Option<BucketView<'a>> {
+    pub fn insert(
+        &mut self,
+        bucket: BucketView<'a>,
+        scoping: Scoping,
+        mode: ExtractionMode,
+    ) -> Option<BucketView<'a>> {
         let (current, next) = bucket.split(self.remaining, Some(self.max_size));
 
         if let Some(current) = current {
             self.remaining = self.remaining.saturating_sub(current.estimated_size());
-            let quantities = metrics::extract_quantities([&current], self.mode);
-            self.quantities.push((scoping, quantities));
             self.views
                 .entry(scoping.project_key)
                 .or_default()
                 .push(current);
+
+            self.project_info
+                .entry(scoping.project_key)
+                .or_insert((scoping, mode));
         }
 
         next
@@ -2896,10 +2899,10 @@ impl<'a> Partition<'a> {
         self.views.is_empty()
     }
 
-    /// Returns the serialized buckets and the source quantities for this partition.
+    /// Returns the serialized buckets for this partition.
     ///
     /// This empties the partition, so that it can be reused.
-    fn take_parts(&mut self) -> (Bytes, Vec<(Scoping, SourceQuantities)>) {
+    fn take(&mut self) -> (Bytes, HashMap<ProjectKey, (Scoping, ExtractionMode)>) {
         #[derive(serde::Serialize)]
         struct Wrapper<'a> {
             buckets: &'a HashMap<ProjectKey, Vec<BucketView<'a>>>,
@@ -2907,13 +2910,14 @@ impl<'a> Partition<'a> {
 
         let buckets = &self.views;
         let payload = serde_json::to_vec(&Wrapper { buckets }).unwrap().into();
-        let quantities = self.quantities.clone();
+
+        let scopings = self.project_info.clone();
+        self.project_info.clear();
 
         self.views.clear();
-        self.quantities.clear();
         self.remaining = self.max_size;
 
-        (payload, quantities)
+        (payload, scopings)
     }
 }
 
@@ -2928,12 +2932,48 @@ struct SendMetricsRequest {
     unencoded: Bytes,
     /// Serialized metric buckets with the stated HTTP encoding applied.
     encoded: Bytes,
-    /// Information about the metric quantities in the payload for outcomes.
-    quantities: Vec<(Scoping, SourceQuantities)>,
+    /// Mapping of all contained project keys to their scoping and extraction mode.
+    ///
+    /// Used to track outcomes for transmission failures.
+    project_info: HashMap<ProjectKey, (Scoping, ExtractionMode)>,
     /// Encoding (compression) of the payload.
     http_encoding: HttpEncoding,
     /// Metric outcomes instance to send outcomes on error.
     metric_outcomes: MetricOutcomes,
+}
+
+impl SendMetricsRequest {
+    fn create_error_outcomes(self) {
+        #[derive(serde::Deserialize)]
+        struct Wrapper {
+            buckets: HashMap<ProjectKey, Vec<MinimalTrackableBucket>>,
+        }
+
+        let buckets = match serde_json::from_slice(&self.unencoded) {
+            Ok(Wrapper { buckets }) => buckets,
+            Err(err) => {
+                relay_log::error!(
+                    error = &err as &dyn std::error::Error,
+                    "failed to parse buckets from failed transmission"
+                );
+                return;
+            }
+        };
+
+        for (key, buckets) in buckets {
+            let Some(&(scoping, mode)) = self.project_info.get(&key) else {
+                relay_log::error!("missing scoping for project key");
+                continue;
+            };
+
+            self.metric_outcomes.track(
+                scoping,
+                &buckets,
+                mode,
+                Outcome::Invalid(DiscardReason::Internal),
+            );
+        }
+    }
 }
 
 impl UpstreamRequest for SendMetricsRequest {
@@ -2987,14 +3027,7 @@ impl UpstreamRequest for SendMetricsRequest {
                         return;
                     }
 
-                    for (scoping, quantities) in self.quantities {
-                        self.metric_outcomes.track(
-                            scoping,
-                            &[] as &[Bucket], // TODO(dav1d): provide buckets here
-                            quantities,
-                            Outcome::Invalid(DiscardReason::Internal),
-                        );
-                    }
+                    self.create_error_outcomes()
                 }
             }
         })
