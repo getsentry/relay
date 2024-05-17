@@ -268,7 +268,7 @@ pub enum RuleCategory {
 }
 
 impl RuleCategory {
-    fn to_str(self) -> &'static str {
+    fn as_str(&self) -> &'static str {
         match self {
             Self::BoostLowVolumeProjects => "1000",
             Self::BoostEnvironments => "1001",
@@ -293,9 +293,9 @@ impl From<RuleId> for RuleCategory {
             1003 => Self::BoostKeyTransactions,
             1004 => Self::Recalibration,
             1005 => Self::BoostReplayId,
-            n if (1400..1500).contains(&n) => Self::BoostLowVolumeTransactions,
-            n if (1500..1600).contains(&n) => Self::BoostLatestReleases,
-            n if (3000..5000).contains(&n) => Self::Custom,
+            1400..=1499 => Self::BoostLowVolumeTransactions,
+            1500..=1599 => Self::BoostLatestReleases,
+            3000..=4999 => Self::Custom,
             _ => Self::Other,
         }
     }
@@ -311,7 +311,7 @@ impl fmt::Display for RuleCategories {
             if i > 0 {
                 write!(f, ",")?;
             }
-            write!(f, "{}", c.to_str())?;
+            write!(f, "{}", c.as_str())?;
         }
         Ok(())
     }
@@ -1051,11 +1051,10 @@ mod tests {
     use super::*;
 
     #[test]
-    fn rule_category_stringifies_correctly() {
-        assert_eq!(
-            RuleCategories::from(MatchedRuleIds(vec![RuleId(1), RuleId(3001), RuleId(1414)]))
-                .to_string(),
-            "1400,3000,?"
-        )
+    fn rule_category_roundtrip() {
+        let input = "123,1004,1500,1403,1403,1404,1000";
+        let rule_ids = MatchedRuleIds::parse(input).unwrap();
+        let rule_categories = RuleCategories::from(rule_ids);
+        assert_eq!(&rule_categories.to_string(), "1000,1004,1400,1500,?");
     }
 }

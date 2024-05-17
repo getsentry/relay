@@ -37,6 +37,7 @@
 - Extract additional user fields for spans. ([#3599](https://github.com/getsentry/relay/pull/3599))
 - Disable `db.redis` span metrics extraction. ([#3600](https://github.com/getsentry/relay/pull/3600))
 - Extract status for spans. ([#3606](https://github.com/getsentry/relay/pull/3606))
+- Map outcome reasons for dynamic sampling to reduced set of values. ([#3623](https://github.com/getsentry/relay/pull/3623))
 
 ## 24.4.2
 
