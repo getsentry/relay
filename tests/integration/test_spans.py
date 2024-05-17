@@ -1,22 +1,22 @@
-from collections import Counter
 import json
-from datetime import datetime, timedelta, timezone
 import uuid
-
-from opentelemetry.proto.trace.v1.trace_pb2 import (
-    Span,
-    ScopeSpans,
-    ResourceSpans,
-    TracesData,
-)
-from opentelemetry.proto.common.v1.common_pb2 import AnyValue, KeyValue
+from collections import Counter
+from datetime import datetime, timedelta, timezone
 
 import pytest
-
+from opentelemetry.proto.common.v1.common_pb2 import AnyValue, KeyValue
+from opentelemetry.proto.trace.v1.trace_pb2 import (
+    ResourceSpans,
+    ScopeSpans,
+    Span,
+    TracesData,
+)
+from requests import HTTPError
+from sentry_relay.consts import DataCategory
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 
-from .test_store import make_transaction
 from .test_metrics import TEST_CONFIG
+from .test_store import make_transaction
 
 
 @pytest.mark.parametrize("discard_transaction", [False, True])
@@ -49,6 +49,7 @@ def test_span_extraction(
         project_config["config"]["features"].append("projects:discard-transaction")
 
     event = make_transaction({"event_id": "cbf6960622e14a45abc1f03b2055b186"})
+    event["contexts"]["trace"]["status"] = "success"
     end = datetime.now(timezone.utc) - timedelta(seconds=1)
     duration = timedelta(milliseconds=500)
     start = end - duration
@@ -56,6 +57,7 @@ def test_span_extraction(
         {
             "description": "GET /api/0/organizations/?member=1",
             "op": "http",
+            "status": "success",
             "parent_span_id": "aaaaaaaaaaaaaaaa",
             "span_id": "bbbbbbbbbbbbbbbb",
             "start_timestamp": start.isoformat(),
@@ -104,18 +106,26 @@ def test_span_extraction(
             "platform": "other",
             "sdk.name": "raven-node",
             "sdk.version": "2.6.3",
-            "trace.status": "unknown",
+            "status": "ok",
+            "trace.status": "ok",
             "transaction": "hi",
             "transaction.op": "hi",
         },
         "span_id": "bbbbbbbbbbbbbbbb",
         "start_timestamp_ms": int(start.timestamp() * 1e3),
+        "start_timestamp_precise": start.timestamp(),
+        "end_timestamp_precise": start.timestamp() + duration.total_seconds(),
         "trace_id": "ff62a8b040f340bda5d830223def1d81",
     }
 
-    start_timestamp = datetime.fromisoformat(event["start_timestamp"])
-    end_timestamp = datetime.fromisoformat(event["timestamp"])
-    duration_ms = int((end_timestamp - start_timestamp).total_seconds() * 1e3)
+    start_timestamp = datetime.fromisoformat(event["start_timestamp"]).replace(
+        tzinfo=timezone.utc
+    )
+    end_timestamp = datetime.fromisoformat(event["timestamp"]).replace(
+        tzinfo=timezone.utc
+    )
+    duration = (end_timestamp - start_timestamp).total_seconds()
+    duration_ms = int(duration * 1e3)
 
     transaction_span = spans_consumer.get_span()
     del transaction_span["received"]
@@ -139,14 +149,15 @@ def test_span_extraction(
             "platform": "other",
             "sdk.name": "raven-node",
             "sdk.version": "2.6.3",
-            "trace.status": "unknown",
+            "status": "ok",
+            "trace.status": "ok",
             "transaction": "hi",
             "transaction.op": "hi",
         },
         "span_id": "968cff94913ebb07",
-        "start_timestamp_ms": int(
-            start_timestamp.replace(tzinfo=timezone.utc).timestamp() * 1e3
-        ),
+        "start_timestamp_ms": int(start_timestamp.timestamp() * 1e3),
+        "start_timestamp_precise": start_timestamp.timestamp(),
+        "end_timestamp_precise": start_timestamp.timestamp() + duration,
         "trace_id": "a0fa8803753e40fd8124b21eeb2986b5",
     }
 
@@ -434,6 +445,7 @@ def test_span_ingestion(
     project_config["config"]["features"] = [
         "organizations:standalone-span-ingestion",
         "projects:span-metrics-extraction",
+        "projects:relay-otel-endpoint",
     ]
     project_config["config"]["transactionMetrics"] = {"version": 1}
     if extract_transaction:
@@ -510,9 +522,12 @@ def test_span_ingestion(
                 "browser.name": "Chrome",
                 "category": "db",
                 "op": "db.query",
+                "status": "unknown",
             },
             "span_id": "a342abb1214ca181",
             "start_timestamp_ms": int(start.timestamp() * 1e3),
+            "start_timestamp_precise": start.timestamp(),
+            "end_timestamp_precise": end.timestamp(),
             "trace_id": "89143b0763095bd9c9955e8175d1fb23",
         },
         {
@@ -537,6 +552,8 @@ def test_span_ingestion(
             },
             "span_id": "b0429c44b67a3eb1",
             "start_timestamp_ms": int(start.timestamp() * 1e3),
+            "start_timestamp_precise": start.timestamp(),
+            "end_timestamp_precise": end.timestamp() + 1,
             "trace_id": "ff62a8b040f340bda5d830223def1d81",
         },
         {
@@ -552,6 +569,8 @@ def test_span_ingestion(
             "sentry_tags": {"browser.name": "Chrome", "op": "default"},
             "span_id": "cd429c44b67a3eb1",
             "start_timestamp_ms": int(start.timestamp() * 1e3),
+            "start_timestamp_precise": start.timestamp(),
+            "end_timestamp_precise": end.timestamp() + 1,
             "trace_id": "ff62a8b040f340bda5d830223def1d81",
         },
         {
@@ -567,9 +586,12 @@ def test_span_ingestion(
             "sentry_tags": {
                 "browser.name": "Python Requests",
                 "op": "default",
+                "status": "unknown",
             },
             "span_id": "d342abb1214ca182",
             "start_timestamp_ms": int(start.timestamp() * 1e3),
+            "start_timestamp_precise": start.timestamp(),
+            "end_timestamp_precise": end.timestamp(),
             "trace_id": "89143b0763095bd9c9955e8175d1fb24",
         },
         {
@@ -587,6 +609,8 @@ def test_span_ingestion(
             },
             "span_id": "ed429c44b67a3eb1",
             "start_timestamp_ms": int(start.timestamp() * 1e3),
+            "start_timestamp_precise": start.timestamp(),
+            "end_timestamp_precise": end.timestamp() + 1,
             "trace_id": "ff62a8b040f340bda5d830223def1d81",
         },
         {
@@ -599,9 +623,15 @@ def test_span_ingestion(
             "parent_span_id": "f0f0f0abcdef1234",
             "project_id": 42,
             "retention_days": 90,
-            "sentry_tags": {"browser.name": "Python Requests", "op": "default"},
+            "sentry_tags": {
+                "browser.name": "Python Requests",
+                "op": "default",
+                "status": "unknown",
+            },
             "span_id": "f0b809703e783d00",
             "start_timestamp_ms": int(start.timestamp() * 1e3),
+            "start_timestamp_precise": start.timestamp(),
+            "end_timestamp_precise": end.timestamp(),
             "trace_id": "89143b0763095bd9c9955e8175d1fb24",
         },
     ]
@@ -833,6 +863,50 @@ def test_span_ingestion(
     metrics_consumer.assert_empty()
 
 
+def test_otel_endpoint_disabled(mini_sentry, relay):
+    relay = relay(
+        mini_sentry,
+        {
+            "outcomes": {
+                "emit_outcomes": True,
+                "batch_size": 1,
+                "batch_interval": 1,
+                "source": "relay",
+            }
+        },
+    )
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)["config"]
+    project_config["features"] = ["organizations:standalone-span-ingestion"]
+
+    end = datetime.now(timezone.utc) - timedelta(seconds=1)
+    start = end - timedelta(milliseconds=500)
+    relay.send_otel_span(
+        project_id,
+        json=make_otel_span(start, end),
+    )
+
+    (outcome,) = mini_sentry.captured_outcomes.get()["outcomes"]
+    assert outcome["category"] == DataCategory.SPAN
+    assert outcome["outcome"] == 3  # invalid
+    assert outcome["reason"] == "feature_disabled"
+
+    # Second attempt will cause a 403 response:
+    with pytest.raises(HTTPError) as exc_info:
+        relay.send_otel_span(
+            project_id,
+            json=make_otel_span(start, end),
+        )
+    response = exc_info.value.response
+    assert response.status_code == 403
+    assert response.json() == {
+        "detail": "event submission rejected with_reason: FeatureDisabled(OtelEndpoint)"
+    }
+
+    # No envelopes were received:
+    assert mini_sentry.captured_events.empty()
+
+
 def test_span_extraction_with_metrics_summary(
     mini_sentry,
     relay_with_processing,
@@ -869,9 +943,14 @@ def test_span_extraction_with_metrics_summary(
 
     relay.send_event(project_id, event)
 
-    start_timestamp = datetime.fromisoformat(event["start_timestamp"])
-    end_timestamp = datetime.fromisoformat(event["timestamp"])
-    duration_ms = int((end_timestamp - start_timestamp).total_seconds() * 1e3)
+    start_timestamp = datetime.fromisoformat(event["start_timestamp"]).replace(
+        tzinfo=timezone.utc
+    )
+    end_timestamp = datetime.fromisoformat(event["timestamp"]).replace(
+        tzinfo=timezone.utc
+    )
+    duration = (end_timestamp - start_timestamp).total_seconds()
+    duration_ms = int(duration * 1e3)
 
     transaction_span = spans_consumer.get_span()
     del transaction_span["received"]
@@ -895,14 +974,17 @@ def test_span_extraction_with_metrics_summary(
             "platform": "other",
             "sdk.name": "raven-node",
             "sdk.version": "2.6.3",
+            "status": "unknown",
             "trace.status": "unknown",
             "transaction": "hi",
             "transaction.op": "hi",
         },
         "span_id": "968cff94913ebb07",
         "start_timestamp_ms": int(
-            start_timestamp.replace(tzinfo=timezone.utc).timestamp() * 1e3
+            start_timestamp.timestamp() * 1e3,
         ),
+        "start_timestamp_precise": start_timestamp.timestamp(),
+        "end_timestamp_precise": end_timestamp.timestamp(),
         "trace_id": "a0fa8803753e40fd8124b21eeb2986b5",
     }
 
@@ -926,6 +1008,7 @@ def test_extracted_transaction_gets_normalized(
     project_config["config"]["features"] = [
         "organizations:standalone-span-ingestion",
         "projects:extract-transaction-from-segment-span",
+        "projects:relay-otel-endpoint",
     ]
 
     transactions_consumer = transactions_consumer()
@@ -1045,8 +1128,12 @@ def test_span_extraction_with_ddm_missing_values(
 
     relay.send_event(project_id, event)
 
-    start_timestamp = datetime.fromisoformat(event["start_timestamp"])
-    end_timestamp = datetime.fromisoformat(event["timestamp"])
+    start_timestamp = datetime.fromisoformat(event["start_timestamp"]).replace(
+        tzinfo=timezone.utc
+    )
+    end_timestamp = datetime.fromisoformat(event["timestamp"]).replace(
+        tzinfo=timezone.utc
+    )
     duration_ms = int((end_timestamp - start_timestamp).total_seconds() * 1e3)
 
     metrics_summary["c:spans/some_metric@none"][0].pop("min", None)
@@ -1074,14 +1161,15 @@ def test_span_extraction_with_ddm_missing_values(
             "platform": "other",
             "sdk.name": "raven-node",
             "sdk.version": "2.6.3",
+            "status": "unknown",
             "trace.status": "unknown",
             "transaction": "hi",
             "transaction.op": "hi",
         },
         "span_id": "968cff94913ebb07",
-        "start_timestamp_ms": int(
-            start_timestamp.replace(tzinfo=timezone.utc).timestamp() * 1e3
-        ),
+        "start_timestamp_ms": int(start_timestamp.timestamp() * 1e3),
+        "start_timestamp_precise": start_timestamp.timestamp(),
+        "end_timestamp_precise": end_timestamp.timestamp(),
         "trace_id": "a0fa8803753e40fd8124b21eeb2986b5",
     }
 
@@ -1302,6 +1390,8 @@ def test_span_ingestion_with_performance_scores(
             },
             "span_id": "bd429c44b67a3eb1",
             "start_timestamp_ms": int(start.timestamp() * 1e3),
+            "start_timestamp_precise": start.timestamp(),
+            "end_timestamp_precise": end.timestamp() + 1,
             "trace_id": "ff62a8b040f340bda5d830223def1d81",
             "measurements": {
                 "score.fcp": {"value": 0.14999972769539766},
@@ -1345,6 +1435,8 @@ def test_span_ingestion_with_performance_scores(
             },
             "span_id": "cd429c44b67a3eb1",
             "start_timestamp_ms": int(start.timestamp() * 1e3),
+            "start_timestamp_precise": start.timestamp(),
+            "end_timestamp_precise": end.timestamp() + 1,
             "trace_id": "ff62a8b040f340bda5d830223def1d81",
             "measurements": {
                 "inp": {"value": 100.0},
@@ -1511,7 +1603,7 @@ def test_rate_limit_metrics_consistent(
         counter = Counter()
         for outcome in outcomes_consumer.get_outcomes():
             counter[(outcome["category"], outcome["outcome"])] += outcome["quantity"]
-        return counter
+        return dict(counter)
 
     # First batch passes (we over-accept once)
     relay.send_envelope(project_id, envelope)
@@ -1530,7 +1622,9 @@ def test_rate_limit_metrics_consistent(
     assert len(spans) == 0
     metrics = metrics_consumer.get_metrics()
     assert len(metrics) == 0
-    assert summarize_outcomes() == {
+    outcomes = summarize_outcomes()
+    assert outcomes.pop((15, 2)) > 0  # Metric Bucket, RateLimited
+    assert outcomes == {
         (16, 2): 4,  # SpanIndexed, RateLimited
         (12, 2): 4,  # Span, RateLimited
     }
