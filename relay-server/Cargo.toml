@@ -141,6 +141,5 @@ insta = { workspace = true }
 relay-event-schema = { workspace = true, features = ["jsonschema"] }
 relay-protocol = { workspace = true, features = ["test"] }
 relay-test = { workspace = true }
-serde_yaml = { workspace = true }
 similar-asserts = { workspace = true }
 tempfile = { workspace = true }

@@ -1216,12 +1216,15 @@ impl EnvelopeProcessorService {
         if state.event_metrics_extracted {
             return Ok(());
         }
+        let Some(event) = state.event.value() else {
+            return Ok(());
+        };
 
         // NOTE: This function requires a `metric_extraction` in the project config. Legacy configs
         // will upsert this configuration from transaction and conditional tagging fields, even if
         // it is not present in the actual project config payload.
         let global = self.inner.global_config.current();
-        let generic_config = {
+        let combined_config = {
             let config = match &state.project_state.config.metric_extraction {
                 ErrorBoundary::Ok(ref config) if config.is_supported() => config,
                 _ => return Ok(()),
@@ -1256,14 +1259,10 @@ impl EnvelopeProcessorService {
             return Ok(());
         }
 
-        let Some(event) = state.event.value() else {
-            return Ok(());
-        };
-
         let metrics = crate::metrics_extraction::event::extract_metrics(
             event,
             state.spans_extracted,
-            &generic_config,
+            &combined_config,
             self.inner
                 .config
                 .aggregator_config_for(MetricNamespace::Spans)
@@ -1280,7 +1279,7 @@ impl EnvelopeProcessorService {
 
         let extractor = TransactionExtractor {
             config: tx_config,
-            generic_config: Some(&generic_config),
+            generic_config: Some(&combined_config),
             transaction_from_dsc,
             sampling_result,
             has_profile: state.profile_id.is_some(),
