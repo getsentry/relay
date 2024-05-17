@@ -2039,7 +2039,7 @@ impl EnvelopeProcessorService {
                 continue;
             }
 
-            let mut payload = item.payload();
+            let payload = item.payload();
             match serde_json::from_slice::<MetricMeta>(&payload) {
                 Ok(meta) => {
                     relay_log::trace!("adding metric metadata to project cache");
@@ -2050,25 +2050,7 @@ impl EnvelopeProcessorService {
                 }
                 Err(error) => {
                     metric!(counter(RelayCounters::MetricMetaParsingFailed) += 1);
-
-                    relay_log::with_scope(
-                        move |scope| {
-                            // truncate the payload to basically 200KiB, just in case
-                            payload.truncate(200_000);
-                            scope.add_attachment(relay_log::protocol::Attachment {
-                                buffer: payload.into(),
-                                filename: "payload.json".to_owned(),
-                                content_type: Some("application/json".to_owned()),
-                                ty: None,
-                            })
-                        },
-                        || {
-                            relay_log::error!(
-                                error = &error as &dyn Error,
-                                "failed to parse metric meta"
-                            )
-                        },
-                    );
+                    relay_log::debug!(error = &error as &dyn Error, "failed to parse metric meta");
                 }
             }
         }
