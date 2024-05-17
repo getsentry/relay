@@ -392,7 +392,7 @@ def test_sample_on_parametrized_root_transaction(mini_sentry, relay):
     relay.send_envelope(project_id, envelope)
 
     outcome = mini_sentry.captured_outcomes.get(timeout=2)
-    assert outcome["outcomes"][0]["reason"] == "Sampled:1"
+    assert outcome["outcomes"][0]["reason"] == "Sampled:?"
 
 
 def test_it_keeps_events(mini_sentry, relay):
