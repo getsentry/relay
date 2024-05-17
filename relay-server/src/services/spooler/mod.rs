@@ -1600,6 +1600,7 @@ mod tests {
 
         assert_debug_snapshot!(captures, @r###"
         [
+            "buffer.state.transition:1|c|#state_in:none,state_out:memory_file_standby,reason:init",
             "buffer.envelopes_mem:2000|h",
             "buffer.envelopes_mem_count:1|g",
             "buffer.envelopes_mem:4000|h",
@@ -1610,6 +1611,7 @@ mod tests {
             "buffer.writes:1|c",
             "buffer.envelopes_written:3|c",
             "buffer.envelopes_disk_count:3|g",
+            "buffer.state.transition:1|c|#state_in:memory_file_standby,state_out:disk,reason:ram_full",
             "buffer.disk_size:24576|h",
             "buffer.envelopes_written:1|c",
             "buffer.envelopes_disk_count:4|g",
