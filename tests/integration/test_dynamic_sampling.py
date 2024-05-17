@@ -238,7 +238,7 @@ def test_it_removes_events(mini_sentry, relay):
     public_key = config["publicKeys"][0]["publicKey"]
 
     # add a sampling rule to project config that removes all transactions (sample_rate=0)
-    rules = _add_sampling_config(config, sample_rate=0, rule_type="transaction")
+    _add_sampling_config(config, sample_rate=0, rule_type="transaction")
 
     # create an envelope with a trace context that is initiated by this project (for simplicity)
     envelope, trace_id, event_id = _create_transaction_envelope(public_key)
