@@ -2672,6 +2672,8 @@ impl EnvelopeProcessorService {
             #[cfg(feature = "processing")]
             EnvelopeProcessor::RateLimitBuckets(v) => {
                 relay_metrics::cogs::ByCount(v.bucket_limiter.buckets().filter(|b| {
+                    // Only spans and transactions are actually rate limited at this point.
+                    // Other metrics do not cause costs.
                     matches!(
                         b.name.try_namespace(),
                         Some(MetricNamespace::Spans | MetricNamespace::Transactions)
