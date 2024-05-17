@@ -3602,24 +3602,6 @@
 <a href="#3600" id="3600">3600</a>
 <a href="#3601" id="3601">3601</a>
 <a href="#3602" id="3602">3602</a>
-<a href="#3603" id="3603">3603</a>
-<a href="#3604" id="3604">3604</a>
-<a href="#3605" id="3605">3605</a>
-<a href="#3606" id="3606">3606</a>
-<a href="#3607" id="3607">3607</a>
-<a href="#3608" id="3608">3608</a>
-<a href="#3609" id="3609">3609</a>
-<a href="#3610" id="3610">3610</a>
-<a href="#3611" id="3611">3611</a>
-<a href="#3612" id="3612">3612</a>
-<a href="#3613" id="3613">3613</a>
-<a href="#3614" id="3614">3614</a>
-<a href="#3615" id="3615">3615</a>
-<a href="#3616" id="3616">3616</a>
-<a href="#3617" id="3617">3617</a>
-<a href="#3618" id="3618">3618</a>
-<a href="#3619" id="3619">3619</a>
-<a href="#3620" id="3620">3620</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
@@ -5661,7 +5643,7 @@
                 <span class="kw">continue</span>;
             }
 
-            <span class="kw">let </span><span class="kw-2">mut </span>payload = item.payload();
+            <span class="kw">let </span>payload = item.payload();
             <span class="kw">match </span>serde_json::from_slice::&lt;MetricMeta&gt;(<span class="kw-2">&amp;</span>payload) {
                 <span class="prelude-val">Ok</span>(meta) =&gt; {
                     <span class="macro">relay_log::trace!</span>(<span class="string">"adding metric metadata to project cache"</span>);
@@ -5672,25 +5654,7 @@
                 }
                 <span class="prelude-val">Err</span>(error) =&gt; {
                     <span class="macro">metric!</span>(counter(RelayCounters::MetricMetaParsingFailed) += <span class="number">1</span>);
-
-                    relay_log::with_scope(
-                        <span class="kw">move </span>|scope| {
-                            <span class="comment">// truncate the payload to basically 200KiB, just in case
-                            </span>payload.truncate(<span class="number">200_000</span>);
-                            scope.add_attachment(relay_log::protocol::Attachment {
-                                buffer: payload.into(),
-                                filename: <span class="string">"payload.json"</span>.to_owned(),
-                                content_type: <span class="prelude-val">Some</span>(<span class="string">"application/json"</span>.to_owned()),
-                                ty: <span class="prelude-val">None</span>,
-                            })
-                        },
-                        || {
-                            <span class="macro">relay_log::error!</span>(
-                                error = <span class="kw-2">&amp;</span>error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error,
-                                <span class="string">"failed to parse metric meta"
-                            </span>)
-                        },
-                    );
+                    <span class="macro">relay_log::debug!</span>(error = <span class="kw-2">&amp;</span>error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error, <span class="string">"failed to parse metric meta"</span>);
                 }
             }
         }
