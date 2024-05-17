@@ -467,6 +467,12 @@ pub enum RelayCounters {
     BufferEnvelopesWritten,
     /// Number of _envelopes_ the envelope buffer reads back from disk.
     BufferEnvelopesRead,
+    /// Number of state changes in the envelope buffer.
+    /// This metric is tagged with:
+    ///  - `state_in`: The previous state. `memory`, `memory_file_standby`, or `disk`.
+    ///  - `state_out`: The new state. `memory`, `memory_file_standby`, or `disk`.
+    ///  - `reason`: Why a transition was made (or not made).
+    BufferStateTransition,
     ///
     /// Number of outcomes and reasons for rejected Envelopes.
     ///
@@ -665,6 +671,7 @@ impl CounterMetric for RelayCounters {
             RelayCounters::BufferReads => "buffer.reads",
             RelayCounters::BufferEnvelopesWritten => "buffer.envelopes_written",
             RelayCounters::BufferEnvelopesRead => "buffer.envelopes_read",
+            RelayCounters::BufferStateTransition => "buffer.state.transition",
             RelayCounters::Outcomes => "events.outcomes",
             RelayCounters::ProjectStateGet => "project_state.get",
             RelayCounters::ProjectStateRequest => "project_state.request",
