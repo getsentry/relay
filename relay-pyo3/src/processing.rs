@@ -622,14 +622,12 @@ pub fn meta_with_chunks<'py>(
             let current_item = data
                 .get_item(key)?
                 .expect("Current item should have existed");
-            let as_dict = current_item.downcast::<PyDict>()?;
-            result.insert(key.to_string(), meta_with_chunks(as_dict, &item)?);
+            result.insert(key.to_string(), meta_with_chunks(&current_item, &item)?);
         } else if let Ok(data) = data.downcast::<PyList>() {
             let int_key = key.to_str()?.parse::<usize>()?;
             match data.get_item(int_key) {
                 Ok(val) => {
-                    let val = val.downcast::<PyDict>()?;
-                    result.insert(key.to_string(), meta_with_chunks(val, &item)?);
+                    result.insert(key.to_string(), meta_with_chunks(&val, &item)?);
                 }
                 Err(_) => {
                     result.insert(
