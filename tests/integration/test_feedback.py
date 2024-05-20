@@ -88,7 +88,6 @@ def assert_expected_feedback(parsed_feedback, sent_feedback):
     }
 
 
-@pytest.mark.parametrize("use_feedback_ingest_v2", (False, True))
 @pytest.mark.parametrize("use_feedback_topic", (False, True))
 def test_feedback_event_with_processing(
     mini_sentry,
@@ -125,7 +124,6 @@ def test_feedback_event_with_processing(
     other_consumer.assert_empty()
 
 
-@pytest.mark.parametrize("use_feedback_ingest_v2", (False, True))
 @pytest.mark.parametrize("use_feedback_topic", (False, True))
 def test_feedback_events_without_processing(
     mini_sentry, relay_chain, use_feedback_topic
