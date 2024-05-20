@@ -8,8 +8,8 @@ local canary_region_pops = {
 
 local region_pops = {
   de: [
-    'de-pop-1',
-    'de-pop-2',
+    'de-pop-regional-1',
+    'de-pop-regional-2',
   ],
   us: [
     'us-pop-regional-1',
