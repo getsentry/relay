@@ -178,6 +178,18 @@ pub struct SpanData {
     #[metastructure(field = "app_start_type")] // TODO: no dot?
     pub app_start_type: Annotated<Value>,
 
+    /// The total tokens that were used by an LLM call
+    #[metastructure(field = "ai.total_tokens.used")]
+    pub ai_total_tokens_used: Annotated<Value>,
+
+    /// The input tokens used by an LLM call (usually cheaper than output tokens)
+    #[metastructure(field = "ai.prompt_tokens.used")]
+    pub ai_prompt_tokens_used: Annotated<Value>,
+
+    /// The output tokens used by an LLM call (the ones the LLM actually generated)
+    #[metastructure(field = "ai.completion_tokens.used")]
+    pub ai_completion_tokens_used: Annotated<Value>,
+
     /// The client's browser name.
     #[metastructure(field = "browser.name")]
     pub browser_name: Annotated<String>,
