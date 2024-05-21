@@ -467,14 +467,11 @@ pub fn extract_tags(
                 let tag_value = if *cache_hit { "true" } else { "false" };
                 span_tags.insert(SpanTagKey::CacheHit, tag_value.to_owned());
             }
-            // Read the cache key from the 2nd word of the span description
-            // TODO: derive cache key from span.data instead when SDKs are ready
-            if let Some(cache_key) = span
-                .description
-                .value()
-                .and_then(|description| description.split(' ').nth(1))
-            {
-                span_tags.insert(SpanTagKey::CacheKey, cache_key.to_owned());
+            if let Some(cache_keys) = span.data.value().and_then(|data| data.cache_key.value()) {
+                span_tags.insert(
+                    SpanTagKey::CacheKey,
+                    serde_json::to_string(cache_keys).unwrap(),
+                );
             }
         }
 
@@ -1490,6 +1487,7 @@ LIMIT 1
                         "trace_id": "77aeb1c16bb544a4a39b8d42944947a3",
                         "data": {
                             "cache.hit": true,
+                            "cache.key": ["my_key"],
                             "cache.item_size": 8,
                             "thread.id": "6286962688",
                             "thread.name": "Thread-4 (process_request_thread)"
@@ -1501,13 +1499,14 @@ LIMIT 1
                         "timestamp": 1694732409.3145,
                         "start_timestamp": 1694732408.8367,
                         "exclusive_time": 477.800131,
-                        "description": "get my_key",
+                        "description": "mget my_key my_key_2",
                         "op": "cache.get_item",
                         "span_id": "97c0ef9770a02f9d",
                         "parent_span_id": "9756d8d7b2b364ff",
                         "trace_id": "77aeb1c16bb544a4a39b8d42944947a3",
                         "data": {
                             "cache.hit": false,
+                            "cache.key": ["my_key", "my_key_2"],
                             "cache.item_size": 8,
                             "thread.id": "6286962688",
                             "thread.name": "Thread-4 (process_request_thread)"
@@ -1526,6 +1525,7 @@ LIMIT 1
                         "trace_id": "77aeb1c16bb544a4a39b8d42944947a3",
                         "data": {
                             "cache.hit": false,
+                            "cache.key": ["my_key_2"],
                             "cache.item_size": 8,
                             "thread.id": "6286962688",
                             "thread.name": "Thread-4 (process_request_thread)"
@@ -1558,9 +1558,24 @@ LIMIT 1
         assert_eq!(tags_2.get("cache.hit").unwrap().as_str(), Some("false"));
         assert_eq!(tags_3.get("cache.hit").unwrap().as_str(), Some("false"));
 
-        assert_eq!(tags_1.get("cache.key").unwrap().as_str(), Some("my_key"));
-        assert_eq!(tags_2.get("cache.key").unwrap().as_str(), Some("my_key"));
-        assert_eq!(tags_3.get("cache.key").unwrap().as_str(), Some("my_key_2"));
+        let keys_1 = Value::Array(vec![Annotated::new(Value::String("my_key".to_string()))]);
+        let keys_2 = Value::Array(vec![
+            Annotated::new(Value::String("my_key".to_string())),
+            Annotated::new(Value::String("my_key_2".to_string())),
+        ]);
+        let keys_3 = Value::Array(vec![Annotated::new(Value::String("my_key_2".to_string()))]);
+        assert_eq!(
+            tags_1.get("cache.key").unwrap().as_str(),
+            serde_json::to_string(&keys_1).ok().as_deref()
+        );
+        assert_eq!(
+            tags_2.get("cache.key").unwrap().as_str(),
+            serde_json::to_string(&keys_2).ok().as_deref()
+        );
+        assert_eq!(
+            tags_3.get("cache.key").unwrap().as_str(),
+            serde_json::to_string(&keys_3).ok().as_deref()
+        );
 
         assert_debug_snapshot!(measurements_1, @r###"
         Measurements(
