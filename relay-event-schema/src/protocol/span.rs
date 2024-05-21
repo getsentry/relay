@@ -616,6 +616,9 @@ mod tests {
         insta::assert_debug_snapshot!(data, @r###"
         SpanData {
             app_start_type: ~,
+            ai_total_tokens_used: ~,
+            ai_prompt_tokens_used: ~,
+            ai_completion_tokens_used: ~,
             browser_name: ~,
             code_filepath: String(
                 "task.py",
