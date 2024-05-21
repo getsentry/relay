@@ -1130,6 +1130,18 @@
 <a href="#1128" id="1128">1128</a>
 <a href="#1129" id="1129">1129</a>
 <a href="#1130" id="1130">1130</a>
+<a href="#1131" id="1131">1131</a>
+<a href="#1132" id="1132">1132</a>
+<a href="#1133" id="1133">1133</a>
+<a href="#1134" id="1134">1134</a>
+<a href="#1135" id="1135">1135</a>
+<a href="#1136" id="1136">1136</a>
+<a href="#1137" id="1137">1137</a>
+<a href="#1138" id="1138">1138</a>
+<a href="#1139" id="1139">1139</a>
+<a href="#1140" id="1140">1140</a>
+<a href="#1141" id="1141">1141</a>
+<a href="#1142" id="1142">1142</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::time::Duration;
 
 <span class="kw">use </span>relay_redis::{Connection, RedisPool};
@@ -1298,7 +1310,7 @@
             )<span class="question-mark">?</span>;
 
             <span class="kw">for </span>result <span class="kw">in </span>results {
-                reporter.report_cardinality(state.cardinality_limit(), result.to_report());
+                reporter.report_cardinality(state.cardinality_limit(), result.to_report(timestamp));
 
                 <span class="comment">// This always acquires a write lock, but we only hit this
                 // if we previously didn't satisfy the request from the cache,
@@ -1344,8 +1356,9 @@
         })
     }
 
-    <span class="kw">fn </span>to_report(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; CardinalityReport {
+    <span class="kw">fn </span>to_report(<span class="kw-2">&amp;</span><span class="self">self</span>, timestamp: UnixTimestamp) -&gt; CardinalityReport {
         CardinalityReport {
+            timestamp,
             organization_id: <span class="self">self</span>.scope.organization_id,
             project_id: <span class="self">self</span>.scope.project_id,
             metric_type: <span class="self">self</span>.scope.metric_type,
@@ -1540,6 +1553,10 @@
             }
             reporter
         }
+
+        <span class="kw">fn </span>timestamp(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; UnixTimestamp {
+            <span class="self">self</span>.timestamp + <span class="self">self</span>.time_offset
+        }
     }
 
     <span class="attr">#[test]
@@ -1633,6 +1650,7 @@
             reports,
             <span class="kw-2">&amp;</span>[
                 CardinalityReport {
+                    timestamp: limiter.timestamp(),
                     organization_id: <span class="prelude-val">Some</span>(scoping.organization_id),
                     project_id: <span class="prelude-val">Some</span>(scoping.project_id),
                     metric_type: <span class="prelude-val">None</span>,
@@ -1640,6 +1658,7 @@
                     cardinality: <span class="number">2</span>,
                 },
                 CardinalityReport {
+                    timestamp: limiter.timestamp(),
                     organization_id: <span class="prelude-val">Some</span>(scoping.organization_id),
                     project_id: <span class="prelude-val">Some</span>(scoping.project_id),
                     metric_type: <span class="prelude-val">None</span>,
@@ -1692,6 +1711,7 @@
             reports,
             <span class="kw-2">&amp;</span>[
                 CardinalityReport {
+                    timestamp: limiter.timestamp(),
                     organization_id: <span class="prelude-val">Some</span>(scoping.organization_id),
                     project_id: <span class="prelude-val">Some</span>(scoping.project_id),
                     metric_type: <span class="prelude-val">Some</span>(MetricType::Counter),
@@ -1699,6 +1719,7 @@
                     cardinality: <span class="number">2</span>,
                 },
                 CardinalityReport {
+                    timestamp: limiter.timestamp(),
                     organization_id: <span class="prelude-val">Some</span>(scoping.organization_id),
                     project_id: <span class="prelude-val">Some</span>(scoping.project_id),
                     metric_type: <span class="prelude-val">Some</span>(MetricType::Distribution),
@@ -2025,6 +2046,7 @@
                 <span class="macro">assert_eq!</span>(
                     rejected.reports.get(<span class="kw-2">&amp;</span>limits[<span class="number">0</span>]).unwrap(),
                     <span class="kw-2">&amp;</span>[CardinalityReport {
+                        timestamp: limiter.timestamp(),
                         organization_id: <span class="prelude-val">Some</span>(scoping.organization_id),
                         project_id: <span class="prelude-val">None</span>,
                         metric_type: <span class="prelude-val">None</span>,
@@ -2035,6 +2057,7 @@
                 <span class="macro">assert_eq!</span>(
                     rejected.reports.get(<span class="kw-2">&amp;</span>limits[<span class="number">1</span>]).unwrap(),
                     <span class="kw-2">&amp;</span>[CardinalityReport {
+                        timestamp: limiter.timestamp(),
                         organization_id: <span class="prelude-val">Some</span>(scoping.organization_id),
                         project_id: <span class="prelude-val">None</span>,
                         metric_type: <span class="prelude-val">None</span>,
@@ -2045,6 +2068,7 @@
                 <span class="macro">assert_eq!</span>(
                     rejected.reports.get(<span class="kw-2">&amp;</span>limits[<span class="number">2</span>]).unwrap(),
                     <span class="kw-2">&amp;</span>[CardinalityReport {
+                        timestamp: limiter.timestamp(),
                         organization_id: <span class="prelude-val">Some</span>(scoping.organization_id),
                         project_id: <span class="prelude-val">Some</span>(scoping.project_id),
                         metric_type: <span class="prelude-val">None</span>,

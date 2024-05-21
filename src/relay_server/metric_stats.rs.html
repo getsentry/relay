@@ -481,6 +481,10 @@
 <a href="#479" id="479">479</a>
 <a href="#480" id="480">480</a>
 <a href="#481" id="481">481</a>
+<a href="#482" id="482">482</a>
+<a href="#483" id="483">483</a>
+<a href="#484" id="484">484</a>
+<a href="#485" id="485">485</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::sync::{Arc, OnceLock};
 
@@ -677,7 +681,7 @@
         }
 
         <span class="prelude-val">Some</span>(Bucket {
-            timestamp: UnixTimestamp::now(),
+            timestamp: report.timestamp,
             width: <span class="number">0</span>,
             name: cardinality_metric_mri(),
             value: BucketValue::Gauge(GaugeValue::single(cardinality.into())),
@@ -825,6 +829,7 @@
             namespace: <span class="prelude-val">None</span>,
         };
         <span class="kw">let </span>report = CardinalityReport {
+            timestamp: UnixTimestamp::from_secs(<span class="number">3333</span>),
             organization_id: <span class="prelude-val">Some</span>(scoping.organization_id),
             project_id: <span class="prelude-val">Some</span>(scoping.project_id),
             metric_type: <span class="prelude-val">None</span>,
@@ -846,6 +851,7 @@
         <span class="kw">let </span>bucket = buckets.pop().unwrap();
 
         <span class="macro">assert_eq!</span>(<span class="kw-2">&amp;*</span>bucket.name, <span class="string">"g:metric_stats/cardinality@none"</span>);
+        <span class="macro">assert_eq!</span>(bucket.timestamp, UnixTimestamp::from_secs(<span class="number">3333</span>));
         <span class="macro">assert_eq!</span>(
             bucket.value,
             BucketValue::Gauge(GaugeValue {
@@ -890,6 +896,7 @@
             namespace: <span class="prelude-val">Some</span>(MetricNamespace::Spans),
         };
         <span class="kw">let </span>report = CardinalityReport {
+            timestamp: UnixTimestamp::from_secs(<span class="number">2222</span>),
             organization_id: <span class="prelude-val">Some</span>(scoping.organization_id),
             project_id: <span class="prelude-val">Some</span>(scoping.project_id),
             metric_type: <span class="prelude-val">Some</span>(MetricType::Distribution),
@@ -911,6 +918,7 @@
         <span class="kw">let </span>bucket = buckets.pop().unwrap();
 
         <span class="macro">assert_eq!</span>(<span class="kw-2">&amp;*</span>bucket.name, <span class="string">"g:metric_stats/cardinality@none"</span>);
+        <span class="macro">assert_eq!</span>(bucket.timestamp, UnixTimestamp::from_secs(<span class="number">2222</span>));
         <span class="macro">assert_eq!</span>(
             bucket.value,
             BucketValue::Gauge(GaugeValue {

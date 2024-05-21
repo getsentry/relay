@@ -909,7 +909,7 @@
             <span class="kw">let </span>unsampled_profiles_enabled = forward_unsampled_profiles(state, global_config);
 
             <span class="kw">let </span>matched_rules = sampling_match.into_matched_rules();
-            <span class="kw">let </span>outcome = Outcome::FilteredSampling(matched_rules.clone());
+            <span class="kw">let </span>outcome = Outcome::FilteredSampling(matched_rules.into());
             state.managed_envelope.retain_items(|item| {
                 <span class="kw">if </span>unsampled_profiles_enabled &amp;&amp; item.ty() == <span class="kw-2">&amp;</span>ItemType::Profile {
                     item.set_sampled(<span class="bool-val">false</span>);

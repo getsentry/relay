@@ -962,7 +962,7 @@
 
 <span class="kw">use </span><span class="kw">crate</span>::envelope::{ContentType, Envelope, Item, ItemType};
 <span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::generic::extract_metrics;
-<span class="kw">use </span><span class="kw">crate</span>::services::outcome::{DiscardReason, Outcome};
+<span class="kw">use </span><span class="kw">crate</span>::services::outcome::{DiscardReason, Outcome, RuleCategories};
 <span class="kw">use </span><span class="kw">crate</span>::services::processor::span::extract_transaction_span;
 <span class="kw">use </span><span class="kw">crate</span>::services::processor::{
     dynamic_sampling, Addrs, ProcessEnvelope, ProcessEnvelopeState, ProcessingError,
@@ -990,7 +990,7 @@
     // once for all spans in the envelope.
     </span><span class="kw">let </span>sampling_outcome = <span class="kw">match </span>dynamic_sampling::run(state, <span class="kw-2">&amp;</span>config) {
         SamplingResult::Match(sampling_match) <span class="kw">if </span>sampling_match.should_drop() =&gt; <span class="prelude-val">Some</span>(
-            Outcome::FilteredSampling(sampling_match.into_matched_rules()),
+            Outcome::FilteredSampling(RuleCategories::from(sampling_match.into_matched_rules())),
         ),
         <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
     };
