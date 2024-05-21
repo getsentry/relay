@@ -31,11 +31,11 @@ pub fn try_normalize_metric_name(name: &str) -> Option<Cow<'_, str>> {
 
     // Note: `-` intentionally missing from this list.
     let normalize_re = NORMALIZE_RE.get_or_init(|| Regex::new("[^a-zA-Z0-9_.]+").unwrap());
-    let normalized = normalize_re.replace_all(name, "_");
+    let normalized_name = normalize_re.replace_all(name, "_");
 
     // We limit the string to a fixed size. Here we are taking slices assuming that we have a single
     // character per index since we are normalizing the name above.
-    Some(match normalized {
+    Some(match normalized_name {
         Cow::Borrowed(value) => {
             Cow::Borrowed(&value[..min(value.len(), CUSTOM_METRIC_NAME_MAX_SIZE)])
         }
