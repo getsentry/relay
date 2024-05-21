@@ -20,6 +20,10 @@ pub enum RelayGauges {
     ///
     /// The disk buffer size can be configured with `spool.envelopes.max_disk_size`.
     BufferEnvelopesDiskCount,
+    /// Number of queue keys (project key pairs) unspooled during proactive unspool.
+    /// This metric is tagged with:
+    /// - `reason`: Why keys are / are not unspooled.
+    BufferPeriodicUnspool,
     /// The currently used memory by the entire system.
     ///
     /// Relay uses the same value for its memory health check.
@@ -37,6 +41,7 @@ impl GaugeMetric for RelayGauges {
             RelayGauges::ProjectCacheGarbageQueueSize => "project_cache.garbage.queue_size",
             RelayGauges::BufferEnvelopesMemoryCount => "buffer.envelopes_mem_count",
             RelayGauges::BufferEnvelopesDiskCount => "buffer.envelopes_disk_count",
+            RelayGauges::BufferPeriodicUnspool => "buffer.unspool.periodic",
             RelayGauges::SystemMemoryUsed => "health.system_memory.used",
             RelayGauges::SystemMemoryTotal => "health.system_memory.total",
         }
@@ -467,6 +472,12 @@ pub enum RelayCounters {
     BufferEnvelopesWritten,
     /// Number of _envelopes_ the envelope buffer reads back from disk.
     BufferEnvelopesRead,
+    /// Number of state changes in the envelope buffer.
+    /// This metric is tagged with:
+    ///  - `state_in`: The previous state. `memory`, `memory_file_standby`, or `disk`.
+    ///  - `state_out`: The new state. `memory`, `memory_file_standby`, or `disk`.
+    ///  - `reason`: Why a transition was made (or not made).
+    BufferStateTransition,
     ///
     /// Number of outcomes and reasons for rejected Envelopes.
     ///
@@ -665,6 +676,7 @@ impl CounterMetric for RelayCounters {
             RelayCounters::BufferReads => "buffer.reads",
             RelayCounters::BufferEnvelopesWritten => "buffer.envelopes_written",
             RelayCounters::BufferEnvelopesRead => "buffer.envelopes_read",
+            RelayCounters::BufferStateTransition => "buffer.state.transition",
             RelayCounters::Outcomes => "events.outcomes",
             RelayCounters::ProjectStateGet => "project_state.get",
             RelayCounters::ProjectStateRequest => "project_state.request",
