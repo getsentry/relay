@@ -1254,7 +1254,7 @@ impl EnvelopeProcessorService {
             return Ok(());
         };
 
-        if !tx_config.is_enabled() || state.project_state.has_feature(Feature::DiscardTransaction) {
+        if !tx_config.is_enabled() {
             return Ok(());
         }
 
@@ -1270,21 +1270,23 @@ impl EnvelopeProcessorService {
         );
         state.extracted_metrics.project_metrics.extend(metrics);
 
-        let transaction_from_dsc = state
-            .managed_envelope
-            .envelope()
-            .dsc()
-            .and_then(|dsc| dsc.transaction.as_deref());
+        if !state.project_state.has_feature(Feature::DiscardTransaction) {
+            let transaction_from_dsc = state
+                .managed_envelope
+                .envelope()
+                .dsc()
+                .and_then(|dsc| dsc.transaction.as_deref());
 
-        let extractor = TransactionExtractor {
-            config: tx_config,
-            generic_config: Some(&combined_config),
-            transaction_from_dsc,
-            sampling_result,
-            has_profile: state.profile_id.is_some(),
-        };
+            let extractor = TransactionExtractor {
+                config: tx_config,
+                generic_config: Some(&combined_config),
+                transaction_from_dsc,
+                sampling_result,
+                has_profile: state.profile_id.is_some(),
+            };
 
-        state.extracted_metrics.extend(extractor.extract(event)?);
+            state.extracted_metrics.extend(extractor.extract(event)?);
+        }
 
         state.event_metrics_extracted = true;
         state.managed_envelope.set_event_metrics_extracted();
