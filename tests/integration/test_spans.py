@@ -1694,6 +1694,73 @@ def test_span_extraction_with_tags(
     spans_consumer.assert_empty()
 
 
+def test_span_filtering_with_generic_inbound_filter(
+    mini_sentry, relay_with_processing, spans_consumer, outcomes_consumer
+):
+    mini_sentry.global_config["filters"] = {
+        "version": 1,
+        "filters": [
+            {
+                "id": "first-releases",
+                "isEnabled": True,
+                "condition": {
+                    "op": "eq",
+                    "name": "span.data.release",
+                    "value": "1.0",
+                },
+            }
+        ],
+    }
+
+    relay = relay_with_processing(options=TEST_CONFIG)
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = ["organizations:standalone-span-ingestion"]
+
+    spans_consumer = spans_consumer()
+    outcomes_consumer = outcomes_consumer()
+
+    end = datetime.now(timezone.utc) - timedelta(seconds=1)
+    duration = timedelta(milliseconds=500)
+    start = end - duration
+    envelope = Envelope()
+    envelope.add_item(
+        Item(
+            type="span",
+            payload=PayloadRef(
+                bytes=json.dumps(
+                    {
+                        "description": "organizations/metrics/data",
+                        "op": "default",
+                        "span_id": "cd429c44b67a3eb1",
+                        "segment_id": "968cff94913ebb07",
+                        "start_timestamp": start.timestamp(),
+                        "timestamp": end.timestamp() + 1,
+                        "exclusive_time": 345.0,  # The SDK knows that this span has a lower exclusive time
+                        "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                        "data": {"sentry.release": "1.0"},
+                    },
+                ).encode()
+            ),
+        )
+    )
+
+    relay.send_envelope(project_id, envelope)
+
+    spans = spans_consumer.get_spans(timeout=10.0, max_attempts=6)
+    assert len(spans) == 0
+
+    def summarize_outcomes():
+        counter = Counter()
+        for outcome in outcomes_consumer.get_outcomes():
+            counter[(outcome["category"], outcome["outcome"])] += outcome["quantity"]
+        return counter
+
+    assert summarize_outcomes() == {(12, 1): 1}
+    spans_consumer.assert_empty()
+    outcomes_consumer.assert_empty()
+
+
 @pytest.mark.parametrize("sample_rate", [0.0, 1.0])
 def test_dynamic_sampling(
     mini_sentry,
@@ -1725,7 +1792,7 @@ def test_dynamic_sampling(
         "version": 2,
         "rules": [
             {
-                "id": 1,
+                "id": 3001,
                 "samplingValue": {"type": "sampleRate", "value": sample_rate},
                 "type": "trace",
                 "condition": {
@@ -1784,7 +1851,7 @@ def test_dynamic_sampling(
     else:
         outcomes = outcomes_consumer.get_outcomes(timeout=10)
         assert summarize_outcomes(outcomes) == {(12, 1): 4}  # Span, Filtered
-        assert {o["reason"] for o in outcomes} == {"Sampled:1"}
+        assert {o["reason"] for o in outcomes} == {"Sampled:3000"}
 
     spans_consumer.assert_empty()
     outcomes_consumer.assert_empty()
