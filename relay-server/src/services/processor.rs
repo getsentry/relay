@@ -1404,7 +1404,10 @@ impl EnvelopeProcessorService {
                     .has_feature(Feature::DeviceClassSynthesis),
                 enrich_spans: state
                     .project_state
-                    .has_feature(Feature::ExtractSpansAndSpanMetricsFromEvent),
+                    .has_feature(Feature::ExtractSpansFromEvent)
+                    || state
+                        .project_state
+                        .has_feature(Feature::ExtractCommonSpanMetricsFromEvent),
                 max_tag_value_length: self
                     .inner
                     .config
@@ -1543,12 +1546,18 @@ impl EnvelopeProcessorService {
 
                 if state.has_event() {
                     event::scrub(state)?;
+
                     if_processing!(self.inner.config, {
-                        span::extract_from_event(
-                            state,
-                            &self.inner.config,
-                            &self.inner.global_config.current(),
-                        );
+                        if state
+                            .project_state
+                            .has_feature(Feature::ExtractSpansFromEvent)
+                        {
+                            span::extract_from_event(
+                                state,
+                                &self.inner.config,
+                                &self.inner.global_config.current(),
+                            );
+                        }
                     });
                 }
 

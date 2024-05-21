@@ -61,7 +61,7 @@ const QUEUE_SPAN_OPS: &[&str] = &[
 pub fn add_span_metrics(project_config: &mut ProjectConfig) {
     if !project_config
         .features
-        .has(Feature::ExtractSpansAndSpanMetricsFromEvent)
+        .has(Feature::ExtractCommonSpanMetricsFromEvent)
     {
         return;
     }

@@ -47,6 +47,13 @@ pub fn process(
     addrs: &Addrs,
     buffer_guard: &BufferGuard,
 ) {
+    if !state
+        .project_state
+        .has_feature(Feature::ExtractSpansFromEvent)
+    {
+        return;
+    }
+
     use relay_event_normalization::RemoveOtherProcessor;
 
     // We only implement trace-based sampling rules for now, which can be computed
@@ -300,7 +307,7 @@ pub fn extract_from_event(
 
     if !state
         .project_state
-        .has_feature(Feature::ExtractSpansAndSpanMetricsFromEvent)
+        .has_feature(Feature::ExtractSpansFromEvent)
     {
         return;
     }
@@ -736,7 +743,7 @@ mod tests {
             .config
             .features
             .0
-            .insert(Feature::ExtractSpansAndSpanMetricsFromEvent);
+            .insert(Feature::ExtractCommonSpanMetricsFromEvent);
 
         let event = Event {
             ty: EventType::Transaction.into(),
