@@ -38,6 +38,8 @@ def test_local_project_config(mini_sentry, relay):
     dsn_key = config["publicKeys"][0]["publicKey"]
 
     relay.wait_relay_health_check()
+    mini_sentry.test_failures.clear()
+
     relay.send_event(project_id, dsn_key=dsn_key)
     event = mini_sentry.captured_events.get(timeout=1).get_event()
     assert event["logentry"] == {"formatted": "Hello, World!"}

@@ -111,41 +111,56 @@ pub struct Span {
 
 impl Getter for Span {
     fn get_value(&self, path: &str) -> Option<Val<'_>> {
-        Some(match path.strip_prefix("span.")? {
-            "exclusive_time" => self.exclusive_time.value()?.into(),
-            "description" => self.description.as_str()?.into(),
-            "op" => self.op.as_str()?.into(),
-            "span_id" => self.span_id.as_str()?.into(),
-            "parent_span_id" => self.parent_span_id.as_str()?.into(),
-            "trace_id" => self.trace_id.as_str()?.into(),
-            "status" => self.status.as_str()?.into(),
-            "origin" => self.origin.as_str()?.into(),
-            "duration" => {
-                let start_timestamp = *self.start_timestamp.value()?;
-                let timestamp = *self.timestamp.value()?;
-                relay_common::time::chrono_to_positive_millis(timestamp - start_timestamp).into()
-            }
-            "was_transaction" => self.was_transaction.value().unwrap_or(&false).into(),
-            path => {
-                if let Some(key) = path.strip_prefix("tags.") {
-                    self.tags.value()?.get(key)?.as_str()?.into()
-                } else if let Some(key) = path.strip_prefix("data.") {
-                    self.data.value()?.get_value(key)?
-                } else if let Some(key) = path.strip_prefix("sentry_tags.") {
-                    self.sentry_tags.value()?.get(key)?.as_str()?.into()
-                } else if let Some(rest) = path.strip_prefix("measurements.") {
-                    let name = rest.strip_suffix(".value")?;
-                    self.measurements
-                        .value()?
-                        .get(name)?
-                        .value()?
-                        .value
-                        .value()?
+        let span_prefix = path.strip_prefix("span.");
+        if let Some(span_prefix) = span_prefix {
+            return Some(match span_prefix {
+                "exclusive_time" => self.exclusive_time.value()?.into(),
+                "description" => self.description.as_str()?.into(),
+                "op" => self.op.as_str()?.into(),
+                "span_id" => self.span_id.as_str()?.into(),
+                "parent_span_id" => self.parent_span_id.as_str()?.into(),
+                "trace_id" => self.trace_id.as_str()?.into(),
+                "status" => self.status.as_str()?.into(),
+                "origin" => self.origin.as_str()?.into(),
+                "duration" => {
+                    let start_timestamp = *self.start_timestamp.value()?;
+                    let timestamp = *self.timestamp.value()?;
+                    relay_common::time::chrono_to_positive_millis(timestamp - start_timestamp)
                         .into()
-                } else {
-                    return None;
                 }
-            }
+                "was_transaction" => self.was_transaction.value().unwrap_or(&false).into(),
+                path => {
+                    if let Some(key) = path.strip_prefix("tags.") {
+                        self.tags.value()?.get(key)?.as_str()?.into()
+                    } else if let Some(key) = path.strip_prefix("data.") {
+                        self.data.value()?.get_value(key)?
+                    } else if let Some(key) = path.strip_prefix("sentry_tags.") {
+                        self.sentry_tags.value()?.get(key)?.as_str()?.into()
+                    } else if let Some(rest) = path.strip_prefix("measurements.") {
+                        let name = rest.strip_suffix(".value")?;
+                        self.measurements
+                            .value()?
+                            .get(name)?
+                            .value()?
+                            .value
+                            .value()?
+                            .into()
+                    } else {
+                        return None;
+                    }
+                }
+            });
+        }
+
+        // For backward compatibility with event-based rules, we try to support `event.` fields also
+        // for a span.
+        let event_prefix = path.strip_prefix("event.")?;
+        Some(match event_prefix {
+            "release" => self.data.value()?.release.as_str()?.into(),
+            "environment" => self.data.value()?.environment.as_str()?.into(),
+            "transaction" => self.data.value()?.segment_name.as_str()?.into(),
+            // TODO: we might want to add additional fields once they are added to the span.
+            _ => return None,
         })
     }
 }
@@ -251,21 +266,13 @@ pub struct SpanData {
     #[metastructure(field = "ai.pipeline.name")]
     pub ai_pipeline_name: Annotated<Value>,
 
+    /// The Model ID of an AI pipeline, e.g., gpt-4
+    #[metastructure(field = "ai.model_id")]
+    pub ai_model_id: Annotated<Value>,
+
     /// The input messages to an AI model call
     #[metastructure(field = "ai.input_messages")]
     pub ai_input_messages: Annotated<Value>,
-
-    /// The number of tokens used to generate the response to an AI call
-    #[metastructure(field = "ai.completion_tokens.used", pii = "false")]
-    pub ai_completion_tokens_used: Annotated<Value>,
-
-    /// The number of tokens used to process a request for an AI call
-    #[metastructure(field = "ai.prompt_tokens.used", pii = "false")]
-    pub ai_prompt_tokens_used: Annotated<Value>,
-
-    /// The total number of tokens used to for an AI call
-    #[metastructure(field = "ai.total_tokens.used", pii = "false")]
-    pub ai_total_tokens_used: Annotated<Value>,
 
     /// The responses to an AI model call
     #[metastructure(field = "ai.responses")]
@@ -514,6 +521,32 @@ mod tests {
     }
 
     #[test]
+    fn test_span_fields_as_event() {
+        let span = Annotated::<Span>::from_json(
+            r#"{
+                "data": {
+                    "release": "1.0",
+                    "environment": "prod",
+                    "sentry.segment.name": "/api/endpoint"
+                }
+            }"#,
+        )
+        .unwrap()
+        .into_value()
+        .unwrap();
+
+        assert_eq!(span.get_value("event.release"), Some(Val::String("1.0")));
+        assert_eq!(
+            span.get_value("event.environment"),
+            Some(Val::String("prod"))
+        );
+        assert_eq!(
+            span.get_value("event.transaction"),
+            Some(Val::String("/api/endpoint"))
+        );
+    }
+
+    #[test]
     fn test_span_duration() {
         let span = Annotated::<Span>::from_json(
             r#"{
@@ -584,10 +617,8 @@ mod tests {
             cache_item_size: ~,
             http_response_status_code: ~,
             ai_pipeline_name: ~,
+            ai_model_id: ~,
             ai_input_messages: ~,
-            ai_completion_tokens_used: ~,
-            ai_prompt_tokens_used: ~,
-            ai_total_tokens_used: ~,
             ai_responses: ~,
             thread_name: ~,
             segment_name: ~,

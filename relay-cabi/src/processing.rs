@@ -273,7 +273,8 @@ pub unsafe extern "C" fn relay_store_normalizer_normalize_event(
         max_tag_value_length: usize::MAX,
         span_description_rules: None,
         performance_score: None,
-        geoip_lookup: None, // only supported in relay
+        geoip_lookup: None,   // only supported in relay
+        ai_model_costs: None, // only supported in relay
         enable_trimming: config.enable_trimming.unwrap_or_default(),
         measurements: None,
         normalize_spans: config.normalize_spans,

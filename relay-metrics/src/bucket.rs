@@ -1,7 +1,6 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::hash::Hash;
 use std::iter::FusedIterator;
-use std::num::NonZeroU32;
 use std::{fmt, mem};
 
 use hash32::{FnvHasher, Hasher as _};
@@ -738,7 +737,7 @@ impl CardinalityItem for Bucket {
 }
 
 /// Relay internal metadata for a metric bucket.
-#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Deserialize, Serialize)]
 pub struct BucketMetadata {
     /// How many times the bucket was merged.
     ///
@@ -747,7 +746,13 @@ pub struct BucketMetadata {
     ///
     /// For example: Merging two un-merged buckets will yield a total
     /// of `2` merges.
-    pub merges: NonZeroU32,
+    ///
+    /// Due to how Relay aggregates metrics and later splits them into multiple
+    /// buckets again, the amount of merges can be zero.
+    /// When splitting a bucket the total volume of the bucket may only be attributed
+    /// to one part or distributed across the resulting buckets, in either case
+    /// values of `0` are possible.
+    pub merges: u32,
 
     /// Received timestamp of the first metric in this bucket.
     ///
@@ -762,24 +767,19 @@ impl BucketMetadata {
     /// The new metadata is initialized with `1` merge and a given `received_at` timestamp.
     pub fn new(received_at: UnixTimestamp) -> Self {
         Self {
-            merges: NonZeroU32::MIN,
+            merges: 1,
             received_at: Some(received_at),
         }
     }
 
     /// Whether the metadata does not contain more information than the default.
     pub fn is_default(&self) -> bool {
-        let Self {
-            merges,
-            received_at,
-        } = self;
-
-        *merges == NonZeroU32::MIN && received_at.is_none()
+        &Self::default() == self
     }
 
     /// Merges another metadata object into the current one.
     pub fn merge(&mut self, other: Self) {
-        self.merges = self.merges.saturating_add(other.merges.get());
+        self.merges = self.merges.saturating_add(other.merges);
         self.received_at = match (self.received_at, other.received_at) {
             (Some(received_at), None) => Some(received_at),
             (None, Some(received_at)) => Some(received_at),
@@ -791,7 +791,7 @@ impl BucketMetadata {
 impl Default for BucketMetadata {
     fn default() -> Self {
         Self {
-            merges: NonZeroU32::MIN,
+            merges: 1,
             received_at: None,
         }
     }
@@ -1458,7 +1458,7 @@ mod tests {
         assert_eq!(
             metadata,
             BucketMetadata {
-                merges: NonZeroU32::new(2).unwrap(),
+                merges: 2,
                 received_at: None
             }
         );
@@ -1468,7 +1468,7 @@ mod tests {
         assert_eq!(
             metadata,
             BucketMetadata {
-                merges: NonZeroU32::new(3).unwrap(),
+                merges: 3,
                 received_at: Some(UnixTimestamp::from_secs(10))
             }
         );
@@ -1478,7 +1478,7 @@ mod tests {
         assert_eq!(
             metadata,
             BucketMetadata {
-                merges: NonZeroU32::new(4).unwrap(),
+                merges: 4,
                 received_at: Some(UnixTimestamp::from_secs(10))
             }
         );

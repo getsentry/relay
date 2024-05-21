@@ -27,14 +27,15 @@ use serde_json::value::RawValue;
 use serde_json::Deserializer;
 use uuid::Uuid;
 
-use crate::envelope::{AttachmentType, Envelope, Item, ItemType, SourceQuantities};
-use crate::metric_stats::MetricStats;
+use crate::envelope::{AttachmentType, Envelope, Item, ItemType};
+
+use crate::metrics::MetricOutcomes;
 use crate::services::global_config::GlobalConfigHandle;
 use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::services::processor::Processed;
 use crate::statsd::RelayCounters;
 use crate::utils::{
-    self, is_rolled_out, ArrayEncoding, BucketEncoder, ExtractionMode, FormDataIter, TypedEnvelope,
+    is_rolled_out, ArrayEncoding, BucketEncoder, ExtractionMode, FormDataIter, TypedEnvelope,
 };
 
 /// Fallback name used for attachment items without a `filename` header.
@@ -130,7 +131,7 @@ pub struct StoreService {
     config: Arc<Config>,
     global_config: GlobalConfigHandle,
     outcome_aggregator: Addr<TrackOutcome>,
-    metric_stats: MetricStats,
+    metric_outcomes: MetricOutcomes,
     producer: Producer,
 }
 
@@ -139,14 +140,14 @@ impl StoreService {
         config: Arc<Config>,
         global_config: GlobalConfigHandle,
         outcome_aggregator: Addr<TrackOutcome>,
-        metric_stats: MetricStats,
+        metric_outcomes: MetricOutcomes,
     ) -> anyhow::Result<Self> {
         let producer = Producer::create(&config)?;
         Ok(Self {
             config,
             global_config,
             outcome_aggregator,
-            metric_stats,
+            metric_outcomes,
             producer,
         })
     }
@@ -398,15 +399,12 @@ impl StoreService {
         let batch_size = self.config.metrics_max_batch_size_bytes();
         let mut error = None;
 
-        let mut dropped_quantities = SourceQuantities::default();
-
         let global_config = self.global_config.current();
         let mut encoder = BucketEncoder::new(&global_config);
 
         for mut bucket in buckets {
             let namespace = encoder.prepare(&mut bucket);
 
-            let mut has_success = false;
             // Create a local bucket view to avoid splitting buckets unnecessarily. Since we produce
             // each bucket separately, we only need to split buckets that exceed the size, but not
             // batches.
@@ -426,49 +424,22 @@ impl StoreService {
                 let result =
                     message.and_then(|message| self.send_metric_message(namespace, message));
 
-                match result {
-                    Ok(()) => {
-                        has_success = true;
-                    }
+                let outcome = match result {
+                    Ok(()) => Outcome::Accepted,
                     Err(e) => {
                         error.get_or_insert(e);
-                        dropped_quantities += utils::extract_metric_quantities([view], mode);
+                        Outcome::Invalid(DiscardReason::Internal)
                     }
-                }
-            }
+                };
 
-            // Tracking the volume here is slightly off, only one of the multiple bucket views can
-            // fail to produce. Since the views are sliced from the original bucket we cannot
-            // correctly attribute the amount of merges (volume) to the amount of slices that
-            // succeeded or not. -> Attribute the entire volume if at least one slice successfully
-            // produced.
-            //
-            // This logic will be improved iterated on and change once we move serialization logic
-            // back into the processor service.
-            self.metric_stats.track_metric(
-                scoping,
-                &bucket,
-                if has_success {
-                    Outcome::Accepted
-                } else {
-                    Outcome::Invalid(DiscardReason::Internal)
-                },
-            );
+                self.metric_outcomes.track(scoping, &[view], mode, outcome);
+            }
         }
 
         if let Some(error) = error {
             relay_log::error!(
                 error = &error as &dyn std::error::Error,
                 "failed to produce metric buckets: {error}"
-            );
-
-            utils::reject_metrics::<&Bucket>(
-                &self.outcome_aggregator,
-                &self.metric_stats,
-                dropped_quantities,
-                scoping,
-                Outcome::Invalid(DiscardReason::Internal),
-                None,
             );
         }
     }
@@ -958,12 +929,13 @@ impl StoreService {
             }
         };
 
-        span.duration_ms = ((span.end_timestamp - span.start_timestamp) * 1e3) as u32;
+        span.duration_ms =
+            ((span.end_timestamp_precise - span.start_timestamp_precise) * 1e3) as u32;
         span.event_id = event_id;
         span.organization_id = scoping.organization_id;
         span.project_id = scoping.project_id.value();
         span.retention_days = retention_days;
-        span.start_timestamp_ms = (span.start_timestamp * 1e3) as u64;
+        span.start_timestamp_ms = (span.start_timestamp_precise * 1e3) as u64;
 
         if let Some(measurements) = &mut span.measurements {
             measurements.retain(|_, v| {
@@ -1018,7 +990,7 @@ impl StoreService {
         };
         let &SpanKafkaMessage {
             duration_ms,
-            end_timestamp,
+            end_timestamp_precise,
             is_segment,
             project_id,
             received,
@@ -1074,7 +1046,7 @@ impl StoreService {
                     KafkaMessage::MetricsSummary(MetricsSummaryKafkaMessage {
                         count,
                         duration_ms,
-                        end_timestamp,
+                        end_timestamp: end_timestamp_precise,
                         group,
                         is_segment,
                         max,
@@ -1377,10 +1349,6 @@ struct SpanMeasurement {
 
 #[derive(Debug, Deserialize, Serialize)]
 struct SpanKafkaMessage<'a> {
-    #[serde(skip_serializing)]
-    start_timestamp: f64,
-    #[serde(rename(deserialize = "timestamp"), skip_serializing)]
-    end_timestamp: f64,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     description: Option<&'a RawValue>,
     #[serde(default)]
@@ -1416,11 +1384,16 @@ struct SpanKafkaMessage<'a> {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     sentry_tags: Option<BTreeMap<&'a str, String>>,
     span_id: &'a str,
-    #[serde(default)]
-    start_timestamp_ms: u64,
     #[serde(default, skip_serializing_if = "none_or_empty_object")]
     tags: Option<&'a RawValue>,
     trace_id: EventId,
+
+    #[serde(default)]
+    start_timestamp_ms: u64,
+    #[serde(rename(deserialize = "start_timestamp"))]
+    start_timestamp_precise: f64,
+    #[serde(rename(deserialize = "timestamp"))]
+    end_timestamp_precise: f64,
 
     #[serde(borrow, default, skip_serializing)]
     platform: Cow<'a, str>, // We only use this for logging for now

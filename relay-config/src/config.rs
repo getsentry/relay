@@ -1329,10 +1329,13 @@ impl Default for CardinalityLimiter {
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(default)]
 pub struct Health {
-    /// Interval in which Relay will refresh system information, like current memory usage.
+    /// Interval to refresh internal health checks.
     ///
-    /// Defaults to 3 seconds.
-    pub sys_info_refresh_interval_secs: u64,
+    /// Shorter intervals will decrease the time it takes the health check endpoint to report
+    /// issues, but can also increase sporadic unhealthy responses.
+    ///
+    /// Defaults to `3000`` (3 seconds).
+    pub refresh_interval_ms: u64,
     /// Maximum memory watermark in bytes.
     ///
     /// By default there is no absolute limit set and the watermark
@@ -1354,7 +1357,7 @@ pub struct Health {
 impl Default for Health {
     fn default() -> Self {
         Self {
-            sys_info_refresh_interval_secs: 3,
+            refresh_interval_ms: 3000,
             max_memory_bytes: None,
             max_memory_percent: 0.95,
             probe_timeout_ms: 900,
@@ -2272,9 +2275,9 @@ impl Config {
         Duration::from_secs(self.values.cardinality_limiter.cache_vacuum_interval)
     }
 
-    /// Interval to refresh system information.
-    pub fn health_sys_info_refresh_interval(&self) -> Duration {
-        Duration::from_secs(self.values.health.sys_info_refresh_interval_secs)
+    /// Interval to refresh internal health checks.
+    pub fn health_refresh_interval(&self) -> Duration {
+        Duration::from_millis(self.values.health.refresh_interval_ms)
     }
 
     /// Maximum memory watermark in bytes.

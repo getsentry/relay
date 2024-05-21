@@ -281,7 +281,7 @@ fn queue_envelope(
                 start_time: envelope.meta().start_time(),
                 sent_at: envelope.sent_at(),
                 project_key: envelope.meta().public_key(),
-                keep_metadata: envelope.meta().is_from_internal_relay(),
+                source: envelope.meta().into(),
             });
         }
 

@@ -50,13 +50,13 @@ pub struct Location {
     pub lineno: Option<u64>,
     /// Source code leading up to `lineno`.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub pre_context: Vec<String>,
+    pub pre_context: Vec<Option<String>>,
     /// Source code of the current line (`lineno`).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub context_line: Option<String>,
     /// Source code of the lines after `lineno`.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub post_context: Vec<String>,
+    pub post_context: Vec<Option<String>>,
 }
 
 /// A Unix timestamp that is truncated to the start of the day.
@@ -105,5 +105,61 @@ impl<'de> Deserialize<'de> for StartOfDayUnixTimestamp {
         let ts = UnixTimestamp::deserialize(deserializer)?;
         StartOfDayUnixTimestamp::new(ts)
             .ok_or_else(|| serde::de::Error::custom("invalid timestamp"))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use insta::assert_json_snapshot;
+
+    use super::*;
+
+    #[test]
+    fn test_deserialize_null_context() {
+        let json = r#"{
+            "timestamp": 1715904000,
+            "mapping": {
+                "d:memory.allocations@allocations": [{ 
+                    "abs_path": "/rails/config/initializers/active_job.rb",
+                    "function": "block in <main>",
+                    "lineno": 5,
+                    "filename": "config/initializers/active_job.rb",
+                    "pre_context": [null, "  allocations = event.allocations\n", "  allocations=#{allocations}\"\n"],
+                    "context_line": "  Sentry::Metrics.distribution('memory.allocations')\n",
+                    "post_context": ["end\n",null,null],
+                    "type":"location"
+                }]
+            }
+        }"#;
+
+        let r: MetricMeta = serde_json::from_str(json).unwrap();
+
+        assert_json_snapshot!(r, @r###"
+        {
+          "timestamp": 1715904000,
+          "mapping": {
+            "d:custom/memory.allocations@allocations": [
+              {
+                "type": "location",
+                "filename": "config/initializers/active_job.rb",
+                "abs_path": "/rails/config/initializers/active_job.rb",
+                "function": "block in <main>",
+                "lineno": 5,
+                "pre_context": [
+                  null,
+                  "  allocations = event.allocations\n",
+                  "  allocations=#{allocations}\"\n"
+                ],
+                "context_line": "  Sentry::Metrics.distribution('memory.allocations')\n",
+                "post_context": [
+                  "end\n",
+                  null,
+                  null
+                ]
+              }
+            ]
+          }
+        }
+        "###);
     }
 }

@@ -1,7 +1,7 @@
 import copy
 from typing import Any
 import pytest
-from attr import dataclass
+from dataclasses import dataclass
 from .test_metrics import TEST_CONFIG
 
 

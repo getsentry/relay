@@ -48,8 +48,8 @@ class CustomSDist(sdist):
 def build_native(spec):
     cmd = ["cargo", "build", "-p", "relay-cabi"]
     if not DEBUG_BUILD:
-        cmd.append("--release")
-        target = "release"
+        cmd.extend(("--profile", "release-cabi"))
+        target = "release-cabi"
     else:
         target = "debug"
 
@@ -117,5 +117,5 @@ setup(
     install_requires=["milksnake>=0.1.6"],
     setup_requires=["milksnake>=0.1.6"],
     milksnake_tasks=[build_native],
-    cmdclass={"sdist": CustomSDist},
+    cmdclass={"sdist": CustomSDist},  # type: ignore
 )

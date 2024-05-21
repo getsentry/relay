@@ -7,7 +7,13 @@ use crate::metrics::MetricSpec;
 use crate::{Feature, MetricExtractionConfig, ProjectConfig, Tag};
 
 /// A list of `span.op` patterns that indicate databases that should be skipped.
-const DISABLED_DATABASES: &[&str] = &["*clickhouse*", "*compile*", "*mongodb*", "db.orm"];
+const DISABLED_DATABASES: &[&str] = &[
+    "*clickhouse*",
+    "*compile*",
+    "*mongodb*",
+    "*redis*",
+    "db.orm",
+];
 
 /// A list of `span.op` patterns we want to enable for mobile.
 const MOBILE_OPS: &[&str] = &[
@@ -33,6 +39,10 @@ const CACHE_SPAN_OPS: &[&str] = &[
     "cache.save",
     "cache.clear",
     "cache.delete_item",
+    "cache.get",
+    "cache.put",
+    "cache.remove",
+    "cache.flush",
 ];
 
 const QUEUE_SPAN_OPS: &[&str] = &[
@@ -474,6 +484,41 @@ pub fn hardcoded_span_metrics() -> Vec<(String, Vec<MetricSpec>)> {
                     category: DataCategory::Span,
                     mri: "c:spans/ai.total_tokens.used@none".into(),
                     field: Some("span.measurements.ai_total_tokens_used.value".into()),
+                    condition: Some(is_ai.clone()),
+                    tags: vec![
+                        Tag::with_key("span.op")
+                            .from_field("span.sentry_tags.op")
+                            .always(),
+                        Tag::with_key("environment")
+                            .from_field("span.sentry_tags.environment")
+                            .always(),
+                        Tag::with_key("release")
+                            .from_field("span.sentry_tags.release")
+                            .always(),
+                        Tag::with_key("span.origin")
+                            .from_field("span.origin")
+                            .always(),
+                        Tag::with_key("span.category")
+                            .from_field("span.sentry_tags.category")
+                            .always(), // already guarded by condition on metric
+                        Tag::with_key("span.ai.pipeline.group")
+                            .from_field("span.sentry_tags.ai_pipeline_group")
+                            .always(), // already guarded by condition on metric
+                        Tag::with_key("span.description")
+                            .from_field("span.sentry_tags.description")
+                            .always(), // already guarded by condition on metric
+                        Tag::with_key("span.group")
+                            .from_field("span.sentry_tags.group")
+                            .always(), // already guarded by condition on metric
+                        Tag::with_key("span.op")
+                            .from_field("span.sentry_tags.op")
+                            .always(), // already guarded by condition on metric
+                    ],
+                },
+                MetricSpec {
+                    category: DataCategory::Span,
+                    mri: "c:spans/ai.total_cost@usd".into(),
+                    field: Some("span.measurements.ai_total_cost.value".into()),
                     condition: Some(is_ai.clone()),
                     tags: vec![
                         Tag::with_key("span.op")
