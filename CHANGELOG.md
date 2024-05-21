@@ -13,6 +13,7 @@
 **Internal**:
 
 - Send microsecond precision timestamps. ([#3613](https://github.com/getsentry/relay/pull/3613))
+- Pull AI token counts from the 'data' section as well. ([#3630](https://github.com/getsentry/relay/pull/3630))
 - Map outcome reasons for dynamic sampling to reduced set of values. ([#3623](https://github.com/getsentry/relay/pull/3623))
 - Extract status for spans. ([#3606](https://github.com/getsentry/relay/pull/3606))
 
