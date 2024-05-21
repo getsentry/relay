@@ -74,6 +74,7 @@ def test_span_extraction(
         # We do not accidentally produce to the events topic:
         assert events_consumer.poll(timeout=2.0) is None
 
+        # We _do_ extract span metrics:
         assert {headers[0] for _, headers in metrics_consumer.get_metrics()} == {
             ("namespace", b"spans")
         }
@@ -1507,6 +1508,9 @@ def test_rate_limit_indexed_consistent_extracted(
     relay = relay_with_processing()
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
+    # Span metrics won't be extracted without a supported transactionMetrics config.
+    # Without extraction, the span is treated as `Span`, not `SpanIndexed`.
+    project_config["config"]["transactionMetrics"] = {"version": 3}
     project_config["config"]["features"] = [
         "projects:span-metrics-extraction",
     ]
