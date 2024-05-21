@@ -4158,6 +4158,7 @@ dependencies = [
  "reqwest",
  "rmp-serde",
  "rust-embed",
+ "semver",
  "sentry_usage_accountant",
  "serde",
  "serde_bytes",
@@ -4571,9 +4572,9 @@ dependencies = [
 
 [[package]]
 name = "semver"
-version = "1.0.16"
+version = "1.0.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "58bc9567378fc7690d6b2addae4e60ac2eeea07becb2c64b9f218b53865cba2a"
+checksum = "61697e0a1c7e512e84a621326239844a24d8207b4669b41bc18b32ea5cbf988b"
 
 [[package]]
 name = "sentry"

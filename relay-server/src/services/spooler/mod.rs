@@ -810,6 +810,14 @@ enum BufferState {
 }
 
 impl BufferState {
+    fn label(&self) -> &'static str {
+        match self {
+            BufferState::Memory(_) => "memory",
+            BufferState::MemoryFileStandby { .. } => "memory_file_standby",
+            BufferState::Disk(_) => "disk",
+        }
+    }
+
     /// Creates the initial [`BufferState`] depending on the provided config.
     ///
     /// If the on-disk spool is configured, the `BufferState::MemoryDiskStandby` will be returned:
@@ -822,39 +830,59 @@ impl BufferState {
             used_memory: 0,
             envelope_count: 0,
         };
-        match disk {
+        let state = match disk {
             Some(disk) => {
                 // When the old db file is picked up and it is not empty, we can also try to read from it
                 // on dequeue requests.
                 if disk.is_empty().await.unwrap_or_default() {
                     Self::MemoryFileStandby { ram, disk }
                 } else {
-                    BufferState::Disk(disk)
+                    Self::Disk(disk)
                 }
             }
             None => Self::Memory(ram),
-        }
+        };
+
+        relay_statsd::metric!(
+            counter(RelayCounters::BufferStateTransition) += 1,
+            state_in = "none",
+            state_out = state.label(),
+            reason = "init"
+        );
+
+        state
     }
 
     /// Becomes a different state, depending on the current state and the current conditions of
     /// underlying spool.
     async fn transition(self, config: &Config, services: &Services) -> Self {
-        match self {
-            Self::MemoryFileStandby { ram, mut disk }
-                if ram.is_full() || disk.buffer_guard.is_over_high_watermark() =>
-            {
-                if let Err(err) = disk.spool(ram.buffer).await {
-                    relay_log::error!(
-                        error = &err as &dyn Error,
-                        "failed to spool the in-memory buffer to disk",
+        let state_in = self.label();
+        let mut reason = None;
+        let state = match self {
+            Self::MemoryFileStandby { ram, mut disk } => {
+                let ram_is_full = ram.is_full();
+                let over_high_watermark = disk.buffer_guard.is_over_high_watermark();
+                if ram_is_full || over_high_watermark {
+                    if let Err(err) = disk.spool(ram.buffer).await {
+                        relay_log::error!(
+                            error = &err as &dyn Error,
+                            "failed to spool the in-memory buffer to disk",
+                        );
+                    }
+                    relay_log::trace!(
+                        "transition to disk spool: # of envelopes = {}",
+                        disk.count.unwrap_or_default()
                     );
-                }
-                relay_log::trace!(
-                    "transition to disk spool: # of envelopes = {}",
-                    disk.count.unwrap_or_default()
-                );
 
-                Self::Disk(disk)
+                    reason = Some(if ram_is_full {
+                        "ram_full"
+                    } else {
+                        "over_high_watermark"
+                    });
+                    Self::Disk(disk)
+                } else {
+                    Self::MemoryFileStandby { ram, disk }
+                }
             }
             Self::Disk(mut disk) if Self::is_below_low_mem_watermark(config, &disk).await => {
                 match disk.delete_and_fetch_all(services).await {
@@ -868,6 +896,7 @@ impl BufferState {
                             ram.envelope_count
                         );
 
+                        reason = Some("below_low_watermark");
                         Self::MemoryFileStandby { ram, disk }
                     }
                     Err(err) => {
@@ -876,12 +905,24 @@ impl BufferState {
                             "failed to move data from disk to memory, keep using on-disk spool",
                         );
 
+                        reason = Some("failed");
                         Self::Disk(disk)
                     }
                 }
             }
-            Self::Memory(_) | Self::MemoryFileStandby { .. } | Self::Disk(_) => self,
+            Self::Memory(_) | Self::Disk(_) => self,
+        };
+
+        if let Some(reason) = reason {
+            relay_statsd::metric!(
+                counter(RelayCounters::BufferStateTransition) += 1,
+                state_in = state_in,
+                state_out = state.label(),
+                reason = reason
+            );
         }
+
+        state
     }
 
     /// Returns `true` if the on-disk spooled data can fit in the memory.
@@ -1559,6 +1600,7 @@ mod tests {
 
         assert_debug_snapshot!(captures, @r###"
         [
+            "buffer.state.transition:1|c|#state_in:none,state_out:memory_file_standby,reason:init",
             "buffer.envelopes_mem:2000|h",
             "buffer.envelopes_mem_count:1|g",
             "buffer.envelopes_mem:4000|h",
@@ -1569,6 +1611,7 @@ mod tests {
             "buffer.writes:1|c",
             "buffer.envelopes_written:3|c",
             "buffer.envelopes_disk_count:3|g",
+            "buffer.state.transition:1|c|#state_in:memory_file_standby,state_out:disk,reason:ram_full",
             "buffer.disk_size:24576|h",
             "buffer.envelopes_written:1|c",
             "buffer.envelopes_disk_count:4|g",

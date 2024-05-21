@@ -22,6 +22,10 @@
 - Apple trace-based sampling rules to standalone spans. ([#3476](https://github.com/getsentry/relay/pull/3476))
 - Localhost inbound filter filters sudomains of localhost. ([#3608](https://github.com/getsentry/relay/pull/3608))
 
+**Features**:
+
+- Apply legacy inbound filters to standalone spans. ([#3552](https://github.com/getsentry/relay/pull/3552))
+
 **Internal**:
 
 - Add metrics extraction config to global config. ([#3490](https://github.com/getsentry/relay/pull/3490), [#3504](https://github.com/getsentry/relay/pull/3504))
