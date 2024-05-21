@@ -10,6 +10,7 @@ pub use self::units::*;
 
 use regex::Regex;
 use std::cmp::min;
+use std::thread::current;
 use std::{borrow::Cow, sync::OnceLock};
 
 const CUSTOM_METRIC_NAME_MAX_SIZE: usize = 150;
@@ -33,14 +34,17 @@ pub fn try_normalize_metric_name(name: &str) -> Option<Cow<'_, str>> {
     let normalize_re = NORMALIZE_RE.get_or_init(|| Regex::new("[^a-zA-Z0-9_.]+").unwrap());
     let normalized_name = normalize_re.replace_all(name, "_");
 
+    if normalized_name.len() <= CUSTOM_METRIC_NAME_MAX_SIZE {
+        return Some(normalized_name);
+    }
+
     // We limit the string to a fixed size. Here we are taking slices assuming that we have a single
     // character per index since we are normalizing the name above.
     Some(match normalized_name {
-        Cow::Borrowed(value) => {
-            Cow::Borrowed(&value[..min(value.len(), CUSTOM_METRIC_NAME_MAX_SIZE)])
-        }
-        Cow::Owned(value) => {
-            Cow::Owned(value[..min(value.len(), CUSTOM_METRIC_NAME_MAX_SIZE)].to_string())
+        Cow::Borrowed(value) => Cow::Borrowed(&value[..CUSTOM_METRIC_NAME_MAX_SIZE]),
+        Cow::Owned(mut value) => {
+            value.truncate(CUSTOM_METRIC_NAME_MAX_SIZE);
+            Cow::Owned(value)
         }
     })
 }
