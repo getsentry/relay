@@ -279,7 +279,7 @@ impl RuleCategory {
             Self::BoostLowVolumeTransactions => "1400",
             Self::BoostLatestReleases => "1500",
             Self::Custom => "3000",
-            Self::Other => "?",
+            Self::Other => "0",
         }
     }
 }
@@ -1055,6 +1055,13 @@ mod tests {
         let input = "123,1004,1500,1403,1403,1404,1000";
         let rule_ids = MatchedRuleIds::parse(input).unwrap();
         let rule_categories = RuleCategories::from(rule_ids);
-        assert_eq!(&rule_categories.to_string(), "1000,1004,1400,1500,?");
+
+        let serialized = rule_categories.to_string();
+        assert_eq!(&serialized, "1000,1004,1400,1500,0");
+
+        assert_eq!(
+            MatchedRuleIds::parse(&serialized).unwrap(),
+            MatchedRuleIds([1000, 1004, 1400, 1500, 0].map(RuleId).into())
+        );
     }
 }

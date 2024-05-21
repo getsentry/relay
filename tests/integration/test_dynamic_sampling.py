@@ -253,7 +253,7 @@ def test_it_removes_events(mini_sentry, relay):
     assert outcomes is not None
     outcome = outcomes["outcomes"][0]
     assert outcome.get("outcome") == 1
-    assert outcome.get("reason") == "Sampled:?"
+    assert outcome.get("reason") == "Sampled:0"
 
 
 def test_it_does_not_sample_error(mini_sentry, relay):
@@ -392,7 +392,7 @@ def test_sample_on_parametrized_root_transaction(mini_sentry, relay):
     relay.send_envelope(project_id, envelope)
 
     outcome = mini_sentry.captured_outcomes.get(timeout=2)
-    assert outcome["outcomes"][0]["reason"] == "Sampled:?"
+    assert outcome["outcomes"][0]["reason"] == "Sampled:0"
 
 
 def test_it_keeps_events(mini_sentry, relay):
