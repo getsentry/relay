@@ -1763,15 +1763,6 @@
 <a href="#1761" id="1761">1761</a>
 <a href="#1762" id="1762">1762</a>
 <a href="#1763" id="1763">1763</a>
-<a href="#1764" id="1764">1764</a>
-<a href="#1765" id="1765">1765</a>
-<a href="#1766" id="1766">1766</a>
-<a href="#1767" id="1767">1767</a>
-<a href="#1768" id="1768">1768</a>
-<a href="#1769" id="1769">1769</a>
-<a href="#1770" id="1770">1770</a>
-<a href="#1771" id="1771">1771</a>
-<a href="#1772" id="1772">1772</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module contains the service that forwards events and attachments to the Sentry store.
 //! The service uses Kafka topics to forward data to Sentry
 
@@ -1964,19 +1955,10 @@
         <span class="kw">let </span>retention = envelope.retention();
         <span class="kw">let </span>event_id = envelope.event_id();
 
-        <span class="kw">let </span>feedback_ingest_same_envelope_attachments = <span class="self">self
-            </span>.global_config
-            .current()
-            .options
-            .feedback_ingest_same_envelope_attachments;
-
         <span class="kw">let </span>event_item = envelope.as_mut().take_item_by(|item| {
             <span class="macro">matches!</span>(
-                (item.ty(), feedback_ingest_same_envelope_attachments),
-                (ItemType::Event, <span class="kw">_</span>)
-                    | (ItemType::Transaction, <span class="kw">_</span>)
-                    | (ItemType::Security, <span class="kw">_</span>)
-                    | (ItemType::UserReportV2, <span class="bool-val">false</span>)
+                item.ty(),
+                ItemType::Event | ItemType::Transaction | ItemType::Security
             )
         });
         <span class="kw">let </span>client = envelope.meta().client();
@@ -2025,7 +2007,7 @@
                         item,
                     )<span class="question-mark">?</span>;
                 }
-                ItemType::UserReportV2 <span class="kw">if </span>feedback_ingest_same_envelope_attachments =&gt; {
+                ItemType::UserReportV2 =&gt; {
                     <span class="kw">let </span>remote_addr = envelope.meta().client_addr().map(|addr| addr.to_string());
                     <span class="self">self</span>.produce_user_report_v2(
                         event_id.ok_or(StoreError::NoEventId)<span class="question-mark">?</span>,
