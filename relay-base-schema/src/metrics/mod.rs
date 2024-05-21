@@ -11,9 +11,9 @@ pub use self::units::*;
 use regex::Regex;
 use std::{borrow::Cow, sync::OnceLock};
 
-// The limit is determined by the unit size (15) and the maximum MRI length (200).
-// By choosing a metric name length of 150, we ensure that 35 characters remain available 
-// for the MRI divider characters, metric type, and namespace, which is a reasonable allocation.
+/// The limit is determined by the unit size (15) and the maximum MRI length (200).
+/// By choosing a metric name length of 150, we ensure that 35 characters remain available
+/// for the MRI divider characters, metric type, and namespace, which is a reasonable allocation.
 const CUSTOM_METRIC_NAME_MAX_SIZE: usize = 150;
 
 /// Validates a metric name and normalizes it. This is the statsd name, i.e. without type or unit.
