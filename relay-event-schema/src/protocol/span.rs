@@ -350,6 +350,18 @@ pub struct SpanData {
     #[metastructure(field = "messaging.message.id")]
     pub messaging_message_id: Annotated<Value>,
 
+    /// Value of the HTTP User-Agent header sent by the client.
+    #[metastructure(field = "user_agent.original")]
+    pub user_agent_original: Annotated<String>,
+
+    /// Absolute URL of a network resource.
+    #[metastructure(field = "url.full")]
+    pub url_full: Annotated<String>,
+
+    /// The client's IP address.
+    #[metastructure(field = "client.address")]
+    pub client_address: Annotated<String>,
+
     /// Other fields in `span.data`.
     #[metastructure(additional_properties, pii = "true", retain = "true")]
     other: Object<Value>,
@@ -386,6 +398,7 @@ impl Getter for SpanData {
             "ui\\.component_name" => self.ui_component_name.value()?.into(),
             "url\\.scheme" => self.url_scheme.value()?.into(),
             "transaction" => self.segment_name.as_str()?.into(),
+            "release" => self.release.as_str()?.into(),
             _ => {
                 let escaped = path.replace("\\.", "\0");
                 let mut path = escaped.split('.').map(|s| s.replace('\0', "."));
@@ -579,7 +592,10 @@ mod tests {
         "messaging.message.retry.count": 3,
         "messaging.message.receive.latency": 40,
         "messaging.message.body.size": 100,
-        "messaging.message.id": "abc123"
+        "messaging.message.id": "abc123",
+        "user_agent.original": "Chrome",
+        "url.full": "my_url.com",
+        "client.address": "192.168.0.1"
     }"#;
         let data = Annotated::<SpanData>::from_json(data)
             .unwrap()
@@ -655,6 +671,9 @@ mod tests {
             messaging_message_id: String(
                 "abc123",
             ),
+            user_agent_original: "Chrome",
+            url_full: "my_url.com",
+            client_address: "192.168.0.1",
             other: {
                 "bar": String(
                     "3",

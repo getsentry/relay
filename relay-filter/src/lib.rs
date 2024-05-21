@@ -51,7 +51,7 @@ pub fn should_filter<F: Filterable + Getter>(
     global_config: Option<&GenericFiltersConfig>,
 ) -> Result<(), FilterStatKey> {
     // In order to maintain backwards compatibility, we still want to run the old matching logic,
-    // but we will try to match generic filters first, since the goal is to eventually fade out the
+    // but we will try to match generic filters first, since the goal is to eventually fade out
     // the normal filters except for the ones that have complex conditions.
     generic::should_filter(item, &config.generic, global_config)?;
 
