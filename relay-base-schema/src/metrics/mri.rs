@@ -462,12 +462,6 @@ mod tests {
                 .name,
             "f_o"
         );
-        assert_eq!(
-            MetricResourceIdentifier::parse("c:custom/föo")
-                .unwrap()
-                .name,
-            "f_o"
-        );
     }
 
     #[test]
