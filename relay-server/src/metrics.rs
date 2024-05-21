@@ -13,6 +13,10 @@ use crate::utils::ExtractionMode;
 #[cfg(feature = "processing")]
 use relay_cardinality::{CardinalityLimit, CardinalityReport};
 
+mod minimal;
+
+pub use self::minimal::*;
+
 pub const PROFILE_TAG: &str = "has_profile";
 
 /// Indicates where quantities should be taken from.
@@ -127,7 +131,7 @@ impl MetricOutcomes {
 /// The return value of [`TrackableBucket::summary`].
 ///
 /// Contains the count of total transactions or spans that went into this bucket.
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum BucketSummary {
     Transactions {
         count: usize,
