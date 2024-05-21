@@ -254,6 +254,10 @@ pub struct SpanData {
     #[metastructure(field = "cache.hit")]
     pub cache_hit: Annotated<Value>,
 
+    /// The name of the cache key.
+    #[metastructure(field = "cache.key")]
+    pub cache_key: Annotated<Value>,
+
     /// The size of the cache item.
     #[metastructure(field = "cache.item_size")]
     pub cache_item_size: Annotated<Value>,
@@ -614,6 +618,7 @@ mod tests {
             resource_render_blocking_status: ~,
             server_address: ~,
             cache_hit: ~,
+            cache_key: ~,
             cache_item_size: ~,
             http_response_status_code: ~,
             ai_pipeline_name: ~,

@@ -77,6 +77,7 @@ pub enum SpanTagKey {
     AppStartType,
     ReplayId,
     CacheHit,
+    CacheKey,
     TraceStatus,
     MessagingDestinationName,
     MessagingMessageId,
@@ -124,6 +125,7 @@ impl SpanTagKey {
             SpanTagKey::FileExtension => "file_extension",
             SpanTagKey::MainThread => "main_thread",
             SpanTagKey::CacheHit => "cache.hit",
+            SpanTagKey::CacheKey => "cache.key",
             SpanTagKey::OsName => "os.name",
             SpanTagKey::AppStartType => "app_start_type",
             SpanTagKey::ReplayId => "replay_id",
@@ -464,6 +466,15 @@ pub fn extract_tags(
             {
                 let tag_value = if *cache_hit { "true" } else { "false" };
                 span_tags.insert(SpanTagKey::CacheHit, tag_value.to_owned());
+            }
+            // Read the cache key from the 2nd word of the span description
+            // TODO: derive cache key from span.data instead when SDKs are ready
+            if let Some(cache_key) = span
+                .description
+                .value()
+                .and_then(|description| description.split(' ').nth(1))
+            {
+                span_tags.insert(SpanTagKey::CacheKey, cache_key.to_owned());
             }
         }
 
@@ -1546,6 +1557,11 @@ LIMIT 1
         assert_eq!(tags_1.get("cache.hit").unwrap().as_str(), Some("true"));
         assert_eq!(tags_2.get("cache.hit").unwrap().as_str(), Some("false"));
         assert_eq!(tags_3.get("cache.hit").unwrap().as_str(), Some("false"));
+
+        assert_eq!(tags_1.get("cache.key").unwrap().as_str(), Some("my_key"));
+        assert_eq!(tags_2.get("cache.key").unwrap().as_str(), Some("my_key"));
+        assert_eq!(tags_3.get("cache.key").unwrap().as_str(), Some("my_key_2"));
+
         assert_debug_snapshot!(measurements_1, @r###"
         Measurements(
             {

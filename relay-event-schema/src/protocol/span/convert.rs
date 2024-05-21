@@ -287,6 +287,7 @@ mod tests {
                 resource_render_blocking_status: ~,
                 server_address: ~,
                 cache_hit: ~,
+                cache_key: ~,
                 cache_item_size: ~,
                 http_response_status_code: ~,
                 ai_pipeline_name: ~,
