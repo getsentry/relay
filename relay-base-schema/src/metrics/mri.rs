@@ -462,6 +462,29 @@ mod tests {
                 .name,
             "f_o"
         );
+        assert_eq!(
+            MetricResourceIdentifier::parse("c:custom/föo")
+                .unwrap()
+                .name,
+            "f_o"
+        );
+    }
+
+    #[test]
+    fn test_normalize_name_length() {
+        let long_mri = "c:custom/ThisIsACharacterLongStringForTestingPurposesToEnsureThatWeHaveEnoughCharactersToWorkWithAndToCheckIfOurFunctionProperlyHandlesSlicingAndNormalizationWithoutErrors";
+        assert_eq!(
+            MetricResourceIdentifier::parse(long_mri)
+                .unwrap()
+                .name,
+            "ThisIsACharacterLongStringForTestingPurposesToEnsureThatWeHaveEnoughCharactersToWorkWithAndToCheckIfOurFunctionProperlyHandlesSlicingAndNormalizationW"
+        );
+
+        let short_mri = "c:custom/ThisIsAShortName";
+        assert_eq!(
+            MetricResourceIdentifier::parse(short_mri).unwrap().name,
+            "ThisIsAShortName"
+        );
     }
 
     #[test]
