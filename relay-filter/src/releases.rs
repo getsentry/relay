@@ -23,7 +23,7 @@ where
 #[cfg(test)]
 mod tests {
     use relay_common::glob3::GlobPatterns;
-    use relay_event_schema::protocol::{Event, LenientString};
+    use relay_event_schema::protocol::{Event, LenientString, Span, SpanData};
     use relay_protocol::Annotated;
 
     use super::*;
@@ -32,6 +32,15 @@ mod tests {
         Event {
             release: Annotated::from(LenientString::from(release.to_string())),
             ..Event::default()
+        }
+    }
+
+    fn get_span_for_release(release: &str) -> Span {
+        let mut data = SpanData::default();
+        data.release = Annotated::from(LenientString::from(release.to_string()));
+        Span {
+            data: Annotated::new(data),
+            ..Default::default()
         }
     }
 
@@ -59,20 +68,30 @@ mod tests {
         ];
 
         for &(release, blocked_releases, expected) in examples {
-            let evt = get_event_for_release(release);
+            let event = get_event_for_release(release);
+            let span = get_span_for_release(release);
+
             let config = ReleasesFilterConfig {
                 releases: GlobPatterns::new(
                     blocked_releases.iter().map(|&r| r.to_string()).collect(),
                 ),
             };
 
-            let actual = should_filter(&evt, &config) != Ok(());
+            let actual = should_filter(&event, &config) != Ok(());
             assert_eq!(
                 actual,
                 expected,
                 "Release {release} should have {} been filtered by {blocked_releases:?}",
                 if expected { "" } else { "not" },
-            )
+            );
+
+            let actual = should_filter(&span, &config) != Ok(());
+            assert_eq!(
+                actual,
+                expected,
+                "Release {release} should have {} been filtered by {blocked_releases:?}",
+                if expected { "" } else { "not" },
+            );
         }
     }
 }

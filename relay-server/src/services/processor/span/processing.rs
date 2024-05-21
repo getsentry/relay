@@ -90,6 +90,9 @@ pub fn process(
         .project_state
         .has_feature(Feature::ExtractTransactionFromSegmentSpan);
 
+    let client_ip = state.managed_envelope.envelope().meta().client_addr();
+    let filter_settings = &state.project_state.config.filter_settings;
+
     state.managed_envelope.retain_items(|item| {
         let mut annotated_span = match item.ty() {
             ItemType::OtelSpan => match serde_json::from_slice::<OtelSpan>(&item.payload()) {
@@ -129,11 +132,26 @@ pub fn process(
             return ItemAction::Drop(Outcome::Invalid(DiscardReason::Internal));
         };
 
+        if let Some(span) = annotated_span.value() {
+            if let Err(filter_stat_key) = relay_filter::should_filter(
+                span,
+                client_ip,
+                filter_settings,
+                global_config.filters(),
+            ) {
+                relay_log::trace!(
+                    "filtering span {:?} that matched an inbound filter",
+                    span.span_id
+                );
+                return ItemAction::Drop(Outcome::Filtered(filter_stat_key));
+            }
+        }
+
         if let Some(config) = span_metrics_extraction_config {
             let Some(span) = annotated_span.value_mut() else {
                 return ItemAction::Drop(Outcome::Invalid(DiscardReason::Internal));
             };
-            relay_log::trace!("Extracting metrics from standalone span {:?}", span.span_id);
+            relay_log::trace!("extracting metrics from standalone span {:?}", span.span_id);
 
             let ErrorBoundary::Ok(global_metrics_config) = &global_config.metric_extraction else {
                 return ItemAction::Drop(Outcome::Invalid(DiscardReason::Internal));
