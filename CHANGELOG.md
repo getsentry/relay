@@ -32,7 +32,6 @@
 
 - Apple trace-based sampling rules to standalone spans. ([#3476](https://github.com/getsentry/relay/pull/3476))
 - Localhost inbound filter filters sudomains of localhost. ([#3608](https://github.com/getsentry/relay/pull/3608))
-- Apply legacy inbound filters to standalone spans. ([#3552](https://github.com/getsentry/relay/pull/3552))
 
 **Internal**:
 
@@ -53,7 +52,6 @@
 - Support new cache span ops in metrics and tag extraction. ([#3598](https://github.com/getsentry/relay/pull/3598))
 - Extract additional user fields for spans. ([#3599](https://github.com/getsentry/relay/pull/3599))
 - Disable `db.redis` span metrics extraction. ([#3600](https://github.com/getsentry/relay/pull/3600))
-- Extract status for spans. ([#3606](https://github.com/getsentry/relay/pull/3606))
 
 ## 24.4.2
 
