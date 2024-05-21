@@ -520,6 +520,17 @@ struct SentryMetrics {
     ///
     /// Defaults to 5.
     pub meta_locations_max: usize,
+    /// Whether metric stats are collected and emitted.
+    ///
+    /// Metric stats are always collected and emitted when processing
+    /// is enabled.
+    ///
+    /// This option is required for running multiple trusted Relays in a chain
+    /// and you want the metric stats to be collected and forwarded from
+    /// the first Relay in the chain.
+    ///
+    /// Defaults to `false`.
+    pub metric_stats_enabled: bool,
 }
 
 impl Default for SentryMetrics {
@@ -527,6 +538,7 @@ impl Default for SentryMetrics {
         Self {
             meta_locations_expiry: 15 * 24 * 60 * 60,
             meta_locations_max: 5,
+            metric_stats_enabled: false,
         }
     }
 }
@@ -2104,6 +2116,14 @@ impl Config {
     /// Returns the maximum payload size of metric metadata in bytes.
     pub fn max_metric_meta_size(&self) -> usize {
         self.values.limits.max_metric_meta_size.as_bytes()
+    }
+
+    /// Whether metric stats are collected and emitted.
+    ///
+    /// Metric stats are always collected and emitted when processing
+    /// is enabled.
+    pub fn metric_stats_enabled(&self) -> bool {
+        self.values.sentry_metrics.metric_stats_enabled
     }
 
     /// Returns the maximum payload size for general API requests.

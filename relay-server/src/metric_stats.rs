@@ -107,7 +107,8 @@ impl MetricStats {
     }
 
     fn is_enabled(&self, scoping: Scoping) -> bool {
-        self.config.processing_enabled() && self.is_rolled_out(scoping.organization_id)
+        (self.config.processing_enabled() || self.config.metric_stats_enabled())
+            && self.is_rolled_out(scoping.organization_id)
     }
 
     fn is_rolled_out(&self, organization_id: u64) -> bool {
