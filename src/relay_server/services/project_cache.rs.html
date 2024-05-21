@@ -1562,6 +1562,17 @@
 <a href="#1560" id="1560">1560</a>
 <a href="#1561" id="1561">1561</a>
 <a href="#1562" id="1562">1562</a>
+<a href="#1563" id="1563">1563</a>
+<a href="#1564" id="1564">1564</a>
+<a href="#1565" id="1565">1565</a>
+<a href="#1566" id="1566">1566</a>
+<a href="#1567" id="1567">1567</a>
+<a href="#1568" id="1568">1568</a>
+<a href="#1569" id="1569">1569</a>
+<a href="#1570" id="1570">1570</a>
+<a href="#1571" id="1571">1571</a>
+<a href="#1572" id="1572">1572</a>
+<a href="#1573" id="1573">1573</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
 <span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::sync::Arc;
@@ -2546,28 +2557,37 @@
     /// This makes sure we always moving the unspool forward, even if we do not fetch the project
     /// states updates, but still can process data based on the existing cache.
     </span><span class="kw">fn </span>handle_periodic_unspool(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
+        <span class="kw">let </span>(num_keys, reason) = <span class="self">self</span>.handle_periodic_unspool_inner();
+        <span class="macro">relay_statsd::metric!</span>(
+            gauge(RelayGauges::BufferPeriodicUnspool) = num_keys <span class="kw">as </span>u64,
+            reason = reason
+        );
+    }
+
+    <span class="kw">fn </span>handle_periodic_unspool_inner(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; (usize, <span class="kw-2">&amp;</span>str) {
         <span class="self">self</span>.buffer_unspool_handle.reset();
 
         <span class="comment">// If we don't yet have the global config, we will defer dequeuing until we do.
         </span><span class="kw">if let </span>GlobalConfigStatus::Pending = <span class="self">self</span>.global_config {
             <span class="self">self</span>.buffer_unspool_backoff.reset();
             <span class="self">self</span>.schedule_unspool();
-            <span class="kw">return</span>;
+            <span class="kw">return </span>(<span class="number">0</span>, <span class="string">"no_global_config"</span>);
         }
         <span class="comment">// If there is nothing spooled, schedule the next check a little bit later.
         </span><span class="kw">if </span><span class="self">self</span>.index.is_empty() {
             <span class="self">self</span>.schedule_unspool();
-            <span class="kw">return</span>;
+            <span class="kw">return </span>(<span class="number">0</span>, <span class="string">"index_empty"</span>);
         }
 
         <span class="kw">let </span><span class="kw-2">mut </span>index = std::mem::take(<span class="kw-2">&amp;mut </span><span class="self">self</span>.index);
-        <span class="kw">let </span>values = index
+        <span class="kw">let </span>keys = index
             .extract_if(|key| <span class="self">self</span>.is_state_valid(key))
             .take(BATCH_KEY_COUNT)
             .collect::&lt;HashSet&lt;<span class="kw">_</span>&gt;&gt;();
+        <span class="kw">let </span>num_keys = keys.len();
 
-        <span class="kw">if </span>!values.is_empty() {
-            <span class="self">self</span>.dequeue(values);
+        <span class="kw">if </span>!keys.is_empty() {
+            <span class="self">self</span>.dequeue(keys);
         }
 
         <span class="comment">// Return all the un-used items to the index.
@@ -2578,6 +2598,8 @@
         <span class="comment">// Schedule unspool once we are done.
         </span><span class="self">self</span>.buffer_unspool_backoff.reset();
         <span class="self">self</span>.schedule_unspool();
+
+        (num_keys, <span class="string">"found_keys"</span>)
     }
 
     <span class="kw">fn </span>handle_message(<span class="kw-2">&amp;mut </span><span class="self">self</span>, message: ProjectCache) {

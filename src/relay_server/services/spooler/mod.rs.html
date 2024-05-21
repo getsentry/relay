@@ -1956,6 +1956,49 @@
 <a href="#1954" id="1954">1954</a>
 <a href="#1955" id="1955">1955</a>
 <a href="#1956" id="1956">1956</a>
+<a href="#1957" id="1957">1957</a>
+<a href="#1958" id="1958">1958</a>
+<a href="#1959" id="1959">1959</a>
+<a href="#1960" id="1960">1960</a>
+<a href="#1961" id="1961">1961</a>
+<a href="#1962" id="1962">1962</a>
+<a href="#1963" id="1963">1963</a>
+<a href="#1964" id="1964">1964</a>
+<a href="#1965" id="1965">1965</a>
+<a href="#1966" id="1966">1966</a>
+<a href="#1967" id="1967">1967</a>
+<a href="#1968" id="1968">1968</a>
+<a href="#1969" id="1969">1969</a>
+<a href="#1970" id="1970">1970</a>
+<a href="#1971" id="1971">1971</a>
+<a href="#1972" id="1972">1972</a>
+<a href="#1973" id="1973">1973</a>
+<a href="#1974" id="1974">1974</a>
+<a href="#1975" id="1975">1975</a>
+<a href="#1976" id="1976">1976</a>
+<a href="#1977" id="1977">1977</a>
+<a href="#1978" id="1978">1978</a>
+<a href="#1979" id="1979">1979</a>
+<a href="#1980" id="1980">1980</a>
+<a href="#1981" id="1981">1981</a>
+<a href="#1982" id="1982">1982</a>
+<a href="#1983" id="1983">1983</a>
+<a href="#1984" id="1984">1984</a>
+<a href="#1985" id="1985">1985</a>
+<a href="#1986" id="1986">1986</a>
+<a href="#1987" id="1987">1987</a>
+<a href="#1988" id="1988">1988</a>
+<a href="#1989" id="1989">1989</a>
+<a href="#1990" id="1990">1990</a>
+<a href="#1991" id="1991">1991</a>
+<a href="#1992" id="1992">1992</a>
+<a href="#1993" id="1993">1993</a>
+<a href="#1994" id="1994">1994</a>
+<a href="#1995" id="1995">1995</a>
+<a href="#1996" id="1996">1996</a>
+<a href="#1997" id="1997">1997</a>
+<a href="#1998" id="1998">1998</a>
+<a href="#1999" id="1999">1999</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module contains the [`BufferService`], which is responsible for spooling of the incoming
 //! envelopes, either to in-memory or to persistent storage.
 //!
@@ -2768,6 +2811,14 @@
 }
 
 <span class="kw">impl </span>BufferState {
+    <span class="kw">fn </span>label(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
+        <span class="kw">match </span><span class="self">self </span>{
+            BufferState::Memory(<span class="kw">_</span>) =&gt; <span class="string">"memory"</span>,
+            BufferState::MemoryFileStandby { .. } =&gt; <span class="string">"memory_file_standby"</span>,
+            BufferState::Disk(<span class="kw">_</span>) =&gt; <span class="string">"disk"</span>,
+        }
+    }
+
     <span class="doccomment">/// Creates the initial [`BufferState`] depending on the provided config.
     ///
     /// If the on-disk spool is configured, the `BufferState::MemoryDiskStandby` will be returned:
@@ -2780,39 +2831,59 @@
             used_memory: <span class="number">0</span>,
             envelope_count: <span class="number">0</span>,
         };
-        <span class="kw">match </span>disk {
+        <span class="kw">let </span>state = <span class="kw">match </span>disk {
             <span class="prelude-val">Some</span>(disk) =&gt; {
                 <span class="comment">// When the old db file is picked up and it is not empty, we can also try to read from it
                 // on dequeue requests.
                 </span><span class="kw">if </span>disk.is_empty().<span class="kw">await</span>.unwrap_or_default() {
                     <span class="self">Self</span>::MemoryFileStandby { ram, disk }
                 } <span class="kw">else </span>{
-                    BufferState::Disk(disk)
+                    <span class="self">Self</span>::Disk(disk)
                 }
             }
             <span class="prelude-val">None </span>=&gt; <span class="self">Self</span>::Memory(ram),
-        }
+        };
+
+        <span class="macro">relay_statsd::metric!</span>(
+            counter(RelayCounters::BufferStateTransition) += <span class="number">1</span>,
+            state_in = <span class="string">"none"</span>,
+            state_out = state.label(),
+            reason = <span class="string">"init"
+        </span>);
+
+        state
     }
 
     <span class="doccomment">/// Becomes a different state, depending on the current state and the current conditions of
     /// underlying spool.
     </span><span class="kw">async fn </span>transition(<span class="self">self</span>, config: <span class="kw-2">&amp;</span>Config, services: <span class="kw-2">&amp;</span>Services) -&gt; <span class="self">Self </span>{
-        <span class="kw">match </span><span class="self">self </span>{
-            <span class="self">Self</span>::MemoryFileStandby { ram, <span class="kw-2">mut </span>disk }
-                <span class="kw">if </span>ram.is_full() || disk.buffer_guard.is_over_high_watermark() =&gt;
-            {
-                <span class="kw">if let </span><span class="prelude-val">Err</span>(err) = disk.spool(ram.buffer).<span class="kw">await </span>{
-                    <span class="macro">relay_log::error!</span>(
-                        error = <span class="kw-2">&amp;</span>err <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error,
-                        <span class="string">"failed to spool the in-memory buffer to disk"</span>,
+        <span class="kw">let </span>state_in = <span class="self">self</span>.label();
+        <span class="kw">let </span><span class="kw-2">mut </span>reason = <span class="prelude-val">None</span>;
+        <span class="kw">let </span>state = <span class="kw">match </span><span class="self">self </span>{
+            <span class="self">Self</span>::MemoryFileStandby { ram, <span class="kw-2">mut </span>disk } =&gt; {
+                <span class="kw">let </span>ram_is_full = ram.is_full();
+                <span class="kw">let </span>over_high_watermark = disk.buffer_guard.is_over_high_watermark();
+                <span class="kw">if </span>ram_is_full || over_high_watermark {
+                    <span class="kw">if let </span><span class="prelude-val">Err</span>(err) = disk.spool(ram.buffer).<span class="kw">await </span>{
+                        <span class="macro">relay_log::error!</span>(
+                            error = <span class="kw-2">&amp;</span>err <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error,
+                            <span class="string">"failed to spool the in-memory buffer to disk"</span>,
+                        );
+                    }
+                    <span class="macro">relay_log::trace!</span>(
+                        <span class="string">"transition to disk spool: # of envelopes = {}"</span>,
+                        disk.count.unwrap_or_default()
                     );
-                }
-                <span class="macro">relay_log::trace!</span>(
-                    <span class="string">"transition to disk spool: # of envelopes = {}"</span>,
-                    disk.count.unwrap_or_default()
-                );
 
-                <span class="self">Self</span>::Disk(disk)
+                    reason = <span class="prelude-val">Some</span>(<span class="kw">if </span>ram_is_full {
+                        <span class="string">"ram_full"
+                    </span>} <span class="kw">else </span>{
+                        <span class="string">"over_high_watermark"
+                    </span>});
+                    <span class="self">Self</span>::Disk(disk)
+                } <span class="kw">else </span>{
+                    <span class="self">Self</span>::MemoryFileStandby { ram, disk }
+                }
             }
             <span class="self">Self</span>::Disk(<span class="kw-2">mut </span>disk) <span class="kw">if </span><span class="self">Self</span>::is_below_low_mem_watermark(config, <span class="kw-2">&amp;</span>disk).<span class="kw">await </span>=&gt; {
                 <span class="kw">match </span>disk.delete_and_fetch_all(services).<span class="kw">await </span>{
@@ -2826,6 +2897,7 @@
                             ram.envelope_count
                         );
 
+                        reason = <span class="prelude-val">Some</span>(<span class="string">"below_low_watermark"</span>);
                         <span class="self">Self</span>::MemoryFileStandby { ram, disk }
                     }
                     <span class="prelude-val">Err</span>(err) =&gt; {
@@ -2834,12 +2906,24 @@
                             <span class="string">"failed to move data from disk to memory, keep using on-disk spool"</span>,
                         );
 
+                        reason = <span class="prelude-val">Some</span>(<span class="string">"failed"</span>);
                         <span class="self">Self</span>::Disk(disk)
                     }
                 }
             }
-            <span class="self">Self</span>::Memory(<span class="kw">_</span>) | <span class="self">Self</span>::MemoryFileStandby { .. } | <span class="self">Self</span>::Disk(<span class="kw">_</span>) =&gt; <span class="self">self</span>,
+            <span class="self">Self</span>::Memory(<span class="kw">_</span>) | <span class="self">Self</span>::Disk(<span class="kw">_</span>) =&gt; <span class="self">self</span>,
+        };
+
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(reason) = reason {
+            <span class="macro">relay_statsd::metric!</span>(
+                counter(RelayCounters::BufferStateTransition) += <span class="number">1</span>,
+                state_in = state_in,
+                state_out = state.label(),
+                reason = reason
+            );
         }
+
+        state
     }
 
     <span class="doccomment">/// Returns `true` if the on-disk spooled data can fit in the memory.
@@ -3517,6 +3601,7 @@
 
         <span class="macro">assert_debug_snapshot!</span>(captures, @<span class="string">r###"
         [
+            "buffer.state.transition:1|c|#state_in:none,state_out:memory_file_standby,reason:init",
             "buffer.envelopes_mem:2000|h",
             "buffer.envelopes_mem_count:1|g",
             "buffer.envelopes_mem:4000|h",
@@ -3527,6 +3612,7 @@
             "buffer.writes:1|c",
             "buffer.envelopes_written:3|c",
             "buffer.envelopes_disk_count:3|g",
+            "buffer.state.transition:1|c|#state_in:memory_file_standby,state_out:disk,reason:ram_full",
             "buffer.disk_size:24576|h",
             "buffer.envelopes_written:1|c",
             "buffer.envelopes_disk_count:4|g",

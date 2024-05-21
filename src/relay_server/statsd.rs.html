@@ -764,6 +764,18 @@
 <a href="#762" id="762">762</a>
 <a href="#763" id="763">763</a>
 <a href="#764" id="764">764</a>
+<a href="#765" id="765">765</a>
+<a href="#766" id="766">766</a>
+<a href="#767" id="767">767</a>
+<a href="#768" id="768">768</a>
+<a href="#769" id="769">769</a>
+<a href="#770" id="770">770</a>
+<a href="#771" id="771">771</a>
+<a href="#772" id="772">772</a>
+<a href="#773" id="773">773</a>
+<a href="#774" id="774">774</a>
+<a href="#775" id="775">775</a>
+<a href="#776" id="776">776</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric, TimerMetric};
 
 <span class="doccomment">/// Gauge metrics used by Relay
@@ -786,6 +798,10 @@
     ///
     /// The disk buffer size can be configured with `spool.envelopes.max_disk_size`.
     </span>BufferEnvelopesDiskCount,
+    <span class="doccomment">/// Number of queue keys (project key pairs) unspooled during proactive unspool.
+    /// This metric is tagged with:
+    /// - `reason`: Why keys are / are not unspooled.
+    </span>BufferPeriodicUnspool,
     <span class="doccomment">/// The currently used memory by the entire system.
     ///
     /// Relay uses the same value for its memory health check.
@@ -803,6 +819,7 @@
             RelayGauges::ProjectCacheGarbageQueueSize =&gt; <span class="string">"project_cache.garbage.queue_size"</span>,
             RelayGauges::BufferEnvelopesMemoryCount =&gt; <span class="string">"buffer.envelopes_mem_count"</span>,
             RelayGauges::BufferEnvelopesDiskCount =&gt; <span class="string">"buffer.envelopes_disk_count"</span>,
+            RelayGauges::BufferPeriodicUnspool =&gt; <span class="string">"buffer.unspool.periodic"</span>,
             RelayGauges::SystemMemoryUsed =&gt; <span class="string">"health.system_memory.used"</span>,
             RelayGauges::SystemMemoryTotal =&gt; <span class="string">"health.system_memory.total"</span>,
         }
@@ -1233,6 +1250,12 @@
     </span>BufferEnvelopesWritten,
     <span class="doccomment">/// Number of _envelopes_ the envelope buffer reads back from disk.
     </span>BufferEnvelopesRead,
+    <span class="doccomment">/// Number of state changes in the envelope buffer.
+    /// This metric is tagged with:
+    ///  - `state_in`: The previous state. `memory`, `memory_file_standby`, or `disk`.
+    ///  - `state_out`: The new state. `memory`, `memory_file_standby`, or `disk`.
+    ///  - `reason`: Why a transition was made (or not made).
+    </span>BufferStateTransition,
     <span class="doccomment">///
     /// Number of outcomes and reasons for rejected Envelopes.
     ///
@@ -1431,6 +1454,7 @@
             RelayCounters::BufferReads =&gt; <span class="string">"buffer.reads"</span>,
             RelayCounters::BufferEnvelopesWritten =&gt; <span class="string">"buffer.envelopes_written"</span>,
             RelayCounters::BufferEnvelopesRead =&gt; <span class="string">"buffer.envelopes_read"</span>,
+            RelayCounters::BufferStateTransition =&gt; <span class="string">"buffer.state.transition"</span>,
             RelayCounters::Outcomes =&gt; <span class="string">"events.outcomes"</span>,
             RelayCounters::ProjectStateGet =&gt; <span class="string">"project_state.get"</span>,
             RelayCounters::ProjectStateRequest =&gt; <span class="string">"project_state.request"</span>,
