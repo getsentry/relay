@@ -3,7 +3,8 @@ use std::error::Error;
 use std::sync::Arc;
 use std::time::Duration;
 
-use crate::metric_stats::MetricStats;
+use crate::extractors::RequestMeta;
+use crate::metrics::MetricOutcomes;
 use hashbrown::HashSet;
 use relay_base_schema::project::ProjectKey;
 use relay_config::{Config, RelayMode};
@@ -171,6 +172,32 @@ impl UpdateRateLimits {
     }
 }
 
+/// Source information where a metric bucket originates from.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum BucketSource {
+    /// The metric bucket originated from an internal Relay use case.
+    ///
+    /// The metric bucket originates either from within the same Relay
+    /// or was accepted coming from another Relay which is registered as
+    /// an internal Relay via Relay's configuration.
+    Internal,
+    /// The bucket source originated from an untrusted source.
+    ///
+    /// Managed Relays sending extracted metrics are considered external,
+    /// it's a project use case but it comes from an untrusted source.
+    External,
+}
+
+impl From<&RequestMeta> for BucketSource {
+    fn from(value: &RequestMeta) -> Self {
+        if value.is_from_internal_relay() {
+            Self::Internal
+        } else {
+            Self::External
+        }
+    }
+}
+
 /// Add metric buckets to the project.
 ///
 /// Metric buckets added via the project are filtered and rate limited
@@ -181,6 +208,18 @@ impl UpdateRateLimits {
 pub struct AddMetricBuckets {
     pub project_key: ProjectKey,
     pub buckets: Vec<Bucket>,
+    pub source: BucketSource,
+}
+
+impl AddMetricBuckets {
+    /// Convenience constructor which creates an internal [`AddMetricBuckets`] message.
+    pub fn internal(project_key: ProjectKey, buckets: Vec<Bucket>) -> Self {
+        Self {
+            project_key,
+            buckets,
+            source: BucketSource::Internal,
+        }
+    }
 }
 
 /// Add metric metadata to the aggregator.
@@ -514,7 +553,7 @@ impl Services {
 struct ProjectCacheBroker {
     config: Arc<Config>,
     services: Services,
-    metric_stats: MetricStats,
+    metric_outcomes: MetricOutcomes,
     // Need hashbrown because extract_if is not stable in std yet.
     projects: hashbrown::HashMap<ProjectKey, Project>,
     garbage_disposal: GarbageDisposal<Project>,
@@ -637,15 +676,15 @@ impl ProjectCacheBroker {
         let aggregator = self.services.aggregator.clone();
         let envelope_processor = self.services.envelope_processor.clone();
         let outcome_aggregator = self.services.outcome_aggregator.clone();
-        let metric_stats = self.metric_stats.clone();
+        let metric_outcomes = self.metric_outcomes.clone();
 
         self.get_or_create_project(project_key).update_state(
-            project_cache,
-            aggregator,
-            state.clone(),
-            envelope_processor,
-            outcome_aggregator,
-            metric_stats,
+            &project_cache,
+            &aggregator,
+            state,
+            &envelope_processor,
+            &outcome_aggregator,
+            &metric_outcomes,
             no_cache,
         );
 
@@ -826,16 +865,17 @@ impl ProjectCacheBroker {
         let aggregator = self.services.aggregator.clone();
         let outcome_aggregator = self.services.outcome_aggregator.clone();
         let envelope_processor = self.services.envelope_processor.clone();
-        let metric_stats = self.metric_stats.clone();
+        let metric_outcomes = self.metric_outcomes.clone();
 
         let project = self.get_or_create_project(message.project_key);
         project.prefetch(project_cache, false);
         project.merge_buckets(
-            aggregator,
-            outcome_aggregator,
-            envelope_processor,
-            metric_stats,
+            &aggregator,
+            &outcome_aggregator,
+            &metric_outcomes,
+            &envelope_processor,
             message.buckets,
+            message.source,
         );
     }
 
@@ -847,14 +887,12 @@ impl ProjectCacheBroker {
     }
 
     fn handle_flush_buckets(&mut self, message: FlushBuckets) {
+        let metric_outcomes = self.metric_outcomes.clone();
+
         let mut output = BTreeMap::new();
         for (project_key, buckets) in message.buckets {
-            let outcome_aggregator = self.services.outcome_aggregator.clone();
-            let metric_stats = self.metric_stats.clone();
             let project = self.get_or_create_project(project_key);
-            if let Some((scoping, b)) =
-                project.check_buckets(outcome_aggregator, metric_stats, buckets)
-            {
+            if let Some((scoping, b)) = project.check_buckets(&metric_outcomes, buckets) {
                 output.insert(scoping, b);
             }
         }
@@ -944,28 +982,37 @@ impl ProjectCacheBroker {
     /// This makes sure we always moving the unspool forward, even if we do not fetch the project
     /// states updates, but still can process data based on the existing cache.
     fn handle_periodic_unspool(&mut self) {
+        let (num_keys, reason) = self.handle_periodic_unspool_inner();
+        relay_statsd::metric!(
+            gauge(RelayGauges::BufferPeriodicUnspool) = num_keys as u64,
+            reason = reason
+        );
+    }
+
+    fn handle_periodic_unspool_inner(&mut self) -> (usize, &str) {
         self.buffer_unspool_handle.reset();
 
         // If we don't yet have the global config, we will defer dequeuing until we do.
         if let GlobalConfigStatus::Pending = self.global_config {
             self.buffer_unspool_backoff.reset();
             self.schedule_unspool();
-            return;
+            return (0, "no_global_config");
         }
         // If there is nothing spooled, schedule the next check a little bit later.
         if self.index.is_empty() {
             self.schedule_unspool();
-            return;
+            return (0, "index_empty");
         }
 
         let mut index = std::mem::take(&mut self.index);
-        let values = index
+        let keys = index
             .extract_if(|key| self.is_state_valid(key))
             .take(BATCH_KEY_COUNT)
             .collect::<HashSet<_>>();
+        let num_keys = keys.len();
 
-        if !values.is_empty() {
-            self.dequeue(values);
+        if !keys.is_empty() {
+            self.dequeue(keys);
         }
 
         // Return all the un-used items to the index.
@@ -976,6 +1023,8 @@ impl ProjectCacheBroker {
         // Schedule unspool once we are done.
         self.buffer_unspool_backoff.reset();
         self.schedule_unspool();
+
+        (num_keys, "found_keys")
     }
 
     fn handle_message(&mut self, message: ProjectCache) {
@@ -1019,7 +1068,7 @@ pub struct ProjectCacheService {
     buffer_guard: Arc<BufferGuard>,
     config: Arc<Config>,
     services: Services,
-    metric_stats: MetricStats,
+    metric_outcomes: MetricOutcomes,
     redis: Option<RedisPool>,
 }
 
@@ -1029,14 +1078,14 @@ impl ProjectCacheService {
         config: Arc<Config>,
         buffer_guard: Arc<BufferGuard>,
         services: Services,
-        metric_stats: MetricStats,
+        metric_outcomes: MetricOutcomes,
         redis: Option<RedisPool>,
     ) -> Self {
         Self {
             buffer_guard,
             config,
             services,
-            metric_stats,
+            metric_outcomes,
             redis,
         }
     }
@@ -1050,7 +1099,7 @@ impl Service for ProjectCacheService {
             buffer_guard,
             config,
             services,
-            metric_stats,
+            metric_outcomes,
             redis,
         } = self;
         let project_cache = services.project_cache.clone();
@@ -1129,7 +1178,7 @@ impl Service for ProjectCacheService {
                 buffer_unspool_backoff: RetryBackoff::new(config.http_max_retry_interval()),
                 buffer,
                 global_config,
-                metric_stats,
+                metric_outcomes,
             };
 
             loop {
@@ -1204,6 +1253,7 @@ impl FetchOptionalProjectState {
 
 #[cfg(test)]
 mod tests {
+    use crate::metric_stats::MetricStats;
     use crate::services::global_config::GlobalConfigHandle;
     use relay_dynamic_config::GlobalConfig;
     use relay_test::mock_service;
@@ -1277,6 +1327,8 @@ mod tests {
             GlobalConfigHandle::fixed(GlobalConfig::default()),
             Addr::custom().0,
         );
+        let metric_outcomes =
+            MetricOutcomes::new(metric_stats, services.outcome_aggregator.clone());
 
         (
             ProjectCacheBroker {
@@ -1293,7 +1345,7 @@ mod tests {
                 global_config: GlobalConfigStatus::Pending,
                 buffer_unspool_handle: SleepHandle::idle(),
                 buffer_unspool_backoff: RetryBackoff::new(Duration::from_millis(100)),
-                metric_stats,
+                metric_outcomes,
             },
             buffer,
         )

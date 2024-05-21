@@ -4,7 +4,7 @@ import queue
 import socket
 import threading
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta, timezone
 from time import sleep
 
 import pytest
@@ -265,7 +265,7 @@ def test_store_max_concurrent_requests(mini_sentry, relay):
 
 
 def make_transaction(event):
-    now = datetime.utcnow()
+    now = datetime.now(UTC)
     event.update(
         {
             "type": "transaction",
@@ -486,8 +486,9 @@ def test_processing_quotas(
             assert event["logentry"]["formatted"] == f"otherkey{i}"
 
 
+@pytest.mark.parametrize("namespace", ["transactions", "custom"])
 def test_sends_metric_bucket_outcome(
-    mini_sentry, relay_with_processing, outcomes_consumer
+    mini_sentry, relay_with_processing, outcomes_consumer, namespace
 ):
     """
     Checks that with a zero-quota without categories specified we send metric bucket outcomes.
@@ -513,6 +514,7 @@ def test_sends_metric_bucket_outcome(
     projectconfig["config"]["quotas"] = [
         {
             "scope": "organization",
+            "namespace": namespace,
             "limit": 0,
         }
     ]
@@ -568,7 +570,7 @@ def test_rate_limit_metric_bucket(
 
     def generate_ticks():
         # Generate a new timestamp for every bucket, so they do not get merged by the aggregator
-        tick = int(datetime.utcnow().timestamp() // bucket_interval * bucket_interval)
+        tick = int(datetime.now(UTC).timestamp() // bucket_interval * bucket_interval)
         while True:
             yield tick
             tick += bucket_interval
@@ -652,7 +654,7 @@ def test_rate_limit_metrics_buckets(
 
     def generate_ticks():
         # Generate a new timestamp for every bucket, so they do not get merged by the aggregator
-        tick = int(datetime.utcnow().timestamp() // bucket_interval * bucket_interval)
+        tick = int(datetime.now(UTC).timestamp() // bucket_interval * bucket_interval)
         while True:
             yield tick
             tick += bucket_interval
@@ -795,8 +797,8 @@ def test_rate_limit_metrics_buckets(
     outcomes_consumer.assert_rate_limited(
         reason_code,
         key_id=key_id,
-        categories=["transaction"],
-        quantity=3,
+        categories=["transaction", "metric_bucket"],
+        quantity=5,
     )
 
 

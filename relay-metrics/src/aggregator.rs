@@ -487,6 +487,21 @@ pub struct Aggregator {
 }
 
 impl Aggregator {
+    /// Create a new aggregator.
+    pub fn new(config: AggregatorConfig) -> Self {
+        Self::named("default".to_owned(), config)
+    }
+
+    /// Like [`Self::new`], but with a provided name.
+    pub fn named(name: String, config: AggregatorConfig) -> Self {
+        Self {
+            name,
+            config,
+            buckets: HashMap::new(),
+            cost_tracker: CostTracker::default(),
+        }
+    }
+
     /// Returns the name of the aggregator.
     pub fn name(&self) -> &str {
         self.name.as_str()
@@ -708,14 +723,12 @@ impl Aggregator {
     /// Merges all given `buckets` into this aggregator.
     ///
     /// Buckets that do not exist yet will be created.
-    pub fn merge_all<I>(
+    pub fn merge_all(
         &mut self,
         project_key: ProjectKey,
-        buckets: I,
+        buckets: impl IntoIterator<Item = Bucket>,
         max_total_bucket_bytes: Option<usize>,
-    ) where
-        I: IntoIterator<Item = Bucket>,
-    {
+    ) {
         for bucket in buckets.into_iter() {
             if let Err(error) = self.merge(project_key, bucket, max_total_bucket_bytes) {
                 match &error.kind {
@@ -729,21 +742,6 @@ impl Aggregator {
                     }
                 }
             }
-        }
-    }
-
-    /// Create a new aggregator.
-    pub fn new(config: AggregatorConfig) -> Self {
-        Self::named("default".to_owned(), config)
-    }
-
-    /// Like [`Self::new`], but with a provided name.
-    pub fn named(name: String, config: AggregatorConfig) -> Self {
-        Self {
-            name,
-            config,
-            buckets: HashMap::new(),
-            cost_tracker: CostTracker::default(),
         }
     }
 }
@@ -913,7 +911,7 @@ mod tests {
     fn test_aggregator_merge_counters() {
         relay_test::setup();
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
-        let mut aggregator = Aggregator::new(test_config());
+        let mut aggregator: Aggregator = Aggregator::new(test_config());
 
         let bucket1 = some_bucket(None);
 
@@ -1003,7 +1001,7 @@ mod tests {
         config.bucket_interval = 10;
 
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
-        let mut aggregator = Aggregator::new(config);
+        let mut aggregator: Aggregator = Aggregator::new(config);
 
         let bucket1 = some_bucket(None);
 
@@ -1065,7 +1063,7 @@ mod tests {
         let project_key1 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
         let project_key2 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
 
-        let mut aggregator = Aggregator::new(config);
+        let mut aggregator: Aggregator = Aggregator::new(config);
 
         // It's OK to have same metric with different projects:
         aggregator
@@ -1151,7 +1149,7 @@ mod tests {
     #[test]
     fn test_aggregator_cost_tracking() {
         // Make sure that the right cost is added / subtracted
-        let mut aggregator = Aggregator::new(test_config());
+        let mut aggregator: Aggregator = Aggregator::new(test_config());
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
 
         let timestamp = UnixTimestamp::from_secs(999994711);
@@ -1233,7 +1231,7 @@ mod tests {
             ..Default::default()
         };
 
-        let aggregator = Aggregator::new(config);
+        let aggregator: Aggregator = Aggregator::new(config);
 
         assert!(matches!(
             aggregator
@@ -1419,7 +1417,7 @@ mod tests {
             metadata: BucketMetadata::new(timestamp),
         };
 
-        let mut aggregator = Aggregator::new(test_config());
+        let mut aggregator: Aggregator = Aggregator::new(test_config());
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
 
         aggregator
@@ -1451,7 +1449,7 @@ mod tests {
             metadata: BucketMetadata::new(timestamp),
         };
 
-        let mut aggregator = Aggregator::new(config);
+        let mut aggregator: Aggregator = Aggregator::new(config);
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
 
         aggregator.merge(project_key, bucket.clone(), None).unwrap();
@@ -1477,7 +1475,7 @@ mod tests {
         config.bucket_interval = 10;
 
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
-        let mut aggregator = Aggregator::new(config);
+        let mut aggregator: Aggregator = Aggregator::new(config);
 
         let bucket1 = some_bucket(Some(UnixTimestamp::from_secs(999994711)));
         let bucket2 = some_bucket(Some(UnixTimestamp::from_secs(999994711)));

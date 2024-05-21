@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 24.5.0
 
 **Breaking Changes**:
 
@@ -8,7 +8,13 @@
 
 **Bug fixes:**
 
-- Properly handle AI metrics from the Python SDK's `@ai_track` decorator ([#3539](https://github.com/getsentry/relay/pull/3539))
+- Properly handle AI metrics from the Python SDK's `@ai_track` decorator. ([#3539](https://github.com/getsentry/relay/pull/3539))
+- Mitigate occasional slowness and timeouts of the healthcheck endpoint. The endpoint will now respond promptly an unhealthy state. ([#3567](https://github.com/getsentry/relay/pull/3567))
+
+**Features**:
+
+- Apple trace-based sampling rules to standalone spans. ([#3476](https://github.com/getsentry/relay/pull/3476))
+- Localhost inbound filter filters sudomains of localhost. ([#3608](https://github.com/getsentry/relay/pull/3608))
 
 **Features**:
 
@@ -25,6 +31,16 @@
 - Emit negative outcomes for denied metrics. ([#3508](https://github.com/getsentry/relay/pull/3508))
 - Increase size limits for internal batch endpoints. ([#3562](https://github.com/getsentry/relay/pull/3562))
 - Emit negative outcomes when metrics are rejected because of a disabled namespace. ([#3544](https://github.com/getsentry/relay/pull/3544))
+- Add AI model costs to global config. ([#3579](https://github.com/getsentry/relay/pull/3579))
+- Add support for `event.` in the `Span` `Getter` implementation. ([#3577](https://github.com/getsentry/relay/pull/3577))
+- Ensure `chunk_id` and `profiler_id` are UUIDs and sort samples. ([#3588](https://github.com/getsentry/relay/pull/3588))
+- Add a calculated measurement based on the AI model and the tokens used. ([#3554](https://github.com/getsentry/relay/pull/3554))
+- Restrict usage of OTel endpoint. ([#3597](github.com/getsentry/relay/pull/3597))
+- Support new cache span ops in metrics and tag extraction. ([#3598](https://github.com/getsentry/relay/pull/3598))
+- Send microsecond precision timestamps. ([#3613](https://github.com/getsentry/relay/pull/3613))
+- Extract additional user fields for spans. ([#3599](https://github.com/getsentry/relay/pull/3599))
+- Disable `db.redis` span metrics extraction. ([#3600](https://github.com/getsentry/relay/pull/3600))
+- Extract status for spans. ([#3606](https://github.com/getsentry/relay/pull/3606))
 
 ## 24.4.2
 

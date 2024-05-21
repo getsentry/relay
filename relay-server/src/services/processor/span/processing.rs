@@ -9,12 +9,12 @@ use relay_config::Config;
 use relay_dynamic_config::{
     CombinedMetricExtractionConfig, ErrorBoundary, Feature, GlobalConfig, ProjectConfig,
 };
-use relay_event_normalization::normalize_transaction_name;
 use relay_event_normalization::{
     normalize_measurements, normalize_performance_score, normalize_user_agent_info_generic,
     span::tag_extraction, validate_span, CombinedMeasurementsConfig, MeasurementsConfig,
     PerformanceScoreConfig, RawUserAgentInfo, TransactionsProcessor,
 };
+use relay_event_normalization::{normalize_transaction_name, ModelCosts};
 use relay_event_schema::processor::{process_value, ProcessingState};
 use relay_event_schema::protocol::{BrowserContext, Contexts, Event, Span, SpanData};
 use relay_log::protocol::{Attachment, AttachmentType};
@@ -28,11 +28,12 @@ use crate::metrics_extraction::generic::extract_metrics;
 use crate::services::outcome::{DiscardReason, Outcome};
 use crate::services::processor::span::extract_transaction_span;
 use crate::services::processor::{
-    Addrs, ProcessEnvelope, ProcessEnvelopeState, ProcessingError, ProcessingGroup, SpanGroup,
-    TransactionGroup,
+    dynamic_sampling, Addrs, ProcessEnvelope, ProcessEnvelopeState, ProcessingError,
+    ProcessingGroup, SpanGroup, TransactionGroup,
 };
 use crate::statsd::{RelayCounters, RelayHistograms};
-use crate::utils::{sample, BufferGuard, ItemAction};
+use crate::utils::{sample, BufferGuard, ItemAction, SamplingResult};
+use relay_event_normalization::span::ai::extract_ai_measurements;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -48,16 +49,27 @@ pub fn process(
 ) {
     use relay_event_normalization::RemoveOtherProcessor;
 
+    // We only implement trace-based sampling rules for now, which can be computed
+    // once for all spans in the envelope.
+    let sampling_outcome = match dynamic_sampling::run(state, &config) {
+        SamplingResult::Match(sampling_match) if sampling_match.should_drop() => Some(
+            Outcome::FilteredSampling(sampling_match.into_matched_rules()),
+        ),
+        _ => None,
+    };
+
     let span_metrics_extraction_config = match state.project_state.config.metric_extraction {
         ErrorBoundary::Ok(ref config) if config.is_enabled() => Some(config),
         _ => None,
     };
+    let ai_model_costs_config = global_config.ai_model_costs.clone().ok();
     let normalize_span_config = get_normalize_span_config(
-        config,
+        Arc::clone(&config),
         state.managed_envelope.received_at(),
         global_config.measurements.as_ref(),
         state.project_state.config().measurements.as_ref(),
         state.project_state.config().performance_score.as_ref(),
+        ai_model_costs_config.as_ref(),
     );
 
     let meta = state.managed_envelope.envelope().meta();
@@ -153,13 +165,17 @@ pub fn process(
             item.set_metrics_extracted(true);
         }
 
-        // TODO: dynamic sampling
+        if let Some(sampling_outcome) = &sampling_outcome {
+            relay_log::trace!(
+                "Dropping span because of sampling rule {}",
+                sampling_outcome
+            );
+            return ItemAction::Drop(sampling_outcome.clone());
+        }
 
         if let Err(e) = scrub(&mut annotated_span, &state.project_state.config) {
             relay_log::error!("failed to scrub span: {e}");
         }
-
-        // TODO: rate limiting
 
         // Remove additional fields.
         process_value(
@@ -400,6 +416,8 @@ struct NormalizeSpanConfig<'a> {
     /// If at least one is provided, then normalization will truncate custom measurements
     /// and add units of known built-in measurements.
     measurements: Option<CombinedMeasurementsConfig<'a>>,
+    /// Configuration for AI model cost calculation
+    ai_model_costs: Option<&'a ModelCosts>,
     /// The maximum length for names of custom measurements.
     ///
     /// Measurements with longer names are removed from the transaction event and replaced with a
@@ -413,6 +431,7 @@ fn get_normalize_span_config<'a>(
     global_measurements_config: Option<&'a MeasurementsConfig>,
     project_measurements_config: Option<&'a MeasurementsConfig>,
     performance_score: Option<&'a PerformanceScoreConfig>,
+    ai_model_costs: Option<&'a ModelCosts>,
 ) -> NormalizeSpanConfig<'a> {
     let aggregator_config =
         AggregatorConfig::from(config.aggregator_config_for(MetricNamespace::Spans));
@@ -433,6 +452,7 @@ fn get_normalize_span_config<'a>(
                 .saturating_sub(MeasurementsConfig::MEASUREMENT_MRI_OVERHEAD),
         ),
         performance_score,
+        ai_model_costs,
     }
 }
 
@@ -482,6 +502,7 @@ fn normalize(
         max_tag_value_size,
         performance_score,
         measurements,
+        ai_model_costs,
         max_name_and_unit_len,
     } = config;
 
@@ -561,6 +582,9 @@ fn normalize(
         ..Default::default()
     };
     normalize_performance_score(&mut event, performance_score);
+    if let Some(model_costs_config) = ai_model_costs {
+        extract_ai_measurements(span, model_costs_config);
+    }
     span.measurements = event.measurements;
 
     tag_extraction::extract_measurements(span, is_mobile);
@@ -574,7 +598,6 @@ fn normalize(
     Ok(())
 }
 
-#[cfg(feature = "processing")]
 fn scrub(
     annotated_span: &mut Annotated<Span>,
     project_config: &ProjectConfig,

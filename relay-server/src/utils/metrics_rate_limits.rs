@@ -1,22 +1,24 @@
 //! Quota and rate limiting helpers for metrics and metrics buckets.
 
 use chrono::{DateTime, Utc};
+use itertools::Either;
 use relay_common::time::UnixTimestamp;
-use relay_metrics::{
-    Bucket, BucketView, BucketViewValue, MetricNamespace, MetricResourceIdentifier,
-};
+use relay_metrics::Bucket;
 use relay_quotas::{DataCategory, Quota, RateLimits, Scoping};
 use relay_system::Addr;
 
-use crate::envelope::SourceQuantities;
-use crate::metric_stats::MetricStats;
+use crate::metrics::{BucketSummary, MetricOutcomes, TrackableBucket, PROFILE_TAG};
 use crate::services::outcome::{Outcome, TrackOutcome};
+use crate::utils;
 
 /// Contains all data necessary to rate limit metrics or metrics buckets.
 #[derive(Debug)]
 pub struct MetricsLimiter<Q: AsRef<Vec<Quota>> = Vec<Quota>> {
     /// A list of aggregated metric buckets with some counters.
     buckets: Vec<SummarizedBucket>,
+
+    /// Mode used to extract transaction and span counts.
+    mode: ExtractionMode,
 
     /// The quotas set on the current project.
     quotas: Q,
@@ -28,113 +30,6 @@ pub struct MetricsLimiter<Q: AsRef<Vec<Quota>> = Vec<Quota>> {
     counts: EntityCounts,
 }
 
-const PROFILE_TAG: &str = "has_profile";
-
-/// Extracts quota information from a metric.
-///
-/// If the metric was extracted from one or more transactions or spans, it returns the amount
-/// of datapoints contained in the bucket.
-///
-/// Additionally tracks whether the transactions also contained profiling information.
-fn summarize_bucket(metric: BucketView<'_>, mode: ExtractionMode) -> BucketSummary {
-    let mri = match MetricResourceIdentifier::parse(metric.name()) {
-        Ok(mri) => mri,
-        Err(_) => {
-            relay_log::error!("invalid MRI: {}", metric.name());
-            return BucketSummary::default();
-        }
-    };
-
-    match mri.namespace {
-        MetricNamespace::Transactions => {
-            let usage = matches!(mode, ExtractionMode::Usage);
-            let count = match metric.value() {
-                BucketViewValue::Counter(c) if usage && mri.name == "usage" => c.to_f64() as usize,
-                BucketViewValue::Distribution(d) if !usage && mri.name == "duration" => d.len(),
-                _ => 0,
-            };
-            let has_profile = matches!(mri.name.as_ref(), "usage" | "duration")
-                && metric.tag(PROFILE_TAG) == Some("true");
-            BucketSummary::Transactions { count, has_profile }
-        }
-        MetricNamespace::Spans => BucketSummary::Spans(match metric.value() {
-            BucketViewValue::Counter(c) if mri.name == "usage" => c.to_f64() as usize,
-            _ => 0,
-        }),
-        _ => {
-            // Nothing to count
-            BucketSummary::default()
-        }
-    }
-}
-
-/// Extracts quota information from a list of metric buckets.
-pub fn extract_metric_quantities<'a, I, V>(buckets: I, mode: ExtractionMode) -> SourceQuantities
-where
-    I: IntoIterator<Item = V>,
-    V: Into<BucketView<'a>>,
-{
-    let mut quantities = SourceQuantities::default();
-
-    for bucket in buckets {
-        quantities.buckets += 1;
-        let summary = summarize_bucket(bucket.into(), mode);
-        match summary {
-            BucketSummary::Transactions { count, has_profile } => {
-                quantities.transactions += count;
-                if has_profile {
-                    quantities.profiles += count;
-                }
-            }
-            BucketSummary::Spans(count) => quantities.spans += count,
-            BucketSummary::None => continue,
-        };
-    }
-
-    quantities
-}
-
-pub fn reject_metrics<'a, T: Into<BucketView<'a>>>(
-    addr: &Addr<TrackOutcome>,
-    metric_stats: &MetricStats,
-    quantities: SourceQuantities,
-    scoping: Scoping,
-    outcome: Outcome,
-    buckets: impl IntoIterator<Item = T>,
-) {
-    let timestamp = Utc::now();
-
-    let categories = [
-        (DataCategory::Transaction, quantities.transactions as u32),
-        (DataCategory::Profile, quantities.profiles as u32),
-        (DataCategory::MetricBucket, quantities.buckets as u32),
-    ];
-
-    for (category, quantity) in categories {
-        if quantity > 0 {
-            addr.send(TrackOutcome {
-                timestamp,
-                scoping,
-                outcome: outcome.clone(),
-                event_id: None,
-                remote_addr: None,
-                category,
-                quantity,
-            });
-        }
-    }
-
-    // When rejecting metrics, we need to make sure that the number of merges is correctly handled
-    // for buckets views, since if we have a bucket which has 5 merges, and it's split into 2
-    // bucket views, we will emit the volume of the rejection as 5 + 5 merges since we still read
-    // the underlying metadata for each view, and it points to the same bucket reference.
-    // Possible solutions to this problem include emitting the merges only if the bucket view is
-    // the first of view or distributing uniformly the metadata between split views.
-    for bucket in buckets {
-        metric_stats.track_metric(scoping, bucket, outcome.clone())
-    }
-}
-
 /// Whether to extract transaction and profile count based on the usage or duration metric.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ExtractionMode {
@@ -144,35 +39,19 @@ pub enum ExtractionMode {
     Duration,
 }
 
-/// The return value of [`summarize_bucket`].
-///
-/// Contains the count of total transactions or spans that went into this bucket.
-#[derive(Debug, Default, Clone)]
-pub enum BucketSummary {
-    Transactions {
-        count: usize,
-        has_profile: bool,
-    },
-    Spans(usize),
-    #[default]
-    None,
-}
-
-impl BucketSummary {
-    fn to_counts(&self) -> EntityCounts {
-        match *self {
-            BucketSummary::Transactions { count, has_profile } => EntityCounts {
-                transactions: Some(count),
-                spans: None,
-                profiles: if has_profile { count } else { 0 },
-            },
-            BucketSummary::Spans(count) => EntityCounts {
-                transactions: None,
-                spans: Some(count),
-                profiles: 0,
-            },
-            BucketSummary::None => EntityCounts::default(),
-        }
+fn to_counts(summary: &BucketSummary) -> EntityCounts {
+    match *summary {
+        BucketSummary::Transactions { count, has_profile } => EntityCounts {
+            transactions: Some(count),
+            spans: None,
+            profiles: if has_profile { count } else { 0 },
+        },
+        BucketSummary::Spans(count) => EntityCounts {
+            transactions: None,
+            spans: Some(count),
+            profiles: 0,
+        },
+        BucketSummary::None => EntityCounts::default(),
     }
 }
 
@@ -238,7 +117,7 @@ impl<Q: AsRef<Vec<Quota>>> MetricsLimiter<Q> {
     ///
     /// Returns Ok if `metrics` contain relevant metrics, `metrics` otherwise.
     pub fn create(
-        buckets: Vec<Bucket>,
+        buckets: impl IntoIterator<Item = Bucket>,
         quotas: Q,
         scoping: Scoping,
         mode: ExtractionMode,
@@ -246,7 +125,7 @@ impl<Q: AsRef<Vec<Quota>>> MetricsLimiter<Q> {
         let buckets: Vec<_> = buckets
             .into_iter()
             .map(|bucket| {
-                let summary = summarize_bucket(BucketView::new(&bucket), mode);
+                let summary = bucket.summary(mode);
                 SummarizedBucket { bucket, summary }
             })
             .collect();
@@ -254,11 +133,12 @@ impl<Q: AsRef<Vec<Quota>>> MetricsLimiter<Q> {
         // Accumulate the total counts
         let total_counts = buckets
             .iter()
-            .map(|b| b.summary.to_counts())
+            .map(|b| to_counts(&b.summary))
             .reduce(|a, b| a + b);
         if let Some(counts) = total_counts {
             Ok(Self {
                 buckets,
+                mode,
                 quotas,
                 scoping,
                 counts,
@@ -302,68 +182,31 @@ impl<Q: AsRef<Vec<Quota>>> MetricsLimiter<Q> {
         &mut self,
         category: DataCategory,
         outcome: Outcome,
-        outcome_aggregator: Addr<TrackOutcome>,
+        metric_outcomes: &MetricOutcomes,
     ) {
-        // Drop transaction buckets:
         let buckets = std::mem::take(&mut self.buckets);
-        let timestamp = Utc::now();
-
-        // Only keep buckets without counts:
-        self.buckets = buckets
-            .into_iter()
-            .filter_map(|b| match b.summary {
-                BucketSummary::Transactions { .. } if category == DataCategory::Transaction => None,
-                BucketSummary::Spans(_) if category == DataCategory::Span => None,
-                _ => Some(b),
-            })
-            .collect();
-
-        // Track outcome for the transaction metrics we dropped:
-        match (category, &self.counts) {
-            (
-                DataCategory::Transaction,
-                EntityCounts {
-                    transactions: Some(count),
-                    ..
-                },
-            ) => {
-                if *count > 0 {
-                    outcome_aggregator.send(TrackOutcome {
-                        timestamp,
-                        scoping: self.scoping,
-                        outcome: outcome.clone(),
-                        event_id: None,
-                        remote_addr: None,
-                        category: DataCategory::Transaction,
-                        quantity: *count as u32,
-                    });
-                }
-
-                self.report_profiles(outcome.clone(), timestamp, outcome_aggregator.clone());
+        let (buckets, dropped) = utils::split_off_map(buckets, |b| match b.summary {
+            BucketSummary::Transactions { .. } if category == DataCategory::Transaction => {
+                Either::Right(b.bucket)
             }
+            BucketSummary::Spans(_) if category == DataCategory::Span => Either::Right(b.bucket),
+            _ => Either::Left(b),
+        });
+        self.buckets = buckets;
 
-            // Track outcome for the span metrics we dropped:
-            (
-                DataCategory::Span,
-                EntityCounts {
-                    spans: Some(count), ..
-                },
-            ) if *count > 0 => {
-                outcome_aggregator.send(TrackOutcome {
-                    timestamp,
-                    scoping: self.scoping,
-                    outcome: outcome.clone(),
-                    event_id: None,
-                    remote_addr: None,
-                    category: DataCategory::Span,
-                    quantity: *count as u32,
-                });
-            }
-            _ => {}
-        }
+        metric_outcomes.track(self.scoping, &dropped, self.mode, outcome);
     }
 
-    fn strip_profiles(&mut self) {
+    fn drop_profiles(
+        &mut self,
+        outcome: Outcome,
+        timestamp: DateTime<Utc>,
+        outcome_aggregator: &Addr<TrackOutcome>,
+    ) {
+        if self.counts.profiles == 0 {
+            return;
+        }
+
         for SummarizedBucket { bucket, summary } in self.buckets.iter_mut() {
             if let BucketSummary::Transactions { has_profile, .. } = summary {
                 if *has_profile {
@@ -371,25 +214,16 @@ impl<Q: AsRef<Vec<Quota>>> MetricsLimiter<Q> {
                 }
             }
         }
-    }
 
-    fn report_profiles(
-        &self,
-        outcome: Outcome,
-        timestamp: DateTime<Utc>,
-        outcome_aggregator: Addr<TrackOutcome>,
-    ) {
-        if self.counts.profiles > 0 {
-            outcome_aggregator.send(TrackOutcome {
-                timestamp,
-                scoping: self.scoping,
-                outcome,
-                event_id: None,
-                remote_addr: None,
-                category: DataCategory::Profile,
-                quantity: self.counts.profiles as u32,
-            });
-        }
+        outcome_aggregator.send(TrackOutcome {
+            timestamp,
+            scoping: self.scoping,
+            outcome,
+            event_id: None,
+            remote_addr: None,
+            category: DataCategory::Profile,
+            quantity: self.counts.profiles as u32,
+        });
     }
 
     // Drop transaction-related metrics and create outcomes for any active rate limits.
@@ -398,7 +232,8 @@ impl<Q: AsRef<Vec<Quota>>> MetricsLimiter<Q> {
     pub fn enforce_limits(
         &mut self,
         rate_limits: &RateLimits,
-        outcome_aggregator: Addr<TrackOutcome>,
+        metric_outcomes: &MetricOutcomes,
+        outcome_aggregator: &Addr<TrackOutcome>,
     ) -> bool {
         for category in [DataCategory::Transaction, DataCategory::Span] {
             let active_rate_limits =
@@ -409,7 +244,7 @@ impl<Q: AsRef<Vec<Quota>>> MetricsLimiter<Q> {
                 self.drop_with_outcome(
                     category,
                     Outcome::RateLimited(limit.reason_code.clone()),
-                    outcome_aggregator.clone(),
+                    metric_outcomes,
                 );
 
                 return true;
@@ -421,11 +256,10 @@ impl<Q: AsRef<Vec<Quota>>> MetricsLimiter<Q> {
                 );
 
                 if let Some(limit) = active_rate_limits.longest() {
-                    self.strip_profiles();
-                    self.report_profiles(
+                    self.drop_profiles(
                         Outcome::RateLimited(limit.reason_code.clone()),
                         UnixTimestamp::now().as_datetime().unwrap_or_else(Utc::now),
-                        outcome_aggregator.clone(),
+                        outcome_aggregator,
                     )
                 }
             }
@@ -453,6 +287,8 @@ mod tests {
     use relay_quotas::QuotaScope;
     use smallvec::smallvec;
 
+    use crate::metric_stats::MetricStats;
+
     use super::*;
 
     fn deny(category: DataCategory) -> Vec<Quota> {
@@ -474,6 +310,7 @@ mod tests {
         quotas: Vec<Quota>,
     ) -> (Vec<Bucket>, Vec<(Outcome, DataCategory, u32)>) {
         let (outcome_sink, mut rx) = Addr::custom();
+        let metric_outcomes = MetricOutcomes::new(MetricStats::test().0, outcome_sink.clone());
 
         let mut limiter = MetricsLimiter::create(
             metrics,
@@ -488,7 +325,7 @@ mod tests {
         )
         .unwrap();
 
-        limiter.enforce_limits(&RateLimits::new(), outcome_sink);
+        limiter.enforce_limits(&RateLimits::new(), &metric_outcomes, &outcome_sink);
         let metrics = limiter.into_buckets();
 
         rx.close();
@@ -497,6 +334,7 @@ mod tests {
             .map(|_| rx.blocking_recv())
             .take_while(|o| o.is_some())
             .flatten()
+            .filter(|o| o.category != DataCategory::MetricBucket)
             .map(|o| (o.outcome, o.category, o.quantity))
             .collect();
 

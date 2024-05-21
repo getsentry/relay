@@ -1,6 +1,7 @@
 use std::hash::Hash;
 
 use relay_base_schema::metrics::MetricUnit;
+use relay_common::glob2::LazyGlob;
 use relay_event_schema::protocol::{Event, VALID_PLATFORMS};
 use relay_protocol::RuleCondition;
 use serde::{Deserialize, Serialize};
@@ -215,6 +216,51 @@ pub struct PerformanceScoreConfig {
     pub profiles: Vec<PerformanceScoreProfile>,
 }
 
+/// A mapping of AI model types (like GPT-4) to their respective costs.
+#[derive(Clone, Default, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ModelCosts {
+    /// The version of the model cost struct
+    pub version: u16,
+
+    /// The mappings of model ID => cost
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub costs: Vec<ModelCost>,
+}
+
+impl ModelCosts {
+    const MAX_SUPPORTED_VERSION: u16 = 1;
+
+    /// `false` if measurement and metrics extraction should be skipped.
+    pub fn is_enabled(&self) -> bool {
+        self.version > 0 && self.version <= ModelCosts::MAX_SUPPORTED_VERSION
+    }
+
+    /// Gets the cost per 1000 tokens, if defined for the given model.
+    pub fn cost_per_1k_tokens(&self, model_id: &str, for_completion: bool) -> Option<f64> {
+        self.costs
+            .iter()
+            .find(|cost| cost.matches(model_id, for_completion))
+            .map(|c| c.cost_per_1k_tokens)
+    }
+}
+
+/// A single mapping of (AI model ID, input/output, cost)
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ModelCost {
+    pub(crate) model_id: LazyGlob,
+    pub(crate) for_completion: bool,
+    pub(crate) cost_per_1k_tokens: f64,
+}
+
+impl ModelCost {
+    /// `true` if this cost definition matches the given model.
+    pub fn matches(&self, model_id: &str, for_completion: bool) -> bool {
+        self.for_completion == for_completion && self.model_id.compiled().is_match(model_id)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use chrono::{TimeZone, Utc};
@@ -243,6 +289,27 @@ mod tests {
     };
 
     use super::*;
+
+    #[test]
+    fn test_model_cost_config() {
+        let original = r#"{"version":1,"costs":[{"modelId":"babbage-002.ft-*","forCompletion":false,"costPer1kTokens":0.0016}]}"#;
+        let deserialized: ModelCosts = serde_json::from_str(original).unwrap();
+        assert_debug_snapshot!(deserialized, @r###"
+        ModelCosts {
+            version: 1,
+            costs: [
+                ModelCost {
+                    model_id: LazyGlob("babbage-002.ft-*"),
+                    for_completion: false,
+                    cost_per_1k_tokens: 0.0016,
+                },
+            ],
+        }
+        "###);
+
+        let serialized = serde_json::to_string(&deserialized).unwrap();
+        assert_eq!(&serialized, original);
+    }
 
     #[test]
     fn test_merge_builtin_measurement_keys() {
