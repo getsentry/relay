@@ -75,6 +75,7 @@ def test_span_extraction(
         # We do not accidentally produce to the events topic:
         assert events_consumer.poll(timeout=2.0) is None
 
+        # We _do_ extract span metrics:
         assert {headers[0] for _, headers in metrics_consumer.get_metrics()} == {
             ("namespace", b"spans")
         }
@@ -1523,6 +1524,9 @@ def test_rate_limit_indexed_consistent_extracted(
     relay = relay_with_processing()
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
+    # Span metrics won't be extracted without a supported transactionMetrics config.
+    # Without extraction, the span is treated as `Span`, not `SpanIndexed`.
+    project_config["config"]["transactionMetrics"] = {"version": 3}
     project_config["config"]["features"] = [
         "projects:span-metrics-extraction",
     ]
@@ -1804,7 +1808,7 @@ def test_dynamic_sampling(
         "version": 2,
         "rules": [
             {
-                "id": 1,
+                "id": 3001,
                 "samplingValue": {"type": "sampleRate", "value": sample_rate},
                 "type": "trace",
                 "condition": {
@@ -1863,4 +1867,7 @@ def test_dynamic_sampling(
     else:
         outcomes = outcomes_consumer.get_outcomes(timeout=10)
         assert summarize_outcomes(outcomes) == {(12, 1): 4}  # Span, Filtered
-        assert {o["reason"] for o in outcomes} == {"Sampled:1"}
+        assert {o["reason"] for o in outcomes} == {"Sampled:3000"}
+
+    spans_consumer.assert_empty()
+    outcomes_consumer.assert_empty()

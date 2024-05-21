@@ -1,15 +1,17 @@
 import hashlib
 from collections import defaultdict
 from datetime import UTC, datetime, timedelta, timezone
+from pathlib import Path
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 import json
 import signal
 import time
+import queue
 
 import pytest
 import requests
 from requests.exceptions import HTTPError
-import queue
+import yaml
 
 from .test_envelope import generate_transaction_item
 from .asserts import time_after, time_within_delta
@@ -1934,4 +1936,71 @@ def test_metrics_received_at(
         "tags": {},
         "retention_days": 90,
         "received_at": time_after(timestamp),
+    }
+
+
+def test_histogram_outliers(mini_sentry, relay):
+    with open(Path(__file__).parent / "fixtures/histogram-outliers.yml") as f:
+        mini_sentry.global_config["metricExtraction"] = yaml.full_load(f)
+    project_config = mini_sentry.add_full_project_config(project_id=42)["config"]
+    project_config["transactionMetrics"] = {
+        "version": 1,
+    }
+    project_config["metricExtraction"] = {
+        "version": 3,
+        "globalGroups": {"histogram_outliers": {"isEnabled": True}},
+    }
+    project_config["sampling"] = {  # Drop everything, to trigger metrics extractino
+        "version": 2,
+        "rules": [
+            {
+                "id": 1,
+                "samplingValue": {"type": "sampleRate", "value": 0.0},
+                "type": "transaction",
+                "condition": {"op": "and", "inner": []},
+            }
+        ],
+    }
+
+    timestamp = datetime.now(tz=timezone.utc)
+
+    event = {
+        "type": "transaction",
+        "transaction": "foo",
+        "transaction_info": {"source": "url"},  # 'transaction' tag not extracted
+        "platform": "javascript",
+        "contexts": {
+            "trace": {
+                "op": "pageload",
+                "trace_id": 32 * "b",
+                "span_id": 16 * "c",
+                "type": "trace",
+            }
+        },
+        "user": {"id": 123},
+        "measurements": {
+            "fcp": {"value": 999999999.0},
+            "lcp": {"value": 0.0},
+        },
+    }
+    event["timestamp"] = timestamp.isoformat()
+    event["start_timestamp"] = (timestamp - timedelta(seconds=2)).isoformat()
+
+    relay = relay(mini_sentry, TEST_CONFIG)
+    relay.send_event(42, event)
+
+    tags = {}
+    for _ in range(2):
+        envelope = mini_sentry.captured_events.get()
+        for item in envelope:
+            if item.type == "metric_buckets":
+                buckets = item.payload.json
+                for bucket in buckets:
+                    if outlier := bucket.get("tags", {}).get("histogram_outlier"):
+                        tags[bucket["name"]] = outlier
+
+    assert tags == {
+        "d:transactions/measurements.fcp@millisecond": "outlier",
+        "d:transactions/duration@millisecond": "inlier",
+        "d:transactions/measurements.lcp@millisecond": "inlier",
     }

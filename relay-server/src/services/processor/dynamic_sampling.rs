@@ -115,7 +115,7 @@ pub fn sample_envelope_items(
             let unsampled_profiles_enabled = forward_unsampled_profiles(state, global_config);
 
             let matched_rules = sampling_match.into_matched_rules();
-            let outcome = Outcome::FilteredSampling(matched_rules.clone());
+            let outcome = Outcome::FilteredSampling(matched_rules.into());
             state.managed_envelope.retain_items(|item| {
                 if unsampled_profiles_enabled && item.ty() == &ItemType::Profile {
                     item.set_sampled(false);

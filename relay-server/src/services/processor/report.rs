@@ -14,7 +14,7 @@ use relay_sampling::evaluation::MatchedRuleIds;
 use relay_system::Addr;
 
 use crate::envelope::{ContentType, ItemType};
-use crate::services::outcome::{Outcome, TrackOutcome};
+use crate::services::outcome::{Outcome, RuleCategories, TrackOutcome};
 use crate::services::processor::{ClientReportGroup, ProcessEnvelopeState, MINIMUM_CLOCK_DRIFT};
 use crate::utils::ItemAction;
 
@@ -240,6 +240,7 @@ fn outcome_from_parts(field: ClientReportField, reason: &str) -> Result<Outcome,
     match field {
         ClientReportField::FilteredSampling => match reason.strip_prefix("Sampled:") {
             Some(rule_ids) => MatchedRuleIds::parse(rule_ids)
+                .map(RuleCategories::from)
                 .map(Outcome::FilteredSampling)
                 .map_err(|_| ()),
             None => Err(()),
@@ -261,11 +262,11 @@ mod tests {
     use std::sync::Arc;
 
     use relay_event_schema::protocol::EventId;
-    use relay_sampling::config::RuleId;
     use relay_sampling::evaluation::ReservoirCounters;
 
     use crate::envelope::{Envelope, Item};
     use crate::extractors::RequestMeta;
+    use crate::services::outcome::RuleCategory;
     use crate::services::processor::{ProcessEnvelope, ProcessingGroup};
     use crate::services::project::ProjectState;
     use crate::testutils::{self, create_test_processor};
@@ -559,15 +560,46 @@ mod tests {
 
         assert_eq!(
             outcome_from_parts(ClientReportField::FilteredSampling, "Sampled:123,456"),
-            Ok(Outcome::FilteredSampling(MatchedRuleIds(vec![
-                RuleId(123),
-                RuleId(456),
-            ])))
+            Ok(Outcome::FilteredSampling(RuleCategories(
+                [RuleCategory::Other].into()
+            )))
         );
 
         assert_eq!(
             outcome_from_parts(ClientReportField::FilteredSampling, "Sampled:123"),
-            Ok(Outcome::FilteredSampling(MatchedRuleIds(vec![RuleId(123)])))
+            Ok(Outcome::FilteredSampling(RuleCategories(
+                [RuleCategory::Other].into()
+            )))
+        );
+
+        assert_eq!(
+            outcome_from_parts(ClientReportField::FilteredSampling, "Sampled:123"),
+            Ok(Outcome::FilteredSampling(RuleCategories(
+                [RuleCategory::Other].into()
+            )))
+        );
+
+        assert_eq!(
+            outcome_from_parts(ClientReportField::FilteredSampling, "Sampled:1001"),
+            Ok(Outcome::FilteredSampling(RuleCategories(
+                [RuleCategory::BoostEnvironments].into()
+            )))
+        );
+
+        assert_eq!(
+            outcome_from_parts(
+                ClientReportField::FilteredSampling,
+                "Sampled:1001,1456,1567,3333,4444"
+            ),
+            Ok(Outcome::FilteredSampling(RuleCategories(
+                [
+                    RuleCategory::BoostEnvironments,
+                    RuleCategory::BoostLowVolumeTransactions,
+                    RuleCategory::BoostLatestReleases,
+                    RuleCategory::Custom
+                ]
+                .into()
+            )))
         );
     }
 

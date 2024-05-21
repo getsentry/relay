@@ -1,12 +1,29 @@
 # Changelog
 
+## Unreleased
+
+**Bug fixes**:
+
+- Apply globally defined metric tags to legacy transaction metrics. ([#3615](https://github.com/getsentry/relay/pull/3615))
+
+**Features**:
+
+- Apply legacy inbound filters to standalone spans. ([#3552](https://github.com/getsentry/relay/pull/3552))
+
+**Internal**:
+
+- Send microsecond precision timestamps. ([#3613](https://github.com/getsentry/relay/pull/3613))
+- Map outcome reasons for dynamic sampling to reduced set of values. ([#3623](https://github.com/getsentry/relay/pull/3623))
+- Extract status for spans. ([#3606](https://github.com/getsentry/relay/pull/3606))
+- Forward `received_at` timestamp for buckets sent to Kafka. ([#3561](https://github.com/getsentry/relay/pull/3561))
+
 ## 24.5.0
 
 **Breaking Changes**:
 
 - Remove the AWS lambda extension. ([#3568](https://github.com/getsentry/relay/pull/3568))
 
-**Bug fixes:**
+**Bug fixes**:
 
 - Properly handle AI metrics from the Python SDK's `@ai_track` decorator. ([#3539](https://github.com/getsentry/relay/pull/3539))
 - Mitigate occasional slowness and timeouts of the healthcheck endpoint. The endpoint will now respond promptly an unhealthy state. ([#3567](https://github.com/getsentry/relay/pull/3567))
@@ -34,11 +51,9 @@
 - Add a calculated measurement based on the AI model and the tokens used. ([#3554](https://github.com/getsentry/relay/pull/3554))
 - Restrict usage of OTel endpoint. ([#3597](github.com/getsentry/relay/pull/3597))
 - Support new cache span ops in metrics and tag extraction. ([#3598](https://github.com/getsentry/relay/pull/3598))
-- Send microsecond precision timestamps. ([#3613](https://github.com/getsentry/relay/pull/3613))
 - Extract additional user fields for spans. ([#3599](https://github.com/getsentry/relay/pull/3599))
 - Disable `db.redis` span metrics extraction. ([#3600](https://github.com/getsentry/relay/pull/3600))
 - Extract status for spans. ([#3606](https://github.com/getsentry/relay/pull/3606))
-- Forward `received_at` timestamp for buckets sent to Kafka. ([#3561](https://github.com/getsentry/relay/pull/3561))
 
 ## 24.4.2
 
@@ -46,7 +61,7 @@
 
 - Stop supporting dynamic sampling mode `"total"`, which adjusted for the client sample rate. ([#3474](https://github.com/getsentry/relay/pull/3474))
 
-**Bug fixes:**
+**Bug fixes**:
 
 - Respect country code TLDs when scrubbing span tags. ([#3458](https://github.com/getsentry/relay/pull/3458))
 - Extract HTTP status code from span data when sent as integers. ([#3491](https://github.com/getsentry/relay/pull/3491))
