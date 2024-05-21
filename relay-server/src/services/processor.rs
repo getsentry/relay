@@ -1240,7 +1240,7 @@ impl EnvelopeProcessorService {
                     } else {
                         // If there's an error with global metrics extraction, it is safe to assume that this
                         // Relay instance is not up-to-date, and we should skip extraction.
-                        relay_log::debug!("Failed to parse global extraction config {e}");
+                        relay_log::debug!("Failed to parse global extraction config: {e}");
                         return Ok(());
                     })
                 }
@@ -1249,9 +1249,16 @@ impl EnvelopeProcessorService {
         };
 
         // Require a valid transaction metrics config.
-        let Some(ErrorBoundary::Ok(ref tx_config)) = state.project_state.config.transaction_metrics
-        else {
-            return Ok(());
+        let tx_config = match &state.project_state.config.transaction_metrics {
+            Some(ErrorBoundary::Ok(tx_config)) => tx_config,
+            Some(ErrorBoundary::Err(e)) => {
+                relay_log::debug!("Failed to parse legacy transaction metrics config: {e}");
+                return Ok(());
+            }
+            None => {
+                relay_log::debug!("Legacy transaction metrics config is missing");
+                return Ok(());
+            }
         };
 
         if !tx_config.is_enabled() {
