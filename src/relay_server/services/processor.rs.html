@@ -3643,6 +3643,8 @@
 <a href="#3641" id="3641">3641</a>
 <a href="#3642" id="3642">3642</a>
 <a href="#3643" id="3643">3643</a>
+<a href="#3644" id="3644">3644</a>
+<a href="#3645" id="3645">3645</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
@@ -4851,97 +4853,99 @@
         <span class="prelude-val">Ok</span>(())
     }
 
-    <span class="doccomment">/// Extract metrics from all envelope items.
-    ///
-    /// Caveats:
-    ///  - This functionality is incomplete. At this point, extraction is implemented only for
-    ///    transaction events.
-    </span><span class="kw">fn </span>extract_metrics(
+    <span class="doccomment">/// Extract transaction metrics.
+    </span><span class="kw">fn </span>extract_transaction_metrics(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;TransactionGroup&gt;,
         sampling_result: <span class="kw-2">&amp;</span>SamplingResult,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ProcessingError&gt; {
+        <span class="kw">if </span>state.event_metrics_extracted {
+            <span class="kw">return </span><span class="prelude-val">Ok</span>(());
+        }
+        <span class="kw">let </span><span class="prelude-val">Some</span>(event) = state.event.value() <span class="kw">else </span>{
+            <span class="kw">return </span><span class="prelude-val">Ok</span>(());
+        };
+
         <span class="comment">// NOTE: This function requires a `metric_extraction` in the project config. Legacy configs
         // will upsert this configuration from transaction and conditional tagging fields, even if
-        // it is not present in the actual project config payload. Once transaction metric
-        // extraction is moved to generic metrics, this can be converted into an early return.
-        </span><span class="kw">let </span>config = <span class="kw">match </span><span class="kw-2">&amp;</span>state.project_state.config.metric_extraction {
-            ErrorBoundary::Ok(<span class="kw-2">ref </span>config) <span class="kw">if </span>config.is_enabled() =&gt; <span class="prelude-val">Some</span>(config),
-            <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
-        };
-        <span class="kw">let </span>global = <span class="self">self</span>.inner.global_config.current();
-        <span class="kw">let </span>global_config = <span class="kw">match </span><span class="kw-2">&amp;</span>global.metric_extraction {
-            ErrorBoundary::Ok(global_config) =&gt; global_config,
-            <span class="attr">#[allow(unused_variables)]
-            </span>ErrorBoundary::Err(e) =&gt; {
-                <span class="macro">if_processing!</span>(<span class="self">self</span>.inner.config, {
-                    <span class="comment">// Config is invalid, but we will try to extract what we can with just the
-                    // project config.
-                    </span><span class="macro">relay_log::error!</span>(<span class="string">"Failed to parse global extraction config {e}"</span>);
-                    MetricExtractionGroups::EMPTY
-                } <span class="kw">else </span>{
-                    <span class="comment">// If there's an error with global metrics extraction, it is safe to assume that this
-                    // Relay instance is not up-to-date, and we should skip extraction.
-                    </span><span class="macro">relay_log::debug!</span>(<span class="string">"Failed to parse global extraction config {e}"</span>);
-                    <span class="kw">return </span><span class="prelude-val">Ok</span>(());
-                })
-            }
+        // it is not present in the actual project config payload.
+        </span><span class="kw">let </span>global = <span class="self">self</span>.inner.global_config.current();
+        <span class="kw">let </span>combined_config = {
+            <span class="kw">let </span>config = <span class="kw">match </span><span class="kw-2">&amp;</span>state.project_state.config.metric_extraction {
+                ErrorBoundary::Ok(<span class="kw-2">ref </span>config) <span class="kw">if </span>config.is_supported() =&gt; config,
+                <span class="kw">_ </span>=&gt; <span class="kw">return </span><span class="prelude-val">Ok</span>(()),
+            };
+            <span class="kw">let </span>global_config = <span class="kw">match </span><span class="kw-2">&amp;</span>global.metric_extraction {
+                ErrorBoundary::Ok(global_config) =&gt; global_config,
+                <span class="attr">#[allow(unused_variables)]
+                </span>ErrorBoundary::Err(e) =&gt; {
+                    <span class="macro">if_processing!</span>(<span class="self">self</span>.inner.config, {
+                        <span class="comment">// Config is invalid, but we will try to extract what we can with just the
+                        // project config.
+                        </span><span class="macro">relay_log::error!</span>(<span class="string">"Failed to parse global extraction config {e}"</span>);
+                        MetricExtractionGroups::EMPTY
+                    } <span class="kw">else </span>{
+                        <span class="comment">// If there's an error with global metrics extraction, it is safe to assume that this
+                        // Relay instance is not up-to-date, and we should skip extraction.
+                        </span><span class="macro">relay_log::debug!</span>(<span class="string">"Failed to parse global extraction config: {e}"</span>);
+                        <span class="kw">return </span><span class="prelude-val">Ok</span>(());
+                    })
+                }
+            };
+            CombinedMetricExtractionConfig::new(global_config, config)
         };
 
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(event) = state.event.value() {
-            <span class="kw">if </span>state.event_metrics_extracted {
+        <span class="comment">// Require a valid transaction metrics config.
+        </span><span class="kw">let </span>tx_config = <span class="kw">match </span><span class="kw-2">&amp;</span>state.project_state.config.transaction_metrics {
+            <span class="prelude-val">Some</span>(ErrorBoundary::Ok(tx_config)) =&gt; tx_config,
+            <span class="prelude-val">Some</span>(ErrorBoundary::Err(e)) =&gt; {
+                <span class="macro">relay_log::debug!</span>(<span class="string">"Failed to parse legacy transaction metrics config: {e}"</span>);
                 <span class="kw">return </span><span class="prelude-val">Ok</span>(());
             }
-
-            <span class="kw">if let </span><span class="prelude-val">Some</span>(config) = config {
-                <span class="kw">let </span>combined_config = CombinedMetricExtractionConfig::new(global_config, config);
-
-                <span class="kw">let </span>metrics = <span class="kw">crate</span>::metrics_extraction::event::extract_metrics(
-                    event,
-                    state.spans_extracted,
-                    <span class="kw-2">&amp;</span>combined_config,
-                    <span class="self">self</span>.inner
-                        .config
-                        .aggregator_config_for(MetricNamespace::Spans)
-                        .max_tag_value_length,
-                    global.options.span_extraction_sample_rate,
-                );
-                state.event_metrics_extracted |= !metrics.is_empty();
-                state.extracted_metrics.project_metrics.extend(metrics);
+            <span class="prelude-val">None </span>=&gt; {
+                <span class="macro">relay_log::debug!</span>(<span class="string">"Legacy transaction metrics config is missing"</span>);
+                <span class="kw">return </span><span class="prelude-val">Ok</span>(());
             }
+        };
 
-            <span class="kw">if let </span><span class="prelude-val">Some</span>(ErrorBoundary::Ok(<span class="kw-2">ref </span>tx_config)) =
-                state.project_state.config.transaction_metrics
-            {
-                <span class="kw">if </span>tx_config.is_enabled()
-                    &amp;&amp; !state.project_state.has_feature(Feature::DiscardTransaction)
-                {
-                    <span class="kw">let </span>transaction_from_dsc = state
-                        .managed_envelope
-                        .envelope()
-                        .dsc()
-                        .and_then(|dsc| dsc.transaction.as_deref());
-
-                    <span class="kw">let </span>extractor = TransactionExtractor {
-                        config: tx_config,
-                        generic_tags: config.map(|c| c.tags.as_slice()).unwrap_or_default(),
-                        transaction_from_dsc,
-                        sampling_result,
-                        has_profile: state.profile_id.is_some(),
-                    };
-
-                    state.extracted_metrics.extend(extractor.extract(event)<span class="question-mark">?</span>);
-                    state.event_metrics_extracted |= <span class="bool-val">true</span>;
-                }
-            }
-
-            <span class="kw">if </span>state.event_metrics_extracted {
-                state.managed_envelope.set_event_metrics_extracted();
-            }
+        <span class="kw">if </span>!tx_config.is_enabled() {
+            <span class="kw">return </span><span class="prelude-val">Ok</span>(());
         }
 
-        <span class="comment">// NB: Other items can be added here.
-        </span><span class="prelude-val">Ok</span>(())
+        <span class="kw">let </span>metrics = <span class="kw">crate</span>::metrics_extraction::event::extract_metrics(
+            event,
+            state.spans_extracted,
+            <span class="kw-2">&amp;</span>combined_config,
+            <span class="self">self</span>.inner
+                .config
+                .aggregator_config_for(MetricNamespace::Spans)
+                .max_tag_value_length,
+            global.options.span_extraction_sample_rate,
+        );
+        state.extracted_metrics.project_metrics.extend(metrics);
+
+        <span class="kw">if </span>!state.project_state.has_feature(Feature::DiscardTransaction) {
+            <span class="kw">let </span>transaction_from_dsc = state
+                .managed_envelope
+                .envelope()
+                .dsc()
+                .and_then(|dsc| dsc.transaction.as_deref());
+
+            <span class="kw">let </span>extractor = TransactionExtractor {
+                config: tx_config,
+                generic_config: <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>combined_config),
+                transaction_from_dsc,
+                sampling_result,
+                has_profile: state.profile_id.is_some(),
+            };
+
+            state.extracted_metrics.extend(extractor.extract(event)<span class="question-mark">?</span>);
+        }
+
+        state.event_metrics_extracted = <span class="bool-val">true</span>;
+        state.managed_envelope.set_event_metrics_extracted();
+
+        <span class="prelude-val">Ok</span>(())
     }
 
     <span class="kw">fn </span>normalize_event&lt;G: EventProcessing&gt;(
@@ -5165,7 +5169,7 @@
             <span class="comment">// We avoid extracting metrics if we are not sampling the event while in non-processing
             // relays, in order to synchronize rate limits on indexed and processed transactions.
             </span><span class="kw">if </span><span class="self">self</span>.inner.config.processing_enabled() || sampling_should_drop {
-                <span class="self">self</span>.extract_metrics(state, <span class="kw-2">&amp;</span>sampling_result)<span class="question-mark">?</span>;
+                <span class="self">self</span>.extract_transaction_metrics(state, <span class="kw-2">&amp;</span>sampling_result)<span class="question-mark">?</span>;
             }
 
             dynamic_sampling::sample_envelope_items(

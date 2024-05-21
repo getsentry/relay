@@ -772,6 +772,7 @@
 <a href="#770" id="770">770</a>
 <a href="#771" id="771">771</a>
 <a href="#772" id="772">772</a>
+<a href="#773" id="773">773</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Dynamic configuration for metrics extraction from sessions and transactions.
 
 </span><span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
@@ -889,7 +890,8 @@
 ///      - Delay metrics extraction for indexed transactions.
 ///  - 4: Adds support for `RuleConfigs` with string comparisons.
 ///  - 5: No change, bumped together with [`MetricExtractionConfig::MAX_SUPPORTED_VERSION`].
-</span><span class="kw">const </span>TRANSACTION_EXTRACT_MAX_SUPPORTED_VERSION: u16 = <span class="number">5</span>;
+///  - 6: Bugfix to make transaction metrics extraction apply globally defined tag mappings.
+</span><span class="kw">const </span>TRANSACTION_EXTRACT_MAX_SUPPORTED_VERSION: u16 = <span class="number">6</span>;
 
 <span class="doccomment">/// Deprecated. Defines whether URL transactions should be considered low cardinality.
 </span><span class="attr">#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
@@ -1098,7 +1100,7 @@
     <span class="doccomment">/// The latest version for this config struct.
     ///
     /// This is the maximum version supported by this Relay instance.
-    </span><span class="kw">pub const </span>MAX_SUPPORTED_VERSION: u16 = <span class="number">3</span>;
+    </span><span class="kw">pub const </span>MAX_SUPPORTED_VERSION: u16 = <span class="number">4</span>;
 
     <span class="doccomment">/// Returns an empty `MetricExtractionConfig` with the latest version.
     ///

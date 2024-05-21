@@ -2268,11 +2268,21 @@
 <a href="#2266" id="2266">2266</a>
 <a href="#2267" id="2267">2267</a>
 <a href="#2268" id="2268">2268</a>
+<a href="#2269" id="2269">2269</a>
+<a href="#2270" id="2270">2270</a>
+<a href="#2271" id="2271">2271</a>
+<a href="#2272" id="2272">2272</a>
+<a href="#2273" id="2273">2273</a>
+<a href="#2274" id="2274">2274</a>
+<a href="#2275" id="2275">2275</a>
+<a href="#2276" id="2276">2276</a>
+<a href="#2277" id="2277">2277</a>
+<a href="#2278" id="2278">2278</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
 
 <span class="kw">use </span>relay_base_schema::events::EventType;
 <span class="kw">use </span>relay_common::time::UnixTimestamp;
-<span class="kw">use </span>relay_dynamic_config::{TagMapping, TransactionMetricsConfig};
+<span class="kw">use </span>relay_dynamic_config::{CombinedMetricExtractionConfig, TransactionMetricsConfig};
 <span class="kw">use </span>relay_event_normalization::utils <span class="kw">as </span>normalize_utils;
 <span class="kw">use </span>relay_event_schema::protocol::{
     AsPair, BrowserContext, Event, OsContext, PerformanceScoreContext, TraceContext,
@@ -2517,7 +2527,7 @@
 <span class="doccomment">/// A utility that extracts metrics from transactions.
 </span><span class="kw">pub struct </span>TransactionExtractor&lt;<span class="lifetime">'a</span>&gt; {
     <span class="kw">pub </span>config: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>TransactionMetricsConfig,
-    <span class="kw">pub </span>generic_tags: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>[TagMapping],
+    <span class="kw">pub </span>generic_config: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>CombinedMetricExtractionConfig&lt;<span class="lifetime">'a</span>&gt;&gt;,
     <span class="kw">pub </span>transaction_from_dsc: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>str&gt;,
     <span class="kw">pub </span>sampling_result: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>SamplingResult,
     <span class="kw">pub </span>has_profile: bool,
@@ -2739,8 +2749,10 @@
 
         <span class="comment">// Apply shared tags from generic metric extraction. Transaction metrics will adopt generic
         // metric extraction, after which this is done automatically.
-        </span>generic::tmp_apply_tags(<span class="kw-2">&amp;mut </span>metrics.project_metrics, event, <span class="self">self</span>.generic_tags);
-        generic::tmp_apply_tags(<span class="kw-2">&amp;mut </span>metrics.sampling_metrics, event, <span class="self">self</span>.generic_tags);
+        </span><span class="kw">if let </span><span class="prelude-val">Some</span>(generic_config) = <span class="self">self</span>.generic_config {
+            generic::tmp_apply_tags(<span class="kw-2">&amp;mut </span>metrics.project_metrics, event, generic_config.tags());
+            generic::tmp_apply_tags(<span class="kw-2">&amp;mut </span>metrics.sampling_metrics, event, generic_config.tags());
+        }
 
         <span class="prelude-val">Ok</span>(metrics)
     }
@@ -2770,7 +2782,9 @@
 
 <span class="attr">#[cfg(test)]
 </span><span class="kw">mod </span>tests {
-    <span class="kw">use </span>relay_dynamic_config::AcceptTransactionNames;
+    <span class="kw">use </span>relay_dynamic_config::{
+        AcceptTransactionNames, CombinedMetricExtractionConfig, MetricExtractionConfig, TagMapping,
+    };
     <span class="kw">use </span>relay_event_normalization::{
         normalize_event, set_default_transaction_source, validate_event_timestamps,
         validate_transaction, BreakdownsConfig, CombinedMeasurementsConfig, EventValidationConfig,
@@ -2890,7 +2904,7 @@
 
         <span class="kw">let </span>extractor = TransactionExtractor {
             config: <span class="kw-2">&amp;</span>config,
-            generic_tags: <span class="kw-2">&amp;</span>[],
+            generic_config: <span class="prelude-val">None</span>,
             transaction_from_dsc: <span class="prelude-val">Some</span>(<span class="string">"test_transaction"</span>),
             sampling_result: <span class="kw-2">&amp;</span>SamplingResult::Pending,
             has_profile: <span class="bool-val">false</span>,
@@ -3251,7 +3265,7 @@
         <span class="kw">let </span>config = TransactionMetricsConfig::default();
         <span class="kw">let </span>extractor = TransactionExtractor {
             config: <span class="kw-2">&amp;</span>config,
-            generic_tags: <span class="kw-2">&amp;</span>[],
+            generic_config: <span class="prelude-val">None</span>,
             transaction_from_dsc: <span class="prelude-val">Some</span>(<span class="string">"test_transaction"</span>),
             sampling_result: <span class="kw-2">&amp;</span>SamplingResult::Pending,
             has_profile: <span class="bool-val">false</span>,
@@ -3420,7 +3434,7 @@
         <span class="kw">let </span>config: TransactionMetricsConfig = TransactionMetricsConfig::default();
         <span class="kw">let </span>extractor = TransactionExtractor {
             config: <span class="kw-2">&amp;</span>config,
-            generic_tags: <span class="kw-2">&amp;</span>[],
+            generic_config: <span class="prelude-val">None</span>,
             transaction_from_dsc: <span class="prelude-val">Some</span>(<span class="string">"test_transaction"</span>),
             sampling_result: <span class="kw-2">&amp;</span>SamplingResult::Pending,
             has_profile: <span class="bool-val">false</span>,
@@ -3566,7 +3580,7 @@
         <span class="kw">let </span>config = TransactionMetricsConfig::default();
         <span class="kw">let </span>extractor = TransactionExtractor {
             config: <span class="kw-2">&amp;</span>config,
-            generic_tags: <span class="kw-2">&amp;</span>[],
+            generic_config: <span class="prelude-val">None</span>,
             transaction_from_dsc: <span class="prelude-val">Some</span>(<span class="string">"test_transaction"</span>),
             sampling_result: <span class="kw-2">&amp;</span>SamplingResult::Pending,
             has_profile: <span class="bool-val">false</span>,
@@ -3641,7 +3655,7 @@
         <span class="kw">let </span>config = TransactionMetricsConfig::default();
         <span class="kw">let </span>extractor = TransactionExtractor {
             config: <span class="kw-2">&amp;</span>config,
-            generic_tags: <span class="kw-2">&amp;</span>[],
+            generic_config: <span class="prelude-val">None</span>,
             transaction_from_dsc: <span class="prelude-val">Some</span>(<span class="string">"test_transaction"</span>),
             sampling_result: <span class="kw-2">&amp;</span>SamplingResult::Pending,
             has_profile: <span class="bool-val">false</span>,
@@ -3800,7 +3814,7 @@
         <span class="kw">let </span>config = TransactionMetricsConfig::default();
         <span class="kw">let </span>extractor = TransactionExtractor {
             config: <span class="kw-2">&amp;</span>config,
-            generic_tags: <span class="kw-2">&amp;</span>[],
+            generic_config: <span class="prelude-val">None</span>,
             transaction_from_dsc: <span class="prelude-val">Some</span>(<span class="string">"test_transaction"</span>),
             sampling_result: <span class="kw-2">&amp;</span>SamplingResult::Pending,
             has_profile: <span class="bool-val">false</span>,
@@ -3839,7 +3853,7 @@
         <span class="kw">let </span>config = TransactionMetricsConfig::default();
         <span class="kw">let </span>extractor = TransactionExtractor {
             config: <span class="kw-2">&amp;</span>config,
-            generic_tags: <span class="kw-2">&amp;</span>[],
+            generic_config: <span class="prelude-val">None</span>,
             transaction_from_dsc: <span class="prelude-val">Some</span>(<span class="string">"test_transaction"</span>),
             sampling_result: <span class="kw-2">&amp;</span>SamplingResult::Pending,
             has_profile: <span class="bool-val">false</span>,
@@ -3907,7 +3921,7 @@
         <span class="kw">let </span>config = TransactionMetricsConfig::default();
         <span class="kw">let </span>extractor = TransactionExtractor {
             config: <span class="kw-2">&amp;</span>config,
-            generic_tags: <span class="kw-2">&amp;</span>[],
+            generic_config: <span class="prelude-val">None</span>,
             transaction_from_dsc: <span class="prelude-val">Some</span>(<span class="string">"test_transaction"</span>),
             sampling_result: <span class="kw-2">&amp;</span>SamplingResult::Pending,
             has_profile: <span class="bool-val">false</span>,
@@ -4010,7 +4024,7 @@
         <span class="kw">let </span>config = TransactionMetricsConfig::default();
         <span class="kw">let </span>extractor = TransactionExtractor {
             config: <span class="kw-2">&amp;</span>config,
-            generic_tags: <span class="kw-2">&amp;</span>[],
+            generic_config: <span class="prelude-val">None</span>,
             transaction_from_dsc: <span class="prelude-val">Some</span>(<span class="string">"test_transaction"</span>),
             sampling_result: <span class="kw-2">&amp;</span>SamplingResult::Pending,
             has_profile: <span class="bool-val">false</span>,
@@ -4043,7 +4057,7 @@
         <span class="kw">let </span>config = TransactionMetricsConfig::default();
         <span class="kw">let </span>extractor = TransactionExtractor {
             config: <span class="kw-2">&amp;</span>config,
-            generic_tags: <span class="kw-2">&amp;</span>[],
+            generic_config: <span class="prelude-val">None</span>,
             transaction_from_dsc: <span class="prelude-val">Some</span>(<span class="string">"test_transaction"</span>),
             sampling_result: <span class="kw-2">&amp;</span>SamplingResult::Pending,
             has_profile: <span class="bool-val">false</span>,
@@ -4080,7 +4094,7 @@
         <span class="kw">let </span>config = TransactionMetricsConfig::default();
         <span class="kw">let </span>extractor = TransactionExtractor {
             config: <span class="kw-2">&amp;</span>config,
-            generic_tags: <span class="kw-2">&amp;</span>[],
+            generic_config: <span class="prelude-val">None</span>,
             transaction_from_dsc: <span class="prelude-val">Some</span>(<span class="string">"root_transaction"</span>),
             sampling_result: <span class="kw-2">&amp;</span>SamplingResult::Pending,
             has_profile: <span class="bool-val">false</span>,
@@ -4348,7 +4362,7 @@
         <span class="kw">let </span>config = TransactionMetricsConfig::default();
         <span class="kw">let </span>extractor = TransactionExtractor {
             config: <span class="kw-2">&amp;</span>config,
-            generic_tags: <span class="kw-2">&amp;</span>[],
+            generic_config: <span class="prelude-val">None</span>,
             transaction_from_dsc: <span class="prelude-val">Some</span>(<span class="string">"test_transaction"</span>),
             sampling_result: <span class="kw-2">&amp;</span>SamplingResult::Pending,
             has_profile: <span class="bool-val">false</span>,
@@ -4440,10 +4454,16 @@
             ]"#</span>,
         )
         .unwrap();
+        <span class="kw">let </span>generic_config = MetricExtractionConfig {
+            version: <span class="number">1</span>,
+            tags: generic_tags,
+            ..Default::default()
+        };
+        <span class="kw">let </span>combined_config = CombinedMetricExtractionConfig::from(<span class="kw-2">&amp;</span>generic_config);
 
         <span class="kw">let </span>extractor = TransactionExtractor {
             config: <span class="kw-2">&amp;</span>config,
-            generic_tags: <span class="kw-2">&amp;</span>generic_tags,
+            generic_config: <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>combined_config),
             transaction_from_dsc: <span class="prelude-val">Some</span>(<span class="string">"test_transaction"</span>),
             sampling_result: <span class="kw-2">&amp;</span>SamplingResult::Pending,
             has_profile: <span class="bool-val">false</span>,
