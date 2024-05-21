@@ -25,7 +25,7 @@ docker run \
   -e $TARGET_LINKER \
   -e CARGO_BUILD_TARGET \
   ${BUILDER_NAME} \
-  bash -c 'cargo build -p relay-cabi --release'
+  bash -c 'cargo build -p relay-cabi --profile release-cabi'
 
 # create a wheel for the correct architecture
 docker run \

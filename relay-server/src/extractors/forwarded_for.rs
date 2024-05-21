@@ -36,15 +36,16 @@ impl ForwardedFor {
     /// reverse proxies.
     ///
     /// First match wins in order:
+    /// - [`Self::CLOUDFLARE_FORWARDED_HEADER`], highest priority since users may use Cloudflare
+    /// infront of Vercel, it is generally the first layer.
     /// - [`Self::VERCEL_FORWARDED_HEADER`]
-    /// - [`Self::CLOUDFLARE_FORWARDED_HEADER`]
     /// - [`Self::SENTRY_FORWARDED_HEADER`]
     /// - [`Self::FORWARDED_HEADER`].
     fn get_forwarded_for_ip(header_map: &HeaderMap) -> Option<&str> {
         // List of headers to check from highest to lowest priority.
         let headers = [
-            Self::VERCEL_FORWARDED_HEADER,
             Self::CLOUDFLARE_FORWARDED_HEADER,
+            Self::VERCEL_FORWARDED_HEADER,
             Self::SENTRY_FORWARDED_HEADER,
             Self::FORWARDED_HEADER,
         ];

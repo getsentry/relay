@@ -6,12 +6,11 @@ use relay_cardinality::{CardinalityLimit, CardinalityReport};
 use relay_config::Config;
 #[cfg(feature = "processing")]
 use relay_metrics::GaugeValue;
-use relay_metrics::{
-    Aggregator, Bucket, BucketValue, BucketView, MergeBuckets, MetricName, UnixTimestamp,
-};
+use relay_metrics::{Aggregator, Bucket, BucketValue, MergeBuckets, MetricName, UnixTimestamp};
 use relay_quotas::Scoping;
 use relay_system::Addr;
 
+use crate::metrics::TrackableBucket;
 use crate::services::global_config::GlobalConfigHandle;
 use crate::services::outcome::Outcome;
 use crate::utils::is_rolled_out;
@@ -62,22 +61,18 @@ impl MetricStats {
     }
 
     /// Tracks the metric volume and outcome for the bucket.
-    pub fn track_metric<'a, T>(&self, scoping: Scoping, bucket: T, outcome: Outcome)
-    where
-        T: Into<BucketView<'a>>,
-    {
+    pub fn track_metric(&self, scoping: Scoping, bucket: impl TrackableBucket, outcome: &Outcome) {
         if !self.is_enabled(scoping) {
             return;
         }
 
-        let bucket = bucket.into();
-        let Some(volume) = self.to_volume_metric(&bucket, &outcome) else {
+        let Some(volume) = self.to_volume_metric(&bucket, outcome) else {
             return;
         };
 
         relay_log::trace!(
             "Tracking volume of {} for mri '{}': {}",
-            bucket.metadata().merges.get(),
+            bucket.metadata().merges,
             bucket.name(),
             outcome
         );
@@ -125,8 +120,8 @@ impl MetricStats {
         is_rolled_out(organization_id, rate)
     }
 
-    fn to_volume_metric(&self, bucket: &BucketView<'_>, outcome: &Outcome) -> Option<Bucket> {
-        let volume = bucket.metadata().merges.get();
+    fn to_volume_metric(&self, bucket: impl TrackableBucket, outcome: &Outcome) -> Option<Bucket> {
+        let volume = bucket.metadata().merges;
         if volume == 0 {
             return None;
         }
@@ -199,7 +194,7 @@ impl MetricStats {
         }
 
         Some(Bucket {
-            timestamp: UnixTimestamp::now(),
+            timestamp: report.timestamp,
             width: 0,
             name: cardinality_metric_mri(),
             value: BucketValue::Gauge(GaugeValue::single(cardinality.into())),
@@ -221,6 +216,12 @@ mod tests {
     use tokio::sync::mpsc::UnboundedReceiver;
 
     use super::*;
+
+    impl MetricStats {
+        pub fn test() -> (Self, UnboundedReceiver<Aggregator>) {
+            create_metric_stats(1.0)
+        }
+    }
 
     fn create_metric_stats(rollout_rate: f32) -> (MetricStats, UnboundedReceiver<Aggregator>) {
         let config = Config::from_json_value(serde_json::json!({
@@ -265,13 +266,13 @@ mod tests {
         let scoping = scoping();
         let mut bucket = Bucket::parse(b"rt@millisecond:57|d", UnixTimestamp::now()).unwrap();
 
-        ms.track_metric(scoping, &bucket.clone(), Outcome::Accepted);
+        ms.track_metric(scoping, &bucket, &Outcome::Accepted);
 
         bucket.metadata.merges = bucket.metadata.merges.saturating_add(41);
         ms.track_metric(
             scoping,
             &bucket,
-            Outcome::RateLimited(Some(ReasonCode::new("foobar"))),
+            &Outcome::RateLimited(Some(ReasonCode::new("foobar"))),
         );
 
         drop(ms);
@@ -341,6 +342,7 @@ mod tests {
             namespace: None,
         };
         let report = CardinalityReport {
+            timestamp: UnixTimestamp::from_secs(3333),
             organization_id: Some(scoping.organization_id),
             project_id: Some(scoping.project_id),
             metric_type: None,
@@ -362,6 +364,7 @@ mod tests {
         let bucket = buckets.pop().unwrap();
 
         assert_eq!(&*bucket.name, "g:metric_stats/cardinality@none");
+        assert_eq!(bucket.timestamp, UnixTimestamp::from_secs(3333));
         assert_eq!(
             bucket.value,
             BucketValue::Gauge(GaugeValue {
@@ -406,6 +409,7 @@ mod tests {
             namespace: Some(MetricNamespace::Spans),
         };
         let report = CardinalityReport {
+            timestamp: UnixTimestamp::from_secs(2222),
             organization_id: Some(scoping.organization_id),
             project_id: Some(scoping.project_id),
             metric_type: Some(MetricType::Distribution),
@@ -427,6 +431,7 @@ mod tests {
         let bucket = buckets.pop().unwrap();
 
         assert_eq!(&*bucket.name, "g:metric_stats/cardinality@none");
+        assert_eq!(bucket.timestamp, UnixTimestamp::from_secs(2222));
         assert_eq!(
             bucket.value,
             BucketValue::Gauge(GaugeValue {
@@ -457,7 +462,7 @@ mod tests {
 
         let scoping = scoping();
         let bucket = Bucket::parse(b"rt@millisecond:57|d", UnixTimestamp::now()).unwrap();
-        ms.track_metric(scoping, &bucket, Outcome::Accepted);
+        ms.track_metric(scoping, &bucket, &Outcome::Accepted);
 
         drop(ms);
 
@@ -471,7 +476,7 @@ mod tests {
         let scoping = scoping();
         let bucket =
             Bucket::parse(b"transactions/rt@millisecond:57|d", UnixTimestamp::now()).unwrap();
-        ms.track_metric(scoping, &bucket, Outcome::Accepted);
+        ms.track_metric(scoping, &bucket, &Outcome::Accepted);
 
         drop(ms);
 

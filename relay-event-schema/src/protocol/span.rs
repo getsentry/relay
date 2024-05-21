@@ -266,21 +266,13 @@ pub struct SpanData {
     #[metastructure(field = "ai.pipeline.name")]
     pub ai_pipeline_name: Annotated<Value>,
 
+    /// The Model ID of an AI pipeline, e.g., gpt-4
+    #[metastructure(field = "ai.model_id")]
+    pub ai_model_id: Annotated<Value>,
+
     /// The input messages to an AI model call
     #[metastructure(field = "ai.input_messages")]
     pub ai_input_messages: Annotated<Value>,
-
-    /// The number of tokens used to generate the response to an AI call
-    #[metastructure(field = "ai.completion_tokens.used", pii = "false")]
-    pub ai_completion_tokens_used: Annotated<Value>,
-
-    /// The number of tokens used to process a request for an AI call
-    #[metastructure(field = "ai.prompt_tokens.used", pii = "false")]
-    pub ai_prompt_tokens_used: Annotated<Value>,
-
-    /// The total number of tokens used to for an AI call
-    #[metastructure(field = "ai.total_tokens.used", pii = "false")]
-    pub ai_total_tokens_used: Annotated<Value>,
 
     /// The responses to an AI model call
     #[metastructure(field = "ai.responses")]
@@ -358,6 +350,18 @@ pub struct SpanData {
     #[metastructure(field = "messaging.message.id")]
     pub messaging_message_id: Annotated<Value>,
 
+    /// Value of the HTTP User-Agent header sent by the client.
+    #[metastructure(field = "user_agent.original")]
+    pub user_agent_original: Annotated<String>,
+
+    /// Absolute URL of a network resource.
+    #[metastructure(field = "url.full")]
+    pub url_full: Annotated<String>,
+
+    /// The client's IP address.
+    #[metastructure(field = "client.address")]
+    pub client_address: Annotated<String>,
+
     /// Other fields in `span.data`.
     #[metastructure(additional_properties, pii = "true", retain = "true")]
     other: Object<Value>,
@@ -394,6 +398,7 @@ impl Getter for SpanData {
             "ui\\.component_name" => self.ui_component_name.value()?.into(),
             "url\\.scheme" => self.url_scheme.value()?.into(),
             "transaction" => self.segment_name.as_str()?.into(),
+            "release" => self.release.as_str()?.into(),
             _ => {
                 let escaped = path.replace("\\.", "\0");
                 let mut path = escaped.split('.').map(|s| s.replace('\0', "."));
@@ -587,7 +592,10 @@ mod tests {
         "messaging.message.retry.count": 3,
         "messaging.message.receive.latency": 40,
         "messaging.message.body.size": 100,
-        "messaging.message.id": "abc123"
+        "messaging.message.id": "abc123",
+        "user_agent.original": "Chrome",
+        "url.full": "my_url.com",
+        "client.address": "192.168.0.1"
     }"#;
         let data = Annotated::<SpanData>::from_json(data)
             .unwrap()
@@ -625,10 +633,8 @@ mod tests {
             cache_item_size: ~,
             http_response_status_code: ~,
             ai_pipeline_name: ~,
+            ai_model_id: ~,
             ai_input_messages: ~,
-            ai_completion_tokens_used: ~,
-            ai_prompt_tokens_used: ~,
-            ai_total_tokens_used: ~,
             ai_responses: ~,
             thread_name: ~,
             segment_name: ~,
@@ -665,6 +671,9 @@ mod tests {
             messaging_message_id: String(
                 "abc123",
             ),
+            user_agent_original: "Chrome",
+            url_full: "my_url.com",
+            client_address: "192.168.0.1",
             other: {
                 "bar": String(
                     "3",

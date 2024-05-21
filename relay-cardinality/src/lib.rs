@@ -16,7 +16,9 @@ mod window;
 
 pub use self::config::*;
 pub use self::error::*;
-pub use self::limiter::{CardinalityItem, CardinalityLimits, CardinalityReport, Scoping};
+pub use self::limiter::{
+    CardinalityItem, CardinalityLimits, CardinalityLimitsSplit, CardinalityReport, Scoping,
+};
 #[cfg(feature = "redis")]
 pub use self::redis::{RedisSetLimiter, RedisSetLimiterOptions};
 pub use self::window::SlidingWindow;

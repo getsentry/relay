@@ -2,7 +2,9 @@
 //! the implementation for [`Event`].
 use url::Url;
 
-use relay_event_schema::protocol::{Csp, Event, EventType, Exception, LogEntry, Replay, Values};
+use relay_event_schema::protocol::{
+    Csp, Event, EventType, Exception, LogEntry, Replay, Span, Values,
+};
 
 /// A data item to which filters can be applied.
 pub trait Filterable {
@@ -106,5 +108,43 @@ impl Filterable for Replay {
 
     fn user_agent(&self) -> Option<&str> {
         self.user_agent()
+    }
+}
+
+impl Filterable for Span {
+    fn csp(&self) -> Option<&Csp> {
+        // Only for events.
+        None
+    }
+
+    fn exceptions(&self) -> Option<&Values<Exception>> {
+        // Only for events.
+        None
+    }
+
+    fn ip_addr(&self) -> Option<&str> {
+        self.data.value()?.client_address.as_str()
+    }
+
+    fn logentry(&self) -> Option<&LogEntry> {
+        // Only for events.
+        None
+    }
+
+    fn release(&self) -> Option<&str> {
+        self.data.value()?.release.as_str()
+    }
+
+    fn transaction(&self) -> Option<&str> {
+        self.data.value()?.segment_name.as_str()
+    }
+
+    fn url(&self) -> Option<Url> {
+        let url_str = self.data.value()?.url_full.as_str()?;
+        Url::parse(url_str).ok()
+    }
+
+    fn user_agent(&self) -> Option<&str> {
+        self.data.value()?.user_agent_original.as_str()
     }
 }

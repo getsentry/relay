@@ -2,7 +2,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use relay_base_schema::events::EventType;
 use relay_common::time::UnixTimestamp;
-use relay_dynamic_config::{TagMapping, TransactionMetricsConfig};
+use relay_dynamic_config::{CombinedMetricExtractionConfig, TransactionMetricsConfig};
 use relay_event_normalization::utils as normalize_utils;
 use relay_event_schema::protocol::{
     AsPair, BrowserContext, Event, OsContext, PerformanceScoreContext, TraceContext,
@@ -247,7 +247,7 @@ impl ExtractedMetrics {
 /// A utility that extracts metrics from transactions.
 pub struct TransactionExtractor<'a> {
     pub config: &'a TransactionMetricsConfig,
-    pub generic_tags: &'a [TagMapping],
+    pub generic_config: Option<&'a CombinedMetricExtractionConfig<'a>>,
     pub transaction_from_dsc: Option<&'a str>,
     pub sampling_result: &'a SamplingResult,
     pub has_profile: bool,
@@ -469,8 +469,10 @@ impl TransactionExtractor<'_> {
 
         // Apply shared tags from generic metric extraction. Transaction metrics will adopt generic
         // metric extraction, after which this is done automatically.
-        generic::tmp_apply_tags(&mut metrics.project_metrics, event, self.generic_tags);
-        generic::tmp_apply_tags(&mut metrics.sampling_metrics, event, self.generic_tags);
+        if let Some(generic_config) = self.generic_config {
+            generic::tmp_apply_tags(&mut metrics.project_metrics, event, generic_config.tags());
+            generic::tmp_apply_tags(&mut metrics.sampling_metrics, event, generic_config.tags());
+        }
 
         Ok(metrics)
     }
@@ -500,7 +502,9 @@ fn get_measurement_rating(name: &str, value: f64) -> Option<String> {
 
 #[cfg(test)]
 mod tests {
-    use relay_dynamic_config::AcceptTransactionNames;
+    use relay_dynamic_config::{
+        AcceptTransactionNames, CombinedMetricExtractionConfig, MetricExtractionConfig, TagMapping,
+    };
     use relay_event_normalization::{
         normalize_event, set_default_transaction_source, validate_event_timestamps,
         validate_transaction, BreakdownsConfig, CombinedMeasurementsConfig, EventValidationConfig,
@@ -620,7 +624,7 @@ mod tests {
 
         let extractor = TransactionExtractor {
             config: &config,
-            generic_tags: &[],
+            generic_config: None,
             transaction_from_dsc: Some("test_transaction"),
             sampling_result: &SamplingResult::Pending,
             has_profile: false,
@@ -981,7 +985,7 @@ mod tests {
         let config = TransactionMetricsConfig::default();
         let extractor = TransactionExtractor {
             config: &config,
-            generic_tags: &[],
+            generic_config: None,
             transaction_from_dsc: Some("test_transaction"),
             sampling_result: &SamplingResult::Pending,
             has_profile: false,
@@ -1150,7 +1154,7 @@ mod tests {
         let config: TransactionMetricsConfig = TransactionMetricsConfig::default();
         let extractor = TransactionExtractor {
             config: &config,
-            generic_tags: &[],
+            generic_config: None,
             transaction_from_dsc: Some("test_transaction"),
             sampling_result: &SamplingResult::Pending,
             has_profile: false,
@@ -1296,7 +1300,7 @@ mod tests {
         let config = TransactionMetricsConfig::default();
         let extractor = TransactionExtractor {
             config: &config,
-            generic_tags: &[],
+            generic_config: None,
             transaction_from_dsc: Some("test_transaction"),
             sampling_result: &SamplingResult::Pending,
             has_profile: false,
@@ -1371,7 +1375,7 @@ mod tests {
         let config = TransactionMetricsConfig::default();
         let extractor = TransactionExtractor {
             config: &config,
-            generic_tags: &[],
+            generic_config: None,
             transaction_from_dsc: Some("test_transaction"),
             sampling_result: &SamplingResult::Pending,
             has_profile: false,
@@ -1530,7 +1534,7 @@ mod tests {
         let config = TransactionMetricsConfig::default();
         let extractor = TransactionExtractor {
             config: &config,
-            generic_tags: &[],
+            generic_config: None,
             transaction_from_dsc: Some("test_transaction"),
             sampling_result: &SamplingResult::Pending,
             has_profile: false,
@@ -1569,7 +1573,7 @@ mod tests {
         let config = TransactionMetricsConfig::default();
         let extractor = TransactionExtractor {
             config: &config,
-            generic_tags: &[],
+            generic_config: None,
             transaction_from_dsc: Some("test_transaction"),
             sampling_result: &SamplingResult::Pending,
             has_profile: false,
@@ -1637,7 +1641,7 @@ mod tests {
         let config = TransactionMetricsConfig::default();
         let extractor = TransactionExtractor {
             config: &config,
-            generic_tags: &[],
+            generic_config: None,
             transaction_from_dsc: Some("test_transaction"),
             sampling_result: &SamplingResult::Pending,
             has_profile: false,
@@ -1740,7 +1744,7 @@ mod tests {
         let config = TransactionMetricsConfig::default();
         let extractor = TransactionExtractor {
             config: &config,
-            generic_tags: &[],
+            generic_config: None,
             transaction_from_dsc: Some("test_transaction"),
             sampling_result: &SamplingResult::Pending,
             has_profile: false,
@@ -1773,7 +1777,7 @@ mod tests {
         let config = TransactionMetricsConfig::default();
         let extractor = TransactionExtractor {
             config: &config,
-            generic_tags: &[],
+            generic_config: None,
             transaction_from_dsc: Some("test_transaction"),
             sampling_result: &SamplingResult::Pending,
             has_profile: false,
@@ -1810,7 +1814,7 @@ mod tests {
         let config = TransactionMetricsConfig::default();
         let extractor = TransactionExtractor {
             config: &config,
-            generic_tags: &[],
+            generic_config: None,
             transaction_from_dsc: Some("root_transaction"),
             sampling_result: &SamplingResult::Pending,
             has_profile: false,
@@ -2078,7 +2082,7 @@ mod tests {
         let config = TransactionMetricsConfig::default();
         let extractor = TransactionExtractor {
             config: &config,
-            generic_tags: &[],
+            generic_config: None,
             transaction_from_dsc: Some("test_transaction"),
             sampling_result: &SamplingResult::Pending,
             has_profile: false,
@@ -2170,10 +2174,16 @@ mod tests {
             ]"#,
         )
         .unwrap();
+        let generic_config = MetricExtractionConfig {
+            version: 1,
+            tags: generic_tags,
+            ..Default::default()
+        };
+        let combined_config = CombinedMetricExtractionConfig::from(&generic_config);
 
         let extractor = TransactionExtractor {
             config: &config,
-            generic_tags: &generic_tags,
+            generic_config: Some(&combined_config),
             transaction_from_dsc: Some("test_transaction"),
             sampling_result: &SamplingResult::Pending,
             has_profile: false,
