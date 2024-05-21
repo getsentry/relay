@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Internal**:
+
+- Map outcome reasons for dynamic sampling to reduced set of values. ([#3623](https://github.com/getsentry/relay/pull/3623))
+
 ## 24.5.0
 
 **Breaking Changes**:

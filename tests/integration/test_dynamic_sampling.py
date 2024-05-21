@@ -238,7 +238,7 @@ def test_it_removes_events(mini_sentry, relay):
     public_key = config["publicKeys"][0]["publicKey"]
 
     # add a sampling rule to project config that removes all transactions (sample_rate=0)
-    rules = _add_sampling_config(config, sample_rate=0, rule_type="transaction")
+    _add_sampling_config(config, sample_rate=0, rule_type="transaction")
 
     # create an envelope with a trace context that is initiated by this project (for simplicity)
     envelope, trace_id, event_id = _create_transaction_envelope(public_key)
@@ -253,7 +253,7 @@ def test_it_removes_events(mini_sentry, relay):
     assert outcomes is not None
     outcome = outcomes["outcomes"][0]
     assert outcome.get("outcome") == 1
-    assert outcome.get("reason") == f"Sampled:{rules[0]['id']}"
+    assert outcome.get("reason") == "Sampled:0"
 
 
 def test_it_does_not_sample_error(mini_sentry, relay):
@@ -392,7 +392,7 @@ def test_sample_on_parametrized_root_transaction(mini_sentry, relay):
     relay.send_envelope(project_id, envelope)
 
     outcome = mini_sentry.captured_outcomes.get(timeout=2)
-    assert outcome["outcomes"][0]["reason"] == "Sampled:1"
+    assert outcome["outcomes"][0]["reason"] == "Sampled:0"
 
 
 def test_it_keeps_events(mini_sentry, relay):
