@@ -664,6 +664,9 @@ pub enum RelayCounters {
     /// Counts how many transactions were created from segment spans.
     #[cfg(feature = "processing")]
     TransactionsFromSpans,
+    /// Counter for when the DSC is missing from an event that comes from an SDK that should support
+    /// it.
+    MissingDynamicSamplingContext,
 }
 
 impl CounterMetric for RelayCounters {
@@ -705,6 +708,7 @@ impl CounterMetric for RelayCounters {
             RelayCounters::DynamicSamplingDecision => "dynamic_sampling_decision",
             #[cfg(feature = "processing")]
             RelayCounters::TransactionsFromSpans => "transactions_from_spans",
+            RelayCounters::MissingDynamicSamplingContext => "missing_dynamic_sampling_context",
         }
     }
 }
