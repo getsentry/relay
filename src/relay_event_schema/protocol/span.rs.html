@@ -677,6 +677,25 @@
 <a href="#675" id="675">675</a>
 <a href="#676" id="676">676</a>
 <a href="#677" id="677">677</a>
+<a href="#678" id="678">678</a>
+<a href="#679" id="679">679</a>
+<a href="#680" id="680">680</a>
+<a href="#681" id="681">681</a>
+<a href="#682" id="682">682</a>
+<a href="#683" id="683">683</a>
+<a href="#684" id="684">684</a>
+<a href="#685" id="685">685</a>
+<a href="#686" id="686">686</a>
+<a href="#687" id="687">687</a>
+<a href="#688" id="688">688</a>
+<a href="#689" id="689">689</a>
+<a href="#690" id="690">690</a>
+<a href="#691" id="691">691</a>
+<a href="#692" id="692">692</a>
+<a href="#693" id="693">693</a>
+<a href="#694" id="694">694</a>
+<a href="#695" id="695">695</a>
+<a href="#696" id="696">696</a>
 </pre></div><pre class="rust"><code><span class="kw">mod </span>convert;
 
 <span class="attr">#[cfg(feature = <span class="string">"jsonschema"</span>)]
@@ -1029,6 +1048,18 @@
     </span><span class="attr">#[metastructure(field = <span class="string">"messaging.message.id"</span>)]
     </span><span class="kw">pub </span>messaging_message_id: Annotated&lt;Value&gt;,
 
+    <span class="doccomment">/// Value of the HTTP User-Agent header sent by the client.
+    </span><span class="attr">#[metastructure(field = <span class="string">"user_agent.original"</span>)]
+    </span><span class="kw">pub </span>user_agent_original: Annotated&lt;String&gt;,
+
+    <span class="doccomment">/// Absolute URL of a network resource.
+    </span><span class="attr">#[metastructure(field = <span class="string">"url.full"</span>)]
+    </span><span class="kw">pub </span>url_full: Annotated&lt;String&gt;,
+
+    <span class="doccomment">/// The client's IP address.
+    </span><span class="attr">#[metastructure(field = <span class="string">"client.address"</span>)]
+    </span><span class="kw">pub </span>client_address: Annotated&lt;String&gt;,
+
     <span class="doccomment">/// Other fields in `span.data`.
     </span><span class="attr">#[metastructure(additional_properties, pii = <span class="string">"true"</span>, retain = <span class="string">"true"</span>)]
     </span>other: Object&lt;Value&gt;,
@@ -1065,6 +1096,7 @@
             <span class="string">"ui\\.component_name" </span>=&gt; <span class="self">self</span>.ui_component_name.value()<span class="question-mark">?</span>.into(),
             <span class="string">"url\\.scheme" </span>=&gt; <span class="self">self</span>.url_scheme.value()<span class="question-mark">?</span>.into(),
             <span class="string">"transaction" </span>=&gt; <span class="self">self</span>.segment_name.as_str()<span class="question-mark">?</span>.into(),
+            <span class="string">"release" </span>=&gt; <span class="self">self</span>.release.as_str()<span class="question-mark">?</span>.into(),
             <span class="kw">_ </span>=&gt; {
                 <span class="kw">let </span>escaped = path.replace(<span class="string">"\\."</span>, <span class="string">"\0"</span>);
                 <span class="kw">let </span><span class="kw-2">mut </span>path = escaped.split(<span class="string">'.'</span>).map(|s| s.replace(<span class="string">'\0'</span>, <span class="string">"."</span>));
@@ -1258,7 +1290,10 @@
         "messaging.message.retry.count": 3,
         "messaging.message.receive.latency": 40,
         "messaging.message.body.size": 100,
-        "messaging.message.id": "abc123"
+        "messaging.message.id": "abc123",
+        "user_agent.original": "Chrome",
+        "url.full": "my_url.com",
+        "client.address": "192.168.0.1"
     }"#</span>;
         <span class="kw">let </span>data = Annotated::&lt;SpanData&gt;::from_json(data)
             .unwrap()
@@ -1334,6 +1369,9 @@
             messaging_message_id: String(
                 "abc123",
             ),
+            user_agent_original: "Chrome",
+            url_full: "my_url.com",
+            client_address: "192.168.0.1",
             other: {
                 "bar": String(
                     "3",

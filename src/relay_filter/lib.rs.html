@@ -124,7 +124,7 @@
     global_config: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>GenericFiltersConfig&gt;,
 ) -&gt; <span class="prelude-ty">Result</span>&lt;(), FilterStatKey&gt; {
     <span class="comment">// In order to maintain backwards compatibility, we still want to run the old matching logic,
-    // but we will try to match generic filters first, since the goal is to eventually fade out the
+    // but we will try to match generic filters first, since the goal is to eventually fade out
     // the normal filters except for the ones that have complex conditions.
     </span>generic::should_filter(item, <span class="kw-2">&amp;</span>config.generic, global_config)<span class="question-mark">?</span>;
 
