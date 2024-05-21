@@ -655,10 +655,6 @@ pub enum RelayCounters {
     TransactionsFromSpans,
 
     /// The number of attachments processed in the same envelope as a user_report_v2 event.
-    ///
-    /// This metric is tagged with:
-    ///  - `organization_id`: Organization the feedback is sent to
-    ///  - `project_id`: Project the feedback is sent to
     #[cfg(feature = "processing")]
     FeedbackAttachments,
 }
