@@ -29,4 +29,3 @@ thiserror = { workspace = true }
 
 [dev-dependencies]
 insta = { workspace = true }
-serde_test = { workspace = true }

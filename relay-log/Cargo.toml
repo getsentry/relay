@@ -14,7 +14,6 @@ build = "build.rs"
 workspace = true
 
 [dependencies]
-chrono = { workspace = true, features = ["clock"], optional = true }
 console = { workspace = true, optional = true }
 once_cell = { workspace = true, optional = true }
 relay-common = { workspace = true }
@@ -28,7 +27,6 @@ tokio = { workspace = true, default-features = false, features = [
     "sync",
 ], optional = true }
 serde = { workspace = true, optional = true }
-serde_json = { workspace = true, optional = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true, features = [
     "env-filter",
@@ -41,11 +39,9 @@ default = []
 dashboard = ["dep:once_cell", "dep:tokio"]
 test = ["dep:tracing-subscriber"]
 init = [
-    "dep:chrono",
     "dep:console",
     "dep:sentry",
     "dep:serde",
-    "dep:serde_json",
     "dep:tracing-subscriber",
 ]
 crash-handler = ["init", "dep:relay-crash"]

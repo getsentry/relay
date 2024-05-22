@@ -48,14 +48,12 @@ axum = { workspace = true, features = [
 axum-server = { workspace = true }
 backoff = { workspace = true }
 brotli = { workspace = true }
-bytecount = { workspace = true }
 bytes = { workspace = true, features = ["serde"] }
 chrono = { workspace = true, features = ["clock"] }
 data-encoding = { workspace = true }
 flate2 = { workspace = true }
 fnv = { workspace = true }
 futures = { workspace = true }
-hash32 = { workspace = true }
 hashbrown = { workspace = true }
 itertools = { workspace = true }
 json-forensics = { workspace = true }
