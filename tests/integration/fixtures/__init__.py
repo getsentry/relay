@@ -121,7 +121,7 @@ class SentryLike:
             else:
                 yield from self.upstream.iter_public_keys()
 
-    def get_features(
+    def get_remote_config(
         self,
         project_id,
         headers=None,
@@ -134,7 +134,7 @@ class SentryLike:
             **(headers or {}),
         }
 
-        url = "/api/%s/features/" % project_id
+        url = "/api/%s/configuration/" % project_id
         response = self.get(url, headers=headers)
         response.raise_for_status()
         return response.json()
