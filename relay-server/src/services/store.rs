@@ -31,6 +31,7 @@ use uuid::Uuid;
 use crate::envelope::{AttachmentType, Envelope, Item, ItemType};
 
 use crate::metrics::MetricOutcomes;
+use crate::service::ServiceError;
 use crate::services::global_config::GlobalConfigHandle;
 use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::services::processor::Processed;
