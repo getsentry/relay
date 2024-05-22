@@ -468,10 +468,9 @@ pub fn extract_tags(
                 span_tags.insert(SpanTagKey::CacheHit, tag_value.to_owned());
             }
             if let Some(cache_keys) = span.data.value().and_then(|data| data.cache_key.value()) {
-                span_tags.insert(
-                    SpanTagKey::CacheKey,
-                    serde_json::to_string(cache_keys).unwrap(),
-                );
+                if let Ok(cache_keys) = serde_json::to_string(cache_keys) {
+                    span_tags.insert(SpanTagKey::CacheKey, cache_keys);
+                }
             }
         }
 
