@@ -115,7 +115,8 @@ pub struct CustomMeasurementConfig {
 ///      - Delay metrics extraction for indexed transactions.
 ///  - 4: Adds support for `RuleConfigs` with string comparisons.
 ///  - 5: No change, bumped together with [`MetricExtractionConfig::MAX_SUPPORTED_VERSION`].
-const TRANSACTION_EXTRACT_MAX_SUPPORTED_VERSION: u16 = 5;
+///  - 6: Bugfix to make transaction metrics extraction apply globally defined tag mappings.
+const TRANSACTION_EXTRACT_MAX_SUPPORTED_VERSION: u16 = 6;
 
 /// Deprecated. Defines whether URL transactions should be considered low cardinality.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
@@ -324,7 +325,7 @@ impl MetricExtractionConfig {
     /// The latest version for this config struct.
     ///
     /// This is the maximum version supported by this Relay instance.
-    pub const MAX_SUPPORTED_VERSION: u16 = 3;
+    pub const MAX_SUPPORTED_VERSION: u16 = 4;
 
     /// Returns an empty `MetricExtractionConfig` with the latest version.
     ///

@@ -166,7 +166,7 @@ impl Limiter for RedisSetLimiter {
             )?;
 
             for result in results {
-                reporter.report_cardinality(state.cardinality_limit(), result.to_report());
+                reporter.report_cardinality(state.cardinality_limit(), result.to_report(timestamp));
 
                 // This always acquires a write lock, but we only hit this
                 // if we previously didn't satisfy the request from the cache,
@@ -212,8 +212,9 @@ impl CheckedLimits {
         })
     }
 
-    fn to_report(&self) -> CardinalityReport {
+    fn to_report(&self, timestamp: UnixTimestamp) -> CardinalityReport {
         CardinalityReport {
+            timestamp,
             organization_id: self.scope.organization_id,
             project_id: self.scope.project_id,
             metric_type: self.scope.metric_type,
@@ -408,6 +409,10 @@ mod tests {
             }
             reporter
         }
+
+        fn timestamp(&self) -> UnixTimestamp {
+            self.timestamp + self.time_offset
+        }
     }
 
     #[test]
@@ -501,6 +506,7 @@ mod tests {
             reports,
             &[
                 CardinalityReport {
+                    timestamp: limiter.timestamp(),
                     organization_id: Some(scoping.organization_id),
                     project_id: Some(scoping.project_id),
                     metric_type: None,
@@ -508,6 +514,7 @@ mod tests {
                     cardinality: 2,
                 },
                 CardinalityReport {
+                    timestamp: limiter.timestamp(),
                     organization_id: Some(scoping.organization_id),
                     project_id: Some(scoping.project_id),
                     metric_type: None,
@@ -560,6 +567,7 @@ mod tests {
             reports,
             &[
                 CardinalityReport {
+                    timestamp: limiter.timestamp(),
                     organization_id: Some(scoping.organization_id),
                     project_id: Some(scoping.project_id),
                     metric_type: Some(MetricType::Counter),
@@ -567,6 +575,7 @@ mod tests {
                     cardinality: 2,
                 },
                 CardinalityReport {
+                    timestamp: limiter.timestamp(),
                     organization_id: Some(scoping.organization_id),
                     project_id: Some(scoping.project_id),
                     metric_type: Some(MetricType::Distribution),
@@ -893,6 +902,7 @@ mod tests {
                 assert_eq!(
                     rejected.reports.get(&limits[0]).unwrap(),
                     &[CardinalityReport {
+                        timestamp: limiter.timestamp(),
                         organization_id: Some(scoping.organization_id),
                         project_id: None,
                         metric_type: None,
@@ -903,6 +913,7 @@ mod tests {
                 assert_eq!(
                     rejected.reports.get(&limits[1]).unwrap(),
                     &[CardinalityReport {
+                        timestamp: limiter.timestamp(),
                         organization_id: Some(scoping.organization_id),
                         project_id: None,
                         metric_type: None,
@@ -913,6 +924,7 @@ mod tests {
                 assert_eq!(
                     rejected.reports.get(&limits[2]).unwrap(),
                     &[CardinalityReport {
+                        timestamp: limiter.timestamp(),
                         organization_id: Some(scoping.organization_id),
                         project_id: Some(scoping.project_id),
                         metric_type: None,

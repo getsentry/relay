@@ -1206,96 +1206,98 @@ impl EnvelopeProcessorService {
         Ok(())
     }
 
-    /// Extract metrics from all envelope items.
-    ///
-    /// Caveats:
-    ///  - This functionality is incomplete. At this point, extraction is implemented only for
-    ///    transaction events.
-    fn extract_metrics(
+    /// Extract transaction metrics.
+    fn extract_transaction_metrics(
         &self,
         state: &mut ProcessEnvelopeState<TransactionGroup>,
         sampling_result: &SamplingResult,
     ) -> Result<(), ProcessingError> {
+        if state.event_metrics_extracted {
+            return Ok(());
+        }
+        let Some(event) = state.event.value() else {
+            return Ok(());
+        };
+
         // NOTE: This function requires a `metric_extraction` in the project config. Legacy configs
         // will upsert this configuration from transaction and conditional tagging fields, even if
-        // it is not present in the actual project config payload. Once transaction metric
-        // extraction is moved to generic metrics, this can be converted into an early return.
-        let config = match &state.project_state.config.metric_extraction {
-            ErrorBoundary::Ok(ref config) if config.is_enabled() => Some(config),
-            _ => None,
-        };
+        // it is not present in the actual project config payload.
         let global = self.inner.global_config.current();
-        let global_config = match &global.metric_extraction {
-            ErrorBoundary::Ok(global_config) => global_config,
-            #[allow(unused_variables)]
-            ErrorBoundary::Err(e) => {
-                if_processing!(self.inner.config, {
-                    // Config is invalid, but we will try to extract what we can with just the
-                    // project config.
-                    relay_log::error!("Failed to parse global extraction config {e}");
-                    MetricExtractionGroups::EMPTY
-                } else {
-                    // If there's an error with global metrics extraction, it is safe to assume that this
-                    // Relay instance is not up-to-date, and we should skip extraction.
-                    relay_log::debug!("Failed to parse global extraction config {e}");
-                    return Ok(());
-                })
-            }
+        let combined_config = {
+            let config = match &state.project_state.config.metric_extraction {
+                ErrorBoundary::Ok(ref config) if config.is_supported() => config,
+                _ => return Ok(()),
+            };
+            let global_config = match &global.metric_extraction {
+                ErrorBoundary::Ok(global_config) => global_config,
+                #[allow(unused_variables)]
+                ErrorBoundary::Err(e) => {
+                    if_processing!(self.inner.config, {
+                        // Config is invalid, but we will try to extract what we can with just the
+                        // project config.
+                        relay_log::error!("Failed to parse global extraction config {e}");
+                        MetricExtractionGroups::EMPTY
+                    } else {
+                        // If there's an error with global metrics extraction, it is safe to assume that this
+                        // Relay instance is not up-to-date, and we should skip extraction.
+                        relay_log::debug!("Failed to parse global extraction config: {e}");
+                        return Ok(());
+                    })
+                }
+            };
+            CombinedMetricExtractionConfig::new(global_config, config)
         };
 
-        if let Some(event) = state.event.value() {
-            if state.event_metrics_extracted {
+        // Require a valid transaction metrics config.
+        let tx_config = match &state.project_state.config.transaction_metrics {
+            Some(ErrorBoundary::Ok(tx_config)) => tx_config,
+            Some(ErrorBoundary::Err(e)) => {
+                relay_log::debug!("Failed to parse legacy transaction metrics config: {e}");
                 return Ok(());
             }
-
-            if let Some(config) = config {
-                let combined_config = CombinedMetricExtractionConfig::new(global_config, config);
-
-                let metrics = crate::metrics_extraction::event::extract_metrics(
-                    event,
-                    state.spans_extracted,
-                    &combined_config,
-                    self.inner
-                        .config
-                        .aggregator_config_for(MetricNamespace::Spans)
-                        .max_tag_value_length,
-                    global.options.span_extraction_sample_rate,
-                );
-                state.event_metrics_extracted |= !metrics.is_empty();
-                state.extracted_metrics.project_metrics.extend(metrics);
+            None => {
+                relay_log::debug!("Legacy transaction metrics config is missing");
+                return Ok(());
             }
+        };
 
-            if let Some(ErrorBoundary::Ok(ref tx_config)) =
-                state.project_state.config.transaction_metrics
-            {
-                if tx_config.is_enabled()
-                    && !state.project_state.has_feature(Feature::DiscardTransaction)
-                {
-                    let transaction_from_dsc = state
-                        .managed_envelope
-                        .envelope()
-                        .dsc()
-                        .and_then(|dsc| dsc.transaction.as_deref());
-
-                    let extractor = TransactionExtractor {
-                        config: tx_config,
-                        generic_tags: config.map(|c| c.tags.as_slice()).unwrap_or_default(),
-                        transaction_from_dsc,
-                        sampling_result,
-                        has_profile: state.profile_id.is_some(),
-                    };
-
-                    state.extracted_metrics.extend(extractor.extract(event)?);
-                    state.event_metrics_extracted |= true;
-                }
-            }
-
-            if state.event_metrics_extracted {
-                state.managed_envelope.set_event_metrics_extracted();
-            }
+        if !tx_config.is_enabled() {
+            return Ok(());
         }
 
-        // NB: Other items can be added here.
+        let metrics = crate::metrics_extraction::event::extract_metrics(
+            event,
+            state.spans_extracted,
+            &combined_config,
+            self.inner
+                .config
+                .aggregator_config_for(MetricNamespace::Spans)
+                .max_tag_value_length,
+            global.options.span_extraction_sample_rate,
+        );
+        state.extracted_metrics.project_metrics.extend(metrics);
+
+        if !state.project_state.has_feature(Feature::DiscardTransaction) {
+            let transaction_from_dsc = state
+                .managed_envelope
+                .envelope()
+                .dsc()
+                .and_then(|dsc| dsc.transaction.as_deref());
+
+            let extractor = TransactionExtractor {
+                config: tx_config,
+                generic_config: Some(&combined_config),
+                transaction_from_dsc,
+                sampling_result,
+                has_profile: state.profile_id.is_some(),
+            };
+
+            state.extracted_metrics.extend(extractor.extract(event)?);
+        }
+
+        state.event_metrics_extracted = true;
+        state.managed_envelope.set_event_metrics_extracted();
+
         Ok(())
     }
 
@@ -1520,7 +1522,7 @@ impl EnvelopeProcessorService {
             // We avoid extracting metrics if we are not sampling the event while in non-processing
             // relays, in order to synchronize rate limits on indexed and processed transactions.
             if self.inner.config.processing_enabled() || sampling_should_drop {
-                self.extract_metrics(state, &sampling_result)?;
+                self.extract_transaction_metrics(state, &sampling_result)?;
             }
 
             dynamic_sampling::sample_envelope_items(
