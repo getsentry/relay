@@ -10,6 +10,9 @@ use crate::service::ServiceState;
 pub async fn handle(state: ServiceState) -> impl IntoResponse {
     // This is temporarily placed here. I have no idea if we'll want to cache this client
     // instance in some way.
+    //
+    // This should never fail so I'm unwrapping. If it does fail what would the appropriate
+    // fallback handling be? The product doesn't function without a client connection.
     let config = ClientConfig::default().with_auth().await.unwrap();
     let client = Client::new(config);
 
@@ -27,7 +30,7 @@ pub async fn handle(state: ServiceState) -> impl IntoResponse {
         // As a proof of concept we'll reach out to GCS for our internal testing.
         //
         // In the real production app we won't reach out to GCS directly. We'll proxy Cloud CDN.
-        // We'll likely still need the client though to create a signed url. Unless the bucket
+        // We'll likely still need a gcp client to create a signed url. Unless the bucket
         // is public in which case we'll have a configured url per PoP region. I'm not totally
         // sure at the moment how private bucket cdn-url signing works. Area of active
         // exploration. But the docs say it works!
