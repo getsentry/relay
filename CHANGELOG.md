@@ -17,6 +17,7 @@
 - Extract status for spans. ([#3606](https://github.com/getsentry/relay/pull/3606))
 - Forward `received_at` timestamp for buckets sent to Kafka. ([#3561](https://github.com/getsentry/relay/pull/3561))
 - Limit metric name to 150 characters. ([#3628](https://github.com/getsentry/relay/pull/3628))
+- Add validation of Kafka topics on startup. ([#3543](https://github.com/getsentry/relay/pull/3543))
 
 ## 24.5.0
 
