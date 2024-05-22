@@ -294,7 +294,8 @@ pub fn hardcoded_span_metrics() -> Vec<(String, Vec<MetricSpec>)> {
                                     | is_resource.clone()
                                     | is_mobile.clone()
                                     | is_http.clone()
-                                    | is_cache.clone(),
+                                    | is_cache.clone()
+                                    | is_queue_op.clone(),
                             ),
                         Tag::with_key("transaction.op")
                             .from_field("span.sentry_tags.transaction.op")

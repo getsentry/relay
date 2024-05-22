@@ -625,6 +625,9 @@ mod tests {
             ),
             data: SpanData {
                 app_start_type: ~,
+                ai_total_tokens_used: ~,
+                ai_prompt_tokens_used: ~,
+                ai_completion_tokens_used: ~,
                 browser_name: "Chrome",
                 code_filepath: ~,
                 code_lineno: ~,
