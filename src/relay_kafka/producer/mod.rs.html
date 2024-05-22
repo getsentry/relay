@@ -303,6 +303,37 @@
 <a href="#301" id="301">301</a>
 <a href="#302" id="302">302</a>
 <a href="#303" id="303">303</a>
+<a href="#304" id="304">304</a>
+<a href="#305" id="305">305</a>
+<a href="#306" id="306">306</a>
+<a href="#307" id="307">307</a>
+<a href="#308" id="308">308</a>
+<a href="#309" id="309">309</a>
+<a href="#310" id="310">310</a>
+<a href="#311" id="311">311</a>
+<a href="#312" id="312">312</a>
+<a href="#313" id="313">313</a>
+<a href="#314" id="314">314</a>
+<a href="#315" id="315">315</a>
+<a href="#316" id="316">316</a>
+<a href="#317" id="317">317</a>
+<a href="#318" id="318">318</a>
+<a href="#319" id="319">319</a>
+<a href="#320" id="320">320</a>
+<a href="#321" id="321">321</a>
+<a href="#322" id="322">322</a>
+<a href="#323" id="323">323</a>
+<a href="#324" id="324">324</a>
+<a href="#325" id="325">325</a>
+<a href="#326" id="326">326</a>
+<a href="#327" id="327">327</a>
+<a href="#328" id="328">328</a>
+<a href="#329" id="329">329</a>
+<a href="#330" id="330">330</a>
+<a href="#331" id="331">331</a>
+<a href="#332" id="332">332</a>
+<a href="#333" id="333">333</a>
+<a href="#334" id="334">334</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module contains the kafka producer related code.
 
 </span><span class="kw">use </span>std::borrow::Cow;
@@ -328,6 +359,7 @@
 </span><span class="kw">mod </span>schemas;
 
 <span class="kw">const </span>REPORT_FREQUENCY: Duration = Duration::from_secs(<span class="number">1</span>);
+<span class="kw">const </span>KAFKA_FETCH_METADATA_TIMEOUT: Duration = Duration::from_secs(<span class="number">30</span>);
 
 <span class="doccomment">/// Kafka producer errors.
 </span><span class="attr">#[derive(Error, Debug)]
@@ -360,6 +392,14 @@
     <span class="doccomment">/// Configuration is wrong and it cannot be used to identify the number of a shard.
     </span><span class="attr">#[error(<span class="string">"invalid kafka shard"</span>)]
     </span>InvalidShard,
+
+    <span class="doccomment">/// Failed to fetch the metadata of Kafka.
+    </span><span class="attr">#[error(<span class="string">"failed to fetch the metadata of Kafka"</span>)]
+    </span>MetadataFetchError(rdkafka::error::KafkaError),
+
+    <span class="doccomment">/// Failed to validate the topic.
+    </span><span class="attr">#[error(<span class="string">"failed to validate the topic with name {0}: {1:?}"</span>)]
+    </span>TopicError(String, rdkafka_sys::rd_kafka_resp_err_t),
 }
 
 <span class="doccomment">/// Describes the type which can be sent using kafka producer provided by this crate.
@@ -398,6 +438,22 @@
             topic_name,
             producer,
         }
+    }
+
+    <span class="doccomment">/// Validates the topic by fetching the metadata of the topic directly from Kafka.
+    </span><span class="kw">fn </span>validate_topic(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;(), ClientError&gt; {
+        <span class="kw">let </span>client = <span class="self">self</span>.producer.client();
+        <span class="kw">let </span>metadata = client
+            .fetch_metadata(<span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.topic_name), KAFKA_FETCH_METADATA_TIMEOUT)
+            .map_err(ClientError::MetadataFetchError)<span class="question-mark">?</span>;
+
+        <span class="kw">for </span>topic <span class="kw">in </span>metadata.topics() {
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(error) = topic.error() {
+                <span class="kw">return </span><span class="prelude-val">Err</span>(ClientError::TopicError(topic.name().to_string(), error));
+            }
+        }
+
+        <span class="prelude-val">Ok</span>(())
     }
 }
 
@@ -493,6 +549,7 @@
         <span class="kw-2">mut </span><span class="self">self</span>,
         topic: KafkaTopic,
         params: <span class="kw-2">&amp;</span>KafkaParams,
+        validate_topic: bool,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, ClientError&gt; {
         <span class="kw">let </span><span class="kw-2">mut </span>client_config = ClientConfig::new();
 
@@ -505,10 +562,11 @@
         <span class="kw">let </span>config_name = config_name.map(str::to_string);
 
         <span class="kw">if let </span><span class="prelude-val">Some</span>(producer) = <span class="self">self</span>.reused_producers.get(<span class="kw-2">&amp;</span>config_name) {
-            <span class="self">self</span>.producers.insert(
-                topic,
-                Producer::new((<span class="kw-2">*</span>topic_name).to_string(), Arc::clone(producer)),
-            );
+            <span class="kw">let </span>producer = Producer::new((<span class="kw-2">*</span>topic_name).to_string(), Arc::clone(producer));
+            <span class="kw">if </span>validate_topic {
+                producer.validate_topic()<span class="question-mark">?</span>;
+            }
+            <span class="self">self</span>.producers.insert(topic, producer);
             <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="self">self</span>);
         }
 
@@ -524,8 +582,12 @@
 
         <span class="self">self</span>.reused_producers
             .insert(config_name, Arc::clone(<span class="kw-2">&amp;</span>producer));
-        <span class="self">self</span>.producers
-            .insert(topic, Producer::new((<span class="kw-2">*</span>topic_name).to_string(), producer));
+
+        <span class="kw">let </span>producer = Producer::new((<span class="kw-2">*</span>topic_name).to_string(), producer);
+        <span class="kw">if </span>validate_topic {
+            producer.validate_topic()<span class="question-mark">?</span>;
+        }
+        <span class="self">self</span>.producers.insert(topic, producer);
 
         <span class="prelude-val">Ok</span>(<span class="self">self</span>)
     }

@@ -2473,6 +2473,15 @@
 <a href="#2471" id="2471">2471</a>
 <a href="#2472" id="2472">2472</a>
 <a href="#2473" id="2473">2473</a>
+<a href="#2474" id="2474">2474</a>
+<a href="#2475" id="2475">2475</a>
+<a href="#2476" id="2476">2476</a>
+<a href="#2477" id="2477">2477</a>
+<a href="#2478" id="2478">2478</a>
+<a href="#2479" id="2479">2479</a>
+<a href="#2480" id="2480">2480</a>
+<a href="#2481" id="2481">2481</a>
+<a href="#2482" id="2482">2482</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::io::Write;
@@ -3486,6 +3495,9 @@
     <span class="doccomment">/// Kafka topic names.
     </span><span class="attr">#[serde(default)]
     </span><span class="kw">pub </span>topics: TopicAssignments,
+    <span class="doccomment">/// Whether to validate the supplied topics by calling Kafka's metadata endpoints.
+    </span><span class="attr">#[serde(default)]
+    </span><span class="kw">pub </span>kafka_validate_topics: bool,
     <span class="doccomment">/// Redis hosts to connect to for storing state for rate limits.
     </span><span class="attr">#[serde(default)]
     </span><span class="kw">pub </span>redis: <span class="prelude-ty">Option</span>&lt;RedisConfig&gt;,
@@ -3512,6 +3524,7 @@
             kafka_config: Vec::new(),
             secondary_kafka_configs: BTreeMap::new(),
             topics: TopicAssignments::default(),
+            kafka_validate_topics: <span class="bool-val">false</span>,
             redis: <span class="prelude-val">None</span>,
             attachment_chunk_size: default_chunk_size(),
             projectconfig_cache_prefix: default_projectconfig_cache_prefix(),
@@ -4725,6 +4738,11 @@
             <span class="kw-2">&amp;</span><span class="self">self</span>.values.processing.kafka_config,
             <span class="kw-2">&amp;</span><span class="self">self</span>.values.processing.secondary_kafka_configs,
         )
+    }
+
+    <span class="doccomment">/// Whether to validate the topics against Kafka.
+    </span><span class="kw">pub fn </span>kafka_validate_topics(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="self">self</span>.values.processing.kafka_validate_topics
     }
 
     <span class="doccomment">/// All unused but configured topic assignments.

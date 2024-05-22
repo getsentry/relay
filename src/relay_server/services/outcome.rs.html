@@ -1884,7 +1884,7 @@
         <span class="kw">for </span>topic <span class="kw">in </span><span class="kw-2">&amp;</span>[KafkaTopic::Outcomes, KafkaTopic::OutcomesBilling] {
             <span class="kw">let </span>kafka_config = <span class="kw-2">&amp;</span>config.kafka_config(<span class="kw-2">*</span>topic).context(ServiceError::Kafka)<span class="question-mark">?</span>;
             client_builder = client_builder
-                .add_kafka_topic_config(<span class="kw-2">*</span>topic, kafka_config)
+                .add_kafka_topic_config(<span class="kw-2">*</span>topic, kafka_config, config.kafka_validate_topics())
                 .context(ServiceError::Kafka)<span class="question-mark">?</span>;
         }
 
