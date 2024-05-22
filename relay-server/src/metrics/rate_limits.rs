@@ -7,7 +7,7 @@ use relay_metrics::Bucket;
 use relay_quotas::{DataCategory, Quota, RateLimits, Scoping};
 use relay_system::Addr;
 
-use crate::metrics::{BucketSummary, MetricOutcomes, TrackableBucket, PROFILE_TAG};
+use crate::metrics::outcomes::{BucketSummary, MetricOutcomes, TrackableBucket, PROFILE_TAG};
 use crate::services::outcome::{Outcome, TrackOutcome};
 use crate::utils;
 
@@ -287,7 +287,7 @@ mod tests {
     use relay_quotas::QuotaScope;
     use smallvec::smallvec;
 
-    use crate::metric_stats::MetricStats;
+    use crate::metrics::MetricStats;
 
     use super::*;
 

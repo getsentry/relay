@@ -23,7 +23,7 @@ use tokio::time::Instant;
 use url::Url;
 
 use crate::envelope::Envelope;
-use crate::metrics::MetricOutcomes;
+use crate::metrics::{ExtractionMode, MetricOutcomes, MetricsLimiter};
 use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
 #[cfg(feature = "processing")]
 use crate::services::processor::RateLimitBuckets;
@@ -33,9 +33,7 @@ use crate::services::project_cache::{BucketSource, CheckedEnvelope, ProjectCache
 use crate::extractors::RequestMeta;
 
 use crate::statsd::RelayCounters;
-use crate::utils::{
-    self, EnvelopeLimiter, ExtractionMode, ManagedEnvelope, MetricsLimiter, RetryBackoff,
-};
+use crate::utils::{self, EnvelopeLimiter, ManagedEnvelope, RetryBackoff};
 
 mod metrics;
 
@@ -1170,7 +1168,7 @@ impl Project {
 mod tests {
     use std::sync::Mutex;
 
-    use crate::metric_stats::MetricStats;
+    use crate::metrics::MetricStats;
     use relay_common::time::UnixTimestamp;
     use relay_metrics::BucketValue;
     use relay_test::mock_service;
