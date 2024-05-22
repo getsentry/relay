@@ -1763,6 +1763,7 @@
 <a href="#1761" id="1761">1761</a>
 <a href="#1762" id="1762">1762</a>
 <a href="#1763" id="1763">1763</a>
+<a href="#1764" id="1764">1764</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module contains the service that forwards events and attachments to the Sentry store.
 //! The service uses Kafka topics to forward data to Sentry
 
@@ -2234,9 +2235,7 @@
             BucketViewValue::Gauge(g) =&gt; MetricValue::Gauge(g),
         };
 
-        <span class="comment">// TODO: propagate the `received_at` field upstream.
-        // https://github.com/getsentry/relay/issues/3515
-        </span><span class="prelude-val">Ok</span>(MetricKafkaMessage {
+        <span class="prelude-val">Ok</span>(MetricKafkaMessage {
             org_id: organization_id,
             project_id,
             name: view.name(),
@@ -2244,6 +2243,7 @@
             timestamp: view.timestamp(),
             tags: view.tags(),
             retention_days,
+            received_at: view.metadata().received_at,
         })
     }
 
@@ -3018,6 +3018,8 @@
     timestamp: UnixTimestamp,
     tags: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>BTreeMap&lt;String, String&gt;,
     retention_days: u16,
+    <span class="attr">#[serde(skip_serializing_if = <span class="string">"Option::is_none"</span>)]
+    </span>received_at: <span class="prelude-ty">Option</span>&lt;UnixTimestamp&gt;,
 }
 
 <span class="attr">#[derive(Clone, Debug, Serialize)]
