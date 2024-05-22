@@ -844,6 +844,7 @@
 <a href="#842" id="842">842</a>
 <a href="#843" id="843">843</a>
 <a href="#844" id="844">844</a>
+<a href="#845" id="845">845</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_base_schema::data_category::DataCategory;
 <span class="kw">use </span>relay_event_normalization::utils::MAX_DURATION_MOBILE_MS;
 <span class="kw">use </span>relay_protocol::RuleCondition;
@@ -1140,7 +1141,8 @@
                                     | is_resource.clone()
                                     | is_mobile.clone()
                                     | is_http.clone()
-                                    | is_cache.clone(),
+                                    | is_cache.clone()
+                                    | is_queue_op.clone(),
                             ),
                         Tag::with_key(<span class="string">"transaction.op"</span>)
                             .from_field(<span class="string">"span.sentry_tags.transaction.op"</span>)
