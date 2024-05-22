@@ -39,8 +39,13 @@ pub fn try_normalize_metric_name(name: &str) -> Option<Cow<'_, str>> {
         return Some(normalized_name);
     }
 
-    // We limit the string to a fixed size. Here we are taking slices assuming that we have a single
-    // character per index since we are normalizing the name above.
+    // We limit the string to a fixed size.
+    //
+    // Here we are taking slices, assuming that we have a single character per index since we are
+    // normalizing the name above.
+    //
+    // If we allow characters that take more than 1 byte per character, we will need to change this
+    // function. Otherwise, it will panic because the index might cut a character in half.
     Some(match normalized_name {
         Cow::Borrowed(value) => Cow::Borrowed(&value[..CUSTOM_METRIC_NAME_MAX_SIZE]),
         Cow::Owned(mut value) => {
