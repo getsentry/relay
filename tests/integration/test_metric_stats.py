@@ -1,6 +1,7 @@
 import copy
 from typing import Any
 import pytest
+import time
 from dataclasses import dataclass
 from .test_metrics import TEST_CONFIG
 
@@ -247,3 +248,46 @@ def test_metric_stats_max_flush_bytes(
     metrics = metric_stats_by_mri(metrics_consumer, 3)
     assert metrics.volume["d:custom/foo@none"]["value"] == 1.0
     assert len(metrics.other) == 2
+
+
+@pytest.mark.parametrize("enabled", [True, False])
+def test_metric_stats_non_processing(mini_sentry, relay, enabled):
+    mini_sentry.global_config["options"]["relay.metric-stats.rollout-rate"] = 1.0
+
+    relay = relay(
+        mini_sentry,
+        options={
+            "sentry_metrics": {"metric_stats_enabled": enabled},
+            "http": {"global_metrics": True},
+            **TEST_CONFIG,
+        },
+    )
+
+    project_id = 42
+    config = mini_sentry.add_basic_project_config(project_id)
+    public_key = config["publicKeys"][0]["publicKey"]
+
+    # Custom metrics are disabled -> should log metric stats and drop the metric
+    relay.send_metrics(project_id, "custom/foo:1337|c")
+
+    if enabled:
+        metrics = mini_sentry.captured_metrics.get(timeout=3)[public_key]
+        del metrics[0]["timestamp"]
+        assert metrics == [
+            {
+                "width": 1,
+                "name": "c:metric_stats/volume@none",
+                "type": "c",
+                "value": 1.0,
+                "tags": {
+                    "mri": "c:custom/foo@none",
+                    "mri.namespace": "custom",
+                    "mri.type": "c",
+                    "outcome.id": "1",
+                    "outcome.reason": "disabled-namespace",
+                },
+            }
+        ]
+    else:
+        time.sleep(3)
+        assert mini_sentry.captured_metrics.empty()
