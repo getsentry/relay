@@ -15,6 +15,7 @@ from requests import HTTPError
 from sentry_relay.consts import DataCategory
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 
+from .asserts import time_after
 from .test_metrics import TEST_CONFIG
 from .test_store import make_transaction
 
@@ -455,7 +456,8 @@ def test_span_ingestion(
         )
 
     duration = timedelta(milliseconds=500)
-    end = datetime.now(timezone.utc) - timedelta(seconds=1)
+    now = datetime.now(timezone.utc)
+    end = now - timedelta(seconds=1)
     start = end - duration
 
     # 1 - Send OTel span and sentry span via envelope
@@ -673,6 +675,7 @@ def test_span_ingestion(
         except AttributeError:
             pass
 
+    now_timestamp = int(now.timestamp())
     expected_timestamp = int(end.timestamp())
     expected_span_metrics = [
         {
@@ -684,6 +687,7 @@ def test_span_ingestion(
             "timestamp": expected_timestamp,
             "type": "c",
             "value": 3.0,
+            "received_at": time_after(now_timestamp),
         },
         {
             "name": "c:spans/usage@none",
@@ -694,6 +698,7 @@ def test_span_ingestion(
             "timestamp": expected_timestamp + 1,
             "type": "c",
             "value": 3.0,
+            "received_at": time_after(now_timestamp),
         },
         {
             "name": "d:spans/duration@millisecond",
@@ -711,6 +716,7 @@ def test_span_ingestion(
             "timestamp": expected_timestamp + 1,
             "type": "d",
             "value": [1500.0],
+            "received_at": time_after(now_timestamp),
         },
         {
             "name": "d:spans/duration@millisecond",
@@ -724,6 +730,7 @@ def test_span_ingestion(
             "timestamp": expected_timestamp,
             "type": "d",
             "value": [500.0],
+            "received_at": time_after(now_timestamp),
         },
         {
             "name": "d:spans/duration@millisecond",
@@ -736,6 +743,7 @@ def test_span_ingestion(
             "timestamp": expected_timestamp,
             "type": "d",
             "value": [500.0, 500.0],
+            "received_at": time_after(now_timestamp),
         },
         {
             "name": "d:spans/duration@millisecond",
@@ -746,6 +754,7 @@ def test_span_ingestion(
             "timestamp": expected_timestamp + 1,
             "type": "d",
             "value": [1500.0, 1500.0],
+            "received_at": time_after(now_timestamp),
         },
         {
             "org_id": 1,
@@ -763,6 +772,7 @@ def test_span_ingestion(
                 "span.op": "resource.script",
             },
             "retention_days": 90,
+            "received_at": time_after(now_timestamp),
         },
         {
             "org_id": 1,
@@ -773,6 +783,7 @@ def test_span_ingestion(
             "timestamp": expected_timestamp,
             "type": "d",
             "value": [500.0],
+            "received_at": time_after(now_timestamp),
         },
         {
             "name": "d:spans/exclusive_time@millisecond",
@@ -783,6 +794,7 @@ def test_span_ingestion(
             "timestamp": expected_timestamp,
             "type": "d",
             "value": [500.0, 500.0],
+            "received_at": time_after(now_timestamp),
         },
         {
             "name": "d:spans/exclusive_time@millisecond",
@@ -793,6 +805,7 @@ def test_span_ingestion(
             "timestamp": expected_timestamp + 1,
             "type": "d",
             "value": [345.0, 345.0],
+            "received_at": time_after(now_timestamp),
         },
         {
             "org_id": 1,
@@ -810,6 +823,7 @@ def test_span_ingestion(
                 "span.op": "resource.script",
             },
             "retention_days": 90,
+            "received_at": time_after(now_timestamp),
         },
         {
             "name": "d:spans/exclusive_time_light@millisecond",
@@ -820,6 +834,7 @@ def test_span_ingestion(
             "timestamp": expected_timestamp,
             "type": "d",
             "value": [500.0],
+            "received_at": time_after(now_timestamp),
         },
         {
             "name": "d:spans/webvital.score.total@ratio",
@@ -830,6 +845,7 @@ def test_span_ingestion(
             "timestamp": expected_timestamp + 1,
             "type": "d",
             "value": [0.12121616],
+            "received_at": time_after(now_timestamp),
         },
     ]
     assert [m for m in metrics if ":spans/" in m["name"]] == expected_span_metrics

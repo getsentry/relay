@@ -14,6 +14,7 @@ from requests.exceptions import HTTPError
 import yaml
 
 from .test_envelope import generate_transaction_item
+from .asserts import time_after, time_within_delta
 
 TEST_CONFIG = {
     "aggregator": {
@@ -204,14 +205,14 @@ def test_metrics(mini_sentry, relay):
     )
     assert received_metrics == [
         {
-            "timestamp": timestamp,
+            "timestamp": time_after(timestamp),
             "width": 1,
             "name": "c:transactions/bar@none",
             "value": 17.0,
             "type": "c",
         },
         {
-            "timestamp": timestamp,
+            "timestamp": time_after(timestamp),
             "width": 1,
             "name": "c:transactions/foo@none",
             "value": 42.0,
@@ -241,7 +242,7 @@ def test_metrics_backdated(mini_sentry, relay):
     )
     assert received_metrics == [
         {
-            "timestamp": timestamp,
+            "timestamp": time_after(timestamp),
             "width": 1,
             "name": "c:transactions/foo@none",
             "value": 42.0,
@@ -385,14 +386,14 @@ def test_global_metrics(mini_sentry, relay):
     metrics = metrics_without_keys(metrics_batch[public_key], keys={"metadata"})
     assert metrics == [
         {
-            "timestamp": timestamp,
+            "timestamp": time_after(timestamp),
             "width": 1,
             "name": "c:transactions/bar@none",
             "value": 17.0,
             "type": "c",
         },
         {
-            "timestamp": timestamp,
+            "timestamp": time_after(timestamp),
             "width": 1,
             "name": "c:transactions/foo@none",
             "value": 42.0,
@@ -466,7 +467,7 @@ def test_global_metrics_batching(mini_sentry, relay):
 
     assert metrics_without_keys(batch1[public_key], keys={"metadata"}) == [
         {
-            "timestamp": timestamp,
+            "timestamp": time_after(timestamp),
             "width": 1,
             "name": "d:transactions/foo@none",
             "value": [float(i) for i in range(1, 16)],
@@ -476,7 +477,7 @@ def test_global_metrics_batching(mini_sentry, relay):
 
     assert metrics_without_keys(batch2[public_key], keys={"metadata"}) == [
         {
-            "timestamp": timestamp,
+            "timestamp": time_after(timestamp),
             "width": 1,
             "name": "d:transactions/foo@none",
             "value": [16.0, 17.0],
@@ -510,7 +511,8 @@ def test_metrics_with_processing(mini_sentry, relay_with_processing, metrics_con
         "tags": {},
         "value": 42.0,
         "type": "c",
-        "timestamp": timestamp,
+        "timestamp": time_after(timestamp),
+        "received_at": time_after(timestamp),
     }
 
     assert metrics["headers"]["c:custom/bar@second"] == [("namespace", b"custom")]
@@ -522,7 +524,8 @@ def test_metrics_with_processing(mini_sentry, relay_with_processing, metrics_con
         "tags": {},
         "value": 17.0,
         "type": "c",
-        "timestamp": timestamp,
+        "timestamp": time_after(timestamp),
+        "received_at": time_after(timestamp),
     }
 
 
@@ -561,7 +564,8 @@ def test_global_metrics_with_processing(
         "tags": {},
         "value": 42.0,
         "type": "c",
-        "timestamp": timestamp,
+        "timestamp": time_after(timestamp),
+        "received_at": time_after(timestamp),
     }
 
     assert metrics["headers"]["c:custom/bar@second"] == [("namespace", b"custom")]
@@ -573,7 +577,8 @@ def test_global_metrics_with_processing(
         "tags": {},
         "value": 17.0,
         "type": "c",
-        "timestamp": timestamp,
+        "timestamp": time_after(timestamp),
+        "received_at": time_after(timestamp),
     }
 
 
@@ -604,7 +609,6 @@ def test_metrics_full(mini_sentry, relay, relay_with_processing, metrics_consume
     upstream.send_metrics(project_id, f"transactions/foo:3|c|T{timestamp}")
 
     metric, _ = metrics_consumer.get_metric(timeout=6)
-    metric.pop("timestamp")
     assert metric == {
         "org_id": 1,
         "project_id": project_id,
@@ -613,6 +617,8 @@ def test_metrics_full(mini_sentry, relay, relay_with_processing, metrics_consume
         "tags": {},
         "value": 15.0,
         "type": "c",
+        "timestamp": time_after(timestamp),
+        "received_at": time_after(timestamp),
     }
 
     metrics_consumer.assert_empty()
@@ -674,9 +680,9 @@ def test_session_metrics_processing(
 
     metrics_consumer = metrics_consumer()
 
-    timestamp = datetime.now(tz=timezone.utc)
-    started = timestamp - timedelta(hours=1)
-    session_payload = _session_payload(timestamp=timestamp, started=started)
+    now = datetime.now(tz=timezone.utc)
+    started = now - timedelta(hours=1)
+    session_payload = _session_payload(timestamp=now, started=started)
 
     relay.send_session(
         project_id,
@@ -690,12 +696,13 @@ def test_session_metrics_processing(
 
     metrics = metrics_by_name(metrics_consumer, 2)
 
-    expected_timestamp = int(started.timestamp())
+    now_timestamp = int(now.timestamp())
+    started_timestamp = int(started.timestamp())
     assert metrics["c:sessions/session@none"] == {
         "org_id": 1,
         "project_id": 42,
         "retention_days": 90,
-        "timestamp": expected_timestamp,
+        "timestamp": time_after(started_timestamp),
         "name": "c:sessions/session@none",
         "type": "c",
         "value": 1.0,
@@ -705,13 +712,14 @@ def test_session_metrics_processing(
             "release": "sentry-test@1.0.0",
             "session.status": "init",
         },
+        "received_at": time_after(now_timestamp),
     }
 
     assert metrics["s:sessions/user@none"] == {
         "org_id": 1,
         "project_id": 42,
         "retention_days": 90,
-        "timestamp": expected_timestamp,
+        "timestamp": time_after(started_timestamp),
         "name": "s:sessions/user@none",
         "type": "s",
         "value": [1617781333],
@@ -720,6 +728,7 @@ def test_session_metrics_processing(
             "environment": "production",
             "release": "sentry-test@1.0.0",
         },
+        "received_at": time_after(now_timestamp),
     }
 
 
@@ -844,8 +853,9 @@ def test_transaction_metrics(
 
     metrics = metrics_by_name(metrics_consumer, count=10, timeout=6)
 
+    timestamp = int(timestamp.timestamp())
     common = {
-        "timestamp": int(timestamp.timestamp()),
+        "timestamp": time_after(timestamp),
         "org_id": 1,
         "project_id": 42,
         "retention_days": 90,
@@ -854,6 +864,7 @@ def test_transaction_metrics(
             "platform": "other",
             "transaction.status": "unknown",
         },
+        "received_at": time_after(timestamp),
     }
 
     assert metrics["c:spans/usage@none"]["value"] == 2
@@ -890,7 +901,7 @@ def test_transaction_metrics(
         "value": [9.910106, 9.910106],
     }
     assert metrics["c:transactions/count_per_root_project@none"] == {
-        "timestamp": int(timestamp.timestamp()),
+        "timestamp": time_after(timestamp),
         "org_id": 1,
         "project_id": 42,
         "retention_days": 90,
@@ -901,6 +912,7 @@ def test_transaction_metrics(
         "name": "c:transactions/count_per_root_project@none",
         "type": "c",
         "value": 2.0,
+        "received_at": time_after(timestamp),
     }
 
 
@@ -957,8 +969,9 @@ def test_transaction_metrics_count_per_root_project(
 
     metrics_by_project = metrics_by_name_group_by_project(metrics_consumer, timeout=4)
 
+    timestamp = int(timestamp.timestamp())
     assert metrics_by_project[41]["c:transactions/count_per_root_project@none"] == {
-        "timestamp": int(timestamp.timestamp()),
+        "timestamp": time_after(timestamp),
         "org_id": 1,
         "project_id": 41,
         "retention_days": 90,
@@ -966,9 +979,10 @@ def test_transaction_metrics_count_per_root_project(
         "name": "c:transactions/count_per_root_project@none",
         "type": "c",
         "value": 1.0,
+        "received_at": time_after(timestamp),
     }
     assert metrics_by_project[42]["c:transactions/count_per_root_project@none"] == {
-        "timestamp": int(timestamp.timestamp()),
+        "timestamp": time_after(timestamp),
         "org_id": 1,
         "project_id": 42,
         "retention_days": 90,
@@ -976,6 +990,7 @@ def test_transaction_metrics_count_per_root_project(
         "name": "c:transactions/count_per_root_project@none",
         "type": "c",
         "value": 2.0,
+        "received_at": time_after(timestamp),
     }
 
 
@@ -1268,14 +1283,14 @@ def test_graceful_shutdown(mini_sentry, relay):
     )
     assert received_metrics == [
         {
-            "timestamp": future_timestamp,
+            "timestamp": time_within_delta(future_timestamp, timedelta(seconds=1)),
             "width": 1,
             "name": "c:transactions/future@none",
             "value": 17.0,
             "type": "c",
         },
         {
-            "timestamp": past_timestamp,
+            "timestamp": time_within_delta(past_timestamp, timedelta(seconds=1)),
             "width": 1,
             "name": "c:transactions/past@none",
             "value": 42.0,
@@ -1482,7 +1497,7 @@ def test_generic_metric_extraction(mini_sentry, relay):
         json.loads(item.get_bytes().decode()), keys={"metadata"}
     )
     assert {
-        "timestamp": int(timestamp.timestamp()),
+        "timestamp": time_after(int(timestamp.timestamp())),
         "width": 1,
         "name": "c:transactions/on_demand@none",
         "type": "c",
@@ -1570,7 +1585,6 @@ def test_span_metrics_secondary_aggregator(
     processing.send_transaction(project_id, transaction)
 
     metrics = metrics_consumer.get_metrics()
-
     # Transaction metrics are still aggregated:
     assert all([m[0]["name"].startswith("spans", 2) for m in metrics])
 
@@ -1580,6 +1594,7 @@ def test_span_metrics_secondary_aggregator(
         if metric["name"] == "d:spans/exclusive_time@millisecond"
     ]
     span_metrics.sort(key=lambda m: m[0]["tags"]["span.op"])
+    timestamp = int(timestamp.timestamp())
     assert span_metrics == [
         (
             {
@@ -1594,9 +1609,10 @@ def test_span_metrics_secondary_aggregator(
                     "span.domain": ",foo,",
                     "span.op": "db",
                 },
-                "timestamp": int(timestamp.timestamp()),
+                "timestamp": time_after(timestamp),
                 "type": "d",
-                "value": [123],
+                "value": [123.0],
+                "received_at": time_after(timestamp),
             },
             [("namespace", b"spans")],
         ),
@@ -1607,9 +1623,10 @@ def test_span_metrics_secondary_aggregator(
                 "project_id": 42,
                 "retention_days": 90,
                 "tags": {"span.op": "default"},
-                "timestamp": int(timestamp.timestamp()),
+                "timestamp": time_after(timestamp),
                 "type": "d",
-                "value": [3],
+                "value": [3.0],
+                "received_at": time_after(timestamp),
             },
             [("namespace", b"spans")],
         ),
@@ -1831,14 +1848,14 @@ def test_profiles_metrics(mini_sentry, relay):
     )
     assert received_metrics == [
         {
-            "timestamp": timestamp,
+            "timestamp": time_after(timestamp),
             "width": 1,
             "name": "c:profiles/bar@none",
             "value": 17.0,
             "type": "c",
         },
         {
-            "timestamp": timestamp,
+            "timestamp": time_after(timestamp),
             "width": 1,
             "name": "c:profiles/foo@none",
             "value": 42.0,
@@ -1875,6 +1892,51 @@ def test_metrics_with_denied_names(
     assert volume_metric["tags"]["outcome.reason"] == "denied-name"
 
     assert "d:custom/memory_usage@byte" in metrics
+
+
+@pytest.mark.parametrize("mode", ["default", "chain"])
+def test_metrics_received_at(
+    mini_sentry, relay, relay_with_processing, relay_credentials, metrics_consumer, mode
+):
+    metrics_consumer = metrics_consumer()
+
+    if mode == "default":
+        relay = relay_with_processing(options=TEST_CONFIG)
+    elif mode == "chain":
+        credentials = relay_credentials()
+        static_relays = {
+            credentials["id"]: {
+                "public_key": credentials["public_key"],
+                "internal": True,
+            },
+        }
+        relay = relay(
+            relay_with_processing(options=TEST_CONFIG, static_relays=static_relays),
+            options=TEST_CONFIG,
+            credentials=credentials,
+        )
+
+    project_id = 42
+    project_config = mini_sentry.add_basic_project_config(project_id)
+    project_config["config"]["features"] = [
+        "organizations:custom-metrics",
+    ]
+
+    timestamp = int(datetime.now(tz=timezone.utc).timestamp())
+    relay.send_metrics(project_id, "custom/foo:1337|d")
+
+    metric, _ = metrics_consumer.get_metric()
+    assert metric == {
+        "org_id": 0,
+        "project_id": 42,
+        "name": "d:custom/foo@none",
+        "type": "d",
+        "value": [1337.0],
+        "timestamp": time_after(timestamp),
+        "tags": {},
+        "retention_days": 90,
+        "received_at": time_after(timestamp),
+    }
 
 
 def test_histogram_outliers(mini_sentry, relay):

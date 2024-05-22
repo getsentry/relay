@@ -465,6 +465,31 @@ mod tests {
     }
 
     #[test]
+    fn test_normalize_name_length() {
+        let long_mri = "c:custom/ThisIsACharacterLongStringForTestingPurposesToEnsureThatWeHaveEnoughCharactersToWorkWithAndToCheckIfOurFunctionProperlyHandlesSlicingAndNormalizationWithoutErrors";
+        assert_eq!(
+            MetricResourceIdentifier::parse(long_mri)
+                .unwrap()
+                .name,
+            "ThisIsACharacterLongStringForTestingPurposesToEnsureThatWeHaveEnoughCharactersToWorkWithAndToCheckIfOurFunctionProperlyHandlesSlicingAndNormalizationW"
+        );
+
+        let long_mri_with_replacement = "c:custom/ThisIsÄÂÏCharacterLongStringForŤestingPurposesToEnsureThatWeHaveEnoughCharactersToWorkWithAndToCheckIfOurFunctionProperlyHandlesSlicingAndNormalizationWithoutErrors";
+        assert_eq!(
+            MetricResourceIdentifier::parse(long_mri_with_replacement)
+                .unwrap()
+                .name,
+            "ThisIs_CharacterLongStringFor_estingPurposesToEnsureThatWeHaveEnoughCharactersToWorkWithAndToCheckIfOurFunctionProperlyHandlesSlicingAndNormalizationW"
+        );
+
+        let short_mri = "c:custom/ThisIsAShortName";
+        assert_eq!(
+            MetricResourceIdentifier::parse(short_mri).unwrap().name,
+            "ThisIsAShortName"
+        );
+    }
+
+    #[test]
     fn test_normalize_dash_to_underscore() {
         assert_eq!(
             MetricResourceIdentifier::parse("d:foo.bar.blob-size@second").unwrap(),
