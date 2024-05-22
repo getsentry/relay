@@ -108,9 +108,7 @@ mod tests {
     });
 
     static PROJECT_CONFIG: Lazy<MetricExtractionConfig> = Lazy::new(|| {
-        let features = FeatureSet(BTreeSet::from([
-            Feature::ExtractSpansAndSpanMetricsFromEvent,
-        ]));
+        let features = FeatureSet(BTreeSet::from([Feature::ExtractCommonSpanMetricsFromEvent]));
 
         let mut project = ProjectConfig {
             features,

@@ -185,7 +185,7 @@ impl<'a> CombinedMetricExtractionConfig<'a> {
         for key in project.global_groups.keys() {
             if !global.groups.contains_key(key) {
                 relay_log::error!(
-                    "Metrics group configured for project missing in global config: {key}"
+                    "Metrics group configured for project missing in global config: {key:?}"
                 )
             }
         }
@@ -238,7 +238,7 @@ impl<'a> From<&'a MetricExtractionConfig> for CombinedMetricExtractionConfig<'a>
 pub struct MetricExtractionGroups {
     /// Mapping from group name to metrics specs & tags.
     #[serde(skip_serializing_if = "BTreeMap::is_empty")]
-    pub groups: BTreeMap<String, MetricExtractionGroup>,
+    pub groups: BTreeMap<GroupKey, MetricExtractionGroup>,
 }
 
 impl MetricExtractionGroups {
@@ -286,7 +286,7 @@ pub struct MetricExtractionConfig {
     /// The groups themselves are configured in [`crate::GlobalConfig`],
     /// but can be enabled or disabled here.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
-    pub global_groups: BTreeMap<String, MetricExtractionGroupOverride>,
+    pub global_groups: BTreeMap<GroupKey, MetricExtractionGroupOverride>,
 
     /// A list of metric specifications to extract.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -362,6 +362,20 @@ impl MetricExtractionConfig {
 pub struct MetricExtractionGroupOverride {
     /// `true` if a template should be enabled.
     pub is_enabled: bool,
+}
+
+/// Enumeration of keys in [`MetricExtractionGroups`]. In JSON, this is simply a string.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
+#[serde(rename_all = "snake_case")]
+pub enum GroupKey {
+    /// Metric extracted for all plans.
+    SpanMetricsCommon,
+    /// "addon" metrics.
+    SpanMetricsAddons,
+    /// Metrics extracted from spans in the transaction namespace.
+    SpanMetricsTx,
+    /// Any other group defined by the upstream.
+    Other(String),
 }
 
 /// Specification for a metric to extract from some data.

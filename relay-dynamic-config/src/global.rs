@@ -81,14 +81,14 @@ impl GlobalConfig {
     /// - Adds hard-coded groups to metrics extraction configs.
     pub fn normalize(&mut self) {
         if let ErrorBoundary::Ok(config) = &mut self.metric_extraction {
-            for (group_name, metrics) in defaults::hardcoded_span_metrics() {
+            for (group_name, metrics, tags) in defaults::hardcoded_span_metrics() {
                 // We only define these groups if they haven't been defined by the upstream yet.
                 // This ensures that the innermost Relay always defines the metrics.
                 if let Entry::Vacant(entry) = config.groups.entry(group_name) {
                     entry.insert(MetricExtractionGroup {
                         is_enabled: false, // must be enabled via project config
                         metrics,
-                        tags: Default::default(),
+                        tags,
                     });
                 }
             }

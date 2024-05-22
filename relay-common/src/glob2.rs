@@ -251,9 +251,9 @@ pub struct LazyGlob {
 
 impl LazyGlob {
     /// Create a new [`LazyGlob`] from the raw string.
-    pub fn new(raw: String) -> Self {
+    pub fn new(raw: impl Into<String>) -> Self {
         Self {
-            raw,
+            raw: raw.into(),
             glob: OnceLock::new(),
         }
     }

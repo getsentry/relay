@@ -1,10 +1,11 @@
 use relay_base_schema::data_category::DataCategory;
+use relay_common::glob2::LazyGlob;
 use relay_event_normalization::utils::MAX_DURATION_MOBILE_MS;
 use relay_protocol::RuleCondition;
 use serde_json::Number;
 
 use crate::metrics::MetricSpec;
-use crate::{Feature, MetricExtractionConfig, ProjectConfig, Tag};
+use crate::{Feature, GroupKey, MetricExtractionConfig, ProjectConfig, Tag, TagMapping};
 
 /// A list of `span.op` patterns that indicate databases that should be skipped.
 const DISABLED_DATABASES: &[&str] = &[
@@ -59,13 +60,6 @@ const QUEUE_SPAN_OPS: &[&str] = &[
 /// Depending on feature flags, groups are either enabled or not.
 /// This configuration is temporarily hard-coded here. It will later be provided by the upstream.
 pub fn add_span_metrics(project_config: &mut ProjectConfig) {
-    if !project_config
-        .features
-        .has(Feature::ExtractCommonSpanMetricsFromEvent)
-    {
-        return;
-    }
-
     let config = project_config
         .metric_extraction
         .get_or_insert_with(MetricExtractionConfig::empty);
@@ -74,12 +68,24 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
         return;
     }
 
+    let features = &project_config.features;
+
     // Enable the hardcoded span metrics group:
-    config
-        .global_groups
-        .entry("span_metrics".to_owned())
-        .or_default()
-        .is_enabled = true;
+    if features.has(Feature::ExtractCommonSpanMetricsFromEvent) {
+        config
+            .global_groups
+            .entry(GroupKey::SpanMetricsCommon)
+            .or_default()
+            .is_enabled = true;
+    }
+
+    if features.has(Feature::ExtractCommonSpanMetricsFromEvent) {
+        config
+            .global_groups
+            .entry(GroupKey::SpanMetricsAddons)
+            .or_default()
+            .is_enabled = true;
+    }
 
     // Enable transaction metrics for span (score.total), but only if double-write to transactions
     // is disabled.
@@ -89,7 +95,7 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
     {
         let span_metrics_tx = config
             .global_groups
-            .entry("span_metrics_tx".to_owned())
+            .entry(GroupKey::SpanMetricsTx)
             .or_default();
         span_metrics_tx.is_enabled = true;
     }
@@ -104,7 +110,7 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
 ///
 /// These metrics are added to [`crate::GlobalConfig`] by the service and enabled
 /// by project configs in sentry.
-pub fn hardcoded_span_metrics() -> Vec<(String, Vec<MetricSpec>)> {
+pub fn hardcoded_span_metrics() -> Vec<(GroupKey, Vec<MetricSpec>, Vec<TagMapping>)> {
     let is_ai = RuleCondition::glob("span.op", "ai.*");
 
     let is_db = RuleCondition::eq("span.sentry_tags.category", "db")
@@ -169,26 +175,26 @@ pub fn hardcoded_span_metrics() -> Vec<(String, Vec<MetricSpec>)> {
 
     // `exclusive_time_light` excludes transaction tags (and some others) to reduce cardinality.
     let exclusive_time_light_condition = (is_db.clone()
-        | is_ai.clone()
+        | is_ai.clone() // TODO: not in common
         | is_resource.clone()
         | is_mobile.clone()
         | is_interaction
         | is_http.clone()
-        | is_queue_op.clone()
-        | is_cache.clone())
+        | is_queue_op.clone() // TODO: not in common
+        | is_cache.clone()) // TODO: not in common
         & duration_condition.clone();
 
     let know_modules_condition = (is_db.clone()
         | is_resource.clone()
         | is_mobile.clone()
         | is_http.clone()
-        | is_queue_op.clone())
+        | is_queue_op.clone()) // TODO: not in common
         & duration_condition.clone();
     let span_time_tags = vec![
         // All modules:
         Tag::with_key("environment")
             .from_field("span.sentry_tags.environment")
-            .always(),
+            .always(), // TODO: exclude for addon modules
         Tag::with_key("span.op")
             .from_field("span.sentry_tags.op")
             .always(),
@@ -201,13 +207,13 @@ pub fn hardcoded_span_metrics() -> Vec<(String, Vec<MetricSpec>)> {
         // Most modules
         Tag::with_key("span.group")
             .from_field("span.sentry_tags.group")
-            .when(is_ai.clone() | know_modules_condition.clone() | app_start_condition.clone()),
+            .when(know_modules_condition.clone() | app_start_condition.clone()),
         Tag::with_key("span.category")
             .from_field("span.sentry_tags.category")
-            .when(is_ai.clone() | know_modules_condition.clone()),
+            .when(know_modules_condition.clone()),
         Tag::with_key("span.description")
             .from_field("span.sentry_tags.description")
-            .when(is_ai.clone() | know_modules_condition.clone() | app_start_condition.clone()),
+            .when(know_modules_condition.clone() | app_start_condition.clone()),
         // Know modules:
         Tag::with_key("transaction.method")
             .from_field("span.sentry_tags.transaction.method")
@@ -251,21 +257,10 @@ pub fn hardcoded_span_metrics() -> Vec<(String, Vec<MetricSpec>)> {
         Tag::with_key("span.status_code")
             .from_field("span.sentry_tags.status_code")
             .when(is_http.clone()),
-        // Cache module
-        Tag::with_key("cache.hit")
-            .from_field("span.sentry_tags.cache.hit")
-            .when(is_cache.clone()),
-        // Queue module
-        Tag::with_key("messaging.destination.name")
-            .from_field("span.sentry_tags.messaging.destination.name")
-            .when(is_queue_op.clone()),
-        Tag::with_key("trace.status")
-            .from_field("span.sentry_tags.trace.status")
-            .when(is_queue_op.clone()),
     ];
     vec![
         (
-            "span_metrics".to_owned(),
+            GroupKey::SpanMetricsCommon,
             vec![
                 MetricSpec {
                     category: DataCategory::Span,
@@ -293,8 +288,7 @@ pub fn hardcoded_span_metrics() -> Vec<(String, Vec<MetricSpec>)> {
                                 is_db.clone()
                                     | is_resource.clone()
                                     | is_mobile.clone()
-                                    | is_http.clone()
-                                    | is_cache.clone(),
+                                    | is_http.clone(),
                             ),
                         Tag::with_key("transaction.op")
                             .from_field("span.sentry_tags.transaction.op")
@@ -338,17 +332,6 @@ pub fn hardcoded_span_metrics() -> Vec<(String, Vec<MetricSpec>)> {
                         Tag::with_key("span.status_code")
                             .from_field("span.sentry_tags.status_code")
                             .when(is_http.clone()),
-                        // Cache module
-                        Tag::with_key("cache.hit")
-                            .from_field("span.sentry_tags.cache.hit")
-                            .when(is_cache.clone()),
-                        // Queue module
-                        Tag::with_key("messaging.destination.name")
-                            .from_field("span.sentry_tags.messaging.destination.name")
-                            .when(is_queue_op.clone()),
-                        Tag::with_key("trace.status")
-                            .from_field("span.sentry_tags.trace.status")
-                            .when(is_queue_op.clone()),
                     ],
                 },
                 MetricSpec {
@@ -357,26 +340,6 @@ pub fn hardcoded_span_metrics() -> Vec<(String, Vec<MetricSpec>)> {
                     field: Some("span.duration".into()),
                     condition: None,
                     tags: span_time_tags.clone(),
-                },
-                MetricSpec {
-                    category: DataCategory::Span,
-                    mri: "d:spans/cache.item_size@byte".into(),
-                    field: Some("span.measurements.cache.item_size.value".into()),
-                    condition: Some(is_cache.clone()),
-                    tags: vec![
-                        Tag::with_key("environment")
-                            .from_field("span.sentry_tags.environment")
-                            .always(), // already guarded by condition on metric
-                        Tag::with_key("span.op")
-                            .from_field("span.sentry_tags.op")
-                            .always(), // already guarded by condition on metric
-                        Tag::with_key("transaction")
-                            .from_field("span.sentry_tags.transaction")
-                            .always(), // already guarded by condition on metric
-                        Tag::with_key("cache.hit")
-                            .from_field("span.sentry_tags.cache.hit")
-                            .always(), // already guarded by condition on metric
-                    ],
                 },
                 MetricSpec {
                     category: DataCategory::Span,
@@ -471,76 +434,6 @@ pub fn hardcoded_span_metrics() -> Vec<(String, Vec<MetricSpec>)> {
                             .always(), // already guarded by condition on metric
                         Tag::with_key("span.domain")
                             .from_field("span.sentry_tags.domain")
-                            .always(), // already guarded by condition on metric
-                        Tag::with_key("span.group")
-                            .from_field("span.sentry_tags.group")
-                            .always(), // already guarded by condition on metric
-                        Tag::with_key("span.op")
-                            .from_field("span.sentry_tags.op")
-                            .always(), // already guarded by condition on metric
-                    ],
-                },
-                MetricSpec {
-                    category: DataCategory::Span,
-                    mri: "c:spans/ai.total_tokens.used@none".into(),
-                    field: Some("span.measurements.ai_total_tokens_used.value".into()),
-                    condition: Some(is_ai.clone()),
-                    tags: vec![
-                        Tag::with_key("span.op")
-                            .from_field("span.sentry_tags.op")
-                            .always(),
-                        Tag::with_key("environment")
-                            .from_field("span.sentry_tags.environment")
-                            .always(),
-                        Tag::with_key("release")
-                            .from_field("span.sentry_tags.release")
-                            .always(),
-                        Tag::with_key("span.origin")
-                            .from_field("span.origin")
-                            .always(),
-                        Tag::with_key("span.category")
-                            .from_field("span.sentry_tags.category")
-                            .always(), // already guarded by condition on metric
-                        Tag::with_key("span.ai.pipeline.group")
-                            .from_field("span.sentry_tags.ai_pipeline_group")
-                            .always(), // already guarded by condition on metric
-                        Tag::with_key("span.description")
-                            .from_field("span.sentry_tags.description")
-                            .always(), // already guarded by condition on metric
-                        Tag::with_key("span.group")
-                            .from_field("span.sentry_tags.group")
-                            .always(), // already guarded by condition on metric
-                        Tag::with_key("span.op")
-                            .from_field("span.sentry_tags.op")
-                            .always(), // already guarded by condition on metric
-                    ],
-                },
-                MetricSpec {
-                    category: DataCategory::Span,
-                    mri: "c:spans/ai.total_cost@usd".into(),
-                    field: Some("span.measurements.ai_total_cost.value".into()),
-                    condition: Some(is_ai.clone()),
-                    tags: vec![
-                        Tag::with_key("span.op")
-                            .from_field("span.sentry_tags.op")
-                            .always(),
-                        Tag::with_key("environment")
-                            .from_field("span.sentry_tags.environment")
-                            .always(),
-                        Tag::with_key("release")
-                            .from_field("span.sentry_tags.release")
-                            .always(),
-                        Tag::with_key("span.origin")
-                            .from_field("span.origin")
-                            .always(),
-                        Tag::with_key("span.category")
-                            .from_field("span.sentry_tags.category")
-                            .always(), // already guarded by condition on metric
-                        Tag::with_key("span.ai.pipeline.group")
-                            .from_field("span.sentry_tags.ai_pipeline_group")
-                            .always(), // already guarded by condition on metric
-                        Tag::with_key("span.description")
-                            .from_field("span.sentry_tags.description")
                             .always(), // already guarded by condition on metric
                         Tag::with_key("span.group")
                             .from_field("span.sentry_tags.group")
@@ -785,6 +678,105 @@ pub fn hardcoded_span_metrics() -> Vec<(String, Vec<MetricSpec>)> {
                             .always(),
                     ],
                 },
+            ],
+            vec![],
+        ),
+        (
+            GroupKey::SpanMetricsAddons,
+            vec![
+                // cache module
+                MetricSpec {
+                    category: DataCategory::Span,
+                    mri: "d:spans/cache.item_size@byte".into(),
+                    field: Some("span.measurements.cache.item_size.value".into()),
+                    condition: Some(is_cache.clone()),
+                    tags: vec![
+                        Tag::with_key("environment")
+                            .from_field("span.sentry_tags.environment")
+                            .always(), // already guarded by condition on metric
+                        Tag::with_key("span.op")
+                            .from_field("span.sentry_tags.op")
+                            .always(), // already guarded by condition on metric
+                        Tag::with_key("transaction")
+                            .from_field("span.sentry_tags.transaction")
+                            .always(), // already guarded by condition on metric
+                        Tag::with_key("cache.hit")
+                            .from_field("span.sentry_tags.cache.hit")
+                            .always(), // already guarded by condition on metric
+                    ],
+                },
+                // ai module
+                MetricSpec {
+                    category: DataCategory::Span,
+                    mri: "c:spans/ai.total_tokens.used@none".into(),
+                    field: Some("span.measurements.ai_total_tokens_used.value".into()),
+                    condition: Some(is_ai.clone()),
+                    tags: vec![
+                        Tag::with_key("span.op")
+                            .from_field("span.sentry_tags.op")
+                            .always(),
+                        Tag::with_key("environment")
+                            .from_field("span.sentry_tags.environment")
+                            .always(),
+                        Tag::with_key("release")
+                            .from_field("span.sentry_tags.release")
+                            .always(),
+                        Tag::with_key("span.origin")
+                            .from_field("span.origin")
+                            .always(),
+                        Tag::with_key("span.category")
+                            .from_field("span.sentry_tags.category")
+                            .always(), // already guarded by condition on metric
+                        Tag::with_key("span.ai.pipeline.group")
+                            .from_field("span.sentry_tags.ai_pipeline_group")
+                            .always(), // already guarded by condition on metric
+                        Tag::with_key("span.description")
+                            .from_field("span.sentry_tags.description")
+                            .always(), // already guarded by condition on metric
+                        Tag::with_key("span.group")
+                            .from_field("span.sentry_tags.group")
+                            .always(), // already guarded by condition on metric
+                        Tag::with_key("span.op")
+                            .from_field("span.sentry_tags.op")
+                            .always(), // already guarded by condition on metric
+                    ],
+                },
+                MetricSpec {
+                    category: DataCategory::Span,
+                    mri: "c:spans/ai.total_cost@usd".into(),
+                    field: Some("span.measurements.ai_total_cost.value".into()),
+                    condition: Some(is_ai.clone()),
+                    tags: vec![
+                        Tag::with_key("span.op")
+                            .from_field("span.sentry_tags.op")
+                            .always(),
+                        Tag::with_key("environment")
+                            .from_field("span.sentry_tags.environment")
+                            .always(),
+                        Tag::with_key("release")
+                            .from_field("span.sentry_tags.release")
+                            .always(),
+                        Tag::with_key("span.origin")
+                            .from_field("span.origin")
+                            .always(),
+                        Tag::with_key("span.category")
+                            .from_field("span.sentry_tags.category")
+                            .always(), // already guarded by condition on metric
+                        Tag::with_key("span.ai.pipeline.group")
+                            .from_field("span.sentry_tags.ai_pipeline_group")
+                            .always(), // already guarded by condition on metric
+                        Tag::with_key("span.description")
+                            .from_field("span.sentry_tags.description")
+                            .always(), // already guarded by condition on metric
+                        Tag::with_key("span.group")
+                            .from_field("span.sentry_tags.group")
+                            .always(), // already guarded by condition on metric
+                        Tag::with_key("span.op")
+                            .from_field("span.sentry_tags.op")
+                            .always(), // already guarded by condition on metric
+                    ],
+                },
+                // queue module
                 MetricSpec {
                     category: DataCategory::Span,
                     mri: "g:spans/messaging.message.receive.latency@millisecond".into(),
@@ -806,9 +798,55 @@ pub fn hardcoded_span_metrics() -> Vec<(String, Vec<MetricSpec>)> {
                     ],
                 },
             ],
+            vec![
+                TagMapping {
+                    metrics: vec![
+                        LazyGlob::new("d:spans/duration@millisecond"),
+                        LazyGlob::new("d:spans/exclusive_time@millisecond"),
+                    ],
+                    tags: vec![
+                        // ai module
+                        Tag::with_key("span.group")
+                            .from_field("span.sentry_tags.group")
+                            .when(is_ai.clone()),
+                        Tag::with_key("span.category")
+                            .from_field("span.sentry_tags.category")
+                            .when(is_ai.clone()),
+                        Tag::with_key("span.description")
+                            .from_field("span.sentry_tags.description")
+                            .when(is_ai.clone()),
+                    ],
+                },
+                TagMapping {
+                    metrics: vec![
+                        LazyGlob::new("d:spans/duration@millisecond"),
+                        LazyGlob::new("d:spans/exclusive_time_light@millisecond"),
+                        LazyGlob::new("d:spans/exclusive_time@millisecond"),
+                    ],
+                    tags: vec![
+                        // cache module
+                        Tag::with_key("cache.hit")
+                            .from_field("span.sentry_tags.cache.hit")
+                            .when(is_cache.clone()),
+                        // queue module
+                        Tag::with_key("messaging.destination.name")
+                            .from_field("span.sentry_tags.messaging.destination.name")
+                            .when(is_queue_op.clone()),
+                        Tag::with_key("trace.status")
+                            .from_field("span.sentry_tags.trace.status")
+                            .when(is_queue_op.clone()),
+                    ],
+                },
+                TagMapping {
+                    metrics: vec![LazyGlob::new("d:spans/exclusive_time_light@millisecond")],
+                    tags: vec![Tag::with_key("environment")
+                        .from_field("span.sentry_tags.environment")
+                        .when(is_cache.clone())],
+                },
+            ],
         ),
         (
-            "span_metrics_tx".to_owned(),
+            GroupKey::SpanMetricsTx,
             vec![MetricSpec {
                 category: DataCategory::Span,
                 mri: "d:transactions/measurements.score.total@ratio".into(),
@@ -839,6 +877,7 @@ pub fn hardcoded_span_metrics() -> Vec<(String, Vec<MetricSpec>)> {
                         .always(), // already guarded by condition on metric
                 ],
             }],
+            vec![],
         ),
     ]
 }
