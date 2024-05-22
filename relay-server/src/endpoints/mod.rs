@@ -11,7 +11,6 @@ mod common;
 mod dashboard;
 mod envelope;
 mod events;
-mod features;
 mod forward;
 mod health_check;
 #[cfg(feature = "dashboard")]
@@ -21,6 +20,7 @@ mod monitor;
 mod nel;
 mod project_configs;
 mod public_keys;
+mod remote_config;
 mod security_report;
 mod spans;
 mod statics;
@@ -87,7 +87,7 @@ where
 
         .route("/api/:project_id/store/", store::route(config))
         .route("/api/:project_id/envelope/", envelope::route(config))
-        .route("/api/:project_id/features/", get(features::handle))
+        .route("/api/:project_id/configuration/", get(remote_config::handle))
         .route("/api/:project_id/security/", security_report::route(config))
         .route("/api/:project_id/csp-report/", security_report::route(config))
         .route("/api/:project_id/nel/", nel::route(config))
