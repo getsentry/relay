@@ -2123,7 +2123,7 @@ impl Config {
     /// Metric stats are always collected and emitted when processing
     /// is enabled.
     pub fn metric_stats_enabled(&self) -> bool {
-        self.values.sentry_metrics.metric_stats_enabled
+        self.values.sentry_metrics.metric_stats_enabled || self.values.processing.enabled
     }
 
     /// Returns the maximum payload size for general API requests.
