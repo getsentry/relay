@@ -474,7 +474,7 @@ mod tests {
             "ThisIsACharacterLongStringForTestingPurposesToEnsureThatWeHaveEnoughCharactersToWorkWithAndToCheckIfOurFunctionProperlyHandlesSlicingAndNormalizationW"
         );
 
-        let long_mri_with_replacement = "c:custom/ThisIsÄCharacterLongStringForŤestingPurposesToEnsureThatWeHaveEnoughCharactersToWorkWithAndToCheckIfOurFunctionProperlyHandlesSlicingAndNormalizationWithoutErrors";
+        let long_mri_with_replacement = "c:custom/ThisIsÄÂÏCharacterLongStringForŤestingPurposesToEnsureThatWeHaveEnoughCharactersToWorkWithAndToCheckIfOurFunctionProperlyHandlesSlicingAndNormalizationWithoutErrors";
         assert_eq!(
             MetricResourceIdentifier::parse(long_mri_with_replacement)
                 .unwrap()
