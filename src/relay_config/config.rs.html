@@ -2453,6 +2453,26 @@
 <a href="#2451" id="2451">2451</a>
 <a href="#2452" id="2452">2452</a>
 <a href="#2453" id="2453">2453</a>
+<a href="#2454" id="2454">2454</a>
+<a href="#2455" id="2455">2455</a>
+<a href="#2456" id="2456">2456</a>
+<a href="#2457" id="2457">2457</a>
+<a href="#2458" id="2458">2458</a>
+<a href="#2459" id="2459">2459</a>
+<a href="#2460" id="2460">2460</a>
+<a href="#2461" id="2461">2461</a>
+<a href="#2462" id="2462">2462</a>
+<a href="#2463" id="2463">2463</a>
+<a href="#2464" id="2464">2464</a>
+<a href="#2465" id="2465">2465</a>
+<a href="#2466" id="2466">2466</a>
+<a href="#2467" id="2467">2467</a>
+<a href="#2468" id="2468">2468</a>
+<a href="#2469" id="2469">2469</a>
+<a href="#2470" id="2470">2470</a>
+<a href="#2471" id="2471">2471</a>
+<a href="#2472" id="2472">2472</a>
+<a href="#2473" id="2473">2473</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::io::Write;
@@ -2975,6 +2995,17 @@
     ///
     /// Defaults to 5.
     </span><span class="kw">pub </span>meta_locations_max: usize,
+    <span class="doccomment">/// Whether metric stats are collected and emitted.
+    ///
+    /// Metric stats are always collected and emitted when processing
+    /// is enabled.
+    ///
+    /// This option is required for running multiple trusted Relays in a chain
+    /// and you want the metric stats to be collected and forwarded from
+    /// the first Relay in the chain.
+    ///
+    /// Defaults to `false`.
+    </span><span class="kw">pub </span>metric_stats_enabled: bool,
 }
 
 <span class="kw">impl </span>Default <span class="kw">for </span>SentryMetrics {
@@ -2982,6 +3013,7 @@
         <span class="self">Self </span>{
             meta_locations_expiry: <span class="number">15 </span>* <span class="number">24 </span>* <span class="number">60 </span>* <span class="number">60</span>,
             meta_locations_max: <span class="number">5</span>,
+            metric_stats_enabled: <span class="bool-val">false</span>,
         }
     }
 }
@@ -4559,6 +4591,14 @@
     <span class="doccomment">/// Returns the maximum payload size of metric metadata in bytes.
     </span><span class="kw">pub fn </span>max_metric_meta_size(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
         <span class="self">self</span>.values.limits.max_metric_meta_size.as_bytes()
+    }
+
+    <span class="doccomment">/// Whether metric stats are collected and emitted.
+    ///
+    /// Metric stats are always collected and emitted when processing
+    /// is enabled.
+    </span><span class="kw">pub fn </span>metric_stats_enabled(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="self">self</span>.values.sentry_metrics.metric_stats_enabled || <span class="self">self</span>.values.processing.enabled
     }
 
     <span class="doccomment">/// Returns the maximum payload size for general API requests.
