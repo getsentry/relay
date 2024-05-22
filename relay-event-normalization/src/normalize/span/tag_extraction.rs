@@ -650,20 +650,46 @@ pub fn extract_tags(
     span_tags
 }
 
+fn value_to_f64(val: Option<&Value>) -> Option<f64> {
+    match val {
+        Some(Value::F64(f)) => Some(*f),
+        Some(Value::I64(i)) => Some(*i as f64),
+        Some(Value::U64(u)) => Some(*u as f64),
+        _ => None,
+    }
+}
+
 /// Copies specific numeric values from span data to span measurements.
 pub fn extract_measurements(span: &mut Span, is_mobile: bool) {
     let Some(span_op) = span.op.as_str() else {
         return;
     };
 
+    if span_op.starts_with("ai.") {
+        if let Some(data) = span.data.value() {
+            for (field, key) in [
+                (&data.ai_total_tokens_used, "ai_total_tokens_used"),
+                (&data.ai_completion_tokens_used, "ai_completion_tokens_used"),
+                (&data.ai_prompt_tokens_used, "ai_prompt_tokens_used"),
+            ] {
+                if let Some(value) = value_to_f64(field.value()) {
+                    let measurements = span.measurements.get_or_insert_with(Default::default);
+                    measurements.insert(
+                        key.into(),
+                        Measurement {
+                            value: value.into(),
+                            unit: MetricUnit::None.into(),
+                        }
+                        .into(),
+                    );
+                }
+            }
+        }
+    }
+
     if span_op.starts_with("cache.") {
         if let Some(data) = span.data.value() {
-            if let Some(value) = match &data.cache_item_size.value() {
-                Some(Value::F64(f)) => Some(*f),
-                Some(Value::I64(i)) => Some(*i as f64),
-                Some(Value::U64(u)) => Some(*u as f64),
-                _ => None,
-            } {
+            if let Some(value) = value_to_f64(data.cache_item_size.value()) {
                 let measurements = span.measurements.get_or_insert_with(Default::default);
                 measurements.insert(
                     "cache.item_size".to_owned(),
@@ -693,12 +719,7 @@ pub fn extract_measurements(span: &mut Span, is_mobile: bool) {
                     "http.response_transfer_size",
                 ),
             ] {
-                if let Some(value) = match field.value() {
-                    Some(Value::F64(f)) => Some(*f),
-                    Some(Value::I64(i)) => Some(*i as f64),
-                    Some(Value::U64(u)) => Some(*u as f64),
-                    _ => None,
-                } {
+                if let Some(value) = value_to_f64(field.value()) {
                     let measurements = span.measurements.get_or_insert_with(Default::default);
                     measurements.insert(
                         key.into(),
@@ -729,12 +750,7 @@ pub fn extract_measurements(span: &mut Span, is_mobile: bool) {
                     "messaging.message.body.size",
                 ),
             ] {
-                if let Some(value) = match field.value() {
-                    Some(Value::F64(f)) => Some(*f),
-                    Some(Value::I64(i)) => Some(*i as f64),
-                    Some(Value::U64(u)) => Some(*u as f64),
-                    _ => None,
-                } {
+                if let Some(value) = value_to_f64(field.value()) {
                     let measurements = span.measurements.get_or_insert_with(Default::default);
                     measurements.insert(
                         key.into(),
@@ -761,12 +777,7 @@ pub fn extract_measurements(span: &mut Span, is_mobile: bool) {
                     MetricUnit::Duration(DurationUnit::Second),
                 ),
             ] {
-                if let Some(value) = match field.value() {
-                    Some(Value::F64(f)) => Some(*f),
-                    Some(Value::I64(i)) => Some(*i as f64),
-                    Some(Value::U64(u)) => Some(*u as f64),
-                    _ => None,
-                } {
+                if let Some(value) = value_to_f64(field.value()) {
                     let measurements = span.measurements.get_or_insert_with(Default::default);
                     measurements.insert(
                         key.into(),
@@ -1468,6 +1479,75 @@ LIMIT 1
             Some("http://example.com")
         );
         assert!(!tags_3.contains_key("raw_domain"));
+    }
+
+    #[test]
+    fn test_ai_extraction() {
+        let json = r#"
+            {
+                "spans": [
+                    {
+                        "timestamp": 1694732408.3145,
+                        "start_timestamp": 1694732407.8367,
+                        "exclusive_time": 477.800131,
+                        "description": "OpenAI Chat Completion",
+                        "op": "ai.chat_completions.openai",
+                        "span_id": "97c0ef9770a02f9d",
+                        "parent_span_id": "9756d8d7b2b364ff",
+                        "trace_id": "77aeb1c16bb544a4a39b8d42944947a3",
+                        "data": {
+                            "ai.total_tokens.used": 300,
+                            "ai.completion_tokens.used": 200,
+                            "ai.prompt_tokens.used": 100,
+                            "ai.streaming": true,
+                            "ai.pipeline.name": "My AI pipeline"
+                        },
+                        "hash": "e2fae740cccd3781"
+                    }
+                ]
+            }
+        "#;
+
+        let mut event = Annotated::<Event>::from_json(json)
+            .unwrap()
+            .into_value()
+            .unwrap();
+
+        extract_span_tags_from_event(&mut event, 200);
+
+        let span = &event
+            .spans
+            .value()
+            .unwrap()
+            .first()
+            .unwrap()
+            .value()
+            .unwrap();
+        let tags = span.sentry_tags.value().unwrap();
+        let measurements = span.measurements.value().unwrap();
+
+        assert_eq!(
+            tags.get("ai_pipeline_group").unwrap().as_str(),
+            Some("68e6cafc5b68d276")
+        );
+        assert_debug_snapshot!(measurements, @r###"
+        Measurements(
+            {
+                "ai_completion_tokens_used": Measurement {
+                    value: 200.0,
+                    unit: None,
+                },
+                "ai_prompt_tokens_used": Measurement {
+                    value: 100.0,
+                    unit: None,
+                },
+                "ai_total_tokens_used": Measurement {
+                    value: 300.0,
+                    unit: None,
+                },
+            },
+        )
+        "###);
     }
 
     #[test]

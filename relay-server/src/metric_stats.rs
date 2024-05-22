@@ -107,7 +107,7 @@ impl MetricStats {
     }
 
     fn is_enabled(&self, scoping: Scoping) -> bool {
-        self.config.processing_enabled() && self.is_rolled_out(scoping.organization_id)
+        self.config.metric_stats_enabled() && self.is_rolled_out(scoping.organization_id)
     }
 
     fn is_rolled_out(&self, organization_id: u64) -> bool {
@@ -194,7 +194,7 @@ impl MetricStats {
         }
 
         Some(Bucket {
-            timestamp: UnixTimestamp::now(),
+            timestamp: report.timestamp,
             width: 0,
             name: cardinality_metric_mri(),
             value: BucketValue::Gauge(GaugeValue::single(cardinality.into())),
@@ -342,6 +342,7 @@ mod tests {
             namespace: None,
         };
         let report = CardinalityReport {
+            timestamp: UnixTimestamp::from_secs(3333),
             organization_id: Some(scoping.organization_id),
             project_id: Some(scoping.project_id),
             metric_type: None,
@@ -363,6 +364,7 @@ mod tests {
         let bucket = buckets.pop().unwrap();
 
         assert_eq!(&*bucket.name, "g:metric_stats/cardinality@none");
+        assert_eq!(bucket.timestamp, UnixTimestamp::from_secs(3333));
         assert_eq!(
             bucket.value,
             BucketValue::Gauge(GaugeValue {
@@ -407,6 +409,7 @@ mod tests {
             namespace: Some(MetricNamespace::Spans),
         };
         let report = CardinalityReport {
+            timestamp: UnixTimestamp::from_secs(2222),
             organization_id: Some(scoping.organization_id),
             project_id: Some(scoping.project_id),
             metric_type: Some(MetricType::Distribution),
@@ -428,6 +431,7 @@ mod tests {
         let bucket = buckets.pop().unwrap();
 
         assert_eq!(&*bucket.name, "g:metric_stats/cardinality@none");
+        assert_eq!(bucket.timestamp, UnixTimestamp::from_secs(2222));
         assert_eq!(
             bucket.value,
             BucketValue::Gauge(GaugeValue {

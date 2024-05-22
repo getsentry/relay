@@ -15,6 +15,7 @@ from requests import HTTPError
 from sentry_relay.consts import DataCategory
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 
+from .asserts import time_after
 from .test_metrics import TEST_CONFIG
 from .test_store import make_transaction
 
@@ -74,6 +75,7 @@ def test_span_extraction(
         # We do not accidentally produce to the events topic:
         assert events_consumer.poll(timeout=2.0) is None
 
+        # We _do_ extract span metrics:
         assert {headers[0] for _, headers in metrics_consumer.get_metrics()} == {
             ("namespace", b"spans")
         }
@@ -454,7 +456,8 @@ def test_span_ingestion(
         )
 
     duration = timedelta(milliseconds=500)
-    end = datetime.now(timezone.utc) - timedelta(seconds=1)
+    now = datetime.now(timezone.utc)
+    end = now - timedelta(seconds=1)
     start = end - duration
 
     # 1 - Send OTel span and sentry span via envelope
@@ -672,6 +675,7 @@ def test_span_ingestion(
         except AttributeError:
             pass
 
+    now_timestamp = int(now.timestamp())
     expected_timestamp = int(end.timestamp())
     expected_span_metrics = [
         {
@@ -683,6 +687,7 @@ def test_span_ingestion(
             "timestamp": expected_timestamp,
             "type": "c",
             "value": 3.0,
+            "received_at": time_after(now_timestamp),
         },
         {
             "name": "c:spans/usage@none",
@@ -693,6 +698,7 @@ def test_span_ingestion(
             "timestamp": expected_timestamp + 1,
             "type": "c",
             "value": 3.0,
+            "received_at": time_after(now_timestamp),
         },
         {
             "name": "d:spans/duration@millisecond",
@@ -710,6 +716,7 @@ def test_span_ingestion(
             "timestamp": expected_timestamp + 1,
             "type": "d",
             "value": [1500.0],
+            "received_at": time_after(now_timestamp),
         },
         {
             "name": "d:spans/duration@millisecond",
@@ -723,6 +730,7 @@ def test_span_ingestion(
             "timestamp": expected_timestamp,
             "type": "d",
             "value": [500.0],
+            "received_at": time_after(now_timestamp),
         },
         {
             "name": "d:spans/duration@millisecond",
@@ -735,6 +743,7 @@ def test_span_ingestion(
             "timestamp": expected_timestamp,
             "type": "d",
             "value": [500.0, 500.0],
+            "received_at": time_after(now_timestamp),
         },
         {
             "name": "d:spans/duration@millisecond",
@@ -745,6 +754,7 @@ def test_span_ingestion(
             "timestamp": expected_timestamp + 1,
             "type": "d",
             "value": [1500.0, 1500.0],
+            "received_at": time_after(now_timestamp),
         },
         {
             "org_id": 1,
@@ -762,6 +772,7 @@ def test_span_ingestion(
                 "span.op": "resource.script",
             },
             "retention_days": 90,
+            "received_at": time_after(now_timestamp),
         },
         {
             "org_id": 1,
@@ -772,6 +783,7 @@ def test_span_ingestion(
             "timestamp": expected_timestamp,
             "type": "d",
             "value": [500.0],
+            "received_at": time_after(now_timestamp),
         },
         {
             "name": "d:spans/exclusive_time@millisecond",
@@ -782,6 +794,7 @@ def test_span_ingestion(
             "timestamp": expected_timestamp,
             "type": "d",
             "value": [500.0, 500.0],
+            "received_at": time_after(now_timestamp),
         },
         {
             "name": "d:spans/exclusive_time@millisecond",
@@ -792,6 +805,7 @@ def test_span_ingestion(
             "timestamp": expected_timestamp + 1,
             "type": "d",
             "value": [345.0, 345.0],
+            "received_at": time_after(now_timestamp),
         },
         {
             "org_id": 1,
@@ -809,6 +823,7 @@ def test_span_ingestion(
                 "span.op": "resource.script",
             },
             "retention_days": 90,
+            "received_at": time_after(now_timestamp),
         },
         {
             "name": "d:spans/exclusive_time_light@millisecond",
@@ -819,6 +834,7 @@ def test_span_ingestion(
             "timestamp": expected_timestamp,
             "type": "d",
             "value": [500.0],
+            "received_at": time_after(now_timestamp),
         },
         {
             "name": "d:spans/webvital.score.total@ratio",
@@ -829,6 +845,7 @@ def test_span_ingestion(
             "timestamp": expected_timestamp + 1,
             "type": "d",
             "value": [0.12121616],
+            "received_at": time_after(now_timestamp),
         },
     ]
     assert [m for m in metrics if ":spans/" in m["name"]] == expected_span_metrics
@@ -1507,6 +1524,9 @@ def test_rate_limit_indexed_consistent_extracted(
     relay = relay_with_processing()
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
+    # Span metrics won't be extracted without a supported transactionMetrics config.
+    # Without extraction, the span is treated as `Span`, not `SpanIndexed`.
+    project_config["config"]["transactionMetrics"] = {"version": 3}
     project_config["config"]["features"] = [
         "projects:span-metrics-extraction",
     ]
@@ -1690,6 +1710,73 @@ def test_span_extraction_with_tags(
     spans_consumer.assert_empty()
 
 
+def test_span_filtering_with_generic_inbound_filter(
+    mini_sentry, relay_with_processing, spans_consumer, outcomes_consumer
+):
+    mini_sentry.global_config["filters"] = {
+        "version": 1,
+        "filters": [
+            {
+                "id": "first-releases",
+                "isEnabled": True,
+                "condition": {
+                    "op": "eq",
+                    "name": "span.data.release",
+                    "value": "1.0",
+                },
+            }
+        ],
+    }
+
+    relay = relay_with_processing(options=TEST_CONFIG)
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = ["organizations:standalone-span-ingestion"]
+
+    spans_consumer = spans_consumer()
+    outcomes_consumer = outcomes_consumer()
+
+    end = datetime.now(timezone.utc) - timedelta(seconds=1)
+    duration = timedelta(milliseconds=500)
+    start = end - duration
+    envelope = Envelope()
+    envelope.add_item(
+        Item(
+            type="span",
+            payload=PayloadRef(
+                bytes=json.dumps(
+                    {
+                        "description": "organizations/metrics/data",
+                        "op": "default",
+                        "span_id": "cd429c44b67a3eb1",
+                        "segment_id": "968cff94913ebb07",
+                        "start_timestamp": start.timestamp(),
+                        "timestamp": end.timestamp() + 1,
+                        "exclusive_time": 345.0,  # The SDK knows that this span has a lower exclusive time
+                        "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                        "data": {"sentry.release": "1.0"},
+                    },
+                ).encode()
+            ),
+        )
+    )
+
+    relay.send_envelope(project_id, envelope)
+
+    spans = spans_consumer.get_spans(timeout=10.0, max_attempts=6)
+    assert len(spans) == 0
+
+    def summarize_outcomes():
+        counter = Counter()
+        for outcome in outcomes_consumer.get_outcomes():
+            counter[(outcome["category"], outcome["outcome"])] += outcome["quantity"]
+        return counter
+
+    assert summarize_outcomes() == {(12, 1): 1}
+    spans_consumer.assert_empty()
+    outcomes_consumer.assert_empty()
+
+
 @pytest.mark.parametrize("sample_rate", [0.0, 1.0])
 def test_dynamic_sampling(
     mini_sentry,
@@ -1721,7 +1808,7 @@ def test_dynamic_sampling(
         "version": 2,
         "rules": [
             {
-                "id": 1,
+                "id": 3001,
                 "samplingValue": {"type": "sampleRate", "value": sample_rate},
                 "type": "trace",
                 "condition": {
@@ -1780,7 +1867,7 @@ def test_dynamic_sampling(
     else:
         outcomes = outcomes_consumer.get_outcomes(timeout=10)
         assert summarize_outcomes(outcomes) == {(12, 1): 4}  # Span, Filtered
-        assert {o["reason"] for o in outcomes} == {"Sampled:1"}
+        assert {o["reason"] for o in outcomes} == {"Sampled:3000"}
 
     spans_consumer.assert_empty()
     outcomes_consumer.assert_empty()
