@@ -15,6 +15,7 @@
 - Send microsecond precision timestamps. ([#3613](https://github.com/getsentry/relay/pull/3613))
 - Map outcome reasons for dynamic sampling to reduced set of values. ([#3623](https://github.com/getsentry/relay/pull/3623))
 - Extract status for spans. ([#3606](https://github.com/getsentry/relay/pull/3606))
+- Forward `received_at` timestamp for buckets sent to Kafka. ([#3561](https://github.com/getsentry/relay/pull/3561))
 
 ## 24.5.0
 
