@@ -161,7 +161,7 @@ mod tests {
     use relay_metrics::{Aggregator, BucketValue, UnixTimestamp};
     use relay_system::Addr;
 
-    use crate::metric_stats::MetricStats;
+    use crate::metrics::MetricStats;
 
     use super::*;
 

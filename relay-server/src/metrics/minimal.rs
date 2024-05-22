@@ -4,8 +4,7 @@ use relay_metrics::{
 use serde::de::IgnoredAny;
 use serde::{de, Deserialize, Deserializer};
 
-use crate::metrics::{BucketSummary, TrackableBucket};
-use crate::utils::ExtractionMode;
+use crate::metrics::{BucketSummary, ExtractionMode, TrackableBucket};
 
 /// Bucket which parses only the minimally required information to implement [`TrackableBucket`].
 ///

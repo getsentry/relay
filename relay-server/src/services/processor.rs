@@ -46,8 +46,9 @@ use tokio::sync::Semaphore;
 
 #[cfg(feature = "processing")]
 use {
+    crate::metrics::MetricsLimiter,
     crate::services::store::{Store, StoreEnvelope},
-    crate::utils::{sample, EnvelopeLimiter, ItemAction, MetricsLimiter},
+    crate::utils::{sample, EnvelopeLimiter, ItemAction},
     itertools::Itertools,
     relay_cardinality::{
         CardinalityLimit, CardinalityLimiter, CardinalityLimitsSplit, RedisSetLimiter,
@@ -64,7 +65,7 @@ use {
 
 use crate::envelope::{self, ContentType, Envelope, EnvelopeError, Item, ItemType};
 use crate::extractors::{PartialDsn, RequestMeta};
-use crate::metrics::{MetricOutcomes, MinimalTrackableBucket};
+use crate::metrics::{ExtractionMode, MetricOutcomes, MinimalTrackableBucket};
 use crate::metrics_extraction::transactions::types::ExtractMetricsError;
 use crate::metrics_extraction::transactions::{ExtractedMetrics, TransactionExtractor};
 use crate::service::ServiceError;
@@ -83,8 +84,7 @@ use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
 #[cfg(feature = "processing")]
 use crate::utils::BufferGuard;
 use crate::utils::{
-    self, ExtractionMode, InvalidProcessingGroupType, ManagedEnvelope, SamplingResult,
-    TypedEnvelope,
+    self, InvalidProcessingGroupType, ManagedEnvelope, SamplingResult, TypedEnvelope,
 };
 use crate::{http, metrics};
 

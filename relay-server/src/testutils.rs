@@ -14,8 +14,7 @@ use relay_test::mock_service;
 
 use crate::envelope::{Envelope, Item, ItemType};
 use crate::extractors::RequestMeta;
-use crate::metric_stats::MetricStats;
-use crate::metrics::MetricOutcomes;
+use crate::metrics::{MetricOutcomes, MetricStats};
 use crate::services::global_config::GlobalConfigHandle;
 use crate::services::outcome::TrackOutcome;
 use crate::services::processor::{self, EnvelopeProcessorService};
