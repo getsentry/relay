@@ -3693,8 +3693,9 @@
 
 <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
 </span><span class="kw">use </span>{
+    <span class="kw">crate</span>::metrics::MetricsLimiter,
     <span class="kw">crate</span>::services::store::{Store, StoreEnvelope},
-    <span class="kw">crate</span>::utils::{sample, EnvelopeLimiter, ItemAction, MetricsLimiter},
+    <span class="kw">crate</span>::utils::{sample, EnvelopeLimiter, ItemAction},
     itertools::Itertools,
     relay_cardinality::{
         CardinalityLimit, CardinalityLimiter, CardinalityLimitsSplit, RedisSetLimiter,
@@ -3711,7 +3712,7 @@
 
 <span class="kw">use </span><span class="kw">crate</span>::envelope::{<span class="self">self</span>, ContentType, Envelope, EnvelopeError, Item, ItemType};
 <span class="kw">use </span><span class="kw">crate</span>::extractors::{PartialDsn, RequestMeta};
-<span class="kw">use </span><span class="kw">crate</span>::metrics::{MetricOutcomes, MinimalTrackableBucket};
+<span class="kw">use </span><span class="kw">crate</span>::metrics::{ExtractionMode, MetricOutcomes, MinimalTrackableBucket};
 <span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::transactions::types::ExtractMetricsError;
 <span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::transactions::{ExtractedMetrics, TransactionExtractor};
 <span class="kw">use </span><span class="kw">crate</span>::service::ServiceError;
@@ -3730,8 +3731,7 @@
 <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
 </span><span class="kw">use </span><span class="kw">crate</span>::utils::BufferGuard;
 <span class="kw">use </span><span class="kw">crate</span>::utils::{
-    <span class="self">self</span>, ExtractionMode, InvalidProcessingGroupType, ManagedEnvelope, SamplingResult,
-    TypedEnvelope,
+    <span class="self">self</span>, InvalidProcessingGroupType, ManagedEnvelope, SamplingResult, TypedEnvelope,
 };
 <span class="kw">use crate</span>::{http, metrics};
 

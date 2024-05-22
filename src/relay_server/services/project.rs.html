@@ -1523,8 +1523,6 @@
 <a href="#1521" id="1521">1521</a>
 <a href="#1522" id="1522">1522</a>
 <a href="#1523" id="1523">1523</a>
-<a href="#1524" id="1524">1524</a>
-<a href="#1525" id="1525">1525</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeSet;
 <span class="kw">use </span>std::sync::Arc;
 <span class="kw">use </span>std::time::Duration;
@@ -1550,7 +1548,7 @@
 <span class="kw">use </span>url::Url;
 
 <span class="kw">use </span><span class="kw">crate</span>::envelope::Envelope;
-<span class="kw">use </span><span class="kw">crate</span>::metrics::MetricOutcomes;
+<span class="kw">use </span><span class="kw">crate</span>::metrics::{ExtractionMode, MetricOutcomes, MetricsLimiter};
 <span class="kw">use </span><span class="kw">crate</span>::services::outcome::{DiscardReason, Outcome, TrackOutcome};
 <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
 </span><span class="kw">use </span><span class="kw">crate</span>::services::processor::RateLimitBuckets;
@@ -1560,9 +1558,7 @@
 <span class="kw">use </span><span class="kw">crate</span>::extractors::RequestMeta;
 
 <span class="kw">use </span><span class="kw">crate</span>::statsd::RelayCounters;
-<span class="kw">use </span><span class="kw">crate</span>::utils::{
-    <span class="self">self</span>, EnvelopeLimiter, ExtractionMode, ManagedEnvelope, MetricsLimiter, RetryBackoff,
-};
+<span class="kw">use </span><span class="kw">crate</span>::utils::{<span class="self">self</span>, EnvelopeLimiter, ManagedEnvelope, RetryBackoff};
 
 <span class="kw">mod </span>metrics;
 
@@ -2697,7 +2693,7 @@
 </span><span class="kw">mod </span>tests {
     <span class="kw">use </span>std::sync::Mutex;
 
-    <span class="kw">use </span><span class="kw">crate</span>::metric_stats::MetricStats;
+    <span class="kw">use </span><span class="kw">crate</span>::metrics::MetricStats;
     <span class="kw">use </span>relay_common::time::UnixTimestamp;
     <span class="kw">use </span>relay_metrics::BucketValue;
     <span class="kw">use </span>relay_test::mock_service;

@@ -1766,8 +1766,6 @@
 <a href="#1764" id="1764">1764</a>
 <a href="#1765" id="1765">1765</a>
 <a href="#1766" id="1766">1766</a>
-<a href="#1767" id="1767">1767</a>
-<a href="#1768" id="1768">1768</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module contains the service that forwards events and attachments to the Sentry store.
 //! The service uses Kafka topics to forward data to Sentry
 
@@ -1800,15 +1798,13 @@
 
 <span class="kw">use </span><span class="kw">crate</span>::envelope::{AttachmentType, Envelope, Item, ItemType};
 
-<span class="kw">use </span><span class="kw">crate</span>::metrics::MetricOutcomes;
+<span class="kw">use </span><span class="kw">crate</span>::metrics::{ArrayEncoding, BucketEncoder, ExtractionMode, MetricOutcomes};
 <span class="kw">use </span><span class="kw">crate</span>::service::ServiceError;
 <span class="kw">use </span><span class="kw">crate</span>::services::global_config::GlobalConfigHandle;
 <span class="kw">use </span><span class="kw">crate</span>::services::outcome::{DiscardReason, Outcome, TrackOutcome};
 <span class="kw">use </span><span class="kw">crate</span>::services::processor::Processed;
 <span class="kw">use </span><span class="kw">crate</span>::statsd::RelayCounters;
-<span class="kw">use </span><span class="kw">crate</span>::utils::{
-    is_rolled_out, ArrayEncoding, BucketEncoder, ExtractionMode, FormDataIter, TypedEnvelope,
-};
+<span class="kw">use </span><span class="kw">crate</span>::utils::{is_rolled_out, FormDataIter, TypedEnvelope};
 
 <span class="doccomment">/// Fallback name used for attachment items without a `filename` header.
 </span><span class="kw">const </span>UNNAMED_ATTACHMENT: <span class="kw-2">&amp;</span>str = <span class="string">"Unnamed Attachment"</span>;

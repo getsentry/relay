@@ -272,15 +272,13 @@
 <a href="#270" id="270">270</a>
 <a href="#271" id="271">271</a>
 <a href="#272" id="272">272</a>
-<a href="#273" id="273">273</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_metrics::{
     BucketMetadata, CounterType, MetricName, MetricNamespace, MetricResourceIdentifier, MetricType,
 };
 <span class="kw">use </span>serde::de::IgnoredAny;
 <span class="kw">use </span>serde::{de, Deserialize, Deserializer};
 
-<span class="kw">use </span><span class="kw">crate</span>::metrics::{BucketSummary, TrackableBucket};
-<span class="kw">use </span><span class="kw">crate</span>::utils::ExtractionMode;
+<span class="kw">use </span><span class="kw">crate</span>::metrics::{BucketSummary, ExtractionMode, TrackableBucket};
 
 <span class="doccomment">/// Bucket which parses only the minimally required information to implement [`TrackableBucket`].
 ///
