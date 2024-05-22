@@ -707,6 +707,9 @@
 <a href="#705" id="705">705</a>
 <a href="#706" id="706">706</a>
 <a href="#707" id="707">707</a>
+<a href="#708" id="708">708</a>
+<a href="#709" id="709">709</a>
+<a href="#710" id="710">710</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::str::FromStr;
 
 <span class="kw">use </span>chrono::{TimeZone, Utc};
@@ -1334,6 +1337,9 @@
             ),
             data: SpanData {
                 app_start_type: ~,
+                ai_total_tokens_used: ~,
+                ai_prompt_tokens_used: ~,
+                ai_completion_tokens_used: ~,
                 browser_name: "Chrome",
                 code_filepath: ~,
                 code_lineno: ~,

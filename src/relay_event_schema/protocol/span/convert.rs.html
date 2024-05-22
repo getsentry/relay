@@ -390,6 +390,9 @@
 <a href="#388" id="388">388</a>
 <a href="#389" id="389">389</a>
 <a href="#390" id="390">390</a>
+<a href="#391" id="391">391</a>
+<a href="#392" id="392">392</a>
+<a href="#393" id="393">393</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module defines bidirectional field mappings between spans and transactions.
 
 </span><span class="kw">use </span><span class="kw">crate</span>::protocol::{BrowserContext, Contexts, Event, ProfileContext, Span, TraceContext};
@@ -661,6 +664,9 @@
             ),
             data: SpanData {
                 app_start_type: ~,
+                ai_total_tokens_used: ~,
+                ai_prompt_tokens_used: ~,
+                ai_completion_tokens_used: ~,
                 browser_name: "Chrome",
                 code_filepath: ~,
                 code_lineno: ~,

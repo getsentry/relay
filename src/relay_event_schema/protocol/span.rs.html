@@ -696,6 +696,21 @@
 <a href="#694" id="694">694</a>
 <a href="#695" id="695">695</a>
 <a href="#696" id="696">696</a>
+<a href="#697" id="697">697</a>
+<a href="#698" id="698">698</a>
+<a href="#699" id="699">699</a>
+<a href="#700" id="700">700</a>
+<a href="#701" id="701">701</a>
+<a href="#702" id="702">702</a>
+<a href="#703" id="703">703</a>
+<a href="#704" id="704">704</a>
+<a href="#705" id="705">705</a>
+<a href="#706" id="706">706</a>
+<a href="#707" id="707">707</a>
+<a href="#708" id="708">708</a>
+<a href="#709" id="709">709</a>
+<a href="#710" id="710">710</a>
+<a href="#711" id="711">711</a>
 </pre></div><pre class="rust"><code><span class="kw">mod </span>convert;
 
 <span class="attr">#[cfg(feature = <span class="string">"jsonschema"</span>)]
@@ -875,6 +890,18 @@
     /// Can be either "cold" or "warm".
     </span><span class="attr">#[metastructure(field = <span class="string">"app_start_type"</span>)] </span><span class="comment">// TODO: no dot?
     </span><span class="kw">pub </span>app_start_type: Annotated&lt;Value&gt;,
+
+    <span class="doccomment">/// The total tokens that were used by an LLM call
+    </span><span class="attr">#[metastructure(field = <span class="string">"ai.total_tokens.used"</span>)]
+    </span><span class="kw">pub </span>ai_total_tokens_used: Annotated&lt;Value&gt;,
+
+    <span class="doccomment">/// The input tokens used by an LLM call (usually cheaper than output tokens)
+    </span><span class="attr">#[metastructure(field = <span class="string">"ai.prompt_tokens.used"</span>)]
+    </span><span class="kw">pub </span>ai_prompt_tokens_used: Annotated&lt;Value&gt;,
+
+    <span class="doccomment">/// The output tokens used by an LLM call (the ones the LLM actually generated)
+    </span><span class="attr">#[metastructure(field = <span class="string">"ai.completion_tokens.used"</span>)]
+    </span><span class="kw">pub </span>ai_completion_tokens_used: Annotated&lt;Value&gt;,
 
     <span class="doccomment">/// The client's browser name.
     </span><span class="attr">#[metastructure(field = <span class="string">"browser.name"</span>)]
@@ -1302,6 +1329,9 @@
         <span class="macro">insta::assert_debug_snapshot!</span>(data, @<span class="string">r###"
         SpanData {
             app_start_type: ~,
+            ai_total_tokens_used: ~,
+            ai_prompt_tokens_used: ~,
+            ai_completion_tokens_used: ~,
             browser_name: ~,
             code_filepath: String(
                 "task.py",
