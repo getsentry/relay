@@ -711,6 +711,11 @@
 <a href="#709" id="709">709</a>
 <a href="#710" id="710">710</a>
 <a href="#711" id="711">711</a>
+<a href="#712" id="712">712</a>
+<a href="#713" id="713">713</a>
+<a href="#714" id="714">714</a>
+<a href="#715" id="715">715</a>
+<a href="#716" id="716">716</a>
 </pre></div><pre class="rust"><code><span class="kw">mod </span>convert;
 
 <span class="attr">#[cfg(feature = <span class="string">"jsonschema"</span>)]
@@ -978,6 +983,10 @@
     <span class="doccomment">/// Whether cache was hit or miss on a read operation.
     </span><span class="attr">#[metastructure(field = <span class="string">"cache.hit"</span>)]
     </span><span class="kw">pub </span>cache_hit: Annotated&lt;Value&gt;,
+
+    <span class="doccomment">/// The name of the cache key.
+    </span><span class="attr">#[metastructure(field = <span class="string">"cache.key"</span>)]
+    </span><span class="kw">pub </span>cache_key: Annotated&lt;Value&gt;,
 
     <span class="doccomment">/// The size of the cache item.
     </span><span class="attr">#[metastructure(field = <span class="string">"cache.item_size"</span>)]
@@ -1358,6 +1367,7 @@
             resource_render_blocking_status: ~,
             server_address: ~,
             cache_hit: ~,
+            cache_key: ~,
             cache_item_size: ~,
             http_response_status_code: ~,
             ai_pipeline_name: ~,
