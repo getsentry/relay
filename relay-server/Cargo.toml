@@ -134,7 +134,7 @@ url = { workspace = true, features = ["serde"] }
 uuid = { workspace = true, features = ["v5"] }
 zstd = { workspace = true, optional = true }
 axum-extra = { workspace = true, features = ["protobuf"] }
-google-cloud-storage = { version = "0.18.0"}
+google-cloud-storage = { version = "0.18.0" }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ['test-util'] }
