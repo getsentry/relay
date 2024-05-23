@@ -566,7 +566,7 @@ struct ProjectCacheBroker {
     buffer_tx: mpsc::UnboundedSender<UnspooledEnvelope>,
     /// Shared semaphore used to control how many envelopes are currently running through Relay.
     buffer_guard: Arc<BufferGuard>,
-    /// Index containing all the [`QueueKey`](s) that have been enqueued in the [`BufferService`].
+    /// Index containing all the [`QueueKey`] that have been enqueued in the [`BufferService`].
     index: HashSet<QueueKey>,
     /// Handle to schedule periodic unspooling of buffered envelopes.
     buffer_unspool_handle: SleepHandle,
