@@ -169,9 +169,11 @@ pub fn hardcoded_span_metrics() -> Vec<(GroupKey, Vec<MetricSpec>, Vec<TagMappin
             Number::from_f64(MAX_DURATION_MOBILE_MS).unwrap_or(0.into()),
         );
 
-    let app_start_condition = duration_condition.clone()
-        & RuleCondition::glob("span.op", "app.start.*")
+    let is_app_start = RuleCondition::glob("span.op", "app.start.*")
         & RuleCondition::eq("span.description", APP_START_ROOT_SPAN_DESCRIPTIONS);
+
+    // let app_start_condition = duration_condition.clone()
+    //     &
 
     // `exclusive_time_light` excludes transaction tags (and some others) to reduce cardinality.
     let exclusive_time_light_condition = (is_db.clone()
@@ -184,12 +186,6 @@ pub fn hardcoded_span_metrics() -> Vec<(GroupKey, Vec<MetricSpec>, Vec<TagMappin
         | is_cache.clone()) // TODO: not in common
         & duration_condition.clone();
 
-    let know_modules_condition = (is_db.clone()
-        | is_resource.clone()
-        | is_mobile.clone()
-        | is_http.clone()
-        | is_queue_op.clone()) // TODO: not in common
-        & duration_condition.clone();
     let span_time_tags = vec![
         // All modules:
         Tag::with_key("environment")
@@ -207,13 +203,36 @@ pub fn hardcoded_span_metrics() -> Vec<(GroupKey, Vec<MetricSpec>, Vec<TagMappin
         // Most modules
         Tag::with_key("span.group")
             .from_field("span.sentry_tags.group")
-            .when(know_modules_condition.clone() | app_start_condition.clone()),
+            .when(
+                (is_app_start.clone()
+                    | is_db.clone()
+                    | is_resource.clone()
+                    | is_mobile.clone()
+                    | is_http.clone()
+                    | is_queue_op.clone())
+                    & duration_condition.clone(),
+            ),
         Tag::with_key("span.category")
             .from_field("span.sentry_tags.category")
-            .when(know_modules_condition.clone()),
+            .when(
+                (is_db.clone()
+                    | is_resource.clone()
+                    | is_mobile.clone()
+                    | is_http.clone()
+                    | is_queue_op.clone())
+                    & duration_condition.clone(),
+            ),
         Tag::with_key("span.description")
             .from_field("span.sentry_tags.description")
-            .when(know_modules_condition.clone() | app_start_condition.clone()),
+            .when(
+                (is_app_start.clone()
+                    | is_db.clone()
+                    | is_resource.clone()
+                    | is_mobile.clone()
+                    | is_http.clone()
+                    | is_queue_op.clone())
+                    & duration_condition.clone(),
+            ),
         // Know modules:
         Tag::with_key("transaction.method")
             .from_field("span.sentry_tags.transaction.method")
@@ -230,10 +249,10 @@ pub fn hardcoded_span_metrics() -> Vec<(GroupKey, Vec<MetricSpec>, Vec<TagMappin
             .when(is_mobile.clone()),
         Tag::with_key("os.name") // TODO: might not be needed on both `exclusive_time` metrics
             .from_field("span.sentry_tags.os.name")
-            .when(is_mobile.clone() | app_start_condition.clone()),
+            .when(is_mobile.clone() | (is_app_start.clone() & duration_condition.clone())),
         Tag::with_key("release")
             .from_field("span.sentry_tags.release")
-            .when(is_mobile.clone() | app_start_condition.clone()),
+            .when(is_mobile.clone() | (is_app_start.clone() & duration_condition.clone())),
         Tag::with_key("ttfd")
             .from_field("span.sentry_tags.ttfd")
             .when(is_mobile.clone()),
@@ -775,8 +794,7 @@ pub fn hardcoded_span_metrics() -> Vec<(GroupKey, Vec<MetricSpec>, Vec<TagMappin
                             .from_field("span.sentry_tags.op")
                             .always(), // already guarded by condition on metric
                     ],
-                },
-                // queue module
+                }, // queue module
                 MetricSpec {
                     category: DataCategory::Span,
                     mri: "g:spans/messaging.message.receive.latency@millisecond".into(),
