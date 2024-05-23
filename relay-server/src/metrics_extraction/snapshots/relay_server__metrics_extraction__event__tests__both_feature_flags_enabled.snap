@@ -6840,6 +6840,7 @@ expression: metrics
             ],
         ),
         tags: {
+            "environment": "fake_environment",
             "messaging.destination.name": "default",
             "span.category": "queue",
             "span.op": "queue.task.celery",
@@ -6963,6 +6964,7 @@ expression: metrics
             ],
         ),
         tags: {
+            "environment": "fake_environment",
             "messaging.destination.name": "default",
             "span.category": "queue",
             "span.op": "queue.submit.celery",
@@ -7086,6 +7088,7 @@ expression: metrics
             ],
         ),
         tags: {
+            "environment": "fake_environment",
             "messaging.destination.name": "default",
             "span.category": "queue",
             "span.op": "queue.publish",
@@ -7209,6 +7212,7 @@ expression: metrics
             ],
         ),
         tags: {
+            "environment": "fake_environment",
             "messaging.destination.name": "default",
             "span.category": "queue",
             "span.op": "queue.process",
