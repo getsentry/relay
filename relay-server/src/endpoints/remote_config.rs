@@ -17,7 +17,10 @@ pub async fn handle(state: ServiceState) -> impl IntoResponse {
 
     // Is the DSN ever null? Why is it optional?
     if let Some(key) = maybe_key {
-        if let Some(response) = fetch_from_public_bucket(key).await {
+        // We're fetching from a public source for no reason other than it doesn't require GCS
+        // credentials and I'm actively testing with this source type. A production system would
+        // likely want a private source meaning the public url fetching function would be removed.
+        if let Some(response) = fetch_from_public_url(key).await {
             return (StatusCode::OK, axum::Json(response));
         }
     }
@@ -30,7 +33,7 @@ pub async fn handle(state: ServiceState) -> impl IntoResponse {
 // doesn't have a latency impact but does have a COGS impact. This state of affair should be
 // sufficient for a proof of concept or internal testing but should not remain for the private
 // alpha.
-async fn fetch_from_private_bucket(key: String) -> Option<Vec<u8>> {
+async fn fetch_from_private_url(key: String) -> Option<Vec<u8>> {
     // TODO: Log if credentials do not exist?
     // TODO: Should this be in some global and passed into this function?
     let config = ClientConfig::default().with_auth().await.ok()?;
@@ -54,7 +57,7 @@ async fn fetch_from_private_bucket(key: String) -> Option<Vec<u8>> {
 // Half-implementation of what needs to happen to support public bucket access. In reality we'll
 // make an HTTP request to a public CDN URL. The same implications for private bucket access apply
 // here. No latency impact. Slight COGS impact. Unwise to ship to customers.
-async fn fetch_from_public_bucket(key: String) -> Option<Vec<u8>> {
+async fn fetch_from_public_url(key: String) -> Option<Vec<u8>> {
     // TODO: This isn't a CDN url. The CDN url is an ip-address that would need to be
     // configured per PoP region.
     let url = format!(
