@@ -1253,7 +1253,7 @@ impl FetchOptionalProjectState {
 
 #[cfg(test)]
 mod tests {
-    use crate::metric_stats::MetricStats;
+    use crate::metrics::MetricStats;
     use crate::services::global_config::GlobalConfigHandle;
     use relay_dynamic_config::GlobalConfig;
     use relay_test::mock_service;

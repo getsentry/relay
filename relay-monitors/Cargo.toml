@@ -13,7 +13,6 @@ publish = false
 workspace = true
 
 [dependencies]
-regex = { workspace = true }
 relay-base-schema = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }

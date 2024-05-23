@@ -205,16 +205,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "69f7f8c3906b62b754cd5326047894316021dcfe5a194c8ea52bdd94934a3457"
 
 [[package]]
-name = "assert-json-diff"
-version = "2.0.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "47e4f2b81832e72834d7518d8487a0396a28cc408186a2e8854c0f98011faf12"
-dependencies = [
- "serde",
- "serde_json",
-]
-
-[[package]]
 name = "async-compression"
 version = "0.3.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1122,7 +1112,6 @@ dependencies = [
  "quote",
  "serde",
  "serde_json",
- "serde_yaml 0.9.17",
  "syn 2.0.38",
  "walkdir",
 ]
@@ -1719,26 +1708,6 @@ dependencies = [
  "serde_urlencoded",
  "thiserror",
  "wasm-bindgen",
- "web-sys",
-]
-
-[[package]]
-name = "gloo-net"
-version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2899cb1a13be9020b010967adc6b2a8a343b6f1428b90238c9d53ca24decc6db"
-dependencies = [
- "futures-channel",
- "futures-core",
- "futures-sink",
- "gloo-utils 0.1.7",
- "js-sys",
- "pin-project",
- "serde",
- "serde_json",
- "thiserror",
- "wasm-bindgen",
- "wasm-bindgen-futures",
  "web-sys",
 ]
 
@@ -3632,7 +3601,7 @@ dependencies = [
 
 [[package]]
 name = "relay-cabi"
-version = "0.8.66"
+version = "0.8.67"
 dependencies = [
  "anyhow",
  "chrono",
@@ -3733,8 +3702,6 @@ dependencies = [
  "gloo-console 0.3.0",
  "gloo-net 0.4.0",
  "instant",
- "reqwasm",
- "tokio",
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-sys",
@@ -3747,8 +3714,6 @@ name = "relay-dynamic-config"
 version = "24.5.0"
 dependencies = [
  "anyhow",
- "indexmap 2.2.5",
- "insta",
  "relay-auth",
  "relay-base-schema",
  "relay-cardinality",
@@ -3763,7 +3728,6 @@ dependencies = [
  "serde",
  "serde_json",
  "similar-asserts",
- "smallvec",
 ]
 
 [[package]]
@@ -3898,7 +3862,6 @@ dependencies = [
 name = "relay-log"
 version = "24.5.0"
 dependencies = [
- "chrono",
  "console",
  "once_cell",
  "relay-common",
@@ -3906,7 +3869,6 @@ dependencies = [
  "sentry",
  "sentry-core",
  "serde",
- "serde_json",
  "tokio",
  "tracing",
  "tracing-subscriber",
@@ -3947,7 +3909,6 @@ dependencies = [
 name = "relay-monitors"
 version = "24.5.0"
 dependencies = [
- "regex",
  "relay-base-schema",
  "serde",
  "serde_json",
@@ -3999,7 +3960,6 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_path_to_error",
- "serde_test",
  "thiserror",
 ]
 
@@ -4063,13 +4023,10 @@ dependencies = [
 name = "relay-replays"
 version = "24.5.0"
 dependencies = [
- "assert-json-diff",
- "bytes",
  "criterion",
  "flate2",
  "insta",
  "once_cell",
- "relay-common",
  "relay-event-schema",
  "relay-log",
  "relay-pii",
@@ -4089,14 +4046,12 @@ dependencies = [
  "rand",
  "rand_pcg",
  "relay-base-schema",
- "relay-common",
  "relay-log",
  "relay-protocol",
  "relay-redis",
  "serde",
  "serde_json",
  "similar-asserts",
- "unicase",
  "uuid",
 ]
 
@@ -4110,14 +4065,12 @@ dependencies = [
  "axum-server",
  "backoff",
  "brotli",
- "bytecount",
  "bytes",
  "chrono",
  "data-encoding",
  "flate2",
  "fnv",
  "futures",
- "hash32",
  "hashbrown 0.14.3",
  "insta",
  "itertools",
@@ -4185,16 +4138,13 @@ name = "relay-spans"
 version = "24.5.0"
 dependencies = [
  "chrono",
- "enumset",
  "hex",
  "insta",
  "once_cell",
  "opentelemetry-proto",
  "relay-event-schema",
  "relay-protocol",
- "serde",
  "serde_json",
- "serde_repr",
 ]
 
 [[package]]
@@ -4235,15 +4185,6 @@ version = "24.5.0"
 dependencies = [
  "once_cell",
  "uaparser",
-]
-
-[[package]]
-name = "reqwasm"
-version = "0.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "05b89870d729c501fa7a68c43bf4d938bbb3a8c156d333d90faa0e8b3e3212fb"
-dependencies = [
- "gloo-net 0.1.0",
 ]
 
 [[package]]
@@ -4800,17 +4741,6 @@ checksum = "4beec8bce849d58d06238cb50db2e1c417cfeafa4c63f692b15c82b7c80f8335"
 dependencies = [
  "itoa",
  "serde",
-]
-
-[[package]]
-name = "serde_repr"
-version = "0.1.16"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8725e1dfadb3a50f7e5ce0b1a540466f6ed3fe7a0fca2ac2b8b831d31316bd00"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 2.0.38",
 ]
 
 [[package]]
@@ -6083,8 +6013,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7706a72ab36d8cb1f80ffbf0e071533974a60d0a308d01a5d0375bf60499a342"
 dependencies = [
  "cfg-if",
- "serde",
- "serde_json",
  "wasm-bindgen-macro",
 ]
 

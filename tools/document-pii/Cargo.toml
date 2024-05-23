@@ -16,7 +16,6 @@ proc-macro2 = { workspace = true }
 quote = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
-serde_yaml = { workspace = true }
 syn2 = { workspace = true, features = ["visit", "full", "extra-traits"] }
 walkdir = { workspace = true }
 

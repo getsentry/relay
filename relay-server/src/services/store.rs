@@ -1,6 +1,7 @@
 //! This module contains the service that forwards events and attachments to the Sentry store.
 //! The service uses Kafka topics to forward data to Sentry
 
+use anyhow::Context;
 use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::error::Error;
@@ -29,14 +30,13 @@ use uuid::Uuid;
 
 use crate::envelope::{AttachmentType, Envelope, Item, ItemType};
 
-use crate::metrics::MetricOutcomes;
+use crate::metrics::{ArrayEncoding, BucketEncoder, ExtractionMode, MetricOutcomes};
+use crate::service::ServiceError;
 use crate::services::global_config::GlobalConfigHandle;
 use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::services::processor::Processed;
 use crate::statsd::RelayCounters;
-use crate::utils::{
-    is_rolled_out, ArrayEncoding, BucketEncoder, ExtractionMode, FormDataIter, TypedEnvelope,
-};
+use crate::utils::{is_rolled_out, FormDataIter, TypedEnvelope};
 
 /// Fallback name used for attachment items without a `filename` header.
 const UNNAMED_ATTACHMENT: &str = "Unnamed Attachment";
@@ -65,7 +65,9 @@ impl Producer {
             **t != KafkaTopic::Outcomes && **t != KafkaTopic::OutcomesBilling
         }) {
             let kafka_config = &config.kafka_config(*topic)?;
-            client_builder = client_builder.add_kafka_topic_config(*topic, kafka_config)?;
+            client_builder = client_builder
+                .add_kafka_topic_config(*topic, kafka_config, config.kafka_validate_topics())
+                .context(ServiceError::Kafka)?;
         }
 
         Ok(Self {
@@ -190,19 +192,10 @@ impl StoreService {
         let retention = envelope.retention();
         let event_id = envelope.event_id();
 
-        let feedback_ingest_same_envelope_attachments = self
-            .global_config
-            .current()
-            .options
-            .feedback_ingest_same_envelope_attachments;
-
         let event_item = envelope.as_mut().take_item_by(|item| {
             matches!(
-                (item.ty(), feedback_ingest_same_envelope_attachments),
-                (ItemType::Event, _)
-                    | (ItemType::Transaction, _)
-                    | (ItemType::Security, _)
-                    | (ItemType::UserReportV2, false)
+                item.ty(),
+                ItemType::Event | ItemType::Transaction | ItemType::Security
             )
         });
         let client = envelope.meta().client();
@@ -251,7 +244,7 @@ impl StoreService {
                         item,
                     )?;
                 }
-                ItemType::UserReportV2 if feedback_ingest_same_envelope_attachments => {
+                ItemType::UserReportV2 => {
                     let remote_addr = envelope.meta().client_addr().map(|addr| addr.to_string());
                     self.produce_user_report_v2(
                         event_id.ok_or(StoreError::NoEventId)?,
@@ -478,8 +471,6 @@ impl StoreService {
             BucketViewValue::Gauge(g) => MetricValue::Gauge(g),
         };
 
-        // TODO: propagate the `received_at` field upstream.
-        // https://github.com/getsentry/relay/issues/3515
         Ok(MetricKafkaMessage {
             org_id: organization_id,
             project_id,
@@ -488,6 +479,7 @@ impl StoreService {
             timestamp: view.timestamp(),
             tags: view.tags(),
             retention_days,
+            received_at: view.metadata().received_at,
         })
     }
 
@@ -1262,6 +1254,8 @@ struct MetricKafkaMessage<'a> {
     timestamp: UnixTimestamp,
     tags: &'a BTreeMap<String, String>,
     retention_days: u16,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    received_at: Option<UnixTimestamp>,
 }
 
 #[derive(Clone, Debug, Serialize)]

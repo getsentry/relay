@@ -723,6 +723,9 @@ pub fn hardcoded_span_metrics() -> Vec<(GroupKey, Vec<MetricSpec>, Vec<TagMappin
                     field: Some("span.exclusive_time".into()),
                     condition: Some(is_addon.clone() & duration_condition.clone()),
                     tags: vec![
+                        Tag::with_key("environment")
+                            .from_field("span.sentry_tags.environment")
+                            .when(is_cache.clone() | is_queue_op.clone()),
                         Tag::with_key("span.category")
                             .from_field("span.sentry_tags.category")
                             .always(),
