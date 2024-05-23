@@ -4,11 +4,11 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use crate::extractors::RequestMeta;
-use crate::metrics::MetricOutcomes;
+use crate::metrics::{ManagedBuckets, MetricOutcomes, Parsed};
 use hashbrown::HashSet;
 use relay_base_schema::project::ProjectKey;
 use relay_config::{Config, RelayMode};
-use relay_metrics::{Aggregator, Bucket, FlushBuckets, MetricMeta};
+use relay_metrics::{Aggregator, FlushBuckets, MetricMeta};
 use relay_quotas::RateLimits;
 use relay_redis::RedisPool;
 use relay_statsd::metric;
@@ -206,17 +206,18 @@ impl From<&RequestMeta> for BucketSource {
 /// Adding buckets directly to the aggregator bypasses all of these checks.
 #[derive(Debug)]
 pub struct AddMetricBuckets {
-    pub project_key: ProjectKey,
-    pub buckets: Vec<Bucket>,
+    pub buckets: ManagedBuckets<Parsed>,
     pub source: BucketSource,
 }
 
 impl AddMetricBuckets {
     /// Convenience constructor which creates an internal [`AddMetricBuckets`] message.
-    pub fn internal(project_key: ProjectKey, buckets: Vec<Bucket>) -> Self {
+    pub fn internal<S>(buckets: ManagedBuckets<S>) -> Self
+    where
+        S: Into<Parsed>,
+    {
         Self {
-            project_key,
-            buckets,
+            buckets: buckets.transition(),
             source: BucketSource::Internal,
         }
     }
@@ -867,7 +868,7 @@ impl ProjectCacheBroker {
         let envelope_processor = self.services.envelope_processor.clone();
         let metric_outcomes = self.metric_outcomes.clone();
 
-        let project = self.get_or_create_project(message.project_key);
+        let project = self.get_or_create_project(message.buckets.project_key());
         project.prefetch(project_cache, false);
         project.merge_buckets(
             &aggregator,
@@ -892,7 +893,7 @@ impl ProjectCacheBroker {
         let mut output = BTreeMap::new();
         for (project_key, buckets) in message.buckets {
             let project = self.get_or_create_project(project_key);
-            if let Some((scoping, b)) = project.check_buckets(&metric_outcomes, buckets) {
+            if let Some((scoping, b)) = project.check_buckets(metric_outcomes.clone(), buckets) {
                 output.insert(scoping, b);
             }
         }

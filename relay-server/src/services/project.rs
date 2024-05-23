@@ -23,21 +23,23 @@ use tokio::time::Instant;
 use url::Url;
 
 use crate::envelope::Envelope;
-use crate::metrics::{ExtractionMode, MetricOutcomes, MetricsLimiter};
+use crate::metrics::{
+    Aggregated, ExtractionMode, Filtered, ManagedBuckets, MetricOutcomes, MetricsLimiter, Parsed,
+    WithProjectState,
+};
 use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
 #[cfg(feature = "processing")]
 use crate::services::processor::RateLimitBuckets;
 use crate::services::processor::{EncodeMetricMeta, EnvelopeProcessor, ProjectMetrics};
+use crate::services::project::metrics::{apply_project_state, filter_namespace};
 use crate::services::project_cache::{BucketSource, CheckedEnvelope, ProjectCache, RequestUpdate};
 
 use crate::extractors::RequestMeta;
 
 use crate::statsd::RelayCounters;
-use crate::utils::{self, EnvelopeLimiter, ManagedEnvelope, RetryBackoff};
+use crate::utils::{EnvelopeLimiter, ManagedEnvelope, RetryBackoff};
 
 mod metrics;
-
-use self::metrics::{Buckets, Filtered};
 
 /// The expiry status of a project state. Return value of [`ProjectState::check_expiry`].
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
@@ -447,9 +449,9 @@ impl State {
 
     /// Sets the cached state using provided `ProjectState`.
     /// If the variant was pending, the buckets will be returned.
-    fn set_state(&mut self, state: Arc<ProjectState>) -> Option<Buckets<Filtered>> {
+    fn set_state(&mut self, state: Arc<ProjectState>) -> Option<Vec<Bucket>> {
         match std::mem::replace(self, Self::Cached(state)) {
-            State::Pending(agg) => Some(Buckets::new(agg.into_buckets())),
+            State::Pending(agg) => Some(agg.into_buckets()),
             State::Cached(_) => None,
         }
     }
@@ -593,7 +595,7 @@ impl Project {
         outcome_aggregator: &Addr<TrackOutcome>,
         metric_outcomes: &MetricOutcomes,
         state: &ProjectState,
-        buckets: Buckets<Filtered>,
+        buckets: ManagedBuckets<Filtered>,
     ) {
         let Some(scoping) = self.scoping() else {
             relay_log::error!(
@@ -609,7 +611,8 @@ impl Project {
             return;
         }
 
-        let buckets = buckets.apply_project_state(metric_outcomes, state, scoping);
+        let buckets: ManagedBuckets<WithProjectState> =
+            buckets.retain_mut(|bucket| apply_project_state(bucket, state));
 
         if buckets.is_empty() {
             return;
@@ -618,7 +621,12 @@ impl Project {
         // Check rate limits if necessary.
         let quotas = state.config.quotas.clone();
         let extraction_mode = state.get_extraction_mode();
-        let buckets = match MetricsLimiter::create(buckets, quotas, scoping, extraction_mode) {
+        let buckets = match MetricsLimiter::create(
+            buckets.into_buckets(),
+            quotas,
+            scoping,
+            extraction_mode,
+        ) {
             Ok(mut bucket_limiter) => {
                 let cached_rate_limits = self.rate_limits().clone();
                 #[allow(unused_variables)]
@@ -654,7 +662,7 @@ impl Project {
         outcome_aggregator: &Addr<TrackOutcome>,
         metric_outcomes: &MetricOutcomes,
         envelope_processor: &Addr<EnvelopeProcessor>,
-        buckets: Vec<Bucket>,
+        buckets: ManagedBuckets<Parsed>,
         source: BucketSource,
     ) {
         if !self.metrics_allowed() {
@@ -662,7 +670,7 @@ impl Project {
             return;
         }
 
-        let buckets = Buckets::new(buckets).filter_namespaces(source);
+        let buckets = buckets.retain_mut(|bucket| filter_namespace(bucket, source));
 
         match self.state {
             State::Cached(ref state) => {
@@ -682,7 +690,7 @@ impl Project {
             State::Pending(ref mut inner_agg) => {
                 // We need to queue the metrics in a temporary aggregator until the project state becomes available.
                 relay_log::debug!("sending metrics to metrics-buffer");
-                inner_agg.merge_all(self.project_key, buckets, None);
+                inner_agg.merge_all(self.project_key, buckets.into_buckets(), None);
             }
         }
     }
@@ -898,22 +906,33 @@ impl Project {
         outcome_aggregator: &Addr<TrackOutcome>,
         metric_outcomes: &MetricOutcomes,
     ) {
-        let project_enabled = state.check_disabled(self.config.as_ref()).is_ok();
-        let buckets = self.state.set_state(state.clone());
+        let Some(buckets) = self.state.set_state(Arc::clone(&state)) else {
+            return;
+        };
 
-        if let Some(buckets) = buckets {
-            if project_enabled && !buckets.is_empty() {
-                relay_log::debug!("sending metrics from metricsbuffer to aggregator");
+        let buckets = ManagedBuckets::with_state_and_scoping(
+            metric_outcomes.clone(),
+            self.scoping().expect("TODO"),
+            state.get_extraction_mode(),
+            buckets,
+        );
 
-                self.merge_buckets_into_aggregator(
-                    aggregator,
-                    envelope_processor,
-                    outcome_aggregator,
-                    metric_outcomes,
-                    &state,
-                    buckets,
-                );
-            }
+        if let Err(reason) = state.check_disabled(&self.config) {
+            buckets.reject(Outcome::Invalid(reason));
+            return;
+        }
+
+        if !buckets.is_empty() {
+            relay_log::debug!("sending metrics from metricsbuffer to aggregator");
+
+            self.merge_buckets_into_aggregator(
+                aggregator,
+                envelope_processor,
+                outcome_aggregator,
+                metric_outcomes,
+                &state,
+                buckets,
+            );
         }
     }
 
@@ -1102,22 +1121,11 @@ impl Project {
     /// Returns `Some` if metrics are currently allowed.
     pub fn check_buckets(
         &mut self,
-        metric_outcomes: &MetricOutcomes,
-        mut buckets: Vec<Bucket>,
+        metric_outcomes: MetricOutcomes,
+        buckets: Vec<Bucket>,
     ) -> Option<(Scoping, ProjectMetrics)> {
-        let Some(project_state) = self.valid_state() else {
-            relay_log::error!(
-                tags.project_key = self.project_key.as_str(),
-                "there is no project state: dropping {} buckets",
-                buckets.len(),
-            );
-            return None;
-        };
-
-        if project_state.invalid() || project_state.disabled() {
-            relay_log::debug!("dropping {} buckets for disabled project", buckets.len());
-            return None;
-        }
+        let mut buckets =
+            ManagedBuckets::<Aggregated>::with_state(metric_outcomes, self.project_key, buckets);
 
         let Some(scoping) = self.scoping() else {
             relay_log::error!(
@@ -1125,15 +1133,33 @@ impl Project {
                 "there is no scoping: dropping {} buckets",
                 buckets.len(),
             );
+            buckets.reject(Outcome::Invalid(DiscardReason::Internal));
             return None;
         };
+
+        let Some(project_state) = self.valid_state() else {
+            relay_log::error!(
+                tags.project_key = self.project_key.as_str(),
+                "there is no project state: dropping {} buckets",
+                buckets.len(),
+            );
+            buckets.reject(Outcome::Invalid(DiscardReason::Internal));
+            return None;
+        };
+
+        buckets.scope(scoping, project_state.get_extraction_mode());
+
+        if let Err(reason) = project_state.check_disabled(&self.config) {
+            buckets.reject(Outcome::Invalid(reason));
+            return None;
+        }
 
         let namespaces: BTreeSet<MetricNamespace> = buckets
             .iter()
             .filter_map(|bucket| bucket.name.try_namespace())
             .collect();
 
-        let mode = project_state.get_extraction_mode();
+        let mut buckets = buckets;
         for namespace in namespaces {
             let limits = self.rate_limits().check_with_quotas(
                 project_state.get_quotas(),
@@ -1141,13 +1167,10 @@ impl Project {
             );
 
             if limits.is_limited() {
-                let rejected;
-                (buckets, rejected) = utils::split_off(buckets, |bucket| {
+                let reason_code = limits.longest().and_then(|limit| limit.reason_code.clone());
+                buckets = buckets.remove_if(Outcome::RateLimited(reason_code), |bucket| {
                     bucket.name.try_namespace() == Some(namespace)
                 });
-
-                let reason_code = limits.longest().and_then(|limit| limit.reason_code.clone());
-                metric_outcomes.track(scoping, &rejected, mode, Outcome::RateLimited(reason_code));
             }
         }
 

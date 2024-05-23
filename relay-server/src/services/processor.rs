@@ -65,7 +65,9 @@ use {
 
 use crate::envelope::{self, ContentType, Envelope, EnvelopeError, Item, ItemType};
 use crate::extractors::{PartialDsn, RequestMeta};
-use crate::metrics::{ExtractionMode, MetricOutcomes, MinimalTrackableBucket};
+use crate::metrics::{
+    Aggregated, Extracted, ExtractionMode, ManagedBuckets, MetricOutcomes, MinimalTrackableBucket,
+};
 use crate::metrics_extraction::transactions::types::ExtractMetricsError;
 use crate::metrics_extraction::transactions::{ExtractedMetrics, TransactionExtractor};
 use crate::service::ServiceError;
@@ -583,13 +585,21 @@ impl From<ExtractMetricsError> for ProcessingError {
 type ExtractedEvent = (Annotated<Event>, usize);
 
 impl ExtractedMetrics {
-    fn send_metrics(self, envelope: &Envelope, project_cache: Addr<ProjectCache>) {
+    fn send_metrics(
+        self,
+        envelope: &Envelope,
+        metric_outcomes: MetricOutcomes,
+        project_cache: Addr<ProjectCache>,
+    ) {
         let project_key = envelope.meta().public_key();
 
         if !self.project_metrics.is_empty() {
             project_cache.send(AddMetricBuckets::internal(
-                project_key,
-                self.project_metrics,
+                ManagedBuckets::<Extracted>::with_state(
+                    metric_outcomes.clone(),
+                    project_key,
+                    self.project_metrics,
+                ),
             ));
         }
 
@@ -602,8 +612,11 @@ impl ExtractedMetrics {
             // root_project_with_tracing       -> metrics goes to root == self
             let sampling_project_key = utils::get_sampling_key(envelope).unwrap_or(project_key);
             project_cache.send(AddMetricBuckets::internal(
-                sampling_project_key,
-                self.sampling_metrics,
+                ManagedBuckets::<Extracted>::with_state(
+                    metric_outcomes.clone(),
+                    sampling_project_key,
+                    self.sampling_metrics,
+                ),
             ));
         }
     }
@@ -800,10 +813,10 @@ pub struct ProcessMetricMeta {
 }
 
 /// Metric buckets with additional project.
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct ProjectMetrics {
     /// The metric buckets to encode.
-    pub buckets: Vec<Bucket>,
+    pub buckets: ManagedBuckets<Aggregated>,
     /// Project state for extracting quotas.
     pub project_state: Arc<ProjectState>,
 }
@@ -1839,6 +1852,7 @@ impl EnvelopeProcessorService {
 
                         state.extracted_metrics.send_metrics(
                             state.managed_envelope.envelope(),
+                            self.inner.metric_outcomes.clone(),
                             self.inner.addrs.project_cache.clone(),
                         );
 
@@ -1902,11 +1916,7 @@ impl EnvelopeProcessorService {
             source,
         } = message;
 
-        let received = relay_common::time::instant_to_date_time(start_time);
         let received_timestamp = UnixTimestamp::from_instant(start_time);
-
-        let clock_drift_processor =
-            ClockDriftProcessor::new(sent_at, received).at_least(MINIMUM_CLOCK_DRIFT);
 
         let mut buckets = Vec::new();
         for item in items {
@@ -1947,25 +1957,10 @@ impl EnvelopeProcessorService {
             }
         }
 
-        if buckets.is_empty() {
-            return;
-        };
-
-        for bucket in &mut buckets {
-            clock_drift_processor.process_timestamp(&mut bucket.timestamp);
-            if !matches!(source, BucketSource::Internal) {
-                bucket.metadata = BucketMetadata::new(received_timestamp);
-            }
-        }
-
         cogs.update(relay_metrics::cogs::BySize(&buckets));
 
-        relay_log::trace!("merging metric buckets into project cache");
-        self.inner.addrs.project_cache.send(AddMetricBuckets {
-            project_key,
-            buckets,
-            source,
-        });
+        let buckets = ManagedBuckets::new(self.inner.metric_outcomes.clone(), project_key, buckets);
+        self.process_metrics(sent_at, start_time, source, buckets);
     }
 
     fn handle_process_batched_metrics(&self, cogs: &mut Token, message: ProcessBatchedMetrics) {
@@ -1975,12 +1970,6 @@ impl EnvelopeProcessorService {
             start_time,
             sent_at,
         } = message;
-
-        let received = relay_common::time::instant_to_date_time(start_time);
-        let received_timestamp = UnixTimestamp::from_instant(start_time);
-
-        let clock_drift_processor =
-            ClockDriftProcessor::new(sent_at, received).at_least(MINIMUM_CLOCK_DRIFT);
 
         #[derive(serde::Deserialize)]
         struct Wrapper {
@@ -2000,31 +1989,46 @@ impl EnvelopeProcessorService {
         };
 
         let mut feature_weights = FeatureWeights::none();
-        for (project_key, mut buckets) in buckets {
-            if buckets.is_empty() {
-                continue;
-            }
-
-            for bucket in &mut buckets {
-                clock_drift_processor.process_timestamp(&mut bucket.timestamp);
-                if !matches!(source, BucketSource::Internal) {
-                    bucket.metadata = BucketMetadata::new(received_timestamp);
-                }
-            }
-
+        for (project_key, buckets) in buckets {
             feature_weights = feature_weights.merge(relay_metrics::cogs::BySize(&buckets).into());
 
-            relay_log::trace!("merging metric buckets into project cache");
-            self.inner.addrs.project_cache.send(AddMetricBuckets {
-                project_key,
-                buckets,
-                source,
-            });
+            let buckets =
+                ManagedBuckets::new(self.inner.metric_outcomes.clone(), project_key, buckets);
+            self.process_metrics(sent_at, start_time, source, buckets);
         }
 
-        if !feature_weights.is_empty() {
-            cogs.update(feature_weights);
-        }
+        cogs.update(feature_weights);
+    }
+
+    fn process_metrics(
+        &self,
+        sent_at: Option<DateTime<Utc>>,
+        start_time: Instant,
+        source: BucketSource,
+        buckets: ManagedBuckets<()>,
+    ) {
+        if buckets.is_empty() {
+            return;
+        };
+
+        let received = relay_common::time::instant_to_date_time(start_time);
+        let received_timestamp = UnixTimestamp::from_instant(start_time);
+
+        let clock_drift_processor =
+            ClockDriftProcessor::new(sent_at, received).at_least(MINIMUM_CLOCK_DRIFT);
+
+        let buckets = buckets.mutate(|bucket| {
+            clock_drift_processor.process_timestamp(&mut bucket.timestamp);
+            if !matches!(source, BucketSource::Internal) {
+                bucket.metadata = BucketMetadata::new(received_timestamp);
+            }
+        });
+
+        relay_log::trace!("merging metric buckets into project cache");
+        self.inner
+            .addrs
+            .project_cache
+            .send(AddMetricBuckets { buckets, source });
     }
 
     fn handle_process_metric_meta(&self, message: ProcessMetricMeta) {
@@ -2209,76 +2213,47 @@ impl EnvelopeProcessorService {
     fn rate_limit_buckets_by_namespace(
         &self,
         scoping: Scoping,
-        buckets: Vec<Bucket>,
+        buckets: ManagedBuckets<Aggregated>,
         quotas: CombinedQuotas<'_>,
-        mode: ExtractionMode,
-    ) -> Vec<Bucket> {
+    ) -> ManagedBuckets<Aggregated> {
         let Some(rate_limiter) = self.inner.rate_limiter.as_ref() else {
             return buckets;
         };
 
-        let buckets_by_ns: HashMap<MetricNamespace, Vec<Bucket>> = buckets
-            .into_iter()
-            .filter_map(|bucket| Some((bucket.name.try_namespace()?, bucket)))
-            .into_group_map();
+        let namespaces = buckets
+            .iter()
+            .filter_map(|bucket| bucket.name.try_namespace())
+            .counts();
 
-        buckets_by_ns
-            .into_iter()
-            .flat_map(|(namespace, buckets)| {
-                let item_scoping = scoping.metric_bucket(namespace);
-                self.rate_limit_buckets(item_scoping, buckets, quotas, mode, rate_limiter)
-            })
-            .collect()
-    }
+        let mut buckets = buckets;
+        for (namespace, quantity) in namespaces {
+            let item_scoping = scoping.metric_bucket(namespace);
 
-    /// Returns `true` if the batches should be rate limited.
-    #[cfg(feature = "processing")]
-    fn rate_limit_buckets(
-        &self,
-        item_scoping: relay_quotas::ItemScoping,
-        buckets: Vec<Bucket>,
-        quotas: CombinedQuotas<'_>,
-        mode: ExtractionMode,
-        rate_limiter: &RedisRateLimiter,
-    ) -> Vec<Bucket> {
-        let batch_size = self.inner.config.metrics_max_batch_size_bytes();
-        let quantity = BucketsView::from(&buckets)
-            .by_size(batch_size)
-            .flatten()
-            .count();
+            let limits = match rate_limiter.is_rate_limited(quotas, item_scoping, quantity, false) {
+                Ok(limits) => limits,
+                Err(err) => {
+                    relay_log::error!(
+                        error = &err as &dyn std::error::Error,
+                        "failed to check redis rate limits"
+                    );
+                    break;
+                }
+            };
 
-        // Check with redis if the throughput limit has been exceeded, while also updating
-        // the count so that other relays will be updated too.
-        match rate_limiter.is_rate_limited(quotas, item_scoping, quantity, false) {
-            Ok(limits) if limits.is_limited() => {
-                relay_log::debug!("dropping {quantity} buckets due to throughput rate limit");
-
+            if limits.is_limited() {
                 let reason_code = limits.longest().and_then(|limit| limit.reason_code.clone());
-
-                self.inner.metric_outcomes.track(
-                    *item_scoping.scoping,
-                    &buckets,
-                    mode,
-                    Outcome::RateLimited(reason_code),
-                );
+                buckets = buckets.remove_if(Outcome::RateLimited(reason_code), |bucket| {
+                    bucket.name.try_namespace() == Some(namespace)
+                });
 
                 self.inner.addrs.project_cache.send(UpdateRateLimits::new(
                     item_scoping.scoping.project_key,
                     limits,
                 ));
-
-                Vec::new()
-            }
-            Ok(_) => buckets,
-            Err(e) => {
-                relay_log::error!(
-                    error = &e as &dyn std::error::Error,
-                    "failed to check redis rate limits"
-                );
-
-                buckets
             }
         }
+
+        buckets
     }
 
     /// Cardinality limits the passed buckets and returns a filtered vector of only accepted buckets.
@@ -2374,10 +2349,11 @@ impl EnvelopeProcessorService {
             let mode = project_state.get_extraction_mode();
 
             let quotas = CombinedQuotas::new(&global_config, project_state.get_quotas());
-            let buckets = self.rate_limit_buckets_by_namespace(scoping, buckets, quotas, mode);
+            let buckets = self.rate_limit_buckets_by_namespace(scoping, buckets, quotas);
 
             let limits = project_state.get_cardinality_limits();
-            let buckets = self.cardinality_limit_buckets(scoping, limits, buckets, mode);
+            let buckets =
+                self.cardinality_limit_buckets(scoping, limits, buckets.into_buckets(), mode);
 
             if buckets.is_empty() {
                 continue;
@@ -2426,13 +2402,13 @@ impl EnvelopeProcessorService {
 
             let partitions = if let Some(count) = self.inner.config.metrics_partitions() {
                 let mut partitions: BTreeMap<Option<u64>, Vec<Bucket>> = BTreeMap::new();
-                for bucket in buckets {
+                for bucket in buckets.into_buckets() {
                     let partition_key = partition_key(project_key, &bucket, Some(count));
                     partitions.entry(partition_key).or_default().push(bucket);
                 }
                 partitions
             } else {
-                BTreeMap::from([(None, buckets)])
+                BTreeMap::from([(None, buckets.into_buckets())])
             };
 
             for (partition_key, buckets) in partitions {
@@ -2532,7 +2508,7 @@ impl EnvelopeProcessorService {
 
             let mode = project_state.get_extraction_mode();
 
-            for bucket in buckets {
+            for bucket in buckets.iter() {
                 let partition_key = partition_key(scoping.project_key, bucket, partition_count);
 
                 let mut remaining = Some(BucketView::new(bucket));
@@ -2662,9 +2638,9 @@ impl EnvelopeProcessorService {
                     if self.inner.config.processing_enabled() {
                         // Processing does not encode the metrics but instead rate and cardinality
                         // limits the metrics, which scales by count and not size.
-                        relay_metrics::cogs::ByCount(&s.buckets).into()
+                        relay_metrics::cogs::ByCount(s.buckets.iter()).into()
                     } else {
-                        relay_metrics::cogs::BySize(&s.buckets).into()
+                        relay_metrics::cogs::BySize(s.buckets.iter()).into()
                     }
                 })
                 .fold(FeatureWeights::none(), FeatureWeights::merge),
