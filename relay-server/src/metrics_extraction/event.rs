@@ -1598,6 +1598,10 @@ mod tests {
             "d:spans/webvital.score.inp@ratio",
             "d:spans/webvital.score.total@ratio",
             "d:spans/webvital.score.weight.inp@ratio",
+            "d:transactions/webvital.inp@millisecond",
+            "d:transactions/webvital.score.inp@ratio",
+            "d:transactions/webvital.score.total@ratio",
+            "d:transactions/webvital.score.weight.inp@ratio",
         ] {
             assert!(metrics.iter().any(|b| &*b.name == mri));
             assert!(metrics.iter().any(|b| b.tags.contains_key("browser.name")));
