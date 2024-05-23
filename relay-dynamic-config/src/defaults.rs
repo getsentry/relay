@@ -172,19 +172,8 @@ pub fn hardcoded_span_metrics() -> Vec<(GroupKey, Vec<MetricSpec>, Vec<TagMappin
     let is_app_start = RuleCondition::glob("span.op", "app.start.*")
         & RuleCondition::eq("span.description", APP_START_ROOT_SPAN_DESCRIPTIONS);
 
-    // let app_start_condition = duration_condition.clone()
-    //     &
-
-    // `exclusive_time_light` excludes transaction tags (and some others) to reduce cardinality.
-    let exclusive_time_light_condition = (is_db.clone()
-        | is_ai.clone() // TODO: not in common
-        | is_resource.clone()
-        | is_mobile.clone()
-        | is_interaction
-        | is_http.clone()
-        | is_queue_op.clone() // TODO: not in common
-        | is_cache.clone()) // TODO: not in common
-        & duration_condition.clone();
+    // Metrics for addon modules are only extracted if the feature flag is enabled:
+    let is_addon = is_ai.clone() | is_queue_op.clone() | is_cache.clone();
 
     let span_time_tags = vec![
         // All modules:
@@ -285,21 +274,38 @@ pub fn hardcoded_span_metrics() -> Vec<(GroupKey, Vec<MetricSpec>, Vec<TagMappin
                     category: DataCategory::Span,
                     mri: "c:spans/usage@none".into(),
                     field: None,
-                    condition: None,
+                    condition: Some(!is_addon.clone()),
                     tags: vec![],
                 },
                 MetricSpec {
                     category: DataCategory::Span,
                     mri: "d:spans/exclusive_time@millisecond".into(),
                     field: Some("span.exclusive_time".into()),
-                    condition: None,
+                    condition: Some(!is_addon.clone()),
+                    tags: span_time_tags.clone(),
+                },
+                MetricSpec {
+                    category: DataCategory::Span,
+                    mri: "d:spans/duration@millisecond".into(),
+                    field: Some("span.duration".into()),
+                    condition: Some(!is_addon.clone()),
                     tags: span_time_tags.clone(),
                 },
                 MetricSpec {
                     category: DataCategory::Span,
                     mri: "d:spans/exclusive_time_light@millisecond".into(),
                     field: Some("span.exclusive_time".into()),
-                    condition: Some(exclusive_time_light_condition.clone()),
+                    condition: Some(
+                        // The `!is_addon` check might be redundant, but we want to make sure that
+                        // `exclusive_time_light` is not extracted twice.
+                        !is_addon.clone()
+                            & (is_db.clone()
+                                | is_resource.clone()
+                                | is_mobile.clone()
+                                | is_interaction.clone()
+                                | is_http.clone())
+                            & duration_condition.clone(),
+                    ),
                     tags: vec![
                         Tag::with_key("environment")
                             .from_field("span.sentry_tags.environment")
@@ -352,13 +358,6 @@ pub fn hardcoded_span_metrics() -> Vec<(GroupKey, Vec<MetricSpec>, Vec<TagMappin
                             .from_field("span.sentry_tags.status_code")
                             .when(is_http.clone()),
                     ],
-                },
-                MetricSpec {
-                    category: DataCategory::Span,
-                    mri: "d:spans/duration@millisecond".into(),
-                    field: Some("span.duration".into()),
-                    condition: None,
-                    tags: span_time_tags.clone(),
                 },
                 MetricSpec {
                     category: DataCategory::Span,
@@ -703,6 +702,48 @@ pub fn hardcoded_span_metrics() -> Vec<(GroupKey, Vec<MetricSpec>, Vec<TagMappin
         (
             GroupKey::SpanMetricsAddons,
             vec![
+                // all addon modules
+                MetricSpec {
+                    category: DataCategory::Span,
+                    mri: "c:spans/usage@none".into(),
+                    field: None,
+                    condition: Some(is_addon.clone()),
+                    tags: vec![],
+                },
+                MetricSpec {
+                    category: DataCategory::Span,
+                    mri: "d:spans/exclusive_time@millisecond".into(),
+                    field: Some("span.exclusive_time".into()),
+                    condition: Some(is_addon.clone()),
+                    tags: span_time_tags.clone(),
+                },
+                MetricSpec {
+                    category: DataCategory::Span,
+                    mri: "d:spans/duration@millisecond".into(),
+                    field: Some("span.duration".into()),
+                    condition: Some(is_addon.clone()),
+                    tags: span_time_tags.clone(),
+                },
+                MetricSpec {
+                    category: DataCategory::Span,
+                    mri: "d:spans/exclusive_time_light@millisecond".into(),
+                    field: Some("span.exclusive_time".into()),
+                    condition: Some(is_addon & duration_condition.clone()),
+                    tags: vec![
+                        Tag::with_key("span.category")
+                            .from_field("span.sentry_tags.category")
+                            .always(),
+                        Tag::with_key("span.description")
+                            .from_field("span.sentry_tags.description")
+                            .always(),
+                        Tag::with_key("span.group")
+                            .from_field("span.sentry_tags.group")
+                            .always(),
+                        Tag::with_key("span.op")
+                            .from_field("span.sentry_tags.op")
+                            .always(),
+                    ],
+                },
                 // cache module
                 MetricSpec {
                     category: DataCategory::Span,

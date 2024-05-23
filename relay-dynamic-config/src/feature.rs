@@ -122,7 +122,7 @@ pub enum Feature {
     /// Deprecated, still forwarded for older downstream Relays.
     #[doc(hidden)]
     #[serde(rename = "projects:span-metrics-extraction-all-modules")]
-    Deprected6,
+    Deprecated6,
     /// Forward compatibility.
     #[doc(hidden)]
     #[serde(other)]

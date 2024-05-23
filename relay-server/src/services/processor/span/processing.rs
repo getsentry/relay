@@ -305,13 +305,6 @@ pub fn extract_from_event(
         return;
     }
 
-    if !state
-        .project_state
-        .has_feature(Feature::ExtractSpansFromEvent)
-    {
-        return;
-    }
-
     if let Some(sample_rate) = global_config.options.span_extraction_sample_rate {
         if !sample(sample_rate) {
             return;
