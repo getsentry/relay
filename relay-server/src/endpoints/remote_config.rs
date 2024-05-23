@@ -50,7 +50,5 @@ pub async fn handle(state: ServiceState) -> impl IntoResponse {
             return (StatusCode::OK, axum::Json(data));
         }
     }
-
-    // Do we really need to coerce this to Vec<u8>?
-    return (StatusCode::NOT_FOUND, axum::Json("Not found"));
+    return (StatusCode::NOT_FOUND, axum::Json(Vec::new()));
 }
