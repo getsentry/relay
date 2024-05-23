@@ -22,13 +22,11 @@ chrono = { workspace = true }
 rand = { workspace = true }
 rand_pcg = { workspace = true }
 relay-base-schema = { workspace = true }
-relay-common = { workspace = true }
 relay-log = { workspace = true }
 relay-protocol = { workspace = true }
 relay-redis = { workspace = true, optional = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
-unicase = { workspace = true }
 uuid = { workspace = true }
 
 [dev-dependencies]
