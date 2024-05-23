@@ -556,7 +556,7 @@ struct ProjectCacheBroker {
     metric_outcomes: MetricOutcomes,
     // Need hashbrown because extract_if is not stable in std yet.
     projects: hashbrown::HashMap<ProjectKey, Project>,
-    /// Utility for disposing of garbage project data safely.
+    /// Utility for disposing of expired project data efficiently.
     garbage_disposal: GarbageDisposal<Project>,
     /// Source for fetching project states via multiple layers.
     source: ProjectSource,
