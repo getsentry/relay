@@ -1,11 +1,15 @@
 //! Dynamic configuration for metrics extraction from sessions and transactions.
 
+use core::fmt;
 use std::collections::{BTreeMap, BTreeSet};
+use std::convert::Infallible;
+use std::str::FromStr;
 
 use relay_base_schema::data_category::DataCategory;
 use relay_cardinality::CardinalityLimit;
 use relay_common::glob2::LazyGlob;
 use relay_common::glob3::GlobPatterns;
+use relay_common::impl_str_serde;
 use relay_protocol::RuleCondition;
 use serde::{Deserialize, Serialize};
 
@@ -365,8 +369,7 @@ pub struct MetricExtractionGroupOverride {
 }
 
 /// Enumeration of keys in [`MetricExtractionGroups`]. In JSON, this is simply a string.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
-#[serde(rename_all = "snake_case")]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum GroupKey {
     /// Metric extracted for all plans.
     SpanMetricsCommon,
@@ -377,6 +380,36 @@ pub enum GroupKey {
     /// Any other group defined by the upstream.
     Other(String),
 }
+
+impl fmt::Display for GroupKey {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                GroupKey::SpanMetricsCommon => "span_metrics_common",
+                GroupKey::SpanMetricsAddons => "span_metrics_addons",
+                GroupKey::SpanMetricsTx => "span_metrics_tx",
+                GroupKey::Other(s) => &s,
+            }
+        )
+    }
+}
+
+impl FromStr for GroupKey {
+    type Err = Infallible;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(match s {
+            "span_metrics_common" => GroupKey::SpanMetricsCommon,
+            "span_metrics_addons" => GroupKey::SpanMetricsAddons,
+            "span_metrics_tx" => GroupKey::SpanMetricsTx,
+            s => GroupKey::Other(s.to_owned()),
+        })
+    }
+}
+
+impl_str_serde!(GroupKey, "a metrics extraction group key");
 
 /// Specification for a metric to extract from some data.
 #[derive(Clone, Debug, Serialize, Deserialize)]

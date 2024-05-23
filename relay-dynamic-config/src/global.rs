@@ -201,7 +201,7 @@ pub struct Options {
     /// Overall sampling of span extraction.
     ///
     /// This number represents the fraction of transactions for which
-    /// spans are extracted. It applies on top of [`crate::Feature::ExtractSpansAndSpanMetricsFromEvent`],
+    /// spans are extracted. It applies on top of [`crate::Feature::ExtractCommonSpanMetricsFromEvent`],
     /// so both feature flag and sample rate need to be enabled to get any spans extracted.
     ///
     /// `None` is the default and interpreted as a value of 1.0 (extract everything).
