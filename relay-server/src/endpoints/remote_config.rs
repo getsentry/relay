@@ -67,11 +67,11 @@ async fn fetch_from_public_url(key: String) -> Option<Vec<u8>> {
 
     // TODO: Log if an error is encountered.
     // TODO: Stream response to client rather than waiting for the download to complete.
-    match reqwest::get(url).await {
-        Ok(response) => match response.bytes().await {
-            Ok(bytes) => Some(bytes.to_vec()),
-            Err(_) => None,
-        },
-        Err(_) => None,
+    if let Ok(response) = reqwest::get(url).await {
+        if let Ok(bytes) = response.bytes().await {
+            return Some(bytes.to_vec());
+        }
     }
+
+    None
 }
