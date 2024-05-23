@@ -50,5 +50,5 @@ pub async fn handle(state: ServiceState) -> impl IntoResponse {
             return (StatusCode::OK, axum::Json(data));
         }
     }
-    return (StatusCode::NOT_FOUND, axum::Json(Vec::new()));
+    (StatusCode::NOT_FOUND, axum::Json(Vec::new()))
 }
