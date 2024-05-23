@@ -166,7 +166,7 @@ pub fn process(
 
             let metrics = extract_metrics(
                 span,
-                &CombinedMetricExtractionConfig::new(global_metrics_config, config),
+                CombinedMetricExtractionConfig::new(global_metrics_config, config),
             );
             state.extracted_metrics.project_metrics.extend(metrics);
             item.set_metrics_extracted(true);

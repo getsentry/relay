@@ -173,7 +173,7 @@ impl TransactionMetricsConfig {
 }
 
 /// Combined view of global and project-specific metrics extraction configs.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct CombinedMetricExtractionConfig<'a> {
     global: &'a MetricExtractionGroups,
     project: &'a MetricExtractionConfig,

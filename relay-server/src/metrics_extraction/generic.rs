@@ -26,7 +26,7 @@ pub trait Extractable: Getter {
 ///
 /// Any MRI can be defined multiple times in the config (this will create multiple buckets), but
 /// for every tag in a bucket, there can be only one value. The first encountered tag value wins.
-pub fn extract_metrics<T>(instance: &T, config: &CombinedMetricExtractionConfig<'_>) -> Vec<Bucket>
+pub fn extract_metrics<T>(instance: &T, config: CombinedMetricExtractionConfig<'_>) -> Vec<Bucket>
 where
     T: Extractable,
 {
@@ -199,7 +199,7 @@ mod tests {
 
         let metrics = extract_metrics(
             event.value().unwrap(),
-            &CombinedMetricExtractionConfig::from(&config),
+            CombinedMetricExtractionConfig::from(&config),
         );
         insta::assert_debug_snapshot!(metrics, @r###"
         [
@@ -247,7 +247,7 @@ mod tests {
 
         let metrics = extract_metrics(
             event.value().unwrap(),
-            &CombinedMetricExtractionConfig::from(&config),
+            CombinedMetricExtractionConfig::from(&config),
         );
         insta::assert_debug_snapshot!(metrics, @r###"
         [
@@ -299,7 +299,7 @@ mod tests {
 
         let metrics = extract_metrics(
             event.value().unwrap(),
-            &CombinedMetricExtractionConfig::from(&config),
+            CombinedMetricExtractionConfig::from(&config),
         );
         insta::assert_debug_snapshot!(metrics, @r###"
         [
@@ -363,7 +363,7 @@ mod tests {
 
         let metrics = extract_metrics(
             event.value().unwrap(),
-            &CombinedMetricExtractionConfig::from(&config),
+            CombinedMetricExtractionConfig::from(&config),
         );
         insta::assert_debug_snapshot!(metrics, @r###"
         [
@@ -428,7 +428,7 @@ mod tests {
 
         let metrics = extract_metrics(
             event.value().unwrap(),
-            &CombinedMetricExtractionConfig::from(&config),
+            CombinedMetricExtractionConfig::from(&config),
         );
         insta::assert_debug_snapshot!(metrics, @r###"
         [
@@ -495,7 +495,7 @@ mod tests {
 
         let metrics = extract_metrics(
             event.value().unwrap(),
-            &CombinedMetricExtractionConfig::from(&config),
+            CombinedMetricExtractionConfig::from(&config),
         );
         insta::assert_debug_snapshot!(metrics, @r###"
         [
@@ -570,7 +570,7 @@ mod tests {
 
         let metrics = extract_metrics(
             event.value().unwrap(),
-            &CombinedMetricExtractionConfig::from(&config),
+            CombinedMetricExtractionConfig::from(&config),
         );
         insta::assert_debug_snapshot!(metrics, @r###"
         [

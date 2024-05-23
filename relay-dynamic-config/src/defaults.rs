@@ -79,7 +79,7 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
             .is_enabled = true;
     }
 
-    if features.has(Feature::ExtractCommonSpanMetricsFromEvent) {
+    if features.has(Feature::ExtractAddonsSpanMetricsFromEvent) {
         config
             .global_groups
             .entry(GroupKey::SpanMetricsAddons)

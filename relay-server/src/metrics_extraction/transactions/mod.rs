@@ -247,7 +247,7 @@ impl ExtractedMetrics {
 /// A utility that extracts metrics from transactions.
 pub struct TransactionExtractor<'a> {
     pub config: &'a TransactionMetricsConfig,
-    pub generic_config: Option<&'a CombinedMetricExtractionConfig<'a>>,
+    pub generic_config: Option<CombinedMetricExtractionConfig<'a>>,
     pub transaction_from_dsc: Option<&'a str>,
     pub sampling_result: &'a SamplingResult,
     pub has_profile: bool,
@@ -2183,7 +2183,7 @@ mod tests {
 
         let extractor = TransactionExtractor {
             config: &config,
-            generic_config: Some(&combined_config),
+            generic_config: Some(combined_config),
             transaction_from_dsc: Some("test_transaction"),
             sampling_result: &SamplingResult::Pending,
             has_profile: false,
