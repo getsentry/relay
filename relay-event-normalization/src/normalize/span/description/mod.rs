@@ -57,9 +57,8 @@ pub(crate) fn scrub_span_description(
         .map(|op| op.split_once('.').unwrap_or((op, "")))
         .and_then(|(op, sub)| match (op, sub) {
             ("http", _) => scrub_http(description),
-            ("cache", _) | ("db", "redis") | ("db", _) if db_system == Some("redis") => {
-                scrub_redis_keys(description)
-            }
+            ("cache", _) | ("db", "redis") => scrub_redis_keys(description),
+            ("db", _) if db_system == Some("redis") => scrub_redis_keys(description),
             ("db", sub) => {
                 if sub.contains("clickhouse")
                     || sub.contains("mongodb")
