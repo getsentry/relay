@@ -5,6 +5,7 @@
 **Bug fixes**:
 
 - Apply globally defined metric tags to legacy transaction metrics. ([#3615](https://github.com/getsentry/relay/pull/3615))
+- Scrub identifiers in spans with `op:db` and `db_system:redis`. ([#3642](https://github.com/getsentry/relay/pull/3642))
 
 **Features**:
 
