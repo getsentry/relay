@@ -11,7 +11,7 @@ use relay_event_schema::processor::{
 use relay_event_schema::protocol::{
     AsPair, Event, IpAddr, NativeImagePath, PairList, Replay, ResponseContext, User,
 };
-use relay_protocol::{Annotated, Meta, Remark, RemarkType, Value};
+use relay_protocol::{Annotated, Array, Meta, Remark, RemarkType, Value};
 
 use crate::compiledconfig::{CompiledPiiConfig, RuleRef};
 use crate::config::RuleType;
@@ -99,6 +99,23 @@ impl<'a> Processor for PiiProcessor<'a> {
 
         // apply rules based on key/path
         self.apply_all_rules(meta, state, None)
+    }
+
+    fn process_array<T>(
+        &mut self,
+        value: &mut Array<T>,
+        meta: &mut Meta,
+        state: &ProcessingState<'_>,
+    ) -> ProcessingResult
+    where
+        T: ProcessValue,
+    {
+        // Recurse into each element of the array.
+        value.process_child_values(self, state)?;
+
+        println!("PROCESSING ARRAY {:?}", value);
+
+        Ok(())
     }
 
     fn process_string(
@@ -474,6 +491,7 @@ mod tests {
     };
     use relay_protocol::{assert_annotated_snapshot, get_value, FromValue, Object};
     use serde_json::json;
+    use std::collections::HashMap;
 
     use super::*;
     use crate::{DataScrubbingConfig, PiiConfig, ReplaceRedaction};
@@ -1597,5 +1615,68 @@ mod tests {
         },
     ],
 )"#);
+    }
+
+    #[test]
+    fn test_tuple_array_scrubbed() {
+        let config = serde_json::from_str::<PiiConfig>(
+            r##"
+                {
+                    "applications": {
+                        "$string": ["@anything:remove"]
+                    }
+                }
+                "##,
+        )
+        .unwrap();
+
+        let mut event = Event::from_value(
+            serde_json::json!(
+            {
+              "message": "hi",
+              "exception": {
+                "values": [
+                  {
+                    "type": "BrokenException",
+                    "value": "Something failed",
+                    "stacktrace": {
+                      "frames": [
+                        {
+                            "vars": {
+                                "headers": [
+                                    ["authorization", "Bearer abc123"]
+                                ]
+                            }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            })
+            .into(),
+        );
+
+        let mut processor = PiiProcessor::new(config.compiled());
+        process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
+
+        //         let params = get_value!(event.logentry.params!);
+        //         assert_debug_snapshot!(params, @r#"Array(
+        //     [
+        //         Meta {
+        //             remarks: [
+        //                 Remark {
+        //                     ty: Removed,
+        //                     rule_id: "@anything:remove",
+        //                     range: None,
+        //                 },
+        //             ],
+        //             errors: [],
+        //             original_length: None,
+        //             original_value: None,
+        //         },
+        //     ],
+        // )"#);
+        //     }
     }
 }
