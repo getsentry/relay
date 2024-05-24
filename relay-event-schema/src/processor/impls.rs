@@ -10,6 +10,11 @@ use crate::processor::{
 
 impl ProcessValue for String {
     #[inline]
+    fn as_key(&self) -> Option<&str> {
+        Some(self.as_str())
+    }
+
+    #[inline]
     fn value_type(&self) -> EnumSet<ValueType> {
         EnumSet::only(ValueType::String)
     }

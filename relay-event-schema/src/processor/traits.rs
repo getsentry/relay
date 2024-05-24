@@ -139,6 +139,12 @@ pub use enumset::{enum_set, EnumSet};
 
 /// A recursively processable value.
 pub trait ProcessValue: FromValue + IntoValue + Debug + Clone {
+    /// Returns an equivalent key representation of the value.
+    #[inline]
+    fn as_key(&self) -> Option<&str> {
+        None
+    }
+
     /// Returns the type of the value.
     #[inline]
     fn value_type(&self) -> EnumSet<ValueType> {

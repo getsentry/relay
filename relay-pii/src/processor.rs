@@ -110,10 +110,21 @@ impl<'a> Processor for PiiProcessor<'a> {
     where
         T: ProcessValue,
     {
-        // Recurse into each element of the array.
-        value.process_child_values(self, state)?;
+        // If the array has length 2, we treat it as key-value pair and try to scrub it. If the
+        // scrubbing doesn't do anything, we try to scrub values individually.
+        if value.len() == 2 {
+            let key = value[0].clone();
+            if let Some(key) = key.value() {
+                if let Some(key_name) = key.as_key() {
+                    let entered =
+                        state.enter_borrowed(key_name, state.inner_attrs(), key.value_type());
+                    value.process_child_values(self, &entered)?;
+                }
+            }
+        }
 
-        println!("PROCESSING ARRAY {:?}", value);
+        // Recurse into each element of the array in case the key-value scrubbing didn't scrub data.
+        value.process_child_values(self, state)?;
 
         Ok(())
     }
@@ -1623,7 +1634,7 @@ mod tests {
             r##"
                 {
                     "applications": {
-                        "$string": ["@anything:remove"]
+                        "$number": ["@anything:remove"]
                     }
                 }
                 "##,
@@ -1656,6 +1667,8 @@ mod tests {
             })
             .into(),
         );
+
+        println!("{:?}", event);
 
         let mut processor = PiiProcessor::new(config.compiled());
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
