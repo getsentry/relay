@@ -395,6 +395,15 @@ pub enum RelayTimers {
     /// This metric is tagged with:
     ///  - `type`: The type of the health check, `liveness` or `readiness`.
     HealthCheckDuration,
+    /// Temporary timing metric for how much time was spent evaluating span and transaction
+    /// rate limits using the `RateLimitBuckets` message in the processor.
+    ///
+    /// This metric is tagged with:
+    ///  - `category`: The data category evaluated.
+    ///  - `limited`: Whether the batch is rate limited.
+    ///  - `count`: How many items matching the data category are contained in the batch.
+    #[cfg(feature = "processing")]
+    RateLimitBucketsDuration,
 }
 
 impl TimerMetric for RelayTimers {
@@ -433,6 +442,8 @@ impl TimerMetric for RelayTimers {
             RelayTimers::BufferMessageProcessDuration => "buffer.message.duration",
             RelayTimers::ProjectCacheTaskDuration => "project_cache.task.duration",
             RelayTimers::HealthCheckDuration => "health.message.duration",
+            #[cfg(feature = "processing")]
+            RelayTimers::RateLimitBucketsDuration => "processor.rate_limit_buckets",
         }
     }
 }
