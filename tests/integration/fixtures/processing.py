@@ -229,8 +229,13 @@ class OutcomesConsumer(ConsumerBase):
             else:
                 yield outcome
 
-    def get_outcomes(self, timeout=None):
-        outcomes = list(self._poll_all(timeout))
+    def get_outcomes(self, timeout=None, n=None):
+        if n is None:
+            outcomes = list(self._poll_all(timeout))
+        else:
+            gen = self._poll_all(timeout)
+            outcomes = [next(gen) for _ in range(n)]
+            self.assert_empty()
         for outcome in outcomes:
             assert outcome.error() is None
         return [json.loads(outcome.value()) for outcome in outcomes]
