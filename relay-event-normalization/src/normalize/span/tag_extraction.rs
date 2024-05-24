@@ -212,14 +212,16 @@ pub fn extract_span_tags(event: &Event, spans: &mut [Annotated<Span>], max_tag_v
                 .collect(),
         );
 
-        span.measurements
-            .get_or_insert_with(Default::default)
-            .extend(
-                shared_measurements
-                    .clone()
-                    .into_iter()
-                    .map(|(k, v)| (k.to_owned(), Annotated::new(v))),
-            );
+        if !shared_measurements.is_empty() {
+            span.measurements
+                .get_or_insert_with(Default::default)
+                .extend(
+                    shared_measurements
+                        .clone()
+                        .into_iter()
+                        .map(|(k, v)| (k.to_owned(), Annotated::new(v))),
+                );
+        }
 
         extract_measurements(span, is_mobile);
     }
