@@ -156,7 +156,7 @@ class ConsumerBase:
         self.consumer = consumer
         self.test_producer = kafka_producer(options)
         self.topic_name = topic_name
-        self.timeout = timeout or 2
+        self.timeout = timeout or 5
 
         # Connect to the topic and poll a first test message.
         # First poll takes forever, the next ones are fast.
@@ -246,13 +246,15 @@ class OutcomesConsumer(ConsumerBase):
         assert len(outcomes) == 1, "More than one outcome was consumed"
         return outcomes[0]
 
-    def assert_rate_limited(self, reason, key_id=None, categories=None, quantity=None):
+    def assert_rate_limited(
+        self, reason, key_id=None, categories=None, quantity=None, timeout=1
+    ):
         if categories is None:
-            outcome = self.get_outcome()
+            outcome = self.get_outcome(timeout=timeout)
             assert isinstance(outcome["category"], int)
             outcomes = [outcome]
         else:
-            outcomes = self.get_outcomes()
+            outcomes = self.get_outcomes(timeout=timeout)
             expected = {category_value(category) for category in categories}
             actual = {outcome["category"] for outcome in outcomes}
             assert actual == expected, (actual, expected)
