@@ -1105,7 +1105,7 @@ impl Project {
         metric_outcomes: &MetricOutcomes,
         mut buckets: Vec<Bucket>,
     ) -> Option<(Scoping, ProjectMetrics)> {
-        let Some(project_state) = self.valid_state() else {
+        let Some(project_state) = self.state_value() else {
             relay_log::error!(
                 tags.project_key = self.project_key.as_str(),
                 "there is no project state: dropping {} buckets",
