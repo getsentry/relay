@@ -273,6 +273,13 @@ fn extract_shared_tags(event: &Event) -> BTreeMap<SpanTagKey, String> {
                         destination_name.into(),
                     );
                 }
+                if let Some(message_id) = trace_context
+                    .data
+                    .value()
+                    .and_then(|data| data.other.get("messaging.message.id")?.as_str())
+                {
+                    tags.insert(SpanTagKey::MessagingMessageId, message_id.into());
+                }
             }
         }
 
@@ -2047,7 +2054,8 @@ LIMIT 1
                         "op": "queue.process",
                         "status": "ok",
                         "data": {
-                            "messaging.destination.name": "default"
+                            "messaging.destination.name": "default",
+                            "messaging.message.id": "abc123"
                         }
                     }
                 },
@@ -2075,6 +2083,11 @@ LIMIT 1
         assert_eq!(
             tags.get("messaging.destination.name"),
             Some(&Annotated::new("default".to_string()))
+        );
+
+        assert_eq!(
+            tags.get("messaging.message.id"),
+            Some(&Annotated::new("abc123".to_string()))
         );
 
         assert_debug_snapshot!(measurements, @r###"
