@@ -70,14 +70,17 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
 
     let features = &project_config.features;
 
-    // Enable the hardcoded span metrics group:
-    if features.has(Feature::ExtractCommonSpanMetricsFromEvent) {
-        config
-            .global_groups
-            .entry(GroupKey::SpanMetricsCommon)
-            .or_default()
-            .is_enabled = true;
+    // Common span metrics is a requirement for everything else:
+    if !features.has(Feature::ExtractCommonSpanMetricsFromEvent) {
+        return;
     }
+
+    // Enable the common modules group:
+    config
+        .global_groups
+        .entry(GroupKey::SpanMetricsCommon)
+        .or_default()
+        .is_enabled = true;
 
     if features.has(Feature::ExtractAddonsSpanMetricsFromEvent) {
         config

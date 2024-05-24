@@ -1205,7 +1205,7 @@ mod tests {
     fn only_addons() {
         // Nothing is extracted without the common flag:
         let metrics = extract_span_metrics([Feature::ExtractAddonsSpanMetricsFromEvent]);
-        assert!(metrics.is_empty());
+        assert!(dbg!(metrics).is_empty());
     }
 
     #[test]
