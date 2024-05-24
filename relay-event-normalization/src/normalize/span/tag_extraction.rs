@@ -2032,6 +2032,65 @@ LIMIT 1
             Some(&"abc123".to_string())
         );
     }
+
+    #[test]
+    fn test_extract_queue_tags_and_measurement_from_transaction() {
+        let json = r#"
+            {
+                "type": "transaction",
+                "platform": "python",
+                "start_timestamp": "2021-04-26T07:59:01+0100",
+                "timestamp": "2021-04-26T08:00:00+0100",
+                "transaction": "foo",
+                "contexts": {
+                    "trace": {
+                        "op": "queue.process",
+                        "status": "ok",
+                        "data": {
+                            "messaging.destination.name": "default"
+                        }
+                    }
+                },
+                "measurements": {
+                    "messaging.message.receive.latency": {
+                        "value": 456,
+                        "unit": "ms"
+                    }
+                }
+            }
+        "#;
+
+        let event = Annotated::<Event>::from_json(json)
+            .unwrap()
+            .into_value()
+            .unwrap();
+        let mut spans = [Span::from(&event).into()];
+
+        extract_span_tags(&event, &mut spans, 50);
+
+        let span: &Annotated<Span> = &spans[0];
+        let tags = span.value().unwrap().sentry_tags.value().unwrap();
+        let measurements = span.value().unwrap().measurements.value().unwrap();
+
+        assert_eq!(
+            tags.get("messaging.destination.name"),
+            Some(&Annotated::new("default".to_string()))
+        );
+
+        assert_debug_snapshot!(measurements, @r###"
+        Measurements(
+            {
+                "messaging.message.receive.latency": Measurement {
+                    value: 456.0,
+                    unit: Duration(
+                        MilliSecond,
+                    ),
+                },
+            },
+        )
+        "###);
+    }
+
     #[test]
     fn extract_span_status_into_sentry_tags() {
         let json = r#"
