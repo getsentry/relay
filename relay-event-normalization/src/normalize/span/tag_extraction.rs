@@ -278,7 +278,7 @@ fn extract_shared_tags(event: &Event) -> BTreeMap<SpanTagKey, String> {
                 if let Some(destination_name) = trace_context
                     .data
                     .value()
-                    .and_then(|data| data.other.get("messaging.destination.name")?.as_str())
+                    .and_then(|data| data.messaging_destination_name.as_str())
                 {
                     tags.insert(
                         SpanTagKey::MessagingDestinationName,
@@ -288,7 +288,7 @@ fn extract_shared_tags(event: &Event) -> BTreeMap<SpanTagKey, String> {
                 if let Some(message_id) = trace_context
                     .data
                     .value()
-                    .and_then(|data| data.other.get("messaging.message.id")?.as_str())
+                    .and_then(|data| data.messaging_message_id.as_str())
                 {
                     tags.insert(SpanTagKey::MessagingMessageId, message_id.into());
                 }
@@ -343,26 +343,24 @@ fn extract_shared_measurements(event: &Event) -> BTreeMap<String, Measurement> {
         if let Some(op) = extract_transaction_op(trace_context) {
             if op == "queue.publish" || op == "queue.process" {
                 if let Some(data) = trace_context.data.value() {
-                    for (annotated_field, key, unit) in [
+                    for (field, key, unit) in [
                         (
-                            data.other.get("messaging.message.retry.count"),
+                            &data.messaging_message_retry_count,
                             "messaging.message.retry.count",
                             MetricUnit::None,
                         ),
                         (
-                            data.other.get("messaging.message.receive.latency"),
+                            &data.messaging_message_receive_latency,
                             "messaging.message.receive.latency",
                             MetricUnit::Duration(DurationUnit::MilliSecond),
                         ),
                         (
-                            data.other.get("messaging.message.body.size"),
+                            &data.messaging_message_body_size,
                             "messaging.message.body.size",
                             MetricUnit::Information(InformationUnit::Byte),
                         ),
                     ] {
-                        if let Some(value) =
-                            annotated_field.and_then(|field| value_to_f64(field.value()))
-                        {
+                        if let Some(value) = value_to_f64(field.value()) {
                             measurements.insert(
                                 key.into(),
                                 Measurement {

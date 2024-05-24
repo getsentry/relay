@@ -1028,6 +1028,29 @@ expression: "relay_event_schema::protocol::event_json_schema()"
         {
           "type": "object",
           "properties": {
+            "messaging.destination.name": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "messaging.message.body.size": {
+              "default": null
+            },
+            "messaging.message.id": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "messaging.message.receive.latency": {
+              "default": null
+            },
+            "messaging.message.retry.count": {
+              "default": null
+            },
             "previousRoute": {
               "description": " The previous route in the application\n\n Set by React Native SDK.",
               "default": null,

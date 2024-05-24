@@ -161,6 +161,21 @@ pub struct Data {
     #[metastructure(field = "previousRoute", pii = "maybe", skip_serialization = "empty")]
     pub previous_route: Annotated<Route>,
 
+    #[metastructure(field = "messaging.destination.name")]
+    pub messaging_destination_name: Annotated<String>,
+
+    #[metastructure(field = "messaging.message.id")]
+    pub messaging_message_id: Annotated<String>,
+
+    #[metastructure(field = "messaging.message.receive.latency")]
+    pub messaging_message_receive_latency: Annotated<Value>,
+
+    #[metastructure(field = "messaging.message.retry.count")]
+    pub messaging_message_retry_count: Annotated<Value>,
+
+    #[metastructure(field = "messaging.message.body.size")]
+    pub messaging_message_body_size: Annotated<Value>,
+
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(
         additional_properties,
