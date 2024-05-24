@@ -261,6 +261,19 @@ fn extract_shared_tags(event: &Event) -> BTreeMap<SpanTagKey, String> {
     if let Some(trace_context) = event.context::<TraceContext>() {
         if let Some(op) = extract_transaction_op(trace_context) {
             tags.insert(SpanTagKey::TransactionOp, op.to_lowercase().to_owned());
+
+            if op == "queue.publish" || op == "queue.process" {
+                if let Some(destination_name) = trace_context
+                    .data
+                    .value()
+                    .and_then(|data| data.other.get("messaging.destination.name")?.as_str())
+                {
+                    tags.insert(
+                        SpanTagKey::MessagingDestinationName,
+                        destination_name.into(),
+                    );
+                }
+            }
         }
 
         if let Some(status) = trace_context.status.value() {
