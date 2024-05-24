@@ -187,6 +187,7 @@ pub fn extract_span_tags(event: &Event, spans: &mut [Annotated<Span>], max_tag_v
     // TODO: To prevent differences between metrics and payloads, we should not extract tags here
     // when they have already been extracted by a downstream relay.
     let shared_tags = extract_shared_tags(event);
+    let shared_measurements = extract_shared_measurements(event);
     let is_mobile = shared_tags
         .get(&SpanTagKey::Mobile)
         .is_some_and(|v| v.as_str() == "true");
@@ -210,6 +211,15 @@ pub fn extract_span_tags(event: &Event, spans: &mut [Annotated<Span>], max_tag_v
                 .map(|(k, v)| (k.sentry_tag_key().to_owned(), Annotated::new(v)))
                 .collect(),
         );
+
+        span.measurements
+            .get_or_insert_with(Default::default)
+            .extend(
+                shared_measurements
+                    .clone()
+                    .into_iter()
+                    .map(|(k, v)| (k.to_owned(), Annotated::new(v))),
+            );
 
         extract_measurements(span, is_mobile);
     }
@@ -322,6 +332,50 @@ fn extract_shared_tags(event: &Event) -> BTreeMap<SpanTagKey, String> {
     );
 
     tags
+}
+
+fn extract_shared_measurements(event: &Event) -> BTreeMap<String, Measurement> {
+    let mut measurements = BTreeMap::new();
+
+    if let Some(trace_context) = event.context::<TraceContext>() {
+        if let Some(op) = extract_transaction_op(trace_context) {
+            if op == "queue.publish" || op == "queue.process" {
+                if let Some(data) = trace_context.data.value() {
+                    for (annotated_field, key, unit) in [
+                        (
+                            data.other.get("messaging.message.retry.count"),
+                            "messaging.message.retry.count",
+                            MetricUnit::None,
+                        ),
+                        (
+                            data.other.get("messaging.message.receive.latency"),
+                            "messaging.message.receive.latency",
+                            MetricUnit::Duration(DurationUnit::MilliSecond),
+                        ),
+                        (
+                            data.other.get("messaging.message.body.size"),
+                            "messaging.message.body.size",
+                            MetricUnit::Information(InformationUnit::Byte),
+                        ),
+                    ] {
+                        if let Some(value) =
+                            annotated_field.and_then(|field| value_to_f64(field.value()))
+                        {
+                            measurements.insert(
+                                key.into(),
+                                Measurement {
+                                    value: value.into(),
+                                    unit: unit.into(),
+                                },
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    measurements
 }
 
 /// Writes fields into [`Span::sentry_tags`].
@@ -756,18 +810,21 @@ pub fn extract_measurements(span: &mut Span, is_mobile: bool) {
 
     if span_op.starts_with("queue.") {
         if let Some(data) = span.data.value() {
-            for (field, key) in [
+            for (field, key, unit) in [
                 (
                     &data.messaging_message_retry_count,
                     "messaging.message.retry.count",
+                    MetricUnit::None,
                 ),
                 (
                     &data.messaging_message_receive_latency,
                     "messaging.message.receive.latency",
+                    MetricUnit::Duration(DurationUnit::MilliSecond),
                 ),
                 (
                     &data.messaging_message_body_size,
                     "messaging.message.body.size",
+                    MetricUnit::Information(InformationUnit::Byte),
                 ),
             ] {
                 if let Some(value) = value_to_f64(field.value()) {
@@ -776,7 +833,7 @@ pub fn extract_measurements(span: &mut Span, is_mobile: bool) {
                         key.into(),
                         Measurement {
                             value: value.into(),
-                            unit: MetricUnit::None.into(),
+                            unit: unit.into(),
                         }
                         .into(),
                     );
@@ -2055,14 +2112,11 @@ LIMIT 1
                         "status": "ok",
                         "data": {
                             "messaging.destination.name": "default",
-                            "messaging.message.id": "abc123"
+                            "messaging.message.id": "abc123",
+                            "messaging.message.receive.latency": 456,
+                            "messaging.message.body.size": 100,
+                            "messaging.message.retry.count": 3
                         }
-                    }
-                },
-                "measurements": {
-                    "messaging.message.receive.latency": {
-                        "value": 456,
-                        "unit": "ms"
                     }
                 }
             }
@@ -2093,11 +2147,21 @@ LIMIT 1
         assert_debug_snapshot!(measurements, @r###"
         Measurements(
             {
+                "messaging.message.body.size": Measurement {
+                    value: 100.0,
+                    unit: Information(
+                        Byte,
+                    ),
+                },
                 "messaging.message.receive.latency": Measurement {
                     value: 456.0,
                     unit: Duration(
                         MilliSecond,
                     ),
+                },
+                "messaging.message.retry.count": Measurement {
+                    value: 3.0,
+                    unit: None,
                 },
             },
         )
