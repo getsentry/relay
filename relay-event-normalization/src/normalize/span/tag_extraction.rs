@@ -187,7 +187,8 @@ pub fn extract_span_tags(event: &Event, spans: &mut [Annotated<Span>], max_tag_v
     // TODO: To prevent differences between metrics and payloads, we should not extract tags here
     // when they have already been extracted by a downstream relay.
     let shared_tags = extract_shared_tags(event);
-    let shared_measurements = extract_shared_measurements(event);
+    let segment_tags = extract_segment_tags(event);
+    let segment_measurements = extract_segment_measurements(event);
     let is_mobile = shared_tags
         .get(&SpanTagKey::Mobile)
         .is_some_and(|v| v.as_str() == "true");
@@ -212,15 +213,27 @@ pub fn extract_span_tags(event: &Event, spans: &mut [Annotated<Span>], max_tag_v
                 .collect(),
         );
 
-        if !shared_measurements.is_empty() {
-            span.measurements
-                .get_or_insert_with(Default::default)
-                .extend(
-                    shared_measurements
-                        .clone()
-                        .into_iter()
-                        .map(|(k, v)| (k.to_owned(), Annotated::new(v))),
-                );
+        if span.is_segment.value() == Some(&true) {
+            if !segment_measurements.is_empty() {
+                span.measurements
+                    .get_or_insert_with(Default::default)
+                    .extend(
+                        segment_measurements
+                            .clone()
+                            .into_iter()
+                            .map(|(k, v)| (k.to_owned(), Annotated::new(v))),
+                    );
+            }
+            if !segment_tags.is_empty() {
+                span.sentry_tags
+                    .get_or_insert_with(Default::default)
+                    .extend(
+                        segment_tags
+                            .clone()
+                            .into_iter()
+                            .map(|(k, v)| (k.sentry_tag_key().to_owned(), Annotated::new(v))),
+                    );
+            }
         }
 
         extract_measurements(span, is_mobile);
@@ -273,26 +286,6 @@ fn extract_shared_tags(event: &Event) -> BTreeMap<SpanTagKey, String> {
     if let Some(trace_context) = event.context::<TraceContext>() {
         if let Some(op) = extract_transaction_op(trace_context) {
             tags.insert(SpanTagKey::TransactionOp, op.to_lowercase().to_owned());
-
-            if op == "queue.publish" || op == "queue.process" {
-                if let Some(destination_name) = trace_context
-                    .data
-                    .value()
-                    .and_then(|data| data.messaging_destination_name.as_str())
-                {
-                    tags.insert(
-                        SpanTagKey::MessagingDestinationName,
-                        destination_name.into(),
-                    );
-                }
-                if let Some(message_id) = trace_context
-                    .data
-                    .value()
-                    .and_then(|data| data.messaging_message_id.as_str())
-                {
-                    tags.insert(SpanTagKey::MessagingMessageId, message_id.into());
-                }
-            }
         }
 
         if let Some(status) = trace_context.status.value() {
@@ -336,7 +329,8 @@ fn extract_shared_tags(event: &Event) -> BTreeMap<SpanTagKey, String> {
     tags
 }
 
-fn extract_shared_measurements(event: &Event) -> BTreeMap<String, Measurement> {
+/// Extracts measurements that should only be saved on segment spans.
+fn extract_segment_measurements(event: &Event) -> BTreeMap<String, Measurement> {
     let mut measurements = BTreeMap::new();
 
     if let Some(trace_context) = event.context::<TraceContext>() {
@@ -376,6 +370,37 @@ fn extract_shared_measurements(event: &Event) -> BTreeMap<String, Measurement> {
     }
 
     measurements
+}
+
+/// Extract tags that should only be saved on segment spans.
+fn extract_segment_tags(event: &Event) -> BTreeMap<SpanTagKey, String> {
+    let mut tags = BTreeMap::new();
+
+    if let Some(trace_context) = event.context::<TraceContext>() {
+        if let Some(op) = extract_transaction_op(trace_context) {
+            if op == "queue.publish" || op == "queue.process" {
+                if let Some(destination_name) = trace_context
+                    .data
+                    .value()
+                    .and_then(|data| data.messaging_destination_name.as_str())
+                {
+                    tags.insert(
+                        SpanTagKey::MessagingDestinationName,
+                        destination_name.into(),
+                    );
+                }
+                if let Some(message_id) = trace_context
+                    .data
+                    .value()
+                    .and_then(|data| data.messaging_message_id.as_str())
+                {
+                    tags.insert(SpanTagKey::MessagingMessageId, message_id.into());
+                }
+            }
+        }
+    }
+
+    tags
 }
 
 /// Writes fields into [`Span::sentry_tags`].
@@ -2098,7 +2123,7 @@ LIMIT 1
     }
 
     #[test]
-    fn test_extract_queue_tags_and_measurement_from_transaction() {
+    fn test_extract_segment_queue_tags_and_measurement_from_transaction() {
         let json = r#"
             {
                 "type": "transaction",
@@ -2130,9 +2155,9 @@ LIMIT 1
 
         extract_span_tags(&event, &mut spans, 50);
 
-        let span: &Annotated<Span> = &spans[0];
-        let tags = span.value().unwrap().sentry_tags.value().unwrap();
-        let measurements = span.value().unwrap().measurements.value().unwrap();
+        let segment_span: &Annotated<Span> = &spans[0];
+        let tags = segment_span.value().unwrap().sentry_tags.value().unwrap();
+        let measurements = segment_span.value().unwrap().measurements.value().unwrap();
 
         assert_eq!(
             tags.get("messaging.destination.name"),
@@ -2162,6 +2187,71 @@ LIMIT 1
                 "messaging.message.retry.count": Measurement {
                     value: 3.0,
                     unit: None,
+                },
+            },
+        )
+        "###);
+    }
+
+    #[test]
+    fn test_does_not_extract_segment_tags_and_measurements_on_child_spans() {
+        let json = r#"
+            {
+                "type": "transaction",
+                "platform": "python",
+                "start_timestamp": "2021-04-26T07:59:01+0100",
+                "timestamp": "2021-04-26T08:00:00+0100",
+                "transaction": "foo",
+                "contexts": {
+                    "trace": {
+                        "op": "queue.process",
+                        "status": "ok",
+                        "data": {
+                            "messaging.destination.name": "default",
+                            "messaging.message.id": "abc123",
+                            "messaging.message.receive.latency": 456,
+                            "messaging.message.body.size": 100,
+                            "messaging.message.retry.count": 3
+                        }
+                    }
+                },
+                "spans": [
+                    {
+                        "op": "queue.process",
+                        "span_id": "bd429c44b67a3eb1",
+                        "start_timestamp": 1597976300.0000000,
+                        "timestamp": 1597976302.0000000,
+                        "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                        "data": {
+                            "messaging.message.body.size": 200
+                        }
+                    }
+                ]
+            }
+        "#;
+
+        let mut event = Annotated::<Event>::from_json(json)
+            .unwrap()
+            .into_value()
+            .unwrap();
+
+        extract_span_tags_from_event(&mut event, 200);
+
+        let span = &event.spans.value().unwrap()[0];
+        let tags = span.value().unwrap().sentry_tags.value().unwrap();
+        let measurements = span.value().unwrap().measurements.value().unwrap();
+
+        assert_eq!(tags.get("messaging.destination.name"), None);
+        assert_eq!(tags.get("messaging.message.id"), None);
+
+        assert_debug_snapshot!(measurements, @r###"
+        Measurements(
+            {
+                "messaging.message.body.size": Measurement {
+                    value: 200.0,
+                    unit: Information(
+                        Byte,
+                    ),
                 },
             },
         )
