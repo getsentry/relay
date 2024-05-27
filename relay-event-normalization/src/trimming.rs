@@ -393,7 +393,7 @@ mod tests {
     use std::iter::repeat;
 
     use relay_event_schema::protocol::{
-        Breadcrumb, Context, Contexts, Event, Exception, ExtraValue, TagEntry, Tags, Values,
+        Breadcrumb, Context, Contexts, Event, Exception, ExtraValue, Span, TagEntry, Tags, Values,
     };
     use relay_protocol::{Map, Remark, SerializableAnnotated};
     use similar_asserts::assert_eq;
@@ -908,5 +908,28 @@ mod tests {
         ];
 
         assert_eq!(frames, expected);
+    }
+
+    #[test]
+    fn test_too_many_spans_trimmed() {
+        let s_100kb = std::iter::repeat('a').take(1024 * 100).collect();
+
+        let span = Span {
+            platform: Annotated::new(s_100kb),
+            ..Default::default()
+        };
+        let spans = std::iter::repeat_with(|| Annotated::new(span.clone()))
+            .take(10)
+            .collect();
+
+        let mut event = Annotated::new(Event {
+            spans: Annotated::new(spans),
+            ..Default::default()
+        });
+
+        let mut processor = TrimmingProcessor::new();
+        processor::process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
+
+        assert_eq!(event.0.unwrap().spans.0.unwrap().len(), 8);
     }
 }
