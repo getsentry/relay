@@ -1862,10 +1862,10 @@ def test_dynamic_sampling(
     if sample_rate == 1.0:
         spans = list(spans_consumer.get_spans(timeout=10, max_attempts=4))
         assert len(spans) == 4
-        outcomes = outcomes_consumer.get_outcomes(timeout=0.1)
+        outcomes = outcomes_consumer.get_outcomes(timeout=10, n=4)
         assert summarize_outcomes(outcomes) == {(16, 0): 4}  # SpanIndexed, Accepted
     else:
-        outcomes = outcomes_consumer.get_outcomes(timeout=10)
+        outcomes = outcomes_consumer.get_outcomes(timeout=10, n=4)
         assert summarize_outcomes(outcomes) == {(12, 1): 4}  # Span, Filtered
         assert {o["reason"] for o in outcomes} == {"Sampled:3000"}
 
