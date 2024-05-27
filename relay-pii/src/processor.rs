@@ -1642,7 +1642,10 @@ mod tests {
 
     #[test]
     fn test_tuple_array_scrubbed_with_path_selector() {
+        // We expect that both of these configs express the same semantics.
         let configs = vec![
+            // This configuration matches on the authorization element (the 1st element of the array
+            // represents the key).
             r##"
                 {
                     "applications": {
@@ -1650,6 +1653,7 @@ mod tests {
                     }
                 }
                 "##,
+            // This configuration matches on the 2nd element of the array.
             r##"
                 {
                     "applications": {
