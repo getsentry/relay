@@ -3645,6 +3645,31 @@
 <a href="#3643" id="3643">3643</a>
 <a href="#3644" id="3644">3644</a>
 <a href="#3645" id="3645">3645</a>
+<a href="#3646" id="3646">3646</a>
+<a href="#3647" id="3647">3647</a>
+<a href="#3648" id="3648">3648</a>
+<a href="#3649" id="3649">3649</a>
+<a href="#3650" id="3650">3650</a>
+<a href="#3651" id="3651">3651</a>
+<a href="#3652" id="3652">3652</a>
+<a href="#3653" id="3653">3653</a>
+<a href="#3654" id="3654">3654</a>
+<a href="#3655" id="3655">3655</a>
+<a href="#3656" id="3656">3656</a>
+<a href="#3657" id="3657">3657</a>
+<a href="#3658" id="3658">3658</a>
+<a href="#3659" id="3659">3659</a>
+<a href="#3660" id="3660">3660</a>
+<a href="#3661" id="3661">3661</a>
+<a href="#3662" id="3662">3662</a>
+<a href="#3663" id="3663">3663</a>
+<a href="#3664" id="3664">3664</a>
+<a href="#3665" id="3665">3665</a>
+<a href="#3666" id="3666">3666</a>
+<a href="#3667" id="3667">3667</a>
+<a href="#3668" id="3668">3668</a>
+<a href="#3669" id="3669">3669</a>
+<a href="#3670" id="3670">3670</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
@@ -5811,17 +5836,42 @@
             <span class="kw">let </span><span class="kw-2">mut </span>rate_limits = RateLimits::new();
 
             <span class="kw">for </span>category <span class="kw">in </span>[DataCategory::Transaction, DataCategory::Span] {
-                <span class="kw">if let </span><span class="prelude-val">Some</span>(count) = bucket_limiter.count(category) {
+                <span class="kw">let </span>count = bucket_limiter.count(category);
+
+                <span class="kw">let </span>timer = Instant::now();
+                <span class="kw">let </span><span class="kw-2">mut </span>is_limited = <span class="bool-val">false</span>;
+
+                <span class="kw">if let </span><span class="prelude-val">Some</span>(count) = count {
                     <span class="kw">match </span>rate_limiter.is_rate_limited(
                         quotas,
                         scoping.item(category),
                         count,
                         over_accept_once,
                     ) {
-                        <span class="prelude-val">Ok</span>(limits) =&gt; rate_limits.merge(limits),
+                        <span class="prelude-val">Ok</span>(limits) =&gt; {
+                            is_limited = limits.is_limited();
+                            rate_limits.merge(limits)
+                        }
                         <span class="prelude-val">Err</span>(e) =&gt; <span class="macro">relay_log::error!</span>(error = <span class="kw-2">&amp;</span>e <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error),
                     }
                 }
+
+                <span class="macro">relay_statsd::metric!</span>(
+                    timer(RelayTimers::RateLimitBucketsDuration) = timer.elapsed(),
+                    category = category.name(),
+                    limited = <span class="kw">if </span>is_limited { <span class="string">"true" </span>} <span class="kw">else </span>{ <span class="string">"false" </span>},
+                    count = <span class="kw">match </span>count {
+                        <span class="prelude-val">None </span>=&gt; <span class="string">"none"</span>,
+                        <span class="prelude-val">Some</span>(<span class="number">0</span>) =&gt; <span class="string">"0"</span>,
+                        <span class="prelude-val">Some</span>(<span class="number">1</span>) =&gt; <span class="string">"1"</span>,
+                        <span class="prelude-val">Some</span>(<span class="number">1</span>..=<span class="number">10</span>) =&gt; <span class="string">"10"</span>,
+                        <span class="prelude-val">Some</span>(<span class="number">1</span>..=<span class="number">25</span>) =&gt; <span class="string">"25"</span>,
+                        <span class="prelude-val">Some</span>(<span class="number">1</span>..=<span class="number">50</span>) =&gt; <span class="string">"50"</span>,
+                        <span class="prelude-val">Some</span>(<span class="number">51</span>..=<span class="number">100</span>) =&gt; <span class="string">"100"</span>,
+                        <span class="prelude-val">Some</span>(<span class="number">101</span>..=<span class="number">500</span>) =&gt; <span class="string">"500"</span>,
+                        <span class="kw">_ </span>=&gt; <span class="string">"&gt; 500"</span>,
+                    },
+                );
             }
 
             <span class="kw">if </span>rate_limits.is_limited() {
