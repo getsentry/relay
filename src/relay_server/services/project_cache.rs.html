@@ -1573,6 +1573,16 @@
 <a href="#1571" id="1571">1571</a>
 <a href="#1572" id="1572">1572</a>
 <a href="#1573" id="1573">1573</a>
+<a href="#1574" id="1574">1574</a>
+<a href="#1575" id="1575">1575</a>
+<a href="#1576" id="1576">1576</a>
+<a href="#1577" id="1577">1577</a>
+<a href="#1578" id="1578">1578</a>
+<a href="#1579" id="1579">1579</a>
+<a href="#1580" id="1580">1580</a>
+<a href="#1581" id="1581">1581</a>
+<a href="#1582" id="1582">1582</a>
+<a href="#1583" id="1583">1583</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
 <span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::sync::Arc;
@@ -2131,17 +2141,27 @@
     metric_outcomes: MetricOutcomes,
     <span class="comment">// Need hashbrown because extract_if is not stable in std yet.
     </span>projects: hashbrown::HashMap&lt;ProjectKey, Project&gt;,
-    garbage_disposal: GarbageDisposal&lt;Project&gt;,
-    source: ProjectSource,
-    state_tx: mpsc::UnboundedSender&lt;UpdateProjectState&gt;,
-    buffer_tx: mpsc::UnboundedSender&lt;UnspooledEnvelope&gt;,
-    buffer_guard: Arc&lt;BufferGuard&gt;,
-    <span class="doccomment">/// Index of the buffered project keys.
+    <span class="doccomment">/// Utility for disposing of expired project data in a background thread.
+    </span>garbage_disposal: GarbageDisposal&lt;Project&gt;,
+    <span class="doccomment">/// Source for fetching project states from the upstream or from disk.
+    </span>source: ProjectSource,
+    <span class="doccomment">/// Tx channel used to send the updated project state whenever requested.
+    </span>state_tx: mpsc::UnboundedSender&lt;UpdateProjectState&gt;,
+    <span class="doccomment">/// Tx channel used by the [`BufferService`] to send back the requested dequeued elements.
+    </span>buffer_tx: mpsc::UnboundedSender&lt;UnspooledEnvelope&gt;,
+    <span class="doccomment">/// Shared semaphore used to control how many envelopes are currently running through Relay.
+    </span>buffer_guard: Arc&lt;BufferGuard&gt;,
+    <span class="doccomment">/// Index containing all the [`QueueKey`] that have been enqueued in the [`BufferService`].
     </span>index: HashSet&lt;QueueKey&gt;,
-    buffer_unspool_handle: SleepHandle,
-    buffer_unspool_backoff: RetryBackoff,
-    buffer: Addr&lt;Buffer&gt;,
-    global_config: GlobalConfigStatus,
+    <span class="doccomment">/// Handle to schedule periodic unspooling of buffered envelopes.
+    </span>buffer_unspool_handle: SleepHandle,
+    <span class="doccomment">/// Backoff strategy for retrying unspool attempts.
+    </span>buffer_unspool_backoff: RetryBackoff,
+    <span class="doccomment">/// Address of the [`BufferService`] used for enqueuing and dequeuing envelopes that can't be
+    /// immediately processed.
+    </span>buffer: Addr&lt;Buffer&gt;,
+    <span class="doccomment">/// Status of the global configuration, used to determine readiness for processing.
+    </span>global_config: GlobalConfigStatus,
 }
 
 <span class="doccomment">/// Describes the current status of the `GlobalConfig`.
