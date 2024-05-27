@@ -2164,17 +2164,42 @@ impl EnvelopeProcessorService {
             let mut rate_limits = RateLimits::new();
 
             for category in [DataCategory::Transaction, DataCategory::Span] {
-                if let Some(count) = bucket_limiter.count(category) {
+                let count = bucket_limiter.count(category);
+
+                let timer = Instant::now();
+                let mut is_limited = false;
+
+                if let Some(count) = count {
                     match rate_limiter.is_rate_limited(
                         quotas,
                         scoping.item(category),
                         count,
                         over_accept_once,
                     ) {
-                        Ok(limits) => rate_limits.merge(limits),
+                        Ok(limits) => {
+                            is_limited = limits.is_limited();
+                            rate_limits.merge(limits)
+                        }
                         Err(e) => relay_log::error!(error = &e as &dyn Error),
                     }
                 }
+
+                relay_statsd::metric!(
+                    timer(RelayTimers::RateLimitBucketsDuration) = timer.elapsed(),
+                    category = category.name(),
+                    limited = if is_limited { "true" } else { "false" },
+                    count = match count {
+                        None => "none",
+                        Some(0) => "0",
+                        Some(1) => "1",
+                        Some(1..=10) => "10",
+                        Some(1..=25) => "25",
+                        Some(1..=50) => "50",
+                        Some(51..=100) => "100",
+                        Some(101..=500) => "500",
+                        _ => "> 500",
+                    },
+                );
             }
 
             if rate_limits.is_limited() {
