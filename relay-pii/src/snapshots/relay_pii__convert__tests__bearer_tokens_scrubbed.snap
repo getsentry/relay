@@ -13,7 +13,7 @@ expression: data
                 "request": {
                   "headers": [
                     [
-                      "AuthToken",
+                      "[Filtered]",
                       "[Filtered]"
                     ]
                   ]
@@ -36,6 +36,19 @@ expression: data
                   "request": {
                     "headers": {
                       "0": {
+                        "0": {
+                          "": {
+                            "rem": [
+                              [
+                                "@password:filter",
+                                "s",
+                                0,
+                                10
+                              ]
+                            ],
+                            "len": 9
+                          }
+                        },
                         "1": {
                           "": {
                             "rem": [
