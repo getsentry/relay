@@ -1268,6 +1268,8 @@ def test_graceful_shutdown(mini_sentry, relay):
     relay.send_metrics(project_id, metrics_payload)
     relay.process.send_signal(signal.SIGTERM)
 
+    time.sleep(0.1)
+
     # Try to send another metric (will be rejected)
     metrics_payload = f"transactions/now:666|c|T{timestamp}"
     with pytest.raises(requests.ConnectionError):
