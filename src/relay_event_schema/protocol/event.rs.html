@@ -1279,6 +1279,7 @@
 <a href="#1277" id="1277">1277</a>
 <a href="#1278" id="1278">1278</a>
 <a href="#1279" id="1279">1279</a>
+<a href="#1280" id="1280">1280</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::str::FromStr;
 
@@ -1755,7 +1756,8 @@
     </span><span class="kw">pub </span>expectstaple: Annotated&lt;ExpectStaple&gt;,
 
     <span class="doccomment">/// Spans for tracing.
-    </span><span class="attr">#[metastructure(omit_from_schema)] </span><span class="comment">// we only document error events for now
+    </span><span class="attr">#[metastructure(max_bytes = <span class="number">819200</span>)]
+    #[metastructure(omit_from_schema)] </span><span class="comment">// we only document error events for now
     </span><span class="kw">pub </span>spans: Annotated&lt;Array&lt;Span&gt;&gt;,
 
     <span class="doccomment">/// Measurements which holds observed values such as web vitals.

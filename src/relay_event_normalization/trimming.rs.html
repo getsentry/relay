@@ -912,6 +912,27 @@
 <a href="#910" id="910">910</a>
 <a href="#911" id="911">911</a>
 <a href="#912" id="912">912</a>
+<a href="#913" id="913">913</a>
+<a href="#914" id="914">914</a>
+<a href="#915" id="915">915</a>
+<a href="#916" id="916">916</a>
+<a href="#917" id="917">917</a>
+<a href="#918" id="918">918</a>
+<a href="#919" id="919">919</a>
+<a href="#920" id="920">920</a>
+<a href="#921" id="921">921</a>
+<a href="#922" id="922">922</a>
+<a href="#923" id="923">923</a>
+<a href="#924" id="924">924</a>
+<a href="#925" id="925">925</a>
+<a href="#926" id="926">926</a>
+<a href="#927" id="927">927</a>
+<a href="#928" id="928">928</a>
+<a href="#929" id="929">929</a>
+<a href="#930" id="930">930</a>
+<a href="#931" id="931">931</a>
+<a href="#932" id="932">932</a>
+<a href="#933" id="933">933</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 
 <span class="kw">use </span>relay_event_schema::processor::{
@@ -1307,7 +1328,7 @@
     <span class="kw">use </span>std::iter::repeat;
 
     <span class="kw">use </span>relay_event_schema::protocol::{
-        Breadcrumb, Context, Contexts, Event, Exception, ExtraValue, TagEntry, Tags, Values,
+        Breadcrumb, Context, Contexts, Event, Exception, ExtraValue, Span, TagEntry, Tags, Values,
     };
     <span class="kw">use </span>relay_protocol::{Map, Remark, SerializableAnnotated};
     <span class="kw">use </span>similar_asserts::assert_eq;
@@ -1822,6 +1843,27 @@
         ];
 
         <span class="macro">assert_eq!</span>(frames, expected);
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_too_many_spans_trimmed() {
+        <span class="kw">let </span>span = Span {
+            platform: Annotated::new(<span class="string">"a"</span>.repeat(<span class="number">1024 </span>* <span class="number">100</span>)),
+            ..Default::default()
+        };
+        <span class="kw">let </span>spans = std::iter::repeat_with(|| Annotated::new(span.clone()))
+            .take(<span class="number">10</span>)
+            .collect();
+
+        <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::new(Event {
+            spans: Annotated::new(spans),
+            ..Default::default()
+        });
+
+        <span class="kw">let </span><span class="kw-2">mut </span>processor = TrimmingProcessor::new();
+        processor::process_value(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;mut </span>processor, ProcessingState::root()).unwrap();
+
+        <span class="macro">assert_eq!</span>(event.<span class="number">0</span>.unwrap().spans.<span class="number">0</span>.unwrap().len(), <span class="number">8</span>);
     }
 }
 </code></pre></div></section></main></body></html>
