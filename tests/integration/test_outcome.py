@@ -1998,7 +1998,8 @@ def test_global_rate_limit_by_namespace(
         },
     ]
 
-    ts = datetime.now(UTC).timestamp()
+    # Truncate the timestamp and add a slight offset to never be on the border of the rate limiting window.
+    ts = datetime.now(UTC).timestamp() // 100 * 100 + 50
 
     def send_buckets(n, name, value, ty):
         for i in range(n):
