@@ -219,20 +219,16 @@ pub fn extract_span_tags(event: &Event, spans: &mut [Annotated<Span>], max_tag_v
                     .get_or_insert_with(Default::default)
                     .extend(
                         segment_measurements
-                            .clone()
-                            .into_iter()
-                            .map(|(k, v)| (k.to_owned(), Annotated::new(v))),
+                            .iter()
+                            .map(|(k, v)| (k.clone(), Annotated::new(v.clone()))),
                     );
             }
             if !segment_tags.is_empty() {
                 span.sentry_tags
                     .get_or_insert_with(Default::default)
-                    .extend(
-                        segment_tags
-                            .clone()
-                            .into_iter()
-                            .map(|(k, v)| (k.sentry_tag_key().to_owned(), Annotated::new(v))),
-                    );
+                    .extend(segment_tags.iter().map(|(k, v)| {
+                        (k.clone().sentry_tag_key().into(), Annotated::new(v.clone()))
+                    }));
             }
         }
 

@@ -161,18 +161,33 @@ pub struct Data {
     #[metastructure(field = "previousRoute", pii = "maybe", skip_serialization = "empty")]
     pub previous_route: Annotated<Route>,
 
+    /// The destination name (ie queue/topic) that a producer/consumer acts on.
+    ///
+    /// Set by backend SDKs with messaging integration.
     #[metastructure(field = "messaging.destination.name")]
     pub messaging_destination_name: Annotated<String>,
 
+    /// The id of the message in the messaging event.
+    ///
+    /// Set by backend SDKs with messaging integration.
     #[metastructure(field = "messaging.message.id")]
     pub messaging_message_id: Annotated<String>,
 
+    /// The time duration that a message waited in queue before being received.
+    ///
+    /// Set by backend SDKs with messaging integration.
     #[metastructure(field = "messaging.message.receive.latency")]
     pub messaging_message_receive_latency: Annotated<Value>,
 
+    /// The number of times a message was redelivered.
+    ///
+    /// Set by backend SDKs with messaging integration.
     #[metastructure(field = "messaging.message.retry.count")]
     pub messaging_message_retry_count: Annotated<Value>,
 
+    /// The size of the message body in bytes.
+    ///
+    /// Set by backend SDKs with messaging integration.
     #[metastructure(field = "messaging.message.body.size")]
     pub messaging_message_body_size: Annotated<Value>,
 
