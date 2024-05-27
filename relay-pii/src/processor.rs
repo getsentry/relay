@@ -123,20 +123,14 @@ impl<'a> Processor for PiiProcessor<'a> {
                             state.inner_attrs(),
                             inner_value.value_type(),
                         );
-
-                        let previous_meta = value[1].meta().clone();
                         process_value(&mut value[1], self, &entered)?;
-                        // We check whether meta has changed from empty to non-empty in order to
-                        // understand if some rules matched downstream.
-                        if previous_meta.is_empty() && !value[1].meta().is_empty() {
-                            return Ok(());
-                        }
                     }
                 }
             }
         }
 
-        // Recurse into each element of the array in case the key-value scrubbing didn't scrub data.
+        // Recurse into each element of the array since we also want to individually scrub each
+        // value in the array.
         value.process_child_values(self, state)?;
 
         Ok(())
@@ -1835,8 +1829,29 @@ mod tests {
                     [
                         Array(
                             [
-                                String(
-                                    "authorization",
+                                Annotated(
+                                    String(
+                                        "",
+                                    ),
+                                    Meta {
+                                        remarks: [
+                                            Remark {
+                                                ty: Removed,
+                                                rule_id: "@password:remove",
+                                                range: Some(
+                                                    (
+                                                        0,
+                                                        0,
+                                                    ),
+                                                ),
+                                            },
+                                        ],
+                                        errors: [],
+                                        original_length: Some(
+                                            13,
+                                        ),
+                                        original_value: None,
+                                    },
                                 ),
                                 Meta {
                                     remarks: [
