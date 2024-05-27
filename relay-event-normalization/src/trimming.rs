@@ -912,10 +912,8 @@ mod tests {
 
     #[test]
     fn test_too_many_spans_trimmed() {
-        let s_100kb = std::iter::repeat('a').take(1024 * 100).collect();
-
         let span = Span {
-            platform: Annotated::new(s_100kb),
+            platform: Annotated::new("a".repeat(1024 * 100)),
             ..Default::default()
         };
         let spans = std::iter::repeat_with(|| Annotated::new(span.clone()))
