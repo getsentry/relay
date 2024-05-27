@@ -507,7 +507,7 @@ fn insert_replacement_chunks(rule: &RuleRef, text: &str, output: &mut Vec<Chunk<
 
 #[cfg(test)]
 mod tests {
-    use insta::assert_debug_snapshot;
+    use insta::{allow_duplicates, assert_debug_snapshot};
     use relay_event_schema::processor::process_value;
     use relay_event_schema::protocol::{
         Addr, Breadcrumb, DebugImage, DebugMeta, ExtraValue, Headers, LogEntry, Message,
@@ -1642,7 +1642,7 @@ mod tests {
 
     #[test]
     fn test_tuple_array_scrubbed_with_path_selector() {
-        let config = serde_json::from_str::<PiiConfig>(
+        let configs = vec![
             r##"
                 {
                     "applications": {
@@ -1650,8 +1650,14 @@ mod tests {
                     }
                 }
                 "##,
-        )
-        .unwrap();
+            r##"
+                {
+                    "applications": {
+                        "exception.values.0.stacktrace.frames.0.vars.headers.0.1": ["@anything:replace"]
+                    }
+                }
+                "##,
+        ];
 
         let mut event = Event::from_value(
             serde_json::json!(
@@ -1680,33 +1686,35 @@ mod tests {
             .into(),
         );
 
-        let mut processor = PiiProcessor::new(config.compiled());
-        process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
+        for config in configs {
+            let config = serde_json::from_str::<PiiConfig>(config).unwrap();
+            let mut processor = PiiProcessor::new(config.compiled());
+            process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
-        let vars = event
-            .value()
-            .unwrap()
-            .exceptions
-            .value()
-            .unwrap()
-            .values
-            .value()
-            .unwrap()[0]
-            .value()
-            .unwrap()
-            .stacktrace
-            .value()
-            .unwrap()
-            .frames
-            .value()
-            .unwrap()[0]
-            .value()
-            .unwrap()
-            .vars
-            .value()
-            .unwrap();
+            let vars = event
+                .value()
+                .unwrap()
+                .exceptions
+                .value()
+                .unwrap()
+                .values
+                .value()
+                .unwrap()[0]
+                .value()
+                .unwrap()
+                .stacktrace
+                .value()
+                .unwrap()
+                .frames
+                .value()
+                .unwrap()[0]
+                .value()
+                .unwrap()
+                .vars
+                .value()
+                .unwrap();
 
-        assert_debug_snapshot!(vars, @r#"
+            allow_duplicates!(assert_debug_snapshot!(vars, @r#"
         FrameVars(
             {
                 "headers": Array(
@@ -1746,7 +1754,8 @@ mod tests {
                 ),
             },
         )
-        "#);
+        "#));
+        }
     }
 
     #[test]
