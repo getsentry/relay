@@ -5,8 +5,8 @@ use std::sync::OnceLock;
 
 use regex::Regex;
 use relay_event_schema::processor::{
-    self, enum_set, Chunk, Pii, ProcessValue, ProcessingAction, ProcessingResult, ProcessingState,
-    Processor, ValueType,
+    self, enum_set, process_value, Chunk, Pii, ProcessValue, ProcessingAction, ProcessingResult,
+    ProcessingState, Processor, ValueType,
 };
 use relay_event_schema::protocol::{
     AsPair, Event, IpAddr, NativeImagePath, PairList, Replay, ResponseContext, User,
@@ -104,7 +104,7 @@ impl<'a> Processor for PiiProcessor<'a> {
     fn process_array<T>(
         &mut self,
         value: &mut Array<T>,
-        meta: &mut Meta,
+        _meta: &mut Meta,
         state: &ProcessingState<'_>,
     ) -> ProcessingResult
     where
@@ -114,11 +114,15 @@ impl<'a> Processor for PiiProcessor<'a> {
         // scrubbing doesn't do anything, we try to scrub values individually.
         if value.len() == 2 {
             let key = value[0].clone();
-            if let Some(key) = key.value() {
-                if let Some(key_name) = key.as_key() {
-                    let entered =
-                        state.enter_borrowed(key_name, state.inner_attrs(), key.value_type());
-                    value.process_child_values(self, &entered)?;
+            if let Some(key) = key.into_value() {
+                let key_value_type = key.value_type();
+                if let Value::String(key_name) = key.into_value() {
+                    let entered = state.enter_borrowed(
+                        key_name.as_str(),
+                        state.inner_attrs(),
+                        key_value_type,
+                    );
+                    process_value(&mut value[1], self, &entered)?;
                 }
             }
         }
@@ -502,7 +506,6 @@ mod tests {
     };
     use relay_protocol::{assert_annotated_snapshot, get_value, FromValue, Object};
     use serde_json::json;
-    use std::collections::HashMap;
 
     use super::*;
     use crate::{DataScrubbingConfig, PiiConfig, ReplaceRedaction};
@@ -1634,7 +1637,7 @@ mod tests {
             r##"
                 {
                     "applications": {
-                        "$number": ["@anything:remove"]
+                        "exception.values.0.stacktrace.frames.0.vars.headers.0.authorization": ["@anything:replace"]
                     }
                 }
                 "##,
@@ -1668,28 +1671,72 @@ mod tests {
             .into(),
         );
 
-        println!("{:?}", event);
-
         let mut processor = PiiProcessor::new(config.compiled());
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
-        //         let params = get_value!(event.logentry.params!);
-        //         assert_debug_snapshot!(params, @r#"Array(
-        //     [
-        //         Meta {
-        //             remarks: [
-        //                 Remark {
-        //                     ty: Removed,
-        //                     rule_id: "@anything:remove",
-        //                     range: None,
-        //                 },
-        //             ],
-        //             errors: [],
-        //             original_length: None,
-        //             original_value: None,
-        //         },
-        //     ],
-        // )"#);
-        //     }
+        let vars = event
+            .value()
+            .unwrap()
+            .exceptions
+            .value()
+            .unwrap()
+            .values
+            .value()
+            .unwrap()[0]
+            .value()
+            .unwrap()
+            .stacktrace
+            .value()
+            .unwrap()
+            .frames
+            .value()
+            .unwrap()[0]
+            .value()
+            .unwrap()
+            .vars
+            .value()
+            .unwrap();
+
+        assert_debug_snapshot!(vars, @r#"
+        FrameVars(
+            {
+                "headers": Array(
+                    [
+                        Array(
+                            [
+                                String(
+                                    "authorization",
+                                ),
+                                Annotated(
+                                    String(
+                                        "[Filtered]",
+                                    ),
+                                    Meta {
+                                        remarks: [
+                                            Remark {
+                                                ty: Substituted,
+                                                rule_id: "@anything:replace",
+                                                range: Some(
+                                                    (
+                                                        0,
+                                                        10,
+                                                    ),
+                                                ),
+                                            },
+                                        ],
+                                        errors: [],
+                                        original_length: Some(
+                                            13,
+                                        ),
+                                        original_value: None,
+                                    },
+                                ),
+                            ],
+                        ),
+                    ],
+                ),
+            },
+        )
+        "#);
     }
 }
