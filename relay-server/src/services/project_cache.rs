@@ -558,7 +558,7 @@ struct ProjectCacheBroker {
     projects: hashbrown::HashMap<ProjectKey, Project>,
     /// Utility for disposing of expired project data in a background thread.
     garbage_disposal: GarbageDisposal<Project>,
-    /// Source for fetching project states via multiple layers.
+    /// Source for fetching project states from the upstream or from disk.
     source: ProjectSource,
     /// Tx channel used to send the updated project state whenever requested.
     state_tx: mpsc::UnboundedSender<UpdateProjectState>,
