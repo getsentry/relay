@@ -595,6 +595,12 @@ impl Project {
         state: &ProjectState,
         buckets: Buckets<Filtered>,
     ) {
+        // Only send if the project state is valid, otherwise drop the buckets.
+        if state.check_disabled(self.config.as_ref()).is_err() {
+            relay_log::trace!("project state invalid: dropping {} buckets", buckets.len());
+            return;
+        }
+
         let Some(scoping) = self.scoping() else {
             relay_log::error!(
                 "there is no scoping due to missing project id: dropping {} buckets",
@@ -602,12 +608,6 @@ impl Project {
             );
             return;
         };
-
-        // Only send if the project state is valid, otherwise drop the buckets.
-        if state.check_disabled(self.config.as_ref()).is_err() {
-            relay_log::trace!("project state invalid: dropping {} buckets", buckets.len());
-            return;
-        }
 
         let buckets = buckets.apply_project_state(metric_outcomes, state, scoping);
 

@@ -14,11 +14,12 @@ mod processing;
 pub use processing::*;
 
 pub fn filter(state: &mut ProcessEnvelopeState<SpanGroup>) {
-    let standalone_span_ingestion_disabled = !state
-        .project_state
-        .has_feature(Feature::StandaloneSpanIngestion);
+    let ingestion_disabled = !state.project_state.has_feature(Feature::IndexedSpans)
+        || !state
+            .project_state
+            .has_feature(Feature::StandaloneSpanIngestion);
     state.managed_envelope.retain_items(|item| {
-        if item.is_span() && standalone_span_ingestion_disabled {
+        if item.is_span() && ingestion_disabled {
             relay_log::warn!("dropping span because feature is disabled");
             ItemAction::DropSilently
         } else {
