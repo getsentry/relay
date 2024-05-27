@@ -504,7 +504,7 @@ mod tests {
     use insta::{allow_duplicates, assert_debug_snapshot};
     use relay_event_schema::processor::process_value;
     use relay_event_schema::protocol::{
-        Addr, Breadcrumb, DebugImage, DebugMeta, ExtraValue, Headers, LogEntry, Message,
+        Addr, Breadcrumb, DebugImage, DebugMeta, ExtraValue, FrameVars, Headers, LogEntry, Message,
         NativeDebugImage, Request, Span, TagEntry, Tags, TraceContext,
     };
     use relay_protocol::{assert_annotated_snapshot, get_value, FromValue, Object};
@@ -522,6 +522,30 @@ mod tests {
             assert_eq!(&roundtrip, config);
         }
         rv
+    }
+
+    fn extract_vars(event: Option<&Event>) -> &FrameVars {
+        event
+            .unwrap()
+            .exceptions
+            .value()
+            .unwrap()
+            .values
+            .value()
+            .unwrap()[0]
+            .value()
+            .unwrap()
+            .stacktrace
+            .value()
+            .unwrap()
+            .frames
+            .value()
+            .unwrap()[0]
+            .value()
+            .unwrap()
+            .vars
+            .value()
+            .unwrap()
     }
 
     #[test]
@@ -1689,28 +1713,7 @@ mod tests {
             let mut processor = PiiProcessor::new(config.compiled());
             process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
-            let vars = event
-                .value()
-                .unwrap()
-                .exceptions
-                .value()
-                .unwrap()
-                .values
-                .value()
-                .unwrap()[0]
-                .value()
-                .unwrap()
-                .stacktrace
-                .value()
-                .unwrap()
-                .frames
-                .value()
-                .unwrap()[0]
-                .value()
-                .unwrap()
-                .vars
-                .value()
-                .unwrap();
+            let vars = extract_vars(event.value());
 
             allow_duplicates!(assert_debug_snapshot!(vars, @r#"
         FrameVars(
@@ -1799,28 +1802,7 @@ mod tests {
         let mut processor = PiiProcessor::new(config.compiled());
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
-        let vars = event
-            .value()
-            .unwrap()
-            .exceptions
-            .value()
-            .unwrap()
-            .values
-            .value()
-            .unwrap()[0]
-            .value()
-            .unwrap()
-            .stacktrace
-            .value()
-            .unwrap()
-            .frames
-            .value()
-            .unwrap()[0]
-            .value()
-            .unwrap()
-            .vars
-            .value()
-            .unwrap();
+        let vars = extract_vars(event.value());
 
         assert_debug_snapshot!(vars, @r###"
         FrameVars(
