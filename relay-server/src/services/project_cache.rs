@@ -562,7 +562,7 @@ struct ProjectCacheBroker {
     source: ProjectSource,
     /// Tx channel used to send the updated project state whenever requested.
     state_tx: mpsc::UnboundedSender<UpdateProjectState>,
-    /// Tx channel used by the [`BufferService`] to send back the requested dequed elements.
+    /// Tx channel used by the [`BufferService`] to send back the requested dequeued elements.
     buffer_tx: mpsc::UnboundedSender<UnspooledEnvelope>,
     /// Shared semaphore used to control how many envelopes are currently running through Relay.
     buffer_guard: Arc<BufferGuard>,
