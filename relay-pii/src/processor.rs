@@ -113,16 +113,25 @@ impl<'a> Processor for PiiProcessor<'a> {
         // If the array has length 2, we treat it as key-value pair and try to scrub it. If the
         // scrubbing doesn't do anything, we try to scrub values individually.
         if value.len() == 2 {
-            let key = value[0].clone();
-            if let Some(key) = key.into_value() {
-                let key_value_type = key.value_type();
+            if let Some(key) = value[0].clone().into_value() {
                 if let Value::String(key_name) = key.into_value() {
-                    let entered = state.enter_borrowed(
-                        key_name.as_str(),
-                        state.inner_attrs(),
-                        key_value_type,
-                    );
-                    process_value(&mut value[1], self, &entered)?;
+                    if let Some(inner_value) = value[1].value() {
+                        // We compute a new state which has the first element of the array as the
+                        // key.
+                        let entered = state.enter_borrowed(
+                            key_name.as_str(),
+                            state.inner_attrs(),
+                            inner_value.value_type(),
+                        );
+
+                        let previous_meta = value[1].meta().clone();
+                        process_value(&mut value[1], self, &entered)?;
+                        // We check whether meta has changed from empty to non-empty in order to
+                        // understand if some rules matched downstream.
+                        if previous_meta.is_empty() && !value[1].meta().is_empty() {
+                            return Ok(());
+                        }
+                    }
                 }
             }
         }
@@ -1632,7 +1641,7 @@ mod tests {
     }
 
     #[test]
-    fn test_tuple_array_scrubbed() {
+    fn test_tuple_array_scrubbed_with_path_selector() {
         let config = serde_json::from_str::<PiiConfig>(
             r##"
                 {
@@ -1738,5 +1747,102 @@ mod tests {
             },
         )
         "#);
+    }
+
+    #[test]
+    fn test_tuple_array_scrubbed_with_string_selector_and_password_matcher() {
+        let config = serde_json::from_str::<PiiConfig>(
+            r##"
+                {
+                    "applications": {
+                        "$string": ["@password:remove"]
+                    }
+                }
+                "##,
+        )
+        .unwrap();
+
+        let mut event = Event::from_value(
+            serde_json::json!(
+            {
+              "message": "hi",
+              "exception": {
+                "values": [
+                  {
+                    "type": "BrokenException",
+                    "value": "Something failed",
+                    "stacktrace": {
+                      "frames": [
+                        {
+                            "vars": {
+                                "headers": [
+                                    ["authorization", "abc123"]
+                                ]
+                            }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            })
+            .into(),
+        );
+
+        let mut processor = PiiProcessor::new(config.compiled());
+        process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
+
+        let vars = event
+            .value()
+            .unwrap()
+            .exceptions
+            .value()
+            .unwrap()
+            .values
+            .value()
+            .unwrap()[0]
+            .value()
+            .unwrap()
+            .stacktrace
+            .value()
+            .unwrap()
+            .frames
+            .value()
+            .unwrap()[0]
+            .value()
+            .unwrap()
+            .vars
+            .value()
+            .unwrap();
+
+        assert_debug_snapshot!(vars, @r###"
+        FrameVars(
+            {
+                "headers": Array(
+                    [
+                        Array(
+                            [
+                                String(
+                                    "authorization",
+                                ),
+                                Meta {
+                                    remarks: [
+                                        Remark {
+                                            ty: Removed,
+                                            rule_id: "@password:remove",
+                                            range: None,
+                                        },
+                                    ],
+                                    errors: [],
+                                    original_length: None,
+                                    original_value: None,
+                                },
+                            ],
+                        ),
+                    ],
+                ),
+            },
+        )
+        "###);
     }
 }

@@ -9,6 +9,7 @@
 **Features**:
 
 - Apply legacy inbound filters to standalone spans. ([#3552](https://github.com/getsentry/relay/pull/3552))
+- Allow treating arrays of two elements as key-value pairs during PII scrubbing. ([#3639](https://github.com/getsentry/relay/pull/3639))
 
 **Internal**:
 
