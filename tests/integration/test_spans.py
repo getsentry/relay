@@ -447,7 +447,6 @@ def test_span_ingestion(
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = [
         "organizations:standalone-span-ingestion",
-        "organizations:indexed-spans",
         "projects:span-metrics-extraction",
         "projects:relay-otel-endpoint",
     ]
@@ -896,10 +895,7 @@ def test_otel_endpoint_disabled(mini_sentry, relay):
     )
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)["config"]
-    project_config["features"] = [
-        "organizations:standalone-span-ingestion",
-        "organizations:indexed-spans",
-    ]
+    project_config["features"] = ["organizations:standalone-span-ingestion"]
 
     end = datetime.now(timezone.utc) - timedelta(seconds=1)
     start = end - timedelta(milliseconds=500)
@@ -1030,7 +1026,6 @@ def test_extracted_transaction_gets_normalized(
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = [
         "organizations:standalone-span-ingestion",
-        "organizations:indexed-spans",
         "projects:extract-transaction-from-segment-span",
         "projects:relay-otel-endpoint",
     ]
@@ -1220,7 +1215,6 @@ def test_span_reject_invalid_timestamps(
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = [
         "organizations:standalone-span-ingestion",
-        "organizations:indexed-spans",
     ]
 
     duration = timedelta(milliseconds=500)
@@ -1611,7 +1605,6 @@ def test_rate_limit_metrics_consistent(
     project_config["config"]["features"] = [
         "projects:span-metrics-extraction",
         "organizations:standalone-span-ingestion",
-        "organizations:indexed-spans",
     ]
     project_config["config"]["quotas"] = [
         {
@@ -1705,7 +1698,6 @@ def test_span_extraction_with_tags(
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = [
         "projects:span-metrics-extraction",
-        "organizations:indexed-spans",
     ]
 
     event = make_transaction(
@@ -1745,10 +1737,7 @@ def test_span_filtering_with_generic_inbound_filter(
     relay = relay_with_processing(options=TEST_CONFIG)
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
-    project_config["config"]["features"] = [
-        "organizations:standalone-span-ingestion",
-        "organziations:indexed-spans",
-    ]
+    project_config["config"]["features"] = ["organizations:standalone-span-ingestion"]
 
     spans_consumer = spans_consumer()
     outcomes_consumer = outcomes_consumer()
@@ -1809,7 +1798,6 @@ def test_dynamic_sampling(
     project_config = mini_sentry.add_basic_project_config(project_id)
     project_config["config"]["features"] = [
         "organizations:standalone-span-ingestion",
-        "organizations:indexed-spans",
     ]
     project_config["config"]["transactionMetrics"] = {"version": 1}
 

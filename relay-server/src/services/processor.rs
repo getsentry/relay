@@ -1402,7 +1402,9 @@ impl EnvelopeProcessorService {
                 device_class_synthesis_config: state
                     .project_state
                     .has_feature(Feature::DeviceClassSynthesis),
-                enrich_spans: state.project_state.has_feature(Feature::IndexedSpans)
+                enrich_spans: state
+                    .project_state
+                    .has_feature(Feature::ExtractSpansFromEvent)
                     || state
                         .project_state
                         .has_feature(Feature::ExtractCommonSpanMetricsFromEvent),
@@ -1546,7 +1548,10 @@ impl EnvelopeProcessorService {
                     event::scrub(state)?;
 
                     if_processing!(self.inner.config, {
-                        if state.project_state.has_feature(Feature::IndexedSpans) {
+                        if state
+                            .project_state
+                            .has_feature(Feature::ExtractSpansFromEvent)
+                        {
                             span::extract_from_event(
                                 state,
                                 &self.inner.config,

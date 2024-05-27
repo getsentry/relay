@@ -99,12 +99,9 @@ pub enum Feature {
 
     /// When enabled, spans will be extracted from a transaction.
     ///
-    /// Serialized as `projects:indexed-spans`.
-    #[serde(
-        rename = "organizations:indexed-spans",
-        alias = "organizations:indexed-spans-extraction"
-    )]
-    IndexedSpans,
+    /// Serialized as `projects:indexed-spans-extraction`.
+    #[serde(rename = "organizations:indexed-spans-extraction")]
+    ExtractSpansFromEvent,
 
     /// Deprecated, still forwarded for older downstream Relays.
     #[doc(hidden)]
