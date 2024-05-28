@@ -1750,7 +1750,7 @@ mod tests {
             let Annotated(Some(Value::Array(mut a)), _) = v else {
                 panic!()
             };
-            assert_eq!(is_pairlist(&mut a), expected, "{}", case);
+            assert_eq!(is_pairlist(&mut a), expected, "{case}");
         }
     }
 
