@@ -592,30 +592,6 @@ mod tests {
         rv
     }
 
-    fn extract_vars(event: Option<&Event>) -> &FrameVars {
-        event
-            .unwrap()
-            .exceptions
-            .value()
-            .unwrap()
-            .values
-            .value()
-            .unwrap()[0]
-            .value()
-            .unwrap()
-            .stacktrace
-            .value()
-            .unwrap()
-            .frames
-            .value()
-            .unwrap()[0]
-            .value()
-            .unwrap()
-            .vars
-            .value()
-            .unwrap()
-    }
-
     #[test]
     fn test_scrub_original_value() {
         let mut data = Event::from_value(
@@ -1809,7 +1785,7 @@ mod tests {
             let mut processor = PiiProcessor::new(config.compiled());
             process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
-            let vars = extract_vars(event.value());
+            let vars = get_value!(event.exceptions.values[0].stacktrace.frames[0].vars).unwrap();
 
             allow_duplicates!(assert_debug_snapshot!(vars, @r#"
         FrameVars(
@@ -1898,7 +1874,7 @@ mod tests {
         let mut processor = PiiProcessor::new(config.compiled());
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
-        let vars = extract_vars(event.value());
+        let vars = get_value!(event.exceptions.values[0].stacktrace.frames[0].vars).unwrap();
 
         assert_debug_snapshot!(vars, @r###"
         FrameVars(
