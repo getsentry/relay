@@ -1698,6 +1698,7 @@ def test_span_extraction_with_tags(
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = [
         "projects:span-metrics-extraction",
+        "organizations:indexed-spans-extraction",
     ]
 
     event = make_transaction(

@@ -1741,7 +1741,7 @@ def test_span_outcomes(
     project_config.setdefault("features", []).extend(
         [
             "projects:span-metrics-extraction",
-            "projects:span-metrics-extraction-all-modules",
+            "organizations:indexed-spans-extraction",
         ]
     )
     project_config["transactionMetrics"] = {
