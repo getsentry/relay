@@ -187,8 +187,6 @@ pub fn extract_span_tags(event: &Event, spans: &mut [Annotated<Span>], max_tag_v
     // TODO: To prevent differences between metrics and payloads, we should not extract tags here
     // when they have already been extracted by a downstream relay.
     let shared_tags = extract_shared_tags(event);
-    let segment_tags = extract_segment_tags(event);
-    let segment_measurements = extract_segment_measurements(event);
     let is_mobile = shared_tags
         .get(&SpanTagKey::Mobile)
         .is_some_and(|v| v.as_str() == "true");
@@ -213,26 +211,38 @@ pub fn extract_span_tags(event: &Event, spans: &mut [Annotated<Span>], max_tag_v
                 .collect(),
         );
 
-        if span.is_segment.value() == Some(&true) {
-            if !segment_measurements.is_empty() {
-                span.measurements
-                    .get_or_insert_with(Default::default)
-                    .extend(
-                        segment_measurements
-                            .iter()
-                            .map(|(k, v)| (k.clone(), Annotated::new(v.clone()))),
-                    );
-            }
-            if !segment_tags.is_empty() {
-                span.sentry_tags
-                    .get_or_insert_with(Default::default)
-                    .extend(segment_tags.iter().map(|(k, v)| {
-                        (k.clone().sentry_tag_key().into(), Annotated::new(v.clone()))
-                    }));
-            }
-        }
-
         extract_measurements(span, is_mobile);
+    }
+}
+
+/// Extract segment span specific tags and measurements from the event and materialize them into the spans.
+pub fn extract_segment_span_tags(event: &Event, spans: &mut [Annotated<Span>]) {
+    let segment_tags = extract_segment_tags(event);
+    let segment_measurements = extract_segment_measurements(event);
+
+    for span in spans {
+        let Some(span) = span.value_mut() else {
+            continue;
+        };
+
+        if !segment_measurements.is_empty() {
+            span.measurements
+                .get_or_insert_with(Default::default)
+                .extend(
+                    segment_measurements
+                        .iter()
+                        .map(|(k, v)| (k.clone(), Annotated::new(v.clone()))),
+                );
+        }
+        if !segment_tags.is_empty() {
+            span.sentry_tags
+                .get_or_insert_with(Default::default)
+                .extend(
+                    segment_tags.iter().map(|(k, v)| {
+                        (k.clone().sentry_tag_key().into(), Annotated::new(v.clone()))
+                    }),
+                );
+        }
     }
 }
 
@@ -2149,7 +2159,7 @@ LIMIT 1
             .unwrap();
         let mut spans = [Span::from(&event).into()];
 
-        extract_span_tags(&event, &mut spans, 50);
+        extract_segment_span_tags(&event, &mut spans);
 
         let segment_span: &Annotated<Span> = &spans[0];
         let tags = segment_span.value().unwrap().sentry_tags.value().unwrap();
