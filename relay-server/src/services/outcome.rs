@@ -153,7 +153,7 @@ impl FromMessage<Self> for TrackOutcome {
 }
 
 /// Defines the possible outcomes from processing an event.
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Outcome {
     /// The event has been accepted and handled completely.
     ///
@@ -302,7 +302,7 @@ impl From<RuleId> for RuleCategory {
 }
 
 /// An ordered set of categories that can be used as outcome reason.
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct RuleCategories(pub BTreeSet<RuleCategory>);
 
 impl fmt::Display for RuleCategories {
@@ -328,7 +328,7 @@ impl From<MatchedRuleIds> for RuleCategories {
 /// Reason for a discarded invalid event.
 ///
 /// Used in `Outcome::Invalid`. Synchronize overlap with Sentry.
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, PartialOrd, Ord, Hash)]
 #[allow(dead_code)]
 pub enum DiscardReason {
     /// (Post Processing) An event with the same id has already been processed for this project.

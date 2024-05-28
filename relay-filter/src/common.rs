@@ -7,7 +7,7 @@ use serde::Serialize;
 ///
 /// Ported from Sentry's same-named "enum". The enum variants are fed into outcomes in kebap-case
 /// (e.g.  "browser-extensions")
-#[derive(Debug, Clone, Eq, PartialEq, Serialize, Hash)]
+#[derive(Debug, Clone, Eq, PartialEq, PartialOrd, Ord, Serialize, Hash)]
 pub enum FilterStatKey {
     /// Filtered by ip address.
     IpAddress,

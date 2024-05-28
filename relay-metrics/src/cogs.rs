@@ -5,19 +5,19 @@ use relay_cogs::{AppFeature, FeatureWeights};
 use crate::{Bucket, BucketView, MetricNamespace};
 
 /// COGS estimator based on the estimated size of each bucket in bytes.
-pub struct BySize<'a>(pub &'a [Bucket]);
+pub struct BySize<T>(pub T);
 
-impl<'a> From<BySize<'a>> for FeatureWeights {
-    fn from(value: BySize<'a>) -> Self {
+impl<'a, T: IntoIterator<Item = &'a Bucket>> From<BySize<T>> for FeatureWeights {
+    fn from(value: BySize<T>) -> Self {
         metric_app_features(value.0, |b| BucketView::new(b).estimated_size())
     }
 }
 
 /// COGS estimator based on the bucket count.
-pub struct ByCount<'a, T: IntoIterator<Item = &'a Bucket>>(pub T);
+pub struct ByCount<T>(pub T);
 
-impl<'a, T: IntoIterator<Item = &'a Bucket>> From<ByCount<'a, T>> for FeatureWeights {
-    fn from(value: ByCount<'a, T>) -> Self {
+impl<'a, T: IntoIterator<Item = &'a Bucket>> From<ByCount<T>> for FeatureWeights {
+    fn from(value: ByCount<T>) -> Self {
         metric_app_features(value.0, |_| 1)
     }
 }

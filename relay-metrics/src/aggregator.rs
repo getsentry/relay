@@ -298,6 +298,14 @@ impl Default for AggregatorConfig {
     }
 }
 
+trait BucketState: Clone {
+    fn merge(&mut self, other: &Self);
+}
+
+impl BucketState for () {
+    fn merge(&mut self, _other: &Self) {}
+}
+
 /// Bucket in the [`Aggregator`] with a defined flush time.
 ///
 /// This type implements an inverted total ordering. The maximum queued bucket has the lowest flush
@@ -305,19 +313,22 @@ impl Default for AggregatorConfig {
 ///
 /// [`BinaryHeap`]: std::collections::BinaryHeap
 #[derive(Debug)]
-struct QueuedBucket {
+struct QueuedBucket<S> {
     flush_at: Instant,
     value: BucketValue,
     metadata: BucketMetadata,
+    // Additional state attached to the aggregated bucket.
+    state: S,
 }
 
-impl QueuedBucket {
+impl<S: BucketState> QueuedBucket<S> {
     /// Creates a new `QueuedBucket` with a given flush time.
-    fn new(flush_at: Instant, value: BucketValue, metadata: BucketMetadata) -> Self {
+    fn new(flush_at: Instant, value: BucketValue, metadata: BucketMetadata, state: S) -> Self {
         Self {
             flush_at,
             value,
             metadata,
+            state,
         }
     }
 
@@ -335,6 +346,7 @@ impl QueuedBucket {
         &mut self,
         value: BucketValue,
         metadata: BucketMetadata,
+        state: &S,
     ) -> Result<usize, AggregateMetricsErrorKind> {
         let cost_before = self.value.cost();
 
@@ -342,27 +354,28 @@ impl QueuedBucket {
             .merge(value)
             .map_err(|_| AggregateMetricsErrorKind::InvalidTypes)?;
         self.metadata.merge(metadata);
+        self.state.merge(state);
 
         Ok(self.value.cost().saturating_sub(cost_before))
     }
 }
 
-impl PartialEq for QueuedBucket {
+impl<S> PartialEq for QueuedBucket<S> {
     fn eq(&self, other: &Self) -> bool {
         self.flush_at.eq(&other.flush_at)
     }
 }
 
-impl Eq for QueuedBucket {}
+impl<S> Eq for QueuedBucket<S> {}
 
-impl PartialOrd for QueuedBucket {
+impl<S> PartialOrd for QueuedBucket<S> {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         // Comparing order is reversed to convert the max heap into a min heap
         Some(other.flush_at.cmp(&self.flush_at))
     }
 }
 
-impl Ord for QueuedBucket {
+impl<S> Ord for QueuedBucket<S> {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         // Comparing order is reversed to convert the max heap into a min heap
         other.flush_at.cmp(&self.flush_at)
@@ -479,14 +492,14 @@ impl fmt::Debug for CostTracker {
 /// Metrics are uniquely identified by the combination of their name, type and unit. It is allowed
 /// to send metrics of different types and units under the same name. For example, sending a metric
 /// once as set and once as distribution will result in two actual metrics being recorded.
-pub struct Aggregator {
+pub struct Aggregator<S = ()> {
     name: String,
     config: AggregatorConfig,
-    buckets: HashMap<BucketKey, QueuedBucket>,
+    buckets: HashMap<BucketKey, QueuedBucket<S>>,
     cost_tracker: CostTracker,
 }
 
-impl Aggregator {
+impl<S: BucketState> Aggregator<S> {
     /// Create a new aggregator.
     pub fn new(config: AggregatorConfig) -> Self {
         Self::named("default".to_owned(), config)
@@ -642,6 +655,7 @@ impl Aggregator {
         &mut self,
         project_key: ProjectKey,
         bucket: Bucket,
+        state: &S,
         max_total_bucket_bytes: Option<usize>,
     ) -> Result<(), AggregateMetricsError> {
         let timestamp = self.get_bucket_timestamp(bucket.timestamp, bucket.width)?;
@@ -694,7 +708,9 @@ impl Aggregator {
                     namespace = entry.key().namespace().as_str(),
                 );
 
-                added_cost = entry.get_mut().merge(bucket.value, bucket.metadata)?;
+                added_cost = entry
+                    .get_mut()
+                    .merge(bucket.value, bucket.metadata, state)?;
             }
             Entry::Vacant(entry) => {
                 relay_statsd::metric!(
@@ -711,7 +727,12 @@ impl Aggregator {
                 let flush_at = self.config.get_flush_time(entry.key());
                 let value = bucket.value;
                 added_cost = entry.key().cost() + value.cost();
-                entry.insert(QueuedBucket::new(flush_at, value, bucket.metadata));
+                entry.insert(QueuedBucket::new(
+                    flush_at,
+                    value,
+                    bucket.metadata,
+                    state.clone(),
+                ));
             }
         }
 
@@ -727,10 +748,11 @@ impl Aggregator {
         &mut self,
         project_key: ProjectKey,
         buckets: impl IntoIterator<Item = Bucket>,
+        state: &S,
         max_total_bucket_bytes: Option<usize>,
     ) {
         for bucket in buckets.into_iter() {
-            if let Err(error) = self.merge(project_key, bucket, max_total_bucket_bytes) {
+            if let Err(error) = self.merge(project_key, bucket, state, max_total_bucket_bytes) {
                 match &error.kind {
                     // Ignore invalid timestamp errors.
                     AggregateMetricsErrorKind::InvalidTimestamp(_) => {}
@@ -917,8 +939,8 @@ mod tests {
 
         let mut bucket2 = bucket1.clone();
         bucket2.value = BucketValue::counter(43.into());
-        aggregator.merge(project_key, bucket1, None).unwrap();
-        aggregator.merge(project_key, bucket2, None).unwrap();
+        aggregator.merge(project_key, bucket1, &(), None).unwrap();
+        aggregator.merge(project_key, bucket2, &(), None).unwrap();
 
         let buckets: Vec<_> = aggregator
             .buckets
@@ -1010,9 +1032,9 @@ mod tests {
 
         let mut bucket3 = bucket1.clone();
         bucket3.timestamp = UnixTimestamp::from_secs(999994721);
-        aggregator.merge(project_key, bucket1, None).unwrap();
-        aggregator.merge(project_key, bucket2, None).unwrap();
-        aggregator.merge(project_key, bucket3, None).unwrap();
+        aggregator.merge(project_key, bucket1, &(), None).unwrap();
+        aggregator.merge(project_key, bucket2, &(), None).unwrap();
+        aggregator.merge(project_key, bucket3, &(), None).unwrap();
 
         let mut buckets: Vec<_> = aggregator
             .buckets
@@ -1067,10 +1089,10 @@ mod tests {
 
         // It's OK to have same metric with different projects:
         aggregator
-            .merge(project_key1, some_bucket(None), None)
+            .merge(project_key1, some_bucket(None), &(), None)
             .unwrap();
         aggregator
-            .merge(project_key2, some_bucket(None), None)
+            .merge(project_key2, some_bucket(None), &(), None)
             .unwrap();
 
         assert_eq!(aggregator.buckets.len(), 2);
@@ -1213,7 +1235,7 @@ mod tests {
             bucket.name = metric_name.into();
 
             let current_cost = aggregator.cost_tracker.total_cost;
-            aggregator.merge(project_key, bucket, None).unwrap();
+            aggregator.merge(project_key, bucket, &(), None).unwrap();
             let total_cost = aggregator.cost_tracker.total_cost;
             assert_eq!(total_cost, current_cost + expected_added_cost);
         }
@@ -1421,12 +1443,12 @@ mod tests {
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
 
         aggregator
-            .merge(project_key, bucket.clone(), Some(1))
+            .merge(project_key, bucket.clone(), &(), Some(1))
             .unwrap();
 
         assert_eq!(
             aggregator
-                .merge(project_key, bucket, Some(1))
+                .merge(project_key, bucket, &(), Some(1))
                 .unwrap_err()
                 .kind,
             AggregateMetricsErrorKind::TotalLimitExceeded
@@ -1452,10 +1474,12 @@ mod tests {
         let mut aggregator: Aggregator = Aggregator::new(config);
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
 
-        aggregator.merge(project_key, bucket.clone(), None).unwrap();
+        aggregator
+            .merge(project_key, bucket.clone(), &(), None)
+            .unwrap();
         assert_eq!(
             aggregator
-                .merge(project_key, bucket, None)
+                .merge(project_key, bucket, &(), None)
                 .unwrap_err()
                 .kind,
             AggregateMetricsErrorKind::ProjectLimitExceeded
@@ -1490,13 +1514,13 @@ mod tests {
             .merge(BucketMetadata::new(UnixTimestamp::from_secs(999999811)));
 
         aggregator
-            .merge(project_key, bucket1.clone(), None)
+            .merge(project_key, bucket1.clone(), &(), None)
             .unwrap();
         aggregator
-            .merge(project_key, bucket2.clone(), None)
+            .merge(project_key, bucket2.clone(), &(), None)
             .unwrap();
         aggregator
-            .merge(project_key, bucket3.clone(), None)
+            .merge(project_key, bucket3.clone(), &(), None)
             .unwrap();
 
         let buckets_metadata: Vec<_> = aggregator.buckets.values().map(|v| &v.metadata).collect();
