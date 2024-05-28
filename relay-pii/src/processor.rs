@@ -111,7 +111,7 @@ impl<'a> Processor for PiiProcessor<'a> {
         T: ProcessValue,
     {
         if is_pairlist(array) {
-            for (index, annotated) in array.iter_mut().enumerate() {
+            for annotated in array {
                 let mut mapped = mem::take(annotated).map_value(T::into_value);
 
                 if let Some(Value::Array(ref mut pair)) = mapped.value_mut() {
