@@ -11,7 +11,7 @@ use relay_event_schema::processor::{
 use relay_event_schema::protocol::{
     AsPair, Event, IpAddr, NativeImagePath, PairList, Replay, ResponseContext, User,
 };
-use relay_protocol::{Annotated, Array, Meta, Object, Remark, RemarkType, Value};
+use relay_protocol::{Annotated, Array, Meta, Remark, RemarkType, Value};
 
 use crate::compiledconfig::{CompiledPiiConfig, RuleRef};
 use crate::config::RuleType;
@@ -55,58 +55,6 @@ impl<'a> PiiProcessor<'a> {
 
         Ok(())
     }
-}
-
-#[derive(Default)]
-struct IsObjectPair {
-    is_pair: bool,
-    has_string_key: bool,
-}
-
-impl Processor for IsObjectPair {
-    fn process_array<T>(
-        &mut self,
-        value: &mut relay_protocol::Array<T>,
-        _meta: &mut Meta,
-        state: &ProcessingState<'_>,
-    ) -> ProcessingResult
-    where
-        T: ProcessValue,
-    {
-        self.is_pair = value.len() == 2;
-        if self.is_pair {
-            // Visit only key:
-            process_value(&mut value[0], self, state);
-        }
-        Ok(())
-    }
-
-    fn process_string(
-        &mut self,
-        s: &mut String,
-        _meta: &mut Meta,
-        state: &ProcessingState<'_>,
-    ) -> ProcessingResult where {
-        dbg!("visiting a string: ", &s);
-
-        if dbg!(state.depth()) == 1 && dbg!(state.path().index()) == Some(0) {
-            dbg!("pushing a string: ", &s);
-            self.has_string_key = true;
-        }
-        Ok(())
-    }
-}
-
-fn is_pairlist<T: ProcessValue>(array: &mut Array<T>) -> bool {
-    for element in array.iter_mut() {
-        let mut visitor = IsObjectPair::default();
-        process_value(element, &mut visitor, ProcessingState::root());
-        if !visitor.is_pair || !visitor.has_string_key {
-            return false;
-        }
-    }
-
-    !array.is_empty()
 }
 
 impl<'a> Processor for PiiProcessor<'a> {
@@ -156,48 +104,42 @@ impl<'a> Processor for PiiProcessor<'a> {
     fn process_array<T>(
         &mut self,
         array: &mut Array<T>,
-        meta: &mut Meta,
+        _meta: &mut Meta,
         state: &ProcessingState<'_>,
     ) -> ProcessingResult
     where
         T: ProcessValue,
     {
         if is_pairlist(array) {
-            for element in array {}
+            for annotated in array {
+                let mut mapped = std::mem::take(annotated).map_value(T::into_value);
+                if let Some(Value::Array(ref mut pair)) = mapped.value_mut() {
+                    let mut value = std::mem::take(&mut pair[1]);
+
+                    let value_type = ValueType::for_field(&pair[1]);
+                    // BEGIN copied from process_pairlist
+                    if let Some(key_name) = &pair[0].as_str() {
+                        // if the pair has no key name, we skip over it for PII stripping. It is
+                        // still processed with index-based path in the invocation of
+                        // `process_child_values`.
+                        let entered =
+                            state.enter_borrowed(key_name, state.inner_attrs(), value_type);
+
+                        processor::process_value(&mut value, self, &entered)?;
+                    }
+                    // END copied from process_pairlist
+
+                    // Put value back into pair
+                    pair[1] = value;
+                }
+                // Put pair back into array
+                *annotated = T::from_value(mapped);
+            }
             Ok(())
         } else {
             // default treatment.
             array.process_child_values(self, state)
         }
-        // match try_as_pairlist(value) {
-        //     Ok(mut obj) => {
-        //         self.process_pairlist(obj, meta, state)
-        //         // TODO: convert object back to array
-        //     } // TODO: enter_nothing?
-        //     Err(_) => {
-        //         // Recurse into each element of the array since we also want to individually scrub each
-        //         // value in the array.
-        //     }
-        // }
-
-        // If the array has length 2, we treat it as key-value pair and try to scrub it. If the
-        // scrubbing doesn't do anything, we try to scrub values individually.
-        // if value.len() == 2 {
-        //     if let Some(key) = value[0].clone().into_value() {
-        //         if let Value::String(key_name) = key.into_value() {
-        //             if let Some(inner_value) = value[1].value() {
-        //                 // We compute a new state which has the first element of the array as the
-        //                 // key.
-        //                 let entered = state.enter_borrowed(
-        //                     key_name.as_str(),
-        //                     state.inner_attrs(),
-        //                     inner_value.value_type(),
-        //                 );
-        //                 process_value(&mut value[1], self, &entered)?;
-        //             }
-        //         }
-        //     }
-        // }
     }
 
     fn process_string(
@@ -299,6 +241,60 @@ impl<'a> Processor for PiiProcessor<'a> {
         replay.process_child_values(self, state)?;
         Ok(())
     }
+}
+
+#[derive(Default)]
+struct IsObjectPair {
+    is_pair: bool,
+    has_string_key: bool,
+}
+
+impl Processor for IsObjectPair {
+    fn process_array<T>(
+        &mut self,
+        value: &mut relay_protocol::Array<T>,
+        _meta: &mut Meta,
+        state: &ProcessingState<'_>,
+    ) -> ProcessingResult
+    where
+        T: ProcessValue,
+    {
+        self.is_pair = value.len() == 2;
+        if self.is_pair {
+            // Visit only key:
+            let value_type = ValueType::for_field(&value[0]);
+            process_value(
+                &mut value[0],
+                self,
+                &state.enter_index(0, state.inner_attrs(), value_type),
+            )?;
+        }
+        Ok(())
+    }
+
+    fn process_string(
+        &mut self,
+        _value: &mut String,
+        _meta: &mut Meta,
+        state: &ProcessingState<'_>,
+    ) -> ProcessingResult where {
+        if state.depth() == 1 && state.path().index() == Some(0) {
+            self.has_string_key = true;
+        }
+        Ok(())
+    }
+}
+
+fn is_pairlist<T: ProcessValue>(array: &mut Array<T>) -> bool {
+    for element in array.iter_mut() {
+        let mut visitor = IsObjectPair::default();
+        process_value(element, &mut visitor, ProcessingState::root()).ok();
+        if !visitor.is_pair || !visitor.has_string_key {
+            return false;
+        }
+    }
+
+    !array.is_empty()
 }
 
 /// Scrubs GraphQL variables from the event.
@@ -1720,6 +1716,34 @@ mod tests {
         },
     ],
 )"#);
+    }
+
+    #[test]
+    fn test_is_pairlist() {
+        for (case, expected) in [
+            (r#"[]"#, false),
+            (r#"["foo"]"#, false),
+            (r#"["foo", 123]"#, false),
+            (r#"[[1, "foo"]]"#, false),
+            (r#"[[["too_nested", 123]]]"#, false),
+            (r#"[["foo", "bar"], [1, "foo"]]"#, false),
+            (r#"[["foo", "bar"], ["foo", "bar", "baz"]]"#, false),
+            (r#"[["foo", "bar", "baz"], ["foo", "bar"]]"#, false),
+            (r#"["foo", ["bar", "baz"], ["foo", "bar"]]"#, false),
+            (r#"[["foo", "bar"], [["too_nested", 123]]]"#, false),
+            (r#"[["foo", 123]]"#, true),
+            (r#"[["foo", "bar"]]"#, true),
+            (
+                r#"[["foo", "bar"], ["foo", {"nested": {"something": 1}}]]"#,
+                true,
+            ),
+        ] {
+            let v = Annotated::<Value>::from_json(case).unwrap();
+            let Annotated(Some(Value::Array(mut a)), _) = v else {
+                panic!()
+            };
+            assert_eq!(is_pairlist(&mut a), expected, "{}", case);
+        }
     }
 
     #[test]
