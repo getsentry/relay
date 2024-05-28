@@ -24,8 +24,8 @@ use url::Url;
 
 use crate::envelope::Envelope;
 use crate::metrics::{
-    Aggregated, ExtractionMode, Filtered, ManagedBuckets, MetricOutcomes, MetricsLimiter, Parsed,
-    WithProjectState,
+    Aggregated, ClockDriftCorrected, ExtractionMode, Filtered, ManagedBuckets, MetricOutcomes,
+    MetricsLimiter, Parsed, WithProjectState,
 };
 use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
 #[cfg(feature = "processing")]
@@ -594,7 +594,7 @@ impl Project {
         #[allow(unused_variables)] envelope_processor: &Addr<EnvelopeProcessor>,
         outcome_aggregator: &Addr<TrackOutcome>,
         metric_outcomes: &MetricOutcomes,
-        state: &ProjectState,
+        state: &Arc<ProjectState>,
         buckets: ManagedBuckets<Filtered>,
     ) {
         let Some(scoping) = self.scoping() else {
@@ -611,8 +611,14 @@ impl Project {
             return;
         }
 
-        let buckets: ManagedBuckets<WithProjectState> =
-            buckets.retain_mut(|bucket| apply_project_state(bucket, state));
+        let buckets = buckets.retain_mut(
+            |bucket| apply_project_state(bucket, state),
+            |_| WithProjectState {
+                project_key: self.project_key,
+                project_state: Arc::clone(state),
+                scoping,
+            },
+        );
 
         if buckets.is_empty() {
             return;
@@ -662,7 +668,7 @@ impl Project {
         outcome_aggregator: &Addr<TrackOutcome>,
         metric_outcomes: &MetricOutcomes,
         envelope_processor: &Addr<EnvelopeProcessor>,
-        buckets: ManagedBuckets<Parsed>,
+        buckets: ManagedBuckets<ClockDriftCorrected>,
         source: BucketSource,
     ) {
         if !self.metrics_allowed() {
@@ -670,7 +676,7 @@ impl Project {
             return;
         }
 
-        let buckets = buckets.retain_mut(|bucket| filter_namespace(bucket, source));
+        let buckets = buckets.retain_mut(|bucket| filter_namespace(bucket, source), Into::into);
 
         match self.state {
             State::Cached(ref state) => {
@@ -910,14 +916,16 @@ impl Project {
             return;
         };
 
-        let buckets = ManagedBuckets::with_state_and_scoping(
+        let buckets = ManagedBuckets::new(
             metric_outcomes.clone(),
-            self.scoping().expect("TODO"),
-            state.get_extraction_mode(),
             buckets,
+            Filtered {
+                project_key: self.project_key,
+            },
         );
 
         if let Err(reason) = state.check_disabled(&self.config) {
+            // TODO: this can't reject without scoping and project data
             buckets.reject(Outcome::Invalid(reason));
             return;
         }
@@ -1124,8 +1132,13 @@ impl Project {
         metric_outcomes: MetricOutcomes,
         buckets: Vec<Bucket>,
     ) -> Option<(Scoping, ProjectMetrics)> {
-        let mut buckets =
-            ManagedBuckets::<Aggregated>::with_state(metric_outcomes, self.project_key, buckets);
+        let mut buckets = ManagedBuckets::new(
+            metric_outcomes,
+            buckets,
+            Aggregated {
+                project_key: self.project_key,
+            },
+        );
 
         let Some(scoping) = self.scoping() else {
             relay_log::error!(

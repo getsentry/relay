@@ -4,7 +4,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use crate::extractors::RequestMeta;
-use crate::metrics::{ManagedBuckets, MetricOutcomes, Parsed};
+use crate::metrics::{ClockDriftCorrected, ManagedBuckets, MetricOutcomes, Parsed};
 use hashbrown::HashSet;
 use relay_base_schema::project::ProjectKey;
 use relay_config::{Config, RelayMode};
@@ -206,7 +206,7 @@ impl From<&RequestMeta> for BucketSource {
 /// Adding buckets directly to the aggregator bypasses all of these checks.
 #[derive(Debug)]
 pub struct AddMetricBuckets {
-    pub buckets: ManagedBuckets<Parsed>,
+    pub buckets: ManagedBuckets<ClockDriftCorrected>,
     pub source: BucketSource,
 }
 

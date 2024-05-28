@@ -67,6 +67,7 @@ use crate::envelope::{self, ContentType, Envelope, EnvelopeError, Item, ItemType
 use crate::extractors::{PartialDsn, RequestMeta};
 use crate::metrics::{
     Aggregated, Extracted, ExtractionMode, ManagedBuckets, MetricOutcomes, MinimalTrackableBucket,
+    Parsed,
 };
 use crate::metrics_extraction::transactions::types::ExtractMetricsError;
 use crate::metrics_extraction::transactions::{ExtractedMetrics, TransactionExtractor};
@@ -1959,7 +1960,11 @@ impl EnvelopeProcessorService {
 
         cogs.update(relay_metrics::cogs::BySize(&buckets));
 
-        let buckets = ManagedBuckets::new(self.inner.metric_outcomes.clone(), project_key, buckets);
+        let buckets = ManagedBuckets::new(
+            self.inner.metric_outcomes.clone(),
+            buckets,
+            Parsed { project_key },
+        );
         self.process_metrics(sent_at, start_time, source, buckets);
     }
 
@@ -1992,8 +1997,11 @@ impl EnvelopeProcessorService {
         for (project_key, buckets) in buckets {
             feature_weights = feature_weights.merge(relay_metrics::cogs::BySize(&buckets).into());
 
-            let buckets =
-                ManagedBuckets::new(self.inner.metric_outcomes.clone(), project_key, buckets);
+            let buckets = ManagedBuckets::new(
+                self.inner.metric_outcomes.clone(),
+                buckets,
+                Parsed { project_key },
+            );
             self.process_metrics(sent_at, start_time, source, buckets);
         }
 
@@ -2005,7 +2013,7 @@ impl EnvelopeProcessorService {
         sent_at: Option<DateTime<Utc>>,
         start_time: Instant,
         source: BucketSource,
-        buckets: ManagedBuckets<()>,
+        buckets: ManagedBuckets<Parsed>,
     ) {
         if buckets.is_empty() {
             return;
@@ -2017,12 +2025,15 @@ impl EnvelopeProcessorService {
         let clock_drift_processor =
             ClockDriftProcessor::new(sent_at, received).at_least(MINIMUM_CLOCK_DRIFT);
 
-        let buckets = buckets.mutate(|bucket| {
-            clock_drift_processor.process_timestamp(&mut bucket.timestamp);
-            if !matches!(source, BucketSource::Internal) {
-                bucket.metadata = BucketMetadata::new(received_timestamp);
-            }
-        });
+        let buckets = buckets.mutate(
+            |bucket| {
+                clock_drift_processor.process_timestamp(&mut bucket.timestamp);
+                if !matches!(source, BucketSource::Internal) {
+                    bucket.metadata = BucketMetadata::new(received_timestamp);
+                }
+            },
+            Into::into,
+        );
 
         relay_log::trace!("merging metric buckets into project cache");
         self.inner
