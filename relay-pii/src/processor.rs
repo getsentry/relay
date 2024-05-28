@@ -572,7 +572,7 @@ mod tests {
     use insta::{allow_duplicates, assert_debug_snapshot};
     use relay_event_schema::processor::process_value;
     use relay_event_schema::protocol::{
-        Addr, Breadcrumb, DebugImage, DebugMeta, ExtraValue, FrameVars, Headers, LogEntry, Message,
+        Addr, Breadcrumb, DebugImage, DebugMeta, ExtraValue, Headers, LogEntry, Message,
         NativeDebugImage, Request, Span, TagEntry, Tags, TraceContext,
     };
     use relay_protocol::{assert_annotated_snapshot, get_value, FromValue, Object};
