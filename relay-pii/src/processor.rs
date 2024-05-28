@@ -119,15 +119,10 @@ impl<'a> Processor for PiiProcessor<'a> {
                     let value_type = ValueType::for_field(&value);
 
                     if let Some(key_name) = &pair[0].as_str() {
-                        // We enter the index of the array.
-                        let index_state = state.enter_index(index, state.inner_attrs(), value_type);
                         // We enter the key of the first element of the array, since we treat it
                         // as a pair.
-                        let key_state = index_state.enter_borrowed(
-                            key_name,
-                            index_state.inner_attrs(),
-                            value_type,
-                        );
+                        let key_state =
+                            state.enter_borrowed(key_name, state.inner_attrs(), value_type);
                         // We process the value with a state that "simulates" the first value of the
                         // array as if it was the key of a dictionary.
                         process_value(&mut value, self, &key_state)?;
@@ -1768,7 +1763,7 @@ mod tests {
             r##"
                 {
                     "applications": {
-                        "exception.values.0.stacktrace.frames.0.vars.headers.0.authorization": ["@anything:replace"]
+                        "exception.values.0.stacktrace.frames.0.vars.headers.authorization": ["@anything:replace"]
                     }
                 }
                 "##,
