@@ -9,6 +9,7 @@ use uuid::Uuid;
 
 use crate::annotated::Annotated;
 use crate::meta::Meta;
+use crate::Getter;
 
 /// Alias for typed arrays.
 pub type Array<T> = Vec<Annotated<T>>;
@@ -364,8 +365,10 @@ pub struct Obj<'a> {
 }
 
 /// Borrowed version of [`Value`].
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub enum Val<'a> {
+    /// A null value (used to keep null values around in arrays).
+    Null,
     /// A boolean value.
     Bool(bool),
     /// A signed integer value.
@@ -379,7 +382,7 @@ pub enum Val<'a> {
     /// A UUID.
     Uuid(Uuid),
     /// An array of annotated values.
-    Array(Arr<'a>),
+    Array(Vec<Val<'a>>),
     /// A mapping of strings to annotated values.
     Object(Obj<'a>),
 }
@@ -492,9 +495,12 @@ impl<'a> From<&'a Value> for Val<'a> {
             Value::U64(value) => Self::U64(*value),
             Value::F64(value) => Self::F64(*value),
             Value::String(value) => Self::String(value),
-            Value::Array(_) => Self::Array(Arr {
-                _phantom: Default::default(),
-            }),
+            Value::Array(value) => Self::Array(
+                value
+                    .iter()
+                    .map(|v| v.value().map_or(Self::Null, |i| i.into()))
+                    .collect(),
+            ),
             Value::Object(_) => Self::Object(Obj {
                 _phantom: Default::default(),
             }),
@@ -502,9 +508,36 @@ impl<'a> From<&'a Value> for Val<'a> {
     }
 }
 
+impl<'a, T> From<&'a Array<T>> for Val<'a>
+where
+    Val<'a>: From<T>,
+    T: Copy,
+{
+    fn from(value: &'a Array<T>) -> Self {
+        Self::Array(
+            value
+                .iter()
+                .map(|v| v.value().map_or(Self::Null, |i| i.into()))
+                .collect(),
+        )
+    }
+}
+
+impl<'a, T> From<Vec<T>> for Val<'a>
+where
+    Val<'a>: From<T>,
+    Vec<T>: 'a,
+    T: Copy + 'a,
+{
+    fn from(value: Vec<T>) -> Self {
+        Self::Array(value.iter().map(|v| v.into()).collect())
+    }
+}
+
 impl PartialEq for Val<'_> {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
+            (Self::Null, Self::Null) => true,
             (Self::Bool(l0), Self::Bool(r0)) => l0 == r0,
             (Self::I64(l0), Self::I64(r0)) => l0 == r0,
             (Self::I64(l0), Self::U64(r0)) => Ok(*l0) == (*r0).try_into(),
@@ -517,5 +550,11 @@ impl PartialEq for Val<'_> {
             (Self::Object(_), Self::Object(_)) => false,
             _ => false,
         }
+    }
+}
+
+impl<'a> Getter for Val<'a> {
+    fn get_value(&self, _path: &str) -> Option<Val<'_>> {
+        Some(self.clone())
     }
 }

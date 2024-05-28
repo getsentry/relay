@@ -28,6 +28,7 @@ pub struct EqCondOptions {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EqCondition {
+    #[serde(default)]
     /// Path of the field that should match the value.
     pub name: String,
 
@@ -159,6 +160,7 @@ impl_cmp_condition!(LtCondition, <, "A condition that applies `<`.");
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct GlobCondition {
     /// Path of the field that should match the value.
+    #[serde(default)]
     pub name: String,
     /// A list of glob patterns to check.
     ///
@@ -307,6 +309,35 @@ impl NotCondition {
     }
 }
 
+/// Matches any of the values at [`name`] against the [`inner`] condition.
+///
+/// The value at name must be an array of [`Val`] in order for the match to work.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AnyCondition {
+    /// Path of the field that should match the value.
+    pub name: String,
+
+    /// Condition to apply on each element of the collection at [`name`].
+    pub inner: Box<RuleCondition>,
+}
+
+impl AnyCondition {
+    fn supported(&self) -> bool {
+        self.inner.supported()
+    }
+
+    fn matches<T>(&self, instance: &T) -> bool
+    where
+        T: Getter + ?Sized,
+    {
+        match instance.get_value(self.name.as_str()) {
+            Some(Val::Array(f)) => f.iter().any(|v| self.inner.matches(v)),
+            _ => false,
+        }
+    }
+}
+
 /// A condition that can be evaluated on structured data.
 ///
 /// The basic conditions are [`eq`](Self::eq), [`glob`](Self::glob), and the comparison operators.
@@ -444,6 +475,8 @@ pub enum RuleCondition {
     /// let condition = !RuleCondition::eq("obj.status", "invalid");
     /// ```
     Not(NotCondition),
+
+    Any(AnyCondition),
 
     /// An unsupported condition for future compatibility.
     #[serde(other)]
@@ -655,6 +688,7 @@ impl RuleCondition {
             RuleCondition::And(rules) => rules.supported(),
             RuleCondition::Or(rules) => rules.supported(),
             RuleCondition::Not(rule) => rule.supported(),
+            RuleCondition::Any(rule) => rule.supported(),
         }
     }
 
@@ -673,6 +707,7 @@ impl RuleCondition {
             RuleCondition::And(conditions) => conditions.matches(value),
             RuleCondition::Or(conditions) => conditions.matches(value),
             RuleCondition::Not(condition) => condition.matches(value),
+            RuleCondition::Any(condition) => condition.matches(value),
             RuleCondition::Unsupported => false,
         }
     }
@@ -705,21 +740,34 @@ impl std::ops::Not for RuleCondition {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::{Annotated, Array};
 
-    struct MockDSC {
+    struct InnerStruct {
+        op: String,
+    }
+
+    struct MockGettable {
         transaction: String,
         release: String,
         environment: String,
         user_segment: String,
+        spans: Array<InnerStruct>,
     }
 
-    impl Getter for MockDSC {
+    impl Getter for MockGettable {
         fn get_value(&self, path: &str) -> Option<Val<'_>> {
+            let c: Vec<&str> = self
+                .spans
+                .iter()
+                .filter_map(|v| v.value().map(|i| i.op.as_str()))
+                .collect();
+            
             Some(match path.strip_prefix("trace.")? {
                 "transaction" => self.transaction.as_str().into(),
                 "release" => self.release.as_str().into(),
                 "environment" => self.environment.as_str().into(),
                 "user.segment" => self.user_segment.as_str().into(),
+                "spans.op" => c.into(),
                 _ => {
                     return None;
                 }
@@ -727,12 +775,15 @@ mod tests {
         }
     }
 
-    fn mock_dsc() -> MockDSC {
-        MockDSC {
+    fn mock_dsc() -> MockGettable {
+        MockGettable {
             transaction: "transaction1".to_string(),
             release: "1.1.1".to_string(),
             environment: "debug".to_string(),
             user_segment: "vip".to_string(),
+            spans: vec![Annotated::new(InnerStruct {
+                op: "ai.pipeline".to_string(),
+            })],
         }
     }
 
@@ -1092,5 +1143,20 @@ mod tests {
             let failure_name = format!("Failed on test: '{rule_test_name}'!!!");
             assert!(!condition.matches(&dsc), "{failure_name}");
         }
+    }
+
+    #[test]
+    fn test_any_combinator() {
+        let dsc = mock_dsc();
+
+        let condition = RuleCondition::Any(AnyCondition {
+            name: "trace.spans.op".to_string(),
+            inner: Box::new(RuleCondition::Glob(GlobCondition {
+                name: "".to_string(),
+                value: GlobPatterns::new(vec!["ai.*".to_string()]),
+            })),
+        });
+
+        assert!(condition.matches(&dsc));
     }
 }
