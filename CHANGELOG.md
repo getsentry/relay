@@ -9,6 +9,7 @@
 **Features**:
 
 - Apply legacy inbound filters to standalone spans. ([#3552](https://github.com/getsentry/relay/pull/3552))
+- Add separate feature flags for add-ons span metrics and indexed spans. ([#3633](https://github.com/getsentry/relay/pull/3633))
 
 **Internal**:
 
