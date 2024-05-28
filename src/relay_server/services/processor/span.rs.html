@@ -39,6 +39,7 @@
 <a href="#37" id="37">37</a>
 <a href="#38" id="38">38</a>
 <a href="#39" id="39">39</a>
+<a href="#40" id="40">40</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Processor code related to standalone spans.
 
 </span><span class="kw">use </span>relay_dynamic_config::Feature;
@@ -75,6 +76,7 @@
     <span class="kw">let </span><span class="kw-2">mut </span>spans = [Span::from(event).into()];
 
     tag_extraction::extract_span_tags(event, <span class="kw-2">&amp;mut </span>spans, max_tag_value_size);
+    tag_extraction::extract_segment_span_tags(event, <span class="kw-2">&amp;mut </span>spans);
 
     spans.into_iter().next().and_then(Annotated::into_value)
 }
