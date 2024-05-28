@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
 use relay_config::{Config, RelayMode};
-use relay_metrics::{AcceptsMetrics, Aggregator};
 use relay_statsd::metric;
 use relay_system::{Addr, AsyncResponse, Controller, FromMessage, Interface, Sender, Service};
 use std::future::Future;
@@ -9,6 +8,7 @@ use sysinfo::{MemoryRefreshKind, System};
 use tokio::sync::watch;
 use tokio::time::{timeout, Instant};
 
+use crate::services::metrics_aggregator::{AcceptsMetrics, Aggregator};
 use crate::services::project_cache::{ProjectCache, SpoolHealth};
 use crate::services::upstream::{IsAuthenticated, IsNetworkOutage, UpstreamRelay};
 use crate::statsd::{RelayGauges, RelayTimers};

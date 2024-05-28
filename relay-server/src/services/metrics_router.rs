@@ -2,78 +2,12 @@
 //! with their own limits, bucket intervals, etc.
 
 use itertools::Itertools;
+use relay_config::{AggregatorServiceConfig, Condition, ScopedAggregatorConfig};
 use relay_system::{Addr, NoResponse, Recipient, Service};
-use serde::{Deserialize, Serialize};
 
-use crate::aggregatorservice::{AggregatorService, FlushBuckets};
-use crate::{AcceptsMetrics, Aggregator, AggregatorServiceConfig, MergeBuckets, MetricNamespace};
-
-/// Contains an [`AggregatorServiceConfig`] for a specific scope.
-///
-/// For now, the only way to scope an aggregator is by [`MetricNamespace`].
-#[derive(Clone, Debug, Deserialize, Serialize)]
-pub struct ScopedAggregatorConfig {
-    /// Name of the aggregator, used to tag statsd metrics.
-    pub name: String,
-    /// Condition that needs to be met for a metric or bucket to be routed to a
-    /// secondary aggregator.
-    pub condition: Condition,
-    /// The configuration of the secondary aggregator.
-    pub config: AggregatorServiceConfig,
-}
-
-/// Condition that needs to be met for a metric or bucket to be routed to a
-/// secondary aggregator.
-#[derive(Clone, Debug, Deserialize, Serialize)]
-#[serde(tag = "op", rename_all = "lowercase")]
-pub enum Condition {
-    /// Checks for equality on a specific field.
-    Eq(FieldCondition),
-    /// Matches if all conditions are true.
-    And {
-        /// Inner rules to combine.
-        inner: Vec<Condition>,
-    },
-    /// Matches if any condition is true.
-    Or {
-        /// Inner rules to combine.
-        inner: Vec<Condition>,
-    },
-    /// Inverts the condition.
-    Not {
-        /// Inner rule to negate.
-        inner: Box<Condition>,
-    },
-}
-
-impl Condition {
-    /// Checks if the condition matches the given namespace.
-    pub fn matches(&self, namespace: Option<MetricNamespace>) -> bool {
-        match self {
-            Condition::Eq(field) => field.matches(namespace),
-            Condition::And { inner } => inner.iter().all(|cond| cond.matches(namespace)),
-            Condition::Or { inner } => inner.iter().any(|cond| cond.matches(namespace)),
-            Condition::Not { inner } => !inner.matches(namespace),
-        }
-    }
-}
-
-/// Defines a field and a field value to compare to when a [`Condition`] is evaluated.
-#[derive(Clone, Debug, Deserialize, Serialize)]
-#[serde(tag = "field", content = "value", rename_all = "lowercase")]
-pub enum FieldCondition {
-    /// Field that allows comparison to a metric or bucket's namespace.
-    Namespace(MetricNamespace),
-}
-
-impl FieldCondition {
-    fn matches(&self, namespace: Option<MetricNamespace>) -> bool {
-        match (self, namespace) {
-            (FieldCondition::Namespace(expected), Some(actual)) => expected == &actual,
-            _ => false,
-        }
-    }
-}
+use crate::services::metrics_aggregator::{
+    AcceptsMetrics, Aggregator, AggregatorService, FlushBuckets, MergeBuckets,
+};
 
 /// Service that routes metrics & metric buckets to the appropriate aggregator.
 ///
@@ -198,6 +132,7 @@ impl StartedRouter {
 #[cfg(test)]
 mod tests {
     use insta::assert_debug_snapshot;
+    use relay_metrics::MetricNamespace;
     use serde_json::json;
 
     use super::*;

@@ -6,12 +6,13 @@ use relay_cardinality::{CardinalityLimit, CardinalityReport};
 use relay_config::Config;
 #[cfg(feature = "processing")]
 use relay_metrics::GaugeValue;
-use relay_metrics::{Aggregator, Bucket, BucketValue, MergeBuckets, MetricName, UnixTimestamp};
+use relay_metrics::{Bucket, BucketValue, MetricName, UnixTimestamp};
 use relay_quotas::Scoping;
 use relay_system::Addr;
 
 use crate::metrics::TrackableBucket;
 use crate::services::global_config::GlobalConfigHandle;
+use crate::services::metrics_aggregator::{Aggregator, MergeBuckets};
 use crate::services::outcome::Outcome;
 use crate::utils::is_rolled_out;
 

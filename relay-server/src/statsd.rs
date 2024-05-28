@@ -187,6 +187,21 @@ pub enum RelayHistograms {
     /// Measures how many transactions were created from segment spans in a single envelope.
     #[cfg(feature = "processing")]
     TransactionsFromSpansPerEnvelope,
+    /// The total number of metric buckets flushed in a cycle across all projects.
+    ///
+    /// This metric is tagged with:
+    ///  - `aggregator`: The name of the metrics aggregator (usually `"default"`).
+    BucketsFlushed,
+
+    /// The number of metric buckets flushed in a cycle for each project.
+    ///
+    /// Relay scans metric buckets in regular intervals and flushes expired buckets. This histogram
+    /// is logged for each project that is being flushed. The count of the histogram values is
+    /// equivalent to the number of projects being flushed.
+    ///
+    /// This metric is tagged with:
+    ///  - `aggregator`: The name of the metrics aggregator (usually `"default"`).
+    BucketsFlushedPerProject,
 }
 
 impl HistogramMetric for RelayHistograms {
@@ -224,6 +239,8 @@ impl HistogramMetric for RelayHistograms {
             RelayHistograms::TransactionsFromSpansPerEnvelope => {
                 "transactions_from_spans_per_envelope"
             }
+            RelayHistograms::BucketsFlushed => "metrics.buckets.flushed",
+            RelayHistograms::BucketsFlushedPerProject => "metrics.buckets.flushed_per_project",
         }
     }
 }
@@ -395,6 +412,11 @@ pub enum RelayTimers {
     /// This metric is tagged with:
     ///  - `type`: The type of the health check, `liveness` or `readiness`.
     HealthCheckDuration,
+    /// Timing in milliseconds for processing a message in the aggregator service.
+    ///
+    /// This metric is tagged with:
+    ///  - `message`: The type of message that was processed.
+    AggregatorServiceDuration,
 }
 
 impl TimerMetric for RelayTimers {
@@ -433,6 +455,7 @@ impl TimerMetric for RelayTimers {
             RelayTimers::BufferMessageProcessDuration => "buffer.message.duration",
             RelayTimers::ProjectCacheTaskDuration => "project_cache.task.duration",
             RelayTimers::HealthCheckDuration => "health.message.duration",
+            RelayTimers::AggregatorServiceDuration => "metrics.aggregator.message.duration",
         }
     }
 }
@@ -667,6 +690,13 @@ pub enum RelayCounters {
     /// Counter for when the DSC is missing from an event that comes from an SDK that should support
     /// it.
     MissingDynamicSamplingContext,
+    /// Incremented every time a bucket is dropped.
+    ///
+    /// This should only happen when a project state is invalid during graceful shutdown.
+    ///
+    /// This metric is tagged with:
+    ///  - `aggregator`: The name of the metrics aggregator (usually `"default"`).
+    BucketsDropped,
 }
 
 impl CounterMetric for RelayCounters {
@@ -709,6 +739,7 @@ impl CounterMetric for RelayCounters {
             #[cfg(feature = "processing")]
             RelayCounters::TransactionsFromSpans => "transactions_from_spans",
             RelayCounters::MissingDynamicSamplingContext => "missing_dynamic_sampling_context",
+            RelayCounters::BucketsDropped => "metrics.buckets.dropped",
         }
     }
 }

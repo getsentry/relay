@@ -47,6 +47,7 @@ use tokio::sync::Semaphore;
 #[cfg(feature = "processing")]
 use {
     crate::metrics::MetricsLimiter,
+    crate::services::metrics_aggregator::{Aggregator, MergeBuckets},
     crate::services::store::{Store, StoreEnvelope},
     crate::utils::{sample, EnvelopeLimiter, ItemAction},
     itertools::Itertools,
@@ -55,7 +56,7 @@ use {
         RedisSetLimiterOptions,
     },
     relay_dynamic_config::{CardinalityLimiterMode, GlobalConfig, MetricExtractionGroups},
-    relay_metrics::{Aggregator, MergeBuckets, RedisMetricMetaStore},
+    relay_metrics::RedisMetricMetaStore,
     relay_quotas::{Quota, RateLimitingError, RedisRateLimiter},
     relay_redis::RedisPool,
     std::iter::Chain,

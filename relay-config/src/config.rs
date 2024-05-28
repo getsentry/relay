@@ -14,8 +14,10 @@ use relay_kafka::{
     ConfigError as KafkaConfigError, KafkaConfigParam, KafkaParams, KafkaTopic, TopicAssignment,
     TopicAssignments,
 };
-use relay_metrics::aggregator::{AggregatorConfig, ShiftKey};
-use relay_metrics::{AggregatorServiceConfig, MetricNamespace, ScopedAggregatorConfig};
+use relay_metrics::{
+    aggregator::{AggregatorConfig, ShiftKey},
+    MetricNamespace,
+};
 use relay_redis::RedisConfig;
 use serde::de::{DeserializeOwned, Unexpected, Visitor};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -1212,6 +1214,202 @@ impl Default for Outcomes {
             batch_interval: 500,
             source: None,
             aggregator: OutcomeAggregatorConfig::default(),
+        }
+    }
+}
+
+/// Parameters used by the [`AggregatorService`].
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(default)]
+pub struct AggregatorServiceConfig {
+    /// Maximum amount of bytes used for metrics aggregation.
+    ///
+    /// When aggregating metrics, Relay keeps track of how many bytes a metric takes in memory.
+    /// This is only an approximation and does not take into account things such as pre-allocation
+    /// in hashmaps.
+    ///
+    /// Defaults to `None`, i.e. no limit.
+    pub max_total_bucket_bytes: Option<usize>,
+
+    /// Determines the wall clock time interval for buckets in seconds.
+    ///
+    /// Defaults to `10` seconds. Every metric is sorted into a bucket of this size based on its
+    /// timestamp. This defines the minimum granularity with which metrics can be queried later.
+    pub bucket_interval: u64,
+
+    /// The initial delay in seconds to wait before flushing a bucket.
+    ///
+    /// Defaults to `30` seconds. Before sending an aggregated bucket, this is the time Relay waits
+    /// for buckets that are being reported in real time. This should be higher than the
+    /// `debounce_delay`.
+    ///
+    /// Relay applies up to a full `bucket_interval` of additional jitter after the initial delay to spread out flushing real time buckets.
+    pub initial_delay: u64,
+
+    /// The delay in seconds to wait before flushing a backdated buckets.
+    ///
+    /// Defaults to `10` seconds. Metrics can be sent with a past timestamp. Relay wait this time
+    /// before sending such a backdated bucket to the upsteam. This should be lower than
+    /// `initial_delay`.
+    ///
+    /// Unlike `initial_delay`, the debounce delay starts with the exact moment the first metric
+    /// is added to a backdated bucket.
+    pub debounce_delay: u64,
+
+    /// The age in seconds of the oldest allowed bucket timestamp.
+    ///
+    /// Defaults to 5 days.
+    pub max_secs_in_past: u64,
+
+    /// The time in seconds that a timestamp may be in the future.
+    ///
+    /// Defaults to 1 minute.
+    pub max_secs_in_future: u64,
+
+    /// The length the name of a metric is allowed to be.
+    ///
+    /// Defaults to `200` bytes.
+    pub max_name_length: usize,
+
+    /// The length the tag key is allowed to be.
+    ///
+    /// Defaults to `200` bytes.
+    pub max_tag_key_length: usize,
+
+    /// The length the tag value is allowed to be.
+    ///
+    /// Defaults to `200` chars.
+    pub max_tag_value_length: usize,
+
+    /// Maximum amount of bytes used for metrics aggregation per project key.
+    ///
+    /// Similar measuring technique to `max_total_bucket_bytes`, but instead of a
+    /// global/process-wide limit, it is enforced per project key.
+    ///
+    /// Defaults to `None`, i.e. no limit.
+    pub max_project_key_bucket_bytes: Option<usize>,
+
+    /// Key used to shift the flush time of a bucket.
+    ///
+    /// This prevents flushing all buckets from a bucket interval at the same
+    /// time by computing an offset from the hash of the given key.
+    pub shift_key: ShiftKey,
+
+    // TODO(dav1dde): move these config values to a better spot
+    /// The approximate maximum number of bytes submitted within one flush cycle.
+    ///
+    /// This controls how big flushed batches of buckets get, depending on the number of buckets,
+    /// the cumulative length of their keys, and the number of raw values. Since final serialization
+    /// adds some additional overhead, this number is approxmate and some safety margin should be
+    /// left to hard limits.
+    pub max_flush_bytes: usize,
+    /// The number of logical partitions that can receive flushed buckets.
+    ///
+    /// If set, buckets are partitioned by (bucket key % flush_partitions), and routed
+    /// by setting the header `X-Sentry-Relay-Shard`.
+    pub flush_partitions: Option<u64>,
+}
+
+impl Default for AggregatorServiceConfig {
+    fn default() -> Self {
+        Self {
+            max_total_bucket_bytes: None,
+            bucket_interval: 10,
+            initial_delay: 30,
+            debounce_delay: 10,
+            max_secs_in_past: 5 * 24 * 60 * 60, // 5 days, as for sessions
+            max_secs_in_future: 60,             // 1 minute
+            max_name_length: 200,
+            max_tag_key_length: 200,
+            max_tag_value_length: 200,
+            max_project_key_bucket_bytes: None,
+            shift_key: ShiftKey::default(),
+            max_flush_bytes: 5_000_000, // 5 MB
+            flush_partitions: None,
+        }
+    }
+}
+
+impl From<&AggregatorServiceConfig> for AggregatorConfig {
+    fn from(value: &AggregatorServiceConfig) -> Self {
+        Self {
+            bucket_interval: value.bucket_interval,
+            initial_delay: value.initial_delay,
+            debounce_delay: value.debounce_delay,
+            max_secs_in_past: value.max_secs_in_past,
+            max_secs_in_future: value.max_secs_in_future,
+            max_name_length: value.max_name_length,
+            max_tag_key_length: value.max_tag_key_length,
+            max_tag_value_length: value.max_tag_value_length,
+            max_project_key_bucket_bytes: value.max_project_key_bucket_bytes,
+            shift_key: value.shift_key,
+        }
+    }
+}
+
+/// Contains an [`AggregatorServiceConfig`] for a specific scope.
+///
+/// For now, the only way to scope an aggregator is by [`MetricNamespace`].
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct ScopedAggregatorConfig {
+    /// Name of the aggregator, used to tag statsd metrics.
+    pub name: String,
+    /// Condition that needs to be met for a metric or bucket to be routed to a
+    /// secondary aggregator.
+    pub condition: Condition,
+    /// The configuration of the secondary aggregator.
+    pub config: AggregatorServiceConfig,
+}
+
+/// Condition that needs to be met for a metric or bucket to be routed to a
+/// secondary aggregator.
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(tag = "op", rename_all = "lowercase")]
+pub enum Condition {
+    /// Checks for equality on a specific field.
+    Eq(FieldCondition),
+    /// Matches if all conditions are true.
+    And {
+        /// Inner rules to combine.
+        inner: Vec<Condition>,
+    },
+    /// Matches if any condition is true.
+    Or {
+        /// Inner rules to combine.
+        inner: Vec<Condition>,
+    },
+    /// Inverts the condition.
+    Not {
+        /// Inner rule to negate.
+        inner: Box<Condition>,
+    },
+}
+
+impl Condition {
+    /// Checks if the condition matches the given namespace.
+    pub fn matches(&self, namespace: Option<MetricNamespace>) -> bool {
+        match self {
+            Condition::Eq(field) => field.matches(namespace),
+            Condition::And { inner } => inner.iter().all(|cond| cond.matches(namespace)),
+            Condition::Or { inner } => inner.iter().any(|cond| cond.matches(namespace)),
+            Condition::Not { inner } => !inner.matches(namespace),
+        }
+    }
+}
+
+/// Defines a field and a field value to compare to when a [`Condition`] is evaluated.
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(tag = "field", content = "value", rename_all = "lowercase")]
+pub enum FieldCondition {
+    /// Field that allows comparison to a metric or bucket's namespace.
+    Namespace(MetricNamespace),
+}
+
+impl FieldCondition {
+    fn matches(&self, namespace: Option<MetricNamespace>) -> bool {
+        match (self, namespace) {
+            (FieldCondition::Namespace(expected), Some(actual)) => expected == &actual,
+            _ => false,
         }
     }
 }

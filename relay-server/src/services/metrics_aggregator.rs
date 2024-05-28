@@ -2,147 +2,20 @@ use std::collections::HashMap;
 use std::time::Duration;
 
 use relay_base_schema::project::ProjectKey;
+use relay_config::AggregatorServiceConfig;
 use relay_system::{
     AsyncResponse, Controller, FromMessage, Interface, NoResponse, Recipient, Sender, Service,
     Shutdown,
 };
-use serde::{Deserialize, Serialize};
 
-use crate::aggregator::{self, AggregatorConfig, ShiftKey};
-use crate::bucket::Bucket;
-use crate::statsd::{MetricCounters, MetricHistograms, MetricTimers};
+use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
+use relay_metrics::{
+    aggregator::{self, AggregatorConfig},
+    Bucket,
+};
 
 /// Interval for the flush cycle of the [`AggregatorService`].
 const FLUSH_INTERVAL: Duration = Duration::from_millis(100);
-
-/// Parameters used by the [`AggregatorService`].
-#[derive(Clone, Debug, Deserialize, Serialize)]
-#[serde(default)]
-pub struct AggregatorServiceConfig {
-    /// Maximum amount of bytes used for metrics aggregation.
-    ///
-    /// When aggregating metrics, Relay keeps track of how many bytes a metric takes in memory.
-    /// This is only an approximation and does not take into account things such as pre-allocation
-    /// in hashmaps.
-    ///
-    /// Defaults to `None`, i.e. no limit.
-    pub max_total_bucket_bytes: Option<usize>,
-
-    /// Determines the wall clock time interval for buckets in seconds.
-    ///
-    /// Defaults to `10` seconds. Every metric is sorted into a bucket of this size based on its
-    /// timestamp. This defines the minimum granularity with which metrics can be queried later.
-    pub bucket_interval: u64,
-
-    /// The initial delay in seconds to wait before flushing a bucket.
-    ///
-    /// Defaults to `30` seconds. Before sending an aggregated bucket, this is the time Relay waits
-    /// for buckets that are being reported in real time. This should be higher than the
-    /// `debounce_delay`.
-    ///
-    /// Relay applies up to a full `bucket_interval` of additional jitter after the initial delay to spread out flushing real time buckets.
-    pub initial_delay: u64,
-
-    /// The delay in seconds to wait before flushing a backdated buckets.
-    ///
-    /// Defaults to `10` seconds. Metrics can be sent with a past timestamp. Relay wait this time
-    /// before sending such a backdated bucket to the upsteam. This should be lower than
-    /// `initial_delay`.
-    ///
-    /// Unlike `initial_delay`, the debounce delay starts with the exact moment the first metric
-    /// is added to a backdated bucket.
-    pub debounce_delay: u64,
-
-    /// The age in seconds of the oldest allowed bucket timestamp.
-    ///
-    /// Defaults to 5 days.
-    pub max_secs_in_past: u64,
-
-    /// The time in seconds that a timestamp may be in the future.
-    ///
-    /// Defaults to 1 minute.
-    pub max_secs_in_future: u64,
-
-    /// The length the name of a metric is allowed to be.
-    ///
-    /// Defaults to `200` bytes.
-    pub max_name_length: usize,
-
-    /// The length the tag key is allowed to be.
-    ///
-    /// Defaults to `200` bytes.
-    pub max_tag_key_length: usize,
-
-    /// The length the tag value is allowed to be.
-    ///
-    /// Defaults to `200` chars.
-    pub max_tag_value_length: usize,
-
-    /// Maximum amount of bytes used for metrics aggregation per project key.
-    ///
-    /// Similar measuring technique to `max_total_bucket_bytes`, but instead of a
-    /// global/process-wide limit, it is enforced per project key.
-    ///
-    /// Defaults to `None`, i.e. no limit.
-    pub max_project_key_bucket_bytes: Option<usize>,
-
-    /// Key used to shift the flush time of a bucket.
-    ///
-    /// This prevents flushing all buckets from a bucket interval at the same
-    /// time by computing an offset from the hash of the given key.
-    pub shift_key: ShiftKey,
-
-    // TODO(dav1dde): move these config values to a better spot
-    /// The approximate maximum number of bytes submitted within one flush cycle.
-    ///
-    /// This controls how big flushed batches of buckets get, depending on the number of buckets,
-    /// the cumulative length of their keys, and the number of raw values. Since final serialization
-    /// adds some additional overhead, this number is approxmate and some safety margin should be
-    /// left to hard limits.
-    pub max_flush_bytes: usize,
-    /// The number of logical partitions that can receive flushed buckets.
-    ///
-    /// If set, buckets are partitioned by (bucket key % flush_partitions), and routed
-    /// by setting the header `X-Sentry-Relay-Shard`.
-    pub flush_partitions: Option<u64>,
-}
-
-impl Default for AggregatorServiceConfig {
-    fn default() -> Self {
-        Self {
-            max_total_bucket_bytes: None,
-            bucket_interval: 10,
-            initial_delay: 30,
-            debounce_delay: 10,
-            max_secs_in_past: 5 * 24 * 60 * 60, // 5 days, as for sessions
-            max_secs_in_future: 60,             // 1 minute
-            max_name_length: 200,
-            max_tag_key_length: 200,
-            max_tag_value_length: 200,
-            max_project_key_bucket_bytes: None,
-            shift_key: ShiftKey::default(),
-            max_flush_bytes: 5_000_000, // 5 MB
-            flush_partitions: None,
-        }
-    }
-}
-
-impl From<&AggregatorServiceConfig> for AggregatorConfig {
-    fn from(value: &AggregatorServiceConfig) -> Self {
-        Self {
-            bucket_interval: value.bucket_interval,
-            initial_delay: value.initial_delay,
-            debounce_delay: value.debounce_delay,
-            max_secs_in_past: value.max_secs_in_past,
-            max_secs_in_future: value.max_secs_in_future,
-            max_name_length: value.max_name_length,
-            max_tag_key_length: value.max_tag_key_length,
-            max_tag_value_length: value.max_tag_value_length,
-            max_project_key_bucket_bytes: value.max_project_key_bucket_bytes,
-            shift_key: value.shift_key,
-        }
-    }
-}
 
 /// Aggregator for metric buckets.
 ///
@@ -291,13 +164,13 @@ impl AggregatorService {
             total_bucket_count += bucket_count;
 
             relay_statsd::metric!(
-                histogram(MetricHistograms::BucketsFlushedPerProject) = bucket_count,
+                histogram(RelayHistograms::BucketsFlushedPerProject) = bucket_count,
                 aggregator = self.aggregator.name(),
             );
         }
 
         relay_statsd::metric!(
-            histogram(MetricHistograms::BucketsFlushed) = total_bucket_count,
+            histogram(RelayHistograms::BucketsFlushed) = total_bucket_count,
             aggregator = self.aggregator.name(),
         );
 
@@ -312,13 +185,13 @@ impl AggregatorService {
             buckets,
         } = msg;
         self.aggregator
-            .merge_all(project_key, buckets, self.max_total_bucket_bytes);
+            .merge_all(project_key, buckets, &(), self.max_total_bucket_bytes);
     }
 
     fn handle_message(&mut self, message: Aggregator) {
         let ty = message.variant();
         relay_statsd::metric!(
-            timer(MetricTimers::AggregatorServiceDuration),
+            timer(RelayTimers::AggregatorServiceDuration),
             message = ty,
             {
                 match message {
@@ -374,7 +247,7 @@ impl Drop for AggregatorService {
                 "metrics aggregator dropping {remaining_buckets} buckets"
             );
             relay_statsd::metric!(
-                counter(MetricCounters::BucketsDropped) += remaining_buckets as i64,
+                counter(RelayCounters::BucketsDropped) += remaining_buckets as i64,
                 aggregator = self.aggregator.name(),
             );
         }
@@ -416,7 +289,7 @@ mod tests {
 
     use relay_common::time::UnixTimestamp;
 
-    use crate::{BucketMetadata, BucketValue};
+    use relay_metrics::{BucketMetadata, BucketValue};
 
     use super::*;
 
