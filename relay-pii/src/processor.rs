@@ -111,33 +111,39 @@ impl<'a> Processor for PiiProcessor<'a> {
         T: ProcessValue,
     {
         if is_pairlist(array) {
-            for annotated in array {
-                let mut mapped = std::mem::take(annotated).map_value(T::into_value);
+            for (index, annotated) in array.iter_mut().enumerate() {
+                let mut mapped = mem::take(annotated).map_value(T::into_value);
+
                 if let Some(Value::Array(ref mut pair)) = mapped.value_mut() {
-                    let mut value = std::mem::take(&mut pair[1]);
+                    let mut value = mem::take(&mut pair[1]);
+                    let value_type = ValueType::for_field(&value);
 
-                    let value_type = ValueType::for_field(&pair[1]);
-                    // BEGIN copied from process_pairlist
                     if let Some(key_name) = &pair[0].as_str() {
-                        // if the pair has no key name, we skip over it for PII stripping. It is
-                        // still processed with index-based path in the invocation of
-                        // `process_child_values`.
-                        let entered =
-                            state.enter_borrowed(key_name, state.inner_attrs(), value_type);
-
-                        processor::process_value(&mut value, self, &entered)?;
+                        // We enter the index of the array.
+                        let index_state = state.enter_index(index, state.inner_attrs(), value_type);
+                        // We enter the key of the first element of the array, since we treat it
+                        // as a pair.
+                        let key_state = index_state.enter_borrowed(
+                            key_name,
+                            index_state.inner_attrs(),
+                            value_type,
+                        );
+                        // We process the value with a state that "simulates" the first value of the
+                        // array as if it was the key of a dictionary.
+                        process_value(&mut value, self, &key_state)?;
                     }
-                    // END copied from process_pairlist
 
-                    // Put value back into pair
+                    // Put value back into pair.
                     pair[1] = value;
                 }
-                // Put pair back into array
+
+                // Put pair back into array.
                 *annotated = T::from_value(mapped);
             }
+
             Ok(())
         } else {
-            // default treatment.
+            // If we didn't find a pairlist, we can process child values as normal.
             array.process_child_values(self, state)
         }
     }
@@ -244,12 +250,20 @@ impl<'a> Processor for PiiProcessor<'a> {
 }
 
 #[derive(Default)]
-struct IsObjectPair {
+struct PairArrayChecker {
     is_pair: bool,
     has_string_key: bool,
 }
 
-impl Processor for IsObjectPair {
+impl PairArrayChecker {
+    /// Returns true if the visitor identified the supplied data as an array composed of
+    /// a key (string) and a value.
+    fn is_pair_array(&self) -> bool {
+        self.is_pair && self.has_string_key
+    }
+}
+
+impl Processor for PairArrayChecker {
     fn process_array<T>(
         &mut self,
         value: &mut relay_protocol::Array<T>,
@@ -259,9 +273,8 @@ impl Processor for IsObjectPair {
     where
         T: ProcessValue,
     {
-        self.is_pair = value.len() == 2;
+        self.is_pair = state.depth() == 0 && value.len() == 2;
         if self.is_pair {
-            // Visit only key:
             let value_type = ValueType::for_field(&value[0]);
             process_value(
                 &mut value[0],
@@ -287,9 +300,9 @@ impl Processor for IsObjectPair {
 
 fn is_pairlist<T: ProcessValue>(array: &mut Array<T>) -> bool {
     for element in array.iter_mut() {
-        let mut visitor = IsObjectPair::default();
+        let mut visitor = PairArrayChecker::default();
         process_value(element, &mut visitor, ProcessingState::root()).ok();
-        if !visitor.is_pair || !visitor.has_string_key {
+        if !visitor.is_pair_array() {
             return false;
         }
     }
@@ -1899,29 +1912,8 @@ mod tests {
                     [
                         Array(
                             [
-                                Annotated(
-                                    String(
-                                        "",
-                                    ),
-                                    Meta {
-                                        remarks: [
-                                            Remark {
-                                                ty: Removed,
-                                                rule_id: "@password:remove",
-                                                range: Some(
-                                                    (
-                                                        0,
-                                                        0,
-                                                    ),
-                                                ),
-                                            },
-                                        ],
-                                        errors: [],
-                                        original_length: Some(
-                                            13,
-                                        ),
-                                        original_value: None,
-                                    },
+                                String(
+                                    "authorization",
                                 ),
                                 Meta {
                                     remarks: [
