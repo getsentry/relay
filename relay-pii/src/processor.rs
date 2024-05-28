@@ -57,389 +57,56 @@ impl<'a> PiiProcessor<'a> {
     }
 }
 
-struct TryPairlistVisitor<V>{
-    latest_key: Option<String>,
-    result: Result<Vec<(String, Annotated<V>)>, ()>
-} // TODO: store references
+#[derive(Default)]
+struct IsObjectPair {
+    is_pair: bool,
+    has_string_key: bool,
+}
 
-impl<V> Processor for TryPairlistVisitor<V> {
-    #[inline]
+impl Processor for IsObjectPair {
+    fn process_array<T>(
+        &mut self,
+        value: &mut relay_protocol::Array<T>,
+        _meta: &mut Meta,
+        state: &ProcessingState<'_>,
+    ) -> ProcessingResult
+    where
+        T: ProcessValue,
+    {
+        self.is_pair = value.len() == 2;
+        if self.is_pair {
+            // Visit only key:
+            process_value(&mut value[0], self, state);
+        }
+        Ok(())
+    }
+
     fn process_string(
         &mut self,
         s: &mut String,
-        meta: &mut Meta,
+        _meta: &mut Meta,
         state: &ProcessingState<'_>,
     ) -> ProcessingResult where {
         dbg!("visiting a string: ", &s);
 
-        // let Ok(map) = &mut self.result else { return Ok(()) };
-
         if dbg!(state.depth()) == 1 && dbg!(state.path().index()) == Some(0) {
             dbg!("pushing a string: ", &s);
-            self.latest_key = Some(s.clone());
+            self.has_string_key = true;
         }
-        Ok(())
-    }
-
-
-
-    #[inline]
-    fn process_array<T>(
-        &mut self,
-        value: &mut relay_protocol::Array<T>,
-        meta: &mut Meta,
-        state: &ProcessingState<'_>,
-    ) -> ProcessingResult
-    where
-        T: ProcessValue,
-    {
-        if value.len() != 2 {
-            self.result = Err(());
-            return Ok(());
-        }
-
-        let key = value[0];
-        // visit key:
-        process_value(&mut value[0], self, state);
-        match (self.latest_key, self.result) {
-            (Some(key), Ok(map)) => map.push((key, T::into_value(self)))
-            _ => {
-                self.result = Err(()); return Ok(())
-            }
-        }
-
-        Ok(())
-    }
-
-    // TODO: before_process early return
-
-    #[inline]
-    fn process_object<T>(
-        &mut self,
-        value: &mut relay_protocol::Object<T>,
-        meta: &mut Meta,
-        state: &ProcessingState<'_>,
-    ) -> ProcessingResult
-    where
-        T: ProcessValue,
-    {
-        value.process_child_values(self, state)?;
-        Ok(())
-    }
-
-    #[inline]
-    fn process_pairlist<T>(
-        &mut self,
-        value: &mut PairList<T>,
-        meta: &mut Meta,
-        state: &ProcessingState<'_>,
-    ) -> ProcessingResult
-    where
-        T: ProcessValue,
-        T: AsPair,
-    {
-        value.process_child_values(self, state)?;
-        Ok(())
-    }
-
-    #[inline]
-    fn process_values<T>(
-        &mut self,
-        value: &mut Values<T>,
-        meta: &mut Meta,
-        state: &ProcessingState<'_>,
-    ) -> ProcessingResult
-    where
-        T: ProcessValue,
-    {
-        value.process_child_values(self, state)?;
-        Ok(())
-    }
-
-    #[inline]
-    fn process_timestamp(
-        &mut self,
-        value: &mut Timestamp,
-        meta: &mut Meta,
-        state: &ProcessingState<'_>,
-    ) -> ProcessingResult where {
-        value.process_child_values(self, state)?;
-        Ok(())
-    }
-
-    #[inline]
-    fn process_event(
-        &mut self,
-        value: &mut Event,
-        meta: &mut Meta,
-        state: &ProcessingState<'_>,
-    ) -> ProcessingResult where {
-        value.process_child_values(self, state)?;
-        Ok(())
-    }
-
-    #[inline]
-    fn process_replay(
-        &mut self,
-        value: &mut Replay,
-        meta: &mut Meta,
-        state: &ProcessingState<'_>,
-    ) -> ProcessingResult where {
-        value.process_child_values(self, state)?;
-        Ok(())
-    }
-
-    #[inline]
-    fn process_exception(
-        &mut self,
-        value: &mut Exception,
-        meta: &mut Meta,
-        state: &ProcessingState<'_>,
-    ) -> ProcessingResult where {
-        value.process_child_values(self, state)?;
-        Ok(())
-    }
-
-    #[inline]
-    fn process_raw_stacktrace(
-        &mut self,
-        value: &mut RawStacktrace,
-        meta: &mut Meta,
-        state: &ProcessingState<'_>,
-    ) -> ProcessingResult where {
-        value.process_child_values(self, state)?;
-        Ok(())
-    }
-
-    #[inline]
-    fn process_stacktrace(
-        &mut self,
-        value: &mut Stacktrace,
-        meta: &mut Meta,
-        state: &ProcessingState<'_>,
-    ) -> ProcessingResult where {
-        value.process_child_values(self, state)?;
-        Ok(())
-    }
-
-    #[inline]
-    fn process_frame(
-        &mut self,
-        value: &mut Frame,
-        meta: &mut Meta,
-        state: &ProcessingState<'_>,
-    ) -> ProcessingResult where {
-        value.process_child_values(self, state)?;
-        Ok(())
-    }
-
-    #[inline]
-    fn process_request(
-        &mut self,
-        value: &mut Request,
-        meta: &mut Meta,
-        state: &ProcessingState<'_>,
-    ) -> ProcessingResult where {
-        value.process_child_values(self, state)?;
-        Ok(())
-    }
-
-    #[inline]
-    fn process_user(
-        &mut self,
-        value: &mut User,
-        meta: &mut Meta,
-        state: &ProcessingState<'_>,
-    ) -> ProcessingResult where {
-        value.process_child_values(self, state)?;
-        Ok(())
-    }
-
-    #[inline]
-    fn process_client_sdk_info(
-        &mut self,
-        value: &mut ClientSdkInfo,
-        meta: &mut Meta,
-        state: &ProcessingState<'_>,
-    ) -> ProcessingResult where {
-        value.process_child_values(self, state)?;
-        Ok(())
-    }
-
-    #[inline]
-    fn process_debug_meta(
-        &mut self,
-        value: &mut DebugMeta,
-        meta: &mut Meta,
-        state: &ProcessingState<'_>,
-    ) -> ProcessingResult where {
-        value.process_child_values(self, state)?;
-        Ok(())
-    }
-
-    #[inline]
-    fn process_debug_image(
-        &mut self,
-        value: &mut DebugImage,
-        meta: &mut Meta,
-        state: &ProcessingState<'_>,
-    ) -> ProcessingResult where {
-        value.process_child_values(self, state)?;
-        Ok(())
-    }
-
-    #[inline]
-    fn process_geo(
-        &mut self,
-        value: &mut Geo,
-        meta: &mut Meta,
-        state: &ProcessingState<'_>,
-    ) -> ProcessingResult where {
-        value.process_child_values(self, state)?;
-        Ok(())
-    }
-
-    #[inline]
-    fn process_logentry(
-        &mut self,
-        value: &mut LogEntry,
-        meta: &mut Meta,
-        state: &ProcessingState<'_>,
-    ) -> ProcessingResult where {
-        value.process_child_values(self, state)?;
-        Ok(())
-    }
-
-    #[inline]
-    fn process_thread(
-        &mut self,
-        value: &mut Thread,
-        meta: &mut Meta,
-        state: &ProcessingState<'_>,
-    ) -> ProcessingResult where {
-        value.process_child_values(self, state)?;
-        Ok(())
-    }
-
-    #[inline]
-    fn process_context(
-        &mut self,
-        value: &mut Context,
-        meta: &mut Meta,
-        state: &ProcessingState<'_>,
-    ) -> ProcessingResult where {
-        value.process_child_values(self, state)?;
-        Ok(())
-    }
-
-    #[inline]
-    fn process_breadcrumb(
-        &mut self,
-        value: &mut Breadcrumb,
-        meta: &mut Meta,
-        state: &ProcessingState<'_>,
-    ) -> ProcessingResult where {
-        value.process_child_values(self, state)?;
-        Ok(())
-    }
-
-    #[inline]
-    fn process_template_info(
-        &mut self,
-        value: &mut TemplateInfo,
-        meta: &mut Meta,
-        state: &ProcessingState<'_>,
-    ) -> ProcessingResult where {
-        value.process_child_values(self, state)?;
-        Ok(())
-    }
-
-    #[inline]
-    fn process_header_name(
-        &mut self,
-        value: &mut HeaderName,
-        meta: &mut Meta,
-        state: &ProcessingState<'_>,
-    ) -> ProcessingResult where {
-        value.process_child_values(self, state)?;
-        Ok(())
-    }
-
-    #[inline]
-    fn process_span(
-        &mut self,
-        value: &mut Span,
-        meta: &mut Meta,
-        state: &ProcessingState<'_>,
-    ) -> ProcessingResult where {
-        value.process_child_values(self, state)?;
-        Ok(())
-    }
-
-    #[inline]
-    fn process_trace_context(
-        &mut self,
-        value: &mut TraceContext,
-        meta: &mut Meta,
-        state: &ProcessingState<'_>,
-    ) -> ProcessingResult where {
-        value.process_child_values(self, state)?;
-        Ok(())
-    }
-
-    #[inline]
-    fn process_native_image_path(
-        &mut self,
-        value: &mut NativeImagePath,
-        meta: &mut Meta,
-        state: &ProcessingState<'_>,
-    ) -> ProcessingResult where {
-        value.process_child_values(self, state)?;
-        Ok(())
-    }
-
-    #[inline]
-    fn process_contexts(
-        &mut self,
-        value: &mut Contexts,
-        meta: &mut Meta,
-        state: &ProcessingState<'_>,
-    ) -> ProcessingResult where {
-        value.process_child_values(self, state)?;
-        Ok(())
-    }
-
-    fn process_other(
-        &mut self,
-        other: &mut relay_protocol::Object<relay_protocol::Value>,
-        state: &ProcessingState<'_>,
-    ) -> ProcessingResult {
-        for (key, value) in other {
-            process_value(
-                value,
-                self,
-                &state.enter_borrowed(
-                    key.as_str(),
-                    state.inner_attrs(),
-                    ValueType::for_field(value),
-                ),
-            )?;
-        }
-
         Ok(())
     }
 }
 
-fn try_as_pairlist<T: ProcessValue>(array: &mut Array<T>) -> Result<PairList<T>, ()> {
-    let mut visitor = TryPairlistVisitor(Ok(BTreeMap::new()));
-
-    array.process_child_values(&mut visitor, ProcessingState::root());
-    match visitor.0 {
-        Ok(map) if !map.is_empty() => Ok(Object::from_iter(
-            map.into_iter().map(|(k, v)| (k.to_owned(), v.clone())),
-        )),
-        _ => Err(()),
+fn is_pairlist<T: ProcessValue>(array: &mut Array<T>) -> bool {
+    for element in array.iter_mut() {
+        let mut visitor = IsObjectPair::default();
+        process_value(element, &mut visitor, ProcessingState::root());
+        if !visitor.is_pair || !visitor.has_string_key {
+            return false;
+        }
     }
+
+    !array.is_empty()
 }
 
 impl<'a> Processor for PiiProcessor<'a> {
@@ -488,24 +155,30 @@ impl<'a> Processor for PiiProcessor<'a> {
 
     fn process_array<T>(
         &mut self,
-        value: &mut Array<T>,
+        array: &mut Array<T>,
         meta: &mut Meta,
         state: &ProcessingState<'_>,
     ) -> ProcessingResult
     where
         T: ProcessValue,
     {
-        match try_as_pairlist(value) {
-            Ok(mut obj) => {
-                self.process_pairlist(obj, meta, state)
-                // TODO: convert object back to array
-            } // TODO: enter_nothing?
-            Err(_) => {
-                // Recurse into each element of the array since we also want to individually scrub each
-                // value in the array.
-                value.process_child_values(self, state)
-            }
+        if is_pairlist(array) {
+            for element in array {}
+            Ok(())
+        } else {
+            // default treatment.
+            array.process_child_values(self, state)
         }
+        // match try_as_pairlist(value) {
+        //     Ok(mut obj) => {
+        //         self.process_pairlist(obj, meta, state)
+        //         // TODO: convert object back to array
+        //     } // TODO: enter_nothing?
+        //     Err(_) => {
+        //         // Recurse into each element of the array since we also want to individually scrub each
+        //         // value in the array.
+        //     }
+        // }
 
         // If the array has length 2, we treat it as key-value pair and try to scrub it. If the
         // scrubbing doesn't do anything, we try to scrub values individually.
