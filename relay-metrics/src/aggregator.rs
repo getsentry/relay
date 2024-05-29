@@ -263,7 +263,10 @@ impl AggregatorConfig {
                 hasher.finish()
             }
             ShiftKey::Bucket => bucket.hash64(),
-            ShiftKey::Partition => bucket.project_key,
+            // Since our partition key is in the interval from [0, config.flush_partitions) we will
+            // likely never have 2^64 partitions, so we can safely use the maximum value of u64 to
+            // represent the absence of a partition key.
+            ShiftKey::Partition => bucket.partition_key.unwrap_or(u64::MAX),
             ShiftKey::None => return Duration::ZERO,
         };
 
@@ -556,7 +559,10 @@ impl Aggregator {
     /// Pop and return the buckets that are eligible for flushing out according to bucket interval.
     ///
     /// Note that this function is primarily intended for tests.
-    pub fn pop_flush_buckets(&mut self, force: bool) -> HashMap<(ProjectKey, Option<PartitionKey>), Vec<Bucket>> {
+    pub fn pop_flush_buckets(
+        &mut self,
+        force: bool,
+    ) -> HashMap<(ProjectKey, Option<PartitionKey>), Vec<Bucket>> {
         relay_statsd::metric!(
             gauge(MetricGauges::Buckets) = self.bucket_count() as u64,
             aggregator = &self.name,

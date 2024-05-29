@@ -31,7 +31,9 @@ use relay_event_schema::protocol::{
 };
 use relay_filter::FilterStatKey;
 use relay_metrics::aggregator::AggregatorConfig;
-use relay_metrics::{Bucket, BucketMetadata, BucketView, BucketsView, MetricMeta, MetricNamespace, PartitionKey};
+use relay_metrics::{
+    Bucket, BucketMetadata, BucketView, BucketsView, MetricMeta, MetricNamespace, PartitionKey,
+};
 use relay_pii::PiiConfigError;
 use relay_profiling::ProfileId;
 use relay_protocol::{Annotated, Value};

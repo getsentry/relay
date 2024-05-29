@@ -10,8 +10,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::aggregator::{self, AggregatorConfig, ShiftKey};
 use crate::bucket::Bucket;
-use crate::PartitionKey;
 use crate::statsd::{MetricCounters, MetricHistograms, MetricTimers};
+use crate::PartitionKey;
 
 /// Interval for the flush cycle of the [`AggregatorService`].
 const FLUSH_INTERVAL: Duration = Duration::from_millis(100);
