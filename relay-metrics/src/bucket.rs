@@ -103,7 +103,6 @@ impl GaugeValue {
 /// value in the distribution, including duplicates.
 pub type DistributionValue = SmallVec<[DistributionType; 3]>;
 
-use relay_base_schema::project::ProjectKey;
 #[doc(hidden)]
 pub use smallvec::smallvec as _smallvec;
 
@@ -426,15 +425,6 @@ fn parse_timestamp(string: &str) -> Option<UnixTimestamp> {
     string.parse().ok().map(UnixTimestamp::from_secs)
 }
 
-/// The key of a metric partition.
-///
-/// A partition is defined as a non-negative integer which tells Envoy to which upstream Relay
-/// instance to forward the buckets.
-///
-/// The goal of partitioning is to increase efficiency of bucketing since it allows the same buckets
-/// to always be sent to the same instances.
-pub type PartitionKey = u64;
-
 /// An aggregation of metric values.
 ///
 /// As opposed to single metric values, bucket aggregations can carry multiple values. See
@@ -726,35 +716,6 @@ impl Bucket {
     /// If the tag exists, the removed value is returned.
     pub fn remove_tag(&mut self, name: &str) -> Option<String> {
         self.tags.remove(name)
-    }
-
-    /// Computes a stable partitioning key for this [`Bucket`].
-    ///
-    /// The partitioning key is inherently producing collisions, since the output of the hasher is
-    /// reduced into an interval of size `partitions`. This means that buckets with totally
-    /// different values might end up in the same partition.
-    ///
-    /// The role of partitioning is to let Relays forward the same metric to the same upstream
-    /// instance with the goal of increasing bucketing efficiency.
-    ///
-    /// It's very important that the partition key is computed using a subset of the values that are
-    /// in the [`BucketKey`] (excluding the partition key itself). This is required otherwise we
-    /// might have the same bucket assigned to a different [`BucketKey`] because the partition key
-    /// is computed with extra fields. Having a different bucket key will result in less efficiency
-    /// during aggregation which we definitely don't want.
-    pub fn partition_key(
-        &self,
-        project_key: ProjectKey,
-        partitions: Option<u64>,
-    ) -> Option<PartitionKey> {
-        use std::hash::{Hash, Hasher};
-
-        let partitions = partitions?.max(1);
-        let key = (project_key, &self.name, &self.tags);
-
-        let mut hasher = fnv::FnvHasher::default();
-        key.hash(&mut hasher);
-        Some(hasher.finish() % partitions)
     }
 }
 

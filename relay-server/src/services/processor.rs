@@ -29,10 +29,8 @@ use relay_event_schema::protocol::{
     ClientReport, Event, EventId, EventType, IpAddr, Metrics, NetworkReportError,
 };
 use relay_filter::FilterStatKey;
-use relay_metrics::aggregator::AggregatorConfig;
-use relay_metrics::{
-    Bucket, BucketMetadata, BucketView, BucketsView, MetricMeta, MetricNamespace, PartitionKey,
-};
+use relay_metrics::aggregator::{AggregatorConfig, PartitionKey};
+use relay_metrics::{Bucket, BucketMetadata, BucketView, BucketsView, MetricMeta, MetricNamespace};
 use relay_pii::PiiConfigError;
 use relay_profiling::ProfileId;
 use relay_protocol::{Annotated, Value};
@@ -2440,8 +2438,6 @@ impl EnvelopeProcessorService {
         let batch_size = self.inner.config.metrics_max_batch_size_bytes();
         let upstream = self.inner.config.upstream_descriptor();
 
-        // We are not achieving maximum partitioning efficiency here, because the same partition
-        // can be across different scopes.
         for ((scoping, partition_key), message) in message.scopes {
             let ProjectMetrics {
                 buckets,

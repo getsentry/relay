@@ -7,7 +7,7 @@ use std::ops::{Deref, DerefMut};
 use std::time::Instant;
 
 use chrono::{DateTime, Utc};
-use relay_metrics::PartitionKey;
+use relay_metrics::aggregator::PartitionKey;
 use relay_quotas::{DataCategory, Scoping};
 use relay_system::Addr;
 

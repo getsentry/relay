@@ -17,7 +17,7 @@ use tokio::time::Instant;
 use crate::bucket::{Bucket, BucketValue};
 use crate::protocol::{self, MetricNamespace, MetricResourceIdentifier};
 use crate::statsd::{MetricCounters, MetricGauges, MetricHistograms, MetricSets, MetricTimers};
-use crate::{BucketMetadata, MetricName, PartitionKey};
+use crate::{BucketMetadata, MetricName};
 
 /// Any error that may occur during aggregation.
 #[derive(Debug, Error, PartialEq)]
@@ -58,9 +58,17 @@ enum AggregateMetricsErrorKind {
     ProjectLimitExceeded,
 }
 
+/// The key of a metric partition.
+///
+/// A partition is defined as a non-negative integer which tells Envoy to which upstream Relay
+/// instance to forward the buckets.
+///
+/// The goal of partitioning is to increase efficiency of bucketing since it allows the same buckets
+/// to always be sent to the same instances.
+pub type PartitionKey = u64;
+
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 struct BucketKey {
-    partition_key: Option<PartitionKey>,
     project_key: ProjectKey,
     timestamp: UnixTimestamp,
     metric_name: MetricName,
@@ -89,6 +97,31 @@ impl BucketKey {
     fn namespace(&self) -> MetricNamespace {
         self.metric_name.namespace()
     }
+
+    /// Computes a stable partitioning key for this [`Bucket`].
+    ///
+    /// The partitioning key is inherently producing collisions, since the output of the hasher is
+    /// reduced into an interval of size `partitions`. This means that buckets with totally
+    /// different values might end up in the same partition.
+    ///
+    /// The role of partitioning is to let Relays forward the same metric to the same upstream
+    /// instance with the goal of increasing bucketing efficiency.
+    ///
+    /// It's very important that the partition key is computed using a subset of the values that are
+    /// in the [`BucketKey`] (excluding the partition key itself). This is required otherwise we
+    /// might have the same bucket assigned to a different [`BucketKey`] because the partition key
+    /// is computed with extra fields. Having a different bucket key will result in less efficiency
+    /// during aggregation which we definitely don't want.
+    pub fn partition_key(&self, partitions: u64) -> PartitionKey {
+        use std::hash::{Hash, Hasher};
+
+        let partitions = partitions.max(1);
+        let key = (self.project_key, &self.metric_name, &self.tags);
+
+        let mut hasher = fnv::FnvHasher::default();
+        key.hash(&mut hasher);
+        hasher.finish() % partitions
+    }
 }
 
 /// Estimates the number of bytes needed to encode the tags.
@@ -99,29 +132,39 @@ pub fn tags_cost(tags: &BTreeMap<String, String>) -> usize {
     tags.iter().map(|(k, v)| k.len() + v.len()).sum()
 }
 
-/// Configuration value for [`AggregatorConfig::shift_key`].
+/// Configuration value for [`AggregatorConfig::flush_batching`].
 #[derive(Clone, Copy, Debug, Default, Deserialize, Serialize)]
 #[serde(rename_all = "lowercase")]
-pub enum ShiftKey {
+pub enum FlushBatching {
     /// Shifts the flush time by an offset based on the [`ProjectKey`].
     ///
     /// This allows buckets from the same project to be flushed together.
     #[default]
     Project,
 
-    /// Shifts the flush time by an offset based on the bucket key itself.
+    /// Shifts the flush time by an offset based on the [`BucketKey`].
     ///
     /// This allows for a completely random distribution of bucket flush times.
     ///
-    /// Only for use in processing Relays.
+    /// It should only be used in processing Relays since this flushing behavior it's better
+    /// suited for how Relay emits metrics to Kafka.
     Bucket,
 
-    /// Shifts the flush time by an offset based on the [`PartitionKey`] if present.
+    /// Shifts the flush time by an offset based on the [`PartitionKey`].
     ///
-    /// This allows buckets with the same partition to be flushed together.
-    Partition,
+    /// This allows buckets belonging to the same partition to be flushed together.
+    ///
+    /// It should only be used in Relays with the `http.global_metrics` option set since when
+    /// encoding metrics via the global endpoint we can leverage partitioning.
+    ///
+    /// If set, buckets are partitioned by (bucket key % flush_partitions), and routed
+    /// by setting the header `X-Sentry-Relay-Shard`.
+    Partition {
+        /// Number of partitions.
+        flush_partitions: u64,
+    },
 
-    /// Do not apply shift. This should be set when `http.global_metrics` is used.
+    /// Do not apply shift.
     None,
 }
 
@@ -191,14 +234,13 @@ pub struct AggregatorConfig {
     ///
     /// This prevents flushing all buckets from a bucket interval at the same
     /// time by computing an offset from the hash of the given key.
-    pub shift_key: ShiftKey,
-
-    /// The number of logical partitions that can receive flushed buckets.
-    ///
-    /// If set, buckets are partitioned by (bucket key % flush_partitions), and routed
-    /// by setting the header `X-Sentry-Relay-Shard`.
-    pub flush_partitions: Option<u64>,
+    pub flush_batching: FlushBatching,
 }
+
+// We might have three ways of batching metrics:
+// Global -> all metrics
+// By project
+// By partition
 
 impl AggregatorConfig {
     /// Returns the instant at which a bucket should be flushed.
@@ -252,22 +294,19 @@ impl AggregatorConfig {
         Duration::from_secs(self.initial_delay)
     }
 
-    /// Shift deterministically within one bucket interval based on the project or bucket key.
+    /// Shift deterministically within one bucket interval based on the configured [`FlushBatching`].
     ///
     /// This distributes buckets over time to prevent peaks.
     fn flush_time_shift(&self, bucket: &BucketKey) -> Duration {
-        let hash_value = match self.shift_key {
-            ShiftKey::Project => {
+        let hash_value = match self.flush_batching {
+            FlushBatching::Project => {
                 let mut hasher = FnvHasher::default();
                 hasher.write(bucket.project_key.as_str().as_bytes());
                 hasher.finish()
             }
-            ShiftKey::Bucket => bucket.hash64(),
-            // Since our partition key is in the interval from [0, config.flush_partitions) we will
-            // likely never have 2^64 partitions, so we can safely use the maximum value of u64 to
-            // represent the absence of a partition key.
-            ShiftKey::Partition => bucket.partition_key.unwrap_or(u64::MAX),
-            ShiftKey::None => return Duration::ZERO,
+            FlushBatching::Bucket => bucket.hash64(),
+            FlushBatching::Partition { flush_partitions } => bucket.partition_key(flush_partitions),
+            FlushBatching::None => return Duration::ZERO,
         };
 
         let shift_millis = hash_value % (self.bucket_interval * 1000);
@@ -309,8 +348,7 @@ impl Default for AggregatorConfig {
             max_tag_key_length: 200,
             max_tag_value_length: 200,
             max_project_key_bucket_bytes: None,
-            shift_key: ShiftKey::default(),
-            flush_partitions: None,
+            flush_batching: FlushBatching::default(),
         }
     }
 }
@@ -607,8 +645,17 @@ impl Aggregator {
                             metadata,
                         };
 
+                        // We group by partition key in case the flushing is configured to batch by
+                        // partition key.
+                        let partition_key = match self.config.flush_batching {
+                            FlushBatching::Partition { flush_partitions } => {
+                                Some(key.partition_key(flush_partitions))
+                            }
+                            _ => None,
+                        };
+
                         buckets
-                            .entry((key.project_key, key.partition_key))
+                            .entry((key.project_key, partition_key))
                             .or_insert_with(Vec::new)
                             .push(bucket);
 
@@ -666,7 +713,6 @@ impl Aggregator {
     ) -> Result<(), AggregateMetricsError> {
         let timestamp = self.get_bucket_timestamp(bucket.timestamp, bucket.width)?;
         let key = BucketKey {
-            partition_key: bucket.partition_key(project_key, self.config.flush_partitions),
             project_key,
             timestamp,
             metric_name: bucket.name,
@@ -912,8 +958,7 @@ mod tests {
             max_tag_key_length: 200,
             max_tag_value_length: 200,
             max_project_key_bucket_bytes: None,
-            shift_key: ShiftKey::default(),
-            flush_partitions: None,
+            flush_batching: FlushBatching::default(),
         }
     }
 
@@ -1001,7 +1046,6 @@ mod tests {
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
         let metric_name = "12345".into();
         let bucket_key = BucketKey {
-            partition_key: None,
             timestamp: UnixTimestamp::now(),
             project_key,
             metric_name,
@@ -1188,7 +1232,6 @@ mod tests {
             metadata: BucketMetadata::new(timestamp),
         };
         let bucket_key = BucketKey {
-            partition_key: None,
             project_key,
             timestamp: UnixTimestamp::now(),
             metric_name: "c:transactions/foo@none".into(),
@@ -1329,7 +1372,6 @@ mod tests {
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
 
         let bucket_key = BucketKey {
-            partition_key: None,
             project_key,
             timestamp: UnixTimestamp::now(),
             metric_name: "c:transactions/hergus.bergus".into(),
@@ -1375,7 +1417,6 @@ mod tests {
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
 
         let short_metric = BucketKey {
-            partition_key: None,
             project_key,
             timestamp: UnixTimestamp::now(),
             metric_name: "c:transactions/a_short_metric".into(),
@@ -1384,7 +1425,6 @@ mod tests {
         assert!(validate_bucket_key(short_metric, &test_config()).is_ok());
 
         let long_metric = BucketKey {
-            partition_key: None,
             project_key,
             timestamp: UnixTimestamp::now(),
             metric_name: "c:transactions/long_name_a_very_long_name_its_super_long_really_but_like_super_long_probably_the_longest_name_youve_seen_and_even_the_longest_name_ever_its_extremly_long_i_cant_tell_how_long_it_is_because_i_dont_have_that_many_fingers_thus_i_cant_count_the_many_characters_this_long_name_is".into(),
@@ -1400,7 +1440,6 @@ mod tests {
         ));
 
         let short_metric_long_tag_key = BucketKey {
-            partition_key: None,
             project_key,
             timestamp: UnixTimestamp::now(),
             metric_name: "c:transactions/a_short_metric_with_long_tag_key".into(),
@@ -1410,7 +1449,6 @@ mod tests {
         assert_eq!(validation.tags.len(), 0);
 
         let short_metric_long_tag_value = BucketKey {
-            partition_key: None,
             project_key,
             timestamp: UnixTimestamp::now(),
             metric_name: "c:transactions/a_short_metric_with_long_tag_value".into(),
@@ -1428,7 +1466,6 @@ mod tests {
         let tag_value = "x".repeat(199) + "ø";
         assert_eq!(tag_value.chars().count(), 200); // Should be allowed
         let short_metric = BucketKey {
-            partition_key: None,
             project_key,
             timestamp: UnixTimestamp::now(),
             metric_name: "c:transactions/a_short_metric".into(),
@@ -1499,7 +1536,7 @@ mod tests {
     fn test_parse_shift_key() {
         let json = r#"{"shift_key": "bucket"}"#;
         let parsed: AggregatorConfig = serde_json::from_str(json).unwrap();
-        assert!(matches!(parsed.shift_key, ShiftKey::Bucket));
+        assert!(matches!(parsed.flush_batching, FlushBatching::Bucket));
     }
 
     #[test]

@@ -8,10 +8,9 @@ use relay_system::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::aggregator::{self, AggregatorConfig, ShiftKey};
+use crate::aggregator::{self, AggregatorConfig, FlushBatching, PartitionKey};
 use crate::bucket::Bucket;
 use crate::statsd::{MetricCounters, MetricHistograms, MetricTimers};
-use crate::PartitionKey;
 
 /// Interval for the flush cycle of the [`AggregatorService`].
 const FLUSH_INTERVAL: Duration = Duration::from_millis(100);
@@ -91,7 +90,7 @@ pub struct AggregatorServiceConfig {
     ///
     /// This prevents flushing all buckets from a bucket interval at the same
     /// time by computing an offset from the hash of the given key.
-    pub shift_key: ShiftKey,
+    pub flush_batching: FlushBatching,
 
     // TODO(dav1dde): move these config values to a better spot
     /// The approximate maximum number of bytes submitted within one flush cycle.
@@ -101,11 +100,6 @@ pub struct AggregatorServiceConfig {
     /// adds some additional overhead, this number is approxmate and some safety margin should be
     /// left to hard limits.
     pub max_flush_bytes: usize,
-    /// The number of logical partitions that can receive flushed buckets.
-    ///
-    /// If set, buckets are partitioned by (bucket key % flush_partitions), and routed
-    /// by setting the header `X-Sentry-Relay-Shard`.
-    pub flush_partitions: Option<u64>,
 }
 
 impl Default for AggregatorServiceConfig {
@@ -121,9 +115,8 @@ impl Default for AggregatorServiceConfig {
             max_tag_key_length: 200,
             max_tag_value_length: 200,
             max_project_key_bucket_bytes: None,
-            shift_key: ShiftKey::default(),
+            flush_batching: FlushBatching::default(),
             max_flush_bytes: 5_000_000, // 5 MB
-            flush_partitions: None,
         }
     }
 }
@@ -140,8 +133,7 @@ impl From<&AggregatorServiceConfig> for AggregatorConfig {
             max_tag_key_length: value.max_tag_key_length,
             max_tag_value_length: value.max_tag_value_length,
             max_project_key_bucket_bytes: value.max_project_key_bucket_bytes,
-            shift_key: value.shift_key,
-            flush_partitions: value.flush_partitions,
+            flush_batching: value.flush_batching,
         }
     }
 }
@@ -221,7 +213,8 @@ pub struct BucketCountInquiry;
 ///   failed buckets. They will be merged back into the aggregator and flushed at a later time.
 #[derive(Clone, Debug)]
 pub struct FlushBuckets {
-    /// The buckets to be flushed.
+    /// The buckets to be flushed with an optional partition key which is set whenever the
+    /// [`Aggregator`] is flushing with [`FlushBatching::Partition`] mode.
     pub buckets: HashMap<(ProjectKey, Option<PartitionKey>), Vec<Bucket>>,
 }
 
