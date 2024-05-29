@@ -91,7 +91,7 @@ pub enum Feature {
     #[serde(rename = "projects:span-metrics-extraction")]
     ExtractCommonSpanMetricsFromEvent,
 
-    /// Enables metric extraction from spans for addons modules.
+    /// Enables metric extraction from spans for addon modules.
     ///
     /// Serialized as `projects:span-metrics-extraction-addons`.
     #[serde(rename = "projects:span-metrics-extraction-addons")]
