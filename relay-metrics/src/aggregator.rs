@@ -142,7 +142,7 @@ pub enum FlushBatching {
     #[default]
     Project,
 
-    /// Shifts the flush time by an offset based on the [`BucketKey`].
+    /// Shifts the flush time by an offset based on the bucket key.
     ///
     /// This allows for a completely random distribution of bucket flush times.
     ///
