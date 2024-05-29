@@ -3198,23 +3198,20 @@ mod tests {
                 key_id: Some(17),
             };
 
-            let mut scopes = BTreeMap::<(Scoping, Option<PartitionKey>), ProjectMetrics>::new();
-            scopes.insert(
-                (scoping_by_org_id(rate_limited_org), None),
-                project_metrics.clone(),
-            );
-            scopes.insert(
-                (scoping_by_org_id(not_ratelimited_org), None),
-                project_metrics,
-            );
+            let mut scopes = BTreeMap::<Scoping, ProjectMetrics>::new();
+            scopes.insert(scoping_by_org_id(rate_limited_org), project_metrics.clone());
+            scopes.insert(scoping_by_org_id(not_ratelimited_org), project_metrics);
 
-            EncodeMetrics { scopes }
+            EncodeMetrics {
+                partition_key: None,
+                scopes,
+            }
         };
 
         // ensure the order of the map while iterating is as expected.
         let mut iter = message.scopes.keys();
-        assert_eq!(iter.next().unwrap().0.organization_id, rate_limited_org);
-        assert_eq!(iter.next().unwrap().0.organization_id, not_ratelimited_org);
+        assert_eq!(iter.next().unwrap().organization_id, rate_limited_org);
+        assert_eq!(iter.next().unwrap().organization_id, not_ratelimited_org);
         assert!(iter.next().is_none());
 
         let config = {

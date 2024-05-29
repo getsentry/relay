@@ -2395,6 +2395,7 @@ impl Config {
             debounce_delay: 10,
             shift_key: ShiftKey::Project,
             flush_batching: FlushBatching::Project,
+            flush_partitions: None,
         }
     }
 
