@@ -7,6 +7,7 @@ use std::ops::{Deref, DerefMut};
 use std::time::Instant;
 
 use chrono::{DateTime, Utc};
+use relay_metrics::PartitionKey;
 use relay_quotas::{DataCategory, Scoping};
 use relay_system::Addr;
 
@@ -63,7 +64,7 @@ struct EnvelopeContext {
     summary: EnvelopeSummary,
     scoping: Scoping,
     slot: Option<SemaphorePermit>,
-    partition_key: Option<u64>,
+    partition_key: Option<PartitionKey>,
     done: bool,
     group: ProcessingGroup,
 }
@@ -520,11 +521,11 @@ impl ManagedEnvelope {
         self.context.scoping
     }
 
-    pub fn partition_key(&self) -> Option<u64> {
+    pub fn partition_key(&self) -> Option<PartitionKey> {
         self.context.partition_key
     }
 
-    pub fn set_partition_key(&mut self, partition_key: Option<u64>) -> &mut Self {
+    pub fn set_partition_key(&mut self, partition_key: Option<PartitionKey>) -> &mut Self {
         self.context.partition_key = partition_key;
         self
     }

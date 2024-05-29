@@ -426,6 +426,13 @@ fn parse_timestamp(string: &str) -> Option<UnixTimestamp> {
     string.parse().ok().map(UnixTimestamp::from_secs)
 }
 
+/// The key of a metric partition.
+///
+/// A partition is defined as a non-negative integer which tells Envoy to which upstream Relay
+/// instance to forward the buckets.
+///
+/// The goal of partitioning is to increase efficiency of bucketing since it allows the same buckets
+/// to always be sent to the same instances.
 pub type PartitionKey = u64;
 
 /// An aggregation of metric values.

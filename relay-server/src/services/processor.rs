@@ -14,7 +14,6 @@ use bytes::Bytes;
 use chrono::{DateTime, Utc};
 use flate2::write::{GzEncoder, ZlibEncoder};
 use flate2::Compression;
-use fnv::FnvHasher;
 use relay_base_schema::project::{ProjectId, ProjectKey};
 use relay_cogs::{AppFeature, Cogs, FeatureWeights, ResourceId, Token};
 use relay_common::time::UnixTimestamp;
@@ -2441,8 +2440,8 @@ impl EnvelopeProcessorService {
         let batch_size = self.inner.config.metrics_max_batch_size_bytes();
         let upstream = self.inner.config.upstream_descriptor();
 
-        // TODO: figure out how we want to treat message.scopes since right now we might have
-        //  the same partition key across multiple orgs.
+        // We are not achieving maximum partitioning efficiency here, because the same partition
+        // can be across different scopes.
         for ((scoping, partition_key), message) in message.scopes {
             let ProjectMetrics {
                 buckets,
@@ -2841,18 +2840,6 @@ impl UpstreamRequest for SendEnvelope {
             }
         })
     }
-}
-
-/// Computes a stable partitioning key for sharded metric requests.
-fn partition_key(project_key: ProjectKey, bucket: &Bucket, partitions: Option<u64>) -> Option<u64> {
-    use std::hash::{Hash, Hasher};
-
-    let partitions = partitions?.max(1);
-    let key = (project_key, &bucket.name, &bucket.tags);
-
-    let mut hasher = FnvHasher::default();
-    key.hash(&mut hasher);
-    Some(hasher.finish() % partitions)
 }
 
 /// A container for metric buckets from multiple projects.
