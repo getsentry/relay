@@ -140,6 +140,7 @@ impl From<&AggregatorServiceConfig> for AggregatorConfig {
             max_tag_value_length: value.max_tag_value_length,
             max_project_key_bucket_bytes: value.max_project_key_bucket_bytes,
             shift_key: value.shift_key,
+            flush_partitions: value.flush_partitions,
         }
     }
 }

@@ -17,7 +17,7 @@ use tokio::time::Instant;
 use crate::bucket::{Bucket, BucketValue};
 use crate::protocol::{self, MetricNamespace, MetricResourceIdentifier};
 use crate::statsd::{MetricCounters, MetricGauges, MetricHistograms, MetricSets, MetricTimers};
-use crate::{BucketMetadata, MetricName};
+use crate::{BucketMetadata, MetricName, PartitionKey};
 
 /// Any error that may occur during aggregation.
 #[derive(Debug, Error, PartialEq)]
@@ -60,6 +60,7 @@ enum AggregateMetricsErrorKind {
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 struct BucketKey {
+    partition_key: Option<PartitionKey>,
     project_key: ProjectKey,
     timestamp: UnixTimestamp,
     metric_name: MetricName,
@@ -186,6 +187,12 @@ pub struct AggregatorConfig {
     /// This prevents flushing all buckets from a bucket interval at the same
     /// time by computing an offset from the hash of the given key.
     pub shift_key: ShiftKey,
+
+    /// The number of logical partitions that can receive flushed buckets.
+    ///
+    /// If set, buckets are partitioned by (bucket key % flush_partitions), and routed
+    /// by setting the header `X-Sentry-Relay-Shard`.
+    pub flush_partitions: Option<u64>,
 }
 
 impl AggregatorConfig {
@@ -294,6 +301,7 @@ impl Default for AggregatorConfig {
             max_tag_value_length: 200,
             max_project_key_bucket_bytes: None,
             shift_key: ShiftKey::default(),
+            flush_partitions: None,
         }
     }
 }
@@ -646,6 +654,7 @@ impl Aggregator {
     ) -> Result<(), AggregateMetricsError> {
         let timestamp = self.get_bucket_timestamp(bucket.timestamp, bucket.width)?;
         let key = BucketKey {
+            partition_key: bucket.partition_key(project_key, self.config.flush_partitions),
             project_key,
             timestamp,
             metric_name: bucket.name,
@@ -892,6 +901,7 @@ mod tests {
             max_tag_value_length: 200,
             max_project_key_bucket_bytes: None,
             shift_key: ShiftKey::default(),
+            flush_partitions: None,
         }
     }
 
@@ -930,6 +940,7 @@ mod tests {
         [
             (
                 BucketKey {
+                    partition_key: None,
                     project_key: ProjectKey("a94ae32be2584e0bbd7a4cbb95971fee"),
                     timestamp: UnixTimestamp(999994711),
                     metric_name: MetricName(
@@ -978,6 +989,7 @@ mod tests {
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
         let metric_name = "12345".into();
         let bucket_key = BucketKey {
+            partition_key: None,
             timestamp: UnixTimestamp::now(),
             project_key,
             metric_name,
@@ -1025,6 +1037,7 @@ mod tests {
         [
             (
                 BucketKey {
+                    partition_key: None,
                     project_key: ProjectKey("a94ae32be2584e0bbd7a4cbb95971fee"),
                     timestamp: UnixTimestamp(999994710),
                     metric_name: MetricName(
@@ -1038,6 +1051,7 @@ mod tests {
             ),
             (
                 BucketKey {
+                    partition_key: None,
                     project_key: ProjectKey("a94ae32be2584e0bbd7a4cbb95971fee"),
                     timestamp: UnixTimestamp(999994720),
                     metric_name: MetricName(
@@ -1162,6 +1176,7 @@ mod tests {
             metadata: BucketMetadata::new(timestamp),
         };
         let bucket_key = BucketKey {
+            partition_key: None,
             project_key,
             timestamp: UnixTimestamp::now(),
             metric_name: "c:transactions/foo@none".into(),
@@ -1302,6 +1317,7 @@ mod tests {
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
 
         let bucket_key = BucketKey {
+            partition_key: None,
             project_key,
             timestamp: UnixTimestamp::now(),
             metric_name: "c:transactions/hergus.bergus".into(),
@@ -1347,6 +1363,7 @@ mod tests {
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
 
         let short_metric = BucketKey {
+            partition_key: None,
             project_key,
             timestamp: UnixTimestamp::now(),
             metric_name: "c:transactions/a_short_metric".into(),
@@ -1355,6 +1372,7 @@ mod tests {
         assert!(validate_bucket_key(short_metric, &test_config()).is_ok());
 
         let long_metric = BucketKey {
+            partition_key: None,
             project_key,
             timestamp: UnixTimestamp::now(),
             metric_name: "c:transactions/long_name_a_very_long_name_its_super_long_really_but_like_super_long_probably_the_longest_name_youve_seen_and_even_the_longest_name_ever_its_extremly_long_i_cant_tell_how_long_it_is_because_i_dont_have_that_many_fingers_thus_i_cant_count_the_many_characters_this_long_name_is".into(),
@@ -1370,6 +1388,7 @@ mod tests {
         ));
 
         let short_metric_long_tag_key = BucketKey {
+            partition_key: None,
             project_key,
             timestamp: UnixTimestamp::now(),
             metric_name: "c:transactions/a_short_metric_with_long_tag_key".into(),
@@ -1379,6 +1398,7 @@ mod tests {
         assert_eq!(validation.tags.len(), 0);
 
         let short_metric_long_tag_value = BucketKey {
+            partition_key: None,
             project_key,
             timestamp: UnixTimestamp::now(),
             metric_name: "c:transactions/a_short_metric_with_long_tag_value".into(),
@@ -1396,6 +1416,7 @@ mod tests {
         let tag_value = "x".repeat(199) + "ø";
         assert_eq!(tag_value.chars().count(), 200); // Should be allowed
         let short_metric = BucketKey {
+            partition_key: None,
             project_key,
             timestamp: UnixTimestamp::now(),
             metric_name: "c:transactions/a_short_metric".into(),
