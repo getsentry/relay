@@ -130,7 +130,7 @@ fn is_metric_namespace_valid(state: &ProjectState, namespace: MetricNamespace) -
         MetricNamespace::Sessions => true,
         MetricNamespace::Transactions => true,
         MetricNamespace::Spans => {
-            state.has_feature(Feature::ExtractSpansAndSpanMetricsFromEvent)
+            state.has_feature(Feature::ExtractCommonSpanMetricsFromEvent)
                 || state.has_feature(Feature::StandaloneSpanIngestion)
         }
         MetricNamespace::Profiles => true,

@@ -48,7 +48,7 @@ impl Extractable for Span {
 pub fn extract_metrics(
     event: &Event,
     spans_extracted: bool,
-    config: &CombinedMetricExtractionConfig<'_>,
+    config: CombinedMetricExtractionConfig<'_>,
     max_tag_value_size: usize,
     span_extraction_sample_rate: Option<f32>,
 ) -> Vec<Bucket> {
@@ -65,7 +65,7 @@ pub fn extract_metrics(
 
 fn extract_span_metrics_for_event(
     event: &Event,
-    config: &CombinedMetricExtractionConfig<'_>,
+    config: CombinedMetricExtractionConfig<'_>,
     max_tag_value_size: usize,
     output: &mut Vec<Bucket>,
 ) {
@@ -90,7 +90,6 @@ mod tests {
 
     use chrono::{DateTime, Utc};
     use insta::assert_debug_snapshot;
-    use once_cell::sync::Lazy;
     use relay_dynamic_config::{
         Feature, FeatureSet, GlobalConfig, MetricExtractionConfig, MetricExtractionGroups,
         ProjectConfig,
@@ -101,31 +100,35 @@ mod tests {
 
     use super::*;
 
-    static GLOBAL_CONFIG: Lazy<MetricExtractionGroups> = Lazy::new(|| {
+    struct OwnedConfig {
+        global: MetricExtractionGroups,
+        project: MetricExtractionConfig,
+    }
+
+    impl OwnedConfig {
+        fn combined(&self) -> CombinedMetricExtractionConfig {
+            CombinedMetricExtractionConfig::new(&self.global, &self.project)
+        }
+    }
+
+    fn combined_config(features: impl Into<BTreeSet<Feature>>) -> OwnedConfig {
         let mut global = GlobalConfig::default();
         global.normalize(); // defines metrics extraction rules
-        global.metric_extraction.ok().unwrap()
-    });
+        let global = global.metric_extraction.ok().unwrap();
 
-    static PROJECT_CONFIG: Lazy<MetricExtractionConfig> = Lazy::new(|| {
-        let features = FeatureSet(BTreeSet::from([
-            Feature::ExtractSpansAndSpanMetricsFromEvent,
-        ]));
+        let features = FeatureSet(features.into());
 
         let mut project = ProjectConfig {
             features,
             ..ProjectConfig::default()
         };
         project.sanitize(); // enables metrics extraction rules
-        project.metric_extraction.ok().unwrap()
-    });
+        let project = project.metric_extraction.ok().unwrap();
 
-    fn combined_config() -> CombinedMetricExtractionConfig<'static> {
-        CombinedMetricExtractionConfig::new(&GLOBAL_CONFIG, &PROJECT_CONFIG)
+        OwnedConfig { global, project }
     }
 
-    #[test]
-    fn test_extract_span_metrics() {
+    fn extract_span_metrics(features: impl Into<BTreeSet<Feature>>) -> Vec<Bucket> {
         let json = r#"
         {
             "type": "transaction",
@@ -1177,7 +1180,40 @@ mod tests {
             },
         );
 
-        let metrics = extract_metrics(event.value().unwrap(), false, &combined_config(), 200, None);
+        extract_metrics(
+            event.value().unwrap(),
+            false,
+            combined_config(features).combined(),
+            200,
+            None,
+        )
+    }
+
+    #[test]
+    fn no_feature_flags_enabled() {
+        let metrics = extract_span_metrics([]);
+        assert!(metrics.is_empty());
+    }
+
+    #[test]
+    fn only_common() {
+        let metrics = extract_span_metrics([Feature::ExtractCommonSpanMetricsFromEvent]);
+        insta::assert_debug_snapshot!(metrics);
+    }
+
+    #[test]
+    fn only_addons() {
+        // Nothing is extracted without the common flag:
+        let metrics = extract_span_metrics([Feature::ExtractAddonsSpanMetricsFromEvent]);
+        assert!(metrics.is_empty());
+    }
+
+    #[test]
+    fn both_feature_flags_enabled() {
+        let metrics = extract_span_metrics([
+            Feature::ExtractCommonSpanMetricsFromEvent,
+            Feature::ExtractAddonsSpanMetricsFromEvent,
+        ]);
         insta::assert_debug_snapshot!(metrics);
     }
 
@@ -1339,7 +1375,13 @@ mod tests {
             },
         );
 
-        let metrics = extract_metrics(event.value().unwrap(), false, &combined_config(), 200, None);
+        let metrics = extract_metrics(
+            event.value().unwrap(),
+            false,
+            combined_config([Feature::ExtractCommonSpanMetricsFromEvent]).combined(),
+            200,
+            None,
+        );
         insta::assert_debug_snapshot!((&event.value().unwrap().spans, metrics));
     }
 
@@ -1390,7 +1432,13 @@ mod tests {
         "#;
         let event = Annotated::from_json(json).unwrap();
 
-        let metrics = extract_metrics(event.value().unwrap(), false, &combined_config(), 200, None);
+        let metrics = extract_metrics(
+            event.value().unwrap(),
+            false,
+            combined_config([Feature::ExtractCommonSpanMetricsFromEvent]).combined(),
+            200,
+            None,
+        );
 
         // When transaction.op:ui.load and mobile:true, HTTP spans still get both
         // exclusive_time metrics:
@@ -1416,7 +1464,13 @@ mod tests {
             },
         );
 
-        let metrics = extract_metrics(event.value().unwrap(), false, &combined_config(), 200, None);
+        let metrics = extract_metrics(
+            event.value().unwrap(),
+            false,
+            combined_config([Feature::ExtractCommonSpanMetricsFromEvent]).combined(),
+            200,
+            None,
+        );
 
         let usage_metrics = metrics
             .into_iter()
@@ -1441,7 +1495,10 @@ mod tests {
         span.op.set_value(Some(span_op.into()));
         span.exclusive_time.set_value(Some(duration_millis));
 
-        generic::extract_metrics(&span, &combined_config())
+        generic::extract_metrics(
+            &span,
+            combined_config([Feature::ExtractCommonSpanMetricsFromEvent]).combined(),
+        )
     }
 
     #[test]
@@ -1551,7 +1608,10 @@ mod tests {
             .unwrap()
             .into_value()
             .unwrap();
-        let metrics = generic::extract_metrics(&span, &combined_config());
+        let metrics = generic::extract_metrics(
+            &span,
+            combined_config([Feature::ExtractCommonSpanMetricsFromEvent]).combined(),
+        );
 
         assert!(!metrics.is_empty());
         for metric in metrics {
@@ -1591,7 +1651,10 @@ mod tests {
             }
         "#;
         let span = Annotated::<Span>::from_json(json).unwrap();
-        let metrics = generic::extract_metrics(span.value().unwrap(), &combined_config());
+        let metrics = generic::extract_metrics(
+            span.value().unwrap(),
+            combined_config([Feature::ExtractCommonSpanMetricsFromEvent]).combined(),
+        );
 
         for mri in [
             "d:spans/webvital.inp@millisecond",
@@ -1624,7 +1687,13 @@ mod tests {
             "#;
         let event = Annotated::<Event>::from_json(event).unwrap();
 
-        let metrics = extract_metrics(event.value().unwrap(), false, &combined_config(), 200, None);
+        let metrics = extract_metrics(
+            event.value().unwrap(),
+            false,
+            combined_config([Feature::ExtractCommonSpanMetricsFromEvent]).combined(),
+            200,
+            None,
+        );
 
         assert_eq!(metrics.len(), 4);
 

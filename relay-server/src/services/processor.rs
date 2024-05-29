@@ -1268,7 +1268,7 @@ impl EnvelopeProcessorService {
         let metrics = crate::metrics_extraction::event::extract_metrics(
             event,
             state.spans_extracted,
-            &combined_config,
+            combined_config,
             self.inner
                 .config
                 .aggregator_config_for(MetricNamespace::Spans)
@@ -1286,7 +1286,7 @@ impl EnvelopeProcessorService {
 
             let extractor = TransactionExtractor {
                 config: tx_config,
-                generic_config: Some(&combined_config),
+                generic_config: Some(combined_config),
                 transaction_from_dsc,
                 sampling_result,
                 has_profile: state.profile_id.is_some(),
@@ -1404,7 +1404,10 @@ impl EnvelopeProcessorService {
                     .has_feature(Feature::DeviceClassSynthesis),
                 enrich_spans: state
                     .project_state
-                    .has_feature(Feature::ExtractSpansAndSpanMetricsFromEvent),
+                    .has_feature(Feature::ExtractSpansFromEvent)
+                    || state
+                        .project_state
+                        .has_feature(Feature::ExtractCommonSpanMetricsFromEvent),
                 max_tag_value_length: self
                     .inner
                     .config
@@ -1543,12 +1546,18 @@ impl EnvelopeProcessorService {
 
                 if state.has_event() {
                     event::scrub(state)?;
+
                     if_processing!(self.inner.config, {
-                        span::extract_from_event(
-                            state,
-                            &self.inner.config,
-                            &self.inner.global_config.current(),
-                        );
+                        if state
+                            .project_state
+                            .has_feature(Feature::ExtractSpansFromEvent)
+                        {
+                            span::extract_from_event(
+                                state,
+                                &self.inner.config,
+                                &self.inner.global_config.current(),
+                            );
+                        }
                     });
                 }
 
