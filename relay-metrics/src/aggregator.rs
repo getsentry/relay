@@ -134,7 +134,7 @@ pub fn tags_cost(tags: &BTreeMap<String, String>) -> usize {
 
 /// Configuration value for [`AggregatorConfig::flush_batching`].
 #[derive(Clone, Copy, Debug, Default, Deserialize, Serialize)]
-#[serde(rename_all = "lowercase")]
+#[serde(tag = "type", rename_all = "lowercase")]
 pub enum FlushBatching {
     /// Shifts the flush time by an offset based on the [`ProjectKey`].
     ///
@@ -230,17 +230,16 @@ pub struct AggregatorConfig {
     /// Defaults to `None`, i.e. no limit.
     pub max_project_key_bucket_bytes: Option<usize>,
 
-    /// Key used to shift the flush time of a bucket.
+    /// The batching mode for the flushing of the aggregator.
     ///
-    /// This prevents flushing all buckets from a bucket interval at the same
-    /// time by computing an offset from the hash of the given key.
+    /// Batching is applied via shifts to the flushing time that is determined when the first bucket
+    /// is inserted. Thanks to the shifts, Relay is able to prevent flushing all buckets from a
+    /// bucket interval at the same time.
+    ///
+    /// For example, the aggregator can choose to shift by the same value all buckets within a given
+    /// partition, effectively allowing all the elements of that partition to be flushed together.
     pub flush_batching: FlushBatching,
 }
-
-// We might have three ways of batching metrics:
-// Global -> all metrics
-// By project
-// By partition
 
 impl AggregatorConfig {
     /// Returns the instant at which a bucket should be flushed.
@@ -997,7 +996,6 @@ mod tests {
         [
             (
                 BucketKey {
-                    partition_key: None,
                     project_key: ProjectKey("a94ae32be2584e0bbd7a4cbb95971fee"),
                     timestamp: UnixTimestamp(999994711),
                     metric_name: MetricName(
@@ -1093,7 +1091,6 @@ mod tests {
         [
             (
                 BucketKey {
-                    partition_key: None,
                     project_key: ProjectKey("a94ae32be2584e0bbd7a4cbb95971fee"),
                     timestamp: UnixTimestamp(999994710),
                     metric_name: MetricName(
@@ -1107,7 +1104,6 @@ mod tests {
             ),
             (
                 BucketKey {
-                    partition_key: None,
                     project_key: ProjectKey("a94ae32be2584e0bbd7a4cbb95971fee"),
                     timestamp: UnixTimestamp(999994720),
                     metric_name: MetricName(
@@ -1533,10 +1529,15 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_shift_key() {
-        let json = r#"{"shift_key": "bucket"}"#;
+    fn test_parse_flush_batching() {
+        let json = r#"{"flush_batching": {"type": "partition", "flush_partitions": 10}}"#;
         let parsed: AggregatorConfig = serde_json::from_str(json).unwrap();
-        assert!(matches!(parsed.flush_batching, FlushBatching::Bucket));
+        assert!(matches!(
+            parsed.flush_batching,
+            FlushBatching::Partition {
+                flush_partitions: 10
+            }
+        ));
     }
 
     #[test]

@@ -86,10 +86,14 @@ pub struct AggregatorServiceConfig {
     /// Defaults to `None`, i.e. no limit.
     pub max_project_key_bucket_bytes: Option<usize>,
 
-    /// Key used to shift the flush time of a bucket.
+    /// The batching mode for the flushing of the aggregator.
     ///
-    /// This prevents flushing all buckets from a bucket interval at the same
-    /// time by computing an offset from the hash of the given key.
+    /// Batching is applied via shifts to the flushing time that is determined when the first bucket
+    /// is inserted. Thanks to the shifts, Relay is able to prevent flushing all buckets from a
+    /// bucket interval at the same time.
+    ///
+    /// For example, the aggregator can choose to shift by the same value all buckets within a given
+    /// partition, effectively allowing all the elements of that partition to be flushed together.
     pub flush_batching: FlushBatching,
 
     // TODO(dav1dde): move these config values to a better spot
