@@ -900,10 +900,10 @@ impl ProjectCacheBroker {
         let metric_outcomes = self.metric_outcomes.clone();
 
         let mut output = BTreeMap::new();
-        for (project_key, buckets) in message.buckets {
+        for ((project_key, partition_key), buckets) in message.buckets {
             let project = self.get_or_create_project(project_key);
             if let Some((scoping, b)) = project.check_buckets(&metric_outcomes, buckets) {
-                output.insert(scoping, b);
+                output.insert((scoping, partition_key), b);
             }
         }
 

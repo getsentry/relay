@@ -31,7 +31,7 @@ use relay_event_schema::protocol::{
 };
 use relay_filter::FilterStatKey;
 use relay_metrics::aggregator::AggregatorConfig;
-use relay_metrics::{Bucket, BucketMetadata, BucketView, BucketsView, MetricMeta, MetricNamespace};
+use relay_metrics::{Bucket, BucketMetadata, BucketView, BucketsView, MetricMeta, MetricNamespace, PartitionKey};
 use relay_pii::PiiConfigError;
 use relay_profiling::ProfileId;
 use relay_protocol::{Annotated, Value};
@@ -811,7 +811,7 @@ pub struct ProjectMetrics {
 /// Encodes metrics into an envelope ready to be sent upstream.
 #[derive(Debug)]
 pub struct EncodeMetrics {
-    pub scopes: BTreeMap<Scoping, ProjectMetrics>,
+    pub scopes: BTreeMap<(Scoping, Option<PartitionKey>), ProjectMetrics>,
 }
 
 /// Encodes metric meta into an [`Envelope`] and sends it upstream.
@@ -2390,7 +2390,7 @@ impl EnvelopeProcessorService {
 
         let global_config = self.inner.global_config.current();
 
-        for (scoping, message) in message.scopes {
+        for ((scoping, _partition_key), message) in message.scopes {
             let ProjectMetrics {
                 buckets,
                 project_state,
@@ -2439,7 +2439,7 @@ impl EnvelopeProcessorService {
         let batch_size = self.inner.config.metrics_max_batch_size_bytes();
         let upstream = self.inner.config.upstream_descriptor();
 
-        for (scoping, message) in message.scopes {
+        for ((scoping, _partition_key), message) in message.scopes {
             let ProjectMetrics {
                 buckets,
                 project_state,
@@ -2549,7 +2549,7 @@ impl EnvelopeProcessorService {
 
         let mut partitions = BTreeMap::new();
 
-        for (scoping, message) in &message.scopes {
+        for ((scoping, _partition_key), message) in &message.scopes {
             let ProjectMetrics {
                 buckets,
                 project_state,

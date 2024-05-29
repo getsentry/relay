@@ -10,6 +10,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::aggregator::{self, AggregatorConfig, ShiftKey};
 use crate::bucket::Bucket;
+use crate::PartitionKey;
 use crate::statsd::{MetricCounters, MetricHistograms, MetricTimers};
 
 /// Interval for the flush cycle of the [`AggregatorService`].
@@ -221,7 +222,7 @@ pub struct BucketCountInquiry;
 #[derive(Clone, Debug)]
 pub struct FlushBuckets {
     /// The buckets to be flushed.
-    pub buckets: HashMap<ProjectKey, Vec<Bucket>>,
+    pub buckets: HashMap<(ProjectKey, Option<PartitionKey>), Vec<Bucket>>,
 }
 
 enum AggregatorState {
@@ -445,7 +446,7 @@ mod tests {
     }
 
     impl TestReceiver {
-        fn add_buckets(&self, buckets: HashMap<ProjectKey, Vec<Bucket>>) {
+        fn add_buckets(&self, buckets: HashMap<(ProjectKey, Option<PartitionKey>), Vec<Bucket>>) {
             let buckets = buckets.into_values().flatten();
             self.data.write().unwrap().buckets.extend(buckets);
         }

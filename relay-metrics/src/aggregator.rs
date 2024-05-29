@@ -116,6 +116,11 @@ pub enum ShiftKey {
     /// Only for use in processing Relays.
     Bucket,
 
+    /// Shifts the flush time by an offset based on the [`PartitionKey`] if present.
+    ///
+    /// This allows buckets with the same partition to be flushed together.
+    Partition,
+
     /// Do not apply shift. This should be set when `http.global_metrics` is used.
     None,
 }
@@ -258,6 +263,7 @@ impl AggregatorConfig {
                 hasher.finish()
             }
             ShiftKey::Bucket => bucket.hash64(),
+            ShiftKey::Partition => bucket.project_key,
             ShiftKey::None => return Duration::ZERO,
         };
 
@@ -550,7 +556,7 @@ impl Aggregator {
     /// Pop and return the buckets that are eligible for flushing out according to bucket interval.
     ///
     /// Note that this function is primarily intended for tests.
-    pub fn pop_flush_buckets(&mut self, force: bool) -> HashMap<ProjectKey, Vec<Bucket>> {
+    pub fn pop_flush_buckets(&mut self, force: bool) -> HashMap<(ProjectKey, Option<PartitionKey>), Vec<Bucket>> {
         relay_statsd::metric!(
             gauge(MetricGauges::Buckets) = self.bucket_count() as u64,
             aggregator = &self.name,
@@ -596,7 +602,7 @@ impl Aggregator {
                         };
 
                         buckets
-                            .entry(key.project_key)
+                            .entry((key.project_key, key.partition_key))
                             .or_insert_with(Vec::new)
                             .push(bucket);
 

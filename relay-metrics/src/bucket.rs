@@ -729,6 +729,12 @@ impl Bucket {
     ///
     /// The role of partitioning is to let Relays forward the same metric to the same upstream
     /// instance with the goal of increasing bucketing efficiency.
+    /// 
+    /// It's very important that the partition key is computed using a subset of the values that are
+    /// in the [`BucketKey`] (excluding the partition key itself). This is required otherwise we
+    /// might have the same bucket assigned to a different [`BucketKey`] because the partition key
+    /// is computed with extra fields. Having a different bucket key will result in less efficiency
+    /// during aggregation which we definitely don't want.
     pub fn partition_key(
         &self,
         project_key: ProjectKey,
