@@ -612,6 +612,6 @@ jobs:
         uses: getsentry/action-self-hosted-e2e-tests@267fab2add9e173029c1e09ecfd82e04688d7c44
         with:
           project_name: relay
-          image_url: ghcr.io/getsentry/relay:${{ github.event.pull_request.head.sha || github.sha }}
+          image_url: ghcr.io/getsentry/relay:e27613a1b41bef3a417aef4031d234114903b2f8
           docker_repo: getsentry/relay
           docker_password: ${{ secrets.DOCKER_HUB_RW_TOKEN }}
