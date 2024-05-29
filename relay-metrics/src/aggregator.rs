@@ -3,7 +3,7 @@
 use std::collections::hash_map::Entry;
 use std::collections::{BTreeMap, HashMap};
 use std::error::Error;
-use std::hash::Hasher;
+use std::hash::{Hash, Hasher};
 use std::time::Duration;
 use std::{fmt, mem};
 
@@ -98,6 +98,18 @@ impl BucketKey {
         self.metric_name.namespace()
     }
 
+    /// Computes the hash of the partition which will be used to compute the [`PartitionKey`].
+    fn partition_hash(&self) -> u64 {
+        use std::hash::{Hash, Hasher};
+
+        let key = (self.project_key, &self.metric_name, &self.tags);
+
+        let mut hasher = fnv::FnvHasher::default();
+        key.hash(&mut hasher);
+
+        hasher.finish()
+    }
+
     /// Computes a stable partitioning key for this [`Bucket`].
     ///
     /// The partitioning key is inherently producing collisions, since the output of the hasher is
@@ -106,15 +118,9 @@ impl BucketKey {
     ///
     /// The role of partitioning is to let Relays forward the same metric to the same upstream
     /// instance with the goal of increasing bucketing efficiency.
-    pub fn partition_key(&self, partitions: u64) -> PartitionKey {
-        use std::hash::{Hash, Hasher};
-
+    fn partition_key(&self, partitions: u64) -> PartitionKey {
         let partitions = partitions.max(1);
-        let key = (self.project_key, &self.metric_name, &self.tags);
-
-        let mut hasher = fnv::FnvHasher::default();
-        key.hash(&mut hasher);
-        hasher.finish() % partitions
+        self.partition_hash() % partitions
     }
 }
 
@@ -124,6 +130,30 @@ impl BucketKey {
 /// because data structures or their serialization have overheads.
 pub fn tags_cost(tags: &BTreeMap<String, String>) -> usize {
     tags.iter().map(|(k, v)| k.len() + v.len()).sum()
+}
+
+/// Configuration value for [`AggregatorConfig::shift_key`].
+///
+/// Kept for backward compatibility with old configuration but unused.
+#[derive(Clone, Copy, Debug, Default, Deserialize, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ShiftKey {
+    /// Shifts the flush time by an offset based on the [`ProjectKey`].
+    ///
+    /// This allows buckets from the same project to be flushed together.
+    #[default]
+    Project,
+
+    /// Shifts the flush time by an offset based on the bucket key.
+    ///
+    /// This allows for a completely random distribution of bucket flush times.
+    ///
+    /// It should only be used in processing Relays since this flushing behavior it's better
+    /// suited for how Relay emits metrics to Kafka.
+    Bucket,
+
+    /// Do not apply shift.
+    None,
 }
 
 /// Configuration value for [`AggregatorConfig::flush_batching`].
@@ -224,6 +254,12 @@ pub struct AggregatorConfig {
     /// Defaults to `None`, i.e. no limit.
     pub max_project_key_bucket_bytes: Option<usize>,
 
+    /// Key used to shift the flush time of a bucket.
+    ///
+    /// This prevents flushing all buckets from a bucket interval at the same
+    /// time by computing an offset from the hash of the given key.
+    pub shift_key: ShiftKey,
+
     /// The batching mode for the flushing of the aggregator.
     ///
     /// Batching is applied via shifts to the flushing time that is determined when the first bucket
@@ -291,6 +327,8 @@ impl AggregatorConfig {
     ///
     /// This distributes buckets over time to prevent peaks.
     fn flush_time_shift(&self, bucket: &BucketKey) -> Duration {
+        let shift_range = self.bucket_interval * 1000;
+
         let hash_value = match self.flush_batching {
             FlushBatching::Project => {
                 let mut hasher = FnvHasher::default();
@@ -298,11 +336,25 @@ impl AggregatorConfig {
                 hasher.finish()
             }
             FlushBatching::Bucket => bucket.hash64(),
-            FlushBatching::Partition { flush_partitions } => bucket.partition_key(flush_partitions),
+            FlushBatching::Partition { flush_partitions } => {
+                // Since we don't want to have close partition hashes flushed at very similar time,
+                // we use a formula to compute the ideal distance in time between each partition
+                // and multiply that by partition hash.
+                //
+                // For example, suppose we have 60.000ms of possible shift and 120 flush
+                // partitions, this means that we would like to space each partition with 500ms to
+                // give it even spacing. Now suppose the partition hashes for two buckets are
+                // 1 and 2, if we were to take these values, we would end up with a difference of
+                // 1ms between the two partition key shifts. With this logic, we will scale both
+                // numbers by 500 meaning that they will be flushed at 500 ms of distance, which is
+                // much better.
+                let distance = shift_range / flush_partitions;
+                distance * bucket.partition_hash()
+            }
             FlushBatching::None => return Duration::ZERO,
         };
 
-        let shift_millis = hash_value % (self.bucket_interval * 1000);
+        let shift_millis = hash_value % shift_range;
         Duration::from_millis(shift_millis)
     }
 
@@ -341,6 +393,7 @@ impl Default for AggregatorConfig {
             max_tag_key_length: 200,
             max_tag_value_length: 200,
             max_project_key_bucket_bytes: None,
+            shift_key: ShiftKey::default(),
             flush_batching: FlushBatching::default(),
         }
     }
@@ -587,13 +640,16 @@ impl Aggregator {
             .collect()
     }
 
-    /// Pop and return the buckets that are eligible for flushing out according to bucket interval.
+    /// Pop and return the partitions with buckets that are eligible for flushing out according to
+    /// bucket interval.
+    ///
+    /// If no partitioning is enabled, the function will return a single `None` partition.
     ///
     /// Note that this function is primarily intended for tests.
     pub fn pop_flush_buckets(
         &mut self,
         force: bool,
-    ) -> HashMap<(ProjectKey, Option<PartitionKey>), Vec<Bucket>> {
+    ) -> HashMap<Option<PartitionKey>, HashMap<ProjectKey, Vec<Bucket>>> {
         relay_statsd::metric!(
             gauge(MetricGauges::Buckets) = self.bucket_count() as u64,
             aggregator = &self.name,
@@ -606,7 +662,7 @@ impl Aggregator {
             aggregator = &self.name,
         );
 
-        let mut buckets = HashMap::new();
+        let mut partitions = HashMap::new();
         let mut stats = HashMap::new();
 
         relay_statsd::metric!(
@@ -647,8 +703,10 @@ impl Aggregator {
                             _ => None,
                         };
 
-                        buckets
-                            .entry((key.project_key, partition_key))
+                        partitions
+                            .entry(partition_key)
+                            .or_insert_with(HashMap::new)
+                            .entry(key.project_key)
                             .or_insert_with(Vec::new)
                             .push(bucket);
 
@@ -669,7 +727,7 @@ impl Aggregator {
             );
         }
 
-        buckets
+        partitions
     }
 
     /// Wrapper for [`AggregatorConfig::get_bucket_timestamp`].
@@ -951,6 +1009,7 @@ mod tests {
             max_tag_key_length: 200,
             max_tag_value_length: 200,
             max_project_key_bucket_bytes: None,
+            shift_key: ShiftKey::default(),
             flush_batching: FlushBatching::default(),
         }
     }

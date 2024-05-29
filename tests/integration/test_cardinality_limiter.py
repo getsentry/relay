@@ -7,7 +7,7 @@ TEST_CONFIG = {
         "bucket_interval": 1,
         "initial_delay": 0,
         "debounce_delay": 0,
-        "shift_key": "none",
+        "flush_batching": {"type": "none"},
     }
 }
 

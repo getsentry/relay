@@ -1275,7 +1275,7 @@ def test_span_ingestion_with_performance_scores(
                 "bucket_interval": 1,
                 "initial_delay": 0,
                 "debounce_delay": 0,
-                "shift_key": "none",
+                "flush_batching": {"type": "none"},
             }
         }
     )

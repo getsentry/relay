@@ -810,7 +810,8 @@ pub struct ProjectMetrics {
 /// Encodes metrics into an envelope ready to be sent upstream.
 #[derive(Debug)]
 pub struct EncodeMetrics {
-    pub scopes: BTreeMap<(Scoping, Option<PartitionKey>), ProjectMetrics>,
+    pub partition_key: Option<PartitionKey>,
+    pub scopes: BTreeMap<Scoping, ProjectMetrics>,
 }
 
 /// Encodes metric meta into an [`Envelope`] and sends it upstream.
@@ -2389,7 +2390,7 @@ impl EnvelopeProcessorService {
 
         let global_config = self.inner.global_config.current();
 
-        for ((scoping, _partition_key), message) in message.scopes {
+        for (scoping, message) in message.scopes {
             let ProjectMetrics {
                 buckets,
                 project_state,
@@ -2435,10 +2436,15 @@ impl EnvelopeProcessorService {
     /// access to the central Redis instance. Cached rate limits are applied in the project cache
     /// already.
     fn encode_metrics_envelope(&self, message: EncodeMetrics) {
+        let EncodeMetrics {
+            partition_key,
+            scopes,
+        } = message;
+
         let batch_size = self.inner.config.metrics_max_batch_size_bytes();
         let upstream = self.inner.config.upstream_descriptor();
 
-        for ((scoping, partition_key), message) in message.scopes {
+        for (scoping, message) in scopes {
             let ProjectMetrics {
                 buckets,
                 project_state,
@@ -2483,7 +2489,11 @@ impl EnvelopeProcessorService {
     }
 
     /// Creates a [`SendMetricsRequest`] and sends it to the upstream relay.
-    fn send_global_partition(&self, key: Option<u64>, partition: &mut Partition<'_>) {
+    fn send_global_partition(
+        &self,
+        partition_key: Option<PartitionKey>,
+        partition: &mut Partition<'_>,
+    ) {
         if partition.is_empty() {
             return;
         }
@@ -2500,7 +2510,7 @@ impl EnvelopeProcessorService {
         };
 
         let request = SendMetricsRequest {
-            partition_key: key.map(|k| k.to_string()),
+            partition_key: partition_key.map(|k| k.to_string()),
             unencoded,
             encoded,
             project_info,
@@ -2526,11 +2536,15 @@ impl EnvelopeProcessorService {
     /// access to the central Redis instance. Cached rate limits are applied in the project cache
     /// already.
     fn encode_metrics_global(&self, message: EncodeMetrics) {
-        let batch_size = self.inner.config.metrics_max_batch_size_bytes();
+        let EncodeMetrics {
+            partition_key,
+            scopes,
+        } = message;
 
+        let batch_size = self.inner.config.metrics_max_batch_size_bytes();
         let mut partitions = BTreeMap::new();
 
-        for ((scoping, partition_key), message) in &message.scopes {
+        for (scoping, message) in &scopes {
             let ProjectMetrics {
                 buckets,
                 project_state,
@@ -2540,16 +2554,17 @@ impl EnvelopeProcessorService {
 
             for bucket in buckets {
                 let mut remaining = Some(BucketView::new(bucket));
+
                 while let Some(bucket) = remaining.take() {
                     let partition = partitions
-                        .entry(*partition_key)
+                        .entry(partition_key)
                         .or_insert_with(|| Partition::new(batch_size));
 
                     if let Some(next) = partition.insert(bucket, *scoping, mode) {
                         // A part of the bucket could not be inserted. Take the partition and submit
                         // it immediately. Repeat until the final part was inserted. This should
                         // always result in a request, otherwise we would enter an endless loop.
-                        self.send_global_partition(*partition_key, partition);
+                        self.send_global_partition(partition_key, partition);
                         remaining = Some(next);
                     }
                 }
