@@ -252,9 +252,9 @@ impl AggregatorConfig {
         Duration::from_secs(self.initial_delay)
     }
 
-    // Shift deterministically within one bucket interval based on the project or bucket key.
-    //
-    // This distributes buckets over time to prevent peaks.
+    /// Shift deterministically within one bucket interval based on the project or bucket key.
+    ///
+    /// This distributes buckets over time to prevent peaks.
     fn flush_time_shift(&self, bucket: &BucketKey) -> Duration {
         let hash_value = match self.shift_key {
             ShiftKey::Project => {

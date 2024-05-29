@@ -2399,6 +2399,7 @@ impl Config {
             initial_delay: 30,
             debounce_delay: 10,
             shift_key: ShiftKey::Project,
+            flush_partitions: None,
         }
     }
 

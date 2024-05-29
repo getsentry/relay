@@ -2441,64 +2441,49 @@ impl EnvelopeProcessorService {
         let batch_size = self.inner.config.metrics_max_batch_size_bytes();
         let upstream = self.inner.config.upstream_descriptor();
 
-        for ((scoping, _partition_key), message) in message.scopes {
+        // TODO: figure out how we want to treat message.scopes since right now we might have
+        //  the same partition key across multiple orgs.
+        for ((scoping, partition_key), message) in message.scopes {
             let ProjectMetrics {
                 buckets,
                 project_state,
             } = message;
 
-            let project_key = scoping.project_key;
             let dsn = PartialDsn::outbound(&scoping, upstream);
             let mode = project_state.get_extraction_mode();
 
-            let partitions = if let Some(count) = self.inner.config.metrics_partitions() {
-                let mut partitions: BTreeMap<Option<u64>, Vec<Bucket>> = BTreeMap::new();
-                for bucket in buckets {
-                    let partition_key = partition_key(project_key, &bucket, Some(count));
-                    partitions.entry(partition_key).or_default().push(bucket);
-                }
-                partitions
-            } else {
-                BTreeMap::from([(None, buckets)])
-            };
+            if let Some(key) = partition_key {
+                relay_statsd::metric!(histogram(RelayHistograms::PartitionKeys) = key);
+            }
 
-            for (partition_key, buckets) in partitions {
-                if let Some(key) = partition_key {
-                    relay_statsd::metric!(histogram(RelayHistograms::PartitionKeys) = key);
-                }
+            let mut num_batches = 0;
+            for batch in BucketsView::from(&buckets).by_size(batch_size) {
+                let mut envelope = Envelope::from_request(None, RequestMeta::outbound(dsn.clone()));
 
-                let mut num_batches = 0;
-                for batch in BucketsView::from(&buckets).by_size(batch_size) {
-                    let mut envelope =
-                        Envelope::from_request(None, RequestMeta::outbound(dsn.clone()));
+                let mut item = Item::new(ItemType::MetricBuckets);
+                item.set_source_quantities(metrics::extract_quantities(batch, mode));
+                item.set_payload(ContentType::Json, serde_json::to_vec(&buckets).unwrap());
+                envelope.add_item(item);
 
-                    let mut item = Item::new(ItemType::MetricBuckets);
-                    item.set_source_quantities(metrics::extract_quantities(batch, mode));
-                    item.set_payload(ContentType::Json, serde_json::to_vec(&buckets).unwrap());
-                    envelope.add_item(item);
-
-                    let mut envelope = ManagedEnvelope::standalone(
-                        envelope,
-                        self.inner.addrs.outcome_aggregator.clone(),
-                        self.inner.addrs.test_store.clone(),
-                        ProcessingGroup::Metrics,
-                    );
-                    envelope.set_partition_key(partition_key).scope(scoping);
-
-                    relay_statsd::metric!(
-                        histogram(RelayHistograms::BucketsPerBatch) = batch.len() as u64
-                    );
-
-                    self.handle_submit_envelope(SubmitEnvelope {
-                        envelope: envelope.into_processed(),
-                    });
-                    num_batches += 1;
-                }
+                let mut envelope = ManagedEnvelope::standalone(
+                    envelope,
+                    self.inner.addrs.outcome_aggregator.clone(),
+                    self.inner.addrs.test_store.clone(),
+                    ProcessingGroup::Metrics,
+                );
+                envelope.set_partition_key(partition_key).scope(scoping);
 
                 relay_statsd::metric!(
-                    histogram(RelayHistograms::BatchesPerPartition) = num_batches
+                    histogram(RelayHistograms::BucketsPerBatch) = batch.len() as u64
                 );
+
+                self.handle_submit_envelope(SubmitEnvelope {
+                    envelope: envelope.into_processed(),
+                });
+                num_batches += 1;
             }
+
+            relay_statsd::metric!(histogram(RelayHistograms::BatchesPerPartition) = num_batches);
         }
     }
 
@@ -2546,12 +2531,11 @@ impl EnvelopeProcessorService {
     /// access to the central Redis instance. Cached rate limits are applied in the project cache
     /// already.
     fn encode_metrics_global(&self, message: EncodeMetrics) {
-        let partition_count = self.inner.config.metrics_partitions();
         let batch_size = self.inner.config.metrics_max_batch_size_bytes();
 
         let mut partitions = BTreeMap::new();
 
-        for ((scoping, _partition_key), message) in &message.scopes {
+        for ((scoping, partition_key), message) in &message.scopes {
             let ProjectMetrics {
                 buckets,
                 project_state,
@@ -2560,19 +2544,17 @@ impl EnvelopeProcessorService {
             let mode = project_state.get_extraction_mode();
 
             for bucket in buckets {
-                let partition_key = partition_key(scoping.project_key, bucket, partition_count);
-
                 let mut remaining = Some(BucketView::new(bucket));
                 while let Some(bucket) = remaining.take() {
                     let partition = partitions
-                        .entry(partition_key)
+                        .entry(*partition_key)
                         .or_insert_with(|| Partition::new(batch_size));
 
                     if let Some(next) = partition.insert(bucket, *scoping, mode) {
                         // A part of the bucket could not be inserted. Take the partition and submit
                         // it immediately. Repeat until the final part was inserted. This should
                         // always result in a request, otherwise we would enter an endless loop.
-                        self.send_global_partition(partition_key, partition);
+                        self.send_global_partition(*partition_key, partition);
                         remaining = Some(next);
                     }
                 }
@@ -3218,17 +3200,23 @@ mod tests {
                 key_id: Some(17),
             };
 
-            let mut scopes = BTreeMap::<Scoping, ProjectMetrics>::new();
-            scopes.insert(scoping_by_org_id(rate_limited_org), project_metrics.clone());
-            scopes.insert(scoping_by_org_id(not_ratelimited_org), project_metrics);
+            let mut scopes = BTreeMap::<(Scoping, Option<PartitionKey>), ProjectMetrics>::new();
+            scopes.insert(
+                (scoping_by_org_id(rate_limited_org), None),
+                project_metrics.clone(),
+            );
+            scopes.insert(
+                (scoping_by_org_id(not_ratelimited_org), None),
+                project_metrics,
+            );
 
             EncodeMetrics { scopes }
         };
 
         // ensure the order of the map while iterating is as expected.
         let mut iter = message.scopes.keys();
-        assert_eq!(iter.next().unwrap().organization_id, rate_limited_org);
-        assert_eq!(iter.next().unwrap().organization_id, not_ratelimited_org);
+        assert_eq!(iter.next().unwrap().0.organization_id, rate_limited_org);
+        assert_eq!(iter.next().unwrap().0.organization_id, not_ratelimited_org);
         assert!(iter.next().is_none());
 
         let config = {
