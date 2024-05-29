@@ -153,6 +153,7 @@ impl From<&AggregatorServiceConfig> for AggregatorConfig {
             max_project_key_bucket_bytes: value.max_project_key_bucket_bytes,
             shift_key: value.shift_key,
             flush_batching: value.flush_batching,
+            flush_partitions: value.flush_partitions,
         }
     }
 }

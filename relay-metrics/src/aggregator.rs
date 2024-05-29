@@ -144,7 +144,7 @@ pub enum ShiftKey {
     #[default]
     Project,
 
-    /// Shifts the flush time by an offset based on the bucket key.
+    /// Shifts the flush time by an offset based on the bucket key itself.
     ///
     /// This allows for a completely random distribution of bucket flush times.
     ///
@@ -158,7 +158,7 @@ pub enum ShiftKey {
 
 /// Configuration value for [`AggregatorConfig::flush_batching`].
 #[derive(Clone, Copy, Debug, Default, Deserialize, Serialize)]
-#[serde(tag = "type", rename_all = "lowercase")]
+#[serde(rename_all = "lowercase")]
 pub enum FlushBatching {
     /// Shifts the flush time by an offset based on the [`ProjectKey`].
     ///
@@ -166,7 +166,7 @@ pub enum FlushBatching {
     #[default]
     Project,
 
-    /// Shifts the flush time by an offset based on the bucket key.
+    /// Shifts the flush time by an offset based on the bucket key itself.
     ///
     /// This allows for a completely random distribution of bucket flush times.
     ///
@@ -180,13 +180,7 @@ pub enum FlushBatching {
     ///
     /// It should only be used in Relays with the `http.global_metrics` option set since when
     /// encoding metrics via the global endpoint we can leverage partitioning.
-    ///
-    /// If set, buckets are partitioned by (bucket key % flush_partitions), and routed
-    /// by setting the header `X-Sentry-Relay-Shard`.
-    Partition {
-        /// Number of partitions.
-        flush_partitions: u64,
-    },
+    Partition,
 
     /// Do not apply shift.
     None,
@@ -269,6 +263,14 @@ pub struct AggregatorConfig {
     /// For example, the aggregator can choose to shift by the same value all buckets within a given
     /// partition, effectively allowing all the elements of that partition to be flushed together.
     pub flush_batching: FlushBatching,
+
+    /// The number of logical partitions that can receive flushed buckets.
+    ///
+    /// If set, buckets are partitioned by (bucket key % flush_partitions), and routed
+    /// by setting the header `X-Sentry-Relay-Shard`.
+    ///
+    /// This setting will take effect only when paired with [`FlushBatching::Partition`].
+    pub flush_partitions: Option<u64>,
 }
 
 impl AggregatorConfig {
@@ -336,7 +338,13 @@ impl AggregatorConfig {
                 hasher.finish()
             }
             FlushBatching::Bucket => bucket.hash64(),
-            FlushBatching::Partition { flush_partitions } => {
+            FlushBatching::Partition => {
+                // In case no partitions are set, we will not shift by anything.
+                let Some(flush_partitions) = self.flush_partitions else {
+                    relay_log::debug!("could not shift time by partition since the number of partitions is not defined");
+                    return Duration::ZERO;
+                };
+
                 // Since we don't want to have close partition hashes flushed at very similar time,
                 // we use a formula to compute the ideal distance in time between each partition
                 // and multiply that by partition hash.
@@ -395,6 +403,7 @@ impl Default for AggregatorConfig {
             max_project_key_bucket_bytes: None,
             shift_key: ShiftKey::default(),
             flush_batching: FlushBatching::default(),
+            flush_partitions: None,
         }
     }
 }
@@ -696,12 +705,13 @@ impl Aggregator {
 
                         // We group by partition key in case the flushing is configured to batch by
                         // partition key.
-                        let partition_key = match self.config.flush_batching {
-                            FlushBatching::Partition { flush_partitions } => {
-                                Some(key.partition_key(flush_partitions))
-                            }
-                            _ => None,
-                        };
+                        let partition_key =
+                            match (self.config.flush_batching, self.config.flush_partitions) {
+                                (FlushBatching::Partition, Some(flush_partitions)) => {
+                                    Some(key.partition_key(flush_partitions))
+                                }
+                                _ => None,
+                            };
 
                         partitions
                             .entry(partition_key)
@@ -1011,6 +1021,7 @@ mod tests {
             max_project_key_bucket_bytes: None,
             shift_key: ShiftKey::default(),
             flush_batching: FlushBatching::default(),
+            flush_partitions: None,
         }
     }
 
@@ -1583,14 +1594,9 @@ mod tests {
 
     #[test]
     fn test_parse_flush_batching() {
-        let json = r#"{"flush_batching": {"type": "partition", "flush_partitions": 10}}"#;
+        let json = r#"{"flush_batching": "partition"}"#;
         let parsed: AggregatorConfig = serde_json::from_str(json).unwrap();
-        assert!(matches!(
-            parsed.flush_batching,
-            FlushBatching::Partition {
-                flush_partitions: 10
-            }
-        ));
+        assert!(matches!(parsed.flush_batching, FlushBatching::Partition));
     }
 
     #[test]
