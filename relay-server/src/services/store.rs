@@ -1361,6 +1361,8 @@ struct SpanKafkaMessage<'a> {
     #[serde(default)]
     organization_id: u64,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    origin: Option<&'a str>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     parent_span_id: Option<&'a str>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     profile_id: Option<&'a str>,
