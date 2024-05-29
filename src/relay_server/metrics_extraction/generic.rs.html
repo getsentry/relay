@@ -627,7 +627,7 @@
 ///
 /// Any MRI can be defined multiple times in the config (this will create multiple buckets), but
 /// for every tag in a bucket, there can be only one value. The first encountered tag value wins.
-</span><span class="kw">pub fn </span>extract_metrics&lt;T&gt;(instance: <span class="kw-2">&amp;</span>T, config: <span class="kw-2">&amp;</span>CombinedMetricExtractionConfig&lt;<span class="lifetime">'_</span>&gt;) -&gt; Vec&lt;Bucket&gt;
+</span><span class="kw">pub fn </span>extract_metrics&lt;T&gt;(instance: <span class="kw-2">&amp;</span>T, config: CombinedMetricExtractionConfig&lt;<span class="lifetime">'_</span>&gt;) -&gt; Vec&lt;Bucket&gt;
 <span class="kw">where
     </span>T: Extractable,
 {
@@ -800,7 +800,7 @@
 
         <span class="kw">let </span>metrics = extract_metrics(
             event.value().unwrap(),
-            <span class="kw-2">&amp;</span>CombinedMetricExtractionConfig::from(<span class="kw-2">&amp;</span>config),
+            CombinedMetricExtractionConfig::from(<span class="kw-2">&amp;</span>config),
         );
         <span class="macro">insta::assert_debug_snapshot!</span>(metrics, @<span class="string">r###"
         [
@@ -848,7 +848,7 @@
 
         <span class="kw">let </span>metrics = extract_metrics(
             event.value().unwrap(),
-            <span class="kw-2">&amp;</span>CombinedMetricExtractionConfig::from(<span class="kw-2">&amp;</span>config),
+            CombinedMetricExtractionConfig::from(<span class="kw-2">&amp;</span>config),
         );
         <span class="macro">insta::assert_debug_snapshot!</span>(metrics, @<span class="string">r###"
         [
@@ -900,7 +900,7 @@
 
         <span class="kw">let </span>metrics = extract_metrics(
             event.value().unwrap(),
-            <span class="kw-2">&amp;</span>CombinedMetricExtractionConfig::from(<span class="kw-2">&amp;</span>config),
+            CombinedMetricExtractionConfig::from(<span class="kw-2">&amp;</span>config),
         );
         <span class="macro">insta::assert_debug_snapshot!</span>(metrics, @<span class="string">r###"
         [
@@ -964,7 +964,7 @@
 
         <span class="kw">let </span>metrics = extract_metrics(
             event.value().unwrap(),
-            <span class="kw-2">&amp;</span>CombinedMetricExtractionConfig::from(<span class="kw-2">&amp;</span>config),
+            CombinedMetricExtractionConfig::from(<span class="kw-2">&amp;</span>config),
         );
         <span class="macro">insta::assert_debug_snapshot!</span>(metrics, @<span class="string">r###"
         [
@@ -1029,7 +1029,7 @@
 
         <span class="kw">let </span>metrics = extract_metrics(
             event.value().unwrap(),
-            <span class="kw-2">&amp;</span>CombinedMetricExtractionConfig::from(<span class="kw-2">&amp;</span>config),
+            CombinedMetricExtractionConfig::from(<span class="kw-2">&amp;</span>config),
         );
         <span class="macro">insta::assert_debug_snapshot!</span>(metrics, @<span class="string">r###"
         [
@@ -1096,7 +1096,7 @@
 
         <span class="kw">let </span>metrics = extract_metrics(
             event.value().unwrap(),
-            <span class="kw-2">&amp;</span>CombinedMetricExtractionConfig::from(<span class="kw-2">&amp;</span>config),
+            CombinedMetricExtractionConfig::from(<span class="kw-2">&amp;</span>config),
         );
         <span class="macro">insta::assert_debug_snapshot!</span>(metrics, @<span class="string">r###"
         [
@@ -1171,7 +1171,7 @@
 
         <span class="kw">let </span>metrics = extract_metrics(
             event.value().unwrap(),
-            <span class="kw-2">&amp;</span>CombinedMetricExtractionConfig::from(<span class="kw-2">&amp;</span>config),
+            CombinedMetricExtractionConfig::from(<span class="kw-2">&amp;</span>config),
         );
         <span class="macro">insta::assert_debug_snapshot!</span>(metrics, @<span class="string">r###"
         [

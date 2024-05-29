@@ -443,7 +443,7 @@
         MetricNamespace::Sessions =&gt; <span class="bool-val">true</span>,
         MetricNamespace::Transactions =&gt; <span class="bool-val">true</span>,
         MetricNamespace::Spans =&gt; {
-            state.has_feature(Feature::ExtractSpansAndSpanMetricsFromEvent)
+            state.has_feature(Feature::ExtractCommonSpanMetricsFromEvent)
                 || state.has_feature(Feature::StandaloneSpanIngestion)
         }
         MetricNamespace::Profiles =&gt; <span class="bool-val">true</span>,

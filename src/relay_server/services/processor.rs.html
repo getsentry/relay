@@ -3670,6 +3670,15 @@
 <a href="#3668" id="3668">3668</a>
 <a href="#3669" id="3669">3669</a>
 <a href="#3670" id="3670">3670</a>
+<a href="#3671" id="3671">3671</a>
+<a href="#3672" id="3672">3672</a>
+<a href="#3673" id="3673">3673</a>
+<a href="#3674" id="3674">3674</a>
+<a href="#3675" id="3675">3675</a>
+<a href="#3676" id="3676">3676</a>
+<a href="#3677" id="3677">3677</a>
+<a href="#3678" id="3678">3678</a>
+<a href="#3679" id="3679">3679</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
@@ -4940,7 +4949,7 @@
         <span class="kw">let </span>metrics = <span class="kw">crate</span>::metrics_extraction::event::extract_metrics(
             event,
             state.spans_extracted,
-            <span class="kw-2">&amp;</span>combined_config,
+            combined_config,
             <span class="self">self</span>.inner
                 .config
                 .aggregator_config_for(MetricNamespace::Spans)
@@ -4958,7 +4967,7 @@
 
             <span class="kw">let </span>extractor = TransactionExtractor {
                 config: tx_config,
-                generic_config: <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>combined_config),
+                generic_config: <span class="prelude-val">Some</span>(combined_config),
                 transaction_from_dsc,
                 sampling_result,
                 has_profile: state.profile_id.is_some(),
@@ -5076,7 +5085,10 @@
                     .has_feature(Feature::DeviceClassSynthesis),
                 enrich_spans: state
                     .project_state
-                    .has_feature(Feature::ExtractSpansAndSpanMetricsFromEvent),
+                    .has_feature(Feature::ExtractSpansFromEvent)
+                    || state
+                        .project_state
+                        .has_feature(Feature::ExtractCommonSpanMetricsFromEvent),
                 max_tag_value_length: <span class="self">self
                     </span>.inner
                     .config
@@ -5215,12 +5227,18 @@
 
                 <span class="kw">if </span>state.has_event() {
                     event::scrub(state)<span class="question-mark">?</span>;
+
                     <span class="macro">if_processing!</span>(<span class="self">self</span>.inner.config, {
-                        span::extract_from_event(
-                            state,
-                            <span class="kw-2">&amp;</span><span class="self">self</span>.inner.config,
-                            <span class="kw-2">&amp;</span><span class="self">self</span>.inner.global_config.current(),
-                        );
+                        <span class="kw">if </span>state
+                            .project_state
+                            .has_feature(Feature::ExtractSpansFromEvent)
+                        {
+                            span::extract_from_event(
+                                state,
+                                <span class="kw-2">&amp;</span><span class="self">self</span>.inner.config,
+                                <span class="kw-2">&amp;</span><span class="self">self</span>.inner.global_config.current(),
+                            );
+                        }
                     });
                 }
 

@@ -679,9 +679,9 @@
 
 <span class="kw">impl </span>LazyGlob {
     <span class="doccomment">/// Create a new [`LazyGlob`] from the raw string.
-    </span><span class="kw">pub fn </span>new(raw: String) -&gt; <span class="self">Self </span>{
+    </span><span class="kw">pub fn </span>new(raw: <span class="kw">impl </span>Into&lt;String&gt;) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{
-            raw,
+            raw: raw.into(),
             glob: OnceLock::new(),
         }
     }

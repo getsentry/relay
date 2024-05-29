@@ -35,7 +35,7 @@ If set to <code>1.0</code> all organizations will have metric stats enabled.</p>
 If set to <code>1.0</code> all organizations will ingest to the feedback topic.</p>
 </div><span id="structfield.span_extraction_sample_rate" class="structfield section-header"><a href="#structfield.span_extraction_sample_rate" class="anchor field">§</a><code>span_extraction_sample_rate: <a class="enum" href="https://doc.rust-lang.org/1.78.0/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/1.78.0/std/primitive.f32.html">f32</a>&gt;</code></span><div class="docblock"><p>Overall sampling of span extraction.</p>
 <p>This number represents the fraction of transactions for which
-spans are extracted. It applies on top of <a href="enum.Feature.html#variant.ExtractSpansAndSpanMetricsFromEvent" title="variant relay_dynamic_config::Feature::ExtractSpansAndSpanMetricsFromEvent"><code>crate::Feature::ExtractSpansAndSpanMetricsFromEvent</code></a>,
+spans are extracted. It applies on top of <a href="enum.Feature.html#variant.ExtractCommonSpanMetricsFromEvent" title="variant relay_dynamic_config::Feature::ExtractCommonSpanMetricsFromEvent"><code>crate::Feature::ExtractCommonSpanMetricsFromEvent</code></a>,
 so both feature flag and sample rate need to be enabled to get any spans extracted.</p>
 <p><code>None</code> is the default and interpreted as a value of 1.0 (extract everything).</p>
 <p>Note: Any value below 1.0 will cause the product to break, so use with caution.</p>

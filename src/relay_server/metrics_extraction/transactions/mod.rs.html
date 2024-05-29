@@ -2527,7 +2527,7 @@
 <span class="doccomment">/// A utility that extracts metrics from transactions.
 </span><span class="kw">pub struct </span>TransactionExtractor&lt;<span class="lifetime">'a</span>&gt; {
     <span class="kw">pub </span>config: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>TransactionMetricsConfig,
-    <span class="kw">pub </span>generic_config: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>CombinedMetricExtractionConfig&lt;<span class="lifetime">'a</span>&gt;&gt;,
+    <span class="kw">pub </span>generic_config: <span class="prelude-ty">Option</span>&lt;CombinedMetricExtractionConfig&lt;<span class="lifetime">'a</span>&gt;&gt;,
     <span class="kw">pub </span>transaction_from_dsc: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>str&gt;,
     <span class="kw">pub </span>sampling_result: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>SamplingResult,
     <span class="kw">pub </span>has_profile: bool,
@@ -4463,7 +4463,7 @@
 
         <span class="kw">let </span>extractor = TransactionExtractor {
             config: <span class="kw-2">&amp;</span>config,
-            generic_config: <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>combined_config),
+            generic_config: <span class="prelude-val">Some</span>(combined_config),
             transaction_from_dsc: <span class="prelude-val">Some</span>(<span class="string">"test_transaction"</span>),
             sampling_result: <span class="kw-2">&amp;</span>SamplingResult::Pending,
             has_profile: <span class="bool-val">false</span>,

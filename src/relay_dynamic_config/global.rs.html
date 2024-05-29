@@ -647,14 +647,14 @@
     /// - Adds hard-coded groups to metrics extraction configs.
     </span><span class="kw">pub fn </span>normalize(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
         <span class="kw">if let </span>ErrorBoundary::Ok(config) = <span class="kw-2">&amp;mut </span><span class="self">self</span>.metric_extraction {
-            <span class="kw">for </span>(group_name, metrics) <span class="kw">in </span>defaults::hardcoded_span_metrics() {
+            <span class="kw">for </span>(group_name, metrics, tags) <span class="kw">in </span>defaults::hardcoded_span_metrics() {
                 <span class="comment">// We only define these groups if they haven't been defined by the upstream yet.
                 // This ensures that the innermost Relay always defines the metrics.
                 </span><span class="kw">if let </span>Entry::Vacant(entry) = config.groups.entry(group_name) {
                     entry.insert(MetricExtractionGroup {
                         is_enabled: <span class="bool-val">false</span>, <span class="comment">// must be enabled via project config
                         </span>metrics,
-                        tags: Default::default(),
+                        tags,
                     });
                 }
             }
@@ -767,7 +767,7 @@
     <span class="doccomment">/// Overall sampling of span extraction.
     ///
     /// This number represents the fraction of transactions for which
-    /// spans are extracted. It applies on top of [`crate::Feature::ExtractSpansAndSpanMetricsFromEvent`],
+    /// spans are extracted. It applies on top of [`crate::Feature::ExtractCommonSpanMetricsFromEvent`],
     /// so both feature flag and sample rate need to be enabled to get any spans extracted.
     ///
     /// `None` is the default and interpreted as a value of 1.0 (extract everything).
