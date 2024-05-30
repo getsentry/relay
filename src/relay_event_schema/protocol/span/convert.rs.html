@@ -394,6 +394,8 @@
 <a href="#392" id="392">392</a>
 <a href="#393" id="393">393</a>
 <a href="#394" id="394">394</a>
+<a href="#395" id="395">395</a>
+<a href="#396" id="396">396</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module defines bidirectional field mappings between spans and transactions.
 
 </span><span class="kw">use </span><span class="kw">crate</span>::protocol::{BrowserContext, Contexts, Event, ProfileContext, Span, TraceContext};
@@ -572,7 +574,8 @@
     span.data.environment &lt;=&gt; event.environment,
     span.data.browser_name &lt;=&gt; event.contexts.browser.name,
     span.data.sdk_name &lt;=&gt; event.client_sdk.name,
-    span.data.sdk_version &lt;=&gt; event.client_sdk.version
+    span.data.sdk_version &lt;=&gt; event.client_sdk.version,
+    span.origin &lt;=&gt; event.contexts.trace.origin
     ;
     span.is_segment &lt;= <span class="bool-val">true</span>,
     span.was_transaction &lt;= <span class="bool-val">true
@@ -605,6 +608,7 @@
                         "trace_id": "4C79F60C11214EB38604F4AE0781BFB2",
                         "span_id": "FA90FDEAD5F74052",
                         "type": "trace",
+                        "origin": "manual",
                         "op": "myop",
                         "status": "ok",
                         "exclusive_time": 123.4,
@@ -659,7 +663,7 @@
             is_segment: true,
             status: Ok,
             tags: ~,
-            origin: ~,
+            origin: "manual",
             profile_id: EventId(
                 a0aaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaab,
             ),
