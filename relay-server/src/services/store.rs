@@ -1360,6 +1360,8 @@ struct SpanKafkaMessage<'a> {
     measurements: Option<BTreeMap<Cow<'a, str>, Option<SpanMeasurement>>>,
     #[serde(default)]
     organization_id: u64,
+    #[serde(borrow, default, skip_serializing_if = "Option::is_none")]
+    origin: Option<Cow<'a, str>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     parent_span_id: Option<&'a str>,
     #[serde(default, skip_serializing_if = "Option::is_none")]

@@ -51,6 +51,7 @@ def test_span_extraction(
 
     event = make_transaction({"event_id": "cbf6960622e14a45abc1f03b2055b186"})
     event["contexts"]["trace"]["status"] = "success"
+    event["contexts"]["trace"]["origin"] = "manual"
     end = datetime.now(timezone.utc) - timedelta(seconds=1)
     duration = timedelta(milliseconds=500)
     start = end - duration
@@ -58,10 +59,11 @@ def test_span_extraction(
         {
             "description": "GET /api/0/organizations/?member=1",
             "op": "http",
-            "status": "success",
+            "origin": "manual",
             "parent_span_id": "aaaaaaaaaaaaaaaa",
             "span_id": "bbbbbbbbbbbbbbbb",
             "start_timestamp": start.isoformat(),
+            "status": "success",
             "timestamp": end.isoformat(),
             "trace_id": "ff62a8b040f340bda5d830223def1d81",
         },
@@ -96,6 +98,7 @@ def test_span_extraction(
         "exclusive_time_ms": 500.0,
         "is_segment": False,
         "organization_id": 1,
+        "origin": "manual",
         "parent_span_id": "aaaaaaaaaaaaaaaa",
         "project_id": 42,
         "retention_days": 90,
@@ -143,6 +146,7 @@ def test_span_extraction(
         "exclusive_time_ms": 2000.0,
         "is_segment": True,
         "organization_id": 1,
+        "origin": "manual",
         "project_id": 42,
         "retention_days": 90,
         "segment_id": "968cff94913ebb07",
