@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::utils::deserialize_number_from_string;
+use crate::utils::{deserialize_number_from_string, is_zero};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Measurement {
@@ -11,12 +11,20 @@ pub struct Measurement {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct MeasurementValue {
     // nanoseconds elapsed since the start of the profile
-    #[serde(deserialize_with = "deserialize_number_from_string")]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_number_from_string",
+        skip_serializing_if = "is_zero"
+    )]
     elapsed_since_start_ns: u64,
 
     // Android 6.8.0 sends a string instead of a float64 so we need to accept both
     #[serde(deserialize_with = "deserialize_number_from_string")]
     value: f64,
+
+    // Sample Format V2 accepts a timestamp in seconds as a float
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    timestamp: Option<f64>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
