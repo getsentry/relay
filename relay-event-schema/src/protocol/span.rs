@@ -42,7 +42,7 @@ pub struct Span {
     pub parent_span_id: Annotated<SpanId>,
 
     /// The ID of the trace the span belongs to.
-    #[metastructure(required = "true")]
+    #[metastructure(required = "true", trim = "false")]
     pub trace_id: Annotated<TraceId>,
 
     /// A unique identifier for a segment within a trace (8 byte hexadecimal string).

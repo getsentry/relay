@@ -74,15 +74,16 @@ impl Processor for TrimmingProcessor {
             });
         }
 
-        if self.remaining_size() == Some(0) {
-            // TODO: Create remarks (ensure they do not bloat event)
-            return Err(ProcessingAction::DeleteValueHard);
+        if state.attrs().trim {
+            if self.remaining_size() == Some(0) {
+                // TODO: Create remarks (ensure they do not bloat event)
+                return Err(ProcessingAction::DeleteValueHard);
+            }
+            if self.remaining_depth(state) == Some(0) {
+                // TODO: Create remarks (ensure they do not bloat event)
+                return Err(ProcessingAction::DeleteValueHard);
+            }
         }
-        if self.remaining_depth(state) == Some(0) {
-            // TODO: Create remarks (ensure they do not bloat event)
-            return Err(ProcessingAction::DeleteValueHard);
-        }
-
         Ok(())
     }
 
@@ -127,6 +128,9 @@ impl Processor for TrimmingProcessor {
         meta: &mut Meta,
         state: &ProcessingState<'_>,
     ) -> ProcessingResult {
+        if !state.attrs().trim {
+            return Ok(());
+        }
         if let Some(max_chars) = state.attrs().max_chars {
             trim_string(value, meta, max_chars, state.attrs().max_chars_allowance);
         }
@@ -149,6 +153,10 @@ impl Processor for TrimmingProcessor {
     where
         T: ProcessValue,
     {
+        if !state.attrs().trim {
+            return Ok(());
+        }
+
         // If we need to check the bag size, then we go down a different path
         if !self.size_state.is_empty() {
             let original_length = value.len();
@@ -166,6 +174,12 @@ impl Processor for TrimmingProcessor {
 
                 let item_state = state.enter_index(index, None, ValueType::for_field(item));
                 processor::process_value(item, self, &item_state)?;
+
+                // Remaining size might now be zero because of `trim = "false"`.
+                if self.remaining_size().unwrap() == 0 {
+                    split_index = Some(index);
+                    break;
+                }
             }
 
             if let Some(split_index) = split_index {
@@ -191,6 +205,10 @@ impl Processor for TrimmingProcessor {
     where
         T: ProcessValue,
     {
+        if !state.attrs().trim {
+            return Ok(());
+        }
+
         // If we need to check the bag size, then we go down a different path
         if !self.size_state.is_empty() {
             let original_length = value.len();
@@ -208,6 +226,12 @@ impl Processor for TrimmingProcessor {
 
                 let item_state = state.enter_borrowed(key, None, ValueType::for_field(item));
                 processor::process_value(item, self, &item_state)?;
+
+                // Remaining size might now be zero because of `trim = "false"`.
+                if self.remaining_size().unwrap() == 0 {
+                    split_key = Some(key.to_owned());
+                    break;
+                }
             }
 
             if let Some(split_key) = split_key {
@@ -230,6 +254,10 @@ impl Processor for TrimmingProcessor {
         _meta: &mut Meta,
         state: &ProcessingState<'_>,
     ) -> ProcessingResult {
+        if !state.attrs().trim {
+            return Ok(());
+        }
+
         match value {
             Value::Array(_) | Value::Object(_) => {
                 if self.remaining_depth(state) == Some(1) {
@@ -252,6 +280,10 @@ impl Processor for TrimmingProcessor {
         _meta: &mut Meta,
         state: &ProcessingState<'_>,
     ) -> ProcessingResult {
+        if !state.attrs().trim {
+            return Ok(());
+        }
+
         processor::apply(&mut stacktrace.frames, |frames, meta| {
             enforce_frame_hard_limit(frames, meta, 250);
             Ok(())
@@ -393,9 +425,10 @@ mod tests {
     use std::iter::repeat;
 
     use relay_event_schema::protocol::{
-        Breadcrumb, Context, Contexts, Event, Exception, ExtraValue, Span, TagEntry, Tags, Values,
+        Breadcrumb, Context, Contexts, Event, Exception, ExtraValue, Span, TagEntry, Tags, TraceId,
+        Values,
     };
-    use relay_protocol::{Map, Remark, SerializableAnnotated};
+    use relay_protocol::{get_value, Map, Remark, SerializableAnnotated};
     use similar_asserts::assert_eq;
 
     use crate::MaxChars;
@@ -929,5 +962,23 @@ mod tests {
         processor::process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
         assert_eq!(event.0.unwrap().spans.0.unwrap().len(), 8);
+    }
+
+    #[test]
+    fn test_too_many_spans_trimmed_trace_id() {
+        let span = Span {
+            trace_id: Annotated::new(TraceId("a".repeat(1024 * 900))),
+
+            ..Default::default()
+        };
+        let mut event = Annotated::new(Event {
+            spans: Annotated::new(vec![span.into()]),
+            ..Default::default()
+        });
+
+        let mut processor = TrimmingProcessor::new();
+        processor::process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
+
+        assert!(get_value!(event.spans!).is_empty());
     }
 }

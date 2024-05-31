@@ -323,6 +323,7 @@ struct FieldAttrs {
     max_chars_allowance: Option<TokenStream>,
     max_depth: Option<TokenStream>,
     max_bytes: Option<TokenStream>,
+    trim: Option<bool>,
 }
 
 impl FieldAttrs {
@@ -364,6 +365,14 @@ impl FieldAttrs {
             quote!(#parent_attrs.pii)
         } else {
             quote!(crate::processor::Pii::False)
+        };
+
+        let trim = if let Some(trim) = self.trim {
+            quote!(#trim)
+        } else if let Some(ref parent_attrs) = inherit_from_field_attrs {
+            quote!(#parent_attrs.trim)
+        } else {
+            quote!(true)
         };
 
         let retain = self.retain;
@@ -421,6 +430,7 @@ impl FieldAttrs {
                 max_bytes: #max_bytes,
                 pii: #pii,
                 retain: #retain,
+                trim: #trim,
             }
         })
     }
@@ -589,6 +599,17 @@ fn parse_field_attributes(
                                     Lit::Str(litstr) => match litstr.value().as_str() {
                                         "true" => rv.retain = true,
                                         "false" => rv.retain = false,
+                                        other => panic!("Unknown value {other}"),
+                                    },
+                                    _ => {
+                                        panic!("Got non string literal for retain");
+                                    }
+                                }
+                            } else if ident == "trim" {
+                                match name_value.lit {
+                                    Lit::Str(litstr) => match litstr.value().as_str() {
+                                        "true" => rv.trim = None,
+                                        "false" => rv.trim = Some(false),
                                         other => panic!("Unknown value {other}"),
                                     },
                                     _ => {
