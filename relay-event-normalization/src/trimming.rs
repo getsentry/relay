@@ -393,9 +393,10 @@ mod tests {
     use std::iter::repeat;
 
     use relay_event_schema::protocol::{
-        Breadcrumb, Context, Contexts, Event, Exception, ExtraValue, Span, TagEntry, Tags, Values,
+        Breadcrumb, Context, Contexts, Event, Exception, ExtraValue, Span, TagEntry, Tags, TraceId,
+        Values,
     };
-    use relay_protocol::{Map, Remark, SerializableAnnotated};
+    use relay_protocol::{get_value, Map, Remark, SerializableAnnotated};
     use similar_asserts::assert_eq;
 
     use crate::MaxChars;
@@ -929,5 +930,30 @@ mod tests {
         processor::process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
         assert_eq!(event.0.unwrap().spans.0.unwrap().len(), 8);
+    }
+
+    #[test]
+    fn test_too_many_spans_trimmed_description() {
+        let span = Span {
+            description: Annotated::new("a".repeat(1024 * 900)),
+            trace_id: Annotated::new(TraceId(
+                "do_not_trim_me_do_not_trim_me_do_not_trim_me".to_owned(),
+            )),
+            ..Default::default()
+        };
+
+        let mut event = Annotated::new(Event {
+            spans: Annotated::new(vec![span.into()]),
+            ..Default::default()
+        });
+
+        let mut processor = TrimmingProcessor::new();
+        processor::process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
+
+        assert!(get_value!(event.spans[0].description!).ends_with("..."));
+        assert_eq!(
+            get_value!(event.spans[0].trace_id!).0.as_str(),
+            "do_not_trim_me_do_not_trim_me_do_not_trim_me"
+        );
     }
 }
