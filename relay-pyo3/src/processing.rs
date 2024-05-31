@@ -246,8 +246,9 @@ impl StoreNormalizer {
         event: Option<&Bound<'a, PyAny>>,
         raw_event: Option<&Bound<'a, PyAny>>, // bytes | str
     ) -> PyResult<PyObject> {
-        let raw_event =
-            raw_event.unwrap_or(event.expect("Event should exist if raw_event is None"));
+        let raw_event = raw_event
+            .or(event)
+            .expect("Event should exist if raw_event is None");
         let event = raw_event.downcast::<PyString>()?;
         let mut data = event.to_string().into_bytes();
         json_forensics::translate_slice(&mut data);

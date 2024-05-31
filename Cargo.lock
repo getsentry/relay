@@ -3775,8 +3775,6 @@ name = "relay-dynamic-config"
 version = "24.5.0"
 dependencies = [
  "anyhow",
- "indexmap 2.2.5",
- "insta",
  "pyo3",
  "relay-auth",
  "relay-base-schema",
@@ -3792,6 +3790,7 @@ dependencies = [
  "serde",
  "serde_json",
  "similar-asserts",
+ "smallvec",
 ]
 
 [[package]]
