@@ -67,7 +67,7 @@ use {
 use crate::envelope::{self, ContentType, Envelope, EnvelopeError, Item, ItemType};
 use crate::extractors::{PartialDsn, RequestMeta};
 use crate::metrics::{
-    Aggregated, Extracted, ExtractionMode, ManagedBuckets, MetricOutcomes, MinimalTrackableBucket,
+    Aggregated, Checked, ExtractionMode, ManagedBuckets, MetricOutcomes, MinimalTrackableBucket,
     Parsed,
 };
 use crate::metrics_extraction::transactions::types::ExtractMetricsError;
@@ -814,19 +814,10 @@ pub struct ProcessMetricMeta {
     pub project_key: ProjectKey,
 }
 
-/// Metric buckets with additional project.
-#[derive(Debug)]
-pub struct ProjectMetrics {
-    /// The metric buckets to encode.
-    pub buckets: ManagedBuckets<Aggregated>,
-    /// Project state for extracting quotas.
-    pub project_state: Arc<ProjectState>,
-}
-
 /// Encodes metrics into an envelope ready to be sent upstream.
 #[derive(Debug)]
 pub struct EncodeMetrics {
-    pub scopes: BTreeMap<Scoping, ProjectMetrics>,
+    pub buckets: Vec<ManagedBuckets<Checked>>,
 }
 
 /// Encodes metric meta into an [`Envelope`] and sends it upstream.
@@ -2217,20 +2208,21 @@ impl EnvelopeProcessorService {
             self.inner
                 .addrs
                 .aggregator
-                .send(MergeBuckets::new(project_key, buckets));
+                .send(MergeBuckets::internal(project_key, buckets));
         }
     }
 
     #[cfg(feature = "processing")]
     fn rate_limit_buckets_by_namespace(
         &self,
-        scoping: Scoping,
-        buckets: ManagedBuckets<Aggregated>,
-        quotas: CombinedQuotas<'_>,
-    ) -> ManagedBuckets<Aggregated> {
+        buckets: ManagedBuckets<Checked>,
+    ) -> ManagedBuckets<Checked> {
         let Some(rate_limiter) = self.inner.rate_limiter.as_ref() else {
             return buckets;
         };
+
+        let global_config = self.inner.global_config.current();
+        let scoping = buckets.scoping();
 
         let namespaces = buckets
             .iter()
@@ -2241,6 +2233,7 @@ impl EnvelopeProcessorService {
         for (namespace, quantity) in namespaces {
             let item_scoping = scoping.metric_bucket(namespace);
 
+            let quotas = CombinedQuotas::new(&global_config, buckets.project_state().get_quotas());
             let limits = match rate_limiter.is_rate_limited(quotas, item_scoping, quantity, false) {
                 Ok(limits) => limits,
                 Err(err) => {
@@ -2254,9 +2247,11 @@ impl EnvelopeProcessorService {
 
             if limits.is_limited() {
                 let reason_code = limits.longest().and_then(|limit| limit.reason_code.clone());
-                buckets = buckets.remove_if(Outcome::RateLimited(reason_code), |bucket| {
-                    bucket.name.try_namespace() == Some(namespace)
-                });
+                buckets = buckets.remove_if(
+                    Outcome::RateLimited(reason_code),
+                    |bucket| bucket.name.try_namespace() == Some(namespace),
+                    |s| s,
+                );
 
                 self.inner.addrs.project_cache.send(UpdateRateLimits::new(
                     item_scoping.scoping.project_key,
@@ -2270,15 +2265,11 @@ impl EnvelopeProcessorService {
 
     /// Cardinality limits the passed buckets and returns a filtered vector of only accepted buckets.
     #[cfg(feature = "processing")]
-    fn cardinality_limit_buckets(
-        &self,
-        scoping: Scoping,
-        limits: &[CardinalityLimit],
-        buckets: Vec<Bucket>,
-        mode: ExtractionMode,
-    ) -> Vec<Bucket> {
+    fn cardinality_limit_buckets(&self, buckets: ManagedBuckets<Checked>) -> Vec<Bucket> {
         let global_config = self.inner.global_config.current();
         let cardinality_limiter_mode = global_config.options.cardinality_limiter_mode;
+
+        let (buckets, state) = buckets.disassemble(); // TODO dont disassemble
 
         if matches!(cardinality_limiter_mode, CardinalityLimiterMode::Disabled) {
             return buckets;
@@ -2289,9 +2280,10 @@ impl EnvelopeProcessorService {
         };
 
         let scope = relay_cardinality::Scoping {
-            organization_id: scoping.organization_id,
-            project_id: scoping.project_id,
+            organization_id: state.scoping.organization_id,
+            project_id: state.scoping.project_id,
         };
+        let limits = state.project_state.get_cardinality_limits();
 
         let limits = match limiter.check_cardinality_limits(scope, limits, buckets) {
             Ok(limits) => limits,
@@ -2308,7 +2300,7 @@ impl EnvelopeProcessorService {
         if !limits.exceeded_limits().is_empty() && sample(error_sample_rate) {
             for limit in limits.exceeded_limits() {
                 relay_log::error!(
-                    tags.organization_id = scoping.organization_id,
+                    tags.organization_id = state.scoping.organization_id,
                     tags.limit_id = limit.id,
                     tags.passive = limit.passive,
                     "Cardinality Limit"
@@ -2320,7 +2312,7 @@ impl EnvelopeProcessorService {
             for report in reports {
                 self.inner
                     .metric_outcomes
-                    .cardinality(scoping, limit, report);
+                    .cardinality(state.scoping, limit, report);
             }
         }
 
@@ -2331,9 +2323,14 @@ impl EnvelopeProcessorService {
         let CardinalityLimitsSplit { accepted, rejected } = limits.into_split();
 
         if !rejected.is_empty() {
-            self.inner
-                .metric_outcomes
-                .track(scoping, &rejected, mode, Outcome::CardinalityLimited);
+            // TODO: this should use managed buckets
+            let mode = state.project_state.get_extraction_mode();
+            self.inner.metric_outcomes.track(
+                state.scoping,
+                &rejected,
+                mode,
+                Outcome::CardinalityLimited,
+            );
         }
 
         accepted
@@ -2352,29 +2349,21 @@ impl EnvelopeProcessorService {
 
         let global_config = self.inner.global_config.current();
 
-        for (scoping, message) in message.scopes {
-            let ProjectMetrics {
-                buckets,
-                project_state,
-            } = message;
+        for buckets in message.buckets {
+            let retention = buckets
+                .project_state()
+                .config
+                .event_retention
+                .unwrap_or(DEFAULT_EVENT_RETENTION);
+            let scoping = buckets.scoping();
+            let mode = buckets.project_state().get_extraction_mode();
 
-            let mode = project_state.get_extraction_mode();
-
-            let quotas = CombinedQuotas::new(&global_config, project_state.get_quotas());
-            let buckets = self.rate_limit_buckets_by_namespace(scoping, buckets, quotas);
-
-            let limits = project_state.get_cardinality_limits();
-            let buckets =
-                self.cardinality_limit_buckets(scoping, limits, buckets.into_buckets(), mode);
+            let buckets = self.rate_limit_buckets_by_namespace(buckets);
+            let buckets = self.cardinality_limit_buckets(buckets);
 
             if buckets.is_empty() {
                 continue;
             }
-
-            let retention = project_state
-                .config
-                .event_retention
-                .unwrap_or(DEFAULT_EVENT_RETENTION);
 
             // The store forwarder takes care of bucket splitting internally, so we can submit the
             // entire list of buckets. There is no batching needed here.
@@ -2402,11 +2391,10 @@ impl EnvelopeProcessorService {
         let batch_size = self.inner.config.metrics_max_batch_size_bytes();
         let upstream = self.inner.config.upstream_descriptor();
 
-        for (scoping, message) in message.scopes {
-            let ProjectMetrics {
-                buckets,
-                project_state,
-            } = message;
+        for buckets in message.buckets {
+            let (buckets, state) = buckets.disassemble();
+            let project_state = state.project_state;
+            let scoping = state.scoping;
 
             let project_key = scoping.project_key;
             let dsn = PartialDsn::outbound(&scoping, upstream);
@@ -2414,13 +2402,13 @@ impl EnvelopeProcessorService {
 
             let partitions = if let Some(count) = self.inner.config.metrics_partitions() {
                 let mut partitions: BTreeMap<Option<u64>, Vec<Bucket>> = BTreeMap::new();
-                for bucket in buckets.into_buckets() {
+                for bucket in buckets {
                     let partition_key = partition_key(project_key, &bucket, Some(count));
                     partitions.entry(partition_key).or_default().push(bucket);
                 }
                 partitions
             } else {
-                BTreeMap::from([(None, buckets.into_buckets())])
+                BTreeMap::from([(None, buckets)])
             };
 
             for (partition_key, buckets) in partitions {
@@ -2512,13 +2500,9 @@ impl EnvelopeProcessorService {
 
         let mut partitions = BTreeMap::new();
 
-        for (scoping, message) in &message.scopes {
-            let ProjectMetrics {
-                buckets,
-                project_state,
-            } = message;
-
-            let mode = project_state.get_extraction_mode();
+        for buckets in &message.buckets {
+            let scoping = buckets.scoping();
+            let mode = buckets.project_state().get_extraction_mode();
 
             for bucket in buckets.iter() {
                 let partition_key = partition_key(scoping.project_key, bucket, partition_count);
@@ -2529,7 +2513,7 @@ impl EnvelopeProcessorService {
                         .entry(partition_key)
                         .or_insert_with(|| Partition::new(batch_size));
 
-                    if let Some(next) = partition.insert(bucket, *scoping, mode) {
+                    if let Some(next) = partition.insert(bucket, scoping, mode) {
                         // A part of the bucket could not be inserted. Take the partition and submit
                         // it immediately. Repeat until the final part was inserted. This should
                         // always result in a request, otherwise we would enter an endless loop.
@@ -2644,15 +2628,15 @@ impl EnvelopeProcessorService {
             EnvelopeProcessor::ProcessBatchedMetrics(_) => AppFeature::Unattributed.into(),
             EnvelopeProcessor::ProcessMetricMeta(_) => AppFeature::MetricMeta.into(),
             EnvelopeProcessor::EncodeMetrics(v) => v
-                .scopes
-                .values()
+                .buckets
+                .iter()
                 .map(|s| {
                     if self.inner.config.processing_enabled() {
                         // Processing does not encode the metrics but instead rate and cardinality
                         // limits the metrics, which scales by count and not size.
-                        relay_metrics::cogs::ByCount(s.buckets.iter()).into()
+                        relay_metrics::cogs::ByCount(s.iter()).into()
                     } else {
-                        relay_metrics::cogs::BySize(s.buckets.iter()).into()
+                        relay_metrics::cogs::BySize(s.iter()).into()
                     }
                 })
                 .fold(FeatureWeights::none(), FeatureWeights::merge),

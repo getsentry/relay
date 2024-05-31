@@ -1,5 +1,4 @@
 use core::fmt;
-use std::any::Any;
 use std::collections::BTreeMap;
 use std::sync::Arc;
 use std::usize;
@@ -8,8 +7,8 @@ use relay_base_schema::project::ProjectKey;
 use relay_metrics::Bucket;
 use relay_quotas::Scoping;
 
-use crate::metrics::{ExtractionMode, MetricOutcomes};
-use crate::services::outcome::{DiscardReason, Outcome};
+use crate::metrics::MetricOutcomes;
+use crate::services::outcome::Outcome;
 use crate::services::project::ProjectState;
 use crate::utils::{self, ItemAction};
 
@@ -21,6 +20,20 @@ pub struct ManagedBuckets<S> {
 
 impl ManagedBuckets<()> {
     pub fn new<S>(outcomes: MetricOutcomes, buckets: Vec<Bucket>, state: S) -> ManagedBuckets<S> {
+        ManagedBuckets {
+            buckets,
+            outcomes,
+            state,
+        }
+    }
+}
+
+#[cfg(test)]
+impl ManagedBuckets<()> {
+    pub fn test<S>(buckets: Vec<Bucket>, state: S) -> ManagedBuckets<S> {
+        let (metric_stats, _) = crate::metrics::MetricStats::test();
+        let outcomes = MetricOutcomes::new(metric_stats, relay_system::Addr::dummy());
+
         ManagedBuckets {
             buckets,
             outcomes,
@@ -60,6 +73,13 @@ impl<S> ManagedBuckets<S> {
         self.state.project_state()
     }
 
+    pub fn scoping(&self) -> Scoping
+    where
+        S: ProjectBucketState,
+    {
+        self.state.scoping()
+    }
+
     fn track(&self, buckets: Vec<Bucket>, outcome: Outcome) {
         let Some(project) = resolve_project(&self.state) else {
             // TODO metric
@@ -73,6 +93,12 @@ impl<S> ManagedBuckets<S> {
 }
 
 impl<S: BucketState> ManagedBuckets<S> {
+    pub fn disassemble(mut self) -> (Vec<Bucket>, S) {
+        let buckets = std::mem::take(&mut self.buckets);
+        let state = self.state.clone();
+        (buckets, state)
+    }
+
     pub fn mutate<T>(
         mut self,
         mut f: impl FnMut(&mut Bucket),
@@ -138,7 +164,7 @@ impl<S: BucketState> ManagedBuckets<S> {
 
     pub fn transition<T>(self, state_fn: impl FnOnce(S) -> T) -> ManagedBuckets<T>
     where
-        S: Into<T>,
+        T: BucketState<Previous = S>,
     {
         self.migrate(state_fn)
     }
@@ -279,9 +305,28 @@ impl BucketState for Aggregated {
     }
 }
 
-impl From<WithProjectState> for Aggregated {
-    fn from(_: WithProjectState) -> Self {
-        Self
+#[derive(Clone, Debug)]
+pub struct Checked {
+    pub project_key: ProjectKey,
+    pub project_state: Arc<ProjectState>,
+    pub scoping: Scoping,
+}
+
+impl BucketState for Checked {
+    type Previous = Aggregated;
+
+    fn project_key(&self) -> ProjectKey {
+        self.project_key
+    }
+}
+
+impl ProjectBucketState for Checked {
+    fn scoping(&self) -> Scoping {
+        self.scoping
+    }
+
+    fn project_state(&self) -> &Arc<ProjectState> {
+        &self.project_state
     }
 }
 

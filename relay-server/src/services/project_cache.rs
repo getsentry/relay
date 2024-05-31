@@ -889,19 +889,18 @@ impl ProjectCacheBroker {
     }
 
     fn handle_flush_buckets(&mut self, message: FlushBuckets) {
-        let metric_outcomes = self.metric_outcomes.clone();
-
-        let mut output = BTreeMap::new();
-        for (project_key, buckets) in message.buckets {
-            let project = self.get_or_create_project(project_key);
-            if let Some((scoping, b)) = project.check_buckets(metric_outcomes.clone(), buckets) {
-                output.insert(scoping, b);
-            }
-        }
+        let buckets = message
+            .buckets
+            .into_iter()
+            .filter_map(|buckets| {
+                let project = self.get_or_create_project(buckets.project_key());
+                project.check_buckets(buckets)
+            })
+            .collect();
 
         self.services
             .envelope_processor
-            .send(EncodeMetrics { scopes: output })
+            .send(EncodeMetrics { buckets })
     }
 
     fn handle_buffer_index(&mut self, message: UpdateSpoolIndex) {

@@ -128,21 +128,22 @@ impl ServiceState {
         let global_config = global_config.start();
 
         let (project_cache, project_cache_rx) = channel(ProjectCacheService::name());
+        let (aggregator, aggregator_rx) = channel(RouterService::name());
 
-        let aggregator = RouterService::new(
-            config.default_aggregator_config().clone(),
-            config.secondary_aggregator_configs().clone(),
-            Some(project_cache.clone().recipient()),
-        )
-        .start();
-
-        let metric_stats = MetricStats::new(
+        let mut metric_stats = MetricStats::new(
             config.clone(),
             global_config_handle.clone(),
             aggregator.clone(),
         );
+        let metric_outcomes = MetricOutcomes::new(metric_stats.clone(), outcome_aggregator.clone());
 
-        let metric_outcomes = MetricOutcomes::new(metric_stats, outcome_aggregator.clone());
+        RouterService::new(
+            config.default_aggregator_config().clone(),
+            config.secondary_aggregator_configs().clone(),
+            Some(project_cache.clone().recipient()),
+            metric_outcomes.clone(),
+        )
+        .spawn_handler(aggregator_rx);
 
         #[cfg(feature = "processing")]
         let store = config

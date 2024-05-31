@@ -10,9 +10,7 @@ use relay_config::Config;
 use relay_dynamic_config::{ErrorBoundary, Feature, LimitedProjectConfig, ProjectConfig};
 use relay_filter::matches_any_origin;
 use relay_metrics::aggregator::AggregatorConfig;
-use relay_metrics::{
-    aggregator, Aggregator, Bucket, MergeBuckets, MetaAggregator, MetricMeta, MetricNamespace,
-};
+use relay_metrics::{aggregator, Bucket, MetaAggregator, MetricMeta, MetricNamespace};
 use relay_quotas::{DataCategory, MetricNamespaceScoping, Quota, RateLimits, Scoping};
 use relay_sampling::evaluation::ReservoirCounters;
 use relay_statsd::metric;
@@ -24,13 +22,14 @@ use url::Url;
 
 use crate::envelope::Envelope;
 use crate::metrics::{
-    Aggregated, ClockDriftCorrected, ExtractionMode, Filtered, ManagedBuckets, MetricOutcomes,
-    MetricsLimiter, Parsed, WithProjectState,
+    Aggregated, Checked, ClockDriftCorrected, ExtractionMode, Filtered, ManagedBuckets,
+    MetricOutcomes, MetricsLimiter, WithProjectState,
 };
+use crate::services::metrics_aggregator::{Aggregator, MergeBuckets};
 use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
 #[cfg(feature = "processing")]
 use crate::services::processor::RateLimitBuckets;
-use crate::services::processor::{EncodeMetricMeta, EnvelopeProcessor, ProjectMetrics};
+use crate::services::processor::{EncodeMetricMeta, EnvelopeProcessor};
 use crate::services::project::metrics::{apply_project_state, filter_namespace};
 use crate::services::project_cache::{BucketSource, CheckedEnvelope, ProjectCache, RequestUpdate};
 
@@ -655,7 +654,8 @@ impl Project {
         };
 
         if !buckets.is_empty() {
-            aggregator.send(MergeBuckets::new(self.project_key, buckets));
+            // TODO use ManagedBuckets here
+            aggregator.send(MergeBuckets::internal(self.project_key, buckets));
         };
     }
 
@@ -1129,17 +1129,8 @@ impl Project {
     /// Returns `Some` if metrics are currently allowed.
     pub fn check_buckets(
         &mut self,
-        metric_outcomes: MetricOutcomes,
-        buckets: Vec<Bucket>,
-    ) -> Option<(Scoping, ProjectMetrics)> {
-        let mut buckets = ManagedBuckets::new(
-            metric_outcomes,
-            buckets,
-            Aggregated {
-                project_key: self.project_key,
-            },
-        );
-
+        buckets: ManagedBuckets<Aggregated>,
+    ) -> Option<ManagedBuckets<Checked>> {
         let Some(scoping) = self.scoping() else {
             relay_log::error!(
                 tags.project_key = self.project_key.as_str(),
@@ -1160,9 +1151,14 @@ impl Project {
             return None;
         };
 
-        buckets.scope(scoping, project_state.get_extraction_mode());
+        let project_key = self.project_key;
+        let buckets = buckets.transition(move |_| Checked {
+            project_key,
+            project_state,
+            scoping,
+        });
 
-        if let Err(reason) = project_state.check_disabled(&self.config) {
+        if let Err(reason) = buckets.project_state().check_disabled(&self.config) {
             buckets.reject(Outcome::Invalid(reason));
             return None;
         }
@@ -1175,15 +1171,17 @@ impl Project {
         let mut buckets = buckets;
         for namespace in namespaces {
             let limits = self.rate_limits().check_with_quotas(
-                project_state.get_quotas(),
+                buckets.project_state().get_quotas(),
                 scoping.item(DataCategory::MetricBucket),
             );
 
             if limits.is_limited() {
                 let reason_code = limits.longest().and_then(|limit| limit.reason_code.clone());
-                buckets = buckets.remove_if(Outcome::RateLimited(reason_code), |bucket| {
-                    bucket.name.try_namespace() == Some(namespace)
-                });
+                buckets = buckets.remove_if(
+                    Outcome::RateLimited(reason_code),
+                    |bucket| bucket.name.try_namespace() == Some(namespace),
+                    |s| s,
+                );
             }
         }
 
@@ -1191,12 +1189,7 @@ impl Project {
             return None;
         }
 
-        let project_metrics = ProjectMetrics {
-            buckets,
-            project_state,
-        };
-
-        Some((scoping, project_metrics))
+        Some(buckets)
     }
 }
 
@@ -1205,6 +1198,7 @@ mod tests {
     use std::sync::Mutex;
 
     use crate::metrics::MetricStats;
+    use crate::services::metrics_aggregator::Aggregator;
     use relay_common::time::UnixTimestamp;
     use relay_metrics::BucketValue;
     use relay_test::mock_service;
@@ -1358,7 +1352,7 @@ mod tests {
             *state.lock().unwrap() = true;
         });
 
-        let buckets = vec![create_transaction_bucket()];
+        let buckets = ManagedBuckets::test(vec![create_transaction_bucket()]);
         let (outcome_aggregator, _) = mock_service("outcome_aggregator", (), |&mut (), _| {});
         let (envelope_processor, _) = mock_service("envelope_processor", (), |&mut (), _| {});
         let metric_outcomes =

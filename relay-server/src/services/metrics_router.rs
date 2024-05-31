@@ -5,6 +5,7 @@ use itertools::Itertools;
 use relay_config::{AggregatorServiceConfig, Condition, ScopedAggregatorConfig};
 use relay_system::{Addr, NoResponse, Recipient, Service};
 
+use crate::metrics::MetricOutcomes;
 use crate::services::metrics_aggregator::{
     AcceptsMetrics, Aggregator, AggregatorService, FlushBuckets, MergeBuckets,
 };
@@ -18,6 +19,7 @@ pub struct RouterService {
     default_config: AggregatorServiceConfig,
     secondary_configs: Vec<ScopedAggregatorConfig>,
     receiver: Option<Recipient<FlushBuckets, NoResponse>>,
+    metric_outcomes: MetricOutcomes,
 }
 
 impl RouterService {
@@ -26,11 +28,13 @@ impl RouterService {
         default_config: AggregatorServiceConfig,
         secondary_configs: Vec<ScopedAggregatorConfig>,
         receiver: Option<Recipient<FlushBuckets, NoResponse>>,
+        metric_outcomes: MetricOutcomes,
     ) -> Self {
         Self {
             default_config,
             secondary_configs,
             receiver,
+            metric_outcomes,
         }
     }
 }
@@ -71,20 +75,27 @@ impl StartedRouter {
             default_config,
             secondary_configs,
             receiver,
+            metric_outcomes,
         } = router;
 
         let secondary = secondary_configs
             .into_iter()
             .map(|c| {
-                let addr = AggregatorService::named(c.name, c.config, receiver.clone()).start();
+                let addr = AggregatorService::named(
+                    c.name,
+                    c.config,
+                    receiver.clone(),
+                    metric_outcomes.clone(),
+                )
+                .start();
                 (c.condition, addr)
             })
             .collect();
 
-        Self {
-            default: AggregatorService::new(default_config, receiver).start(),
-            secondary,
-        }
+        let default =
+            AggregatorService::new(default_config, receiver, metric_outcomes.clone()).start();
+
+        Self { default, secondary }
     }
 
     fn handle_message(&mut self, msg: Aggregator) {
@@ -112,8 +123,12 @@ impl StartedRouter {
     }
 
     fn handle_merge_buckets(&mut self, message: MergeBuckets) {
-        let metrics_by_namespace = message
-            .buckets
+        let MergeBuckets {
+            project_key,
+            buckets,
+        } = message;
+
+        let metrics_by_namespace = buckets
             .into_iter()
             .group_by(|bucket| bucket.name.try_namespace());
 
@@ -124,7 +139,7 @@ impl StartedRouter {
                 .find_map(|(cond, addr)| cond.matches(namespace).then_some(addr))
                 .unwrap_or(&self.default);
 
-            aggregator.send(MergeBuckets::new(message.project_key, group.collect()));
+            aggregator.send(MergeBuckets::internal(project_key, group.collect()));
         }
     }
 }

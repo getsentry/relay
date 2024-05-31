@@ -1,17 +1,18 @@
-use std::collections::HashMap;
 use std::time::Duration;
 
 use relay_base_schema::project::ProjectKey;
 use relay_config::AggregatorServiceConfig;
+use relay_metrics::aggregator::{self, AggregatorConfig};
+use relay_metrics::Bucket;
 use relay_system::{
     AsyncResponse, Controller, FromMessage, Interface, NoResponse, Recipient, Sender, Service,
     Shutdown,
 };
 
-use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
-use relay_metrics::{
-    aggregator::{self, AggregatorConfig},
-    Bucket,
+use crate::metrics::{Aggregated, MetricOutcomes};
+use crate::{
+    metrics::{ManagedBuckets, WithProjectState},
+    statsd::{RelayCounters, RelayHistograms, RelayTimers},
 };
 
 /// Interval for the flush cycle of the [`AggregatorService`].
@@ -90,10 +91,10 @@ pub struct BucketCountInquiry;
 /// - If flushing has succeeded or the buckets should be dropped for any reason, respond with `Ok`.
 /// - If flushing fails and should be retried at a later time, respond with `Err` containing the
 ///   failed buckets. They will be merged back into the aggregator and flushed at a later time.
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct FlushBuckets {
     /// The buckets to be flushed.
-    pub buckets: HashMap<ProjectKey, Vec<Bucket>>,
+    pub buckets: Vec<ManagedBuckets<Aggregated>>,
 }
 
 enum AggregatorState {
@@ -104,6 +105,7 @@ enum AggregatorState {
 /// Service implementing the [`Aggregator`] interface.
 pub struct AggregatorService {
     aggregator: aggregator::Aggregator,
+    metric_outcomes: MetricOutcomes,
     state: AggregatorState,
     receiver: Option<Recipient<FlushBuckets, NoResponse>>,
     max_total_bucket_bytes: Option<usize>,
@@ -117,8 +119,9 @@ impl AggregatorService {
     pub fn new(
         config: AggregatorServiceConfig,
         receiver: Option<Recipient<FlushBuckets, NoResponse>>,
+        metric_outcomes: MetricOutcomes,
     ) -> Self {
-        Self::named("default".to_owned(), config, receiver)
+        Self::named("default".to_owned(), config, receiver, metric_outcomes)
     }
 
     /// Like [`Self::new`], but with a provided name.
@@ -126,9 +129,11 @@ impl AggregatorService {
         name: String,
         config: AggregatorServiceConfig,
         receiver: Option<Recipient<FlushBuckets, NoResponse>>,
+        metric_outcomes: MetricOutcomes,
     ) -> Self {
         Self {
             receiver,
+            metric_outcomes,
             state: AggregatorState::Running,
             max_total_bucket_bytes: config.max_total_bucket_bytes,
             aggregator: aggregator::Aggregator::named(name, AggregatorConfig::from(&config)),
@@ -174,18 +179,28 @@ impl AggregatorService {
             aggregator = self.aggregator.name(),
         );
 
+        let buckets = buckets
+            .into_iter()
+            .map(|(project_key, buckets)| {
+                ManagedBuckets::new(
+                    self.metric_outcomes.clone(),
+                    buckets,
+                    Aggregated { project_key },
+                )
+            })
+            .collect();
+
         if let Some(ref receiver) = self.receiver {
             receiver.send(FlushBuckets { buckets })
         }
     }
 
     fn handle_merge_buckets(&mut self, msg: MergeBuckets) {
-        let MergeBuckets {
-            project_key,
-            buckets,
-        } = msg;
+        let MergeBuckets { buckets } = msg;
+        let (buckets, state) = buckets.disassemble();
+
         self.aggregator
-            .merge_all(project_key, buckets, &(), self.max_total_bucket_bytes);
+            .merge_all(state.project_key, buckets, self.max_total_bucket_bytes);
     }
 
     fn handle_message(&mut self, message: Aggregator) {
@@ -257,13 +272,25 @@ impl Drop for AggregatorService {
 /// A message containing a list of [`Bucket`]s to be inserted into the aggregator.
 #[derive(Debug)]
 pub struct MergeBuckets {
+    // TODO: should this be ManagedBuckets to keep the Drop handler
     pub(crate) project_key: ProjectKey,
     pub(crate) buckets: Vec<Bucket>,
 }
 
 impl MergeBuckets {
-    /// Creates a new message containing a list of [`Bucket`]s.
-    pub fn new(project_key: ProjectKey, buckets: Vec<Bucket>) -> Self {
+    /// Creates a new message containing a list of [`Bucket`]s, which have been validated
+    /// with the project state.
+    pub fn new(buckets: ManagedBuckets<WithProjectState>) -> Self {
+        let (buckets, state) = buckets.disassemble();
+        Self {
+            project_key: state.project_key,
+            buckets,
+        }
+    }
+
+    /// Creates a new message containing a list of buckets from a Relay internal source,
+    /// which bypasses all project checks.
+    pub fn internal(project_key: ProjectKey, buckets: Vec<Bucket>) -> Self {
         Self {
             project_key,
             buckets,
@@ -284,12 +311,12 @@ impl MergeBuckets {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::BTreeMap;
+    use std::collections::{BTreeMap, HashMap};
     use std::sync::{Arc, RwLock};
 
     use relay_common::time::UnixTimestamp;
 
-    use relay_metrics::{BucketMetadata, BucketValue};
+    use relay_metrics::{Bucket, BucketMetadata, BucketValue};
 
     use super::*;
 

@@ -78,7 +78,7 @@ impl MetricStats {
             outcome
         );
         self.aggregator
-            .send(MergeBuckets::new(scoping.project_key, vec![volume]));
+            .send(MergeBuckets::internal(scoping.project_key, vec![volume]));
     }
 
     /// Tracks the cardinality of a metric.
@@ -103,8 +103,10 @@ impl MetricStats {
             report.metric_name.as_deref().unwrap_or("-"),
             report.cardinality,
         );
-        self.aggregator
-            .send(MergeBuckets::new(scoping.project_key, vec![cardinality]));
+        self.aggregator.send(MergeBuckets::internal(
+            scoping.project_key,
+            vec![cardinality],
+        ));
     }
 
     fn is_enabled(&self, scoping: Scoping) -> bool {
