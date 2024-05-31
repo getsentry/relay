@@ -684,6 +684,14 @@ impl Getter for Event {
             // Computed fields (after normalization).
             "sentry_user" => self.user.value()?.sentry_user.as_str()?.into(),
 
+            "spans" => Val::Array(Box::new(
+                self.spans
+                    .value()?
+                    .iter()
+                    .filter_map(|a| a.value())
+                    .map(|span| span as &dyn Getter),
+            )),
+
             // Partial implementation of contexts.
             "contexts.app.in_foreground" => {
                 self.context::<AppContext>()?.in_foreground.value()?.into()
@@ -810,7 +818,8 @@ impl Getter for Event {
 #[cfg(test)]
 mod tests {
     use chrono::{TimeZone, Utc};
-    use relay_protocol::{ErrorKind, Map, Meta};
+    use relay_protocol::condition::AnyCondition;
+    use relay_protocol::{ErrorKind, Map, Meta, RuleCondition};
     use similar_asserts::assert_eq;
     use uuid::uuid;
 
@@ -1276,5 +1285,42 @@ mod tests {
         assert_eq!(None, event.get_value("event.user.id"));
         assert_eq!(None, event.get_value("event.user.segment"));
         assert_eq!(None, event.get_value("event.transaction"));
+    }
+
+    #[test]
+    fn test_span_any() {
+        let event = Annotated::<Event>::from_json(
+            r#"{
+                "spans": [
+                    {
+                        "op": "foo"
+                    },
+                    {
+                        "op": "bar"
+                    }
+                ]
+            }"#,
+        )
+        .unwrap()
+        .into_value()
+        .unwrap();
+
+        let rule = RuleCondition::Any(AnyCondition {
+            name: "event.spans".into(),
+            inner: RuleCondition::eq("span.op", "foo").into(),
+        });
+        assert!(rule.matches(&event));
+
+        let rule = RuleCondition::Any(AnyCondition {
+            name: "event.spans".into(),
+            inner: RuleCondition::eq("span.op", "bar").into(),
+        });
+        assert!(rule.matches(&event));
+
+        let rule = RuleCondition::Any(AnyCondition {
+            name: "event.spans".into(),
+            inner: RuleCondition::eq("span.op", "baz").into(),
+        });
+        assert!(!rule.matches(&event));
     }
 }

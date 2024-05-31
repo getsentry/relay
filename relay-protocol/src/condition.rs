@@ -332,7 +332,7 @@ impl AnyCondition {
         T: Getter + ?Sized,
     {
         match instance.get_value(self.name.as_str()) {
-            Some(Val::Array(f)) => f.iter().any(|v| self.inner.matches(v)),
+            Some(Val::Array(mut it)) => it.any(|v| self.inner.matches(v)),
             _ => false,
         }
     }
@@ -761,13 +761,13 @@ mod tests {
                 .iter()
                 .filter_map(|v| v.value().map(|i| i.op.as_str()))
                 .collect();
-            
+
             Some(match path.strip_prefix("trace.")? {
                 "transaction" => self.transaction.as_str().into(),
                 "release" => self.release.as_str().into(),
                 "environment" => self.environment.as_str().into(),
                 "user.segment" => self.user_segment.as_str().into(),
-                "spans.op" => c.into(),
+                "spans" => return None,
                 _ => {
                     return None;
                 }

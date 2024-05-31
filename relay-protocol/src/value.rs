@@ -1,4 +1,6 @@
+use std::borrow::Cow;
 use std::collections::BTreeMap;
+use std::fmt::Debug;
 use std::{fmt, str};
 
 #[cfg(feature = "jsonschema")]
@@ -365,7 +367,7 @@ pub struct Obj<'a> {
 }
 
 /// Borrowed version of [`Value`].
-#[derive(Debug, Clone)]
+
 pub enum Val<'a> {
     /// A null value (used to keep null values around in arrays).
     Null,
@@ -382,7 +384,7 @@ pub enum Val<'a> {
     /// A UUID.
     Uuid(Uuid),
     /// An array of annotated values.
-    Array(Vec<Val<'a>>),
+    Array(Box<dyn Iterator<Item = &'a dyn Getter> + 'a>),
     /// A mapping of strings to annotated values.
     Object(Obj<'a>),
 }
@@ -441,6 +443,22 @@ impl<'a> Val<'a> {
     }
 }
 
+impl Debug for Val<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Null => write!(f, "Null"),
+            Self::Bool(arg0) => f.debug_tuple("Bool").field(arg0).finish(),
+            Self::I64(arg0) => f.debug_tuple("I64").field(arg0).finish(),
+            Self::U64(arg0) => f.debug_tuple("U64").field(arg0).finish(),
+            Self::F64(arg0) => f.debug_tuple("F64").field(arg0).finish(),
+            Self::String(arg0) => f.debug_tuple("String").field(arg0).finish(),
+            Self::Uuid(arg0) => f.debug_tuple("Uuid").field(arg0).finish(),
+            Self::Array(arg0) => f.debug_tuple("Array").finish(),
+            Self::Object(arg0) => f.debug_tuple("Object").field(arg0).finish(),
+        }
+    }
+}
+
 impl From<bool> for Val<'_> {
     fn from(value: bool) -> Self {
         Self::Bool(value)
@@ -495,12 +513,7 @@ impl<'a> From<&'a Value> for Val<'a> {
             Value::U64(value) => Self::U64(*value),
             Value::F64(value) => Self::F64(*value),
             Value::String(value) => Self::String(value),
-            Value::Array(value) => Self::Array(
-                value
-                    .iter()
-                    .map(|v| v.value().map_or(Self::Null, |i| i.into()))
-                    .collect(),
-            ),
+            Value::Array(value) => Self::Null, // TODO
             Value::Object(_) => Self::Object(Obj {
                 _phantom: Default::default(),
             }),
@@ -508,31 +521,31 @@ impl<'a> From<&'a Value> for Val<'a> {
     }
 }
 
-impl<'a, T> From<&'a Array<T>> for Val<'a>
-where
-    Val<'a>: From<T>,
-    T: Copy,
-{
-    fn from(value: &'a Array<T>) -> Self {
-        Self::Array(
-            value
-                .iter()
-                .map(|v| v.value().map_or(Self::Null, |i| i.into()))
-                .collect(),
-        )
-    }
-}
+// impl<'a, T> From<&'a Array<T>> for Val<'a>
+// where
+//     Val<'a>: From<T>,
+//     T: Copy,
+// {
+//     fn from(value: &'a Array<T>) -> Self {
+//         Self::Array(
+//             value
+//                 .iter()
+//                 .map(|v| v.value().map_or(Self::Null, |i| i.into()))
+//                 .collect(),
+//         )
+//     }
+// }
 
-impl<'a, T> From<Vec<T>> for Val<'a>
-where
-    Val<'a>: From<T>,
-    Vec<T>: 'a,
-    T: Copy + 'a,
-{
-    fn from(value: Vec<T>) -> Self {
-        Self::Array(value.iter().map(|v| v.into()).collect())
-    }
-}
+// impl<'a, T> From<Vec<T>> for Val<'a>
+// where
+//     Val<'a>: From<T>,
+//     Vec<T>: 'a,
+//     T: Copy + 'a,
+// {
+//     fn from(value: Vec<T>) -> Self {
+//         Self::Array(value.iter().map(|v| v.into()).collect())
+//     }
+// }
 
 impl PartialEq for Val<'_> {
     fn eq(&self, other: &Self) -> bool {
@@ -553,8 +566,8 @@ impl PartialEq for Val<'_> {
     }
 }
 
-impl<'a> Getter for Val<'a> {
-    fn get_value(&self, _path: &str) -> Option<Val<'_>> {
-        Some(self.clone())
-    }
-}
+// impl<'a> Getter for Val<'a> {
+//     fn get_value(&self, _path: &str) -> Option<Val<'_>> {
+//         Some(self.clone())
+//     }
+// }
