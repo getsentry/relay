@@ -5,6 +5,11 @@ use serde::{Deserialize, Serialize};
 /// Features exposed by project config.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub enum Feature {
+    /// Enables fetching of configurations.
+    ///
+    /// Serialized as `organizations:remote-config`.
+    #[serde(rename = "organizations:remote-config")]
+    RemoteConfig,
     /// Enables ingestion of Session Replays (Replay Recordings and Replay Events).
     ///
     /// Serialized as `organizations:session-replay`.
