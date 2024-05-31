@@ -1023,7 +1023,7 @@ mod tests {
         let s = "transactions/foo:e2546e4c-ecd0-43ad-ae27-87960e57a658|s";
         let timestamp = UnixTimestamp::from_secs(4711);
         let metric = Bucket::parse(s.as_bytes(), timestamp).unwrap();
-        assert_eq!(metric.value, BucketValue::Set([4267882815].into()));
+        assert_eq!(metric.value, BucketValue::Set([1017918600].into()));
     }
 
     #[test]
@@ -1033,7 +1033,7 @@ mod tests {
         let metric = Bucket::parse(s.as_bytes(), timestamp).unwrap();
         assert_eq!(
             metric.value,
-            BucketValue::Set([181348692, 4267882815].into())
+            BucketValue::Set([1017918600, 2871483987].into())
         );
     }
 

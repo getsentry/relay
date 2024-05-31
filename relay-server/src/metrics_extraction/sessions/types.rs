@@ -1,5 +1,8 @@
 use std::collections::BTreeMap;
 use std::fmt::{self, Display};
+use std::hash::Hasher as _;
+
+use hash32::{FnvHasher, Hasher as _};
 
 use relay_common::time::UnixTimestamp;
 use relay_event_schema::protocol::SessionStatus;
@@ -103,9 +106,9 @@ impl IntoMetric for SessionMetric {
             SessionMetric::Error {
                 session_id: id,
                 tags,
-            } => (BucketValue::set_from_display(id), tags.into()),
+            } => (BucketValue::set(hash_id(&id.to_string())), tags.into()),
             SessionMetric::User { distinct_id, tags } => {
-                (BucketValue::set_from_display(distinct_id), tags.into())
+                (BucketValue::set(hash_id(&distinct_id)), tags.into())
             }
             SessionMetric::Session { counter, tags } => {
                 (BucketValue::Counter(counter), tags.into())
@@ -146,4 +149,10 @@ impl Display for SessionMetric {
             Self::Error { .. } => write!(f, "error"),
         }
     }
+}
+
+pub(crate) fn hash_id(string: &str) -> u32 {
+    let mut hasher = FnvHasher::default();
+    hasher.write(string.as_bytes());
+    hasher.finish32()
 }
