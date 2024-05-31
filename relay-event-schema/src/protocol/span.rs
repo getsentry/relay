@@ -26,14 +26,6 @@ pub struct Span {
     /// excluding its immediate child spans.
     pub exclusive_time: Annotated<f64>,
 
-    /// Human readable description of a span (e.g. method URL).
-    #[metastructure(pii = "maybe")]
-    pub description: Annotated<String>,
-
-    /// Span type (see `OperationType` docs).
-    #[metastructure(max_chars = 128)]
-    pub op: Annotated<OperationType>,
-
     /// The Span id.
     #[metastructure(required = "true")]
     pub span_id: Annotated<SpanId>,
@@ -56,6 +48,14 @@ pub struct Span {
 
     /// The status of a span.
     pub status: Annotated<SpanStatus>,
+
+    /// Human readable description of a span (e.g. method URL).
+    #[metastructure(pii = "maybe")]
+    pub description: Annotated<String>,
+
+    /// Span type (see `OperationType` docs).
+    #[metastructure(max_chars = 128)]
+    pub op: Annotated<OperationType>,
 
     /// Arbitrary tags on a span, like on the top-level event.
     #[metastructure(pii = "maybe")]
