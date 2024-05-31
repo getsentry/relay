@@ -20,11 +20,11 @@ targets:
           cacheControl: public, max-age=600
   - id: release
     name: docker
-    source: us.gcr.io/sentryio/relay
+    source: us-central1-docker.pkg.dev/sentryio/relay/relay
     target: getsentry/relay
   - id: latest
     name: docker
-    source: us.gcr.io/sentryio/relay
+    source: us-central1-docker.pkg.dev/sentryio/relay/relay
     target: getsentry/relay
     targetFormat: "{{{target}}}:latest"
 
