@@ -160,6 +160,7 @@ def test_feedback_with_attachment_in_same_envelope(
     mini_sentry.add_basic_project_config(
         42, extra={"config": {"features": ["organizations:user-feedback-ingest"]}}
     )
+    mini_sentry.set_global_config_option("relay.inline-attachments.rollout-rate", 1.0)
 
     if use_feedback_topic:
         mini_sentry.set_global_config_option("feedback.ingest-topic.rollout-rate", 1.0)
@@ -196,15 +197,6 @@ def test_feedback_with_attachment_in_same_envelope(
     relay = relay_with_processing()
     relay.send_envelope(project_id, envelope)
 
-    # attachment data (relaxed version of test_attachments.py)
-    received_contents = {}  # attachment id -> bytes
-    while set(received_contents.values()) != {attachment_contents}:
-        chunk, v = attachments_consumer.get_attachment_chunk()
-        received_contents[v["id"]] = received_contents.get(v["id"], b"") + chunk
-        assert v["event_id"] == event_id
-        assert v["project_id"] == project_id
-    assert len(received_contents) == 1
-
     # attachment headers
     attachment_event = attachments_consumer.get_individual_attachment()
     assert attachment_event["event_id"] == event_id
@@ -212,6 +204,7 @@ def test_feedback_with_attachment_in_same_envelope(
     attachment = attachment_event["attachment"]
     assert attachment["name"] == attachment_headers["filename"]
     assert attachment["content_type"] == attachment_headers["content_type"]
+    assert attachment["data"] == attachment_contents
     assert attachment["size"] == attachment_headers["length"]
 
     # feedback event sent to correct topic
