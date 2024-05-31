@@ -4,7 +4,7 @@ authors = ["Sentry <oss@sentry.io>"]
 description = "Endpoints and services for Relay"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "24.4.2"
+version = "24.5.0"
 edition = "2021"
 build = "build.rs"
 license-file = "../LICENSE.md"
@@ -48,14 +48,12 @@ axum = { workspace = true, features = [
 axum-server = { workspace = true }
 backoff = { workspace = true }
 brotli = { workspace = true }
-bytecount = { workspace = true }
 bytes = { workspace = true, features = ["serde"] }
 chrono = { workspace = true, features = ["clock"] }
 data-encoding = { workspace = true }
 flate2 = { workspace = true }
 fnv = { workspace = true }
 futures = { workspace = true }
-hash32 = { workspace = true }
 hashbrown = { workspace = true }
 itertools = { workspace = true }
 json-forensics = { workspace = true }
@@ -134,7 +132,7 @@ url = { workspace = true, features = ["serde"] }
 uuid = { workspace = true, features = ["v5"] }
 zstd = { workspace = true, optional = true }
 axum-extra = { workspace = true, features = ["protobuf"] }
-google-cloud-storage = { version = "0.18.0" }
+semver = { workspace = true }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ['test-util'] }

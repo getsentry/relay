@@ -20,6 +20,10 @@ pub enum RelayGauges {
     ///
     /// The disk buffer size can be configured with `spool.envelopes.max_disk_size`.
     BufferEnvelopesDiskCount,
+    /// Number of queue keys (project key pairs) unspooled during proactive unspool.
+    /// This metric is tagged with:
+    /// - `reason`: Why keys are / are not unspooled.
+    BufferPeriodicUnspool,
     /// The currently used memory by the entire system.
     ///
     /// Relay uses the same value for its memory health check.
@@ -37,6 +41,7 @@ impl GaugeMetric for RelayGauges {
             RelayGauges::ProjectCacheGarbageQueueSize => "project_cache.garbage.queue_size",
             RelayGauges::BufferEnvelopesMemoryCount => "buffer.envelopes_mem_count",
             RelayGauges::BufferEnvelopesDiskCount => "buffer.envelopes_disk_count",
+            RelayGauges::BufferPeriodicUnspool => "buffer.unspool.periodic",
             RelayGauges::SystemMemoryUsed => "health.system_memory.used",
             RelayGauges::SystemMemoryTotal => "health.system_memory.total",
         }
@@ -390,6 +395,15 @@ pub enum RelayTimers {
     /// This metric is tagged with:
     ///  - `type`: The type of the health check, `liveness` or `readiness`.
     HealthCheckDuration,
+    /// Temporary timing metric for how much time was spent evaluating span and transaction
+    /// rate limits using the `RateLimitBuckets` message in the processor.
+    ///
+    /// This metric is tagged with:
+    ///  - `category`: The data category evaluated.
+    ///  - `limited`: Whether the batch is rate limited.
+    ///  - `count`: How many items matching the data category are contained in the batch.
+    #[cfg(feature = "processing")]
+    RateLimitBucketsDuration,
 }
 
 impl TimerMetric for RelayTimers {
@@ -428,6 +442,8 @@ impl TimerMetric for RelayTimers {
             RelayTimers::BufferMessageProcessDuration => "buffer.message.duration",
             RelayTimers::ProjectCacheTaskDuration => "project_cache.task.duration",
             RelayTimers::HealthCheckDuration => "health.message.duration",
+            #[cfg(feature = "processing")]
+            RelayTimers::RateLimitBucketsDuration => "processor.rate_limit_buckets",
         }
     }
 }
@@ -467,6 +483,12 @@ pub enum RelayCounters {
     BufferEnvelopesWritten,
     /// Number of _envelopes_ the envelope buffer reads back from disk.
     BufferEnvelopesRead,
+    /// Number of state changes in the envelope buffer.
+    /// This metric is tagged with:
+    ///  - `state_in`: The previous state. `memory`, `memory_file_standby`, or `disk`.
+    ///  - `state_out`: The new state. `memory`, `memory_file_standby`, or `disk`.
+    ///  - `reason`: Why a transition was made (or not made).
+    BufferStateTransition,
     ///
     /// Number of outcomes and reasons for rejected Envelopes.
     ///
@@ -653,6 +675,9 @@ pub enum RelayCounters {
     /// Counts how many transactions were created from segment spans.
     #[cfg(feature = "processing")]
     TransactionsFromSpans,
+    /// Counter for when the DSC is missing from an event that comes from an SDK that should support
+    /// it.
+    MissingDynamicSamplingContext,
 }
 
 impl CounterMetric for RelayCounters {
@@ -665,6 +690,7 @@ impl CounterMetric for RelayCounters {
             RelayCounters::BufferReads => "buffer.reads",
             RelayCounters::BufferEnvelopesWritten => "buffer.envelopes_written",
             RelayCounters::BufferEnvelopesRead => "buffer.envelopes_read",
+            RelayCounters::BufferStateTransition => "buffer.state.transition",
             RelayCounters::Outcomes => "events.outcomes",
             RelayCounters::ProjectStateGet => "project_state.get",
             RelayCounters::ProjectStateRequest => "project_state.request",
@@ -693,6 +719,7 @@ impl CounterMetric for RelayCounters {
             RelayCounters::DynamicSamplingDecision => "dynamic_sampling_decision",
             #[cfg(feature = "processing")]
             RelayCounters::TransactionsFromSpans => "transactions_from_spans",
+            RelayCounters::MissingDynamicSamplingContext => "missing_dynamic_sampling_context",
         }
     }
 }

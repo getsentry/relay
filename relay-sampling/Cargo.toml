@@ -4,7 +4,7 @@ authors = ["Sentry <oss@sentry.io>"]
 description = "Dynamic sampling functionality for Relay"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "24.4.2"
+version = "24.5.0"
 edition = "2021"
 license-file = "../LICENSE.md"
 publish = false
@@ -22,13 +22,11 @@ chrono = { workspace = true }
 rand = { workspace = true }
 rand_pcg = { workspace = true }
 relay-base-schema = { workspace = true }
-relay-common = { workspace = true }
 relay-log = { workspace = true }
 relay-protocol = { workspace = true }
 relay-redis = { workspace = true, optional = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
-unicase = { workspace = true }
 uuid = { workspace = true }
 
 [dev-dependencies]

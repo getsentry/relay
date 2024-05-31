@@ -474,6 +474,7 @@ pub struct Event {
     pub expectstaple: Annotated<ExpectStaple>,
 
     /// Spans for tracing.
+    #[metastructure(max_bytes = 819200)]
     #[metastructure(omit_from_schema)] // we only document error events for now
     pub spans: Annotated<Array<Span>>,
 

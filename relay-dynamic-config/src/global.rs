@@ -81,14 +81,14 @@ impl GlobalConfig {
     /// - Adds hard-coded groups to metrics extraction configs.
     pub fn normalize(&mut self) {
         if let ErrorBoundary::Ok(config) = &mut self.metric_extraction {
-            for (group_name, metrics) in defaults::hardcoded_span_metrics() {
+            for (group_name, metrics, tags) in defaults::hardcoded_span_metrics() {
                 // We only define these groups if they haven't been defined by the upstream yet.
                 // This ensures that the innermost Relay always defines the metrics.
                 if let Entry::Vacant(entry) = config.groups.entry(group_name) {
                     entry.insert(MetricExtractionGroup {
                         is_enabled: false, // must be enabled via project config
                         metrics,
-                        tags: Default::default(),
+                        tags,
                     });
                 }
             }
@@ -198,23 +198,10 @@ pub struct Options {
     )]
     pub feedback_ingest_topic_rollout_rate: f32,
 
-    /// Flag for handling feedback and attachments in the same envelope. This is for the SDK team to send less requests
-    /// for the user feedback screenshots feature. Prior to this change, feedback sent w/attachments would be produced
-    /// to the attachments topic, rather than its own topic. The items are now split up accordingly.
-    ///
-    /// This option is used as a temporary FF/kill-switch to toggle back to the old code path in relay's StoreService.
-    /// This is for testing convenience and will be removed after user feedback's GA release.
-    #[serde(
-        rename = "feedback.ingest-inline-attachments",
-        deserialize_with = "default_on_error",
-        skip_serializing_if = "is_default"
-    )]
-    pub feedback_ingest_same_envelope_attachments: bool,
-
     /// Overall sampling of span extraction.
     ///
     /// This number represents the fraction of transactions for which
-    /// spans are extracted. It applies on top of [`crate::Feature::ExtractSpansAndSpanMetricsFromEvent`],
+    /// spans are extracted. It applies on top of [`crate::Feature::ExtractCommonSpanMetricsFromEvent`],
     /// so both feature flag and sample rate need to be enabled to get any spans extracted.
     ///
     /// `None` is the default and interpreted as a value of 1.0 (extract everything).

@@ -5,6 +5,7 @@ use std::collections::BTreeMap;
 use hashbrown::HashSet;
 use relay_base_schema::metrics::{MetricName, MetricNamespace, MetricType};
 use relay_base_schema::project::ProjectId;
+use relay_common::time::UnixTimestamp;
 use relay_statsd::metric;
 
 use crate::statsd::CardinalityLimiterTimers;
@@ -27,6 +28,9 @@ pub struct Scoping {
 /// If all of the scoping information is `None`, the limit is a global cardinality limit.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct CardinalityReport {
+    /// Time for which the cardinality limit was enforced.
+    pub timestamp: UnixTimestamp,
+
     /// Organization id for which the cardinality limit was applied.
     ///
     /// Only available if the the limit was at least scoped to
@@ -671,6 +675,7 @@ mod tests {
                 reporter.report_cardinality(
                     &limits[0],
                     CardinalityReport {
+                        timestamp: UnixTimestamp::from_secs(5000),
                         organization_id: Some(scoping.organization_id),
                         project_id: Some(scoping.project_id),
                         metric_type: None,
@@ -682,6 +687,7 @@ mod tests {
                 reporter.report_cardinality(
                     &limits[0],
                     CardinalityReport {
+                        timestamp: UnixTimestamp::from_secs(5001),
                         organization_id: Some(scoping.organization_id),
                         project_id: Some(scoping.project_id),
                         metric_type: None,
@@ -693,6 +699,7 @@ mod tests {
                 reporter.report_cardinality(
                     &limits[2],
                     CardinalityReport {
+                        timestamp: UnixTimestamp::from_secs(5002),
                         organization_id: Some(scoping.organization_id),
                         project_id: Some(scoping.project_id),
                         metric_type: None,
@@ -753,6 +760,7 @@ mod tests {
             reports.get(&limits[0]).unwrap(),
             &[
                 CardinalityReport {
+                    timestamp: UnixTimestamp::from_secs(5000),
                     organization_id: Some(scoping.organization_id),
                     project_id: Some(scoping.project_id),
                     metric_type: None,
@@ -760,6 +768,7 @@ mod tests {
                     cardinality: 1
                 },
                 CardinalityReport {
+                    timestamp: UnixTimestamp::from_secs(5001),
                     organization_id: Some(scoping.organization_id),
                     project_id: Some(scoping.project_id),
                     metric_type: None,
@@ -771,6 +780,7 @@ mod tests {
         assert_eq!(
             reports.get(&limits[2]).unwrap(),
             &[CardinalityReport {
+                timestamp: UnixTimestamp::from_secs(5002),
                 organization_id: Some(scoping.organization_id),
                 project_id: Some(scoping.project_id),
                 metric_type: None,

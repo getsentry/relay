@@ -2,11 +2,34 @@
 
 ## Unreleased
 
+**Bug fixes**:
+
+- Apply globally defined metric tags to legacy transaction metrics. ([#3615](https://github.com/getsentry/relay/pull/3615))
+- Limit the maximum size of spans in an transaction to 800 kib. ([#3645](https://github.com/getsentry/relay/pull/3645))
+- Scrub identifiers in spans with `op:db` and `db_system:redis`. ([#3642](https://github.com/getsentry/relay/pull/3642))
+
+**Features**:
+
+- Apply legacy inbound filters to standalone spans. ([#3552](https://github.com/getsentry/relay/pull/3552))
+- Add separate feature flags for add-ons span metrics and indexed spans. ([#3633](https://github.com/getsentry/relay/pull/3633))
+
+**Internal**:
+
+- Send microsecond precision timestamps. ([#3613](https://github.com/getsentry/relay/pull/3613))
+- Pull AI token counts from the 'data' section as well. ([#3630](https://github.com/getsentry/relay/pull/3630))
+- Map outcome reasons for dynamic sampling to reduced set of values. ([#3623](https://github.com/getsentry/relay/pull/3623))
+- Extract status for spans. ([#3606](https://github.com/getsentry/relay/pull/3606))
+- Forward `received_at` timestamp for buckets sent to Kafka. ([#3561](https://github.com/getsentry/relay/pull/3561))
+- Limit metric name to 150 characters. ([#3628](https://github.com/getsentry/relay/pull/3628))
+- Add validation of Kafka topics on startup. ([#3543](https://github.com/getsentry/relay/pull/3543))
+
+## 24.5.0
+
 **Breaking Changes**:
 
 - Remove the AWS lambda extension. ([#3568](https://github.com/getsentry/relay/pull/3568))
 
-**Bug fixes:**
+**Bug fixes**:
 
 - Properly handle AI metrics from the Python SDK's `@ai_track` decorator. ([#3539](https://github.com/getsentry/relay/pull/3539))
 - Mitigate occasional slowness and timeouts of the healthcheck endpoint. The endpoint will now respond promptly an unhealthy state. ([#3567](https://github.com/getsentry/relay/pull/3567))
@@ -35,6 +58,8 @@
 - Support new cache span ops in metrics and tag extraction. ([#3598](https://github.com/getsentry/relay/pull/3598))
 - Extract additional user fields for spans. ([#3599](https://github.com/getsentry/relay/pull/3599))
 - Disable `db.redis` span metrics extraction. ([#3600](https://github.com/getsentry/relay/pull/3600))
+- Extract status for spans. ([#3606](https://github.com/getsentry/relay/pull/3606))
+- Extract cache key for spans. ([#3631](https://github.com/getsentry/relay/pull/3631))
 
 ## 24.4.2
 
@@ -42,7 +67,7 @@
 
 - Stop supporting dynamic sampling mode `"total"`, which adjusted for the client sample rate. ([#3474](https://github.com/getsentry/relay/pull/3474))
 
-**Bug fixes:**
+**Bug fixes**:
 
 - Respect country code TLDs when scrubbing span tags. ([#3458](https://github.com/getsentry/relay/pull/3458))
 - Extract HTTP status code from span data when sent as integers. ([#3491](https://github.com/getsentry/relay/pull/3491))

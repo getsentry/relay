@@ -58,6 +58,7 @@ pub(crate) fn scrub_span_description(
         .and_then(|(op, sub)| match (op, sub) {
             ("http", _) => scrub_http(description),
             ("cache", _) | ("db", "redis") => scrub_redis_keys(description),
+            ("db", _) if db_system == Some("redis") => scrub_redis_keys(description),
             ("db", sub) => {
                 if sub.contains("clickhouse")
                     || sub.contains("mongodb")
@@ -1122,6 +1123,24 @@ mod tests {
 
         // Can be scrubbed with db system.
         assert_eq!(scrubbed.0.as_deref(), Some("SELECT a FROM b"));
+    }
+
+    #[test]
+    fn redis_with_db_system() {
+        let json = r#"{
+            "description": "del myveryrandomkey:123Xalsdkxfhn",
+            "op": "db",
+            "data": {
+                "db.system": "redis"
+            }
+        }"#;
+
+        let mut span = Annotated::<Span>::from_json(json).unwrap();
+
+        let scrubbed = scrub_span_description(span.value_mut().as_mut().unwrap());
+
+        // NOTE: this should return `DEL *`, but we cannot detect lowercase command names yet.
+        assert_eq!(scrubbed.0.as_deref(), Some("*"));
     }
 
     #[test]

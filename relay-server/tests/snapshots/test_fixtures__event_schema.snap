@@ -1028,6 +1028,34 @@ expression: "relay_event_schema::protocol::event_json_schema()"
         {
           "type": "object",
           "properties": {
+            "messaging.destination.name": {
+              "description": " The destination name (ie queue/topic) that a producer/consumer acts on.\n\n Set by backend SDKs with messaging integration.",
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "messaging.message.body.size": {
+              "description": " The size of the message body in bytes.\n\n Set by backend SDKs with messaging integration.",
+              "default": null
+            },
+            "messaging.message.id": {
+              "description": " The id of the message in the messaging event.\n\n Set by backend SDKs with messaging integration.",
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "messaging.message.receive.latency": {
+              "description": " The time duration that a message waited in queue before being received.\n\n Set by backend SDKs with messaging integration.",
+              "default": null
+            },
+            "messaging.message.retry.count": {
+              "description": " The number of times a message was redelivered.\n\n Set by backend SDKs with messaging integration.",
+              "default": null
+            },
             "previousRoute": {
               "description": " The previous route in the application\n\n Set by React Native SDK.",
               "default": null,

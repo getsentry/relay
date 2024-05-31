@@ -1,24 +1,23 @@
-from collections import Counter
 import json
-from datetime import datetime, timedelta, timezone
 import uuid
-
-from opentelemetry.proto.trace.v1.trace_pb2 import (
-    Span,
-    ScopeSpans,
-    ResourceSpans,
-    TracesData,
-)
-from opentelemetry.proto.common.v1.common_pb2 import AnyValue, KeyValue
+from collections import Counter
+from datetime import datetime, timedelta, timezone
 
 import pytest
-
+from opentelemetry.proto.common.v1.common_pb2 import AnyValue, KeyValue
+from opentelemetry.proto.trace.v1.trace_pb2 import (
+    ResourceSpans,
+    ScopeSpans,
+    Span,
+    TracesData,
+)
 from requests import HTTPError
 from sentry_relay.consts import DataCategory
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 
-from .test_store import make_transaction
+from .asserts import time_after
 from .test_metrics import TEST_CONFIG
+from .test_store import make_transaction
 
 
 @pytest.mark.parametrize("discard_transaction", [False, True])
@@ -41,7 +40,7 @@ def test_span_extraction(
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = [
         "projects:span-metrics-extraction",
-        "projects:span-metrics-extraction-all-modules",
+        "organizations:indexed-spans-extraction",
     ]
     project_config["config"]["transactionMetrics"] = {
         "version": 3,
@@ -51,6 +50,8 @@ def test_span_extraction(
         project_config["config"]["features"].append("projects:discard-transaction")
 
     event = make_transaction({"event_id": "cbf6960622e14a45abc1f03b2055b186"})
+    event["contexts"]["trace"]["status"] = "success"
+    event["contexts"]["trace"]["origin"] = "manual"
     end = datetime.now(timezone.utc) - timedelta(seconds=1)
     duration = timedelta(milliseconds=500)
     start = end - duration
@@ -58,9 +59,11 @@ def test_span_extraction(
         {
             "description": "GET /api/0/organizations/?member=1",
             "op": "http",
+            "origin": "manual",
             "parent_span_id": "aaaaaaaaaaaaaaaa",
             "span_id": "bbbbbbbbbbbbbbbb",
             "start_timestamp": start.isoformat(),
+            "status": "success",
             "timestamp": end.isoformat(),
             "trace_id": "ff62a8b040f340bda5d830223def1d81",
         },
@@ -74,6 +77,7 @@ def test_span_extraction(
         # We do not accidentally produce to the events topic:
         assert events_consumer.poll(timeout=2.0) is None
 
+        # We _do_ extract span metrics:
         assert {headers[0] for _, headers in metrics_consumer.get_metrics()} == {
             ("namespace", b"spans")
         }
@@ -94,6 +98,7 @@ def test_span_extraction(
         "exclusive_time_ms": 500.0,
         "is_segment": False,
         "organization_id": 1,
+        "origin": "manual",
         "parent_span_id": "aaaaaaaaaaaaaaaa",
         "project_id": 42,
         "retention_days": 90,
@@ -106,18 +111,26 @@ def test_span_extraction(
             "platform": "other",
             "sdk.name": "raven-node",
             "sdk.version": "2.6.3",
-            "trace.status": "unknown",
+            "status": "ok",
+            "trace.status": "ok",
             "transaction": "hi",
             "transaction.op": "hi",
         },
         "span_id": "bbbbbbbbbbbbbbbb",
         "start_timestamp_ms": int(start.timestamp() * 1e3),
+        "start_timestamp_precise": start.timestamp(),
+        "end_timestamp_precise": start.timestamp() + duration.total_seconds(),
         "trace_id": "ff62a8b040f340bda5d830223def1d81",
     }
 
-    start_timestamp = datetime.fromisoformat(event["start_timestamp"])
-    end_timestamp = datetime.fromisoformat(event["timestamp"])
-    duration_ms = int((end_timestamp - start_timestamp).total_seconds() * 1e3)
+    start_timestamp = datetime.fromisoformat(event["start_timestamp"]).replace(
+        tzinfo=timezone.utc
+    )
+    end_timestamp = datetime.fromisoformat(event["timestamp"]).replace(
+        tzinfo=timezone.utc
+    )
+    duration = (end_timestamp - start_timestamp).total_seconds()
+    duration_ms = int(duration * 1e3)
 
     transaction_span = spans_consumer.get_span()
     del transaction_span["received"]
@@ -133,6 +146,7 @@ def test_span_extraction(
         "exclusive_time_ms": 2000.0,
         "is_segment": True,
         "organization_id": 1,
+        "origin": "manual",
         "project_id": 42,
         "retention_days": 90,
         "segment_id": "968cff94913ebb07",
@@ -141,14 +155,15 @@ def test_span_extraction(
             "platform": "other",
             "sdk.name": "raven-node",
             "sdk.version": "2.6.3",
-            "trace.status": "unknown",
+            "status": "ok",
+            "trace.status": "ok",
             "transaction": "hi",
             "transaction.op": "hi",
         },
         "span_id": "968cff94913ebb07",
-        "start_timestamp_ms": int(
-            start_timestamp.replace(tzinfo=timezone.utc).timestamp() * 1e3
-        ),
+        "start_timestamp_ms": int(start_timestamp.timestamp() * 1e3),
+        "start_timestamp_precise": start_timestamp.timestamp(),
+        "end_timestamp_precise": start_timestamp.timestamp() + duration,
         "trace_id": "a0fa8803753e40fd8124b21eeb2986b5",
     }
 
@@ -181,6 +196,7 @@ def test_span_extraction_with_sampling(
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = [
         "projects:span-metrics-extraction",
+        "organizations:indexed-spans-extraction",
     ]
     project_config["config"]["transactionMetrics"] = {
         "version": 3,
@@ -224,6 +240,7 @@ def test_duplicate_performance_score(mini_sentry, relay):
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = [
         "projects:span-metrics-extraction",
+        "organizations:indexed-spans-extraction",
     ]
     project_config["config"]["transactionMetrics"] = {
         "version": 1,
@@ -445,7 +462,8 @@ def test_span_ingestion(
         )
 
     duration = timedelta(milliseconds=500)
-    end = datetime.now(timezone.utc) - timedelta(seconds=1)
+    now = datetime.now(timezone.utc)
+    end = now - timedelta(seconds=1)
     start = end - duration
 
     # 1 - Send OTel span and sentry span via envelope
@@ -513,9 +531,12 @@ def test_span_ingestion(
                 "browser.name": "Chrome",
                 "category": "db",
                 "op": "db.query",
+                "status": "unknown",
             },
             "span_id": "a342abb1214ca181",
             "start_timestamp_ms": int(start.timestamp() * 1e3),
+            "start_timestamp_precise": start.timestamp(),
+            "end_timestamp_precise": end.timestamp(),
             "trace_id": "89143b0763095bd9c9955e8175d1fb23",
         },
         {
@@ -540,6 +561,8 @@ def test_span_ingestion(
             },
             "span_id": "b0429c44b67a3eb1",
             "start_timestamp_ms": int(start.timestamp() * 1e3),
+            "start_timestamp_precise": start.timestamp(),
+            "end_timestamp_precise": end.timestamp() + 1,
             "trace_id": "ff62a8b040f340bda5d830223def1d81",
         },
         {
@@ -555,6 +578,8 @@ def test_span_ingestion(
             "sentry_tags": {"browser.name": "Chrome", "op": "default"},
             "span_id": "cd429c44b67a3eb1",
             "start_timestamp_ms": int(start.timestamp() * 1e3),
+            "start_timestamp_precise": start.timestamp(),
+            "end_timestamp_precise": end.timestamp() + 1,
             "trace_id": "ff62a8b040f340bda5d830223def1d81",
         },
         {
@@ -570,9 +595,12 @@ def test_span_ingestion(
             "sentry_tags": {
                 "browser.name": "Python Requests",
                 "op": "default",
+                "status": "unknown",
             },
             "span_id": "d342abb1214ca182",
             "start_timestamp_ms": int(start.timestamp() * 1e3),
+            "start_timestamp_precise": start.timestamp(),
+            "end_timestamp_precise": end.timestamp(),
             "trace_id": "89143b0763095bd9c9955e8175d1fb24",
         },
         {
@@ -590,6 +618,8 @@ def test_span_ingestion(
             },
             "span_id": "ed429c44b67a3eb1",
             "start_timestamp_ms": int(start.timestamp() * 1e3),
+            "start_timestamp_precise": start.timestamp(),
+            "end_timestamp_precise": end.timestamp() + 1,
             "trace_id": "ff62a8b040f340bda5d830223def1d81",
         },
         {
@@ -602,9 +632,15 @@ def test_span_ingestion(
             "parent_span_id": "f0f0f0abcdef1234",
             "project_id": 42,
             "retention_days": 90,
-            "sentry_tags": {"browser.name": "Python Requests", "op": "default"},
+            "sentry_tags": {
+                "browser.name": "Python Requests",
+                "op": "default",
+                "status": "unknown",
+            },
             "span_id": "f0b809703e783d00",
             "start_timestamp_ms": int(start.timestamp() * 1e3),
+            "start_timestamp_precise": start.timestamp(),
+            "end_timestamp_precise": end.timestamp(),
             "trace_id": "89143b0763095bd9c9955e8175d1fb24",
         },
     ]
@@ -645,6 +681,7 @@ def test_span_ingestion(
         except AttributeError:
             pass
 
+    now_timestamp = int(now.timestamp())
     expected_timestamp = int(end.timestamp())
     expected_span_metrics = [
         {
@@ -656,6 +693,7 @@ def test_span_ingestion(
             "timestamp": expected_timestamp,
             "type": "c",
             "value": 3.0,
+            "received_at": time_after(now_timestamp),
         },
         {
             "name": "c:spans/usage@none",
@@ -666,6 +704,7 @@ def test_span_ingestion(
             "timestamp": expected_timestamp + 1,
             "type": "c",
             "value": 3.0,
+            "received_at": time_after(now_timestamp),
         },
         {
             "name": "d:spans/duration@millisecond",
@@ -683,6 +722,7 @@ def test_span_ingestion(
             "timestamp": expected_timestamp + 1,
             "type": "d",
             "value": [1500.0],
+            "received_at": time_after(now_timestamp),
         },
         {
             "name": "d:spans/duration@millisecond",
@@ -696,6 +736,7 @@ def test_span_ingestion(
             "timestamp": expected_timestamp,
             "type": "d",
             "value": [500.0],
+            "received_at": time_after(now_timestamp),
         },
         {
             "name": "d:spans/duration@millisecond",
@@ -708,6 +749,7 @@ def test_span_ingestion(
             "timestamp": expected_timestamp,
             "type": "d",
             "value": [500.0, 500.0],
+            "received_at": time_after(now_timestamp),
         },
         {
             "name": "d:spans/duration@millisecond",
@@ -718,6 +760,7 @@ def test_span_ingestion(
             "timestamp": expected_timestamp + 1,
             "type": "d",
             "value": [1500.0, 1500.0],
+            "received_at": time_after(now_timestamp),
         },
         {
             "org_id": 1,
@@ -735,6 +778,7 @@ def test_span_ingestion(
                 "span.op": "resource.script",
             },
             "retention_days": 90,
+            "received_at": time_after(now_timestamp),
         },
         {
             "org_id": 1,
@@ -745,6 +789,7 @@ def test_span_ingestion(
             "timestamp": expected_timestamp,
             "type": "d",
             "value": [500.0],
+            "received_at": time_after(now_timestamp),
         },
         {
             "name": "d:spans/exclusive_time@millisecond",
@@ -755,6 +800,7 @@ def test_span_ingestion(
             "timestamp": expected_timestamp,
             "type": "d",
             "value": [500.0, 500.0],
+            "received_at": time_after(now_timestamp),
         },
         {
             "name": "d:spans/exclusive_time@millisecond",
@@ -765,6 +811,7 @@ def test_span_ingestion(
             "timestamp": expected_timestamp + 1,
             "type": "d",
             "value": [345.0, 345.0],
+            "received_at": time_after(now_timestamp),
         },
         {
             "org_id": 1,
@@ -782,6 +829,7 @@ def test_span_ingestion(
                 "span.op": "resource.script",
             },
             "retention_days": 90,
+            "received_at": time_after(now_timestamp),
         },
         {
             "name": "d:spans/exclusive_time_light@millisecond",
@@ -792,6 +840,7 @@ def test_span_ingestion(
             "timestamp": expected_timestamp,
             "type": "d",
             "value": [500.0],
+            "received_at": time_after(now_timestamp),
         },
         {
             "name": "d:spans/webvital.score.total@ratio",
@@ -802,6 +851,7 @@ def test_span_ingestion(
             "timestamp": expected_timestamp + 1,
             "type": "d",
             "value": [0.12121616],
+            "received_at": time_after(now_timestamp),
         },
     ]
     assert [m for m in metrics if ":spans/" in m["name"]] == expected_span_metrics
@@ -895,6 +945,7 @@ def test_span_extraction_with_metrics_summary(
     project_config["config"]["features"] = [
         "organizations:custom-metrics",
         "projects:span-metrics-extraction",
+        "organizations:indexed-spans-extraction",
     ]
 
     event = make_transaction({"event_id": "cbf6960622e14a45abc1f03b2055b186"})
@@ -916,9 +967,14 @@ def test_span_extraction_with_metrics_summary(
 
     relay.send_event(project_id, event)
 
-    start_timestamp = datetime.fromisoformat(event["start_timestamp"])
-    end_timestamp = datetime.fromisoformat(event["timestamp"])
-    duration_ms = int((end_timestamp - start_timestamp).total_seconds() * 1e3)
+    start_timestamp = datetime.fromisoformat(event["start_timestamp"]).replace(
+        tzinfo=timezone.utc
+    )
+    end_timestamp = datetime.fromisoformat(event["timestamp"]).replace(
+        tzinfo=timezone.utc
+    )
+    duration = (end_timestamp - start_timestamp).total_seconds()
+    duration_ms = int(duration * 1e3)
 
     transaction_span = spans_consumer.get_span()
     del transaction_span["received"]
@@ -942,14 +998,17 @@ def test_span_extraction_with_metrics_summary(
             "platform": "other",
             "sdk.name": "raven-node",
             "sdk.version": "2.6.3",
+            "status": "unknown",
             "trace.status": "unknown",
             "transaction": "hi",
             "transaction.op": "hi",
         },
         "span_id": "968cff94913ebb07",
         "start_timestamp_ms": int(
-            start_timestamp.replace(tzinfo=timezone.utc).timestamp() * 1e3
+            start_timestamp.timestamp() * 1e3,
         ),
+        "start_timestamp_precise": start_timestamp.timestamp(),
+        "end_timestamp_precise": end_timestamp.timestamp(),
         "trace_id": "a0fa8803753e40fd8124b21eeb2986b5",
     }
 
@@ -1066,6 +1125,7 @@ def test_span_extraction_with_ddm_missing_values(
     project_config["config"]["features"] = [
         "organizations:custom-metrics",
         "projects:span-metrics-extraction",
+        "organizations:indexed-spans-extraction",
     ]
 
     event = make_transaction({"event_id": "cbf6960622e14a45abc1f03b2055b186"})
@@ -1093,8 +1153,12 @@ def test_span_extraction_with_ddm_missing_values(
 
     relay.send_event(project_id, event)
 
-    start_timestamp = datetime.fromisoformat(event["start_timestamp"])
-    end_timestamp = datetime.fromisoformat(event["timestamp"])
+    start_timestamp = datetime.fromisoformat(event["start_timestamp"]).replace(
+        tzinfo=timezone.utc
+    )
+    end_timestamp = datetime.fromisoformat(event["timestamp"]).replace(
+        tzinfo=timezone.utc
+    )
     duration_ms = int((end_timestamp - start_timestamp).total_seconds() * 1e3)
 
     metrics_summary["c:spans/some_metric@none"][0].pop("min", None)
@@ -1122,14 +1186,15 @@ def test_span_extraction_with_ddm_missing_values(
             "platform": "other",
             "sdk.name": "raven-node",
             "sdk.version": "2.6.3",
+            "status": "unknown",
             "trace.status": "unknown",
             "transaction": "hi",
             "transaction.op": "hi",
         },
         "span_id": "968cff94913ebb07",
-        "start_timestamp_ms": int(
-            start_timestamp.replace(tzinfo=timezone.utc).timestamp() * 1e3
-        ),
+        "start_timestamp_ms": int(start_timestamp.timestamp() * 1e3),
+        "start_timestamp_precise": start_timestamp.timestamp(),
+        "end_timestamp_precise": end_timestamp.timestamp(),
         "trace_id": "a0fa8803753e40fd8124b21eeb2986b5",
     }
 
@@ -1350,6 +1415,8 @@ def test_span_ingestion_with_performance_scores(
             },
             "span_id": "bd429c44b67a3eb1",
             "start_timestamp_ms": int(start.timestamp() * 1e3),
+            "start_timestamp_precise": start.timestamp(),
+            "end_timestamp_precise": end.timestamp() + 1,
             "trace_id": "ff62a8b040f340bda5d830223def1d81",
             "measurements": {
                 "score.fcp": {"value": 0.14999972769539766},
@@ -1393,6 +1460,8 @@ def test_span_ingestion_with_performance_scores(
             },
             "span_id": "cd429c44b67a3eb1",
             "start_timestamp_ms": int(start.timestamp() * 1e3),
+            "start_timestamp_precise": start.timestamp(),
+            "end_timestamp_precise": end.timestamp() + 1,
             "trace_id": "ff62a8b040f340bda5d830223def1d81",
             "measurements": {
                 "inp": {"value": 100.0},
@@ -1463,8 +1532,12 @@ def test_rate_limit_indexed_consistent_extracted(
     relay = relay_with_processing()
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
+    # Span metrics won't be extracted without a supported transactionMetrics config.
+    # Without extraction, the span is treated as `Span`, not `SpanIndexed`.
+    project_config["config"]["transactionMetrics"] = {"version": 3}
     project_config["config"]["features"] = [
         "projects:span-metrics-extraction",
+        "organizations:indexed-spans-extraction",
     ]
     project_config["config"]["quotas"] = [
         {
@@ -1628,6 +1701,7 @@ def test_span_extraction_with_tags(
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = [
         "projects:span-metrics-extraction",
+        "organizations:indexed-spans-extraction",
     ]
 
     event = make_transaction(
@@ -1644,6 +1718,73 @@ def test_span_extraction_with_tags(
     assert transaction_span["tags"] == expected_tags
 
     spans_consumer.assert_empty()
+
+
+def test_span_filtering_with_generic_inbound_filter(
+    mini_sentry, relay_with_processing, spans_consumer, outcomes_consumer
+):
+    mini_sentry.global_config["filters"] = {
+        "version": 1,
+        "filters": [
+            {
+                "id": "first-releases",
+                "isEnabled": True,
+                "condition": {
+                    "op": "eq",
+                    "name": "span.data.release",
+                    "value": "1.0",
+                },
+            }
+        ],
+    }
+
+    relay = relay_with_processing(options=TEST_CONFIG)
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = ["organizations:standalone-span-ingestion"]
+
+    spans_consumer = spans_consumer()
+    outcomes_consumer = outcomes_consumer()
+
+    end = datetime.now(timezone.utc) - timedelta(seconds=1)
+    duration = timedelta(milliseconds=500)
+    start = end - duration
+    envelope = Envelope()
+    envelope.add_item(
+        Item(
+            type="span",
+            payload=PayloadRef(
+                bytes=json.dumps(
+                    {
+                        "description": "organizations/metrics/data",
+                        "op": "default",
+                        "span_id": "cd429c44b67a3eb1",
+                        "segment_id": "968cff94913ebb07",
+                        "start_timestamp": start.timestamp(),
+                        "timestamp": end.timestamp() + 1,
+                        "exclusive_time": 345.0,  # The SDK knows that this span has a lower exclusive time
+                        "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                        "data": {"sentry.release": "1.0"},
+                    },
+                ).encode()
+            ),
+        )
+    )
+
+    relay.send_envelope(project_id, envelope)
+
+    spans = spans_consumer.get_spans(timeout=10.0, max_attempts=6)
+    assert len(spans) == 0
+
+    def summarize_outcomes():
+        counter = Counter()
+        for outcome in outcomes_consumer.get_outcomes():
+            counter[(outcome["category"], outcome["outcome"])] += outcome["quantity"]
+        return counter
+
+    assert summarize_outcomes() == {(12, 1): 1}
+    spans_consumer.assert_empty()
+    outcomes_consumer.assert_empty()
 
 
 @pytest.mark.parametrize("sample_rate", [0.0, 1.0])
@@ -1677,7 +1818,7 @@ def test_dynamic_sampling(
         "version": 2,
         "rules": [
             {
-                "id": 1,
+                "id": 3001,
                 "samplingValue": {"type": "sampleRate", "value": sample_rate},
                 "type": "trace",
                 "condition": {
@@ -1731,12 +1872,12 @@ def test_dynamic_sampling(
     if sample_rate == 1.0:
         spans = list(spans_consumer.get_spans(timeout=10, max_attempts=4))
         assert len(spans) == 4
-        outcomes = outcomes_consumer.get_outcomes(timeout=0.1)
+        outcomes = outcomes_consumer.get_outcomes(timeout=10, n=4)
         assert summarize_outcomes(outcomes) == {(16, 0): 4}  # SpanIndexed, Accepted
     else:
-        outcomes = outcomes_consumer.get_outcomes(timeout=10)
+        outcomes = outcomes_consumer.get_outcomes(timeout=10, n=4)
         assert summarize_outcomes(outcomes) == {(12, 1): 4}  # Span, Filtered
-        assert {o["reason"] for o in outcomes} == {"Sampled:1"}
+        assert {o["reason"] for o in outcomes} == {"Sampled:3000"}
 
     spans_consumer.assert_empty()
     outcomes_consumer.assert_empty()

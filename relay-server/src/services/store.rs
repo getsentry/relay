@@ -1,6 +1,7 @@
 //! This module contains the service that forwards events and attachments to the Sentry store.
 //! The service uses Kafka topics to forward data to Sentry
 
+use anyhow::Context;
 use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::error::Error;
@@ -29,14 +30,13 @@ use uuid::Uuid;
 
 use crate::envelope::{AttachmentType, Envelope, Item, ItemType};
 
-use crate::metrics::MetricOutcomes;
+use crate::metrics::{ArrayEncoding, BucketEncoder, ExtractionMode, MetricOutcomes};
+use crate::service::ServiceError;
 use crate::services::global_config::GlobalConfigHandle;
 use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::services::processor::Processed;
 use crate::statsd::RelayCounters;
-use crate::utils::{
-    is_rolled_out, ArrayEncoding, BucketEncoder, ExtractionMode, FormDataIter, TypedEnvelope,
-};
+use crate::utils::{is_rolled_out, FormDataIter, TypedEnvelope};
 
 /// Fallback name used for attachment items without a `filename` header.
 const UNNAMED_ATTACHMENT: &str = "Unnamed Attachment";
@@ -65,7 +65,9 @@ impl Producer {
             **t != KafkaTopic::Outcomes && **t != KafkaTopic::OutcomesBilling
         }) {
             let kafka_config = &config.kafka_config(*topic)?;
-            client_builder = client_builder.add_kafka_topic_config(*topic, kafka_config)?;
+            client_builder = client_builder
+                .add_kafka_topic_config(*topic, kafka_config, config.kafka_validate_topics())
+                .context(ServiceError::Kafka)?;
         }
 
         Ok(Self {
@@ -190,19 +192,10 @@ impl StoreService {
         let retention = envelope.retention();
         let event_id = envelope.event_id();
 
-        let feedback_ingest_same_envelope_attachments = self
-            .global_config
-            .current()
-            .options
-            .feedback_ingest_same_envelope_attachments;
-
         let event_item = envelope.as_mut().take_item_by(|item| {
             matches!(
-                (item.ty(), feedback_ingest_same_envelope_attachments),
-                (ItemType::Event, _)
-                    | (ItemType::Transaction, _)
-                    | (ItemType::Security, _)
-                    | (ItemType::UserReportV2, false)
+                item.ty(),
+                ItemType::Event | ItemType::Transaction | ItemType::Security
             )
         });
         let client = envelope.meta().client();
@@ -251,7 +244,7 @@ impl StoreService {
                         item,
                     )?;
                 }
-                ItemType::UserReportV2 if feedback_ingest_same_envelope_attachments => {
+                ItemType::UserReportV2 => {
                     let remote_addr = envelope.meta().client_addr().map(|addr| addr.to_string());
                     self.produce_user_report_v2(
                         event_id.ok_or(StoreError::NoEventId)?,
@@ -478,8 +471,6 @@ impl StoreService {
             BucketViewValue::Gauge(g) => MetricValue::Gauge(g),
         };
 
-        // TODO: propagate the `received_at` field upstream.
-        // https://github.com/getsentry/relay/issues/3515
         Ok(MetricKafkaMessage {
             org_id: organization_id,
             project_id,
@@ -488,6 +479,7 @@ impl StoreService {
             timestamp: view.timestamp(),
             tags: view.tags(),
             retention_days,
+            received_at: view.metadata().received_at,
         })
     }
 
@@ -930,12 +922,13 @@ impl StoreService {
             }
         };
 
-        span.duration_ms = ((span.end_timestamp - span.start_timestamp) * 1e3) as u32;
+        span.duration_ms =
+            ((span.end_timestamp_precise - span.start_timestamp_precise) * 1e3) as u32;
         span.event_id = event_id;
         span.organization_id = scoping.organization_id;
         span.project_id = scoping.project_id.value();
         span.retention_days = retention_days;
-        span.start_timestamp_ms = (span.start_timestamp * 1e3) as u64;
+        span.start_timestamp_ms = (span.start_timestamp_precise * 1e3) as u64;
 
         if let Some(measurements) = &mut span.measurements {
             measurements.retain(|_, v| {
@@ -990,7 +983,7 @@ impl StoreService {
         };
         let &SpanKafkaMessage {
             duration_ms,
-            end_timestamp,
+            end_timestamp_precise,
             is_segment,
             project_id,
             received,
@@ -1046,7 +1039,7 @@ impl StoreService {
                     KafkaMessage::MetricsSummary(MetricsSummaryKafkaMessage {
                         count,
                         duration_ms,
-                        end_timestamp,
+                        end_timestamp: end_timestamp_precise,
                         group,
                         is_segment,
                         max,
@@ -1261,6 +1254,8 @@ struct MetricKafkaMessage<'a> {
     timestamp: UnixTimestamp,
     tags: &'a BTreeMap<String, String>,
     retention_days: u16,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    received_at: Option<UnixTimestamp>,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -1347,10 +1342,6 @@ struct SpanMeasurement {
 
 #[derive(Debug, Deserialize, Serialize)]
 struct SpanKafkaMessage<'a> {
-    #[serde(skip_serializing)]
-    start_timestamp: f64,
-    #[serde(rename(deserialize = "timestamp"), skip_serializing)]
-    end_timestamp: f64,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     description: Option<&'a RawValue>,
     #[serde(default)]
@@ -1369,6 +1360,8 @@ struct SpanKafkaMessage<'a> {
     measurements: Option<BTreeMap<Cow<'a, str>, Option<SpanMeasurement>>>,
     #[serde(default)]
     organization_id: u64,
+    #[serde(borrow, default, skip_serializing_if = "Option::is_none")]
+    origin: Option<Cow<'a, str>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     parent_span_id: Option<&'a str>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -1386,11 +1379,16 @@ struct SpanKafkaMessage<'a> {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     sentry_tags: Option<BTreeMap<&'a str, String>>,
     span_id: &'a str,
-    #[serde(default)]
-    start_timestamp_ms: u64,
     #[serde(default, skip_serializing_if = "none_or_empty_object")]
     tags: Option<&'a RawValue>,
     trace_id: EventId,
+
+    #[serde(default)]
+    start_timestamp_ms: u64,
+    #[serde(rename(deserialize = "start_timestamp"))]
+    start_timestamp_precise: f64,
+    #[serde(rename(deserialize = "timestamp"))]
+    end_timestamp_precise: f64,
 
     #[serde(borrow, default, skip_serializing)]
     platform: Cow<'a, str>, // We only use this for logging for now
