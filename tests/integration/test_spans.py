@@ -1,7 +1,7 @@
 import json
 import uuid
 from collections import Counter
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone, UTC
 
 import pytest
 from opentelemetry.proto.common.v1.common_pb2 import AnyValue, KeyValue
@@ -1491,7 +1491,7 @@ def test_rate_limit_indexed_consistent(
         {
             "categories": ["span_indexed"],
             "limit": 4,
-            "window": 1000,
+            "window": int(datetime.now(UTC).timestamp()),
             "id": uuid.uuid4(),
             "reasonCode": "indexed_exceeded",
         },
@@ -1543,7 +1543,7 @@ def test_rate_limit_indexed_consistent_extracted(
         {
             "categories": ["span_indexed"],
             "limit": 3,
-            "window": 1000,
+            "window": int(datetime.now(UTC).timestamp()),
             "id": uuid.uuid4(),
             "reasonCode": "indexed_exceeded",
         },
@@ -1613,7 +1613,7 @@ def test_rate_limit_metrics_consistent(
         {
             "categories": ["span"],
             "limit": 3,
-            "window": 1000,
+            "window": int(datetime.now(UTC).timestamp()),
             "id": uuid.uuid4(),
             "reasonCode": "total_exceeded",
         },
@@ -1623,7 +1623,7 @@ def test_rate_limit_metrics_consistent(
     metrics_consumer = metrics_consumer()
     outcomes_consumer = outcomes_consumer()
 
-    start = datetime.now(timezone.utc)
+    start = datetime.now(UTC)
     end = start + timedelta(seconds=1)
 
     envelope = envelope_with_spans(start, end)

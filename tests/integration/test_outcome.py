@@ -1984,7 +1984,7 @@ def test_global_rate_limit_by_namespace(
             "scope": "global",
             "categories": ["metric_bucket"],
             "limit": metric_bucket_limit,
-            "window": 1000,
+            "window": int(datetime.now(UTC).timestamp()),
             "reasonCode": global_reason_code,
         },
         {
@@ -1993,7 +1993,7 @@ def test_global_rate_limit_by_namespace(
             "categories": ["metric_bucket"],
             "limit": transaction_limit,
             "namespace": "transactions",
-            "window": 1000,
+            "window": int(datetime.now(UTC).timestamp()),
             "reasonCode": transaction_reason_code,
         },
     ]
