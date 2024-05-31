@@ -9,6 +9,8 @@ use relay_metrics::{
 use relay_protocol::{Getter, Val};
 use relay_quotas::DataCategory;
 
+use crate::metrics_extraction::hash_fnv_32;
+
 /// Item from which metrics can be extracted.
 pub trait Extractable: Getter {
     /// Data category for the metric spec to match on.
@@ -165,7 +167,7 @@ fn read_metric_value(
         MetricType::Distribution => {
             BucketValue::distribution(finite(instance.get_value(field?)?.as_f64()?)?)
         }
-        MetricType::Set => BucketValue::set_from_str(instance.get_value(field?)?.as_str()?),
+        MetricType::Set => BucketValue::set(hash_fnv_32(instance.get_value(field?)?.as_str()?)),
         MetricType::Gauge => BucketValue::gauge(finite(instance.get_value(field?)?.as_f64()?)?),
     })
 }

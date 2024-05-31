@@ -8,7 +8,7 @@ use relay_metrics::{
     MetricResourceIdentifier, MetricUnit,
 };
 
-use crate::metrics_extraction::IntoMetric;
+use crate::metrics_extraction::{hash_fnv_32, IntoMetric};
 
 /// Enumerates the metrics extracted from transaction payloads.
 #[derive(Clone, Debug, PartialEq)]
@@ -60,7 +60,7 @@ impl IntoMetric for TransactionMetric {
         let (name, value, unit, tags) = match self {
             Self::User { value, tags } => (
                 Cow::Borrowed("user"),
-                BucketValue::set_from_str(&value),
+                BucketValue::set(hash_fnv_32(&value)),
                 MetricUnit::None,
                 tags.into(),
             ),

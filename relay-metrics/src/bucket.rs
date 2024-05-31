@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::hash::Hash;
 use std::iter::FusedIterator;
-use std::{fmt, mem};
+use std::mem;
 
 use hash32::{FnvHasher, Hasher as _};
 use relay_cardinality::CardinalityItem;
@@ -10,8 +10,8 @@ use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
 
 use crate::protocol::{
-    self, hash_set_value, CounterType, DistributionType, GaugeType, MetricName,
-    MetricResourceIdentifier, MetricType, SetType,
+    self, CounterType, DistributionType, GaugeType, MetricName, MetricResourceIdentifier,
+    MetricType, SetType,
 };
 use crate::{FiniteF64, MetricNamespace, ParseMetricError};
 
@@ -271,16 +271,6 @@ impl BucketValue {
     /// Returns a bucket value representing a set with a single given hash value.
     pub fn set(value: SetType) -> Self {
         Self::Set(std::iter::once(value).collect())
-    }
-
-    /// Returns a bucket value representing a set with a single given string value.
-    pub fn set_from_str(string: &str) -> Self {
-        Self::set(hash_set_value(string))
-    }
-
-    /// Returns a bucket value representing a set with a single given value.
-    pub fn set_from_display(display: impl fmt::Display) -> Self {
-        Self::set(hash_set_value(&display.to_string()))
     }
 
     /// Returns a bucket value representing a gauge with a single given value.
