@@ -23,6 +23,7 @@
 - Limit metric name to 150 characters. ([#3628](https://github.com/getsentry/relay/pull/3628))
 - Add validation of Kafka topics on startup. ([#3543](https://github.com/getsentry/relay/pull/3543))
 - Send `attachment` data inline when possible. ([#3654](https://github.com/getsentry/relay/pull/3654))
+- Change metrics set hashing to CRC32. ([#3669](https://github.com/getsentry/relay/pull/3669))
 
 ## 24.5.0
 

@@ -1,7 +1,3 @@
-use std::hash::Hasher as _;
-
-use hash32::{FnvHasher, Hasher as _};
-
 #[doc(inline)]
 pub use relay_base_schema::metrics::{
     CustomUnit, DurationUnit, FractionUnit, InformationUnit, MetricName, MetricNamespace,
@@ -93,10 +89,11 @@ pub(crate) fn validate_tag_value(tag_value: &mut String) {
 ///
 /// Sets only guarantee 32-bit accuracy, but arbitrary strings are allowed on the protocol. Upon
 /// parsing, they are hashed and only used as hashes subsequently.
+///
+/// Relay and the SDKs use CRC32 for hashing to make sets from different sources
+/// merge correctly.
 pub(crate) fn hash_set_value(string: &str) -> u32 {
-    let mut hasher = FnvHasher::default();
-    hasher.write(string.as_bytes());
-    hasher.finish32()
+    crc32fast::hash(string.as_bytes())
 }
 
 #[cfg(test)]

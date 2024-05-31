@@ -18,6 +18,7 @@ redis = ["relay-redis/impl"]
 [dependencies]
 bytecount = { workspace = true }
 chrono = { workspace = true }
+crc32fast = { workspace = true }
 fnv = { workspace = true }
 hash32 = { workspace = true }
 hashbrown = { workspace = true }
