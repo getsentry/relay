@@ -645,7 +645,7 @@ jobs:
         run: docker load -i relay-docker-image
 
       - name: Run Sentry self-hosted e2e CI
-        uses: getsentry/action-self-hosted-e2e-tests@main
+        uses: getsentry/action-self-hosted-e2e-tests@b69ff38c7914a6d33b0949b961a60d98b2f33772
         with:
           project_name: relay
           image_url: ghcr.io/getsentry/relay:${{ github.event.pull_request.head.sha || github.sha }}
