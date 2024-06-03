@@ -4,6 +4,7 @@ use std::mem;
 use std::sync::OnceLock;
 
 use regex::Regex;
+
 use relay_event_schema::processor::{
     self, enum_set, process_value, Chunk, Pii, ProcessValue, ProcessingAction, ProcessingResult,
     ProcessingState, Processor, ValueType,
@@ -111,30 +112,11 @@ impl<'a> Processor for PiiProcessor<'a> {
         T: ProcessValue,
     {
         if is_pairlist(array) {
-            for annotated in array {
-                let mut mapped = mem::take(annotated).map_value(T::into_value);
-
-                if let Some(Value::Array(ref mut pair)) = mapped.value_mut() {
-                    let mut value = mem::take(&mut pair[1]);
-                    let value_type = ValueType::for_field(&value);
-
-                    if let Some(key_name) = &pair[0].as_str() {
-                        // We enter the key of the first element of the array, since we treat it
-                        // as a pair.
-                        let key_state =
-                            state.enter_borrowed(key_name, state.inner_attrs(), value_type);
-                        // We process the value with a state that "simulates" the first value of the
-                        // array as if it was the key of a dictionary.
-                        process_value(&mut value, self, &key_state)?;
-                    }
-
-                    // Put value back into pair.
-                    pair[1] = value;
-                }
-
-                // Put pair back into array.
-                *annotated = T::from_value(mapped);
-            }
+            process_pairlist(
+                array,
+                PiiProcessor::new(self.compiled_config),
+                state.clone(),
+            );
 
             Ok(())
         } else {
@@ -245,20 +227,42 @@ impl<'a> Processor for PiiProcessor<'a> {
 }
 
 #[derive(Default)]
-struct PairArrayChecker {
+struct PairArrayChecker<'a> {
     is_pair: bool,
     has_string_key: bool,
+    found_string_key: Option<String>,
+    main_processor: Option<PiiProcessor<'a>>,
+    main_state: ProcessingState<'a>,
 }
 
-impl PairArrayChecker {
+impl<'a> PairArrayChecker<'a> {
+    fn with_processor(
+        processor: PiiProcessor<'a>,
+        state: ProcessingState<'a>,
+    ) -> PairArrayChecker<'a> {
+        PairArrayChecker {
+            is_pair: false,
+            has_string_key: false,
+            found_string_key: None,
+            main_processor: Some(processor),
+            main_state: state,
+        }
+    }
+
     /// Returns true if the visitor identified the supplied data as an array composed of
     /// a key (string) and a value.
     fn is_pair_array(&self) -> bool {
         self.is_pair && self.has_string_key
     }
+
+    fn reset(&mut self) {
+        self.is_pair = false;
+        self.has_string_key = false;
+        self.found_string_key = None;
+    }
 }
 
-impl Processor for PairArrayChecker {
+impl<'a> Processor for PairArrayChecker<'a> {
     fn process_array<T>(
         &mut self,
         value: &mut relay_protocol::Array<T>,
@@ -268,41 +272,81 @@ impl Processor for PairArrayChecker {
     where
         T: ProcessValue,
     {
-        self.is_pair = state.depth() == 0 && value.len() == 2;
-        if self.is_pair {
-            let value_type = ValueType::for_field(&value[0]);
-            process_value(
-                &mut value[0],
-                self,
-                &state.enter_index(0, state.inner_attrs(), value_type),
-            )?;
+        let key_state = &state.enter_index(0, state.inner_attrs(), ValueType::for_field(&value[0]));
+
+        let mut string_key = None;
+        if self.main_processor.is_some() {
+            self.found_string_key = None;
+            process_value(&mut value[0], self, key_state)?;
+            string_key = self.found_string_key.as_ref();
         }
+
+        match &mut self.main_processor {
+            Some(processor) => {
+                if let Some(key_name) = string_key {
+                    let value_state = &self.main_state.enter_borrowed(
+                        key_name.as_str(),
+                        self.main_state.inner_attrs(),
+                        ValueType::for_field(&value[1]),
+                    );
+                    process_value(&mut value[1], processor, value_state)?;
+                }
+            }
+            None => {
+                self.is_pair = state.depth() == 0 && value.len() == 2;
+                if self.is_pair {
+                    process_value(&mut value[0], self, key_state)?;
+                }
+            }
+        }
+
         Ok(())
     }
 
     fn process_string(
         &mut self,
-        _value: &mut String,
+        value: &mut String,
         _meta: &mut Meta,
         state: &ProcessingState<'_>,
     ) -> ProcessingResult where {
         if state.depth() == 1 && state.path().index() == Some(0) {
-            self.has_string_key = true;
+            match self.main_processor {
+                Some(_) => {
+                    self.found_string_key = Some(value.clone());
+                }
+                None => {
+                    self.has_string_key = true;
+                }
+            }
         }
+
         Ok(())
     }
 }
 
 fn is_pairlist<T: ProcessValue>(array: &mut Array<T>) -> bool {
+    let mut processor = PairArrayChecker::default();
     for element in array.iter_mut() {
-        let mut visitor = PairArrayChecker::default();
-        process_value(element, &mut visitor, ProcessingState::root()).ok();
-        if !visitor.is_pair_array() {
+        process_value(element, &mut processor, ProcessingState::root()).ok();
+        if !processor.is_pair_array() {
             return false;
         }
+        processor.reset();
     }
 
     !array.is_empty()
+}
+
+fn process_pairlist<T: ProcessValue>(
+    array: &mut Array<T>,
+    processor: PiiProcessor,
+    state: ProcessingState,
+) {
+    let mut processor = PairArrayChecker::with_processor(processor, state);
+    for element in array.iter_mut() {
+        process_value(element, &mut processor, ProcessingState::root()).ok();
+        processor.reset();
+    }
 }
 
 /// Scrubs GraphQL variables from the event.
@@ -570,16 +614,18 @@ fn insert_replacement_chunks(rule: &RuleRef, text: &str, output: &mut Vec<Chunk<
 #[cfg(test)]
 mod tests {
     use insta::{allow_duplicates, assert_debug_snapshot};
+    use serde_json::json;
+
     use relay_event_schema::processor::process_value;
     use relay_event_schema::protocol::{
         Addr, Breadcrumb, DebugImage, DebugMeta, ExtraValue, Headers, LogEntry, Message,
         NativeDebugImage, Request, Span, TagEntry, Tags, TraceContext,
     };
     use relay_protocol::{assert_annotated_snapshot, get_value, FromValue, Object};
-    use serde_json::json;
+
+    use crate::{DataScrubbingConfig, PiiConfig, ReplaceRedaction};
 
     use super::*;
-    use crate::{DataScrubbingConfig, PiiConfig, ReplaceRedaction};
 
     fn to_pii_config(datascrubbing_config: &DataScrubbingConfig) -> Option<PiiConfig> {
         use crate::convert::to_pii_config as to_pii_config_impl;
