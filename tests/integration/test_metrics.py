@@ -21,7 +21,7 @@ TEST_CONFIG = {
         "bucket_interval": 1,
         "initial_delay": 0,
         "debounce_delay": 0,
-        "flush_batching": {"type": "none"},
+        "flush_batching": "none",
     }
 }
 
@@ -88,7 +88,7 @@ def test_metrics_proxy_mode_buckets(mini_sentry, relay):
                 "bucket_interval": 1,
                 "initial_delay": 0,
                 "debounce_delay": 0,
-                "flush_batching": {"type": "none"},
+                "flush_batching": "none",
             },
         },
     )
@@ -121,7 +121,7 @@ def test_metrics_proxy_mode_statsd(mini_sentry, relay):
                 "bucket_interval": 1,
                 "initial_delay": 0,
                 "debounce_delay": 0,
-                "flush_batching": {"type": "none"},
+                "flush_batching": "none",
             },
         },
     )
@@ -147,7 +147,7 @@ def test_metrics_proxy_mode_metrics_meta(mini_sentry, relay):
                 "bucket_interval": 1,
                 "initial_delay": 0,
                 "debounce_delay": 0,
-                "flush_batching": {"type": "none"},
+                "flush_batching": "none",
             },
         },
     )
@@ -1247,7 +1247,7 @@ def test_graceful_shutdown(mini_sentry, relay):
                 "bucket_interval": 1,
                 "initial_delay": 100,
                 "debounce_delay": 0,
-                "flush_batching": {"type": "none"},
+                "flush_batching": "none",
             },
         },
     )
@@ -1697,7 +1697,7 @@ def test_relay_forwards_events_without_extracting_metrics_on_broken_global_filte
                     "bucket_interval": 1,
                     "initial_delay": 0,
                     "debounce_delay": 0,
-                    "flush_batching": {"type": "none"},
+                    "flush_batching": "none",
                 }
             }
         )
@@ -1709,7 +1709,7 @@ def test_relay_forwards_events_without_extracting_metrics_on_broken_global_filte
                     "bucket_interval": 1,
                     "initial_delay": 0,
                     "debounce_delay": 0,
-                    "flush_batching": {"type": "none"},
+                    "flush_batching": "none",
                 }
             },
         )
@@ -1760,7 +1760,7 @@ def test_relay_forwards_events_without_extracting_metrics_on_unsupported_project
                     "bucket_interval": 1,
                     "initial_delay": 0,
                     "debounce_delay": 0,
-                    "flush_batching": {"type": "none"},
+                    "flush_batching": "none",
                 }
             }
         )
@@ -1772,7 +1772,7 @@ def test_relay_forwards_events_without_extracting_metrics_on_unsupported_project
                     "bucket_interval": 1,
                     "initial_delay": 0,
                     "debounce_delay": 0,
-                    "flush_batching": {"type": "none"},
+                    "flush_batching": "none",
                 }
             },
         )
@@ -1815,7 +1815,7 @@ def test_missing_global_filters_enables_metric_extraction(
                 "bucket_interval": 1,
                 "initial_delay": 0,
                 "debounce_delay": 0,
-                "flush_batching": {"type": "none"},
+                "flush_batching": "none",
             }
         }
     )
