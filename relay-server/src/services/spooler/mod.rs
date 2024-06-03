@@ -171,7 +171,7 @@ impl DequeueMany {
 
 /// Removes the provided keys from the internal buffer.
 ///
-/// If any of the provided keys are still have the envelopes, the error will be logged with the
+/// If any of the provided keys still have envelopes, an error will be logged with the
 /// number of envelopes dropped for the specific project key.
 #[derive(Debug)]
 pub struct RemoveMany {
@@ -192,7 +192,7 @@ pub struct Health(pub Sender<bool>);
 /// Requests the index [`ProjectKey`] -> [`QueueKey`] of the data currently residing in the spool.
 ///
 /// This is a one time request, which is sent on startup.
-/// Upon receiving this this message the buffer internally will check the existing keys in the
+/// Upon receiving this message the buffer internally will check the existing keys in the
 /// on-disk spool and compile the index which will be returned to [`ProjectCache`].
 ///
 /// The returned message will initiate the project state refresh for all the returned project keys.
@@ -208,12 +208,12 @@ pub struct RestoreIndex;
 /// envelopes will be buffer to the disk.
 ///
 /// To add the envelopes to the buffer use [`Enqueue`] which will persists the envelope in the
-/// internal storage. To retrie the envelopes one can use [`DequeueMany`], where one expected
-/// provide the list of [`QueueKey`]s and the [`mpsc::UnboundedSender`] - all the found envelopes
+/// internal storage. To retrieve the envelopes one can use [`DequeueMany`], where one is expected
+/// to provide the list of [`QueueKey`]s and the [`mpsc::UnboundedSender`] - all the found envelopes
 /// will be streamed back to this sender.
 ///
 /// There is also a [`RemoveMany`] operation, which, when requested, removes the found keys from
-/// the queue and drop them. If the any of the keys still have envelopes, the error will be logged.
+/// the queue and drops them. If any of the keys still have envelopes, an error will be logged.
 #[derive(Debug)]
 pub enum Buffer {
     Enqueue(Enqueue),
@@ -1131,7 +1131,7 @@ impl BufferService {
     /// Handles the remove request.
     ///
     /// This removes all the envelopes from the internal buffer for the provided keys.
-    /// If any of the provided keys still have the envelopes, the error will be logged with the
+    /// If any of the provided keys still have envelopes, an error will be logged with the
     /// number of envelopes dropped for the specific project key.
     async fn handle_remove(&mut self, message: RemoveMany) -> Result<(), BufferError> {
         let RemoveMany { project_key, keys } = message;
