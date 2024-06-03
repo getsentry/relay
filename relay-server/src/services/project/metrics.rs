@@ -130,7 +130,7 @@ fn is_metric_namespace_valid(state: &ProjectState, namespace: MetricNamespace) -
         MetricNamespace::Sessions => true,
         MetricNamespace::Transactions => true,
         MetricNamespace::Spans => {
-            state.has_feature(Feature::ExtractSpansAndSpanMetricsFromEvent)
+            state.has_feature(Feature::ExtractCommonSpanMetricsFromEvent)
                 || state.has_feature(Feature::StandaloneSpanIngestion)
         }
         MetricNamespace::Profiles => true,
@@ -161,7 +161,7 @@ mod tests {
     use relay_metrics::{Aggregator, BucketValue, UnixTimestamp};
     use relay_system::Addr;
 
-    use crate::metric_stats::MetricStats;
+    use crate::metrics::MetricStats;
 
     use super::*;
 

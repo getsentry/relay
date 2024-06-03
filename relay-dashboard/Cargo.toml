@@ -1,6 +1,6 @@
 [package]
 name = "relay-dashboard"
-version = "24.4.2"
+version = "24.5.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -14,10 +14,8 @@ futures = { workspace = true }
 instant = { workspace = true, features = ["wasm-bindgen"] }
 gloo-console = { workspace = true }
 gloo-net = { workspace = true }
-reqwasm = { workspace = true }
 wasm-bindgen = { workspace = true }
 wasm-bindgen-futures = { workspace = true }
 web-sys = { workspace = true, features = ["Window", "Document", "Location"] }
-tokio = { workspace = true, features = ["sync"] }
 yew = { workspace = true, features = ["csr"] }
 yew-router = { workspace = true }

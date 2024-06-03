@@ -4,7 +4,7 @@ authors = ["Sentry <oss@sentry.io>"]
 description = "Session replay functionality for Relay"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "24.4.2"
+version = "24.5.0"
 edition = "2021"
 license-file = "../LICENSE.md"
 publish = false
@@ -13,10 +13,8 @@ publish = false
 workspace = true
 
 [dependencies]
-bytes = { workspace = true }
 flate2 = { workspace = true }
 once_cell = { workspace = true }
-relay-common = { workspace = true }
 relay-event-schema = { workspace = true }
 relay-log = { workspace = true }
 relay-pii = { workspace = true }
@@ -26,7 +24,6 @@ serde_json = { workspace = true, features = ["raw_value"] }
 serde-transcode = { workspace = true }
 
 [dev-dependencies]
-assert-json-diff = { workspace = true }
 criterion = { workspace = true }
 insta = { workspace = true }
 

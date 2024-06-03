@@ -7,9 +7,8 @@ use relay_quotas::{DataCategory, Scoping};
 use relay_system::Addr;
 
 use crate::envelope::SourceQuantities;
-use crate::metric_stats::MetricStats;
+use crate::metrics::{ExtractionMode, MetricStats};
 use crate::services::outcome::{Outcome, TrackOutcome};
-use crate::utils::ExtractionMode;
 #[cfg(feature = "processing")]
 use relay_cardinality::{CardinalityLimit, CardinalityReport};
 
@@ -127,7 +126,7 @@ impl MetricOutcomes {
 /// The return value of [`TrackableBucket::summary`].
 ///
 /// Contains the count of total transactions or spans that went into this bucket.
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum BucketSummary {
     Transactions {
         count: usize,

@@ -2,8 +2,7 @@ use std::convert::Infallible;
 use std::fmt;
 use std::sync::Arc;
 
-use crate::metric_stats::MetricStats;
-use crate::metrics::MetricOutcomes;
+use crate::metrics::{MetricOutcomes, MetricStats};
 use anyhow::{Context, Result};
 use axum::extract::FromRequestParts;
 use axum::http::request::Parts;

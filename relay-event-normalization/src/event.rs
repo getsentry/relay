@@ -2152,17 +2152,17 @@ mod tests {
                     version: 1,
                     costs: vec![
                         ModelCost {
-                            model_id: LazyGlob::new("claude-2*".into()),
+                            model_id: LazyGlob::new("claude-2*"),
                             for_completion: false,
                             cost_per_1k_tokens: 1.0,
                         },
                         ModelCost {
-                            model_id: LazyGlob::new("gpt4-21*".into()),
+                            model_id: LazyGlob::new("gpt4-21*"),
                             for_completion: false,
                             cost_per_1k_tokens: 2.0,
                         },
                         ModelCost {
-                            model_id: LazyGlob::new("gpt4-21*".into()),
+                            model_id: LazyGlob::new("gpt4-21*"),
                             for_completion: true,
                             cost_per_1k_tokens: 20.0,
                         },

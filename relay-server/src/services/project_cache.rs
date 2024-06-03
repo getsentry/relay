@@ -556,16 +556,26 @@ struct ProjectCacheBroker {
     metric_outcomes: MetricOutcomes,
     // Need hashbrown because extract_if is not stable in std yet.
     projects: hashbrown::HashMap<ProjectKey, Project>,
+    /// Utility for disposing of expired project data in a background thread.
     garbage_disposal: GarbageDisposal<Project>,
+    /// Source for fetching project states from the upstream or from disk.
     source: ProjectSource,
+    /// Tx channel used to send the updated project state whenever requested.
     state_tx: mpsc::UnboundedSender<UpdateProjectState>,
+    /// Tx channel used by the [`BufferService`] to send back the requested dequeued elements.
     buffer_tx: mpsc::UnboundedSender<UnspooledEnvelope>,
+    /// Shared semaphore used to control how many envelopes are currently running through Relay.
     buffer_guard: Arc<BufferGuard>,
-    /// Index of the buffered project keys.
+    /// Index containing all the [`QueueKey`] that have been enqueued in the [`BufferService`].
     index: HashSet<QueueKey>,
+    /// Handle to schedule periodic unspooling of buffered envelopes.
     buffer_unspool_handle: SleepHandle,
+    /// Backoff strategy for retrying unspool attempts.
     buffer_unspool_backoff: RetryBackoff,
+    /// Address of the [`BufferService`] used for enqueuing and dequeuing envelopes that can't be
+    /// immediately processed.
     buffer: Addr<Buffer>,
+    /// Status of the global configuration, used to determine readiness for processing.
     global_config: GlobalConfigStatus,
 }
 
@@ -982,28 +992,37 @@ impl ProjectCacheBroker {
     /// This makes sure we always moving the unspool forward, even if we do not fetch the project
     /// states updates, but still can process data based on the existing cache.
     fn handle_periodic_unspool(&mut self) {
+        let (num_keys, reason) = self.handle_periodic_unspool_inner();
+        relay_statsd::metric!(
+            gauge(RelayGauges::BufferPeriodicUnspool) = num_keys as u64,
+            reason = reason
+        );
+    }
+
+    fn handle_periodic_unspool_inner(&mut self) -> (usize, &str) {
         self.buffer_unspool_handle.reset();
 
         // If we don't yet have the global config, we will defer dequeuing until we do.
         if let GlobalConfigStatus::Pending = self.global_config {
             self.buffer_unspool_backoff.reset();
             self.schedule_unspool();
-            return;
+            return (0, "no_global_config");
         }
         // If there is nothing spooled, schedule the next check a little bit later.
         if self.index.is_empty() {
             self.schedule_unspool();
-            return;
+            return (0, "index_empty");
         }
 
         let mut index = std::mem::take(&mut self.index);
-        let values = index
+        let keys = index
             .extract_if(|key| self.is_state_valid(key))
             .take(BATCH_KEY_COUNT)
             .collect::<HashSet<_>>();
+        let num_keys = keys.len();
 
-        if !values.is_empty() {
-            self.dequeue(values);
+        if !keys.is_empty() {
+            self.dequeue(keys);
         }
 
         // Return all the un-used items to the index.
@@ -1014,6 +1033,8 @@ impl ProjectCacheBroker {
         // Schedule unspool once we are done.
         self.buffer_unspool_backoff.reset();
         self.schedule_unspool();
+
+        (num_keys, "found_keys")
     }
 
     fn handle_message(&mut self, message: ProjectCache) {
@@ -1242,7 +1263,7 @@ impl FetchOptionalProjectState {
 
 #[cfg(test)]
 mod tests {
-    use crate::metric_stats::MetricStats;
+    use crate::metrics::MetricStats;
     use crate::services::global_config::GlobalConfigHandle;
     use relay_dynamic_config::GlobalConfig;
     use relay_test::mock_service;

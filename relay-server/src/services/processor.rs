@@ -46,8 +46,9 @@ use tokio::sync::Semaphore;
 
 #[cfg(feature = "processing")]
 use {
+    crate::metrics::MetricsLimiter,
     crate::services::store::{Store, StoreEnvelope},
-    crate::utils::{sample, EnvelopeLimiter, ItemAction, MetricsLimiter},
+    crate::utils::{sample, EnvelopeLimiter, ItemAction},
     itertools::Itertools,
     relay_cardinality::{
         CardinalityLimit, CardinalityLimiter, CardinalityLimitsSplit, RedisSetLimiter,
@@ -62,11 +63,9 @@ use {
     symbolic_unreal::{Unreal4Error, Unreal4ErrorKind},
 };
 
-use crate::envelope::{
-    self, ContentType, Envelope, EnvelopeError, Item, ItemType, SourceQuantities,
-};
+use crate::envelope::{self, ContentType, Envelope, EnvelopeError, Item, ItemType};
 use crate::extractors::{PartialDsn, RequestMeta};
-use crate::metrics::MetricOutcomes;
+use crate::metrics::{ExtractionMode, MetricOutcomes, MinimalTrackableBucket};
 use crate::metrics_extraction::transactions::types::ExtractMetricsError;
 use crate::metrics_extraction::transactions::{ExtractedMetrics, TransactionExtractor};
 use crate::service::ServiceError;
@@ -85,8 +84,7 @@ use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
 #[cfg(feature = "processing")]
 use crate::utils::BufferGuard;
 use crate::utils::{
-    self, ExtractionMode, InvalidProcessingGroupType, ManagedEnvelope, SamplingResult,
-    TypedEnvelope,
+    self, InvalidProcessingGroupType, ManagedEnvelope, SamplingResult, TypedEnvelope,
 };
 use crate::{http, metrics};
 
@@ -1208,96 +1206,98 @@ impl EnvelopeProcessorService {
         Ok(())
     }
 
-    /// Extract metrics from all envelope items.
-    ///
-    /// Caveats:
-    ///  - This functionality is incomplete. At this point, extraction is implemented only for
-    ///    transaction events.
-    fn extract_metrics(
+    /// Extract transaction metrics.
+    fn extract_transaction_metrics(
         &self,
         state: &mut ProcessEnvelopeState<TransactionGroup>,
         sampling_result: &SamplingResult,
     ) -> Result<(), ProcessingError> {
+        if state.event_metrics_extracted {
+            return Ok(());
+        }
+        let Some(event) = state.event.value() else {
+            return Ok(());
+        };
+
         // NOTE: This function requires a `metric_extraction` in the project config. Legacy configs
         // will upsert this configuration from transaction and conditional tagging fields, even if
-        // it is not present in the actual project config payload. Once transaction metric
-        // extraction is moved to generic metrics, this can be converted into an early return.
-        let config = match &state.project_state.config.metric_extraction {
-            ErrorBoundary::Ok(ref config) if config.is_enabled() => Some(config),
-            _ => None,
-        };
+        // it is not present in the actual project config payload.
         let global = self.inner.global_config.current();
-        let global_config = match &global.metric_extraction {
-            ErrorBoundary::Ok(global_config) => global_config,
-            #[allow(unused_variables)]
-            ErrorBoundary::Err(e) => {
-                if_processing!(self.inner.config, {
-                    // Config is invalid, but we will try to extract what we can with just the
-                    // project config.
-                    relay_log::error!("Failed to parse global extraction config {e}");
-                    MetricExtractionGroups::EMPTY
-                } else {
-                    // If there's an error with global metrics extraction, it is safe to assume that this
-                    // Relay instance is not up-to-date, and we should skip extraction.
-                    relay_log::debug!("Failed to parse global extraction config {e}");
-                    return Ok(());
-                })
-            }
+        let combined_config = {
+            let config = match &state.project_state.config.metric_extraction {
+                ErrorBoundary::Ok(ref config) if config.is_supported() => config,
+                _ => return Ok(()),
+            };
+            let global_config = match &global.metric_extraction {
+                ErrorBoundary::Ok(global_config) => global_config,
+                #[allow(unused_variables)]
+                ErrorBoundary::Err(e) => {
+                    if_processing!(self.inner.config, {
+                        // Config is invalid, but we will try to extract what we can with just the
+                        // project config.
+                        relay_log::error!("Failed to parse global extraction config {e}");
+                        MetricExtractionGroups::EMPTY
+                    } else {
+                        // If there's an error with global metrics extraction, it is safe to assume that this
+                        // Relay instance is not up-to-date, and we should skip extraction.
+                        relay_log::debug!("Failed to parse global extraction config: {e}");
+                        return Ok(());
+                    })
+                }
+            };
+            CombinedMetricExtractionConfig::new(global_config, config)
         };
 
-        if let Some(event) = state.event.value() {
-            if state.event_metrics_extracted {
+        // Require a valid transaction metrics config.
+        let tx_config = match &state.project_state.config.transaction_metrics {
+            Some(ErrorBoundary::Ok(tx_config)) => tx_config,
+            Some(ErrorBoundary::Err(e)) => {
+                relay_log::debug!("Failed to parse legacy transaction metrics config: {e}");
                 return Ok(());
             }
-
-            if let Some(config) = config {
-                let combined_config = CombinedMetricExtractionConfig::new(global_config, config);
-
-                let metrics = crate::metrics_extraction::event::extract_metrics(
-                    event,
-                    state.spans_extracted,
-                    &combined_config,
-                    self.inner
-                        .config
-                        .aggregator_config_for(MetricNamespace::Spans)
-                        .max_tag_value_length,
-                    global.options.span_extraction_sample_rate,
-                );
-                state.event_metrics_extracted |= !metrics.is_empty();
-                state.extracted_metrics.project_metrics.extend(metrics);
+            None => {
+                relay_log::debug!("Legacy transaction metrics config is missing");
+                return Ok(());
             }
+        };
 
-            if let Some(ErrorBoundary::Ok(ref tx_config)) =
-                state.project_state.config.transaction_metrics
-            {
-                if tx_config.is_enabled()
-                    && !state.project_state.has_feature(Feature::DiscardTransaction)
-                {
-                    let transaction_from_dsc = state
-                        .managed_envelope
-                        .envelope()
-                        .dsc()
-                        .and_then(|dsc| dsc.transaction.as_deref());
-
-                    let extractor = TransactionExtractor {
-                        config: tx_config,
-                        generic_tags: config.map(|c| c.tags.as_slice()).unwrap_or_default(),
-                        transaction_from_dsc,
-                        sampling_result,
-                        has_profile: state.profile_id.is_some(),
-                    };
-
-                    state.extracted_metrics.extend(extractor.extract(event)?);
-                    state.event_metrics_extracted |= true;
-                }
-            }
-
-            if state.event_metrics_extracted {
-                state.managed_envelope.set_event_metrics_extracted();
-            }
+        if !tx_config.is_enabled() {
+            return Ok(());
         }
 
-        // NB: Other items can be added here.
+        let metrics = crate::metrics_extraction::event::extract_metrics(
+            event,
+            state.spans_extracted,
+            combined_config,
+            self.inner
+                .config
+                .aggregator_config_for(MetricNamespace::Spans)
+                .max_tag_value_length,
+            global.options.span_extraction_sample_rate,
+        );
+        state.extracted_metrics.project_metrics.extend(metrics);
+
+        if !state.project_state.has_feature(Feature::DiscardTransaction) {
+            let transaction_from_dsc = state
+                .managed_envelope
+                .envelope()
+                .dsc()
+                .and_then(|dsc| dsc.transaction.as_deref());
+
+            let extractor = TransactionExtractor {
+                config: tx_config,
+                generic_config: Some(combined_config),
+                transaction_from_dsc,
+                sampling_result,
+                has_profile: state.profile_id.is_some(),
+            };
+
+            state.extracted_metrics.extend(extractor.extract(event)?);
+        }
+
+        state.event_metrics_extracted = true;
+        state.managed_envelope.set_event_metrics_extracted();
+
         Ok(())
     }
 
@@ -1404,7 +1404,10 @@ impl EnvelopeProcessorService {
                     .has_feature(Feature::DeviceClassSynthesis),
                 enrich_spans: state
                     .project_state
-                    .has_feature(Feature::ExtractSpansAndSpanMetricsFromEvent),
+                    .has_feature(Feature::ExtractSpansFromEvent)
+                    || state
+                        .project_state
+                        .has_feature(Feature::ExtractCommonSpanMetricsFromEvent),
                 max_tag_value_length: self
                     .inner
                     .config
@@ -1522,7 +1525,7 @@ impl EnvelopeProcessorService {
             // We avoid extracting metrics if we are not sampling the event while in non-processing
             // relays, in order to synchronize rate limits on indexed and processed transactions.
             if self.inner.config.processing_enabled() || sampling_should_drop {
-                self.extract_metrics(state, &sampling_result)?;
+                self.extract_transaction_metrics(state, &sampling_result)?;
             }
 
             dynamic_sampling::sample_envelope_items(
@@ -1543,12 +1546,18 @@ impl EnvelopeProcessorService {
 
                 if state.has_event() {
                     event::scrub(state)?;
+
                     if_processing!(self.inner.config, {
-                        span::extract_from_event(
-                            state,
-                            &self.inner.config,
-                            &self.inner.global_config.current(),
-                        );
+                        if state
+                            .project_state
+                            .has_feature(Feature::ExtractSpansFromEvent)
+                        {
+                            span::extract_from_event(
+                                state,
+                                &self.inner.config,
+                                &self.inner.global_config.current(),
+                            );
+                        }
                     });
                 }
 
@@ -2039,7 +2048,7 @@ impl EnvelopeProcessorService {
                 continue;
             }
 
-            let mut payload = item.payload();
+            let payload = item.payload();
             match serde_json::from_slice::<MetricMeta>(&payload) {
                 Ok(meta) => {
                     relay_log::trace!("adding metric metadata to project cache");
@@ -2050,25 +2059,7 @@ impl EnvelopeProcessorService {
                 }
                 Err(error) => {
                     metric!(counter(RelayCounters::MetricMetaParsingFailed) += 1);
-
-                    relay_log::with_scope(
-                        move |scope| {
-                            // truncate the payload to basically 200KiB, just in case
-                            payload.truncate(200_000);
-                            scope.add_attachment(relay_log::protocol::Attachment {
-                                buffer: payload.into(),
-                                filename: "payload.json".to_owned(),
-                                content_type: Some("application/json".to_owned()),
-                                ty: None,
-                            })
-                        },
-                        || {
-                            relay_log::error!(
-                                error = &error as &dyn Error,
-                                "failed to parse metric meta"
-                            )
-                        },
-                    );
+                    relay_log::debug!(error = &error as &dyn Error, "failed to parse metric meta");
                 }
             }
         }
@@ -2182,17 +2173,42 @@ impl EnvelopeProcessorService {
             let mut rate_limits = RateLimits::new();
 
             for category in [DataCategory::Transaction, DataCategory::Span] {
-                if let Some(count) = bucket_limiter.count(category) {
+                let count = bucket_limiter.count(category);
+
+                let timer = Instant::now();
+                let mut is_limited = false;
+
+                if let Some(count) = count {
                     match rate_limiter.is_rate_limited(
                         quotas,
                         scoping.item(category),
                         count,
                         over_accept_once,
                     ) {
-                        Ok(limits) => rate_limits.merge(limits),
+                        Ok(limits) => {
+                            is_limited = limits.is_limited();
+                            rate_limits.merge(limits)
+                        }
                         Err(e) => relay_log::error!(error = &e as &dyn Error),
                     }
                 }
+
+                relay_statsd::metric!(
+                    timer(RelayTimers::RateLimitBucketsDuration) = timer.elapsed(),
+                    category = category.name(),
+                    limited = if is_limited { "true" } else { "false" },
+                    count = match count {
+                        None => "none",
+                        Some(0) => "0",
+                        Some(1) => "1",
+                        Some(1..=10) => "10",
+                        Some(1..=25) => "25",
+                        Some(1..=50) => "50",
+                        Some(51..=100) => "100",
+                        Some(101..=500) => "500",
+                        _ => "> 500",
+                    },
+                );
             }
 
             if rate_limits.is_limited() {
@@ -2499,7 +2515,7 @@ impl EnvelopeProcessorService {
             return;
         }
 
-        let (unencoded, quantities) = partition.take_parts();
+        let (unencoded, project_info) = partition.take();
         let http_encoding = self.inner.config.http_encoding();
         let encoded = match encode_payload(&unencoded, http_encoding) {
             Ok(payload) => payload,
@@ -2514,8 +2530,8 @@ impl EnvelopeProcessorService {
             partition_key: key.map(|k| k.to_string()),
             unencoded,
             encoded,
+            project_info,
             http_encoding,
-            quantities,
             metric_outcomes: self.inner.metric_outcomes.clone(),
         };
 
@@ -2557,9 +2573,9 @@ impl EnvelopeProcessorService {
                 while let Some(bucket) = remaining.take() {
                     let partition = partitions
                         .entry(partition_key)
-                        .or_insert_with(|| Partition::new(batch_size, mode));
+                        .or_insert_with(|| Partition::new(batch_size));
 
-                    if let Some(next) = partition.insert(bucket, *scoping) {
+                    if let Some(next) = partition.insert(bucket, *scoping, mode) {
                         // A part of the bucket could not be inserted. Take the partition and submit
                         // it immediately. Repeat until the final part was inserted. This should
                         // always result in a request, otherwise we would enter an endless loop.
@@ -2691,7 +2707,15 @@ impl EnvelopeProcessorService {
             EnvelopeProcessor::SubmitClientReports(_) => AppFeature::ClientReports.into(),
             #[cfg(feature = "processing")]
             EnvelopeProcessor::RateLimitBuckets(v) => {
-                relay_metrics::cogs::ByCount(v.bucket_limiter.buckets()).into()
+                relay_metrics::cogs::ByCount(v.bucket_limiter.buckets().filter(|b| {
+                    // Only spans and transactions are actually rate limited at this point.
+                    // Other metrics do not cause costs.
+                    matches!(
+                        b.name.try_namespace(),
+                        Some(MetricNamespace::Spans | MetricNamespace::Transactions)
+                    )
+                }))
+                .into()
             }
         }
     }
@@ -2867,19 +2891,17 @@ struct Partition<'a> {
     max_size: usize,
     remaining: usize,
     views: HashMap<ProjectKey, Vec<BucketView<'a>>>,
-    quantities: Vec<(Scoping, SourceQuantities)>,
-    mode: ExtractionMode,
+    project_info: HashMap<ProjectKey, (Scoping, ExtractionMode)>,
 }
 
 impl<'a> Partition<'a> {
     /// Creates a new partition with the given maximum size in bytes.
-    pub fn new(size: usize, mode: ExtractionMode) -> Self {
+    pub fn new(size: usize) -> Self {
         Self {
             max_size: size,
             remaining: size,
             views: HashMap::new(),
-            quantities: Vec::new(),
-            mode,
+            project_info: HashMap::new(),
         }
     }
 
@@ -2890,20 +2912,27 @@ impl<'a> Partition<'a> {
     /// returned from this function call.
     ///
     /// If this function returns `Some(_)`, the partition is full and should be submitted to the
-    /// upstream immediately. Use [`take_parts`](Self::take_parts) to retrieve the contents of the
+    /// upstream immediately. Use [`Self::take`] to retrieve the contents of the
     /// partition. Afterwards, the caller is responsible to call this function again with the
     /// remaining bucket until it is fully inserted.
-    pub fn insert(&mut self, bucket: BucketView<'a>, scoping: Scoping) -> Option<BucketView<'a>> {
+    pub fn insert(
+        &mut self,
+        bucket: BucketView<'a>,
+        scoping: Scoping,
+        mode: ExtractionMode,
+    ) -> Option<BucketView<'a>> {
         let (current, next) = bucket.split(self.remaining, Some(self.max_size));
 
         if let Some(current) = current {
             self.remaining = self.remaining.saturating_sub(current.estimated_size());
-            let quantities = metrics::extract_quantities([&current], self.mode);
-            self.quantities.push((scoping, quantities));
             self.views
                 .entry(scoping.project_key)
                 .or_default()
                 .push(current);
+
+            self.project_info
+                .entry(scoping.project_key)
+                .or_insert((scoping, mode));
         }
 
         next
@@ -2914,10 +2943,10 @@ impl<'a> Partition<'a> {
         self.views.is_empty()
     }
 
-    /// Returns the serialized buckets and the source quantities for this partition.
+    /// Returns the serialized buckets for this partition.
     ///
     /// This empties the partition, so that it can be reused.
-    fn take_parts(&mut self) -> (Bytes, Vec<(Scoping, SourceQuantities)>) {
+    fn take(&mut self) -> (Bytes, HashMap<ProjectKey, (Scoping, ExtractionMode)>) {
         #[derive(serde::Serialize)]
         struct Wrapper<'a> {
             buckets: &'a HashMap<ProjectKey, Vec<BucketView<'a>>>,
@@ -2925,13 +2954,14 @@ impl<'a> Partition<'a> {
 
         let buckets = &self.views;
         let payload = serde_json::to_vec(&Wrapper { buckets }).unwrap().into();
-        let quantities = self.quantities.clone();
+
+        let scopings = self.project_info.clone();
+        self.project_info.clear();
 
         self.views.clear();
-        self.quantities.clear();
         self.remaining = self.max_size;
 
-        (payload, quantities)
+        (payload, scopings)
     }
 }
 
@@ -2946,12 +2976,48 @@ struct SendMetricsRequest {
     unencoded: Bytes,
     /// Serialized metric buckets with the stated HTTP encoding applied.
     encoded: Bytes,
-    /// Information about the metric quantities in the payload for outcomes.
-    quantities: Vec<(Scoping, SourceQuantities)>,
+    /// Mapping of all contained project keys to their scoping and extraction mode.
+    ///
+    /// Used to track outcomes for transmission failures.
+    project_info: HashMap<ProjectKey, (Scoping, ExtractionMode)>,
     /// Encoding (compression) of the payload.
     http_encoding: HttpEncoding,
     /// Metric outcomes instance to send outcomes on error.
     metric_outcomes: MetricOutcomes,
+}
+
+impl SendMetricsRequest {
+    fn create_error_outcomes(self) {
+        #[derive(serde::Deserialize)]
+        struct Wrapper {
+            buckets: HashMap<ProjectKey, Vec<MinimalTrackableBucket>>,
+        }
+
+        let buckets = match serde_json::from_slice(&self.unencoded) {
+            Ok(Wrapper { buckets }) => buckets,
+            Err(err) => {
+                relay_log::error!(
+                    error = &err as &dyn std::error::Error,
+                    "failed to parse buckets from failed transmission"
+                );
+                return;
+            }
+        };
+
+        for (key, buckets) in buckets {
+            let Some(&(scoping, mode)) = self.project_info.get(&key) else {
+                relay_log::error!("missing scoping for project key");
+                continue;
+            };
+
+            self.metric_outcomes.track(
+                scoping,
+                &buckets,
+                mode,
+                Outcome::Invalid(DiscardReason::Internal),
+            );
+        }
+    }
 }
 
 impl UpstreamRequest for SendMetricsRequest {
@@ -3005,14 +3071,7 @@ impl UpstreamRequest for SendMetricsRequest {
                         return;
                     }
 
-                    for (scoping, quantities) in self.quantities {
-                        self.metric_outcomes.track(
-                            scoping,
-                            &[] as &[Bucket], // TODO(dav1d): provide buckets here
-                            quantities,
-                            Outcome::Invalid(DiscardReason::Internal),
-                        );
-                    }
+                    self.create_error_outcomes()
                 }
             }
         })
