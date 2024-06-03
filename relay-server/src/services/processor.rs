@@ -1490,6 +1490,14 @@ impl EnvelopeProcessorService {
 
         attachment::scrub(state);
 
+        /*
+        //TODO:
+        if envelope state has user report v2:
+            let num_attachments = 0; // unsigned
+            count num attachments
+            metric!(counter(RelayCounters::FeedbackAttachments) += num_attachments as i64);
+         */
+
         Ok(())
     }
 
