@@ -205,15 +205,6 @@ impl StoreService {
             KafkaTopic::Attachments
         } else if event_item.as_ref().map(|x| x.ty()) == Some(&ItemType::Transaction) {
             KafkaTopic::Transactions
-        } else if event_item.as_ref().map(|x| x.ty()) == Some(&ItemType::UserReportV2) {
-            if is_rolled_out(
-                scoping.organization_id,
-                global_options.feedback_ingest_topic_rollout_rate,
-            ) {
-                KafkaTopic::Feedback
-            } else {
-                KafkaTopic::Events
-            }
         } else {
             KafkaTopic::Events
         };
