@@ -321,7 +321,26 @@ jobs:
             --tag "${DOCKER_IMAGE}:${REVISION}" \
             $( [[ "${GITHUB_REF}" == "refs/heads/master" ]] && printf %s "--tag ${DOCKER_IMAGE}:nightly" ) \
             --file Dockerfile.release \
-            --push .
+            --push \
+            .
+
+      - name: Build and publish docker artifact
+        if: "github.event.pull_request.head.repo.fork || github.actor == 'dependabot[bot]'"
+        run: |
+          docker buildx build \
+            --platform "${PLATFORMS}" \
+            --tag "${DOCKER_IMAGE}:${REVISION}" \
+            --file Dockerfile.release \
+            --output type=docker,dest=${{ matrix.image_name }}-docker-image \
+            .
+
+      - name: Upload docker image
+        if: "github.event.pull_request.head.repo.fork || github.actor == 'dependabot[bot]'"
+        uses: actions/upload-artifact@v4
+        with:
+          retention-days: 1
+          name: ${{ matrix.image_name }}-docker-image
+          path: "${{ matrix.image_name }}-docker-image"
 
   publish-to-dockerhub:
     needs: [build-setup, build-docker]
@@ -585,6 +604,16 @@ jobs:
           kafka: true
           symbolicator: true
 
+      - name: Download Docker Image
+        if: "github.event.pull_request.head.repo.fork || github.actor == 'dependabot[bot]'"
+        uses: actions/download-artifact@v4
+        with:
+          name: relay-docker-image
+
+      - name: Import Docker Image
+        if: "github.event.pull_request.head.repo.fork || github.actor == 'dependabot[bot]'"
+        run: docker load -i relay-docker-image
+
       - name: Run Sentry integration tests
         working-directory: sentry
         env:
@@ -604,6 +633,16 @@ jobs:
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
+
+      - name: Download Docker Image
+        if: "github.event.pull_request.head.repo.fork || github.actor == 'dependabot[bot]'"
+        uses: actions/download-artifact@v4
+        with:
+          name: relay-docker-image
+
+      - name: Import Docker Image
+        if: "github.event.pull_request.head.repo.fork || github.actor == 'dependabot[bot]'"
+        run: docker load -i relay-docker-image
 
       - name: Run Sentry self-hosted e2e CI
         # Skip for dependabot or if it's a fork as the image cannot be uploaded to ghcr since this test attempts to pull
