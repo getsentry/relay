@@ -163,7 +163,7 @@ impl TransactionMetricsConfig {
     /// Creates an enabled configuration with empty defaults.
     pub fn new() -> Self {
         Self {
-            version: 1,
+            version: TRANSACTION_EXTRACT_MAX_SUPPORTED_VERSION,
             ..Self::default()
         }
     }
