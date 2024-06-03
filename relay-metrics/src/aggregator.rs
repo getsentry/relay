@@ -183,6 +183,7 @@ pub enum FlushBatching {
     Partition,
 
     /// Do not apply shift.
+    /// TODO: we might want to remove this shift be
     None,
 }
 
@@ -331,7 +332,13 @@ impl AggregatorConfig {
     fn flush_time_shift(&self, bucket: &BucketKey) -> Duration {
         let shift_range = self.bucket_interval * 1000;
 
-        let hash_value = match self.flush_batching {
+        // We compute the correct flush batching implementation based on the configuration.
+        let flush_batching = match (self.flush_batching, self.flush_partitions) {
+            (FlushBatching::Partition, None) => FlushBatching::Project,
+            _ => self.flush_batching,
+        };
+
+        let hash_value = match flush_batching {
             FlushBatching::Project => {
                 let mut hasher = FnvHasher::default();
                 hasher.write(bucket.project_key.as_str().as_bytes());
@@ -339,7 +346,8 @@ impl AggregatorConfig {
             }
             FlushBatching::Bucket => bucket.hash64(),
             FlushBatching::Partition => {
-                // In case no partitions are set, we will not shift by anything.
+                // This piece of code should never end up in the `else` branch, but it's better to
+                // still cover for this case instead of unwrapping.
                 let Some(flush_partitions) = self.flush_partitions else {
                     relay_log::debug!("could not shift time by partition since the number of partitions is not defined");
                     return Duration::ZERO;
@@ -356,8 +364,15 @@ impl AggregatorConfig {
                 // 1ms between the two partition key shifts. With this logic, we will scale both
                 // numbers by 500 meaning that they will be flushed at 500 ms of distance, which is
                 // much better.
-                let distance = shift_range / flush_partitions;
-                distance * bucket.partition_hash()
+                //
+                // TODO: we might want to use the partition key since the hash is not representing
+                //  the actual routing of the buckets.
+                let distance = if flush_partitions == 0 {
+                    1
+                } else {
+                    shift_range / flush_partitions
+                };
+                distance.saturating_mul(bucket.partition_hash())
             }
             FlushBatching::None => return Duration::ZERO,
         };

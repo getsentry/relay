@@ -267,10 +267,8 @@ def test_metrics_partition_key(mini_sentry, relay, metrics_partitions, expected_
             "debounce_delay": 0,
             "max_secs_in_past": forever,
             "max_secs_in_future": forever,
-            "flush_batching": {
-                "type": "partition",
-                "flush_partitions": metrics_partitions,
-            },
+            "flush_batching": "partition",
+            "flush_partitions": metrics_partitions,
         },
     }
     relay = relay(mini_sentry, options=relay_config)
