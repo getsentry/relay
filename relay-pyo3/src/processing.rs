@@ -60,7 +60,7 @@ impl From<PyClientHintsString> for ClientHints<String> {
 /// Configuration for the store step -- validation and normalization.
 #[derive(Serialize, Deserialize, Debug, Default)]
 #[serde(default)]
-#[pyclass]
+#[pyclass(name = "RustStoreNormalizer")]
 pub struct StoreNormalizer {
     /// The identifier of the target project, which gets added to the payload.
     pub project_id: Option<u64>,
@@ -240,17 +240,8 @@ impl StoreNormalizer {
         }
     }
 
-    #[pyo3(signature = (event = None, raw_event = None))]
-    pub fn normalize_event<'a>(
-        &self,
-        event: Option<&Bound<'a, PyAny>>,
-        raw_event: Option<&Bound<'a, PyAny>>, // bytes | str
-    ) -> PyResult<PyObject> {
-        let raw_event = raw_event
-            .or(event)
-            .expect("Event should exist if raw_event is None");
-        let event = raw_event.downcast::<PyString>()?;
-        let mut data = event.to_string().into_bytes();
+    pub fn normalize_event(&self, event: &Bound<PyBytes>) -> PyResult<String> {
+        let mut data = event.as_bytes().to_owned();
         json_forensics::translate_slice(&mut data);
         let mut event: Annotated<Event> =
             Annotated::<Event>::from_json(std::str::from_utf8(&data)?)
@@ -319,7 +310,7 @@ impl StoreNormalizer {
                 .map(|id| Uuid::parse_str(id).unwrap()),
         };
         relay_event_normalization::normalize_event(&mut event, &normalization_config);
-        Python::with_gil(|py| Ok(PyAnnotatedEvent::from(event).into_py(py)))
+        Ok(event.to_json().unwrap())
     }
 }
 
@@ -445,74 +436,18 @@ impl From<Annotated<Event>> for PyAnnotatedEvent {
     }
 }
 
-#[pyfunction]
+#[pyfunction(name = "_pii_strip_event")]
 pub fn pii_strip_event<'a>(
-    config: &Bound<'a, PiiConfig>,
+    config: &Bound<'a, PyAny>,
     event: &Bound<'a, PyString>,
-) -> PyResult<PyObject> {
-    let borrowed_config = config.borrow();
-    let mut processor = PiiProcessor::new(borrowed_config.compiled());
+) -> PyResult<String> {
+    let config: PiiConfig = from_pyobject(config.clone())?;
+    let mut processor = PiiProcessor::new(config.compiled());
 
     let mut event = Annotated::<Event>::from_json(event.to_str()?)
         .map_err(|e| PyValueError::new_err(e.to_string()))?;
     process_value(&mut event, &mut processor, ProcessingState::root())?;
-    Python::with_gil(|py| Ok(PyAnnotatedEvent::from(event).into_py(py)))
-}
-
-#[derive(Debug, Clone, Eq, PartialEq)]
-#[pyclass(name = "Version")]
-pub struct PyVersion {
-    major: String,
-    minor: String,
-    patch: String,
-    revision: String,
-    pre: String,
-    build_code: String,
-    raw_short: String,
-    components: u8,
-    raw_quad: (String, Option<String>, Option<String>, Option<String>),
-}
-
-impl From<&Version<'_>> for PyVersion {
-    fn from(value: &Version<'_>) -> Self {
-        let (major, minor, patch, revision) = value.raw_quad();
-        Self {
-            major: value.major().to_string(),
-            minor: value.minor().to_string(),
-            patch: value.patch().to_string(),
-            revision: value.revision().to_string(),
-            pre: value.pre().map(String::from).unwrap_or_default(),
-            build_code: value.build_code().map(String::from).unwrap_or_default(),
-            raw_short: value.raw_short().to_string(),
-            components: value.components(),
-            raw_quad: (
-                major.to_string(),
-                minor.map(String::from),
-                patch.map(String::from),
-                revision.map(String::from),
-            ),
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq)]
-#[pyclass(name = "Release")]
-pub struct PyRelease {
-    raw: String,
-    package: String,
-    version_raw: String,
-    version: Option<PyVersion>,
-}
-
-impl From<Release<'_>> for PyRelease {
-    fn from(value: Release<'_>) -> Self {
-        Self {
-            raw: value.raw().to_string(),
-            package: value.package().unwrap_or_default().to_string(),
-            version_raw: value.version_raw().to_string(),
-            version: value.version().map(PyVersion::from),
-        }
-    }
+    Ok(event.to_json().unwrap())
 }
 
 #[pyfunction]
@@ -535,12 +470,12 @@ pub fn normalize_global_config<'a>(config: &Bound<'a, PyAny>) -> PyResult<Bound<
     Ok(to_pyobject(config.py(), &value)?)
 }
 
-#[pyfunction]
-pub fn pii_selector_suggestions_from_event(event: &Bound<'_, PyAny>) -> PyResult<PyObject> {
-    let event = event.extract::<PyAnnotatedEvent>()?;
-    let mut annotated_event = Annotated::<Event>::new(event.0.unwrap_or_default());
-    let rv = selector_suggestions_from_value(&mut annotated_event);
-    Python::with_gil(|py| Ok(rv.into_py(py)))
+#[pyfunction(name = "_pii_selector_suggestions_from_event")]
+pub fn pii_selector_suggestions_from_event(event: &Bound<'_, PyString>) -> PyResult<String> {
+    let mut event = Annotated::<Event>::from_json(event.to_str()?)
+        .map_err(|e| PyValueError::new_err(e.to_string()))?;
+    let rv = selector_suggestions_from_value(&mut event);
+    Ok(serde_json::to_string(&rv).unwrap())
 }
 
 #[pyfunction]
@@ -662,7 +597,7 @@ fn normalize_project_config<'a>(config: &Bound<'a, PyAny>) -> PyResult<Bound<'a,
 }
 
 #[pymodule]
-pub fn processing(_py: Python, m: &Bound<PyModule>) -> PyResult<()> {
+pub fn processing(m: &Bound<PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(validate_sampling_configuration, m)?)?;
     m.add_function(wrap_pyfunction!(compare_versions, m)?)?;
     m.add_function(wrap_pyfunction!(validate_pii_selector, m)?)?;

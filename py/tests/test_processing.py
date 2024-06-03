@@ -1,4 +1,5 @@
 import sentry_relay
+from sentry_relay import processing
 
 import pytest
 
@@ -23,57 +24,57 @@ PII_VARS = {
 
 
 def test_valid_platforms():
-    assert len(sentry_relay.VALID_PLATFORMS) > 0
-    assert "native" in sentry_relay.VALID_PLATFORMS
+    assert len(sentry_relay.processing.VALID_PLATFORMS) > 0
+    assert "native" in sentry_relay.processing.VALID_PLATFORMS
 
 
 def test_split_chunks():
-    chunks = sentry_relay.split_chunks(TEXT, REMARKS)
+    chunks = sentry_relay.processing.split_chunks(TEXT, REMARKS)
     assert chunks == CHUNKS
 
 
 def test_meta_with_chunks():
-    meta = sentry_relay.meta_with_chunks(TEXT, META)
+    meta = sentry_relay.processing.meta_with_chunks(TEXT, META)
     assert meta == META_WITH_CHUNKS
 
 
 def test_meta_with_chunks_none():
-    meta = sentry_relay.meta_with_chunks(TEXT, None)
+    meta = sentry_relay.processing.meta_with_chunks(TEXT, None)
     assert meta is None
 
 
 def test_meta_with_chunks_empty():
-    meta = sentry_relay.meta_with_chunks(TEXT, {})
+    meta = sentry_relay.processing.meta_with_chunks(TEXT, {})
     assert meta == {}
 
 
 def test_meta_with_chunks_empty_remarks():
-    meta = sentry_relay.meta_with_chunks(TEXT, {"rem": []})
+    meta = sentry_relay.processing.meta_with_chunks(TEXT, {"rem": []})
     assert meta == {"rem": []}
 
 
 def test_meta_with_chunks_dict():
-    meta = sentry_relay.meta_with_chunks({"test": TEXT, "other": 1}, {"test": META})
+    meta = sentry_relay.processing.meta_with_chunks({"test": TEXT, "other": 1}, {"test": META})
     assert meta == {"test": META_WITH_CHUNKS}
 
 
 def test_meta_with_chunks_list():
-    meta = sentry_relay.meta_with_chunks(["other", TEXT], {"1": META})
+    meta = sentry_relay.processing.meta_with_chunks(["other", TEXT], {"1": META})
     assert meta == {"1": META_WITH_CHUNKS}
 
 
 def test_meta_with_chunks_missing_value():
-    meta = sentry_relay.meta_with_chunks(None, META)
+    meta = sentry_relay.processing.meta_with_chunks(None, META)
     assert meta == META
 
 
 def test_meta_with_chunks_missing_non_string():
-    meta = sentry_relay.meta_with_chunks(True, META)
+    meta = sentry_relay.processing.meta_with_chunks(True, META)
     assert meta == META
 
 
 def test_basic_store_normalization():
-    normalizer = sentry_relay.StoreNormalizer(project_id=1)
+    normalizer = sentry_relay.processing.StoreNormalizer(project_id=1)
     event = normalizer.normalize_event({"tags": []})
     assert event["project"] == 1
     assert event["type"] == "default"
@@ -83,13 +84,13 @@ def test_basic_store_normalization():
 
 
 def test_legacy_json():
-    normalizer = sentry_relay.StoreNormalizer(project_id=1)
+    normalizer = sentry_relay.processing.StoreNormalizer(project_id=1)
     event = normalizer.normalize_event(raw_event='{"extra":{"x":NaN}}')
     assert event["extra"] == {"x": 0.0}
 
 
 def test_broken_json():
-    normalizer = sentry_relay.StoreNormalizer(project_id=1)
+    normalizer = sentry_relay.processing.StoreNormalizer(project_id=1)
     bad_str = "Hello\ud83dWorld🇦🇹!"
     event = normalizer.normalize_event({"message": bad_str})
     assert "Hello" in event["logentry"]["formatted"]
@@ -102,7 +103,7 @@ def test_broken_json():
     [None, False, True],
 )
 def test_normalize_user_agent(must_normalize):
-    normalizer = sentry_relay.StoreNormalizer(
+    normalizer = sentry_relay.processing.StoreNormalizer(
         project_id=1, normalize_user_agent=must_normalize
     )
     event = normalizer.normalize_event(
@@ -128,36 +129,36 @@ def test_normalize_user_agent(must_normalize):
 
 
 def test_validate_pii_selector():
-    sentry_relay.validate_pii_selector("test")
-    sentry_relay.validate_pii_selector("$user.id")
-    sentry_relay.validate_pii_selector("extra.'sys.argv'.**")
+    sentry_relay.processing.validate_pii_selector("test")
+    sentry_relay.processing.validate_pii_selector("$user.id")
+    sentry_relay.processing.validate_pii_selector("extra.'sys.argv'.**")
 
     with pytest.raises(ValueError) as e:
-        sentry_relay.validate_pii_selector("no_spaces allowed")
+        sentry_relay.processing.validate_pii_selector("no_spaces allowed")
     assert str(e.value) == 'invalid syntax near "no_spaces allowed"'
 
     with pytest.raises(ValueError) as e:
-        sentry_relay.validate_pii_selector("unterminated.'string")
+        sentry_relay.processing.validate_pii_selector("unterminated.'string")
     assert str(e.value) == 'invalid syntax near "unterminated.\'string"'
 
     with pytest.raises(ValueError) as e:
-        sentry_relay.validate_pii_selector("double.**.wildcard.**")
+        sentry_relay.processing.validate_pii_selector("double.**.wildcard.**")
     assert str(e.value) == "deep wildcard used more than once"
 
 
 def test_validate_pii_config():
-    sentry_relay.validate_pii_config("{}")
-    sentry_relay.validate_pii_config('{"applications": {}}')
+    sentry_relay.processing.validate_pii_config("{}")
+    sentry_relay.processing.validate_pii_config('{"applications": {}}')
 
     with pytest.raises(ValueError):
-        sentry_relay.validate_pii_config('{"applications": []}')
+        sentry_relay.processing.validate_pii_config('{"applications": []}')
 
     with pytest.raises(ValueError):
-        sentry_relay.validate_pii_config('{"applications": true}')
+        sentry_relay.processing.validate_pii_config('{"applications": true}')
 
 
 def test_convert_datascrubbing_config():
-    cfg = sentry_relay.convert_datascrubbing_config(
+    cfg = sentry_relay.processing.convert_datascrubbing_config(
         {
             "scrubData": True,
             "excludeFields": [],
@@ -170,7 +171,7 @@ def test_convert_datascrubbing_config():
     assert cfg["applications"]
 
     assert (
-        sentry_relay.convert_datascrubbing_config(
+        sentry_relay.processing.convert_datascrubbing_config(
             {
                 "scrubData": False,
                 "excludeFields": [],
@@ -185,19 +186,19 @@ def test_convert_datascrubbing_config():
 
 def test_pii_strip_event():
     event = {"logentry": {"message": "hi"}}
-    assert sentry_relay.pii_strip_event({}, event) == event
+    assert sentry_relay.processing.pii_strip_event({}, event) == event
 
 
 def test_pii_selector_suggestions_from_event():
     event = {"logentry": {"formatted": "hi"}}
-    assert sentry_relay.pii_selector_suggestions_from_event(event) == [
+    assert sentry_relay.processing.pii_selector_suggestions_from_event(event) == [
         {"path": "$string", "value": "hi"},
         {"path": "$message", "value": "hi"},
     ]
 
 
 def test_parse_release():
-    parsed = sentry_relay.parse_release("org.example.FooApp@1.0rc1+20200101100")
+    parsed = sentry_relay.processing.parse_release("org.example.FooApp@1.0rc1+20200101100")
     assert parsed == {
         "build_hash": None,
         "description": "1.0rc1 (20200101100)",
@@ -218,14 +219,14 @@ def test_parse_release():
 
 
 def test_parse_release_error():
-    with pytest.raises(sentry_relay.InvalidReleaseErrorBadCharacters):
-        sentry_relay.parse_release("/var/foo/foo")
+    with pytest.raises(sentry_relay.errors.InvalidReleaseErrorBadCharacters):
+        sentry_relay.processing.parse_release("/var/foo/foo")
 
 
 def test_compare_versions():
-    assert sentry_relay.compare_versions("1.0.0", "0.1.1") == 1
-    assert sentry_relay.compare_versions("0.0.0", "0.1.1") == -1
-    assert sentry_relay.compare_versions("1.0.0", "1.0.0") == 0
+    assert sentry_relay.processing.compare_versions("1.0.0", "0.1.1") == 1
+    assert sentry_relay.processing.compare_versions("0.0.0", "0.1.1") == -1
+    assert sentry_relay.processing.compare_versions("1.0.0", "1.0.0") == 0
 
 
 def test_validate_rule_condition():
@@ -234,7 +235,7 @@ def test_validate_rule_condition():
     """
     # Should not throw
     condition = '{"op": "eq", "name": "field_2", "value": ["UPPER", "lower"]}'
-    sentry_relay.validate_rule_condition(condition)
+    sentry_relay.processing.validate_rule_condition(condition)
 
 
 def test_invalid_sampling_condition():
@@ -244,7 +245,7 @@ def test_invalid_sampling_condition():
     # Should throw
     condition = '{"op": "legacyBrowser", "value": [1,2,3]}'
     with pytest.raises(ValueError):
-        sentry_relay.validate_rule_condition(condition)
+        sentry_relay.processing.validate_rule_condition(condition)
 
 
 def test_validate_legacy_sampling_configuration():
@@ -284,7 +285,7 @@ def test_validate_legacy_sampling_configuration():
         ]
     }"""
     # Should NOT throw
-    sentry_relay.validate_sampling_configuration(config)
+    sentry_relay.processing.validate_sampling_configuration(config)
 
 
 def test_validate_sampling_configuration():
@@ -311,16 +312,16 @@ def test_validate_sampling_configuration():
         ]
     }"""
     # Should NOT throw
-    sentry_relay.validate_sampling_configuration(config)
+    sentry_relay.processing.validate_sampling_configuration(config)
 
 
 def test_normalize_project_config():
     config = {"allowedDomains": ["*"], "trustedRelays": [], "piiConfig": None}
-    normalized = sentry_relay.normalize_project_config(config)
+    normalized = sentry_relay.processing.normalize_project_config(config)
     assert config == normalized
 
     config["foobar"] = True
-    normalized = sentry_relay.normalize_project_config(config)
+    normalized = sentry_relay.processing.normalize_project_config(config)
     assert config != normalized
 
 
@@ -334,8 +335,8 @@ def test_cardinality_limit_config_equal_normalization():
         "passive": True,
         "report": True,
     }
-    sentry_relay.normalize_cardinality_limit_config(config)
-    assert config == sentry_relay.normalize_cardinality_limit_config(config)
+    sentry_relay.processing.normalize_cardinality_limit_config(config)
+    assert config == sentry_relay.processing.normalize_cardinality_limit_config(config)
 
 
 def test_cardinality_limit_config_subset_normalized():
@@ -349,7 +350,7 @@ def test_cardinality_limit_config_subset_normalized():
         "report": False,
         "unknown": "value",
     }
-    normalized = sentry_relay.normalize_cardinality_limit_config(config)
+    normalized = sentry_relay.processing.normalize_cardinality_limit_config(config)
     config.pop("passive")
     config.pop("report")
     config.pop("unknown")
@@ -365,18 +366,18 @@ def test_cardinality_limit_config_unparsable():
         "scope": "name",
     }
     with pytest.raises(ValueError) as e:
-        sentry_relay.normalize_cardinality_limit_config(config)
+        sentry_relay.processing.normalize_cardinality_limit_config(config)
     assert str(e.value) == "RuntimeError: invalid value: integer `-1`, expected u32"
 
 
 def test_global_config_equal_normalization():
     config = {"measurements": {"maxCustomMeasurements": 0}}
-    assert config == sentry_relay.normalize_global_config(config)
+    assert config == sentry_relay.processing.normalize_global_config(config)
 
 
 def test_global_config_subset_normalized():
     config = {"measurements": {"builtinMeasurements": [], "maxCustomMeasurements": 0}}
-    normalized = sentry_relay.normalize_global_config(config)
+    normalized = sentry_relay.processing.normalize_global_config(config)
     config["measurements"].pop("builtinMeasurements")
     assert config == normalized
 
@@ -384,5 +385,5 @@ def test_global_config_subset_normalized():
 def test_global_config_unparsable():
     config = {"measurements": {"maxCustomMeasurements": -5}}
     with pytest.raises(ValueError) as e:
-        sentry_relay.normalize_global_config(config)
+        sentry_relay.processing.normalize_global_config(config)
     assert str(e.value) == "RuntimeError: invalid value: integer `-5`, expected usize"
