@@ -7,6 +7,11 @@ import uuid
 from datetime import UTC, datetime, timedelta, timezone
 from time import sleep
 
+from .consts import (
+    TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION,
+    TRANSACTION_EXTRACT_MAX_SUPPORTED_VERSION,
+)
+
 import pytest
 from flask import Response, abort
 from requests.exceptions import HTTPError
@@ -803,7 +808,13 @@ def test_rate_limit_metrics_buckets(
     )
 
 
-@pytest.mark.parametrize("extraction_version", [1, 3])
+@pytest.mark.parametrize(
+    "extraction_version",
+    [
+        TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION,
+        TRANSACTION_EXTRACT_MAX_SUPPORTED_VERSION,
+    ],
+)
 def test_processing_quota_transaction_indexing(
     mini_sentry,
     relay_with_processing,

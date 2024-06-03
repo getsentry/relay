@@ -23,7 +23,7 @@ def test_unreal_crash(mini_sentry, relay, dump_file_name, extract_metrics):
     if extract_metrics:
         # regression: we dropped unreal events in customer relays while metrics extraction was on
         config["transactionMetrics"] = {
-            "version": 1,
+            "version": 3,
         }
 
     unreal_content = _load_dump_file(dump_file_name)
