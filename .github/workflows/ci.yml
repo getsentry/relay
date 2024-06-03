@@ -400,7 +400,6 @@ jobs:
 
     env:
       GHCR_DOCKER_IMAGE: "ghcr.io/getsentry/${{ matrix.image_name }}"
-      GCR_DOCKER_IMAGE: "us.gcr.io/sentryio/${{ matrix.image_name }}"
       AR_DOCKER_IMAGE: "us-central1-docker.pkg.dev/sentryio/relay/${{ matrix.image_name }}"
       REVISION: "${{ github.event.pull_request.head.sha || github.sha }}"
 
@@ -428,20 +427,13 @@ jobs:
 
       - name: Configure docker
         run: |
-          gcloud auth configure-docker us.gcr.io,us-central1-docker.pkg.dev
+          gcloud auth configure-docker us-central1-docker.pkg.dev
 
       - name: Install regctl
         uses: regclient/actions/regctl-installer@2dac4eff5925ed07edbfe12d2d11af6304df29a6
 
-      - name: Copy Image from GHCR to GCR
-        run: regctl image copy "${GHCR_DOCKER_IMAGE}:${REVISION}" "${GCR_DOCKER_IMAGE}:${REVISION}"
-
       - name: Copy Image from GHCR to AR
         run: regctl image copy "${GHCR_DOCKER_IMAGE}:${REVISION}" "${AR_DOCKER_IMAGE}:${REVISION}"
-
-      - name: Copy Nightly from GHCR to GCR
-        if: github.ref == 'refs/heads/master'
-        run: regctl image copy "${GHCR_DOCKER_IMAGE}:nightly" "${GCR_DOCKER_IMAGE}:nightly"
 
       - name: Copy Nightly from GHCR to AR
         if: github.ref == 'refs/heads/master'
