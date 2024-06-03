@@ -619,27 +619,16 @@ jobs:
     timeout-minutes: 25
     needs: build-docker
 
-    # Skip redundant checks for library releases
-    if: "!startsWith(github.ref, 'refs/heads/release-library/')"
+    # - Skip redundant checks for library releases
+    # - Skip for dependabot or if it's a fork as the image cannot be uploaded to ghcr since this test attempts to pull
+    # the image from ghcr
+    if: "!startsWith(github.ref, 'refs/heads/release-library/') && !github.event.pull_request.head.repo.fork && github.actor != 'dependabot[bot]'"
 
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Download Docker Image
-        if: "github.event.pull_request.head.repo.fork || github.actor == 'dependabot[bot]'"
-        uses: actions/download-artifact@v4
-        with:
-          name: relay-docker-image
-
-      - name: Import Docker Image
-        if: "github.event.pull_request.head.repo.fork || github.actor == 'dependabot[bot]'"
-        run: docker load -i relay-docker-image
-
       - name: Run Sentry self-hosted e2e CI
-        # Skip for dependabot or if it's a fork as the image cannot be uploaded to ghcr since this test attempts to pull
-        # the image from ghcr
-        if: "!github.event.pull_request.head.repo.fork && github.actor != 'dependabot[bot]'"
         uses: getsentry/action-self-hosted-e2e-tests@main
         with:
           project_name: relay
