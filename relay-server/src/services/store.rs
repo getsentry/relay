@@ -224,7 +224,6 @@ impl StoreService {
         let mut replay_event = None;
         let mut replay_recording = None;
 
-        let mut has_feedback = false;
         for item in envelope.items() {
             match item.ty() {
                 ItemType::Attachment => {
@@ -253,7 +252,6 @@ impl StoreService {
                     )?;
                 }
                 ItemType::UserReportV2 => {
-                    has_feedback = true;
                     let remote_addr = envelope.meta().client_addr().map(|addr| addr.to_string());
                     self.produce_user_report_v2(
                         event_id.ok_or(StoreError::NoEventId)?,
@@ -348,10 +346,6 @@ impl StoreService {
                     )
                 }
             }
-        }
-
-        if has_feedback && !attachments.is_empty() {
-            metric!(counter(RelayCounters::FeedbackAttachments) += attachments.len() as i64);
         }
 
         if let Some(recording) = replay_recording {

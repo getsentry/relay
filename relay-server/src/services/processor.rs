@@ -1486,17 +1486,10 @@ impl EnvelopeProcessorService {
         if state.has_event() {
             event::scrub(state)?;
             event::serialize(state)?;
+            event::emit_feedback_metrics(state.envelope());
         }
 
         attachment::scrub(state);
-
-        /*
-        //TODO:
-        if envelope state has user report v2:
-            let num_attachments = 0; // unsigned
-            count num attachments
-            metric!(counter(RelayCounters::FeedbackAttachments) += num_attachments as i64);
-         */
 
         Ok(())
     }

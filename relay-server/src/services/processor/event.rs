@@ -20,7 +20,7 @@ use relay_quotas::DataCategory;
 use relay_statsd::metric;
 use serde_json::Value as SerdeValue;
 
-use crate::envelope::{AttachmentType, ContentType, Item, ItemType};
+use crate::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType};
 use crate::extractors::RequestMeta;
 use crate::services::outcome::Outcome;
 use crate::services::processor::{
@@ -417,6 +417,26 @@ pub fn has_unprintable_fields(event: &Annotated<Event>) -> bool {
         env.is_some() || release.is_some()
     } else {
         false
+    }
+}
+
+//TODO: comment
+//TODO: add test: all incr/no incr cases, envelope unchanged
+pub fn emit_feedback_metrics(envelope: &Envelope) -> i64 {
+    let mut has_feedback = false;
+    let mut num_attachments = 0;
+    for item in envelope.items() {
+        match item.ty() {
+            ItemType::UserReportV2 => has_feedback = true,
+            ItemType::Attachment => num_attachments += 1,
+            _ => (),
+        }
+    }
+    if has_feedback && num_attachments > 0 {
+        metric!(counter(RelayCounters::FeedbackAttachments) += num_attachments);
+        num_attachments
+    } else {
+        0
     }
 }
 
