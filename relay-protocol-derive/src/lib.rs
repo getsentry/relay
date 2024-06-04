@@ -730,7 +730,7 @@ fn parse_field_attributes(
                                         rv.skip_serialization = FromStr::from_str(&litstr.value())
                                             .expect("Unknown value for skip_serialization");
                                     }
-                                    _ => panic!("Got non string literal for legacy_alias"),
+                                    _ => panic!("Got non string literal for skip_serialization"),
                                 }
                             }
                         }
