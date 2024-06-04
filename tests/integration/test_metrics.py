@@ -7,6 +7,10 @@ import json
 import signal
 import time
 import queue
+from .consts import (
+    TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION,
+    TRANSACTION_EXTRACT_MAX_SUPPORTED_VERSION,
+)
 
 import pytest
 import requests
@@ -808,11 +812,11 @@ def test_transaction_metrics(
         )
 
     if extract_metrics == "corrupted":
-        config["transactionMetrics"] = 42
+        config["transactionMetrics"] = TRANSACTION_EXTRACT_MAX_SUPPORTED_VERSION + 1
 
     elif extract_metrics:
         config["transactionMetrics"] = {
-            "version": 1,
+            "version": TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION,
         }
         config.setdefault("features", []).append("projects:span-metrics-extraction")
 
@@ -949,7 +953,7 @@ def test_transaction_metrics_count_per_root_project(
             "span_ops": {"type": "spanOperations", "matches": ["react.mount"]}
         }
         config["transactionMetrics"] = {
-            "version": 1,
+            "version": TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION,
         }
 
     transaction = generate_transaction_item()
@@ -1022,7 +1026,9 @@ def test_transaction_metrics_extraction_external_relays(
     project_id = 42
     mini_sentry.add_full_project_config(project_id)
     config = mini_sentry.project_configs[project_id]["config"]
-    config["transactionMetrics"] = {"version": 3}
+    config["transactionMetrics"] = {
+        "version": TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION
+    }
     config["sampling"] = {
         "version": 2,
         "rules": [
@@ -1102,7 +1108,7 @@ def test_transaction_metrics_extraction_processing_relays(
     mini_sentry.add_full_project_config(project_id)
     config = mini_sentry.project_configs[project_id]["config"]
     config["transactionMetrics"] = {
-        "version": 1,
+        "version": TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION,
     }
 
     tx = generate_transaction_item()
@@ -1174,6 +1180,10 @@ def test_transaction_metrics_not_extracted_on_unsupported_version(
     assert tx["transaction"] == "/organizations/:orgId/performance/:eventSlug/"
     tx_consumer.assert_empty()
 
+    if unsupported_version < TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION:
+        error = str(mini_sentry.test_failures.pop(0))
+        assert "Processing Relay outdated" in error
+
     metrics_consumer.assert_empty()
 
 
@@ -1182,7 +1192,7 @@ def test_no_transaction_metrics_when_filtered(mini_sentry, relay):
     mini_sentry.add_full_project_config(project_id)
     config = mini_sentry.project_configs[project_id]["config"]
     config["transactionMetrics"] = {
-        "version": 1,
+        "version": TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION,
     }
     config["filterSettings"]["releases"] = {"releases": ["foo@1.2.4"]}
 
@@ -1213,7 +1223,7 @@ def test_transaction_name_too_long(
     mini_sentry.add_full_project_config(project_id)
     config = mini_sentry.project_configs[project_id]["config"]
     config["transactionMetrics"] = {
-        "version": 1,
+        "version": TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION,
     }
 
     transaction = {
@@ -1329,7 +1339,7 @@ def test_limit_custom_measurements(
         "maxCustomMeasurements": 1,
     }
     config["transactionMetrics"] = {
-        "version": 1,
+        "version": TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION,
     }
 
     transaction = generate_transaction_item()
@@ -1388,7 +1398,7 @@ def test_span_metrics(
     mini_sentry.add_full_project_config(project_id)
     config = mini_sentry.project_configs[project_id]["config"]
     config["transactionMetrics"] = {
-        "version": 1,
+        "version": TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION,
     }
     config.setdefault("features", []).append("projects:span-metrics-extraction")
 
@@ -1473,7 +1483,9 @@ def test_generic_metric_extraction(mini_sentry, relay):
             }
         ],
     }
-    config["transactionMetrics"] = {"version": 3}
+    config["transactionMetrics"] = {
+        "version": TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION
+    }
     config["sampling"] = {
         "version": 2,
         "rules": [
@@ -1526,7 +1538,7 @@ def test_span_metrics_secondary_aggregator(
     mini_sentry.add_full_project_config(project_id)
     config = mini_sentry.project_configs[project_id]["config"]
     config["transactionMetrics"] = {
-        "version": 1,
+        "version": TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION,
     }
     config.setdefault("features", []).append("projects:span-metrics-extraction")
 
@@ -1696,7 +1708,7 @@ def test_relay_forwards_events_without_extracting_metrics_on_broken_global_filte
     mini_sentry.add_full_project_config(project_id)
     config = mini_sentry.project_configs[project_id]["config"]
     config["transactionMetrics"] = {
-        "version": 1,
+        "version": TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION,
     }
 
     if is_processing_relay:
@@ -1759,7 +1771,7 @@ def test_relay_forwards_events_without_extracting_metrics_on_unsupported_project
         }
     }
     config["transactionMetrics"] = {
-        "version": 1,
+        "version": TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION,
     }
 
     if is_processing_relay:
@@ -1815,7 +1827,7 @@ def test_missing_global_filters_enables_metric_extraction(
     mini_sentry.add_full_project_config(project_id)
     config = mini_sentry.project_configs[project_id]["config"]
     config["transactionMetrics"] = {
-        "version": 1,
+        "version": TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION,
     }
 
     relay = relay_with_processing(
@@ -1955,7 +1967,7 @@ def test_histogram_outliers(mini_sentry, relay):
         mini_sentry.global_config["metricExtraction"] = yaml.full_load(f)
     project_config = mini_sentry.add_full_project_config(project_id=42)["config"]
     project_config["transactionMetrics"] = {
-        "version": 1,
+        "version": TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION,
     }
     project_config["metricExtraction"] = {
         "version": 3,

@@ -5,7 +5,7 @@ use std::fmt::{Debug, Display};
 use std::future::Future;
 use std::io::Write;
 use std::pin::Pin;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, Once};
 use std::time::{Duration, Instant};
 
 use anyhow::Context;
@@ -64,7 +64,7 @@ use {
 
 use crate::envelope::{self, ContentType, Envelope, EnvelopeError, Item, ItemType};
 use crate::extractors::{PartialDsn, RequestMeta};
-use crate::metrics::{ExtractionMode, MetricOutcomes, MinimalTrackableBucket};
+use crate::metrics::{MetricOutcomes, MinimalTrackableBucket};
 use crate::metrics_extraction::transactions::types::ExtractMetricsError;
 use crate::metrics_extraction::transactions::{ExtractedMetrics, TransactionExtractor};
 use crate::service::ServiceError;
@@ -1262,13 +1262,23 @@ impl EnvelopeProcessorService {
         };
 
         if !tx_config.is_enabled() {
+            static TX_CONFIG_ERROR: Once = Once::new();
+            TX_CONFIG_ERROR.call_once(|| {
+                if self.inner.config.processing_enabled() {
+                    relay_log::error!(
+                        "Processing Relay outdated, received tx config in version {}, which is not supported",
+                        tx_config.version
+                    );
+                }
+            });
+
             return Ok(());
         }
 
         let metrics = crate::metrics_extraction::event::extract_metrics(
             event,
             state.spans_extracted,
-            &combined_config,
+            combined_config,
             self.inner
                 .config
                 .aggregator_config_for(MetricNamespace::Spans)
@@ -1286,7 +1296,7 @@ impl EnvelopeProcessorService {
 
             let extractor = TransactionExtractor {
                 config: tx_config,
-                generic_config: Some(&combined_config),
+                generic_config: Some(combined_config),
                 transaction_from_dsc,
                 sampling_result,
                 has_profile: state.profile_id.is_some(),
@@ -1404,7 +1414,10 @@ impl EnvelopeProcessorService {
                     .has_feature(Feature::DeviceClassSynthesis),
                 enrich_spans: state
                     .project_state
-                    .has_feature(Feature::ExtractSpansAndSpanMetricsFromEvent),
+                    .has_feature(Feature::ExtractSpansFromEvent)
+                    || state
+                        .project_state
+                        .has_feature(Feature::ExtractCommonSpanMetricsFromEvent),
                 max_tag_value_length: self
                     .inner
                     .config
@@ -1543,12 +1556,18 @@ impl EnvelopeProcessorService {
 
                 if state.has_event() {
                     event::scrub(state)?;
+
                     if_processing!(self.inner.config, {
-                        span::extract_from_event(
-                            state,
-                            &self.inner.config,
-                            &self.inner.global_config.current(),
-                        );
+                        if state
+                            .project_state
+                            .has_feature(Feature::ExtractSpansFromEvent)
+                        {
+                            span::extract_from_event(
+                                state,
+                                &self.inner.config,
+                                &self.inner.global_config.current(),
+                            );
+                        }
                     });
                 }
 
@@ -2236,7 +2255,6 @@ impl EnvelopeProcessorService {
         scoping: Scoping,
         buckets: Vec<Bucket>,
         quotas: CombinedQuotas<'_>,
-        mode: ExtractionMode,
     ) -> Vec<Bucket> {
         let Some(rate_limiter) = self.inner.rate_limiter.as_ref() else {
             return buckets;
@@ -2251,7 +2269,7 @@ impl EnvelopeProcessorService {
             .into_iter()
             .flat_map(|(namespace, buckets)| {
                 let item_scoping = scoping.metric_bucket(namespace);
-                self.rate_limit_buckets(item_scoping, buckets, quotas, mode, rate_limiter)
+                self.rate_limit_buckets(item_scoping, buckets, quotas, rate_limiter)
             })
             .collect()
     }
@@ -2263,7 +2281,6 @@ impl EnvelopeProcessorService {
         item_scoping: relay_quotas::ItemScoping,
         buckets: Vec<Bucket>,
         quotas: CombinedQuotas<'_>,
-        mode: ExtractionMode,
         rate_limiter: &RedisRateLimiter,
     ) -> Vec<Bucket> {
         let batch_size = self.inner.config.metrics_max_batch_size_bytes();
@@ -2283,7 +2300,6 @@ impl EnvelopeProcessorService {
                 self.inner.metric_outcomes.track(
                     *item_scoping.scoping,
                     &buckets,
-                    mode,
                     Outcome::RateLimited(reason_code),
                 );
 
@@ -2313,7 +2329,6 @@ impl EnvelopeProcessorService {
         scoping: Scoping,
         limits: &[CardinalityLimit],
         buckets: Vec<Bucket>,
-        mode: ExtractionMode,
     ) -> Vec<Bucket> {
         let global_config = self.inner.global_config.current();
         let cardinality_limiter_mode = global_config.options.cardinality_limiter_mode;
@@ -2371,7 +2386,7 @@ impl EnvelopeProcessorService {
         if !rejected.is_empty() {
             self.inner
                 .metric_outcomes
-                .track(scoping, &rejected, mode, Outcome::CardinalityLimited);
+                .track(scoping, &rejected, Outcome::CardinalityLimited);
         }
 
         accepted
@@ -2396,13 +2411,11 @@ impl EnvelopeProcessorService {
                 project_state,
             } = message;
 
-            let mode = project_state.get_extraction_mode();
-
             let quotas = CombinedQuotas::new(&global_config, project_state.get_quotas());
-            let buckets = self.rate_limit_buckets_by_namespace(scoping, buckets, quotas, mode);
+            let buckets = self.rate_limit_buckets_by_namespace(scoping, buckets, quotas);
 
             let limits = project_state.get_cardinality_limits();
-            let buckets = self.cardinality_limit_buckets(scoping, limits, buckets, mode);
+            let buckets = self.cardinality_limit_buckets(scoping, limits, buckets);
 
             if buckets.is_empty() {
                 continue;
@@ -2419,7 +2432,6 @@ impl EnvelopeProcessorService {
                 buckets,
                 scoping,
                 retention,
-                mode,
             });
         }
     }
@@ -2445,13 +2457,9 @@ impl EnvelopeProcessorService {
         let upstream = self.inner.config.upstream_descriptor();
 
         for (scoping, message) in scopes {
-            let ProjectMetrics {
-                buckets,
-                project_state,
-            } = message;
+            let ProjectMetrics { buckets, .. } = message;
 
             let dsn = PartialDsn::outbound(&scoping, upstream);
-            let mode = project_state.get_extraction_mode();
 
             if let Some(key) = partition_key {
                 relay_statsd::metric!(histogram(RelayHistograms::PartitionKeys) = key);
@@ -2462,7 +2470,7 @@ impl EnvelopeProcessorService {
                 let mut envelope = Envelope::from_request(None, RequestMeta::outbound(dsn.clone()));
 
                 let mut item = Item::new(ItemType::MetricBuckets);
-                item.set_source_quantities(metrics::extract_quantities(batch, mode));
+                item.set_source_quantities(metrics::extract_quantities(batch));
                 item.set_payload(ContentType::Json, serde_json::to_vec(&buckets).unwrap());
                 envelope.add_item(item);
 
@@ -2541,18 +2549,13 @@ impl EnvelopeProcessorService {
         let mut partition = Partition::new(batch_size);
 
         for (scoping, message) in &scopes {
-            let ProjectMetrics {
-                buckets,
-                project_state,
-            } = message;
-
-            let mode = project_state.get_extraction_mode();
+            let ProjectMetrics { buckets, .. } = message;
 
             for bucket in buckets {
                 let mut remaining = Some(BucketView::new(bucket));
 
                 while let Some(bucket) = remaining.take() {
-                    if let Some(next) = partition.insert(bucket, *scoping, mode) {
+                    if let Some(next) = partition.insert(bucket, *scoping) {
                         // A part of the bucket could not be inserted. Take the partition and submit
                         // it immediately. Repeat until the final part was inserted. This should
                         // always result in a request, otherwise we would enter an endless loop.
@@ -2854,7 +2857,7 @@ struct Partition<'a> {
     max_size: usize,
     remaining: usize,
     views: HashMap<ProjectKey, Vec<BucketView<'a>>>,
-    project_info: HashMap<ProjectKey, (Scoping, ExtractionMode)>,
+    project_info: HashMap<ProjectKey, Scoping>,
 }
 
 impl<'a> Partition<'a> {
@@ -2878,12 +2881,7 @@ impl<'a> Partition<'a> {
     /// upstream immediately. Use [`Self::take`] to retrieve the contents of the
     /// partition. Afterwards, the caller is responsible to call this function again with the
     /// remaining bucket until it is fully inserted.
-    pub fn insert(
-        &mut self,
-        bucket: BucketView<'a>,
-        scoping: Scoping,
-        mode: ExtractionMode,
-    ) -> Option<BucketView<'a>> {
+    pub fn insert(&mut self, bucket: BucketView<'a>, scoping: Scoping) -> Option<BucketView<'a>> {
         let (current, next) = bucket.split(self.remaining, Some(self.max_size));
 
         if let Some(current) = current {
@@ -2895,7 +2893,7 @@ impl<'a> Partition<'a> {
 
             self.project_info
                 .entry(scoping.project_key)
-                .or_insert((scoping, mode));
+                .or_insert(scoping);
         }
 
         next
@@ -2909,7 +2907,7 @@ impl<'a> Partition<'a> {
     /// Returns the serialized buckets for this partition.
     ///
     /// This empties the partition, so that it can be reused.
-    fn take(&mut self) -> (Bytes, HashMap<ProjectKey, (Scoping, ExtractionMode)>) {
+    fn take(&mut self) -> (Bytes, HashMap<ProjectKey, Scoping>) {
         #[derive(serde::Serialize)]
         struct Wrapper<'a> {
             buckets: &'a HashMap<ProjectKey, Vec<BucketView<'a>>>,
@@ -2942,7 +2940,7 @@ struct SendMetricsRequest {
     /// Mapping of all contained project keys to their scoping and extraction mode.
     ///
     /// Used to track outcomes for transmission failures.
-    project_info: HashMap<ProjectKey, (Scoping, ExtractionMode)>,
+    project_info: HashMap<ProjectKey, Scoping>,
     /// Encoding (compression) of the payload.
     http_encoding: HttpEncoding,
     /// Metric outcomes instance to send outcomes on error.
@@ -2968,7 +2966,7 @@ impl SendMetricsRequest {
         };
 
         for (key, buckets) in buckets {
-            let Some(&(scoping, mode)) = self.project_info.get(&key) else {
+            let Some(&scoping) = self.project_info.get(&key) else {
                 relay_log::error!("missing scoping for project key");
                 continue;
             };
@@ -2976,7 +2974,6 @@ impl SendMetricsRequest {
             self.metric_outcomes.track(
                 scoping,
                 &buckets,
-                mode,
                 Outcome::Invalid(DiscardReason::Internal),
             );
         }

@@ -11,6 +11,7 @@
 **Features**:
 
 - Apply legacy inbound filters to standalone spans. ([#3552](https://github.com/getsentry/relay/pull/3552))
+- Add separate feature flags for add-ons span metrics and indexed spans. ([#3633](https://github.com/getsentry/relay/pull/3633))
 
 **Internal**:
 
@@ -21,6 +22,8 @@
 - Forward `received_at` timestamp for buckets sent to Kafka. ([#3561](https://github.com/getsentry/relay/pull/3561))
 - Limit metric name to 150 characters. ([#3628](https://github.com/getsentry/relay/pull/3628))
 - Add validation of Kafka topics on startup. ([#3543](https://github.com/getsentry/relay/pull/3543))
+- Send `attachment` data inline when possible. ([#3654](https://github.com/getsentry/relay/pull/3654))
+- Drops support for transaction metrics extraction versions < 3. ([#3672](https://github.com/getsentry/relay/pull/3672))
 
 ## 24.5.0
 

@@ -23,7 +23,7 @@ use tokio::time::Instant;
 use url::Url;
 
 use crate::envelope::Envelope;
-use crate::metrics::{ExtractionMode, MetricOutcomes, MetricsLimiter};
+use crate::metrics::{MetricOutcomes, MetricsLimiter};
 use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
 #[cfg(feature = "processing")]
 use crate::services::processor::RateLimitBuckets;
@@ -280,14 +280,6 @@ impl ProjectState {
         scoping.organization_id = self.organization_id.unwrap_or(0);
 
         scoping
-    }
-
-    /// Returns the transaction/profile extraction mode for this project.
-    pub fn get_extraction_mode(&self) -> ExtractionMode {
-        match self.config.transaction_metrics {
-            Some(ErrorBoundary::Ok(ref c)) if c.usage_metric() => ExtractionMode::Usage,
-            _ => ExtractionMode::Duration,
-        }
     }
 
     /// Returns quotas declared in this project state.
@@ -617,8 +609,7 @@ impl Project {
 
         // Check rate limits if necessary.
         let quotas = state.config.quotas.clone();
-        let extraction_mode = state.get_extraction_mode();
-        let buckets = match MetricsLimiter::create(buckets, quotas, scoping, extraction_mode) {
+        let buckets = match MetricsLimiter::create(buckets, quotas, scoping) {
             Ok(mut bucket_limiter) => {
                 let cached_rate_limits = self.rate_limits().clone();
                 #[allow(unused_variables)]
@@ -1133,7 +1124,6 @@ impl Project {
             .filter_map(|bucket| bucket.name.try_namespace())
             .collect();
 
-        let mode = project_state.get_extraction_mode();
         for namespace in namespaces {
             let limits = self.rate_limits().check_with_quotas(
                 project_state.get_quotas(),
@@ -1147,7 +1137,7 @@ impl Project {
                 });
 
                 let reason_code = limits.longest().and_then(|limit| limit.reason_code.clone());
-                metric_outcomes.track(scoping, &rejected, mode, Outcome::RateLimited(reason_code));
+                metric_outcomes.track(scoping, &rejected, Outcome::RateLimited(reason_code));
             }
         }
 

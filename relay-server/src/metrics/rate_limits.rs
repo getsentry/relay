@@ -17,9 +17,6 @@ pub struct MetricsLimiter<Q: AsRef<Vec<Quota>> = Vec<Quota>> {
     /// A list of aggregated metric buckets with some counters.
     buckets: Vec<SummarizedBucket>,
 
-    /// Mode used to extract transaction and span counts.
-    mode: ExtractionMode,
-
     /// The quotas set on the current project.
     quotas: Q,
 
@@ -28,15 +25,6 @@ pub struct MetricsLimiter<Q: AsRef<Vec<Quota>> = Vec<Quota>> {
 
     /// The number of performance items (transactions, spans, profiles) contributing to these metrics.
     counts: EntityCounts,
-}
-
-/// Whether to extract transaction and profile count based on the usage or duration metric.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum ExtractionMode {
-    /// Use the usage count metric.
-    Usage,
-    /// Use the duration distribution metric.
-    Duration,
 }
 
 fn to_counts(summary: &BucketSummary) -> EntityCounts {
@@ -120,12 +108,11 @@ impl<Q: AsRef<Vec<Quota>>> MetricsLimiter<Q> {
         buckets: impl IntoIterator<Item = Bucket>,
         quotas: Q,
         scoping: Scoping,
-        mode: ExtractionMode,
     ) -> Result<Self, Vec<Bucket>> {
         let buckets: Vec<_> = buckets
             .into_iter()
             .map(|bucket| {
-                let summary = bucket.summary(mode);
+                let summary = bucket.summary();
                 SummarizedBucket { bucket, summary }
             })
             .collect();
@@ -138,7 +125,6 @@ impl<Q: AsRef<Vec<Quota>>> MetricsLimiter<Q> {
         if let Some(counts) = total_counts {
             Ok(Self {
                 buckets,
-                mode,
                 quotas,
                 scoping,
                 counts,
@@ -194,7 +180,7 @@ impl<Q: AsRef<Vec<Quota>>> MetricsLimiter<Q> {
         });
         self.buckets = buckets;
 
-        metric_outcomes.track(self.scoping, &dropped, self.mode, outcome);
+        metric_outcomes.track(self.scoping, &dropped, outcome);
     }
 
     fn drop_profiles(
@@ -321,7 +307,6 @@ mod tests {
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: None,
             },
-            ExtractionMode::Usage,
         )
         .unwrap();
 

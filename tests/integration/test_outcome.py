@@ -7,6 +7,10 @@ from copy import deepcopy
 from datetime import UTC, datetime, timedelta, timezone
 from pathlib import Path
 from queue import Empty
+from .consts import (
+    TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION,
+    TRANSACTION_EXTRACT_MAX_SUPPORTED_VERSION,
+)
 
 import pytest
 import requests
@@ -793,7 +797,9 @@ def test_outcome_to_client_report(relay, mini_sentry):
     # Create project config
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
-    project_config["config"]["transactionMetrics"] = {"version": 1}
+    project_config["config"]["transactionMetrics"] = {
+        "version": TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION
+    }
     project_config["config"]["sampling"] = {
         "version": 2,
         "rules": [
@@ -972,7 +978,9 @@ def test_outcomes_aggregate_dynamic_sampling(relay, mini_sentry):
         ],
     }
 
-    project_config["config"]["transactionMetrics"] = {"version": 1}
+    project_config["config"]["transactionMetrics"] = {
+        "version": TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION
+    }
 
     upstream = relay(
         mini_sentry,
@@ -1064,7 +1072,9 @@ def test_graceful_shutdown(relay, mini_sentry):
     # Create project config
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
-    project_config["config"]["transactionMetrics"] = {"version": 1}
+    project_config["config"]["transactionMetrics"] = {
+        "version": TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION
+    }
     project_config["config"]["sampling"] = {
         "version": 2,
         "rules": [
@@ -1151,7 +1161,7 @@ def test_profile_outcomes(
 
     project_config.setdefault("features", []).append("organizations:profiling")
     project_config["transactionMetrics"] = {
-        "version": 1,
+        "version": TRANSACTION_EXTRACT_MAX_SUPPORTED_VERSION,
     }
     project_config["sampling"] = {
         "version": 2,
@@ -1272,10 +1282,10 @@ def test_profile_outcomes(
     metrics = [
         m
         for m, _ in metrics_consumer.get_metrics()
-        if m["name"] == "d:transactions/duration@millisecond"
+        if m["name"] == "c:transactions/usage@none"
     ]
-    assert len(metrics) == 2
     assert all(metric["tags"]["has_profile"] == "true" for metric in metrics)
+    assert sum(metric["value"] for metric in metrics) == 2
 
     assert outcomes == expected_outcomes, outcomes
 
@@ -1299,7 +1309,7 @@ def test_profile_outcomes_invalid(
 
     project_config.setdefault("features", []).append("organizations:profiling")
     project_config["transactionMetrics"] = {
-        "version": 1,
+        "version": TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION,
     }
 
     config = {
@@ -1385,7 +1395,7 @@ def test_profile_outcomes_too_many(
 
     project_config.setdefault("features", []).append("organizations:profiling")
     project_config["transactionMetrics"] = {
-        "version": 1,
+        "version": TRANSACTION_EXTRACT_MAX_SUPPORTED_VERSION,
     }
 
     config = {
@@ -1450,9 +1460,7 @@ def test_profile_outcomes_too_many(
 
     # Make sure one profile will not be counted as accepted
     metrics = metrics_by_name(metrics_consumer, 4)
-    assert (
-        metrics["d:transactions/duration@millisecond"]["tags"]["has_profile"] == "true"
-    )
+    assert "has_profile" not in metrics["d:transactions/duration@millisecond"]["tags"]
     assert metrics["c:transactions/usage@none"]["tags"]["has_profile"] == "true"
 
 
@@ -1473,7 +1481,7 @@ def test_profile_outcomes_data_invalid(
 
     project_config.setdefault("features", []).append("organizations:profiling")
     project_config["transactionMetrics"] = {
-        "version": 1,
+        "version": TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION,
     }
 
     config = {
@@ -1535,9 +1543,7 @@ def test_profile_outcomes_data_invalid(
 
     # Because invalid data is detected _after_ metrics extraction, there is still a metric:
     metrics = metrics_by_name(metrics_consumer, 4)
-    assert (
-        metrics["d:transactions/duration@millisecond"]["tags"]["has_profile"] == "true"
-    )
+    assert "has_profile" not in metrics["d:transactions/duration@millisecond"]["tags"]
     assert metrics["c:transactions/usage@none"]["tags"]["has_profile"] == "true"
 
 
@@ -1741,11 +1747,11 @@ def test_span_outcomes(
     project_config.setdefault("features", []).extend(
         [
             "projects:span-metrics-extraction",
-            "projects:span-metrics-extraction-all-modules",
+            "organizations:indexed-spans-extraction",
         ]
     )
     project_config["transactionMetrics"] = {
-        "version": 1,
+        "version": TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION,
     }
     project_config["sampling"] = {
         "version": 2,
@@ -1869,7 +1875,7 @@ def test_span_outcomes_invalid(
         ]
     )
     project_config["transactionMetrics"] = {
-        "version": 1,
+        "version": TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION,
     }
 
     config = {
@@ -1984,7 +1990,7 @@ def test_global_rate_limit_by_namespace(
             "scope": "global",
             "categories": ["metric_bucket"],
             "limit": metric_bucket_limit,
-            "window": 1000,
+            "window": int(datetime.now(UTC).timestamp()) - 1,
             "reasonCode": global_reason_code,
         },
         {
@@ -1993,13 +1999,13 @@ def test_global_rate_limit_by_namespace(
             "categories": ["metric_bucket"],
             "limit": transaction_limit,
             "namespace": "transactions",
-            "window": 1000,
+            "window": int(datetime.now(UTC).timestamp()) - 1,
             "reasonCode": transaction_reason_code,
         },
     ]
 
     # Truncate the timestamp and add a slight offset to never be on the border of the rate limiting window.
-    ts = datetime.now(UTC).timestamp() // 100 * 100 + 50
+    ts = datetime.now(UTC).timestamp()
 
     def send_buckets(n, name, value, ty):
         for i in range(n):

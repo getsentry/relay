@@ -321,7 +321,26 @@ jobs:
             --tag "${DOCKER_IMAGE}:${REVISION}" \
             $( [[ "${GITHUB_REF}" == "refs/heads/master" ]] && printf %s "--tag ${DOCKER_IMAGE}:nightly" ) \
             --file Dockerfile.release \
-            --push .
+            --push \
+            .
+
+      - name: Build and publish docker artifact
+        if: "github.event.pull_request.head.repo.fork || github.actor == 'dependabot[bot]'"
+        run: |
+          docker buildx build \
+            --platform "${PLATFORMS}" \
+            --tag "${DOCKER_IMAGE}:${REVISION}" \
+            --file Dockerfile.release \
+            --output type=docker,dest=${{ matrix.image_name }}-docker-image \
+            .
+
+      - name: Upload docker image
+        if: "github.event.pull_request.head.repo.fork || github.actor == 'dependabot[bot]'"
+        uses: actions/upload-artifact@v4
+        with:
+          retention-days: 1
+          name: ${{ matrix.image_name }}-docker-image
+          path: "${{ matrix.image_name }}-docker-image"
 
   publish-to-dockerhub:
     needs: [build-setup, build-docker]
@@ -381,7 +400,6 @@ jobs:
 
     env:
       GHCR_DOCKER_IMAGE: "ghcr.io/getsentry/${{ matrix.image_name }}"
-      GCR_DOCKER_IMAGE: "us.gcr.io/sentryio/${{ matrix.image_name }}"
       AR_DOCKER_IMAGE: "us-central1-docker.pkg.dev/sentryio/relay/${{ matrix.image_name }}"
       REVISION: "${{ github.event.pull_request.head.sha || github.sha }}"
 
@@ -409,20 +427,13 @@ jobs:
 
       - name: Configure docker
         run: |
-          gcloud auth configure-docker us.gcr.io,us-central1-docker.pkg.dev
+          gcloud auth configure-docker us-central1-docker.pkg.dev
 
       - name: Install regctl
         uses: regclient/actions/regctl-installer@2dac4eff5925ed07edbfe12d2d11af6304df29a6
 
-      - name: Copy Image from GHCR to GCR
-        run: regctl image copy "${GHCR_DOCKER_IMAGE}:${REVISION}" "${GCR_DOCKER_IMAGE}:${REVISION}"
-
       - name: Copy Image from GHCR to AR
         run: regctl image copy "${GHCR_DOCKER_IMAGE}:${REVISION}" "${AR_DOCKER_IMAGE}:${REVISION}"
-
-      - name: Copy Nightly from GHCR to GCR
-        if: github.ref == 'refs/heads/master'
-        run: regctl image copy "${GHCR_DOCKER_IMAGE}:nightly" "${GCR_DOCKER_IMAGE}:nightly"
 
       - name: Copy Nightly from GHCR to AR
         if: github.ref == 'refs/heads/master'
@@ -585,6 +596,16 @@ jobs:
           kafka: true
           symbolicator: true
 
+      - name: Download Docker Image
+        if: "github.event.pull_request.head.repo.fork || github.actor == 'dependabot[bot]'"
+        uses: actions/download-artifact@v4
+        with:
+          name: relay-docker-image
+
+      - name: Import Docker Image
+        if: "github.event.pull_request.head.repo.fork || github.actor == 'dependabot[bot]'"
+        run: docker load -i relay-docker-image
+
       - name: Run Sentry integration tests
         working-directory: sentry
         env:
@@ -598,18 +619,17 @@ jobs:
     timeout-minutes: 25
     needs: build-docker
 
-    # Skip redundant checks for library releases
-    if: "!startsWith(github.ref, 'refs/heads/release-library/')"
+    # - Skip redundant checks for library releases
+    # - Skip for dependabot or if it's a fork as the image cannot be uploaded to ghcr since this test attempts to pull
+    # the image from ghcr
+    if: "!startsWith(github.ref, 'refs/heads/release-library/') && !github.event.pull_request.head.repo.fork && github.actor != 'dependabot[bot]'"
 
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
 
       - name: Run Sentry self-hosted e2e CI
-        # Skip for dependabot or if it's a fork as the image cannot be uploaded to ghcr since this test attempts to pull
-        # the image from ghcr
-        if: "!github.event.pull_request.head.repo.fork && github.actor != 'dependabot[bot]'"
-        uses: getsentry/action-self-hosted-e2e-tests@267fab2add9e173029c1e09ecfd82e04688d7c44
+        uses: getsentry/action-self-hosted-e2e-tests@main
         with:
           project_name: relay
           image_url: ghcr.io/getsentry/relay:${{ github.event.pull_request.head.sha || github.sha }}
