@@ -1276,13 +1276,13 @@
         <span class="kw">let </span>sampling_result = run(<span class="kw-2">&amp;mut </span>state, <span class="kw-2">&amp;</span>config);
         <span class="macro">assert!</span>(sampling_result.should_keep());
 
-        <span class="comment">// Current version is 1, so it won't run DS if it's outdated
-        </span><span class="kw">let </span><span class="kw-2">mut </span>state = get_state(<span class="prelude-val">Some</span>(<span class="number">0</span>));
+        <span class="comment">// Current version is 3, so it won't run DS if it's outdated
+        </span><span class="kw">let </span><span class="kw-2">mut </span>state = get_state(<span class="prelude-val">Some</span>(<span class="number">2</span>));
         <span class="kw">let </span>sampling_result = run(<span class="kw-2">&amp;mut </span>state, <span class="kw-2">&amp;</span>config);
         <span class="macro">assert!</span>(sampling_result.should_keep());
 
         <span class="comment">// Dynamic sampling is run, as the transactionmetrics version is up to date.
-        </span><span class="kw">let </span><span class="kw-2">mut </span>state = get_state(<span class="prelude-val">Some</span>(<span class="number">1</span>));
+        </span><span class="kw">let </span><span class="kw-2">mut </span>state = get_state(<span class="prelude-val">Some</span>(<span class="number">3</span>));
         <span class="kw">let </span>sampling_result = run(<span class="kw-2">&amp;mut </span>state, <span class="kw-2">&amp;</span>config);
         <span class="macro">assert!</span>(sampling_result.should_drop());
     }

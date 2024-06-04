@@ -819,7 +819,6 @@
 <a href="#817" id="817">817</a>
 <a href="#818" id="818">818</a>
 <a href="#819" id="819">819</a>
-<a href="#820" id="820">820</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Dynamic configuration for metrics extraction from sessions and transactions.
 
 </span><span class="kw">use </span>core::fmt;
@@ -944,6 +943,9 @@
 ///  - 6: Bugfix to make transaction metrics extraction apply globally defined tag mappings.
 </span><span class="kw">const </span>TRANSACTION_EXTRACT_MAX_SUPPORTED_VERSION: u16 = <span class="number">6</span>;
 
+<span class="doccomment">/// Minimum supported version of metrics extraction from transaction.
+</span><span class="kw">const </span>TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION: u16 = <span class="number">3</span>;
+
 <span class="doccomment">/// Deprecated. Defines whether URL transactions should be considered low cardinality.
 </span><span class="attr">#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = <span class="string">"camelCase"</span>)]
@@ -982,20 +984,16 @@
     <span class="doccomment">/// Creates an enabled configuration with empty defaults.
     </span><span class="kw">pub fn </span>new() -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{
-            version: <span class="number">1</span>,
+            version: TRANSACTION_EXTRACT_MAX_SUPPORTED_VERSION,
             ..<span class="self">Self</span>::default()
         }
     }
 
     <span class="doccomment">/// Returns `true` if metrics extraction is enabled and compatible with this Relay.
     </span><span class="kw">pub fn </span>is_enabled(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
-        <span class="self">self</span>.version &gt; <span class="number">0 </span>&amp;&amp; <span class="self">self</span>.version &lt;= TRANSACTION_EXTRACT_MAX_SUPPORTED_VERSION
+        <span class="self">self</span>.version &gt;= TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION
+            &amp;&amp; <span class="self">self</span>.version &lt;= TRANSACTION_EXTRACT_MAX_SUPPORTED_VERSION
     }
-
-    <span class="doccomment">/// Returns `true` if usage should be tracked through a dedicated metric.
-    </span><span class="kw">pub fn </span>usage_metric(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
-        <span class="self">self</span>.version &gt;= <span class="number">3
-    </span>}
 }
 
 <span class="doccomment">/// Combined view of global and project-specific metrics extraction configs.

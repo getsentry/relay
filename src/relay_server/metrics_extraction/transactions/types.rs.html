@@ -274,22 +274,6 @@
 <a href="#272" id="272">272</a>
 <a href="#273" id="273">273</a>
 <a href="#274" id="274">274</a>
-<a href="#275" id="275">275</a>
-<a href="#276" id="276">276</a>
-<a href="#277" id="277">277</a>
-<a href="#278" id="278">278</a>
-<a href="#279" id="279">279</a>
-<a href="#280" id="280">280</a>
-<a href="#281" id="281">281</a>
-<a href="#282" id="282">282</a>
-<a href="#283" id="283">283</a>
-<a href="#284" id="284">284</a>
-<a href="#285" id="285">285</a>
-<a href="#286" id="286">286</a>
-<a href="#287" id="287">287</a>
-<a href="#288" id="288">288</a>
-<a href="#289" id="289">289</a>
-<a href="#290" id="290">290</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::fmt::Display;
@@ -313,7 +297,7 @@
     </span>Duration {
         unit: DurationUnit,
         value: DistributionType,
-        tags: TransactionDurationTags,
+        tags: CommonTags,
     },
     <span class="doccomment">/// A distribution metric for the transaction duration with limited tags.
     </span>DurationLight {
@@ -422,22 +406,6 @@
             tags,
             metadata: BucketMetadata::new(received_at),
         }
-    }
-}
-
-<span class="attr">#[derive(Clone, Debug, PartialEq, Eq, Ord, PartialOrd)]
-</span><span class="kw">pub struct </span>TransactionDurationTags {
-    <span class="kw">pub </span>has_profile: bool,
-    <span class="kw">pub </span>universal_tags: CommonTags,
-}
-
-<span class="kw">impl </span>From&lt;TransactionDurationTags&gt; <span class="kw">for </span>BTreeMap&lt;String, String&gt; {
-    <span class="kw">fn </span>from(tags: TransactionDurationTags) -&gt; <span class="self">Self </span>{
-        <span class="kw">let </span><span class="kw-2">mut </span>map: BTreeMap&lt;String, String&gt; = tags.universal_tags.into();
-        <span class="kw">if </span>tags.has_profile {
-            map.insert(<span class="string">"has_profile"</span>.to_string(), <span class="string">"true"</span>.to_string());
-        }
-        map
     }
 }
 

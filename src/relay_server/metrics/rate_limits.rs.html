@@ -535,21 +535,6 @@
 <a href="#533" id="533">533</a>
 <a href="#534" id="534">534</a>
 <a href="#535" id="535">535</a>
-<a href="#536" id="536">536</a>
-<a href="#537" id="537">537</a>
-<a href="#538" id="538">538</a>
-<a href="#539" id="539">539</a>
-<a href="#540" id="540">540</a>
-<a href="#541" id="541">541</a>
-<a href="#542" id="542">542</a>
-<a href="#543" id="543">543</a>
-<a href="#544" id="544">544</a>
-<a href="#545" id="545">545</a>
-<a href="#546" id="546">546</a>
-<a href="#547" id="547">547</a>
-<a href="#548" id="548">548</a>
-<a href="#549" id="549">549</a>
-<a href="#550" id="550">550</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Quota and rate limiting helpers for metrics and metrics buckets.
 
 </span><span class="kw">use </span>chrono::{DateTime, Utc};
@@ -569,9 +554,6 @@
     <span class="doccomment">/// A list of aggregated metric buckets with some counters.
     </span>buckets: Vec&lt;SummarizedBucket&gt;,
 
-    <span class="doccomment">/// Mode used to extract transaction and span counts.
-    </span>mode: ExtractionMode,
-
     <span class="doccomment">/// The quotas set on the current project.
     </span>quotas: Q,
 
@@ -580,15 +562,6 @@
 
     <span class="doccomment">/// The number of performance items (transactions, spans, profiles) contributing to these metrics.
     </span>counts: EntityCounts,
-}
-
-<span class="doccomment">/// Whether to extract transaction and profile count based on the usage or duration metric.
-</span><span class="attr">#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-</span><span class="kw">pub enum </span>ExtractionMode {
-    <span class="doccomment">/// Use the usage count metric.
-    </span>Usage,
-    <span class="doccomment">/// Use the duration distribution metric.
-    </span>Duration,
 }
 
 <span class="kw">fn </span>to_counts(summary: <span class="kw-2">&amp;</span>BucketSummary) -&gt; EntityCounts {
@@ -672,12 +645,11 @@
         buckets: <span class="kw">impl </span>IntoIterator&lt;Item = Bucket&gt;,
         quotas: Q,
         scoping: Scoping,
-        mode: ExtractionMode,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, Vec&lt;Bucket&gt;&gt; {
         <span class="kw">let </span>buckets: Vec&lt;<span class="kw">_</span>&gt; = buckets
             .into_iter()
             .map(|bucket| {
-                <span class="kw">let </span>summary = bucket.summary(mode);
+                <span class="kw">let </span>summary = bucket.summary();
                 SummarizedBucket { bucket, summary }
             })
             .collect();
@@ -690,7 +662,6 @@
         <span class="kw">if let </span><span class="prelude-val">Some</span>(counts) = total_counts {
             <span class="prelude-val">Ok</span>(<span class="self">Self </span>{
                 buckets,
-                mode,
                 quotas,
                 scoping,
                 counts,
@@ -746,7 +717,7 @@
         });
         <span class="self">self</span>.buckets = buckets;
 
-        metric_outcomes.track(<span class="self">self</span>.scoping, <span class="kw-2">&amp;</span>dropped, <span class="self">self</span>.mode, outcome);
+        metric_outcomes.track(<span class="self">self</span>.scoping, <span class="kw-2">&amp;</span>dropped, outcome);
     }
 
     <span class="kw">fn </span>drop_profiles(
@@ -873,7 +844,6 @@
                 project_key: ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap(),
                 key_id: <span class="prelude-val">None</span>,
             },
-            ExtractionMode::Usage,
         )
         .unwrap();
 
