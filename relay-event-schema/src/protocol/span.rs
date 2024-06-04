@@ -35,10 +35,11 @@ pub struct Span {
     pub op: Annotated<OperationType>,
 
     /// The Span id.
-    #[metastructure(required = "true")]
+    #[metastructure(required = "true", trim = "false")]
     pub span_id: Annotated<SpanId>,
 
     /// The ID of the span enclosing this span.
+    #[metastructure(trim = "false")]
     pub parent_span_id: Annotated<SpanId>,
 
     /// The ID of the trace the span belongs to.
@@ -49,9 +50,11 @@ pub struct Span {
     ///
     /// For spans embedded in transactions, the `segment_id` is the `span_id` of the containing
     /// transaction.
+    #[metastructure(trim = "false")]
     pub segment_id: Annotated<SpanId>,
 
     /// Whether or not the current span is the root of the segment.
+    #[metastructure(trim = "false")]
     pub is_segment: Annotated<bool>,
 
     /// The status of a span.

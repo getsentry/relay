@@ -413,8 +413,8 @@ mod tests {
     use std::iter::repeat;
 
     use relay_event_schema::protocol::{
-        Breadcrumb, Context, Contexts, Event, Exception, ExtraValue, Span, TagEntry, Tags, TraceId,
-        Values,
+        Breadcrumb, Context, Contexts, Event, Exception, ExtraValue, Span, SpanId, TagEntry, Tags,
+        TraceId, Values,
     };
     use relay_protocol::{get_value, Map, Remark, SerializableAnnotated};
     use similar_asserts::assert_eq;
@@ -980,10 +980,15 @@ mod tests {
     #[test]
     fn test_too_many_spans_trimmed_trace_id_drop() {
         let original_description = "a".repeat(819191);
-        let original_trace_id = TraceId("b".repeat(48));
+        let original_span_id = SpanId("b".repeat(48));
+        let original_trace_id = TraceId("c".repeat(48));
+        let original_segment_id = SpanId("d".repeat(48));
         let span = Span {
             description: original_description.clone().into(),
+            span_id: original_span_id.clone().into(),
             trace_id: original_trace_id.clone().into(),
+            segment_id: original_segment_id.clone().into(),
+            is_segment: false.into(),
             ..Default::default()
         };
         let mut event = Annotated::new(Event {
@@ -998,7 +1003,10 @@ mod tests {
             get_value!(event.spans[0].description!),
             &original_description
         );
-        // Trace ID would be dropped without `trim = "false"`
+        // These fields would be dropped without `trim = "false"`
+        assert_eq!(get_value!(event.spans[0].span_id!), &original_span_id);
         assert_eq!(get_value!(event.spans[0].trace_id!), &original_trace_id);
+        assert_eq!(get_value!(event.spans[0].segment_id!), &original_segment_id);
+        assert_eq!(get_value!(event.spans[0].is_segment!), &false);
     }
 }
