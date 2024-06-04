@@ -226,6 +226,7 @@ pub struct AggregatorConfig {
     ///
     /// For example, the aggregator can choose to shift by the same value all buckets within a given
     /// partition, effectively allowing all the elements of that partition to be flushed together.
+    #[serde(alias = "shift_key")]
     pub flush_batching: FlushBatching,
 }
 
