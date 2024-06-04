@@ -136,7 +136,9 @@ pub enum FlushBatching {
 
     /// Shifts the flush time by an offset based on the partition key.
     ///
-    /// This allows buckets belonging to the same partition to be flushed together.
+    /// This allows buckets belonging to the same partition to be flushed together. Requires
+    /// [`flush_partitions`](AggregatorConfig::flush_partitions) to be set, otherwise this will fall
+    /// back to [`FlushBatching::Project`].
     ///
     /// It should only be used in Relays with the `http.global_metrics` option set since when
     /// encoding metrics via the global endpoint we can leverage partitioning.
@@ -286,32 +288,24 @@ impl AggregatorConfig {
     fn flush_time_shift(&self, bucket: &BucketKey) -> Duration {
         let shift_range = self.bucket_interval * 1000;
 
-        // We compute the correct flush batching implementation based on the configuration.
-        let flush_batching = match (self.flush_batching, self.flush_partitions) {
-            (FlushBatching::Partition, None) => FlushBatching::Project,
-            _ => self.flush_batching,
+        // Fall back to default flushing by project if no partitioning is configured.
+        let (batching, partitions) = match (self.flush_batching, self.flush_partitions) {
+            (FlushBatching::Partition, None | Some(0)) => (FlushBatching::Project, 0),
+            (flush_batching, partitions) => (flush_batching, partitions.unwrap_or(0)),
         };
 
-        match flush_batching {
+        let shift_millis = match batching {
             FlushBatching::Project => {
                 let mut hasher = FnvHasher::default();
                 hasher.write(bucket.project_key.as_str().as_bytes());
-                Duration::from_millis(hasher.finish() % shift_range)
+                hasher.finish() % shift_range
             }
-            FlushBatching::Bucket => Duration::from_millis(bucket.hash64() % shift_range),
-            FlushBatching::Partition => {
-                // This piece of code should never end up in the `else` branch, but it's better to
-                // still cover for this case instead of unwrapping.
-                let shift_duration = Duration::from_millis(shift_range);
-                match self.flush_partitions {
-                    Some(0) | None => Duration::ZERO,
-                    Some(flush_partitions) => shift_duration
-                        .div_f64(flush_partitions as f64)
-                        .mul_f64(bucket.partition_key(flush_partitions) as f64),
-                }
-            }
-            FlushBatching::None => Duration::ZERO,
-        }
+            FlushBatching::Bucket => bucket.hash64() % shift_range,
+            FlushBatching::Partition => shift_range * bucket.partition_key(partitions) / partitions,
+            FlushBatching::None => 0,
+        };
+
+        Duration::from_millis(shift_millis)
     }
 
     /// Determines the target bucket for an incoming bucket timestamp and bucket width.
@@ -650,18 +644,8 @@ impl Aggregator {
                             metadata,
                         };
 
-                        // We group by partition key in case the flushing is configured to batch by
-                        // partition key.
-                        let partition_key =
-                            match (self.config.flush_batching, self.config.flush_partitions) {
-                                (FlushBatching::Partition, Some(flush_partitions)) => {
-                                    Some(key.partition_key(flush_partitions))
-                                }
-                                _ => None,
-                            };
-
                         partitions
-                            .entry(partition_key)
+                            .entry(self.config.flush_partitions.map(|p| key.partition_key(p)))
                             .or_insert_with(HashMap::new)
                             .entry(key.project_key)
                             .or_insert_with(Vec::new)
