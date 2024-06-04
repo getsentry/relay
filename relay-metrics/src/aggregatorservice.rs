@@ -86,12 +86,6 @@ pub struct AggregatorServiceConfig {
     /// Defaults to `None`, i.e. no limit.
     pub max_project_key_bucket_bytes: Option<usize>,
 
-    /// Key used to shift the flush time of a bucket.
-    ///
-    /// This prevents flushing all buckets from a bucket interval at the same
-    /// time by computing an offset from the hash of the given key.
-    pub shift_key: ShiftKey,
-
     // TODO(dav1dde): move these config values to a better spot
     /// The approximate maximum number of bytes submitted within one flush cycle.
     ///
@@ -115,6 +109,7 @@ pub struct AggregatorServiceConfig {
     ///
     /// For example, the aggregator can choose to shift by the same value all buckets within a given
     /// partition, effectively allowing all the elements of that partition to be flushed together.
+    #[serde(alias = "shift_key")]
     pub flush_batching: FlushBatching,
 }
 
@@ -131,7 +126,6 @@ impl Default for AggregatorServiceConfig {
             max_tag_key_length: 200,
             max_tag_value_length: 200,
             max_project_key_bucket_bytes: None,
-            shift_key: ShiftKey::default(),
             max_flush_bytes: 5_000_000, // 5 MB
             flush_partitions: None,
             flush_batching: FlushBatching::default(),
@@ -151,7 +145,6 @@ impl From<&AggregatorServiceConfig> for AggregatorConfig {
             max_tag_key_length: value.max_tag_key_length,
             max_tag_value_length: value.max_tag_value_length,
             max_project_key_bucket_bytes: value.max_project_key_bucket_bytes,
-            shift_key: value.shift_key,
             flush_batching: value.flush_batching,
             flush_partitions: value.flush_partitions,
         }

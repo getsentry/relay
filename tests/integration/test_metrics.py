@@ -21,7 +21,7 @@ TEST_CONFIG = {
         "bucket_interval": 1,
         "initial_delay": 0,
         "debounce_delay": 0,
-        "flush_batching": "none",
+        "shift_key": "none",
     }
 }
 
@@ -88,7 +88,7 @@ def test_metrics_proxy_mode_buckets(mini_sentry, relay):
                 "bucket_interval": 1,
                 "initial_delay": 0,
                 "debounce_delay": 0,
-                "flush_batching": "none",
+                "shift_key": "none",
             },
         },
     )
@@ -121,7 +121,7 @@ def test_metrics_proxy_mode_statsd(mini_sentry, relay):
                 "bucket_interval": 1,
                 "initial_delay": 0,
                 "debounce_delay": 0,
-                "flush_batching": "none",
+                "shift_key": "none",
             },
         },
     )
@@ -147,7 +147,7 @@ def test_metrics_proxy_mode_metrics_meta(mini_sentry, relay):
                 "bucket_interval": 1,
                 "initial_delay": 0,
                 "debounce_delay": 0,
-                "flush_batching": "none",
+                "shift_key": "none",
             },
         },
     )
@@ -276,7 +276,7 @@ def test_metrics_partition_key(mini_sentry, relay, metrics_partitions, expected_
             "debounce_delay": 0,
             "max_secs_in_past": forever,
             "max_secs_in_future": forever,
-            "flush_batching": "partition",
+            "shift_key": "partition",
             "flush_partitions": metrics_partitions,
         },
     }
@@ -1256,7 +1256,7 @@ def test_graceful_shutdown(mini_sentry, relay):
                 "bucket_interval": 1,
                 "initial_delay": 100,
                 "debounce_delay": 0,
-                "flush_batching": "none",
+                "shift_key": "none",
             },
         },
     )
@@ -1706,7 +1706,7 @@ def test_relay_forwards_events_without_extracting_metrics_on_broken_global_filte
                     "bucket_interval": 1,
                     "initial_delay": 0,
                     "debounce_delay": 0,
-                    "flush_batching": "none",
+                    "shift_key": "none",
                 }
             }
         )
@@ -1718,7 +1718,7 @@ def test_relay_forwards_events_without_extracting_metrics_on_broken_global_filte
                     "bucket_interval": 1,
                     "initial_delay": 0,
                     "debounce_delay": 0,
-                    "flush_batching": "none",
+                    "shift_key": "none",
                 }
             },
         )
@@ -1769,7 +1769,7 @@ def test_relay_forwards_events_without_extracting_metrics_on_unsupported_project
                     "bucket_interval": 1,
                     "initial_delay": 0,
                     "debounce_delay": 0,
-                    "flush_batching": "none",
+                    "shift_key": "none",
                 }
             }
         )
@@ -1781,7 +1781,7 @@ def test_relay_forwards_events_without_extracting_metrics_on_unsupported_project
                     "bucket_interval": 1,
                     "initial_delay": 0,
                     "debounce_delay": 0,
-                    "flush_batching": "none",
+                    "shift_key": "none",
                 }
             },
         )
@@ -1824,7 +1824,7 @@ def test_missing_global_filters_enables_metric_extraction(
                 "bucket_interval": 1,
                 "initial_delay": 0,
                 "debounce_delay": 0,
-                "flush_batching": "none",
+                "shift_key": "none",
             }
         }
     )

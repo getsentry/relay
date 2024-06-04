@@ -123,30 +123,6 @@ pub fn tags_cost(tags: &BTreeMap<String, String>) -> usize {
     tags.iter().map(|(k, v)| k.len() + v.len()).sum()
 }
 
-/// Configuration value for [`AggregatorConfig::shift_key`].
-///
-/// Kept for backward compatibility with old configuration but unused.
-#[derive(Clone, Copy, Debug, Default, Deserialize, Serialize)]
-#[serde(rename_all = "lowercase")]
-pub enum ShiftKey {
-    /// Shifts the flush time by an offset based on the [`ProjectKey`].
-    ///
-    /// This allows buckets from the same project to be flushed together.
-    #[default]
-    Project,
-
-    /// Shifts the flush time by an offset based on the bucket key itself.
-    ///
-    /// This allows for a completely random distribution of bucket flush times.
-    ///
-    /// It should only be used in processing Relays since this flushing behavior it's better
-    /// suited for how Relay emits metrics to Kafka.
-    Bucket,
-
-    /// Do not apply shift.
-    None,
-}
-
 /// Configuration value for [`AggregatorConfig::flush_batching`].
 #[derive(Clone, Copy, Debug, Default, Deserialize, Serialize)]
 #[serde(rename_all = "lowercase")]
@@ -240,11 +216,13 @@ pub struct AggregatorConfig {
     /// Defaults to `None`, i.e. no limit.
     pub max_project_key_bucket_bytes: Option<usize>,
 
-    /// Key used to shift the flush time of a bucket.
+    /// The number of logical partitions that can receive flushed buckets.
     ///
-    /// This prevents flushing all buckets from a bucket interval at the same
-    /// time by computing an offset from the hash of the given key.
-    pub shift_key: ShiftKey,
+    /// If set, buckets are partitioned by (bucket key % flush_partitions), and routed
+    /// by setting the header `X-Sentry-Relay-Shard`.
+    ///
+    /// This setting will take effect only when paired with [`FlushBatching::Partition`].
+    pub flush_partitions: Option<u64>,
 
     /// The batching mode for the flushing of the aggregator.
     ///
@@ -255,14 +233,6 @@ pub struct AggregatorConfig {
     /// For example, the aggregator can choose to shift by the same value all buckets within a given
     /// partition, effectively allowing all the elements of that partition to be flushed together.
     pub flush_batching: FlushBatching,
-
-    /// The number of logical partitions that can receive flushed buckets.
-    ///
-    /// If set, buckets are partitioned by (bucket key % flush_partitions), and routed
-    /// by setting the header `X-Sentry-Relay-Shard`.
-    ///
-    /// This setting will take effect only when paired with [`FlushBatching::Partition`].
-    pub flush_partitions: Option<u64>,
 }
 
 impl AggregatorConfig {
@@ -386,7 +356,6 @@ impl Default for AggregatorConfig {
             max_tag_key_length: 200,
             max_tag_value_length: 200,
             max_project_key_bucket_bytes: None,
-            shift_key: ShiftKey::default(),
             flush_batching: FlushBatching::default(),
             flush_partitions: None,
         }
@@ -1004,7 +973,6 @@ mod tests {
             max_tag_key_length: 200,
             max_tag_value_length: 200,
             max_project_key_bucket_bytes: None,
-            shift_key: ShiftKey::default(),
             flush_batching: FlushBatching::default(),
             flush_partitions: None,
         }
@@ -1579,7 +1547,7 @@ mod tests {
 
     #[test]
     fn test_parse_flush_batching() {
-        let json = r#"{"flush_batching": "partition"}"#;
+        let json = r#"{"shift_key": "partition"}"#;
         let parsed: AggregatorConfig = serde_json::from_str(json).unwrap();
         assert!(matches!(parsed.flush_batching, FlushBatching::Partition));
     }
