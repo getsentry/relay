@@ -114,6 +114,9 @@ impl<'a> Processor for PiiProcessor<'a> {
         if is_pairlist(array) {
             process_pairlist(
                 array,
+                // We have to pass the state of the current processor since we need to treat the
+                // elements in the downstream processor as if they were being visited by this
+                // processor's state.
                 PiiProcessor::new(self.compiled_config),
                 state.clone(),
             );
