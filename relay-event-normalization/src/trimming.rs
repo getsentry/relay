@@ -957,13 +957,19 @@ mod tests {
     fn test_too_many_spans_trimmed_trace_id() {
         let original_description = "a".repeat(819163);
         let original_trace_id = TraceId("b".repeat(48));
-        let span = Span {
-            description: original_description.clone().into(),
-            trace_id: original_trace_id.clone().into(),
-            ..Default::default()
-        };
         let mut event = Annotated::new(Event {
-            spans: Annotated::new(vec![span.into()]),
+            spans: Annotated::new(vec![
+                Span {
+                    description: original_description.clone().into(),
+                    ..Default::default()
+                }
+                .into(),
+                Span {
+                    trace_id: original_trace_id.clone().into(),
+                    ..Default::default()
+                }
+                .into(),
+            ]),
             ..Default::default()
         });
 
@@ -975,27 +981,34 @@ mod tests {
             &original_description
         );
         // Trace ID would be trimmed without `trim = "false"`
-        assert_eq!(get_value!(event.spans[0].trace_id!), &original_trace_id);
+        assert_eq!(get_value!(event.spans[1].trace_id!), &original_trace_id);
     }
 
     #[test]
     fn test_too_many_spans_trimmed_trace_id_drop() {
-        let original_description = "a".repeat(819191);
+        let original_description = "a".repeat(819163);
         let original_span_id = SpanId("b".repeat(48));
         let original_trace_id = TraceId("c".repeat(48));
         let original_segment_id = SpanId("d".repeat(48));
         let original_op = "e".repeat(129);
-        let span = Span {
-            description: original_description.clone().into(),
-            span_id: original_span_id.clone().into(),
-            trace_id: original_trace_id.clone().into(),
-            segment_id: original_segment_id.clone().into(),
-            is_segment: false.into(),
-            op: original_op.clone().into(),
-            ..Default::default()
-        };
+
         let mut event = Annotated::new(Event {
-            spans: Annotated::new(vec![span.into()]),
+            spans: Annotated::new(vec![
+                Span {
+                    description: original_description.clone().into(),
+                    ..Default::default()
+                }
+                .into(),
+                Span {
+                    span_id: original_span_id.clone().into(),
+                    trace_id: original_trace_id.clone().into(),
+                    segment_id: original_segment_id.clone().into(),
+                    is_segment: false.into(),
+                    op: original_op.clone().into(),
+                    ..Default::default()
+                }
+                .into(),
+            ]),
             ..Default::default()
         });
 
@@ -1007,12 +1020,41 @@ mod tests {
             &original_description
         );
         // These fields would be dropped without `trim = "false"`
-        assert_eq!(get_value!(event.spans[0].span_id!), &original_span_id);
-        assert_eq!(get_value!(event.spans[0].trace_id!), &original_trace_id);
-        assert_eq!(get_value!(event.spans[0].segment_id!), &original_segment_id);
-        assert_eq!(get_value!(event.spans[0].is_segment!), &false);
+        assert_eq!(get_value!(event.spans[1].span_id!), &original_span_id);
+        assert_eq!(get_value!(event.spans[1].trace_id!), &original_trace_id);
+        assert_eq!(get_value!(event.spans[1].segment_id!), &original_segment_id);
+        assert_eq!(get_value!(event.spans[1].is_segment!), &false);
 
         // span.op is trimmed to its max_chars, but not dropped:
-        assert_eq!(get_value!(event.spans[0].op!).len(), 128);
+        assert_eq!(get_value!(event.spans[1].op!).len(), 128);
+    }
+
+    #[test]
+    fn test_trim_false_contributes_to_budget() {
+        for span_id in ["short", "looooooooooooooooooooooooooong"] {
+            let original_span_id = SpanId(span_id.to_owned());
+            let original_description = "a".repeat(900000);
+
+            let mut event = Annotated::new(Event {
+                spans: Annotated::new(vec![Span {
+                    span_id: original_span_id.clone().into(),
+                    description: original_description.clone().into(),
+                    ..Default::default()
+                }
+                .into()]),
+                ..Default::default()
+            });
+
+            let mut processor = TrimmingProcessor::new();
+            processor::process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
+
+            assert_eq!(get_value!(event.spans[0].span_id!).as_ref(), span_id);
+
+            // The amount of trimming on the description depends on the length of the span id.
+            assert_eq!(
+                get_value!(event.spans[0].description!).len(),
+                1024 * 800 - 12 - span_id.len(),
+            );
+        }
     }
 }
