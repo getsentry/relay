@@ -803,7 +803,7 @@ def test_transaction_metrics(
         )
 
     if extract_metrics == "corrupted":
-        config["transactionMetrics"] = (TRANSACTION_EXTRACT_MAX_SUPPORTED_VERSION + 1,)
+        config["transactionMetrics"] = TRANSACTION_EXTRACT_MAX_SUPPORTED_VERSION + 1
 
     elif extract_metrics:
         config["transactionMetrics"] = {
@@ -1170,6 +1170,10 @@ def test_transaction_metrics_not_extracted_on_unsupported_version(
     tx, _ = tx_consumer.get_event()
     assert tx["transaction"] == "/organizations/:orgId/performance/:eventSlug/"
     tx_consumer.assert_empty()
+
+    if unsupported_version < TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION:
+        error = str(mini_sentry.test_failures.pop(0))
+        assert "Processing Relay outdated" in error
 
     metrics_consumer.assert_empty()
 
