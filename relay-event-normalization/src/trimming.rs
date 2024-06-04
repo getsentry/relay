@@ -128,11 +128,12 @@ impl Processor for TrimmingProcessor {
         meta: &mut Meta,
         state: &ProcessingState<'_>,
     ) -> ProcessingResult {
-        if !state.attrs().trim {
-            return Ok(());
-        }
         if let Some(max_chars) = state.attrs().max_chars {
             trim_string(value, meta, max_chars, state.attrs().max_chars_allowance);
+        }
+
+        if !state.attrs().trim {
+            return Ok(());
         }
 
         if let Some(size_state) = self.size_state.last() {
@@ -983,12 +984,14 @@ mod tests {
         let original_span_id = SpanId("b".repeat(48));
         let original_trace_id = TraceId("c".repeat(48));
         let original_segment_id = SpanId("d".repeat(48));
+        let original_op = "e".repeat(129);
         let span = Span {
             description: original_description.clone().into(),
             span_id: original_span_id.clone().into(),
             trace_id: original_trace_id.clone().into(),
             segment_id: original_segment_id.clone().into(),
             is_segment: false.into(),
+            op: original_op.clone().into(),
             ..Default::default()
         };
         let mut event = Annotated::new(Event {
@@ -1008,5 +1011,8 @@ mod tests {
         assert_eq!(get_value!(event.spans[0].trace_id!), &original_trace_id);
         assert_eq!(get_value!(event.spans[0].segment_id!), &original_segment_id);
         assert_eq!(get_value!(event.spans[0].is_segment!), &false);
+
+        // span.op is trimmed to its max_chars, but not dropped:
+        assert_eq!(get_value!(event.spans[0].op!).len(), 128);
     }
 }

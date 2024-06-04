@@ -31,7 +31,7 @@ pub struct Span {
     pub description: Annotated<String>,
 
     /// Span type (see `OperationType` docs).
-    #[metastructure(max_chars = 128)]
+    #[metastructure(max_chars = 128, trim = "false")]
     pub op: Annotated<OperationType>,
 
     /// The Span id.
