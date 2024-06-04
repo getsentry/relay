@@ -1039,7 +1039,7 @@ mod tests {
         assert_eq!(get_value!(event.spans[1].is_segment!), &false);
         // span.op is trimmed to its max_chars, but not dropped:
         assert_eq!(get_value!(event.spans[1].op!).len(), 128);
-        assert!(dbg!(get_value!(event.spans[1].start_timestamp)).is_some());
+        assert!(get_value!(event.spans[1].start_timestamp).is_some());
         assert!(get_value!(event.spans[1].timestamp).is_some());
     }
 
