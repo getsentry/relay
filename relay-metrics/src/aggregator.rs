@@ -89,18 +89,6 @@ impl BucketKey {
         self.metric_name.namespace()
     }
 
-    /// Computes the hash of the partition which will be used to compute the partition key.
-    fn partition_hash(&self) -> u64 {
-        use std::hash::{Hash, Hasher};
-
-        let key = (self.project_key, &self.metric_name, &self.tags);
-
-        let mut hasher = fnv::FnvHasher::default();
-        key.hash(&mut hasher);
-
-        hasher.finish()
-    }
-
     /// Computes a stable partitioning key for this [`Bucket`].
     ///
     /// The partitioning key is inherently producing collisions, since the output of the hasher is
@@ -110,8 +98,15 @@ impl BucketKey {
     /// The role of partitioning is to let Relays forward the same metric to the same upstream
     /// instance with the goal of increasing bucketing efficiency.
     fn partition_key(&self, partitions: u64) -> u64 {
+        use std::hash::{Hash, Hasher};
+
+        let key = (self.project_key, &self.metric_name, &self.tags);
+
+        let mut hasher = fnv::FnvHasher::default();
+        key.hash(&mut hasher);
+
         let partitions = partitions.max(1);
-        self.partition_hash() % partitions
+        hasher.finish() % partitions
     }
 }
 
