@@ -117,7 +117,7 @@ impl<'a> Processor for PiiProcessor<'a> {
                 // We have to pass the state of the current processor since we need to treat the
                 // elements in the downstream processor as if they were being visited by this
                 // processor's state.
-                PiiProcessor::new(self.compiled_config),
+                self,
                 state.clone(),
             );
 
@@ -229,27 +229,30 @@ impl<'a> Processor for PiiProcessor<'a> {
     }
 }
 
-enum PairListProcessor<'a> {
+enum PairListProcessor<'a, 'b, 'c> {
     Search {
         is_pair: bool,
         has_string_key: bool,
     },
     Process {
         found_string_key: Option<String>,
-        pii_processor: PiiProcessor<'a>,
-        pii_processor_state: ProcessingState<'a>,
+        pii_processor: &'b mut PiiProcessor<'a>,
+        pii_processor_state: ProcessingState<'c>,
     },
 }
 
-impl<'a> PairListProcessor<'a> {
-    fn search() -> PairListProcessor<'a> {
+impl<'a, 'b, 'c> PairListProcessor<'a, 'b, 'c> {
+    fn search() -> PairListProcessor<'a, 'b, 'c> {
         PairListProcessor::Search {
             is_pair: false,
             has_string_key: false,
         }
     }
 
-    fn process(processor: PiiProcessor<'a>, state: ProcessingState<'a>) -> PairListProcessor<'a> {
+    fn process(
+        processor: &'b mut PiiProcessor<'a>,
+        state: ProcessingState<'c>,
+    ) -> PairListProcessor<'a, 'b, 'c> {
         PairListProcessor::Process {
             found_string_key: None,
             pii_processor: processor,
@@ -268,30 +271,12 @@ impl<'a> PairListProcessor<'a> {
             _ => false,
         }
     }
-
-    /// Resets the processor's state.
-    fn reset(&mut self) {
-        match self {
-            PairListProcessor::Search {
-                is_pair,
-                has_string_key,
-            } => {
-                *is_pair = false;
-                *has_string_key = false;
-            }
-            PairListProcessor::Process {
-                found_string_key, ..
-            } => {
-                *found_string_key = None;
-            }
-        }
-    }
 }
 
-impl<'a> Processor for PairListProcessor<'a> {
+impl<'a, 'b, 'c> Processor for PairListProcessor<'a, 'b, 'c> {
     fn process_array<T>(
         &mut self,
-        value: &mut relay_protocol::Array<T>,
+        value: &mut Array<T>,
         _meta: &mut Meta,
         state: &ProcessingState<'_>,
     ) -> ProcessingResult
@@ -326,7 +311,7 @@ impl<'a> Processor for PairListProcessor<'a> {
                 pii_processor_state.inner_attrs(),
                 ValueType::for_field(&value[1]),
             );
-            process_value(&mut value[1], pii_processor, value_state)?;
+            process_value(&mut value[1], *pii_processor, value_state)?;
         }
 
         Ok(())
@@ -343,7 +328,7 @@ impl<'a> Processor for PairListProcessor<'a> {
                 PairListProcessor::Search { has_string_key, .. } => *has_string_key = true,
                 PairListProcessor::Process {
                     found_string_key, ..
-                } => *found_string_key = Some(value.clone()),
+                } => *found_string_key = Some(value.clone()), // TODO: get rid of this clone.
             }
         }
 
@@ -352,13 +337,12 @@ impl<'a> Processor for PairListProcessor<'a> {
 }
 
 fn is_pairlist<T: ProcessValue>(array: &mut Array<T>) -> bool {
-    let mut processor = PairListProcessor::search();
     for element in array.iter_mut() {
+        let mut processor = PairListProcessor::search();
         process_value(element, &mut processor, ProcessingState::root()).ok();
         if !processor.is_pair_array() {
             return false;
         }
-        processor.reset();
     }
 
     !array.is_empty()
@@ -366,13 +350,12 @@ fn is_pairlist<T: ProcessValue>(array: &mut Array<T>) -> bool {
 
 fn process_pairlist<T: ProcessValue>(
     array: &mut Array<T>,
-    processor: PiiProcessor,
-    state: ProcessingState,
+    pii_processor: &mut PiiProcessor,
+    pii_processor_state: ProcessingState,
 ) {
-    let mut processor = PairListProcessor::process(processor, state);
     for element in array.iter_mut() {
+        let mut processor = PairListProcessor::process(pii_processor, pii_processor_state.clone());
         process_value(element, &mut processor, ProcessingState::root()).ok();
-        processor.reset();
     }
 }
 
