@@ -2538,7 +2538,7 @@ impl EnvelopeProcessorService {
         } = message;
 
         let batch_size = self.inner.config.metrics_max_batch_size_bytes();
-        let mut partitions = BTreeMap::new();
+        let mut partition = Partition::new(batch_size);
 
         for (scoping, message) in &scopes {
             let ProjectMetrics {
@@ -2552,24 +2552,18 @@ impl EnvelopeProcessorService {
                 let mut remaining = Some(BucketView::new(bucket));
 
                 while let Some(bucket) = remaining.take() {
-                    let partition = partitions
-                        .entry(partition_key)
-                        .or_insert_with(|| Partition::new(batch_size));
-
                     if let Some(next) = partition.insert(bucket, *scoping, mode) {
                         // A part of the bucket could not be inserted. Take the partition and submit
                         // it immediately. Repeat until the final part was inserted. This should
                         // always result in a request, otherwise we would enter an endless loop.
-                        self.send_global_partition(partition_key, partition);
+                        self.send_global_partition(partition_key, &mut partition);
                         remaining = Some(next);
                     }
                 }
             }
         }
 
-        for (partition_key, mut partition) in partitions {
-            self.send_global_partition(partition_key, &mut partition);
-        }
+        self.send_global_partition(partition_key, &mut partition);
     }
 
     fn handle_encode_metrics(&self, message: EncodeMetrics) {
