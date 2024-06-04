@@ -577,6 +577,9 @@
 <a href="#575" id="575">575</a>
 <a href="#576" id="576">576</a>
 <a href="#577" id="577">577</a>
+<a href="#578" id="578">578</a>
+<a href="#579" id="579">579</a>
+<a href="#580" id="580">580</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::ops::{Deref, RangeInclusive};
@@ -707,6 +710,8 @@
     </span><span class="kw">pub </span>pii: Pii,
     <span class="doccomment">/// Whether additional properties should be retained during normalization.
     </span><span class="kw">pub </span>retain: bool,
+    <span class="doccomment">/// Whether the trimming processor is allowed to shorten or drop this field.
+    </span><span class="kw">pub </span>trim: bool,
 }
 
 <span class="doccomment">/// A set of characters allowed or denied for a (string) field.
@@ -746,6 +751,7 @@
             max_bytes: <span class="prelude-val">None</span>,
             pii: Pii::False,
             retain: <span class="bool-val">false</span>,
+            trim: <span class="bool-val">true</span>,
         }
     }
 

@@ -716,6 +716,9 @@
 <a href="#714" id="714">714</a>
 <a href="#715" id="715">715</a>
 <a href="#716" id="716">716</a>
+<a href="#717" id="717">717</a>
+<a href="#718" id="718">718</a>
+<a href="#719" id="719">719</a>
 </pre></div><pre class="rust"><code><span class="kw">mod </span>convert;
 
 <span class="attr">#[cfg(feature = <span class="string">"jsonschema"</span>)]
@@ -744,36 +747,39 @@
     /// excluding its immediate child spans.
     </span><span class="kw">pub </span>exclusive_time: Annotated&lt;f64&gt;,
 
-    <span class="doccomment">/// Human readable description of a span (e.g. method URL).
-    </span><span class="attr">#[metastructure(pii = <span class="string">"maybe"</span>)]
-    </span><span class="kw">pub </span>description: Annotated&lt;String&gt;,
-
     <span class="doccomment">/// Span type (see `OperationType` docs).
-    </span><span class="attr">#[metastructure(max_chars = <span class="number">128</span>)]
+    </span><span class="attr">#[metastructure(max_chars = <span class="number">128</span>, trim = <span class="string">"false"</span>)]
     </span><span class="kw">pub </span>op: Annotated&lt;OperationType&gt;,
 
     <span class="doccomment">/// The Span id.
-    </span><span class="attr">#[metastructure(required = <span class="string">"true"</span>)]
+    </span><span class="attr">#[metastructure(required = <span class="string">"true"</span>, trim = <span class="string">"false"</span>)]
     </span><span class="kw">pub </span>span_id: Annotated&lt;SpanId&gt;,
 
     <span class="doccomment">/// The ID of the span enclosing this span.
+    </span><span class="attr">#[metastructure(trim = <span class="string">"false"</span>)]
     </span><span class="kw">pub </span>parent_span_id: Annotated&lt;SpanId&gt;,
 
     <span class="doccomment">/// The ID of the trace the span belongs to.
-    </span><span class="attr">#[metastructure(required = <span class="string">"true"</span>)]
+    </span><span class="attr">#[metastructure(required = <span class="string">"true"</span>, trim = <span class="string">"false"</span>)]
     </span><span class="kw">pub </span>trace_id: Annotated&lt;TraceId&gt;,
 
     <span class="doccomment">/// A unique identifier for a segment within a trace (8 byte hexadecimal string).
     ///
     /// For spans embedded in transactions, the `segment_id` is the `span_id` of the containing
     /// transaction.
+    </span><span class="attr">#[metastructure(trim = <span class="string">"false"</span>)]
     </span><span class="kw">pub </span>segment_id: Annotated&lt;SpanId&gt;,
 
     <span class="doccomment">/// Whether or not the current span is the root of the segment.
+    </span><span class="attr">#[metastructure(trim = <span class="string">"false"</span>)]
     </span><span class="kw">pub </span>is_segment: Annotated&lt;bool&gt;,
 
     <span class="doccomment">/// The status of a span.
     </span><span class="kw">pub </span>status: Annotated&lt;SpanStatus&gt;,
+
+    <span class="doccomment">/// Human readable description of a span (e.g. method URL).
+    </span><span class="attr">#[metastructure(pii = <span class="string">"maybe"</span>)]
+    </span><span class="kw">pub </span>description: Annotated&lt;String&gt;,
 
     <span class="doccomment">/// Arbitrary tags on a span, like on the top-level event.
     </span><span class="attr">#[metastructure(pii = <span class="string">"maybe"</span>)]
@@ -1168,11 +1174,11 @@
   "timestamp": 0.0,
   "start_timestamp": -63158400.0,
   "exclusive_time": 1.23,
-  "description": "desc",
   "op": "operation",
   "span_id": "fa90fdead5f74052",
   "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
   "status": "ok",
+  "description": "desc",
   "origin": "auto.http",
   "measurements": {
     "memory": {
