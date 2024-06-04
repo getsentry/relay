@@ -145,7 +145,6 @@ pub enum FlushBatching {
     Partition,
 
     /// Do not apply shift.
-    /// TODO: we might want to remove this shift be
     None,
 }
 
