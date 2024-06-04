@@ -1,6 +1,7 @@
 import os
 import pytest
 import json
+from .consts import TRANSACTION_EXTRACT_MAX_SUPPORTED_VERSION
 
 
 def _load_dump_file(base_file_name: str):
@@ -23,7 +24,7 @@ def test_unreal_crash(mini_sentry, relay, dump_file_name, extract_metrics):
     if extract_metrics:
         # regression: we dropped unreal events in customer relays while metrics extraction was on
         config["transactionMetrics"] = {
-            "version": 3,
+            "version": TRANSACTION_EXTRACT_MAX_SUPPORTED_VERSION,
         }
 
     unreal_content = _load_dump_file(dump_file_name)
