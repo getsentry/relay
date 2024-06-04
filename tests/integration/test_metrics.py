@@ -257,7 +257,16 @@ def test_metrics_backdated(mini_sentry, relay):
 
 @pytest.mark.parametrize(
     "metrics_partitions,expected_header",
-    [(None, None), (0, "0"), (1, "0"), (128, "17")],
+    [
+        # With no partitions defined, partitioning will not be performed but bucket shift will still be done.
+        (None, None),
+        # With zero partitions defined, all the buckets will be forwarded to a single partition.
+        (0, "0"),
+        # With zero partitions defined, all the buckets will be forwarded to a single partition.
+        (1, "0"),
+        # With more than zero partitions defined, the buckets will be forwarded to one of the partitions.
+        (128, "17"),
+    ],
 )
 def test_metrics_partition_key(mini_sentry, relay, metrics_partitions, expected_header):
     forever = 100 * 365 * 24 * 60 * 60  # *almost forever
@@ -271,8 +280,8 @@ def test_metrics_partition_key(mini_sentry, relay, metrics_partitions, expected_
             "debounce_delay": 0,
             "max_secs_in_past": forever,
             "max_secs_in_future": forever,
+            "shift_key": "partition",
             "flush_partitions": metrics_partitions,
-            "shift_key": "none",
         },
     }
     relay = relay(mini_sentry, options=relay_config)
