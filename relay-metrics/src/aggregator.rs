@@ -98,8 +98,6 @@ impl BucketKey {
     /// The role of partitioning is to let Relays forward the same metric to the same upstream
     /// instance with the goal of increasing bucketing efficiency.
     fn partition_key(&self, partitions: u64) -> u64 {
-        use std::hash::{Hash, Hasher};
-
         let key = (self.project_key, &self.metric_name, &self.tags);
 
         let mut hasher = fnv::FnvHasher::default();
