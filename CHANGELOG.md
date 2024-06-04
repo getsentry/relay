@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 24.5.1
 
 **Bug fixes**:
 
