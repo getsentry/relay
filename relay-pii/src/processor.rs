@@ -296,7 +296,6 @@ impl<'a> Processor for PairListProcessor<'a> {
         T: ProcessValue,
     {
         let key_state = &state.enter_index(0, state.inner_attrs(), ValueType::for_field(&value[0]));
-
         match self {
             PairListProcessor::Search { is_pair, .. } => {
                 *is_pair = state.depth() == 0 && value.len() == 2;
@@ -305,20 +304,26 @@ impl<'a> Processor for PairListProcessor<'a> {
                 }
             }
             PairListProcessor::Process {
-                found_string_key,
-                pii_processor,
-                pii_processor_state,
+                found_string_key, ..
             } => {
+                // We always reset the found key before processing a new pair's key.
+                *found_string_key = None;
                 process_value(&mut value[0], self, key_state)?;
-                if let Some(key_name) = found_string_key {
-                    let value_state = &pii_processor_state.enter_borrowed(
-                        key_name.as_str(),
-                        pii_processor_state.inner_attrs(),
-                        ValueType::for_field(&value[1]),
-                    );
-                    process_value(&mut value[1], pii_processor, value_state)?;
-                }
             }
+        }
+
+        if let PairListProcessor::Process {
+            found_string_key: Some(key_name),
+            pii_processor,
+            pii_processor_state,
+        } = self
+        {
+            let value_state = &pii_processor_state.enter_borrowed(
+                key_name.as_str(),
+                pii_processor_state.inner_attrs(),
+                ValueType::for_field(&value[1]),
+            );
+            process_value(&mut value[1], pii_processor, value_state)?;
         }
 
         Ok(())
