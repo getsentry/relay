@@ -1984,7 +1984,7 @@ def test_global_rate_limit_by_namespace(
             "scope": "global",
             "categories": ["metric_bucket"],
             "limit": metric_bucket_limit,
-            "window": int(datetime.now(UTC).timestamp()),
+            "window": int(datetime.now(UTC).timestamp()) - 1,
             "reasonCode": global_reason_code,
         },
         {
@@ -1993,13 +1993,13 @@ def test_global_rate_limit_by_namespace(
             "categories": ["metric_bucket"],
             "limit": transaction_limit,
             "namespace": "transactions",
-            "window": int(datetime.now(UTC).timestamp()),
+            "window": int(datetime.now(UTC).timestamp()) - 1,
             "reasonCode": transaction_reason_code,
         },
     ]
 
     # Truncate the timestamp and add a slight offset to never be on the border of the rate limiting window.
-    ts = datetime.now(UTC).timestamp() // 100 * 100 + 50
+    ts = datetime.now(UTC).timestamp()
 
     def send_buckets(n, name, value, ty):
         for i in range(n):
