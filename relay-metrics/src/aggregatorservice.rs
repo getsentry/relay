@@ -8,7 +8,7 @@ use relay_system::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::aggregator::{self, AggregatorConfig, FlushBatching, ShiftKey};
+use crate::aggregator::{self, AggregatorConfig, FlushBatching};
 use crate::bucket::Bucket;
 use crate::statsd::{MetricCounters, MetricHistograms, MetricTimers};
 

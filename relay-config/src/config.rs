@@ -14,7 +14,7 @@ use relay_kafka::{
     ConfigError as KafkaConfigError, KafkaConfigParam, KafkaParams, KafkaTopic, TopicAssignment,
     TopicAssignments,
 };
-use relay_metrics::aggregator::{AggregatorConfig, FlushBatching, ShiftKey};
+use relay_metrics::aggregator::{AggregatorConfig, FlushBatching};
 use relay_metrics::{AggregatorServiceConfig, MetricNamespace, ScopedAggregatorConfig};
 use relay_redis::RedisConfig;
 use serde::de::{DeserializeOwned, Unexpected, Visitor};
@@ -2393,7 +2393,6 @@ impl Config {
             max_project_key_bucket_bytes,
             initial_delay: 30,
             debounce_delay: 10,
-            shift_key: ShiftKey::Project,
             flush_batching: FlushBatching::Project,
             flush_partitions: None,
         }
