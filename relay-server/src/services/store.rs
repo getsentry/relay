@@ -30,7 +30,7 @@ use uuid::Uuid;
 
 use crate::envelope::{AttachmentType, Envelope, Item, ItemType};
 
-use crate::metrics::{ArrayEncoding, BucketEncoder, ExtractionMode, MetricOutcomes};
+use crate::metrics::{ArrayEncoding, BucketEncoder, MetricOutcomes};
 use crate::service::ServiceError;
 use crate::services::global_config::GlobalConfigHandle;
 use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
@@ -88,7 +88,6 @@ pub struct StoreMetrics {
     pub buckets: Vec<Bucket>,
     pub scoping: Scoping,
     pub retention: u16,
-    pub mode: ExtractionMode,
 }
 
 #[derive(Debug)]
@@ -205,15 +204,6 @@ impl StoreService {
             KafkaTopic::Attachments
         } else if event_item.as_ref().map(|x| x.ty()) == Some(&ItemType::Transaction) {
             KafkaTopic::Transactions
-        } else if event_item.as_ref().map(|x| x.ty()) == Some(&ItemType::UserReportV2) {
-            if is_rolled_out(
-                scoping.organization_id,
-                global_options.feedback_ingest_topic_rollout_rate,
-            ) {
-                KafkaTopic::Feedback
-            } else {
-                KafkaTopic::Events
-            }
         } else {
             KafkaTopic::Events
         };
@@ -394,7 +384,6 @@ impl StoreService {
             buckets,
             scoping,
             retention,
-            mode,
         } = message;
 
         let batch_size = self.config.metrics_max_batch_size_bytes();
@@ -433,7 +422,7 @@ impl StoreService {
                     }
                 };
 
-                self.metric_outcomes.track(scoping, &[view], mode, outcome);
+                self.metric_outcomes.track(scoping, &[view], outcome);
             }
         }
 

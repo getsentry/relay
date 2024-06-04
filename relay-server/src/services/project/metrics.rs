@@ -101,13 +101,10 @@ impl Buckets<Filtered> {
             })
             .collect();
 
-        let mode = project_state.get_extraction_mode();
-
         if !disabled_namespace_buckets.is_empty() {
             metric_outcomes.track(
                 scoping,
                 &disabled_namespace_buckets,
-                mode,
                 Outcome::Filtered(FilterStatKey::DisabledNamespace),
             );
         }
@@ -116,7 +113,6 @@ impl Buckets<Filtered> {
             metric_outcomes.track(
                 scoping,
                 &denied_buckets,
-                mode,
                 Outcome::Filtered(FilterStatKey::DeniedName),
             );
         }
