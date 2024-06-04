@@ -520,6 +520,24 @@
 <a href="#518" id="518">518</a>
 <a href="#519" id="519">519</a>
 <a href="#520" id="520">520</a>
+<a href="#521" id="521">521</a>
+<a href="#522" id="522">522</a>
+<a href="#523" id="523">523</a>
+<a href="#524" id="524">524</a>
+<a href="#525" id="525">525</a>
+<a href="#526" id="526">526</a>
+<a href="#527" id="527">527</a>
+<a href="#528" id="528">528</a>
+<a href="#529" id="529">529</a>
+<a href="#530" id="530">530</a>
+<a href="#531" id="531">531</a>
+<a href="#532" id="532">532</a>
+<a href="#533" id="533">533</a>
+<a href="#534" id="534">534</a>
+<a href="#535" id="535">535</a>
+<a href="#536" id="536">536</a>
+<a href="#537" id="537">537</a>
+<a href="#538" id="538">538</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::HashMap;
 <span class="kw">use </span>std::time::Duration;
 
@@ -530,7 +548,7 @@
 };
 <span class="kw">use </span>serde::{Deserialize, Serialize};
 
-<span class="kw">use </span><span class="kw">crate</span>::aggregator::{<span class="self">self</span>, AggregatorConfig, ShiftKey};
+<span class="kw">use </span><span class="kw">crate</span>::aggregator::{<span class="self">self</span>, AggregatorConfig, FlushBatching};
 <span class="kw">use </span><span class="kw">crate</span>::bucket::Bucket;
 <span class="kw">use </span><span class="kw">crate</span>::statsd::{MetricCounters, MetricHistograms, MetricTimers};
 
@@ -608,12 +626,6 @@
     /// Defaults to `None`, i.e. no limit.
     </span><span class="kw">pub </span>max_project_key_bucket_bytes: <span class="prelude-ty">Option</span>&lt;usize&gt;,
 
-    <span class="doccomment">/// Key used to shift the flush time of a bucket.
-    ///
-    /// This prevents flushing all buckets from a bucket interval at the same
-    /// time by computing an offset from the hash of the given key.
-    </span><span class="kw">pub </span>shift_key: ShiftKey,
-
     <span class="comment">// TODO(dav1dde): move these config values to a better spot
     </span><span class="doccomment">/// The approximate maximum number of bytes submitted within one flush cycle.
     ///
@@ -622,11 +634,23 @@
     /// adds some additional overhead, this number is approxmate and some safety margin should be
     /// left to hard limits.
     </span><span class="kw">pub </span>max_flush_bytes: usize,
+
     <span class="doccomment">/// The number of logical partitions that can receive flushed buckets.
     ///
     /// If set, buckets are partitioned by (bucket key % flush_partitions), and routed
     /// by setting the header `X-Sentry-Relay-Shard`.
     </span><span class="kw">pub </span>flush_partitions: <span class="prelude-ty">Option</span>&lt;u64&gt;,
+
+    <span class="doccomment">/// The batching mode for the flushing of the aggregator.
+    ///
+    /// Batching is applied via shifts to the flushing time that is determined when the first bucket
+    /// is inserted. Thanks to the shifts, Relay is able to prevent flushing all buckets from a
+    /// bucket interval at the same time.
+    ///
+    /// For example, the aggregator can choose to shift by the same value all buckets within a given
+    /// partition, effectively allowing all the elements of that partition to be flushed together.
+    </span><span class="attr">#[serde(alias = <span class="string">"shift_key"</span>)]
+    </span><span class="kw">pub </span>flush_batching: FlushBatching,
 }
 
 <span class="kw">impl </span>Default <span class="kw">for </span>AggregatorServiceConfig {
@@ -642,9 +666,9 @@
             max_tag_key_length: <span class="number">200</span>,
             max_tag_value_length: <span class="number">200</span>,
             max_project_key_bucket_bytes: <span class="prelude-val">None</span>,
-            shift_key: ShiftKey::default(),
             max_flush_bytes: <span class="number">5_000_000</span>, <span class="comment">// 5 MB
             </span>flush_partitions: <span class="prelude-val">None</span>,
+            flush_batching: FlushBatching::Project,
         }
     }
 }
@@ -661,7 +685,8 @@
             max_tag_key_length: value.max_tag_key_length,
             max_tag_value_length: value.max_tag_value_length,
             max_project_key_bucket_bytes: value.max_project_key_bucket_bytes,
-            shift_key: value.shift_key,
+            flush_partitions: value.flush_partitions,
+            flush_batching: value.flush_batching,
         }
     }
 }
@@ -741,6 +766,10 @@
 ///   failed buckets. They will be merged back into the aggregator and flushed at a later time.
 </span><span class="attr">#[derive(Clone, Debug)]
 </span><span class="kw">pub struct </span>FlushBuckets {
+    <span class="doccomment">/// The partition to which the buckets belong.
+    ///
+    /// When set to `Some` it means that partitioning was enabled in the [`Aggregator`].
+    </span><span class="kw">pub </span>partition_key: <span class="prelude-ty">Option</span>&lt;u64&gt;,
     <span class="doccomment">/// The buckets to be flushed.
     </span><span class="kw">pub </span>buckets: HashMap&lt;ProjectKey, Vec&lt;Bucket&gt;&gt;,
 }
@@ -799,23 +828,25 @@
     /// If `force` is true, flush all buckets unconditionally and do not attempt to merge back.
     </span><span class="kw">fn </span>try_flush(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
         <span class="kw">let </span>force_flush = <span class="macro">matches!</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.state, AggregatorState::ShuttingDown);
-        <span class="kw">let </span>buckets = <span class="self">self</span>.aggregator.pop_flush_buckets(force_flush);
+        <span class="kw">let </span>partitions = <span class="self">self</span>.aggregator.pop_flush_buckets(force_flush);
 
-        <span class="kw">if </span>buckets.is_empty() {
+        <span class="kw">if </span>partitions.is_empty() {
             <span class="kw">return</span>;
         }
 
-        <span class="macro">relay_log::trace!</span>(<span class="string">"flushing {} projects to receiver"</span>, buckets.len());
+        <span class="macro">relay_log::trace!</span>(<span class="string">"flushing {} partitions to receiver"</span>, partitions.len());
 
         <span class="kw">let </span><span class="kw-2">mut </span>total_bucket_count = <span class="number">0u64</span>;
-        <span class="kw">for </span>buckets <span class="kw">in </span>buckets.values() {
-            <span class="kw">let </span>bucket_count = buckets.len() <span class="kw">as </span>u64;
-            total_bucket_count += bucket_count;
+        <span class="kw">for </span>buckets_by_project <span class="kw">in </span>partitions.values() {
+            <span class="kw">for </span>buckets <span class="kw">in </span>buckets_by_project.values() {
+                <span class="kw">let </span>bucket_count = buckets.len() <span class="kw">as </span>u64;
+                total_bucket_count += bucket_count;
 
-            <span class="macro">relay_statsd::metric!</span>(
-                histogram(MetricHistograms::BucketsFlushedPerProject) = bucket_count,
-                aggregator = <span class="self">self</span>.aggregator.name(),
-            );
+                <span class="macro">relay_statsd::metric!</span>(
+                    histogram(MetricHistograms::BucketsFlushedPerProject) = bucket_count,
+                    aggregator = <span class="self">self</span>.aggregator.name(),
+                );
+            }
         }
 
         <span class="macro">relay_statsd::metric!</span>(
@@ -824,7 +855,12 @@
         );
 
         <span class="kw">if let </span><span class="prelude-val">Some</span>(<span class="kw-2">ref </span>receiver) = <span class="self">self</span>.receiver {
-            receiver.send(FlushBuckets { buckets })
+            <span class="kw">for </span>(partition_key, buckets_by_project) <span class="kw">in </span>partitions {
+                receiver.send(FlushBuckets {
+                    partition_key,
+                    buckets: buckets_by_project,
+                })
+            }
         }
     }
 

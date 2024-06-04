@@ -2478,10 +2478,6 @@
 <a href="#2476" id="2476">2476</a>
 <a href="#2477" id="2477">2477</a>
 <a href="#2478" id="2478">2478</a>
-<a href="#2479" id="2479">2479</a>
-<a href="#2480" id="2480">2480</a>
-<a href="#2481" id="2481">2481</a>
-<a href="#2482" id="2482">2482</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::io::Write;
@@ -2498,7 +2494,7 @@
     ConfigError <span class="kw">as </span>KafkaConfigError, KafkaConfigParam, KafkaParams, KafkaTopic, TopicAssignment,
     TopicAssignments,
 };
-<span class="kw">use </span>relay_metrics::aggregator::{AggregatorConfig, ShiftKey};
+<span class="kw">use </span>relay_metrics::aggregator::{AggregatorConfig, FlushBatching};
 <span class="kw">use </span>relay_metrics::{AggregatorServiceConfig, MetricNamespace, ScopedAggregatorConfig};
 <span class="kw">use </span>relay_redis::RedisConfig;
 <span class="kw">use </span>serde::de::{DeserializeOwned, Unexpected, Visitor};
@@ -4760,11 +4756,6 @@
         <span class="self">self</span>.values.processing.attachment_chunk_size.as_bytes()
     }
 
-    <span class="doccomment">/// Amount of metric partitions.
-    </span><span class="kw">pub fn </span>metrics_partitions(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;u64&gt; {
-        <span class="self">self</span>.values.aggregator.flush_partitions
-    }
-
     <span class="doccomment">/// Maximum metrics batch size in bytes.
     </span><span class="kw">pub fn </span>metrics_max_batch_size_bytes(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
         <span class="self">self</span>.values.aggregator.max_flush_bytes
@@ -4882,7 +4873,8 @@
             max_project_key_bucket_bytes,
             initial_delay: <span class="number">30</span>,
             debounce_delay: <span class="number">10</span>,
-            shift_key: ShiftKey::Project,
+            flush_partitions: <span class="prelude-val">None</span>,
+            flush_batching: FlushBatching::Project,
         }
     }
 

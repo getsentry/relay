@@ -1514,12 +1514,72 @@
 <a href="#1512" id="1512">1512</a>
 <a href="#1513" id="1513">1513</a>
 <a href="#1514" id="1514">1514</a>
+<a href="#1515" id="1515">1515</a>
+<a href="#1516" id="1516">1516</a>
+<a href="#1517" id="1517">1517</a>
+<a href="#1518" id="1518">1518</a>
+<a href="#1519" id="1519">1519</a>
+<a href="#1520" id="1520">1520</a>
+<a href="#1521" id="1521">1521</a>
+<a href="#1522" id="1522">1522</a>
+<a href="#1523" id="1523">1523</a>
+<a href="#1524" id="1524">1524</a>
+<a href="#1525" id="1525">1525</a>
+<a href="#1526" id="1526">1526</a>
+<a href="#1527" id="1527">1527</a>
+<a href="#1528" id="1528">1528</a>
+<a href="#1529" id="1529">1529</a>
+<a href="#1530" id="1530">1530</a>
+<a href="#1531" id="1531">1531</a>
+<a href="#1532" id="1532">1532</a>
+<a href="#1533" id="1533">1533</a>
+<a href="#1534" id="1534">1534</a>
+<a href="#1535" id="1535">1535</a>
+<a href="#1536" id="1536">1536</a>
+<a href="#1537" id="1537">1537</a>
+<a href="#1538" id="1538">1538</a>
+<a href="#1539" id="1539">1539</a>
+<a href="#1540" id="1540">1540</a>
+<a href="#1541" id="1541">1541</a>
+<a href="#1542" id="1542">1542</a>
+<a href="#1543" id="1543">1543</a>
+<a href="#1544" id="1544">1544</a>
+<a href="#1545" id="1545">1545</a>
+<a href="#1546" id="1546">1546</a>
+<a href="#1547" id="1547">1547</a>
+<a href="#1548" id="1548">1548</a>
+<a href="#1549" id="1549">1549</a>
+<a href="#1550" id="1550">1550</a>
+<a href="#1551" id="1551">1551</a>
+<a href="#1552" id="1552">1552</a>
+<a href="#1553" id="1553">1553</a>
+<a href="#1554" id="1554">1554</a>
+<a href="#1555" id="1555">1555</a>
+<a href="#1556" id="1556">1556</a>
+<a href="#1557" id="1557">1557</a>
+<a href="#1558" id="1558">1558</a>
+<a href="#1559" id="1559">1559</a>
+<a href="#1560" id="1560">1560</a>
+<a href="#1561" id="1561">1561</a>
+<a href="#1562" id="1562">1562</a>
+<a href="#1563" id="1563">1563</a>
+<a href="#1564" id="1564">1564</a>
+<a href="#1565" id="1565">1565</a>
+<a href="#1566" id="1566">1566</a>
+<a href="#1567" id="1567">1567</a>
+<a href="#1568" id="1568">1568</a>
+<a href="#1569" id="1569">1569</a>
+<a href="#1570" id="1570">1570</a>
+<a href="#1571" id="1571">1571</a>
+<a href="#1572" id="1572">1572</a>
+<a href="#1573" id="1573">1573</a>
+<a href="#1574" id="1574">1574</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Core functionality of metrics aggregation.
 
 </span><span class="kw">use </span>std::collections::hash_map::Entry;
 <span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
-<span class="kw">use </span>std::hash::Hasher;
+<span class="kw">use </span>std::hash::{Hash, Hasher};
 <span class="kw">use </span>std::time::Duration;
 <span class="kw">use </span>std::{fmt, mem};
 
@@ -1604,6 +1664,24 @@
     </span><span class="kw">fn </span>namespace(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; MetricNamespace {
         <span class="self">self</span>.metric_name.namespace()
     }
+
+    <span class="doccomment">/// Computes a stable partitioning key for this [`Bucket`].
+    ///
+    /// The partitioning key is inherently producing collisions, since the output of the hasher is
+    /// reduced into an interval of size `partitions`. This means that buckets with totally
+    /// different values might end up in the same partition.
+    ///
+    /// The role of partitioning is to let Relays forward the same metric to the same upstream
+    /// instance with the goal of increasing bucketing efficiency.
+    </span><span class="kw">fn </span>partition_key(<span class="kw-2">&amp;</span><span class="self">self</span>, partitions: u64) -&gt; u64 {
+        <span class="kw">let </span>key = (<span class="self">self</span>.project_key, <span class="kw-2">&amp;</span><span class="self">self</span>.metric_name, <span class="kw-2">&amp;</span><span class="self">self</span>.tags);
+
+        <span class="kw">let </span><span class="kw-2">mut </span>hasher = fnv::FnvHasher::default();
+        key.hash(<span class="kw-2">&amp;mut </span>hasher);
+
+        <span class="kw">let </span>partitions = partitions.max(<span class="number">1</span>);
+        hasher.finish() % partitions
+    }
 }
 
 <span class="doccomment">/// Estimates the number of bytes needed to encode the tags.
@@ -1614,10 +1692,10 @@
     tags.iter().map(|(k, v)| k.len() + v.len()).sum()
 }
 
-<span class="doccomment">/// Configuration value for [`AggregatorConfig::shift_key`].
+<span class="doccomment">/// Configuration value for [`AggregatorConfig::flush_batching`].
 </span><span class="attr">#[derive(Clone, Copy, Debug, Default, Deserialize, Serialize)]
 #[serde(rename_all = <span class="string">"lowercase"</span>)]
-</span><span class="kw">pub enum </span>ShiftKey {
+</span><span class="kw">pub enum </span>FlushBatching {
     <span class="doccomment">/// Shifts the flush time by an offset based on the [`ProjectKey`].
     ///
     /// This allows buckets from the same project to be flushed together.
@@ -1628,10 +1706,21 @@
     ///
     /// This allows for a completely random distribution of bucket flush times.
     ///
-    /// Only for use in processing Relays.
+    /// It should only be used in processing Relays since this flushing behavior it's better
+    /// suited for how Relay emits metrics to Kafka.
     </span>Bucket,
 
-    <span class="doccomment">/// Do not apply shift. This should be set when `http.global_metrics` is used.
+    <span class="doccomment">/// Shifts the flush time by an offset based on the partition key.
+    ///
+    /// This allows buckets belonging to the same partition to be flushed together. Requires
+    /// [`flush_partitions`](AggregatorConfig::flush_partitions) to be set, otherwise this will fall
+    /// back to [`FlushBatching::Project`].
+    ///
+    /// It should only be used in Relays with the `http.global_metrics` option set since when
+    /// encoding metrics via the global endpoint we can leverage partitioning.
+    </span>Partition,
+
+    <span class="doccomment">/// Do not apply shift.
     </span><span class="prelude-val">None</span>,
 }
 
@@ -1697,11 +1786,24 @@
     /// Defaults to `None`, i.e. no limit.
     </span><span class="kw">pub </span>max_project_key_bucket_bytes: <span class="prelude-ty">Option</span>&lt;usize&gt;,
 
-    <span class="doccomment">/// Key used to shift the flush time of a bucket.
+    <span class="doccomment">/// The number of logical partitions that can receive flushed buckets.
     ///
-    /// This prevents flushing all buckets from a bucket interval at the same
-    /// time by computing an offset from the hash of the given key.
-    </span><span class="kw">pub </span>shift_key: ShiftKey,
+    /// If set, buckets are partitioned by (bucket key % flush_partitions), and routed
+    /// by setting the header `X-Sentry-Relay-Shard`.
+    ///
+    /// This setting will take effect only when paired with [`FlushBatching::Partition`].
+    </span><span class="kw">pub </span>flush_partitions: <span class="prelude-ty">Option</span>&lt;u64&gt;,
+
+    <span class="doccomment">/// The batching mode for the flushing of the aggregator.
+    ///
+    /// Batching is applied via shifts to the flushing time that is determined when the first bucket
+    /// is inserted. Thanks to the shifts, Relay is able to prevent flushing all buckets from a
+    /// bucket interval at the same time.
+    ///
+    /// For example, the aggregator can choose to shift by the same value all buckets within a given
+    /// partition, effectively allowing all the elements of that partition to be flushed together.
+    </span><span class="attr">#[serde(alias = <span class="string">"shift_key"</span>)]
+    </span><span class="kw">pub </span>flush_batching: FlushBatching,
 }
 
 <span class="kw">impl </span>AggregatorConfig {
@@ -1756,21 +1858,29 @@
         Duration::from_secs(<span class="self">self</span>.initial_delay)
     }
 
-    <span class="comment">// Shift deterministically within one bucket interval based on the project or bucket key.
-    //
-    // This distributes buckets over time to prevent peaks.
+    <span class="doccomment">/// Shift deterministically within one bucket interval based on the configured [`FlushBatching`].
+    ///
+    /// This distributes buckets over time to prevent peaks.
     </span><span class="kw">fn </span>flush_time_shift(<span class="kw-2">&amp;</span><span class="self">self</span>, bucket: <span class="kw-2">&amp;</span>BucketKey) -&gt; Duration {
-        <span class="kw">let </span>hash_value = <span class="kw">match </span><span class="self">self</span>.shift_key {
-            ShiftKey::Project =&gt; {
-                <span class="kw">let </span><span class="kw-2">mut </span>hasher = FnvHasher::default();
-                hasher.write(bucket.project_key.as_str().as_bytes());
-                hasher.finish()
-            }
-            ShiftKey::Bucket =&gt; bucket.hash64(),
-            ShiftKey::None =&gt; <span class="kw">return </span>Duration::ZERO,
+        <span class="kw">let </span>shift_range = <span class="self">self</span>.bucket_interval * <span class="number">1000</span>;
+
+        <span class="comment">// Fall back to default flushing by project if no partitioning is configured.
+        </span><span class="kw">let </span>(batching, partitions) = <span class="kw">match </span>(<span class="self">self</span>.flush_batching, <span class="self">self</span>.flush_partitions) {
+            (FlushBatching::Partition, <span class="prelude-val">None </span>| <span class="prelude-val">Some</span>(<span class="number">0</span>)) =&gt; (FlushBatching::Project, <span class="number">0</span>),
+            (flush_batching, partitions) =&gt; (flush_batching, partitions.unwrap_or(<span class="number">0</span>)),
         };
 
-        <span class="kw">let </span>shift_millis = hash_value % (<span class="self">self</span>.bucket_interval * <span class="number">1000</span>);
+        <span class="kw">let </span>shift_millis = <span class="kw">match </span>batching {
+            FlushBatching::Project =&gt; {
+                <span class="kw">let </span><span class="kw-2">mut </span>hasher = FnvHasher::default();
+                hasher.write(bucket.project_key.as_str().as_bytes());
+                hasher.finish() % shift_range
+            }
+            FlushBatching::Bucket =&gt; bucket.hash64() % shift_range,
+            FlushBatching::Partition =&gt; shift_range * bucket.partition_key(partitions) / partitions,
+            FlushBatching::None =&gt; <span class="number">0</span>,
+        };
+
         Duration::from_millis(shift_millis)
     }
 
@@ -1809,7 +1919,8 @@
             max_tag_key_length: <span class="number">200</span>,
             max_tag_value_length: <span class="number">200</span>,
             max_project_key_bucket_bytes: <span class="prelude-val">None</span>,
-            shift_key: ShiftKey::default(),
+            flush_batching: FlushBatching::default(),
+            flush_partitions: <span class="prelude-val">None</span>,
         }
     }
 }
@@ -2055,10 +2166,16 @@
             .collect()
     }
 
-    <span class="doccomment">/// Pop and return the buckets that are eligible for flushing out according to bucket interval.
+    <span class="doccomment">/// Pop and return the partitions with buckets that are eligible for flushing out according to
+    /// bucket interval.
+    ///
+    /// If no partitioning is enabled, the function will return a single `None` partition.
     ///
     /// Note that this function is primarily intended for tests.
-    </span><span class="kw">pub fn </span>pop_flush_buckets(<span class="kw-2">&amp;mut </span><span class="self">self</span>, force: bool) -&gt; HashMap&lt;ProjectKey, Vec&lt;Bucket&gt;&gt; {
+    </span><span class="kw">pub fn </span>pop_flush_buckets(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        force: bool,
+    ) -&gt; HashMap&lt;<span class="prelude-ty">Option</span>&lt;u64&gt;, HashMap&lt;ProjectKey, Vec&lt;Bucket&gt;&gt;&gt; {
         <span class="macro">relay_statsd::metric!</span>(
             gauge(MetricGauges::Buckets) = <span class="self">self</span>.bucket_count() <span class="kw">as </span>u64,
             aggregator = <span class="kw-2">&amp;</span><span class="self">self</span>.name,
@@ -2071,7 +2188,7 @@
             aggregator = <span class="kw-2">&amp;</span><span class="self">self</span>.name,
         );
 
-        <span class="kw">let </span><span class="kw-2">mut </span>buckets = HashMap::new();
+        <span class="kw">let </span><span class="kw-2">mut </span>partitions = HashMap::new();
         <span class="kw">let </span><span class="kw-2">mut </span>stats = HashMap::new();
 
         <span class="macro">relay_statsd::metric!</span>(
@@ -2103,7 +2220,9 @@
                             metadata,
                         };
 
-                        buckets
+                        partitions
+                            .entry(<span class="self">self</span>.config.flush_partitions.map(|p| key.partition_key(p)))
+                            .or_insert_with(HashMap::new)
                             .entry(key.project_key)
                             .or_insert_with(Vec::new)
                             .push(bucket);
@@ -2125,7 +2244,7 @@
             );
         }
 
-        buckets
+        partitions
     }
 
     <span class="doccomment">/// Wrapper for [`AggregatorConfig::get_bucket_timestamp`].
@@ -2407,7 +2526,8 @@
             max_tag_key_length: <span class="number">200</span>,
             max_tag_value_length: <span class="number">200</span>,
             max_project_key_bucket_bytes: <span class="prelude-val">None</span>,
-            shift_key: ShiftKey::default(),
+            flush_batching: FlushBatching::default(),
+            flush_partitions: <span class="prelude-val">None</span>,
         }
     }
 
@@ -2979,10 +3099,10 @@
     }
 
     <span class="attr">#[test]
-    </span><span class="kw">fn </span>test_parse_shift_key() {
-        <span class="kw">let </span>json = <span class="string">r#"{"shift_key": "bucket"}"#</span>;
+    </span><span class="kw">fn </span>test_parse_flush_batching() {
+        <span class="kw">let </span>json = <span class="string">r#"{"shift_key": "partition"}"#</span>;
         <span class="kw">let </span>parsed: AggregatorConfig = serde_json::from_str(json).unwrap();
-        <span class="macro">assert!</span>(<span class="macro">matches!</span>(parsed.shift_key, ShiftKey::Bucket));
+        <span class="macro">assert!</span>(<span class="macro">matches!</span>(parsed.flush_batching, FlushBatching::Partition));
     }
 
     <span class="attr">#[test]

@@ -1583,6 +1583,7 @@
 <a href="#1581" id="1581">1581</a>
 <a href="#1582" id="1582">1582</a>
 <a href="#1583" id="1583">1583</a>
+<a href="#1584" id="1584">1584</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
 <span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::sync::Arc;
@@ -2484,17 +2485,18 @@
     <span class="kw">fn </span>handle_flush_buckets(<span class="kw-2">&amp;mut </span><span class="self">self</span>, message: FlushBuckets) {
         <span class="kw">let </span>metric_outcomes = <span class="self">self</span>.metric_outcomes.clone();
 
-        <span class="kw">let </span><span class="kw-2">mut </span>output = BTreeMap::new();
+        <span class="kw">let </span><span class="kw-2">mut </span>scoped_buckets = BTreeMap::new();
         <span class="kw">for </span>(project_key, buckets) <span class="kw">in </span>message.buckets {
             <span class="kw">let </span>project = <span class="self">self</span>.get_or_create_project(project_key);
             <span class="kw">if let </span><span class="prelude-val">Some</span>((scoping, b)) = project.check_buckets(<span class="kw-2">&amp;</span>metric_outcomes, buckets) {
-                output.insert(scoping, b);
+                scoped_buckets.insert(scoping, b);
             }
         }
 
-        <span class="self">self</span>.services
-            .envelope_processor
-            .send(EncodeMetrics { scopes: output })
+        <span class="self">self</span>.services.envelope_processor.send(EncodeMetrics {
+            partition_key: message.partition_key,
+            scopes: scoped_buckets,
+        })
     }
 
     <span class="kw">fn </span>handle_buffer_index(<span class="kw-2">&amp;mut </span><span class="self">self</span>, message: UpdateSpoolIndex) {

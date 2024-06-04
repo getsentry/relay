@@ -3642,31 +3642,6 @@
 <a href="#3640" id="3640">3640</a>
 <a href="#3641" id="3641">3641</a>
 <a href="#3642" id="3642">3642</a>
-<a href="#3643" id="3643">3643</a>
-<a href="#3644" id="3644">3644</a>
-<a href="#3645" id="3645">3645</a>
-<a href="#3646" id="3646">3646</a>
-<a href="#3647" id="3647">3647</a>
-<a href="#3648" id="3648">3648</a>
-<a href="#3649" id="3649">3649</a>
-<a href="#3650" id="3650">3650</a>
-<a href="#3651" id="3651">3651</a>
-<a href="#3652" id="3652">3652</a>
-<a href="#3653" id="3653">3653</a>
-<a href="#3654" id="3654">3654</a>
-<a href="#3655" id="3655">3655</a>
-<a href="#3656" id="3656">3656</a>
-<a href="#3657" id="3657">3657</a>
-<a href="#3658" id="3658">3658</a>
-<a href="#3659" id="3659">3659</a>
-<a href="#3660" id="3660">3660</a>
-<a href="#3661" id="3661">3661</a>
-<a href="#3662" id="3662">3662</a>
-<a href="#3663" id="3663">3663</a>
-<a href="#3664" id="3664">3664</a>
-<a href="#3665" id="3665">3665</a>
-<a href="#3666" id="3666">3666</a>
-<a href="#3667" id="3667">3667</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
@@ -3683,7 +3658,6 @@
 <span class="kw">use </span>chrono::{DateTime, Utc};
 <span class="kw">use </span>flate2::write::{GzEncoder, ZlibEncoder};
 <span class="kw">use </span>flate2::Compression;
-<span class="kw">use </span>fnv::FnvHasher;
 <span class="kw">use </span>relay_base_schema::project::{ProjectId, ProjectKey};
 <span class="kw">use </span>relay_cogs::{AppFeature, Cogs, FeatureWeights, ResourceId, Token};
 <span class="kw">use </span>relay_common::time::UnixTimestamp;
@@ -4480,6 +4454,7 @@
 <span class="doccomment">/// Encodes metrics into an envelope ready to be sent upstream.
 </span><span class="attr">#[derive(Debug)]
 </span><span class="kw">pub struct </span>EncodeMetrics {
+    <span class="kw">pub </span>partition_key: <span class="prelude-ty">Option</span>&lt;u64&gt;,
     <span class="kw">pub </span>scopes: BTreeMap&lt;Scoping, ProjectMetrics&gt;,
 }
 
@@ -6117,68 +6092,56 @@
     /// access to the central Redis instance. Cached rate limits are applied in the project cache
     /// already.
     </span><span class="kw">fn </span>encode_metrics_envelope(<span class="kw-2">&amp;</span><span class="self">self</span>, message: EncodeMetrics) {
+        <span class="kw">let </span>EncodeMetrics {
+            partition_key,
+            scopes,
+        } = message;
+
         <span class="kw">let </span>batch_size = <span class="self">self</span>.inner.config.metrics_max_batch_size_bytes();
         <span class="kw">let </span>upstream = <span class="self">self</span>.inner.config.upstream_descriptor();
 
-        <span class="kw">for </span>(scoping, message) <span class="kw">in </span>message.scopes {
+        <span class="kw">for </span>(scoping, message) <span class="kw">in </span>scopes {
             <span class="kw">let </span>ProjectMetrics { buckets, .. } = message;
 
-            <span class="kw">let </span>project_key = scoping.project_key;
             <span class="kw">let </span>dsn = PartialDsn::outbound(<span class="kw-2">&amp;</span>scoping, upstream);
 
-            <span class="kw">let </span>partitions = <span class="kw">if let </span><span class="prelude-val">Some</span>(count) = <span class="self">self</span>.inner.config.metrics_partitions() {
-                <span class="kw">let </span><span class="kw-2">mut </span>partitions: BTreeMap&lt;<span class="prelude-ty">Option</span>&lt;u64&gt;, Vec&lt;Bucket&gt;&gt; = BTreeMap::new();
-                <span class="kw">for </span>bucket <span class="kw">in </span>buckets {
-                    <span class="kw">let </span>partition_key = partition_key(project_key, <span class="kw-2">&amp;</span>bucket, <span class="prelude-val">Some</span>(count));
-                    partitions.entry(partition_key).or_default().push(bucket);
-                }
-                partitions
-            } <span class="kw">else </span>{
-                BTreeMap::from([(<span class="prelude-val">None</span>, buckets)])
-            };
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(key) = partition_key {
+                <span class="macro">relay_statsd::metric!</span>(histogram(RelayHistograms::PartitionKeys) = key);
+            }
 
-            <span class="kw">for </span>(partition_key, buckets) <span class="kw">in </span>partitions {
-                <span class="kw">if let </span><span class="prelude-val">Some</span>(key) = partition_key {
-                    <span class="macro">relay_statsd::metric!</span>(histogram(RelayHistograms::PartitionKeys) = key);
-                }
+            <span class="kw">let </span><span class="kw-2">mut </span>num_batches = <span class="number">0</span>;
+            <span class="kw">for </span>batch <span class="kw">in </span>BucketsView::from(<span class="kw-2">&amp;</span>buckets).by_size(batch_size) {
+                <span class="kw">let </span><span class="kw-2">mut </span>envelope = Envelope::from_request(<span class="prelude-val">None</span>, RequestMeta::outbound(dsn.clone()));
 
-                <span class="kw">let </span><span class="kw-2">mut </span>num_batches = <span class="number">0</span>;
-                <span class="kw">for </span>batch <span class="kw">in </span>BucketsView::from(<span class="kw-2">&amp;</span>buckets).by_size(batch_size) {
-                    <span class="kw">let </span><span class="kw-2">mut </span>envelope =
-                        Envelope::from_request(<span class="prelude-val">None</span>, RequestMeta::outbound(dsn.clone()));
+                <span class="kw">let </span><span class="kw-2">mut </span>item = Item::new(ItemType::MetricBuckets);
+                item.set_source_quantities(metrics::extract_quantities(batch));
+                item.set_payload(ContentType::Json, serde_json::to_vec(<span class="kw-2">&amp;</span>buckets).unwrap());
+                envelope.add_item(item);
 
-                    <span class="kw">let </span><span class="kw-2">mut </span>item = Item::new(ItemType::MetricBuckets);
-                    item.set_source_quantities(metrics::extract_quantities(batch));
-                    item.set_payload(ContentType::Json, serde_json::to_vec(<span class="kw-2">&amp;</span>buckets).unwrap());
-                    envelope.add_item(item);
-
-                    <span class="kw">let </span><span class="kw-2">mut </span>envelope = ManagedEnvelope::standalone(
-                        envelope,
-                        <span class="self">self</span>.inner.addrs.outcome_aggregator.clone(),
-                        <span class="self">self</span>.inner.addrs.test_store.clone(),
-                        ProcessingGroup::Metrics,
-                    );
-                    envelope.set_partition_key(partition_key).scope(scoping);
-
-                    <span class="macro">relay_statsd::metric!</span>(
-                        histogram(RelayHistograms::BucketsPerBatch) = batch.len() <span class="kw">as </span>u64
-                    );
-
-                    <span class="self">self</span>.handle_submit_envelope(SubmitEnvelope {
-                        envelope: envelope.into_processed(),
-                    });
-                    num_batches += <span class="number">1</span>;
-                }
+                <span class="kw">let </span><span class="kw-2">mut </span>envelope = ManagedEnvelope::standalone(
+                    envelope,
+                    <span class="self">self</span>.inner.addrs.outcome_aggregator.clone(),
+                    <span class="self">self</span>.inner.addrs.test_store.clone(),
+                    ProcessingGroup::Metrics,
+                );
+                envelope.set_partition_key(partition_key).scope(scoping);
 
                 <span class="macro">relay_statsd::metric!</span>(
-                    histogram(RelayHistograms::BatchesPerPartition) = num_batches
+                    histogram(RelayHistograms::BucketsPerBatch) = batch.len() <span class="kw">as </span>u64
                 );
+
+                <span class="self">self</span>.handle_submit_envelope(SubmitEnvelope {
+                    envelope: envelope.into_processed(),
+                });
+                num_batches += <span class="number">1</span>;
             }
+
+            <span class="macro">relay_statsd::metric!</span>(histogram(RelayHistograms::BatchesPerPartition) = num_batches);
         }
     }
 
     <span class="doccomment">/// Creates a [`SendMetricsRequest`] and sends it to the upstream relay.
-    </span><span class="kw">fn </span>send_global_partition(<span class="kw-2">&amp;</span><span class="self">self</span>, key: <span class="prelude-ty">Option</span>&lt;u64&gt;, partition: <span class="kw-2">&amp;mut </span>Partition&lt;<span class="lifetime">'_</span>&gt;) {
+    </span><span class="kw">fn </span>send_global_partition(<span class="kw-2">&amp;</span><span class="self">self</span>, partition_key: <span class="prelude-ty">Option</span>&lt;u64&gt;, partition: <span class="kw-2">&amp;mut </span>Partition&lt;<span class="lifetime">'_</span>&gt;) {
         <span class="kw">if </span>partition.is_empty() {
             <span class="kw">return</span>;
         }
@@ -6195,7 +6158,7 @@
         };
 
         <span class="kw">let </span>request = SendMetricsRequest {
-            partition_key: key.map(|k| k.to_string()),
+            partition_key: partition_key.map(|k| k.to_string()),
             unencoded,
             encoded,
             project_info,
@@ -6221,37 +6184,33 @@
     /// access to the central Redis instance. Cached rate limits are applied in the project cache
     /// already.
     </span><span class="kw">fn </span>encode_metrics_global(<span class="kw-2">&amp;</span><span class="self">self</span>, message: EncodeMetrics) {
-        <span class="kw">let </span>partition_count = <span class="self">self</span>.inner.config.metrics_partitions();
+        <span class="kw">let </span>EncodeMetrics {
+            partition_key,
+            scopes,
+        } = message;
+
         <span class="kw">let </span>batch_size = <span class="self">self</span>.inner.config.metrics_max_batch_size_bytes();
+        <span class="kw">let </span><span class="kw-2">mut </span>partition = Partition::new(batch_size);
 
-        <span class="kw">let </span><span class="kw-2">mut </span>partitions = BTreeMap::new();
-
-        <span class="kw">for </span>(scoping, message) <span class="kw">in </span><span class="kw-2">&amp;</span>message.scopes {
+        <span class="kw">for </span>(scoping, message) <span class="kw">in </span><span class="kw-2">&amp;</span>scopes {
             <span class="kw">let </span>ProjectMetrics { buckets, .. } = message;
 
             <span class="kw">for </span>bucket <span class="kw">in </span>buckets {
-                <span class="kw">let </span>partition_key = partition_key(scoping.project_key, bucket, partition_count);
-
                 <span class="kw">let </span><span class="kw-2">mut </span>remaining = <span class="prelude-val">Some</span>(BucketView::new(bucket));
-                <span class="kw">while let </span><span class="prelude-val">Some</span>(bucket) = remaining.take() {
-                    <span class="kw">let </span>partition = partitions
-                        .entry(partition_key)
-                        .or_insert_with(|| Partition::new(batch_size));
 
+                <span class="kw">while let </span><span class="prelude-val">Some</span>(bucket) = remaining.take() {
                     <span class="kw">if let </span><span class="prelude-val">Some</span>(next) = partition.insert(bucket, <span class="kw-2">*</span>scoping) {
                         <span class="comment">// A part of the bucket could not be inserted. Take the partition and submit
                         // it immediately. Repeat until the final part was inserted. This should
                         // always result in a request, otherwise we would enter an endless loop.
-                        </span><span class="self">self</span>.send_global_partition(partition_key, partition);
+                        </span><span class="self">self</span>.send_global_partition(partition_key, <span class="kw-2">&amp;mut </span>partition);
                         remaining = <span class="prelude-val">Some</span>(next);
                     }
                 }
             }
         }
 
-        <span class="kw">for </span>(partition_key, <span class="kw-2">mut </span>partition) <span class="kw">in </span>partitions {
-            <span class="self">self</span>.send_global_partition(partition_key, <span class="kw-2">&amp;mut </span>partition);
-        }
+        <span class="self">self</span>.send_global_partition(partition_key, <span class="kw-2">&amp;mut </span>partition);
     }
 
     <span class="kw">fn </span>handle_encode_metrics(<span class="kw-2">&amp;</span><span class="self">self</span>, message: EncodeMetrics) {
@@ -6529,18 +6488,6 @@
             }
         })
     }
-}
-
-<span class="doccomment">/// Computes a stable partitioning key for sharded metric requests.
-</span><span class="kw">fn </span>partition_key(project_key: ProjectKey, bucket: <span class="kw-2">&amp;</span>Bucket, partitions: <span class="prelude-ty">Option</span>&lt;u64&gt;) -&gt; <span class="prelude-ty">Option</span>&lt;u64&gt; {
-    <span class="kw">use </span>std::hash::{Hash, Hasher};
-
-    <span class="kw">let </span>partitions = partitions<span class="question-mark">?</span>.max(<span class="number">1</span>);
-    <span class="kw">let </span>key = (project_key, <span class="kw-2">&amp;</span>bucket.name, <span class="kw-2">&amp;</span>bucket.tags);
-
-    <span class="kw">let </span><span class="kw-2">mut </span>hasher = FnvHasher::default();
-    key.hash(<span class="kw-2">&amp;mut </span>hasher);
-    <span class="prelude-val">Some</span>(hasher.finish() % partitions)
 }
 
 <span class="doccomment">/// A container for metric buckets from multiple projects.
@@ -6886,7 +6833,10 @@
             scopes.insert(scoping_by_org_id(rate_limited_org), project_metrics.clone());
             scopes.insert(scoping_by_org_id(not_ratelimited_org), project_metrics);
 
-            EncodeMetrics { scopes }
+            EncodeMetrics {
+                partition_key: <span class="prelude-val">None</span>,
+                scopes,
+            }
         };
 
         <span class="comment">// ensure the order of the map while iterating is as expected.

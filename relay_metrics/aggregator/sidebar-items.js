@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["ShiftKey"],"fn":["tags_cost"],"struct":["AggregateMetricsError","Aggregator","AggregatorConfig"]};
+window.SIDEBAR_ITEMS = {"enum":["FlushBatching"],"fn":["tags_cost"],"struct":["AggregateMetricsError","Aggregator","AggregatorConfig"]};
