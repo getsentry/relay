@@ -613,7 +613,7 @@ fn parse_field_attributes(
                                         other => panic!("Unknown value {other}"),
                                     },
                                     _ => {
-                                        panic!("Got non string literal for retain");
+                                        panic!("Got non string literal for trim");
                                     }
                                 }
                             } else if ident == "legacy_alias" || ident == "skip_serialization" {
