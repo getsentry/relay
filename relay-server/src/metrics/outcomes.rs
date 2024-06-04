@@ -7,32 +7,12 @@ use relay_quotas::{DataCategory, Scoping};
 use relay_system::Addr;
 
 use crate::envelope::SourceQuantities;
-use crate::metrics::{ExtractionMode, MetricStats};
+use crate::metrics::MetricStats;
 use crate::services::outcome::{Outcome, TrackOutcome};
 #[cfg(feature = "processing")]
 use relay_cardinality::{CardinalityLimit, CardinalityReport};
 
 pub const PROFILE_TAG: &str = "has_profile";
-
-/// Indicates where quantities should be taken from.
-pub enum Quantities {
-    /// Calculates the quantities from the passed buckets using [`ExtractionMode`].
-    FromBuckets(ExtractionMode),
-    /// Uses the provided [`SourceQuantities`].
-    Value(SourceQuantities),
-}
-
-impl From<ExtractionMode> for Quantities {
-    fn from(value: ExtractionMode) -> Self {
-        Self::FromBuckets(value)
-    }
-}
-
-impl From<SourceQuantities> for Quantities {
-    fn from(value: SourceQuantities) -> Self {
-        Self::Value(value)
-    }
-}
 
 /// [`MetricOutcomes`] takes care of creating the right outcomes for metrics at the end of their
 /// lifecycle.
@@ -55,13 +35,7 @@ impl MetricOutcomes {
     }
 
     /// Tracks an outcome for a list of buckets and generates the necessary outcomes.
-    pub fn track(
-        &self,
-        scoping: Scoping,
-        buckets: &[impl TrackableBucket],
-        quantities: impl Into<Quantities>,
-        outcome: Outcome,
-    ) {
+    pub fn track(&self, scoping: Scoping, buckets: &[impl TrackableBucket], outcome: Outcome) {
         let timestamp = Utc::now();
 
         // Never emit accepted outcomes for surrogate metrics.
@@ -72,10 +46,7 @@ impl MetricOutcomes {
                 spans,
                 profiles,
                 buckets,
-            } = match quantities.into() {
-                Quantities::FromBuckets(mode) => extract_quantities(buckets, mode),
-                Quantities::Value(source) => source,
-            };
+            } = extract_quantities(buckets);
 
             let categories = [
                 (DataCategory::Transaction, transactions as u32),
@@ -151,7 +122,7 @@ pub trait TrackableBucket {
     /// of datapoints contained in the bucket.
     ///
     /// Additionally tracks whether the transactions also contained profiling information.
-    fn summary(&self, mode: ExtractionMode) -> BucketSummary;
+    fn summary(&self) -> BucketSummary;
 
     /// Metric bucket metadata.
     fn metadata(&self) -> BucketMetadata;
@@ -166,8 +137,8 @@ impl<T: TrackableBucket> TrackableBucket for &T {
         (**self).ty()
     }
 
-    fn summary(&self, mode: ExtractionMode) -> BucketSummary {
-        (**self).summary(mode)
+    fn summary(&self) -> BucketSummary {
+        (**self).summary()
     }
 
     fn metadata(&self) -> BucketMetadata {
@@ -184,8 +155,8 @@ impl TrackableBucket for Bucket {
         self.value.ty()
     }
 
-    fn summary(&self, mode: ExtractionMode) -> BucketSummary {
-        BucketView::new(self).summary(mode)
+    fn summary(&self) -> BucketSummary {
+        BucketView::new(self).summary()
     }
 
     fn metadata(&self) -> BucketMetadata {
@@ -202,7 +173,7 @@ impl TrackableBucket for BucketView<'_> {
         self.ty()
     }
 
-    fn summary(&self, mode: ExtractionMode) -> BucketSummary {
+    fn summary(&self) -> BucketSummary {
         let mri = match MetricResourceIdentifier::parse(self.name()) {
             Ok(mri) => mri,
             Err(_) => return BucketSummary::default(),
@@ -210,12 +181,8 @@ impl TrackableBucket for BucketView<'_> {
 
         match mri.namespace {
             MetricNamespace::Transactions => {
-                let usage = matches!(mode, ExtractionMode::Usage);
                 let count = match self.value() {
-                    BucketViewValue::Counter(c) if usage && mri.name == "usage" => {
-                        c.to_f64() as usize
-                    }
-                    BucketViewValue::Distribution(d) if !usage && mri.name == "duration" => d.len(),
+                    BucketViewValue::Counter(c) if mri.name == "usage" => c.to_f64() as usize,
                     _ => 0,
                 };
                 let has_profile = matches!(mri.name.as_ref(), "usage" | "duration")
@@ -239,7 +206,7 @@ impl TrackableBucket for BucketView<'_> {
 }
 
 /// Extracts quota information from a list of metric buckets.
-pub fn extract_quantities<I, T>(buckets: I, mode: ExtractionMode) -> SourceQuantities
+pub fn extract_quantities<I, T>(buckets: I) -> SourceQuantities
 where
     I: IntoIterator<Item = T>,
     T: TrackableBucket,
@@ -248,7 +215,7 @@ where
 
     for bucket in buckets {
         quantities.buckets += 1;
-        let summary = bucket.summary(mode);
+        let summary = bucket.summary();
         match summary {
             BucketSummary::Transactions { count, has_profile } => {
                 quantities.transactions += count;

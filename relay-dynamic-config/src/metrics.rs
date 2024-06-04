@@ -122,6 +122,9 @@ pub struct CustomMeasurementConfig {
 ///  - 6: Bugfix to make transaction metrics extraction apply globally defined tag mappings.
 const TRANSACTION_EXTRACT_MAX_SUPPORTED_VERSION: u16 = 6;
 
+/// Minimum supported version of metrics extraction from transaction.
+const TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION: u16 = 3;
+
 /// Deprecated. Defines whether URL transactions should be considered low cardinality.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
@@ -160,19 +163,15 @@ impl TransactionMetricsConfig {
     /// Creates an enabled configuration with empty defaults.
     pub fn new() -> Self {
         Self {
-            version: 1,
+            version: TRANSACTION_EXTRACT_MAX_SUPPORTED_VERSION,
             ..Self::default()
         }
     }
 
     /// Returns `true` if metrics extraction is enabled and compatible with this Relay.
     pub fn is_enabled(&self) -> bool {
-        self.version > 0 && self.version <= TRANSACTION_EXTRACT_MAX_SUPPORTED_VERSION
-    }
-
-    /// Returns `true` if usage should be tracked through a dedicated metric.
-    pub fn usage_metric(&self) -> bool {
-        self.version >= 3
+        self.version >= TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION
+            && self.version <= TRANSACTION_EXTRACT_MAX_SUPPORTED_VERSION
     }
 }
 

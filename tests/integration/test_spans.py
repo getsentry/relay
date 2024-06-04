@@ -2,6 +2,7 @@ import json
 import uuid
 from collections import Counter
 from datetime import datetime, timedelta, timezone, UTC
+from .consts import TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION
 
 import pytest
 from opentelemetry.proto.common.v1.common_pb2 import AnyValue, KeyValue
@@ -43,7 +44,7 @@ def test_span_extraction(
         "organizations:indexed-spans-extraction",
     ]
     project_config["config"]["transactionMetrics"] = {
-        "version": 3,
+        "version": TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION,
     }
 
     if discard_transaction:
@@ -199,7 +200,7 @@ def test_span_extraction_with_sampling(
         "organizations:indexed-spans-extraction",
     ]
     project_config["config"]["transactionMetrics"] = {
-        "version": 3,
+        "version": TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION,
     }
 
     spans_consumer = spans_consumer()
@@ -243,7 +244,7 @@ def test_duplicate_performance_score(mini_sentry, relay):
         "organizations:indexed-spans-extraction",
     ]
     project_config["config"]["transactionMetrics"] = {
-        "version": 1,
+        "version": TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION,
     }
     project_config["config"]["performanceScore"] = {
         "profiles": [
@@ -455,7 +456,9 @@ def test_span_ingestion(
         "projects:span-metrics-extraction",
         "projects:relay-otel-endpoint",
     ]
-    project_config["config"]["transactionMetrics"] = {"version": 1}
+    project_config["config"]["transactionMetrics"] = {
+        "version": TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION
+    }
     if extract_transaction:
         project_config["config"]["features"].append(
             "projects:extract-transaction-from-segment-span"
@@ -1534,7 +1537,9 @@ def test_rate_limit_indexed_consistent_extracted(
     project_config = mini_sentry.add_full_project_config(project_id)
     # Span metrics won't be extracted without a supported transactionMetrics config.
     # Without extraction, the span is treated as `Span`, not `SpanIndexed`.
-    project_config["config"]["transactionMetrics"] = {"version": 3}
+    project_config["config"]["transactionMetrics"] = {
+        "version": TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION
+    }
     project_config["config"]["features"] = [
         "projects:span-metrics-extraction",
         "organizations:indexed-spans-extraction",
@@ -1803,7 +1808,9 @@ def test_dynamic_sampling(
     project_config["config"]["features"] = [
         "organizations:standalone-span-ingestion",
     ]
-    project_config["config"]["transactionMetrics"] = {"version": 1}
+    project_config["config"]["transactionMetrics"] = {
+        "version": TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION
+    }
 
     sampling_config = mini_sentry.add_basic_project_config(43)
     sampling_public_key = sampling_config["publicKeys"][0]["publicKey"]

@@ -13,7 +13,7 @@ use relay_metrics::{Bucket, DurationUnit, FiniteF64};
 use crate::metrics_extraction::generic;
 use crate::metrics_extraction::transactions::types::{
     CommonTag, CommonTags, ExtractMetricsError, LightTransactionTags, TransactionCPRTags,
-    TransactionDurationTags, TransactionMeasurementTags, TransactionMetric, UsageTags,
+    TransactionMeasurementTags, TransactionMetric, UsageTags,
 };
 use crate::metrics_extraction::IntoMetric;
 use crate::statsd::RelayCounters;
@@ -394,20 +394,11 @@ impl TransactionExtractor<'_> {
         // Duration
         let duration = relay_common::time::chrono_to_positive_millis(end - start);
         if let Some(duration) = FiniteF64::new(duration) {
-            let has_profile = if self.config.version >= 3 {
-                false
-            } else {
-                self.has_profile
-            };
-
             metrics.project_metrics.push(
                 TransactionMetric::Duration {
                     unit: DurationUnit::MilliSecond,
                     value: duration,
-                    tags: TransactionDurationTags {
-                        has_profile,
-                        universal_tags: tags.clone(),
-                    },
+                    tags: tags.clone(),
                 }
                 .into_metric(timestamp),
             );
