@@ -128,7 +128,7 @@ impl Default for AggregatorServiceConfig {
             max_project_key_bucket_bytes: None,
             max_flush_bytes: 5_000_000, // 5 MB
             flush_partitions: None,
-            flush_batching: FlushBatching::default(),
+            flush_batching: FlushBatching::Project,
         }
     }
 }
@@ -145,8 +145,8 @@ impl From<&AggregatorServiceConfig> for AggregatorConfig {
             max_tag_key_length: value.max_tag_key_length,
             max_tag_value_length: value.max_tag_value_length,
             max_project_key_bucket_bytes: value.max_project_key_bucket_bytes,
-            flush_batching: value.flush_batching,
             flush_partitions: value.flush_partitions,
+            flush_batching: value.flush_batching,
         }
     }
 }

@@ -2393,8 +2393,8 @@ impl Config {
             max_project_key_bucket_bytes,
             initial_delay: 30,
             debounce_delay: 10,
-            flush_batching: FlushBatching::Project,
             flush_partitions: None,
+            flush_batching: FlushBatching::Project,
         }
     }
 
