@@ -420,9 +420,8 @@ pub fn has_unprintable_fields(event: &Annotated<Event>) -> bool {
     }
 }
 
-//TODO: comment
-//TODO: add test: all incr/no incr cases, envelope unchanged
-pub fn emit_feedback_metrics(envelope: &Envelope) -> i64 {
+/// Computes and emits metrics for monitoring user feedback (UserReportV2) ingest
+pub fn emit_feedback_metrics(envelope: &Envelope) {
     let mut has_feedback = false;
     let mut num_attachments = 0;
     for item in envelope.items() {
@@ -434,9 +433,6 @@ pub fn emit_feedback_metrics(envelope: &Envelope) -> i64 {
     }
     if has_feedback && num_attachments > 0 {
         metric!(counter(RelayCounters::FeedbackAttachments) += num_attachments);
-        num_attachments
-    } else {
-        0
     }
 }
 
