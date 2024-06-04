@@ -11,7 +11,7 @@ use relay_protocol::{Annotated, Array, Empty, Meta, Object, RemarkType, Value};
 struct SizeState {
     max_depth: Option<usize>,
     encountered_at_depth: usize,
-    size_remaining: Option<usize>,
+    size_remaining: Option<isize>,
 }
 
 /// Limits properties to a maximum size and depth.
@@ -48,11 +48,19 @@ impl TrimmingProcessor {
     }
 
     #[inline]
-    fn remaining_size(&self) -> Option<usize> {
+    fn remaining_size(&self) -> Option<isize> {
         self.size_state
             .iter()
             .filter_map(|x| x.size_remaining)
             .min()
+    }
+
+    fn size_depleted(&self) -> bool {
+        matches!(self.remaining_size(), Some(n) if n <= 0)
+    }
+
+    fn size_exceeded(&self) -> bool {
+        matches!(dbg!(self.remaining_size()), Some(n) if n < 0)
     }
 }
 
@@ -68,14 +76,14 @@ impl Processor for TrimmingProcessor {
         // XXX(iker): test setting only one of the two attributes.
         if state.attrs().max_bytes.is_some() || state.attrs().max_depth.is_some() {
             self.size_state.push(SizeState {
-                size_remaining: state.attrs().max_bytes,
+                size_remaining: state.attrs().max_bytes.map(|s| s as isize),
                 encountered_at_depth: state.depth(),
                 max_depth: state.attrs().max_depth,
             });
         }
 
         if state.attrs().trim {
-            if self.remaining_size() == Some(0) {
+            if self.size_depleted() {
                 // TODO: Create remarks (ensure they do not bloat event)
                 return Err(ProcessingAction::DeleteValueHard);
             }
@@ -115,7 +123,7 @@ impl Processor for TrimmingProcessor {
                 let item_length = relay_protocol::estimate_size_flat(value) + 1;
                 size_state.size_remaining = size_state
                     .size_remaining
-                    .map(|size| size.saturating_sub(item_length));
+                    .map(|size| size.saturating_sub_unsigned(item_length));
             }
         }
 
@@ -137,7 +145,7 @@ impl Processor for TrimmingProcessor {
 
         if let Some(size_state) = self.size_state.last() {
             if let Some(size_remaining) = size_state.size_remaining {
-                trim_string(value, meta, size_remaining, 0);
+                trim_string(value, meta, size_remaining.try_into().unwrap_or(0), 0);
             }
         }
 
@@ -167,7 +175,7 @@ impl Processor for TrimmingProcessor {
 
             let mut split_index = None;
             for (index, item) in value.iter_mut().enumerate() {
-                if self.remaining_size().unwrap() == 0 {
+                if self.size_depleted() {
                     split_index = Some(index);
                     break;
                 }
@@ -175,8 +183,8 @@ impl Processor for TrimmingProcessor {
                 let item_state = state.enter_index(index, None, ValueType::for_field(item));
                 processor::process_value(item, self, &item_state)?;
 
-                // Remaining size might now be zero because of `trim = "false"`.
-                if self.remaining_size().unwrap() == 0 {
+                // Remaining size might now be negative because of `trim = "false"`.
+                if self.size_exceeded() {
                     split_index = Some(index);
                     break;
                 }
@@ -219,7 +227,7 @@ impl Processor for TrimmingProcessor {
 
             let mut split_key = None;
             for (key, item) in value.iter_mut() {
-                if self.remaining_size().unwrap() == 0 {
+                if dbg!(self.size_depleted()) {
                     split_key = Some(key.to_owned());
                     break;
                 }
@@ -227,8 +235,8 @@ impl Processor for TrimmingProcessor {
                 let item_state = state.enter_borrowed(key, None, ValueType::for_field(item));
                 processor::process_value(item, self, &item_state)?;
 
-                // Remaining size might now be zero because of `trim = "false"`.
-                if self.remaining_size().unwrap() == 0 {
+                // Remaining size might now be negative because of `trim = "false"`.
+                if dbg!(self.size_exceeded()) {
                     split_key = Some(key.to_owned());
                     break;
                 }
@@ -714,6 +722,7 @@ mod tests {
                     .len(),
                 5000
             );
+            dbg!(i);
             assert_eq!(
                 other
                     .get("foo")
@@ -961,7 +970,7 @@ mod tests {
         let mut processor = TrimmingProcessor::new();
         processor::process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
-        assert_eq!(event.0.unwrap().spans.0.unwrap().len(), 8);
+        assert_eq!(event.0.unwrap().spans.0.unwrap().len(), 7);
     }
 
     #[test]
