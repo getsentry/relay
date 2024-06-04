@@ -641,7 +641,6 @@ mod tests {
                     2020-08-21T02:18:20Z,
                 ),
                 exclusive_time: 2000.0,
-                description: "<OrganizationContext>",
                 op: "react.mount",
                 span_id: SpanId(
                     "bd429c44b67a3eb4",
@@ -655,6 +654,7 @@ mod tests {
                 segment_id: ~,
                 is_segment: ~,
                 status: ~,
+                description: "<OrganizationContext>",
                 tags: ~,
                 origin: ~,
                 profile_id: ~,

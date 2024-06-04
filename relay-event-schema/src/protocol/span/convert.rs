@@ -248,7 +248,6 @@ mod tests {
             timestamp: ~,
             start_timestamp: ~,
             exclusive_time: 123.4,
-            description: "my 1st transaction",
             op: "myop",
             span_id: SpanId(
                 "fa90fdead5f74052",
@@ -264,6 +263,7 @@ mod tests {
             ),
             is_segment: true,
             status: Ok,
+            description: "my 1st transaction",
             tags: ~,
             origin: "manual",
             profile_id: EventId(

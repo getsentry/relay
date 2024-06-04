@@ -453,11 +453,11 @@ mod tests {
   "timestamp": 0.0,
   "start_timestamp": -63158400.0,
   "exclusive_time": 1.23,
-  "description": "desc",
   "op": "operation",
   "span_id": "fa90fdead5f74052",
   "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
   "status": "ok",
+  "description": "desc",
   "origin": "auto.http",
   "measurements": {
     "memory": {
