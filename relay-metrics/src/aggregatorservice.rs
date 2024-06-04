@@ -8,7 +8,7 @@ use relay_system::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::aggregator::{self, AggregatorConfig, FlushBatching, PartitionKey, ShiftKey};
+use crate::aggregator::{self, AggregatorConfig, FlushBatching, ShiftKey};
 use crate::bucket::Bucket;
 use crate::statsd::{MetricCounters, MetricHistograms, MetricTimers};
 
@@ -236,7 +236,7 @@ pub struct FlushBuckets {
     /// The partition to which the buckets belong.
     ///
     /// When set to `Some` it means that partitioning was enabled in the [`Aggregator`].
-    pub partition_key: Option<PartitionKey>,
+    pub partition_key: Option<u64>,
     /// The buckets to be flushed.
     pub buckets: HashMap<ProjectKey, Vec<Bucket>>,
 }

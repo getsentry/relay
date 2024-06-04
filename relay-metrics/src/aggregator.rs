@@ -58,15 +58,6 @@ enum AggregateMetricsErrorKind {
     ProjectLimitExceeded,
 }
 
-/// The key of a metric partition.
-///
-/// A partition is defined as a non-negative integer which tells Envoy to which upstream Relay
-/// instance to forward the buckets.
-///
-/// The goal of partitioning is to increase efficiency of bucketing since it allows the same buckets
-/// to always be sent to the same instances.
-pub type PartitionKey = u64;
-
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 struct BucketKey {
     project_key: ProjectKey,
@@ -98,7 +89,7 @@ impl BucketKey {
         self.metric_name.namespace()
     }
 
-    /// Computes the hash of the partition which will be used to compute the [`PartitionKey`].
+    /// Computes the hash of the partition which will be used to compute the partition key.
     fn partition_hash(&self) -> u64 {
         use std::hash::{Hash, Hasher};
 
@@ -118,7 +109,7 @@ impl BucketKey {
     ///
     /// The role of partitioning is to let Relays forward the same metric to the same upstream
     /// instance with the goal of increasing bucketing efficiency.
-    fn partition_key(&self, partitions: u64) -> PartitionKey {
+    fn partition_key(&self, partitions: u64) -> u64 {
         let partitions = partitions.max(1);
         self.partition_hash() % partitions
     }
@@ -174,7 +165,7 @@ pub enum FlushBatching {
     /// suited for how Relay emits metrics to Kafka.
     Bucket,
 
-    /// Shifts the flush time by an offset based on the [`PartitionKey`].
+    /// Shifts the flush time by an offset based on the partition key.
     ///
     /// This allows buckets belonging to the same partition to be flushed together.
     ///
@@ -338,47 +329,26 @@ impl AggregatorConfig {
             _ => self.flush_batching,
         };
 
-        let hash_value = match flush_batching {
+        match flush_batching {
             FlushBatching::Project => {
                 let mut hasher = FnvHasher::default();
                 hasher.write(bucket.project_key.as_str().as_bytes());
-                hasher.finish()
+                Duration::from_millis(hasher.finish() % shift_range)
             }
-            FlushBatching::Bucket => bucket.hash64(),
+            FlushBatching::Bucket => Duration::from_millis(bucket.hash64() % shift_range),
             FlushBatching::Partition => {
                 // This piece of code should never end up in the `else` branch, but it's better to
                 // still cover for this case instead of unwrapping.
-                let Some(flush_partitions) = self.flush_partitions else {
-                    relay_log::debug!("could not shift time by partition since the number of partitions is not defined");
-                    return Duration::ZERO;
-                };
-
-                // Since we don't want to have close partition hashes flushed at very similar time,
-                // we use a formula to compute the ideal distance in time between each partition
-                // and multiply that by partition hash.
-                //
-                // For example, suppose we have 60.000ms of possible shift and 120 flush
-                // partitions, this means that we would like to space each partition with 500ms to
-                // give it even spacing. Now suppose the partition hashes for two buckets are
-                // 1 and 2, if we were to take these values, we would end up with a difference of
-                // 1ms between the two partition key shifts. With this logic, we will scale both
-                // numbers by 500 meaning that they will be flushed at 500 ms of distance, which is
-                // much better.
-                //
-                // TODO: we might want to use the partition key since the hash is not representing
-                //  the actual routing of the buckets.
-                let distance = if flush_partitions == 0 {
-                    1
-                } else {
-                    shift_range / flush_partitions
-                };
-                distance.saturating_mul(bucket.partition_hash())
+                let shift_duration = Duration::from_millis(shift_range);
+                match self.flush_partitions {
+                    Some(0) | None => Duration::ZERO,
+                    Some(flush_partitions) => shift_duration
+                        .div_f64(flush_partitions as f64)
+                        .mul_f64(bucket.partition_key(flush_partitions) as f64),
+                }
             }
-            FlushBatching::None => return Duration::ZERO,
-        };
-
-        let shift_millis = hash_value % shift_range;
-        Duration::from_millis(shift_millis)
+            FlushBatching::None => Duration::ZERO,
+        }
     }
 
     /// Determines the target bucket for an incoming bucket timestamp and bucket width.
@@ -673,7 +643,7 @@ impl Aggregator {
     pub fn pop_flush_buckets(
         &mut self,
         force: bool,
-    ) -> HashMap<Option<PartitionKey>, HashMap<ProjectKey, Vec<Bucket>>> {
+    ) -> HashMap<Option<u64>, HashMap<ProjectKey, Vec<Bucket>>> {
         relay_statsd::metric!(
             gauge(MetricGauges::Buckets) = self.bucket_count() as u64,
             aggregator = &self.name,

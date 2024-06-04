@@ -29,7 +29,7 @@ use relay_event_schema::protocol::{
     ClientReport, Event, EventId, EventType, IpAddr, Metrics, NetworkReportError,
 };
 use relay_filter::FilterStatKey;
-use relay_metrics::aggregator::{AggregatorConfig, PartitionKey};
+use relay_metrics::aggregator::AggregatorConfig;
 use relay_metrics::{Bucket, BucketMetadata, BucketView, BucketsView, MetricMeta, MetricNamespace};
 use relay_pii::PiiConfigError;
 use relay_profiling::ProfileId;
@@ -810,7 +810,7 @@ pub struct ProjectMetrics {
 /// Encodes metrics into an envelope ready to be sent upstream.
 #[derive(Debug)]
 pub struct EncodeMetrics {
-    pub partition_key: Option<PartitionKey>,
+    pub partition_key: Option<u64>,
     pub scopes: BTreeMap<Scoping, ProjectMetrics>,
 }
 
@@ -2489,11 +2489,7 @@ impl EnvelopeProcessorService {
     }
 
     /// Creates a [`SendMetricsRequest`] and sends it to the upstream relay.
-    fn send_global_partition(
-        &self,
-        partition_key: Option<PartitionKey>,
-        partition: &mut Partition<'_>,
-    ) {
+    fn send_global_partition(&self, partition_key: Option<u64>, partition: &mut Partition<'_>) {
         if partition.is_empty() {
             return;
         }
