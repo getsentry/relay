@@ -167,19 +167,13 @@ impl Processor for TrimmingProcessor {
 
             let mut split_index = None;
             for (index, item) in value.iter_mut().enumerate() {
-                if self.remaining_size().unwrap() == 0 {
+                if self.remaining_size() == Some(0) {
                     split_index = Some(index);
                     break;
                 }
 
                 let item_state = state.enter_index(index, None, ValueType::for_field(item));
                 processor::process_value(item, self, &item_state)?;
-
-                // Remaining size might now be zero because of `trim = "false"`.
-                if self.remaining_size().unwrap() == 0 {
-                    split_index = Some(index);
-                    break;
-                }
             }
 
             if let Some(split_index) = split_index {
@@ -219,19 +213,13 @@ impl Processor for TrimmingProcessor {
 
             let mut split_key = None;
             for (key, item) in value.iter_mut() {
-                if self.remaining_size().unwrap() == 0 {
+                if self.remaining_size() == Some(0) {
                     split_key = Some(key.to_owned());
                     break;
                 }
 
                 let item_state = state.enter_borrowed(key, None, ValueType::for_field(item));
                 processor::process_value(item, self, &item_state)?;
-
-                // Remaining size might now be zero because of `trim = "false"`.
-                if self.remaining_size().unwrap() == 0 {
-                    split_key = Some(key.to_owned());
-                    break;
-                }
             }
 
             if let Some(split_key) = split_key {
@@ -966,9 +954,11 @@ mod tests {
 
     #[test]
     fn test_too_many_spans_trimmed_trace_id() {
+        let original_description = "a".repeat(819163);
+        let original_trace_id = TraceId("b".repeat(48));
         let span = Span {
-            trace_id: Annotated::new(TraceId("a".repeat(1024 * 900))),
-
+            description: original_description.clone().into(),
+            trace_id: original_trace_id.clone().into(),
             ..Default::default()
         };
         let mut event = Annotated::new(Event {
@@ -979,6 +969,36 @@ mod tests {
         let mut processor = TrimmingProcessor::new();
         processor::process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
-        assert!(get_value!(event.spans!).is_empty());
+        assert_eq!(
+            get_value!(event.spans[0].description!),
+            &original_description
+        );
+        // Trace ID would be trimmed without `trim = "false"`
+        assert_eq!(get_value!(event.spans[0].trace_id!), &original_trace_id);
+    }
+
+    #[test]
+    fn test_too_many_spans_trimmed_trace_id_drop() {
+        let original_description = "a".repeat(819191);
+        let original_trace_id = TraceId("b".repeat(48));
+        let span = Span {
+            description: original_description.clone().into(),
+            trace_id: original_trace_id.clone().into(),
+            ..Default::default()
+        };
+        let mut event = Annotated::new(Event {
+            spans: Annotated::new(vec![span.into()]),
+            ..Default::default()
+        });
+
+        let mut processor = TrimmingProcessor::new();
+        processor::process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
+
+        assert_eq!(
+            get_value!(event.spans[0].description!),
+            &original_description
+        );
+        // Trace ID would be dropped without `trim = "false"`
+        assert_eq!(get_value!(event.spans[0].trace_id!), &original_trace_id);
     }
 }
