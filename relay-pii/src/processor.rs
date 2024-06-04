@@ -226,43 +226,66 @@ impl<'a> Processor for PiiProcessor<'a> {
     }
 }
 
-#[derive(Default)]
-struct PairArrayChecker<'a> {
-    is_pair: bool,
-    has_string_key: bool,
-    found_string_key: Option<String>,
-    main_processor: Option<PiiProcessor<'a>>,
-    main_state: ProcessingState<'a>,
+enum PairListProcessor<'a> {
+    Search {
+        is_pair: bool,
+        has_string_key: bool,
+    },
+    Process {
+        found_string_key: Option<String>,
+        pii_processor: PiiProcessor<'a>,
+        pii_processor_state: ProcessingState<'a>,
+    },
 }
 
-impl<'a> PairArrayChecker<'a> {
-    fn with_processor(
-        processor: PiiProcessor<'a>,
-        state: ProcessingState<'a>,
-    ) -> PairArrayChecker<'a> {
-        PairArrayChecker {
+impl<'a> PairListProcessor<'a> {
+    fn search() -> PairListProcessor<'a> {
+        PairListProcessor::Search {
             is_pair: false,
             has_string_key: false,
+        }
+    }
+
+    fn process(processor: PiiProcessor<'a>, state: ProcessingState<'a>) -> PairListProcessor<'a> {
+        PairListProcessor::Process {
             found_string_key: None,
-            main_processor: Some(processor),
-            main_state: state,
+            pii_processor: processor,
+            pii_processor_state: state,
         }
     }
 
     /// Returns true if the visitor identified the supplied data as an array composed of
     /// a key (string) and a value.
     fn is_pair_array(&self) -> bool {
-        self.is_pair && self.has_string_key
+        match self {
+            PairListProcessor::Search {
+                is_pair,
+                has_string_key,
+            } => *is_pair && *has_string_key,
+            _ => false,
+        }
     }
 
+    /// Resets the processor's state.
     fn reset(&mut self) {
-        self.is_pair = false;
-        self.has_string_key = false;
-        self.found_string_key = None;
+        match self {
+            PairListProcessor::Search {
+                is_pair,
+                has_string_key,
+            } => {
+                *is_pair = false;
+                *has_string_key = false;
+            }
+            PairListProcessor::Process {
+                found_string_key, ..
+            } => {
+                *found_string_key = None;
+            }
+        }
     }
 }
 
-impl<'a> Processor for PairArrayChecker<'a> {
+impl<'a> Processor for PairListProcessor<'a> {
     fn process_array<T>(
         &mut self,
         value: &mut relay_protocol::Array<T>,
@@ -274,28 +297,26 @@ impl<'a> Processor for PairArrayChecker<'a> {
     {
         let key_state = &state.enter_index(0, state.inner_attrs(), ValueType::for_field(&value[0]));
 
-        let mut string_key = None;
-        if self.main_processor.is_some() {
-            self.found_string_key = None;
-            process_value(&mut value[0], self, key_state)?;
-            string_key = self.found_string_key.as_ref();
-        }
-
-        match &mut self.main_processor {
-            Some(processor) => {
-                if let Some(key_name) = string_key {
-                    let value_state = &self.main_state.enter_borrowed(
-                        key_name.as_str(),
-                        self.main_state.inner_attrs(),
-                        ValueType::for_field(&value[1]),
-                    );
-                    process_value(&mut value[1], processor, value_state)?;
+        match self {
+            PairListProcessor::Search { is_pair, .. } => {
+                *is_pair = state.depth() == 0 && value.len() == 2;
+                if *is_pair {
+                    process_value(&mut value[0], self, key_state)?;
                 }
             }
-            None => {
-                self.is_pair = state.depth() == 0 && value.len() == 2;
-                if self.is_pair {
-                    process_value(&mut value[0], self, key_state)?;
+            PairListProcessor::Process {
+                found_string_key,
+                pii_processor,
+                pii_processor_state,
+            } => {
+                process_value(&mut value[0], self, key_state)?;
+                if let Some(key_name) = found_string_key {
+                    let value_state = &pii_processor_state.enter_borrowed(
+                        key_name.as_str(),
+                        pii_processor_state.inner_attrs(),
+                        ValueType::for_field(&value[1]),
+                    );
+                    process_value(&mut value[1], pii_processor, value_state)?;
                 }
             }
         }
@@ -310,13 +331,11 @@ impl<'a> Processor for PairArrayChecker<'a> {
         state: &ProcessingState<'_>,
     ) -> ProcessingResult where {
         if state.depth() == 1 && state.path().index() == Some(0) {
-            match self.main_processor {
-                Some(_) => {
-                    self.found_string_key = Some(value.clone());
-                }
-                None => {
-                    self.has_string_key = true;
-                }
+            match self {
+                PairListProcessor::Search { has_string_key, .. } => *has_string_key = true,
+                PairListProcessor::Process {
+                    found_string_key, ..
+                } => *found_string_key = Some(value.clone()),
             }
         }
 
@@ -325,7 +344,7 @@ impl<'a> Processor for PairArrayChecker<'a> {
 }
 
 fn is_pairlist<T: ProcessValue>(array: &mut Array<T>) -> bool {
-    let mut processor = PairArrayChecker::default();
+    let mut processor = PairListProcessor::search();
     for element in array.iter_mut() {
         process_value(element, &mut processor, ProcessingState::root()).ok();
         if !processor.is_pair_array() {
@@ -342,7 +361,7 @@ fn process_pairlist<T: ProcessValue>(
     processor: PiiProcessor,
     state: ProcessingState,
 ) {
-    let mut processor = PairArrayChecker::with_processor(processor, state);
+    let mut processor = PairListProcessor::process(processor, state);
     for element in array.iter_mut() {
         process_value(element, &mut processor, ProcessingState::root()).ok();
         processor.reset();
