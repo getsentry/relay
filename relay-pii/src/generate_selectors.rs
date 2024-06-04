@@ -1,6 +1,5 @@
 use std::collections::BTreeSet;
 
-use pyo3::prelude::*;
 use relay_event_schema::processor::{
     self, Pii, ProcessValue, ProcessingResult, ProcessingState, Processor, ValueType,
 };

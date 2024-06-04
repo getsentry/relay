@@ -1,5 +1,5 @@
 import sentry_relay
-from sentry_relay import processing
+from sentry_relay import processing, exceptions
 
 import pytest
 
@@ -219,7 +219,7 @@ def test_parse_release():
 
 
 def test_parse_release_error():
-    with pytest.raises(sentry_relay.errors.InvalidReleaseErrorBadCharacters):
+    with pytest.raises(sentry_relay.exceptions.InvalidReleaseErrorBadCharacters):
         sentry_relay.processing.parse_release("/var/foo/foo")
 
 

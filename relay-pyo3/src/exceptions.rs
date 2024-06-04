@@ -150,6 +150,15 @@ make_error!(InvalidReleaseErrorTooLong);
 make_error!(InvalidReleaseErrorRestrictedName);
 make_error!(InvalidReleaseErrorBadCharacters);
 
+pub(crate) fn pyerr_from_unpack_error(value: UnpackError) -> PyErr {
+    match value {
+        UnpackError::BadSignature => UnpackErrorBadSignature::new().into(),
+        UnpackError::BadEncoding => UnpackErrorBadEncoding::new().into(),
+        UnpackError::BadPayload(_) => UnpackErrorBadPayload::new().into(),
+        UnpackError::SignatureExpired => UnpackErrorSignatureExpired::new().into(),
+    }
+}
+
 #[pymodule]
 pub fn exceptions(m: &Bound<PyModule>) -> PyResult<()> {
     m.add_class::<RelayError>()?;
