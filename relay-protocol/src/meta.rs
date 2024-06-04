@@ -1,6 +1,7 @@
 use std::fmt;
 use std::str::FromStr;
 
+use pyo3::prelude::*;
 use serde::ser::SerializeSeq;
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 use smallvec::SmallVec;
@@ -36,6 +37,7 @@ pub enum RemarkType {
 
 /// Information on a modified section in a string.
 #[derive(Clone, Debug, PartialEq)]
+#[pyclass]
 pub struct Remark {
     /// The kind of redaction that has been applied on the target value.
     pub ty: RemarkType,
@@ -414,6 +416,7 @@ impl Serialize for Error {
 
 /// Meta information for a data field in the event payload.
 #[derive(Clone, Deserialize, Serialize)]
+#[pyclass]
 struct MetaInner {
     /// Remarks detailing modifications of this field.
     #[serde(default, skip_serializing_if = "SmallVec::is_empty", rename = "rem")]
@@ -444,6 +447,7 @@ impl MetaInner {
 
 /// Meta information for a data field in the event payload.
 #[derive(Clone, Default, Serialize)]
+#[pyclass]
 pub struct Meta(Option<Box<MetaInner>>);
 
 impl fmt::Debug for Meta {

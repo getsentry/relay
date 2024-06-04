@@ -1,16 +1,20 @@
 //! Defines the [`DataCategory`] type that classifies data Relay can handle.
 
+use pyo3::{pyclass, pymethods};
 use std::fmt;
 use std::str::FromStr;
 
 use serde::{Deserialize, Serialize};
 
 use crate::events::EventType;
+use pyo3::prelude::*;
+use pyo3::types::PyString;
 
 /// Classifies the type of data that is being ingested.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 #[repr(i8)]
+#[pyclass(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum DataCategory {
     /// Reserved and unused.
     Default = 0,
@@ -92,6 +96,58 @@ pub enum DataCategory {
     /// Any other data category not known by this Relay.
     #[serde(other)]
     Unknown = -1,
+}
+
+#[pymethods]
+impl DataCategory {
+    #[staticmethod]
+    fn parse(name: Option<&Bound<PyString>>) -> PyResult<Option<Self>> {
+        let Some(name) = name else {
+            return Ok(None);
+        };
+
+        match name.to_str()?.parse::<DataCategory>() {
+            Ok(DataCategory::Unknown) => Ok(None),
+            Ok(value) => Ok(Some(value)),
+            Err(_) => Ok(None),
+        }
+    }
+
+    #[staticmethod]
+    fn from_event_type(event_type: Option<&Bound<PyString>>) -> PyResult<Self> {
+        let Some(event_type) = event_type else {
+            return Ok(Self::Error);
+        };
+
+        match event_type.to_str()?.parse::<EventType>() {
+            Ok(value) => Ok(value.into()),
+            Err(_) => Ok(Self::Error),
+        }
+    }
+
+    #[staticmethod]
+    fn event_categories() -> [DataCategory; 5] {
+        [
+            DataCategory::Default,
+            DataCategory::Error,
+            DataCategory::Transaction,
+            DataCategory::Security,
+            DataCategory::UserReportV2,
+        ]
+    }
+
+    #[staticmethod]
+    fn error_categories() -> [DataCategory; 3] {
+        [
+            DataCategory::Default,
+            DataCategory::Error,
+            DataCategory::Security,
+        ]
+    }
+
+    fn api_name(&self) -> String {
+        self.name().to_owned()
+    }
 }
 
 impl DataCategory {

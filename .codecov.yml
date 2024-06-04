@@ -1,3 +1,2 @@
 ignore:
-  - "relay-cabi/**/*.rs"
   - "relay-general/derive/**/*.rs"

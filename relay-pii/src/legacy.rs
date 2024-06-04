@@ -5,6 +5,7 @@
 
 use std::sync::OnceLock;
 
+use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
 
 use crate::config::{PiiConfig, PiiConfigError};
@@ -13,6 +14,7 @@ use crate::convert;
 /// Configuration for Sentry's datascrubbing
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
+#[pyclass]
 pub struct DataScrubbingConfig {
     /// List with the fields to be excluded.
     pub exclude_fields: Vec<String>,

@@ -14,11 +14,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        build-arch:
+        target:
           - x86_64
           - aarch64
 
-    name: Python Linux ${{ matrix.build-arch }}
+    name: Python Linux ${{ matrix.target }}
     runs-on: ubuntu-latest
 
     steps:
@@ -26,15 +26,18 @@ jobs:
         with:
           submodules: recursive
 
-      - if: matrix.build-arch == 'aarch64'
-        uses: docker/setup-qemu-action@v3
-        with:
-          platforms: arm64
+      - run: rustup toolchain install stable --profile minimal --no-self-update
 
-      - name: Build in Docker
-        run: scripts/docker-manylinux.sh
-        env:
-          TARGET: ${{ matrix.build-arch }}
+      - uses: actions/setup-python@v5
+
+      - name: Build wheels
+        uses: PyO3/maturin-action@v1
+        working-directory: py
+        with:
+          target: ${{ matrix.target }}
+          args: --release --out dist --find-interpreter
+          sccache: "true"
+          manylinux: auto
 
       - uses: actions/upload-artifact@v3
         with:
@@ -45,39 +48,29 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - target: x86_64-apple-darwin
-            py-platform: macosx-13_0_x86_64
-          - target: aarch64-apple-darwin
-            py-platform: macosx-14_0_arm64
+        target:
+          - x86_64
+          - aarch64
 
-    name: Python macOS ${{ matrix.py-platform }}
-    runs-on: macos-14
+    name: Python macOS ${{ matrix.target }}
+    runs-on: macos-latest
 
     steps:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
 
-      - name: Install Rust Toolchain
-        run: |
-          rustup set profile minimal
-          rustup toolchain install stable
-          rustup override set stable
-          rustup target add --toolchain stable ${{ matrix.target }}
+      - run: rustup toolchain install stable --profile minimal --no-self-update
 
       - uses: actions/setup-python@v5
-        with:
-          python-version: '3.10'
 
-      - name: Build Wheel
-        run: |
-          pip install wheel
-          python setup.py bdist_wheel -p ${{ matrix.py-platform }}
+      - name: Build wheels
+        uses: PyO3/maturin-action@v1
         working-directory: py
-        env:
-          # consumed by cargo and setup.py to obtain the target dir
-          CARGO_BUILD_TARGET: ${{ matrix.target }}
+        with:
+          target: ${{ matrix.target }}
+          args: --release --out dist --find-interpreter
+          sccache: "true"
 
       - uses: actions/upload-artifact@v3
         with:
@@ -94,12 +87,13 @@ jobs:
           submodules: recursive
 
       - uses: actions/setup-python@v5
-        with:
-          python-version: '3.10'
 
       - name: Build sdist
-        run: python setup.py sdist --format=zip
+        uses: PyO3/maturin-action@v1
         working-directory: py
+        with:
+          command: sdist
+          args: --out dist
 
       - uses: actions/upload-artifact@v3
         with:

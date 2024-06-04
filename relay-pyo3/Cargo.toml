@@ -1,15 +1,16 @@
 [package]
-name = "relay-cabi"
-version = "0.8.67"
+name = "relay-pyo3"
+version = "0.8.64"
 authors = ["Sentry <oss@sentry.io>"]
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
 description = "Exposes some internals of the relay to C."
-edition = "2021"
 license-file = "../LICENSE.md"
 publish = false
+edition = "2021"
 
 [lib]
+name = "_relay_pyo3"
 crate-type = ["cdylib"]
 
 [lints]
@@ -29,11 +30,19 @@ relay-common = { workspace = true }
 relay-dynamic-config = { workspace = true }
 relay-event-normalization = { workspace = true }
 relay-event-schema = { workspace = true }
-relay-ffi = { workspace = true }
 relay-pii = { workspace = true }
 relay-protocol = { workspace = true }
 relay-sampling = { workspace = true }
 sentry-release-parser = { workspace = true, features = ["serde"] }
 serde = { workspace = true }
 serde_json = { workspace = true }
+serde-pyobject = { workspace = true }
+strum = { workspace = true, features = ["derive"] }
 uuid = { workspace = true }
+
+pyo3 = { workspace = true, features = [
+    "anyhow",
+    "chrono",
+    "extension-module",
+    "serde",
+] }

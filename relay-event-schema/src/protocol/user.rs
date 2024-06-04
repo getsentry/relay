@@ -4,11 +4,13 @@ use relay_protocol::{Annotated, Empty, FromValue, IntoValue, Object, Value};
 
 use crate::processor::ProcessValue;
 use crate::protocol::{IpAddr, LenientString};
+use pyo3::prelude::*;
 
 /// Geographical location of the end user or device.
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 #[metastructure(process_func = "process_geo")]
+#[pyclass]
 pub struct Geo {
     /// Two-letter country code (ISO 3166-1 alpha-2).
     #[metastructure(pii = "true", max_chars = 102, max_chars_allowance = 1004)]

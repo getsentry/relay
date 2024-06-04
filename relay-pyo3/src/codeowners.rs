@@ -5,13 +5,11 @@ use lru::LruCache;
 use once_cell::sync::Lazy;
 use regex::bytes::Regex;
 
-use crate::core::{RelayBuf, RelayStr};
-
 /// LRU cache for [`Regex`]s in relation to the provided string pattern.
-static CODEOWNERS_CACHE: Lazy<Mutex<LruCache<String, Regex>>> =
+pub static CODEOWNERS_CACHE: Lazy<Mutex<LruCache<String, Regex>>> =
     Lazy::new(|| Mutex::new(LruCache::new(NonZeroUsize::new(500).unwrap())));
 
-fn translate_codeowners_pattern(pattern: &str) -> Option<Regex> {
+pub fn translate_codeowners_pattern(pattern: &str) -> Option<Regex> {
     let mut regex = String::new();
 
     // Special case backslash can match a backslash file or directory
@@ -92,29 +90,6 @@ fn translate_codeowners_pattern(pattern: &str) -> Option<Regex> {
         regex += r"(?:\z|/)";
     }
     Regex::new(&regex).ok()
-}
-
-/// Returns `true` if the codeowners path matches the value, `false` otherwise.
-#[no_mangle]
-#[relay_ffi::catch_unwind]
-pub unsafe extern "C" fn relay_is_codeowners_path_match(
-    value: *const RelayBuf,
-    pattern: *const RelayStr,
-) -> bool {
-    let value = (*value).as_bytes();
-    let pat = (*pattern).as_str();
-
-    let mut cache = CODEOWNERS_CACHE.lock().unwrap();
-
-    if let Some(pattern) = cache.get(pat) {
-        pattern.is_match(value)
-    } else if let Some(pattern) = translate_codeowners_pattern(pat) {
-        let result = pattern.is_match(value);
-        cache.put(pat.to_owned(), pattern);
-        result
-    } else {
-        false
-    }
 }
 
 #[cfg(test)]

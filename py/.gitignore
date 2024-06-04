@@ -1,5 +1,5 @@
 # FFI
-sentry_relay/_lowlevel*
+sentry_relay/_relay_pyo3.cpython*
 
 # Wheels
 dist

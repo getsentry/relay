@@ -24,6 +24,12 @@ pub enum ProcessingAction {
     InvalidTransaction(&'static str),
 }
 
+impl From<ProcessingAction> for PyErr {
+    fn from(value: ProcessingAction) -> Self {
+        PyValueError::new_err(value.to_string())
+    }
+}
+
 /// The result of running a processor on a value implementing `ProcessValue`.
 pub type ProcessingResult = Result<(), ProcessingAction>;
 
@@ -136,6 +142,8 @@ pub trait Processor: Sized {
 
 #[doc(inline)]
 pub use enumset::{enum_set, EnumSet};
+use pyo3::exceptions::PyValueError;
+use pyo3::PyErr;
 
 /// A recursively processable value.
 pub trait ProcessValue: FromValue + IntoValue + Debug + Clone {

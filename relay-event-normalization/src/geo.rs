@@ -1,5 +1,9 @@
 use std::fmt;
+use std::fmt::Formatter;
 use std::path::Path;
+
+use pyo3::exceptions::PyValueError;
+use pyo3::prelude::*;
 
 use relay_event_schema::protocol::Geo;
 use relay_protocol::Annotated;
@@ -11,22 +15,47 @@ type ReaderType = maxminddb::Mmap;
 type ReaderType = Vec<u8>;
 
 /// An error in the `GeoIpLookup`.
-pub type GeoIpError = maxminddb::MaxMindDBError;
+#[derive(Debug)]
+pub struct GeoIpError(maxminddb::MaxMindDBError);
+
+impl fmt::Display for GeoIpError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+impl std::error::Error for GeoIpError {}
+
+impl From<GeoIpError> for PyErr {
+    fn from(err: GeoIpError) -> Self {
+        pyo3::exceptions::PyOSError::new_err(err.0.to_string())
+    }
+}
 
 /// A geo ip lookup helper based on maxmind db files.
+#[pyclass]
 pub struct GeoIpLookup(maxminddb::Reader<ReaderType>);
 
+/// Pyo3 implementations
+#[pymethods]
 impl GeoIpLookup {
     /// Opens a maxminddb file by path.
-    pub fn open<P>(path: P) -> Result<Self, GeoIpError>
-    where
-        P: AsRef<Path>,
-    {
+    #[staticmethod]
+    #[pyo3(name = "open")]
+    pub fn open_pyo3(path: &str) -> PyResult<Self> {
         #[cfg(feature = "mmap")]
-        let reader = maxminddb::Reader::open_mmap(path)?;
+        let reader =
+            maxminddb::Reader::open_mmap(path).map_err(|e| PyValueError::new_err(e.to_string()))?;
         #[cfg(not(feature = "mmap"))]
         let reader = maxminddb::Reader::open_readfile(path)?;
         Ok(GeoIpLookup(reader))
+    }
+
+    /// Opens a maxminddb file by path.
+    /// Used by Python interface.
+    #[staticmethod]
+    pub fn from_path(path: &str) -> PyResult<Self> {
+        GeoIpLookup::open_pyo3(path)
     }
 
     /// Looks up an IP address.
@@ -39,8 +68,8 @@ impl GeoIpLookup {
 
         let city: maxminddb::geoip2::City = match self.0.lookup(ip_address) {
             Ok(x) => x,
-            Err(GeoIpError::AddressNotFoundError(_)) => return Ok(None),
-            Err(e) => return Err(e),
+            Err(maxminddb::MaxMindDBError::AddressNotFoundError(_)) => return Ok(None),
+            Err(e) => return Err(GeoIpError(e)),
         };
 
         Ok(Some(Geo {
@@ -70,6 +99,20 @@ impl GeoIpLookup {
             ),
             ..Default::default()
         }))
+    }
+}
+
+impl GeoIpLookup {
+    /// Opens a maxminddb file by path.
+    pub fn open<P>(path: P) -> Result<Self, GeoIpError>
+    where
+        P: AsRef<Path>,
+    {
+        #[cfg(feature = "mmap")]
+        let reader = maxminddb::Reader::open_mmap(path).map_err(GeoIpError)?;
+        #[cfg(not(feature = "mmap"))]
+        let reader = maxminddb::Reader::open_readfile(path)?;
+        Ok(GeoIpLookup(reader))
     }
 }
 

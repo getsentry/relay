@@ -4,6 +4,7 @@ use std::fs::File;
 use std::io::BufReader;
 use std::path::Path;
 
+use pyo3::prelude::*;
 use relay_base_schema::metrics::MetricNamespace;
 use relay_event_normalization::{MeasurementsConfig, ModelCosts};
 use relay_filter::GenericFiltersConfig;
@@ -20,6 +21,7 @@ use crate::{defaults, ErrorBoundary, MetricExtractionGroup, MetricExtractionGrou
 #[derive(Default, Clone, Debug, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
+#[pyclass]
 pub struct GlobalConfig {
     /// Configuration for measurements normalization.
     #[serde(skip_serializing_if = "Option::is_none")]

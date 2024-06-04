@@ -1,4 +1,8 @@
-from sentry_relay.consts import DataCategory, SPAN_STATUS_CODE_TO_NAME
+from sentry_relay.consts import (
+    DataCategory,
+    SPAN_STATUS_CODE_TO_NAME,
+    SPAN_STATUS_NAME_TO_CODE,
+)
 
 
 def test_parse_data_category():
@@ -48,4 +52,24 @@ def test_span_mapping():
         14: "unavailable",
         15: "data_loss",
         16: "unauthenticated",
+    }
+
+    assert SPAN_STATUS_NAME_TO_CODE == {
+        "aborted": 10,
+        "already_exists": 6,
+        "cancelled": 1,
+        "data_loss": 15,
+        "deadline_exceeded": 4,
+        "failed_precondition": 9,
+        "internal_error": 13,
+        "invalid_argument": 3,
+        "not_found": 5,
+        "ok": 0,
+        "out_of_range": 11,
+        "permission_denied": 7,
+        "resource_exhausted": 8,
+        "unauthenticated": 16,
+        "unavailable": 14,
+        "unimplemented": 12,
+        "unknown": 2,
     }

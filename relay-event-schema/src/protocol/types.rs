@@ -7,6 +7,7 @@ use std::{fmt, net};
 
 use chrono::{DateTime, Datelike, Duration, LocalResult, NaiveDateTime, TimeZone, Utc};
 use enumset::EnumSet;
+use pyo3::prelude::*;
 #[cfg(feature = "jsonschema")]
 use relay_jsonschema_derive::JsonSchema;
 use relay_protocol::{
@@ -505,6 +506,7 @@ relay_common::impl_str_serde!(Addr, "an address");
 #[derive(
     Clone, Debug, Eq, PartialEq, PartialOrd, Ord, Hash, Empty, IntoValue, ProcessValue, Serialize,
 )]
+#[pyclass]
 pub struct IpAddr(pub String);
 
 #[cfg(feature = "jsonschema")]

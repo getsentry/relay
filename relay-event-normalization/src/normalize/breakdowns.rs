@@ -7,6 +7,7 @@ use std::collections::HashMap;
 use std::ops::Deref;
 use std::time::Duration;
 
+use pyo3::prelude::*;
 use relay_base_schema::metrics::{DurationUnit, MetricUnit};
 use relay_event_schema::protocol::{Breakdowns, Event, Measurement, Measurements, Timestamp};
 use relay_protocol::Annotated;
@@ -189,6 +190,7 @@ type BreakdownName = String;
 /// Breakdowns are product-defined numbers that are indirectly reported by the client, and are
 /// materialized during ingestion. They are usually an aggregation over data present in the event.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[pyclass]
 pub struct BreakdownsConfig(pub HashMap<BreakdownName, BreakdownConfig>);
 
 impl Deref for BreakdownsConfig {

@@ -2,6 +2,8 @@ import uuid
 import sentry_relay
 import pytest
 
+from sentry_relay import auth, exceptions
+
 
 UPSTREAM_SECRET = "secret"
 
@@ -18,19 +20,20 @@ RELAY_VERSION = "20.8.0"
 
 
 def test_basic_key_functions():
-    sk, pk = sentry_relay.generate_key_pair()
+    sk, pk = sentry_relay.auth.generate_key_pair()
+    print(pk)
     signature = sk.sign(b"some secret data")
     assert pk.verify(b"some secret data", signature)
     assert not pk.verify(b"some other data", signature)
 
     packed, signature = sk.pack({"foo": "bar"})
     pk.unpack(packed, signature)
-    with pytest.raises(sentry_relay.UnpackErrorBadSignature):
+    with pytest.raises(sentry_relay.exceptions.UnpackErrorBadSignature):
         pk.unpack(b"haha", signature)
 
 
 def test_challenge_response():
-    resp = sentry_relay.create_register_challenge(
+    resp = sentry_relay.auth.create_register_challenge(
         REQUEST,
         REQUEST_SIG,
         UPSTREAM_SECRET,
@@ -42,22 +45,22 @@ def test_challenge_response():
 
 
 def test_challenge_response_validation_errors():
-    with pytest.raises(sentry_relay.UnpackErrorSignatureExpired):
-        sentry_relay.create_register_challenge(
+    with pytest.raises(sentry_relay.exceptions.UnpackErrorSignatureExpired):
+        sentry_relay.auth.create_register_challenge(
             REQUEST,
             REQUEST_SIG,
             UPSTREAM_SECRET,
             max_age=1,
         )
-    with pytest.raises(sentry_relay.UnpackErrorBadPayload):
-        sentry_relay.create_register_challenge(
+    with pytest.raises(sentry_relay.exceptions.UnpackErrorBadPayload):
+        sentry_relay.auth.create_register_challenge(
             REQUEST + b"__broken",
             REQUEST_SIG,
             UPSTREAM_SECRET,
             max_age=0,
         )
-    with pytest.raises(sentry_relay.UnpackErrorBadSignature):
-        sentry_relay.create_register_challenge(
+    with pytest.raises(sentry_relay.exceptions.UnpackErrorBadSignature):
+        sentry_relay.auth.create_register_challenge(
             REQUEST,
             REQUEST_SIG + "__broken",
             UPSTREAM_SECRET,
@@ -66,7 +69,7 @@ def test_challenge_response_validation_errors():
 
 
 def test_register_response():
-    resp = sentry_relay.validate_register_response(
+    resp = sentry_relay.auth.validate_register_response(
         RESPONSE,
         RESPONSE_SIG,
         UPSTREAM_SECRET,
@@ -78,8 +81,8 @@ def test_register_response():
 
 
 def test_is_version_supported():
-    assert sentry_relay.is_version_supported("99.99.99")
+    assert sentry_relay.auth.is_version_supported("99.99.99")
 
     # These can be updated when deprecating legacy versions:
-    assert sentry_relay.is_version_supported("")
-    assert sentry_relay.is_version_supported(None)
+    assert sentry_relay.auth.is_version_supported("")
+    assert sentry_relay.auth.is_version_supported(None)

@@ -18,6 +18,7 @@ relay-common = { workspace = true }
 relay-protocol = { workspace = true }
 schemars = { workspace = true, optional = true }
 serde = { workspace = true }
+pyo3 = { workspace = true, features = ["serde"] }
 
 [dev-dependencies]
 serde_json = { workspace = true }

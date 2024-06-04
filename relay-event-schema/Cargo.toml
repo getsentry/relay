@@ -30,6 +30,7 @@ serde_json = { workspace = true }
 thiserror = { workspace = true }
 url = { workspace = true }
 uuid = { workspace = true }
+pyo3 = { workspace = true, features = ["serde"] }
 
 [dev-dependencies]
 insta = { workspace = true }

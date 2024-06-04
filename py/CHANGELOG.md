@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Various fixes & improvements
+
+- Use more efficient FFI bindings for sentry_relay Python lib. ([#3520](https://github.com/getsentry/relay/pull/3520))
+
 ## 0.8.67
 
 ### Various fixes & improvements
