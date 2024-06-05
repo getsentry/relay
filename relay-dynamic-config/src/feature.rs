@@ -35,11 +35,6 @@ pub enum Feature {
     /// Serialized as `organizations:device-class-synthesis`.
     #[serde(rename = "organizations:device-class-synthesis")]
     DeviceClassSynthesis,
-    /// Enables metric extraction from spans.
-    ///
-    /// Serialized as `projects:span-metrics-extraction`.
-    #[serde(rename = "projects:span-metrics-extraction")]
-    ExtractSpansAndSpanMetricsFromEvent,
     /// Allow ingestion of metrics in the "custom" namespace.
     ///
     /// Serialized as `organizations:custom-metrics`.
@@ -90,6 +85,24 @@ pub enum Feature {
     #[serde(rename = "projects:extract-transaction-from-segment-span")]
     ExtractTransactionFromSegmentSpan,
 
+    /// Enables metric extraction from spans for common modules.
+    ///
+    /// Serialized as `projects:span-metrics-extraction`.
+    #[serde(rename = "projects:span-metrics-extraction")]
+    ExtractCommonSpanMetricsFromEvent,
+
+    /// Enables metric extraction from spans for addon modules.
+    ///
+    /// Serialized as `projects:span-metrics-extraction-addons`.
+    #[serde(rename = "projects:span-metrics-extraction-addons")]
+    ExtractAddonsSpanMetricsFromEvent,
+
+    /// When enabled, spans will be extracted from a transaction.
+    ///
+    /// Serialized as `projects:indexed-spans-extraction`.
+    #[serde(rename = "organizations:indexed-spans-extraction")]
+    ExtractSpansFromEvent,
+
     /// Deprecated, still forwarded for older downstream Relays.
     #[doc(hidden)]
     #[serde(rename = "organizations:transaction-name-mark-scrubbed-as-sanitized")]
@@ -109,7 +122,7 @@ pub enum Feature {
     /// Deprecated, still forwarded for older downstream Relays.
     #[doc(hidden)]
     #[serde(rename = "projects:span-metrics-extraction-all-modules")]
-    Deprected6,
+    Deprecated6,
     /// Forward compatibility.
     #[doc(hidden)]
     #[serde(other)]

@@ -7,6 +7,11 @@ import uuid
 from datetime import UTC, datetime, timedelta, timezone
 from time import sleep
 
+from .consts import (
+    TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION,
+    TRANSACTION_EXTRACT_MAX_SUPPORTED_VERSION,
+)
+
 import pytest
 from flask import Response, abort
 from requests.exceptions import HTTPError
@@ -603,7 +608,7 @@ def test_rate_limit_metric_bucket(
     assert len(produced_buckets) == metric_bucket_limit
 
 
-@pytest.mark.parametrize("violating_bucket", [[4.0, 5.0], [4.0, 5.0, 6.0]])
+@pytest.mark.parametrize("violating_bucket", [2, 3])
 def test_rate_limit_metrics_buckets(
     mini_sentry,
     relay_with_processing,
@@ -690,7 +695,7 @@ def test_rate_limit_metrics_buckets(
     send_buckets(
         [
             # Duration metric, subtract 3 from quota
-            make_bucket("d:transactions/duration@millisecond", "d", [1, 2, 3]),
+            make_bucket("c:transactions/usage@none", "c", 3),
         ],
     )
     send_buckets(
@@ -701,9 +706,9 @@ def test_rate_limit_metrics_buckets(
     )
     send_buckets(
         [
-            # Duration metric, subtract from quota. This bucket is still accepted, but the rest
+            # Usage metric, subtract from quota. This bucket is still accepted, but the rest
             # will be exceeded.
-            make_bucket("d:transactions/duration@millisecond", "d", violating_bucket),
+            make_bucket("c:transactions/usage@none", "c", violating_bucket),
         ],
     )
     send_buckets(
@@ -714,8 +719,8 @@ def test_rate_limit_metrics_buckets(
     )
     send_buckets(
         [
-            # Another three for duration, won't make it into kafka.
-            make_bucket("d:transactions/duration@millisecond", "d", [7, 8, 9]),
+            # Another three for usage, won't make it into kafka.
+            make_bucket("c:transactions/usage@none", "c", 3),
             # Session metrics are still accepted.
             make_bucket("d:sessions/session@user", "s", [1254]),
         ],
@@ -730,6 +735,24 @@ def test_rate_limit_metrics_buckets(
         del bucket["received_at"]
 
     assert produced_buckets == [
+        {
+            "name": "c:transactions/usage@none",
+            "org_id": 1,
+            "retention_days": 90,
+            "project_id": 42,
+            "tags": {},
+            "type": "c",
+            "value": violating_bucket,
+        },
+        {
+            "name": "c:transactions/usage@none",
+            "org_id": 1,
+            "retention_days": 90,
+            "project_id": 42,
+            "tags": {},
+            "type": "c",
+            "value": 3,
+        },
         {
             "name": "d:sessions/duration@second",
             "org_id": 1,
@@ -756,24 +779,6 @@ def test_rate_limit_metrics_buckets(
             "tags": {},
             "type": "s",
             "value": [1254],
-        },
-        {
-            "name": "d:transactions/duration@millisecond",
-            "org_id": 1,
-            "retention_days": 90,
-            "project_id": 42,
-            "tags": {},
-            "type": "d",
-            "value": [1.0, 2.0, 3.0],
-        },
-        {
-            "name": "d:transactions/duration@millisecond",
-            "org_id": 1,
-            "retention_days": 90,
-            "project_id": 42,
-            "tags": {},
-            "type": "d",
-            "value": violating_bucket,
         },
         {
             "name": "d:transactions/measurements.lcp@millisecond",
@@ -803,7 +808,13 @@ def test_rate_limit_metrics_buckets(
     )
 
 
-@pytest.mark.parametrize("extraction_version", [1, 3])
+@pytest.mark.parametrize(
+    "extraction_version",
+    [
+        TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION,
+        TRANSACTION_EXTRACT_MAX_SUPPORTED_VERSION,
+    ],
+)
 def test_processing_quota_transaction_indexing(
     mini_sentry,
     relay_with_processing,

@@ -556,16 +556,26 @@ struct ProjectCacheBroker {
     metric_outcomes: MetricOutcomes,
     // Need hashbrown because extract_if is not stable in std yet.
     projects: hashbrown::HashMap<ProjectKey, Project>,
+    /// Utility for disposing of expired project data in a background thread.
     garbage_disposal: GarbageDisposal<Project>,
+    /// Source for fetching project states from the upstream or from disk.
     source: ProjectSource,
+    /// Tx channel used to send the updated project state whenever requested.
     state_tx: mpsc::UnboundedSender<UpdateProjectState>,
+    /// Tx channel used by the [`BufferService`] to send back the requested dequeued elements.
     buffer_tx: mpsc::UnboundedSender<UnspooledEnvelope>,
+    /// Shared semaphore used to control how many envelopes are currently running through Relay.
     buffer_guard: Arc<BufferGuard>,
-    /// Index of the buffered project keys.
+    /// Index containing all the [`QueueKey`] that have been enqueued in the [`BufferService`].
     index: HashSet<QueueKey>,
+    /// Handle to schedule periodic unspooling of buffered envelopes.
     buffer_unspool_handle: SleepHandle,
+    /// Backoff strategy for retrying unspool attempts.
     buffer_unspool_backoff: RetryBackoff,
+    /// Address of the [`BufferService`] used for enqueuing and dequeuing envelopes that can't be
+    /// immediately processed.
     buffer: Addr<Buffer>,
+    /// Status of the global configuration, used to determine readiness for processing.
     global_config: GlobalConfigStatus,
 }
 
@@ -889,17 +899,18 @@ impl ProjectCacheBroker {
     fn handle_flush_buckets(&mut self, message: FlushBuckets) {
         let metric_outcomes = self.metric_outcomes.clone();
 
-        let mut output = BTreeMap::new();
+        let mut scoped_buckets = BTreeMap::new();
         for (project_key, buckets) in message.buckets {
             let project = self.get_or_create_project(project_key);
             if let Some((scoping, b)) = project.check_buckets(&metric_outcomes, buckets) {
-                output.insert(scoping, b);
+                scoped_buckets.insert(scoping, b);
             }
         }
 
-        self.services
-            .envelope_processor
-            .send(EncodeMetrics { scopes: output })
+        self.services.envelope_processor.send(EncodeMetrics {
+            partition_key: message.partition_key,
+            scopes: scoped_buckets,
+        })
     }
 
     fn handle_buffer_index(&mut self, message: UpdateSpoolIndex) {

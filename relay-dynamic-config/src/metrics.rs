@@ -1,11 +1,15 @@
 //! Dynamic configuration for metrics extraction from sessions and transactions.
 
+use core::fmt;
 use std::collections::{BTreeMap, BTreeSet};
+use std::convert::Infallible;
+use std::str::FromStr;
 
 use relay_base_schema::data_category::DataCategory;
 use relay_cardinality::CardinalityLimit;
 use relay_common::glob2::LazyGlob;
 use relay_common::glob3::GlobPatterns;
+use relay_common::impl_str_serde;
 use relay_protocol::RuleCondition;
 use serde::{Deserialize, Serialize};
 
@@ -118,6 +122,9 @@ pub struct CustomMeasurementConfig {
 ///  - 6: Bugfix to make transaction metrics extraction apply globally defined tag mappings.
 const TRANSACTION_EXTRACT_MAX_SUPPORTED_VERSION: u16 = 6;
 
+/// Minimum supported version of metrics extraction from transaction.
+const TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION: u16 = 3;
+
 /// Deprecated. Defines whether URL transactions should be considered low cardinality.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
@@ -156,24 +163,20 @@ impl TransactionMetricsConfig {
     /// Creates an enabled configuration with empty defaults.
     pub fn new() -> Self {
         Self {
-            version: 1,
+            version: TRANSACTION_EXTRACT_MAX_SUPPORTED_VERSION,
             ..Self::default()
         }
     }
 
     /// Returns `true` if metrics extraction is enabled and compatible with this Relay.
     pub fn is_enabled(&self) -> bool {
-        self.version > 0 && self.version <= TRANSACTION_EXTRACT_MAX_SUPPORTED_VERSION
-    }
-
-    /// Returns `true` if usage should be tracked through a dedicated metric.
-    pub fn usage_metric(&self) -> bool {
-        self.version >= 3
+        self.version >= TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION
+            && self.version <= TRANSACTION_EXTRACT_MAX_SUPPORTED_VERSION
     }
 }
 
 /// Combined view of global and project-specific metrics extraction configs.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct CombinedMetricExtractionConfig<'a> {
     global: &'a MetricExtractionGroups,
     project: &'a MetricExtractionConfig,
@@ -185,7 +188,7 @@ impl<'a> CombinedMetricExtractionConfig<'a> {
         for key in project.global_groups.keys() {
             if !global.groups.contains_key(key) {
                 relay_log::error!(
-                    "Metrics group configured for project missing in global config: {key}"
+                    "Metrics group configured for project missing in global config: {key:?}"
                 )
             }
         }
@@ -238,7 +241,7 @@ impl<'a> From<&'a MetricExtractionConfig> for CombinedMetricExtractionConfig<'a>
 pub struct MetricExtractionGroups {
     /// Mapping from group name to metrics specs & tags.
     #[serde(skip_serializing_if = "BTreeMap::is_empty")]
-    pub groups: BTreeMap<String, MetricExtractionGroup>,
+    pub groups: BTreeMap<GroupKey, MetricExtractionGroup>,
 }
 
 impl MetricExtractionGroups {
@@ -286,7 +289,7 @@ pub struct MetricExtractionConfig {
     /// The groups themselves are configured in [`crate::GlobalConfig`],
     /// but can be enabled or disabled here.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
-    pub global_groups: BTreeMap<String, MetricExtractionGroupOverride>,
+    pub global_groups: BTreeMap<GroupKey, MetricExtractionGroupOverride>,
 
     /// A list of metric specifications to extract.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -363,6 +366,49 @@ pub struct MetricExtractionGroupOverride {
     /// `true` if a template should be enabled.
     pub is_enabled: bool,
 }
+
+/// Enumeration of keys in [`MetricExtractionGroups`]. In JSON, this is simply a string.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum GroupKey {
+    /// Metric extracted for all plans.
+    SpanMetricsCommon,
+    /// "addon" metrics.
+    SpanMetricsAddons,
+    /// Metrics extracted from spans in the transaction namespace.
+    SpanMetricsTx,
+    /// Any other group defined by the upstream.
+    Other(String),
+}
+
+impl fmt::Display for GroupKey {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                GroupKey::SpanMetricsCommon => "span_metrics_common",
+                GroupKey::SpanMetricsAddons => "span_metrics_addons",
+                GroupKey::SpanMetricsTx => "span_metrics_tx",
+                GroupKey::Other(s) => &s,
+            }
+        )
+    }
+}
+
+impl FromStr for GroupKey {
+    type Err = Infallible;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(match s {
+            "span_metrics_common" => GroupKey::SpanMetricsCommon,
+            "span_metrics_addons" => GroupKey::SpanMetricsAddons,
+            "span_metrics_tx" => GroupKey::SpanMetricsTx,
+            s => GroupKey::Other(s.to_owned()),
+        })
+    }
+}
+
+impl_str_serde!(GroupKey, "a metrics extraction group key");
 
 /// Specification for a metric to extract from some data.
 #[derive(Clone, Debug, Serialize, Deserialize)]

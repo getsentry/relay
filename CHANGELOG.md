@@ -2,14 +2,23 @@
 
 ## Unreleased
 
+**Internal**:
+
+- Allow treating arrays of two elements as key-value pairs during PII scrubbing. ([#3639](https://github.com/getsentry/relay/pull/3639))
+
+## 24.5.1
+
 **Bug fixes**:
 
 - Apply globally defined metric tags to legacy transaction metrics. ([#3615](https://github.com/getsentry/relay/pull/3615))
+- Limit the maximum size of spans in an transaction to 800 kib. ([#3645](https://github.com/getsentry/relay/pull/3645))
+- Scrub identifiers in spans with `op:db` and `db_system:redis`. ([#3642](https://github.com/getsentry/relay/pull/3642))
+- Stop trimming important span fields by marking them `trim = "false"`. ([#3670](https://github.com/getsentry/relay/pull/3670))
 
 **Features**:
 
 - Apply legacy inbound filters to standalone spans. ([#3552](https://github.com/getsentry/relay/pull/3552))
-- Allow treating arrays of two elements as key-value pairs during PII scrubbing. ([#3639](https://github.com/getsentry/relay/pull/3639))
+- Add separate feature flags for add-ons span metrics and indexed spans. ([#3633](https://github.com/getsentry/relay/pull/3633))
 
 **Internal**:
 
@@ -20,6 +29,9 @@
 - Forward `received_at` timestamp for buckets sent to Kafka. ([#3561](https://github.com/getsentry/relay/pull/3561))
 - Limit metric name to 150 characters. ([#3628](https://github.com/getsentry/relay/pull/3628))
 - Add validation of Kafka topics on startup. ([#3543](https://github.com/getsentry/relay/pull/3543))
+- Send `attachment` data inline when possible. ([#3654](https://github.com/getsentry/relay/pull/3654))
+- Drops support for transaction metrics extraction versions < 3. ([#3672](https://github.com/getsentry/relay/pull/3672))
+- Move partitioning into the `Aggregator` and add a new `Partition` bucket shift mode. ([#3661](https://github.com/getsentry/relay/pull/3661))
 
 ## 24.5.0
 
@@ -56,6 +68,8 @@
 - Support new cache span ops in metrics and tag extraction. ([#3598](https://github.com/getsentry/relay/pull/3598))
 - Extract additional user fields for spans. ([#3599](https://github.com/getsentry/relay/pull/3599))
 - Disable `db.redis` span metrics extraction. ([#3600](https://github.com/getsentry/relay/pull/3600))
+- Extract status for spans. ([#3606](https://github.com/getsentry/relay/pull/3606))
+- Extract cache key for spans. ([#3631](https://github.com/getsentry/relay/pull/3631))
 
 ## 24.4.2
 

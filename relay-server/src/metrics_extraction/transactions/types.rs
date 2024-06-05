@@ -21,7 +21,7 @@ pub enum TransactionMetric {
     Duration {
         unit: DurationUnit,
         value: DistributionType,
-        tags: TransactionDurationTags,
+        tags: CommonTags,
     },
     /// A distribution metric for the transaction duration with limited tags.
     DurationLight {
@@ -130,22 +130,6 @@ impl IntoMetric for TransactionMetric {
             tags,
             metadata: BucketMetadata::new(received_at),
         }
-    }
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Ord, PartialOrd)]
-pub struct TransactionDurationTags {
-    pub has_profile: bool,
-    pub universal_tags: CommonTags,
-}
-
-impl From<TransactionDurationTags> for BTreeMap<String, String> {
-    fn from(tags: TransactionDurationTags) -> Self {
-        let mut map: BTreeMap<String, String> = tags.universal_tags.into();
-        if tags.has_profile {
-            map.insert("has_profile".to_string(), "true".to_string());
-        }
-        map
     }
 }
 

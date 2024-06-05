@@ -602,7 +602,6 @@ mod tests {
                 1970-01-01T00:02:03Z,
             ),
             exclusive_time: 500.0,
-            description: ~,
             op: "myop",
             span_id: SpanId(
                 "fa90fdead5f74052",
@@ -618,6 +617,7 @@ mod tests {
             ),
             is_segment: ~,
             status: Ok,
+            description: ~,
             tags: ~,
             origin: ~,
             profile_id: EventId(
@@ -646,6 +646,7 @@ mod tests {
                 resource_render_blocking_status: ~,
                 server_address: ~,
                 cache_hit: ~,
+                cache_key: ~,
                 cache_item_size: ~,
                 http_response_status_code: ~,
                 ai_pipeline_name: ~,

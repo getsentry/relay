@@ -1,7 +1,8 @@
 import json
 import uuid
 from collections import Counter
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone, UTC
+from .consts import TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION
 
 import pytest
 from opentelemetry.proto.common.v1.common_pb2 import AnyValue, KeyValue
@@ -40,10 +41,10 @@ def test_span_extraction(
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = [
         "projects:span-metrics-extraction",
-        "projects:span-metrics-extraction-all-modules",
+        "organizations:indexed-spans-extraction",
     ]
     project_config["config"]["transactionMetrics"] = {
-        "version": 3,
+        "version": TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION,
     }
 
     if discard_transaction:
@@ -51,6 +52,7 @@ def test_span_extraction(
 
     event = make_transaction({"event_id": "cbf6960622e14a45abc1f03b2055b186"})
     event["contexts"]["trace"]["status"] = "success"
+    event["contexts"]["trace"]["origin"] = "manual"
     end = datetime.now(timezone.utc) - timedelta(seconds=1)
     duration = timedelta(milliseconds=500)
     start = end - duration
@@ -58,10 +60,11 @@ def test_span_extraction(
         {
             "description": "GET /api/0/organizations/?member=1",
             "op": "http",
-            "status": "success",
+            "origin": "manual",
             "parent_span_id": "aaaaaaaaaaaaaaaa",
             "span_id": "bbbbbbbbbbbbbbbb",
             "start_timestamp": start.isoformat(),
+            "status": "success",
             "timestamp": end.isoformat(),
             "trace_id": "ff62a8b040f340bda5d830223def1d81",
         },
@@ -96,6 +99,7 @@ def test_span_extraction(
         "exclusive_time_ms": 500.0,
         "is_segment": False,
         "organization_id": 1,
+        "origin": "manual",
         "parent_span_id": "aaaaaaaaaaaaaaaa",
         "project_id": 42,
         "retention_days": 90,
@@ -143,6 +147,7 @@ def test_span_extraction(
         "exclusive_time_ms": 2000.0,
         "is_segment": True,
         "organization_id": 1,
+        "origin": "manual",
         "project_id": 42,
         "retention_days": 90,
         "segment_id": "968cff94913ebb07",
@@ -192,9 +197,10 @@ def test_span_extraction_with_sampling(
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = [
         "projects:span-metrics-extraction",
+        "organizations:indexed-spans-extraction",
     ]
     project_config["config"]["transactionMetrics"] = {
-        "version": 3,
+        "version": TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION,
     }
 
     spans_consumer = spans_consumer()
@@ -235,9 +241,10 @@ def test_duplicate_performance_score(mini_sentry, relay):
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = [
         "projects:span-metrics-extraction",
+        "organizations:indexed-spans-extraction",
     ]
     project_config["config"]["transactionMetrics"] = {
-        "version": 1,
+        "version": TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION,
     }
     project_config["config"]["performanceScore"] = {
         "profiles": [
@@ -449,7 +456,9 @@ def test_span_ingestion(
         "projects:span-metrics-extraction",
         "projects:relay-otel-endpoint",
     ]
-    project_config["config"]["transactionMetrics"] = {"version": 1}
+    project_config["config"]["transactionMetrics"] = {
+        "version": TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION
+    }
     if extract_transaction:
         project_config["config"]["features"].append(
             "projects:extract-transaction-from-segment-span"
@@ -939,6 +948,7 @@ def test_span_extraction_with_metrics_summary(
     project_config["config"]["features"] = [
         "organizations:custom-metrics",
         "projects:span-metrics-extraction",
+        "organizations:indexed-spans-extraction",
     ]
 
     event = make_transaction({"event_id": "cbf6960622e14a45abc1f03b2055b186"})
@@ -1118,6 +1128,7 @@ def test_span_extraction_with_ddm_missing_values(
     project_config["config"]["features"] = [
         "organizations:custom-metrics",
         "projects:span-metrics-extraction",
+        "organizations:indexed-spans-extraction",
     ]
 
     event = make_transaction({"event_id": "cbf6960622e14a45abc1f03b2055b186"})
@@ -1483,7 +1494,7 @@ def test_rate_limit_indexed_consistent(
         {
             "categories": ["span_indexed"],
             "limit": 4,
-            "window": 1000,
+            "window": int(datetime.now(UTC).timestamp()),
             "id": uuid.uuid4(),
             "reasonCode": "indexed_exceeded",
         },
@@ -1526,15 +1537,18 @@ def test_rate_limit_indexed_consistent_extracted(
     project_config = mini_sentry.add_full_project_config(project_id)
     # Span metrics won't be extracted without a supported transactionMetrics config.
     # Without extraction, the span is treated as `Span`, not `SpanIndexed`.
-    project_config["config"]["transactionMetrics"] = {"version": 3}
+    project_config["config"]["transactionMetrics"] = {
+        "version": TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION
+    }
     project_config["config"]["features"] = [
         "projects:span-metrics-extraction",
+        "organizations:indexed-spans-extraction",
     ]
     project_config["config"]["quotas"] = [
         {
             "categories": ["span_indexed"],
             "limit": 3,
-            "window": 1000,
+            "window": int(datetime.now(UTC).timestamp()),
             "id": uuid.uuid4(),
             "reasonCode": "indexed_exceeded",
         },
@@ -1604,7 +1618,7 @@ def test_rate_limit_metrics_consistent(
         {
             "categories": ["span"],
             "limit": 3,
-            "window": 1000,
+            "window": int(datetime.now(UTC).timestamp()),
             "id": uuid.uuid4(),
             "reasonCode": "total_exceeded",
         },
@@ -1614,7 +1628,7 @@ def test_rate_limit_metrics_consistent(
     metrics_consumer = metrics_consumer()
     outcomes_consumer = outcomes_consumer()
 
-    start = datetime.now(timezone.utc)
+    start = datetime.now(UTC)
     end = start + timedelta(seconds=1)
 
     envelope = envelope_with_spans(start, end)
@@ -1692,6 +1706,7 @@ def test_span_extraction_with_tags(
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = [
         "projects:span-metrics-extraction",
+        "organizations:indexed-spans-extraction",
     ]
 
     event = make_transaction(
@@ -1793,7 +1808,9 @@ def test_dynamic_sampling(
     project_config["config"]["features"] = [
         "organizations:standalone-span-ingestion",
     ]
-    project_config["config"]["transactionMetrics"] = {"version": 1}
+    project_config["config"]["transactionMetrics"] = {
+        "version": TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION
+    }
 
     sampling_config = mini_sentry.add_basic_project_config(43)
     sampling_public_key = sampling_config["publicKeys"][0]["publicKey"]
@@ -1862,10 +1879,10 @@ def test_dynamic_sampling(
     if sample_rate == 1.0:
         spans = list(spans_consumer.get_spans(timeout=10, max_attempts=4))
         assert len(spans) == 4
-        outcomes = outcomes_consumer.get_outcomes(timeout=0.1)
+        outcomes = outcomes_consumer.get_outcomes(timeout=10, n=4)
         assert summarize_outcomes(outcomes) == {(16, 0): 4}  # SpanIndexed, Accepted
     else:
-        outcomes = outcomes_consumer.get_outcomes(timeout=10)
+        outcomes = outcomes_consumer.get_outcomes(timeout=10, n=4)
         assert summarize_outcomes(outcomes) == {(12, 1): 4}  # Span, Filtered
         assert {o["reason"] for o in outcomes} == {"Sampled:3000"}
 

@@ -15,47 +15,50 @@ use crate::protocol::{
 #[metastructure(process_func = "process_span", value_type = "Span")]
 pub struct Span {
     /// Timestamp when the span was ended.
-    #[metastructure(required = "true")]
+    #[metastructure(required = "true", trim = "false")]
     pub timestamp: Annotated<Timestamp>,
 
     /// Timestamp when the span started.
-    #[metastructure(required = "true")]
+    #[metastructure(required = "true", trim = "false")]
     pub start_timestamp: Annotated<Timestamp>,
 
     /// The amount of time in milliseconds spent in this span,
     /// excluding its immediate child spans.
     pub exclusive_time: Annotated<f64>,
 
-    /// Human readable description of a span (e.g. method URL).
-    #[metastructure(pii = "maybe")]
-    pub description: Annotated<String>,
-
     /// Span type (see `OperationType` docs).
-    #[metastructure(max_chars = 128)]
+    #[metastructure(max_chars = 128, trim = "false")]
     pub op: Annotated<OperationType>,
 
     /// The Span id.
-    #[metastructure(required = "true")]
+    #[metastructure(required = "true", trim = "false")]
     pub span_id: Annotated<SpanId>,
 
     /// The ID of the span enclosing this span.
+    #[metastructure(trim = "false")]
     pub parent_span_id: Annotated<SpanId>,
 
     /// The ID of the trace the span belongs to.
-    #[metastructure(required = "true")]
+    #[metastructure(required = "true", trim = "false")]
     pub trace_id: Annotated<TraceId>,
 
     /// A unique identifier for a segment within a trace (8 byte hexadecimal string).
     ///
     /// For spans embedded in transactions, the `segment_id` is the `span_id` of the containing
     /// transaction.
+    #[metastructure(trim = "false")]
     pub segment_id: Annotated<SpanId>,
 
     /// Whether or not the current span is the root of the segment.
+    #[metastructure(trim = "false")]
     pub is_segment: Annotated<bool>,
 
     /// The status of a span.
     pub status: Annotated<SpanStatus>,
+
+    /// Human readable description of a span (e.g. method URL).
+    #[metastructure(pii = "maybe")]
+    pub description: Annotated<String>,
 
     /// Arbitrary tags on a span, like on the top-level event.
     #[metastructure(pii = "maybe")]
@@ -266,6 +269,10 @@ pub struct SpanData {
     #[metastructure(field = "cache.hit")]
     pub cache_hit: Annotated<Value>,
 
+    /// The name of the cache key.
+    #[metastructure(field = "cache.key")]
+    pub cache_key: Annotated<Value>,
+
     /// The size of the cache item.
     #[metastructure(field = "cache.item_size")]
     pub cache_item_size: Annotated<Value>,
@@ -446,11 +453,11 @@ mod tests {
   "timestamp": 0.0,
   "start_timestamp": -63158400.0,
   "exclusive_time": 1.23,
-  "description": "desc",
   "op": "operation",
   "span_id": "fa90fdead5f74052",
   "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
   "status": "ok",
+  "description": "desc",
   "origin": "auto.http",
   "measurements": {
     "memory": {
@@ -645,6 +652,7 @@ mod tests {
             resource_render_blocking_status: ~,
             server_address: ~,
             cache_hit: ~,
+            cache_key: ~,
             cache_item_size: ~,
             http_response_status_code: ~,
             ai_pipeline_name: ~,

@@ -482,13 +482,13 @@ mod tests {
         let sampling_result = run(&mut state, &config);
         assert!(sampling_result.should_keep());
 
-        // Current version is 1, so it won't run DS if it's outdated
-        let mut state = get_state(Some(0));
+        // Current version is 3, so it won't run DS if it's outdated
+        let mut state = get_state(Some(2));
         let sampling_result = run(&mut state, &config);
         assert!(sampling_result.should_keep());
 
         // Dynamic sampling is run, as the transactionmetrics version is up to date.
-        let mut state = get_state(Some(1));
+        let mut state = get_state(Some(3));
         let sampling_result = run(&mut state, &config);
         assert!(sampling_result.should_drop());
     }

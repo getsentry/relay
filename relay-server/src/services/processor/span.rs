@@ -34,6 +34,7 @@ pub fn extract_transaction_span(event: &Event, max_tag_value_size: usize) -> Opt
     let mut spans = [Span::from(event).into()];
 
     tag_extraction::extract_span_tags(event, &mut spans, max_tag_value_size);
+    tag_extraction::extract_segment_span_tags(event, &mut spans);
 
     spans.into_iter().next().and_then(Annotated::into_value)
 }

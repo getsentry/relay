@@ -176,7 +176,8 @@ map_fields!(
     span.data.environment <=> event.environment,
     span.data.browser_name <=> event.contexts.browser.name,
     span.data.sdk_name <=> event.client_sdk.name,
-    span.data.sdk_version <=> event.client_sdk.version
+    span.data.sdk_version <=> event.client_sdk.version,
+    span.origin <=> event.contexts.trace.origin
     ;
     span.is_segment <= true,
     span.was_transaction <= true
@@ -209,6 +210,7 @@ mod tests {
                         "trace_id": "4C79F60C11214EB38604F4AE0781BFB2",
                         "span_id": "FA90FDEAD5F74052",
                         "type": "trace",
+                        "origin": "manual",
                         "op": "myop",
                         "status": "ok",
                         "exclusive_time": 123.4,
@@ -246,7 +248,6 @@ mod tests {
             timestamp: ~,
             start_timestamp: ~,
             exclusive_time: 123.4,
-            description: "my 1st transaction",
             op: "myop",
             span_id: SpanId(
                 "fa90fdead5f74052",
@@ -262,8 +263,9 @@ mod tests {
             ),
             is_segment: true,
             status: Ok,
+            description: "my 1st transaction",
             tags: ~,
-            origin: ~,
+            origin: "manual",
             profile_id: EventId(
                 a0aaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaab,
             ),
@@ -290,6 +292,7 @@ mod tests {
                 resource_render_blocking_status: ~,
                 server_address: ~,
                 cache_hit: ~,
+                cache_key: ~,
                 cache_item_size: ~,
                 http_response_status_code: ~,
                 ai_pipeline_name: ~,

@@ -77,6 +77,7 @@ pub enum SpanTagKey {
     AppStartType,
     ReplayId,
     CacheHit,
+    CacheKey,
     TraceStatus,
     MessagingDestinationName,
     MessagingMessageId,
@@ -124,6 +125,7 @@ impl SpanTagKey {
             SpanTagKey::FileExtension => "file_extension",
             SpanTagKey::MainThread => "main_thread",
             SpanTagKey::CacheHit => "cache.hit",
+            SpanTagKey::CacheKey => "cache.key",
             SpanTagKey::OsName => "os.name",
             SpanTagKey::AppStartType => "app_start_type",
             SpanTagKey::ReplayId => "replay_id",
@@ -213,6 +215,37 @@ pub fn extract_span_tags(event: &Event, spans: &mut [Annotated<Span>], max_tag_v
     }
 }
 
+/// Extract segment span specific tags and measurements from the event and materialize them into the spans.
+pub fn extract_segment_span_tags(event: &Event, spans: &mut [Annotated<Span>]) {
+    let segment_tags = extract_segment_tags(event);
+    let segment_measurements = extract_segment_measurements(event);
+
+    for span in spans {
+        let Some(span) = span.value_mut() else {
+            continue;
+        };
+
+        if !segment_measurements.is_empty() {
+            span.measurements
+                .get_or_insert_with(Default::default)
+                .extend(
+                    segment_measurements
+                        .iter()
+                        .map(|(k, v)| (k.clone(), Annotated::new(v.clone()))),
+                );
+        }
+        if !segment_tags.is_empty() {
+            span.sentry_tags
+                .get_or_insert_with(Default::default)
+                .extend(
+                    segment_tags.iter().map(|(k, v)| {
+                        (k.clone().sentry_tag_key().into(), Annotated::new(v.clone()))
+                    }),
+                );
+        }
+    }
+}
+
 /// Extracts tags shared by every span.
 fn extract_shared_tags(event: &Event) -> BTreeMap<SpanTagKey, String> {
     let mut tags = BTreeMap::new();
@@ -298,6 +331,80 @@ fn extract_shared_tags(event: &Event) -> BTreeMap<SpanTagKey, String> {
         SpanTagKey::Platform,
         event.platform.as_str().unwrap_or("other").into(),
     );
+
+    tags
+}
+
+/// Extracts measurements that should only be saved on segment spans.
+fn extract_segment_measurements(event: &Event) -> BTreeMap<String, Measurement> {
+    let mut measurements = BTreeMap::new();
+
+    if let Some(trace_context) = event.context::<TraceContext>() {
+        if let Some(op) = extract_transaction_op(trace_context) {
+            if op == "queue.publish" || op == "queue.process" {
+                if let Some(data) = trace_context.data.value() {
+                    for (field, key, unit) in [
+                        (
+                            &data.messaging_message_retry_count,
+                            "messaging.message.retry.count",
+                            MetricUnit::None,
+                        ),
+                        (
+                            &data.messaging_message_receive_latency,
+                            "messaging.message.receive.latency",
+                            MetricUnit::Duration(DurationUnit::MilliSecond),
+                        ),
+                        (
+                            &data.messaging_message_body_size,
+                            "messaging.message.body.size",
+                            MetricUnit::Information(InformationUnit::Byte),
+                        ),
+                    ] {
+                        if let Some(value) = value_to_f64(field.value()) {
+                            measurements.insert(
+                                key.into(),
+                                Measurement {
+                                    value: value.into(),
+                                    unit: unit.into(),
+                                },
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    measurements
+}
+
+/// Extract tags that should only be saved on segment spans.
+fn extract_segment_tags(event: &Event) -> BTreeMap<SpanTagKey, String> {
+    let mut tags = BTreeMap::new();
+
+    if let Some(trace_context) = event.context::<TraceContext>() {
+        if let Some(op) = extract_transaction_op(trace_context) {
+            if op == "queue.publish" || op == "queue.process" {
+                if let Some(destination_name) = trace_context
+                    .data
+                    .value()
+                    .and_then(|data| data.messaging_destination_name.as_str())
+                {
+                    tags.insert(
+                        SpanTagKey::MessagingDestinationName,
+                        destination_name.into(),
+                    );
+                }
+                if let Some(message_id) = trace_context
+                    .data
+                    .value()
+                    .and_then(|data| data.messaging_message_id.as_str())
+                {
+                    tags.insert(SpanTagKey::MessagingMessageId, message_id.into());
+                }
+            }
+        }
+    }
 
     tags
 }
@@ -464,6 +571,11 @@ pub fn extract_tags(
             {
                 let tag_value = if *cache_hit { "true" } else { "false" };
                 span_tags.insert(SpanTagKey::CacheHit, tag_value.to_owned());
+            }
+            if let Some(cache_keys) = span.data.value().and_then(|data| data.cache_key.value()) {
+                if let Ok(cache_keys) = serde_json::to_string(cache_keys) {
+                    span_tags.insert(SpanTagKey::CacheKey, cache_keys);
+                }
             }
         }
 
@@ -729,18 +841,21 @@ pub fn extract_measurements(span: &mut Span, is_mobile: bool) {
 
     if span_op.starts_with("queue.") {
         if let Some(data) = span.data.value() {
-            for (field, key) in [
+            for (field, key, unit) in [
                 (
                     &data.messaging_message_retry_count,
                     "messaging.message.retry.count",
+                    MetricUnit::None,
                 ),
                 (
                     &data.messaging_message_receive_latency,
                     "messaging.message.receive.latency",
+                    MetricUnit::Duration(DurationUnit::MilliSecond),
                 ),
                 (
                     &data.messaging_message_body_size,
                     "messaging.message.body.size",
+                    MetricUnit::Information(InformationUnit::Byte),
                 ),
             ] {
                 if let Some(value) = value_to_f64(field.value()) {
@@ -749,7 +864,7 @@ pub fn extract_measurements(span: &mut Span, is_mobile: bool) {
                         key.into(),
                         Measurement {
                             value: value.into(),
-                            unit: MetricUnit::None.into(),
+                            unit: unit.into(),
                         }
                         .into(),
                     );
@@ -1559,6 +1674,7 @@ LIMIT 1
                         "trace_id": "77aeb1c16bb544a4a39b8d42944947a3",
                         "data": {
                             "cache.hit": true,
+                            "cache.key": ["my_key"],
                             "cache.item_size": 8,
                             "thread.id": "6286962688",
                             "thread.name": "Thread-4 (process_request_thread)"
@@ -1570,13 +1686,14 @@ LIMIT 1
                         "timestamp": 1694732409.3145,
                         "start_timestamp": 1694732408.8367,
                         "exclusive_time": 477.800131,
-                        "description": "get my_key",
+                        "description": "mget my_key my_key_2",
                         "op": "cache.get_item",
                         "span_id": "97c0ef9770a02f9d",
                         "parent_span_id": "9756d8d7b2b364ff",
                         "trace_id": "77aeb1c16bb544a4a39b8d42944947a3",
                         "data": {
                             "cache.hit": false,
+                            "cache.key": ["my_key", "my_key_2"],
                             "cache.item_size": 8,
                             "thread.id": "6286962688",
                             "thread.name": "Thread-4 (process_request_thread)"
@@ -1595,6 +1712,7 @@ LIMIT 1
                         "trace_id": "77aeb1c16bb544a4a39b8d42944947a3",
                         "data": {
                             "cache.hit": false,
+                            "cache.key": ["my_key_2"],
                             "cache.item_size": 8,
                             "thread.id": "6286962688",
                             "thread.name": "Thread-4 (process_request_thread)"
@@ -1626,6 +1744,26 @@ LIMIT 1
         assert_eq!(tags_1.get("cache.hit").unwrap().as_str(), Some("true"));
         assert_eq!(tags_2.get("cache.hit").unwrap().as_str(), Some("false"));
         assert_eq!(tags_3.get("cache.hit").unwrap().as_str(), Some("false"));
+
+        let keys_1 = Value::Array(vec![Annotated::new(Value::String("my_key".to_string()))]);
+        let keys_2 = Value::Array(vec![
+            Annotated::new(Value::String("my_key".to_string())),
+            Annotated::new(Value::String("my_key_2".to_string())),
+        ]);
+        let keys_3 = Value::Array(vec![Annotated::new(Value::String("my_key_2".to_string()))]);
+        assert_eq!(
+            tags_1.get("cache.key").unwrap().as_str(),
+            serde_json::to_string(&keys_1).ok().as_deref()
+        );
+        assert_eq!(
+            tags_2.get("cache.key").unwrap().as_str(),
+            serde_json::to_string(&keys_2).ok().as_deref()
+        );
+        assert_eq!(
+            tags_3.get("cache.key").unwrap().as_str(),
+            serde_json::to_string(&keys_3).ok().as_deref()
+        );
+
         assert_debug_snapshot!(measurements_1, @r###"
         Measurements(
             {
@@ -1989,6 +2127,143 @@ LIMIT 1
             Some(&"abc123".to_string())
         );
     }
+
+    #[test]
+    fn test_extract_segment_queue_tags_and_measurement_from_transaction() {
+        let json = r#"
+            {
+                "type": "transaction",
+                "platform": "python",
+                "start_timestamp": "2021-04-26T07:59:01+0100",
+                "timestamp": "2021-04-26T08:00:00+0100",
+                "transaction": "foo",
+                "contexts": {
+                    "trace": {
+                        "op": "queue.process",
+                        "status": "ok",
+                        "data": {
+                            "messaging.destination.name": "default",
+                            "messaging.message.id": "abc123",
+                            "messaging.message.receive.latency": 456,
+                            "messaging.message.body.size": 100,
+                            "messaging.message.retry.count": 3
+                        }
+                    }
+                }
+            }
+        "#;
+
+        let event = Annotated::<Event>::from_json(json)
+            .unwrap()
+            .into_value()
+            .unwrap();
+        let mut spans = [Span::from(&event).into()];
+
+        extract_segment_span_tags(&event, &mut spans);
+
+        let segment_span: &Annotated<Span> = &spans[0];
+        let tags = segment_span.value().unwrap().sentry_tags.value().unwrap();
+        let measurements = segment_span.value().unwrap().measurements.value().unwrap();
+
+        assert_eq!(
+            tags.get("messaging.destination.name"),
+            Some(&Annotated::new("default".to_string()))
+        );
+
+        assert_eq!(
+            tags.get("messaging.message.id"),
+            Some(&Annotated::new("abc123".to_string()))
+        );
+
+        assert_debug_snapshot!(measurements, @r###"
+        Measurements(
+            {
+                "messaging.message.body.size": Measurement {
+                    value: 100.0,
+                    unit: Information(
+                        Byte,
+                    ),
+                },
+                "messaging.message.receive.latency": Measurement {
+                    value: 456.0,
+                    unit: Duration(
+                        MilliSecond,
+                    ),
+                },
+                "messaging.message.retry.count": Measurement {
+                    value: 3.0,
+                    unit: None,
+                },
+            },
+        )
+        "###);
+    }
+
+    #[test]
+    fn test_does_not_extract_segment_tags_and_measurements_on_child_spans() {
+        let json = r#"
+            {
+                "type": "transaction",
+                "platform": "python",
+                "start_timestamp": "2021-04-26T07:59:01+0100",
+                "timestamp": "2021-04-26T08:00:00+0100",
+                "transaction": "foo",
+                "contexts": {
+                    "trace": {
+                        "op": "queue.process",
+                        "status": "ok",
+                        "data": {
+                            "messaging.destination.name": "default",
+                            "messaging.message.id": "abc123",
+                            "messaging.message.receive.latency": 456,
+                            "messaging.message.body.size": 100,
+                            "messaging.message.retry.count": 3
+                        }
+                    }
+                },
+                "spans": [
+                    {
+                        "op": "queue.process",
+                        "span_id": "bd429c44b67a3eb1",
+                        "start_timestamp": 1597976300.0000000,
+                        "timestamp": 1597976302.0000000,
+                        "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                        "data": {
+                            "messaging.message.body.size": 200
+                        }
+                    }
+                ]
+            }
+        "#;
+
+        let mut event = Annotated::<Event>::from_json(json)
+            .unwrap()
+            .into_value()
+            .unwrap();
+
+        extract_span_tags_from_event(&mut event, 200);
+
+        let span = &event.spans.value().unwrap()[0];
+        let tags = span.value().unwrap().sentry_tags.value().unwrap();
+        let measurements = span.value().unwrap().measurements.value().unwrap();
+
+        assert_eq!(tags.get("messaging.destination.name"), None);
+        assert_eq!(tags.get("messaging.message.id"), None);
+
+        assert_debug_snapshot!(measurements, @r###"
+        Measurements(
+            {
+                "messaging.message.body.size": Measurement {
+                    value: 200.0,
+                    unit: Information(
+                        Byte,
+                    ),
+                },
+            },
+        )
+        "###);
+    }
+
     #[test]
     fn extract_span_status_into_sentry_tags() {
         let json = r#"
