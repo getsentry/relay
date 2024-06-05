@@ -245,23 +245,23 @@ impl<'a> Processor for PiiProcessor<'a> {
 }
 
 #[derive(Default)]
-struct PairArrayChecker {
+struct PairListProcessor {
     is_pair: bool,
     has_string_key: bool,
 }
 
-impl PairArrayChecker {
-    /// Returns true if the visitor identified the supplied data as an array composed of
+impl PairListProcessor {
+    /// Returns true if the processor identified the supplied data as an array composed of
     /// a key (string) and a value.
     fn is_pair_array(&self) -> bool {
         self.is_pair && self.has_string_key
     }
 }
 
-impl Processor for PairArrayChecker {
+impl Processor for PairListProcessor {
     fn process_array<T>(
         &mut self,
-        value: &mut relay_protocol::Array<T>,
+        value: &mut Array<T>,
         _meta: &mut Meta,
         state: &ProcessingState<'_>,
     ) -> ProcessingResult
@@ -277,6 +277,7 @@ impl Processor for PairArrayChecker {
                 &state.enter_index(0, state.inner_attrs(), value_type),
             )?;
         }
+
         Ok(())
     }
 
@@ -289,13 +290,14 @@ impl Processor for PairArrayChecker {
         if state.depth() == 1 && state.path().index() == Some(0) {
             self.has_string_key = true;
         }
+
         Ok(())
     }
 }
 
 fn is_pairlist<T: ProcessValue>(array: &mut Array<T>) -> bool {
     for element in array.iter_mut() {
-        let mut visitor = PairArrayChecker::default();
+        let mut visitor = PairListProcessor::default();
         process_value(element, &mut visitor, ProcessingState::root()).ok();
         if !visitor.is_pair_array() {
             return false;
