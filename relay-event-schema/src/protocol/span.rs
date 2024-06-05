@@ -15,11 +15,11 @@ use crate::protocol::{
 #[metastructure(process_func = "process_span", value_type = "Span")]
 pub struct Span {
     /// Timestamp when the span was ended.
-    #[metastructure(required = "true")]
+    #[metastructure(required = "true", trim = "false")]
     pub timestamp: Annotated<Timestamp>,
 
     /// Timestamp when the span started.
-    #[metastructure(required = "true")]
+    #[metastructure(required = "true", trim = "false")]
     pub start_timestamp: Annotated<Timestamp>,
 
     /// The amount of time in milliseconds spent in this span,

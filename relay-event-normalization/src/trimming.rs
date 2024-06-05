@@ -413,9 +413,10 @@ fn slim_frame_data(frames: &mut Array<Frame>, frame_allowance: usize) {
 mod tests {
     use std::iter::repeat;
 
+    use chrono::DateTime;
     use relay_event_schema::protocol::{
         Breadcrumb, Context, Contexts, Event, Exception, ExtraValue, Span, SpanId, TagEntry, Tags,
-        TraceId, Values,
+        Timestamp, TraceId, Values,
     };
     use relay_protocol::{get_value, Map, Remark, SerializableAnnotated};
     use similar_asserts::assert_eq;
@@ -954,7 +955,7 @@ mod tests {
     }
 
     #[test]
-    fn test_too_many_spans_trimmed_trace_id() {
+    fn test_untrimmable_fields() {
         let original_description = "a".repeat(819163);
         let original_trace_id = TraceId("b".repeat(48));
         let mut event = Annotated::new(Event {
@@ -985,8 +986,8 @@ mod tests {
     }
 
     #[test]
-    fn test_too_many_spans_trimmed_trace_id_drop() {
-        let original_description = "a".repeat(819163);
+    fn test_untrimmable_fields_drop() {
+        let original_description = "a".repeat(819164);
         let original_span_id = SpanId("b".repeat(48));
         let original_trace_id = TraceId("c".repeat(48));
         let original_segment_id = SpanId("d".repeat(48));
@@ -1005,6 +1006,18 @@ mod tests {
                     segment_id: original_segment_id.clone().into(),
                     is_segment: false.into(),
                     op: original_op.clone().into(),
+                    start_timestamp: Timestamp(
+                        DateTime::parse_from_rfc3339("1996-12-19T16:39:57Z")
+                            .unwrap()
+                            .into(),
+                    )
+                    .into(),
+                    timestamp: Timestamp(
+                        DateTime::parse_from_rfc3339("1996-12-19T16:39:58Z")
+                            .unwrap()
+                            .into(),
+                    )
+                    .into(),
                     ..Default::default()
                 }
                 .into(),
@@ -1024,9 +1037,10 @@ mod tests {
         assert_eq!(get_value!(event.spans[1].trace_id!), &original_trace_id);
         assert_eq!(get_value!(event.spans[1].segment_id!), &original_segment_id);
         assert_eq!(get_value!(event.spans[1].is_segment!), &false);
-
         // span.op is trimmed to its max_chars, but not dropped:
         assert_eq!(get_value!(event.spans[1].op!).len(), 128);
+        assert!(get_value!(event.spans[1].start_timestamp).is_some());
+        assert!(get_value!(event.spans[1].timestamp).is_some());
     }
 
     #[test]
