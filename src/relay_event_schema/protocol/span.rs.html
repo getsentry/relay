@@ -736,11 +736,11 @@
 #[metastructure(process_func = <span class="string">"process_span"</span>, value_type = <span class="string">"Span"</span>)]
 </span><span class="kw">pub struct </span>Span {
     <span class="doccomment">/// Timestamp when the span was ended.
-    </span><span class="attr">#[metastructure(required = <span class="string">"true"</span>)]
+    </span><span class="attr">#[metastructure(required = <span class="string">"true"</span>, trim = <span class="string">"false"</span>)]
     </span><span class="kw">pub </span>timestamp: Annotated&lt;Timestamp&gt;,
 
     <span class="doccomment">/// Timestamp when the span started.
-    </span><span class="attr">#[metastructure(required = <span class="string">"true"</span>)]
+    </span><span class="attr">#[metastructure(required = <span class="string">"true"</span>, trim = <span class="string">"false"</span>)]
     </span><span class="kw">pub </span>start_timestamp: Annotated&lt;Timestamp&gt;,
 
     <span class="doccomment">/// The amount of time in milliseconds spent in this span,
