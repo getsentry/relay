@@ -19,7 +19,7 @@ pub fn filter(state: &mut ProcessEnvelopeState<SpanGroup>) {
         .has_feature(Feature::StandaloneSpanIngestion);
     state.managed_envelope.retain_items(|item| {
         if item.is_span() && standalone_span_ingestion_disabled {
-            relay_log::warn!("dropping span because feature is disabled");
+            relay_log::debug!("dropping span because feature is disabled");
             ItemAction::DropSilently
         } else {
             ItemAction::Keep
