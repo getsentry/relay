@@ -61,7 +61,7 @@
         .has_feature(Feature::StandaloneSpanIngestion);
     state.managed_envelope.retain_items(|item| {
         <span class="kw">if </span>item.is_span() &amp;&amp; standalone_span_ingestion_disabled {
-            <span class="macro">relay_log::warn!</span>(<span class="string">"dropping span because feature is disabled"</span>);
+            <span class="macro">relay_log::debug!</span>(<span class="string">"dropping span because feature is disabled"</span>);
             ItemAction::DropSilently
         } <span class="kw">else </span>{
             ItemAction::Keep
