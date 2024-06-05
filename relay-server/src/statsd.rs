@@ -252,10 +252,6 @@ pub enum RelayTimers {
     EventProcessingSerialization,
     /// Time used to extract span metrics from an event.
     EventProcessingSpanMetricsExtraction,
-    /// Time spent on transaction processing after dynamic sampling.
-    ///
-    /// This includes PII scrubbing and for processing relays also consistent rate limiting.
-    TransactionProcessingAfterDynamicSampling,
     /// Time spent between the start of request handling and processing of the envelope.
     ///
     /// This includes streaming the request body, scheduling overheads, project config fetching,
@@ -419,9 +415,6 @@ impl TimerMetric for RelayTimers {
                 "event_processing.span_metrics_extraction"
             }
             RelayTimers::EventProcessingSerialization => "event_processing.serialization",
-            RelayTimers::TransactionProcessingAfterDynamicSampling => {
-                "transaction.processing.post_ds"
-            }
             RelayTimers::EnvelopeWaitTime => "event.wait_time",
             RelayTimers::EnvelopeProcessingTime => "event.processing_time",
             RelayTimers::EnvelopeTotalTime => "event.total_time",
@@ -667,11 +660,6 @@ pub enum RelayCounters {
     /// This metric is tagged with:
     ///  - `success`: whether deserializing the global config succeeded.
     GlobalConfigFetched,
-    /// Counter for dynamic sampling decision.
-    ///
-    /// This metric is tagged with:
-    /// - `decision`: "drop" if dynamic sampling drops the envelope, else "keep".
-    DynamicSamplingDecision,
     /// Counts how many transactions were created from segment spans.
     #[cfg(feature = "processing")]
     TransactionsFromSpans,
@@ -716,7 +704,6 @@ impl CounterMetric for RelayCounters {
             RelayCounters::MetricsTransactionNameExtracted => "metrics.transaction_name",
             RelayCounters::OpenTelemetryEvent => "event.opentelemetry",
             RelayCounters::GlobalConfigFetched => "global_config.fetch",
-            RelayCounters::DynamicSamplingDecision => "dynamic_sampling_decision",
             #[cfg(feature = "processing")]
             RelayCounters::TransactionsFromSpans => "transactions_from_spans",
             RelayCounters::MissingDynamicSamplingContext => "missing_dynamic_sampling_context",

@@ -11,14 +11,12 @@ use relay_protocol::{Annotated, Empty};
 use relay_sampling::config::RuleType;
 use relay_sampling::evaluation::{ReservoirEvaluator, SamplingEvaluator};
 use relay_sampling::{DynamicSamplingContext, SamplingConfig};
-use relay_statsd::metric;
 
 use crate::envelope::ItemType;
 use crate::services::outcome::Outcome;
 use crate::services::processor::{
     profile, EventProcessing, ProcessEnvelopeState, Sampling, TransactionGroup,
 };
-use crate::statsd::RelayCounters;
 use crate::utils::{self, sample, ItemAction, SamplingResult};
 
 /// Ensures there is a valid dynamic sampling context and corresponding project state.
@@ -107,10 +105,6 @@ pub fn sample_envelope_items(
         };
         let should_drop =
             event.ty.value() == Some(&EventType::Transaction) && sampling_match.should_drop();
-        metric!(
-            counter(RelayCounters::DynamicSamplingDecision) += 1,
-            decision = if should_drop { "drop" } else { "keep" }
-        );
         if should_drop {
             let unsampled_profiles_enabled = forward_unsampled_profiles(state, global_config);
 
