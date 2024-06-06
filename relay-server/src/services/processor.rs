@@ -1581,11 +1581,7 @@ impl EnvelopeProcessorService {
                 .project_state
                 .has_feature(Feature::ExtractSpansFromEvent)
             {
-                span::extract_from_event(
-                    state,
-                    &self.inner.config,
-                    &self.inner.global_config.current(),
-                );
+                span::extract_from_event(state, &self.inner.config, &global_config);
             }
 
             self.enforce_quotas(state)?;
