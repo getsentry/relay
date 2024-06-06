@@ -1496,6 +1496,8 @@ impl EnvelopeProcessorService {
         if state.has_event() {
             event::scrub(state)?;
             event::serialize(state)?;
+
+            event::emit_feedback_metrics(state.envelope());
         }
 
         attachment::scrub(state);
