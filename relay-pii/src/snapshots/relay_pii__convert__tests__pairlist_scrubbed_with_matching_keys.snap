@@ -1,0 +1,82 @@
+---
+source: relay-pii/src/convert.rs
+expression: data
+---
+{
+  "threads": {
+    "values": [
+      {
+        "stacktrace": {
+          "frames": [
+            {
+              "vars": {
+                "request": {
+                  "headers": [
+                    [
+                      "secret",
+                      "[Filtered]"
+                    ],
+                    [
+                      "passwd",
+                      "[Filtered]"
+                    ]
+                  ]
+                }
+              }
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "_meta": {
+    "threads": {
+      "values": {
+        "0": {
+          "stacktrace": {
+            "frames": {
+              "0": {
+                "vars": {
+                  "request": {
+                    "headers": {
+                      "0": {
+                        "1": {
+                          "": {
+                            "rem": [
+                              [
+                                "@password:filter",
+                                "s",
+                                0,
+                                10
+                              ]
+                            ],
+                            "len": 32
+                          }
+                        }
+                      },
+                      "1": {
+                        "1": {
+                          "": {
+                            "rem": [
+                              [
+                                "@password:filter",
+                                "s",
+                                0,
+                                10
+                              ]
+                            ],
+                            "len": 11
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
