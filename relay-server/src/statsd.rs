@@ -666,6 +666,9 @@ pub enum RelayCounters {
     /// Counter for when the DSC is missing from an event that comes from an SDK that should support
     /// it.
     MissingDynamicSamplingContext,
+    /// Counter for when a partition containing buckets reached the maximum size and is split into
+    /// multiple separate partitions.
+    PartitionOverflow,
 }
 
 impl CounterMetric for RelayCounters {
@@ -707,6 +710,7 @@ impl CounterMetric for RelayCounters {
             #[cfg(feature = "processing")]
             RelayCounters::TransactionsFromSpans => "transactions_from_spans",
             RelayCounters::MissingDynamicSamplingContext => "missing_dynamic_sampling_context",
+            RelayCounters::PartitionOverflow => "partition_overflow",
         }
     }
 }

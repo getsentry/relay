@@ -2548,6 +2548,7 @@ impl EnvelopeProcessorService {
 
                 while let Some(bucket) = remaining.take() {
                     if let Some(next) = partition.insert(bucket, *scoping) {
+                        metric!(counter(RelayCounters::PartitionOverflow) += 1);
                         // A part of the bucket could not be inserted. Take the partition and submit
                         // it immediately. Repeat until the final part was inserted. This should
                         // always result in a request, otherwise we would enter an endless loop.
