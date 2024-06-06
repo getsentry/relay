@@ -679,7 +679,6 @@ pub enum RelayCounters {
     /// it.
     MissingDynamicSamplingContext,
     /// The number of attachments processed in the same envelope as a user_report_v2 event.
-    #[cfg(feature = "processing")]
     FeedbackAttachments,
 }
 
@@ -723,7 +722,6 @@ impl CounterMetric for RelayCounters {
             #[cfg(feature = "processing")]
             RelayCounters::TransactionsFromSpans => "transactions_from_spans",
             RelayCounters::MissingDynamicSamplingContext => "missing_dynamic_sampling_context",
-            #[cfg(feature = "processing")]
             RelayCounters::FeedbackAttachments => "processing.feedback_attachments",
         }
     }

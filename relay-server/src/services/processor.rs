@@ -1497,7 +1497,6 @@ impl EnvelopeProcessorService {
             event::scrub(state)?;
             event::serialize(state)?;
 
-            #[cfg(feature = "processing")]
             event::emit_feedback_metrics(state.envelope());
         }
 
