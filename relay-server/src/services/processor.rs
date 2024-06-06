@@ -1525,12 +1525,10 @@ impl EnvelopeProcessorService {
         dynamic_sampling::ensure_dsc(state);
         let filter_run = event::filter(state, &self.inner.global_config.current())?;
 
-        let mut sampling_should_drop = false;
-
         if self.inner.config.processing_enabled() || matches!(filter_run, FiltersStatus::Ok) {
             let sampling_result = dynamic_sampling::run(state, &self.inner.config);
             // Remember sampling decision, before it is reset in `dynamic_sampling::sample_envelope_items`.
-            sampling_should_drop = sampling_result.should_drop();
+            let sampling_should_drop = sampling_result.should_drop();
 
             // We avoid extracting metrics if we are not sampling the event while in non-processing
             // relays, in order to synchronize rate limits on indexed and processed transactions.
@@ -1546,41 +1544,35 @@ impl EnvelopeProcessorService {
             );
         }
 
-        metric!(
-            timer(RelayTimers::TransactionProcessingAfterDynamicSampling),
-            sampling_decision = if sampling_should_drop { "drop" } else { "keep" },
-            {
-                if_processing!(self.inner.config, {
-                    profile::process(state, &self.inner.config);
-                });
+        if_processing!(self.inner.config, {
+            profile::process(state, &self.inner.config);
+        });
 
-                if state.has_event() {
-                    event::scrub(state)?;
+        if state.has_event() {
+            event::scrub(state)?;
 
-                    if_processing!(self.inner.config, {
-                        if state
-                            .project_state
-                            .has_feature(Feature::ExtractSpansFromEvent)
-                        {
-                            span::extract_from_event(
-                                state,
-                                &self.inner.config,
-                                &self.inner.global_config.current(),
-                            );
-                        }
-                    });
+            if_processing!(self.inner.config, {
+                if state
+                    .project_state
+                    .has_feature(Feature::ExtractSpansFromEvent)
+                {
+                    span::extract_from_event(
+                        state,
+                        &self.inner.config,
+                        &self.inner.global_config.current(),
+                    );
                 }
+            });
+        }
 
-                if_processing!(self.inner.config, {
-                    self.enforce_quotas(state)?;
-                    span::maybe_discard_transaction(state);
-                });
-                if state.has_event() {
-                    event::serialize(state)?;
-                }
-                attachment::scrub(state);
-            }
-        );
+        if_processing!(self.inner.config, {
+            self.enforce_quotas(state)?;
+            span::maybe_discard_transaction(state);
+        });
+        if state.has_event() {
+            event::serialize(state)?;
+        }
+        attachment::scrub(state);
 
         Ok(())
     }
