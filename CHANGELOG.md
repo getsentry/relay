@@ -4,7 +4,7 @@
 
 **Internal**:
 
-- Allow treating arrays of two elements as key-value pairs during PII scrubbing. ([#3639](https://github.com/getsentry/relay/pull/3639))
+- Treat arrays of pairs as key-value mappings during PII scrubbing. ([#3639](https://github.com/getsentry/relay/pull/3639))
 
 ## 24.5.1
 
