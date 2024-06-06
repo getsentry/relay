@@ -1197,7 +1197,7 @@ impl Service for ProjectCacheService {
                     biased;
 
                     Ok(()) = subscription.changed() => {
-                        metric!(timer(RelayTimers::EventProcessingDeserialize), task = "update_global_config", {
+                        metric!(timer(RelayTimers::ProjectCacheTaskDuration), task = "update_global_config", {
                             match subscription.borrow().clone() {
                                 global_config::Status::Ready(_) => broker.set_global_config_ready(),
                                 // The watch should only be updated if it gets a new value.
