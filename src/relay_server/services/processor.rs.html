@@ -3636,6 +3636,12 @@
 <a href="#3634" id="3634">3634</a>
 <a href="#3635" id="3635">3635</a>
 <a href="#3636" id="3636">3636</a>
+<a href="#3637" id="3637">3637</a>
+<a href="#3638" id="3638">3638</a>
+<a href="#3639" id="3639">3639</a>
+<a href="#3640" id="3640">3640</a>
+<a href="#3641" id="3641">3641</a>
+<a href="#3642" id="3642">3642</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
@@ -6179,6 +6185,7 @@
 
         <span class="kw">let </span>batch_size = <span class="self">self</span>.inner.config.metrics_max_batch_size_bytes();
         <span class="kw">let </span><span class="kw-2">mut </span>partition = Partition::new(batch_size);
+        <span class="kw">let </span><span class="kw-2">mut </span>partition_splits = <span class="number">0</span>;
 
         <span class="kw">for </span>(scoping, message) <span class="kw">in </span><span class="kw-2">&amp;</span>scopes {
             <span class="kw">let </span>ProjectMetrics { buckets, .. } = message;
@@ -6193,9 +6200,14 @@
                         // always result in a request, otherwise we would enter an endless loop.
                         </span><span class="self">self</span>.send_global_partition(partition_key, <span class="kw-2">&amp;mut </span>partition);
                         remaining = <span class="prelude-val">Some</span>(next);
+                        partition_splits += <span class="number">1</span>;
                     }
                 }
             }
+        }
+
+        <span class="kw">if </span>partition_splits &gt; <span class="number">0 </span>{
+            <span class="macro">metric!</span>(histogram(RelayHistograms::PartitionSplits) = partition_splits);
         }
 
         <span class="self">self</span>.send_global_partition(partition_key, <span class="kw-2">&amp;mut </span>partition);
