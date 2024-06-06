@@ -13,8 +13,10 @@ use crate::services::outcome::{DiscardReason, Outcome};
 use crate::services::processor::{ProcessEnvelopeState, TransactionGroup};
 use crate::utils::ItemAction;
 
-/// Removes profiles from the envelope if they can not be parsed.
-pub fn filter<G>(state: &mut ProcessEnvelopeState<G>) {
+/// Filters out invalid and duplicate profiles.
+///
+/// Returns the profile id of the single remaining profile, if there is one.
+pub fn filter<G>(state: &mut ProcessEnvelopeState<G>) -> Option<ProfileId> {
     let profiling_enabled = state.project_state.has_feature(Feature::Profiling);
     let has_transaction = state.event_type() == Some(EventType::Transaction);
     let unsampled_profiles = state
@@ -52,21 +54,33 @@ pub fn filter<G>(state: &mut ProcessEnvelopeState<G>) {
         ))),
         _ => ItemAction::Keep,
     });
-    state.profile_id = profile_id;
+
+    profile_id
 }
 
 /// Transfers the profile ID from the profile item to the transaction item.
 ///
-/// If profile processing happens at a later stage, we remove the context again.
-pub fn transfer_id(state: &mut ProcessEnvelopeState<TransactionGroup>) {
-    if let Some(event) = state.event.value_mut() {
-        if event.ty.value() == Some(&EventType::Transaction) {
+/// The profile id may be `None` when the envelope does not contain a profile,
+/// in that case the profile context is removed.
+/// Some SDKs send transactions with profile ids but omit the profile in the envelope.
+pub fn transfer_id(
+    state: &mut ProcessEnvelopeState<TransactionGroup>,
+    profile_id: Option<ProfileId>,
+) {
+    let Some(event) = state.event.value_mut() else {
+        return;
+    };
+
+    match profile_id {
+        Some(profile_id) => {
             let contexts = event.contexts.get_or_insert_with(Contexts::new);
-            // If we found a profile, add its ID to the profile context on the transaction.
-            if let Some(profile_id) = state.profile_id {
-                contexts.add(ProfileContext {
-                    profile_id: Annotated::new(profile_id),
-                });
+            contexts.add(ProfileContext {
+                profile_id: Annotated::new(profile_id),
+            });
+        }
+        None => {
+            if let Some(contexts) = event.contexts.value_mut() {
+                contexts.remove::<ProfileContext>();
             }
         }
     }
@@ -75,7 +89,6 @@ pub fn transfer_id(state: &mut ProcessEnvelopeState<TransactionGroup>) {
 /// Processes profiles and set the profile ID in the profile context on the transaction if successful.
 pub fn process(state: &mut ProcessEnvelopeState<TransactionGroup>, config: &Config) {
     let profiling_enabled = state.project_state.has_feature(Feature::Profiling);
-    let mut found_profile_id = None;
     state.managed_envelope.retain_items(|item| match item.ty() {
         ItemType::Profile => {
             if !profiling_enabled {
@@ -87,34 +100,17 @@ pub fn process(state: &mut ProcessEnvelopeState<TransactionGroup>, config: &Conf
             let Some(event) = state.event.value() else {
                 return ItemAction::DropSilently;
             };
-            let (profile_id, action) = expand_profile(item, event, config);
-            found_profile_id = profile_id;
-            action
+
+            expand_profile(item, event, config)
         }
         _ => ItemAction::Keep,
     });
-    if found_profile_id.is_none() {
-        // Remove profile context from event.
-        if let Some(event) = state.event.value_mut() {
-            if event.ty.value() == Some(&EventType::Transaction) {
-                if let Some(contexts) = event.contexts.value_mut() {
-                    contexts.remove::<ProfileContext>();
-                }
-            }
-        }
-    }
 }
 
 /// Transfers transaction metadata to profile and check its size.
-fn expand_profile(
-    item: &mut Item,
-    event: &Event,
-    config: &Config,
-) -> (Option<ProfileId>, ItemAction) {
-    let mut profile_id = None;
-    let item_action = match relay_profiling::expand_profile(&item.payload(), event) {
-        Ok((id, payload)) => {
-            profile_id = Some(id);
+fn expand_profile(item: &mut Item, event: &Event, config: &Config) -> ItemAction {
+    match relay_profiling::expand_profile(&item.payload(), event) {
+        Ok((_id, payload)) => {
             if payload.len() <= config.max_profile_size() {
                 item.set_payload(ContentType::Json, payload);
                 ItemAction::Keep
@@ -127,8 +123,7 @@ fn expand_profile(
         Err(err) => ItemAction::Drop(Outcome::Invalid(DiscardReason::Profiling(
             relay_profiling::discard_reason(err),
         ))),
-    };
-    (profile_id, item_action)
+    }
 }
 
 #[cfg(test)]

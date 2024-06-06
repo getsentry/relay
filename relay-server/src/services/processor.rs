@@ -661,9 +661,6 @@ struct ProcessEnvelopeState<'a, Group> {
     /// The managed envelope before processing.
     managed_envelope: TypedEnvelope<Group>,
 
-    /// The ID of the profile in the envelope, if a valid profile exists.
-    profile_id: Option<ProfileId>,
-
     /// Reservoir evaluator that we use for dynamic sampling.
     reservoir: ReservoirEvaluator<'a>,
 }
@@ -1142,7 +1139,6 @@ impl EnvelopeProcessorService {
             sampling_project_state,
             project_id,
             managed_envelope,
-            profile_id: None,
             reservoir,
         }
     }
@@ -1211,6 +1207,7 @@ impl EnvelopeProcessorService {
         &self,
         state: &mut ProcessEnvelopeState<TransactionGroup>,
         sampling_result: &SamplingResult,
+        profile_id: Option<ProfileId>,
     ) -> Result<(), ProcessingError> {
         if state.event_metrics_extracted {
             return Ok(());
@@ -1299,7 +1296,7 @@ impl EnvelopeProcessorService {
                 generic_config: Some(combined_config),
                 transaction_from_dsc,
                 sampling_result,
-                has_profile: state.profile_id.is_some(),
+                has_profile: profile_id.is_some(),
             };
 
             state.extracted_metrics.extend(extractor.extract(event)?);
@@ -1520,8 +1517,8 @@ impl EnvelopeProcessorService {
             &self.inner.global_config.current(),
         )?;
 
-        profile::filter(state);
-        profile::transfer_id(state);
+        let profile_id = profile::filter(state);
+        profile::transfer_id(state, profile_id);
 
         if_processing!(self.inner.config, {
             attachment::create_placeholders(state);
@@ -1544,7 +1541,7 @@ impl EnvelopeProcessorService {
         // We avoid extracting metrics if we are not sampling the event while in non-processing
         // Relays, in order to synchronize rate limits on indexed and processed transactions.
         if self.inner.config.processing_enabled() || sampling_result.should_drop() {
-            self.extract_transaction_metrics(state, &sampling_result)?;
+            self.extract_transaction_metrics(state, &sampling_result, profile_id)?;
         }
 
         if let Some(outcome) = sampling_result.into_dropped_outcome() {

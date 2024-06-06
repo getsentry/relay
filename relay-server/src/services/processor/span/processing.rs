@@ -766,7 +766,6 @@ mod tests {
             sampling_project_state: None,
             project_id: ProjectId::new(42),
             managed_envelope: managed_envelope.try_into().unwrap(),
-            profile_id: None,
             event_metrics_extracted: false,
             spans_extracted: false,
             reservoir: ReservoirEvaluator::new(ReservoirCounters::default()),
