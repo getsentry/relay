@@ -187,6 +187,9 @@ pub enum RelayHistograms {
     /// Measures how many transactions were created from segment spans in a single envelope.
     #[cfg(feature = "processing")]
     TransactionsFromSpansPerEnvelope,
+
+    /// Measures how many splits were performed when sending out a partition.
+    PartitionSplits,
 }
 
 impl HistogramMetric for RelayHistograms {
@@ -224,6 +227,7 @@ impl HistogramMetric for RelayHistograms {
             RelayHistograms::TransactionsFromSpansPerEnvelope => {
                 "transactions_from_spans_per_envelope"
             }
+            RelayHistograms::PartitionSplits => "partition_splits",
         }
     }
 }
@@ -668,9 +672,6 @@ pub enum RelayCounters {
     MissingDynamicSamplingContext,
     /// The number of attachments processed in the same envelope as a user_report_v2 event.
     FeedbackAttachments,
-    /// Counter for when a partition containing buckets reached the maximum size and is split into
-    /// multiple separate partitions.
-    PartitionOverflow,
 }
 
 impl CounterMetric for RelayCounters {
@@ -713,7 +714,6 @@ impl CounterMetric for RelayCounters {
             RelayCounters::TransactionsFromSpans => "transactions_from_spans",
             RelayCounters::MissingDynamicSamplingContext => "missing_dynamic_sampling_context",
             RelayCounters::FeedbackAttachments => "processing.feedback_attachments",
-            RelayCounters::PartitionOverflow => "partition_overflow",
         }
     }
 }
