@@ -786,12 +786,6 @@
 <a href="#784" id="784">784</a>
 <a href="#785" id="785">785</a>
 <a href="#786" id="786">786</a>
-<a href="#787" id="787">787</a>
-<a href="#788" id="788">788</a>
-<a href="#789" id="789">789</a>
-<a href="#790" id="790">790</a>
-<a href="#791" id="791">791</a>
-<a href="#792" id="792">792</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Dynamic sampling processor related code.
 
 </span><span class="kw">use </span>std::ops::ControlFlow;
@@ -805,14 +799,12 @@
 <span class="kw">use </span>relay_sampling::config::RuleType;
 <span class="kw">use </span>relay_sampling::evaluation::{ReservoirEvaluator, SamplingEvaluator};
 <span class="kw">use </span>relay_sampling::{DynamicSamplingContext, SamplingConfig};
-<span class="kw">use </span>relay_statsd::metric;
 
 <span class="kw">use </span><span class="kw">crate</span>::envelope::ItemType;
 <span class="kw">use </span><span class="kw">crate</span>::services::outcome::Outcome;
 <span class="kw">use </span><span class="kw">crate</span>::services::processor::{
     profile, EventProcessing, ProcessEnvelopeState, Sampling, TransactionGroup,
 };
-<span class="kw">use </span><span class="kw">crate</span>::statsd::RelayCounters;
 <span class="kw">use </span><span class="kw">crate</span>::utils::{<span class="self">self</span>, sample, ItemAction, SamplingResult};
 
 <span class="doccomment">/// Ensures there is a valid dynamic sampling context and corresponding project state.
@@ -901,10 +893,6 @@
         };
         <span class="kw">let </span>should_drop =
             event.ty.value() == <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>EventType::Transaction) &amp;&amp; sampling_match.should_drop();
-        <span class="macro">metric!</span>(
-            counter(RelayCounters::DynamicSamplingDecision) += <span class="number">1</span>,
-            decision = <span class="kw">if </span>should_drop { <span class="string">"drop" </span>} <span class="kw">else </span>{ <span class="string">"keep" </span>}
-        );
         <span class="kw">if </span>should_drop {
             <span class="kw">let </span>unsampled_profiles_enabled = forward_unsampled_profiles(state, global_config);
 
