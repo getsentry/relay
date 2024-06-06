@@ -3634,6 +3634,8 @@
 <a href="#3632" id="3632">3632</a>
 <a href="#3633" id="3633">3633</a>
 <a href="#3634" id="3634">3634</a>
+<a href="#3635" id="3635">3635</a>
+<a href="#3636" id="3636">3636</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
@@ -5132,6 +5134,8 @@
         <span class="kw">if </span>state.has_event() {
             event::scrub(state)<span class="question-mark">?</span>;
             event::serialize(state)<span class="question-mark">?</span>;
+
+            event::emit_feedback_metrics(state.envelope());
         }
 
         attachment::scrub(state);

@@ -877,6 +877,22 @@
 <a href="#875" id="875">875</a>
 <a href="#876" id="876">876</a>
 <a href="#877" id="877">877</a>
+<a href="#878" id="878">878</a>
+<a href="#879" id="879">879</a>
+<a href="#880" id="880">880</a>
+<a href="#881" id="881">881</a>
+<a href="#882" id="882">882</a>
+<a href="#883" id="883">883</a>
+<a href="#884" id="884">884</a>
+<a href="#885" id="885">885</a>
+<a href="#886" id="886">886</a>
+<a href="#887" id="887">887</a>
+<a href="#888" id="888">888</a>
+<a href="#889" id="889">889</a>
+<a href="#890" id="890">890</a>
+<a href="#891" id="891">891</a>
+<a href="#892" id="892">892</a>
+<a href="#893" id="893">893</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Event processor related code.
 
 </span><span class="kw">use </span>std::error::Error;
@@ -899,7 +915,7 @@
 <span class="kw">use </span>relay_statsd::metric;
 <span class="kw">use </span>serde_json::Value <span class="kw">as </span>SerdeValue;
 
-<span class="kw">use </span><span class="kw">crate</span>::envelope::{AttachmentType, ContentType, Item, ItemType};
+<span class="kw">use </span><span class="kw">crate</span>::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType};
 <span class="kw">use </span><span class="kw">crate</span>::extractors::RequestMeta;
 <span class="kw">use </span><span class="kw">crate</span>::services::outcome::Outcome;
 <span class="kw">use </span><span class="kw">crate</span>::services::processor::{
@@ -1297,6 +1313,22 @@
     } <span class="kw">else </span>{
         <span class="bool-val">false
     </span>}
+}
+
+<span class="doccomment">/// Computes and emits metrics for monitoring user feedback (UserReportV2) ingest
+</span><span class="kw">pub fn </span>emit_feedback_metrics(envelope: <span class="kw-2">&amp;</span>Envelope) {
+    <span class="kw">let </span><span class="kw-2">mut </span>has_feedback = <span class="bool-val">false</span>;
+    <span class="kw">let </span><span class="kw-2">mut </span>num_attachments = <span class="number">0</span>;
+    <span class="kw">for </span>item <span class="kw">in </span>envelope.items() {
+        <span class="kw">match </span>item.ty() {
+            ItemType::UserReportV2 =&gt; has_feedback = <span class="bool-val">true</span>,
+            ItemType::Attachment =&gt; num_attachments += <span class="number">1</span>,
+            <span class="kw">_ </span>=&gt; (),
+        }
+    }
+    <span class="kw">if </span>has_feedback &amp;&amp; num_attachments &gt; <span class="number">0 </span>{
+        <span class="macro">metric!</span>(counter(RelayCounters::FeedbackAttachments) += num_attachments);
+    }
 }
 
 <span class="doccomment">/// Checks for duplicate items in an envelope.

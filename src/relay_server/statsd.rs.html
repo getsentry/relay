@@ -778,6 +778,9 @@
 <a href="#776" id="776">776</a>
 <a href="#777" id="777">777</a>
 <a href="#778" id="778">778</a>
+<a href="#779" id="779">779</a>
+<a href="#780" id="780">780</a>
+<a href="#781" id="781">781</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric, TimerMetric};
 
 <span class="doccomment">/// Gauge metrics used by Relay
@@ -1446,6 +1449,8 @@
     <span class="doccomment">/// Counter for when the DSC is missing from an event that comes from an SDK that should support
     /// it.
     </span>MissingDynamicSamplingContext,
+    <span class="doccomment">/// The number of attachments processed in the same envelope as a user_report_v2 event.
+    </span>FeedbackAttachments,
 }
 
 <span class="kw">impl </span>CounterMetric <span class="kw">for </span>RelayCounters {
@@ -1487,6 +1492,7 @@
             <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
             </span>RelayCounters::TransactionsFromSpans =&gt; <span class="string">"transactions_from_spans"</span>,
             RelayCounters::MissingDynamicSamplingContext =&gt; <span class="string">"missing_dynamic_sampling_context"</span>,
+            RelayCounters::FeedbackAttachments =&gt; <span class="string">"processing.feedback_attachments"</span>,
         }
     }
 }
