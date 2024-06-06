@@ -554,9 +554,7 @@ where
             let mut event_limits;
 
             if let Some(index_category) = self.transaction_index_category(category) {
-                // Check for rate limits on the main category (e.g. transaction) but do not consume
-                // quota. Quota will be consumed by metrics in the metrics aggregator instead.
-                event_limits = (self.check)(scoping.item(category), 0)?;
+                event_limits = (self.check)(scoping.item(category), 1)?;
                 longest = event_limits.longest();
 
                 // Only enforce and record an outcome if metrics haven't been extracted yet.
@@ -667,9 +665,8 @@ where
         }
 
         if summary.span_quantity > 0 {
-            // Check for rate limits on the main category but do not consume
-            // quota. Quota will be consumed by the metrics rate limiter instead.
-            let mut span_limits = (self.check)(scoping.item(DataCategory::Span), 0)?;
+            let mut span_limits =
+                (self.check)(scoping.item(DataCategory::Span), summary.span_quantity)?;
             let mut longest = span_limits.longest();
 
             // Only enforce and record an outcome if metrics haven't been extracted yet.

@@ -155,6 +155,7 @@ impl From<LightTransactionTags> for BTreeMap<String, String> {
 #[derive(Clone, Debug, PartialEq, Eq, Ord, PartialOrd)]
 pub struct UsageTags {
     pub has_profile: bool,
+    pub is_indexed: bool,
 }
 
 impl From<UsageTags> for BTreeMap<String, String> {
