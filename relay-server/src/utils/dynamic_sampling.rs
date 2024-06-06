@@ -169,11 +169,10 @@ impl SamplingResult {
     /// Consumes the sampling results and returns and outcome if the sampling decision is drop.
     pub fn into_dropped_outcome(self) -> Option<Outcome> {
         match self {
-            SamplingResult::Match(sampling_match) => {
-                let matched_rules = sampling_match.into_matched_rules();
-                Some(Outcome::FilteredSampling(matched_rules.into()))
-            }
-            // If no rules matched on an event, we want to keep it.
+            SamplingResult::Match(sampling_match) if sampling_match.should_drop() => Some(
+                Outcome::FilteredSampling(sampling_match.into_matched_rules().into()),
+            ),
+            SamplingResult::Match(_) => None,
             SamplingResult::NoMatch => None,
             SamplingResult::Pending => None,
         }
