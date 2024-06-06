@@ -2541,6 +2541,7 @@ impl EnvelopeProcessorService {
 
         let batch_size = self.inner.config.metrics_max_batch_size_bytes();
         let mut partition = Partition::new(batch_size);
+        let mut partition_overflowed = false;
 
         for (scoping, message) in &scopes {
             let ProjectMetrics { buckets, .. } = message;
@@ -2550,15 +2551,19 @@ impl EnvelopeProcessorService {
 
                 while let Some(bucket) = remaining.take() {
                     if let Some(next) = partition.insert(bucket, *scoping) {
-                        metric!(counter(RelayCounters::PartitionOverflow) += 1);
                         // A part of the bucket could not be inserted. Take the partition and submit
                         // it immediately. Repeat until the final part was inserted. This should
                         // always result in a request, otherwise we would enter an endless loop.
                         self.send_global_partition(partition_key, &mut partition);
                         remaining = Some(next);
+                        partition_overflowed = true;
                     }
                 }
             }
+        }
+
+        if partition_overflowed {
+            metric!(counter(RelayCounters::PartitionOverflow) += 1);
         }
 
         self.send_global_partition(partition_key, &mut partition);
