@@ -17,7 +17,7 @@ use crate::utils::ItemAction;
 pub fn filter<G>(state: &mut ProcessEnvelopeState<G>) {
     let profiling_enabled = state.project_state.has_feature(Feature::Profiling);
     let has_transaction = state.event_type() == Some(EventType::Transaction);
-    let unsampled_profiles = state
+    let keep_unsampled_profiles = state
         .project_state
         .has_feature(Feature::IngestUnsampledProfiles);
 
@@ -31,7 +31,7 @@ pub fn filter<G>(state: &mut ProcessEnvelopeState<G>) {
 
             // Drop profile without a transaction in the same envelope,
             // except if unsampled profiles are allowed for this project.
-            let profile_allowed = has_transaction || (!item.sampled() && unsampled_profiles);
+            let profile_allowed = has_transaction || (keep_unsampled_profiles && !item.sampled());
             if !profile_allowed {
                 return ItemAction::DropSilently;
             }
@@ -83,7 +83,7 @@ pub fn process(state: &mut ProcessEnvelopeState<TransactionGroup>, config: &Conf
             }
 
             // There should always be an event/transaction available at this stage.
-            // It is required to expand the profle. If it's missing, drop the item.
+            // It is required to expand the profile. If it's missing, drop the item.
             let Some(event) = state.event.value() else {
                 return ItemAction::DropSilently;
             };
