@@ -3,7 +3,6 @@
 use std::ops::ControlFlow;
 
 use chrono::Utc;
-use relay_base_schema::events::EventType;
 use relay_config::Config;
 use relay_dynamic_config::{ErrorBoundary, Feature, GlobalConfig};
 use relay_event_schema::protocol::{Contexts, Event, TraceContext};
@@ -15,7 +14,7 @@ use relay_sampling::{DynamicSamplingContext, SamplingConfig};
 use crate::envelope::ItemType;
 use crate::services::outcome::Outcome;
 use crate::services::processor::{
-    profile, EventProcessing, ProcessEnvelopeState, Sampling, TransactionGroup,
+    EventProcessing, ProcessEnvelopeState, Sampling, TransactionGroup,
 };
 use crate::utils::{self, sample, ItemAction, SamplingResult};
 
@@ -92,38 +91,24 @@ where
 }
 
 /// Apply the dynamic sampling decision from `compute_sampling_decision`.
-pub fn sample_envelope_items(
+pub fn drop_unsampled_items(
     state: &mut ProcessEnvelopeState<TransactionGroup>,
-    sampling_result: SamplingResult,
-    config: &Config,
-    global_config: &GlobalConfig,
+    outcome: Outcome,
+    keep_profiles: bool,
 ) {
-    if let SamplingResult::Match(sampling_match) = sampling_result {
-        // We assume that sampling is only supposed to work on transactions.
-        let Some(event) = state.event.value() else {
-            return;
-        };
-        let should_drop =
-            event.ty.value() == Some(&EventType::Transaction) && sampling_match.should_drop();
-        if should_drop {
-            let unsampled_profiles_enabled = forward_unsampled_profiles(state, global_config);
-
-            let matched_rules = sampling_match.into_matched_rules();
-            let outcome = Outcome::FilteredSampling(matched_rules.into());
-            state.managed_envelope.retain_items(|item| {
-                if unsampled_profiles_enabled && item.ty() == &ItemType::Profile {
-                    item.set_sampled(false);
-                    // Transfer metadata to the profile before the transaction gets dropped:
-                    let (_, item_action) = profile::expand_profile(item, event, config);
-                    item_action
-                } else {
-                    ItemAction::Drop(outcome.clone())
-                }
-            });
-            // The event is no longer in the envelope, so we need to handle it separately:
-            state.reject_event(outcome);
+    state.managed_envelope.retain_items(|item| {
+        if keep_profiles && item.ty() == &ItemType::Profile {
+            // Remember on the item that this profile belongs to an transaction which was not
+            // sampled.
+            // Upstream Relays can use that information to allow standalone unsampled profiles.
+            item.set_sampled(false);
+            ItemAction::Keep
+        } else {
+            ItemAction::Drop(outcome.clone())
         }
-    }
+    });
+    // The event is no longer in the envelope, so we need to handle it separately:
+    state.reject_event(outcome);
 }
 
 /// Computes the sampling decision on the incoming envelope.
@@ -226,7 +211,7 @@ pub fn tag_error_with_sampling_decision<G: EventProcessing>(
 }
 
 /// Determines whether profiles that would otherwise be dropped by dynamic sampling should be kept.
-fn forward_unsampled_profiles(
+pub fn forward_unsampled_profiles(
     state: &ProcessEnvelopeState<TransactionGroup>,
     global_config: &GlobalConfig,
 ) -> bool {
@@ -258,6 +243,7 @@ mod tests {
     use std::sync::Arc;
 
     use bytes::Bytes;
+    use relay_base_schema::events::EventType;
     use relay_base_schema::project::{ProjectId, ProjectKey};
     use relay_dynamic_config::{MetricExtractionConfig, TransactionMetricsConfig};
     use relay_event_schema::protocol::{EventId, LenientString};

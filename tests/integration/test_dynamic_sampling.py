@@ -661,8 +661,9 @@ def test_relay_chain(
     envelope.get_transaction_event()
 
 
+@pytest.mark.parametrize("mode", ["default", "chain"])
 def test_relay_chain_keep_unsampled_profile(
-    mini_sentry, relay, relay_with_processing, profiles_consumer
+    mini_sentry, relay, relay_with_processing, profiles_consumer, mode
 ):
     mini_sentry.global_config["options"] = {
         "profiling.profile_metrics.unsampled_profiles.platforms": ["python"],
@@ -695,12 +696,18 @@ def test_relay_chain_keep_unsampled_profile(
         return envelope
 
     project_id = 42
-    relay = relay(relay_with_processing())
+    if mode == "chain":
+        relay = relay(relay_with_processing())
+    else:
+        relay = relay_with_processing()
     config = mini_sentry.add_basic_project_config(project_id)
     config["config"]["transactionMetrics"] = {
         "version": TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION
     }
-    config["config"]["features"] = ["projects:profiling-ingest-unsampled-profiles"]
+    config["config"]["features"] = [
+        "organizations:profiling",
+        "projects:profiling-ingest-unsampled-profiles",
+    ]
 
     public_key = config["publicKeys"][0]["publicKey"]
     _add_sampling_config(config, sample_rate=0.0, rule_type="transaction")
