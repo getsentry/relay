@@ -1592,7 +1592,10 @@ impl EnvelopeProcessorService {
             span::maybe_discard_transaction(state);
         });
 
-        event::serialize(state)?;
+        // Event may have been dropped because of a quota and the envelope can be empty.
+        if state.has_event() {
+            event::serialize(state)?;
+        }
 
         Ok(())
     }
