@@ -270,11 +270,11 @@ impl Processor for PairListProcessor {
     {
         self.is_pair = state.depth() == 0 && value.len() == 2;
         if self.is_pair {
-            let value_type = ValueType::for_field(&value[0]);
+            let key_type = ValueType::for_field(&value[0]);
             process_value(
                 &mut value[0],
                 self,
-                &state.enter_index(0, state.inner_attrs(), value_type),
+                &state.enter_index(0, state.inner_attrs(), key_type),
             )?;
         }
 
