@@ -2541,6 +2541,7 @@ impl EnvelopeProcessorService {
 
         let batch_size = self.inner.config.metrics_max_batch_size_bytes();
         let mut partition = Partition::new(batch_size);
+        let mut partition_splits = 0;
 
         for (scoping, message) in &scopes {
             let ProjectMetrics { buckets, .. } = message;
@@ -2555,9 +2556,14 @@ impl EnvelopeProcessorService {
                         // always result in a request, otherwise we would enter an endless loop.
                         self.send_global_partition(partition_key, &mut partition);
                         remaining = Some(next);
+                        partition_splits += 1;
                     }
                 }
             }
+        }
+
+        if partition_splits > 0 {
+            metric!(histogram(RelayHistograms::PartitionSplits) = partition_splits);
         }
 
         self.send_global_partition(partition_key, &mut partition);
