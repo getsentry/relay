@@ -16,7 +16,7 @@ use crate::utils::ItemAction;
 /// Filters out invalid and duplicate profiles.
 ///
 /// Returns the profile id of the single remaining profile, if there is one.
-pub fn filter<G>(state: &mut ProcessEnvelopeState<G>) {
+pub fn filter<G>(state: &mut ProcessEnvelopeState<G>) -> Option<ProfileId> {
     let profiling_enabled = state.project_state.has_feature(Feature::Profiling);
     let has_transaction = state.event_type() == Some(EventType::Transaction);
     let keep_unsampled_profiles = state
