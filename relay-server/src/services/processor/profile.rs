@@ -1,6 +1,5 @@
 //! Profiles related processor code.
 
-#[cfg(feature = "processing")]
 use relay_dynamic_config::Feature;
 
 use relay_base_schema::events::EventType;
@@ -16,18 +15,23 @@ use crate::utils::ItemAction;
 
 /// Removes profiles from the envelope if they can not be parsed.
 pub fn filter<G>(state: &mut ProcessEnvelopeState<G>) {
-    let transaction_count: usize = state
-        .managed_envelope
-        .envelope()
-        .items()
-        .filter(|item| item.ty() == &ItemType::Transaction)
-        .count();
+    let profiling_enabled = state.project_state.has_feature(Feature::Profiling);
+    let has_transaction = state.event_type() == Some(EventType::Transaction);
+    let keep_unsampled_profiles = state
+        .project_state
+        .has_feature(Feature::IngestUnsampledProfiles);
+
     let mut profile_id = None;
     state.managed_envelope.retain_items(|item| match item.ty() {
         // First profile found in the envelope, we'll keep it if metadata are valid.
         ItemType::Profile if profile_id.is_none() => {
-            // Drop profile without a transaction in the same envelope.
-            let profile_allowed = transaction_count > 0 || !item.sampled();
+            if !profiling_enabled {
+                return ItemAction::DropSilently;
+            }
+
+            // Drop profile without a transaction in the same envelope,
+            // except if unsampled profiles are allowed for this project.
+            let profile_allowed = has_transaction || (keep_unsampled_profiles && !item.sampled());
             if !profile_allowed {
                 return ItemAction::DropSilently;
             }
@@ -69,7 +73,6 @@ pub fn transfer_id(state: &mut ProcessEnvelopeState<TransactionGroup>) {
 }
 
 /// Processes profiles and set the profile ID in the profile context on the transaction if successful.
-#[cfg(feature = "processing")]
 pub fn process(state: &mut ProcessEnvelopeState<TransactionGroup>, config: &Config) {
     let profiling_enabled = state.project_state.has_feature(Feature::Profiling);
     let mut found_profile_id = None;
@@ -78,7 +81,9 @@ pub fn process(state: &mut ProcessEnvelopeState<TransactionGroup>, config: &Conf
             if !profiling_enabled {
                 return ItemAction::DropSilently;
             }
-            // If we don't have an event at this stage, we need to drop the profile.
+
+            // There should always be an event/transaction available at this stage.
+            // It is required to expand the profile. If it's missing, drop the item.
             let Some(event) = state.event.value() else {
                 return ItemAction::DropSilently;
             };
@@ -101,7 +106,7 @@ pub fn process(state: &mut ProcessEnvelopeState<TransactionGroup>, config: &Conf
 }
 
 /// Transfers transaction metadata to profile and check its size.
-pub fn expand_profile(
+fn expand_profile(
     item: &mut Item,
     event: &Event,
     config: &Config,

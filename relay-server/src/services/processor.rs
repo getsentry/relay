@@ -1510,12 +1510,17 @@ impl EnvelopeProcessorService {
         &self,
         state: &mut ProcessEnvelopeState<TransactionGroup>,
     ) -> Result<(), ProcessingError> {
-        profile::filter(state);
+        let global_config = self.inner.global_config.current();
+
+        dynamic_sampling::ensure_dsc(state);
+
         event::extract(
             state,
             &self.inner.config,
             &self.inner.global_config.current(),
         )?;
+
+        profile::filter(state);
         profile::transfer_id(state);
 
         if_processing!(self.inner.config, {
@@ -1524,57 +1529,69 @@ impl EnvelopeProcessorService {
 
         event::finalize(state, &self.inner.config)?;
         self.normalize_event(state)?;
-        dynamic_sampling::ensure_dsc(state);
+
         let filter_run = event::filter(state, &self.inner.global_config.current())?;
 
-        if self.inner.config.processing_enabled() || matches!(filter_run, FiltersStatus::Ok) {
-            let sampling_result = dynamic_sampling::run(state, &self.inner.config);
-            // Remember sampling decision, before it is reset in `dynamic_sampling::sample_envelope_items`.
-            let sampling_should_drop = sampling_result.should_drop();
+        // Always run dynamic sampling on processing Relays,
+        // but delay decision until inbound filters have been fully processed.
+        let sampling_result =
+            if self.inner.config.processing_enabled() || matches!(filter_run, FiltersStatus::Ok) {
+                dynamic_sampling::run(state, &self.inner.config)
+            } else {
+                SamplingResult::NoMatch
+            };
 
-            // We avoid extracting metrics if we are not sampling the event while in non-processing
-            // relays, in order to synchronize rate limits on indexed and processed transactions.
-            if self.inner.config.processing_enabled() || sampling_should_drop {
-                self.extract_transaction_metrics(state, &sampling_result)?;
+        // We avoid extracting metrics if we are not sampling the event while in non-processing
+        // Relays, in order to synchronize rate limits on indexed and processed transactions.
+        if self.inner.config.processing_enabled() || sampling_result.should_drop() {
+            self.extract_transaction_metrics(state, &sampling_result)?;
+        }
+
+        if let Some(outcome) = sampling_result.into_dropped_outcome() {
+            let keep_profiles = dynamic_sampling::forward_unsampled_profiles(state, &global_config);
+
+            // Process profiles before dropping the transaction, if necessary.
+            if keep_profiles {
+                profile::process(state, &self.inner.config);
             }
 
-            dynamic_sampling::sample_envelope_items(
-                state,
-                sampling_result,
-                &self.inner.config,
-                &self.inner.global_config.current(),
-            );
+            dynamic_sampling::drop_unsampled_items(state, outcome, keep_profiles);
+
+            // At this point we have:
+            //  - An empty envelope.
+            //  - An envelope containing only processed profiles.
+            // We need to make sure there are enough quotas for these profiles.
+            if_processing!(self.inner.config, {
+                self.enforce_quotas(state)?;
+            });
+
+            return Ok(());
         }
+
+        // Need to scrub the transaction before extracting spans.
+        //
+        // Unconditionally scrub to make sure PII is removed as early as possible.
+        event::scrub(state)?;
+        attachment::scrub(state);
 
         if_processing!(self.inner.config, {
             profile::process(state, &self.inner.config);
-        });
 
-        if state.has_event() {
-            event::scrub(state)?;
+            if state
+                .project_state
+                .has_feature(Feature::ExtractSpansFromEvent)
+            {
+                span::extract_from_event(state, &self.inner.config, &global_config);
+            }
 
-            if_processing!(self.inner.config, {
-                if state
-                    .project_state
-                    .has_feature(Feature::ExtractSpansFromEvent)
-                {
-                    span::extract_from_event(
-                        state,
-                        &self.inner.config,
-                        &self.inner.global_config.current(),
-                    );
-                }
-            });
-        }
-
-        if_processing!(self.inner.config, {
             self.enforce_quotas(state)?;
             span::maybe_discard_transaction(state);
         });
+
+        // Event may have been dropped because of a quota and the envelope can be empty.
         if state.has_event() {
             event::serialize(state)?;
         }
-        attachment::scrub(state);
 
         Ok(())
     }

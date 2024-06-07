@@ -11,6 +11,7 @@ use relay_sampling::dsc::{DynamicSamplingContext, TraceUserContext};
 use relay_sampling::evaluation::{SamplingEvaluator, SamplingMatch};
 
 use crate::envelope::{Envelope, ItemType};
+use crate::services::outcome::Outcome;
 use crate::statsd::RelayCounters;
 use once_cell::sync::Lazy;
 use semver::{Version, VersionReq};
@@ -162,6 +163,18 @@ impl SamplingResult {
             // If no rules matched on an event, we want to keep it.
             SamplingResult::NoMatch => true,
             SamplingResult::Pending => true,
+        }
+    }
+
+    /// Consumes the sampling results and returns and outcome if the sampling decision is drop.
+    pub fn into_dropped_outcome(self) -> Option<Outcome> {
+        match self {
+            SamplingResult::Match(sampling_match) if sampling_match.should_drop() => Some(
+                Outcome::FilteredSampling(sampling_match.into_matched_rules().into()),
+            ),
+            SamplingResult::Match(_) => None,
+            SamplingResult::NoMatch => None,
+            SamplingResult::Pending => None,
         }
     }
 }
