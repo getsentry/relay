@@ -1091,6 +1091,20 @@ mod tests {
         "symbolicator_native::symbolication::symbolicate::symbolicate"
     );
 
+    span_description_test!(
+        function_with_hex,
+        "symbolicator_native::symbolication::symbolicate::deadbeef",
+        "function",
+        "symbolicator_native::symbolication::symbolicate::*"
+    );
+
+    span_description_test!(
+        function_with_uuid,
+        "symbolicator_native::symbolication::fb37f08422034ee985e9fc553ef27e6e::symbolicate",
+        "function",
+        "symbolicator_native::symbolication::*::symbolicate"
+    );
+
     #[test]
     fn informed_sql_parser() {
         let json = r#"
