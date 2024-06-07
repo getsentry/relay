@@ -1775,7 +1775,7 @@ def test_span_filtering_with_generic_inbound_filter(
 
     def summarize_outcomes():
         counter = Counter()
-        for outcome in outcomes_consumer.get_outcomes(n=1):
+        for outcome in outcomes_consumer.get_outcomes(timeout=10, n=1):
             counter[(outcome["category"], outcome["outcome"])] += outcome["quantity"]
         return counter
 
