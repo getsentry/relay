@@ -179,7 +179,7 @@ class ConsumerBase:
         """
         # First, give Relay a bit of time to process
         rv = self.poll(timeout=0.2)
-        assert rv is None, f"not empty: {rv.value()}"
+        assert rv is None, f"{self.__class__.__name__} not empty: {rv.value()}"
 
         # Then, send a custom message to ensure we're not just timing out
         message = json.dumps({"__test__": uuid.uuid4().hex}).encode("utf8")

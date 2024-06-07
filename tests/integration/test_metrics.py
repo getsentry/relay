@@ -840,9 +840,7 @@ def test_transaction_metrics(
     }
     relay.send_transaction(42, transaction, trace_info=trace_info)
 
-    if discard_data:
-        transactions_consumer.assert_empty()
-    else:
+    def assert_transaction():
         event, _ = transactions_consumer.get_event()
         if with_external_relay:
             # there is some rounding error while serializing/deserializing
@@ -862,7 +860,16 @@ def test_transaction_metrics(
         message = metrics_consumer.poll(timeout=None)
         assert message is None, message.value()
 
+        assert_transaction()
+        assert_transaction()
+
         return
+
+    if discard_data:
+        transactions_consumer.assert_empty()
+    else:
+        assert_transaction()
+        assert_transaction()
 
     metrics = metrics_by_name(metrics_consumer, count=10, timeout=6)
 

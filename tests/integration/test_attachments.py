@@ -333,3 +333,6 @@ def test_event_with_attachment(
         "event_id": event_id,
         "project_id": project_id,
     }
+
+    _, event = attachments_consumer.get_event()
+    assert event["event_id"] == event_id
