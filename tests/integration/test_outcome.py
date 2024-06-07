@@ -1920,7 +1920,7 @@ def test_span_outcomes_invalid(
     envelope = make_envelope()
     upstream.send_envelope(project_id, envelope)
 
-    outcomes = outcomes_consumer.get_outcomes(timeout=10.0)
+    outcomes = outcomes_consumer.get_outcomes(timeout=10.0, n=2)
     outcomes.sort(key=lambda o: sorted(o.items()))
 
     expected_outcomes = [

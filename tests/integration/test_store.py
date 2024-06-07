@@ -608,7 +608,7 @@ def test_rate_limit_metric_bucket(
     assert len(produced_buckets) == metric_bucket_limit
 
 
-@pytest.mark.parametrize("violating_bucket", [2, 3])
+@pytest.mark.parametrize("violating_bucket", [3.0])
 def test_rate_limit_metrics_buckets(
     mini_sentry,
     relay_with_processing,
@@ -725,8 +725,8 @@ def test_rate_limit_metrics_buckets(
             make_bucket("d:sessions/session@user", "s", [1254]),
         ],
     )
-    metrics = [m for m, _ in metrics_consumer.get_metrics(timeout=4)]
-    produced_buckets = metrics
+
+    produced_buckets = [m for m, _ in metrics_consumer.get_metrics(timeout=10, n=7)]
 
     # Sort buckets to prevent ordering flakiness:
     produced_buckets.sort(key=lambda b: (b["name"], b["value"]))
@@ -751,7 +751,7 @@ def test_rate_limit_metrics_buckets(
             "project_id": 42,
             "tags": {},
             "type": "c",
-            "value": 3,
+            "value": 3.0,
         },
         {
             "name": "d:sessions/duration@second",

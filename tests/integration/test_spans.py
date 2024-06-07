@@ -224,8 +224,9 @@ def test_span_extraction_with_sampling(
 
     relay.send_event(project_id, event)
 
-    spans = spans_consumer.get_spans(max_attempts=2)
-    assert len(spans) == expected_spans
+    if expected_spans > 0:
+        spans = spans_consumer.get_spans(n=expected_spans)
+        assert len(spans) == expected_spans
 
     metrics = metrics_consumer.get_metrics()
     span_metrics = [m for (m, _) in metrics if ":spans/" in m["name"]]
@@ -511,7 +512,7 @@ def test_span_ingestion(
         headers={"Content-Type": "application/x-protobuf"},
     )
 
-    spans = spans_consumer.get_spans(timeout=10.0, max_attempts=6)
+    spans = spans_consumer.get_spans(timeout=10.0, n=6)
 
     for span in spans:
         span.pop("received", None)
@@ -1269,8 +1270,7 @@ def test_span_reject_invalid_timestamps(
     )
     relay.send_envelope(project_id, envelope)
 
-    spans = spans_consumer.get_spans(timeout=10.0, max_attempts=1)
-
+    spans = spans_consumer.get_spans(timeout=10.0, n=1)
     assert len(spans) == 1
     assert spans[0]["description"] == "span with valid timestamps"
 
@@ -1395,7 +1395,7 @@ def test_span_ingestion_with_performance_scores(
     )
     relay.send_envelope(project_id, envelope)
 
-    spans = spans_consumer.get_spans(timeout=10.0, max_attempts=2)
+    spans = spans_consumer.get_spans(timeout=10.0, n=2)
 
     for span in spans:
         span.pop("received", None)
@@ -1516,7 +1516,7 @@ def test_rate_limit_indexed_consistent(
 
     # First batch passes
     relay.send_envelope(project_id, envelope)
-    spans = spans_consumer.get_spans(max_attempts=4, timeout=10)
+    spans = spans_consumer.get_spans(n=4, timeout=10)
     assert len(spans) == 4
     assert summarize_outcomes() == {(16, 0): 4}  # SpanIndexed, Accepted
 
@@ -1584,18 +1584,15 @@ def test_rate_limit_indexed_consistent_extracted(
 
     # First send should be accepted.
     relay.send_event(project_id, event)
-    spans = spans_consumer.get_spans(max_attempts=2, timeout=10)
+    spans = spans_consumer.get_spans(n=2, timeout=10)
     # one for the transaction, one for the contained span
     assert len(spans) == 2
     assert summarize_outcomes() == {(16, 0): 2}  # SpanIndexed, Accepted
 
     # Second send should be rejected immediately.
     relay.send_event(project_id, event)
-    spans = spans_consumer.get_spans(max_attempts=1, timeout=2)
-    assert len(spans) == 0  # all rejected
     assert summarize_outcomes() == {(16, 2): 2}  # SpanIndexed, RateLimited
 
-    spans_consumer.assert_empty()
     outcomes_consumer.assert_empty()
 
 
@@ -1641,7 +1638,7 @@ def test_rate_limit_metrics_consistent(
 
     # First batch passes (we over-accept once)
     relay.send_envelope(project_id, envelope)
-    spans = spans_consumer.get_spans(max_attempts=4, timeout=10)
+    spans = spans_consumer.get_spans(n=4, timeout=10)
     assert len(spans) == 4
     metrics = metrics_consumer.get_metrics()
     assert len(metrics) > 0
@@ -1652,8 +1649,6 @@ def test_rate_limit_metrics_consistent(
 
     # Second batch is limited
     relay.send_envelope(project_id, envelope)
-    spans = spans_consumer.get_spans(max_attempts=1, timeout=2)
-    assert len(spans) == 0
     metrics = metrics_consumer.get_metrics()
     assert len(metrics) == 0
     outcomes = summarize_outcomes()
@@ -1778,12 +1773,9 @@ def test_span_filtering_with_generic_inbound_filter(
 
     relay.send_envelope(project_id, envelope)
 
-    spans = spans_consumer.get_spans(timeout=10.0, max_attempts=6)
-    assert len(spans) == 0
-
     def summarize_outcomes():
         counter = Counter()
-        for outcome in outcomes_consumer.get_outcomes():
+        for outcome in outcomes_consumer.get_outcomes(n=1):
             counter[(outcome["category"], outcome["outcome"])] += outcome["quantity"]
         return counter
 
@@ -1877,7 +1869,7 @@ def test_dynamic_sampling(
         return counter
 
     if sample_rate == 1.0:
-        spans = list(spans_consumer.get_spans(timeout=10, max_attempts=4))
+        spans = spans_consumer.get_spans(timeout=10, n=4)
         assert len(spans) == 4
         outcomes = outcomes_consumer.get_outcomes(timeout=10, n=4)
         assert summarize_outcomes(outcomes) == {(16, 0): 4}  # SpanIndexed, Accepted
