@@ -1509,8 +1509,6 @@ impl EnvelopeProcessorService {
     ) -> Result<(), ProcessingError> {
         let global_config = self.inner.global_config.current();
 
-        dynamic_sampling::ensure_dsc(state);
-
         event::extract(
             state,
             &self.inner.config,
@@ -1526,6 +1524,8 @@ impl EnvelopeProcessorService {
 
         event::finalize(state, &self.inner.config)?;
         self.normalize_event(state)?;
+
+        dynamic_sampling::ensure_dsc(state);
 
         let filter_run = event::filter(state, &self.inner.global_config.current())?;
 
