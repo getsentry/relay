@@ -2783,7 +2783,7 @@
                     biased;
 
                     <span class="prelude-val">Ok</span>(()) = subscription.changed() =&gt; {
-                        <span class="macro">metric!</span>(timer(RelayTimers::EventProcessingDeserialize), task = <span class="string">"update_global_config"</span>, {
+                        <span class="macro">metric!</span>(timer(RelayTimers::ProjectCacheTaskDuration), task = <span class="string">"update_global_config"</span>, {
                             <span class="kw">match </span>subscription.borrow().clone() {
                                 global_config::Status::Ready(<span class="kw">_</span>) =&gt; broker.set_global_config_ready(),
                                 <span class="comment">// The watch should only be updated if it gets a new value.
