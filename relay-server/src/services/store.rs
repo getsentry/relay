@@ -1528,7 +1528,7 @@ impl Message for KafkaMessage<'_> {
 
             // Random partitioning
             Self::Profile(_)
-            | Self::Span(_)
+            | Self::Span { .. }
             | Self::ReplayRecordingNotChunked(_)
             | Self::MetricsSummary(_)
             | Self::Cogs(_)
