@@ -549,15 +549,13 @@ jobs:
         with:
           key: ${{ github.job }}
 
-      - name: Cargo build
-        run: cargo build --all-features
-
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
       - run: make test-integration
         env:
+          RELAY_BIN: target/release/relay
           RELAY_VERSION_CHAIN: "20.6.0,latest"
 
   sentry-relay-integration-tests:
