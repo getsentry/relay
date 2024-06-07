@@ -517,18 +517,8 @@ jobs:
       # Kafka + Zookeeper version synced with
       # https://github.com/getsentry/sentry/blob/363509c242aff197409207ce4990fb061f3534a3/.github/actions/setup-sentry/action.yml#L174
 
-      zookeeper:
-        image: confluentinc/cp-zookeeper:4.1.0
-        env:
-          ZOOKEEPER_CLIENT_PORT: 2181
-
       kafka:
-        image: confluentinc/cp-kafka:5.1.2
-        env:
-          KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-          KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://127.0.0.1:9092
-          KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-          KAFKA_OFFSETS_TOPIC_NUM_PARTITIONS: 1
+        image: redpandadata/redpanda:v24.1.7
         ports:
           - 9092:9092
 
