@@ -189,13 +189,6 @@ class ConsumerBase:
         assert rv.value() == message, rv.value()
 
 
-@pytest.fixture
-def outcomes_consumer(kafka_consumer):
-    return lambda timeout=None, topic=None: OutcomesConsumer(
-        timeout=timeout, *kafka_consumer(topic or "outcomes")
-    )
-
-
 def category_value(category):
     if category == "default":
         return 0
@@ -285,6 +278,11 @@ def consumer_fixture(cls, consumer_args):
 
 
 @pytest.fixture
+def outcomes_consumer(kafka_consumer):
+    yield from consumer_fixture(OutcomesConsumer, kafka_consumer("outcomes"))
+
+
+@pytest.fixture
 def events_consumer(kafka_consumer):
     yield from consumer_fixture(EventsConsumer, kafka_consumer("events"))
 
@@ -318,7 +316,7 @@ def replay_recordings_consumer(kafka_consumer):
 
 @pytest.fixture
 def replay_events_consumer(kafka_consumer):
-    yield from consumer_fixture(ReplayEventsConsumer, *kafka_consumer("replay_events"))
+    yield from consumer_fixture(ReplayEventsConsumer, kafka_consumer("replay_events"))
 
 
 @pytest.fixture
@@ -350,7 +348,7 @@ def metrics_summaries_consumer(kafka_consumer):
 
 @pytest.fixture
 def cogs_consumer(kafka_consumer):
-    yield from consumer_fixture(CogsConsumer, *kafka_consumer("cogs"))
+    yield from consumer_fixture(CogsConsumer, kafka_consumer("cogs"))
 
 
 class MetricsConsumer(ConsumerBase):
