@@ -5167,8 +5167,6 @@
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ProcessingError&gt; {
         <span class="kw">let </span>global_config = <span class="self">self</span>.inner.global_config.current();
 
-        dynamic_sampling::ensure_dsc(state);
-
         event::extract(
             state,
             <span class="kw-2">&amp;</span><span class="self">self</span>.inner.config,
@@ -5184,6 +5182,8 @@
 
         event::finalize(state, <span class="kw-2">&amp;</span><span class="self">self</span>.inner.config)<span class="question-mark">?</span>;
         <span class="self">self</span>.normalize_event(state)<span class="question-mark">?</span>;
+
+        dynamic_sampling::ensure_dsc(state);
 
         <span class="kw">let </span>filter_run = event::filter(state, <span class="kw-2">&amp;</span><span class="self">self</span>.inner.global_config.current())<span class="question-mark">?</span>;
 
