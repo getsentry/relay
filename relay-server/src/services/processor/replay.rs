@@ -175,13 +175,11 @@ fn process_replay_event(
     let mut replay =
         Annotated::<Replay>::from_json_bytes(payload).map_err(ReplayError::CouldNotParse)?;
 
-    if replay.value().is_none() {
+    let Some(replay_value) = replay.value_mut() else {
         return Err(ReplayError::NoContent);
-    }
+    };
 
-    if let Some(replay_value) = replay.value_mut() {
-        replay::validate(replay_value)?;
-    }
+    replay::validate(replay_value)?;
     replay::normalize(&mut replay, client_ip, user_agent);
 
     if let Some(ref config) = config.pii_config {
