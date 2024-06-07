@@ -161,8 +161,6 @@ def test_outcomes_two_configs(
     assert rate_limited["project_id"] == 44
     assert rate_limited["outcome"] == 2
 
-    print(rate_limited)
-
     invalid = outcomes_consumer.get_outcome()
     assert invalid["project_id"] == 99
     assert invalid["outcome"] == 3
@@ -2124,8 +2122,7 @@ def test_replay_outcomes_item_failed(
     envelope = make_envelope()
     upstream.send_envelope(project_id, envelope)
 
-    outcomes = outcomes_consumer.get_outcomes()
-
+    outcomes = outcomes_consumer.get_outcomes(n=1)
     assert len(outcomes) == 1
 
     expected = {

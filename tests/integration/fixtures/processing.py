@@ -263,92 +263,92 @@ class OutcomesConsumer(ConsumerBase):
             assert count == quantity
 
 
-def consumer_fixture(cls, consumer_args):
-    consumer = None
+@pytest.fixture
+def consumer_fixture(kafka_consumer):
+    def consumer_fixture(cls, default_topic):
+        consumer = None
 
-    def inner(timeout=None):
-        nonlocal consumer
-        consumer = cls(timeout=timeout, *consumer_args)
-        return consumer
+        def inner(timeout=None, topic=None):
+            nonlocal consumer
+            consumer = cls(timeout=timeout, *kafka_consumer(topic or default_topic))
+            return consumer
 
-    yield inner
+        yield inner
 
-    if consumer is not None:
-        consumer.assert_empty()
+        if consumer is not None:
+            consumer.assert_empty()
+
+    return consumer_fixture
 
 
 @pytest.fixture
-def outcomes_consumer(kafka_consumer):
-    yield from consumer_fixture(OutcomesConsumer, kafka_consumer("outcomes"))
+def outcomes_consumer(consumer_fixture):
+    yield from consumer_fixture(OutcomesConsumer, "outcomes")
 
 
 @pytest.fixture
-def events_consumer(kafka_consumer):
-    yield from consumer_fixture(EventsConsumer, kafka_consumer("events"))
+def events_consumer(consumer_fixture):
+    yield from consumer_fixture(EventsConsumer, "events")
 
 
 @pytest.fixture
-def transactions_consumer(kafka_consumer):
-    yield from consumer_fixture(EventsConsumer, kafka_consumer("transactions"))
+def transactions_consumer(consumer_fixture):
+    yield from consumer_fixture(EventsConsumer, "transactions")
 
 
 @pytest.fixture
-def attachments_consumer(kafka_consumer):
-    yield from consumer_fixture(AttachmentsConsumer, kafka_consumer("attachments"))
+def attachments_consumer(consumer_fixture):
+    yield from consumer_fixture(AttachmentsConsumer, "attachments")
 
 
 @pytest.fixture
-def sessions_consumer(kafka_consumer):
-    yield from consumer_fixture(SessionsConsumer, kafka_consumer("sessions"))
+def sessions_consumer(consumer_fixture):
+    yield from consumer_fixture(SessionsConsumer, "sessions")
 
 
 @pytest.fixture
-def metrics_consumer(kafka_consumer):
-    yield from consumer_fixture(MetricsConsumer, kafka_consumer("metrics"))
+def metrics_consumer(consumer_fixture):
+    yield from consumer_fixture(MetricsConsumer, "metrics")
 
 
 @pytest.fixture
-def replay_recordings_consumer(kafka_consumer):
-    yield from consumer_fixture(
-        ReplayRecordingsConsumer, kafka_consumer("replay_recordings")
-    )
+def replay_recordings_consumer(consumer_fixture):
+    yield from consumer_fixture(ReplayRecordingsConsumer, "replay_recordings")
 
 
 @pytest.fixture
-def replay_events_consumer(kafka_consumer):
-    yield from consumer_fixture(ReplayEventsConsumer, kafka_consumer("replay_events"))
+def replay_events_consumer(consumer_fixture):
+    yield from consumer_fixture(ReplayEventsConsumer, "replay_events")
 
 
 @pytest.fixture
-def feedback_consumer(kafka_consumer):
-    yield from consumer_fixture(FeedbackConsumer, kafka_consumer("feedback"))
+def feedback_consumer(consumer_fixture):
+    yield from consumer_fixture(FeedbackConsumer, "feedback")
 
 
 @pytest.fixture
-def monitors_consumer(kafka_consumer):
-    yield from consumer_fixture(MonitorsConsumer, kafka_consumer("monitors"))
+def monitors_consumer(consumer_fixture):
+    yield from consumer_fixture(MonitorsConsumer, "monitors")
 
 
 @pytest.fixture
-def spans_consumer(kafka_consumer):
-    yield from consumer_fixture(SpansConsumer, kafka_consumer("spans"))
+def spans_consumer(consumer_fixture):
+    yield from consumer_fixture(SpansConsumer, "spans")
 
 
 @pytest.fixture
-def profiles_consumer(kafka_consumer):
-    yield from consumer_fixture(ProfileConsumer, kafka_consumer("profiles"))
+def profiles_consumer(consumer_fixture):
+    yield from consumer_fixture(ProfileConsumer, "profiles")
 
 
 @pytest.fixture
-def metrics_summaries_consumer(kafka_consumer):
-    yield from consumer_fixture(
-        MetricsSummariesConsumer, kafka_consumer("metrics_summaries")
-    )
+def metrics_summaries_consumer(consumer_fixture):
+    yield from consumer_fixture(MetricsSummariesConsumer, "metrics_summaries")
 
 
 @pytest.fixture
-def cogs_consumer(kafka_consumer):
-    yield from consumer_fixture(CogsConsumer, kafka_consumer("cogs"))
+def cogs_consumer(consumer_fixture):
+    yield from consumer_fixture(CogsConsumer, "cogs")
 
 
 class MetricsConsumer(ConsumerBase):
