@@ -187,10 +187,16 @@ class ConsumerBase:
                 self.assert_empty()
                 break
 
+            # Wait the full timeout duration if we're polling for an exact number of
+            # of messages, otherwise use a shorter timeout to keep tests faster.
+            # The rational being that once an item arrives on the topic the others
+            # are quick to follow.
             message = self.poll(min(2, timeout) if n is None else timeout)
 
         if n is not None:
-            assert n == messages, f"Expected {n} messages, only got {messages}"
+            assert (
+                n == messages
+            ), f"{self.__class__.__name__}: Expected {n} messages, only got {messages}"
 
     def assert_empty(self, timeout=None):
         """
