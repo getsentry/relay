@@ -1,5 +1,4 @@
 import pytest
-import time
 import uuid
 import json
 
@@ -137,16 +136,14 @@ def test_attachments_ratelimit(
 
     # First attachment returns 200 but is rate limited in processing
     relay.send_attachments(project_id, event_id, attachments)
-    # TODO: There are no outcomes emitted for attachments yet. Instead, sleep to allow Relay to
-    # process the event and cache the rate limit
-    # outcomes_consumer.assert_rate_limited("static_disabled_quota")
-    time.sleep(0.2)
+
+    outcomes_consumer.assert_rate_limited("static_disabled_quota")
 
     # Second attachment returns 429 in endpoint
     with pytest.raises(HTTPError) as excinfo:
         relay.send_attachments(project_id, event_id, attachments)
     assert excinfo.value.response.status_code == 429
-    # outcomes_consumer.assert_rate_limited("static_disabled_quota")
+    outcomes_consumer.assert_rate_limited("static_disabled_quota")
 
 
 def test_attachments_quotas(
@@ -186,16 +183,14 @@ def test_attachments_quotas(
 
     # First attachment returns 200 but is rate limited in processing
     relay.send_attachments(project_id, event_id, attachments)
-    # TODO: There are no outcomes emitted for attachments yet. Instead, sleep to allow Relay to
-    # process the event and cache the rate limit
-    # outcomes_consumer.assert_rate_limited("static_disabled_quota")
-    time.sleep(1)
+
+    outcomes_consumer.assert_rate_limited("attachments_exceeded")
 
     # Second attachment returns 429 in endpoint
     with pytest.raises(HTTPError) as excinfo:
         relay.send_attachments(42, event_id, attachments)
     assert excinfo.value.response.status_code == 429
-    # outcomes_consumer.assert_rate_limited("static_disabled_quota")
+    outcomes_consumer.assert_rate_limited("attachments_exceeded")
 
 
 def test_view_hierarchy_processing(
@@ -333,3 +328,6 @@ def test_event_with_attachment(
         "event_id": event_id,
         "project_id": project_id,
     }
+
+    _, event = attachments_consumer.get_event()
+    assert event["event_id"] == event_id

@@ -31,6 +31,8 @@ def test_standalone_user_report(
 def test_user_report_with_event(
     relay_with_processing, mini_sentry, attachments_consumer
 ):
+    attachments_consumer = attachments_consumer()
+
     project_id = 42
     relay = relay_with_processing()
     mini_sentry.add_full_project_config(project_id)
@@ -53,15 +55,17 @@ def test_user_report_with_event(
         "event_id": event_id,
     }
 
-    envelope = Envelope()
+    envelope = Envelope(headers={"event_id": event_id})
     envelope.add_item(Item(PayloadRef(json=error_payload), type="event"))
     envelope.add_item(Item(PayloadRef(json=report_payload), type="user_report"))
 
     relay.send_envelope(project_id, envelope)
 
-    attachments_consumer = attachments_consumer()
     report = attachments_consumer.get_user_report(timeout=5)
     assert json.loads(report["payload"]) == report_payload
+
+    event, _ = attachments_consumer.get_event(timeout=5)
+    assert event["event_id"] == event_id
 
 
 def test_user_reports_quotas(
