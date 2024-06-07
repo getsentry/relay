@@ -2046,7 +2046,7 @@ def test_global_rate_limit_by_namespace(
     # Send as many transactions as we can.
     send_buckets(transaction_limit, transaction_name, transaction_value, "d")
 
-    metrics = metrics_consumer.get_metrics(timeout=10, max_attempts=5)
+    metrics = metrics_consumer.get_metrics(timeout=10, n=5)
     assert len(metrics) == 5
 
     # The next request will trigger a rate limit, AFTER this request we should get 429s
@@ -2064,7 +2064,7 @@ def test_global_rate_limit_by_namespace(
     send_buckets(global_quota_remaining, session_name, session_value, "s")
 
     # Assert we didn't get ratelimited
-    metrics = metrics_consumer.get_metrics(timeout=10, max_attempts=4)
+    metrics = metrics_consumer.get_metrics(timeout=10, n=4)
     assert len(metrics) == 4
     outcomes_consumer.assert_empty()
 
