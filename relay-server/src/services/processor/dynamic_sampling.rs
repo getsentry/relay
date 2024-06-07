@@ -450,7 +450,6 @@ mod tests {
                 )
                 .try_into()
                 .unwrap(),
-                profile_id: None,
                 event_metrics_extracted: false,
                 reservoir: dummy_reservoir(),
                 spans_extracted: false,
@@ -749,7 +748,6 @@ mod tests {
             )
             .try_into()
             .unwrap(),
-            profile_id: None,
             reservoir: dummy_reservoir(),
         };
 
