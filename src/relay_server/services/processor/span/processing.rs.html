@@ -927,7 +927,6 @@
 <a href="#925" id="925">925</a>
 <a href="#926" id="926">926</a>
 <a href="#927" id="927">927</a>
-<a href="#928" id="928">928</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Contains the processing-only functionality.
 
 </span><span class="kw">use </span>std::error::Error;
@@ -1696,7 +1695,6 @@
             sampling_project_state: <span class="prelude-val">None</span>,
             project_id: ProjectId::new(<span class="number">42</span>),
             managed_envelope: managed_envelope.try_into().unwrap(),
-            profile_id: <span class="prelude-val">None</span>,
             event_metrics_extracted: <span class="bool-val">false</span>,
             spans_extracted: <span class="bool-val">false</span>,
             reservoir: ReservoirEvaluator::new(ReservoirCounters::default()),

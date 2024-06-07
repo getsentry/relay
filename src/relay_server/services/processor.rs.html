@@ -3656,9 +3656,6 @@
 <a href="#3654" id="3654">3654</a>
 <a href="#3655" id="3655">3655</a>
 <a href="#3656" id="3656">3656</a>
-<a href="#3657" id="3657">3657</a>
-<a href="#3658" id="3658">3658</a>
-<a href="#3659" id="3659">3659</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
@@ -4322,9 +4319,6 @@
     <span class="doccomment">/// The managed envelope before processing.
     </span>managed_envelope: TypedEnvelope&lt;Group&gt;,
 
-    <span class="doccomment">/// The ID of the profile in the envelope, if a valid profile exists.
-    </span>profile_id: <span class="prelude-ty">Option</span>&lt;ProfileId&gt;,
-
     <span class="doccomment">/// Reservoir evaluator that we use for dynamic sampling.
     </span>reservoir: ReservoirEvaluator&lt;<span class="lifetime">'a</span>&gt;,
 }
@@ -4803,7 +4797,6 @@
             sampling_project_state,
             project_id,
             managed_envelope,
-            profile_id: <span class="prelude-val">None</span>,
             reservoir,
         }
     }
@@ -4872,6 +4865,7 @@
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;TransactionGroup&gt;,
         sampling_result: <span class="kw-2">&amp;</span>SamplingResult,
+        profile_id: <span class="prelude-ty">Option</span>&lt;ProfileId&gt;,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ProcessingError&gt; {
         <span class="kw">if </span>state.event_metrics_extracted {
             <span class="kw">return </span><span class="prelude-val">Ok</span>(());
@@ -4960,7 +4954,7 @@
                 generic_config: <span class="prelude-val">Some</span>(combined_config),
                 transaction_from_dsc,
                 sampling_result,
-                has_profile: state.profile_id.is_some(),
+                has_profile: profile_id.is_some(),
             };
 
             state.extracted_metrics.extend(extractor.extract(event)<span class="question-mark">?</span>);
@@ -5181,8 +5175,8 @@
             <span class="kw-2">&amp;</span><span class="self">self</span>.inner.global_config.current(),
         )<span class="question-mark">?</span>;
 
-        profile::filter(state);
-        profile::transfer_id(state);
+        <span class="kw">let </span>profile_id = profile::filter(state);
+        profile::transfer_id(state, profile_id);
 
         <span class="macro">if_processing!</span>(<span class="self">self</span>.inner.config, {
             attachment::create_placeholders(state);
@@ -5205,7 +5199,7 @@
         <span class="comment">// We avoid extracting metrics if we are not sampling the event while in non-processing
         // Relays, in order to synchronize rate limits on indexed and processed transactions.
         </span><span class="kw">if </span><span class="self">self</span>.inner.config.processing_enabled() || sampling_result.should_drop() {
-            <span class="self">self</span>.extract_transaction_metrics(state, <span class="kw-2">&amp;</span>sampling_result)<span class="question-mark">?</span>;
+            <span class="self">self</span>.extract_transaction_metrics(state, <span class="kw-2">&amp;</span>sampling_result, profile_id)<span class="question-mark">?</span>;
         }
 
         <span class="kw">if let </span><span class="prelude-val">Some</span>(outcome) = sampling_result.into_dropped_outcome() {
