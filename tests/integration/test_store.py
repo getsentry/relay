@@ -608,7 +608,7 @@ def test_rate_limit_metric_bucket(
     assert len(produced_buckets) == metric_bucket_limit
 
 
-@pytest.mark.parametrize("violating_bucket", [3.0])
+@pytest.mark.parametrize("violating_bucket", [2.0, 3.0])
 def test_rate_limit_metrics_buckets(
     mini_sentry,
     relay_with_processing,
