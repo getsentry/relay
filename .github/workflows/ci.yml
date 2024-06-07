@@ -558,6 +558,7 @@ jobs:
 
       - run: make test-integration
         env:
+          PYTEST_N: 6
           RELAY_VERSION_CHAIN: "20.6.0,latest"
 
   sentry-relay-integration-tests:
