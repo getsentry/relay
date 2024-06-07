@@ -3642,6 +3642,23 @@
 <a href="#3640" id="3640">3640</a>
 <a href="#3641" id="3641">3641</a>
 <a href="#3642" id="3642">3642</a>
+<a href="#3643" id="3643">3643</a>
+<a href="#3644" id="3644">3644</a>
+<a href="#3645" id="3645">3645</a>
+<a href="#3646" id="3646">3646</a>
+<a href="#3647" id="3647">3647</a>
+<a href="#3648" id="3648">3648</a>
+<a href="#3649" id="3649">3649</a>
+<a href="#3650" id="3650">3650</a>
+<a href="#3651" id="3651">3651</a>
+<a href="#3652" id="3652">3652</a>
+<a href="#3653" id="3653">3653</a>
+<a href="#3654" id="3654">3654</a>
+<a href="#3655" id="3655">3655</a>
+<a href="#3656" id="3656">3656</a>
+<a href="#3657" id="3657">3657</a>
+<a href="#3658" id="3658">3658</a>
+<a href="#3659" id="3659">3659</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
@@ -5154,12 +5171,17 @@
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;TransactionGroup&gt;,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ProcessingError&gt; {
-        profile::filter(state);
+        <span class="kw">let </span>global_config = <span class="self">self</span>.inner.global_config.current();
+
+        dynamic_sampling::ensure_dsc(state);
+
         event::extract(
             state,
             <span class="kw-2">&amp;</span><span class="self">self</span>.inner.config,
             <span class="kw-2">&amp;</span><span class="self">self</span>.inner.global_config.current(),
         )<span class="question-mark">?</span>;
+
+        profile::filter(state);
         profile::transfer_id(state);
 
         <span class="macro">if_processing!</span>(<span class="self">self</span>.inner.config, {
@@ -5168,57 +5190,69 @@
 
         event::finalize(state, <span class="kw-2">&amp;</span><span class="self">self</span>.inner.config)<span class="question-mark">?</span>;
         <span class="self">self</span>.normalize_event(state)<span class="question-mark">?</span>;
-        dynamic_sampling::ensure_dsc(state);
+
         <span class="kw">let </span>filter_run = event::filter(state, <span class="kw-2">&amp;</span><span class="self">self</span>.inner.global_config.current())<span class="question-mark">?</span>;
 
-        <span class="kw">if </span><span class="self">self</span>.inner.config.processing_enabled() || <span class="macro">matches!</span>(filter_run, FiltersStatus::Ok) {
-            <span class="kw">let </span>sampling_result = dynamic_sampling::run(state, <span class="kw-2">&amp;</span><span class="self">self</span>.inner.config);
-            <span class="comment">// Remember sampling decision, before it is reset in `dynamic_sampling::sample_envelope_items`.
-            </span><span class="kw">let </span>sampling_should_drop = sampling_result.should_drop();
+        <span class="comment">// Always run dynamic sampling on processing Relays,
+        // but delay decision until inbound filters have been fully processed.
+        </span><span class="kw">let </span>sampling_result =
+            <span class="kw">if </span><span class="self">self</span>.inner.config.processing_enabled() || <span class="macro">matches!</span>(filter_run, FiltersStatus::Ok) {
+                dynamic_sampling::run(state, <span class="kw-2">&amp;</span><span class="self">self</span>.inner.config)
+            } <span class="kw">else </span>{
+                SamplingResult::NoMatch
+            };
 
-            <span class="comment">// We avoid extracting metrics if we are not sampling the event while in non-processing
-            // relays, in order to synchronize rate limits on indexed and processed transactions.
-            </span><span class="kw">if </span><span class="self">self</span>.inner.config.processing_enabled() || sampling_should_drop {
-                <span class="self">self</span>.extract_transaction_metrics(state, <span class="kw-2">&amp;</span>sampling_result)<span class="question-mark">?</span>;
+        <span class="comment">// We avoid extracting metrics if we are not sampling the event while in non-processing
+        // Relays, in order to synchronize rate limits on indexed and processed transactions.
+        </span><span class="kw">if </span><span class="self">self</span>.inner.config.processing_enabled() || sampling_result.should_drop() {
+            <span class="self">self</span>.extract_transaction_metrics(state, <span class="kw-2">&amp;</span>sampling_result)<span class="question-mark">?</span>;
+        }
+
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(outcome) = sampling_result.into_dropped_outcome() {
+            <span class="kw">let </span>keep_profiles = dynamic_sampling::forward_unsampled_profiles(state, <span class="kw-2">&amp;</span>global_config);
+
+            <span class="comment">// Process profiles before dropping the transaction, if necessary.
+            </span><span class="kw">if </span>keep_profiles {
+                profile::process(state, <span class="kw-2">&amp;</span><span class="self">self</span>.inner.config);
             }
 
-            dynamic_sampling::sample_envelope_items(
-                state,
-                sampling_result,
-                <span class="kw-2">&amp;</span><span class="self">self</span>.inner.config,
-                <span class="kw-2">&amp;</span><span class="self">self</span>.inner.global_config.current(),
-            );
+            dynamic_sampling::drop_unsampled_items(state, outcome, keep_profiles);
+
+            <span class="comment">// At this point we have:
+            //  - An empty envelope.
+            //  - An envelope containing only processed profiles.
+            // We need to make sure there are enough quotas for these profiles.
+            </span><span class="macro">if_processing!</span>(<span class="self">self</span>.inner.config, {
+                <span class="self">self</span>.enforce_quotas(state)<span class="question-mark">?</span>;
+            });
+
+            <span class="kw">return </span><span class="prelude-val">Ok</span>(());
         }
+
+        <span class="comment">// Need to scrub the transaction before extracting spans.
+        //
+        // Unconditionally scrub to make sure PII is removed as early as possible.
+        </span>event::scrub(state)<span class="question-mark">?</span>;
+        attachment::scrub(state);
 
         <span class="macro">if_processing!</span>(<span class="self">self</span>.inner.config, {
             profile::process(state, <span class="kw-2">&amp;</span><span class="self">self</span>.inner.config);
-        });
 
-        <span class="kw">if </span>state.has_event() {
-            event::scrub(state)<span class="question-mark">?</span>;
+            <span class="kw">if </span>state
+                .project_state
+                .has_feature(Feature::ExtractSpansFromEvent)
+            {
+                span::extract_from_event(state, <span class="kw-2">&amp;</span><span class="self">self</span>.inner.config, <span class="kw-2">&amp;</span>global_config);
+            }
 
-            <span class="macro">if_processing!</span>(<span class="self">self</span>.inner.config, {
-                <span class="kw">if </span>state
-                    .project_state
-                    .has_feature(Feature::ExtractSpansFromEvent)
-                {
-                    span::extract_from_event(
-                        state,
-                        <span class="kw-2">&amp;</span><span class="self">self</span>.inner.config,
-                        <span class="kw-2">&amp;</span><span class="self">self</span>.inner.global_config.current(),
-                    );
-                }
-            });
-        }
-
-        <span class="macro">if_processing!</span>(<span class="self">self</span>.inner.config, {
             <span class="self">self</span>.enforce_quotas(state)<span class="question-mark">?</span>;
             span::maybe_discard_transaction(state);
         });
-        <span class="kw">if </span>state.has_event() {
+
+        <span class="comment">// Event may have been dropped because of a quota and the envelope can be empty.
+        </span><span class="kw">if </span>state.has_event() {
             event::serialize(state)<span class="question-mark">?</span>;
         }
-        attachment::scrub(state);
 
         <span class="prelude-val">Ok</span>(())
     }

@@ -772,26 +772,11 @@
 <a href="#770" id="770">770</a>
 <a href="#771" id="771">771</a>
 <a href="#772" id="772">772</a>
-<a href="#773" id="773">773</a>
-<a href="#774" id="774">774</a>
-<a href="#775" id="775">775</a>
-<a href="#776" id="776">776</a>
-<a href="#777" id="777">777</a>
-<a href="#778" id="778">778</a>
-<a href="#779" id="779">779</a>
-<a href="#780" id="780">780</a>
-<a href="#781" id="781">781</a>
-<a href="#782" id="782">782</a>
-<a href="#783" id="783">783</a>
-<a href="#784" id="784">784</a>
-<a href="#785" id="785">785</a>
-<a href="#786" id="786">786</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Dynamic sampling processor related code.
 
 </span><span class="kw">use </span>std::ops::ControlFlow;
 
 <span class="kw">use </span>chrono::Utc;
-<span class="kw">use </span>relay_base_schema::events::EventType;
 <span class="kw">use </span>relay_config::Config;
 <span class="kw">use </span>relay_dynamic_config::{ErrorBoundary, Feature, GlobalConfig};
 <span class="kw">use </span>relay_event_schema::protocol::{Contexts, Event, TraceContext};
@@ -803,7 +788,7 @@
 <span class="kw">use </span><span class="kw">crate</span>::envelope::ItemType;
 <span class="kw">use </span><span class="kw">crate</span>::services::outcome::Outcome;
 <span class="kw">use </span><span class="kw">crate</span>::services::processor::{
-    profile, EventProcessing, ProcessEnvelopeState, Sampling, TransactionGroup,
+    EventProcessing, ProcessEnvelopeState, Sampling, TransactionGroup,
 };
 <span class="kw">use </span><span class="kw">crate</span>::utils::{<span class="self">self</span>, sample, ItemAction, SamplingResult};
 
@@ -880,38 +865,24 @@
 }
 
 <span class="doccomment">/// Apply the dynamic sampling decision from `compute_sampling_decision`.
-</span><span class="kw">pub fn </span>sample_envelope_items(
+</span><span class="kw">pub fn </span>drop_unsampled_items(
     state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;TransactionGroup&gt;,
-    sampling_result: SamplingResult,
-    config: <span class="kw-2">&amp;</span>Config,
-    global_config: <span class="kw-2">&amp;</span>GlobalConfig,
+    outcome: Outcome,
+    keep_profiles: bool,
 ) {
-    <span class="kw">if let </span>SamplingResult::Match(sampling_match) = sampling_result {
-        <span class="comment">// We assume that sampling is only supposed to work on transactions.
-        </span><span class="kw">let </span><span class="prelude-val">Some</span>(event) = state.event.value() <span class="kw">else </span>{
-            <span class="kw">return</span>;
-        };
-        <span class="kw">let </span>should_drop =
-            event.ty.value() == <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>EventType::Transaction) &amp;&amp; sampling_match.should_drop();
-        <span class="kw">if </span>should_drop {
-            <span class="kw">let </span>unsampled_profiles_enabled = forward_unsampled_profiles(state, global_config);
-
-            <span class="kw">let </span>matched_rules = sampling_match.into_matched_rules();
-            <span class="kw">let </span>outcome = Outcome::FilteredSampling(matched_rules.into());
-            state.managed_envelope.retain_items(|item| {
-                <span class="kw">if </span>unsampled_profiles_enabled &amp;&amp; item.ty() == <span class="kw-2">&amp;</span>ItemType::Profile {
-                    item.set_sampled(<span class="bool-val">false</span>);
-                    <span class="comment">// Transfer metadata to the profile before the transaction gets dropped:
-                    </span><span class="kw">let </span>(<span class="kw">_</span>, item_action) = profile::expand_profile(item, event, config);
-                    item_action
-                } <span class="kw">else </span>{
-                    ItemAction::Drop(outcome.clone())
-                }
-            });
-            <span class="comment">// The event is no longer in the envelope, so we need to handle it separately:
-            </span>state.reject_event(outcome);
+    state.managed_envelope.retain_items(|item| {
+        <span class="kw">if </span>keep_profiles &amp;&amp; item.ty() == <span class="kw-2">&amp;</span>ItemType::Profile {
+            <span class="comment">// Remember on the item that this profile belongs to an transaction which was not
+            // sampled.
+            // Upstream Relays can use that information to allow standalone unsampled profiles.
+            </span>item.set_sampled(<span class="bool-val">false</span>);
+            ItemAction::Keep
+        } <span class="kw">else </span>{
+            ItemAction::Drop(outcome.clone())
         }
-    }
+    });
+    <span class="comment">// The event is no longer in the envelope, so we need to handle it separately:
+    </span>state.reject_event(outcome);
 }
 
 <span class="doccomment">/// Computes the sampling decision on the incoming envelope.
@@ -1014,7 +985,7 @@
 }
 
 <span class="doccomment">/// Determines whether profiles that would otherwise be dropped by dynamic sampling should be kept.
-</span><span class="kw">fn </span>forward_unsampled_profiles(
+</span><span class="kw">pub fn </span>forward_unsampled_profiles(
     state: <span class="kw-2">&amp;</span>ProcessEnvelopeState&lt;TransactionGroup&gt;,
     global_config: <span class="kw-2">&amp;</span>GlobalConfig,
 ) -&gt; bool {
@@ -1046,6 +1017,7 @@
     <span class="kw">use </span>std::sync::Arc;
 
     <span class="kw">use </span>bytes::Bytes;
+    <span class="kw">use </span>relay_base_schema::events::EventType;
     <span class="kw">use </span>relay_base_schema::project::{ProjectId, ProjectKey};
     <span class="kw">use </span>relay_dynamic_config::{MetricExtractionConfig, TransactionMetricsConfig};
     <span class="kw">use </span>relay_event_schema::protocol::{EventId, LenientString};

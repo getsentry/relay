@@ -296,9 +296,13 @@
 <a href="#294" id="294">294</a>
 <a href="#295" id="295">295</a>
 <a href="#296" id="296">296</a>
+<a href="#297" id="297">297</a>
+<a href="#298" id="298">298</a>
+<a href="#299" id="299">299</a>
+<a href="#300" id="300">300</a>
+<a href="#301" id="301">301</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Profiles related processor code.
 
-</span><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
 </span><span class="kw">use </span>relay_dynamic_config::Feature;
 
 <span class="kw">use </span>relay_base_schema::events::EventType;
@@ -314,18 +318,23 @@
 
 <span class="doccomment">/// Removes profiles from the envelope if they can not be parsed.
 </span><span class="kw">pub fn </span>filter&lt;G&gt;(state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;G&gt;) {
-    <span class="kw">let </span>transaction_count: usize = state
-        .managed_envelope
-        .envelope()
-        .items()
-        .filter(|item| item.ty() == <span class="kw-2">&amp;</span>ItemType::Transaction)
-        .count();
+    <span class="kw">let </span>profiling_enabled = state.project_state.has_feature(Feature::Profiling);
+    <span class="kw">let </span>has_transaction = state.event_type() == <span class="prelude-val">Some</span>(EventType::Transaction);
+    <span class="kw">let </span>keep_unsampled_profiles = state
+        .project_state
+        .has_feature(Feature::IngestUnsampledProfiles);
+
     <span class="kw">let </span><span class="kw-2">mut </span>profile_id = <span class="prelude-val">None</span>;
     state.managed_envelope.retain_items(|item| <span class="kw">match </span>item.ty() {
         <span class="comment">// First profile found in the envelope, we'll keep it if metadata are valid.
         </span>ItemType::Profile <span class="kw">if </span>profile_id.is_none() =&gt; {
-            <span class="comment">// Drop profile without a transaction in the same envelope.
-            </span><span class="kw">let </span>profile_allowed = transaction_count &gt; <span class="number">0 </span>|| !item.sampled();
+            <span class="kw">if </span>!profiling_enabled {
+                <span class="kw">return </span>ItemAction::DropSilently;
+            }
+
+            <span class="comment">// Drop profile without a transaction in the same envelope,
+            // except if unsampled profiles are allowed for this project.
+            </span><span class="kw">let </span>profile_allowed = has_transaction || (keep_unsampled_profiles &amp;&amp; !item.sampled());
             <span class="kw">if </span>!profile_allowed {
                 <span class="kw">return </span>ItemAction::DropSilently;
             }
@@ -367,7 +376,6 @@
 }
 
 <span class="doccomment">/// Processes profiles and set the profile ID in the profile context on the transaction if successful.
-</span><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
 </span><span class="kw">pub fn </span>process(state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;TransactionGroup&gt;, config: <span class="kw-2">&amp;</span>Config) {
     <span class="kw">let </span>profiling_enabled = state.project_state.has_feature(Feature::Profiling);
     <span class="kw">let </span><span class="kw-2">mut </span>found_profile_id = <span class="prelude-val">None</span>;
@@ -376,7 +384,9 @@
             <span class="kw">if </span>!profiling_enabled {
                 <span class="kw">return </span>ItemAction::DropSilently;
             }
-            <span class="comment">// If we don't have an event at this stage, we need to drop the profile.
+
+            <span class="comment">// There should always be an event/transaction available at this stage.
+            // It is required to expand the profile. If it's missing, drop the item.
             </span><span class="kw">let </span><span class="prelude-val">Some</span>(event) = state.event.value() <span class="kw">else </span>{
                 <span class="kw">return </span>ItemAction::DropSilently;
             };
@@ -399,7 +409,7 @@
 }
 
 <span class="doccomment">/// Transfers transaction metadata to profile and check its size.
-</span><span class="kw">pub fn </span>expand_profile(
+</span><span class="kw">fn </span>expand_profile(
     item: <span class="kw-2">&amp;mut </span>Item,
     event: <span class="kw-2">&amp;</span>Event,
     config: <span class="kw-2">&amp;</span>Config,
