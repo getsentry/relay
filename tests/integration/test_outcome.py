@@ -1952,12 +1952,11 @@ def test_span_outcomes_invalid(
 
 
 def test_global_rate_limit_by_namespace(
-    mini_sentry, relay_with_processing, metrics_consumer, outcomes_consumer
+    mini_sentry, relay_with_processing, outcomes_consumer
 ):
     """
     Checks that we can hit a namespace quota first, and then have more quota left for the global limit.
     """
-    metrics_consumer = metrics_consumer()
     outcomes_consumer = outcomes_consumer()
 
     bucket_interval = 1  # second
