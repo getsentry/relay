@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Bug fixes**:
+
+- Trim some fields in replays to the maximum expected length. ([#3706](https://github.com/getsentry/relay/pull/3706))
+
 ## 24.5.1
 
 **Bug fixes**:
