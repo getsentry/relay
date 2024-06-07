@@ -177,7 +177,7 @@ class ConsumerBase:
         """
         # First, give Relay a bit of time to process
         rv = self.poll(timeout=0.2)
-        assert rv is None, f"not empty: {rv.value()}"
+        assert rv is None, f"{self.__class__.__name__} not empty: {rv.value()}"
 
         # Then, send a custom message to ensure we're not just timing out
         message = json.dumps({"__test__": uuid.uuid4().hex}).encode("utf8")
@@ -187,13 +187,6 @@ class ConsumerBase:
         rv = self.poll(timeout=timeout)
         assert rv.error() is None
         assert rv.value() == message, rv.value()
-
-
-@pytest.fixture
-def outcomes_consumer(kafka_consumer):
-    return lambda timeout=None, topic=None: OutcomesConsumer(
-        timeout=timeout, *kafka_consumer(topic or "outcomes")
-    )
 
 
 def category_value(category):
@@ -271,88 +264,91 @@ class OutcomesConsumer(ConsumerBase):
 
 
 @pytest.fixture
-def events_consumer(kafka_consumer):
-    return lambda timeout=None: EventsConsumer(
-        timeout=timeout, *kafka_consumer("events")
-    )
+def consumer_fixture(kafka_consumer):
+    def consumer_fixture(cls, default_topic):
+        consumer = None
+
+        def inner(timeout=None, topic=None):
+            nonlocal consumer
+            consumer = cls(timeout=timeout, *kafka_consumer(topic or default_topic))
+            return consumer
+
+        yield inner
+
+        if consumer is not None:
+            consumer.assert_empty()
+
+    return consumer_fixture
 
 
 @pytest.fixture
-def transactions_consumer(kafka_consumer):
-    return lambda timeout=None: EventsConsumer(
-        timeout=timeout, *kafka_consumer("transactions")
-    )
+def outcomes_consumer(consumer_fixture):
+    yield from consumer_fixture(OutcomesConsumer, "outcomes")
 
 
 @pytest.fixture
-def attachments_consumer(kafka_consumer):
-    return lambda timeout=None: AttachmentsConsumer(
-        timeout=timeout, *kafka_consumer("attachments")
-    )
+def events_consumer(consumer_fixture):
+    yield from consumer_fixture(EventsConsumer, "events")
 
 
 @pytest.fixture
-def sessions_consumer(kafka_consumer):
-    return lambda: SessionsConsumer(*kafka_consumer("sessions"))
+def transactions_consumer(consumer_fixture):
+    yield from consumer_fixture(EventsConsumer, "transactions")
 
 
 @pytest.fixture
-def metrics_consumer(kafka_consumer):
-    # The default timeout of 3 seconds compensates for delays and jitter
-    return lambda timeout=3, topic=None: MetricsConsumer(
-        timeout=timeout, *kafka_consumer(topic or "metrics")
-    )
+def attachments_consumer(consumer_fixture):
+    yield from consumer_fixture(AttachmentsConsumer, "attachments")
 
 
 @pytest.fixture
-def replay_recordings_consumer(kafka_consumer):
-    return lambda: ReplayRecordingsConsumer(*kafka_consumer("replay_recordings"))
+def sessions_consumer(consumer_fixture):
+    yield from consumer_fixture(SessionsConsumer, "sessions")
 
 
 @pytest.fixture
-def replay_events_consumer(kafka_consumer):
-    return lambda timeout=None: ReplayEventsConsumer(
-        timeout=timeout, *kafka_consumer("replay_events")
-    )
+def metrics_consumer(consumer_fixture):
+    yield from consumer_fixture(MetricsConsumer, "metrics")
 
 
 @pytest.fixture
-def feedback_consumer(kafka_consumer):
-    return lambda timeout=None: FeedbackConsumer(
-        timeout=timeout,
-        *kafka_consumer(
-            "feedback"
-        ),  # Corresponds to key in processing_config["processing"]["topics"]
-    )
+def replay_recordings_consumer(consumer_fixture):
+    yield from consumer_fixture(ReplayRecordingsConsumer, "replay_recordings")
 
 
 @pytest.fixture
-def monitors_consumer(kafka_consumer):
-    return lambda timeout=None: MonitorsConsumer(
-        timeout=timeout, *kafka_consumer("monitors")
-    )
+def replay_events_consumer(consumer_fixture):
+    yield from consumer_fixture(ReplayEventsConsumer, "replay_events")
 
 
 @pytest.fixture
-def spans_consumer(kafka_consumer):
-    return lambda timeout=None: SpansConsumer(timeout=timeout, *kafka_consumer("spans"))
+def feedback_consumer(consumer_fixture):
+    yield from consumer_fixture(FeedbackConsumer, "feedback")
 
 
 @pytest.fixture
-def profiles_consumer(kafka_consumer):
-    return lambda: ProfileConsumer(*kafka_consumer("profiles"))
+def monitors_consumer(consumer_fixture):
+    yield from consumer_fixture(MonitorsConsumer, "monitors")
 
 
 @pytest.fixture
-def metrics_summaries_consumer(kafka_consumer):
-    return lambda timeout=None: MetricsSummariesConsumer(
-        timeout=timeout, *kafka_consumer("metrics_summaries")
-    )
+def spans_consumer(consumer_fixture):
+    yield from consumer_fixture(SpansConsumer, "spans")
 
 
 @pytest.fixture
-def cogs_consumer(kafka_consumer):
-    return lambda timeout=None: CogsConsumer(timeout=timeout, *kafka_consumer("cogs"))
+def profiles_consumer(consumer_fixture):
+    yield from consumer_fixture(ProfileConsumer, "profiles")
+
+
+@pytest.fixture
+def metrics_summaries_consumer(consumer_fixture):
+    yield from consumer_fixture(MetricsSummariesConsumer, "metrics_summaries")
+
+
+@pytest.fixture
+def cogs_consumer(consumer_fixture):
+    yield from consumer_fixture(CogsConsumer, "cogs")
 
 
 class MetricsConsumer(ConsumerBase):

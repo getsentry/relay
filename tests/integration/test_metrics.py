@@ -840,9 +840,7 @@ def test_transaction_metrics(
     }
     relay.send_transaction(42, transaction, trace_info=trace_info)
 
-    if discard_data:
-        transactions_consumer.assert_empty()
-    else:
+    def assert_transaction():
         event, _ = transactions_consumer.get_event()
         if with_external_relay:
             # there is some rounding error while serializing/deserializing
@@ -862,7 +860,16 @@ def test_transaction_metrics(
         message = metrics_consumer.poll(timeout=None)
         assert message is None, message.value()
 
+        assert_transaction()
+        assert_transaction()
+
         return
+
+    if discard_data:
+        transactions_consumer.assert_empty()
+    else:
+        assert_transaction()
+        assert_transaction()
 
     metrics = metrics_by_name(metrics_consumer, count=10, timeout=6)
 
@@ -978,7 +985,9 @@ def test_transaction_metrics_count_per_root_project(
     relay.send_transaction(42, transaction)
     relay.send_transaction(42, transaction)
 
-    event, _ = transactions_consumer.get_event()
+    _ = transactions_consumer.get_event()
+    _ = transactions_consumer.get_event()
+    _ = transactions_consumer.get_event()
 
     metrics_by_project = metrics_by_name_group_by_project(metrics_consumer, timeout=4)
 
@@ -1904,16 +1913,22 @@ def test_metrics_with_denied_names(
 
     relay = relay_with_processing(options=TEST_CONFIG)
 
-    metrics_payload = "custom/cpu_time@millisecond:10|d|#foo:bar\ncustom/memory_usage@byte:10|d|#foo:bar"
-    relay.send_metrics(project_id, metrics_payload)
+    relay.send_metrics(project_id, "custom/cpu_time@millisecond:10|d|#foo:bar")
 
-    metrics = metrics_by_name(metrics_consumer, 2)
-
+    metrics = metrics_by_name(metrics_consumer, 1)
     volume_metric = metrics["c:metric_stats/volume@none"]
     assert volume_metric["value"] == 1.0
+    assert volume_metric["tags"]["mri"] == "d:custom/cpu_time@millisecond"
     assert volume_metric["tags"]["outcome.id"] == "1"
     assert volume_metric["tags"]["outcome.reason"] == "denied-name"
 
+    relay.send_metrics(project_id, "custom/memory_usage@byte:10|d|#foo:bar")
+
+    metrics = metrics_by_name(metrics_consumer, 2)
+    volume_metric = metrics["c:metric_stats/volume@none"]
+    assert volume_metric["value"] == 1.0
+    assert volume_metric["tags"]["mri"] == "d:custom/memory_usage@byte"
+    assert volume_metric["tags"]["outcome.id"] == "0"
     assert "d:custom/memory_usage@byte" in metrics
 
 
