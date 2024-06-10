@@ -1,6 +1,5 @@
 use std::fmt::{self, Write};
 
-use relay_dynamic_config::{ErrorBoundary, ProjectConfig};
 use relay_quotas::{
     DataCategories, DataCategory, ItemScoping, QuotaScope, RateLimit, RateLimitScope, RateLimits,
     ReasonCode, Scoping,
@@ -433,22 +432,20 @@ impl Enforcement {
 ///  - If the event is removed, all items depending on the event are removed (e.g. attachments).
 ///  - Attachments are not removed if they create events (e.g. minidumps).
 ///  - Sessions are handled separate to all of the above.
-pub struct EnvelopeLimiter<'a, F> {
+pub struct EnvelopeLimiter<F> {
     check: F,
     event_category: Option<(DataCategory, bool)>,
-    config: Option<&'a ProjectConfig>,
 }
 
-impl<'a, E, F> EnvelopeLimiter<'a, F>
+impl<E, F> EnvelopeLimiter<F>
 where
     F: FnMut(ItemScoping<'_>, usize) -> Result<RateLimits, E>,
 {
     /// Create a new `EnvelopeLimiter` with the given `check` function.
-    pub fn new(config: Option<&'a ProjectConfig>, check: F) -> Self {
+    pub fn new(check: F) -> Self {
         Self {
             check,
             event_category: None,
-            config,
         }
     }
 
@@ -521,26 +518,6 @@ where
         Ok((enforcement, rate_limits))
     }
 
-    /// Returns a dedicated data category for indexing if metrics are to be extracted.
-    ///
-    /// This is similar to [`DataCategory::index_category`], with an additional check if metrics
-    /// extraction is enabled for this category. At this point, this is only true for transactions:
-    ///
-    ///  - `DataCategory::Transaction` counts the transaction metrics. If quotas with this category
-    ///    are exhausted, both the event and metrics are dropped.
-    ///  - `DataCategory::TransactionIndexed` counts ingested and stored events. If quotas with this
-    ///    category are exhausted, just the event payload is dropped, but metrics are kept.
-    fn transaction_index_category(&self, category: DataCategory) -> Option<DataCategory> {
-        if category != DataCategory::Transaction {
-            return None;
-        }
-
-        match self.config?.transaction_metrics {
-            Some(ErrorBoundary::Ok(ref c)) if c.is_enabled() => category.index_category(),
-            _ => None,
-        }
-    }
-
     fn execute(
         &mut self,
         summary: &EnvelopeSummary,
@@ -553,7 +530,7 @@ where
             let mut longest;
             let mut event_limits;
 
-            if let Some(index_category) = self.transaction_index_category(category) {
+            if let Some(index_category) = category.index_category() {
                 event_limits = (self.check)(scoping.item(category), 1)?;
                 longest = event_limits.longest();
 
@@ -754,7 +731,7 @@ where
     }
 }
 
-impl<F> fmt::Debug for EnvelopeLimiter<'_, F> {
+impl<F> fmt::Debug for EnvelopeLimiter<F> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("EnvelopeLimiter")
             .field("event_category", &self.event_category)
@@ -767,7 +744,6 @@ mod tests {
     use std::collections::BTreeMap;
 
     use relay_base_schema::project::{ProjectId, ProjectKey};
-    use relay_dynamic_config::TransactionMetricsConfig;
     use relay_metrics::MetricNamespace;
     use relay_quotas::RetryAfter;
     use smallvec::smallvec;
@@ -1035,6 +1011,7 @@ mod tests {
             Ok(limits)
         }
 
+        #[track_caller]
         pub fn assert_call(&self, category: DataCategory, quantity: Option<usize>) {
             assert_eq!(self.called.get(&category), quantity.as_ref());
         }
@@ -1043,10 +1020,9 @@ mod tests {
     #[test]
     fn test_enforce_pass_empty() {
         let mut envelope = envelope![];
-        let config = ProjectConfig::default();
 
         let mut mock = MockLimiter::default();
-        let (_, limits) = EnvelopeLimiter::new(Some(&config), |s, q| mock.check(s, q))
+        let (_, limits) = EnvelopeLimiter::new(|s, q| mock.check(s, q))
             .enforce(&mut envelope, &scoping())
             .unwrap();
 
@@ -1060,10 +1036,9 @@ mod tests {
     #[test]
     fn test_enforce_limit_error_event() {
         let mut envelope = envelope![Event];
-        let config = ProjectConfig::default();
 
         let mut mock = MockLimiter::default().deny(DataCategory::Error);
-        let (_, limits) = EnvelopeLimiter::new(Some(&config), |s, q| mock.check(s, q))
+        let (_, limits) = EnvelopeLimiter::new(|s, q| mock.check(s, q))
             .enforce(&mut envelope, &scoping())
             .unwrap();
 
@@ -1077,10 +1052,9 @@ mod tests {
     #[test]
     fn test_enforce_limit_error_with_attachments() {
         let mut envelope = envelope![Event, Attachment];
-        let config = ProjectConfig::default();
 
         let mut mock = MockLimiter::default().deny(DataCategory::Error);
-        let (_, limits) = EnvelopeLimiter::new(Some(&config), |s, q| mock.check(s, q))
+        let (_, limits) = EnvelopeLimiter::new(|s, q| mock.check(s, q))
             .enforce(&mut envelope, &scoping())
             .unwrap();
 
@@ -1095,10 +1069,9 @@ mod tests {
     #[test]
     fn test_enforce_limit_minidump() {
         let mut envelope = envelope![Attachment::Minidump];
-        let config = ProjectConfig::default();
 
         let mut mock = MockLimiter::default().deny(DataCategory::Error);
-        let (_, limits) = EnvelopeLimiter::new(Some(&config), |s, q| mock.check(s, q))
+        let (_, limits) = EnvelopeLimiter::new(|s, q| mock.check(s, q))
             .enforce(&mut envelope, &scoping())
             .unwrap();
 
@@ -1113,10 +1086,9 @@ mod tests {
     #[test]
     fn test_enforce_limit_attachments() {
         let mut envelope = envelope![Attachment::Minidump, Attachment];
-        let config = ProjectConfig::default();
 
         let mut mock = MockLimiter::default().deny(DataCategory::Attachment);
-        let (_, limits) = EnvelopeLimiter::new(Some(&config), |s, q| mock.check(s, q))
+        let (_, limits) = EnvelopeLimiter::new(|s, q| mock.check(s, q))
             .enforce(&mut envelope, &scoping())
             .unwrap();
 
@@ -1132,10 +1104,9 @@ mod tests {
     #[test]
     fn test_enforce_limit_profiles() {
         let mut envelope = envelope![Profile, Profile];
-        let config = ProjectConfig::default();
 
         let mut mock = MockLimiter::default().deny(DataCategory::Profile);
-        let (enforcement, limits) = EnvelopeLimiter::new(Some(&config), |s, q| mock.check(s, q))
+        let (enforcement, limits) = EnvelopeLimiter::new(|s, q| mock.check(s, q))
             .enforce(&mut envelope, &scoping())
             .unwrap();
 
@@ -1153,10 +1124,9 @@ mod tests {
     #[test]
     fn test_enforce_limit_replays() {
         let mut envelope = envelope![ReplayEvent, ReplayRecording];
-        let config = ProjectConfig::default();
 
         let mut mock = MockLimiter::default().deny(DataCategory::Replay);
-        let (enforcement, limits) = EnvelopeLimiter::new(Some(&config), |s, q| mock.check(s, q))
+        let (enforcement, limits) = EnvelopeLimiter::new(|s, q| mock.check(s, q))
             .enforce(&mut envelope, &scoping())
             .unwrap();
 
@@ -1174,10 +1144,9 @@ mod tests {
     #[test]
     fn test_enforce_limit_monitor_checkins() {
         let mut envelope = envelope![CheckIn];
-        let config = ProjectConfig::default();
 
         let mut mock = MockLimiter::default().deny(DataCategory::Monitor);
-        let (enforcement, limits) = EnvelopeLimiter::new(Some(&config), |s, q| mock.check(s, q))
+        let (enforcement, limits) = EnvelopeLimiter::new(|s, q| mock.check(s, q))
             .enforce(&mut envelope, &scoping())
             .unwrap();
 
@@ -1198,10 +1167,9 @@ mod tests {
     #[test]
     fn test_enforce_pass_minidump() {
         let mut envelope = envelope![Attachment::Minidump];
-        let config = ProjectConfig::default();
 
         let mut mock = MockLimiter::default().deny(DataCategory::Attachment);
-        let (_, limits) = EnvelopeLimiter::new(Some(&config), |s, q| mock.check(s, q))
+        let (_, limits) = EnvelopeLimiter::new(|s, q| mock.check(s, q))
             .enforce(&mut envelope, &scoping())
             .unwrap();
 
@@ -1221,10 +1189,9 @@ mod tests {
         item.set_payload(ContentType::OctetStream, "0123456789");
         item.set_rate_limited(true);
         envelope.add_item(item);
-        let config = ProjectConfig::default();
 
         let mut mock = MockLimiter::default().deny(DataCategory::Error);
-        let (_, limits) = EnvelopeLimiter::new(Some(&config), |s, q| mock.check(s, q))
+        let (_, limits) = EnvelopeLimiter::new(|s, q| mock.check(s, q))
             .enforce(&mut envelope, &scoping())
             .unwrap();
 
@@ -1238,10 +1205,9 @@ mod tests {
     #[test]
     fn test_enforce_pass_sessions() {
         let mut envelope = envelope![Session, Session, Session];
-        let config = ProjectConfig::default();
 
         let mut mock = MockLimiter::default().deny(DataCategory::Error);
-        let (_, limits) = EnvelopeLimiter::new(Some(&config), |s, q| mock.check(s, q))
+        let (_, limits) = EnvelopeLimiter::new(|s, q| mock.check(s, q))
             .enforce(&mut envelope, &scoping())
             .unwrap();
 
@@ -1256,10 +1222,9 @@ mod tests {
     #[test]
     fn test_enforce_limit_sessions() {
         let mut envelope = envelope![Session, Session, Event];
-        let config = ProjectConfig::default();
 
         let mut mock = MockLimiter::default().deny(DataCategory::Session);
-        let (_, limits) = EnvelopeLimiter::new(Some(&config), |s, q| mock.check(s, q))
+        let (_, limits) = EnvelopeLimiter::new(|s, q| mock.check(s, q))
             .enforce(&mut envelope, &scoping())
             .unwrap();
 
@@ -1275,10 +1240,9 @@ mod tests {
     #[cfg(feature = "processing")]
     fn test_enforce_limit_assumed_event() {
         let mut envelope = envelope![];
-        let config = ProjectConfig::default();
 
         let mut mock = MockLimiter::default().deny(DataCategory::Transaction);
-        let mut limiter = EnvelopeLimiter::new(Some(&config), |s, q| mock.check(s, q));
+        let mut limiter = EnvelopeLimiter::new(|s, q| mock.check(s, q));
         limiter.assume_event(DataCategory::Transaction, false);
         let (_, limits) = limiter.enforce(&mut envelope, &scoping()).unwrap();
 
@@ -1293,10 +1257,9 @@ mod tests {
     #[cfg(feature = "processing")]
     fn test_enforce_limit_assumed_attachments() {
         let mut envelope = envelope![Attachment, Attachment];
-        let config = ProjectConfig::default();
 
         let mut mock = MockLimiter::default().deny(DataCategory::Error);
-        let mut limiter = EnvelopeLimiter::new(Some(&config), |s, q| mock.check(s, q));
+        let mut limiter = EnvelopeLimiter::new(|s, q| mock.check(s, q));
         limiter.assume_event(DataCategory::Error, false);
         let (_, limits) = limiter.enforce(&mut envelope, &scoping()).unwrap();
 
@@ -1307,20 +1270,12 @@ mod tests {
         mock.assert_call(DataCategory::Session, None);
     }
 
-    fn config_with_tx_metrics() -> ProjectConfig {
-        ProjectConfig {
-            transaction_metrics: Some(ErrorBoundary::Ok(TransactionMetricsConfig::new())),
-            ..ProjectConfig::default()
-        }
-    }
-
     #[test]
     fn test_enforce_transaction_no_metrics_extracted() {
         let mut envelope = envelope![Transaction];
-        let config = config_with_tx_metrics();
 
         let mut mock = MockLimiter::default().deny(DataCategory::Transaction);
-        let limiter = EnvelopeLimiter::new(Some(&config), |s, q| mock.check(s, q));
+        let limiter = EnvelopeLimiter::new(|s, q| mock.check(s, q));
         let (enforcement, limits) = limiter.enforce(&mut envelope, &scoping()).unwrap();
 
         assert!(limits.is_limited());
@@ -1333,10 +1288,9 @@ mod tests {
     fn test_enforce_event_metrics_extracted() {
         let mut envelope = envelope![Transaction];
         set_extracted(&mut envelope, ItemType::Transaction);
-        let config = config_with_tx_metrics();
 
         let mut mock = MockLimiter::default().deny(DataCategory::Transaction);
-        let limiter = EnvelopeLimiter::new(Some(&config), |s, q| mock.check(s, q));
+        let limiter = EnvelopeLimiter::new(|s, q| mock.check(s, q));
         let (enforcement, limits) = limiter.enforce(&mut envelope, &scoping()).unwrap();
 
         assert!(limits.is_limited());
@@ -1347,10 +1301,9 @@ mod tests {
     #[test]
     fn test_enforce_transaction_no_indexing_quota() {
         let mut envelope = envelope![Transaction];
-        let config = config_with_tx_metrics();
 
         let mut mock = MockLimiter::default().deny(DataCategory::TransactionIndexed);
-        let limiter = EnvelopeLimiter::new(Some(&config), |s, q| mock.check(s, q));
+        let limiter = EnvelopeLimiter::new(|s, q| mock.check(s, q));
         let (enforcement, limits) = limiter.enforce(&mut envelope, &scoping()).unwrap();
 
         // NOTE: Since metrics have not been extracted on this item, we do not check the indexing
@@ -1367,10 +1320,9 @@ mod tests {
     fn test_enforce_event_metrics_extracted_no_indexing_quota() {
         let mut envelope = envelope![Transaction];
         set_extracted(&mut envelope, ItemType::Transaction);
-        let config = config_with_tx_metrics();
 
         let mut mock = MockLimiter::default().deny(DataCategory::TransactionIndexed);
-        let limiter = EnvelopeLimiter::new(Some(&config), |s, q| mock.check(s, q));
+        let limiter = EnvelopeLimiter::new(|s, q| mock.check(s, q));
         let (enforcement, limits) = limiter.enforce(&mut envelope, &scoping()).unwrap();
 
         assert!(limits.is_limited());
@@ -1383,10 +1335,9 @@ mod tests {
     #[test]
     fn test_enforce_transaction_attachment_enforced() {
         let mut envelope = envelope![Transaction, Attachment];
-        let config = config_with_tx_metrics();
 
         let mut mock = MockLimiter::default().deny(DataCategory::Transaction);
-        let limiter = EnvelopeLimiter::new(Some(&config), |s, q| mock.check(s, q));
+        let limiter = EnvelopeLimiter::new(|s, q| mock.check(s, q));
 
         let (enforcement, _limits) = limiter.enforce(&mut envelope, &scoping()).unwrap();
 
@@ -1406,10 +1357,9 @@ mod tests {
     #[test]
     fn test_enforce_transaction_profile_enforced() {
         let mut envelope = envelope![Transaction, Profile];
-        let config = config_with_tx_metrics();
 
         let mut mock = MockLimiter::default().deny(DataCategory::Transaction);
-        let limiter = EnvelopeLimiter::new(Some(&config), |s, q| mock.check(s, q));
+        let limiter = EnvelopeLimiter::new(|s, q| mock.check(s, q));
 
         let (enforcement, _limits) = limiter.enforce(&mut envelope, &scoping()).unwrap();
 
@@ -1432,10 +1382,9 @@ mod tests {
     fn test_enforce_transaction_attachment_enforced_metrics_extracted_indexing_quota() {
         let mut envelope = envelope![Transaction, Attachment];
         set_extracted(&mut envelope, ItemType::Transaction);
-        let config = config_with_tx_metrics();
 
         let mut mock = MockLimiter::default().deny(DataCategory::TransactionIndexed);
-        let limiter = EnvelopeLimiter::new(Some(&config), |s, q| mock.check(s, q));
+        let limiter = EnvelopeLimiter::new(|s, q| mock.check(s, q));
 
         let (enforcement, _limits) = limiter.enforce(&mut envelope, &scoping()).unwrap();
 
@@ -1449,10 +1398,9 @@ mod tests {
     #[test]
     fn test_enforce_span_no_metrics_extracted() {
         let mut envelope = envelope![Span, Span];
-        let config = config_with_tx_metrics();
 
         let mut mock = MockLimiter::default().deny(DataCategory::Span);
-        let limiter = EnvelopeLimiter::new(Some(&config), |s, q| mock.check(s, q));
+        let limiter = EnvelopeLimiter::new(|s, q| mock.check(s, q));
         let (enforcement, limits) = limiter.enforce(&mut envelope, &scoping()).unwrap();
 
         assert!(limits.is_limited());
@@ -1470,10 +1418,9 @@ mod tests {
     fn test_enforce_span_metrics_extracted() {
         let mut envelope = envelope![Span];
         set_extracted(&mut envelope, ItemType::Span);
-        let config = config_with_tx_metrics();
 
         let mut mock = MockLimiter::default().deny(DataCategory::Span);
-        let limiter = EnvelopeLimiter::new(Some(&config), |s, q| mock.check(s, q));
+        let limiter = EnvelopeLimiter::new(|s, q| mock.check(s, q));
         let (enforcement, limits) = limiter.enforce(&mut envelope, &scoping()).unwrap();
 
         assert!(limits.is_limited());
@@ -1489,10 +1436,9 @@ mod tests {
     #[test]
     fn test_enforce_span_no_indexing_quota() {
         let mut envelope = envelope![OtelSpan];
-        let config = config_with_tx_metrics();
 
         let mut mock = MockLimiter::default().deny(DataCategory::SpanIndexed);
-        let limiter = EnvelopeLimiter::new(Some(&config), |s, q| mock.check(s, q));
+        let limiter = EnvelopeLimiter::new(|s, q| mock.check(s, q));
         let (enforcement, limits) = limiter.enforce(&mut envelope, &scoping()).unwrap();
 
         // NOTE: Since metrics have not been extracted on this item, we do not check the indexing
@@ -1511,10 +1457,9 @@ mod tests {
     fn test_enforce_span_metrics_extracted_no_indexing_quota() {
         let mut envelope = envelope![Span, OtelSpan];
         set_extracted(&mut envelope, ItemType::Span);
-        let config = config_with_tx_metrics();
 
         let mut mock = MockLimiter::default().deny(DataCategory::SpanIndexed);
-        let limiter = EnvelopeLimiter::new(Some(&config), |s, q| mock.check(s, q));
+        let limiter = EnvelopeLimiter::new(|s, q| mock.check(s, q));
         let (enforcement, limits) = limiter.enforce(&mut envelope, &scoping()).unwrap();
 
         assert!(limits.is_limited());

@@ -1165,10 +1165,9 @@ impl EnvelopeProcessorService {
 
         // When invoking the rate limiter, capture if the event item has been rate limited to also
         // remove it from the processing state eventually.
-        let mut envelope_limiter =
-            EnvelopeLimiter::new(Some(&project_state.config), |item_scope, quantity| {
-                rate_limiter.is_rate_limited(quotas, item_scope, quantity, false)
-            });
+        let mut envelope_limiter = EnvelopeLimiter::new(|item_scope, quantity| {
+            rate_limiter.is_rate_limited(quotas, item_scope, quantity, false)
+        });
 
         // Tell the envelope limiter about the event, since it has been removed from the Envelope at
         // this stage in processing.
