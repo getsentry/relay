@@ -299,6 +299,15 @@ impl CategoryLimit {
         }
     }
 
+    /// Recreates the category limit for a new category with the same reason.
+    fn clone_for(&self, category: DataCategory, quantity: usize) -> CategoryLimit {
+        Self {
+            category,
+            quantity,
+            reason_code: self.reason_code.clone(),
+        }
+    }
+
     /// Returns `true` if this is an active limit.
     ///
     /// This indicates that the category is limited and a certain quantity is removed from the
@@ -323,22 +332,24 @@ impl Default for CategoryLimit {
 pub struct Enforcement {
     /// The event item rate limit.
     event: CategoryLimit,
+    /// The rate limit for the indexed category of the event.
+    event_indexed: CategoryLimit,
     /// The combined attachment item rate limit.
     attachments: CategoryLimit,
     /// The combined session item rate limit.
     sessions: CategoryLimit,
     /// The combined profile item rate limit.
     profiles: CategoryLimit,
+    /// The rate limit for the indexed profiles category.
+    profiles_indexed: CategoryLimit,
     /// The combined replay item rate limit.
     replays: CategoryLimit,
     /// The combined check-in item rate limit.
     check_ins: CategoryLimit,
-    /// The combined rate limit for metrics extracted from transactions.
-    event_metrics: CategoryLimit,
     /// The combined spans rate limit.
     spans: CategoryLimit,
-    /// The combined rate limit for metrics extracted from spans.
-    span_metrics: CategoryLimit,
+    /// The rate limit for the indexed span category.
+    spans_indexed: CategoryLimit,
     /// The combined rate limit for user-reports.
     user_reports_v2: CategoryLimit,
     /// The combined profile chunk item rate limit.
@@ -365,27 +376,29 @@ impl Enforcement {
 
         let Self {
             event,
+            event_indexed,
             attachments,
             sessions: _, // Do not report outcomes for sessions.
             profiles,
+            profiles_indexed,
             replays,
             check_ins,
-            event_metrics,
             spans,
-            span_metrics,
+            spans_indexed,
             user_reports_v2,
             profile_chunks,
         } = self;
 
         let limits = [
             event,
+            event_indexed,
             attachments,
             profiles,
+            profiles_indexed,
             replays,
             check_ins,
-            event_metrics,
             spans,
-            span_metrics,
+            spans_indexed,
             user_reports_v2,
             profile_chunks,
         ];
@@ -527,56 +540,31 @@ where
         let mut enforcement = Enforcement::default();
 
         if let Some(category) = summary.event_category {
-            let mut longest;
-            let mut event_limits;
+            // Check the broad category for limits.
+            let mut event_limits = (self.check)(scoping.item(category), 1)?;
+            enforcement.event = CategoryLimit::new(category, 1, event_limits.longest());
 
+            // TODO: exclude transactions from being rate limited based on tag
+            // TODO: figure out if we can cache indexed category limits or not
             if let Some(index_category) = category.index_category() {
-                event_limits = (self.check)(scoping.item(category), 1)?;
-                longest = event_limits.longest();
-
-                // Only enforce and record an outcome if metrics haven't been extracted yet.
-                // Otherwise, the outcome is logged at a different place.
-                if !summary.transaction_metrics_extracted {
-                    enforcement.event_metrics = CategoryLimit::new(category, 1, longest);
+                // Check the specific/indexed category for limits only if the specific one has not already
+                // an enforced limit.
+                if event_limits.is_empty() {
+                    event_limits.merge((self.check)(scoping.item(index_category), 1)?);
                 }
 
-                // If the main category is rate limited, we drop both the event and metrics. If
-                // there's no rate limit, check for specific indexing quota and drop just the event.
-                if summary.transaction_metrics_extracted && longest.is_none() {
-                    event_limits = (self.check)(scoping.item(index_category), 1)?;
-                    longest = event_limits.longest();
-                }
-
-                enforcement.event = CategoryLimit::new(index_category, 1, longest);
-            } else {
-                event_limits = (self.check)(scoping.item(category), 1)?;
-                longest = event_limits.longest();
-                enforcement.event = CategoryLimit::new(category, 1, longest);
-            }
-
-            // Record the same reason for attachments, if there are any.
-            enforcement.attachments = CategoryLimit::new(
-                DataCategory::Attachment,
-                summary.attachment_quantity,
-                longest,
-            );
-
-            // It makes no sense to store profiles without transactions, so if the event
-            // is rate limited, rate limit profiles as well.
-            enforcement.profiles = CategoryLimit::new(
-                if summary.transaction_metrics_extracted {
-                    DataCategory::ProfileIndexed
-                } else {
-                    DataCategory::Profile
-                },
-                summary.profile_quantity,
-                longest,
-            );
+                enforcement.event_indexed =
+                    CategoryLimit::new(index_category, 1, event_limits.longest());
+            };
 
             rate_limits.merge(event_limits);
         }
 
-        if !enforcement.event.is_active() && summary.attachment_quantity > 0 {
+        if enforcement.event.is_active() {
+            enforcement.attachments = enforcement
+                .event
+                .clone_for(DataCategory::Attachment, summary.attachment_quantity);
+        } else if summary.attachment_quantity > 0 {
             let item_scoping = scoping.item(DataCategory::Attachment);
             let attachment_limits = (self.check)(item_scoping, summary.attachment_quantity)?;
             enforcement.attachments = CategoryLimit::new(
@@ -604,18 +592,36 @@ where
             rate_limits.merge(session_limits);
         }
 
-        if !enforcement.event.is_active() && summary.profile_quantity > 0 {
-            let item_scoping = scoping.item(DataCategory::Profile);
-            let profile_limits = (self.check)(item_scoping, summary.profile_quantity)?;
+        if enforcement.event.is_active() {
+            enforcement.profiles = enforcement
+                .event
+                .clone_for(DataCategory::Profile, summary.profile_quantity);
+
+            enforcement.profiles_indexed = enforcement
+                .event_indexed
+                .clone_for(DataCategory::ProfileIndexed, summary.profile_quantity)
+        } else if summary.profile_quantity > 0 {
+            let mut profile_limits =
+                (self.check)(scoping.item(DataCategory::Span), summary.profile_quantity)?;
             enforcement.profiles = CategoryLimit::new(
-                if summary.transaction_metrics_extracted {
-                    DataCategory::ProfileIndexed
-                } else {
-                    DataCategory::Profile
-                },
+                DataCategory::Profile,
                 summary.profile_quantity,
                 profile_limits.longest(),
             );
+
+            if profile_limits.is_empty() {
+                profile_limits.merge((self.check)(
+                    scoping.item(DataCategory::ProfileIndexed),
+                    summary.profile_quantity,
+                )?);
+            }
+
+            enforcement.profiles_indexed = CategoryLimit::new(
+                DataCategory::ProfileIndexed,
+                summary.profile_quantity,
+                profile_limits.longest(),
+            );
+
             rate_limits.merge(profile_limits);
         }
 
@@ -644,29 +650,24 @@ where
         if summary.span_quantity > 0 {
             let mut span_limits =
                 (self.check)(scoping.item(DataCategory::Span), summary.span_quantity)?;
-            let mut longest = span_limits.longest();
+            enforcement.spans = CategoryLimit::new(
+                DataCategory::Span,
+                summary.span_quantity,
+                span_limits.longest(),
+            );
 
-            // Only enforce and record an outcome if metrics haven't been extracted yet.
-            // Otherwise, the outcome is logged by the metrics rate limiter.
-            if !summary.span_metrics_extracted {
-                enforcement.span_metrics =
-                    CategoryLimit::new(DataCategory::Span, summary.span_quantity, longest);
-            }
-
-            // If the main category is rate limited, we drop both the spans and metrics. If
-            // there's no rate limit, check for specific indexing quota and drop just the event.
-            if summary.span_metrics_extracted && longest.is_none() {
-                // Metrics were extracted and aren't rate limited. Check if there
-                // is a separate rate limit for indexed spans:
-                span_limits = (self.check)(
+            if span_limits.is_empty() {
+                span_limits.merge((self.check)(
                     scoping.item(DataCategory::SpanIndexed),
                     summary.span_quantity,
-                )?;
-                longest = span_limits.longest();
+                )?);
             }
 
-            enforcement.spans =
-                CategoryLimit::new(DataCategory::SpanIndexed, summary.span_quantity, longest);
+            enforcement.spans_indexed = CategoryLimit::new(
+                DataCategory::SpanIndexed,
+                summary.span_quantity,
+                span_limits.longest(),
+            );
 
             rate_limits.merge(span_limits);
         }
@@ -691,43 +692,28 @@ where
             return false;
         }
 
-        // Remove attachments, except those required for processing
-        if enforcement.attachments.is_active() && item.ty() == &ItemType::Attachment {
-            if item.creates_event() {
-                item.set_rate_limited(true);
-                return true;
+        // When checking limits for categories that have an indexed variant,
+        // we only have to check the more specific, the indexed, variant
+        // to determine whether an item is limited.
+        match item.ty() {
+            ItemType::Attachment if enforcement.attachments.is_active() => {
+                if item.creates_event() {
+                    item.set_rate_limited(true);
+                    true
+                } else {
+                    false
+                }
             }
-
-            return false;
+            ItemType::Session => enforcement.sessions.is_active(),
+            ItemType::Profile => enforcement.profiles_indexed.is_active(),
+            ItemType::ReplayEvent => enforcement.replays.is_active(),
+            ItemType::ReplayVideo => enforcement.replays.is_active(),
+            ItemType::ReplayRecording => enforcement.replays.is_active(),
+            ItemType::CheckIn => enforcement.check_ins.is_active(),
+            ItemType::Span => enforcement.spans_indexed.is_active(),
+            ItemType::OtelSpan => enforcement.spans_indexed.is_active(),
+            _ => true,
         }
-
-        // Remove sessions independently of events
-        if enforcement.sessions.is_active() && item.ty() == &ItemType::Session {
-            return false;
-        }
-
-        // Remove profiles even if the transaction is not rate limited
-        if enforcement.profiles.is_active() && item.ty() == &ItemType::Profile {
-            return false;
-        }
-
-        // Remove replays independently of events.
-        if enforcement.replays.is_active()
-            && matches!(item.ty(), ItemType::ReplayEvent | ItemType::ReplayRecording)
-        {
-            return false;
-        }
-
-        if enforcement.check_ins.is_active() && item.ty() == &ItemType::CheckIn {
-            return false;
-        }
-
-        if (enforcement.spans.is_active() || enforcement.span_metrics.is_active()) && item.is_span()
-        {
-            return false;
-        }
-
-        true
     }
 }
 
@@ -1279,7 +1265,7 @@ mod tests {
         let (enforcement, limits) = limiter.enforce(&mut envelope, &scoping()).unwrap();
 
         assert!(limits.is_limited());
-        assert!(enforcement.event_metrics.is_active());
+        assert!(enforcement.event_indexed.is_active());
         assert!(enforcement.event.is_active());
         mock.assert_call(DataCategory::Transaction, Some(0));
     }
@@ -1294,7 +1280,7 @@ mod tests {
         let (enforcement, limits) = limiter.enforce(&mut envelope, &scoping()).unwrap();
 
         assert!(limits.is_limited());
-        assert!(!enforcement.event_metrics.is_active());
+        assert!(!enforcement.event_indexed.is_active());
         assert!(enforcement.event.is_active());
     }
 
@@ -1311,7 +1297,7 @@ mod tests {
         // indexing quota will be checked again after metrics extraction.
 
         assert!(!limits.is_limited());
-        assert!(!enforcement.event_metrics.is_active());
+        assert!(!enforcement.event_indexed.is_active());
         assert!(!enforcement.event.is_active());
         mock.assert_call(DataCategory::Transaction, Some(0));
     }
@@ -1326,7 +1312,7 @@ mod tests {
         let (enforcement, limits) = limiter.enforce(&mut envelope, &scoping()).unwrap();
 
         assert!(limits.is_limited());
-        assert!(!enforcement.event_metrics.is_active());
+        assert!(!enforcement.event_indexed.is_active());
         assert!(enforcement.event.is_active());
         mock.assert_call(DataCategory::Transaction, Some(0));
         mock.assert_call(DataCategory::TransactionIndexed, Some(1));
@@ -1404,7 +1390,7 @@ mod tests {
         let (enforcement, limits) = limiter.enforce(&mut envelope, &scoping()).unwrap();
 
         assert!(limits.is_limited());
-        assert!(enforcement.span_metrics.is_active());
+        assert!(enforcement.spans_indexed.is_active());
         assert!(enforcement.spans.is_active());
         mock.assert_call(DataCategory::Span, Some(0));
 
@@ -1424,7 +1410,7 @@ mod tests {
         let (enforcement, limits) = limiter.enforce(&mut envelope, &scoping()).unwrap();
 
         assert!(limits.is_limited());
-        assert!(!enforcement.span_metrics.is_active());
+        assert!(!enforcement.spans_indexed.is_active());
         assert!(enforcement.spans.is_active());
 
         assert_eq!(
@@ -1446,7 +1432,7 @@ mod tests {
         // indexing quota will be checked again after metrics extraction.
 
         assert!(!limits.is_limited());
-        assert!(!enforcement.span_metrics.is_active());
+        assert!(!enforcement.spans_indexed.is_active());
         assert!(!enforcement.spans.is_active());
         mock.assert_call(DataCategory::Span, Some(0));
 
@@ -1463,7 +1449,7 @@ mod tests {
         let (enforcement, limits) = limiter.enforce(&mut envelope, &scoping()).unwrap();
 
         assert!(limits.is_limited());
-        assert!(!enforcement.span_metrics.is_active());
+        assert!(!enforcement.spans_indexed.is_active());
         assert!(enforcement.spans.is_active());
         mock.assert_call(DataCategory::Span, Some(0));
         mock.assert_call(DataCategory::SpanIndexed, Some(2));

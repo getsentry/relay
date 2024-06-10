@@ -310,6 +310,14 @@ impl RateLimits {
     pub fn longest(&self) -> Option<&RateLimit> {
         self.iter().max_by_key(|limit| limit.retry_after)
     }
+
+    /// Returns `true` if there are any limits contained.
+    ///
+    /// This is equavalent to checking whether [`Self::longest`] returns `Some`
+    /// or [`Self::iter`] returns an iterator with at least one item.
+    pub fn is_empty(&self) -> bool {
+        self.limits.is_empty()
+    }
 }
 
 /// Immutable rate limits iterator.
