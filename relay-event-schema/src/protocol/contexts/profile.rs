@@ -10,8 +10,12 @@ use crate::protocol::EventId;
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct ProfileContext {
     /// The profile ID.
-    #[metastructure(required = "true")]
+    #[metastructure(required = "false")]
     pub profile_id: Annotated<EventId>,
+
+    /// The profiler ID.
+    #[metastructure(required = "false")]
+    pub profiler_id: Annotated<EventId>,
 }
 
 impl super::DefaultContext for ProfileContext {
