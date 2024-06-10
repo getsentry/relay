@@ -167,6 +167,37 @@ class ConsumerBase:
             timeout = self.timeout
         return self.consumer.poll(timeout=timeout)
 
+    def poll_many(self, timeout=None, n=None):
+        if timeout is None:
+            timeout = self.timeout
+
+        if n == 0:
+            self.assert_empty()
+            return
+
+        messages = 0
+
+        # Wait for the first outcome to show up for the full timeout duration
+        message = self.poll(timeout)
+        while message is not None:
+            yield message
+            messages += 1
+
+            if messages == n:
+                self.assert_empty()
+                break
+
+            # Wait the full timeout duration if we're polling for an exact number of
+            # of messages, otherwise use a shorter timeout to keep tests faster.
+            # The rational being that once an item arrives on the topic the others
+            # are quick to follow.
+            message = self.poll(min(2, timeout) if n is None else timeout)
+
+        if n is not None:
+            assert (
+                n == messages
+            ), f"{self.__class__.__name__}: Expected {n} messages, only got {messages}"
+
     def assert_empty(self, timeout=None):
         """
         An associated producer, that can send message on the same topic as the
@@ -214,21 +245,8 @@ def category_value(category):
 
 
 class OutcomesConsumer(ConsumerBase):
-    def _poll_all(self, timeout):
-        while True:
-            outcome = self.poll(timeout)
-            if outcome is None:
-                return
-            else:
-                yield outcome
-
     def get_outcomes(self, timeout=None, n=None):
-        if n is None:
-            outcomes = list(self._poll_all(timeout))
-        else:
-            gen = self._poll_all(timeout)
-            outcomes = [next(gen) for _ in range(n)]
-            self.assert_empty()
+        outcomes = list(self.poll_many(timeout=timeout, n=n))
         for outcome in outcomes:
             assert outcome.error() is None
         return [json.loads(outcome.value()) for outcome in outcomes]
@@ -359,17 +377,12 @@ class MetricsConsumer(ConsumerBase):
 
         return json.loads(message.value()), message.headers()
 
-    def get_metrics(self, timeout=None, max_attempts=100):
+    def get_metrics(self, timeout=None, n=None):
         metrics = []
 
-        for _ in range(max_attempts):
-            message = self.poll(timeout=timeout)
-
-            if message is None:
-                break
-            else:
-                assert message.error() is None
-                metrics.append((json.loads(message.value()), message.headers()))
+        for message in self.poll_many(timeout=timeout, n=n):
+            assert message.error() is None
+            metrics.append((json.loads(message.value()), message.headers()))
 
         return metrics
 
@@ -501,17 +514,12 @@ class SpansConsumer(ConsumerBase):
 
         return json.loads(message.value())
 
-    def get_spans(self, timeout=None, max_attempts=100):
+    def get_spans(self, timeout=None, n=None):
         spans = []
 
-        for _ in range(max_attempts):
-            message = self.poll(timeout=timeout)
-
-            if message is None:
-                break
-            else:
-                assert message.error() is None
-                spans.append(json.loads(message.value()))
+        for message in self.poll_many(timeout=timeout, n=n):
+            assert message.error() is None
+            spans.append(json.loads(message.value()))
 
         return spans
 
@@ -533,17 +541,12 @@ class MetricsSummariesConsumer(ConsumerBase):
 
         return json.loads(message.value())
 
-    def get_metrics_summaries(self, timeout=None, max_attempts=100):
+    def get_metrics_summaries(self, timeout=None, n=None):
         metrics_summaries = []
 
-        for _ in range(max_attempts):
-            message = self.poll(timeout=timeout)
-
-            if message is None:
-                break
-            else:
-                assert message.error() is None
-                metrics_summaries.append(json.loads(message.value()))
+        for message in self.poll_many(timeout=timeout, n=n):
+            assert message.error() is None
+            metrics_summaries.append(json.loads(message.value()))
 
         return metrics_summaries
 
