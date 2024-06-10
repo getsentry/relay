@@ -521,26 +521,6 @@ where
         Ok((enforcement, rate_limits))
     }
 
-    /// Returns a dedicated data category for indexing if metrics are to be extracted.
-    ///
-    /// This is similar to [`DataCategory::index_category`], with an additional check if metrics
-    /// extraction is enabled for this category. At this point, this is only true for transactions:
-    ///
-    ///  - `DataCategory::Transaction` counts the transaction metrics. If quotas with this category
-    ///    are exhausted, both the event and metrics are dropped.
-    ///  - `DataCategory::TransactionIndexed` counts ingested and stored events. If quotas with this
-    ///    category are exhausted, just the event payload is dropped, but metrics are kept.
-    fn transaction_index_category(&self, category: DataCategory) -> Option<DataCategory> {
-        if category != DataCategory::Transaction {
-            return None;
-        }
-
-        match self.config?.transaction_metrics {
-            Some(ErrorBoundary::Ok(ref c)) if c.is_enabled() => category.index_category(),
-            _ => None,
-        }
-    }
-
     fn execute(
         &mut self,
         summary: &EnvelopeSummary,
@@ -553,7 +533,7 @@ where
             let mut longest;
             let mut event_limits;
 
-            if let Some(index_category) = self.transaction_index_category(category) {
+            if let Some(index_category) = category.index_category() {
                 // Check for rate limits on the main category (e.g. transaction) but do not consume
                 // quota. Quota will be consumed by metrics in the metrics aggregator instead.
                 event_limits = (self.check)(scoping.item(category), 0)?;
