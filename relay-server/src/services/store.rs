@@ -188,7 +188,6 @@ impl StoreService {
         start_time: Instant,
         scoping: Scoping,
     ) -> Result<(), StoreError> {
-        let global_options = &self.global_config.current().options;
         let retention = envelope.retention();
 
         let event_id = envelope.event_id();
@@ -218,16 +217,11 @@ impl StoreService {
             match item.ty() {
                 ItemType::Attachment => {
                     debug_assert!(topic == KafkaTopic::Attachments);
-                    let send_inline = is_rolled_out(
-                        scoping.organization_id,
-                        global_options.inline_attachments_rollout_rate,
-                    );
                     if let Some(attachment) = self.produce_attachment(
                         event_id.ok_or(StoreError::NoEventId)?,
                         scoping.project_id,
                         item,
                         send_individual_attachments,
-                        send_inline,
                     )? {
                         attachments.push(attachment);
                     }
@@ -545,17 +539,17 @@ impl StoreService {
     /// is produced directly as an individual `attachment` message, or returned from this function
     /// to be later sent as part of an `event` message.
     ///
-    /// Attachment contents are chunked and sent as multiple `attachment_chunk` messages.
-    /// If the `send_inline` flag is set alongside `send_individual_attachments`, and the
-    /// content is small enough to fit inside a message, no `attachment_chunk` is produced, but
-    /// the content is sent as part of the `attachment` message instead.
+    /// Attachment contents are chunked and sent as multiple `attachment_chunk` messages,
+    /// unless the `send_individual_attachments` flag is set, and the content is small enough
+    /// to fit inside a message.
+    /// In that case, no `attachment_chunk` is produced, but the content is sent as part
+    /// of the `attachment` message instead.
     fn produce_attachment(
         &self,
         event_id: EventId,
         project_id: ProjectId,
         item: &Item,
         send_individual_attachments: bool,
-        send_inline: bool,
     ) -> Result<Option<ChunkedAttachment>, StoreError> {
         let id = Uuid::new_v4().to_string();
 
@@ -567,7 +561,7 @@ impl StoreService {
         // When sending individual attachments, and we have a single chunk, we want to send the
         // `data` inline in the `attachment` message.
         // This avoids a needless roundtrip through the attachments cache on the Sentry side.
-        let data = if send_individual_attachments && send_inline && size < max_chunk_size {
+        let data = if send_individual_attachments && size < max_chunk_size {
             (size > 0).then_some(payload)
         } else {
             let mut offset = 0;
