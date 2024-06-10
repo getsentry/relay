@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Bug fixes**:
+
+- Trim fields in replays to their defined maximum length. ([#3706](https://github.com/getsentry/relay/pull/3706))
+
 **Internal**:
 
 - Treat arrays of pairs as key-value mappings during PII scrubbing. ([#3639](https://github.com/getsentry/relay/pull/3639))
