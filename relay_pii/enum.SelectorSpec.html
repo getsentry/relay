@@ -5,7 +5,7 @@
     Not(<a class="struct" href="https://doc.rust-lang.org/1.78.0/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;<a class="enum" href="enum.SelectorSpec.html" title="enum relay_pii::SelectorSpec">SelectorSpec</a>&gt;),
     Path(<a class="struct" href="https://doc.rust-lang.org/1.78.0/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;<a class="enum" href="enum.SelectorPathItem.html" title="enum relay_pii::SelectorPathItem">SelectorPathItem</a>&gt;),
 }</code></pre><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>A selector that can match paths of processing states.</p>
-<p>To use a a selector, you most likely want to check whether it matches the path of a
+<p>To use a selector, you most likely want to check whether it matches the path of a
 <a href="../relay_event_schema/processor/attrs/struct.ProcessingState.html" title="struct relay_event_schema::processor::attrs::ProcessingState"><code>ProcessingState</code></a>.  For this you turn the state into a <a href="../relay_event_schema/processor/attrs/struct.Path.html" title="struct relay_event_schema::processor::attrs::Path"><code>Path</code></a> using
 <a href="../relay_event_schema/processor/attrs/struct.ProcessingState.html#method.path" title="method relay_event_schema::processor::attrs::ProcessingState::path"><code>ProcessingState::path</code></a> and call <a href="enum.SelectorSpec.html#method.matches_path" title="method relay_pii::SelectorSpec::matches_path"><code>SelectorSpec::matches_path</code></a>, which will iterate through
 the path items in the processing state and check whether the selector matches.</p>
