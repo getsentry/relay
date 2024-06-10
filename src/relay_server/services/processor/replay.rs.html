@@ -479,12 +479,12 @@
     <span class="kw">let </span><span class="kw-2">mut </span>replay =
         Annotated::&lt;Replay&gt;::from_json_bytes(payload).map_err(ReplayError::CouldNotParse)<span class="question-mark">?</span>;
 
-    <span class="kw">if let </span><span class="prelude-val">Some</span>(replay_value) = replay.value_mut() {
-        replay::validate(replay_value)<span class="question-mark">?</span>;
-        replay::normalize(replay_value, client_ip, user_agent);
-    } <span class="kw">else </span>{
+    <span class="kw">let </span><span class="prelude-val">Some</span>(replay_value) = replay.value_mut() <span class="kw">else </span>{
         <span class="kw">return </span><span class="prelude-val">Err</span>(ReplayError::NoContent);
-    }
+    };
+
+    replay::validate(replay_value)<span class="question-mark">?</span>;
+    replay::normalize(<span class="kw-2">&amp;mut </span>replay, client_ip, user_agent);
 
     <span class="kw">if let </span><span class="prelude-val">Some</span>(<span class="kw-2">ref </span>config) = config.pii_config {
         <span class="kw">let </span><span class="kw-2">mut </span>processor = PiiProcessor::new(config.compiled());

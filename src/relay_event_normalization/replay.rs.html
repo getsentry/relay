@@ -465,14 +465,51 @@
 <a href="#463" id="463">463</a>
 <a href="#464" id="464">464</a>
 <a href="#465" id="465">465</a>
+<a href="#466" id="466">466</a>
+<a href="#467" id="467">467</a>
+<a href="#468" id="468">468</a>
+<a href="#469" id="469">469</a>
+<a href="#470" id="470">470</a>
+<a href="#471" id="471">471</a>
+<a href="#472" id="472">472</a>
+<a href="#473" id="473">473</a>
+<a href="#474" id="474">474</a>
+<a href="#475" id="475">475</a>
+<a href="#476" id="476">476</a>
+<a href="#477" id="477">477</a>
+<a href="#478" id="478">478</a>
+<a href="#479" id="479">479</a>
+<a href="#480" id="480">480</a>
+<a href="#481" id="481">481</a>
+<a href="#482" id="482">482</a>
+<a href="#483" id="483">483</a>
+<a href="#484" id="484">484</a>
+<a href="#485" id="485">485</a>
+<a href="#486" id="486">486</a>
+<a href="#487" id="487">487</a>
+<a href="#488" id="488">488</a>
+<a href="#489" id="489">489</a>
+<a href="#490" id="490">490</a>
+<a href="#491" id="491">491</a>
+<a href="#492" id="492">492</a>
+<a href="#493" id="493">493</a>
+<a href="#494" id="494">494</a>
+<a href="#495" id="495">495</a>
+<a href="#496" id="496">496</a>
+<a href="#497" id="497">497</a>
+<a href="#498" id="498">498</a>
+<a href="#499" id="499">499</a>
+<a href="#500" id="500">500</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Validation and normalization of [`Replay`] events.
 
 </span><span class="kw">use </span>std::net::IpAddr <span class="kw">as </span>StdIpAddr;
 
+<span class="kw">use </span>relay_event_schema::processor::{<span class="self">self</span>, ProcessingState, Processor};
 <span class="kw">use </span>relay_event_schema::protocol::{Contexts, IpAddr, Replay};
 <span class="kw">use </span>relay_protocol::Annotated;
 
 <span class="kw">use </span><span class="kw">crate</span>::normalize::user_agent;
+<span class="kw">use </span><span class="kw">crate</span>::trimming;
 <span class="kw">use </span><span class="kw">crate</span>::user_agent::RawUserAgentInfo;
 
 <span class="doccomment">/// Replay validation or normalization error.
@@ -551,15 +588,23 @@
 
 <span class="doccomment">/// Adds default fields and normalizes all values in to their standard representation.
 </span><span class="kw">pub fn </span>normalize(
-    replay: <span class="kw-2">&amp;mut </span>Replay,
+    replay: <span class="kw-2">&amp;mut </span>Annotated&lt;Replay&gt;,
     client_ip: <span class="prelude-ty">Option</span>&lt;StdIpAddr&gt;,
     user_agent: <span class="kw-2">&amp;</span>RawUserAgentInfo&lt;<span class="kw-2">&amp;</span>str&gt;,
 ) {
-    normalize_platform(replay);
-    normalize_ip_address(replay, client_ip);
-    normalize_user_agent(replay, user_agent);
-    normalize_type(replay);
-    normalize_array_fields(replay);
+    <span class="kw">let _ </span>= processor::apply(replay, |replay_value, meta| {
+        normalize_platform(replay_value);
+        normalize_ip_address(replay_value, client_ip);
+        normalize_user_agent(replay_value, user_agent);
+        normalize_type(replay_value);
+        normalize_array_fields(replay_value);
+        <span class="kw">let _ </span>= trimming::TrimmingProcessor::new().process_replay(
+            replay_value,
+            meta,
+            ProcessingState::root(),
+        );
+        <span class="prelude-val">Ok</span>(())
+    });
 }
 
 <span class="kw">fn </span>normalize_array_fields(replay: <span class="kw-2">&amp;mut </span>Replay) {
@@ -628,6 +673,7 @@
     <span class="kw">use </span>std::net::{IpAddr, Ipv4Addr};
 
     <span class="kw">use </span>chrono::{TimeZone, Utc};
+    <span class="kw">use </span>relay_protocol::{assert_annotated_snapshot, get_value};
     <span class="kw">use </span>uuid::Uuid;
 
     <span class="kw">use </span>relay_event_schema::protocol::{
@@ -715,10 +761,9 @@
         </span><span class="kw">let </span>payload = <span class="macro">include_str!</span>(<span class="string">"../../tests/fixtures/replay.json"</span>);
 
         <span class="kw">let </span><span class="kw-2">mut </span>replay: Annotated&lt;Replay&gt; = Annotated::from_json(payload).unwrap();
-        <span class="kw">let </span>replay_value = replay.value_mut().as_mut().unwrap();
-        normalize(replay_value, <span class="prelude-val">None</span>, <span class="kw-2">&amp;</span>RawUserAgentInfo::default());
+        normalize(<span class="kw-2">&amp;mut </span>replay, <span class="prelude-val">None</span>, <span class="kw-2">&amp;</span>RawUserAgentInfo::default());
 
-        <span class="kw">let </span>contexts = replay_value.contexts.value().unwrap();
+        <span class="kw">let </span>contexts = <span class="macro">get_value!</span>(replay.<span class="macro">contexts!</span>);
         <span class="macro">assert_eq!</span>(
             contexts.get::&lt;BrowserContext&gt;(),
             <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>BrowserContext {
@@ -750,18 +795,17 @@
     </span><span class="kw">fn </span>test_missing_user() {
         <span class="kw">let </span>payload = <span class="macro">include_str!</span>(<span class="string">"../../tests/fixtures/replay_missing_user.json"</span>);
 
-        <span class="kw">let </span><span class="kw-2">mut </span>annotated_replay: Annotated&lt;Replay&gt; = Annotated::from_json(payload).unwrap();
-        <span class="kw">let </span>replay = annotated_replay.value_mut().as_mut().unwrap();
+        <span class="kw">let </span><span class="kw-2">mut </span>replay: Annotated&lt;Replay&gt; = Annotated::from_json(payload).unwrap();
 
         <span class="comment">// No user object and no ip-address was provided.
-        </span>normalize(replay, <span class="prelude-val">None</span>, <span class="kw-2">&amp;</span>RawUserAgentInfo::default());
-        <span class="macro">assert_eq!</span>(replay.user.value(), <span class="prelude-val">None</span>);
+        </span>normalize(<span class="kw-2">&amp;mut </span>replay, <span class="prelude-val">None</span>, <span class="kw-2">&amp;</span>RawUserAgentInfo::default());
+        <span class="macro">assert_eq!</span>(<span class="macro">get_value!</span>(replay.user), <span class="prelude-val">None</span>);
 
         <span class="comment">// No user object but an ip-address was provided.
         </span><span class="kw">let </span>ip_address = IpAddr::V4(Ipv4Addr::new(<span class="number">127</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">1</span>));
-        normalize(replay, <span class="prelude-val">Some</span>(ip_address), <span class="kw-2">&amp;</span>RawUserAgentInfo::default());
+        normalize(<span class="kw-2">&amp;mut </span>replay, <span class="prelude-val">Some</span>(ip_address), <span class="kw-2">&amp;</span>RawUserAgentInfo::default());
 
-        <span class="kw">let </span>ipaddr = replay.user.value().unwrap().ip_address.as_str();
+        <span class="kw">let </span>ipaddr = <span class="macro">get_value!</span>(replay.<span class="macro">user!</span>).ip_address.as_str();
         <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="string">"127.0.0.1"</span>), ipaddr);
     }
 
@@ -773,10 +817,9 @@
         </span><span class="kw">let </span>payload = <span class="macro">include_str!</span>(<span class="string">"../../tests/fixtures/replay_missing_user_ip_address.json"</span>);
 
         <span class="kw">let </span><span class="kw-2">mut </span>replay: Annotated&lt;Replay&gt; = Annotated::from_json(payload).unwrap();
-        <span class="kw">let </span>replay_value = replay.value_mut().as_mut().unwrap();
-        normalize(replay_value, <span class="prelude-val">Some</span>(ip_address), <span class="kw-2">&amp;</span>RawUserAgentInfo::default());
+        normalize(<span class="kw-2">&amp;mut </span>replay, <span class="prelude-val">Some</span>(ip_address), <span class="kw-2">&amp;</span>RawUserAgentInfo::default());
 
-        <span class="kw">let </span>ipaddr = replay_value.user.value().unwrap().ip_address.as_str();
+        <span class="kw">let </span>ipaddr = <span class="macro">get_value!</span>(replay.<span class="macro">user!</span>).ip_address.as_str();
         <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="string">"127.0.0.1"</span>), ipaddr);
     }
 
@@ -785,10 +828,9 @@
         <span class="kw">let </span>payload = <span class="macro">include_str!</span>(<span class="string">"../../tests/fixtures/replay_failure_22_08_31.json"</span>);
 
         <span class="kw">let </span><span class="kw-2">mut </span>replay: Annotated&lt;Replay&gt; = Annotated::from_json(payload).unwrap();
-        <span class="kw">let </span>replay_value = replay.value_mut().as_mut().unwrap();
-        normalize(replay_value, <span class="prelude-val">None</span>, <span class="kw-2">&amp;</span>RawUserAgentInfo::default());
+        normalize(<span class="kw-2">&amp;mut </span>replay, <span class="prelude-val">None</span>, <span class="kw-2">&amp;</span>RawUserAgentInfo::default());
 
-        <span class="kw">let </span>user = replay_value.user.value().unwrap();
+        <span class="kw">let </span>user = <span class="macro">get_value!</span>(replay.<span class="macro">user!</span>);
         <span class="macro">assert_eq!</span>(user.ip_address.as_str(), <span class="prelude-val">Some</span>(<span class="string">"127.1.1.1"</span>));
         <span class="macro">assert_eq!</span>(user.username.value(), <span class="prelude-val">None</span>);
         <span class="macro">assert_eq!</span>(user.email.as_str(), <span class="prelude-val">Some</span>(<span class="string">"email@sentry.io"</span>));
@@ -928,6 +970,34 @@
         <span class="kw">let </span><span class="kw-2">mut </span>replay = Annotated::&lt;Replay&gt;::from_json(json).unwrap();
         <span class="kw">let </span>validation_result = validate(replay.value_mut().as_mut().unwrap());
         <span class="macro">assert!</span>(validation_result.is_err());
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_maxchars_trimming() {
+        <span class="kw">let </span>json = <span class="macro">format!</span>(<span class="string">r#"{{"dist": "{}"}}"#</span>, <span class="string">"0"</span>.repeat(<span class="number">100</span>));
+        <span class="kw">let </span><span class="kw-2">mut </span>replay = Annotated::&lt;Replay&gt;::from_json(json.as_str()).unwrap();
+
+        normalize(<span class="kw-2">&amp;mut </span>replay, <span class="prelude-val">None</span>, <span class="kw-2">&amp;</span>RawUserAgentInfo::default());
+        <span class="macro">assert_annotated_snapshot!</span>(replay, @<span class="string">r#"{
+  "platform": "other",
+  "dist": "0000000000000000000000000000000000000000000000000000000000000...",
+  "type": "replay_event",
+  "_meta": {
+    "dist": {
+      "": {
+        "rem": [
+          [
+            "!limit",
+            "s",
+            61,
+            64
+          ]
+        ],
+        "len": 100
+      }
+    }
+  }
+}"#</span>);
     }
 }
 </code></pre></div></section></main></body></html>

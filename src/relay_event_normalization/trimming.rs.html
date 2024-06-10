@@ -1074,13 +1074,22 @@
 <a href="#1072" id="1072">1072</a>
 <a href="#1073" id="1073">1073</a>
 <a href="#1074" id="1074">1074</a>
+<a href="#1075" id="1075">1075</a>
+<a href="#1076" id="1076">1076</a>
+<a href="#1077" id="1077">1077</a>
+<a href="#1078" id="1078">1078</a>
+<a href="#1079" id="1079">1079</a>
+<a href="#1080" id="1080">1080</a>
+<a href="#1081" id="1081">1081</a>
+<a href="#1082" id="1082">1082</a>
+<a href="#1083" id="1083">1083</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 
 <span class="kw">use </span>relay_event_schema::processor::{
     <span class="self">self</span>, Chunk, ProcessValue, ProcessingAction, ProcessingResult, ProcessingState, Processor,
     ValueType,
 };
-<span class="kw">use </span>relay_event_schema::protocol::{Frame, RawStacktrace};
+<span class="kw">use </span>relay_event_schema::protocol::{Frame, RawStacktrace, Replay};
 <span class="kw">use </span>relay_protocol::{Annotated, Array, Empty, Meta, Object, RemarkType, Value};
 
 <span class="attr">#[derive(Clone, Debug)]
@@ -1337,6 +1346,15 @@
 
         value.process_child_values(<span class="self">self</span>, state)<span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>(())
+    }
+
+    <span class="kw">fn </span>process_replay(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        replay: <span class="kw-2">&amp;mut </span>Replay,
+        <span class="kw">_</span>: <span class="kw-2">&amp;mut </span>Meta,
+        state: <span class="kw-2">&amp;</span>ProcessingState&lt;<span class="lifetime">'_</span>&gt;,
+    ) -&gt; ProcessingResult {
+        replay.process_child_values(<span class="self">self</span>, state)
     }
 
     <span class="kw">fn </span>process_raw_stacktrace(
