@@ -167,6 +167,37 @@ class ConsumerBase:
             timeout = self.timeout
         return self.consumer.poll(timeout=timeout)
 
+    def poll_many(self, timeout=None, n=None):
+        if timeout is None:
+            timeout = self.timeout
+
+        if n == 0:
+            self.assert_empty()
+            return
+
+        messages = 0
+
+        # Wait for the first outcome to show up for the full timeout duration
+        message = self.poll(timeout)
+        while message is not None:
+            yield message
+            messages += 1
+
+            if messages == n:
+                self.assert_empty()
+                break
+
+            # Wait the full timeout duration if we're polling for an exact number of
+            # of messages, otherwise use a shorter timeout to keep tests faster.
+            # The rational being that once an item arrives on the topic the others
+            # are quick to follow.
+            message = self.poll(min(2, timeout) if n is None else timeout)
+
+        if n is not None:
+            assert (
+                n == messages
+            ), f"{self.__class__.__name__}: Expected {n} messages, only got {messages}"
+
     def assert_empty(self, timeout=None):
         """
         An associated producer, that can send message on the same topic as the
@@ -177,7 +208,7 @@ class ConsumerBase:
         """
         # First, give Relay a bit of time to process
         rv = self.poll(timeout=0.2)
-        assert rv is None, f"not empty: {rv.value()}"
+        assert rv is None, f"{self.__class__.__name__} not empty: {rv.value()}"
 
         # Then, send a custom message to ensure we're not just timing out
         message = json.dumps({"__test__": uuid.uuid4().hex}).encode("utf8")
@@ -187,13 +218,6 @@ class ConsumerBase:
         rv = self.poll(timeout=timeout)
         assert rv.error() is None
         assert rv.value() == message, rv.value()
-
-
-@pytest.fixture
-def outcomes_consumer(kafka_consumer):
-    return lambda timeout=None, topic=None: OutcomesConsumer(
-        timeout=timeout, *kafka_consumer(topic or "outcomes")
-    )
 
 
 def category_value(category):
@@ -221,21 +245,8 @@ def category_value(category):
 
 
 class OutcomesConsumer(ConsumerBase):
-    def _poll_all(self, timeout):
-        while True:
-            outcome = self.poll(timeout)
-            if outcome is None:
-                return
-            else:
-                yield outcome
-
     def get_outcomes(self, timeout=None, n=None):
-        if n is None:
-            outcomes = list(self._poll_all(timeout))
-        else:
-            gen = self._poll_all(timeout)
-            outcomes = [next(gen) for _ in range(n)]
-            self.assert_empty()
+        outcomes = list(self.poll_many(timeout=timeout, n=n))
         for outcome in outcomes:
             assert outcome.error() is None
         return [json.loads(outcome.value()) for outcome in outcomes]
@@ -271,88 +282,91 @@ class OutcomesConsumer(ConsumerBase):
 
 
 @pytest.fixture
-def events_consumer(kafka_consumer):
-    return lambda timeout=None: EventsConsumer(
-        timeout=timeout, *kafka_consumer("events")
-    )
+def consumer_fixture(kafka_consumer):
+    def consumer_fixture(cls, default_topic):
+        consumer = None
+
+        def inner(timeout=None, topic=None):
+            nonlocal consumer
+            consumer = cls(timeout=timeout, *kafka_consumer(topic or default_topic))
+            return consumer
+
+        yield inner
+
+        if consumer is not None:
+            consumer.assert_empty()
+
+    return consumer_fixture
 
 
 @pytest.fixture
-def transactions_consumer(kafka_consumer):
-    return lambda timeout=None: EventsConsumer(
-        timeout=timeout, *kafka_consumer("transactions")
-    )
+def outcomes_consumer(consumer_fixture):
+    yield from consumer_fixture(OutcomesConsumer, "outcomes")
 
 
 @pytest.fixture
-def attachments_consumer(kafka_consumer):
-    return lambda timeout=None: AttachmentsConsumer(
-        timeout=timeout, *kafka_consumer("attachments")
-    )
+def events_consumer(consumer_fixture):
+    yield from consumer_fixture(EventsConsumer, "events")
 
 
 @pytest.fixture
-def sessions_consumer(kafka_consumer):
-    return lambda: SessionsConsumer(*kafka_consumer("sessions"))
+def transactions_consumer(consumer_fixture):
+    yield from consumer_fixture(EventsConsumer, "transactions")
 
 
 @pytest.fixture
-def metrics_consumer(kafka_consumer):
-    # The default timeout of 3 seconds compensates for delays and jitter
-    return lambda timeout=3, topic=None: MetricsConsumer(
-        timeout=timeout, *kafka_consumer(topic or "metrics")
-    )
+def attachments_consumer(consumer_fixture):
+    yield from consumer_fixture(AttachmentsConsumer, "attachments")
 
 
 @pytest.fixture
-def replay_recordings_consumer(kafka_consumer):
-    return lambda: ReplayRecordingsConsumer(*kafka_consumer("replay_recordings"))
+def sessions_consumer(consumer_fixture):
+    yield from consumer_fixture(SessionsConsumer, "sessions")
 
 
 @pytest.fixture
-def replay_events_consumer(kafka_consumer):
-    return lambda timeout=None: ReplayEventsConsumer(
-        timeout=timeout, *kafka_consumer("replay_events")
-    )
+def metrics_consumer(consumer_fixture):
+    yield from consumer_fixture(MetricsConsumer, "metrics")
 
 
 @pytest.fixture
-def feedback_consumer(kafka_consumer):
-    return lambda timeout=None: FeedbackConsumer(
-        timeout=timeout,
-        *kafka_consumer(
-            "feedback"
-        ),  # Corresponds to key in processing_config["processing"]["topics"]
-    )
+def replay_recordings_consumer(consumer_fixture):
+    yield from consumer_fixture(ReplayRecordingsConsumer, "replay_recordings")
 
 
 @pytest.fixture
-def monitors_consumer(kafka_consumer):
-    return lambda timeout=None: MonitorsConsumer(
-        timeout=timeout, *kafka_consumer("monitors")
-    )
+def replay_events_consumer(consumer_fixture):
+    yield from consumer_fixture(ReplayEventsConsumer, "replay_events")
 
 
 @pytest.fixture
-def spans_consumer(kafka_consumer):
-    return lambda timeout=None: SpansConsumer(timeout=timeout, *kafka_consumer("spans"))
+def feedback_consumer(consumer_fixture):
+    yield from consumer_fixture(FeedbackConsumer, "feedback")
 
 
 @pytest.fixture
-def profiles_consumer(kafka_consumer):
-    return lambda: ProfileConsumer(*kafka_consumer("profiles"))
+def monitors_consumer(consumer_fixture):
+    yield from consumer_fixture(MonitorsConsumer, "monitors")
 
 
 @pytest.fixture
-def metrics_summaries_consumer(kafka_consumer):
-    return lambda timeout=None: MetricsSummariesConsumer(
-        timeout=timeout, *kafka_consumer("metrics_summaries")
-    )
+def spans_consumer(consumer_fixture):
+    yield from consumer_fixture(SpansConsumer, "spans")
 
 
 @pytest.fixture
-def cogs_consumer(kafka_consumer):
-    return lambda timeout=None: CogsConsumer(timeout=timeout, *kafka_consumer("cogs"))
+def profiles_consumer(consumer_fixture):
+    yield from consumer_fixture(ProfileConsumer, "profiles")
+
+
+@pytest.fixture
+def metrics_summaries_consumer(consumer_fixture):
+    yield from consumer_fixture(MetricsSummariesConsumer, "metrics_summaries")
+
+
+@pytest.fixture
+def cogs_consumer(consumer_fixture):
+    yield from consumer_fixture(CogsConsumer, "cogs")
 
 
 class MetricsConsumer(ConsumerBase):
@@ -363,17 +377,12 @@ class MetricsConsumer(ConsumerBase):
 
         return json.loads(message.value()), message.headers()
 
-    def get_metrics(self, timeout=None, max_attempts=100):
+    def get_metrics(self, timeout=None, n=None):
         metrics = []
 
-        for _ in range(max_attempts):
-            message = self.poll(timeout=timeout)
-
-            if message is None:
-                break
-            else:
-                assert message.error() is None
-                metrics.append((json.loads(message.value()), message.headers()))
+        for message in self.poll_many(timeout=timeout, n=n):
+            assert message.error() is None
+            metrics.append((json.loads(message.value()), message.headers()))
 
         return metrics
 
@@ -505,17 +514,12 @@ class SpansConsumer(ConsumerBase):
 
         return json.loads(message.value())
 
-    def get_spans(self, timeout=None, max_attempts=100):
+    def get_spans(self, timeout=None, n=None):
         spans = []
 
-        for _ in range(max_attempts):
-            message = self.poll(timeout=timeout)
-
-            if message is None:
-                break
-            else:
-                assert message.error() is None
-                spans.append(json.loads(message.value()))
+        for message in self.poll_many(timeout=timeout, n=n):
+            assert message.error() is None
+            spans.append(json.loads(message.value()))
 
         return spans
 
@@ -537,17 +541,12 @@ class MetricsSummariesConsumer(ConsumerBase):
 
         return json.loads(message.value())
 
-    def get_metrics_summaries(self, timeout=None, max_attempts=100):
+    def get_metrics_summaries(self, timeout=None, n=None):
         metrics_summaries = []
 
-        for _ in range(max_attempts):
-            message = self.poll(timeout=timeout)
-
-            if message is None:
-                break
-            else:
-                assert message.error() is None
-                metrics_summaries.append(json.loads(message.value()))
+        for message in self.poll_many(timeout=timeout, n=n):
+            assert message.error() is None
+            metrics_summaries.append(json.loads(message.value()))
 
         return metrics_summaries
 

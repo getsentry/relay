@@ -70,8 +70,9 @@ test-python: setup-git setup-venv ## run tests for Python code
 	.venv/bin/pytest -v py
 .PHONY: test-python
 
+PYTEST_N ?= auto
 test-integration: build setup-venv ## run integration tests
-	.venv/bin/pytest tests -n auto -v
+	.venv/bin/pytest tests -n $(PYTEST_N) -v
 .PHONY: test-integration
 
 # Documentation

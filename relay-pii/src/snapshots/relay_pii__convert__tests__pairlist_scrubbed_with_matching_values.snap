@@ -13,8 +13,12 @@ expression: data
                 "request": {
                   "headers": [
                     [
-                      "AuthToken",
+                      "some_random_value",
                       "[Filtered]"
+                    ],
+                    [
+                      "some_random_value_2",
+                      "abc"
                     ]
                   ]
                 }
@@ -46,7 +50,7 @@ expression: data
                                 10
                               ]
                             ],
-                            "len": 42
+                            "len": 11
                           }
                         }
                       }

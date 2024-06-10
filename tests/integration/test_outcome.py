@@ -161,8 +161,6 @@ def test_outcomes_two_configs(
     assert rate_limited["project_id"] == 44
     assert rate_limited["outcome"] == 2
 
-    print(rate_limited)
-
     invalid = outcomes_consumer.get_outcome()
     assert invalid["project_id"] == 99
     assert invalid["outcome"] == 3
@@ -1920,7 +1918,7 @@ def test_span_outcomes_invalid(
     envelope = make_envelope()
     upstream.send_envelope(project_id, envelope)
 
-    outcomes = outcomes_consumer.get_outcomes(timeout=10.0)
+    outcomes = outcomes_consumer.get_outcomes(timeout=10.0, n=2)
     outcomes.sort(key=lambda o: sorted(o.items()))
 
     expected_outcomes = [
@@ -1952,13 +1950,13 @@ def test_span_outcomes_invalid(
 
 
 def test_global_rate_limit_by_namespace(
-    mini_sentry, relay_with_processing, metrics_consumer, outcomes_consumer
+    mini_sentry, relay_with_processing, outcomes_consumer, metrics_consumer
 ):
     """
     Checks that we can hit a namespace quota first, and then have more quota left for the global limit.
     """
-    metrics_consumer = metrics_consumer()
     outcomes_consumer = outcomes_consumer()
+    metrics_consumer = metrics_consumer()
 
     bucket_interval = 1  # second
     relay = relay_with_processing(
@@ -2046,31 +2044,33 @@ def test_global_rate_limit_by_namespace(
     # Send as many transactions as we can.
     send_buckets(transaction_limit, transaction_name, transaction_value, "d")
 
-    outcomes = outcomes_consumer.get_outcomes()
-    assert len(outcomes) == 0
+    metrics = metrics_consumer.get_metrics(timeout=10, n=5)
+    assert len(metrics) == 5
 
     # The next request will trigger a rate limit, AFTER this request we should get 429s
     send_buckets(1, transaction_name, transaction_value, "d")
     expect_429 = True
 
     # assert we hit the transaction throughput limit configured.
-    outcomes = outcomes_consumer.get_outcomes()
+    outcomes = outcomes_consumer.get_outcomes(timeout=10, n=1)
     assert len(outcomes) == 1
     assert outcomes[0]["reason"] == transaction_reason_code
+    metrics_consumer.assert_empty()
 
     # Fill up the global limit
     global_quota_remaining = metric_bucket_limit - transaction_limit
     send_buckets(global_quota_remaining, session_name, session_value, "s")
 
     # Assert we didn't get ratelimited
-    outcomes = outcomes_consumer.get_outcomes()
-    assert len(outcomes) == 0
+    metrics = metrics_consumer.get_metrics(timeout=10, n=4)
+    assert len(metrics) == 4
+    outcomes_consumer.assert_empty()
 
     # Send more than we have of global quota.
     send_buckets(1, session_name, session_value, "s")
 
     # Assert we hit the global limit
-    outcomes = outcomes_consumer.get_outcomes()
+    outcomes = outcomes_consumer.get_outcomes(timeout=10, n=1)
     assert len(outcomes) == 1
     assert outcomes[0]["reason"] == global_reason_code
 
@@ -2122,8 +2122,7 @@ def test_replay_outcomes_item_failed(
     envelope = make_envelope()
     upstream.send_envelope(project_id, envelope)
 
-    outcomes = outcomes_consumer.get_outcomes()
-
+    outcomes = outcomes_consumer.get_outcomes(n=1)
     assert len(outcomes) == 1
 
     expected = {
