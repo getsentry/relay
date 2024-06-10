@@ -13,8 +13,8 @@ use std::path::Path;
 use url::{Host, Url};
 
 use crate::regexes::{
-    DB_SQL_TRANSACTION_CORE_DATA_REGEX, DB_SUPABASE_REGEX, REDIS_COMMAND_REGEX,
-    RESOURCE_NORMALIZER_REGEX,
+    DB_SQL_TRANSACTION_CORE_DATA_REGEX, DB_SUPABASE_REGEX, FUNCTION_NORMALIZER_REGEX,
+    REDIS_COMMAND_REGEX, RESOURCE_NORMALIZER_REGEX,
 };
 use crate::span::description::resource::COMMON_PATH_SEGMENTS;
 use crate::span::tag_extraction::HTTP_METHOD_EXTRACTOR_REGEX;
@@ -135,6 +135,7 @@ pub(crate) fn scrub_span_description(
                 Some(description.to_owned())
             }
             ("file", _) => scrub_file(description),
+            ("function", _) => scrub_function(description),
             _ => None,
         });
     (scrubbed_description, parsed_sql)
@@ -519,6 +520,10 @@ fn scrub_resource_file_extension(mut extension: &str) -> &str {
     }
 
     extension
+}
+
+fn scrub_function(string: &str) -> Option<String> {
+    Some(FUNCTION_NORMALIZER_REGEX.replace_all(string, "*").into())
 }
 
 #[cfg(test)]
@@ -1071,6 +1076,34 @@ mod tests {
     );
 
     span_description_test!(db_prisma, "User find", "db.sql.prisma", "User find");
+
+    span_description_test!(
+        function_python,
+        "sentry.event_manager.assign_event_to_group",
+        "function",
+        "sentry.event_manager.assign_event_to_group"
+    );
+
+    span_description_test!(
+        function_rust,
+        "symbolicator_native::symbolication::symbolicate::symbolicate",
+        "function",
+        "symbolicator_native::symbolication::symbolicate::symbolicate"
+    );
+
+    span_description_test!(
+        function_with_hex,
+        "symbolicator_native::symbolication::symbolicate::deadbeef",
+        "function",
+        "symbolicator_native::symbolication::symbolicate::*"
+    );
+
+    span_description_test!(
+        function_with_uuid,
+        "symbolicator_native::symbolication::fb37f08422034ee985e9fc553ef27e6e::symbolicate",
+        "function",
+        "symbolicator_native::symbolication::*::symbolicate"
+    );
 
     #[test]
     fn informed_sql_parser() {

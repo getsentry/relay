@@ -32,6 +32,7 @@
 - Send `attachment` data inline when possible. ([#3654](https://github.com/getsentry/relay/pull/3654))
 - Drops support for transaction metrics extraction versions < 3. ([#3672](https://github.com/getsentry/relay/pull/3672))
 - Move partitioning into the `Aggregator` and add a new `Partition` bucket shift mode. ([#3661](https://github.com/getsentry/relay/pull/3661))
+- Calculate group hash for function spans. ([#3697](https://github.com/getsentry/relay/pull/3697))
 
 ## 24.5.0
 

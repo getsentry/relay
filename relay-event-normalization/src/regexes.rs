@@ -95,3 +95,15 @@ pub static DB_SUPABASE_REGEX: Lazy<Regex> = Lazy::new(|| {
     )
     .unwrap()
 });
+
+pub static FUNCTION_NORMALIZER_REGEX: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(
+        r"(?xi)
+        # UUIDs.
+        (?P<uuid>[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}) |
+        # Hexadecimal strings with more than 5 digits.
+        (?P<hex>[a-f0-9]{5}[a-f0-9]+)
+        ",
+    )
+    .unwrap()
+});
