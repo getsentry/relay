@@ -3150,7 +3150,6 @@
             <span class="self">Self</span>::AttachmentChunk(message) =&gt; message.event_id.<span class="number">0</span>,
             <span class="self">Self</span>::UserReport(message) =&gt; message.event_id.<span class="number">0</span>,
             <span class="self">Self</span>::ReplayEvent(message) =&gt; message.replay_id.<span class="number">0</span>,
-            <span class="self">Self</span>::Span { message, .. } =&gt; message.trace_id.<span class="number">0</span>,
 
             <span class="comment">// Monitor check-ins use the hinted UUID passed through from the Envelope.
             //
@@ -3160,6 +3159,7 @@
 
             <span class="comment">// Random partitioning
             </span><span class="self">Self</span>::Profile(<span class="kw">_</span>)
+            | <span class="self">Self</span>::Span { .. }
             | <span class="self">Self</span>::ReplayRecordingNotChunked(<span class="kw">_</span>)
             | <span class="self">Self</span>::MetricsSummary(<span class="kw">_</span>)
             | <span class="self">Self</span>::Cogs(<span class="kw">_</span>)
