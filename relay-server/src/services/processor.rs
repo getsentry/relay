@@ -1538,13 +1538,9 @@ impl EnvelopeProcessorService {
                 SamplingResult::NoMatch
             };
 
-        // We avoid extracting metrics if we are not sampling the event while in non-processing
-        // Relays, in order to synchronize rate limits on indexed and processed transactions.
-        if self.inner.config.processing_enabled() || sampling_result.should_drop() {
+        if let Some(outcome) = sampling_result.clone().into_dropped_outcome() {
             self.extract_transaction_metrics(state, &sampling_result, profile_id)?;
-        }
 
-        if let Some(outcome) = sampling_result.into_dropped_outcome() {
             let keep_profiles = dynamic_sampling::forward_unsampled_profiles(state, &global_config);
 
             // Process profiles before dropping the transaction, if necessary.
@@ -1582,6 +1578,8 @@ impl EnvelopeProcessorService {
             }
 
             self.enforce_quotas(state)?;
+            self.extract_transaction_metrics(state, &sampling_result, profile_id)?;
+
             span::maybe_discard_transaction(state);
         });
 
