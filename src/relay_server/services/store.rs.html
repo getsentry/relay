@@ -1623,12 +1623,6 @@
 <a href="#1621" id="1621">1621</a>
 <a href="#1622" id="1622">1622</a>
 <a href="#1623" id="1623">1623</a>
-<a href="#1624" id="1624">1624</a>
-<a href="#1625" id="1625">1625</a>
-<a href="#1626" id="1626">1626</a>
-<a href="#1627" id="1627">1627</a>
-<a href="#1628" id="1628">1628</a>
-<a href="#1629" id="1629">1629</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module contains the service that forwards events and attachments to the Sentry store.
 //! The service uses Kafka topics to forward data to Sentry
 
@@ -1819,7 +1813,6 @@
         start_time: Instant,
         scoping: Scoping,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), StoreError&gt; {
-        <span class="kw">let </span>global_options = <span class="kw-2">&amp;</span><span class="self">self</span>.global_config.current().options;
         <span class="kw">let </span>retention = envelope.retention();
 
         <span class="kw">let </span>event_id = envelope.event_id();
@@ -1849,16 +1842,11 @@
             <span class="kw">match </span>item.ty() {
                 ItemType::Attachment =&gt; {
                     <span class="macro">debug_assert!</span>(topic == KafkaTopic::Attachments);
-                    <span class="kw">let </span>send_inline = is_rolled_out(
-                        scoping.organization_id,
-                        global_options.inline_attachments_rollout_rate,
-                    );
                     <span class="kw">if let </span><span class="prelude-val">Some</span>(attachment) = <span class="self">self</span>.produce_attachment(
                         event_id.ok_or(StoreError::NoEventId)<span class="question-mark">?</span>,
                         scoping.project_id,
                         item,
                         send_individual_attachments,
-                        send_inline,
                     )<span class="question-mark">? </span>{
                         attachments.push(attachment);
                     }
@@ -2176,17 +2164,17 @@
     /// is produced directly as an individual `attachment` message, or returned from this function
     /// to be later sent as part of an `event` message.
     ///
-    /// Attachment contents are chunked and sent as multiple `attachment_chunk` messages.
-    /// If the `send_inline` flag is set alongside `send_individual_attachments`, and the
-    /// content is small enough to fit inside a message, no `attachment_chunk` is produced, but
-    /// the content is sent as part of the `attachment` message instead.
+    /// Attachment contents are chunked and sent as multiple `attachment_chunk` messages,
+    /// unless the `send_individual_attachments` flag is set, and the content is small enough
+    /// to fit inside a message.
+    /// In that case, no `attachment_chunk` is produced, but the content is sent as part
+    /// of the `attachment` message instead.
     </span><span class="kw">fn </span>produce_attachment(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         event_id: EventId,
         project_id: ProjectId,
         item: <span class="kw-2">&amp;</span>Item,
         send_individual_attachments: bool,
-        send_inline: bool,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;ChunkedAttachment&gt;, StoreError&gt; {
         <span class="kw">let </span>id = Uuid::new_v4().to_string();
 
@@ -2198,7 +2186,7 @@
         <span class="comment">// When sending individual attachments, and we have a single chunk, we want to send the
         // `data` inline in the `attachment` message.
         // This avoids a needless roundtrip through the attachments cache on the Sentry side.
-        </span><span class="kw">let </span>data = <span class="kw">if </span>send_individual_attachments &amp;&amp; send_inline &amp;&amp; size &lt; max_chunk_size {
+        </span><span class="kw">let </span>data = <span class="kw">if </span>send_individual_attachments &amp;&amp; size &lt; max_chunk_size {
             (size &gt; <span class="number">0</span>).then_some(payload)
         } <span class="kw">else </span>{
             <span class="kw">let </span><span class="kw-2">mut </span>offset = <span class="number">0</span>;
