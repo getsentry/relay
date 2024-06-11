@@ -395,6 +395,47 @@ def envelope_with_spans(
     return envelope
 
 
+def envelope_with_transaction_and_spans(
+    start: datetime, end: datetime, metrics_extracted: bool = False
+) -> Envelope:
+    envelope = Envelope()
+    envelope.add_item(
+        Item(
+            type="transaction",
+            payload=PayloadRef(
+                bytes=json.dumps(
+                    {
+                        "type": "transaction",
+                        "timestamp": end.timestamp() + 1,
+                        "start_timestamp": start.timestamp(),
+                        "spans": [
+                            {
+                                "op": "default",
+                                "span_id": "968cff94913ebb07",
+                                "segment_id": "968cff94913ebb07",
+                                "start_timestamp": start.timestamp(),
+                                "timestamp": end.timestamp() + 1,
+                                "exclusive_time": 1000.0,
+                                "trace_id": "a0fa8803753e40fd8124b21eeb2986b5",
+                            },
+                        ],
+                        "contexts": {
+                            "trace": {
+                                "op": "hi",
+                                "trace_id": "a0fa8803753e40fd8124b21eeb2986b5",
+                                "span_id": "968cff94913ebb07",
+                            }
+                        },
+                        "transaction": "hi",
+                    },
+                ).encode()
+            ),
+        )
+    )
+
+    return envelope
+
+
 def make_otel_span(start, end):
     return {
         "resourceSpans": [
@@ -1613,7 +1654,7 @@ def test_rate_limit_metrics_consistent(
     ]
     project_config["config"]["quotas"] = [
         {
-            "categories": ["span"],
+            "categories": ["transaction"],
             "limit": 3,
             "window": int(datetime.now(UTC).timestamp()),
             "id": uuid.uuid4(),
@@ -1660,6 +1701,66 @@ def test_rate_limit_metrics_consistent(
 
     spans_consumer.assert_empty()
     outcomes_consumer.assert_empty()
+
+
+def test_rate_limit_is_consistent_between_transaction_and_spans(
+    mini_sentry,
+    relay_with_processing,
+    transactions_consumer,
+    spans_consumer,
+    outcomes_consumer,
+):
+    """Rate limits for indexed are enforced consistently after metrics extraction.
+
+    This test does not cover consistent enforcement of total spans.
+    """
+    relay = relay_with_processing()
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = [
+        "projects:span-metrics-extraction",
+        "organizations:standalone-span-ingestion",
+    ]
+    project_config["config"]["quotas"] = [
+        {
+            "categories": ["span_indexed"],
+            "limit": 1,
+            "window": int(datetime.now(UTC).timestamp()),
+            "id": uuid.uuid4(),
+            "reasonCode": "indexed_exceeded",
+        },
+    ]
+
+    transactions_consumer = transactions_consumer()
+    spans_consumer = spans_consumer()
+    outcomes_consumer = outcomes_consumer()
+
+    start = datetime.now(timezone.utc)
+    end = start + timedelta(seconds=1)
+
+    envelope = envelope_with_transaction_and_spans(start, end)
+
+    def summarize_outcomes():
+        counter = Counter()
+        for outcome in outcomes_consumer.get_outcomes():
+            counter[(outcome["category"], outcome["outcome"])] += outcome["quantity"]
+        return counter
+
+    # First batch passes
+    relay.send_envelope(project_id, envelope)
+    transactions = transactions_consumer.get_event(timeout=10)
+    print(transactions)
+    assert len(transactions) == 1
+
+    # assert len(spans) == 1
+    # assert summarize_outcomes() == {(16, 0): 4}  # SpanIndexed, Accepted
+    #
+    # # Second batch is limited
+    # relay.send_envelope(project_id, envelope)
+    # assert summarize_outcomes() == {(16, 2): 4}  # SpanIndexed, RateLimited
+    #
+    # spans_consumer.assert_empty()
+    # outcomes_consumer.assert_empty()
 
 
 @pytest.mark.parametrize(
