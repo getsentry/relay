@@ -1180,7 +1180,27 @@ impl EnvelopeProcessorService {
             envelope_limiter.enforce(state.managed_envelope.envelope_mut(), &scoping)?
         });
 
-        if limits.is_limited() {
+        for (category, namespace) in [
+            (DataCategory::Transaction, MetricNamespace::Transactions),
+            (DataCategory::Span, MetricNamespace::Spans),
+        ] {
+            if !limits.check(scoping.item(category)).is_empty() {
+                relay_log::trace!(
+                    "dropping {namespace} metrics, due to enforced limit on envelope"
+                );
+                state
+                    .extracted_metrics
+                    .project_metrics
+                    .retain(|bucket| bucket.name.try_namespace() != Some(namespace));
+
+                state
+                    .extracted_metrics
+                    .sampling_metrics
+                    .retain(|bucket| bucket.name.try_namespace() != Some(namespace));
+            }
+        }
+
+        if !limits.is_empty() {
             self.inner
                 .addrs
                 .project_cache
@@ -1536,9 +1556,9 @@ impl EnvelopeProcessorService {
                 SamplingResult::NoMatch
             };
 
-        if let Some(outcome) = sampling_result.clone().into_dropped_outcome() {
-            self.extract_transaction_metrics(state, &sampling_result, profile_id)?;
+        self.extract_transaction_metrics(state, &sampling_result, profile_id)?;
 
+        if let Some(outcome) = sampling_result.clone().into_dropped_outcome() {
             let keep_profiles = dynamic_sampling::forward_unsampled_profiles(state, &global_config);
 
             // Process profiles before dropping the transaction, if necessary.
@@ -1576,7 +1596,6 @@ impl EnvelopeProcessorService {
             }
 
             self.enforce_quotas(state)?;
-            self.extract_transaction_metrics(state, &sampling_result, profile_id)?;
 
             span::maybe_discard_transaction(state);
         });
