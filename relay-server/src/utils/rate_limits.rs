@@ -568,8 +568,10 @@ where
                 // Otherwise, the outcome is logged at a different place.
                 if !summary.transaction_metrics_extracted {
                     enforcement.event_metrics = CategoryLimit::new(category, 1, longest);
-                    enforcement.span_metrics =
-                        CategoryLimit::new(DataCategory::Span, summary.span_quantity, longest);
+                    if summary.span_quantity > 0 {
+                        enforcement.span_metrics =
+                            CategoryLimit::new(DataCategory::Span, summary.span_quantity, longest);
+                    }
                 }
 
                 // If the main category is rate limited, we drop both the event and metrics. If
@@ -580,14 +582,21 @@ where
                 }
 
                 enforcement.event = CategoryLimit::new(index_category, 1, longest);
-                enforcement.spans =
-                    CategoryLimit::new(DataCategory::SpanIndexed, summary.span_quantity, longest);
+                if summary.span_quantity > 0 {
+                    enforcement.spans = CategoryLimit::new(
+                        DataCategory::SpanIndexed,
+                        summary.span_quantity,
+                        longest,
+                    );
+                }
             } else {
                 event_limits = (self.check)(scoping.item(category), 1)?;
                 longest = event_limits.longest();
                 enforcement.event = CategoryLimit::new(category, 1, longest);
-                enforcement.spans =
-                    CategoryLimit::new(DataCategory::Span, summary.span_quantity, longest);
+                if summary.span_quantity > 0 {
+                    enforcement.spans =
+                        CategoryLimit::new(DataCategory::Span, summary.span_quantity, longest);
+                }
             }
 
             // Record the same reason for attachments, if there are any.
@@ -677,8 +686,8 @@ where
             rate_limits.merge(checkin_limits);
         }
 
-        // We want to process spans rate limits only if they were not already applied because the
-        // transaction had child spans.
+        // We want to process spans rate limits only if they were not already applied because a
+        // rate limited transaction had child spans that were also rate limited.
         if summary.span_quantity > 0
             && enforcement.span_metrics.is_default()
             && enforcement.spans.is_default()
