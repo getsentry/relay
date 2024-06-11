@@ -1048,6 +1048,28 @@
 <a href="#1046" id="1046">1046</a>
 <a href="#1047" id="1047">1047</a>
 <a href="#1048" id="1048">1048</a>
+<a href="#1049" id="1049">1049</a>
+<a href="#1050" id="1050">1050</a>
+<a href="#1051" id="1051">1051</a>
+<a href="#1052" id="1052">1052</a>
+<a href="#1053" id="1053">1053</a>
+<a href="#1054" id="1054">1054</a>
+<a href="#1055" id="1055">1055</a>
+<a href="#1056" id="1056">1056</a>
+<a href="#1057" id="1057">1057</a>
+<a href="#1058" id="1058">1058</a>
+<a href="#1059" id="1059">1059</a>
+<a href="#1060" id="1060">1060</a>
+<a href="#1061" id="1061">1061</a>
+<a href="#1062" id="1062">1062</a>
+<a href="#1063" id="1063">1063</a>
+<a href="#1064" id="1064">1064</a>
+<a href="#1065" id="1065">1065</a>
+<a href="#1066" id="1066">1066</a>
+<a href="#1067" id="1067">1067</a>
+<a href="#1068" id="1068">1068</a>
+<a href="#1069" id="1069">1069</a>
+<a href="#1070" id="1070">1070</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::str::FromStr;
 <span class="kw">use </span>std::time::{Duration, Instant};
@@ -1077,24 +1099,31 @@
         <span class="self">Self </span>{ when }
     }
 
-    <span class="doccomment">/// Returns the remaining duration until the rate limit expires.
+    <span class="doccomment">/// Returns the remaining duration until the rate limit expires using the passed instant as the
+    /// reference point.
     </span><span class="attr">#[inline]
-    </span><span class="kw">pub fn </span>remaining(<span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;Duration&gt; {
-        <span class="kw">let </span>now = Instant::now();
-        <span class="kw">if </span>now &gt;= <span class="self">self</span>.when {
+    </span><span class="kw">pub fn </span>remaining_at(<span class="self">self</span>, at: Instant) -&gt; <span class="prelude-ty">Option</span>&lt;Duration&gt; {
+        <span class="kw">if </span>at &gt;= <span class="self">self</span>.when {
             <span class="prelude-val">None
         </span>} <span class="kw">else </span>{
-            <span class="prelude-val">Some</span>(<span class="self">self</span>.when - now)
+            <span class="prelude-val">Some</span>(<span class="self">self</span>.when - at)
         }
     }
 
-    <span class="doccomment">/// Returns the remaining seconds until the rate limit expires.
+    <span class="doccomment">/// Returns the remaining duration until the rate limit expires.
+    </span><span class="attr">#[inline]
+    </span><span class="kw">pub fn </span>remaining(<span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;Duration&gt; {
+        <span class="self">self</span>.remaining_at(Instant::now())
+    }
+
+    <span class="doccomment">/// Returns the remaining seconds until the rate limit expires using the passed instant as the
+    /// reference point.
     ///
     /// This is a shortcut to `retry_after.remaining().as_secs()` with one exception: If the rate
     /// limit has expired, this function returns `0`.
     </span><span class="attr">#[inline]
-    </span><span class="kw">pub fn </span>remaining_seconds(<span class="self">self</span>) -&gt; u64 {
-        <span class="kw">match </span><span class="self">self</span>.remaining() {
+    </span><span class="kw">pub fn </span>remaining_seconds_at(<span class="self">self</span>, at: Instant) -&gt; u64 {
+        <span class="kw">match </span><span class="self">self</span>.remaining_at(at) {
             <span class="comment">// Compensate for the missing subsec part by adding 1s
             </span><span class="prelude-val">Some</span>(duration) <span class="kw">if </span>duration.subsec_nanos() == <span class="number">0 </span>=&gt; duration.as_secs(),
             <span class="prelude-val">Some</span>(duration) =&gt; duration.as_secs() + <span class="number">1</span>,
@@ -1102,10 +1131,22 @@
         }
     }
 
+    <span class="doccomment">/// Returns the remaining seconds until the rate limit expires.
+    </span><span class="attr">#[inline]
+    </span><span class="kw">pub fn </span>remaining_seconds(<span class="self">self</span>) -&gt; u64 {
+        <span class="self">self</span>.remaining_seconds_at(Instant::now())
+    }
+
+    <span class="doccomment">/// Returns whether this rate limit has expired at the passed instant.
+    </span><span class="attr">#[inline]
+    </span><span class="kw">pub fn </span>expired_at(<span class="self">self</span>, at: Instant) -&gt; bool {
+        <span class="self">self</span>.remaining_at(at).is_none()
+    }
+
     <span class="doccomment">/// Returns whether this rate limit has expired.
     </span><span class="attr">#[inline]
     </span><span class="kw">pub fn </span>expired(<span class="self">self</span>) -&gt; bool {
-        <span class="self">self</span>.remaining().is_none()
+        <span class="self">self</span>.remaining_at(Instant::now()).is_none()
     }
 }
 
@@ -1305,12 +1346,15 @@
 
     <span class="doccomment">/// Returns `true` if this instance contains active rate limits.
     </span><span class="kw">pub fn </span>is_limited(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
-        <span class="self">self</span>.iter().any(|limit| !limit.retry_after.expired())
+        <span class="kw">let </span>now = Instant::now();
+        <span class="self">self</span>.iter().any(|limit| !limit.retry_after.expired_at(now))
     }
 
     <span class="doccomment">/// Removes expired rate limits from this instance.
     </span><span class="kw">pub fn </span>clean_expired(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
-        <span class="self">self</span>.limits.retain(|limit| !limit.retry_after.expired());
+        <span class="kw">let </span>now = Instant::now();
+        <span class="self">self</span>.limits
+            .retain(|limit| !limit.retry_after.expired_at(now));
     }
 
     <span class="doccomment">/// Checks whether any rate limits apply to the given scoping.
