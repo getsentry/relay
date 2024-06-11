@@ -386,7 +386,6 @@ impl TransactionExtractor<'_> {
             TransactionMetric::Usage {
                 tags: UsageTags {
                     has_profile: self.has_profile,
-                    is_indexed: self.sampling_result.should_keep(),
                 },
             }
             .into_metric(timestamp),

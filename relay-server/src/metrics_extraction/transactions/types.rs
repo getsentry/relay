@@ -155,7 +155,6 @@ impl From<LightTransactionTags> for BTreeMap<String, String> {
 #[derive(Clone, Debug, PartialEq, Eq, Ord, PartialOrd)]
 pub struct UsageTags {
     pub has_profile: bool,
-    pub is_indexed: bool,
 }
 
 impl From<UsageTags> for BTreeMap<String, String> {
@@ -163,9 +162,6 @@ impl From<UsageTags> for BTreeMap<String, String> {
         let mut map = BTreeMap::new();
         if tags.has_profile {
             map.insert("has_profile".to_owned(), "true".to_owned());
-        }
-        if tags.is_indexed {
-            map.insert("is_indexed".to_owned(), "true".to_owned());
         }
         map
     }
