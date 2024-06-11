@@ -373,6 +373,54 @@ impl<'a> IntoIterator for &'a RateLimits {
     }
 }
 
+/// Like [`RateLimits`], a collection of scoped rate limits but with all the checks
+/// necessary to cache the limits.
+///
+/// The data structure makes sure no expired rate limits are enforced as well
+/// as removing any indexed rate limit.
+///
+/// Cached rate limits don't enforce indexed rate limits because at the time of the check
+/// the decision whether an envelope is sampled or not is not yet known. Additionally
+/// even if the item is later not sampled, it must still be around to extract metrics
+/// and cannot be dropped too early.
+#[derive(Debug, Default)]
+pub struct CachedRateLimits(RateLimits);
+
+impl CachedRateLimits {
+    /// Creates a new, empty instance without any rate limits enforced.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Adds a limit to this collection.
+    ///
+    /// See also: [`RateLimits::add`].
+    pub fn add(&mut self, mut limit: RateLimit) {
+        limit.categories.retain(|category| !category.is_indexed());
+        if limit.categories.is_empty() {
+            return;
+        }
+        self.0.add(limit);
+    }
+
+    /// Merges more rate limits into this instance.
+    ///
+    /// See also: [`RateLimits::merge`].
+    pub fn merge(&mut self, rate_limits: RateLimits) {
+        for limit in rate_limits {
+            self.add(limit)
+        }
+    }
+
+    /// Returns a reference to the contained rate limits.
+    ///
+    /// This call gurantuess that at the time of call no returned rate limit is expired.
+    pub fn current_limits(&mut self) -> &RateLimits {
+        self.0.clean_expired();
+        &self.0
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use smallvec::smallvec;
@@ -1049,6 +1097,86 @@ mod tests {
               scope: Organization(42),
               reason_code: None,
               retry_after: RetryAfter(1),
+              namespaces: [],
+            ),
+          ],
+        )
+        "###);
+    }
+
+    #[test]
+    fn test_cached_rate_limits_expired() {
+        let mut cached = CachedRateLimits::new();
+
+        // Active error limit
+        cached.add(RateLimit {
+            categories: smallvec![DataCategory::Error],
+            scope: RateLimitScope::Organization(42),
+            reason_code: None,
+            retry_after: RetryAfter::from_secs(1),
+            namespaces: smallvec![],
+        });
+
+        // Inactive error limit with distinct scope
+        cached.add(RateLimit {
+            categories: smallvec![DataCategory::Error],
+            scope: RateLimitScope::Project(ProjectId::new(21)),
+            reason_code: None,
+            retry_after: RetryAfter::from_secs(0),
+            namespaces: smallvec![],
+        });
+
+        let rate_limits = cached.current_limits();
+
+        insta::assert_ron_snapshot!(rate_limits, @r###"
+        RateLimits(
+          limits: [
+            RateLimit(
+              categories: [
+                error,
+              ],
+              scope: Organization(42),
+              reason_code: None,
+              retry_after: RetryAfter(1),
+              namespaces: [],
+            ),
+          ],
+        )
+        "###);
+    }
+
+    #[test]
+    fn test_cached_rate_limits_indexed() {
+        let mut cached = CachedRateLimits::new();
+
+        cached.add(RateLimit {
+            categories: smallvec![DataCategory::Transaction, DataCategory::TransactionIndexed],
+            scope: RateLimitScope::Organization(42),
+            reason_code: None,
+            retry_after: RetryAfter::from_secs(5),
+            namespaces: smallvec![],
+        });
+
+        cached.add(RateLimit {
+            categories: smallvec![DataCategory::TransactionIndexed],
+            scope: RateLimitScope::Project(ProjectId::new(21)),
+            reason_code: None,
+            retry_after: RetryAfter::from_secs(5),
+            namespaces: smallvec![],
+        });
+
+        let rate_limits = cached.current_limits();
+
+        insta::assert_ron_snapshot!(rate_limits, @r###"
+        RateLimits(
+          limits: [
+            RateLimit(
+              categories: [
+                transaction,
+              ],
+              scope: Organization(42),
+              reason_code: None,
+              retry_after: RetryAfter(5),
               namespaces: [],
             ),
           ],

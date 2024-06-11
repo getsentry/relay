@@ -166,11 +166,22 @@ impl DataCategory {
     /// Returns a dedicated category for indexing if this data can be converted to metrics.
     ///
     /// This returns `None` for most data categories.
+    // TODO: check callsites, if they can deal with other types than just Transactions
     pub fn index_category(self) -> Option<Self> {
         match self {
             Self::Transaction => Some(Self::TransactionIndexed),
+            Self::Span => Some(Self::SpanIndexed),
+            Self::Profile => Some(Self::ProfileIndexed),
             _ => None,
         }
+    }
+
+    /// Returns `true` if this data category is an indexed data category.
+    pub fn is_indexed(self) -> bool {
+        matches!(
+            self,
+            Self::TransactionIndexed | Self::SpanIndexed | Self::ProfileIndexed
+        )
     }
 }
 
