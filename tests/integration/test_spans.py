@@ -1528,11 +1528,17 @@ def test_rate_limit_indexed_consistent(
     outcomes_consumer.assert_empty()
 
 
-def test_rate_limit_indexed_consistent_extracted(
-    mini_sentry, relay_with_processing, spans_consumer, outcomes_consumer
+@pytest.mark.parametrize("category", ["span", "span_indexed"])
+def test_rate_limit_consistent_extracted(
+    category,
+    mini_sentry,
+    relay_with_processing,
+    spans_consumer,
+    metrics_consumer,
+    outcomes_consumer,
 ):
-    """Rate limits for indexed spans that are extracted from transactions"""
-    relay = relay_with_processing()
+    """Rate limits for spans that are extracted from transactions"""
+    relay = relay_with_processing(options=TEST_CONFIG)
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     # Span metrics won't be extracted without a supported transactionMetrics config.
@@ -1546,15 +1552,16 @@ def test_rate_limit_indexed_consistent_extracted(
     ]
     project_config["config"]["quotas"] = [
         {
-            "categories": ["span_indexed"],
-            "limit": 3,
+            "categories": [category],
+            "limit": 2,
             "window": int(datetime.now(UTC).timestamp()),
             "id": uuid.uuid4(),
-            "reasonCode": "indexed_exceeded",
+            "reasonCode": "my_rate_limit",
         },
     ]
 
     spans_consumer = spans_consumer()
+    metrics_consumer = metrics_consumer()
     outcomes_consumer = outcomes_consumer()
 
     start = datetime.now(timezone.utc)
@@ -1588,10 +1595,37 @@ def test_rate_limit_indexed_consistent_extracted(
     # one for the transaction, one for the contained span
     assert len(spans) == 2
     assert summarize_outcomes() == {(16, 0): 2}  # SpanIndexed, Accepted
+    # A limit only for span_indexed does not affect extracted metrics
+    metrics = metrics_consumer.get_metrics(n=10)
+    span_count = sum(
+        [m[0]["value"] for m in metrics if m[0]["name"] == "c:spans/usage@none"]
+    )
+    assert span_count == 2
 
     # Second send should be rejected immediately.
     relay.send_event(project_id, event)
-    assert summarize_outcomes() == {(16, 2): 2}  # SpanIndexed, RateLimited
+    outcomes = summarize_outcomes()
+
+    expected_outcomes = {
+        (16, 2): 2,  # SpanIndexed, RateLimited
+    }
+    metrics = metrics_consumer.get_metrics(timeout=1)
+    if category == "span":
+        expected_outcomes.update(
+            {
+                (12, 2): 2,  # Span, RateLimited
+                (15, 2): 6,  # MetricBucket, RateLimited
+            }
+        )
+        assert len(metrics) == 4
+        assert all(m[0]["name"][2:14] == "transactions" for m in metrics), metrics
+    else:
+        span_count = sum(
+            [m[0]["value"] for m in metrics if m[0]["name"] == "c:spans/usage@none"]
+        )
+        assert span_count == 2
+
+    assert outcomes == expected_outcomes
 
     outcomes_consumer.assert_empty()
 
