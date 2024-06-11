@@ -710,7 +710,7 @@ impl<F> fmt::Debug for EnvelopeLimiter<F> {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::BTreeMap;
+    use std::collections::{BTreeMap, BTreeSet};
 
     use relay_base_schema::project::{ProjectId, ProjectKey};
     use relay_metrics::MetricNamespace;
@@ -956,6 +956,7 @@ mod tests {
     struct MockLimiter {
         denied: Vec<DataCategory>,
         called: BTreeMap<DataCategory, usize>,
+        checked: BTreeSet<DataCategory>,
     }
 
     impl MockLimiter {
@@ -981,12 +982,42 @@ mod tests {
         }
 
         #[track_caller]
-        pub fn assert_call(&self, category: DataCategory, quantity: Option<usize>) {
-            assert_eq!(self.called.get(&category), quantity.as_ref());
+        pub fn assert_call(&mut self, category: DataCategory, expected: usize) {
+            self.checked.insert(category);
+
+            let quantity = self.called.get(&category).copied();
+            assert_eq!(
+                quantity,
+                Some(expected),
+                "Expected quantity `{expected}` for data category `{category}`, got {quantity:?}."
+            );
         }
     }
 
-    // TODO: impl Drop for MockLimiter, assert non asserted items
+    impl Drop for MockLimiter {
+        fn drop(&mut self) {
+            if std::thread::panicking() {
+                return;
+            }
+
+            for checked in &self.checked {
+                self.called.remove(checked);
+            }
+
+            if self.called.is_empty() {
+                return;
+            }
+
+            let not_asserted = self
+                .called
+                .iter()
+                .map(|(k, v)| format!("- {k}: {v}"))
+                .collect::<Vec<_>>()
+                .join("\n");
+
+            panic!("Following calls to the limiter were not asserted:\n{not_asserted}");
+        }
+    }
 
     #[test]
     fn test_enforce_pass_empty() {
@@ -999,9 +1030,6 @@ mod tests {
 
         assert!(!limits.is_limited());
         assert!(envelope.is_empty());
-        mock.assert_call(DataCategory::Error, None);
-        mock.assert_call(DataCategory::Attachment, None);
-        mock.assert_call(DataCategory::Session, None);
     }
 
     #[test]
@@ -1015,9 +1043,7 @@ mod tests {
 
         assert!(limits.is_limited());
         assert!(envelope.is_empty());
-        mock.assert_call(DataCategory::Error, Some(1));
-        mock.assert_call(DataCategory::Attachment, None);
-        mock.assert_call(DataCategory::Session, None);
+        mock.assert_call(DataCategory::Error, 1);
     }
 
     #[test]
@@ -1031,10 +1057,7 @@ mod tests {
 
         assert!(limits.is_limited());
         assert!(envelope.is_empty());
-        mock.assert_call(DataCategory::Error, Some(1));
-        // Error is limited, so no need to call the attachment quota
-        mock.assert_call(DataCategory::Attachment, None);
-        mock.assert_call(DataCategory::Session, None);
+        mock.assert_call(DataCategory::Error, 1);
     }
 
     #[test]
@@ -1048,10 +1071,7 @@ mod tests {
 
         assert!(limits.is_limited());
         assert!(envelope.is_empty());
-        mock.assert_call(DataCategory::Error, Some(1));
-        // Error is limited, so no need to call the attachment quota
-        mock.assert_call(DataCategory::Attachment, None);
-        mock.assert_call(DataCategory::Session, None);
+        mock.assert_call(DataCategory::Error, 1);
     }
 
     #[test]
@@ -1066,9 +1086,8 @@ mod tests {
         // Attachments would be limited, but crash reports create events and are thus allowed.
         assert!(limits.is_limited());
         assert_eq!(envelope.len(), 1);
-        mock.assert_call(DataCategory::Error, Some(1));
-        mock.assert_call(DataCategory::Attachment, Some(20));
-        mock.assert_call(DataCategory::Session, None);
+        mock.assert_call(DataCategory::Error, 1);
+        mock.assert_call(DataCategory::Attachment, 20);
     }
 
     /// Limit stand-alone profiles.
@@ -1083,7 +1102,7 @@ mod tests {
 
         assert!(limits.is_limited());
         assert_eq!(envelope.len(), 0);
-        assert_eq!(mock.called, BTreeMap::from([(DataCategory::Profile, 2)]));
+        mock.assert_call(DataCategory::Profile, 2);
 
         assert_eq!(
             get_outcomes(&envelope, enforcement),
@@ -1097,7 +1116,7 @@ mod tests {
     /// Limit replays.
     #[test]
     fn test_enforce_limit_replays() {
-        let mut envelope = envelope![ReplayEvent, ReplayRecording];
+        let mut envelope = envelope![ReplayEvent, ReplayRecording, ReplayVideo];
 
         let mut mock = MockLimiter::default().deny(DataCategory::Replay);
         let (enforcement, limits) = EnvelopeLimiter::new(|s, q| mock.check(s, q))
@@ -1106,11 +1125,11 @@ mod tests {
 
         assert!(limits.is_limited());
         assert_eq!(envelope.len(), 0);
-        assert_eq!(mock.called, BTreeMap::from([(DataCategory::Replay, 2)]));
+        mock.assert_call(DataCategory::Replay, 3);
 
         assert_eq!(
             get_outcomes(&envelope, enforcement),
-            vec![(DataCategory::Replay, 2),]
+            vec![(DataCategory::Replay, 3),]
         );
     }
 
@@ -1126,15 +1145,11 @@ mod tests {
 
         assert!(limits.is_limited());
         assert_eq!(envelope.len(), 0);
-        assert_eq!(mock.called, BTreeMap::from([(DataCategory::Monitor, 1)]));
+        mock.assert_call(DataCategory::Monitor, 1);
 
-        let outcomes = enforcement
-            .get_outcomes(&envelope, &scoping())
-            .map(|outcome| (outcome.outcome, outcome.category, outcome.quantity))
-            .collect::<Vec<_>>();
         assert_eq!(
-            outcomes,
-            vec![(Outcome::RateLimited(None), DataCategory::Monitor, 1)]
+            get_outcomes(&envelope, enforcement),
+            vec![(DataCategory::Monitor, 1)]
         )
     }
 
@@ -1150,9 +1165,8 @@ mod tests {
         // If only crash report attachments are present, we don't emit a rate limit.
         assert!(!limits.is_limited());
         assert_eq!(envelope.len(), 1);
-        mock.assert_call(DataCategory::Error, Some(1));
-        mock.assert_call(DataCategory::Attachment, Some(10));
-        mock.assert_call(DataCategory::Session, None);
+        mock.assert_call(DataCategory::Error, 1);
+        mock.assert_call(DataCategory::Attachment, 10);
     }
 
     #[test]
@@ -1171,9 +1185,6 @@ mod tests {
 
         assert!(!limits.is_limited()); // No new rate limits applied.
         assert_eq!(envelope.len(), 1); // The item was retained
-        mock.assert_call(DataCategory::Error, None);
-        mock.assert_call(DataCategory::Attachment, None); // Limiter not invoked
-        mock.assert_call(DataCategory::Session, None);
     }
 
     #[test]
@@ -1188,9 +1199,7 @@ mod tests {
         // If only crash report attachments are present, we don't emit a rate limit.
         assert!(!limits.is_limited());
         assert_eq!(envelope.len(), 3);
-        mock.assert_call(DataCategory::Error, None);
-        mock.assert_call(DataCategory::Attachment, None);
-        mock.assert_call(DataCategory::Session, Some(3));
+        mock.assert_call(DataCategory::Session, 3);
     }
 
     #[test]
@@ -1205,9 +1214,8 @@ mod tests {
         // If only crash report attachments are present, we don't emit a rate limit.
         assert!(limits.is_limited());
         assert_eq!(envelope.len(), 1);
-        mock.assert_call(DataCategory::Error, Some(1));
-        mock.assert_call(DataCategory::Attachment, None);
-        mock.assert_call(DataCategory::Session, Some(2));
+        mock.assert_call(DataCategory::Error, 1);
+        mock.assert_call(DataCategory::Session, 2);
     }
 
     #[test]
@@ -1222,9 +1230,7 @@ mod tests {
 
         assert!(limits.is_limited());
         assert!(envelope.is_empty()); // obviously
-        mock.assert_call(DataCategory::Transaction, Some(1));
-        mock.assert_call(DataCategory::Attachment, None);
-        mock.assert_call(DataCategory::Session, None);
+        mock.assert_call(DataCategory::Transaction, 1);
     }
 
     #[test]
@@ -1239,9 +1245,7 @@ mod tests {
 
         assert!(limits.is_limited());
         assert!(envelope.is_empty());
-        mock.assert_call(DataCategory::Error, Some(1));
-        mock.assert_call(DataCategory::Attachment, None);
-        mock.assert_call(DataCategory::Session, None);
+        mock.assert_call(DataCategory::Error, 1);
     }
 
     #[test]
@@ -1255,7 +1259,7 @@ mod tests {
         assert!(limits.is_limited());
         assert!(enforcement.event_indexed.is_active());
         assert!(enforcement.event.is_active());
-        mock.assert_call(DataCategory::Transaction, Some(1));
+        mock.assert_call(DataCategory::Transaction, 1);
 
         assert_eq!(
             get_outcomes(&envelope, enforcement),
@@ -1277,8 +1281,8 @@ mod tests {
         assert!(limits.is_limited());
         assert!(enforcement.event_indexed.is_active());
         assert!(!enforcement.event.is_active());
-        mock.assert_call(DataCategory::Transaction, Some(1));
-        mock.assert_call(DataCategory::TransactionIndexed, Some(1));
+        mock.assert_call(DataCategory::Transaction, 1);
+        mock.assert_call(DataCategory::TransactionIndexed, 1);
     }
 
     #[test]
@@ -1292,8 +1296,7 @@ mod tests {
 
         assert!(enforcement.event.is_active());
         assert!(enforcement.attachments.is_active());
-        mock.assert_call(DataCategory::Transaction, Some(1));
-        mock.assert_call(DataCategory::Attachment, None);
+        mock.assert_call(DataCategory::Transaction, 1);
     }
 
     fn get_outcomes(envelope: &Envelope, enforcement: Enforcement) -> Vec<(DataCategory, u32)> {
@@ -1314,8 +1317,7 @@ mod tests {
 
         assert!(enforcement.event.is_active());
         assert!(enforcement.profiles.is_active());
-        mock.assert_call(DataCategory::Transaction, Some(1));
-        mock.assert_call(DataCategory::Profile, None);
+        mock.assert_call(DataCategory::Transaction, 1);
 
         assert_eq!(
             get_outcomes(&envelope, enforcement),
@@ -1341,9 +1343,8 @@ mod tests {
         assert!(!enforcement.event.is_active());
         assert!(enforcement.event_indexed.is_active());
         assert!(enforcement.attachments.is_active());
-        mock.assert_call(DataCategory::Transaction, Some(1));
-        mock.assert_call(DataCategory::TransactionIndexed, Some(1));
-        mock.assert_call(DataCategory::Attachment, None);
+        mock.assert_call(DataCategory::Transaction, 1);
+        mock.assert_call(DataCategory::TransactionIndexed, 1);
 
         assert_eq!(
             get_outcomes(&envelope, enforcement),
@@ -1365,7 +1366,7 @@ mod tests {
         assert!(limits.is_limited());
         assert!(enforcement.spans_indexed.is_active());
         assert!(enforcement.spans.is_active());
-        mock.assert_call(DataCategory::Span, Some(2));
+        mock.assert_call(DataCategory::Span, 2);
 
         assert_eq!(
             get_outcomes(&envelope, enforcement),
@@ -1384,8 +1385,8 @@ mod tests {
         assert!(limits.is_limited());
         assert!(enforcement.spans_indexed.is_active());
         assert!(!enforcement.spans.is_active());
-        mock.assert_call(DataCategory::Span, Some(2));
-        mock.assert_call(DataCategory::SpanIndexed, Some(2));
+        mock.assert_call(DataCategory::Span, 2);
+        mock.assert_call(DataCategory::SpanIndexed, 2);
 
         assert_eq!(
             get_outcomes(&envelope, enforcement),
@@ -1405,8 +1406,8 @@ mod tests {
         assert!(limits.is_limited());
         assert!(enforcement.spans_indexed.is_active());
         assert!(!enforcement.spans.is_active());
-        mock.assert_call(DataCategory::Span, Some(2));
-        mock.assert_call(DataCategory::SpanIndexed, Some(2));
+        mock.assert_call(DataCategory::Span, 2);
+        mock.assert_call(DataCategory::SpanIndexed, 2);
 
         assert_eq!(
             get_outcomes(&envelope, enforcement),

@@ -599,7 +599,6 @@ mod tests {
         assert_eq!(outcome.outcome, Outcome::Abuse);
 
         let outcome = rx.blocking_recv().unwrap();
-        dbg!(&outcome);
         assert_eq!(outcome.category, DataCategory::Span);
         assert_eq!(outcome.quantity, 456);
         assert_eq!(outcome.outcome, Outcome::Abuse);
