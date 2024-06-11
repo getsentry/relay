@@ -1654,7 +1654,7 @@ def test_rate_limit_metrics_consistent(
     ]
     project_config["config"]["quotas"] = [
         {
-            "categories": ["transaction"],
+            "categories": ["span"],
             "limit": 3,
             "window": int(datetime.now(UTC).timestamp()),
             "id": uuid.uuid4(),
@@ -1754,10 +1754,7 @@ def test_rate_limit_is_consistent_between_transaction_and_spans(
     # We have one nested span and the transaction itself becomes a span
     spans = spans_consumer.get_spans(n=2, timeout=10)
     assert len(spans) == 2
-    assert summarize_outcomes() == {
-        # (2, 0): 1,  # Transaction, Accepted TODO: why we don't get this outcome?
-        (16, 0): 2  # SpanIndexed, Accepted
-    }
+    assert summarize_outcomes() == {(16, 0): 2}  # SpanIndexed, Accepted
 
     # Second batch is limited
     relay.send_envelope(project_id, envelope)
