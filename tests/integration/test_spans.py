@@ -426,7 +426,7 @@ def envelope_with_transaction_and_spans(
                                 "span_id": "968cff94913ebb07",
                             }
                         },
-                        "transaction": "hi",
+                        "transaction": "my_transaction",
                     },
                 ).encode()
             ),
@@ -1720,14 +1720,15 @@ def test_rate_limit_is_consistent_between_transaction_and_spans(
     project_config["config"]["features"] = [
         "projects:span-metrics-extraction",
         "organizations:standalone-span-ingestion",
+        "organizations:indexed-spans-extraction",
     ]
     project_config["config"]["quotas"] = [
         {
-            "categories": ["span_indexed"],
+            "categories": ["transaction"],
             "limit": 1,
             "window": int(datetime.now(UTC).timestamp()),
             "id": uuid.uuid4(),
-            "reasonCode": "indexed_exceeded",
+            "reasonCode": "transactions_exceeded",
         },
     ]
 
@@ -1748,19 +1749,26 @@ def test_rate_limit_is_consistent_between_transaction_and_spans(
 
     # First batch passes
     relay.send_envelope(project_id, envelope)
-    transactions = transactions_consumer.get_event(timeout=10)
-    print(transactions)
-    assert len(transactions) == 1
+    event, _ = transactions_consumer.get_event(timeout=10)
+    assert event["transaction"] == "my_transaction"
+    # We have one nested span and the transaction itself becomes a span
+    spans = spans_consumer.get_spans(n=2, timeout=10)
+    assert len(spans) == 2
+    assert summarize_outcomes() == {
+        # (2, 0): 1,  # Transaction, Accepted TODO: why we don't get this outcome?
+        (16, 0): 2  # SpanIndexed, Accepted
+    }
 
-    # assert len(spans) == 1
-    # assert summarize_outcomes() == {(16, 0): 4}  # SpanIndexed, Accepted
-    #
-    # # Second batch is limited
-    # relay.send_envelope(project_id, envelope)
-    # assert summarize_outcomes() == {(16, 2): 4}  # SpanIndexed, RateLimited
-    #
-    # spans_consumer.assert_empty()
-    # outcomes_consumer.assert_empty()
+    # Second batch is limited
+    relay.send_envelope(project_id, envelope)
+    assert summarize_outcomes() == {
+        (2, 2): 1,  # Transaction, RateLimited
+        (12, 2): 2,  # SpanIndexed, RateLimited
+    }
+
+    transactions_consumer.assert_empty()
+    spans_consumer.assert_empty()
+    outcomes_consumer.assert_empty()
 
 
 @pytest.mark.parametrize(
