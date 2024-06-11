@@ -180,12 +180,6 @@ pub struct EnvelopeSummary {
     /// Indicates that the envelope contains regular attachments that do not create event payloads.
     pub has_plain_attachments: bool,
 
-    /// Whether the envelope contains a transaction which already had the metrics extracted.
-    pub transaction_metrics_extracted: bool,
-
-    /// Whether the envelope contains spans which already had metrics extracted.
-    pub span_metrics_extracted: bool,
-
     /// The payload size of this envelope.
     pub payload_size: usize,
 
@@ -209,15 +203,6 @@ impl EnvelopeSummary {
             } else if item.ty() == &ItemType::Attachment {
                 // Plain attachments do not create events.
                 summary.has_plain_attachments = true;
-            }
-
-            if *item.ty() == ItemType::Transaction && item.metrics_extracted() {
-                summary.transaction_metrics_extracted = true;
-            }
-
-            if item.is_span() && item.metrics_extracted() {
-                // This assumes that if one span had metrics extracted, all of them have.
-                summary.span_metrics_extracted = true;
             }
 
             // If the item has been rate limited before, the quota has been consumed and outcomes
@@ -358,9 +343,8 @@ pub struct Enforcement {
 
 impl Enforcement {
     /// Returns `true` if the event should be rate limited.
-    #[cfg(feature = "processing")]
     pub fn event_active(&self) -> bool {
-        self.event.is_active()
+        self.event.is_active() || self.event_indexed.is_active()
     }
 
     /// Helper for `track_outcomes`.
@@ -447,7 +431,7 @@ impl Enforcement {
 ///  - Sessions are handled separate to all of the above.
 pub struct EnvelopeLimiter<F> {
     check: F,
-    event_category: Option<(DataCategory, bool)>,
+    event_category: Option<DataCategory>,
 }
 
 impl<E, F> EnvelopeLimiter<F>
@@ -468,8 +452,8 @@ where
     /// matching item in the envelope. Other items are handled according to the rules as if the
     /// event item were present.
     #[cfg(feature = "processing")]
-    pub fn assume_event(&mut self, category: DataCategory, metrics_extracted: bool) {
-        self.event_category = Some((category, metrics_extracted));
+    pub fn assume_event(&mut self, category: DataCategory) {
+        self.event_category = Some(category);
     }
 
     /// Process rate limits for the envelope, removing offending items and returning applied limits.
@@ -521,10 +505,7 @@ where
         scoping: &Scoping,
     ) -> Result<(Enforcement, RateLimits), E> {
         let mut summary = EnvelopeSummary::compute(envelope);
-        if let Some((event_category, metrics_extracted)) = self.event_category {
-            summary.event_category = Some(event_category);
-            summary.transaction_metrics_extracted = metrics_extracted;
-        }
+        summary.event_category = self.event_category.or(summary.event_category);
 
         let (enforcement, rate_limits) = self.execute(&summary, scoping)?;
         envelope.retain_items(|item| self.retain_item(item, &enforcement));
@@ -560,7 +541,7 @@ where
             rate_limits.merge(event_limits);
         }
 
-        if enforcement.event.is_active() {
+        if enforcement.event_active() {
             enforcement.attachments = enforcement
                 .event
                 .clone_for(DataCategory::Attachment, summary.attachment_quantity);
@@ -592,7 +573,7 @@ where
             rate_limits.merge(session_limits);
         }
 
-        if enforcement.event.is_active() {
+        if enforcement.event_active() {
             enforcement.profiles = enforcement
                 .event
                 .clone_for(DataCategory::Profile, summary.profile_quantity);
@@ -601,8 +582,10 @@ where
                 .event_indexed
                 .clone_for(DataCategory::ProfileIndexed, summary.profile_quantity)
         } else if summary.profile_quantity > 0 {
-            let mut profile_limits =
-                (self.check)(scoping.item(DataCategory::Span), summary.profile_quantity)?;
+            let mut profile_limits = (self.check)(
+                scoping.item(DataCategory::Profile),
+                summary.profile_quantity,
+            )?;
             enforcement.profiles = CategoryLimit::new(
                 DataCategory::Profile,
                 summary.profile_quantity,
@@ -704,14 +687,14 @@ where
                     false
                 }
             }
-            ItemType::Session => enforcement.sessions.is_active(),
-            ItemType::Profile => enforcement.profiles_indexed.is_active(),
-            ItemType::ReplayEvent => enforcement.replays.is_active(),
-            ItemType::ReplayVideo => enforcement.replays.is_active(),
-            ItemType::ReplayRecording => enforcement.replays.is_active(),
-            ItemType::CheckIn => enforcement.check_ins.is_active(),
-            ItemType::Span => enforcement.spans_indexed.is_active(),
-            ItemType::OtelSpan => enforcement.spans_indexed.is_active(),
+            ItemType::Session => !enforcement.sessions.is_active(),
+            ItemType::Profile => !enforcement.profiles_indexed.is_active(),
+            ItemType::ReplayEvent => !enforcement.replays.is_active(),
+            ItemType::ReplayVideo => !enforcement.replays.is_active(),
+            ItemType::ReplayRecording => !enforcement.replays.is_active(),
+            ItemType::CheckIn => !enforcement.check_ins.is_active(),
+            ItemType::Span => !enforcement.spans_indexed.is_active(),
+            ItemType::OtelSpan => !enforcement.spans_indexed.is_active(),
             _ => true,
         }
     }
@@ -1003,6 +986,8 @@ mod tests {
         }
     }
 
+    // TODO: impl Drop for MockLimiter, assert non asserted items
+
     #[test]
     fn test_enforce_pass_empty() {
         let mut envelope = envelope![];
@@ -1102,7 +1087,10 @@ mod tests {
 
         assert_eq!(
             get_outcomes(&envelope, enforcement),
-            vec![(DataCategory::Profile, 2),]
+            vec![
+                (DataCategory::Profile, 2),
+                (DataCategory::ProfileIndexed, 2)
+            ]
         );
     }
 
@@ -1229,7 +1217,7 @@ mod tests {
 
         let mut mock = MockLimiter::default().deny(DataCategory::Transaction);
         let mut limiter = EnvelopeLimiter::new(|s, q| mock.check(s, q));
-        limiter.assume_event(DataCategory::Transaction, false);
+        limiter.assume_event(DataCategory::Transaction);
         let (_, limits) = limiter.enforce(&mut envelope, &scoping()).unwrap();
 
         assert!(limits.is_limited());
@@ -1246,7 +1234,7 @@ mod tests {
 
         let mut mock = MockLimiter::default().deny(DataCategory::Error);
         let mut limiter = EnvelopeLimiter::new(|s, q| mock.check(s, q));
-        limiter.assume_event(DataCategory::Error, false);
+        limiter.assume_event(DataCategory::Error);
         let (_, limits) = limiter.enforce(&mut envelope, &scoping()).unwrap();
 
         assert!(limits.is_limited());
@@ -1257,7 +1245,7 @@ mod tests {
     }
 
     #[test]
-    fn test_enforce_transaction_no_metrics_extracted() {
+    fn test_enforce_transaction() {
         let mut envelope = envelope![Transaction];
 
         let mut mock = MockLimiter::default().deny(DataCategory::Transaction);
@@ -1267,21 +1255,15 @@ mod tests {
         assert!(limits.is_limited());
         assert!(enforcement.event_indexed.is_active());
         assert!(enforcement.event.is_active());
-        mock.assert_call(DataCategory::Transaction, Some(0));
-    }
+        mock.assert_call(DataCategory::Transaction, Some(1));
 
-    #[test]
-    fn test_enforce_event_metrics_extracted() {
-        let mut envelope = envelope![Transaction];
-        set_extracted(&mut envelope, ItemType::Transaction);
-
-        let mut mock = MockLimiter::default().deny(DataCategory::Transaction);
-        let limiter = EnvelopeLimiter::new(|s, q| mock.check(s, q));
-        let (enforcement, limits) = limiter.enforce(&mut envelope, &scoping()).unwrap();
-
-        assert!(limits.is_limited());
-        assert!(!enforcement.event_indexed.is_active());
-        assert!(enforcement.event.is_active());
+        assert_eq!(
+            get_outcomes(&envelope, enforcement),
+            vec![
+                (DataCategory::Transaction, 1),
+                (DataCategory::TransactionIndexed, 1),
+            ]
+        );
     }
 
     #[test]
@@ -1292,29 +1274,10 @@ mod tests {
         let limiter = EnvelopeLimiter::new(|s, q| mock.check(s, q));
         let (enforcement, limits) = limiter.enforce(&mut envelope, &scoping()).unwrap();
 
-        // NOTE: Since metrics have not been extracted on this item, we do not check the indexing
-        // quota. Basic processing quota is not denied, so the item must pass rate limiting. The
-        // indexing quota will be checked again after metrics extraction.
-
-        assert!(!limits.is_limited());
-        assert!(!enforcement.event_indexed.is_active());
-        assert!(!enforcement.event.is_active());
-        mock.assert_call(DataCategory::Transaction, Some(0));
-    }
-
-    #[test]
-    fn test_enforce_event_metrics_extracted_no_indexing_quota() {
-        let mut envelope = envelope![Transaction];
-        set_extracted(&mut envelope, ItemType::Transaction);
-
-        let mut mock = MockLimiter::default().deny(DataCategory::TransactionIndexed);
-        let limiter = EnvelopeLimiter::new(|s, q| mock.check(s, q));
-        let (enforcement, limits) = limiter.enforce(&mut envelope, &scoping()).unwrap();
-
         assert!(limits.is_limited());
-        assert!(!enforcement.event_indexed.is_active());
-        assert!(enforcement.event.is_active());
-        mock.assert_call(DataCategory::Transaction, Some(0));
+        assert!(enforcement.event_indexed.is_active());
+        assert!(!enforcement.event.is_active());
+        mock.assert_call(DataCategory::Transaction, Some(1));
         mock.assert_call(DataCategory::TransactionIndexed, Some(1));
     }
 
@@ -1329,7 +1292,7 @@ mod tests {
 
         assert!(enforcement.event.is_active());
         assert!(enforcement.attachments.is_active());
-        mock.assert_call(DataCategory::Transaction, Some(0));
+        mock.assert_call(DataCategory::Transaction, Some(1));
         mock.assert_call(DataCategory::Attachment, None);
     }
 
@@ -1351,21 +1314,22 @@ mod tests {
 
         assert!(enforcement.event.is_active());
         assert!(enforcement.profiles.is_active());
-        mock.assert_call(DataCategory::Transaction, Some(0));
+        mock.assert_call(DataCategory::Transaction, Some(1));
         mock.assert_call(DataCategory::Profile, None);
 
         assert_eq!(
             get_outcomes(&envelope, enforcement),
             vec![
+                (DataCategory::Transaction, 1),
                 (DataCategory::TransactionIndexed, 1),
                 (DataCategory::Profile, 1),
-                (DataCategory::Transaction, 1)
+                (DataCategory::ProfileIndexed, 1),
             ]
         );
     }
 
     #[test]
-    fn test_enforce_transaction_attachment_enforced_metrics_extracted_indexing_quota() {
+    fn test_enforce_transaction_attachment_enforced_indexing_quota() {
         let mut envelope = envelope![Transaction, Attachment];
         set_extracted(&mut envelope, ItemType::Transaction);
 
@@ -1374,16 +1338,25 @@ mod tests {
 
         let (enforcement, _limits) = limiter.enforce(&mut envelope, &scoping()).unwrap();
 
-        assert!(enforcement.event.is_active());
+        assert!(!enforcement.event.is_active());
+        assert!(enforcement.event_indexed.is_active());
         assert!(enforcement.attachments.is_active());
-        mock.assert_call(DataCategory::Transaction, Some(0));
+        mock.assert_call(DataCategory::Transaction, Some(1));
         mock.assert_call(DataCategory::TransactionIndexed, Some(1));
         mock.assert_call(DataCategory::Attachment, None);
+
+        assert_eq!(
+            get_outcomes(&envelope, enforcement),
+            vec![
+                (DataCategory::TransactionIndexed, 1),
+                (DataCategory::Attachment, 10)
+            ]
+        );
     }
 
     #[test]
-    fn test_enforce_span_no_metrics_extracted() {
-        let mut envelope = envelope![Span, Span];
+    fn test_enforce_span() {
+        let mut envelope = envelope![Span, OtelSpan];
 
         let mut mock = MockLimiter::default().deny(DataCategory::Span);
         let limiter = EnvelopeLimiter::new(|s, q| mock.check(s, q));
@@ -1392,51 +1365,32 @@ mod tests {
         assert!(limits.is_limited());
         assert!(enforcement.spans_indexed.is_active());
         assert!(enforcement.spans.is_active());
-        mock.assert_call(DataCategory::Span, Some(0));
+        mock.assert_call(DataCategory::Span, Some(2));
 
         assert_eq!(
             get_outcomes(&envelope, enforcement),
-            vec![(DataCategory::SpanIndexed, 2), (DataCategory::Span, 2),]
-        );
-    }
-
-    #[test]
-    fn test_enforce_span_metrics_extracted() {
-        let mut envelope = envelope![Span];
-        set_extracted(&mut envelope, ItemType::Span);
-
-        let mut mock = MockLimiter::default().deny(DataCategory::Span);
-        let limiter = EnvelopeLimiter::new(|s, q| mock.check(s, q));
-        let (enforcement, limits) = limiter.enforce(&mut envelope, &scoping()).unwrap();
-
-        assert!(limits.is_limited());
-        assert!(!enforcement.spans_indexed.is_active());
-        assert!(enforcement.spans.is_active());
-
-        assert_eq!(
-            get_outcomes(&envelope, enforcement),
-            vec![(DataCategory::SpanIndexed, 1)]
+            vec![(DataCategory::Span, 2), (DataCategory::SpanIndexed, 2)]
         );
     }
 
     #[test]
     fn test_enforce_span_no_indexing_quota() {
-        let mut envelope = envelope![OtelSpan];
+        let mut envelope = envelope![OtelSpan, Span];
 
         let mut mock = MockLimiter::default().deny(DataCategory::SpanIndexed);
         let limiter = EnvelopeLimiter::new(|s, q| mock.check(s, q));
         let (enforcement, limits) = limiter.enforce(&mut envelope, &scoping()).unwrap();
 
-        // NOTE: Since metrics have not been extracted on this item, we do not check the indexing
-        // quota. Basic processing quota is not denied, so the item must pass rate limiting. The
-        // indexing quota will be checked again after metrics extraction.
-
-        assert!(!limits.is_limited());
-        assert!(!enforcement.spans_indexed.is_active());
+        assert!(limits.is_limited());
+        assert!(enforcement.spans_indexed.is_active());
         assert!(!enforcement.spans.is_active());
-        mock.assert_call(DataCategory::Span, Some(0));
+        mock.assert_call(DataCategory::Span, Some(2));
+        mock.assert_call(DataCategory::SpanIndexed, Some(2));
 
-        assert_eq!(get_outcomes(&envelope, enforcement), vec![]);
+        assert_eq!(
+            get_outcomes(&envelope, enforcement),
+            vec![(DataCategory::SpanIndexed, 2)]
+        );
     }
 
     #[test]
@@ -1449,9 +1403,9 @@ mod tests {
         let (enforcement, limits) = limiter.enforce(&mut envelope, &scoping()).unwrap();
 
         assert!(limits.is_limited());
-        assert!(!enforcement.spans_indexed.is_active());
-        assert!(enforcement.spans.is_active());
-        mock.assert_call(DataCategory::Span, Some(0));
+        assert!(enforcement.spans_indexed.is_active());
+        assert!(!enforcement.spans.is_active());
+        mock.assert_call(DataCategory::Span, Some(2));
         mock.assert_call(DataCategory::SpanIndexed, Some(2));
 
         assert_eq!(

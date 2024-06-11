@@ -263,6 +263,8 @@ impl RateLimits {
         self.limits.retain(|limit| !limit.retry_after.expired());
     }
 
+    // TODO: insert clean_indexed here
+
     /// Checks whether any rate limits apply to the given scoping.
     ///
     /// If no limits match, then the returned `RateLimits` instance evalutes `is_ok`. Otherwise, it

@@ -529,6 +529,7 @@ impl Project {
     }
 
     pub fn merge_rate_limits(&mut self, rate_limits: RateLimits) {
+        // TODO: new type which doesn't allow indexed limits and auto checks for expired?
         self.rate_limits.merge(rate_limits);
     }
 

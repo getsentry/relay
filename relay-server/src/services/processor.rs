@@ -1172,7 +1172,7 @@ impl EnvelopeProcessorService {
         // Tell the envelope limiter about the event, since it has been removed from the Envelope at
         // this stage in processing.
         if let Some(category) = event_category {
-            envelope_limiter.assume_event(category, state.event_metrics_extracted);
+            envelope_limiter.assume_event(category);
         }
 
         let scoping = state.managed_envelope.scoping();
@@ -1302,7 +1302,6 @@ impl EnvelopeProcessorService {
         }
 
         state.event_metrics_extracted = true;
-        state.managed_envelope.set_event_metrics_extracted();
 
         Ok(())
     }
