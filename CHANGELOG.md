@@ -5,6 +5,7 @@
 **Bug fixes**:
 
 - Trim fields in replays to their defined maximum length. ([#3706](https://github.com/getsentry/relay/pull/3706))
+- Emit span usage metric for every extracted or standalone span, even if common span metrics are disabled. ([#3719](https://github.com/getsentry/relay/pull/3719))
 
 **Internal**:
 
