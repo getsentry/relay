@@ -111,7 +111,9 @@ pub struct AggregatorServiceConfig {
 
     /// The flushing interval in milliseconds that determines how often the aggregator is polled for
     /// flushing new buckets.
-    pub flush_interval: u64,
+    ///
+    /// Defaults to `100` milliseconds.
+    pub flush_interval_ms: u64,
 }
 
 impl Default for AggregatorServiceConfig {
@@ -130,7 +132,7 @@ impl Default for AggregatorServiceConfig {
             max_flush_bytes: 5_000_000, // 5 MB
             flush_partitions: None,
             flush_batching: FlushBatching::Project,
-            flush_interval: 100, // 100 milliseconds
+            flush_interval_ms: 100, // 100 milliseconds
         }
     }
 }
@@ -247,7 +249,7 @@ pub struct AggregatorService {
     state: AggregatorState,
     receiver: Option<Recipient<FlushBuckets, NoResponse>>,
     max_total_bucket_bytes: Option<usize>,
-    flush_interval: u64,
+    flush_interval_ms: u64,
 }
 
 impl AggregatorService {
@@ -273,7 +275,7 @@ impl AggregatorService {
             state: AggregatorState::Running,
             max_total_bucket_bytes: config.max_total_bucket_bytes,
             aggregator: aggregator::Aggregator::named(name, AggregatorConfig::from(&config)),
-            flush_interval: config.flush_interval,
+            flush_interval_ms: config.flush_interval_ms,
         }
     }
 
@@ -367,7 +369,7 @@ impl Service for AggregatorService {
 
     fn spawn_handler(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
         tokio::spawn(async move {
-            let mut ticker = tokio::time::interval(Duration::from_millis(self.flush_interval));
+            let mut ticker = tokio::time::interval(Duration::from_millis(self.flush_interval_ms));
             let mut shutdown = Controller::shutdown_handle();
 
             // Note that currently this loop never exits and will run till the tokio runtime shuts
