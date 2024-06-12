@@ -1016,6 +1016,20 @@
 
     <span class="kw">let </span>features = <span class="kw-2">&amp;</span>project_config.features;
 
+    <span class="comment">// If there are any spans in the system, extract the usage metric for them:
+    </span><span class="kw">let </span>any_spans = features.has(Feature::ExtractSpansFromEvent)
+        || features.has(Feature::StandaloneSpanIngestion)
+        || features.has(Feature::ExtractCommonSpanMetricsFromEvent);
+    <span class="kw">if </span>any_spans {
+        config.metrics.push(MetricSpec {
+            category: DataCategory::Span,
+            mri: <span class="string">"c:spans/usage@none"</span>.into(),
+            field: <span class="prelude-val">None</span>,
+            condition: <span class="prelude-val">None</span>,
+            tags: <span class="macro">vec!</span>[],
+        });
+    }
+
     <span class="comment">// Common span metrics is a requirement for everything else:
     </span><span class="kw">if </span>!features.has(Feature::ExtractCommonSpanMetricsFromEvent) {
         <span class="kw">return</span>;
@@ -1128,13 +1142,6 @@
         (
             GroupKey::SpanMetricsCommon,
             <span class="macro">vec!</span>[
-                MetricSpec {
-                    category: DataCategory::Span,
-                    mri: <span class="string">"c:spans/usage@none"</span>.into(),
-                    field: <span class="prelude-val">None</span>,
-                    condition: <span class="prelude-val">Some</span>(!is_addon.clone()),
-                    tags: <span class="macro">vec!</span>[],
-                },
                 MetricSpec {
                     category: DataCategory::Span,
                     mri: <span class="string">"d:spans/exclusive_time@millisecond"</span>.into(),
@@ -1667,13 +1674,6 @@
             <span class="macro">vec!</span>[
                 <span class="comment">// all addon modules
                 </span>MetricSpec {
-                    category: DataCategory::Span,
-                    mri: <span class="string">"c:spans/usage@none"</span>.into(),
-                    field: <span class="prelude-val">None</span>,
-                    condition: <span class="prelude-val">Some</span>(is_addon.clone()),
-                    tags: <span class="macro">vec!</span>[],
-                },
-                MetricSpec {
                     category: DataCategory::Span,
                     mri: <span class="string">"d:spans/exclusive_time@millisecond"</span>.into(),
                     field: <span class="prelude-val">Some</span>(<span class="string">"span.exclusive_time"</span>.into()),
