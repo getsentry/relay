@@ -543,6 +543,12 @@
 <a href="#541" id="541">541</a>
 <a href="#542" id="542">542</a>
 <a href="#543" id="543">543</a>
+<a href="#544" id="544">544</a>
+<a href="#545" id="545">545</a>
+<a href="#546" id="546">546</a>
+<a href="#547" id="547">547</a>
+<a href="#548" id="548">548</a>
+<a href="#549" id="549">549</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::HashMap;
 <span class="kw">use </span>std::time::Duration;
 
@@ -556,9 +562,6 @@
 <span class="kw">use </span><span class="kw">crate</span>::aggregator::{<span class="self">self</span>, AggregatorConfig, FlushBatching};
 <span class="kw">use </span><span class="kw">crate</span>::bucket::Bucket;
 <span class="kw">use </span><span class="kw">crate</span>::statsd::{MetricCounters, MetricHistograms, MetricTimers};
-
-<span class="doccomment">/// Interval for the flush cycle of the [`AggregatorService`].
-</span><span class="kw">const </span>FLUSH_INTERVAL: Duration = Duration::from_millis(<span class="number">100</span>);
 
 <span class="doccomment">/// Parameters used by the [`AggregatorService`].
 </span><span class="attr">#[derive(Clone, Debug, Deserialize, Serialize)]
@@ -656,6 +659,12 @@
     /// partition, effectively allowing all the elements of that partition to be flushed together.
     </span><span class="attr">#[serde(alias = <span class="string">"shift_key"</span>)]
     </span><span class="kw">pub </span>flush_batching: FlushBatching,
+
+    <span class="doccomment">/// The flushing interval in milliseconds that determines how often the aggregator is polled for
+    /// flushing new buckets.
+    ///
+    /// Defaults to `100` milliseconds.
+    </span><span class="kw">pub </span>flush_interval_ms: u64,
 }
 
 <span class="kw">impl </span>Default <span class="kw">for </span>AggregatorServiceConfig {
@@ -674,7 +683,8 @@
             max_flush_bytes: <span class="number">5_000_000</span>, <span class="comment">// 5 MB
             </span>flush_partitions: <span class="prelude-val">None</span>,
             flush_batching: FlushBatching::Project,
-        }
+            flush_interval_ms: <span class="number">100</span>, <span class="comment">// 100 milliseconds
+        </span>}
     }
 }
 
@@ -790,6 +800,7 @@
     state: AggregatorState,
     receiver: <span class="prelude-ty">Option</span>&lt;Recipient&lt;FlushBuckets, NoResponse&gt;&gt;,
     max_total_bucket_bytes: <span class="prelude-ty">Option</span>&lt;usize&gt;,
+    flush_interval_ms: u64,
 }
 
 <span class="kw">impl </span>AggregatorService {
@@ -815,6 +826,7 @@
             state: AggregatorState::Running,
             max_total_bucket_bytes: config.max_total_bucket_bytes,
             aggregator: aggregator::Aggregator::named(name, AggregatorConfig::from(<span class="kw-2">&amp;</span>config)),
+            flush_interval_ms: config.flush_interval_ms,
         }
     }
 
@@ -913,7 +925,7 @@
 
     <span class="kw">fn </span>spawn_handler(<span class="kw-2">mut </span><span class="self">self</span>, <span class="kw-2">mut </span>rx: relay_system::Receiver&lt;<span class="self">Self</span>::Interface&gt;) {
         tokio::spawn(<span class="kw">async move </span>{
-            <span class="kw">let </span><span class="kw-2">mut </span>ticker = tokio::time::interval(FLUSH_INTERVAL);
+            <span class="kw">let </span><span class="kw-2">mut </span>ticker = tokio::time::interval(Duration::from_millis(<span class="self">self</span>.flush_interval_ms));
             <span class="kw">let </span><span class="kw-2">mut </span>shutdown = Controller::shutdown_handle();
 
             <span class="comment">// Note that currently this loop never exits and will run till the tokio runtime shuts
