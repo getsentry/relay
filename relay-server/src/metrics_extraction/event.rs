@@ -1169,7 +1169,7 @@ mod tests {
         }
         "#;
 
-        let mut event = Annotated::<Event>::from_json(json).unwrap();
+        let mut event = Annotated::from_json(json).unwrap();
 
         // Normalize first, to make sure that all things are correct as in the real pipeline:
         normalize_event(
