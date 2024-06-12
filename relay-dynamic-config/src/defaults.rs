@@ -71,10 +71,7 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
     let features = &project_config.features;
 
     // If there are any spans in the system, extract the usage metric for them:
-    let any_spans = features.has(Feature::ExtractSpansFromEvent)
-        || features.has(Feature::StandaloneSpanIngestion)
-        || features.has(Feature::ExtractCommonSpanMetricsFromEvent);
-    if any_spans {
+    if features.produces_spans() {
         config.metrics.push(MetricSpec {
             category: DataCategory::Span,
             mri: "c:spans/usage@none".into(),
