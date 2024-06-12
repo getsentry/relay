@@ -941,9 +941,6 @@
 <a href="#939" id="939">939</a>
 <a href="#940" id="940">940</a>
 <a href="#941" id="941">941</a>
-<a href="#942" id="942">942</a>
-<a href="#943" id="943">943</a>
-<a href="#944" id="944">944</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_base_schema::data_category::DataCategory;
 <span class="kw">use </span>relay_common::glob2::LazyGlob;
 <span class="kw">use </span>relay_event_normalization::utils::MAX_DURATION_MOBILE_MS;
@@ -1017,10 +1014,7 @@
     <span class="kw">let </span>features = <span class="kw-2">&amp;</span>project_config.features;
 
     <span class="comment">// If there are any spans in the system, extract the usage metric for them:
-    </span><span class="kw">let </span>any_spans = features.has(Feature::ExtractSpansFromEvent)
-        || features.has(Feature::StandaloneSpanIngestion)
-        || features.has(Feature::ExtractCommonSpanMetricsFromEvent);
-    <span class="kw">if </span>any_spans {
+    </span><span class="kw">if </span>features.produces_spans() {
         config.metrics.push(MetricSpec {
             category: DataCategory::Span,
             mri: <span class="string">"c:spans/usage@none"</span>.into(),

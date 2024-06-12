@@ -182,6 +182,13 @@
 <a href="#180" id="180">180</a>
 <a href="#181" id="181">181</a>
 <a href="#182" id="182">182</a>
+<a href="#183" id="183">183</a>
+<a href="#184" id="184">184</a>
+<a href="#185" id="185">185</a>
+<a href="#186" id="186">186</a>
+<a href="#187" id="187">187</a>
+<a href="#188" id="188">188</a>
+<a href="#189" id="189">189</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeSet;
 
 <span class="kw">use </span>serde::{Deserialize, Serialize};
@@ -326,6 +333,13 @@
     <span class="doccomment">/// Returns `true` if the given feature is in the set.
     </span><span class="kw">pub fn </span>has(<span class="kw-2">&amp;</span><span class="self">self</span>, feature: Feature) -&gt; bool {
         <span class="self">self</span>.<span class="number">0</span>.contains(<span class="kw-2">&amp;</span>feature)
+    }
+
+    <span class="doccomment">/// Returns `true` if any spans are produced for this project.
+    </span><span class="kw">pub fn </span>produces_spans(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="self">self</span>.has(Feature::ExtractSpansFromEvent)
+            || <span class="self">self</span>.has(Feature::StandaloneSpanIngestion)
+            || <span class="self">self</span>.has(Feature::ExtractCommonSpanMetricsFromEvent)
     }
 }
 

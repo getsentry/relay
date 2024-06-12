@@ -304,9 +304,6 @@
 <a href="#302" id="302">302</a>
 <a href="#303" id="303">303</a>
 <a href="#304" id="304">304</a>
-<a href="#305" id="305">305</a>
-<a href="#306" id="306">306</a>
-<a href="#307" id="307">307</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::marker::PhantomData;
 <span class="kw">use </span>std::ops::Deref;
 
@@ -434,10 +431,7 @@
     <span class="kw">match </span>namespace {
         MetricNamespace::Sessions =&gt; <span class="bool-val">true</span>,
         MetricNamespace::Transactions =&gt; <span class="bool-val">true</span>,
-        MetricNamespace::Spans =&gt; {
-            state.has_feature(Feature::ExtractCommonSpanMetricsFromEvent)
-                || state.has_feature(Feature::StandaloneSpanIngestion)
-        }
+        MetricNamespace::Spans =&gt; state.config.features.produces_spans(),
         MetricNamespace::Profiles =&gt; <span class="bool-val">true</span>,
         MetricNamespace::Custom =&gt; state.has_feature(Feature::CustomMetrics),
         MetricNamespace::Stats =&gt; <span class="bool-val">true</span>,
