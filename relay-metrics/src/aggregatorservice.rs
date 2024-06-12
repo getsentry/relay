@@ -294,7 +294,12 @@ impl AggregatorService {
             return;
         }
 
-        relay_log::trace!("flushing {} partitions to receiver", partitions.len());
+        let partitions_count = partitions.len() as u64;
+        relay_log::trace!("flushing {} partitions to receiver", partitions_count);
+        relay_statsd::metric!(
+            histogram(MetricHistograms::PartitionsFlushed) = partitions_count,
+            aggregator = self.aggregator.name(),
+        );
 
         let mut total_bucket_count = 0u64;
         for buckets_by_project in partitions.values() {
