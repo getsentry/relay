@@ -294,10 +294,10 @@ impl AggregatorService {
             return;
         }
 
-        let partitions_number = partitions.len();
-        relay_log::trace!("flushing {} partitions to receiver", partitions_number);
+        let partitions_count = partitions.len() as u64;
+        relay_log::trace!("flushing {} partitions to receiver", partitions_count);
         relay_statsd::metric!(
-            histogram(MetricHistograms::PartitionsFlushed) = partitions_number,
+            histogram(MetricHistograms::PartitionsFlushed) = partitions_count,
             aggregator = self.aggregator.name(),
         );
 
