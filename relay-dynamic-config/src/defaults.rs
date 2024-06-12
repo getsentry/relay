@@ -70,6 +70,20 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
 
     let features = &project_config.features;
 
+    // If there are any spans in the system, extract the usage metric for them:
+    let any_spans = features.has(Feature::ExtractSpansFromEvent)
+        || features.has(Feature::StandaloneSpanIngestion)
+        || features.has(Feature::ExtractCommonSpanMetricsFromEvent);
+    if any_spans {
+        config.metrics.push(MetricSpec {
+            category: DataCategory::Span,
+            mri: "c:spans/usage@none".into(),
+            field: None,
+            condition: None,
+            tags: vec![],
+        });
+    }
+
     // Common span metrics is a requirement for everything else:
     if !features.has(Feature::ExtractCommonSpanMetricsFromEvent) {
         return;
@@ -182,13 +196,6 @@ pub fn hardcoded_span_metrics() -> Vec<(GroupKey, Vec<MetricSpec>, Vec<TagMappin
         (
             GroupKey::SpanMetricsCommon,
             vec![
-                MetricSpec {
-                    category: DataCategory::Span,
-                    mri: "c:spans/usage@none".into(),
-                    field: None,
-                    condition: Some(!is_addon.clone()),
-                    tags: vec![],
-                },
                 MetricSpec {
                     category: DataCategory::Span,
                     mri: "d:spans/exclusive_time@millisecond".into(),
@@ -720,13 +727,6 @@ pub fn hardcoded_span_metrics() -> Vec<(GroupKey, Vec<MetricSpec>, Vec<TagMappin
             GroupKey::SpanMetricsAddons,
             vec![
                 // all addon modules
-                MetricSpec {
-                    category: DataCategory::Span,
-                    mri: "c:spans/usage@none".into(),
-                    field: None,
-                    condition: Some(is_addon.clone()),
-                    tags: vec![],
-                },
                 MetricSpec {
                     category: DataCategory::Span,
                     mri: "d:spans/exclusive_time@millisecond".into(),
