@@ -1169,7 +1169,7 @@ mod tests {
         }
         "#;
 
-        let mut event = Annotated::from_json(json).unwrap();
+        let mut event = Annotated::<Event>::from_json(json).unwrap();
 
         // Normalize first, to make sure that all things are correct as in the real pipeline:
         normalize_event(
@@ -1193,6 +1193,13 @@ mod tests {
     fn no_feature_flags_enabled() {
         let metrics = extract_span_metrics([]);
         assert!(metrics.is_empty());
+    }
+
+    #[test]
+    fn only_indexed_spans_enabled() {
+        let metrics = extract_span_metrics([Feature::ExtractSpansFromEvent]);
+        assert_eq!(metrics.len(), 75);
+        assert!(metrics.iter().all(|b| &b.name == "c:spans/usage@none"));
     }
 
     #[test]

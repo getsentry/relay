@@ -425,7 +425,6 @@ impl<'a> Val<'a> {
     pub fn as_str(&self) -> Option<&'a str> {
         match self {
             Self::String(value) => Some(value),
-
             _ => None,
         }
     }
