@@ -682,7 +682,7 @@ where
         }
 
         // We want to process spans rate limits only if they were not already applied because a
-        // rate limited transaction had child spans that were also rate limited.
+        // rate limited transaction has also rate limited its child spans.
         if !enforcement.event.is_active() && summary.span_quantity > 0 {
             // Check for rate limits on the main category but do not consume
             // quota. Quota will be consumed by the metrics rate limiter instead.
