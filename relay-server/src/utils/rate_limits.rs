@@ -307,11 +307,6 @@ impl CategoryLimit {
     fn is_active(&self) -> bool {
         self.quantity > 0
     }
-
-    /// Returns 'true' if this is a default category.
-    fn is_default(&self) -> bool {
-        self.category == DataCategory::Default
-    }
 }
 
 impl Default for CategoryLimit {
@@ -688,10 +683,7 @@ where
 
         // We want to process spans rate limits only if they were not already applied because a
         // rate limited transaction had child spans that were also rate limited.
-        if summary.span_quantity > 0
-            && enforcement.span_metrics.is_default()
-            && enforcement.spans.is_default()
-        {
+        if !enforcement.event.is_active() && summary.span_quantity > 0 {
             // Check for rate limits on the main category but do not consume
             // quota. Quota will be consumed by the metrics rate limiter instead.
             let mut span_limits = (self.check)(scoping.item(DataCategory::Span), 0)?;
