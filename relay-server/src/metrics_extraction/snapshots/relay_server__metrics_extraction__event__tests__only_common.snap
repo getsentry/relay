@@ -2395,6 +2395,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
+            is_sampled: false,
         },
     },
     Bucket {
@@ -2412,6 +2413,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
+            is_sampled: false,
         },
     },
     Bucket {
@@ -5863,6 +5865,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
+            is_sampled: false,
         },
     },
     Bucket {
@@ -5880,6 +5883,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
+            is_sampled: false,
         },
     },
     Bucket {
@@ -6678,6 +6682,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
+            is_sampled: false,
         },
     },
     Bucket {
@@ -6695,6 +6700,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
+            is_sampled: false,
         },
     },
     Bucket {
@@ -6712,6 +6718,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
+            is_sampled: false,
         },
     },
     Bucket {
@@ -6729,6 +6736,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
+            is_sampled: false,
         },
     },
     Bucket {
@@ -6746,6 +6754,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
+            is_sampled: false,
         },
     },
     Bucket {
@@ -6763,6 +6772,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
+            is_sampled: false,
         },
     },
 ]
