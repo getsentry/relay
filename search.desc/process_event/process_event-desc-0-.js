@@ -1,0 +1,1 @@
+searchState.loadedDescShard("process_event", 0, "Processes a Sentry event payload.\nDebug print the internal structure.\nPath to an event payload JSON file (defaults to stdin).\nReturns the argument unchanged.\nCalls <code>U::from(self)</code>.\nPath to a PII processing config JSON file.\nPretty print the output JSON.\nApply full store normalization.")

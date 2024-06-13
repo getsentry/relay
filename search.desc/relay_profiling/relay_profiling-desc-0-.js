@@ -1,0 +1,1 @@
+searchState.loadedDescShard("relay_profiling", 0, "Profiling protocol and processing for Sentry.\nUnique identifier for a profile.\nReturns the argument unchanged.\nCalls <code>U::from(self)</code>.")

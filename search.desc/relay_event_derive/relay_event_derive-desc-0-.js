@@ -1,0 +1,1 @@
+searchState.loadedDescShard("relay_event_derive", 0, "Derive for visitor traits on the Event schema.\nDerive the <code>ProcessValue</code> trait.")

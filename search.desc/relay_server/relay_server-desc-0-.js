@@ -1,0 +1,1 @@
+searchState.loadedDescShard("relay_server", 0, "The Sentry relay server application.\nRuns a relay web server and spawns all internal worker …\nContains helper utils which help to manage the spooler and …\nTruncates the spool file deleting all the persisted …")

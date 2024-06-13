@@ -1,0 +1,1 @@
+searchState.loadedDescShard("relay_jsonschema_derive", 0, "Derive for JSON schema on Relay protocol types.\nDerives <code>schemars::JsonSchema</code> from an <code>Annotated</code> structure.")

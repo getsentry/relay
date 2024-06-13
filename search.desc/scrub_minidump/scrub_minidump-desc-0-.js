@@ -1,0 +1,1 @@
+searchState.loadedDescShard("scrub_minidump", 0, "Apply data scrubbing (PII) rules on a minidump file.\nPath to a PII config JSON file.\nReturns the argument unchanged.\nCalls <code>U::from(self)</code>.\nPath to the minidump to rewrite.\nOptional output path. By default, the minidump file is …")
