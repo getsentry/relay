@@ -57,8 +57,8 @@ local soak_time(region) =
               elastic_profile_id: 'relay-pop',
               tasks: [
                 gocdtasks.script(importstr '../bash/wait-soak.sh'),
-                // gocdtasks.script(importstr '../bash/check-sentry-errors.sh'),
-                // gocdtasks.script(importstr '../bash/check-sentry-new-errors.sh'),
+                gocdtasks.script(importstr '../bash/check-sentry-errors.sh'),
+                gocdtasks.script(importstr '../bash/check-sentry-new-errors.sh'),
                 gocdtasks.script(importstr '../bash/check-datadog-status.sh'),
                 utils.pause_on_failure(),
               ],
@@ -97,8 +97,8 @@ local deploy_pop_canary_job(region) =
     tasks: [
       gocdtasks.script(importstr '../bash/deploy-pop-canary.sh'),
       gocdtasks.script(importstr '../bash/wait-canary.sh'),
-      // gocdtasks.script(importstr '../bash/check-sentry-errors.sh'),
-      // gocdtasks.script(importstr '../bash/check-sentry-new-errors.sh'),
+      gocdtasks.script(importstr '../bash/check-sentry-errors.sh'),
+      gocdtasks.script(importstr '../bash/check-sentry-new-errors.sh'),
       gocdtasks.script(importstr '../bash/check-datadog-status.sh'),
       utils.pause_on_failure(),
     ],

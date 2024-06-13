@@ -198,17 +198,6 @@ pub struct Options {
     )]
     pub feedback_ingest_topic_rollout_rate: f32,
 
-    /// Rollout rate for sending attachment chunks inline.
-    ///
-    /// Rate needs to be between `0.0` and `1.0`.
-    /// If set to `1.0` all eligible attachment chunks will be sent as part of the attachment message.
-    #[serde(
-        rename = "relay.inline-attachments.rollout-rate",
-        deserialize_with = "default_on_error",
-        skip_serializing_if = "is_default"
-    )]
-    pub inline_attachments_rollout_rate: f32,
-
     /// Overall sampling of span extraction.
     ///
     /// This number represents the fraction of transactions for which

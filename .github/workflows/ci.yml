@@ -549,9 +549,6 @@ jobs:
         with:
           key: ${{ github.job }}
 
-      - name: Cargo build
-        run: cargo build --all-features
-
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
