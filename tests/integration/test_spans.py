@@ -16,7 +16,7 @@ from requests import HTTPError
 from sentry_relay.consts import DataCategory
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 
-from .asserts import time_after
+from .asserts import time_after, time_within_delta
 from .test_metrics import TEST_CONFIG
 from .test_store import make_transaction
 
@@ -913,15 +913,25 @@ def test_otel_endpoint_disabled(mini_sentry, relay):
         json=make_otel_span(start, end),
     )
 
-    (outcome,) = mini_sentry.captured_outcomes.get()["outcomes"]
-    assert outcome["category"] == DataCategory.SPAN_INDEXED
-    assert outcome["outcome"] == 3  # invalid
-    assert outcome["reason"] == "feature_disabled"
+    outcomes = []
+    for _ in range(2):
+        outcomes.extend(mini_sentry.captured_outcomes.get(timeout=3).get("outcomes"))
+    outcomes.sort(key=lambda x: x["category"])
 
-    (outcome,) = mini_sentry.captured_outcomes.get()["outcomes"]
-    assert outcome["category"] == DataCategory.SPAN
-    assert outcome["outcome"] == 3  # invalid
-    assert outcome["reason"] == "feature_disabled"
+    assert outcomes == [
+        {
+            "org_id": 1,
+            "key_id": 123,
+            "project_id": 42,
+            "outcome": 3,
+            "reason": "feature_disabled",
+            "category": category.value,
+            "quantity": 1,
+            "source": "relay",
+            "timestamp": time_within_delta(),
+        }
+        for category in [DataCategory.SPAN, DataCategory.SPAN_INDEXED]
+    ]
 
     # Second attempt will cause a 403 response:
     with pytest.raises(HTTPError) as exc_info:
@@ -934,6 +944,10 @@ def test_otel_endpoint_disabled(mini_sentry, relay):
     assert response.json() == {
         "detail": "event submission rejected with_reason: FeatureDisabled(OtelEndpoint)"
     }
+
+    import time
+
+    time.sleep(3)
 
     # No envelopes were received:
     assert mini_sentry.captured_events.empty()
@@ -1666,7 +1680,7 @@ def test_rate_limit_spans_in_envelope(
 
     def summarize_outcomes():
         counter = Counter()
-        for outcome in outcomes_consumer.get_outcomes():
+        for outcome in outcomes_consumer.get_outcomes(timeout=10, n=2):
             counter[(outcome["category"], outcome["outcome"])] += outcome["quantity"]
         return dict(counter)
 
