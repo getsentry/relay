@@ -433,7 +433,7 @@ def test_outcome_forwarding(
     Tests that Relay forwards outcomes from a chain of relays
 
     Have a chain of many relays that eventually connect to Sentry
-    and verify that the outcomes sent by  the first (downstream relay)
+    and verify that the outcomes sent by the first (downstream relay)
     are properly forwarded up to sentry.
     """
     outcomes_consumer = outcomes_consumer(timeout=2)
@@ -471,19 +471,22 @@ def test_outcome_forwarding(
 
     _send_event(downstream_relay, event_type=event_type)
 
-    outcome = outcomes_consumer.get_outcome()
+    expected_categories = [1] if event_type == "error" else [2, 9]
+    outcomes = outcomes_consumer.get_outcomes(n=len(expected_categories))
+    outcomes.sort(key=lambda x: x["category"])
 
-    expected_outcome = {
-        "project_id": 42,
-        "outcome": 3,
-        "source": "downstream-layer",
-        "reason": "project_id",
-        "category": 2 if event_type == "transaction" else 1,
-        "quantity": 1,
-    }
-    outcome.pop("timestamp")
-
-    assert outcome == expected_outcome
+    assert outcomes == [
+        {
+            "project_id": 42,
+            "outcome": 3,  # Invalid
+            "source": "downstream-layer",
+            "reason": "project_id",
+            "category": category,
+            "quantity": 1,
+            "timestamp": time_within_delta(),
+        }
+        for category in expected_categories
+    ]
 
 
 def test_outcomes_forwarding_rate_limited(
@@ -1296,13 +1299,11 @@ def test_profile_outcomes(
     assert outcomes == expected_outcomes, outcomes
 
 
-@pytest.mark.parametrize("metrics_already_extracted", [False, True])
 def test_profile_outcomes_invalid(
     mini_sentry,
     relay_with_processing,
     outcomes_consumer,
     metrics_consumer,
-    metrics_already_extracted,
 ):
     """
     Tests that Relay reports correct outcomes for invalid profiles as `Profile`.
@@ -1342,7 +1343,6 @@ def test_profile_outcomes_invalid(
             Item(
                 payload=PayloadRef(bytes=json.dumps(payload).encode()),
                 type="transaction",
-                headers={"metrics_extracted": metrics_already_extracted},
             )
         )
         envelope.add_item(Item(payload=PayloadRef(bytes=b""), type="profile"))
@@ -1355,12 +1355,9 @@ def test_profile_outcomes_invalid(
     outcomes = outcomes_consumer.get_outcomes()
     outcomes.sort(key=lambda o: sorted(o.items()))
 
-    # Expect ProfileIndexed if metrics have been extracted, else Profile
-    expected_category = 11 if metrics_already_extracted else 6
-
-    expected_outcomes = [
+    assert outcomes == [
         {
-            "category": expected_category,
+            "category": category,
             "key_id": 123,
             "org_id": 1,
             "outcome": 3,  # Invalid
@@ -1368,20 +1365,15 @@ def test_profile_outcomes_invalid(
             "quantity": 1,
             "reason": "profiling_invalid_json",
             "source": "pop-relay",
-        },
+            "timestamp": time_within_delta(),
+        }
+        for category in [6, 11]  # Profile, ProfileIndexed
     ]
-    for outcome in outcomes:
-        outcome.pop("timestamp")
 
-    assert outcomes == expected_outcomes, outcomes
-
-    if not metrics_already_extracted:
-        # Make sure the profile will not be counted as accepted:
-        metrics = metrics_by_name(metrics_consumer, 4)
-        assert (
-            "has_profile" not in metrics["d:transactions/duration@millisecond"]["tags"]
-        )
-        assert "has_profile" not in metrics["c:transactions/usage@none"]["tags"]
+    # Make sure the profile will not be counted as accepted:
+    metrics = metrics_by_name(metrics_consumer, 4)
+    assert "has_profile" not in metrics["d:transactions/duration@millisecond"]["tags"]
+    assert "has_profile" not in metrics["c:transactions/usage@none"]["tags"]
 
 
 def test_profile_outcomes_too_many(
@@ -1447,9 +1439,9 @@ def test_profile_outcomes_too_many(
     outcomes = outcomes_consumer.get_outcomes()
     outcomes.sort(key=lambda o: sorted(o.items()))
 
-    expected_outcomes = [
+    assert outcomes == [
         {
-            "category": 6,  # Profile
+            "category": category,
             "key_id": 123,
             "org_id": 1,
             "outcome": 3,  # Invalid
@@ -1457,12 +1449,10 @@ def test_profile_outcomes_too_many(
             "quantity": 1,
             "reason": "profiling_too_many_profiles",
             "source": "pop-relay",
-        },
+            "timestamp": time_within_delta(),
+        }
+        for category in [6, 11]  # Profile, ProfileIndexed
     ]
-    for outcome in outcomes:
-        outcome.pop("timestamp")
-
-    assert outcomes == expected_outcomes, outcomes
 
     # Make sure one profile will not be counted as accepted
     metrics = metrics_by_name(metrics_consumer, 4)
@@ -1527,12 +1517,12 @@ def test_profile_outcomes_data_invalid(
     envelope = make_envelope()
     upstream.send_envelope(project_id, envelope)
 
-    outcomes = outcomes_consumer.get_outcomes()
+    outcomes = outcomes_consumer.get_outcomes(n=2)
     outcomes.sort(key=lambda o: sorted(o.items()))
 
-    expected_outcomes = [
+    assert outcomes == [
         {
-            "category": 11,  # ProfileIndexed
+            "category": category,
             "key_id": 123,
             "org_id": 1,
             "outcome": 3,
@@ -1540,12 +1530,10 @@ def test_profile_outcomes_data_invalid(
             "quantity": 1,
             "reason": "profiling_invalid_json",
             "source": "processing-relay",
-        },
+            "timestamp": time_within_delta(),
+        }
+        for category in [6, 11]  # Profile, ProfileIndexed
     ]
-    for outcome in outcomes:
-        outcome.pop("timestamp")
-
-    assert outcomes == expected_outcomes, outcomes
 
     # Because invalid data is detected _after_ metrics extraction, there is still a metric:
     metrics = metrics_by_name(metrics_consumer, 4)
@@ -1846,12 +1834,10 @@ def test_span_outcomes(
     assert outcomes == expected_outcomes, outcomes
 
 
-@pytest.mark.parametrize("metrics_already_extracted", [False, True])
 def test_span_outcomes_invalid(
     mini_sentry,
     relay_with_processing,
     outcomes_consumer,
-    metrics_already_extracted,
 ):
     """
     Tests that Relay reports correct outcomes for invalid spans as `Span` or `Transaction`.
@@ -1885,7 +1871,6 @@ def test_span_outcomes_invalid(
         },
         "aggregator": {"bucket_interval": 1, "initial_delay": 0, "debounce_delay": 0},
     }
-
     upstream = relay_with_processing(config)
 
     # Create an envelope with an invalid profile:
@@ -1897,7 +1882,6 @@ def test_span_outcomes_invalid(
             Item(
                 payload=PayloadRef(bytes=json.dumps(payload).encode()),
                 type="transaction",
-                headers={"metrics_extracted": metrics_already_extracted},
             )
         )
         payload = _get_span_payload()
@@ -1906,7 +1890,6 @@ def test_span_outcomes_invalid(
             Item(
                 payload=PayloadRef(bytes=json.dumps(payload).encode()),
                 type="span",
-                headers={"metrics_extracted": metrics_already_extracted},
             )
         )
         return envelope
@@ -1914,35 +1897,28 @@ def test_span_outcomes_invalid(
     envelope = make_envelope()
     upstream.send_envelope(project_id, envelope)
 
-    outcomes = outcomes_consumer.get_outcomes(timeout=10.0, n=2)
+    outcomes = outcomes_consumer.get_outcomes(timeout=10.0, n=4)
     outcomes.sort(key=lambda o: sorted(o.items()))
 
-    expected_outcomes = [
+    assert outcomes == [
         {
-            "category": 9 if metrics_already_extracted else 2,
+            "category": category,
             "key_id": 123,
             "org_id": 1,
             "outcome": 3,  # Invalid
             "project_id": 42,
             "quantity": 1,
-            "reason": "invalid_transaction",
+            "reason": reason,
             "source": "pop-relay",
-        },
-        {
-            "category": 16 if metrics_already_extracted else 12,
-            "key_id": 123,
-            "org_id": 1,
-            "outcome": 3,  # Invalid
-            "project_id": 42,
-            "quantity": 1,
-            "reason": "internal",
-            "source": "pop-relay",
-        },
+            "timestamp": time_within_delta(),
+        }
+        for (category, reason) in [
+            (2, "invalid_transaction"),
+            (9, "invalid_transaction"),
+            (12, "internal"),
+            (16, "internal"),
+        ]
     ]
-    for outcome in outcomes:
-        outcome.pop("timestamp")
-
-    assert outcomes == expected_outcomes, outcomes
 
 
 def test_global_rate_limit_by_namespace(

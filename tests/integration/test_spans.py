@@ -1630,14 +1630,14 @@ def test_rate_limit_consistent_extracted(
     outcomes_consumer.assert_empty()
 
 
-def test_rate_limit_metrics_consistent(
+def test_rate_limit_spans_in_envelope(
     mini_sentry,
     relay_with_processing,
     spans_consumer,
     metrics_consumer,
     outcomes_consumer,
 ):
-    """Rate limits for total spans (i.e. metrics) are enforced consistently after metrics extraction."""
+    """Rate limits for total spans are enforced and no metrics are emitted."""
     relay = relay_with_processing(options=TEST_CONFIG)
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
@@ -1670,30 +1670,12 @@ def test_rate_limit_metrics_consistent(
             counter[(outcome["category"], outcome["outcome"])] += outcome["quantity"]
         return dict(counter)
 
-    # First batch passes (we over-accept once)
     relay.send_envelope(project_id, envelope)
-    spans = spans_consumer.get_spans(n=4, timeout=10)
-    assert len(spans) == 4
-    metrics = metrics_consumer.get_metrics()
-    assert len(metrics) > 0
-    assert all(headers == [("namespace", b"spans")] for _, headers in metrics), metrics
 
-    # Accepted outcomes for main category are logged in sentry.
-    assert summarize_outcomes() == {(16, 0): 4}  # SpanIndexed, Accepted
-
-    # Second batch is limited
-    relay.send_envelope(project_id, envelope)
-    metrics = metrics_consumer.get_metrics()
-    assert len(metrics) == 0
-    outcomes = summarize_outcomes()
-    assert outcomes.pop((15, 2)) > 0  # Metric Bucket, RateLimited
-    assert outcomes == {
-        (16, 2): 4,  # SpanIndexed, RateLimited
-        (12, 2): 4,  # Span, RateLimited
-    }
+    assert summarize_outcomes() == {(12, 2): 4, (16, 2): 4}
 
     spans_consumer.assert_empty()
-    outcomes_consumer.assert_empty()
+    metrics_consumer.assert_empty()
 
 
 @pytest.mark.parametrize(
