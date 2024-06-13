@@ -525,7 +525,6 @@ where
             let mut event_limits = (self.check)(scoping.item(category), 1)?;
             enforcement.event = CategoryLimit::new(category, 1, event_limits.longest());
 
-            // TODO: exclude transactions from being rate limited based on tag
             if let Some(index_category) = category.index_category() {
                 // Check the specific/indexed category for limits only if the specific one has not already
                 // an enforced limit.

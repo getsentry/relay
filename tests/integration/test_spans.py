@@ -945,10 +945,6 @@ def test_otel_endpoint_disabled(mini_sentry, relay):
         "detail": "event submission rejected with_reason: FeatureDisabled(OtelEndpoint)"
     }
 
-    import time
-
-    time.sleep(3)
-
     # No envelopes were received:
     assert mini_sentry.captured_events.empty()
 
