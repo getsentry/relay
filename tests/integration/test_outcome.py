@@ -16,6 +16,7 @@ import pytest
 import requests
 from requests.exceptions import HTTPError
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
+from .asserts import time_within_delta
 
 from .test_metrics import metrics_by_name
 
@@ -1545,13 +1546,11 @@ def test_profile_outcomes_data_invalid(
     assert metrics["c:transactions/usage@none"]["tags"]["has_profile"] == "true"
 
 
-@pytest.mark.parametrize("metrics_already_extracted", [False, True])
 @pytest.mark.parametrize("quota_category", ["transaction", "profile"])
 def test_profile_outcomes_rate_limited(
     mini_sentry,
     relay_with_processing,
     outcomes_consumer,
-    metrics_already_extracted,
     quota_category,
 ):
     """
@@ -1594,6 +1593,8 @@ def test_profile_outcomes_rate_limited(
     ) as f:
         profile = f.read()
 
+    start = datetime.now(tz=timezone.utc)
+
     # Create an envelope with an invalid profile:
     payload = _get_event_payload("transaction")
     envelope = Envelope()
@@ -1601,7 +1602,6 @@ def test_profile_outcomes_rate_limited(
         Item(
             payload=PayloadRef(bytes=json.dumps(payload).encode()),
             type="transaction",
-            headers={"metrics_extracted": metrics_already_extracted},
         )
     )
     envelope.add_item(Item(payload=PayloadRef(bytes=profile), type="profile"))
@@ -1610,34 +1610,25 @@ def test_profile_outcomes_rate_limited(
     outcomes = outcomes_consumer.get_outcomes()
     outcomes.sort(key=lambda o: sorted(o.items()))
 
-    expected_outcomes = []
+    expected_categories = [6, 11]  # Profile, ProfileIndexed
     if quota_category == "transaction":
         # Transaction got rate limited as well:
-        expected_outcomes += [
-            {
-                "category": 2,  # Transaction
-                "key_id": 123,
-                "org_id": 1,
-                "outcome": 2,  # RateLimited
-                "project_id": 42,
-                "quantity": 1,
-                "reason": "profiles_exceeded",
-            },
-        ]
+        expected_categories += [2, 9]  # Transaction, TransactionIndexed
+    expected_categories.sort()
 
-    expected_outcomes += [
+    expected_outcomes = [
         {
-            "category": 11 if metrics_already_extracted else 6,
+            "category": category,
             "key_id": 123,
             "org_id": 1,
             "outcome": 2,  # RateLimited
             "project_id": 42,
             "quantity": 1,
             "reason": "profiles_exceeded",
-        },
+            "timestamp": time_within_delta(start),
+        }
+        for category in expected_categories
     ]
-    for outcome in outcomes:
-        outcome.pop("timestamp")
 
     assert outcomes == expected_outcomes, outcomes
 
