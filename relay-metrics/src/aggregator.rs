@@ -273,11 +273,6 @@ impl AggregatorConfig {
         instant.unwrap_or_else(Instant::now) + self.flush_time_shift(bucket_key)
     }
 
-    /// The delay to debounce backdated flushes.
-    fn debounce_delay(&self) -> Duration {
-        Duration::from_secs(self.debounce_delay)
-    }
-
     /// Returns the time width buckets.
     fn bucket_interval(&self) -> Duration {
         Duration::from_secs(self.bucket_interval)
