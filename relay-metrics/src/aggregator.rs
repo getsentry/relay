@@ -64,6 +64,7 @@ struct BucketKey {
     timestamp: UnixTimestamp,
     metric_name: MetricName,
     tags: BTreeMap<String, String>,
+    is_sampled: bool,
 }
 
 impl BucketKey {
@@ -709,6 +710,7 @@ impl Aggregator {
             timestamp,
             metric_name: bucket.name,
             tags: bucket.tags,
+            is_sampled: bucket.metadata.is_sampled,
         };
         let key = validate_bucket_key(key, &self.config)?;
 
@@ -1045,6 +1047,7 @@ mod tests {
                 ("hello".to_owned(), "world".to_owned()),
                 ("answer".to_owned(), "42".to_owned()),
             ]),
+            is_sampled: false,
         };
         assert_eq!(
             bucket_key.cost(),
@@ -1226,6 +1229,7 @@ mod tests {
             timestamp: UnixTimestamp::now(),
             metric_name: "c:transactions/foo@none".into(),
             tags: BTreeMap::new(),
+            is_sampled: false,
         };
         let fixed_cost = bucket_key.cost() + mem::size_of::<BucketValue>();
         for (metric_name, metric_value, expected_added_cost) in [
@@ -1386,6 +1390,7 @@ mod tests {
                 tags.insert("another\0garbage".to_owned(), "bye".to_owned());
                 tags
             },
+            is_sampled: false,
         };
 
         let mut bucket_key = validate_bucket_key(bucket_key, &test_config()).unwrap();
@@ -1411,6 +1416,7 @@ mod tests {
             timestamp: UnixTimestamp::now(),
             metric_name: "c:transactions/a_short_metric".into(),
             tags: BTreeMap::new(),
+            is_sampled: false,
         };
         assert!(validate_bucket_key(short_metric, &test_config()).is_ok());
 
@@ -1419,6 +1425,7 @@ mod tests {
             timestamp: UnixTimestamp::now(),
             metric_name: "c:transactions/long_name_a_very_long_name_its_super_long_really_but_like_super_long_probably_the_longest_name_youve_seen_and_even_the_longest_name_ever_its_extremly_long_i_cant_tell_how_long_it_is_because_i_dont_have_that_many_fingers_thus_i_cant_count_the_many_characters_this_long_name_is".into(),
             tags: BTreeMap::new(),
+            is_sampled: false,
         };
         let validation = validate_bucket_key(long_metric, &test_config());
 
@@ -1434,6 +1441,7 @@ mod tests {
             timestamp: UnixTimestamp::now(),
             metric_name: "c:transactions/a_short_metric_with_long_tag_key".into(),
             tags: BTreeMap::from([("i_run_out_of_creativity_so_here_we_go_Lorem_Ipsum_is_simply_dummy_text_of_the_printing_and_typesetting_industry_Lorem_Ipsum_has_been_the_industrys_standard_dummy_text_ever_since_the_1500s_when_an_unknown_printer_took_a_galley_of_type_and_scrambled_it_to_make_a_type_specimen_book".into(), "tag_value".into())]),
+            is_sampled: false,
         };
         let validation = validate_bucket_key(short_metric_long_tag_key, &test_config()).unwrap();
         assert_eq!(validation.tags.len(), 0);
@@ -1443,6 +1451,7 @@ mod tests {
             timestamp: UnixTimestamp::now(),
             metric_name: "c:transactions/a_short_metric_with_long_tag_value".into(),
             tags: BTreeMap::from([("tag_key".into(), "i_run_out_of_creativity_so_here_we_go_Lorem_Ipsum_is_simply_dummy_text_of_the_printing_and_typesetting_industry_Lorem_Ipsum_has_been_the_industrys_standard_dummy_text_ever_since_the_1500s_when_an_unknown_printer_took_a_galley_of_type_and_scrambled_it_to_make_a_type_specimen_book".into())]),
+            is_sampled: false,
         };
         let validation = validate_bucket_key(short_metric_long_tag_value, &test_config()).unwrap();
         assert_eq!(validation.tags.len(), 0);
@@ -1460,6 +1469,7 @@ mod tests {
             timestamp: UnixTimestamp::now(),
             metric_name: "c:transactions/a_short_metric".into(),
             tags: BTreeMap::from([("foo".into(), tag_value.clone())]),
+            is_sampled: false,
         };
         let validated_bucket = validate_metric_tags(short_metric, &test_config());
         assert_eq!(validated_bucket.tags["foo"], tag_value);

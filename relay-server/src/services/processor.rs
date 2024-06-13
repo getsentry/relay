@@ -1200,6 +1200,13 @@ impl EnvelopeProcessorService {
             }
         }
 
+        for metric in &mut state.extracted_metrics.project_metrics {
+            metric.metadata.is_sampled = true;
+        }
+        for metric in &mut state.extracted_metrics.sampling_metrics {
+            metric.metadata.is_sampled = true;
+        }
+
         if !limits.is_empty() {
             self.inner
                 .addrs

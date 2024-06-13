@@ -174,6 +174,10 @@ impl TrackableBucket for BucketView<'_> {
     }
 
     fn summary(&self) -> BucketSummary {
+        if self.metadata().is_sampled {
+            return BucketSummary::default();
+        }
+
         let mri = match MetricResourceIdentifier::parse(self.name()) {
             Ok(mri) => mri,
             Err(_) => return BucketSummary::default(),

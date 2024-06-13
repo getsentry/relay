@@ -478,7 +478,7 @@ impl<'a> BucketView<'a> {
 
         BucketMetadata {
             merges,
-            received_at: self.inner.metadata.received_at,
+            ..self.inner.metadata
         }
     }
 

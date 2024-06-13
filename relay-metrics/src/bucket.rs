@@ -759,6 +759,12 @@ pub struct BucketMetadata {
     /// This field should be set to the time in which the first metric of a specific bucket was
     /// received in the outermost internal Relay.
     pub received_at: Option<UnixTimestamp>,
+
+    /// Is `true` if this metric was extracted from a sampled envelope item.
+    ///
+    /// TODO: explain this more
+    #[serde(skip)]
+    pub is_sampled: bool,
 }
 
 impl BucketMetadata {
@@ -769,6 +775,7 @@ impl BucketMetadata {
         Self {
             merges: 1,
             received_at: Some(received_at),
+            is_sampled: false,
         }
     }
 
@@ -793,6 +800,7 @@ impl Default for BucketMetadata {
         Self {
             merges: 1,
             received_at: None,
+            is_sampled: false,
         }
     }
 }
@@ -1459,7 +1467,8 @@ mod tests {
             metadata,
             BucketMetadata {
                 merges: 2,
-                received_at: None
+                received_at: None,
+                is_sampled: false,
             }
         );
 
@@ -1469,7 +1478,8 @@ mod tests {
             metadata,
             BucketMetadata {
                 merges: 3,
-                received_at: Some(UnixTimestamp::from_secs(10))
+                received_at: Some(UnixTimestamp::from_secs(10)),
+                is_sampled: false,
             }
         );
 
@@ -1479,7 +1489,8 @@ mod tests {
             metadata,
             BucketMetadata {
                 merges: 4,
-                received_at: Some(UnixTimestamp::from_secs(10))
+                received_at: Some(UnixTimestamp::from_secs(10)),
+                is_sampled: false,
             }
         );
     }
