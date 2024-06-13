@@ -231,52 +231,6 @@ pub struct AggregatorConfig {
 }
 
 impl AggregatorConfig {
-    /// Returns the instant at which a bucket should be flushed.
-    ///
-    /// Recent buckets are flushed after a grace period of `initial_delay`. Backdated buckets, that
-    /// is, buckets that lie in the past, are flushed after the shorter `debounce_delay`.
-    fn get_flush_time(&self, bucket_key: &BucketKey, base_instant: Instant) -> Instant {
-        let initial_flush = bucket_key.timestamp + self.bucket_interval() + self.initial_delay();
-
-        let now = UnixTimestamp::now();
-        let backdated = initial_flush <= now;
-
-        let delay = now.as_secs() as i64 - bucket_key.timestamp.as_secs() as i64;
-        relay_statsd::metric!(
-            histogram(MetricHistograms::BucketsDelay) = delay as f64,
-            backdated = if backdated { "true" } else { "false" },
-        );
-
-        let flush_timestamp = if backdated {
-            // If the initial flush time has passed or can't be represented, we want to treat the
-            // flush of the bucket as if it came in with the timestamp of current bucket based on
-            // the now timestamp.
-            //
-            // The rationale behind this is that we want to flush this bucket in the earliest slot
-            // together with buckets that have similar characteristics (e.g., same partition,
-            // project...).
-            let floored_timestamp = (now.as_secs() / self.bucket_interval) * self.bucket_interval;
-            UnixTimestamp::from_secs(floored_timestamp)
-                + self.bucket_interval()
-                + self.debounce_delay()
-        } else {
-            // If the initial flush is still pending, use that.
-            initial_flush
-        };
-
-        let instant = if flush_timestamp > now {
-            Instant::now().checked_add(flush_timestamp - now)
-        } else {
-            Instant::now().checked_sub(now - flush_timestamp)
-        }
-        .unwrap_or_else(Instant::now);
-
-        // Since `Instant` doesn't allow to get directly how many seconds elapsed, we leverage the
-        // diffing to get a duration and round it to the smallest second.
-        let instant = base_instant + Duration::from_secs((instant - base_instant).as_secs());
-        instant + self.flush_time_shift(bucket_key)
-    }
-
     /// The delay to debounce backdated flushes.
     fn debounce_delay(&self) -> Duration {
         Duration::from_secs(self.debounce_delay)
@@ -520,6 +474,52 @@ impl fmt::Debug for CostTracker {
     }
 }
 
+/// Returns the instant at which a bucket should be flushed.
+///
+/// Recent buckets are flushed after a grace period of `initial_delay`. Backdated buckets, that
+/// is, buckets that lie in the past, are flushed after the shorter `debounce_delay`.
+fn get_flush_time(config: &AggregatorConfig, base_instant: Instant, bucket_key: &BucketKey) -> Instant {
+    let initial_flush = bucket_key.timestamp + config.bucket_interval() + config.initial_delay();
+
+    let now = UnixTimestamp::now();
+    let backdated = initial_flush <= now;
+
+    let delay = now.as_secs() as i64 - bucket_key.timestamp.as_secs() as i64;
+    relay_statsd::metric!(
+            histogram(MetricHistograms::BucketsDelay) = delay as f64,
+            backdated = if backdated { "true" } else { "false" },
+        );
+
+    let flush_timestamp = if backdated {
+        // If the initial flush time has passed or can't be represented, we want to treat the
+        // flush of the bucket as if it came in with the timestamp of current bucket based on
+        // the now timestamp.
+        //
+        // The rationale behind this is that we want to flush this bucket in the earliest slot
+        // together with buckets that have similar characteristics (e.g., same partition,
+        // project...).
+        let floored_timestamp = (now.as_secs() / config.bucket_interval) * config.bucket_interval;
+        UnixTimestamp::from_secs(floored_timestamp)
+            + config.bucket_interval()
+            + config.debounce_delay()
+    } else {
+        // If the initial flush is still pending, use that.
+        initial_flush
+    };
+
+    let instant = if flush_timestamp > now {
+        Instant::now().checked_add(flush_timestamp - now)
+    } else {
+        Instant::now().checked_sub(now - flush_timestamp)
+    }
+        .unwrap_or_else(Instant::now);
+
+    // Since `Instant` doesn't allow to get directly how many seconds elapsed, we leverage the
+    // diffing to get a duration and round it to the smallest second.
+    let instant = base_instant + Duration::from_secs((instant - base_instant).as_secs());
+    instant + config.flush_time_shift(bucket_key)
+}
+
 /// A collector of [`Bucket`] submissions.
 ///
 /// # Aggregation
@@ -716,7 +716,6 @@ impl Aggregator {
         bucket: Bucket,
         max_total_bucket_bytes: Option<usize>,
     ) -> Result<(), AggregateMetricsError> {
-        println!("MERGING IN AGGREGATOR {:?}", self.name);
         let timestamp = self.get_bucket_timestamp(bucket.timestamp, bucket.width)?;
         let key = BucketKey {
             project_key,
@@ -781,7 +780,7 @@ impl Aggregator {
                     namespace = entry.key().namespace().as_str(),
                 );
 
-                let flush_at = self.config.get_flush_time(entry.key(), self.base_instant);
+                let flush_at = get_flush_time(&self.config, self.base_instant, entry.key());
                 let value = bucket.value;
                 added_cost = entry.key().cost() + value.cost();
                 entry.insert(QueuedBucket::new(flush_at, value, bucket.metadata));
@@ -1597,6 +1596,8 @@ mod tests {
         let now_s =
             (UnixTimestamp::now().as_secs() / config.bucket_interval) * config.bucket_interval;
 
+        let aggregator = Aggregator::new(config);
+
         // First bucket has a timestamp two hours ago.
         let timestamp = UnixTimestamp::from_secs(now_s - 7200);
         let bucket_key_1 = BucketKey {
@@ -1615,9 +1616,8 @@ mod tests {
             tags: BTreeMap::new(),
         };
 
-        let instant = Instant::now();
-        let flush_time_1 = config.get_flush_time(&bucket_key_1, instant);
-        let flush_time_2 = config.get_flush_time(&bucket_key_2, instant);
+        let flush_time_1 = aggregator.get_flush_time(&bucket_key_1);
+        let flush_time_2 = aggregator.get_flush_time(&bucket_key_2);
 
         assert_eq!(flush_time_1, flush_time_2);
     }
