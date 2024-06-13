@@ -248,11 +248,17 @@ impl AggregatorConfig {
         );
 
         let flush_timestamp = if backdated {
-            // If the initial flush time has passed or cannot be represented, debounce future
-            // flushes with the `debounce_delay` starting now. However, align the current timestamp
-            // with the bucket interval for proper batching.
-            let floor = (now.as_secs() / self.bucket_interval) * self.bucket_interval;
-            UnixTimestamp::from_secs(floor) + self.bucket_interval() + self.debounce_delay()
+            // If the initial flush time has passed or can't be represented, we want to treat the
+            // flush of the bucket as if it came in with the timestamp of current bucket based on
+            // the now timestamp.
+            //
+            // The rationale behind this is that we want to flush this bucket in the earliest slot
+            // together with buckets that have similar characteristics (e.g., same partition,
+            // project...).
+            let floored_timestamp = (now.as_secs() / self.bucket_interval) * self.bucket_interval;
+            UnixTimestamp::from_secs(floored_timestamp)
+                + self.bucket_interval()
+                + self.initial_delay()
         } else {
             // If the initial flush is still pending, use that.
             initial_flush
