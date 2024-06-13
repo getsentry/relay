@@ -9,7 +9,6 @@ use relay_cardinality::CardinalityLimit;
 use relay_config::Config;
 use relay_dynamic_config::{ErrorBoundary, Feature, LimitedProjectConfig, ProjectConfig};
 use relay_filter::matches_any_origin;
-use relay_metrics::aggregator::AggregatorConfig;
 use relay_metrics::{
     aggregator, Aggregator, Bucket, MergeBuckets, MetaAggregator, MetricMeta, MetricNamespace,
 };
@@ -424,62 +423,53 @@ enum GetOrFetch<'a> {
 ///
 /// TODO: spool queued metrics to disk when the in-memory aggregator becomes too full.
 #[derive(Debug)]
-enum InnerState {
+enum State {
     Cached(Arc<ProjectState>),
     Pending(Box<aggregator::Aggregator>),
     Disabled,
 }
 
-#[derive(Debug)]
-struct State {
-    inner: InnerState,
-    aggregator_config: AggregatorConfig,
-}
-
 impl State {
     fn state_value(&self) -> Option<Arc<ProjectState>> {
-        match &self.inner {
-            InnerState::Cached(state) => Some(Arc::clone(state)),
-            InnerState::Pending(_) => None,
-            InnerState::Disabled => None,
+        match self {
+            State::Cached(state) => Some(Arc::clone(state)),
+            State::Pending(_) => None,
+            State::Disabled => None,
         }
     }
 
     /// Sets the cached state using provided `ProjectState`.
     /// If the variant was pending, the buckets will be returned.
-    fn transition(&mut self, project_state: Arc<ProjectState>) -> Option<Buckets<Filtered>> {
+    fn transition(
+        &mut self,
+        project_state: &Arc<ProjectState>,
+        config: &Config,
+    ) -> Option<Buckets<Filtered>> {
         if project_state.disabled() {
-            self.inner = InnerState::Disabled;
+            *self = State::Disabled;
             None
         } else if project_state.invalid() {
             // Invalid means we'll try again, set state to pending.
-            self.convert_to_pending();
+            match self {
+                State::Pending(_) => {}
+                _ => *self = Self::pending(config),
+            }
             None
         } else {
             // Set state to cached and return buffer.
-            let old_inner = std::mem::replace(&mut self.inner, InnerState::Cached(project_state));
-            match old_inner {
-                InnerState::Pending(agg) => Some(Buckets::new(agg.into_buckets())),
+            let old_self = std::mem::replace(self, Self::Cached(project_state.clone()));
+            match old_self {
+                State::Pending(agg) => Some(Buckets::new(agg.into_buckets())),
                 _ => None,
             }
         }
     }
 
-    fn pending(aggregator_config: AggregatorConfig) -> Self {
-        Self {
-            inner: InnerState::Pending(Box::new(aggregator::Aggregator::named(
-                "metrics-buffer".to_string(),
-                aggregator_config.clone(),
-            ))),
-            aggregator_config,
-        }
-    }
-
-    fn convert_to_pending(&mut self) {
-        match self.inner {
-            InnerState::Pending(_) => (),
-            _ => *self = Self::pending(self.aggregator_config.clone()), // TODO: needless clone
-        }
+    fn pending(config: &Config) -> Self {
+        Self::Pending(Box::new(aggregator::Aggregator::named(
+            "metrics-buffer".to_string(),
+            config.permissive_aggregator_config(),
+        )))
     }
 }
 
@@ -511,7 +501,7 @@ impl Project {
             next_fetch_attempt: None,
             last_updated_at: Instant::now(),
             project_key: key,
-            state: State::pending(config.permissive_aggregator_config()),
+            state: State::pending(&config),
             state_channel: None,
             rate_limits: RateLimits::new(),
             last_no_cache: Instant::now(),
@@ -684,8 +674,8 @@ impl Project {
 
         let buckets = Buckets::new(buckets).filter_namespaces(source);
 
-        match self.state.inner {
-            InnerState::Cached(ref state) => {
+        match self.state {
+            State::Cached(ref state) => {
                 // TODO: When the state is present but expired, we should send buckets
                 // to the metrics buffer instead. In practice, the project state should be
                 // refreshed at the time when the buckets emerge from the aggregator though.
@@ -699,12 +689,12 @@ impl Project {
                     buckets,
                 );
             }
-            InnerState::Pending(ref mut inner_agg) => {
+            State::Pending(ref mut inner_agg) => {
                 // We need to queue the metrics in a temporary aggregator until the project state becomes available.
                 relay_log::debug!("sending metrics to metrics-buffer");
                 inner_agg.merge_all(self.project_key, buckets, None);
             }
-            InnerState::Disabled => {}
+            State::Disabled => {}
         }
     }
 
@@ -919,7 +909,7 @@ impl Project {
         outcome_aggregator: &Addr<TrackOutcome>,
         metric_outcomes: &MetricOutcomes,
     ) {
-        let buckets = self.state.transition(project_state.clone());
+        let buckets = self.state.transition(project_state, &self.config);
 
         if let Some(buckets) = buckets {
             if !buckets.is_empty() {
@@ -1216,10 +1206,7 @@ mod tests {
             let mut project_state = ProjectState::allowed();
             project_state.project_id = Some(ProjectId::new(123));
             let mut project = Project::new(project_key, config.clone());
-            project.state = State {
-                inner: InnerState::Cached(Arc::new(project_state)),
-                aggregator_config: AggregatorConfig::default(),
-            };
+            project.state = State::Cached(Arc::new(project_state));
 
             // Direct access should always yield a state:
             assert!(project.state_value().is_some());
@@ -1264,11 +1251,7 @@ mod tests {
         project_state.project_id = Some(ProjectId::new(123));
         let mut project = Project::new(project_key, config);
         project.state_channel = Some(channel);
-        project.state = State {
-            inner: InnerState::Cached(Arc::new(project_state)),
-            aggregator_config: AggregatorConfig::default(),
-        };
-
+        project.state = State::Cached(Arc::new(project_state));
         // The project ID must be set.
         assert!(!project.state_value().unwrap().invalid());
         assert!(project.next_fetch_attempt.is_none());
@@ -1317,10 +1300,7 @@ mod tests {
         if let Some(config) = config {
             project_state.config = serde_json::from_value(config).unwrap();
         }
-        project.state = State {
-            inner: InnerState::Cached(Arc::new(project_state)),
-            aggregator_config: AggregatorConfig::default(),
-        };
+        project.state = State::Cached(Arc::new(project_state));
         project
     }
 
@@ -1341,7 +1321,7 @@ mod tests {
     async fn test_metrics_buffer_no_flush_without_state() {
         // Project without project state.
         let mut project = Project {
-            state: State::pending(Config::default().permissive_aggregator_config()),
+            state: State::pending(&Config::default()),
             ..create_project(None)
         };
 
@@ -1377,7 +1357,7 @@ mod tests {
     async fn test_metrics_buffer_flush_with_state() {
         // Project without project state.
         let mut project = Project {
-            state: State::pending(Config::default().permissive_aggregator_config()),
+            state: State::pending(&Config::default()),
             ..create_project(None)
         };
 
