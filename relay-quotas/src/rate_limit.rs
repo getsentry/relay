@@ -416,9 +416,11 @@ impl CachedRateLimits {
     ///
     /// See also: [`RateLimits::add`].
     pub fn add(&mut self, mut limit: RateLimit) {
-        limit.categories.retain(|category| !category.is_indexed());
-        if limit.categories.is_empty() {
-            return;
+        if !limit.categories.is_empty() {
+            limit.categories.retain(|category| !category.is_indexed());
+            if limit.categories.is_empty() {
+                return;
+            }
         }
         self.0.add(limit);
     }
