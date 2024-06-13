@@ -38,6 +38,10 @@ pub fn expand(
 /// If the event does not contain an unreal context, this function does not perform any action.
 /// If there was no event payload prior to this function, it is created.
 pub fn process(state: &mut ProcessEnvelopeState<ErrorGroup>) -> Result<(), ProcessingError> {
-    utils::process_unreal_envelope(&mut state.event, state.managed_envelope.envelope_mut())
-        .map_err(ProcessingError::InvalidUnrealReport)
+    if utils::process_unreal_envelope(&mut state.event, state.managed_envelope.envelope_mut())
+        .map_err(ProcessingError::InvalidUnrealReport)?
+    {
+        state.fully_normalized = false;
+    }
+    Ok(())
 }

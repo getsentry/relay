@@ -227,7 +227,8 @@ pub struct Options {
     )]
     pub force_full_normalization: bool,
 
-    /// If enabled, disables normalization in processing Relays.
+    /// If enabled, disables normalization in processing Relays for events
+    /// normalized in a previous internal relay.
     #[serde(
         default,
         rename = "relay.disable_normalization.processing",

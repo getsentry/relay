@@ -568,6 +568,13 @@ pub struct ItemHeaders {
     #[serde(default, skip_serializing_if = "is_false")]
     spans_extracted: bool,
 
+    /// Whether the event has been _fully_ normalized.
+    ///
+    /// If the event has been partially normalized, this flag is false. By
+    /// default, all Relays run some normalization.
+    #[serde(default, skip_serializing_if = "is_false")]
+    fully_normalized: bool,
+
     /// `false` if the sampling decision is "drop".
     ///
     /// In the most common use case, the item is dropped when the sampling decision is "drop".
@@ -645,6 +652,7 @@ impl Item {
                 transaction_extracted: false,
                 spans_extracted: false,
                 sampled: true,
+                fully_normalized: false,
             },
             payload: Bytes::new(),
         }
@@ -867,6 +875,16 @@ impl Item {
     /// Sets the spans extracted flag.
     pub fn set_spans_extracted(&mut self, spans_extracted: bool) {
         self.headers.spans_extracted = spans_extracted;
+    }
+
+    /// Returns the fully normalized flag.
+    pub fn fully_normalized(&self) -> bool {
+        self.headers.fully_normalized
+    }
+
+    /// Sets the fully normalized flag.
+    pub fn set_fully_normalized(&mut self, fully_normalized: bool) {
+        self.headers.fully_normalized = fully_normalized;
     }
 
     /// Gets the `sampled` flag.
