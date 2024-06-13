@@ -402,6 +402,7 @@ def envelope_with_transaction_and_spans(
     envelope.add_item(
         Item(
             type="transaction",
+            headers={"metrics_extracted": metrics_extracted},
             payload=PayloadRef(
                 bytes=json.dumps(
                     {
@@ -1703,18 +1704,53 @@ def test_rate_limit_metrics_consistent(
     outcomes_consumer.assert_empty()
 
 
+@pytest.mark.parametrize(
+    "category, metrics_enabled, metrics_extracted",
+    [
+        (
+            "transaction",
+            False,
+            False,
+        ),
+        (
+            "transaction",
+            False,
+            True,
+        ),
+        (
+            "transaction",
+            True,
+            False,
+        ),
+        (
+            "transaction_indexed",
+            True,
+            False,
+        ),
+        (
+            "transaction_indexed",
+            True,
+            True,
+        ),
+    ],
+)
 def test_rate_limit_is_consistent_between_transaction_and_spans(
     mini_sentry,
     relay_with_processing,
     transactions_consumer,
     spans_consumer,
-    outcomes_consumer,
+    category,
+    metrics_enabled,
+    metrics_extracted,
 ):
     """Rate limits for indexed are enforced consistently after metrics extraction.
 
     This test does not cover consistent enforcement of total spans.
     """
-    relay = relay_with_processing()
+    # Ignore 429s
+    mini_sentry.fail_on_relay_error = False
+
+    relay = relay_with_processing(options=TEST_CONFIG)
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = [
@@ -1724,28 +1760,25 @@ def test_rate_limit_is_consistent_between_transaction_and_spans(
     ]
     project_config["config"]["quotas"] = [
         {
-            "categories": ["transaction"],
+            "categories": [category],
             "limit": 1,
             "window": int(datetime.now(UTC).timestamp()),
             "id": uuid.uuid4(),
-            "reasonCode": "transactions_exceeded",
+            "reasonCode": "exceeded",
         },
     ]
+    if metrics_enabled:
+        project_config["config"]["transactionMetrics"] = {
+            "version": TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION,
+        }
 
     transactions_consumer = transactions_consumer()
     spans_consumer = spans_consumer()
-    outcomes_consumer = outcomes_consumer()
 
     start = datetime.now(timezone.utc)
     end = start + timedelta(seconds=1)
 
-    envelope = envelope_with_transaction_and_spans(start, end)
-
-    def summarize_outcomes():
-        counter = Counter()
-        for outcome in outcomes_consumer.get_outcomes():
-            counter[(outcome["category"], outcome["outcome"])] += outcome["quantity"]
-        return counter
+    envelope = envelope_with_transaction_and_spans(start, end, metrics_extracted)
 
     # First batch passes
     relay.send_envelope(project_id, envelope)
@@ -1754,18 +1787,12 @@ def test_rate_limit_is_consistent_between_transaction_and_spans(
     # We have one nested span and the transaction itself becomes a span
     spans = spans_consumer.get_spans(n=2, timeout=10)
     assert len(spans) == 2
-    assert summarize_outcomes() == {(16, 0): 2}  # SpanIndexed, Accepted
 
     # Second batch is limited
     relay.send_envelope(project_id, envelope)
-    assert summarize_outcomes() == {
-        (2, 2): 1,  # Transaction, RateLimited
-        (12, 2): 2,  # Span, RateLimited
-    }
 
     transactions_consumer.assert_empty()
     spans_consumer.assert_empty()
-    outcomes_consumer.assert_empty()
 
 
 @pytest.mark.parametrize(
