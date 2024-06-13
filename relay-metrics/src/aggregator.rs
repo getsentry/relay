@@ -1577,4 +1577,38 @@ mod tests {
         ]
         "###);
     }
+
+    #[test]
+    fn test_get_flush_time_with_backdated_bucket() {
+        let mut config = test_config();
+        config.bucket_interval = 3600;
+        config.flush_partitions = Some(10);
+        config.flush_batching = FlushBatching::Partition;
+
+        let now_s =
+            (UnixTimestamp::now().as_secs() / config.bucket_interval) * config.bucket_interval;
+
+        // First bucket has a timestamp two hours ago.
+        let timestamp = UnixTimestamp::from_secs(now_s - 7200);
+        let bucket_key_1 = BucketKey {
+            project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
+            timestamp,
+            metric_name: "c:transactions/foo".into(),
+            tags: BTreeMap::new(),
+        };
+
+        // Second bucket has a timestamp in this hour.
+        let timestamp = UnixTimestamp::from_secs(now_s);
+        let bucket_key_2 = BucketKey {
+            project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
+            timestamp,
+            metric_name: "c:transactions/foo".into(),
+            tags: BTreeMap::new(),
+        };
+
+        let flush_time_1 = config.get_flush_time(&bucket_key_1);
+        let flush_time_2 = config.get_flush_time(&bucket_key_2);
+
+        assert_eq!(flush_time_1.elapsed(), flush_time_2.elapsed());
+    }
 }
