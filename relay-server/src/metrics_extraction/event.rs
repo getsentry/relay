@@ -1196,6 +1196,13 @@ mod tests {
     }
 
     #[test]
+    fn only_indexed_spans_enabled() {
+        let metrics = extract_span_metrics([Feature::ExtractSpansFromEvent]);
+        assert_eq!(metrics.len(), 75);
+        assert!(metrics.iter().all(|b| &b.name == "c:spans/usage@none"));
+    }
+
+    #[test]
     fn only_common() {
         let metrics = extract_span_metrics([Feature::ExtractCommonSpanMetricsFromEvent]);
         insta::assert_debug_snapshot!(metrics);
