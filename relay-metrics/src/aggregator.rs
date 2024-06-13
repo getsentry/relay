@@ -1604,6 +1604,6 @@ mod tests {
         let flush_time_1 = config.get_flush_time(&bucket_key_1);
         let flush_time_2 = config.get_flush_time(&bucket_key_2);
 
-        assert_eq!(flush_time_1.elapsed(), flush_time_2.elapsed());
+        assert_eq!(flush_time_1 - flush_time_2, Duration::from_secs(0));
     }
 }
