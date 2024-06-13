@@ -1747,6 +1747,7 @@ def test_rate_limit_is_consistent_between_transaction_and_spans(
 
     This test does not cover consistent enforcement of total spans.
     """
+    # TODO: add outcomes check when https://github.com/getsentry/relay/issues/3705 is done.
     # Ignore 429s
     mini_sentry.fail_on_relay_error = False
 
