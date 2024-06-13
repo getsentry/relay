@@ -3,7 +3,6 @@ use std::collections::BTreeMap;
 use std::num::NonZeroUsize;
 use std::sync::Arc;
 use std::time::Instant;
-use std::usize;
 
 use crate::{AppFeature, ResourceId};
 use crate::{CogsMeasurement, CogsRecorder, Value};
