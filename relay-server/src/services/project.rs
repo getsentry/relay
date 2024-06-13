@@ -424,33 +424,62 @@ enum GetOrFetch<'a> {
 ///
 /// TODO: spool queued metrics to disk when the in-memory aggregator becomes too full.
 #[derive(Debug)]
-enum State {
+enum InnerState {
     Cached(Arc<ProjectState>),
     Pending(Box<aggregator::Aggregator>),
+    Disabled,
+}
+
+#[derive(Debug)]
+struct State {
+    inner: InnerState,
+    aggregator_config: AggregatorConfig,
 }
 
 impl State {
     fn state_value(&self) -> Option<Arc<ProjectState>> {
-        match self {
-            State::Cached(state) => Some(Arc::clone(state)),
-            State::Pending(_) => None,
+        match &self.inner {
+            InnerState::Cached(state) => Some(Arc::clone(state)),
+            InnerState::Pending(_) => None,
+            InnerState::Disabled => None,
         }
     }
 
     /// Sets the cached state using provided `ProjectState`.
     /// If the variant was pending, the buckets will be returned.
-    fn set_state(&mut self, state: Arc<ProjectState>) -> Option<Buckets<Filtered>> {
-        match std::mem::replace(self, Self::Cached(state)) {
-            State::Pending(agg) => Some(Buckets::new(agg.into_buckets())),
-            State::Cached(_) => None,
+    fn transition(&mut self, project_state: Arc<ProjectState>) -> Option<Buckets<Filtered>> {
+        if project_state.disabled() {
+            self.inner = InnerState::Disabled;
+            None
+        } else if project_state.invalid() {
+            // Invalid means we'll try again, set state to pending.
+            self.convert_to_pending();
+            None
+        } else {
+            // Set state to cached and return buffer.
+            let old_inner = std::mem::replace(&mut self.inner, InnerState::Cached(project_state));
+            match old_inner {
+                InnerState::Pending(agg) => Some(Buckets::new(agg.into_buckets())),
+                _ => None,
+            }
         }
     }
 
-    fn new(config: AggregatorConfig) -> Self {
-        Self::Pending(Box::new(aggregator::Aggregator::named(
-            "metrics-buffer".to_string(),
-            config,
-        )))
+    fn pending(aggregator_config: AggregatorConfig) -> Self {
+        Self {
+            inner: InnerState::Pending(Box::new(aggregator::Aggregator::named(
+                "metrics-buffer".to_string(),
+                aggregator_config.clone(),
+            ))),
+            aggregator_config,
+        }
+    }
+
+    fn convert_to_pending(&mut self) {
+        match self.inner {
+            InnerState::Pending(_) => (),
+            _ => *self = Self::pending(self.aggregator_config.clone()), // TODO: needless clone
+        }
     }
 }
 
@@ -482,7 +511,7 @@ impl Project {
             next_fetch_attempt: None,
             last_updated_at: Instant::now(),
             project_key: key,
-            state: State::new(config.permissive_aggregator_config()),
+            state: State::pending(config.permissive_aggregator_config()),
             state_channel: None,
             rate_limits: RateLimits::new(),
             last_no_cache: Instant::now(),
@@ -655,8 +684,8 @@ impl Project {
 
         let buckets = Buckets::new(buckets).filter_namespaces(source);
 
-        match self.state {
-            State::Cached(ref state) => {
+        match self.state.inner {
+            InnerState::Cached(ref state) => {
                 // TODO: When the state is present but expired, we should send buckets
                 // to the metrics buffer instead. In practice, the project state should be
                 // refreshed at the time when the buckets emerge from the aggregator though.
@@ -670,11 +699,12 @@ impl Project {
                     buckets,
                 );
             }
-            State::Pending(ref mut inner_agg) => {
+            InnerState::Pending(ref mut inner_agg) => {
                 // We need to queue the metrics in a temporary aggregator until the project state becomes available.
                 relay_log::debug!("sending metrics to metrics-buffer");
                 inner_agg.merge_all(self.project_key, buckets, None);
             }
+            InnerState::Disabled => {}
         }
     }
 
@@ -883,17 +913,16 @@ impl Project {
 
     fn set_state(
         &mut self,
-        state: Arc<ProjectState>,
+        project_state: &Arc<ProjectState>,
         aggregator: &Addr<Aggregator>,
         envelope_processor: &Addr<EnvelopeProcessor>,
         outcome_aggregator: &Addr<TrackOutcome>,
         metric_outcomes: &MetricOutcomes,
     ) {
-        let project_enabled = state.check_disabled(self.config.as_ref()).is_ok();
-        let buckets = self.state.set_state(state.clone());
+        let buckets = self.state.transition(project_state.clone());
 
         if let Some(buckets) = buckets {
-            if project_enabled && !buckets.is_empty() {
+            if !buckets.is_empty() {
                 relay_log::debug!("sending metrics from metricsbuffer to aggregator");
 
                 self.merge_buckets_into_aggregator(
@@ -901,7 +930,7 @@ impl Project {
                     envelope_processor,
                     outcome_aggregator,
                     metric_outcomes,
-                    &state,
+                    project_state,
                     buckets,
                 );
             }
@@ -967,7 +996,7 @@ impl Project {
             ExpiryState::Updated(old) | ExpiryState::Stale(old) if state.invalid() => state = old,
             // If the new state is valid or the old one is expired, always use the new one.
             _ => self.set_state(
-                state.clone(),
+                &state,
                 aggregator,
                 envelope_processor,
                 outcome_aggregator,
@@ -1187,7 +1216,10 @@ mod tests {
             let mut project_state = ProjectState::allowed();
             project_state.project_id = Some(ProjectId::new(123));
             let mut project = Project::new(project_key, config.clone());
-            project.state = State::Cached(Arc::new(project_state));
+            project.state = State {
+                inner: InnerState::Cached(Arc::new(project_state)),
+                aggregator_config: AggregatorConfig::default(),
+            };
 
             // Direct access should always yield a state:
             assert!(project.state_value().is_some());
@@ -1232,7 +1264,10 @@ mod tests {
         project_state.project_id = Some(ProjectId::new(123));
         let mut project = Project::new(project_key, config);
         project.state_channel = Some(channel);
-        project.state = State::Cached(Arc::new(project_state));
+        project.state = State {
+            inner: InnerState::Cached(Arc::new(project_state)),
+            aggregator_config: AggregatorConfig::default(),
+        };
 
         // The project ID must be set.
         assert!(!project.state_value().unwrap().invalid());
@@ -1282,7 +1317,10 @@ mod tests {
         if let Some(config) = config {
             project_state.config = serde_json::from_value(config).unwrap();
         }
-        project.state = State::Cached(Arc::new(project_state));
+        project.state = State {
+            inner: InnerState::Cached(Arc::new(project_state)),
+            aggregator_config: AggregatorConfig::default(),
+        };
         project
     }
 
@@ -1303,7 +1341,7 @@ mod tests {
     async fn test_metrics_buffer_no_flush_without_state() {
         // Project without project state.
         let mut project = Project {
-            state: State::new(Config::default().permissive_aggregator_config()),
+            state: State::pending(Config::default().permissive_aggregator_config()),
             ..create_project(None)
         };
 
@@ -1339,7 +1377,7 @@ mod tests {
     async fn test_metrics_buffer_flush_with_state() {
         // Project without project state.
         let mut project = Project {
-            state: State::new(Config::default().permissive_aggregator_config()),
+            state: State::pending(Config::default().permissive_aggregator_config()),
             ..create_project(None)
         };
 
@@ -1366,7 +1404,7 @@ mod tests {
         project_state.project_id = Some(ProjectId::new(1));
         // set_state should trigger flushing from the metricsbuffer to aggregator.
         project.set_state(
-            Arc::new(project_state),
+            &Arc::new(project_state),
             &aggregator,
             &envelope_processor,
             &outcome_aggregator,
