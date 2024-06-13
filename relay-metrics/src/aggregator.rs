@@ -478,7 +478,11 @@ impl fmt::Debug for CostTracker {
 ///
 /// Recent buckets are flushed after a grace period of `initial_delay`. Backdated buckets, that
 /// is, buckets that lie in the past, are flushed after the shorter `debounce_delay`.
-fn get_flush_time(config: &AggregatorConfig, base_instant: Instant, bucket_key: &BucketKey) -> Instant {
+fn get_flush_time(
+    config: &AggregatorConfig,
+    base_instant: Instant,
+    bucket_key: &BucketKey,
+) -> Instant {
     let initial_flush = bucket_key.timestamp + config.bucket_interval() + config.initial_delay();
 
     let now = UnixTimestamp::now();
@@ -486,9 +490,9 @@ fn get_flush_time(config: &AggregatorConfig, base_instant: Instant, bucket_key: 
 
     let delay = now.as_secs() as i64 - bucket_key.timestamp.as_secs() as i64;
     relay_statsd::metric!(
-            histogram(MetricHistograms::BucketsDelay) = delay as f64,
-            backdated = if backdated { "true" } else { "false" },
-        );
+        histogram(MetricHistograms::BucketsDelay) = delay as f64,
+        backdated = if backdated { "true" } else { "false" },
+    );
 
     let flush_timestamp = if backdated {
         // If the initial flush time has passed or can't be represented, we want to treat the
@@ -512,7 +516,7 @@ fn get_flush_time(config: &AggregatorConfig, base_instant: Instant, bucket_key: 
     } else {
         Instant::now().checked_sub(now - flush_timestamp)
     }
-        .unwrap_or_else(Instant::now);
+    .unwrap_or_else(Instant::now);
 
     // Since `Instant` doesn't allow to get directly how many seconds elapsed, we leverage the
     // diffing to get a duration and round it to the smallest second.
