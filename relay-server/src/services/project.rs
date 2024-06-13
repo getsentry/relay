@@ -1064,7 +1064,7 @@ impl Project {
         if envelope.envelope().items().any(|i| i.ty().is_metrics()) {
             let mut metrics_scoping = scoping.item(DataCategory::MetricBucket);
             metrics_scoping.namespace = MetricNamespaceScoping::Any;
-            rate_limits.merge(rate_limits.check_with_quotas(quotas, metrics_scoping));
+            rate_limits.merge(current_limits.check_with_quotas(quotas, metrics_scoping));
         }
 
         let envelope = if envelope.envelope().is_empty() {

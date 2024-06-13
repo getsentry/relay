@@ -738,11 +738,15 @@ def _get_span_payload():
 
 
 @pytest.mark.parametrize(
-    "category,is_outcome_expected",
-    [("session", False), ("transaction", True), ("user_report_v2", True)],
+    "category,outcome_categories",
+    [
+        ("session", []),
+        ("transaction", ["transaction", "transaction_indexed"]),
+        ("user_report_v2", ["user_report_v2"]),
+    ],
 )
 def test_outcomes_rate_limit(
-    relay_with_processing, mini_sentry, outcomes_consumer, category, is_outcome_expected
+    relay_with_processing, mini_sentry, outcomes_consumer, category, outcome_categories
 ):
     """
     Tests that outcomes are emitted or not, depending on the type of message.
@@ -787,11 +791,10 @@ def test_outcomes_rate_limit(
     else:
         relay.send_event(project_id, _get_event_payload(category))
 
-    # give relay some to handle the request (and send any outcomes it needs to send)
-    time.sleep(1)
-
-    if is_outcome_expected:
-        outcomes_consumer.assert_rate_limited(reason_code, categories=[category])
+    if outcome_categories:
+        outcomes_consumer.assert_rate_limited(
+            reason_code, categories=outcome_categories
+        )
     else:
         outcomes_consumer.assert_empty()
 
