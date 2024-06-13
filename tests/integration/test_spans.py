@@ -1760,7 +1760,7 @@ def test_rate_limit_is_consistent_between_transaction_and_spans(
     relay.send_envelope(project_id, envelope)
     assert summarize_outcomes() == {
         (2, 2): 1,  # Transaction, RateLimited
-        (12, 2): 2,  # SpanIndexed, RateLimited
+        (12, 2): 2,  # Span, RateLimited
     }
 
     transactions_consumer.assert_empty()
