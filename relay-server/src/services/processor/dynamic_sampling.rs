@@ -488,7 +488,7 @@ mod tests {
         // Dynamic sampling is run, as the transactionmetrics version is up to date.
         let mut state = get_state(Some(3));
         let sampling_result = run(&mut state, &config);
-        assert_eq!(sampling_result.decision(), SamplingDecision::Keep);
+        assert_eq!(sampling_result.decision(), SamplingDecision::Drop);
     }
 
     fn project_state_with_single_rule(sample_rate: f64) -> ProjectState {

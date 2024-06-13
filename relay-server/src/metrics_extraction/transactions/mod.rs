@@ -689,6 +689,7 @@ mod tests {
                     received_at: Some(
                         UnixTimestamp(0),
                     ),
+                    is_sampled: false,
                 },
             },
             Bucket {
@@ -722,6 +723,7 @@ mod tests {
                     received_at: Some(
                         UnixTimestamp(0),
                     ),
+                    is_sampled: false,
                 },
             },
             Bucket {
@@ -749,6 +751,7 @@ mod tests {
                     received_at: Some(
                         UnixTimestamp(0),
                     ),
+                    is_sampled: false,
                 },
             },
             Bucket {
@@ -776,6 +779,7 @@ mod tests {
                     received_at: Some(
                         UnixTimestamp(0),
                     ),
+                    is_sampled: false,
                 },
             },
             Bucket {
@@ -803,6 +807,7 @@ mod tests {
                     received_at: Some(
                         UnixTimestamp(0),
                     ),
+                    is_sampled: false,
                 },
             },
             Bucket {
@@ -835,6 +840,7 @@ mod tests {
                     received_at: Some(
                         UnixTimestamp(0),
                     ),
+                    is_sampled: false,
                 },
             },
             Bucket {
@@ -852,6 +858,7 @@ mod tests {
                     received_at: Some(
                         UnixTimestamp(0),
                     ),
+                    is_sampled: false,
                 },
             },
             Bucket {
@@ -884,6 +891,7 @@ mod tests {
                     received_at: Some(
                         UnixTimestamp(0),
                     ),
+                    is_sampled: false,
                 },
             },
             Bucket {
@@ -906,6 +914,7 @@ mod tests {
                     received_at: Some(
                         UnixTimestamp(0),
                     ),
+                    is_sampled: false,
                 },
             },
             Bucket {
@@ -938,6 +947,7 @@ mod tests {
                     received_at: Some(
                         UnixTimestamp(0),
                     ),
+                    is_sampled: false,
                 },
             },
         ]
@@ -1003,6 +1013,7 @@ mod tests {
                     received_at: Some(
                         UnixTimestamp(0),
                     ),
+                    is_sampled: false,
                 },
             },
             Bucket {
@@ -1026,6 +1037,7 @@ mod tests {
                     received_at: Some(
                         UnixTimestamp(0),
                     ),
+                    is_sampled: false,
                 },
             },
             Bucket {
@@ -1049,6 +1061,7 @@ mod tests {
                     received_at: Some(
                         UnixTimestamp(0),
                     ),
+                    is_sampled: false,
                 },
             },
             Bucket {
@@ -1066,6 +1079,7 @@ mod tests {
                     received_at: Some(
                         UnixTimestamp(0),
                     ),
+                    is_sampled: false,
                 },
             },
             Bucket {
@@ -1089,6 +1103,7 @@ mod tests {
                     received_at: Some(
                         UnixTimestamp(0),
                     ),
+                    is_sampled: false,
                 },
             },
             Bucket {
@@ -1110,6 +1125,7 @@ mod tests {
                     received_at: Some(
                         UnixTimestamp(0),
                     ),
+                    is_sampled: false,
                 },
             },
         ]
@@ -1172,6 +1188,7 @@ mod tests {
                     received_at: Some(
                         UnixTimestamp(0),
                     ),
+                    is_sampled: false,
                 },
             },
             Bucket {
@@ -1196,6 +1213,7 @@ mod tests {
                     received_at: Some(
                         UnixTimestamp(0),
                     ),
+                    is_sampled: false,
                 },
             },
             Bucket {
@@ -1213,6 +1231,7 @@ mod tests {
                     received_at: Some(
                         UnixTimestamp(0),
                     ),
+                    is_sampled: false,
                 },
             },
             Bucket {
@@ -1236,6 +1255,7 @@ mod tests {
                     received_at: Some(
                         UnixTimestamp(0),
                     ),
+                    is_sampled: false,
                 },
             },
             Bucket {
@@ -1257,6 +1277,7 @@ mod tests {
                     received_at: Some(
                         UnixTimestamp(0),
                     ),
+                    is_sampled: false,
                 },
             },
         ]
@@ -1392,6 +1413,7 @@ mod tests {
                     received_at: Some(
                         UnixTimestamp(0),
                     ),
+                    is_sampled: false,
                 },
             },
             Bucket {
@@ -1416,6 +1438,7 @@ mod tests {
                     received_at: Some(
                         UnixTimestamp(0),
                     ),
+                    is_sampled: false,
                 },
             },
             Bucket {
@@ -1439,6 +1462,7 @@ mod tests {
                     received_at: Some(
                         UnixTimestamp(0),
                     ),
+                    is_sampled: false,
                 },
             },
             Bucket {
@@ -1456,6 +1480,7 @@ mod tests {
                     received_at: Some(
                         UnixTimestamp(0),
                     ),
+                    is_sampled: false,
                 },
             },
             Bucket {
@@ -1479,6 +1504,7 @@ mod tests {
                     received_at: Some(
                         UnixTimestamp(0),
                     ),
+                    is_sampled: false,
                 },
             },
             Bucket {
@@ -1500,6 +1526,7 @@ mod tests {
                     received_at: Some(
                         UnixTimestamp(0),
                     ),
+                    is_sampled: false,
                 },
             },
         ]
@@ -1652,6 +1679,7 @@ mod tests {
                     received_at: Some(
                         UnixTimestamp(0),
                     ),
+                    is_sampled: false,
                 },
             },
             Bucket {
@@ -1675,6 +1703,7 @@ mod tests {
                     received_at: Some(
                         UnixTimestamp(0),
                     ),
+                    is_sampled: false,
                 },
             },
             Bucket {
@@ -1694,6 +1723,7 @@ mod tests {
                     received_at: Some(
                         UnixTimestamp(0),
                     ),
+                    is_sampled: false,
                 },
             },
         ]
@@ -1828,6 +1858,7 @@ mod tests {
                     received_at: Some(
                         UnixTimestamp(0),
                     ),
+                    is_sampled: false,
                 },
             },
         ]
@@ -2199,6 +2230,7 @@ mod tests {
                     received_at: Some(
                         UnixTimestamp(0),
                     ),
+                    is_sampled: false,
                 },
             },
             Bucket {
@@ -2216,6 +2248,7 @@ mod tests {
                     received_at: Some(
                         UnixTimestamp(0),
                     ),
+                    is_sampled: false,
                 },
             },
             Bucket {
@@ -2238,6 +2271,7 @@ mod tests {
                     received_at: Some(
                         UnixTimestamp(0),
                     ),
+                    is_sampled: false,
                 },
             },
             Bucket {
@@ -2257,6 +2291,7 @@ mod tests {
                     received_at: Some(
                         UnixTimestamp(0),
                     ),
+                    is_sampled: false,
                 },
             },
         ]

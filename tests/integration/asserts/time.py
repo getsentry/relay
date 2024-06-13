@@ -5,7 +5,7 @@ def _to_datetime(v):
     if isinstance(v, datetime):
         return v
     elif isinstance(v, int):
-        return datetime.utcfromtimestamp(v)
+        return datetime.fromtimestamp(v, timezone.utc)
     elif isinstance(v, float):
         return datetime.utcfromtimestamp(v)
     elif isinstance(v, str):
