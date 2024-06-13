@@ -329,6 +329,9 @@ impl ManagedEnvelope {
     pub fn reject_event(&mut self, outcome: Outcome) {
         if let Some(event_category) = self.event_category() {
             self.envelope.retain_items(|item| !item.creates_event());
+            if let Some(indexed) = event_category.index_category() {
+                self.track_outcome(outcome.clone(), indexed, 1);
+            }
             self.track_outcome(outcome, event_category, 1);
         }
     }

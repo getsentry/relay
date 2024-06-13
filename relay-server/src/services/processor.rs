@@ -706,11 +706,6 @@ impl<'a, Group> ProcessEnvelopeState<'a, Group> {
     fn remove_event(&mut self) {
         self.event = Annotated::empty();
     }
-
-    fn reject_event(&mut self, outcome: Outcome) {
-        self.remove_event();
-        self.managed_envelope.reject_event(outcome);
-    }
 }
 
 /// The view out of the [`ProcessEnvelopeState`] after processing.
@@ -1556,13 +1551,16 @@ impl EnvelopeProcessorService {
 
         // Always run dynamic sampling on processing Relays,
         // but delay decision until inbound filters have been fully processed.
-        let sampling_result =
-            if self.inner.config.processing_enabled() || matches!(filter_run, FiltersStatus::Ok) {
-                dynamic_sampling::run(state, &self.inner.config)
-            } else {
-                SamplingResult::NoMatch
-            };
+        let run_dynamic_sampling =
+            matches!(filter_run, FiltersStatus::Ok) || self.inner.config.processing_enabled();
 
+        let sampling_result = match run_dynamic_sampling {
+            true => dynamic_sampling::run(state, &self.inner.config),
+            false => SamplingResult::Pending,
+        };
+
+        // TODO: isn't this running in PoP/managed Relays and producing metrics even with the keep
+        // deicision?
         self.extract_transaction_metrics(state, &sampling_result, profile_id)?;
 
         if let Some(outcome) = sampling_result.clone().into_dropped_outcome() {

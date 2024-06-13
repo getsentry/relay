@@ -16,7 +16,7 @@ use crate::services::outcome::Outcome;
 use crate::services::processor::{
     EventProcessing, ProcessEnvelopeState, Sampling, TransactionGroup,
 };
-use crate::utils::{self, sample, ItemAction, SamplingResult};
+use crate::utils::{self, sample, SamplingResult};
 
 /// Ensures there is a valid dynamic sampling context and corresponding project state.
 ///
@@ -96,19 +96,38 @@ pub fn drop_unsampled_items(
     outcome: Outcome,
     keep_profiles: bool,
 ) {
-    state.managed_envelope.retain_items(|item| {
-        if keep_profiles && item.ty() == &ItemType::Profile {
-            // Remember on the item that this profile belongs to an transaction which was not
-            // sampled.
-            // Upstream Relays can use that information to allow standalone unsampled profiles.
-            item.set_sampled(false);
-            ItemAction::Keep
-        } else {
-            ItemAction::Drop(outcome.clone())
-        }
+    // Remove all items from the envelope which need to be dropped due to dynamic sampling.
+    let dropped_items = state.envelope_mut().take_items_by(|item| match item.ty() {
+        ItemType::Profile => !keep_profiles,
+        _ => true,
     });
-    // The event is no longer in the envelope, so we need to handle it separately:
-    state.reject_event(outcome);
+
+    for item in dropped_items {
+        let Some(category) = item.outcome_category() else {
+            continue;
+        };
+
+        // Upgrade the category to the index category if one exists for this category.
+        //
+        // Dynamic sampling only drops indexed items.
+        let category = category.index_category().unwrap_or(category);
+
+        state
+            .managed_envelope
+            .track_outcome(outcome.clone(), category, item.quantity());
+    }
+
+    // Mark all remaining items in the envelope as unsampled.
+    for item in state.envelope_mut().items_mut() {
+        item.set_sampled(false);
+    }
+
+    // All items have been dropped, now make sure the event is also handled and dropped.
+    if let Some(category) = state.event_category() {
+        let category = category.index_category().unwrap_or(category);
+        state.managed_envelope.track_outcome(outcome, category, 1)
+    }
+    state.remove_event();
 }
 
 /// Computes the sampling decision on the incoming envelope.
