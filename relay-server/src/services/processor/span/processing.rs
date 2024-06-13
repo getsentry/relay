@@ -25,14 +25,14 @@ use relay_spans::{otel_to_sentry_span, otel_trace::Span as OtelSpan};
 
 use crate::envelope::{ContentType, Envelope, Item, ItemType};
 use crate::metrics_extraction::generic::extract_metrics;
-use crate::services::outcome::{DiscardReason, Outcome, RuleCategories};
+use crate::services::outcome::{DiscardReason, Outcome};
 use crate::services::processor::span::extract_transaction_span;
 use crate::services::processor::{
     dynamic_sampling, Addrs, ProcessEnvelope, ProcessEnvelopeState, ProcessingError,
     ProcessingGroup, SpanGroup, TransactionGroup,
 };
 use crate::statsd::{RelayCounters, RelayHistograms};
-use crate::utils::{sample, BufferGuard, ItemAction, SamplingResult};
+use crate::utils::{sample, BufferGuard, ItemAction};
 use relay_event_normalization::span::ai::extract_ai_measurements;
 use thiserror::Error;
 
@@ -51,12 +51,7 @@ pub fn process(
 
     // We only implement trace-based sampling rules for now, which can be computed
     // once for all spans in the envelope.
-    let sampling_outcome = match dynamic_sampling::run(state, &config) {
-        SamplingResult::Match(sampling_match) if sampling_match.should_drop() => Some(
-            Outcome::FilteredSampling(RuleCategories::from(sampling_match.into_matched_rules())),
-        ),
-        _ => None,
-    };
+    let sampling_outcome = dynamic_sampling::run(state, &config).into_dropped_outcome();
 
     let span_metrics_extraction_config = match state.project_state.config.metric_extraction {
         ErrorBoundary::Ok(ref config) if config.is_enabled() => Some(config),

@@ -36,7 +36,7 @@ use relay_profiling::ProfileId;
 use relay_protocol::{Annotated, Value};
 use relay_quotas::{DataCategory, Scoping};
 use relay_sampling::config::RuleId;
-use relay_sampling::evaluation::{ReservoirCounters, ReservoirEvaluator};
+use relay_sampling::evaluation::{ReservoirCounters, ReservoirEvaluator, SamplingDecision};
 use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, NoResponse, Service};
 use reqwest::header;
@@ -1227,7 +1227,7 @@ impl EnvelopeProcessorService {
     fn extract_transaction_metrics(
         &self,
         state: &mut ProcessEnvelopeState<TransactionGroup>,
-        sampling_result: &SamplingResult,
+        sampling_decision: SamplingDecision,
         profile_id: Option<ProfileId>,
     ) -> Result<(), ProcessingError> {
         if state.event_metrics_extracted {
@@ -1316,7 +1316,7 @@ impl EnvelopeProcessorService {
                 config: tx_config,
                 generic_config: Some(combined_config),
                 transaction_from_dsc,
-                sampling_result,
+                sampling_decision,
                 has_profile: profile_id.is_some(),
             };
 
@@ -1559,11 +1559,10 @@ impl EnvelopeProcessorService {
             false => SamplingResult::Pending,
         };
 
-        // TODO: isn't this running in PoP/managed Relays and producing metrics even with the keep
-        // deicision?
-        self.extract_transaction_metrics(state, &sampling_result, profile_id)?;
+        if let Some(outcome) = sampling_result.into_dropped_outcome() {
+            // Extract metrics here, we're about to drop the event/transaction.
+            self.extract_transaction_metrics(state, SamplingDecision::Drop, profile_id)?;
 
-        if let Some(outcome) = sampling_result.clone().into_dropped_outcome() {
             let keep_profiles = dynamic_sampling::forward_unsampled_profiles(state, &global_config);
 
             // Process profiles before dropping the transaction, if necessary.
@@ -1591,6 +1590,9 @@ impl EnvelopeProcessorService {
         attachment::scrub(state);
 
         if_processing!(self.inner.config, {
+            // Always extract metrics in processing Relays for sampled items.
+            self.extract_transaction_metrics(state, SamplingDecision::Keep, profile_id)?;
+
             profile::process(state, &self.inner.config);
 
             if state

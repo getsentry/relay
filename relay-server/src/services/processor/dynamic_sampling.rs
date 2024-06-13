@@ -270,7 +270,7 @@ mod tests {
     use relay_sampling::config::{
         DecayingFunction, RuleId, SamplingRule, SamplingValue, TimeRange,
     };
-    use relay_sampling::evaluation::{ReservoirCounters, SamplingMatch};
+    use relay_sampling::evaluation::{ReservoirCounters, SamplingDecision, SamplingMatch};
     use relay_system::Addr;
     use uuid::Uuid;
 
@@ -411,7 +411,7 @@ mod tests {
                 None,
                 None,
             );
-            assert_eq!(res.should_keep(), should_keep);
+            assert_eq!(res.decision().is_keep(), should_keep);
         }
     }
 
@@ -478,17 +478,17 @@ mod tests {
         // None represents no TransactionMetricsConfig, DS will not be run
         let mut state = get_state(None);
         let sampling_result = run(&mut state, &config);
-        assert!(sampling_result.should_keep());
+        assert_eq!(sampling_result.decision(), SamplingDecision::Keep);
 
         // Current version is 3, so it won't run DS if it's outdated
         let mut state = get_state(Some(2));
         let sampling_result = run(&mut state, &config);
-        assert!(sampling_result.should_keep());
+        assert_eq!(sampling_result.decision(), SamplingDecision::Keep);
 
         // Dynamic sampling is run, as the transactionmetrics version is up to date.
         let mut state = get_state(Some(3));
         let sampling_result = run(&mut state, &config);
-        assert!(sampling_result.should_drop());
+        assert_eq!(sampling_result.decision(), SamplingDecision::Keep);
     }
 
     fn project_state_with_single_rule(sample_rate: f64) -> ProjectState {
@@ -777,13 +777,13 @@ mod tests {
     fn test_reservoir_applied_for_transactions() {
         let result = run_with_reservoir_rule::<TransactionGroup>(ProcessingGroup::Transaction);
         // Default sampling rate is 0.0, but transaction is retained because of reservoir:
-        assert!(result.should_keep());
+        assert_eq!(result.decision(), SamplingDecision::Keep);
     }
 
     #[test]
     fn test_reservoir_not_applied_for_spans() {
         let result = run_with_reservoir_rule::<SpanGroup>(ProcessingGroup::Span);
         // Default sampling rate is 0.0, and the reservoir does not apply to spans:
-        assert!(result.should_drop());
+        assert_eq!(result.decision(), SamplingDecision::Drop);
     }
 }
