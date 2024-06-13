@@ -914,6 +914,11 @@ def test_otel_endpoint_disabled(mini_sentry, relay):
     )
 
     (outcome,) = mini_sentry.captured_outcomes.get()["outcomes"]
+    assert outcome["category"] == DataCategory.SPAN_INDEXED
+    assert outcome["outcome"] == 3  # invalid
+    assert outcome["reason"] == "feature_disabled"
+
+    (outcome,) = mini_sentry.captured_outcomes.get()["outcomes"]
     assert outcome["category"] == DataCategory.SPAN
     assert outcome["outcome"] == 3  # invalid
     assert outcome["reason"] == "feature_disabled"
