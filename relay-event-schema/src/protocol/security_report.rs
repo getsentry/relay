@@ -437,11 +437,7 @@ impl CspRaw {
 
         // Now we need to stitch on a scheme to the value, but let's not stitch on the boring
         // values.
-        let original_uri = match self.document_uri {
-            Some(ref u) => u,
-            None => "",
-        };
-
+        let original_uri = self.document_uri.as_deref().unwrap_or_default();
         match original_uri.split_once(':').map(|x| x.0) {
             None | Some("http" | "https") => Cow::Borrowed(value),
             Some(scheme) => Cow::Owned(unsplit_uri(scheme, value)),
