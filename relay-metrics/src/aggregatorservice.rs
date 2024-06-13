@@ -7,6 +7,7 @@ use relay_system::{
     Shutdown,
 };
 use serde::{Deserialize, Serialize};
+use tokio::time::Instant;
 
 use crate::aggregator::{self, AggregatorConfig, FlushBatching};
 use crate::bucket::Bucket;
