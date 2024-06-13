@@ -27,24 +27,31 @@ impl RetryAfter {
         Self { when }
     }
 
-    /// Returns the remaining duration until the rate limit expires.
+    /// Returns the remaining duration until the rate limit expires using the passed instant as the
+    /// reference point.
     #[inline]
-    pub fn remaining(self) -> Option<Duration> {
-        let now = Instant::now();
-        if now >= self.when {
+    pub fn remaining_at(self, at: Instant) -> Option<Duration> {
+        if at >= self.when {
             None
         } else {
-            Some(self.when - now)
+            Some(self.when - at)
         }
     }
 
-    /// Returns the remaining seconds until the rate limit expires.
+    /// Returns the remaining duration until the rate limit expires.
+    #[inline]
+    pub fn remaining(self) -> Option<Duration> {
+        self.remaining_at(Instant::now())
+    }
+
+    /// Returns the remaining seconds until the rate limit expires using the passed instant as the
+    /// reference point.
     ///
     /// This is a shortcut to `retry_after.remaining().as_secs()` with one exception: If the rate
     /// limit has expired, this function returns `0`.
     #[inline]
-    pub fn remaining_seconds(self) -> u64 {
-        match self.remaining() {
+    pub fn remaining_seconds_at(self, at: Instant) -> u64 {
+        match self.remaining_at(at) {
             // Compensate for the missing subsec part by adding 1s
             Some(duration) if duration.subsec_nanos() == 0 => duration.as_secs(),
             Some(duration) => duration.as_secs() + 1,
@@ -52,10 +59,22 @@ impl RetryAfter {
         }
     }
 
+    /// Returns the remaining seconds until the rate limit expires.
+    #[inline]
+    pub fn remaining_seconds(self) -> u64 {
+        self.remaining_seconds_at(Instant::now())
+    }
+
+    /// Returns whether this rate limit has expired at the passed instant.
+    #[inline]
+    pub fn expired_at(self, at: Instant) -> bool {
+        self.remaining_at(at).is_none()
+    }
+
     /// Returns whether this rate limit has expired.
     #[inline]
     pub fn expired(self) -> bool {
-        self.remaining().is_none()
+        self.remaining_at(Instant::now()).is_none()
     }
 }
 
@@ -255,12 +274,15 @@ impl RateLimits {
 
     /// Returns `true` if this instance contains active rate limits.
     pub fn is_limited(&self) -> bool {
-        self.iter().any(|limit| !limit.retry_after.expired())
+        let now = Instant::now();
+        self.iter().any(|limit| !limit.retry_after.expired_at(now))
     }
 
     /// Removes expired rate limits from this instance.
     pub fn clean_expired(&mut self) {
-        self.limits.retain(|limit| !limit.retry_after.expired());
+        let now = Instant::now();
+        self.limits
+            .retain(|limit| !limit.retry_after.expired_at(now));
     }
 
     /// Checks whether any rate limits apply to the given scoping.
