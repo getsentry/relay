@@ -408,11 +408,12 @@ impl ManagedEnvelope {
             .send(Capture::rejected(self.envelope.event_id(), &outcome));
 
         if let Some(category) = self.event_category() {
-            self.track_outcome(outcome.clone(), category, 1);
-
+            dbg!(category);
             if let Some(category) = category.index_category() {
+                dbg!(category);
                 self.track_outcome(outcome.clone(), category, 1);
             }
+            self.track_outcome(outcome.clone(), category, 1);
         }
 
         if self.context.summary.attachment_quantity > 0 {

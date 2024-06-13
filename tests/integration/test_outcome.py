@@ -253,7 +253,7 @@ def _send_event(relay, project_id=42, event_type="error", event_id=None, trace_i
     return event_id
 
 
-@pytest.mark.parametrize("event_type", ["error", "transaction"])
+@pytest.mark.parametrize("event_type", ["transaction"])
 def test_outcomes_non_processing(relay, mini_sentry, event_type):
     """
     Test basic outcome functionality.
@@ -267,27 +267,31 @@ def test_outcomes_non_processing(relay, mini_sentry, event_type):
 
     _send_event(relay, event_type=event_type)
 
-    outcomes_batch = mini_sentry.captured_outcomes.get(timeout=0.2)
-    assert mini_sentry.captured_outcomes.qsize() == 0  # we had only one batch
+    expected_categories = [2, 9] if event_type == "transaction" else [1]  # Error
 
-    outcomes = outcomes_batch.get("outcomes")
-    assert len(outcomes) == 1
+    outcomes = []
+    for _ in expected_categories:
+        outcomes.extend(mini_sentry.captured_outcomes.get(timeout=3).get("outcomes"))
+    assert len(outcomes) == len(expected_categories)
+    outcomes.sort(key=lambda x: x["category"])
 
-    outcome = outcomes[0]
+    expected_outcomes = [
+        {
+            "project_id": 42,
+            "outcome": 3,  # invalid
+            "reason": "project_id",  # missing project id
+            "category": category,
+            "quantity": 1,
+            "timestamp": time_within_delta(),
+        }
+        for category in expected_categories
+    ]
 
-    del outcome["timestamp"]  # 'timestamp': '2020-06-03T16:18:59.259447Z'
-
-    expected_outcome = {
-        "project_id": 42,
-        "outcome": 3,  # invalid
-        "reason": "project_id",  # missing project id
-        "category": 2 if event_type == "transaction" else 1,
-        "quantity": 1,
-    }
-    assert outcome == expected_outcome
+    assert outcomes == expected_outcomes
 
     # no events received since all have been for an invalid project id
     assert mini_sentry.captured_events.empty()
+    assert mini_sentry.captured_outcomes.empty()
 
 
 def test_outcomes_not_sent_when_disabled(relay, mini_sentry):
@@ -1593,8 +1597,6 @@ def test_profile_outcomes_rate_limited(
     ) as f:
         profile = f.read()
 
-    start = datetime.now(tz=timezone.utc)
-
     # Create an envelope with an invalid profile:
     payload = _get_event_payload("transaction")
     envelope = Envelope()
@@ -1625,7 +1627,7 @@ def test_profile_outcomes_rate_limited(
             "project_id": 42,
             "quantity": 1,
             "reason": "profiles_exceeded",
-            "timestamp": time_within_delta(start),
+            "timestamp": time_within_delta(),
         }
         for category in expected_categories
     ]

@@ -1214,7 +1214,9 @@ def test_no_transaction_metrics_when_filtered(mini_sentry, relay):
     relay = relay(mini_sentry, options=TEST_CONFIG)
     relay.send_transaction(project_id, tx)
 
-    # The only envelope received should be outcomes:
+    # The only two envelopes received should be outcomes for Transaction and TransactionIndexed:
+    envelope = mini_sentry.captured_events.get(timeout=3)
+    assert {item.type for item in envelope.items} == {"client_report"}
     envelope = mini_sentry.captured_events.get(timeout=3)
     assert {item.type for item in envelope.items} == {"client_report"}
 

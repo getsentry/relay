@@ -42,6 +42,6 @@ def time_within(lower_bound, upper_bound):
     return _WithinBounds(lower_bound, upper_bound)
 
 
-def time_within_delta(time, delta=timedelta(seconds=5)):
-    time = _to_datetime(time)
+def time_within_delta(time=None, delta=timedelta(seconds=5)):
+    time = _to_datetime(time) if time is not None else datetime.now(tz=timezone.utc)
     return _WithinBounds(time - delta, time + delta)
