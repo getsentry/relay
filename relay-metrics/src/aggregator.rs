@@ -998,6 +998,7 @@ mod tests {
                         "c:transactions/foo@none",
                     ),
                     tags: {},
+                    is_sampled: false,
                 },
                 Counter(
                     85.0,
@@ -1094,6 +1095,7 @@ mod tests {
                         "c:transactions/foo@none",
                     ),
                     tags: {},
+                    is_sampled: false,
                 },
                 Counter(
                     84.0,
@@ -1107,6 +1109,7 @@ mod tests {
                         "c:transactions/foo@none",
                     ),
                     tags: {},
+                    is_sampled: false,
                 },
                 Counter(
                     42.0,
@@ -1577,6 +1580,7 @@ mod tests {
                 received_at: Some(
                     UnixTimestamp(999994711),
                 ),
+                is_sampled: false,
             },
         ]
         "###);

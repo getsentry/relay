@@ -935,6 +935,7 @@ mod tests {
             metadata: BucketMetadata {
                 merges: 1,
                 received_at: None,
+                is_sampled: false,
             },
         }
         "###);
@@ -969,6 +970,7 @@ mod tests {
             metadata: BucketMetadata {
                 merges: 1,
                 received_at: None,
+                is_sampled: false,
             },
         }
         "###);
@@ -1021,6 +1023,7 @@ mod tests {
             metadata: BucketMetadata {
                 merges: 1,
                 received_at: None,
+                is_sampled: false,
             },
         }
         "###);
@@ -1081,6 +1084,7 @@ mod tests {
             metadata: BucketMetadata {
                 merges: 1,
                 received_at: None,
+                is_sampled: false,
             },
         }
         "###);
@@ -1111,6 +1115,7 @@ mod tests {
             metadata: BucketMetadata {
                 merges: 1,
                 received_at: None,
+                is_sampled: false,
             },
         }
         "###);
@@ -1135,6 +1140,7 @@ mod tests {
             metadata: BucketMetadata {
                 merges: 1,
                 received_at: None,
+                is_sampled: false,
             },
         }
         "###);
@@ -1338,6 +1344,7 @@ mod tests {
                     received_at: Some(
                         UnixTimestamp(1615889440),
                     ),
+                    is_sampled: false,
                 },
             },
         ]
@@ -1379,6 +1386,7 @@ mod tests {
                     received_at: Some(
                         UnixTimestamp(1615889440),
                     ),
+                    is_sampled: false,
                 },
             },
         ]
