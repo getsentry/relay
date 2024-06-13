@@ -1718,6 +1718,13 @@
 <a href="#1716" id="1716">1716</a>
 <a href="#1717" id="1717">1717</a>
 <a href="#1718" id="1718">1718</a>
+<a href="#1719" id="1719">1719</a>
+<a href="#1720" id="1720">1720</a>
+<a href="#1721" id="1721">1721</a>
+<a href="#1722" id="1722">1722</a>
+<a href="#1723" id="1723">1723</a>
+<a href="#1724" id="1724">1724</a>
+<a href="#1725" id="1725">1725</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_common::time::UnixTimestamp;
 <span class="kw">use </span>relay_dynamic_config::CombinedMetricExtractionConfig;
 <span class="kw">use </span>relay_event_schema::protocol::{Event, Span};
@@ -2913,6 +2920,13 @@
     </span><span class="kw">fn </span>no_feature_flags_enabled() {
         <span class="kw">let </span>metrics = extract_span_metrics([]);
         <span class="macro">assert!</span>(metrics.is_empty());
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>only_indexed_spans_enabled() {
+        <span class="kw">let </span>metrics = extract_span_metrics([Feature::ExtractSpansFromEvent]);
+        <span class="macro">assert_eq!</span>(metrics.len(), <span class="number">75</span>);
+        <span class="macro">assert!</span>(metrics.iter().all(|b| <span class="kw-2">&amp;</span>b.name == <span class="string">"c:spans/usage@none"</span>));
     }
 
     <span class="attr">#[test]
