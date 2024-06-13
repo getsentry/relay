@@ -1611,12 +1611,7 @@ def test_rate_limit_consistent_extracted(
     }
     metrics = metrics_consumer.get_metrics(timeout=1)
     if category == "span":
-        expected_outcomes.update(
-            {
-                (12, 2): 2,  # Span, RateLimited
-                (15, 2): 6,  # MetricBucket, RateLimited
-            }
-        )
+        expected_outcomes.update({(12, 2): 2}),  # Span, RateLimited
         assert len(metrics) == 4
         assert all(m[0]["name"][2:14] == "transactions" for m in metrics), metrics
     else:
@@ -1791,11 +1786,11 @@ def test_span_filtering_with_generic_inbound_filter(
 
     def summarize_outcomes():
         counter = Counter()
-        for outcome in outcomes_consumer.get_outcomes(timeout=10, n=1):
+        for outcome in outcomes_consumer.get_outcomes(timeout=10, n=2):
             counter[(outcome["category"], outcome["outcome"])] += outcome["quantity"]
         return counter
 
-    assert summarize_outcomes() == {(12, 1): 1}
+    assert summarize_outcomes() == {(12, 1): 1, (16, 1): 1}
     spans_consumer.assert_empty()
     outcomes_consumer.assert_empty()
 
@@ -1890,8 +1885,8 @@ def test_dynamic_sampling(
         outcomes = outcomes_consumer.get_outcomes(timeout=10, n=4)
         assert summarize_outcomes(outcomes) == {(16, 0): 4}  # SpanIndexed, Accepted
     else:
-        outcomes = outcomes_consumer.get_outcomes(timeout=10, n=4)
-        assert summarize_outcomes(outcomes) == {(12, 1): 4}  # Span, Filtered
+        outcomes = outcomes_consumer.get_outcomes(timeout=10, n=1)
+        assert summarize_outcomes(outcomes) == {(16, 1): 4}  # Span, Filtered
         assert {o["reason"] for o in outcomes} == {"Sampled:3000"}
 
     spans_consumer.assert_empty()
