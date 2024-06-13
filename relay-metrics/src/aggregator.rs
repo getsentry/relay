@@ -1052,7 +1052,7 @@ mod tests {
         };
         assert_eq!(
             bucket_key.cost(),
-            80 + // BucketKey
+            88 + // BucketKey
             5 + // name
             (5 + 5 + 6 + 2) // tags
         );
