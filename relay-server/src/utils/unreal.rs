@@ -249,9 +249,7 @@ fn merge_unreal_context(event: &mut Event, context: Unreal4Context) {
     if event.level.is_empty() {
         if runtime_props.is_assert.unwrap_or(false) {
             event.level = Annotated::new(Level::Error)
-        }
-
-        if runtime_props.is_ensure.unwrap_or(false) {
+        } else if runtime_props.is_ensure.unwrap_or(false) {
             event.level = Annotated::new(Level::Warning)
         }
     }
