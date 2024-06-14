@@ -237,14 +237,6 @@ pub struct ExtractedMetrics {
     pub sampling_metrics: Vec<Bucket>,
 }
 
-impl ExtractedMetrics {
-    /// Extends the set of metrics with the supplied newly extracted metrics.
-    pub fn extend(&mut self, other: Self) {
-        self.project_metrics.extend(other.project_metrics);
-        self.sampling_metrics.extend(other.sampling_metrics);
-    }
-}
-
 /// A utility that extracts metrics from transactions.
 pub struct TransactionExtractor<'a> {
     pub config: &'a TransactionMetricsConfig,

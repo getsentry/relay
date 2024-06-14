@@ -55,7 +55,7 @@ use {
     },
     relay_dynamic_config::{CardinalityLimiterMode, GlobalConfig, MetricExtractionGroups},
     relay_metrics::{Aggregator, MergeBuckets, RedisMetricMetaStore},
-    relay_quotas::{Quota, RateLimitingError, RedisRateLimiter},
+    relay_quotas::{Quota, RateLimitingError, RateLimits, RedisRateLimiter},
     relay_redis::RedisPool,
     std::iter::Chain,
     std::slice::Iter,
@@ -581,18 +581,95 @@ impl From<ExtractMetricsError> for ProcessingError {
 
 type ExtractedEvent = (Annotated<Event>, usize);
 
-impl ExtractedMetrics {
+/// A container for extracted metrics during processing.
+///
+/// The container enforces that the extracted metrics are correctly tagged
+/// with the dynamic sampling decision.
+#[derive(Default, Debug)]
+pub struct ProcessingExtractedMetrics(ExtractedMetrics);
+
+impl ProcessingExtractedMetrics {
+    /// Extends the contained metrics with [`ExtractedMetrics`].
+    pub fn extend(
+        &mut self,
+        extracted: ExtractedMetrics,
+        sampling_decision: Option<SamplingDecision>,
+    ) {
+        self.extend_project_metrics(extracted.project_metrics, sampling_decision);
+        self.extend_sampling_metrics(extracted.sampling_metrics, sampling_decision);
+    }
+
+    /// Extends the contained project metrics.
+    pub fn extend_project_metrics(
+        &mut self,
+        mut buckets: Vec<Bucket>,
+        sampling_decision: Option<SamplingDecision>,
+    ) {
+        if sampling_decision == Some(SamplingDecision::Keep) {
+            for bucket in &mut buckets {
+                bucket.metadata.is_sampled = true;
+            }
+        }
+        self.0.project_metrics.extend(buckets);
+    }
+
+    /// Extends the contained sampling metrics.
+    pub fn extend_sampling_metrics(
+        &mut self,
+        mut buckets: Vec<Bucket>,
+        sampling_decision: Option<SamplingDecision>,
+    ) {
+        if sampling_decision == Some(SamplingDecision::Keep) {
+            for bucket in &mut buckets {
+                bucket.metadata.is_sampled = true;
+            }
+        }
+        self.0.sampling_metrics.extend(buckets);
+    }
+
+    /// Returns `true` if any project metrics are extracted.
+    pub fn has_project_metrics(&self) -> bool {
+        !self.0.project_metrics.is_empty()
+    }
+
+    /// Applies rate limits to the contained metrics.
+    ///
+    /// This is used to apply rate limits which have been enforced on sampled items of an envelope
+    /// to also consistently apply to the metrics extracted from these items.
+    #[cfg(feature = "processing")]
+    fn enforce_limits(&mut self, scoping: Scoping, limits: &RateLimits) {
+        for (category, namespace) in [
+            (DataCategory::Transaction, MetricNamespace::Transactions),
+            (DataCategory::Span, MetricNamespace::Spans),
+        ] {
+            if !limits.check(scoping.item(category)).is_empty() {
+                relay_log::trace!(
+                    "dropping {namespace} metrics, due to enforced limit on envelope"
+                );
+                self.retain(|bucket| bucket.name.try_namespace() != Some(namespace));
+            }
+        }
+    }
+
+    #[cfg(feature = "processing")]
+    fn retain(&mut self, mut f: impl FnMut(&Bucket) -> bool) {
+        self.0.project_metrics.retain(&mut f);
+        self.0.sampling_metrics.retain(&mut f);
+    }
+
     fn send_metrics(self, envelope: &Envelope, project_cache: Addr<ProjectCache>) {
         let project_key = envelope.meta().public_key();
 
-        if !self.project_metrics.is_empty() {
-            project_cache.send(AddMetricBuckets::internal(
-                project_key,
-                self.project_metrics,
-            ));
+        let ExtractedMetrics {
+            project_metrics,
+            sampling_metrics,
+        } = self.0;
+
+        if !project_metrics.is_empty() {
+            project_cache.send(AddMetricBuckets::internal(project_key, project_metrics));
         }
 
-        if !self.sampling_metrics.is_empty() {
+        if !sampling_metrics.is_empty() {
             // If no sampling project state is available, we associate the sampling
             // metrics with the current project.
             //
@@ -602,7 +679,7 @@ impl ExtractedMetrics {
             let sampling_project_key = utils::get_sampling_key(envelope).unwrap_or(project_key);
             project_cache.send(AddMetricBuckets::internal(
                 sampling_project_key,
-                self.sampling_metrics,
+                sampling_metrics,
             ));
         }
     }
@@ -642,7 +719,7 @@ struct ProcessEnvelopeState<'a, Group> {
     ///
     /// Relay can extract metrics for sessions and transactions, which is controlled by
     /// configuration objects in the project config.
-    extracted_metrics: ExtractedMetrics,
+    extracted_metrics: ProcessingExtractedMetrics,
 
     /// The state of the project that this envelope belongs to.
     project_state: Arc<ProjectState>,
@@ -712,7 +789,7 @@ impl<'a, Group> ProcessEnvelopeState<'a, Group> {
 #[derive(Debug)]
 struct ProcessingStateResult {
     managed_envelope: TypedEnvelope<Processed>,
-    extracted_metrics: ExtractedMetrics,
+    extracted_metrics: ProcessingExtractedMetrics,
 }
 
 /// Response of the [`ProcessEnvelope`] message.
@@ -1176,33 +1253,7 @@ impl EnvelopeProcessorService {
         let (enforcement, limits) = metric!(timer(RelayTimers::EventProcessingRateLimiting), {
             envelope_limiter.enforce(state.managed_envelope.envelope_mut(), &scoping)?
         });
-
-        for (category, namespace) in [
-            (DataCategory::Transaction, MetricNamespace::Transactions),
-            (DataCategory::Span, MetricNamespace::Spans),
-        ] {
-            if !limits.check(scoping.item(category)).is_empty() {
-                relay_log::trace!(
-                    "dropping {namespace} metrics, due to enforced limit on envelope"
-                );
-                state
-                    .extracted_metrics
-                    .project_metrics
-                    .retain(|bucket| bucket.name.try_namespace() != Some(namespace));
-
-                state
-                    .extracted_metrics
-                    .sampling_metrics
-                    .retain(|bucket| bucket.name.try_namespace() != Some(namespace));
-            }
-        }
-
-        for metric in &mut state.extracted_metrics.project_metrics {
-            metric.metadata.is_sampled = true;
-        }
-        for metric in &mut state.extracted_metrics.sampling_metrics {
-            metric.metadata.is_sampled = true;
-        }
+        state.extracted_metrics.enforce_limits(scoping, &limits);
 
         if !limits.is_empty() {
             self.inner
@@ -1305,7 +1356,9 @@ impl EnvelopeProcessorService {
                 .max_tag_value_length,
             global.options.span_extraction_sample_rate,
         );
-        state.extracted_metrics.project_metrics.extend(metrics);
+        state
+            .extracted_metrics
+            .extend_project_metrics(metrics, Some(sampling_decision));
 
         if !state.project_state.has_feature(Feature::DiscardTransaction) {
             let transaction_from_dsc = state
@@ -1322,7 +1375,9 @@ impl EnvelopeProcessorService {
                 has_profile: profile_id.is_some(),
             };
 
-            state.extracted_metrics.extend(extractor.extract(event)?);
+            state
+                .extracted_metrics
+                .extend(extractor.extract(event)?, Some(sampling_decision));
         }
 
         state.event_metrics_extracted = true;
@@ -1886,7 +1941,7 @@ impl EnvelopeProcessorService {
                         // requires recomputation of the context.
                         state.managed_envelope.update();
 
-                        let has_metrics = !state.extracted_metrics.project_metrics.is_empty();
+                        let has_metrics = state.extracted_metrics.has_project_metrics();
 
                         state.extracted_metrics.send_metrics(
                             state.managed_envelope.envelope(),

@@ -762,7 +762,12 @@ pub struct BucketMetadata {
 
     /// Is `true` if this metric was extracted from a sampled envelope item.
     ///
-    /// TODO: explain this more
+    /// The final dyanmic sampling decision is always made in processing Relays,
+    /// if a metric was extracted from an item which is sampled, this flag is `true`.
+    ///
+    /// Since these metrics from samples carry additional information, e.g. they don't
+    /// require rate limiting since the sample they've been extracted from was already
+    /// rate limited, this flag must be included in the aggregation key when aggregation buckets.
     #[serde(skip)]
     pub is_sampled: bool,
 }

@@ -158,7 +158,9 @@ pub fn process(
                 span,
                 CombinedMetricExtractionConfig::new(global_metrics_config, config),
             );
-            state.extracted_metrics.project_metrics.extend(metrics);
+            state
+                .extracted_metrics
+                .extend_project_metrics(metrics, Some(sampling_result.decision()));
             item.set_metrics_extracted(true);
         }
 
