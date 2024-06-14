@@ -51,17 +51,6 @@ enum Expiry {
     Expired,
 }
 
-/// The expiry status of a project state, together with the state itself if it has not expired.
-/// Return value of [`Project::expiry_state`].
-pub enum ExpiryState {
-    /// An up-to-date project state. See [`Expiry::Updated`].
-    Updated(Arc<ProjectState>),
-    /// A stale project state that can still be used. See [`Expiry::Stale`].
-    Stale(Arc<ProjectState>),
-    /// An expired project state that should not be used. See [`Expiry::Expired`].
-    Expired,
-}
-
 /// Sender type for messages that respond with project states.
 pub type ProjectSender = relay_system::BroadcastSender<Arc<ProjectState>>;
 
@@ -295,31 +284,6 @@ impl ProjectState {
         }
     }
 
-    /// Returns `Err` if the project is known to be invalid or disabled.
-    ///
-    /// If this project state is hard outdated, this returns `Ok(())`, instead, to avoid prematurely
-    /// dropping data.
-    pub fn check_disabled(&self, config: &Config) -> Result<(), DiscardReason> {
-        // if the state is out of date, we proceed as if it was still up to date. The
-        // upstream relay (or sentry) will still filter events.
-        if self.check_expiry(config) == Expiry::Expired {
-            return Ok(());
-        }
-
-        // if we recorded an invalid project state response from the upstream (i.e. parsing
-        // failed), discard the event with a state reason.
-        if self.invalid() {
-            return Err(DiscardReason::ProjectState);
-        }
-
-        // only drop events if we know for sure the project or key are disabled.
-        if self.disabled() {
-            return Err(DiscardReason::ProjectId);
-        }
-
-        Ok(())
-    }
-
     /// Determines whether the given envelope should be accepted or discarded.
     ///
     /// Returns `Ok(())` if the envelope should be accepted. Returns `Err(DiscardReason)` if the
@@ -351,9 +315,6 @@ impl ProjectState {
             relay_log::error!("public key mismatch on state {}", meta.public_key());
             return Err(DiscardReason::ProjectId);
         }
-
-        // Check for invalid or disabled projects.
-        self.check_disabled(config)?;
 
         // Check feature.
         if let Some(disabled_feature) = envelope
@@ -416,7 +377,8 @@ enum GetOrFetch<'a> {
     Scheduled(&'a mut StateChannel),
 }
 
-enum ObservableState<'a> {
+/// Externally visible state of a project.
+pub enum ObservableState<'a> {
     Cached(&'a Arc<ProjectState>),
     Pending,
     Disabled,
@@ -520,13 +482,24 @@ impl Project {
         }
     }
 
+    /// Get the cached project state, if available.
+    ///
+    /// Returns `None` if the project is expired, invalid or disabled.
+    pub fn cached_state(&self) -> Option<Arc<ProjectState>> {
+        match self.state() {
+            ObservableState::Cached(project_state) => Some(Arc::clone(project_state)),
+            ObservableState::Pending => None,
+            ObservableState::Disabled => None,
+        }
+    }
+
     /// TODO: docs
-    pub fn state(&self) -> ObservableState {
+    fn state(&self) -> ObservableState {
         match &self.internal_state {
             InternalState::Disabled => ObservableState::Disabled,
             InternalState::Cached(project_state) => {
                 match project_state.check_expiry(&self.config) {
-                    Expiry::Updated | Expiry::Stale => ObservableState::Cached(&project_state),
+                    Expiry::Updated | Expiry::Stale => ObservableState::Cached(project_state),
                     Expiry::Expired => ObservableState::Pending,
                 }
             }
@@ -534,8 +507,7 @@ impl Project {
         }
     }
 
-    /// TODO: docs
-    pub fn state_mut(&mut self) -> ObservableStateMut {
+    fn state_mut(&mut self) -> ObservableStateMut {
         // 1 - Transition state if necessary.
         match &mut self.internal_state {
             InternalState::Disabled => {}
@@ -556,16 +528,6 @@ impl Project {
             InternalState::Disabled => ObservableStateMut::Disabled,
             InternalState::Cached(project_state) => ObservableStateMut::Cached(project_state),
             InternalState::Pending(buffer) => ObservableStateMut::Pending(buffer.as_mut()),
-        }
-    }
-
-    /// If we know that a project is disabled, disallow metrics, too.
-    fn metrics_allowed(&self) -> bool {
-        if let Some(state) = self.valid_state() {
-            state.check_disabled(&self.config).is_ok()
-        } else {
-            // Projects without state go back to the original state of allowing metrics.
-            true
         }
     }
 
@@ -637,12 +599,6 @@ impl Project {
             return;
         };
 
-        // Only send if the project state is valid, otherwise drop the buckets.
-        if state.check_disabled(self.config.as_ref()).is_err() {
-            relay_log::trace!("project state invalid: dropping {} buckets", buckets.len());
-            return;
-        }
-
         let buckets = buckets.apply_project_state(metric_outcomes, state, scoping);
 
         if buckets.is_empty() {
@@ -690,31 +646,29 @@ impl Project {
         buckets: Vec<Bucket>,
         source: BucketSource,
     ) {
-        if !self.metrics_allowed() {
-            relay_log::debug!("dropping metric buckets, project disabled");
-            return;
-        }
-
         let buckets = Buckets::new(buckets).filter_namespaces(source);
 
-        match self.state_mut() {
-            ObservableStateMut::Cached(ref state) => {
-                self.merge_buckets_into_aggregator(
-                    aggregator,
-                    envelope_processor,
-                    outcome_aggregator,
-                    metric_outcomes,
-                    state,
-                    buckets,
-                );
-            }
+        let project_key = self.project_key;
+        let project_state = match self.state_mut() {
+            ObservableStateMut::Cached(state) => Arc::clone(state),
             ObservableStateMut::Pending(ref mut inner_agg) => {
                 // We need to queue the metrics in a temporary aggregator until the project state becomes available.
                 relay_log::debug!("sending metrics to metrics-buffer");
-                inner_agg.merge_all(self.project_key, buckets, None);
+                return inner_agg.merge_all(project_key, buckets, None);
             }
-            InternalState::Disabled => {} // TODO: outcomes
-        }
+            ObservableStateMut::Disabled => {
+                return relay_log::debug!("dropping metric buckets, project disabled");
+            }
+        };
+
+        self.merge_buckets_into_aggregator(
+            aggregator,
+            envelope_processor,
+            outcome_aggregator,
+            metric_outcomes,
+            &project_state,
+            buckets,
+        );
     }
 
     pub fn add_metric_meta(
@@ -837,6 +791,8 @@ impl Project {
         project_cache: Addr<ProjectCache>,
         mut no_cache: bool,
     ) -> GetOrFetch<'_> {
+        // TODO: This is very similar to state_mut, unite.
+
         // count number of times we are looking for the project state
         metric!(counter(RelayCounters::ProjectStateGet) += 1);
 
@@ -850,15 +806,21 @@ impl Project {
             }
         }
 
-        let cached_state = match self.expiry_state() {
+        let cached_state = match &self.internal_state {
             // Never use the cached state if `no_cache` is set.
             _ if no_cache => None,
-            // There is no project state that can be used, fetch a state and return it.
-            ExpiryState::Expired => None,
-            // The project is semi-outdated, fetch new state but return old one.
-            ExpiryState::Stale(state) => Some(state),
-            // The project is not outdated, return early here to jump over fetching logic below.
-            ExpiryState::Updated(state) => return GetOrFetch::Cached(state),
+            InternalState::Cached(state) => {
+                match state.check_expiry(&self.config) {
+                    // The project is not outdated, return early here to jump over fetching logic below.
+                    Expiry::Updated => return GetOrFetch::Cached(Arc::clone(state)),
+                    // The project is semi-outdated, fetch new state but return old one.
+                    Expiry::Stale => Some(Arc::clone(state)),
+                    // There is no project state that can be used, fetch a state and return it.
+                    Expiry::Expired => None,
+                }
+            }
+            InternalState::Pending(_) => None,
+            InternalState::Disabled => None,
         };
 
         let channel = self.fetch_state(project_cache, no_cache);
@@ -974,7 +936,7 @@ impl Project {
         &mut self,
         project_cache: &Addr<ProjectCache>,
         aggregator: &Addr<Aggregator>,
-        mut state: Arc<ProjectState>,
+        state: Arc<ProjectState>,
         envelope_processor: &Addr<EnvelopeProcessor>,
         outcome_aggregator: &Addr<TrackOutcome>,
         metric_outcomes: &MetricOutcomes,
@@ -1000,9 +962,10 @@ impl Project {
             return;
         }
 
-        match self.expiry_state() {
+        // TODO(jjbayer): move this logic to set_state
+        match state.check_expiry(&self.config) {
             // If the new state is invalid but the old one still usable, keep the old one.
-            ExpiryState::Updated(old) | ExpiryState::Stale(old) if state.invalid() => state = old,
+            Expiry::Updated | Expiry::Stale if state.invalid() => {}
             // If the new state is valid or the old one is expired, always use the new one.
             _ => self.set_state(
                 &state,
@@ -1069,14 +1032,18 @@ impl Project {
     ///   should be accepted or discarded
     ///
     /// IMPORTANT: If the [`ProjectState`] is invalid, the `check_request` will be skipped and only
-    /// rate limites will be validated. This function **must not** be called in the main processing
+    /// rate limits will be validated. This function **must not** be called in the main processing
     /// pipeline.
     pub fn check_envelope(
         &mut self,
         mut envelope: ManagedEnvelope,
         outcome_aggregator: Addr<TrackOutcome>,
     ) -> Result<CheckedEnvelope, DiscardReason> {
-        let state = self.valid_state().filter(|state| !state.invalid());
+        let state = match self.state() {
+            ObservableState::Cached(state) => Some(Arc::clone(state)),
+            ObservableState::Pending => None,
+            ObservableState::Disabled => return Err(DiscardReason::ProjectId),
+        };
         let mut scoping = envelope.scoping();
 
         if let Some(ref state) = state {
@@ -1134,7 +1101,7 @@ impl Project {
         metric_outcomes: &MetricOutcomes,
         mut buckets: Vec<Bucket>,
     ) -> Option<(Scoping, ProjectMetrics)> {
-        let Some(project_state) = self.valid_state() else {
+        let Some(project_state) = self.cached_state() else {
             relay_log::error!(
                 tags.project_key = self.project_key.as_str(),
                 "there is no project state: dropping {} buckets",
@@ -1232,10 +1199,10 @@ mod tests {
 
             if expiry > 0 {
                 // With long expiry, should get a state
-                assert!(project.valid_state().is_some());
+                assert!(project.cached_state().is_some());
             } else {
                 // With 0 expiry, project should expire immediately. No state can be set.
-                assert!(project.valid_state().is_none());
+                assert!(project.cached_state().is_none());
             }
         }
     }
