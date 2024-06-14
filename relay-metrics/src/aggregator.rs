@@ -480,7 +480,7 @@ impl fmt::Debug for CostTracker {
 /// is, buckets that lie in the past, are flushed after the shorter `debounce_delay`.
 fn get_flush_time(
     config: &AggregatorConfig,
-    base_instant: Instant,
+    reference_time: Instant,
     bucket_key: &BucketKey,
 ) -> Instant {
     let initial_flush = bucket_key.timestamp + config.bucket_interval() + config.initial_delay();
@@ -520,7 +520,7 @@ fn get_flush_time(
 
     // Since `Instant` doesn't allow to get directly how many seconds elapsed, we leverage the
     // diffing to get a duration and round it to the smallest second to get consistent times.
-    let instant = base_instant + Duration::from_secs((instant - base_instant).as_secs());
+    let instant = reference_time + Duration::from_secs((instant - reference_time).as_secs());
     instant + config.flush_time_shift(bucket_key)
 }
 
@@ -549,7 +549,7 @@ pub struct Aggregator {
     config: AggregatorConfig,
     buckets: HashMap<BucketKey, QueuedBucket>,
     cost_tracker: CostTracker,
-    base_instant: Instant,
+    reference_time: Instant,
 }
 
 impl Aggregator {
@@ -565,7 +565,7 @@ impl Aggregator {
             config,
             buckets: HashMap::new(),
             cost_tracker: CostTracker::default(),
-            base_instant: Instant::now(),
+            reference_time: Instant::now(),
         }
     }
 
@@ -695,7 +695,6 @@ impl Aggregator {
         timestamp: UnixTimestamp,
         bucket_width: u64,
     ) -> Result<UnixTimestamp, AggregateMetricsError> {
-        println!("BUCKET WIDTH {:?}", bucket_width);
         let bucket_ts = self.config.get_bucket_timestamp(timestamp, bucket_width);
 
         if !self.config.timestamp_range().contains(&bucket_ts) {
@@ -784,7 +783,7 @@ impl Aggregator {
                     namespace = entry.key().namespace().as_str(),
                 );
 
-                let flush_at = get_flush_time(&self.config, self.base_instant, entry.key());
+                let flush_at = get_flush_time(&self.config, self.reference_time, entry.key());
                 let value = bucket.value;
                 added_cost = entry.key().cost() + value.cost();
                 entry.insert(QueuedBucket::new(flush_at, value, bucket.metadata));
@@ -1598,7 +1597,7 @@ mod tests {
         config.flush_partitions = Some(10);
         config.flush_batching = FlushBatching::Partition;
 
-        let base_instant = Instant::now();
+        let reference_time = Instant::now();
 
         let now_s =
             (UnixTimestamp::now().as_secs() / config.bucket_interval) * config.bucket_interval;
@@ -1621,8 +1620,8 @@ mod tests {
             tags: BTreeMap::new(),
         };
 
-        let flush_time_1 = get_flush_time(&config, base_instant, &bucket_key_1);
-        let flush_time_2 = get_flush_time(&config, base_instant, &bucket_key_2);
+        let flush_time_1 = get_flush_time(&config, reference_time, &bucket_key_1);
+        let flush_time_2 = get_flush_time(&config, reference_time, &bucket_key_2);
 
         assert_eq!(flush_time_1, flush_time_2);
     }
