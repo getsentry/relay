@@ -5,7 +5,7 @@ use relay_event_schema::protocol::{
     GpuContext, LenientString, Level, LogEntry, Message, OsContext, TagEntry, Tags, Timestamp,
     User, UserReport, Values,
 };
-use relay_protocol::{Annotated, Array, Object, Value};
+use relay_protocol::{Annotated, Array, Empty, Object, Value};
 use symbolic_unreal::{
     Unreal4Context, Unreal4Crash, Unreal4Error, Unreal4ErrorKind, Unreal4FileType, Unreal4LogEntry,
 };
@@ -246,12 +246,14 @@ fn merge_unreal_context(event: &mut Event, context: Unreal4Context) {
         gpu_context.api_type = Annotated::new(rhi_name.into());
     }
 
-    if runtime_props.is_assert.unwrap_or(false) {
-        event.level = Annotated::new(Level::Error)
-    }
+    if event.level.is_empty() {
+        if runtime_props.is_assert.unwrap_or(false) {
+            event.level = Annotated::new(Level::Error)
+        }
 
-    if runtime_props.is_ensure.unwrap_or(false) {
-        event.level = Annotated::new(Level::Warning)
+        if runtime_props.is_ensure.unwrap_or(false) {
+            event.level = Annotated::new(Level::Warning)
+        }
     }
 
     // Modules are not used and later replaced with Modules from the Minidump or Apple Crash Report.
@@ -428,6 +430,22 @@ mod tests {
         runtime_props.is_ensure = Some(true);
 
         let mut event = Event::default();
+
+        merge_unreal_context(&mut event, context);
+
+        assert_eq!(event.level, Annotated::new(Level::Warning));
+    }
+
+    #[test]
+    fn test_merge_unreal_context_is_assert_is_user_defined() {
+        let mut context = get_context();
+        let runtime_props = context.runtime_properties.as_mut().unwrap();
+        runtime_props.is_assert = Some(true);
+
+        let mut event = Event {
+            level: Annotated::new(Level::Warning),
+            ..Default::default()
+        };
 
         merge_unreal_context(&mut event, context);
 
