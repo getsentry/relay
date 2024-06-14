@@ -519,7 +519,7 @@ fn get_flush_time(
     .unwrap_or_else(Instant::now);
 
     // Since `Instant` doesn't allow to get directly how many seconds elapsed, we leverage the
-    // diffing to get a duration and round it to the smallest second.
+    // diffing to get a duration and round it to the smallest second to get consistent times.
     let instant = base_instant + Duration::from_secs((instant - base_instant).as_secs());
     instant + config.flush_time_shift(bucket_key)
 }
