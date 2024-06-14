@@ -21,7 +21,6 @@ class SentryLike:
         self.server_address = server_address
         self.upstream = upstream
         self.public_key = public_key
-        self.fail_on_envelope_error = True
 
     def get_dsn_public_key_configs(self, project_id):
         """
@@ -249,8 +248,7 @@ class SentryLike:
             **(headers or {}),
         }
         response = self.post(url, headers=headers, data=envelope.serialize())
-        if self.fail_on_envelope_error:
-            response.raise_for_status()
+        response.raise_for_status()
         return response
 
     def send_session(self, project_id, payload, item_headers=None):

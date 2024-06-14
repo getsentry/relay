@@ -1,3 +1,4 @@
+import contextlib
 import json
 import uuid
 from collections import Counter
@@ -1739,33 +1740,13 @@ def test_rate_limit_metrics_consistent(
 
 
 @pytest.mark.parametrize(
-    "category, metrics_enabled, metrics_extracted",
+    "category, metrics_enabled, metrics_extracted, raises_rate_limited",
     [
-        (
-            "transaction",
-            False,
-            False,
-        ),
-        (
-            "transaction",
-            False,
-            True,
-        ),
-        (
-            "transaction",
-            True,
-            False,
-        ),
-        (
-            "transaction_indexed",
-            True,
-            False,
-        ),
-        (
-            "transaction_indexed",
-            True,
-            True,
-        ),
+        ("transaction", False, False, False),
+        ("transaction", False, True, False),
+        ("transaction", True, False, True),
+        ("transaction_indexed", True, False, False),
+        ("transaction_indexed", True, True, False),
     ],
 )
 def test_rate_limit_is_consistent_between_transaction_and_spans(
@@ -1776,6 +1757,7 @@ def test_rate_limit_is_consistent_between_transaction_and_spans(
     category,
     metrics_enabled,
     metrics_extracted,
+    raises_rate_limited,
 ):
     """Rate limits for indexed are enforced consistently after metrics extraction.
 
@@ -1783,9 +1765,6 @@ def test_rate_limit_is_consistent_between_transaction_and_spans(
     """
     # TODO: add outcomes check when https://github.com/getsentry/relay/issues/3705 is done.
     relay = relay_with_processing(options=TEST_CONFIG)
-    # We want to avoid failing on 429s.
-    relay.fail_on_envelope_error = False
-
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = [
@@ -1823,8 +1802,15 @@ def test_rate_limit_is_consistent_between_transaction_and_spans(
     spans = spans_consumer.get_spans(n=2, timeout=10)
     assert len(spans) == 2
 
+    maybe_raises = (
+        pytest.raises(HTTPError, match="429 Client Error")
+        if raises_rate_limited
+        else contextlib.nullcontext()
+    )
+
     # Second batch is limited
-    relay.send_envelope(project_id, envelope)
+    with maybe_raises:
+        relay.send_envelope(project_id, envelope)
 
     transactions_consumer.assert_empty()
     spans_consumer.assert_empty()
