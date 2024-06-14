@@ -1594,13 +1594,14 @@ mod tests {
         let mut config = test_config();
         config.bucket_interval = 3600;
         config.initial_delay = 1300;
+        config.debounce_delay = 1300;
         config.flush_partitions = Some(10);
         config.flush_batching = FlushBatching::Partition;
 
+        let base_instant = Instant::now();
+
         let now_s =
             (UnixTimestamp::now().as_secs() / config.bucket_interval) * config.bucket_interval;
-
-        let aggregator = Aggregator::new(config);
 
         // First bucket has a timestamp two hours ago.
         let timestamp = UnixTimestamp::from_secs(now_s - 7200);
@@ -1620,8 +1621,8 @@ mod tests {
             tags: BTreeMap::new(),
         };
 
-        let flush_time_1 = aggregator.get_flush_time(&bucket_key_1);
-        let flush_time_2 = aggregator.get_flush_time(&bucket_key_2);
+        let flush_time_1 = get_flush_time(&config, base_instant, &bucket_key_1);
+        let flush_time_2 = get_flush_time(&config, base_instant, &bucket_key_2);
 
         assert_eq!(flush_time_1, flush_time_2);
     }
