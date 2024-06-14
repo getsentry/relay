@@ -1782,10 +1782,10 @@ def test_rate_limit_is_consistent_between_transaction_and_spans(
     This test does not cover consistent enforcement of total spans.
     """
     # TODO: add outcomes check when https://github.com/getsentry/relay/issues/3705 is done.
-    # Ignore 429s
-    mini_sentry.fail_on_relay_error = False
-
     relay = relay_with_processing(options=TEST_CONFIG)
+    # We want to avoid failing on 429s.
+    relay.fail_on_envelope_error = False
+
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = [
