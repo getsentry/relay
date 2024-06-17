@@ -18,7 +18,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -43,7 +43,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -68,7 +68,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -86,7 +86,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -111,7 +111,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -136,7 +136,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -154,7 +154,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -184,7 +184,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -211,7 +211,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -241,7 +241,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -259,7 +259,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -289,7 +289,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -316,7 +316,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -346,7 +346,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -364,7 +364,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -394,7 +394,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -421,7 +421,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -451,7 +451,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -469,7 +469,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -498,7 +498,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -524,7 +524,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -553,7 +553,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -571,7 +571,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -601,7 +601,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -628,7 +628,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -658,7 +658,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -676,7 +676,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -707,7 +707,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -735,7 +735,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -766,7 +766,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -784,7 +784,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -815,7 +815,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -843,7 +843,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -874,7 +874,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -892,7 +892,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -923,7 +923,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -951,7 +951,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -982,7 +982,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -1000,7 +1000,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -1031,7 +1031,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -1059,7 +1059,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -1090,7 +1090,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -1108,7 +1108,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -1139,7 +1139,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -1167,7 +1167,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -1198,7 +1198,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -1216,7 +1216,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -1247,7 +1247,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -1275,7 +1275,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -1306,7 +1306,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -1324,7 +1324,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -1355,7 +1355,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -1383,7 +1383,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -1414,7 +1414,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -1432,7 +1432,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -1463,7 +1463,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -1491,7 +1491,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -1522,7 +1522,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -1540,7 +1540,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -1569,7 +1569,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -1595,7 +1595,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -1624,7 +1624,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -1642,7 +1642,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -1673,7 +1673,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -1701,7 +1701,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -1732,7 +1732,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -1750,7 +1750,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -1779,7 +1779,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -1805,7 +1805,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -1834,7 +1834,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -1852,7 +1852,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -1883,7 +1883,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -1911,7 +1911,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -1942,7 +1942,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -1960,7 +1960,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -1991,7 +1991,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -2019,7 +2019,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -2050,7 +2050,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -2068,7 +2068,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -2097,7 +2097,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -2123,7 +2123,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -2152,7 +2152,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -2170,7 +2170,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -2199,7 +2199,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -2225,7 +2225,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -2254,7 +2254,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -2272,7 +2272,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -2302,7 +2302,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -2329,7 +2329,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -2359,7 +2359,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -2377,7 +2377,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -2403,7 +2403,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -2430,7 +2430,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -2456,7 +2456,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -2481,7 +2481,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -2499,7 +2499,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -2525,7 +2525,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -2552,7 +2552,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -2578,7 +2578,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -2603,7 +2603,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -2621,7 +2621,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -2646,7 +2646,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -2671,7 +2671,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -2689,7 +2689,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -2714,7 +2714,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -2739,7 +2739,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -2757,7 +2757,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -2782,7 +2782,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -2807,7 +2807,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -2825,7 +2825,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -2855,7 +2855,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -2883,7 +2883,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -2913,7 +2913,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -2931,7 +2931,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -2956,7 +2956,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -2981,7 +2981,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -2999,7 +2999,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -3028,7 +3028,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -3054,7 +3054,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -3083,7 +3083,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -3101,7 +3101,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -3126,7 +3126,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -3151,7 +3151,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -3169,7 +3169,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -3198,7 +3198,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -3224,7 +3224,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -3253,7 +3253,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -3271,7 +3271,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -3296,7 +3296,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -3321,7 +3321,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -3339,7 +3339,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -3364,7 +3364,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -3389,7 +3389,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -3407,7 +3407,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -3435,7 +3435,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -3463,7 +3463,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -3481,7 +3481,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -3512,7 +3512,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -3541,7 +3541,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -3572,7 +3572,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -3601,7 +3601,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -3629,7 +3629,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -3657,7 +3657,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -3675,7 +3675,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -3706,7 +3706,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -3735,7 +3735,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -3766,7 +3766,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -3795,7 +3795,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -3823,7 +3823,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -3851,7 +3851,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -3869,7 +3869,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -3894,7 +3894,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -3919,7 +3919,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -3937,7 +3937,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -3967,7 +3967,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -3994,7 +3994,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -4024,7 +4024,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -4042,7 +4042,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -4072,7 +4072,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -4099,7 +4099,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -4129,7 +4129,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -4147,7 +4147,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -4177,7 +4177,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -4204,7 +4204,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -4234,7 +4234,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -4252,7 +4252,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -4281,7 +4281,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -4307,7 +4307,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -4336,7 +4336,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -4354,7 +4354,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -4385,7 +4385,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -4413,7 +4413,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -4444,7 +4444,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -4462,7 +4462,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -4493,7 +4493,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -4521,7 +4521,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -4552,7 +4552,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -4570,7 +4570,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -4601,7 +4601,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -4629,7 +4629,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -4660,7 +4660,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -4678,7 +4678,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -4709,7 +4709,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -4737,7 +4737,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -4768,7 +4768,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -4786,7 +4786,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -4817,7 +4817,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -4845,7 +4845,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -4876,7 +4876,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -4894,7 +4894,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -4925,7 +4925,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -4953,7 +4953,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -4984,7 +4984,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -5002,7 +5002,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -5033,7 +5033,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -5061,7 +5061,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -5092,7 +5092,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -5110,7 +5110,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -5141,7 +5141,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -5169,7 +5169,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -5200,7 +5200,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -5218,7 +5218,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -5247,7 +5247,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -5273,7 +5273,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -5302,7 +5302,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -5320,7 +5320,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -5351,7 +5351,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -5379,7 +5379,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -5410,7 +5410,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -5428,7 +5428,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -5457,7 +5457,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -5483,7 +5483,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -5512,7 +5512,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -5530,7 +5530,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -5561,7 +5561,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -5589,7 +5589,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -5620,7 +5620,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -5638,7 +5638,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -5669,7 +5669,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -5697,7 +5697,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -5728,7 +5728,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -5746,7 +5746,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -5775,7 +5775,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -5801,7 +5801,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -5830,7 +5830,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -5848,7 +5848,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -5877,7 +5877,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -5903,7 +5903,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -5932,7 +5932,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -5950,7 +5950,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -5980,7 +5980,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -6007,7 +6007,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -6037,7 +6037,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -6055,7 +6055,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -6081,7 +6081,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -6108,7 +6108,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -6134,7 +6134,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -6159,7 +6159,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -6177,7 +6177,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -6203,7 +6203,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -6230,7 +6230,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -6256,7 +6256,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -6274,7 +6274,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -6299,7 +6299,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -6324,7 +6324,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -6342,7 +6342,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -6367,7 +6367,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -6392,7 +6392,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -6410,7 +6410,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -6435,7 +6435,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -6460,7 +6460,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -6478,7 +6478,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -6507,7 +6507,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -6534,7 +6534,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -6563,7 +6563,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -6581,7 +6581,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -6611,7 +6611,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -6639,7 +6639,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -6669,7 +6669,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -6687,7 +6687,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -6718,7 +6718,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -6747,7 +6747,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -6778,7 +6778,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -6807,7 +6807,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -6835,7 +6835,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -6863,7 +6863,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -6881,7 +6881,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -6909,7 +6909,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -6935,7 +6935,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -6963,7 +6963,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -6981,7 +6981,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -7006,7 +7006,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -7030,7 +7030,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -7055,7 +7055,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -7073,7 +7073,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -7101,7 +7101,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -7127,7 +7127,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -7155,7 +7155,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -7184,7 +7184,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -7202,7 +7202,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -7230,7 +7230,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -7256,7 +7256,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -7284,7 +7284,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -7313,7 +7313,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -7331,7 +7331,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -7359,7 +7359,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -7385,7 +7385,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -7413,7 +7413,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -7442,7 +7442,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -7460,7 +7460,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -7488,7 +7488,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -7514,7 +7514,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -7542,7 +7542,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -7571,7 +7571,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -7589,7 +7589,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -7617,7 +7617,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -7642,7 +7642,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -7670,7 +7670,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -7697,7 +7697,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -7724,7 +7724,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -7742,7 +7742,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -7770,7 +7770,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -7795,7 +7795,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -7823,7 +7823,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
     Bucket {
@@ -7849,7 +7849,7 @@ expression: metrics
             received_at: Some(
                 UnixTimestamp(0),
             ),
-            is_sampled: false,
+            extracted_from_indexed: false,
         },
     },
 ]

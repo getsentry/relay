@@ -760,7 +760,7 @@ pub struct BucketMetadata {
     /// received in the outermost internal Relay.
     pub received_at: Option<UnixTimestamp>,
 
-    /// Is `true` if this metric was extracted from a sampled envelope item.
+    /// Is `true` if this metric was extracted from a sampled/indexed envelope item.
     ///
     /// The final dyanmic sampling decision is always made in processing Relays,
     /// if a metric was extracted from an item which is sampled, this flag is `true`.
@@ -769,7 +769,7 @@ pub struct BucketMetadata {
     /// require rate limiting since the sample they've been extracted from was already
     /// rate limited, this flag must be included in the aggregation key when aggregation buckets.
     #[serde(skip)]
-    pub is_sampled: bool,
+    pub extracted_from_indexed: bool,
 }
 
 impl BucketMetadata {
@@ -780,7 +780,7 @@ impl BucketMetadata {
         Self {
             merges: 1,
             received_at: Some(received_at),
-            is_sampled: false,
+            extracted_from_indexed: false,
         }
     }
 
@@ -805,7 +805,7 @@ impl Default for BucketMetadata {
         Self {
             merges: 1,
             received_at: None,
-            is_sampled: false,
+            extracted_from_indexed: false,
         }
     }
 }
@@ -940,7 +940,7 @@ mod tests {
             metadata: BucketMetadata {
                 merges: 1,
                 received_at: None,
-                is_sampled: false,
+                extracted_from_indexed: false,
             },
         }
         "###);
@@ -975,7 +975,7 @@ mod tests {
             metadata: BucketMetadata {
                 merges: 1,
                 received_at: None,
-                is_sampled: false,
+                extracted_from_indexed: false,
             },
         }
         "###);
@@ -1028,7 +1028,7 @@ mod tests {
             metadata: BucketMetadata {
                 merges: 1,
                 received_at: None,
-                is_sampled: false,
+                extracted_from_indexed: false,
             },
         }
         "###);
@@ -1089,7 +1089,7 @@ mod tests {
             metadata: BucketMetadata {
                 merges: 1,
                 received_at: None,
-                is_sampled: false,
+                extracted_from_indexed: false,
             },
         }
         "###);
@@ -1120,7 +1120,7 @@ mod tests {
             metadata: BucketMetadata {
                 merges: 1,
                 received_at: None,
-                is_sampled: false,
+                extracted_from_indexed: false,
             },
         }
         "###);
@@ -1145,7 +1145,7 @@ mod tests {
             metadata: BucketMetadata {
                 merges: 1,
                 received_at: None,
-                is_sampled: false,
+                extracted_from_indexed: false,
             },
         }
         "###);
@@ -1349,7 +1349,7 @@ mod tests {
                     received_at: Some(
                         UnixTimestamp(1615889440),
                     ),
-                    is_sampled: false,
+                    extracted_from_indexed: false,
                 },
             },
         ]
@@ -1391,7 +1391,7 @@ mod tests {
                     received_at: Some(
                         UnixTimestamp(1615889440),
                     ),
-                    is_sampled: false,
+                    extracted_from_indexed: false,
                 },
             },
         ]
@@ -1481,7 +1481,7 @@ mod tests {
             BucketMetadata {
                 merges: 2,
                 received_at: None,
-                is_sampled: false,
+                extracted_from_indexed: false,
             }
         );
 
@@ -1492,7 +1492,7 @@ mod tests {
             BucketMetadata {
                 merges: 3,
                 received_at: Some(UnixTimestamp::from_secs(10)),
-                is_sampled: false,
+                extracted_from_indexed: false,
             }
         );
 
@@ -1503,7 +1503,7 @@ mod tests {
             BucketMetadata {
                 merges: 4,
                 received_at: Some(UnixTimestamp::from_secs(10)),
-                is_sampled: false,
+                extracted_from_indexed: false,
             }
         );
     }

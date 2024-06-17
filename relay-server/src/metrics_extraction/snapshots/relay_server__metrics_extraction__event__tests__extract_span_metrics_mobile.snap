@@ -837,7 +837,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 received_at: Some(
                     UnixTimestamp(0),
                 ),
-                is_sampled: false,
+                extracted_from_indexed: false,
             },
         },
         Bucket {
@@ -868,7 +868,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 received_at: Some(
                     UnixTimestamp(0),
                 ),
-                is_sampled: false,
+                extracted_from_indexed: false,
             },
         },
         Bucket {
@@ -896,7 +896,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 received_at: Some(
                     UnixTimestamp(0),
                 ),
-                is_sampled: false,
+                extracted_from_indexed: false,
             },
         },
         Bucket {
@@ -927,7 +927,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 received_at: Some(
                     UnixTimestamp(0),
                 ),
-                is_sampled: false,
+                extracted_from_indexed: false,
             },
         },
         Bucket {
@@ -945,7 +945,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 received_at: Some(
                     UnixTimestamp(0),
                 ),
-                is_sampled: false,
+                extracted_from_indexed: false,
             },
         },
         Bucket {
@@ -976,7 +976,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 received_at: Some(
                     UnixTimestamp(0),
                 ),
-                is_sampled: false,
+                extracted_from_indexed: false,
             },
         },
         Bucket {
@@ -1003,7 +1003,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 received_at: Some(
                     UnixTimestamp(0),
                 ),
-                is_sampled: false,
+                extracted_from_indexed: false,
             },
         },
         Bucket {
@@ -1034,7 +1034,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 received_at: Some(
                     UnixTimestamp(0),
                 ),
-                is_sampled: false,
+                extracted_from_indexed: false,
             },
         },
         Bucket {
@@ -1052,7 +1052,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 received_at: Some(
                     UnixTimestamp(0),
                 ),
-                is_sampled: false,
+                extracted_from_indexed: false,
             },
         },
         Bucket {
@@ -1082,7 +1082,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 received_at: Some(
                     UnixTimestamp(0),
                 ),
-                is_sampled: false,
+                extracted_from_indexed: false,
             },
         },
         Bucket {
@@ -1108,7 +1108,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 received_at: Some(
                     UnixTimestamp(0),
                 ),
-                is_sampled: false,
+                extracted_from_indexed: false,
             },
         },
         Bucket {
@@ -1138,7 +1138,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 received_at: Some(
                     UnixTimestamp(0),
                 ),
-                is_sampled: false,
+                extracted_from_indexed: false,
             },
         },
         Bucket {
@@ -1169,7 +1169,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 received_at: Some(
                     UnixTimestamp(0),
                 ),
-                is_sampled: false,
+                extracted_from_indexed: false,
             },
         },
         Bucket {
@@ -1200,7 +1200,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 received_at: Some(
                     UnixTimestamp(0),
                 ),
-                is_sampled: false,
+                extracted_from_indexed: false,
             },
         },
         Bucket {
@@ -1231,7 +1231,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 received_at: Some(
                     UnixTimestamp(0),
                 ),
-                is_sampled: false,
+                extracted_from_indexed: false,
             },
         },
         Bucket {
@@ -1262,7 +1262,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 received_at: Some(
                     UnixTimestamp(0),
                 ),
-                is_sampled: false,
+                extracted_from_indexed: false,
             },
         },
         Bucket {
@@ -1280,7 +1280,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 received_at: Some(
                     UnixTimestamp(0),
                 ),
-                is_sampled: false,
+                extracted_from_indexed: false,
             },
         },
         Bucket {
@@ -1313,7 +1313,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 received_at: Some(
                     UnixTimestamp(0),
                 ),
-                is_sampled: false,
+                extracted_from_indexed: false,
             },
         },
         Bucket {
@@ -1342,7 +1342,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 received_at: Some(
                     UnixTimestamp(0),
                 ),
-                is_sampled: false,
+                extracted_from_indexed: false,
             },
         },
         Bucket {
@@ -1375,7 +1375,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 received_at: Some(
                     UnixTimestamp(0),
                 ),
-                is_sampled: false,
+                extracted_from_indexed: false,
             },
         },
         Bucket {
@@ -1393,7 +1393,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 received_at: Some(
                     UnixTimestamp(0),
                 ),
-                is_sampled: false,
+                extracted_from_indexed: false,
             },
         },
         Bucket {
@@ -1417,7 +1417,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 received_at: Some(
                     UnixTimestamp(0),
                 ),
-                is_sampled: false,
+                extracted_from_indexed: false,
             },
         },
         Bucket {
@@ -1441,7 +1441,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 received_at: Some(
                     UnixTimestamp(0),
                 ),
-                is_sampled: false,
+                extracted_from_indexed: false,
             },
         },
         Bucket {
@@ -1459,7 +1459,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 received_at: Some(
                     UnixTimestamp(0),
                 ),
-                is_sampled: false,
+                extracted_from_indexed: false,
             },
         },
         Bucket {
@@ -1491,7 +1491,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 received_at: Some(
                     UnixTimestamp(0),
                 ),
-                is_sampled: false,
+                extracted_from_indexed: false,
             },
         },
         Bucket {
@@ -1519,7 +1519,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 received_at: Some(
                     UnixTimestamp(0),
                 ),
-                is_sampled: false,
+                extracted_from_indexed: false,
             },
         },
         Bucket {
@@ -1551,7 +1551,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 received_at: Some(
                     UnixTimestamp(0),
                 ),
-                is_sampled: false,
+                extracted_from_indexed: false,
             },
         },
         Bucket {
@@ -1569,7 +1569,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 received_at: Some(
                     UnixTimestamp(0),
                 ),
-                is_sampled: false,
+                extracted_from_indexed: false,
             },
         },
         Bucket {
@@ -1601,7 +1601,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 received_at: Some(
                     UnixTimestamp(0),
                 ),
-                is_sampled: false,
+                extracted_from_indexed: false,
             },
         },
         Bucket {
@@ -1629,7 +1629,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 received_at: Some(
                     UnixTimestamp(0),
                 ),
-                is_sampled: false,
+                extracted_from_indexed: false,
             },
         },
         Bucket {
@@ -1661,7 +1661,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 received_at: Some(
                     UnixTimestamp(0),
                 ),
-                is_sampled: false,
+                extracted_from_indexed: false,
             },
         },
         Bucket {
@@ -1679,7 +1679,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 received_at: Some(
                     UnixTimestamp(0),
                 ),
-                is_sampled: false,
+                extracted_from_indexed: false,
             },
         },
         Bucket {
@@ -1711,7 +1711,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 received_at: Some(
                     UnixTimestamp(0),
                 ),
-                is_sampled: false,
+                extracted_from_indexed: false,
             },
         },
         Bucket {
@@ -1739,7 +1739,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 received_at: Some(
                     UnixTimestamp(0),
                 ),
-                is_sampled: false,
+                extracted_from_indexed: false,
             },
         },
         Bucket {
@@ -1771,7 +1771,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 received_at: Some(
                     UnixTimestamp(0),
                 ),
-                is_sampled: false,
+                extracted_from_indexed: false,
             },
         },
         Bucket {
@@ -1789,7 +1789,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 received_at: Some(
                     UnixTimestamp(0),
                 ),
-                is_sampled: false,
+                extracted_from_indexed: false,
             },
         },
         Bucket {
@@ -1819,7 +1819,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 received_at: Some(
                     UnixTimestamp(0),
                 ),
-                is_sampled: false,
+                extracted_from_indexed: false,
             },
         },
         Bucket {
@@ -1845,7 +1845,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 received_at: Some(
                     UnixTimestamp(0),
                 ),
-                is_sampled: false,
+                extracted_from_indexed: false,
             },
         },
         Bucket {
@@ -1875,7 +1875,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 received_at: Some(
                     UnixTimestamp(0),
                 ),
-                is_sampled: false,
+                extracted_from_indexed: false,
             },
         },
         Bucket {
@@ -1893,7 +1893,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 received_at: Some(
                     UnixTimestamp(0),
                 ),
-                is_sampled: false,
+                extracted_from_indexed: false,
             },
         },
         Bucket {
@@ -1926,7 +1926,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 received_at: Some(
                     UnixTimestamp(0),
                 ),
-                is_sampled: false,
+                extracted_from_indexed: false,
             },
         },
         Bucket {
@@ -1955,7 +1955,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 received_at: Some(
                     UnixTimestamp(0),
                 ),
-                is_sampled: false,
+                extracted_from_indexed: false,
             },
         },
         Bucket {
@@ -1988,7 +1988,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 received_at: Some(
                     UnixTimestamp(0),
                 ),
-                is_sampled: false,
+                extracted_from_indexed: false,
             },
         },
         Bucket {
@@ -2006,7 +2006,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 received_at: Some(
                     UnixTimestamp(0),
                 ),
-                is_sampled: false,
+                extracted_from_indexed: false,
             },
         },
         Bucket {
@@ -2038,7 +2038,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 received_at: Some(
                     UnixTimestamp(0),
                 ),
-                is_sampled: false,
+                extracted_from_indexed: false,
             },
         },
         Bucket {
@@ -2066,7 +2066,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 received_at: Some(
                     UnixTimestamp(0),
                 ),
-                is_sampled: false,
+                extracted_from_indexed: false,
             },
         },
         Bucket {
@@ -2098,7 +2098,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 received_at: Some(
                     UnixTimestamp(0),
                 ),
-                is_sampled: false,
+                extracted_from_indexed: false,
             },
         },
         Bucket {
@@ -2116,7 +2116,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 received_at: Some(
                     UnixTimestamp(0),
                 ),
-                is_sampled: false,
+                extracted_from_indexed: false,
             },
         },
         Bucket {
@@ -2148,7 +2148,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 received_at: Some(
                     UnixTimestamp(0),
                 ),
-                is_sampled: false,
+                extracted_from_indexed: false,
             },
         },
         Bucket {
@@ -2176,7 +2176,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 received_at: Some(
                     UnixTimestamp(0),
                 ),
-                is_sampled: false,
+                extracted_from_indexed: false,
             },
         },
         Bucket {
@@ -2208,7 +2208,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 received_at: Some(
                     UnixTimestamp(0),
                 ),
-                is_sampled: false,
+                extracted_from_indexed: false,
             },
         },
     ],

@@ -607,7 +607,7 @@ impl ProcessingExtractedMetrics {
     ) {
         if sampling_decision == Some(SamplingDecision::Keep) {
             for bucket in &mut buckets {
-                bucket.metadata.is_sampled = true;
+                bucket.metadata.extracted_from_indexed = true;
             }
         }
         self.0.project_metrics.extend(buckets);
@@ -621,7 +621,7 @@ impl ProcessingExtractedMetrics {
     ) {
         if sampling_decision == Some(SamplingDecision::Keep) {
             for bucket in &mut buckets {
-                bucket.metadata.is_sampled = true;
+                bucket.metadata.extracted_from_indexed = true;
             }
         }
         self.0.sampling_metrics.extend(buckets);

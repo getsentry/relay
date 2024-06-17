@@ -113,7 +113,7 @@ impl<Q: AsRef<Vec<Quota>>> MetricsLimiter<Q> {
             .into_iter()
             .map(|bucket| {
                 // Sampled buckets are not rate limited, because the sample has already been rate limited.
-                let summary = match bucket.metadata.is_sampled {
+                let summary = match bucket.metadata.extracted_from_indexed {
                     false => bucket.summary(),
                     true => Default::default(),
                 };
