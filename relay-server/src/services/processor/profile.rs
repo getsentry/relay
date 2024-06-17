@@ -76,13 +76,10 @@ pub fn transfer_id(
             let contexts = event.contexts.get_or_insert_with(Contexts::new);
             contexts.add(ProfileContext {
                 profile_id: Annotated::new(profile_id),
+                ..Default::default()
             });
         }
-        None => {
-            if let Some(contexts) = event.contexts.value_mut() {
-                contexts.remove::<ProfileContext>();
-            }
-        }
+        _ => (),
     }
 }
 
