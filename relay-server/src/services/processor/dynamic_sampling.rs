@@ -107,9 +107,9 @@ pub fn drop_unsampled_items(
             continue;
         };
 
-        // Upgrade the category to the index category if one exists for this category.
-        //
-        // Dynamic sampling only drops indexed items.
+        // Dynamic sampling only drops indexed items. Upgrade the category to the index
+        // category if one exists for this category, for example profiles will be upgraded to profiles indexed,
+        // but attachments are still emitted as attachments.
         let category = category.index_category().unwrap_or(category);
 
         state

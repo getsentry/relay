@@ -167,6 +167,9 @@ pub fn process(
         if sampling_result.decision().is_drop() {
             relay_log::trace!("Dropping span because of sampling rule {sampling_result:?}");
             dynamic_sampling_dropped_spans += 1;
+            // Drop silently and not with an outcome, we only want to emit an outcome for the
+            // indexed category if the span was dropped by dynamic sampling.
+            // Dropping through the envelope will emit for both categories.
             return ItemAction::DropSilently;
         }
 
