@@ -181,19 +181,6 @@
 <a href="#181" id="181">181</a>
 <a href="#182" id="182">182</a>
 <a href="#183" id="183">183</a>
-<a href="#184" id="184">184</a>
-<a href="#185" id="185">185</a>
-<a href="#186" id="186">186</a>
-<a href="#187" id="187">187</a>
-<a href="#188" id="188">188</a>
-<a href="#189" id="189">189</a>
-<a href="#190" id="190">190</a>
-<a href="#191" id="191">191</a>
-<a href="#192" id="192">192</a>
-<a href="#193" id="193">193</a>
-<a href="#194" id="194">194</a>
-<a href="#195" id="195">195</a>
-<a href="#196" id="196">196</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::sync::atomic::{AtomicBool, Ordering};
 
 <span class="kw">use </span>relay_cogs::{CogsMeasurement, CogsRecorder, ResourceId};
@@ -203,7 +190,6 @@
 
 <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
 </span><span class="kw">use </span><span class="kw">crate</span>::services::store::{Store, StoreCogs};
-<span class="kw">use </span><span class="kw">crate</span>::statsd::RelayCounters;
 
 <span class="kw">pub struct </span>CogsReport(CogsMeasurement);
 
@@ -230,16 +216,10 @@
 <span class="kw">impl </span>Producer <span class="kw">for </span>RelayProducer {
     <span class="kw">type </span>Error = std::convert::Infallible;
 
-    <span class="kw">fn </span>send(<span class="kw-2">&amp;mut </span><span class="self">self</span>, message: <span class="kw-2">&amp;</span>sentry_usage_accountant::Message) -&gt; <span class="prelude-ty">Result</span>&lt;(), <span class="self">Self</span>::Error&gt; {
-        <span class="macro">relay_statsd::metric!</span>(
-            counter(RelayCounters::CogsUsage) += message.amount <span class="kw">as </span>i64,
-            resource_id = <span class="kw-2">&amp;</span>message.shared_resource_id,
-            app_feature = <span class="kw-2">&amp;</span>message.app_feature
-        );
-
+    <span class="kw">fn </span>send(<span class="kw-2">&amp;mut </span><span class="self">self</span>, _payload: Vec&lt;u8&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;(), <span class="self">Self</span>::Error&gt; {
         <span class="kw">match </span><span class="self">self </span>{
             <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-            </span><span class="self">Self</span>::Store(addr) =&gt; addr.send(StoreCogs(message.serialize())),
+            </span><span class="self">Self</span>::Store(addr) =&gt; addr.send(StoreCogs(_payload)),
             <span class="self">Self</span>::Noop =&gt; {}
         }
 
@@ -285,12 +265,6 @@
                 UsageUnit::Milliseconds,
             ),
         };
-
-        <span class="macro">relay_statsd::metric!</span>(
-            counter(RelayCounters::CogsRaw) += amount <span class="kw">as </span>i64,
-            resource_id = resource_id,
-            app_feature = measurement.feature.as_str()
-        );
 
         <span class="self">self</span>.usage_accountant
             .record(resource_id, measurement.feature.as_str(), amount, unit)
