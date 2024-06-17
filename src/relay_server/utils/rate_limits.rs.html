@@ -1565,6 +1565,23 @@
 <a href="#1565" id="1565">1565</a>
 <a href="#1566" id="1566">1566</a>
 <a href="#1567" id="1567">1567</a>
+<a href="#1568" id="1568">1568</a>
+<a href="#1569" id="1569">1569</a>
+<a href="#1570" id="1570">1570</a>
+<a href="#1571" id="1571">1571</a>
+<a href="#1572" id="1572">1572</a>
+<a href="#1573" id="1573">1573</a>
+<a href="#1574" id="1574">1574</a>
+<a href="#1575" id="1575">1575</a>
+<a href="#1576" id="1576">1576</a>
+<a href="#1577" id="1577">1577</a>
+<a href="#1578" id="1578">1578</a>
+<a href="#1579" id="1579">1579</a>
+<a href="#1580" id="1580">1580</a>
+<a href="#1581" id="1581">1581</a>
+<a href="#1582" id="1582">1582</a>
+<a href="#1583" id="1583">1583</a>
+<a href="#1584" id="1584">1584</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::fmt::{<span class="self">self</span>, Write};
 
 <span class="kw">use </span>relay_dynamic_config::{ErrorBoundary, ProjectConfig};
@@ -2130,6 +2147,10 @@
                 // Otherwise, the outcome is logged at a different place.
                 </span><span class="kw">if </span>!summary.transaction_metrics_extracted {
                     enforcement.event_metrics = CategoryLimit::new(category, <span class="number">1</span>, longest);
+                    <span class="kw">if </span>summary.span_quantity &gt; <span class="number">0 </span>{
+                        enforcement.span_metrics =
+                            CategoryLimit::new(DataCategory::Span, summary.span_quantity, longest);
+                    }
                 }
 
                 <span class="comment">// If the main category is rate limited, we drop both the event and metrics. If
@@ -2140,10 +2161,21 @@
                 }
 
                 enforcement.event = CategoryLimit::new(index_category, <span class="number">1</span>, longest);
+                <span class="kw">if </span>summary.span_quantity &gt; <span class="number">0 </span>{
+                    enforcement.spans = CategoryLimit::new(
+                        DataCategory::SpanIndexed,
+                        summary.span_quantity,
+                        longest,
+                    );
+                }
             } <span class="kw">else </span>{
                 event_limits = (<span class="self">self</span>.check)(scoping.item(category), <span class="number">1</span>)<span class="question-mark">?</span>;
                 longest = event_limits.longest();
                 enforcement.event = CategoryLimit::new(category, <span class="number">1</span>, longest);
+                <span class="kw">if </span>summary.span_quantity &gt; <span class="number">0 </span>{
+                    enforcement.spans =
+                        CategoryLimit::new(DataCategory::Span, summary.span_quantity, longest);
+                }
             }
 
             <span class="comment">// Record the same reason for attachments, if there are any.
@@ -2233,7 +2265,9 @@
             rate_limits.merge(checkin_limits);
         }
 
-        <span class="kw">if </span>summary.span_quantity &gt; <span class="number">0 </span>{
+        <span class="comment">// We want to process spans rate limits only if they were not already applied because a
+        // rate limited transaction has also rate limited its child spans.
+        </span><span class="kw">if </span>!enforcement.event.is_active() &amp;&amp; summary.span_quantity &gt; <span class="number">0 </span>{
             <span class="comment">// Check for rate limits on the main category but do not consume
             // quota. Quota will be consumed by the metrics rate limiter instead.
             </span><span class="kw">let </span><span class="kw-2">mut </span>span_limits = (<span class="self">self</span>.check)(scoping.item(DataCategory::Span), <span class="number">0</span>)<span class="question-mark">?</span>;
