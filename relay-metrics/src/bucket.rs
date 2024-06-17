@@ -762,8 +762,8 @@ pub struct BucketMetadata {
 
     /// Is `true` if this metric was extracted from a sampled/indexed envelope item.
     ///
-    /// The final dyanmic sampling decision is always made in processing Relays,
-    /// if a metric was extracted from an item which is sampled, this flag is `true`.
+    /// The final dynamic sampling decision is always made in processing Relays.
+    /// If a metric was extracted from an item which is sampled (i.e. retained by dynamic sampling), this flag is `true`.
     ///
     /// Since these metrics from samples carry additional information, e.g. they don't
     /// require rate limiting since the sample they've been extracted from was already
