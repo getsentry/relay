@@ -401,7 +401,7 @@ impl<'a> IntoIterator for &'a RateLimits {
 ///
 /// Cached rate limits don't enforce indexed rate limits because at the time of the check
 /// the decision whether an envelope is sampled or not is not yet known. Additionally
-/// even if the item is later not sampled, it must still be around to extract metrics
+/// even if the item is later dropped by dynamic sampling, it must still be around to extract metrics
 /// and cannot be dropped too early.
 #[derive(Debug, Default)]
 pub struct CachedRateLimits(RateLimits);
