@@ -462,6 +462,22 @@
 <a href="#462" id="462">462</a>
 <a href="#463" id="463">463</a>
 <a href="#464" id="464">464</a>
+<a href="#465" id="465">465</a>
+<a href="#466" id="466">466</a>
+<a href="#467" id="467">467</a>
+<a href="#468" id="468">468</a>
+<a href="#469" id="469">469</a>
+<a href="#470" id="470">470</a>
+<a href="#471" id="471">471</a>
+<a href="#472" id="472">472</a>
+<a href="#473" id="473">473</a>
+<a href="#474" id="474">474</a>
+<a href="#475" id="475">475</a>
+<a href="#476" id="476">476</a>
+<a href="#477" id="477">477</a>
+<a href="#478" id="478">478</a>
+<a href="#479" id="479">479</a>
+<a href="#480" id="480">480</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>chrono::{TimeZone, Utc};
 <span class="kw">use </span>relay_config::Config;
 <span class="kw">use </span>relay_event_schema::protocol::{
@@ -469,7 +485,7 @@
     GpuContext, LenientString, Level, LogEntry, Message, OsContext, TagEntry, Tags, Timestamp,
     User, UserReport, Values,
 };
-<span class="kw">use </span>relay_protocol::{Annotated, Array, Object, Value};
+<span class="kw">use </span>relay_protocol::{Annotated, Array, Empty, Object, Value};
 <span class="kw">use </span>symbolic_unreal::{
     Unreal4Context, Unreal4Crash, Unreal4Error, Unreal4ErrorKind, Unreal4FileType, Unreal4LogEntry,
 };
@@ -710,12 +726,12 @@
         gpu_context.api_type = Annotated::new(rhi_name.into());
     }
 
-    <span class="kw">if </span>runtime_props.is_assert.unwrap_or(<span class="bool-val">false</span>) {
-        event.level = Annotated::new(Level::Error)
-    }
-
-    <span class="kw">if </span>runtime_props.is_ensure.unwrap_or(<span class="bool-val">false</span>) {
-        event.level = Annotated::new(Level::Warning)
+    <span class="kw">if </span>event.level.is_empty() {
+        <span class="kw">if </span>runtime_props.is_assert.unwrap_or(<span class="bool-val">false</span>) {
+            event.level = Annotated::new(Level::Error)
+        } <span class="kw">else if </span>runtime_props.is_ensure.unwrap_or(<span class="bool-val">false</span>) {
+            event.level = Annotated::new(Level::Warning)
+        }
     }
 
     <span class="comment">// Modules are not used and later replaced with Modules from the Minidump or Apple Crash Report.
@@ -892,6 +908,22 @@
         runtime_props.is_ensure = <span class="prelude-val">Some</span>(<span class="bool-val">true</span>);
 
         <span class="kw">let </span><span class="kw-2">mut </span>event = Event::default();
+
+        merge_unreal_context(<span class="kw-2">&amp;mut </span>event, context);
+
+        <span class="macro">assert_eq!</span>(event.level, Annotated::new(Level::Warning));
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_merge_unreal_context_is_assert_is_user_defined() {
+        <span class="kw">let </span><span class="kw-2">mut </span>context = get_context();
+        <span class="kw">let </span>runtime_props = context.runtime_properties.as_mut().unwrap();
+        runtime_props.is_assert = <span class="prelude-val">Some</span>(<span class="bool-val">true</span>);
+
+        <span class="kw">let </span><span class="kw-2">mut </span>event = Event {
+            level: Annotated::new(Level::Warning),
+            ..Default::default()
+        };
 
         merge_unreal_context(<span class="kw-2">&amp;mut </span>event, context);
 
