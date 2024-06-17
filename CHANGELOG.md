@@ -7,6 +7,7 @@
 - Trim fields in replays to their defined maximum length. ([#3706](https://github.com/getsentry/relay/pull/3706))
 - Emit span usage metric for every extracted or standalone span, even if common span metrics are disabled. ([#3719](https://github.com/getsentry/relay/pull/3719))
 - Stop overwriting the level of user supplied errors in unreal crash reports. ([#3732](https://github.com/getsentry/relay/pull/3732))
+- Apply rate limit on extracted spans when the transaction is rate limited. ([#3713](https://github.com/getsentry/relay/pull/3713))
 
 **Internal**:
 

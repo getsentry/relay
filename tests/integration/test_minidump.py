@@ -397,7 +397,7 @@ def test_minidump_with_processing(
     attachments_consumer = attachments_consumer()
 
     attachments = [(MINIDUMP_ATTACHMENT_NAME, "minidump.dmp", content)]
-    relay.send_minidump(project_id=project_id, files=attachments)
+    response = relay.send_minidump(project_id=project_id, files=attachments)
 
     attachment = b""
     num_chunks = 0
@@ -410,6 +410,8 @@ def test_minidump_with_processing(
         num_chunks += 1
 
     event, message = attachments_consumer.get_event()
+
+    assert UUID(event["event_id"]) == UUID(response.text)
 
     # Check the placeholder payload
     assert event["platform"] == "native"

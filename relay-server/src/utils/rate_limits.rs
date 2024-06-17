@@ -563,6 +563,10 @@ where
                 // Otherwise, the outcome is logged at a different place.
                 if !summary.transaction_metrics_extracted {
                     enforcement.event_metrics = CategoryLimit::new(category, 1, longest);
+                    if summary.span_quantity > 0 {
+                        enforcement.span_metrics =
+                            CategoryLimit::new(DataCategory::Span, summary.span_quantity, longest);
+                    }
                 }
 
                 // If the main category is rate limited, we drop both the event and metrics. If
@@ -573,10 +577,21 @@ where
                 }
 
                 enforcement.event = CategoryLimit::new(index_category, 1, longest);
+                if summary.span_quantity > 0 {
+                    enforcement.spans = CategoryLimit::new(
+                        DataCategory::SpanIndexed,
+                        summary.span_quantity,
+                        longest,
+                    );
+                }
             } else {
                 event_limits = (self.check)(scoping.item(category), 1)?;
                 longest = event_limits.longest();
                 enforcement.event = CategoryLimit::new(category, 1, longest);
+                if summary.span_quantity > 0 {
+                    enforcement.spans =
+                        CategoryLimit::new(DataCategory::Span, summary.span_quantity, longest);
+                }
             }
 
             // Record the same reason for attachments, if there are any.
@@ -666,7 +681,9 @@ where
             rate_limits.merge(checkin_limits);
         }
 
-        if summary.span_quantity > 0 {
+        // We want to process spans rate limits only if they were not already applied because a
+        // rate limited transaction has also rate limited its child spans.
+        if !enforcement.event.is_active() && summary.span_quantity > 0 {
             // Check for rate limits on the main category but do not consume
             // quota. Quota will be consumed by the metrics rate limiter instead.
             let mut span_limits = (self.check)(scoping.item(DataCategory::Span), 0)?;
