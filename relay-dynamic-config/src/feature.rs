@@ -143,6 +143,13 @@ impl FeatureSet {
     pub fn has(&self, feature: Feature) -> bool {
         self.0.contains(&feature)
     }
+
+    /// Returns `true` if any spans are produced for this project.
+    pub fn produces_spans(&self) -> bool {
+        self.has(Feature::ExtractSpansFromEvent)
+            || self.has(Feature::StandaloneSpanIngestion)
+            || self.has(Feature::ExtractCommonSpanMetricsFromEvent)
+    }
 }
 
 impl FromIterator<Feature> for FeatureSet {

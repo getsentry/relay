@@ -7,6 +7,7 @@ use sentry_usage_accountant::{Producer, UsageAccountant, UsageUnit};
 
 #[cfg(feature = "processing")]
 use crate::services::store::{Store, StoreCogs};
+use crate::statsd::RelayCounters;
 
 pub struct CogsReport(CogsMeasurement);
 
@@ -33,10 +34,16 @@ enum RelayProducer {
 impl Producer for RelayProducer {
     type Error = std::convert::Infallible;
 
-    fn send(&mut self, _payload: Vec<u8>) -> Result<(), Self::Error> {
+    fn send(&mut self, message: &sentry_usage_accountant::Message) -> Result<(), Self::Error> {
+        relay_statsd::metric!(
+            counter(RelayCounters::CogsUsage) += message.amount as i64,
+            resource_id = &message.shared_resource_id,
+            app_feature = &message.app_feature
+        );
+
         match self {
             #[cfg(feature = "processing")]
-            Self::Store(addr) => addr.send(StoreCogs(_payload)),
+            Self::Store(addr) => addr.send(StoreCogs(message.serialize())),
             Self::Noop => {}
         }
 
@@ -82,6 +89,12 @@ impl CogsService {
                 UsageUnit::Milliseconds,
             ),
         };
+
+        relay_statsd::metric!(
+            counter(RelayCounters::CogsRaw) += amount as i64,
+            resource_id = resource_id,
+            app_feature = measurement.feature.as_str()
+        );
 
         self.usage_accountant
             .record(resource_id, measurement.feature.as_str(), amount, unit)

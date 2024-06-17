@@ -963,6 +963,7 @@ pub struct EnvelopeProcessorService {
 
 /// Contains the addresses of services that the processor publishes to.
 pub struct Addrs {
+    #[cfg(feature = "processing")]
     pub envelope_processor: Addr<EnvelopeProcessor>,
     pub project_cache: Addr<ProjectCache>,
     pub outcome_aggregator: Addr<TrackOutcome>,
@@ -977,6 +978,7 @@ pub struct Addrs {
 impl Default for Addrs {
     fn default() -> Self {
         Addrs {
+            #[cfg(feature = "processing")]
             envelope_processor: Addr::dummy(),
             project_cache: Addr::dummy(),
             outcome_aggregator: Addr::dummy(),

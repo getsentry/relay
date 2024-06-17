@@ -1,3 +1,4 @@
+import contextlib
 import json
 import uuid
 from collections import Counter
@@ -224,8 +225,9 @@ def test_span_extraction_with_sampling(
 
     relay.send_event(project_id, event)
 
-    spans = spans_consumer.get_spans(max_attempts=2)
-    assert len(spans) == expected_spans
+    if expected_spans > 0:
+        spans = spans_consumer.get_spans(n=expected_spans)
+        assert len(spans) == expected_spans
 
     metrics = metrics_consumer.get_metrics()
     span_metrics = [m for (m, _) in metrics if ":spans/" in m["name"]]
@@ -394,6 +396,48 @@ def envelope_with_spans(
     return envelope
 
 
+def envelope_with_transaction_and_spans(
+    start: datetime, end: datetime, metrics_extracted: bool = False
+) -> Envelope:
+    envelope = Envelope()
+    envelope.add_item(
+        Item(
+            type="transaction",
+            headers={"metrics_extracted": metrics_extracted},
+            payload=PayloadRef(
+                bytes=json.dumps(
+                    {
+                        "type": "transaction",
+                        "timestamp": end.timestamp() + 1,
+                        "start_timestamp": start.timestamp(),
+                        "spans": [
+                            {
+                                "op": "default",
+                                "span_id": "968cff94913ebb07",
+                                "segment_id": "968cff94913ebb07",
+                                "start_timestamp": start.timestamp(),
+                                "timestamp": end.timestamp() + 1,
+                                "exclusive_time": 1000.0,
+                                "trace_id": "a0fa8803753e40fd8124b21eeb2986b5",
+                            },
+                        ],
+                        "contexts": {
+                            "trace": {
+                                "op": "hi",
+                                "trace_id": "a0fa8803753e40fd8124b21eeb2986b5",
+                                "span_id": "968cff94913ebb07",
+                            }
+                        },
+                        "transaction": "my_transaction",
+                    },
+                ).encode()
+            ),
+        )
+    )
+
+    return envelope
+
+
 def make_otel_span(start, end):
     return {
         "resourceSpans": [
@@ -511,7 +555,7 @@ def test_span_ingestion(
         headers={"Content-Type": "application/x-protobuf"},
     )
 
-    spans = spans_consumer.get_spans(timeout=10.0, max_attempts=6)
+    spans = spans_consumer.get_spans(timeout=10.0, n=6)
 
     for span in spans:
         span.pop("received", None)
@@ -1269,8 +1313,7 @@ def test_span_reject_invalid_timestamps(
     )
     relay.send_envelope(project_id, envelope)
 
-    spans = spans_consumer.get_spans(timeout=10.0, max_attempts=1)
-
+    spans = spans_consumer.get_spans(timeout=10.0, n=1)
     assert len(spans) == 1
     assert spans[0]["description"] == "span with valid timestamps"
 
@@ -1395,7 +1438,7 @@ def test_span_ingestion_with_performance_scores(
     )
     relay.send_envelope(project_id, envelope)
 
-    spans = spans_consumer.get_spans(timeout=10.0, max_attempts=2)
+    spans = spans_consumer.get_spans(timeout=10.0, n=2)
 
     for span in spans:
         span.pop("received", None)
@@ -1516,7 +1559,7 @@ def test_rate_limit_indexed_consistent(
 
     # First batch passes
     relay.send_envelope(project_id, envelope)
-    spans = spans_consumer.get_spans(max_attempts=4, timeout=10)
+    spans = spans_consumer.get_spans(n=4, timeout=10)
     assert len(spans) == 4
     assert summarize_outcomes() == {(16, 0): 4}  # SpanIndexed, Accepted
 
@@ -1528,11 +1571,17 @@ def test_rate_limit_indexed_consistent(
     outcomes_consumer.assert_empty()
 
 
-def test_rate_limit_indexed_consistent_extracted(
-    mini_sentry, relay_with_processing, spans_consumer, outcomes_consumer
+@pytest.mark.parametrize("category", ["span", "span_indexed"])
+def test_rate_limit_consistent_extracted(
+    category,
+    mini_sentry,
+    relay_with_processing,
+    spans_consumer,
+    metrics_consumer,
+    outcomes_consumer,
 ):
-    """Rate limits for indexed spans that are extracted from transactions"""
-    relay = relay_with_processing()
+    """Rate limits for spans that are extracted from transactions"""
+    relay = relay_with_processing(options=TEST_CONFIG)
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     # Span metrics won't be extracted without a supported transactionMetrics config.
@@ -1546,15 +1595,16 @@ def test_rate_limit_indexed_consistent_extracted(
     ]
     project_config["config"]["quotas"] = [
         {
-            "categories": ["span_indexed"],
-            "limit": 3,
+            "categories": [category],
+            "limit": 2,
             "window": int(datetime.now(UTC).timestamp()),
             "id": uuid.uuid4(),
-            "reasonCode": "indexed_exceeded",
+            "reasonCode": "my_rate_limit",
         },
     ]
 
     spans_consumer = spans_consumer()
+    metrics_consumer = metrics_consumer()
     outcomes_consumer = outcomes_consumer()
 
     start = datetime.now(timezone.utc)
@@ -1584,18 +1634,42 @@ def test_rate_limit_indexed_consistent_extracted(
 
     # First send should be accepted.
     relay.send_event(project_id, event)
-    spans = spans_consumer.get_spans(max_attempts=2, timeout=10)
+    spans = spans_consumer.get_spans(n=2, timeout=10)
     # one for the transaction, one for the contained span
     assert len(spans) == 2
     assert summarize_outcomes() == {(16, 0): 2}  # SpanIndexed, Accepted
+    # A limit only for span_indexed does not affect extracted metrics
+    metrics = metrics_consumer.get_metrics(n=10)
+    span_count = sum(
+        [m[0]["value"] for m in metrics if m[0]["name"] == "c:spans/usage@none"]
+    )
+    assert span_count == 2
 
     # Second send should be rejected immediately.
     relay.send_event(project_id, event)
-    spans = spans_consumer.get_spans(max_attempts=1, timeout=2)
-    assert len(spans) == 0  # all rejected
-    assert summarize_outcomes() == {(16, 2): 2}  # SpanIndexed, RateLimited
+    outcomes = summarize_outcomes()
 
-    spans_consumer.assert_empty()
+    expected_outcomes = {
+        (16, 2): 2,  # SpanIndexed, RateLimited
+    }
+    metrics = metrics_consumer.get_metrics(timeout=1)
+    if category == "span":
+        expected_outcomes.update(
+            {
+                (12, 2): 2,  # Span, RateLimited
+                (15, 2): 6,  # MetricBucket, RateLimited
+            }
+        )
+        assert len(metrics) == 4
+        assert all(m[0]["name"][2:14] == "transactions" for m in metrics), metrics
+    else:
+        span_count = sum(
+            [m[0]["value"] for m in metrics if m[0]["name"] == "c:spans/usage@none"]
+        )
+        assert span_count == 2
+
+    assert outcomes == expected_outcomes
+
     outcomes_consumer.assert_empty()
 
 
@@ -1641,7 +1715,7 @@ def test_rate_limit_metrics_consistent(
 
     # First batch passes (we over-accept once)
     relay.send_envelope(project_id, envelope)
-    spans = spans_consumer.get_spans(max_attempts=4, timeout=10)
+    spans = spans_consumer.get_spans(n=4, timeout=10)
     assert len(spans) == 4
     metrics = metrics_consumer.get_metrics()
     assert len(metrics) > 0
@@ -1652,8 +1726,6 @@ def test_rate_limit_metrics_consistent(
 
     # Second batch is limited
     relay.send_envelope(project_id, envelope)
-    spans = spans_consumer.get_spans(max_attempts=1, timeout=2)
-    assert len(spans) == 0
     metrics = metrics_consumer.get_metrics()
     assert len(metrics) == 0
     outcomes = summarize_outcomes()
@@ -1665,6 +1737,83 @@ def test_rate_limit_metrics_consistent(
 
     spans_consumer.assert_empty()
     outcomes_consumer.assert_empty()
+
+
+@pytest.mark.parametrize(
+    "category, metrics_enabled, metrics_extracted, raises_rate_limited",
+    [
+        ("transaction", False, False, False),
+        ("transaction", False, True, False),
+        ("transaction", True, False, True),
+        ("transaction_indexed", True, False, False),
+        ("transaction_indexed", True, True, False),
+    ],
+)
+def test_rate_limit_is_consistent_between_transaction_and_spans(
+    mini_sentry,
+    relay_with_processing,
+    transactions_consumer,
+    spans_consumer,
+    category,
+    metrics_enabled,
+    metrics_extracted,
+    raises_rate_limited,
+):
+    """Rate limits for indexed are enforced consistently after metrics extraction.
+
+    This test does not cover consistent enforcement of total spans.
+    """
+    # TODO: add outcomes check when https://github.com/getsentry/relay/issues/3705 is done.
+    relay = relay_with_processing(options=TEST_CONFIG)
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = [
+        "projects:span-metrics-extraction",
+        "organizations:standalone-span-ingestion",
+        "organizations:indexed-spans-extraction",
+    ]
+    project_config["config"]["quotas"] = [
+        {
+            "categories": [category],
+            "limit": 1,
+            "window": int(datetime.now(UTC).timestamp()),
+            "id": uuid.uuid4(),
+            "reasonCode": "exceeded",
+        },
+    ]
+    if metrics_enabled:
+        project_config["config"]["transactionMetrics"] = {
+            "version": TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION,
+        }
+
+    transactions_consumer = transactions_consumer()
+    spans_consumer = spans_consumer()
+
+    start = datetime.now(timezone.utc)
+    end = start + timedelta(seconds=1)
+
+    envelope = envelope_with_transaction_and_spans(start, end, metrics_extracted)
+
+    # First batch passes
+    relay.send_envelope(project_id, envelope)
+    event, _ = transactions_consumer.get_event(timeout=10)
+    assert event["transaction"] == "my_transaction"
+    # We have one nested span and the transaction itself becomes a span
+    spans = spans_consumer.get_spans(n=2, timeout=10)
+    assert len(spans) == 2
+
+    maybe_raises = (
+        pytest.raises(HTTPError, match="429 Client Error")
+        if raises_rate_limited
+        else contextlib.nullcontext()
+    )
+
+    # Second batch is limited
+    with maybe_raises:
+        relay.send_envelope(project_id, envelope)
+
+    transactions_consumer.assert_empty()
+    spans_consumer.assert_empty()
 
 
 @pytest.mark.parametrize(
@@ -1778,12 +1927,9 @@ def test_span_filtering_with_generic_inbound_filter(
 
     relay.send_envelope(project_id, envelope)
 
-    spans = spans_consumer.get_spans(timeout=10.0, max_attempts=6)
-    assert len(spans) == 0
-
     def summarize_outcomes():
         counter = Counter()
-        for outcome in outcomes_consumer.get_outcomes():
+        for outcome in outcomes_consumer.get_outcomes(timeout=10, n=1):
             counter[(outcome["category"], outcome["outcome"])] += outcome["quantity"]
         return counter
 
@@ -1877,7 +2023,7 @@ def test_dynamic_sampling(
         return counter
 
     if sample_rate == 1.0:
-        spans = list(spans_consumer.get_spans(timeout=10, max_attempts=4))
+        spans = spans_consumer.get_spans(timeout=10, n=4)
         assert len(spans) == 4
         outcomes = outcomes_consumer.get_outcomes(timeout=10, n=4)
         assert summarize_outcomes(outcomes) == {(16, 0): 4}  # SpanIndexed, Accepted

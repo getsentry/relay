@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+**Bug fixes**:
+
+- Trim fields in replays to their defined maximum length. ([#3706](https://github.com/getsentry/relay/pull/3706))
+- Emit span usage metric for every extracted or standalone span, even if common span metrics are disabled. ([#3719](https://github.com/getsentry/relay/pull/3719))
+- Apply rate limit on extracted spans when the transaction is rate limited. ([#3713](https://github.com/getsentry/relay/pull/3713))
+
+**Internal**:
+
+- Treat arrays of pairs as key-value mappings during PII scrubbing. ([#3639](https://github.com/getsentry/relay/pull/3639))
+- Improve flush time calculation in metrics aggregator. ([#3726](https://github.com/getsentry/relay/pull/3726))
+
 ## 24.5.1
 
 **Bug fixes**:
@@ -26,6 +39,7 @@
 - Send `attachment` data inline when possible. ([#3654](https://github.com/getsentry/relay/pull/3654))
 - Drops support for transaction metrics extraction versions < 3. ([#3672](https://github.com/getsentry/relay/pull/3672))
 - Move partitioning into the `Aggregator` and add a new `Partition` bucket shift mode. ([#3661](https://github.com/getsentry/relay/pull/3661))
+- Calculate group hash for function spans. ([#3697](https://github.com/getsentry/relay/pull/3697))
 
 ## 24.5.0
 

@@ -30,7 +30,6 @@ def test_mixed_attachments_with_processing(
 
     options = {"processing": {"attachment_chunk_size": "100KB"}}
     mini_sentry.add_full_project_config(project_id)
-    mini_sentry.set_global_config_option("relay.inline-attachments.rollout-rate", 1.0)
     relay = relay_with_processing(options)
     attachments_consumer = attachments_consumer()
     outcomes_consumer = outcomes_consumer()
@@ -156,7 +155,6 @@ def test_attachments_quotas(
     attachment_body = b"blabla"
 
     project_id = 42
-    mini_sentry.set_global_config_option("relay.inline-attachments.rollout-rate", 1.0)
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["quotas"] = [
         {
@@ -200,7 +198,6 @@ def test_view_hierarchy_processing(
     event_id = "515539018c9b4260a6f999572f1661ee"
 
     mini_sentry.add_full_project_config(project_id)
-    mini_sentry.set_global_config_option("relay.inline-attachments.rollout-rate", 1.0)
     relay = relay_with_processing()
     attachments_consumer = attachments_consumer()
     outcomes_consumer = outcomes_consumer()
@@ -242,22 +239,16 @@ def test_view_hierarchy_processing(
     outcomes_consumer.assert_empty()
 
 
-@pytest.mark.parametrize("use_inline_attachments", (False, True))
 def test_event_with_attachment(
     mini_sentry,
     relay_with_processing,
     attachments_consumer,
     outcomes_consumer,
-    use_inline_attachments,
 ):
     project_id = 42
     event_id = "515539018c9b4260a6f999572f1661ee"
 
     mini_sentry.add_full_project_config(project_id)
-    if use_inline_attachments:
-        mini_sentry.set_global_config_option(
-            "relay.inline-attachments.rollout-rate", 1.0
-        )
     relay = relay_with_processing()
     attachments_consumer = attachments_consumer()
     outcomes_consumer = outcomes_consumer()
@@ -304,21 +295,15 @@ def test_event_with_attachment(
 
     relay.send_envelope(project_id, envelope)
 
-    if not use_inline_attachments:
-        chunk, _ = attachments_consumer.get_attachment_chunk()
-        assert chunk == b"transaction attachment"
-
     expected_attachment = {
         "attachment_type": "event.attachment",
-        "chunks": 1,
+        "chunks": 0,
         "content_type": "application/octet-stream",
         "name": "Unnamed Attachment",
         "size": len(b"transaction attachment"),
+        "data": b"transaction attachment",
         "rate_limited": False,
     }
-    if use_inline_attachments:
-        expected_attachment["chunks"] = 0
-        expected_attachment["data"] = b"transaction attachment"
 
     attachment = attachments_consumer.get_individual_attachment()
     assert attachment["attachment"].pop("id")

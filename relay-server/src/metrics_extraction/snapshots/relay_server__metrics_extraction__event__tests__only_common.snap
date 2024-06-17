@@ -2293,6 +2293,40 @@ expression: metrics
         timestamp: UnixTimestamp(1597976302),
         width: 0,
         name: MetricName(
+            "c:spans/usage@none",
+        ),
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
+        metadata: BucketMetadata {
+            merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
+        metadata: BucketMetadata {
+            merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
             "d:spans/exclusive_time@millisecond",
         ),
         value: Distribution(
@@ -5566,6 +5600,40 @@ expression: metrics
             "transaction.method": "POST",
             "transaction.op": "myop",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
+        metadata: BucketMetadata {
+            merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
         metadata: BucketMetadata {
             merges: 1,
             received_at: Some(
@@ -6333,6 +6401,108 @@ expression: metrics
             "transaction": "gEt /api/:version/users/",
             "transaction.op": "myop",
         },
+        metadata: BucketMetadata {
+            merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1702474613),
+        width: 0,
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
+        metadata: BucketMetadata {
+            merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1702474613),
+        width: 0,
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
+        metadata: BucketMetadata {
+            merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1702474613),
+        width: 0,
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
+        metadata: BucketMetadata {
+            merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1702474613),
+        width: 0,
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
+        metadata: BucketMetadata {
+            merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1702474613),
+        width: 0,
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
+        metadata: BucketMetadata {
+            merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1702474613),
+        width: 0,
+        name: MetricName(
+            "c:spans/usage@none",
+        ),
+        value: Counter(
+            1.0,
+        ),
+        tags: {},
         metadata: BucketMetadata {
             merges: 1,
             received_at: Some(

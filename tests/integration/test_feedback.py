@@ -160,7 +160,6 @@ def test_feedback_with_attachment_in_same_envelope(
     mini_sentry.add_basic_project_config(
         42, extra={"config": {"features": ["organizations:user-feedback-ingest"]}}
     )
-    mini_sentry.set_global_config_option("relay.inline-attachments.rollout-rate", 1.0)
 
     if use_feedback_topic:
         mini_sentry.set_global_config_option("feedback.ingest-topic.rollout-rate", 1.0)

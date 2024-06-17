@@ -134,6 +134,12 @@ pub enum MetricHistograms {
     ///
     /// This is a temporary metric to better understand why we see so many invalid timestamp errors.
     InvalidBucketTimestamp,
+
+    /// The number of metric partitions flushed in a cycle.
+    ///
+    /// This metric is tagged with:
+    ///  - `aggregator`: The name of the metrics aggregator (usually `"default"`).
+    PartitionsFlushed,
 }
 
 impl HistogramMetric for MetricHistograms {
@@ -143,6 +149,7 @@ impl HistogramMetric for MetricHistograms {
             Self::BucketsFlushedPerProject => "metrics.buckets.flushed_per_project",
             Self::BucketsDelay => "metrics.buckets.delay",
             Self::InvalidBucketTimestamp => "metrics.buckets.invalid_timestamp",
+            Self::PartitionsFlushed => "metrics.partitions.flushed",
         }
     }
 }
