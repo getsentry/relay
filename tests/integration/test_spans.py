@@ -396,14 +396,11 @@ def envelope_with_spans(
     return envelope
 
 
-def envelope_with_transaction_and_spans(
-    start: datetime, end: datetime, metrics_extracted: bool = False
-) -> Envelope:
+def envelope_with_transaction_and_spans(start: datetime, end: datetime) -> Envelope:
     envelope = Envelope()
     envelope.add_item(
         Item(
             type="transaction",
-            headers={"metrics_extracted": metrics_extracted},
             payload=PayloadRef(
                 bytes=json.dumps(
                     {
@@ -1732,13 +1729,11 @@ def test_rate_limit_spans_in_envelope(
 
 
 @pytest.mark.parametrize(
-    "category, metrics_enabled, metrics_extracted, raises_rate_limited",
+    "category,raises_rate_limited",
     [
-        ("transaction", False, False, False),
-        ("transaction", False, True, False),
-        ("transaction", True, False, True),
-        ("transaction_indexed", True, False, False),
-        ("transaction_indexed", True, True, False),
+        ("transaction", True),
+        ("transaction", True),
+        ("transaction_indexed", False),
     ],
 )
 def test_rate_limit_is_consistent_between_transaction_and_spans(
@@ -1747,8 +1742,6 @@ def test_rate_limit_is_consistent_between_transaction_and_spans(
     transactions_consumer,
     spans_consumer,
     category,
-    metrics_enabled,
-    metrics_extracted,
     raises_rate_limited,
 ):
     """Rate limits for indexed are enforced consistently after metrics extraction.
@@ -1773,10 +1766,9 @@ def test_rate_limit_is_consistent_between_transaction_and_spans(
             "reasonCode": "exceeded",
         },
     ]
-    if metrics_enabled:
-        project_config["config"]["transactionMetrics"] = {
-            "version": TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION,
-        }
+    project_config["config"]["transactionMetrics"] = {
+        "version": TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION,
+    }
 
     transactions_consumer = transactions_consumer()
     spans_consumer = spans_consumer()
@@ -1784,7 +1776,7 @@ def test_rate_limit_is_consistent_between_transaction_and_spans(
     start = datetime.now(timezone.utc)
     end = start + timedelta(seconds=1)
 
-    envelope = envelope_with_transaction_and_spans(start, end, metrics_extracted)
+    envelope = envelope_with_transaction_and_spans(start, end)
 
     # First batch passes
     relay.send_envelope(project_id, envelope)
@@ -1794,13 +1786,15 @@ def test_rate_limit_is_consistent_between_transaction_and_spans(
     spans = spans_consumer.get_spans(n=2, timeout=10)
     assert len(spans) == 2
 
+    relay.send_envelope(project_id, envelope)
+    transactions_consumer.assert_empty()
+    spans_consumer.assert_empty()
+
     maybe_raises = (
         pytest.raises(HTTPError, match="429 Client Error")
         if raises_rate_limited
         else contextlib.nullcontext()
     )
-
-    # Second batch is limited
     with maybe_raises:
         relay.send_envelope(project_id, envelope)
 
