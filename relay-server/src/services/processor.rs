@@ -605,10 +605,9 @@ impl ProcessingExtractedMetrics {
         mut buckets: Vec<Bucket>,
         sampling_decision: Option<SamplingDecision>,
     ) {
-        if sampling_decision == Some(SamplingDecision::Keep) {
-            for bucket in &mut buckets {
-                bucket.metadata.extracted_from_indexed = true;
-            }
+        for bucket in &mut buckets {
+            bucket.metadata.extracted_from_indexed =
+                sampling_decision == Some(SamplingDecision::Keep);
         }
         self.0.project_metrics.extend(buckets);
     }
@@ -619,10 +618,9 @@ impl ProcessingExtractedMetrics {
         mut buckets: Vec<Bucket>,
         sampling_decision: Option<SamplingDecision>,
     ) {
-        if sampling_decision == Some(SamplingDecision::Keep) {
-            for bucket in &mut buckets {
-                bucket.metadata.extracted_from_indexed = true;
-            }
+        for bucket in &mut buckets {
+            bucket.metadata.extracted_from_indexed =
+                sampling_decision == Some(SamplingDecision::Keep);
         }
         self.0.sampling_metrics.extend(buckets);
     }
