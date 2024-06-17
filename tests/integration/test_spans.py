@@ -1,3 +1,4 @@
+import contextlib
 import json
 import uuid
 from collections import Counter
@@ -386,6 +387,48 @@ def envelope_with_spans(
                         "timestamp": end.timestamp() + 1,
                         "exclusive_time": 345.0,  # The SDK knows that this span has a lower exclusive time
                         "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    },
+                ).encode()
+            ),
+        )
+    )
+
+    return envelope
+
+
+def envelope_with_transaction_and_spans(
+    start: datetime, end: datetime, metrics_extracted: bool = False
+) -> Envelope:
+    envelope = Envelope()
+    envelope.add_item(
+        Item(
+            type="transaction",
+            headers={"metrics_extracted": metrics_extracted},
+            payload=PayloadRef(
+                bytes=json.dumps(
+                    {
+                        "type": "transaction",
+                        "timestamp": end.timestamp() + 1,
+                        "start_timestamp": start.timestamp(),
+                        "spans": [
+                            {
+                                "op": "default",
+                                "span_id": "968cff94913ebb07",
+                                "segment_id": "968cff94913ebb07",
+                                "start_timestamp": start.timestamp(),
+                                "timestamp": end.timestamp() + 1,
+                                "exclusive_time": 1000.0,
+                                "trace_id": "a0fa8803753e40fd8124b21eeb2986b5",
+                            },
+                        ],
+                        "contexts": {
+                            "trace": {
+                                "op": "hi",
+                                "trace_id": "a0fa8803753e40fd8124b21eeb2986b5",
+                                "span_id": "968cff94913ebb07",
+                            }
+                        },
+                        "transaction": "my_transaction",
                     },
                 ).encode()
             ),
@@ -1686,6 +1729,83 @@ def test_rate_limit_spans_in_envelope(
 
     spans_consumer.assert_empty()
     metrics_consumer.assert_empty()
+
+
+@pytest.mark.parametrize(
+    "category, metrics_enabled, metrics_extracted, raises_rate_limited",
+    [
+        ("transaction", False, False, False),
+        ("transaction", False, True, False),
+        ("transaction", True, False, True),
+        ("transaction_indexed", True, False, False),
+        ("transaction_indexed", True, True, False),
+    ],
+)
+def test_rate_limit_is_consistent_between_transaction_and_spans(
+    mini_sentry,
+    relay_with_processing,
+    transactions_consumer,
+    spans_consumer,
+    category,
+    metrics_enabled,
+    metrics_extracted,
+    raises_rate_limited,
+):
+    """Rate limits for indexed are enforced consistently after metrics extraction.
+
+    This test does not cover consistent enforcement of total spans.
+    """
+    # TODO: add outcomes check when https://github.com/getsentry/relay/issues/3705 is done.
+    relay = relay_with_processing(options=TEST_CONFIG)
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = [
+        "projects:span-metrics-extraction",
+        "organizations:standalone-span-ingestion",
+        "organizations:indexed-spans-extraction",
+    ]
+    project_config["config"]["quotas"] = [
+        {
+            "categories": [category],
+            "limit": 1,
+            "window": int(datetime.now(UTC).timestamp()),
+            "id": uuid.uuid4(),
+            "reasonCode": "exceeded",
+        },
+    ]
+    if metrics_enabled:
+        project_config["config"]["transactionMetrics"] = {
+            "version": TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION,
+        }
+
+    transactions_consumer = transactions_consumer()
+    spans_consumer = spans_consumer()
+
+    start = datetime.now(timezone.utc)
+    end = start + timedelta(seconds=1)
+
+    envelope = envelope_with_transaction_and_spans(start, end, metrics_extracted)
+
+    # First batch passes
+    relay.send_envelope(project_id, envelope)
+    event, _ = transactions_consumer.get_event(timeout=10)
+    assert event["transaction"] == "my_transaction"
+    # We have one nested span and the transaction itself becomes a span
+    spans = spans_consumer.get_spans(n=2, timeout=10)
+    assert len(spans) == 2
+
+    maybe_raises = (
+        pytest.raises(HTTPError, match="429 Client Error")
+        if raises_rate_limited
+        else contextlib.nullcontext()
+    )
+
+    # Second batch is limited
+    with maybe_raises:
+        relay.send_envelope(project_id, envelope)
+
+    transactions_consumer.assert_empty()
+    spans_consumer.assert_empty()
 
 
 @pytest.mark.parametrize(

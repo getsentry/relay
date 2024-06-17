@@ -628,7 +628,15 @@ where
             rate_limits.merge(checkin_limits);
         }
 
-        if summary.span_quantity > 0 {
+        if enforcement.event_active() {
+            enforcement.spans = enforcement
+                .event
+                .clone_for(DataCategory::Span, summary.span_quantity);
+
+            enforcement.spans_indexed = enforcement
+                .event_indexed
+                .clone_for(DataCategory::SpanIndexed, summary.span_quantity)
+        } else if summary.span_quantity > 0 {
             let mut span_limits =
                 (self.check)(scoping.item(DataCategory::Span), summary.span_quantity)?;
             enforcement.spans = CategoryLimit::new(
