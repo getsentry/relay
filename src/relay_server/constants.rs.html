@@ -28,6 +28,9 @@
 <a href="#28" id="28">28</a>
 <a href="#29" id="29">29</a>
 <a href="#30" id="30">30</a>
+<a href="#31" id="31">31</a>
+<a href="#32" id="32">32</a>
+<a href="#33" id="33">33</a>
 </pre></div><pre class="rust"><code><span class="macro">include!</span>(<span class="macro">concat!</span>(<span class="macro">env!</span>(<span class="string">"OUT_DIR"</span>), <span class="string">"/constants.gen.rs"</span>));
 
 <span class="doccomment">/// Name of the event attachment.
@@ -58,4 +61,7 @@
 
 <span class="doccomment">/// Maximum size of JSON request bodies.
 </span><span class="kw">pub const </span>MAX_JSON_SIZE: usize = <span class="number">262_144</span>;
+
+<span class="doccomment">/// The default client used for check ins whenever the incoming request has no client set.
+</span><span class="kw">pub const </span>DEFAULT_CHECK_IN_CLIENT: <span class="kw-2">&amp;</span>str = <span class="string">"relay-http"</span>;
 </code></pre></div></section></main></body></html>

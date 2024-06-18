@@ -738,6 +738,11 @@
 <a href="#738" id="738">738</a>
 <a href="#739" id="739">739</a>
 <a href="#740" id="740">740</a>
+<a href="#741" id="741">741</a>
+<a href="#742" id="742">742</a>
+<a href="#743" id="743">743</a>
+<a href="#744" id="744">744</a>
+<a href="#745" id="745">745</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::convert::Infallible;
 <span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::net::{IpAddr, SocketAddr};
@@ -1060,6 +1065,11 @@
     <span class="doccomment">/// Overwrite internal property.
     </span><span class="kw">pub fn </span>set_from_internal_relay(<span class="kw-2">&amp;mut </span><span class="self">self</span>, value: bool) {
         <span class="self">self</span>.from_internal_relay = value;
+    }
+
+    <span class="doccomment">/// Sets the client for this [`RequestMeta`] on the current envelope.
+    </span><span class="kw">pub fn </span>set_client(<span class="kw-2">&amp;mut </span><span class="self">self</span>, client: String) {
+        <span class="self">self</span>.client = <span class="prelude-val">Some</span>(client);
     }
 }
 
