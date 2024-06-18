@@ -10,7 +10,7 @@ use relay_config::Config;
 use relay_dynamic_config::{ErrorBoundary, Feature, LimitedProjectConfig, ProjectConfig};
 use relay_filter::matches_any_origin;
 use relay_metrics::{
-    aggregator, Aggregator, Bucket, MergeBuckets, MetaAggregator, MetricMeta, MetricNamespace,
+    Aggregator, Bucket, MergeBuckets, MetaAggregator, MetricMeta, MetricNamespace,
 };
 use relay_quotas::{DataCategory, MetricNamespaceScoping, Quota, RateLimits, Scoping};
 use relay_sampling::evaluation::ReservoirCounters;
@@ -27,6 +27,7 @@ use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
 #[cfg(feature = "processing")]
 use crate::services::processor::RateLimitBuckets;
 use crate::services::processor::{EncodeMetricMeta, EnvelopeProcessor, ProjectMetrics};
+use crate::services::project::state::{State, StateRef, StateRefMut};
 use crate::services::project_cache::{BucketSource, CheckedEnvelope, ProjectCache, RequestUpdate};
 
 use crate::extractors::RequestMeta;
@@ -35,6 +36,7 @@ use crate::statsd::RelayCounters;
 use crate::utils::{self, EnvelopeLimiter, ManagedEnvelope, RetryBackoff};
 
 mod metrics;
+mod state;
 
 use self::metrics::{Buckets, Filtered};
 
@@ -377,72 +379,6 @@ enum GetOrFetch<'a> {
     Scheduled(&'a mut StateChannel),
 }
 
-/// Externally visible state of a project.
-pub enum ObservableState<'a> {
-    Cached(&'a Arc<ProjectState>),
-    Pending,
-    Disabled,
-}
-
-enum ObservableStateMut<'a> {
-    Cached(&'a Arc<ProjectState>),
-    Pending(&'a mut aggregator::Aggregator),
-    Disabled,
-}
-
-#[derive(Debug)]
-enum InternalState {
-    Cached(Arc<ProjectState>),
-    Pending(Box<aggregator::Aggregator>),
-    Disabled,
-}
-
-impl InternalState {
-    fn project_state(&self) -> Option<Arc<ProjectState>> {
-        match self {
-            InternalState::Cached(project_state) => Some(Arc::clone(project_state)),
-            InternalState::Pending(_) => None,
-            InternalState::Disabled => None,
-        }
-    }
-
-    /// Sets the cached state using provided `ProjectState`.
-    /// If the variant was pending, the buckets will be returned.
-    fn update(
-        &mut self,
-        project_state: &Arc<ProjectState>,
-        config: &Config,
-    ) -> Option<Buckets<Filtered>> {
-        if project_state.disabled() {
-            *self = InternalState::Disabled;
-            None
-        } else if project_state.invalid()
-            || matches!(project_state.check_expiry(config), Expiry::Expired)
-        {
-            // Invalid or expired means we'll try again, set state to pending.
-            match self {
-                InternalState::Pending(_) => {}
-                _ => *self = Self::pending(config),
-            }
-            None
-        } else {
-            // Set state to cached and return buffer.
-            let old_self = std::mem::replace(self, Self::Cached(project_state.clone()));
-            match old_self {
-                InternalState::Pending(agg) => Some(Buckets::new(agg.into_buckets())),
-                _ => None,
-            }
-        }
-    }
-
-    fn pending(config: &Config) -> Self {
-        Self::Pending(Box::new(aggregator::Aggregator::named(
-            "metrics-buffer".to_string(),
-            config.permissive_aggregator_config(),
-        )))
-    }
-}
-
 /// Structure representing organization and project configuration for a project key.
 ///
 /// This structure no longer uniquely identifies a project. Instead, it identifies a project key.
@@ -454,7 +390,7 @@ pub struct Project {
     last_updated_at: Instant,
     project_key: ProjectKey,
     config: Arc<Config>,
-    internal_state: InternalState,
+    state: State,
     state_channel: Option<StateChannel>,
     rate_limits: RateLimits,
     last_no_cache: Instant,
@@ -471,7 +407,7 @@ impl Project {
             next_fetch_attempt: None,
             last_updated_at: Instant::now(),
             project_key: key,
-            internal_state: InternalState::pending(&config),
+            state: State::pending(config.clone()),
             state_channel: None,
             rate_limits: RateLimits::new(),
             last_no_cache: Instant::now(),
@@ -486,48 +422,10 @@ impl Project {
     ///
     /// Returns `None` if the project is expired, invalid or disabled.
     pub fn cached_state(&self) -> Option<Arc<ProjectState>> {
-        match self.state() {
-            ObservableState::Cached(project_state) => Some(Arc::clone(project_state)),
-            ObservableState::Pending => None,
-            ObservableState::Disabled => None,
-        }
-    }
-
-    /// TODO: docs
-    fn state(&self) -> ObservableState {
-        match &self.internal_state {
-            InternalState::Disabled => ObservableState::Disabled,
-            InternalState::Cached(project_state) => {
-                match project_state.check_expiry(&self.config) {
-                    Expiry::Updated | Expiry::Stale => ObservableState::Cached(project_state),
-                    Expiry::Expired => ObservableState::Pending,
-                }
-            }
-            InternalState::Pending(_) => ObservableState::Pending,
-        }
-    }
-
-    fn state_mut(&mut self) -> ObservableStateMut {
-        // 1 - Transition state if necessary.
-        match &mut self.internal_state {
-            InternalState::Disabled => {}
-            InternalState::Cached(project_state) => {
-                match project_state.check_expiry(&self.config) {
-                    Expiry::Updated | Expiry::Stale => {}
-                    Expiry::Expired => {
-                        // Modify the internal state to make the buffer available.
-                        self.internal_state = InternalState::pending(&self.config);
-                    }
-                }
-            }
-            InternalState::Pending(_) => {}
-        };
-
-        // 2 - Return state.
-        match &mut self.internal_state {
-            InternalState::Disabled => ObservableStateMut::Disabled,
-            InternalState::Cached(project_state) => ObservableStateMut::Cached(project_state),
-            InternalState::Pending(buffer) => ObservableStateMut::Pending(buffer.as_mut()),
+        match self.state.as_ref() {
+            StateRef::Cached(project_state) => Some(Arc::clone(project_state)),
+            StateRef::Pending => None,
+            StateRef::Disabled => None,
         }
     }
 
@@ -536,13 +434,16 @@ impl Project {
         self.reservoir_counters.clone()
     }
 
-    fn state_value(&self) -> Option<Arc<ProjectState>> {
-        self.internal_state.project_state()
+    fn project_state(&self) -> Option<Arc<ProjectState>> {
+        match self.state.as_ref() {
+            StateRef::Cached(project_state) => Some(project_state.clone()),
+            StateRef::Pending | StateRef::Disabled => None,
+        }
     }
 
     /// If a reservoir rule is no longer in the sampling config, we will remove those counters.
     fn remove_expired_reservoir_rules(&self) {
-        let Some(state) = self.state_value() else {
+        let Some(state) = self.project_state() else {
             return;
         };
 
@@ -649,14 +550,14 @@ impl Project {
         let buckets = Buckets::new(buckets).filter_namespaces(source);
 
         let project_key = self.project_key;
-        let project_state = match self.state_mut() {
-            ObservableStateMut::Cached(state) => Arc::clone(state),
-            ObservableStateMut::Pending(ref mut inner_agg) => {
+        let project_state = match self.state.as_mut() {
+            StateRefMut::Cached(state) => Arc::clone(state),
+            StateRefMut::Pending(ref mut inner_agg) => {
                 // We need to queue the metrics in a temporary aggregator until the project state becomes available.
                 relay_log::debug!("sending metrics to metrics-buffer");
                 return inner_agg.merge_all(project_key, buckets, None);
             }
-            ObservableStateMut::Disabled => {
+            StateRefMut::Disabled => {
                 return relay_log::debug!("dropping metric buckets, project disabled");
             }
         };
@@ -676,7 +577,7 @@ impl Project {
         meta: MetricMeta,
         envelope_processor: Addr<EnvelopeProcessor>,
     ) {
-        let state = self.state_value();
+        let state = self.project_state();
 
         // Only track metadata if custom metrics are enabled, or we don't know yet whether they are
         // enabled.
@@ -709,7 +610,7 @@ impl Project {
         if !self.has_pending_metric_meta {
             return;
         }
-        let Some(state) = self.state_value() else {
+        let Some(state) = self.project_state() else {
             return;
         };
         let Some(scoping) = self.scoping() else {
@@ -806,10 +707,10 @@ impl Project {
             }
         }
 
-        let cached_state = match &self.internal_state {
+        let cached_state = match self.state.as_ref() {
             // Never use the cached state if `no_cache` is set.
             _ if no_cache => None,
-            InternalState::Cached(state) => {
+            StateRef::Cached(state) => {
                 match state.check_expiry(&self.config) {
                     // The project is not outdated, return early here to jump over fetching logic below.
                     Expiry::Updated => return GetOrFetch::Cached(Arc::clone(state)),
@@ -819,8 +720,8 @@ impl Project {
                     Expiry::Expired => None,
                 }
             }
-            InternalState::Pending(_) => None,
-            InternalState::Disabled => None,
+            StateRef::Pending => None,
+            StateRef::Disabled => None,
         };
 
         let channel = self.fetch_state(project_cache, no_cache);
@@ -890,7 +791,7 @@ impl Project {
         outcome_aggregator: &Addr<TrackOutcome>,
         metric_outcomes: &MetricOutcomes,
     ) {
-        let buckets = self.internal_state.update(project_state, &self.config);
+        let buckets = self.state.update(project_state, &self.config);
 
         if let Some(buckets) = buckets {
             if !buckets.is_empty() {
@@ -1012,7 +913,7 @@ impl Project {
     ///
     /// NOTE: This function does not check the expiry of the project state.
     pub fn scoping(&self) -> Option<Scoping> {
-        let state = self.state_value()?;
+        let state = self.project_state()?;
         Some(Scoping {
             organization_id: state.organization_id.unwrap_or(0),
             project_id: state.project_id?,
@@ -1039,10 +940,10 @@ impl Project {
         mut envelope: ManagedEnvelope,
         outcome_aggregator: Addr<TrackOutcome>,
     ) -> Result<CheckedEnvelope, DiscardReason> {
-        let state = match self.state() {
-            ObservableState::Cached(state) => Some(Arc::clone(state)),
-            ObservableState::Pending => None,
-            ObservableState::Disabled => return Err(DiscardReason::ProjectId),
+        let state = match self.state.as_ref() {
+            StateRef::Cached(state) => Some(Arc::clone(state)),
+            StateRef::Pending => None,
+            StateRef::Disabled => return Err(DiscardReason::ProjectId),
         };
         let mut scoping = envelope.scoping();
 
@@ -1192,10 +1093,10 @@ mod tests {
             let mut project_state = ProjectState::allowed();
             project_state.project_id = Some(ProjectId::new(123));
             let mut project = Project::new(project_key, config.clone());
-            project.internal_state = InternalState::Cached(Arc::new(project_state));
+            project.state = State::cached(project_state);
 
             // Direct access should always yield a state:
-            assert!(project.state_value().is_some());
+            assert!(project.project_state().is_some());
 
             if expiry > 0 {
                 // With long expiry, should get a state
@@ -1237,9 +1138,9 @@ mod tests {
         project_state.project_id = Some(ProjectId::new(123));
         let mut project = Project::new(project_key, config);
         project.state_channel = Some(channel);
-        project.internal_state = InternalState::Cached(Arc::new(project_state));
+        project.state = State::cached(project_state);
         // The project ID must be set.
-        assert!(!project.state_value().unwrap().invalid());
+        assert!(!project.project_state().unwrap().invalid());
         assert!(project.next_fetch_attempt.is_none());
         // Try to update project with errored project state.
         project.update_state(
@@ -1253,7 +1154,7 @@ mod tests {
         );
         // Since we got invalid project state we still keep the old one meaning there
         // still must be the project id set.
-        assert!(!project.state_value().unwrap().invalid());
+        assert!(!project.project_state().unwrap().invalid());
         assert!(project.next_fetch_attempt.is_some());
 
         // This tests that we actually initiate the backoff and the backoff mechanism works:
@@ -1286,7 +1187,7 @@ mod tests {
         if let Some(config) = config {
             project_state.config = serde_json::from_value(config).unwrap();
         }
-        project.internal_state = InternalState::Cached(Arc::new(project_state));
+        project.state = State::cached(project_state);
         project
     }
 
@@ -1307,7 +1208,7 @@ mod tests {
     async fn test_metrics_buffer_no_flush_without_state() {
         // Project without project state.
         let mut project = Project {
-            internal_state: InternalState::pending(&Config::default()),
+            state: State::pending(Config::default().into()),
             ..create_project(None)
         };
 
@@ -1343,7 +1244,7 @@ mod tests {
     async fn test_metrics_buffer_flush_with_state() {
         // Project without project state.
         let mut project = Project {
-            internal_state: InternalState::pending(&Config::default()),
+            state: State::pending(Arc::new(Config::default())),
             ..create_project(None)
         };
 
@@ -1397,7 +1298,7 @@ mod tests {
             &envelope_processor,
             &outcome_aggregator,
             &metric_outcomes,
-            &project.state_value().unwrap(),
+            &project.project_state().unwrap(),
             Buckets::test(vec![create_transaction_metric()]),
         );
         drop(aggregator);
@@ -1434,7 +1335,7 @@ mod tests {
             &envelope_processor,
             &outcome_aggregator,
             &metric_outcomes,
-            &project.state_value().unwrap(),
+            &project.project_state().unwrap(),
             Buckets::test(vec![create_transaction_metric()]),
         );
         drop(aggregator);
@@ -1468,7 +1369,7 @@ mod tests {
             &envelope_processor,
             &outcome_aggregator,
             &metric_outcomes,
-            &project.state_value().unwrap(),
+            &project.project_state().unwrap(),
             Buckets::test(vec![create_transaction_bucket()]),
         );
         drop(aggregator);
@@ -1506,7 +1407,7 @@ mod tests {
             &envelope_processor,
             &outcome_aggregator,
             &metric_outcomes,
-            &project.state_value().unwrap(),
+            &project.project_state().unwrap(),
             Buckets::test(vec![create_transaction_bucket()]),
         );
         drop(aggregator);
