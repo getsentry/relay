@@ -769,7 +769,7 @@ mod tests {
             event_metrics_extracted: false,
             spans_extracted: false,
             reservoir: ReservoirEvaluator::new(ReservoirCounters::default()),
-            fully_normalized: false,
+            event_fully_normalized: false,
         }
     }
 

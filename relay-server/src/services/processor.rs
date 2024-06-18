@@ -668,7 +668,7 @@ struct ProcessEnvelopeState<'a, Group> {
     ///
     /// If the processing pipeline applies changes to the event, it should
     /// disable this flag to ensure the event is always normalized.
-    fully_normalized: bool,
+    event_fully_normalized: bool,
 }
 
 impl<'a, Group> ProcessEnvelopeState<'a, Group> {
@@ -1128,7 +1128,7 @@ impl EnvelopeProcessorService {
         //  2. The DSN was moved and the envelope sent to the old project ID.
         envelope.meta_mut().set_project_id(project_id);
 
-        let fully_normalized = envelope
+        let event_fully_normalized = envelope
             .items()
             .any(|item| item.creates_event() && item.fully_normalized());
 
@@ -1152,7 +1152,7 @@ impl EnvelopeProcessorService {
             project_id,
             managed_envelope,
             reservoir,
-            fully_normalized,
+            event_fully_normalized,
         }
     }
 
@@ -1357,7 +1357,7 @@ impl EnvelopeProcessorService {
                 } else if self.inner.config.processing_enabled()
                     && options.processing_disable_normalization
                     && from_internal
-                    && state.fully_normalized
+                    && state.event_fully_normalized
                 {
                     metric!(
                         counter(RelayCounters::NormalizationDecision) += 1,
@@ -1490,7 +1490,7 @@ impl EnvelopeProcessorService {
             })
         })?;
 
-        state.fully_normalized |= full_normalization;
+        state.event_fully_normalized |= full_normalization;
 
         Ok(())
     }
@@ -1538,7 +1538,7 @@ impl EnvelopeProcessorService {
 
         attachment::scrub(state);
 
-        if self.inner.config.processing_enabled() && !state.fully_normalized {
+        if self.inner.config.processing_enabled() && !state.event_fully_normalized {
             relay_log::error!(
                 tags.project = %state.project_id,
                 tags.ty = state.event_type().map(|e| e.to_string()).unwrap_or("none".to_owned()),
@@ -1637,7 +1637,7 @@ impl EnvelopeProcessorService {
             event::serialize(state)?;
         }
 
-        if self.inner.config.processing_enabled() && !state.fully_normalized {
+        if self.inner.config.processing_enabled() && !state.event_fully_normalized {
             relay_log::error!(
                 tags.project = %state.project_id,
                 tags.ty = state.event_type().map(|e| e.to_string()).unwrap_or("none".to_owned()),

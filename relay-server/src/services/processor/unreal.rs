@@ -41,7 +41,7 @@ pub fn process(state: &mut ProcessEnvelopeState<ErrorGroup>) -> Result<(), Proce
     if utils::process_unreal_envelope(&mut state.event, state.managed_envelope.envelope_mut())
         .map_err(ProcessingError::InvalidUnrealReport)?
     {
-        state.fully_normalized = false;
+        state.event_fully_normalized = false;
     }
     Ok(())
 }

@@ -399,7 +399,7 @@ pub fn serialize<G: EventProcessing>(
         event_item.set_sample_rates(sample_rates);
     }
 
-    event_item.set_fully_normalized(state.fully_normalized);
+    event_item.set_fully_normalized(state.event_fully_normalized);
 
     state.envelope_mut().add_item(event_item);
 
