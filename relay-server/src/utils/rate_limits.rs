@@ -685,7 +685,10 @@ where
         // we only have to check the more specific, the indexed, variant
         // to determine whether an item is limited.
         match item.ty() {
-            ItemType::Attachment if enforcement.attachments.is_active() => {
+            ItemType::Attachment => {
+                if !enforcement.attachments.is_active() {
+                    return true;
+                }
                 if item.creates_event() {
                     item.set_rate_limited(true);
                     true
@@ -701,7 +704,22 @@ where
             ItemType::CheckIn => !enforcement.check_ins.is_active(),
             ItemType::Span => !enforcement.spans_indexed.is_active(),
             ItemType::OtelSpan => !enforcement.spans_indexed.is_active(),
-            _ => true,
+            ItemType::Event
+            | ItemType::Transaction
+            | ItemType::Security
+            | ItemType::FormData
+            | ItemType::RawSecurity
+            | ItemType::Nel
+            | ItemType::UnrealReport
+            | ItemType::UserReport
+            | ItemType::Sessions
+            | ItemType::Statsd
+            | ItemType::MetricBuckets
+            | ItemType::MetricMeta
+            | ItemType::ClientReport
+            | ItemType::UserReportV2
+            | ItemType::ProfileChunk
+            | ItemType::Unknown(_) => true,
         }
     }
 }
