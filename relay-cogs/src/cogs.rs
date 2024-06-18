@@ -118,7 +118,7 @@ impl Drop for Token {
         let elapsed = self.start.elapsed();
 
         for (feature, ratio) in self.features.weights() {
-            let time = elapsed.div_f32(ratio);
+            let time = elapsed.mul_f32(ratio);
             self.recorder.record(CogsMeasurement {
                 resource: self.resource,
                 feature,
@@ -301,6 +301,7 @@ mod tests {
         let recorder = TestRecorder::default();
         let cogs = Cogs::new(recorder.clone());
 
+        let start = Instant::now();
         let f = FeatureWeights::builder()
             .weight(AppFeature::Spans, 1)
             .weight(AppFeature::Transactions, 1)
@@ -312,6 +313,7 @@ mod tests {
             let _token = cogs.timed(ResourceId::Relay, f);
             std::thread::sleep(Duration::from_millis(50));
         }
+        let elapsed = start.elapsed();
 
         let measurements = recorder.measurements();
         assert_eq!(measurements.len(), 2);
@@ -320,6 +322,9 @@ mod tests {
         assert_eq!(measurements[1].resource, ResourceId::Relay);
         assert_eq!(measurements[1].feature, AppFeature::MetricsSpans);
         assert_eq!(measurements[0].value, measurements[1].value);
+        let Value::Time(time) = measurements[0].value;
+        assert!(time >= Duration::from_millis(25), "{time:?}");
+        assert!(time <= elapsed.div_f32(1.99), "{time:?}");
     }
 
     #[test]

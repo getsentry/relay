@@ -64,6 +64,7 @@ struct BucketKey {
     timestamp: UnixTimestamp,
     metric_name: MetricName,
     tags: BTreeMap<String, String>,
+    extracted_from_indexed: bool,
 }
 
 impl BucketKey {
@@ -231,42 +232,6 @@ pub struct AggregatorConfig {
 }
 
 impl AggregatorConfig {
-    /// Returns the instant at which a bucket should be flushed.
-    ///
-    /// Recent buckets are flushed after a grace period of `initial_delay`. Backdated buckets, that
-    /// is, buckets that lie in the past, are flushed after the shorter `debounce_delay`.
-    fn get_flush_time(&self, bucket_key: &BucketKey) -> Instant {
-        let initial_flush = bucket_key.timestamp + self.bucket_interval() + self.initial_delay();
-
-        let now = UnixTimestamp::now();
-        let backdated = initial_flush <= now;
-
-        let delay = now.as_secs() as i64 - bucket_key.timestamp.as_secs() as i64;
-        relay_statsd::metric!(
-            histogram(MetricHistograms::BucketsDelay) = delay as f64,
-            backdated = if backdated { "true" } else { "false" },
-        );
-
-        let flush_timestamp = if backdated {
-            // If the initial flush time has passed or cannot be represented, debounce future
-            // flushes with the `debounce_delay` starting now. However, align the current timestamp
-            // with the bucket interval for proper batching.
-            let floor = (now.as_secs() / self.bucket_interval) * self.bucket_interval;
-            UnixTimestamp::from_secs(floor) + self.bucket_interval() + self.debounce_delay()
-        } else {
-            // If the initial flush is still pending, use that.
-            initial_flush
-        };
-
-        let instant = if flush_timestamp > now {
-            Instant::now().checked_add(flush_timestamp - now)
-        } else {
-            Instant::now().checked_sub(now - flush_timestamp)
-        };
-
-        instant.unwrap_or_else(Instant::now) + self.flush_time_shift(bucket_key)
-    }
-
     /// The delay to debounce backdated flushes.
     fn debounce_delay(&self) -> Duration {
         Duration::from_secs(self.debounce_delay)
@@ -510,6 +475,56 @@ impl fmt::Debug for CostTracker {
     }
 }
 
+/// Returns the instant at which a bucket should be flushed.
+///
+/// Recent buckets are flushed after a grace period of `initial_delay`. Backdated buckets, that
+/// is, buckets that lie in the past, are flushed after the shorter `debounce_delay`.
+fn get_flush_time(
+    config: &AggregatorConfig,
+    reference_time: Instant,
+    bucket_key: &BucketKey,
+) -> Instant {
+    let initial_flush = bucket_key.timestamp + config.bucket_interval() + config.initial_delay();
+
+    let now = UnixTimestamp::now();
+    let backdated = initial_flush <= now;
+
+    let delay = now.as_secs() as i64 - bucket_key.timestamp.as_secs() as i64;
+    relay_statsd::metric!(
+        histogram(MetricHistograms::BucketsDelay) = delay as f64,
+        backdated = if backdated { "true" } else { "false" },
+    );
+
+    let flush_timestamp = if backdated {
+        // If the initial flush time has passed or can't be represented, we want to treat the
+        // flush of the bucket as if it came in with the timestamp of current bucket based on
+        // the now timestamp.
+        //
+        // The rationale behind this is that we want to flush this bucket in the earliest slot
+        // together with buckets that have similar characteristics (e.g., same partition,
+        // project...).
+        let floored_timestamp = (now.as_secs() / config.bucket_interval) * config.bucket_interval;
+        UnixTimestamp::from_secs(floored_timestamp)
+            + config.bucket_interval()
+            + config.debounce_delay()
+    } else {
+        // If the initial flush is still pending, use that.
+        initial_flush
+    };
+
+    let instant = if flush_timestamp > now {
+        Instant::now().checked_add(flush_timestamp - now)
+    } else {
+        Instant::now().checked_sub(now - flush_timestamp)
+    }
+    .unwrap_or_else(Instant::now);
+
+    // Since `Instant` doesn't allow to get directly how many seconds elapsed, we leverage the
+    // diffing to get a duration and round it to the smallest second to get consistent times.
+    let instant = reference_time + Duration::from_secs((instant - reference_time).as_secs());
+    instant + config.flush_time_shift(bucket_key)
+}
+
 /// A collector of [`Bucket`] submissions.
 ///
 /// # Aggregation
@@ -535,6 +550,7 @@ pub struct Aggregator {
     config: AggregatorConfig,
     buckets: HashMap<BucketKey, QueuedBucket>,
     cost_tracker: CostTracker,
+    reference_time: Instant,
 }
 
 impl Aggregator {
@@ -550,6 +566,7 @@ impl Aggregator {
             config,
             buckets: HashMap::new(),
             cost_tracker: CostTracker::default(),
+            reference_time: Instant::now(),
         }
     }
 
@@ -709,6 +726,7 @@ impl Aggregator {
             timestamp,
             metric_name: bucket.name,
             tags: bucket.tags,
+            extracted_from_indexed: bucket.metadata.extracted_from_indexed,
         };
         let key = validate_bucket_key(key, &self.config)?;
 
@@ -767,7 +785,7 @@ impl Aggregator {
                     namespace = entry.key().namespace().as_str(),
                 );
 
-                let flush_at = self.config.get_flush_time(entry.key());
+                let flush_at = get_flush_time(&self.config, self.reference_time, entry.key());
                 let value = bucket.value;
                 added_cost = entry.key().cost() + value.cost();
                 entry.insert(QueuedBucket::new(flush_at, value, bucket.metadata));
@@ -996,6 +1014,7 @@ mod tests {
                         "c:transactions/foo@none",
                     ),
                     tags: {},
+                    extracted_from_indexed: false,
                 },
                 Counter(
                     85.0,
@@ -1045,10 +1064,11 @@ mod tests {
                 ("hello".to_owned(), "world".to_owned()),
                 ("answer".to_owned(), "42".to_owned()),
             ]),
+            extracted_from_indexed: false,
         };
         assert_eq!(
             bucket_key.cost(),
-            80 + // BucketKey
+            88 + // BucketKey
             5 + // name
             (5 + 5 + 6 + 2) // tags
         );
@@ -1091,6 +1111,7 @@ mod tests {
                         "c:transactions/foo@none",
                     ),
                     tags: {},
+                    extracted_from_indexed: false,
                 },
                 Counter(
                     84.0,
@@ -1104,6 +1125,7 @@ mod tests {
                         "c:transactions/foo@none",
                     ),
                     tags: {},
+                    extracted_from_indexed: false,
                 },
                 Counter(
                     42.0,
@@ -1226,6 +1248,7 @@ mod tests {
             timestamp: UnixTimestamp::now(),
             metric_name: "c:transactions/foo@none".into(),
             tags: BTreeMap::new(),
+            extracted_from_indexed: false,
         };
         let fixed_cost = bucket_key.cost() + mem::size_of::<BucketValue>();
         for (metric_name, metric_value, expected_added_cost) in [
@@ -1386,6 +1409,7 @@ mod tests {
                 tags.insert("another\0garbage".to_owned(), "bye".to_owned());
                 tags
             },
+            extracted_from_indexed: false,
         };
 
         let mut bucket_key = validate_bucket_key(bucket_key, &test_config()).unwrap();
@@ -1411,6 +1435,7 @@ mod tests {
             timestamp: UnixTimestamp::now(),
             metric_name: "c:transactions/a_short_metric".into(),
             tags: BTreeMap::new(),
+            extracted_from_indexed: false,
         };
         assert!(validate_bucket_key(short_metric, &test_config()).is_ok());
 
@@ -1419,6 +1444,7 @@ mod tests {
             timestamp: UnixTimestamp::now(),
             metric_name: "c:transactions/long_name_a_very_long_name_its_super_long_really_but_like_super_long_probably_the_longest_name_youve_seen_and_even_the_longest_name_ever_its_extremly_long_i_cant_tell_how_long_it_is_because_i_dont_have_that_many_fingers_thus_i_cant_count_the_many_characters_this_long_name_is".into(),
             tags: BTreeMap::new(),
+            extracted_from_indexed: false,
         };
         let validation = validate_bucket_key(long_metric, &test_config());
 
@@ -1434,6 +1460,7 @@ mod tests {
             timestamp: UnixTimestamp::now(),
             metric_name: "c:transactions/a_short_metric_with_long_tag_key".into(),
             tags: BTreeMap::from([("i_run_out_of_creativity_so_here_we_go_Lorem_Ipsum_is_simply_dummy_text_of_the_printing_and_typesetting_industry_Lorem_Ipsum_has_been_the_industrys_standard_dummy_text_ever_since_the_1500s_when_an_unknown_printer_took_a_galley_of_type_and_scrambled_it_to_make_a_type_specimen_book".into(), "tag_value".into())]),
+            extracted_from_indexed: false,
         };
         let validation = validate_bucket_key(short_metric_long_tag_key, &test_config()).unwrap();
         assert_eq!(validation.tags.len(), 0);
@@ -1443,6 +1470,7 @@ mod tests {
             timestamp: UnixTimestamp::now(),
             metric_name: "c:transactions/a_short_metric_with_long_tag_value".into(),
             tags: BTreeMap::from([("tag_key".into(), "i_run_out_of_creativity_so_here_we_go_Lorem_Ipsum_is_simply_dummy_text_of_the_printing_and_typesetting_industry_Lorem_Ipsum_has_been_the_industrys_standard_dummy_text_ever_since_the_1500s_when_an_unknown_printer_took_a_galley_of_type_and_scrambled_it_to_make_a_type_specimen_book".into())]),
+            extracted_from_indexed: false,
         };
         let validation = validate_bucket_key(short_metric_long_tag_value, &test_config()).unwrap();
         assert_eq!(validation.tags.len(), 0);
@@ -1460,6 +1488,7 @@ mod tests {
             timestamp: UnixTimestamp::now(),
             metric_name: "c:transactions/a_short_metric".into(),
             tags: BTreeMap::from([("foo".into(), tag_value.clone())]),
+            extracted_from_indexed: false,
         };
         let validated_bucket = validate_metric_tags(short_metric, &test_config());
         assert_eq!(validated_bucket.tags["foo"], tag_value);
@@ -1567,8 +1596,49 @@ mod tests {
                 received_at: Some(
                     UnixTimestamp(999994711),
                 ),
+                extracted_from_indexed: false,
             },
         ]
         "###);
+    }
+
+    #[test]
+    fn test_get_flush_time_with_backdated_bucket() {
+        let mut config = test_config();
+        config.bucket_interval = 3600;
+        config.initial_delay = 1300;
+        config.debounce_delay = 1300;
+        config.flush_partitions = Some(10);
+        config.flush_batching = FlushBatching::Partition;
+
+        let reference_time = Instant::now();
+
+        let now_s =
+            (UnixTimestamp::now().as_secs() / config.bucket_interval) * config.bucket_interval;
+
+        // First bucket has a timestamp two hours ago.
+        let timestamp = UnixTimestamp::from_secs(now_s - 7200);
+        let bucket_key_1 = BucketKey {
+            project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
+            timestamp,
+            metric_name: "c:transactions/foo".into(),
+            tags: BTreeMap::new(),
+            extracted_from_indexed: false,
+        };
+
+        // Second bucket has a timestamp in this hour.
+        let timestamp = UnixTimestamp::from_secs(now_s);
+        let bucket_key_2 = BucketKey {
+            project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
+            timestamp,
+            metric_name: "c:transactions/foo".into(),
+            tags: BTreeMap::new(),
+            extracted_from_indexed: false,
+        };
+
+        let flush_time_1 = get_flush_time(&config, reference_time, &bucket_key_1);
+        let flush_time_2 = get_flush_time(&config, reference_time, &bucket_key_2);
+
+        assert_eq!(flush_time_1, flush_time_2);
     }
 }

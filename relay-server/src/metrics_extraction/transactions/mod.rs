@@ -9,6 +9,7 @@ use relay_event_schema::protocol::{
     TransactionSource,
 };
 use relay_metrics::{Bucket, DurationUnit, FiniteF64};
+use relay_sampling::evaluation::SamplingDecision;
 
 use crate::metrics_extraction::generic;
 use crate::metrics_extraction::transactions::types::{
@@ -17,7 +18,7 @@ use crate::metrics_extraction::transactions::types::{
 };
 use crate::metrics_extraction::IntoMetric;
 use crate::statsd::RelayCounters;
-use crate::utils::{self, SamplingResult};
+use crate::utils;
 
 pub mod types;
 
@@ -236,20 +237,12 @@ pub struct ExtractedMetrics {
     pub sampling_metrics: Vec<Bucket>,
 }
 
-impl ExtractedMetrics {
-    /// Extends the set of metrics with the supplied newly extracted metrics.
-    pub fn extend(&mut self, other: Self) {
-        self.project_metrics.extend(other.project_metrics);
-        self.sampling_metrics.extend(other.sampling_metrics);
-    }
-}
-
 /// A utility that extracts metrics from transactions.
 pub struct TransactionExtractor<'a> {
     pub config: &'a TransactionMetricsConfig,
     pub generic_config: Option<CombinedMetricExtractionConfig<'a>>,
     pub transaction_from_dsc: Option<&'a str>,
-    pub sampling_result: &'a SamplingResult,
+    pub sampling_decision: SamplingDecision,
     pub has_profile: bool,
 }
 
@@ -426,14 +419,9 @@ impl TransactionExtractor<'_> {
                     .0
                     .insert(CommonTag::Transaction, transaction_from_dsc.to_string());
             }
-            let decision = if self.sampling_result.should_keep() {
-                "keep"
-            } else {
-                "drop"
-            };
 
             TransactionCPRTags {
-                decision: decision.to_owned(),
+                decision: self.sampling_decision.to_string(),
                 universal_tags,
             }
         };
@@ -617,7 +605,7 @@ mod tests {
             config: &config,
             generic_config: None,
             transaction_from_dsc: Some("test_transaction"),
-            sampling_result: &SamplingResult::Pending,
+            sampling_decision: SamplingDecision::Keep,
             has_profile: false,
         };
 
@@ -693,6 +681,7 @@ mod tests {
                     received_at: Some(
                         UnixTimestamp(0),
                     ),
+                    extracted_from_indexed: false,
                 },
             },
             Bucket {
@@ -726,6 +715,7 @@ mod tests {
                     received_at: Some(
                         UnixTimestamp(0),
                     ),
+                    extracted_from_indexed: false,
                 },
             },
             Bucket {
@@ -753,6 +743,7 @@ mod tests {
                     received_at: Some(
                         UnixTimestamp(0),
                     ),
+                    extracted_from_indexed: false,
                 },
             },
             Bucket {
@@ -780,6 +771,7 @@ mod tests {
                     received_at: Some(
                         UnixTimestamp(0),
                     ),
+                    extracted_from_indexed: false,
                 },
             },
             Bucket {
@@ -807,6 +799,7 @@ mod tests {
                     received_at: Some(
                         UnixTimestamp(0),
                     ),
+                    extracted_from_indexed: false,
                 },
             },
             Bucket {
@@ -839,6 +832,7 @@ mod tests {
                     received_at: Some(
                         UnixTimestamp(0),
                     ),
+                    extracted_from_indexed: false,
                 },
             },
             Bucket {
@@ -856,6 +850,7 @@ mod tests {
                     received_at: Some(
                         UnixTimestamp(0),
                     ),
+                    extracted_from_indexed: false,
                 },
             },
             Bucket {
@@ -888,6 +883,7 @@ mod tests {
                     received_at: Some(
                         UnixTimestamp(0),
                     ),
+                    extracted_from_indexed: false,
                 },
             },
             Bucket {
@@ -910,6 +906,7 @@ mod tests {
                     received_at: Some(
                         UnixTimestamp(0),
                     ),
+                    extracted_from_indexed: false,
                 },
             },
             Bucket {
@@ -942,6 +939,7 @@ mod tests {
                     received_at: Some(
                         UnixTimestamp(0),
                     ),
+                    extracted_from_indexed: false,
                 },
             },
         ]
@@ -978,7 +976,7 @@ mod tests {
             config: &config,
             generic_config: None,
             transaction_from_dsc: Some("test_transaction"),
-            sampling_result: &SamplingResult::Pending,
+            sampling_decision: SamplingDecision::Keep,
             has_profile: false,
         };
 
@@ -1007,6 +1005,7 @@ mod tests {
                     received_at: Some(
                         UnixTimestamp(0),
                     ),
+                    extracted_from_indexed: false,
                 },
             },
             Bucket {
@@ -1030,6 +1029,7 @@ mod tests {
                     received_at: Some(
                         UnixTimestamp(0),
                     ),
+                    extracted_from_indexed: false,
                 },
             },
             Bucket {
@@ -1053,6 +1053,7 @@ mod tests {
                     received_at: Some(
                         UnixTimestamp(0),
                     ),
+                    extracted_from_indexed: false,
                 },
             },
             Bucket {
@@ -1070,6 +1071,7 @@ mod tests {
                     received_at: Some(
                         UnixTimestamp(0),
                     ),
+                    extracted_from_indexed: false,
                 },
             },
             Bucket {
@@ -1093,6 +1095,7 @@ mod tests {
                     received_at: Some(
                         UnixTimestamp(0),
                     ),
+                    extracted_from_indexed: false,
                 },
             },
             Bucket {
@@ -1114,6 +1117,7 @@ mod tests {
                     received_at: Some(
                         UnixTimestamp(0),
                     ),
+                    extracted_from_indexed: false,
                 },
             },
         ]
@@ -1147,7 +1151,7 @@ mod tests {
             config: &config,
             generic_config: None,
             transaction_from_dsc: Some("test_transaction"),
-            sampling_result: &SamplingResult::Pending,
+            sampling_decision: SamplingDecision::Keep,
             has_profile: false,
         };
 
@@ -1176,6 +1180,7 @@ mod tests {
                     received_at: Some(
                         UnixTimestamp(0),
                     ),
+                    extracted_from_indexed: false,
                 },
             },
             Bucket {
@@ -1200,6 +1205,7 @@ mod tests {
                     received_at: Some(
                         UnixTimestamp(0),
                     ),
+                    extracted_from_indexed: false,
                 },
             },
             Bucket {
@@ -1217,6 +1223,7 @@ mod tests {
                     received_at: Some(
                         UnixTimestamp(0),
                     ),
+                    extracted_from_indexed: false,
                 },
             },
             Bucket {
@@ -1240,6 +1247,7 @@ mod tests {
                     received_at: Some(
                         UnixTimestamp(0),
                     ),
+                    extracted_from_indexed: false,
                 },
             },
             Bucket {
@@ -1261,6 +1269,7 @@ mod tests {
                     received_at: Some(
                         UnixTimestamp(0),
                     ),
+                    extracted_from_indexed: false,
                 },
             },
         ]
@@ -1293,7 +1302,7 @@ mod tests {
             config: &config,
             generic_config: None,
             transaction_from_dsc: Some("test_transaction"),
-            sampling_result: &SamplingResult::Pending,
+            sampling_decision: SamplingDecision::Keep,
             has_profile: false,
         };
 
@@ -1368,7 +1377,7 @@ mod tests {
             config: &config,
             generic_config: None,
             transaction_from_dsc: Some("test_transaction"),
-            sampling_result: &SamplingResult::Pending,
+            sampling_decision: SamplingDecision::Keep,
             has_profile: false,
         };
 
@@ -1396,6 +1405,7 @@ mod tests {
                     received_at: Some(
                         UnixTimestamp(0),
                     ),
+                    extracted_from_indexed: false,
                 },
             },
             Bucket {
@@ -1420,6 +1430,7 @@ mod tests {
                     received_at: Some(
                         UnixTimestamp(0),
                     ),
+                    extracted_from_indexed: false,
                 },
             },
             Bucket {
@@ -1443,6 +1454,7 @@ mod tests {
                     received_at: Some(
                         UnixTimestamp(0),
                     ),
+                    extracted_from_indexed: false,
                 },
             },
             Bucket {
@@ -1460,6 +1472,7 @@ mod tests {
                     received_at: Some(
                         UnixTimestamp(0),
                     ),
+                    extracted_from_indexed: false,
                 },
             },
             Bucket {
@@ -1483,6 +1496,7 @@ mod tests {
                     received_at: Some(
                         UnixTimestamp(0),
                     ),
+                    extracted_from_indexed: false,
                 },
             },
             Bucket {
@@ -1504,6 +1518,7 @@ mod tests {
                     received_at: Some(
                         UnixTimestamp(0),
                     ),
+                    extracted_from_indexed: false,
                 },
             },
         ]
@@ -1527,7 +1542,7 @@ mod tests {
             config: &config,
             generic_config: None,
             transaction_from_dsc: Some("test_transaction"),
-            sampling_result: &SamplingResult::Pending,
+            sampling_decision: SamplingDecision::Keep,
             has_profile: false,
         };
 
@@ -1566,7 +1581,7 @@ mod tests {
             config: &config,
             generic_config: None,
             transaction_from_dsc: Some("test_transaction"),
-            sampling_result: &SamplingResult::Pending,
+            sampling_decision: SamplingDecision::Keep,
             has_profile: false,
         };
 
@@ -1634,7 +1649,7 @@ mod tests {
             config: &config,
             generic_config: None,
             transaction_from_dsc: Some("test_transaction"),
-            sampling_result: &SamplingResult::Pending,
+            sampling_decision: SamplingDecision::Keep,
             has_profile: false,
         };
 
@@ -1656,6 +1671,7 @@ mod tests {
                     received_at: Some(
                         UnixTimestamp(0),
                     ),
+                    extracted_from_indexed: false,
                 },
             },
             Bucket {
@@ -1679,6 +1695,7 @@ mod tests {
                     received_at: Some(
                         UnixTimestamp(0),
                     ),
+                    extracted_from_indexed: false,
                 },
             },
             Bucket {
@@ -1698,6 +1715,7 @@ mod tests {
                     received_at: Some(
                         UnixTimestamp(0),
                     ),
+                    extracted_from_indexed: false,
                 },
             },
         ]
@@ -1737,7 +1755,7 @@ mod tests {
             config: &config,
             generic_config: None,
             transaction_from_dsc: Some("test_transaction"),
-            sampling_result: &SamplingResult::Pending,
+            sampling_decision: SamplingDecision::Keep,
             has_profile: false,
         };
 
@@ -1770,7 +1788,7 @@ mod tests {
             config: &config,
             generic_config: None,
             transaction_from_dsc: Some("test_transaction"),
-            sampling_result: &SamplingResult::Pending,
+            sampling_decision: SamplingDecision::Keep,
             has_profile: false,
         };
 
@@ -1807,7 +1825,7 @@ mod tests {
             config: &config,
             generic_config: None,
             transaction_from_dsc: Some("root_transaction"),
-            sampling_result: &SamplingResult::Pending,
+            sampling_decision: SamplingDecision::Keep,
             has_profile: false,
         };
 
@@ -1832,6 +1850,7 @@ mod tests {
                     received_at: Some(
                         UnixTimestamp(0),
                     ),
+                    extracted_from_indexed: false,
                 },
             },
         ]
@@ -2075,7 +2094,7 @@ mod tests {
             config: &config,
             generic_config: None,
             transaction_from_dsc: Some("test_transaction"),
-            sampling_result: &SamplingResult::Pending,
+            sampling_decision: SamplingDecision::Keep,
             has_profile: false,
         };
 
@@ -2176,7 +2195,7 @@ mod tests {
             config: &config,
             generic_config: Some(combined_config),
             transaction_from_dsc: Some("test_transaction"),
-            sampling_result: &SamplingResult::Pending,
+            sampling_decision: SamplingDecision::Keep,
             has_profile: false,
         };
 
@@ -2203,6 +2222,7 @@ mod tests {
                     received_at: Some(
                         UnixTimestamp(0),
                     ),
+                    extracted_from_indexed: false,
                 },
             },
             Bucket {
@@ -2220,6 +2240,7 @@ mod tests {
                     received_at: Some(
                         UnixTimestamp(0),
                     ),
+                    extracted_from_indexed: false,
                 },
             },
             Bucket {
@@ -2242,6 +2263,7 @@ mod tests {
                     received_at: Some(
                         UnixTimestamp(0),
                     ),
+                    extracted_from_indexed: false,
                 },
             },
             Bucket {
@@ -2261,6 +2283,7 @@ mod tests {
                     received_at: Some(
                         UnixTimestamp(0),
                     ),
+                    extracted_from_indexed: false,
                 },
             },
         ]

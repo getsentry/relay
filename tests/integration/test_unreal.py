@@ -261,6 +261,11 @@ def test_unreal_minidump_with_config_and_processing(
     assert event
     assert event["type"] == "event"
 
+    # Test dump sets `IsAssert` to true but also supplies a custom `__sentry`
+    # value setting the error level to warning. Relay should not overwrite
+    # the user supplied level in this case.
+    assert json.loads(event["payload"])["level"] == "warning"
+
     project_id = event["project_id"]
     event_id = event["event_id"]
 

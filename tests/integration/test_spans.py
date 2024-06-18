@@ -1,3 +1,4 @@
+import contextlib
 import json
 import uuid
 from collections import Counter
@@ -16,7 +17,7 @@ from requests import HTTPError
 from sentry_relay.consts import DataCategory
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 
-from .asserts import time_after
+from .asserts import time_after, time_within_delta
 from .test_metrics import TEST_CONFIG
 from .test_store import make_transaction
 
@@ -386,6 +387,45 @@ def envelope_with_spans(
                         "timestamp": end.timestamp() + 1,
                         "exclusive_time": 345.0,  # The SDK knows that this span has a lower exclusive time
                         "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    },
+                ).encode()
+            ),
+        )
+    )
+
+    return envelope
+
+
+def envelope_with_transaction_and_spans(start: datetime, end: datetime) -> Envelope:
+    envelope = Envelope()
+    envelope.add_item(
+        Item(
+            type="transaction",
+            payload=PayloadRef(
+                bytes=json.dumps(
+                    {
+                        "type": "transaction",
+                        "timestamp": end.timestamp() + 1,
+                        "start_timestamp": start.timestamp(),
+                        "spans": [
+                            {
+                                "op": "default",
+                                "span_id": "968cff94913ebb07",
+                                "segment_id": "968cff94913ebb07",
+                                "start_timestamp": start.timestamp(),
+                                "timestamp": end.timestamp() + 1,
+                                "exclusive_time": 1000.0,
+                                "trace_id": "a0fa8803753e40fd8124b21eeb2986b5",
+                            },
+                        ],
+                        "contexts": {
+                            "trace": {
+                                "op": "hi",
+                                "trace_id": "a0fa8803753e40fd8124b21eeb2986b5",
+                                "span_id": "968cff94913ebb07",
+                            }
+                        },
+                        "transaction": "my_transaction",
                     },
                 ).encode()
             ),
@@ -913,10 +953,25 @@ def test_otel_endpoint_disabled(mini_sentry, relay):
         json=make_otel_span(start, end),
     )
 
-    (outcome,) = mini_sentry.captured_outcomes.get()["outcomes"]
-    assert outcome["category"] == DataCategory.SPAN
-    assert outcome["outcome"] == 3  # invalid
-    assert outcome["reason"] == "feature_disabled"
+    outcomes = []
+    for _ in range(2):
+        outcomes.extend(mini_sentry.captured_outcomes.get(timeout=3).get("outcomes"))
+    outcomes.sort(key=lambda x: x["category"])
+
+    assert outcomes == [
+        {
+            "org_id": 1,
+            "key_id": 123,
+            "project_id": 42,
+            "outcome": 3,
+            "reason": "feature_disabled",
+            "category": category.value,
+            "quantity": 1,
+            "source": "relay",
+            "timestamp": time_within_delta(),
+        }
+        for category in [DataCategory.SPAN, DataCategory.SPAN_INDEXED]
+    ]
 
     # Second attempt will cause a 403 response:
     with pytest.raises(HTTPError) as exc_info:
@@ -1276,20 +1331,10 @@ def test_span_reject_invalid_timestamps(
 
 
 def test_span_ingestion_with_performance_scores(
-    mini_sentry, relay_with_processing, spans_consumer, metrics_consumer
+    mini_sentry, relay_with_processing, spans_consumer
 ):
     spans_consumer = spans_consumer()
-    metrics_consumer = metrics_consumer()
-    relay = relay_with_processing(
-        options={
-            "aggregator": {
-                "bucket_interval": 1,
-                "initial_delay": 0,
-                "debounce_delay": 0,
-                "shift_key": "none",
-            }
-        }
-    )
+    relay = relay_with_processing()
 
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
@@ -1611,12 +1656,7 @@ def test_rate_limit_consistent_extracted(
     }
     metrics = metrics_consumer.get_metrics(timeout=1)
     if category == "span":
-        expected_outcomes.update(
-            {
-                (12, 2): 2,  # Span, RateLimited
-                (15, 2): 6,  # MetricBucket, RateLimited
-            }
-        )
+        expected_outcomes.update({(12, 2): 2}),  # Span, RateLimited
         assert len(metrics) == 4
         assert all(m[0]["name"][2:14] == "transactions" for m in metrics), metrics
     else:
@@ -1630,14 +1670,14 @@ def test_rate_limit_consistent_extracted(
     outcomes_consumer.assert_empty()
 
 
-def test_rate_limit_metrics_consistent(
+def test_rate_limit_spans_in_envelope(
     mini_sentry,
     relay_with_processing,
     spans_consumer,
     metrics_consumer,
     outcomes_consumer,
 ):
-    """Rate limits for total spans (i.e. metrics) are enforced consistently after metrics extraction."""
+    """Rate limits for total spans are enforced and no metrics are emitted."""
     relay = relay_with_processing(options=TEST_CONFIG)
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
@@ -1666,34 +1706,90 @@ def test_rate_limit_metrics_consistent(
 
     def summarize_outcomes():
         counter = Counter()
-        for outcome in outcomes_consumer.get_outcomes():
+        for outcome in outcomes_consumer.get_outcomes(timeout=10, n=2):
             counter[(outcome["category"], outcome["outcome"])] += outcome["quantity"]
         return dict(counter)
 
-    # First batch passes (we over-accept once)
     relay.send_envelope(project_id, envelope)
-    spans = spans_consumer.get_spans(n=4, timeout=10)
-    assert len(spans) == 4
-    metrics = metrics_consumer.get_metrics()
-    assert len(metrics) > 0
-    assert all(headers == [("namespace", b"spans")] for _, headers in metrics), metrics
 
-    # Accepted outcomes for main category are logged in sentry.
-    assert summarize_outcomes() == {(16, 0): 4}  # SpanIndexed, Accepted
-
-    # Second batch is limited
-    relay.send_envelope(project_id, envelope)
-    metrics = metrics_consumer.get_metrics()
-    assert len(metrics) == 0
-    outcomes = summarize_outcomes()
-    assert outcomes.pop((15, 2)) > 0  # Metric Bucket, RateLimited
-    assert outcomes == {
-        (16, 2): 4,  # SpanIndexed, RateLimited
-        (12, 2): 4,  # Span, RateLimited
-    }
+    assert summarize_outcomes() == {(12, 2): 4, (16, 2): 4}
 
     spans_consumer.assert_empty()
-    outcomes_consumer.assert_empty()
+    metrics_consumer.assert_empty()
+
+
+@pytest.mark.parametrize(
+    "category,raises_rate_limited",
+    [
+        ("transaction", True),
+        ("transaction", True),
+        ("transaction_indexed", False),
+    ],
+)
+def test_rate_limit_is_consistent_between_transaction_and_spans(
+    mini_sentry,
+    relay_with_processing,
+    transactions_consumer,
+    spans_consumer,
+    category,
+    raises_rate_limited,
+):
+    """Rate limits for indexed are enforced consistently after metrics extraction.
+
+    This test does not cover consistent enforcement of total spans.
+    """
+    # TODO: add outcomes check when https://github.com/getsentry/relay/issues/3705 is done.
+    relay = relay_with_processing(options=TEST_CONFIG)
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = [
+        "projects:span-metrics-extraction",
+        "organizations:standalone-span-ingestion",
+        "organizations:indexed-spans-extraction",
+    ]
+    project_config["config"]["quotas"] = [
+        {
+            "categories": [category],
+            "limit": 1,
+            "window": int(datetime.now(UTC).timestamp()),
+            "id": uuid.uuid4(),
+            "reasonCode": "exceeded",
+        },
+    ]
+    project_config["config"]["transactionMetrics"] = {
+        "version": TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION,
+    }
+
+    transactions_consumer = transactions_consumer()
+    spans_consumer = spans_consumer()
+
+    start = datetime.now(timezone.utc)
+    end = start + timedelta(seconds=1)
+
+    envelope = envelope_with_transaction_and_spans(start, end)
+
+    # First batch passes
+    relay.send_envelope(project_id, envelope)
+    event, _ = transactions_consumer.get_event(timeout=10)
+    assert event["transaction"] == "my_transaction"
+    # We have one nested span and the transaction itself becomes a span
+    spans = spans_consumer.get_spans(n=2, timeout=10)
+    assert len(spans) == 2
+
+    relay.send_envelope(project_id, envelope)
+    transactions_consumer.assert_empty()
+    spans_consumer.assert_empty()
+
+    maybe_raises = (
+        pytest.raises(HTTPError, match="429 Client Error")
+        if raises_rate_limited
+        else contextlib.nullcontext()
+    )
+    with maybe_raises:
+        relay.send_envelope(project_id, envelope)
+
+    transactions_consumer.assert_empty()
+    spans_consumer.assert_empty()
 
 
 @pytest.mark.parametrize(
@@ -1809,11 +1905,11 @@ def test_span_filtering_with_generic_inbound_filter(
 
     def summarize_outcomes():
         counter = Counter()
-        for outcome in outcomes_consumer.get_outcomes(timeout=10, n=1):
+        for outcome in outcomes_consumer.get_outcomes(timeout=10, n=2):
             counter[(outcome["category"], outcome["outcome"])] += outcome["quantity"]
         return counter
 
-    assert summarize_outcomes() == {(12, 1): 1}
+    assert summarize_outcomes() == {(12, 1): 1, (16, 1): 1}
     spans_consumer.assert_empty()
     outcomes_consumer.assert_empty()
 
@@ -1908,8 +2004,8 @@ def test_dynamic_sampling(
         outcomes = outcomes_consumer.get_outcomes(timeout=10, n=4)
         assert summarize_outcomes(outcomes) == {(16, 0): 4}  # SpanIndexed, Accepted
     else:
-        outcomes = outcomes_consumer.get_outcomes(timeout=10, n=4)
-        assert summarize_outcomes(outcomes) == {(12, 1): 4}  # Span, Filtered
+        outcomes = outcomes_consumer.get_outcomes(timeout=10, n=1)
+        assert summarize_outcomes(outcomes) == {(16, 1): 4}  # Span, Filtered
         assert {o["reason"] for o in outcomes} == {"Sampled:3000"}
 
     spans_consumer.assert_empty()

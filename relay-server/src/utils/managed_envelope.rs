@@ -10,7 +10,7 @@ use chrono::{DateTime, Utc};
 use relay_quotas::{DataCategory, Scoping};
 use relay_system::Addr;
 
-use crate::envelope::{Envelope, Item, ItemType};
+use crate::envelope::{Envelope, Item};
 use crate::extractors::RequestMeta;
 use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::services::processor::{Processed, ProcessingGroup};
@@ -292,18 +292,15 @@ impl ManagedEnvelope {
     where
         F: FnMut(&mut Item) -> ItemAction,
     {
-        let mut outcomes = vec![];
-        let use_indexed = self.use_index_category();
+        let mut outcomes = Vec::new();
         self.envelope.retain_items(|item| match f(item) {
             ItemAction::Keep => true,
             ItemAction::DropSilently => false,
             ItemAction::Drop(outcome) => {
-                let use_indexed = if item.ty() == &ItemType::Span {
-                    item.metrics_extracted()
-                } else {
-                    use_indexed
-                };
-                if let Some(category) = item.outcome_category(use_indexed) {
+                if let Some(category) = item.outcome_category() {
+                    if let Some(indexed) = category.index_category() {
+                        outcomes.push((outcome.clone(), indexed, item.quantity()));
+                    };
                     outcomes.push((outcome, category, item.quantity()));
                 };
                 false
@@ -320,16 +317,6 @@ impl ManagedEnvelope {
         self.envelope.drop_items_silently();
     }
 
-    /// Record that event metrics have been extracted.
-    ///
-    /// This is usually done automatically as part of `EnvelopeContext::new` or `update`. However,
-    /// if the context needs to be updated in-flight without recomputing the entire summary, this
-    /// method can record that metric extraction for the event item has occurred.
-    pub fn set_event_metrics_extracted(&mut self) -> &mut Self {
-        self.context.summary.transaction_metrics_extracted = true;
-        self
-    }
-
     /// Re-scopes this context to the given scoping.
     pub fn scope(&mut self, scoping: Scoping) -> &mut Self {
         self.context.scoping = scoping;
@@ -342,6 +329,9 @@ impl ManagedEnvelope {
     pub fn reject_event(&mut self, outcome: Outcome) {
         if let Some(event_category) = self.event_category() {
             self.envelope.retain_items(|item| !item.creates_event());
+            if let Some(indexed) = event_category.index_category() {
+                self.track_outcome(outcome.clone(), indexed, 1);
+            }
             self.track_outcome(outcome, event_category, 1);
         }
     }
@@ -375,28 +365,9 @@ impl ManagedEnvelope {
         }
     }
 
-    /// Returns `true` if the indexed data category should be used for reporting.
-    ///
-    /// If metrics have been extracted from the event item, we use the indexed category
-    /// (for example, [TransactionIndexed](`DataCategory::TransactionIndexed`)) for reporting
-    /// rate limits and outcomes, because reporting of the main category
-    /// (for example, [Transaction](`DataCategory::Transaction`) for processed transactions)
-    /// will be handled by the metrics aggregator.
-    fn use_index_category(&self) -> bool {
-        self.context.summary.transaction_metrics_extracted
-    }
-
     /// Returns the data category of the event item in the envelope.
-    ///
-    /// If metrics have been extracted from the event item, this will return the indexing category.
-    /// Outcomes for metrics (the base data category) will be logged by the metrics aggregator.
     fn event_category(&self) -> Option<DataCategory> {
-        let category = self.context.summary.event_category?;
-
-        match category.index_category() {
-            Some(index_category) if self.use_index_category() => Some(index_category),
-            _ => Some(category),
-        }
+        self.context.summary.event_category
     }
 
     /// Records rejection outcomes for all items stored in this context.
@@ -437,6 +408,9 @@ impl ManagedEnvelope {
             .send(Capture::rejected(self.envelope.event_id(), &outcome));
 
         if let Some(category) = self.event_category() {
+            if let Some(category) = category.index_category() {
+                self.track_outcome(outcome.clone(), category, 1);
+            }
             self.track_outcome(outcome.clone(), category, 1);
         }
 
@@ -451,11 +425,12 @@ impl ManagedEnvelope {
         if self.context.summary.profile_quantity > 0 {
             self.track_outcome(
                 outcome.clone(),
-                if self.use_index_category() {
-                    DataCategory::ProfileIndexed
-                } else {
-                    DataCategory::Profile
-                },
+                DataCategory::Profile,
+                self.context.summary.profile_quantity,
+            );
+            self.track_outcome(
+                outcome.clone(),
+                DataCategory::ProfileIndexed,
                 self.context.summary.profile_quantity,
             );
         }
@@ -463,10 +438,12 @@ impl ManagedEnvelope {
         if self.context.summary.span_quantity > 0 {
             self.track_outcome(
                 outcome.clone(),
-                match self.context.summary.span_metrics_extracted {
-                    true => DataCategory::SpanIndexed,
-                    false => DataCategory::Span,
-                },
+                DataCategory::Span,
+                self.context.summary.span_quantity,
+            );
+            self.track_outcome(
+                outcome.clone(),
+                DataCategory::SpanIndexed,
                 self.context.summary.span_quantity,
             );
         }
@@ -606,13 +583,17 @@ mod tests {
             test_store,
             ProcessingGroup::Ungrouped,
         );
-        env.context.summary.span_metrics_extracted = true;
         env.context.summary.span_quantity = 123;
         env.context.summary.secondary_span_quantity = 456;
 
         env.reject(Outcome::Abuse);
 
         rx.close();
+
+        let outcome = rx.blocking_recv().unwrap();
+        assert_eq!(outcome.category, DataCategory::Span);
+        assert_eq!(outcome.quantity, 123);
+        assert_eq!(outcome.outcome, Outcome::Abuse);
 
         let outcome = rx.blocking_recv().unwrap();
         assert_eq!(outcome.category, DataCategory::SpanIndexed);

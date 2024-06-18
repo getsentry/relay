@@ -8,7 +8,7 @@ use relay_base_schema::project::ProjectKey;
 use relay_event_schema::protocol::{Event, TraceContext};
 use relay_sampling::config::{RuleType, SamplingConfig};
 use relay_sampling::dsc::{DynamicSamplingContext, TraceUserContext};
-use relay_sampling::evaluation::{SamplingEvaluator, SamplingMatch};
+use relay_sampling::evaluation::{SamplingDecision, SamplingEvaluator, SamplingMatch};
 
 use crate::envelope::{Envelope, ItemType};
 use crate::services::outcome::Outcome;
@@ -151,25 +151,18 @@ impl SamplingResult {
         matches!(self, &Self::Match(_))
     }
 
-    /// Returns `true` if the event should be dropped.
-    pub fn should_drop(&self) -> bool {
-        !self.should_keep()
-    }
-
-    /// Returns `true` if the event should be kept.
-    pub fn should_keep(&self) -> bool {
+    /// Boolean decision whether to keep or drop the item.
+    pub fn decision(&self) -> SamplingDecision {
         match self {
-            SamplingResult::Match(sampling_match) => sampling_match.should_keep(),
-            // If no rules matched on an event, we want to keep it.
-            SamplingResult::NoMatch => true,
-            SamplingResult::Pending => true,
+            Self::Match(sampling_match) => sampling_match.decision(),
+            _ => SamplingDecision::Keep,
         }
     }
 
     /// Consumes the sampling results and returns and outcome if the sampling decision is drop.
     pub fn into_dropped_outcome(self) -> Option<Outcome> {
         match self {
-            SamplingResult::Match(sampling_match) if sampling_match.should_drop() => Some(
+            SamplingResult::Match(sampling_match) if sampling_match.decision().is_drop() => Some(
                 Outcome::FilteredSampling(sampling_match.into_matched_rules().into()),
             ),
             SamplingResult::Match(_) => None,
@@ -208,7 +201,7 @@ pub fn is_trace_fully_sampled(
     let rules = root_project_config.filter_rules(RuleType::Trace);
 
     let evaluation = evaluator.match_rules(dsc.trace_id, dsc, rules);
-    Some(SamplingResult::from(evaluation).should_keep())
+    Some(SamplingResult::from(evaluation).decision().is_keep())
 }
 
 /// Returns the project key defined in the `trace` header of the envelope.
@@ -373,7 +366,7 @@ mod tests {
             .into();
 
         assert!(result.is_match());
-        assert!(result.should_keep());
+        assert!(result.decision().is_keep());
     }
     #[test]
     /// Tests that an event is dropped when there is a match and we have 0% sample rate.
@@ -387,7 +380,7 @@ mod tests {
             .into();
 
         assert!(result.is_match());
-        assert!(result.should_drop());
+        assert!(result.decision().is_drop());
     }
 
     #[test]
@@ -410,7 +403,7 @@ mod tests {
             .into();
 
         assert!(result.is_no_match());
-        assert!(result.should_keep());
+        assert!(result.decision().is_keep());
     }
 
     #[test]
@@ -424,7 +417,7 @@ mod tests {
             .into();
 
         assert!(result.is_match());
-        assert!(result.should_keep());
+        assert!(result.decision().is_keep());
     }
 
     #[test]
