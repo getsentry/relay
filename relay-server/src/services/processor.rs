@@ -1198,9 +1198,11 @@ impl EnvelopeProcessorService {
         //  2. The DSN was moved and the envelope sent to the old project ID.
         envelope.meta_mut().set_project_id(project_id);
 
-        let event_fully_normalized = envelope
-            .items()
-            .any(|item| item.creates_event() && item.fully_normalized());
+        // Only trust item headers in envelopes coming from internal relays
+        let event_fully_normalized = envelope.meta().is_from_internal_relay()
+            && envelope
+                .items()
+                .any(|item| item.creates_event() && item.fully_normalized());
 
         #[allow(unused_mut)]
         let mut reservoir = ReservoirEvaluator::new(reservoir_counters);
@@ -1424,16 +1426,12 @@ impl EnvelopeProcessorService {
         }
 
         let options = &self.inner.global_config.current().options;
-        let from_internal = state.envelope().meta().is_from_internal_relay();
 
         let full_normalization = match self.inner.config.normalization_level() {
             NormalizationLevel::Full => true,
             NormalizationLevel::Default => {
-                if !self.inner.config.processing_enabled() && options.force_full_normalization {
-                    true
-                } else if self.inner.config.processing_enabled()
+                if self.inner.config.processing_enabled()
                     && options.processing_disable_normalization
-                    && from_internal
                     && state.event_fully_normalized
                 {
                     metric!(
@@ -1443,7 +1441,7 @@ impl EnvelopeProcessorService {
                     );
                     return Ok(());
                 } else {
-                    self.inner.config.processing_enabled()
+                    self.inner.config.processing_enabled() || options.force_full_normalization
                 }
             }
         };

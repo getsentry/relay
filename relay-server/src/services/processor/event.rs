@@ -42,6 +42,7 @@ pub fn extract<G: EventProcessing>(
     config: &Config,
     global_config: &GlobalConfig,
 ) -> Result<(), ProcessingError> {
+    let event_fully_normalized = state.event_fully_normalized;
     let envelope = &mut state.envelope_mut();
 
     // Remove all items first, and then process them. After this function returns, only
@@ -68,13 +69,9 @@ pub fn extract<G: EventProcessing>(
         return Err(ProcessingError::DuplicateItem(duplicate.ty().clone()));
     }
 
-    let fully_normalized = event_item.as_ref().map_or(false, |item| {
-        item.creates_event() && item.fully_normalized()
-    });
     let normalization_skipped = config.processing_enabled()
         && global_config.options.processing_disable_normalization
-        && envelope.meta().is_from_internal_relay()
-        && fully_normalized;
+        && event_fully_normalized;
 
     let mut sample_rates = None;
     let (event, event_len) = if let Some(mut item) = event_item.or(security_item) {
