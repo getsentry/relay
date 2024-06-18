@@ -863,19 +863,13 @@ impl Project {
             return;
         }
 
-        // TODO(jjbayer): move this logic to set_state
-        match state.check_expiry(&self.config) {
-            // If the new state is invalid but the old one still usable, keep the old one.
-            Expiry::Updated | Expiry::Stale if state.invalid() => {}
-            // If the new state is valid or the old one is expired, always use the new one.
-            _ => self.set_state(
-                &state,
-                aggregator,
-                envelope_processor,
-                outcome_aggregator,
-                metric_outcomes,
-            ),
-        }
+        self.set_state(
+            &state,
+            aggregator,
+            envelope_processor,
+            outcome_aggregator,
+            metric_outcomes,
+        );
 
         // If the state is still invalid, return back the taken channel and schedule state update.
         if state.invalid() {

@@ -86,18 +86,24 @@ impl State {
         {
             // Invalid or expired means we'll try again, set state to pending.
             match old_state {
-                InternalState::Pending(_) => {
-                    // Early return to prevent having to take ownership of buffer:
-                    return None;
+                InternalState::Pending(_) => return None,
+                InternalState::Cached(old_project_state) => {
+                    match old_project_state.check_expiry(&self.config) {
+                        // If the new state is invalid but the old one still usable, keep the old one.
+                        Expiry::Updated | Expiry::Stale => return None,
+                        // Else, set to pending:
+                        Expiry::Expired => InternalState::pending(&self.config),
+                    }
                 }
-                InternalState::Cached(_) | InternalState::Disabled => {
-                    // TODO: ensure we'll fetch here (unite this function with get_or_fetch_state).
-                    InternalState::pending(&self.config)
-                }
+                InternalState::Disabled => InternalState::pending(&self.config),
             }
         } else {
             InternalState::Cached(project_state.clone())
         };
+
+        if matches!(&new_state, InternalState::Pending(_)) {
+            // TODO: ensure refetch here.
+        }
 
         let old_state = std::mem::replace(&mut self.inner, new_state);
 
