@@ -7,6 +7,7 @@ import json
 import signal
 import time
 import queue
+from itertools import chain
 from .consts import (
     TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION,
     TRANSACTION_EXTRACT_MAX_SUPPORTED_VERSION,
@@ -1214,9 +1215,17 @@ def test_no_transaction_metrics_when_filtered(mini_sentry, relay):
     relay = relay(mini_sentry, options=TEST_CONFIG)
     relay.send_transaction(project_id, tx)
 
-    # The only envelope received should be outcomes:
-    envelope = mini_sentry.captured_events.get(timeout=3)
-    assert {item.type for item in envelope.items} == {"client_report"}
+    # The only two envelopes received should be outcomes for Transaction and TransactionIndexed:
+    reports = [mini_sentry.get_client_report(), mini_sentry.get_client_report()]
+    filtered_events = list(
+        chain.from_iterable(report["filtered_events"] for report in reports)
+    )
+    filtered_events.sort(key=lambda x: x["category"])
+
+    assert filtered_events == [
+        {"reason": "release-version", "category": "transaction", "quantity": 1},
+        {"reason": "release-version", "category": "transaction_indexed", "quantity": 1},
+    ]
 
     assert mini_sentry.captured_events.qsize() == 0
 

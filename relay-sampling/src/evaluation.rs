@@ -245,11 +245,11 @@ impl<'a> SamplingEvaluator<'a> {
     }
 }
 
-fn sampling_match(sample_rate: f64, seed: Uuid) -> bool {
-    if sample_rate == 0.0 {
-        return false;
-    } else if sample_rate == 1.0 {
-        return true;
+fn sampling_match(sample_rate: f64, seed: Uuid) -> SamplingDecision {
+    if sample_rate <= 0.0 {
+        return SamplingDecision::Drop;
+    } else if sample_rate >= 1.0 {
+        return SamplingDecision::Keep;
     }
 
     let random_number = pseudo_random_from_uuid(seed);
@@ -261,10 +261,45 @@ fn sampling_match(sample_rate: f64, seed: Uuid) -> bool {
 
     if random_number >= sample_rate {
         relay_log::trace!("dropping event that matched the configuration");
-        false
+        SamplingDecision::Drop
     } else {
         relay_log::trace!("keeping event that matched the configuration");
-        true
+        SamplingDecision::Keep
+    }
+}
+
+/// A sampling decision.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum SamplingDecision {
+    /// The item is sampled and should not be dropped.
+    Keep,
+    /// The item is not sampled and should be dropped.
+    Drop,
+}
+
+impl SamplingDecision {
+    /// Returns `true` if the sampling decision is [`Self::Keep`].
+    pub fn is_keep(self) -> bool {
+        matches!(self, Self::Keep)
+    }
+
+    /// Returns `true` if the sampling decision is [`Self::Drop`].
+    pub fn is_drop(self) -> bool {
+        matches!(self, Self::Drop)
+    }
+
+    /// Returns a string representation of the sampling decision.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Keep => "keep",
+            Self::Drop => "drop",
+        }
+    }
+}
+
+impl fmt::Display for SamplingDecision {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.as_str())
     }
 }
 
@@ -284,19 +319,19 @@ pub struct SamplingMatch {
     /// Whether this sampling match results in the item getting sampled.
     /// It's essentially a cache, as the value can be deterministically derived from
     /// the sample rate and the seed.
-    should_keep: bool,
+    decision: SamplingDecision,
 }
 
 impl SamplingMatch {
     fn new(sample_rate: f64, seed: Uuid, matched_rules: Vec<RuleId>) -> Self {
         let matched_rules = MatchedRuleIds(matched_rules);
-        let should_keep = sampling_match(sample_rate, seed);
+        let decision = sampling_match(sample_rate, seed);
 
         Self {
             sample_rate,
             seed,
             matched_rules,
-            should_keep,
+            decision,
         }
     }
 
@@ -313,14 +348,9 @@ impl SamplingMatch {
         self.matched_rules
     }
 
-    /// Returns true if event should be kept.
-    pub fn should_keep(&self) -> bool {
-        self.should_keep
-    }
-
-    /// Returns true if event should be dropped.
-    pub fn should_drop(&self) -> bool {
-        !self.should_keep()
+    /// Returns the sampling decision.
+    pub fn decision(&self) -> SamplingDecision {
+        self.decision
     }
 }
 

@@ -16,7 +16,7 @@ use crate::services::outcome::Outcome;
 use crate::services::processor::{
     EventProcessing, ProcessEnvelopeState, Sampling, TransactionGroup,
 };
-use crate::utils::{self, sample, ItemAction, SamplingResult};
+use crate::utils::{self, sample, SamplingResult};
 
 /// Ensures there is a valid dynamic sampling context and corresponding project state.
 ///
@@ -96,19 +96,38 @@ pub fn drop_unsampled_items(
     outcome: Outcome,
     keep_profiles: bool,
 ) {
-    state.managed_envelope.retain_items(|item| {
-        if keep_profiles && item.ty() == &ItemType::Profile {
-            // Remember on the item that this profile belongs to an transaction which was not
-            // sampled.
-            // Upstream Relays can use that information to allow standalone unsampled profiles.
-            item.set_sampled(false);
-            ItemAction::Keep
-        } else {
-            ItemAction::Drop(outcome.clone())
-        }
+    // Remove all items from the envelope which need to be dropped due to dynamic sampling.
+    let dropped_items = state.envelope_mut().take_items_by(|item| match item.ty() {
+        ItemType::Profile => !keep_profiles,
+        _ => true,
     });
-    // The event is no longer in the envelope, so we need to handle it separately:
-    state.reject_event(outcome);
+
+    for item in dropped_items {
+        let Some(category) = item.outcome_category() else {
+            continue;
+        };
+
+        // Dynamic sampling only drops indexed items. Upgrade the category to the index
+        // category if one exists for this category, for example profiles will be upgraded to profiles indexed,
+        // but attachments are still emitted as attachments.
+        let category = category.index_category().unwrap_or(category);
+
+        state
+            .managed_envelope
+            .track_outcome(outcome.clone(), category, item.quantity());
+    }
+
+    // Mark all remaining items in the envelope as unsampled.
+    for item in state.envelope_mut().items_mut() {
+        item.set_sampled(false);
+    }
+
+    // All items have been dropped, now make sure the event is also handled and dropped.
+    if let Some(category) = state.event_category() {
+        let category = category.index_category().unwrap_or(category);
+        state.managed_envelope.track_outcome(outcome, category, 1)
+    }
+    state.remove_event();
 }
 
 /// Computes the sampling decision on the incoming envelope.
@@ -251,7 +270,7 @@ mod tests {
     use relay_sampling::config::{
         DecayingFunction, RuleId, SamplingRule, SamplingValue, TimeRange,
     };
-    use relay_sampling::evaluation::{ReservoirCounters, SamplingMatch};
+    use relay_sampling::evaluation::{ReservoirCounters, SamplingDecision, SamplingMatch};
     use relay_system::Addr;
     use uuid::Uuid;
 
@@ -392,7 +411,7 @@ mod tests {
                 None,
                 None,
             );
-            assert_eq!(res.should_keep(), should_keep);
+            assert_eq!(res.decision().is_keep(), should_keep);
         }
     }
 
@@ -459,17 +478,17 @@ mod tests {
         // None represents no TransactionMetricsConfig, DS will not be run
         let mut state = get_state(None);
         let sampling_result = run(&mut state, &config);
-        assert!(sampling_result.should_keep());
+        assert_eq!(sampling_result.decision(), SamplingDecision::Keep);
 
         // Current version is 3, so it won't run DS if it's outdated
         let mut state = get_state(Some(2));
         let sampling_result = run(&mut state, &config);
-        assert!(sampling_result.should_keep());
+        assert_eq!(sampling_result.decision(), SamplingDecision::Keep);
 
         // Dynamic sampling is run, as the transactionmetrics version is up to date.
         let mut state = get_state(Some(3));
         let sampling_result = run(&mut state, &config);
-        assert!(sampling_result.should_drop());
+        assert_eq!(sampling_result.decision(), SamplingDecision::Drop);
     }
 
     fn project_state_with_single_rule(sample_rate: f64) -> ProjectState {
@@ -758,13 +777,13 @@ mod tests {
     fn test_reservoir_applied_for_transactions() {
         let result = run_with_reservoir_rule::<TransactionGroup>(ProcessingGroup::Transaction);
         // Default sampling rate is 0.0, but transaction is retained because of reservoir:
-        assert!(result.should_keep());
+        assert_eq!(result.decision(), SamplingDecision::Keep);
     }
 
     #[test]
     fn test_reservoir_not_applied_for_spans() {
         let result = run_with_reservoir_rule::<SpanGroup>(ProcessingGroup::Span);
         // Default sampling rate is 0.0, and the reservoir does not apply to spans:
-        assert!(result.should_drop());
+        assert_eq!(result.decision(), SamplingDecision::Drop);
     }
 }

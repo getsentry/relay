@@ -678,14 +678,10 @@ impl Item {
     /// Returns the data category used for generating outcomes.
     ///
     /// Returns `None` if outcomes are not generated for this type (e.g. sessions).
-    pub fn outcome_category(&self, indexed: bool) -> Option<DataCategory> {
+    pub fn outcome_category(&self) -> Option<DataCategory> {
         match self.ty() {
             ItemType::Event => Some(DataCategory::Error),
-            ItemType::Transaction => Some(if indexed {
-                DataCategory::TransactionIndexed
-            } else {
-                DataCategory::Transaction
-            }),
+            ItemType::Transaction => Some(DataCategory::Transaction),
             ItemType::Security | ItemType::RawSecurity => Some(DataCategory::Security),
             ItemType::Nel => None,
             ItemType::UnrealReport => Some(DataCategory::Error),
@@ -695,21 +691,13 @@ impl Item {
             ItemType::FormData => None,
             ItemType::UserReport => None,
             ItemType::UserReportV2 => Some(DataCategory::UserReportV2),
-            ItemType::Profile => Some(if indexed {
-                DataCategory::ProfileIndexed
-            } else {
-                DataCategory::Profile
-            }),
+            ItemType::Profile => Some(DataCategory::Profile),
             ItemType::ReplayEvent | ItemType::ReplayRecording | ItemType::ReplayVideo => {
                 Some(DataCategory::Replay)
             }
             ItemType::ClientReport => None,
             ItemType::CheckIn => Some(DataCategory::Monitor),
-            ItemType::Span | ItemType::OtelSpan => Some(if indexed {
-                DataCategory::SpanIndexed
-            } else {
-                DataCategory::Span
-            }),
+            ItemType::Span | ItemType::OtelSpan => Some(DataCategory::Span),
             ItemType::ProfileChunk => Some(DataCategory::ProfileChunk),
             ItemType::Unknown(_) => None,
         }
