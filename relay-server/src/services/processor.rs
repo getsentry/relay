@@ -71,7 +71,7 @@ use crate::service::ServiceError;
 use crate::services::global_config::GlobalConfigHandle;
 use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::services::processor::event::FiltersStatus;
-use crate::services::project::ProjectState;
+use crate::services::project::ProjectInfo;
 use crate::services::project_cache::{
     AddMetricBuckets, AddMetricMeta, BucketSource, ProjectCache, UpdateRateLimits,
 };
@@ -168,7 +168,7 @@ pub trait EventProcessing {}
 /// A trait for processing groups that can be dynamically sampled.
 pub trait Sampling {
     /// Whether dynamic sampling should run under the given project's conditions.
-    fn supports_sampling(project_state: &ProjectState) -> bool;
+    fn supports_sampling(project_state: &ProjectInfo) -> bool;
 
     /// Whether reservoir sampling applies to this processing group (a.k.a. data type).
     fn supports_reservoir_sampling() -> bool;
@@ -178,7 +178,7 @@ processing_group!(TransactionGroup, Transaction);
 impl EventProcessing for TransactionGroup {}
 
 impl Sampling for TransactionGroup {
-    fn supports_sampling(project_state: &ProjectState) -> bool {
+    fn supports_sampling(project_state: &ProjectInfo) -> bool {
         // For transactions, we require transaction metrics to be enabled before sampling.
         matches!(&project_state.config.transaction_metrics, Some(ErrorBoundary::Ok(c)) if c.is_enabled())
     }
@@ -199,7 +199,7 @@ processing_group!(CheckInGroup, CheckIn);
 processing_group!(SpanGroup, Span);
 
 impl Sampling for SpanGroup {
-    fn supports_sampling(project_state: &ProjectState) -> bool {
+    fn supports_sampling(project_state: &ProjectInfo) -> bool {
         // If no metrics could be extracted, do not sample anything.
         matches!(&project_state.config().metric_extraction, ErrorBoundary::Ok(c) if c.is_supported())
     }
@@ -720,11 +720,11 @@ struct ProcessEnvelopeState<'a, Group> {
     extracted_metrics: ProcessingExtractedMetrics,
 
     /// The state of the project that this envelope belongs to.
-    project_state: Arc<ProjectState>,
+    project_state: Arc<ProjectInfo>,
 
     /// The state of the project that initiated the current trace.
     /// This is the config used for trace-based dynamic sampling.
-    sampling_project_state: Option<Arc<ProjectState>>,
+    sampling_project_state: Option<Arc<ProjectInfo>>,
 
     /// The id of the project that this envelope is ingested into.
     ///
@@ -813,8 +813,8 @@ pub struct ProcessEnvelopeResponse {
 #[derive(Debug)]
 pub struct ProcessEnvelope {
     pub envelope: ManagedEnvelope,
-    pub project_state: Arc<ProjectState>,
-    pub sampling_project_state: Option<Arc<ProjectState>>,
+    pub project_state: Arc<ProjectInfo>,
+    pub sampling_project_state: Option<Arc<ProjectInfo>>,
     pub reservoir_counters: ReservoirCounters,
 }
 
@@ -871,7 +871,7 @@ pub struct ProjectMetrics {
     /// The metric buckets to encode.
     pub buckets: Vec<Bucket>,
     /// Project state for extracting quotas.
-    pub project_state: Arc<ProjectState>,
+    pub project_state: Arc<ProjectInfo>,
 }
 
 /// Encodes metrics into an envelope ready to be sent upstream.
@@ -1174,8 +1174,8 @@ impl EnvelopeProcessorService {
         &self,
         mut managed_envelope: TypedEnvelope<G>,
         project_id: ProjectId,
-        project_state: Arc<ProjectState>,
-        sampling_project_state: Option<Arc<ProjectState>>,
+        project_state: Arc<ProjectInfo>,
+        sampling_project_state: Option<Arc<ProjectInfo>>,
         reservoir_counters: Arc<Mutex<BTreeMap<RuleId, i64>>>,
     ) -> ProcessEnvelopeState<G> {
         let envelope = managed_envelope.envelope_mut();
@@ -1787,8 +1787,8 @@ impl EnvelopeProcessorService {
         &self,
         mut managed_envelope: ManagedEnvelope,
         project_id: ProjectId,
-        project_state: Arc<ProjectState>,
-        sampling_project_state: Option<Arc<ProjectState>>,
+        project_state: Arc<ProjectInfo>,
+        sampling_project_state: Option<Arc<ProjectInfo>>,
         reservoir_counters: Arc<Mutex<BTreeMap<RuleId, i64>>>,
     ) -> Result<ProcessingStateResult, ProcessingError> {
         // Get the group from the managed envelope context, and if it's not set, try to guess it
@@ -3256,7 +3256,7 @@ mod tests {
                 let mut config = ProjectConfig::default();
                 config.quotas.push(quota);
 
-                let mut project_state = ProjectState::allowed();
+                let mut project_state = ProjectInfo::allowed();
                 project_state.config = config;
                 Arc::new(project_state)
             };
@@ -3377,7 +3377,7 @@ mod tests {
             ..Default::default()
         };
 
-        let mut project_state = ProjectState::allowed();
+        let mut project_state = ProjectInfo::allowed();
         project_state.config = config;
 
         let mut envelopes = ProcessingGroup::split_envelope(*envelope);

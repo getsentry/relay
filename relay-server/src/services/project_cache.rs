@@ -19,7 +19,7 @@ use tokio::time::Instant;
 use crate::services::global_config::{self, GlobalConfigManager, Subscribe};
 use crate::services::outcome::{DiscardReason, TrackOutcome};
 use crate::services::processor::{EncodeMetrics, EnvelopeProcessor, ProcessEnvelope};
-use crate::services::project::{Project, ProjectSender, ProjectState};
+use crate::services::project::{Project, ProjectInfo, ProjectSender};
 use crate::services::project_local::{LocalProjectSource, LocalProjectSourceService};
 #[cfg(feature = "processing")]
 use crate::services::project_redis::RedisProjectSource;
@@ -273,7 +273,7 @@ pub struct RefreshIndexCache(pub HashSet<QueueKey>);
 pub enum ProjectCache {
     RequestUpdate(RequestUpdate),
     Get(GetProjectState, ProjectSender),
-    GetCached(GetCachedProjectState, Sender<Option<Arc<ProjectState>>>),
+    GetCached(GetCachedProjectState, Sender<Option<Arc<ProjectInfo>>>),
     CheckEnvelope(
         CheckEnvelope,
         Sender<Result<CheckedEnvelope, DiscardReason>>,
@@ -334,7 +334,7 @@ impl FromMessage<RequestUpdate> for ProjectCache {
 }
 
 impl FromMessage<GetProjectState> for ProjectCache {
-    type Response = relay_system::BroadcastResponse<Arc<ProjectState>>;
+    type Response = relay_system::BroadcastResponse<Arc<ProjectInfo>>;
 
     fn from_message(message: GetProjectState, sender: ProjectSender) -> Self {
         Self::Get(message, sender)
@@ -342,11 +342,11 @@ impl FromMessage<GetProjectState> for ProjectCache {
 }
 
 impl FromMessage<GetCachedProjectState> for ProjectCache {
-    type Response = relay_system::AsyncResponse<Option<Arc<ProjectState>>>;
+    type Response = relay_system::AsyncResponse<Option<Arc<ProjectInfo>>>;
 
     fn from_message(
         message: GetCachedProjectState,
-        sender: Sender<Option<Arc<ProjectState>>>,
+        sender: Sender<Option<Arc<ProjectInfo>>>,
     ) -> Self {
         Self::GetCached(message, sender)
     }
@@ -446,7 +446,7 @@ impl ProjectSource {
         }
     }
 
-    async fn fetch(self, project_key: ProjectKey, no_cache: bool) -> Result<Arc<ProjectState>, ()> {
+    async fn fetch(self, project_key: ProjectKey, no_cache: bool) -> Result<Arc<ProjectInfo>, ()> {
         let state_opt = self
             .local_source
             .send(FetchOptionalProjectState { project_key })
@@ -458,9 +458,9 @@ impl ProjectSource {
         }
 
         match self.config.relay_mode() {
-            RelayMode::Proxy => return Ok(Arc::new(ProjectState::allowed())),
-            RelayMode::Static => return Ok(Arc::new(ProjectState::missing())),
-            RelayMode::Capture => return Ok(Arc::new(ProjectState::allowed())),
+            RelayMode::Proxy => return Ok(Arc::new(ProjectInfo::allowed())),
+            RelayMode::Static => return Ok(Arc::new(ProjectInfo::missing())),
+            RelayMode::Capture => return Ok(Arc::new(ProjectInfo::allowed())),
             RelayMode::Managed => (), // Proceed with loading the config from redis or upstream
         }
 
@@ -472,7 +472,7 @@ impl ProjectSource {
                     .map_err(|_| ())?;
 
             let state_opt = match state_fetch_result {
-                Ok(state) => state.map(ProjectState::sanitize).map(Arc::new),
+                Ok(state) => state.map(ProjectInfo::sanitize).map(Arc::new),
                 Err(error) => {
                     relay_log::error!(
                         error = &error as &dyn Error,
@@ -503,7 +503,7 @@ struct UpdateProjectState {
     project_key: ProjectKey,
 
     /// New project state information.
-    state: Arc<ProjectState>,
+    state: Arc<ProjectInfo>,
 
     /// If true, all caches should be skipped and a fresh state should be computed.
     no_cache: bool,
@@ -724,7 +724,7 @@ impl ProjectCacheBroker {
             let state = source
                 .fetch(project_key, no_cache)
                 .await
-                .unwrap_or_else(|()| Arc::new(ProjectState::err()));
+                .unwrap_or_else(|()| Arc::new(ProjectInfo::err()));
 
             let message = UpdateProjectState {
                 project_key,
@@ -745,7 +745,7 @@ impl ProjectCacheBroker {
         );
     }
 
-    fn handle_get_cached(&mut self, message: GetCachedProjectState) -> Option<Arc<ProjectState>> {
+    fn handle_get_cached(&mut self, message: GetCachedProjectState) -> Option<Arc<ProjectInfo>> {
         let project_cache = self.services.project_cache.clone();
         self.get_or_create_project(message.project_key)
             .get_cached_state(project_cache, false)
@@ -1504,7 +1504,7 @@ mod tests {
 
         let update_dsn1_project_state = UpdateProjectState {
             project_key: ProjectKey::parse(dsn1).unwrap(),
-            state: ProjectState::allowed().into(),
+            state: ProjectInfo::allowed().into(),
             no_cache: false,
         };
 
@@ -1518,7 +1518,7 @@ mod tests {
 
         let update_dsn2_project_state = UpdateProjectState {
             project_key: ProjectKey::parse(dsn2).unwrap(),
-            state: ProjectState::allowed().into(),
+            state: ProjectInfo::allowed().into(),
             no_cache: false,
         };
 

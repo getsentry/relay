@@ -5,7 +5,7 @@ use relay_config::Config;
 use relay_redis::{RedisError, RedisPool};
 use relay_statsd::metric;
 
-use crate::services::project::ProjectState;
+use crate::services::project::ProjectInfo;
 use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
 
 #[derive(Debug, Clone)]
@@ -23,7 +23,7 @@ pub enum RedisProjectError {
     Redis(#[from] RedisError),
 }
 
-fn parse_redis_response(raw_response: &[u8]) -> Result<ProjectState, RedisProjectError> {
+fn parse_redis_response(raw_response: &[u8]) -> Result<ProjectInfo, RedisProjectError> {
     let decompression_result = metric!(timer(RelayTimers::ProjectStateDecompression), {
         zstd::decode_all(raw_response)
     });
@@ -52,7 +52,7 @@ impl RedisProjectSource {
         RedisProjectSource { config, redis }
     }
 
-    pub fn get_config(&self, key: ProjectKey) -> Result<Option<ProjectState>, RedisProjectError> {
+    pub fn get_config(&self, key: ProjectKey) -> Result<Option<ProjectInfo>, RedisProjectError> {
         let mut command = relay_redis::redis::cmd("GET");
 
         let prefix = self.config.projectconfig_cache_prefix();

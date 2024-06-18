@@ -18,7 +18,7 @@ use crate::metrics::{MetricOutcomes, MetricStats};
 use crate::services::global_config::GlobalConfigHandle;
 use crate::services::outcome::TrackOutcome;
 use crate::services::processor::{self, EnvelopeProcessorService};
-use crate::services::project::ProjectState;
+use crate::services::project::ProjectInfo;
 use crate::services::test_store::TestStore;
 #[cfg(feature = "processing")]
 use crate::utils::BufferGuard;
@@ -27,7 +27,7 @@ pub fn state_with_rule_and_condition(
     sample_rate: Option<f64>,
     rule_type: RuleType,
     condition: RuleCondition,
-) -> ProjectState {
+) -> ProjectInfo {
     let rules = match sample_rate {
         Some(sample_rate) => vec![SamplingRule {
             condition,
@@ -40,7 +40,7 @@ pub fn state_with_rule_and_condition(
         None => Vec::new(),
     };
 
-    let mut state = ProjectState::allowed();
+    let mut state = ProjectInfo::allowed();
     state.config.sampling = Some(ErrorBoundary::Ok(SamplingConfig {
         rules,
         ..SamplingConfig::new()

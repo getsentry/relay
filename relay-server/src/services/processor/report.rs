@@ -268,7 +268,7 @@ mod tests {
     use crate::extractors::RequestMeta;
     use crate::services::outcome::RuleCategory;
     use crate::services::processor::{ProcessEnvelope, ProcessingGroup};
-    use crate::services::project::ProjectState;
+    use crate::services::project::ProjectInfo;
     use crate::testutils::{self, create_test_processor};
     use crate::utils::ManagedEnvelope;
 
@@ -318,7 +318,7 @@ mod tests {
         let envelope = ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store, group);
         let message = ProcessEnvelope {
             envelope,
-            project_state: Arc::new(ProjectState::allowed()),
+            project_state: Arc::new(ProjectInfo::allowed()),
             sampling_project_state: None,
             reservoir_counters: ReservoirCounters::default(),
         };
@@ -372,7 +372,7 @@ mod tests {
 
         let message = ProcessEnvelope {
             envelope,
-            project_state: Arc::new(ProjectState::allowed()),
+            project_state: Arc::new(ProjectInfo::allowed()),
             sampling_project_state: None,
             reservoir_counters: ReservoirCounters::default(),
         };
@@ -434,7 +434,7 @@ mod tests {
         let envelope = ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store, group);
         let message = ProcessEnvelope {
             envelope,
-            project_state: Arc::new(ProjectState::allowed()),
+            project_state: Arc::new(ProjectInfo::allowed()),
             sampling_project_state: None,
             reservoir_counters: ReservoirCounters::default(),
         };
@@ -474,7 +474,7 @@ mod tests {
         let envelope = ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store, group);
         let message = ProcessEnvelope {
             envelope,
-            project_state: Arc::new(ProjectState::allowed()),
+            project_state: Arc::new(ProjectInfo::allowed()),
             sampling_project_state: None,
             reservoir_counters: ReservoirCounters::default(),
         };
@@ -522,7 +522,7 @@ mod tests {
 
         let message = ProcessEnvelope {
             envelope,
-            project_state: Arc::new(ProjectState::allowed()),
+            project_state: Arc::new(ProjectInfo::allowed()),
             sampling_project_state: None,
             reservoir_counters: ReservoirCounters::default(),
         };

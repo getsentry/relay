@@ -58,20 +58,20 @@ enum Expiry {
 /// Return value of [`Project::expiry_state`].
 pub enum ExpiryState {
     /// An up-to-date project state. See [`Expiry::Updated`].
-    Updated(Arc<ProjectState>),
+    Updated(Arc<ProjectInfo>),
     /// A stale project state that can still be used. See [`Expiry::Stale`].
-    Stale(Arc<ProjectState>),
+    Stale(Arc<ProjectInfo>),
     /// An expired project state that should not be used. See [`Expiry::Expired`].
     Expired,
 }
 
 /// Sender type for messages that respond with project states.
-pub type ProjectSender = relay_system::BroadcastSender<Arc<ProjectState>>;
+pub type ProjectSender = relay_system::BroadcastSender<Arc<ProjectInfo>>;
 
 /// The project state is a cached server state of a project.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct ProjectState {
+pub struct ProjectInfo {
     /// Unique identifier of this project.
     pub project_id: Option<ProjectId>,
     /// The timestamp of when the state was last changed.
@@ -110,8 +110,8 @@ pub struct ProjectState {
 
 /// Controls how we serialize a ProjectState for an external Relay
 #[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase", remote = "ProjectState")]
-pub struct LimitedProjectState {
+#[serde(rename_all = "camelCase", remote = "ProjectInfo")]
+pub struct LimitedProjectInfo {
     pub project_id: Option<ProjectId>,
     pub last_change: Option<DateTime<Utc>>,
     pub disabled: bool,
@@ -122,10 +122,10 @@ pub struct LimitedProjectState {
     pub organization_id: Option<u64>,
 }
 
-impl ProjectState {
+impl ProjectInfo {
     /// Project state for a missing project.
     pub fn missing() -> Self {
-        ProjectState {
+        ProjectInfo {
             project_id: None,
             last_change: None,
             disabled: true,
@@ -142,14 +142,14 @@ impl ProjectState {
     ///
     /// This state is used for forwarding in Proxy mode.
     pub fn allowed() -> Self {
-        let mut state = ProjectState::missing();
+        let mut state = ProjectInfo::missing();
         state.disabled = false;
         state
     }
 
     /// Project state for a deserialization error.
     pub fn err() -> Self {
-        let mut state = ProjectState::missing();
+        let mut state = ProjectInfo::missing();
         state.invalid = true;
         state
     }
@@ -396,7 +396,7 @@ pub struct PublicKeyConfig {
 
 #[derive(Debug)]
 struct StateChannel {
-    inner: BroadcastChannel<Arc<ProjectState>>,
+    inner: BroadcastChannel<Arc<ProjectInfo>>,
     no_cache: bool,
 }
 
@@ -415,7 +415,7 @@ impl StateChannel {
 }
 
 enum GetOrFetch<'a> {
-    Cached(Arc<ProjectState>),
+    Cached(Arc<ProjectInfo>),
     Scheduled(&'a mut StateChannel),
 }
 
@@ -427,12 +427,12 @@ enum GetOrFetch<'a> {
 /// TODO: spool queued metrics to disk when the in-memory aggregator becomes too full.
 #[derive(Debug)]
 enum State {
-    Cached(Arc<ProjectState>),
+    Cached(Arc<ProjectInfo>),
     Pending(Box<aggregator::Aggregator>),
 }
 
 impl State {
-    fn state_value(&self) -> Option<Arc<ProjectState>> {
+    fn state_value(&self) -> Option<Arc<ProjectInfo>> {
         match self {
             State::Cached(state) => Some(Arc::clone(state)),
             State::Pending(_) => None,
@@ -441,7 +441,7 @@ impl State {
 
     /// Sets the cached state using provided `ProjectState`.
     /// If the variant was pending, the buckets will be returned.
-    fn set_state(&mut self, state: Arc<ProjectState>) -> Option<Buckets<Filtered>> {
+    fn set_state(&mut self, state: Arc<ProjectInfo>) -> Option<Buckets<Filtered>> {
         match std::mem::replace(self, Self::Cached(state)) {
             State::Pending(agg) => Some(Buckets::new(agg.into_buckets())),
             State::Cached(_) => None,
@@ -510,7 +510,7 @@ impl Project {
         self.reservoir_counters.clone()
     }
 
-    fn state_value(&self) -> Option<Arc<ProjectState>> {
+    fn state_value(&self) -> Option<Arc<ProjectInfo>> {
         self.state.state_value()
     }
 
@@ -550,7 +550,7 @@ impl Project {
     /// Returns the project state if it is not expired.
     ///
     /// Convenience wrapper around [`expiry_state`](Self::expiry_state).
-    pub fn valid_state(&self) -> Option<Arc<ProjectState>> {
+    pub fn valid_state(&self) -> Option<Arc<ProjectInfo>> {
         match self.expiry_state() {
             ExpiryState::Updated(state) => Some(state),
             ExpiryState::Stale(state) => Some(state),
@@ -845,7 +845,7 @@ impl Project {
         &mut self,
         project_cache: Addr<ProjectCache>,
         no_cache: bool,
-    ) -> Option<Arc<ProjectState>> {
+    ) -> Option<Arc<ProjectInfo>> {
         match self.get_or_fetch_state(project_cache, no_cache) {
             GetOrFetch::Cached(state) => Some(state),
             GetOrFetch::Scheduled(_) => None,
@@ -879,7 +879,7 @@ impl Project {
 
     fn set_state(
         &mut self,
-        state: Arc<ProjectState>,
+        state: Arc<ProjectInfo>,
         aggregator: &Addr<Aggregator>,
         envelope_processor: &Addr<EnvelopeProcessor>,
         outcome_aggregator: &Addr<TrackOutcome>,
@@ -931,7 +931,7 @@ impl Project {
         &mut self,
         project_cache: &Addr<ProjectCache>,
         aggregator: &Addr<Aggregator>,
-        mut state: Arc<ProjectState>,
+        mut state: Arc<ProjectInfo>,
         envelope_processor: &Addr<EnvelopeProcessor>,
         outcome_aggregator: &Addr<TrackOutcome>,
         metric_outcomes: &MetricOutcomes,
@@ -1179,7 +1179,7 @@ mod tests {
 
             // Initialize project with a state
             let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
-            let mut project_state = ProjectState::allowed();
+            let mut project_state = ProjectInfo::allowed();
             project_state.project_id = Some(ProjectId::new(123));
             let mut project = Project::new(project_key, config.clone());
             project.state = State::Cached(Arc::new(project_state));
@@ -1223,7 +1223,7 @@ mod tests {
 
         // Initialize project with a state.
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
-        let mut project_state = ProjectState::allowed();
+        let mut project_state = ProjectInfo::allowed();
         project_state.project_id = Some(ProjectId::new(123));
         let mut project = Project::new(project_key, config);
         project.state_channel = Some(channel);
@@ -1236,7 +1236,7 @@ mod tests {
         project.update_state(
             &addr,
             &aggregator,
-            Arc::new(ProjectState::err()),
+            Arc::new(ProjectInfo::err()),
             &envelope_processor,
             &outcome_aggregator,
             &metric_outcomes,
@@ -1260,7 +1260,7 @@ mod tests {
         project.update_state(
             &addr,
             &aggregator,
-            Arc::new(ProjectState::err()),
+            Arc::new(ProjectInfo::err()),
             &envelope_processor,
             &outcome_aggregator,
             &metric_outcomes,
@@ -1272,7 +1272,7 @@ mod tests {
     fn create_project(config: Option<serde_json::Value>) -> Project {
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
         let mut project = Project::new(project_key, Arc::new(Config::default()));
-        let mut project_state = ProjectState::allowed();
+        let mut project_state = ProjectInfo::allowed();
         project_state.project_id = Some(ProjectId::new(42));
         if let Some(config) = config {
             project_state.config = serde_json::from_value(config).unwrap();
@@ -1357,7 +1357,7 @@ mod tests {
             buckets.clone(),
             BucketSource::Internal,
         );
-        let mut project_state = ProjectState::allowed();
+        let mut project_state = ProjectInfo::allowed();
         project_state.project_id = Some(ProjectId::new(1));
         // set_state should trigger flushing from the metricsbuffer to aggregator.
         project.set_state(

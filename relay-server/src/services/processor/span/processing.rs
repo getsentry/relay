@@ -719,7 +719,7 @@ mod tests {
 
     use crate::envelope::Envelope;
     use crate::services::processor::ProcessingGroup;
-    use crate::services::project::ProjectState;
+    use crate::services::project::ProjectInfo;
     use crate::utils::ManagedEnvelope;
 
     use super::*;
@@ -732,7 +732,7 @@ mod tests {
         );
 
         let dummy_envelope = Envelope::parse_bytes(bytes).unwrap();
-        let mut project_state = ProjectState::allowed();
+        let mut project_state = ProjectInfo::allowed();
         project_state
             .config
             .features

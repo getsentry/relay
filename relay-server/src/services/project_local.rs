@@ -9,20 +9,20 @@ use relay_system::{AsyncResponse, FromMessage, Interface, Receiver, Sender, Serv
 use tokio::sync::mpsc;
 use tokio::time::Instant;
 
-use crate::services::project::ProjectState;
+use crate::services::project::ProjectInfo;
 use crate::services::project_cache::FetchOptionalProjectState;
 
 /// Service interface of the local project source.
 #[derive(Debug)]
-pub struct LocalProjectSource(FetchOptionalProjectState, Sender<Option<Arc<ProjectState>>>);
+pub struct LocalProjectSource(FetchOptionalProjectState, Sender<Option<Arc<ProjectInfo>>>);
 
 impl Interface for LocalProjectSource {}
 
 impl FromMessage<FetchOptionalProjectState> for LocalProjectSource {
-    type Response = AsyncResponse<Option<Arc<ProjectState>>>;
+    type Response = AsyncResponse<Option<Arc<ProjectInfo>>>;
     fn from_message(
         message: FetchOptionalProjectState,
-        sender: Sender<Option<Arc<ProjectState>>>,
+        sender: Sender<Option<Arc<ProjectInfo>>>,
     ) -> Self {
         Self(message, sender)
     }
@@ -32,7 +32,7 @@ impl FromMessage<FetchOptionalProjectState> for LocalProjectSource {
 #[derive(Debug)]
 pub struct LocalProjectSourceService {
     config: Arc<Config>,
-    local_states: HashMap<ProjectKey, Arc<ProjectState>>,
+    local_states: HashMap<ProjectKey, Arc<ProjectInfo>>,
 }
 
 impl LocalProjectSourceService {
@@ -56,7 +56,7 @@ fn get_project_id(path: &Path) -> Option<ProjectId> {
         .and_then(|stem| stem.parse().ok())
 }
 
-fn parse_file(path: std::path::PathBuf) -> tokio::io::Result<(std::path::PathBuf, ProjectState)> {
+fn parse_file(path: std::path::PathBuf) -> tokio::io::Result<(std::path::PathBuf, ProjectInfo)> {
     let file = std::fs::File::open(&path)?;
     let reader = std::io::BufReader::new(file);
     Ok((path, serde_json::from_reader(reader)?))
@@ -64,7 +64,7 @@ fn parse_file(path: std::path::PathBuf) -> tokio::io::Result<(std::path::PathBuf
 
 async fn load_local_states(
     projects_path: &Path,
-) -> tokio::io::Result<HashMap<ProjectKey, Arc<ProjectState>>> {
+) -> tokio::io::Result<HashMap<ProjectKey, Arc<ProjectInfo>>> {
     let mut states = HashMap::new();
 
     let mut directory = match tokio::fs::read_dir(projects_path).await {
@@ -97,7 +97,7 @@ async fn load_local_states(
         // serde_json is not async, so spawn a blocking task here:
         let (path, state) = tokio::task::spawn_blocking(move || parse_file(path)).await??;
 
-        let mut sanitized = ProjectState::sanitize(state);
+        let mut sanitized = ProjectInfo::sanitize(state);
         if sanitized.project_id.is_none() {
             if let Some(project_id) = get_project_id(&path) {
                 sanitized.project_id = Some(project_id);
@@ -118,7 +118,7 @@ async fn load_local_states(
     Ok(states)
 }
 
-async fn poll_local_states(path: &Path, tx: &mpsc::Sender<HashMap<ProjectKey, Arc<ProjectState>>>) {
+async fn poll_local_states(path: &Path, tx: &mpsc::Sender<HashMap<ProjectKey, Arc<ProjectInfo>>>) {
     let states = load_local_states(path).await;
     match states {
         Ok(states) => {
@@ -136,7 +136,7 @@ async fn poll_local_states(path: &Path, tx: &mpsc::Sender<HashMap<ProjectKey, Ar
 
 async fn spawn_poll_local_states(
     config: &Config,
-    tx: mpsc::Sender<HashMap<ProjectKey, Arc<ProjectState>>>,
+    tx: mpsc::Sender<HashMap<ProjectKey, Arc<ProjectInfo>>>,
 ) {
     let project_path = config.project_configs_path();
     let period = config.local_cache_interval();
@@ -204,7 +204,7 @@ mod tests {
         let tmp_project_file = "111111.json";
         let project_key = ProjectKey::parse("55f6b2d962564e99832a39890ee4573e").unwrap();
 
-        let mut tmp_project_state = ProjectState::allowed();
+        let mut tmp_project_state = ProjectInfo::allowed();
         tmp_project_state.public_keys.push(PublicKeyConfig {
             public_key: project_key,
             numeric_id: None,
@@ -256,7 +256,7 @@ mod tests {
         let project_key1 = ProjectKey::parse("55f6b2d962564e99832a39890ee4573e").unwrap();
         let project_key2 = ProjectKey::parse("55bbb2d96256bb9983bb39890bb457bb").unwrap();
 
-        let mut tmp_project_state = ProjectState::allowed();
+        let mut tmp_project_state = ProjectInfo::allowed();
         tmp_project_state.public_keys.extend(vec![
             PublicKeyConfig {
                 public_key: project_key1,

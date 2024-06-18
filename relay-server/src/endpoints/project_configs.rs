@@ -16,7 +16,7 @@ use crate::endpoints::forward;
 use crate::extractors::SignedJson;
 use crate::service::ServiceState;
 use crate::services::global_config::{self, StatusResponse};
-use crate::services::project::{LimitedProjectState, ProjectState};
+use crate::services::project::{LimitedProjectInfo, ProjectInfo};
 use crate::services::project_cache::{GetCachedProjectState, GetProjectState};
 
 /// V2 version of this endpoint.
@@ -49,13 +49,13 @@ struct VersionQuery {
 #[derive(Debug, Clone, Serialize)]
 #[serde(untagged)]
 enum ProjectStateWrapper {
-    Full(ProjectState),
-    Limited(#[serde(with = "LimitedProjectState")] ProjectState),
+    Full(ProjectInfo),
+    Limited(#[serde(with = "LimitedProjectInfo")] ProjectInfo),
 }
 
 impl ProjectStateWrapper {
     /// Create a wrapper which forces serialization into external or internal format
-    pub fn new(state: ProjectState, full: bool) -> Self {
+    pub fn new(state: ProjectInfo, full: bool) -> Self {
         if full {
             Self::Full(state)
         } else {

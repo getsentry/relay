@@ -8,7 +8,7 @@ use relay_quotas::Scoping;
 
 use crate::metrics::MetricOutcomes;
 use crate::services::outcome::Outcome;
-use crate::services::project::ProjectState;
+use crate::services::project::ProjectInfo;
 use crate::services::project_cache::BucketSource;
 
 pub struct Filtered;
@@ -68,7 +68,7 @@ impl Buckets<Filtered> {
     pub fn apply_project_state(
         mut self,
         metric_outcomes: &MetricOutcomes,
-        project_state: &ProjectState,
+        project_state: &ProjectInfo,
         scoping: Scoping,
     ) -> Buckets<WithProjectState> {
         let mut denied_buckets = Vec::new();
@@ -121,7 +121,7 @@ impl Buckets<Filtered> {
     }
 }
 
-fn is_metric_namespace_valid(state: &ProjectState, namespace: MetricNamespace) -> bool {
+fn is_metric_namespace_valid(state: &ProjectInfo, namespace: MetricNamespace) -> bool {
     match namespace {
         MetricNamespace::Sessions => true,
         MetricNamespace::Transactions => true,
@@ -224,7 +224,7 @@ mod tests {
         let metric_outcomes = MetricOutcomes::new(metric_stats, outcome_aggregator);
 
         let project_state = {
-            let mut project_state = ProjectState::allowed();
+            let mut project_state = ProjectInfo::allowed();
             project_state.config = serde_json::from_value(serde_json::json!({
                 "metrics": { "deniedNames": ["*cpu_time*"] },
                 "features": ["organizations:custom-metrics"]
@@ -276,7 +276,7 @@ mod tests {
 
         let buckets = buckets.apply_project_state(
             &metric_outcomes,
-            &ProjectState::allowed(),
+            &ProjectInfo::allowed(),
             Scoping {
                 organization_id: 42,
                 project_id: ProjectId::new(43),
