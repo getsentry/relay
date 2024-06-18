@@ -14,6 +14,7 @@
 - Treat arrays of pairs as key-value mappings during PII scrubbing. ([#3639](https://github.com/getsentry/relay/pull/3639))
 - Rate limit envelopes instead of metrics for sampled/indexed items. ([#3716](https://github.com/getsentry/relay/pull/3716))
 - Improve flush time calculation in metrics aggregator. ([#3726](https://github.com/getsentry/relay/pull/3726))
+- Default `client` of `RequestMeta` to `relay-http` for incoming monitor requests. ([#3739](https://github.com/getsentry/relay/pull/3739))
 
 ## 24.5.1
 
