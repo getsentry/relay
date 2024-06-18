@@ -63,7 +63,7 @@ where
     // In case the `client` was not specified in the `RequestMeta` we mark the client as the Relay
     // HTTP endpoint since we don't know from which client the request came from.
     if meta.client().is_none() {
-        meta.set_client(DEFAULT_CHECK_IN_CLIENT.to_string());
+        meta.set_client(DEFAULT_CHECK_IN_CLIENT.to_owned());
     }
 
     let mut envelope = Envelope::from_request(Some(EventId::new()), meta);
