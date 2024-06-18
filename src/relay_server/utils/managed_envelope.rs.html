@@ -608,25 +608,6 @@
 <a href="#608" id="608">608</a>
 <a href="#609" id="609">609</a>
 <a href="#610" id="610">610</a>
-<a href="#611" id="611">611</a>
-<a href="#612" id="612">612</a>
-<a href="#613" id="613">613</a>
-<a href="#614" id="614">614</a>
-<a href="#615" id="615">615</a>
-<a href="#616" id="616">616</a>
-<a href="#617" id="617">617</a>
-<a href="#618" id="618">618</a>
-<a href="#619" id="619">619</a>
-<a href="#620" id="620">620</a>
-<a href="#621" id="621">621</a>
-<a href="#622" id="622">622</a>
-<a href="#623" id="623">623</a>
-<a href="#624" id="624">624</a>
-<a href="#625" id="625">625</a>
-<a href="#626" id="626">626</a>
-<a href="#627" id="627">627</a>
-<a href="#628" id="628">628</a>
-<a href="#629" id="629">629</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Envelope context type and helpers to ensure outcomes.
 
 </span><span class="kw">use </span>std::fmt::{Debug, Display};
@@ -639,7 +620,7 @@
 <span class="kw">use </span>relay_quotas::{DataCategory, Scoping};
 <span class="kw">use </span>relay_system::Addr;
 
-<span class="kw">use </span><span class="kw">crate</span>::envelope::{Envelope, Item, ItemType};
+<span class="kw">use </span><span class="kw">crate</span>::envelope::{Envelope, Item};
 <span class="kw">use </span><span class="kw">crate</span>::extractors::RequestMeta;
 <span class="kw">use </span><span class="kw">crate</span>::services::outcome::{DiscardReason, Outcome, TrackOutcome};
 <span class="kw">use </span><span class="kw">crate</span>::services::processor::{Processed, ProcessingGroup};
@@ -921,18 +902,15 @@
     <span class="kw">where
         </span>F: FnMut(<span class="kw-2">&amp;mut </span>Item) -&gt; ItemAction,
     {
-        <span class="kw">let </span><span class="kw-2">mut </span>outcomes = <span class="macro">vec!</span>[];
-        <span class="kw">let </span>use_indexed = <span class="self">self</span>.use_index_category();
+        <span class="kw">let </span><span class="kw-2">mut </span>outcomes = Vec::new();
         <span class="self">self</span>.envelope.retain_items(|item| <span class="kw">match </span>f(item) {
             ItemAction::Keep =&gt; <span class="bool-val">true</span>,
             ItemAction::DropSilently =&gt; <span class="bool-val">false</span>,
             ItemAction::Drop(outcome) =&gt; {
-                <span class="kw">let </span>use_indexed = <span class="kw">if </span>item.ty() == <span class="kw-2">&amp;</span>ItemType::Span {
-                    item.metrics_extracted()
-                } <span class="kw">else </span>{
-                    use_indexed
-                };
-                <span class="kw">if let </span><span class="prelude-val">Some</span>(category) = item.outcome_category(use_indexed) {
+                <span class="kw">if let </span><span class="prelude-val">Some</span>(category) = item.outcome_category() {
+                    <span class="kw">if let </span><span class="prelude-val">Some</span>(indexed) = category.index_category() {
+                        outcomes.push((outcome.clone(), indexed, item.quantity()));
+                    };
                     outcomes.push((outcome, category, item.quantity()));
                 };
                 <span class="bool-val">false
@@ -949,16 +927,6 @@
         <span class="self">self</span>.envelope.drop_items_silently();
     }
 
-    <span class="doccomment">/// Record that event metrics have been extracted.
-    ///
-    /// This is usually done automatically as part of `EnvelopeContext::new` or `update`. However,
-    /// if the context needs to be updated in-flight without recomputing the entire summary, this
-    /// method can record that metric extraction for the event item has occurred.
-    </span><span class="kw">pub fn </span>set_event_metrics_extracted(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;mut </span><span class="self">Self </span>{
-        <span class="self">self</span>.context.summary.transaction_metrics_extracted = <span class="bool-val">true</span>;
-        <span class="self">self
-    </span>}
-
     <span class="doccomment">/// Re-scopes this context to the given scoping.
     </span><span class="kw">pub fn </span>scope(<span class="kw-2">&amp;mut </span><span class="self">self</span>, scoping: Scoping) -&gt; <span class="kw-2">&amp;mut </span><span class="self">Self </span>{
         <span class="self">self</span>.context.scoping = scoping;
@@ -971,6 +939,9 @@
     </span><span class="kw">pub fn </span>reject_event(<span class="kw-2">&amp;mut </span><span class="self">self</span>, outcome: Outcome) {
         <span class="kw">if let </span><span class="prelude-val">Some</span>(event_category) = <span class="self">self</span>.event_category() {
             <span class="self">self</span>.envelope.retain_items(|item| !item.creates_event());
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(indexed) = event_category.index_category() {
+                <span class="self">self</span>.track_outcome(outcome.clone(), indexed, <span class="number">1</span>);
+            }
             <span class="self">self</span>.track_outcome(outcome, event_category, <span class="number">1</span>);
         }
     }
@@ -1004,28 +975,9 @@
         }
     }
 
-    <span class="doccomment">/// Returns `true` if the indexed data category should be used for reporting.
-    ///
-    /// If metrics have been extracted from the event item, we use the indexed category
-    /// (for example, [TransactionIndexed](`DataCategory::TransactionIndexed`)) for reporting
-    /// rate limits and outcomes, because reporting of the main category
-    /// (for example, [Transaction](`DataCategory::Transaction`) for processed transactions)
-    /// will be handled by the metrics aggregator.
-    </span><span class="kw">fn </span>use_index_category(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
-        <span class="self">self</span>.context.summary.transaction_metrics_extracted
-    }
-
     <span class="doccomment">/// Returns the data category of the event item in the envelope.
-    ///
-    /// If metrics have been extracted from the event item, this will return the indexing category.
-    /// Outcomes for metrics (the base data category) will be logged by the metrics aggregator.
     </span><span class="kw">fn </span>event_category(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;DataCategory&gt; {
-        <span class="kw">let </span>category = <span class="self">self</span>.context.summary.event_category<span class="question-mark">?</span>;
-
-        <span class="kw">match </span>category.index_category() {
-            <span class="prelude-val">Some</span>(index_category) <span class="kw">if </span><span class="self">self</span>.use_index_category() =&gt; <span class="prelude-val">Some</span>(index_category),
-            <span class="kw">_ </span>=&gt; <span class="prelude-val">Some</span>(category),
-        }
+        <span class="self">self</span>.context.summary.event_category
     }
 
     <span class="doccomment">/// Records rejection outcomes for all items stored in this context.
@@ -1066,6 +1018,9 @@
             .send(Capture::rejected(<span class="self">self</span>.envelope.event_id(), <span class="kw-2">&amp;</span>outcome));
 
         <span class="kw">if let </span><span class="prelude-val">Some</span>(category) = <span class="self">self</span>.event_category() {
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(category) = category.index_category() {
+                <span class="self">self</span>.track_outcome(outcome.clone(), category, <span class="number">1</span>);
+            }
             <span class="self">self</span>.track_outcome(outcome.clone(), category, <span class="number">1</span>);
         }
 
@@ -1080,11 +1035,12 @@
         <span class="kw">if </span><span class="self">self</span>.context.summary.profile_quantity &gt; <span class="number">0 </span>{
             <span class="self">self</span>.track_outcome(
                 outcome.clone(),
-                <span class="kw">if </span><span class="self">self</span>.use_index_category() {
-                    DataCategory::ProfileIndexed
-                } <span class="kw">else </span>{
-                    DataCategory::Profile
-                },
+                DataCategory::Profile,
+                <span class="self">self</span>.context.summary.profile_quantity,
+            );
+            <span class="self">self</span>.track_outcome(
+                outcome.clone(),
+                DataCategory::ProfileIndexed,
                 <span class="self">self</span>.context.summary.profile_quantity,
             );
         }
@@ -1092,10 +1048,12 @@
         <span class="kw">if </span><span class="self">self</span>.context.summary.span_quantity &gt; <span class="number">0 </span>{
             <span class="self">self</span>.track_outcome(
                 outcome.clone(),
-                <span class="kw">match </span><span class="self">self</span>.context.summary.span_metrics_extracted {
-                    <span class="bool-val">true </span>=&gt; DataCategory::SpanIndexed,
-                    <span class="bool-val">false </span>=&gt; DataCategory::Span,
-                },
+                DataCategory::Span,
+                <span class="self">self</span>.context.summary.span_quantity,
+            );
+            <span class="self">self</span>.track_outcome(
+                outcome.clone(),
+                DataCategory::SpanIndexed,
                 <span class="self">self</span>.context.summary.span_quantity,
             );
         }
@@ -1235,13 +1193,17 @@
             test_store,
             ProcessingGroup::Ungrouped,
         );
-        env.context.summary.span_metrics_extracted = <span class="bool-val">true</span>;
         env.context.summary.span_quantity = <span class="number">123</span>;
         env.context.summary.secondary_span_quantity = <span class="number">456</span>;
 
         env.reject(Outcome::Abuse);
 
         rx.close();
+
+        <span class="kw">let </span>outcome = rx.blocking_recv().unwrap();
+        <span class="macro">assert_eq!</span>(outcome.category, DataCategory::Span);
+        <span class="macro">assert_eq!</span>(outcome.quantity, <span class="number">123</span>);
+        <span class="macro">assert_eq!</span>(outcome.outcome, Outcome::Abuse);
 
         <span class="kw">let </span>outcome = rx.blocking_recv().unwrap();
         <span class="macro">assert_eq!</span>(outcome.category, DataCategory::SpanIndexed);

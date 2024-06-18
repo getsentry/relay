@@ -2267,6 +2267,29 @@
 <a href="#2267" id="2267">2267</a>
 <a href="#2268" id="2268">2268</a>
 <a href="#2269" id="2269">2269</a>
+<a href="#2270" id="2270">2270</a>
+<a href="#2271" id="2271">2271</a>
+<a href="#2272" id="2272">2272</a>
+<a href="#2273" id="2273">2273</a>
+<a href="#2274" id="2274">2274</a>
+<a href="#2275" id="2275">2275</a>
+<a href="#2276" id="2276">2276</a>
+<a href="#2277" id="2277">2277</a>
+<a href="#2278" id="2278">2278</a>
+<a href="#2279" id="2279">2279</a>
+<a href="#2280" id="2280">2280</a>
+<a href="#2281" id="2281">2281</a>
+<a href="#2282" id="2282">2282</a>
+<a href="#2283" id="2283">2283</a>
+<a href="#2284" id="2284">2284</a>
+<a href="#2285" id="2285">2285</a>
+<a href="#2286" id="2286">2286</a>
+<a href="#2287" id="2287">2287</a>
+<a href="#2288" id="2288">2288</a>
+<a href="#2289" id="2289">2289</a>
+<a href="#2290" id="2290">2290</a>
+<a href="#2291" id="2291">2291</a>
+<a href="#2292" id="2292">2292</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
 
 <span class="kw">use </span>relay_base_schema::events::EventType;
@@ -2278,6 +2301,7 @@
     TransactionSource,
 };
 <span class="kw">use </span>relay_metrics::{Bucket, DurationUnit, FiniteF64};
+<span class="kw">use </span>relay_sampling::evaluation::SamplingDecision;
 
 <span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::generic;
 <span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::transactions::types::{
@@ -2286,7 +2310,7 @@
 };
 <span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::IntoMetric;
 <span class="kw">use </span><span class="kw">crate</span>::statsd::RelayCounters;
-<span class="kw">use </span><span class="kw">crate</span>::utils::{<span class="self">self</span>, SamplingResult};
+<span class="kw">use </span><span class="kw">crate</span>::utils;
 
 <span class="kw">pub mod </span>types;
 
@@ -2505,20 +2529,12 @@
     </span><span class="kw">pub </span>sampling_metrics: Vec&lt;Bucket&gt;,
 }
 
-<span class="kw">impl </span>ExtractedMetrics {
-    <span class="doccomment">/// Extends the set of metrics with the supplied newly extracted metrics.
-    </span><span class="kw">pub fn </span>extend(<span class="kw-2">&amp;mut </span><span class="self">self</span>, other: <span class="self">Self</span>) {
-        <span class="self">self</span>.project_metrics.extend(other.project_metrics);
-        <span class="self">self</span>.sampling_metrics.extend(other.sampling_metrics);
-    }
-}
-
 <span class="doccomment">/// A utility that extracts metrics from transactions.
 </span><span class="kw">pub struct </span>TransactionExtractor&lt;<span class="lifetime">'a</span>&gt; {
     <span class="kw">pub </span>config: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>TransactionMetricsConfig,
     <span class="kw">pub </span>generic_config: <span class="prelude-ty">Option</span>&lt;CombinedMetricExtractionConfig&lt;<span class="lifetime">'a</span>&gt;&gt;,
     <span class="kw">pub </span>transaction_from_dsc: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>str&gt;,
-    <span class="kw">pub </span>sampling_result: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>SamplingResult,
+    <span class="kw">pub </span>sampling_decision: SamplingDecision,
     <span class="kw">pub </span>has_profile: bool,
 }
 
@@ -2695,14 +2711,9 @@
                     .<span class="number">0
                     </span>.insert(CommonTag::Transaction, transaction_from_dsc.to_string());
             }
-            <span class="kw">let </span>decision = <span class="kw">if </span><span class="self">self</span>.sampling_result.should_keep() {
-                <span class="string">"keep"
-            </span>} <span class="kw">else </span>{
-                <span class="string">"drop"
-            </span>};
 
             TransactionCPRTags {
-                decision: decision.to_owned(),
+                decision: <span class="self">self</span>.sampling_decision.to_string(),
                 universal_tags,
             }
         };
@@ -2886,7 +2897,7 @@
             config: <span class="kw-2">&amp;</span>config,
             generic_config: <span class="prelude-val">None</span>,
             transaction_from_dsc: <span class="prelude-val">Some</span>(<span class="string">"test_transaction"</span>),
-            sampling_result: <span class="kw-2">&amp;</span>SamplingResult::Pending,
+            sampling_decision: SamplingDecision::Keep,
             has_profile: <span class="bool-val">false</span>,
         };
 
@@ -2962,6 +2973,7 @@
                     received_at: Some(
                         UnixTimestamp(0),
                     ),
+                    extracted_from_indexed: false,
                 },
             },
             Bucket {
@@ -2995,6 +3007,7 @@
                     received_at: Some(
                         UnixTimestamp(0),
                     ),
+                    extracted_from_indexed: false,
                 },
             },
             Bucket {
@@ -3022,6 +3035,7 @@
                     received_at: Some(
                         UnixTimestamp(0),
                     ),
+                    extracted_from_indexed: false,
                 },
             },
             Bucket {
@@ -3049,6 +3063,7 @@
                     received_at: Some(
                         UnixTimestamp(0),
                     ),
+                    extracted_from_indexed: false,
                 },
             },
             Bucket {
@@ -3076,6 +3091,7 @@
                     received_at: Some(
                         UnixTimestamp(0),
                     ),
+                    extracted_from_indexed: false,
                 },
             },
             Bucket {
@@ -3108,6 +3124,7 @@
                     received_at: Some(
                         UnixTimestamp(0),
                     ),
+                    extracted_from_indexed: false,
                 },
             },
             Bucket {
@@ -3125,6 +3142,7 @@
                     received_at: Some(
                         UnixTimestamp(0),
                     ),
+                    extracted_from_indexed: false,
                 },
             },
             Bucket {
@@ -3157,6 +3175,7 @@
                     received_at: Some(
                         UnixTimestamp(0),
                     ),
+                    extracted_from_indexed: false,
                 },
             },
             Bucket {
@@ -3179,6 +3198,7 @@
                     received_at: Some(
                         UnixTimestamp(0),
                     ),
+                    extracted_from_indexed: false,
                 },
             },
             Bucket {
@@ -3211,6 +3231,7 @@
                     received_at: Some(
                         UnixTimestamp(0),
                     ),
+                    extracted_from_indexed: false,
                 },
             },
         ]
@@ -3247,7 +3268,7 @@
             config: <span class="kw-2">&amp;</span>config,
             generic_config: <span class="prelude-val">None</span>,
             transaction_from_dsc: <span class="prelude-val">Some</span>(<span class="string">"test_transaction"</span>),
-            sampling_result: <span class="kw-2">&amp;</span>SamplingResult::Pending,
+            sampling_decision: SamplingDecision::Keep,
             has_profile: <span class="bool-val">false</span>,
         };
 
@@ -3276,6 +3297,7 @@
                     received_at: Some(
                         UnixTimestamp(0),
                     ),
+                    extracted_from_indexed: false,
                 },
             },
             Bucket {
@@ -3299,6 +3321,7 @@
                     received_at: Some(
                         UnixTimestamp(0),
                     ),
+                    extracted_from_indexed: false,
                 },
             },
             Bucket {
@@ -3322,6 +3345,7 @@
                     received_at: Some(
                         UnixTimestamp(0),
                     ),
+                    extracted_from_indexed: false,
                 },
             },
             Bucket {
@@ -3339,6 +3363,7 @@
                     received_at: Some(
                         UnixTimestamp(0),
                     ),
+                    extracted_from_indexed: false,
                 },
             },
             Bucket {
@@ -3362,6 +3387,7 @@
                     received_at: Some(
                         UnixTimestamp(0),
                     ),
+                    extracted_from_indexed: false,
                 },
             },
             Bucket {
@@ -3383,6 +3409,7 @@
                     received_at: Some(
                         UnixTimestamp(0),
                     ),
+                    extracted_from_indexed: false,
                 },
             },
         ]
@@ -3416,7 +3443,7 @@
             config: <span class="kw-2">&amp;</span>config,
             generic_config: <span class="prelude-val">None</span>,
             transaction_from_dsc: <span class="prelude-val">Some</span>(<span class="string">"test_transaction"</span>),
-            sampling_result: <span class="kw-2">&amp;</span>SamplingResult::Pending,
+            sampling_decision: SamplingDecision::Keep,
             has_profile: <span class="bool-val">false</span>,
         };
 
@@ -3445,6 +3472,7 @@
                     received_at: Some(
                         UnixTimestamp(0),
                     ),
+                    extracted_from_indexed: false,
                 },
             },
             Bucket {
@@ -3469,6 +3497,7 @@
                     received_at: Some(
                         UnixTimestamp(0),
                     ),
+                    extracted_from_indexed: false,
                 },
             },
             Bucket {
@@ -3486,6 +3515,7 @@
                     received_at: Some(
                         UnixTimestamp(0),
                     ),
+                    extracted_from_indexed: false,
                 },
             },
             Bucket {
@@ -3509,6 +3539,7 @@
                     received_at: Some(
                         UnixTimestamp(0),
                     ),
+                    extracted_from_indexed: false,
                 },
             },
             Bucket {
@@ -3530,6 +3561,7 @@
                     received_at: Some(
                         UnixTimestamp(0),
                     ),
+                    extracted_from_indexed: false,
                 },
             },
         ]
@@ -3562,7 +3594,7 @@
             config: <span class="kw-2">&amp;</span>config,
             generic_config: <span class="prelude-val">None</span>,
             transaction_from_dsc: <span class="prelude-val">Some</span>(<span class="string">"test_transaction"</span>),
-            sampling_result: <span class="kw-2">&amp;</span>SamplingResult::Pending,
+            sampling_decision: SamplingDecision::Keep,
             has_profile: <span class="bool-val">false</span>,
         };
 
@@ -3637,7 +3669,7 @@
             config: <span class="kw-2">&amp;</span>config,
             generic_config: <span class="prelude-val">None</span>,
             transaction_from_dsc: <span class="prelude-val">Some</span>(<span class="string">"test_transaction"</span>),
-            sampling_result: <span class="kw-2">&amp;</span>SamplingResult::Pending,
+            sampling_decision: SamplingDecision::Keep,
             has_profile: <span class="bool-val">false</span>,
         };
 
@@ -3665,6 +3697,7 @@
                     received_at: Some(
                         UnixTimestamp(0),
                     ),
+                    extracted_from_indexed: false,
                 },
             },
             Bucket {
@@ -3689,6 +3722,7 @@
                     received_at: Some(
                         UnixTimestamp(0),
                     ),
+                    extracted_from_indexed: false,
                 },
             },
             Bucket {
@@ -3712,6 +3746,7 @@
                     received_at: Some(
                         UnixTimestamp(0),
                     ),
+                    extracted_from_indexed: false,
                 },
             },
             Bucket {
@@ -3729,6 +3764,7 @@
                     received_at: Some(
                         UnixTimestamp(0),
                     ),
+                    extracted_from_indexed: false,
                 },
             },
             Bucket {
@@ -3752,6 +3788,7 @@
                     received_at: Some(
                         UnixTimestamp(0),
                     ),
+                    extracted_from_indexed: false,
                 },
             },
             Bucket {
@@ -3773,6 +3810,7 @@
                     received_at: Some(
                         UnixTimestamp(0),
                     ),
+                    extracted_from_indexed: false,
                 },
             },
         ]
@@ -3796,7 +3834,7 @@
             config: <span class="kw-2">&amp;</span>config,
             generic_config: <span class="prelude-val">None</span>,
             transaction_from_dsc: <span class="prelude-val">Some</span>(<span class="string">"test_transaction"</span>),
-            sampling_result: <span class="kw-2">&amp;</span>SamplingResult::Pending,
+            sampling_decision: SamplingDecision::Keep,
             has_profile: <span class="bool-val">false</span>,
         };
 
@@ -3835,7 +3873,7 @@
             config: <span class="kw-2">&amp;</span>config,
             generic_config: <span class="prelude-val">None</span>,
             transaction_from_dsc: <span class="prelude-val">Some</span>(<span class="string">"test_transaction"</span>),
-            sampling_result: <span class="kw-2">&amp;</span>SamplingResult::Pending,
+            sampling_decision: SamplingDecision::Keep,
             has_profile: <span class="bool-val">false</span>,
         };
 
@@ -3903,7 +3941,7 @@
             config: <span class="kw-2">&amp;</span>config,
             generic_config: <span class="prelude-val">None</span>,
             transaction_from_dsc: <span class="prelude-val">Some</span>(<span class="string">"test_transaction"</span>),
-            sampling_result: <span class="kw-2">&amp;</span>SamplingResult::Pending,
+            sampling_decision: SamplingDecision::Keep,
             has_profile: <span class="bool-val">false</span>,
         };
 
@@ -3925,6 +3963,7 @@
                     received_at: Some(
                         UnixTimestamp(0),
                     ),
+                    extracted_from_indexed: false,
                 },
             },
             Bucket {
@@ -3948,6 +3987,7 @@
                     received_at: Some(
                         UnixTimestamp(0),
                     ),
+                    extracted_from_indexed: false,
                 },
             },
             Bucket {
@@ -3967,6 +4007,7 @@
                     received_at: Some(
                         UnixTimestamp(0),
                     ),
+                    extracted_from_indexed: false,
                 },
             },
         ]
@@ -4006,7 +4047,7 @@
             config: <span class="kw-2">&amp;</span>config,
             generic_config: <span class="prelude-val">None</span>,
             transaction_from_dsc: <span class="prelude-val">Some</span>(<span class="string">"test_transaction"</span>),
-            sampling_result: <span class="kw-2">&amp;</span>SamplingResult::Pending,
+            sampling_decision: SamplingDecision::Keep,
             has_profile: <span class="bool-val">false</span>,
         };
 
@@ -4039,7 +4080,7 @@
             config: <span class="kw-2">&amp;</span>config,
             generic_config: <span class="prelude-val">None</span>,
             transaction_from_dsc: <span class="prelude-val">Some</span>(<span class="string">"test_transaction"</span>),
-            sampling_result: <span class="kw-2">&amp;</span>SamplingResult::Pending,
+            sampling_decision: SamplingDecision::Keep,
             has_profile: <span class="bool-val">false</span>,
         };
 
@@ -4076,7 +4117,7 @@
             config: <span class="kw-2">&amp;</span>config,
             generic_config: <span class="prelude-val">None</span>,
             transaction_from_dsc: <span class="prelude-val">Some</span>(<span class="string">"root_transaction"</span>),
-            sampling_result: <span class="kw-2">&amp;</span>SamplingResult::Pending,
+            sampling_decision: SamplingDecision::Keep,
             has_profile: <span class="bool-val">false</span>,
         };
 
@@ -4101,6 +4142,7 @@
                     received_at: Some(
                         UnixTimestamp(0),
                     ),
+                    extracted_from_indexed: false,
                 },
             },
         ]
@@ -4344,7 +4386,7 @@
             config: <span class="kw-2">&amp;</span>config,
             generic_config: <span class="prelude-val">None</span>,
             transaction_from_dsc: <span class="prelude-val">Some</span>(<span class="string">"test_transaction"</span>),
-            sampling_result: <span class="kw-2">&amp;</span>SamplingResult::Pending,
+            sampling_decision: SamplingDecision::Keep,
             has_profile: <span class="bool-val">false</span>,
         };
 
@@ -4445,7 +4487,7 @@
             config: <span class="kw-2">&amp;</span>config,
             generic_config: <span class="prelude-val">Some</span>(combined_config),
             transaction_from_dsc: <span class="prelude-val">Some</span>(<span class="string">"test_transaction"</span>),
-            sampling_result: <span class="kw-2">&amp;</span>SamplingResult::Pending,
+            sampling_decision: SamplingDecision::Keep,
             has_profile: <span class="bool-val">false</span>,
         };
 
@@ -4472,6 +4514,7 @@
                     received_at: Some(
                         UnixTimestamp(0),
                     ),
+                    extracted_from_indexed: false,
                 },
             },
             Bucket {
@@ -4489,6 +4532,7 @@
                     received_at: Some(
                         UnixTimestamp(0),
                     ),
+                    extracted_from_indexed: false,
                 },
             },
             Bucket {
@@ -4511,6 +4555,7 @@
                     received_at: Some(
                         UnixTimestamp(0),
                     ),
+                    extracted_from_indexed: false,
                 },
             },
             Bucket {
@@ -4530,6 +4575,7 @@
                     received_at: Some(
                         UnixTimestamp(0),
                     ),
+                    extracted_from_indexed: false,
                 },
             },
         ]

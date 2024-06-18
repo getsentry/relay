@@ -1502,15 +1502,6 @@
 <a href="#1502" id="1502">1502</a>
 <a href="#1503" id="1503">1503</a>
 <a href="#1504" id="1504">1504</a>
-<a href="#1505" id="1505">1505</a>
-<a href="#1506" id="1506">1506</a>
-<a href="#1507" id="1507">1507</a>
-<a href="#1508" id="1508">1508</a>
-<a href="#1509" id="1509">1509</a>
-<a href="#1510" id="1510">1510</a>
-<a href="#1511" id="1511">1511</a>
-<a href="#1512" id="1512">1512</a>
-<a href="#1513" id="1513">1513</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeSet;
 <span class="kw">use </span>std::sync::Arc;
 <span class="kw">use </span>std::time::Duration;
@@ -1526,7 +1517,9 @@
 <span class="kw">use </span>relay_metrics::{
     aggregator, Aggregator, Bucket, MergeBuckets, MetaAggregator, MetricMeta, MetricNamespace,
 };
-<span class="kw">use </span>relay_quotas::{DataCategory, MetricNamespaceScoping, Quota, RateLimits, Scoping};
+<span class="kw">use </span>relay_quotas::{
+    CachedRateLimits, DataCategory, MetricNamespaceScoping, Quota, RateLimits, Scoping,
+};
 <span class="kw">use </span>relay_sampling::evaluation::ReservoirCounters;
 <span class="kw">use </span>relay_statsd::metric;
 <span class="kw">use </span>relay_system::{Addr, BroadcastChannel};
@@ -1980,7 +1973,7 @@
     config: Arc&lt;Config&gt;,
     state: State,
     state_channel: <span class="prelude-ty">Option</span>&lt;StateChannel&gt;,
-    rate_limits: RateLimits,
+    rate_limits: CachedRateLimits,
     last_no_cache: Instant,
     reservoir_counters: ReservoirCounters,
     metric_meta_aggregator: MetaAggregator,
@@ -1997,7 +1990,7 @@
             project_key: key,
             state: State::new(config.permissive_aggregator_config()),
             state_channel: <span class="prelude-val">None</span>,
-            rate_limits: RateLimits::new(),
+            rate_limits: CachedRateLimits::new(),
             last_no_cache: Instant::now(),
             reservoir_counters: Arc::default(),
             metric_meta_aggregator: MetaAggregator::new(config.metrics_meta_locations_max()),
@@ -2074,11 +2067,6 @@
         <span class="self">self</span>.next_fetch_attempt
     }
 
-    <span class="doccomment">/// The rate limits that are active for this project.
-    </span><span class="kw">pub fn </span>rate_limits(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>RateLimits {
-        <span class="kw-2">&amp;</span><span class="self">self</span>.rate_limits
-    }
-
     <span class="doccomment">/// The last time the project state was updated
     </span><span class="kw">pub fn </span>last_updated_at(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Instant {
         <span class="self">self</span>.last_updated_at
@@ -2092,14 +2080,28 @@
     }
 
     <span class="kw">fn </span>merge_buckets_into_aggregator(
-        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         aggregator: <span class="kw-2">&amp;</span>Addr&lt;Aggregator&gt;,
         <span class="attr">#[allow(unused_variables)] </span>envelope_processor: <span class="kw-2">&amp;</span>Addr&lt;EnvelopeProcessor&gt;,
         outcome_aggregator: <span class="kw-2">&amp;</span>Addr&lt;TrackOutcome&gt;,
         metric_outcomes: <span class="kw-2">&amp;</span>MetricOutcomes,
-        state: <span class="kw-2">&amp;</span>ProjectState,
         buckets: Buckets&lt;Filtered&gt;,
     ) {
+        <span class="kw">let </span>state = <span class="kw">match </span><span class="self">self</span>.state {
+            State::Cached(<span class="kw-2">ref </span>state) =&gt; {
+                <span class="comment">// TODO: When the state is present but expired, we should send buckets
+                // to the metrics buffer instead. In practice, the project state should be
+                // refreshed at the time when the buckets emerge from the aggregator though.
+                </span>state
+            }
+            State::Pending(<span class="kw-2">ref mut </span>inner_agg) =&gt; {
+                <span class="comment">// We need to queue the metrics in a temporary aggregator until the project state becomes available.
+                </span><span class="macro">relay_log::debug!</span>(<span class="string">"sending metrics to metrics-buffer"</span>);
+                inner_agg.merge_all(<span class="self">self</span>.project_key, buckets, <span class="prelude-val">None</span>);
+                <span class="kw">return</span>;
+            }
+        };
+
         <span class="kw">let </span><span class="prelude-val">Some</span>(scoping) = <span class="self">self</span>.scoping() <span class="kw">else </span>{
             <span class="macro">relay_log::error!</span>(
                 <span class="string">"there is no scoping due to missing project id: dropping {} buckets"</span>,
@@ -2124,10 +2126,10 @@
         </span><span class="kw">let </span>quotas = state.config.quotas.clone();
         <span class="kw">let </span>buckets = <span class="kw">match </span>MetricsLimiter::create(buckets, quotas, scoping) {
             <span class="prelude-val">Ok</span>(<span class="kw-2">mut </span>bucket_limiter) =&gt; {
-                <span class="kw">let </span>cached_rate_limits = <span class="self">self</span>.rate_limits().clone();
+                <span class="kw">let </span>current_limits = <span class="self">self</span>.rate_limits.current_limits();
                 <span class="attr">#[allow(unused_variables)]
                 </span><span class="kw">let </span>was_rate_limited = bucket_limiter.enforce_limits(
-                    <span class="kw-2">&amp;</span>cached_rate_limits,
+                    current_limits,
                     metric_outcomes,
                     outcome_aggregator,
                 );
@@ -2167,28 +2169,13 @@
         }
 
         <span class="kw">let </span>buckets = Buckets::new(buckets).filter_namespaces(source);
-
-        <span class="kw">match </span><span class="self">self</span>.state {
-            State::Cached(<span class="kw-2">ref </span>state) =&gt; {
-                <span class="comment">// TODO: When the state is present but expired, we should send buckets
-                // to the metrics buffer instead. In practice, the project state should be
-                // refreshed at the time when the buckets emerge from the aggregator though.
-
-                </span><span class="self">self</span>.merge_buckets_into_aggregator(
-                    aggregator,
-                    envelope_processor,
-                    outcome_aggregator,
-                    metric_outcomes,
-                    state,
-                    buckets,
-                );
-            }
-            State::Pending(<span class="kw-2">ref mut </span>inner_agg) =&gt; {
-                <span class="comment">// We need to queue the metrics in a temporary aggregator until the project state becomes available.
-                </span><span class="macro">relay_log::debug!</span>(<span class="string">"sending metrics to metrics-buffer"</span>);
-                inner_agg.merge_all(<span class="self">self</span>.project_key, buckets, <span class="prelude-val">None</span>);
-            }
-        }
+        <span class="self">self</span>.merge_buckets_into_aggregator(
+            aggregator,
+            envelope_processor,
+            outcome_aggregator,
+            metric_outcomes,
+            buckets,
+        );
     }
 
     <span class="kw">pub fn </span>add_metric_meta(
@@ -2414,7 +2401,6 @@
                     envelope_processor,
                     outcome_aggregator,
                     metric_outcomes,
-                    <span class="kw-2">&amp;</span>state,
                     buckets,
                 );
             }
@@ -2564,12 +2550,11 @@
             }
         }
 
-        <span class="self">self</span>.rate_limits.clean_expired();
+        <span class="kw">let </span>current_limits = <span class="self">self</span>.rate_limits.current_limits();
 
-        <span class="kw">let </span>config = state.as_deref().map(|s| <span class="kw-2">&amp;</span>s.config);
         <span class="kw">let </span>quotas = state.as_deref().map(|s| s.get_quotas()).unwrap_or(<span class="kw-2">&amp;</span>[]);
-        <span class="kw">let </span>envelope_limiter = EnvelopeLimiter::new(config, |item_scoping, <span class="kw">_</span>| {
-            <span class="prelude-val">Ok</span>(<span class="self">self</span>.rate_limits.check_with_quotas(quotas, item_scoping))
+        <span class="kw">let </span>envelope_limiter = EnvelopeLimiter::new(|item_scoping, <span class="kw">_</span>| {
+            <span class="prelude-val">Ok</span>(current_limits.check_with_quotas(quotas, item_scoping))
         });
 
         <span class="kw">let </span>(enforcement, <span class="kw-2">mut </span>rate_limits) =
@@ -2583,7 +2568,7 @@
         </span><span class="kw">if </span>envelope.envelope().items().any(|i| i.ty().is_metrics()) {
             <span class="kw">let </span><span class="kw-2">mut </span>metrics_scoping = scoping.item(DataCategory::MetricBucket);
             metrics_scoping.namespace = MetricNamespaceScoping::Any;
-            rate_limits.merge(<span class="self">self</span>.rate_limits.check_with_quotas(quotas, metrics_scoping));
+            rate_limits.merge(current_limits.check_with_quotas(quotas, metrics_scoping));
         }
 
         <span class="kw">let </span>envelope = <span class="kw">if </span>envelope.envelope().is_empty() {
@@ -2637,8 +2622,9 @@
             .filter_map(|bucket| bucket.name.try_namespace())
             .collect();
 
+        <span class="kw">let </span>current_limits = <span class="self">self</span>.rate_limits.current_limits();
         <span class="kw">for </span>namespace <span class="kw">in </span>namespaces {
-            <span class="kw">let </span>limits = <span class="self">self</span>.rate_limits().check_with_quotas(
+            <span class="kw">let </span>limits = current_limits.check_with_quotas(
                 project_state.get_quotas(),
                 scoping.item(DataCategory::MetricBucket),
             );
@@ -2900,13 +2886,12 @@
         <span class="kw">let </span>metric_outcomes =
             MetricOutcomes::new(MetricStats::test().<span class="number">0</span>, outcome_aggregator.clone());
 
-        <span class="kw">let </span>project = create_project(<span class="prelude-val">None</span>);
+        <span class="kw">let </span><span class="kw-2">mut </span>project = create_project(<span class="prelude-val">None</span>);
         project.merge_buckets_into_aggregator(
             <span class="kw-2">&amp;</span>aggregator,
             <span class="kw-2">&amp;</span>envelope_processor,
             <span class="kw-2">&amp;</span>outcome_aggregator,
             <span class="kw-2">&amp;</span>metric_outcomes,
-            <span class="kw-2">&amp;</span>project.state_value().unwrap(),
             Buckets::test(<span class="macro">vec!</span>[create_transaction_metric()]),
         );
         drop(aggregator);
@@ -2929,7 +2914,7 @@
         <span class="kw">let </span>metric_outcomes =
             MetricOutcomes::new(MetricStats::test().<span class="number">0</span>, outcome_aggregator.clone());
 
-        <span class="kw">let </span>project = create_project(<span class="prelude-val">Some</span>(<span class="macro">json!</span>({
+        <span class="kw">let </span><span class="kw-2">mut </span>project = create_project(<span class="prelude-val">Some</span>(<span class="macro">json!</span>({
             <span class="string">"quotas"</span>: [{
                <span class="string">"id"</span>: <span class="string">"foo"</span>,
                <span class="string">"categories"</span>: [<span class="string">"transaction"</span>],
@@ -2943,7 +2928,6 @@
             <span class="kw-2">&amp;</span>envelope_processor,
             <span class="kw-2">&amp;</span>outcome_aggregator,
             <span class="kw-2">&amp;</span>metric_outcomes,
-            <span class="kw-2">&amp;</span>project.state_value().unwrap(),
             Buckets::test(<span class="macro">vec!</span>[create_transaction_metric()]),
         );
         drop(aggregator);
@@ -2971,13 +2955,12 @@
         <span class="kw">let </span>metric_outcomes =
             MetricOutcomes::new(MetricStats::test().<span class="number">0</span>, outcome_aggregator.clone());
 
-        <span class="kw">let </span>project = create_project(<span class="prelude-val">None</span>);
+        <span class="kw">let </span><span class="kw-2">mut </span>project = create_project(<span class="prelude-val">None</span>);
         project.merge_buckets_into_aggregator(
             <span class="kw-2">&amp;</span>aggregator,
             <span class="kw-2">&amp;</span>envelope_processor,
             <span class="kw-2">&amp;</span>outcome_aggregator,
             <span class="kw-2">&amp;</span>metric_outcomes,
-            <span class="kw-2">&amp;</span>project.state_value().unwrap(),
             Buckets::test(<span class="macro">vec!</span>[create_transaction_bucket()]),
         );
         drop(aggregator);
@@ -3001,7 +2984,7 @@
         <span class="kw">let </span>metric_outcomes =
             MetricOutcomes::new(MetricStats::test().<span class="number">0</span>, outcome_aggregator.clone());
 
-        <span class="kw">let </span>project = create_project(<span class="prelude-val">Some</span>(<span class="macro">json!</span>({
+        <span class="kw">let </span><span class="kw-2">mut </span>project = create_project(<span class="prelude-val">Some</span>(<span class="macro">json!</span>({
             <span class="string">"quotas"</span>: [{
                <span class="string">"id"</span>: <span class="string">"foo"</span>,
                <span class="string">"categories"</span>: [<span class="string">"transaction"</span>],
@@ -3015,7 +2998,6 @@
             <span class="kw-2">&amp;</span>envelope_processor,
             <span class="kw-2">&amp;</span>outcome_aggregator,
             <span class="kw-2">&amp;</span>metric_outcomes,
-            <span class="kw-2">&amp;</span>project.state_value().unwrap(),
             Buckets::test(<span class="macro">vec!</span>[create_transaction_bucket()]),
         );
         drop(aggregator);

@@ -768,6 +768,25 @@
 <a href="#768" id="768">768</a>
 <a href="#769" id="769">769</a>
 <a href="#770" id="770">770</a>
+<a href="#771" id="771">771</a>
+<a href="#772" id="772">772</a>
+<a href="#773" id="773">773</a>
+<a href="#774" id="774">774</a>
+<a href="#775" id="775">775</a>
+<a href="#776" id="776">776</a>
+<a href="#777" id="777">777</a>
+<a href="#778" id="778">778</a>
+<a href="#779" id="779">779</a>
+<a href="#780" id="780">780</a>
+<a href="#781" id="781">781</a>
+<a href="#782" id="782">782</a>
+<a href="#783" id="783">783</a>
+<a href="#784" id="784">784</a>
+<a href="#785" id="785">785</a>
+<a href="#786" id="786">786</a>
+<a href="#787" id="787">787</a>
+<a href="#788" id="788">788</a>
+<a href="#789" id="789">789</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Dynamic sampling processor related code.
 
 </span><span class="kw">use </span>std::ops::ControlFlow;
@@ -786,7 +805,7 @@
 <span class="kw">use </span><span class="kw">crate</span>::services::processor::{
     EventProcessing, ProcessEnvelopeState, Sampling, TransactionGroup,
 };
-<span class="kw">use </span><span class="kw">crate</span>::utils::{<span class="self">self</span>, sample, ItemAction, SamplingResult};
+<span class="kw">use </span><span class="kw">crate</span>::utils::{<span class="self">self</span>, sample, SamplingResult};
 
 <span class="doccomment">/// Ensures there is a valid dynamic sampling context and corresponding project state.
 ///
@@ -866,19 +885,38 @@
     outcome: Outcome,
     keep_profiles: bool,
 ) {
-    state.managed_envelope.retain_items(|item| {
-        <span class="kw">if </span>keep_profiles &amp;&amp; item.ty() == <span class="kw-2">&amp;</span>ItemType::Profile {
-            <span class="comment">// Remember on the item that this profile belongs to an transaction which was not
-            // sampled.
-            // Upstream Relays can use that information to allow standalone unsampled profiles.
-            </span>item.set_sampled(<span class="bool-val">false</span>);
-            ItemAction::Keep
-        } <span class="kw">else </span>{
-            ItemAction::Drop(outcome.clone())
-        }
+    <span class="comment">// Remove all items from the envelope which need to be dropped due to dynamic sampling.
+    </span><span class="kw">let </span>dropped_items = state.envelope_mut().take_items_by(|item| <span class="kw">match </span>item.ty() {
+        ItemType::Profile =&gt; !keep_profiles,
+        <span class="kw">_ </span>=&gt; <span class="bool-val">true</span>,
     });
-    <span class="comment">// The event is no longer in the envelope, so we need to handle it separately:
-    </span>state.reject_event(outcome);
+
+    <span class="kw">for </span>item <span class="kw">in </span>dropped_items {
+        <span class="kw">let </span><span class="prelude-val">Some</span>(category) = item.outcome_category() <span class="kw">else </span>{
+            <span class="kw">continue</span>;
+        };
+
+        <span class="comment">// Dynamic sampling only drops indexed items. Upgrade the category to the index
+        // category if one exists for this category, for example profiles will be upgraded to profiles indexed,
+        // but attachments are still emitted as attachments.
+        </span><span class="kw">let </span>category = category.index_category().unwrap_or(category);
+
+        state
+            .managed_envelope
+            .track_outcome(outcome.clone(), category, item.quantity());
+    }
+
+    <span class="comment">// Mark all remaining items in the envelope as unsampled.
+    </span><span class="kw">for </span>item <span class="kw">in </span>state.envelope_mut().items_mut() {
+        item.set_sampled(<span class="bool-val">false</span>);
+    }
+
+    <span class="comment">// All items have been dropped, now make sure the event is also handled and dropped.
+    </span><span class="kw">if let </span><span class="prelude-val">Some</span>(category) = state.event_category() {
+        <span class="kw">let </span>category = category.index_category().unwrap_or(category);
+        state.managed_envelope.track_outcome(outcome, category, <span class="number">1</span>)
+    }
+    state.remove_event();
 }
 
 <span class="doccomment">/// Computes the sampling decision on the incoming envelope.
@@ -1021,7 +1059,7 @@
     <span class="kw">use </span>relay_sampling::config::{
         DecayingFunction, RuleId, SamplingRule, SamplingValue, TimeRange,
     };
-    <span class="kw">use </span>relay_sampling::evaluation::{ReservoirCounters, SamplingMatch};
+    <span class="kw">use </span>relay_sampling::evaluation::{ReservoirCounters, SamplingDecision, SamplingMatch};
     <span class="kw">use </span>relay_system::Addr;
     <span class="kw">use </span>uuid::Uuid;
 
@@ -1162,7 +1200,7 @@
                 <span class="prelude-val">None</span>,
                 <span class="prelude-val">None</span>,
             );
-            <span class="macro">assert_eq!</span>(res.should_keep(), should_keep);
+            <span class="macro">assert_eq!</span>(res.decision().is_keep(), should_keep);
         }
     }
 
@@ -1229,17 +1267,17 @@
         <span class="comment">// None represents no TransactionMetricsConfig, DS will not be run
         </span><span class="kw">let </span><span class="kw-2">mut </span>state = get_state(<span class="prelude-val">None</span>);
         <span class="kw">let </span>sampling_result = run(<span class="kw-2">&amp;mut </span>state, <span class="kw-2">&amp;</span>config);
-        <span class="macro">assert!</span>(sampling_result.should_keep());
+        <span class="macro">assert_eq!</span>(sampling_result.decision(), SamplingDecision::Keep);
 
         <span class="comment">// Current version is 3, so it won't run DS if it's outdated
         </span><span class="kw">let </span><span class="kw-2">mut </span>state = get_state(<span class="prelude-val">Some</span>(<span class="number">2</span>));
         <span class="kw">let </span>sampling_result = run(<span class="kw-2">&amp;mut </span>state, <span class="kw-2">&amp;</span>config);
-        <span class="macro">assert!</span>(sampling_result.should_keep());
+        <span class="macro">assert_eq!</span>(sampling_result.decision(), SamplingDecision::Keep);
 
         <span class="comment">// Dynamic sampling is run, as the transactionmetrics version is up to date.
         </span><span class="kw">let </span><span class="kw-2">mut </span>state = get_state(<span class="prelude-val">Some</span>(<span class="number">3</span>));
         <span class="kw">let </span>sampling_result = run(<span class="kw-2">&amp;mut </span>state, <span class="kw-2">&amp;</span>config);
-        <span class="macro">assert!</span>(sampling_result.should_drop());
+        <span class="macro">assert_eq!</span>(sampling_result.decision(), SamplingDecision::Drop);
     }
 
     <span class="kw">fn </span>project_state_with_single_rule(sample_rate: f64) -&gt; ProjectState {
@@ -1528,14 +1566,14 @@
     </span><span class="kw">fn </span>test_reservoir_applied_for_transactions() {
         <span class="kw">let </span>result = run_with_reservoir_rule::&lt;TransactionGroup&gt;(ProcessingGroup::Transaction);
         <span class="comment">// Default sampling rate is 0.0, but transaction is retained because of reservoir:
-        </span><span class="macro">assert!</span>(result.should_keep());
+        </span><span class="macro">assert_eq!</span>(result.decision(), SamplingDecision::Keep);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_reservoir_not_applied_for_spans() {
         <span class="kw">let </span>result = run_with_reservoir_rule::&lt;SpanGroup&gt;(ProcessingGroup::Span);
         <span class="comment">// Default sampling rate is 0.0, and the reservoir does not apply to spans:
-        </span><span class="macro">assert!</span>(result.should_drop());
+        </span><span class="macro">assert_eq!</span>(result.decision(), SamplingDecision::Drop);
     }
 }
 </code></pre></div></section></main></body></html>

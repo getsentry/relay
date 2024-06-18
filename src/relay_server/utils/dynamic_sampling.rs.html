@@ -516,13 +516,6 @@
 <a href="#516" id="516">516</a>
 <a href="#517" id="517">517</a>
 <a href="#518" id="518">518</a>
-<a href="#519" id="519">519</a>
-<a href="#520" id="520">520</a>
-<a href="#521" id="521">521</a>
-<a href="#522" id="522">522</a>
-<a href="#523" id="523">523</a>
-<a href="#524" id="524">524</a>
-<a href="#525" id="525">525</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Functionality for calculating if a trace should be processed or dropped.
 </span><span class="kw">use </span>std::collections::HashMap;
 <span class="kw">use </span>std::ops::ControlFlow;
@@ -533,7 +526,7 @@
 <span class="kw">use </span>relay_event_schema::protocol::{Event, TraceContext};
 <span class="kw">use </span>relay_sampling::config::{RuleType, SamplingConfig};
 <span class="kw">use </span>relay_sampling::dsc::{DynamicSamplingContext, TraceUserContext};
-<span class="kw">use </span>relay_sampling::evaluation::{SamplingEvaluator, SamplingMatch};
+<span class="kw">use </span>relay_sampling::evaluation::{SamplingDecision, SamplingEvaluator, SamplingMatch};
 
 <span class="kw">use </span><span class="kw">crate</span>::envelope::{Envelope, ItemType};
 <span class="kw">use </span><span class="kw">crate</span>::services::outcome::Outcome;
@@ -676,25 +669,18 @@
         <span class="macro">matches!</span>(<span class="self">self</span>, <span class="kw-2">&amp;</span><span class="self">Self</span>::Match(<span class="kw">_</span>))
     }
 
-    <span class="doccomment">/// Returns `true` if the event should be dropped.
-    </span><span class="kw">pub fn </span>should_drop(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
-        !<span class="self">self</span>.should_keep()
-    }
-
-    <span class="doccomment">/// Returns `true` if the event should be kept.
-    </span><span class="kw">pub fn </span>should_keep(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+    <span class="doccomment">/// Boolean decision whether to keep or drop the item.
+    </span><span class="kw">pub fn </span>decision(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; SamplingDecision {
         <span class="kw">match </span><span class="self">self </span>{
-            SamplingResult::Match(sampling_match) =&gt; sampling_match.should_keep(),
-            <span class="comment">// If no rules matched on an event, we want to keep it.
-            </span>SamplingResult::NoMatch =&gt; <span class="bool-val">true</span>,
-            SamplingResult::Pending =&gt; <span class="bool-val">true</span>,
+            <span class="self">Self</span>::Match(sampling_match) =&gt; sampling_match.decision(),
+            <span class="kw">_ </span>=&gt; SamplingDecision::Keep,
         }
     }
 
     <span class="doccomment">/// Consumes the sampling results and returns and outcome if the sampling decision is drop.
     </span><span class="kw">pub fn </span>into_dropped_outcome(<span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;Outcome&gt; {
         <span class="kw">match </span><span class="self">self </span>{
-            SamplingResult::Match(sampling_match) <span class="kw">if </span>sampling_match.should_drop() =&gt; <span class="prelude-val">Some</span>(
+            SamplingResult::Match(sampling_match) <span class="kw">if </span>sampling_match.decision().is_drop() =&gt; <span class="prelude-val">Some</span>(
                 Outcome::FilteredSampling(sampling_match.into_matched_rules().into()),
             ),
             SamplingResult::Match(<span class="kw">_</span>) =&gt; <span class="prelude-val">None</span>,
@@ -733,7 +719,7 @@
     <span class="kw">let </span>rules = root_project_config.filter_rules(RuleType::Trace);
 
     <span class="kw">let </span>evaluation = evaluator.match_rules(dsc.trace_id, dsc, rules);
-    <span class="prelude-val">Some</span>(SamplingResult::from(evaluation).should_keep())
+    <span class="prelude-val">Some</span>(SamplingResult::from(evaluation).decision().is_keep())
 }
 
 <span class="doccomment">/// Returns the project key defined in the `trace` header of the envelope.
@@ -898,7 +884,7 @@
             .into();
 
         <span class="macro">assert!</span>(result.is_match());
-        <span class="macro">assert!</span>(result.should_keep());
+        <span class="macro">assert!</span>(result.decision().is_keep());
     }
     <span class="attr">#[test]
     </span><span class="doccomment">/// Tests that an event is dropped when there is a match and we have 0% sample rate.
@@ -912,7 +898,7 @@
             .into();
 
         <span class="macro">assert!</span>(result.is_match());
-        <span class="macro">assert!</span>(result.should_drop());
+        <span class="macro">assert!</span>(result.decision().is_drop());
     }
 
     <span class="attr">#[test]
@@ -935,7 +921,7 @@
             .into();
 
         <span class="macro">assert!</span>(result.is_no_match());
-        <span class="macro">assert!</span>(result.should_keep());
+        <span class="macro">assert!</span>(result.decision().is_keep());
     }
 
     <span class="attr">#[test]
@@ -949,7 +935,7 @@
             .into();
 
         <span class="macro">assert!</span>(result.is_match());
-        <span class="macro">assert!</span>(result.should_keep());
+        <span class="macro">assert!</span>(result.decision().is_keep());
     }
 
     <span class="attr">#[test]

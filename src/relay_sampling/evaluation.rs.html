@@ -799,6 +799,36 @@
 <a href="#799" id="799">799</a>
 <a href="#800" id="800">800</a>
 <a href="#801" id="801">801</a>
+<a href="#802" id="802">802</a>
+<a href="#803" id="803">803</a>
+<a href="#804" id="804">804</a>
+<a href="#805" id="805">805</a>
+<a href="#806" id="806">806</a>
+<a href="#807" id="807">807</a>
+<a href="#808" id="808">808</a>
+<a href="#809" id="809">809</a>
+<a href="#810" id="810">810</a>
+<a href="#811" id="811">811</a>
+<a href="#812" id="812">812</a>
+<a href="#813" id="813">813</a>
+<a href="#814" id="814">814</a>
+<a href="#815" id="815">815</a>
+<a href="#816" id="816">816</a>
+<a href="#817" id="817">817</a>
+<a href="#818" id="818">818</a>
+<a href="#819" id="819">819</a>
+<a href="#820" id="820">820</a>
+<a href="#821" id="821">821</a>
+<a href="#822" id="822">822</a>
+<a href="#823" id="823">823</a>
+<a href="#824" id="824">824</a>
+<a href="#825" id="825">825</a>
+<a href="#826" id="826">826</a>
+<a href="#827" id="827">827</a>
+<a href="#828" id="828">828</a>
+<a href="#829" id="829">829</a>
+<a href="#830" id="830">830</a>
+<a href="#831" id="831">831</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Evaluation of dynamic sampling rules.
 
 </span><span class="kw">use </span>std::collections::BTreeMap;
@@ -1046,11 +1076,11 @@
     }
 }
 
-<span class="kw">fn </span>sampling_match(sample_rate: f64, seed: Uuid) -&gt; bool {
-    <span class="kw">if </span>sample_rate == <span class="number">0.0 </span>{
-        <span class="kw">return </span><span class="bool-val">false</span>;
-    } <span class="kw">else if </span>sample_rate == <span class="number">1.0 </span>{
-        <span class="kw">return </span><span class="bool-val">true</span>;
+<span class="kw">fn </span>sampling_match(sample_rate: f64, seed: Uuid) -&gt; SamplingDecision {
+    <span class="kw">if </span>sample_rate &lt;= <span class="number">0.0 </span>{
+        <span class="kw">return </span>SamplingDecision::Drop;
+    } <span class="kw">else if </span>sample_rate &gt;= <span class="number">1.0 </span>{
+        <span class="kw">return </span>SamplingDecision::Keep;
     }
 
     <span class="kw">let </span>random_number = pseudo_random_from_uuid(seed);
@@ -1062,11 +1092,46 @@
 
     <span class="kw">if </span>random_number &gt;= sample_rate {
         <span class="macro">relay_log::trace!</span>(<span class="string">"dropping event that matched the configuration"</span>);
-        <span class="bool-val">false
-    </span>} <span class="kw">else </span>{
+        SamplingDecision::Drop
+    } <span class="kw">else </span>{
         <span class="macro">relay_log::trace!</span>(<span class="string">"keeping event that matched the configuration"</span>);
-        <span class="bool-val">true
-    </span>}
+        SamplingDecision::Keep
+    }
+}
+
+<span class="doccomment">/// A sampling decision.
+</span><span class="attr">#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+</span><span class="kw">pub enum </span>SamplingDecision {
+    <span class="doccomment">/// The item is sampled and should not be dropped.
+    </span>Keep,
+    <span class="doccomment">/// The item is not sampled and should be dropped.
+    </span>Drop,
+}
+
+<span class="kw">impl </span>SamplingDecision {
+    <span class="doccomment">/// Returns `true` if the sampling decision is [`Self::Keep`].
+    </span><span class="kw">pub fn </span>is_keep(<span class="self">self</span>) -&gt; bool {
+        <span class="macro">matches!</span>(<span class="self">self</span>, <span class="self">Self</span>::Keep)
+    }
+
+    <span class="doccomment">/// Returns `true` if the sampling decision is [`Self::Drop`].
+    </span><span class="kw">pub fn </span>is_drop(<span class="self">self</span>) -&gt; bool {
+        <span class="macro">matches!</span>(<span class="self">self</span>, <span class="self">Self</span>::Drop)
+    }
+
+    <span class="doccomment">/// Returns a string representation of the sampling decision.
+    </span><span class="kw">pub fn </span>as_str(<span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
+        <span class="kw">match </span><span class="self">self </span>{
+            <span class="self">Self</span>::Keep =&gt; <span class="string">"keep"</span>,
+            <span class="self">Self</span>::Drop =&gt; <span class="string">"drop"</span>,
+        }
+    }
+}
+
+<span class="kw">impl </span>fmt::Display <span class="kw">for </span>SamplingDecision {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
+        <span class="macro">write!</span>(f, <span class="string">"{}"</span>, <span class="self">self</span>.as_str())
+    }
 }
 
 <span class="doccomment">/// Represents the specification for sampling an incoming event.
@@ -1085,19 +1150,19 @@
     <span class="doccomment">/// Whether this sampling match results in the item getting sampled.
     /// It's essentially a cache, as the value can be deterministically derived from
     /// the sample rate and the seed.
-    </span>should_keep: bool,
+    </span>decision: SamplingDecision,
 }
 
 <span class="kw">impl </span>SamplingMatch {
     <span class="kw">fn </span>new(sample_rate: f64, seed: Uuid, matched_rules: Vec&lt;RuleId&gt;) -&gt; <span class="self">Self </span>{
         <span class="kw">let </span>matched_rules = MatchedRuleIds(matched_rules);
-        <span class="kw">let </span>should_keep = sampling_match(sample_rate, seed);
+        <span class="kw">let </span>decision = sampling_match(sample_rate, seed);
 
         <span class="self">Self </span>{
             sample_rate,
             seed,
             matched_rules,
-            should_keep,
+            decision,
         }
     }
 
@@ -1114,14 +1179,9 @@
         <span class="self">self</span>.matched_rules
     }
 
-    <span class="doccomment">/// Returns true if event should be kept.
-    </span><span class="kw">pub fn </span>should_keep(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
-        <span class="self">self</span>.should_keep
-    }
-
-    <span class="doccomment">/// Returns true if event should be dropped.
-    </span><span class="kw">pub fn </span>should_drop(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
-        !<span class="self">self</span>.should_keep()
+    <span class="doccomment">/// Returns the sampling decision.
+    </span><span class="kw">pub fn </span>decision(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; SamplingDecision {
+        <span class="self">self</span>.decision
     }
 }
 

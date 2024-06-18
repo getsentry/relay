@@ -435,7 +435,7 @@
     <span class="kw">fn </span>from(tags: UsageTags) -&gt; <span class="self">Self </span>{
         <span class="kw">let </span><span class="kw-2">mut </span>map = BTreeMap::new();
         <span class="kw">if </span>tags.has_profile {
-            map.insert(<span class="string">"has_profile"</span>.to_string(), <span class="string">"true"</span>.to_string());
+            map.insert(<span class="string">"has_profile"</span>.to_owned(), <span class="string">"true"</span>.to_owned());
         }
         map
     }
@@ -452,11 +452,11 @@
     <span class="kw">fn </span>from(value: TransactionMeasurementTags) -&gt; <span class="self">Self </span>{
         <span class="kw">let </span><span class="kw-2">mut </span>map: BTreeMap&lt;String, String&gt; = value.universal_tags.into();
         <span class="kw">if let </span><span class="prelude-val">Some</span>(decision) = value.measurement_rating {
-            map.insert(<span class="string">"measurement_rating"</span>.to_string(), decision);
+            map.insert(<span class="string">"measurement_rating"</span>.to_owned(), decision);
         }
         <span class="kw">if let </span><span class="prelude-val">Some</span>(score_profile_version) = value.score_profile_version {
             map.insert(
-                <span class="string">"sentry.score_profile_version"</span>.to_string(),
+                <span class="string">"sentry.score_profile_version"</span>.to_owned(),
                 score_profile_version,
             );
         }

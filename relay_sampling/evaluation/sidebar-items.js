@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"struct":["MatchedRuleIds","ReservoirEvaluator","SamplingEvaluator","SamplingMatch"],"type":["ReservoirCounters"]};
+window.SIDEBAR_ITEMS = {"enum":["SamplingDecision"],"struct":["MatchedRuleIds","ReservoirEvaluator","SamplingEvaluator","SamplingMatch"],"type":["ReservoirCounters"]};

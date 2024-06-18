@@ -3656,6 +3656,85 @@
 <a href="#3656" id="3656">3656</a>
 <a href="#3657" id="3657">3657</a>
 <a href="#3658" id="3658">3658</a>
+<a href="#3659" id="3659">3659</a>
+<a href="#3660" id="3660">3660</a>
+<a href="#3661" id="3661">3661</a>
+<a href="#3662" id="3662">3662</a>
+<a href="#3663" id="3663">3663</a>
+<a href="#3664" id="3664">3664</a>
+<a href="#3665" id="3665">3665</a>
+<a href="#3666" id="3666">3666</a>
+<a href="#3667" id="3667">3667</a>
+<a href="#3668" id="3668">3668</a>
+<a href="#3669" id="3669">3669</a>
+<a href="#3670" id="3670">3670</a>
+<a href="#3671" id="3671">3671</a>
+<a href="#3672" id="3672">3672</a>
+<a href="#3673" id="3673">3673</a>
+<a href="#3674" id="3674">3674</a>
+<a href="#3675" id="3675">3675</a>
+<a href="#3676" id="3676">3676</a>
+<a href="#3677" id="3677">3677</a>
+<a href="#3678" id="3678">3678</a>
+<a href="#3679" id="3679">3679</a>
+<a href="#3680" id="3680">3680</a>
+<a href="#3681" id="3681">3681</a>
+<a href="#3682" id="3682">3682</a>
+<a href="#3683" id="3683">3683</a>
+<a href="#3684" id="3684">3684</a>
+<a href="#3685" id="3685">3685</a>
+<a href="#3686" id="3686">3686</a>
+<a href="#3687" id="3687">3687</a>
+<a href="#3688" id="3688">3688</a>
+<a href="#3689" id="3689">3689</a>
+<a href="#3690" id="3690">3690</a>
+<a href="#3691" id="3691">3691</a>
+<a href="#3692" id="3692">3692</a>
+<a href="#3693" id="3693">3693</a>
+<a href="#3694" id="3694">3694</a>
+<a href="#3695" id="3695">3695</a>
+<a href="#3696" id="3696">3696</a>
+<a href="#3697" id="3697">3697</a>
+<a href="#3698" id="3698">3698</a>
+<a href="#3699" id="3699">3699</a>
+<a href="#3700" id="3700">3700</a>
+<a href="#3701" id="3701">3701</a>
+<a href="#3702" id="3702">3702</a>
+<a href="#3703" id="3703">3703</a>
+<a href="#3704" id="3704">3704</a>
+<a href="#3705" id="3705">3705</a>
+<a href="#3706" id="3706">3706</a>
+<a href="#3707" id="3707">3707</a>
+<a href="#3708" id="3708">3708</a>
+<a href="#3709" id="3709">3709</a>
+<a href="#3710" id="3710">3710</a>
+<a href="#3711" id="3711">3711</a>
+<a href="#3712" id="3712">3712</a>
+<a href="#3713" id="3713">3713</a>
+<a href="#3714" id="3714">3714</a>
+<a href="#3715" id="3715">3715</a>
+<a href="#3716" id="3716">3716</a>
+<a href="#3717" id="3717">3717</a>
+<a href="#3718" id="3718">3718</a>
+<a href="#3719" id="3719">3719</a>
+<a href="#3720" id="3720">3720</a>
+<a href="#3721" id="3721">3721</a>
+<a href="#3722" id="3722">3722</a>
+<a href="#3723" id="3723">3723</a>
+<a href="#3724" id="3724">3724</a>
+<a href="#3725" id="3725">3725</a>
+<a href="#3726" id="3726">3726</a>
+<a href="#3727" id="3727">3727</a>
+<a href="#3728" id="3728">3728</a>
+<a href="#3729" id="3729">3729</a>
+<a href="#3730" id="3730">3730</a>
+<a href="#3731" id="3731">3731</a>
+<a href="#3732" id="3732">3732</a>
+<a href="#3733" id="3733">3733</a>
+<a href="#3734" id="3734">3734</a>
+<a href="#3735" id="3735">3735</a>
+<a href="#3736" id="3736">3736</a>
+<a href="#3737" id="3737">3737</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
@@ -3694,7 +3773,7 @@
 <span class="kw">use </span>relay_protocol::{Annotated, Value};
 <span class="kw">use </span>relay_quotas::{DataCategory, Scoping};
 <span class="kw">use </span>relay_sampling::config::RuleId;
-<span class="kw">use </span>relay_sampling::evaluation::{ReservoirCounters, ReservoirEvaluator};
+<span class="kw">use </span>relay_sampling::evaluation::{ReservoirCounters, ReservoirEvaluator, SamplingDecision};
 <span class="kw">use </span>relay_statsd::metric;
 <span class="kw">use </span>relay_system::{Addr, FromMessage, NoResponse, Service};
 <span class="kw">use </span>reqwest::header;
@@ -3713,7 +3792,7 @@
     },
     relay_dynamic_config::{CardinalityLimiterMode, GlobalConfig, MetricExtractionGroups},
     relay_metrics::{Aggregator, MergeBuckets, RedisMetricMetaStore},
-    relay_quotas::{Quota, RateLimitingError, RedisRateLimiter},
+    relay_quotas::{Quota, RateLimitingError, RateLimits, RedisRateLimiter},
     relay_redis::RedisPool,
     std::iter::Chain,
     std::slice::Iter,
@@ -4239,18 +4318,93 @@
 
 <span class="kw">type </span>ExtractedEvent = (Annotated&lt;Event&gt;, usize);
 
-<span class="kw">impl </span>ExtractedMetrics {
+<span class="doccomment">/// A container for extracted metrics during processing.
+///
+/// The container enforces that the extracted metrics are correctly tagged
+/// with the dynamic sampling decision.
+</span><span class="attr">#[derive(Default, Debug)]
+</span><span class="kw">pub struct </span>ProcessingExtractedMetrics(ExtractedMetrics);
+
+<span class="kw">impl </span>ProcessingExtractedMetrics {
+    <span class="doccomment">/// Extends the contained metrics with [`ExtractedMetrics`].
+    </span><span class="kw">pub fn </span>extend(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        extracted: ExtractedMetrics,
+        sampling_decision: <span class="prelude-ty">Option</span>&lt;SamplingDecision&gt;,
+    ) {
+        <span class="self">self</span>.extend_project_metrics(extracted.project_metrics, sampling_decision);
+        <span class="self">self</span>.extend_sampling_metrics(extracted.sampling_metrics, sampling_decision);
+    }
+
+    <span class="doccomment">/// Extends the contained project metrics.
+    </span><span class="kw">pub fn </span>extend_project_metrics(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        <span class="kw-2">mut </span>buckets: Vec&lt;Bucket&gt;,
+        sampling_decision: <span class="prelude-ty">Option</span>&lt;SamplingDecision&gt;,
+    ) {
+        <span class="kw">for </span>bucket <span class="kw">in </span><span class="kw-2">&amp;mut </span>buckets {
+            bucket.metadata.extracted_from_indexed =
+                sampling_decision == <span class="prelude-val">Some</span>(SamplingDecision::Keep);
+        }
+        <span class="self">self</span>.<span class="number">0</span>.project_metrics.extend(buckets);
+    }
+
+    <span class="doccomment">/// Extends the contained sampling metrics.
+    </span><span class="kw">pub fn </span>extend_sampling_metrics(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        <span class="kw-2">mut </span>buckets: Vec&lt;Bucket&gt;,
+        sampling_decision: <span class="prelude-ty">Option</span>&lt;SamplingDecision&gt;,
+    ) {
+        <span class="kw">for </span>bucket <span class="kw">in </span><span class="kw-2">&amp;mut </span>buckets {
+            bucket.metadata.extracted_from_indexed =
+                sampling_decision == <span class="prelude-val">Some</span>(SamplingDecision::Keep);
+        }
+        <span class="self">self</span>.<span class="number">0</span>.sampling_metrics.extend(buckets);
+    }
+
+    <span class="doccomment">/// Returns `true` if any project metrics are extracted.
+    </span><span class="kw">pub fn </span>has_project_metrics(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        !<span class="self">self</span>.<span class="number">0</span>.project_metrics.is_empty()
+    }
+
+    <span class="doccomment">/// Applies rate limits to the contained metrics.
+    ///
+    /// This is used to apply rate limits which have been enforced on sampled items of an envelope
+    /// to also consistently apply to the metrics extracted from these items.
+    </span><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
+    </span><span class="kw">fn </span>enforce_limits(<span class="kw-2">&amp;mut </span><span class="self">self</span>, scoping: Scoping, limits: <span class="kw-2">&amp;</span>RateLimits) {
+        <span class="kw">for </span>(category, namespace) <span class="kw">in </span>[
+            (DataCategory::Transaction, MetricNamespace::Transactions),
+            (DataCategory::Span, MetricNamespace::Spans),
+        ] {
+            <span class="kw">if </span>!limits.check(scoping.item(category)).is_empty() {
+                <span class="macro">relay_log::trace!</span>(
+                    <span class="string">"dropping {namespace} metrics, due to enforced limit on envelope"
+                </span>);
+                <span class="self">self</span>.retain(|bucket| bucket.name.try_namespace() != <span class="prelude-val">Some</span>(namespace));
+            }
+        }
+    }
+
+    <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
+    </span><span class="kw">fn </span>retain(<span class="kw-2">&amp;mut </span><span class="self">self</span>, <span class="kw-2">mut </span>f: <span class="kw">impl </span>FnMut(<span class="kw-2">&amp;</span>Bucket) -&gt; bool) {
+        <span class="self">self</span>.<span class="number">0</span>.project_metrics.retain(<span class="kw-2">&amp;mut </span>f);
+        <span class="self">self</span>.<span class="number">0</span>.sampling_metrics.retain(<span class="kw-2">&amp;mut </span>f);
+    }
+
     <span class="kw">fn </span>send_metrics(<span class="self">self</span>, envelope: <span class="kw-2">&amp;</span>Envelope, project_cache: Addr&lt;ProjectCache&gt;) {
         <span class="kw">let </span>project_key = envelope.meta().public_key();
 
-        <span class="kw">if </span>!<span class="self">self</span>.project_metrics.is_empty() {
-            project_cache.send(AddMetricBuckets::internal(
-                project_key,
-                <span class="self">self</span>.project_metrics,
-            ));
+        <span class="kw">let </span>ExtractedMetrics {
+            project_metrics,
+            sampling_metrics,
+        } = <span class="self">self</span>.<span class="number">0</span>;
+
+        <span class="kw">if </span>!project_metrics.is_empty() {
+            project_cache.send(AddMetricBuckets::internal(project_key, project_metrics));
         }
 
-        <span class="kw">if </span>!<span class="self">self</span>.sampling_metrics.is_empty() {
+        <span class="kw">if </span>!sampling_metrics.is_empty() {
             <span class="comment">// If no sampling project state is available, we associate the sampling
             // metrics with the current project.
             //
@@ -4260,7 +4414,7 @@
             </span><span class="kw">let </span>sampling_project_key = utils::get_sampling_key(envelope).unwrap_or(project_key);
             project_cache.send(AddMetricBuckets::internal(
                 sampling_project_key,
-                <span class="self">self</span>.sampling_metrics,
+                sampling_metrics,
             ));
         }
     }
@@ -4300,7 +4454,7 @@
     ///
     /// Relay can extract metrics for sessions and transactions, which is controlled by
     /// configuration objects in the project config.
-    </span>extracted_metrics: ExtractedMetrics,
+    </span>extracted_metrics: ProcessingExtractedMetrics,
 
     <span class="doccomment">/// The state of the project that this envelope belongs to.
     </span>project_state: Arc&lt;ProjectState&gt;,
@@ -4364,18 +4518,13 @@
     </span><span class="kw">fn </span>remove_event(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
         <span class="self">self</span>.event = Annotated::empty();
     }
-
-    <span class="kw">fn </span>reject_event(<span class="kw-2">&amp;mut </span><span class="self">self</span>, outcome: Outcome) {
-        <span class="self">self</span>.remove_event();
-        <span class="self">self</span>.managed_envelope.reject_event(outcome);
-    }
 }
 
 <span class="doccomment">/// The view out of the [`ProcessEnvelopeState`] after processing.
 </span><span class="attr">#[derive(Debug)]
 </span><span class="kw">struct </span>ProcessingStateResult {
     managed_envelope: TypedEnvelope&lt;Processed&gt;,
-    extracted_metrics: ExtractedMetrics,
+    extracted_metrics: ProcessingExtractedMetrics,
 }
 
 <span class="doccomment">/// Response of the [`ProcessEnvelope`] message.
@@ -4825,15 +4974,14 @@
 
         <span class="comment">// When invoking the rate limiter, capture if the event item has been rate limited to also
         // remove it from the processing state eventually.
-        </span><span class="kw">let </span><span class="kw-2">mut </span>envelope_limiter =
-            EnvelopeLimiter::new(<span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>project_state.config), |item_scope, quantity| {
-                rate_limiter.is_rate_limited(quotas, item_scope, quantity, <span class="bool-val">false</span>)
-            });
+        </span><span class="kw">let </span><span class="kw-2">mut </span>envelope_limiter = EnvelopeLimiter::new(|item_scope, quantity| {
+            rate_limiter.is_rate_limited(quotas, item_scope, quantity, <span class="bool-val">false</span>)
+        });
 
         <span class="comment">// Tell the envelope limiter about the event, since it has been removed from the Envelope at
         // this stage in processing.
         </span><span class="kw">if let </span><span class="prelude-val">Some</span>(category) = event_category {
-            envelope_limiter.assume_event(category, state.event_metrics_extracted);
+            envelope_limiter.assume_event(category);
         }
 
         <span class="kw">let </span>scoping = state.managed_envelope.scoping();
@@ -4841,7 +4989,12 @@
             envelope_limiter.enforce(state.managed_envelope.envelope_mut(), <span class="kw-2">&amp;</span>scoping)<span class="question-mark">?
         </span>});
 
-        <span class="kw">if </span>limits.is_limited() {
+        <span class="comment">// Use the same rate limits as used for the envelope on the metrics.
+        // Those rate limits should not be checked for expiry or similar to ensure a consistent
+        // limiting of envelope items and metrics.
+        </span>state.extracted_metrics.enforce_limits(scoping, <span class="kw-2">&amp;</span>limits);
+
+        <span class="kw">if </span>!limits.is_empty() {
             <span class="self">self</span>.inner
                 .addrs
                 .project_cache
@@ -4866,7 +5019,7 @@
     </span><span class="kw">fn </span>extract_transaction_metrics(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;TransactionGroup&gt;,
-        sampling_result: <span class="kw-2">&amp;</span>SamplingResult,
+        sampling_decision: SamplingDecision,
         profile_id: <span class="prelude-ty">Option</span>&lt;ProfileId&gt;,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ProcessingError&gt; {
         <span class="kw">if </span>state.event_metrics_extracted {
@@ -4942,7 +5095,9 @@
                 .max_tag_value_length,
             global.options.span_extraction_sample_rate,
         );
-        state.extracted_metrics.project_metrics.extend(metrics);
+        state
+            .extracted_metrics
+            .extend_project_metrics(metrics, <span class="prelude-val">Some</span>(sampling_decision));
 
         <span class="kw">if </span>!state.project_state.has_feature(Feature::DiscardTransaction) {
             <span class="kw">let </span>transaction_from_dsc = state
@@ -4955,15 +5110,16 @@
                 config: tx_config,
                 generic_config: <span class="prelude-val">Some</span>(combined_config),
                 transaction_from_dsc,
-                sampling_result,
+                sampling_decision,
                 has_profile: profile_id.is_some(),
             };
 
-            state.extracted_metrics.extend(extractor.extract(event)<span class="question-mark">?</span>);
+            state
+                .extracted_metrics
+                .extend(extractor.extract(event)<span class="question-mark">?</span>, <span class="prelude-val">Some</span>(sampling_decision));
         }
 
         state.event_metrics_extracted = <span class="bool-val">true</span>;
-        state.managed_envelope.set_event_metrics_extracted();
 
         <span class="prelude-val">Ok</span>(())
     }
@@ -5191,20 +5347,18 @@
 
         <span class="comment">// Always run dynamic sampling on processing Relays,
         // but delay decision until inbound filters have been fully processed.
-        </span><span class="kw">let </span>sampling_result =
-            <span class="kw">if </span><span class="self">self</span>.inner.config.processing_enabled() || <span class="macro">matches!</span>(filter_run, FiltersStatus::Ok) {
-                dynamic_sampling::run(state, <span class="kw-2">&amp;</span><span class="self">self</span>.inner.config)
-            } <span class="kw">else </span>{
-                SamplingResult::NoMatch
-            };
+        </span><span class="kw">let </span>run_dynamic_sampling =
+            <span class="macro">matches!</span>(filter_run, FiltersStatus::Ok) || <span class="self">self</span>.inner.config.processing_enabled();
 
-        <span class="comment">// We avoid extracting metrics if we are not sampling the event while in non-processing
-        // Relays, in order to synchronize rate limits on indexed and processed transactions.
-        </span><span class="kw">if </span><span class="self">self</span>.inner.config.processing_enabled() || sampling_result.should_drop() {
-            <span class="self">self</span>.extract_transaction_metrics(state, <span class="kw-2">&amp;</span>sampling_result, profile_id)<span class="question-mark">?</span>;
-        }
+        <span class="kw">let </span>sampling_result = <span class="kw">match </span>run_dynamic_sampling {
+            <span class="bool-val">true </span>=&gt; dynamic_sampling::run(state, <span class="kw-2">&amp;</span><span class="self">self</span>.inner.config),
+            <span class="bool-val">false </span>=&gt; SamplingResult::Pending,
+        };
 
         <span class="kw">if let </span><span class="prelude-val">Some</span>(outcome) = sampling_result.into_dropped_outcome() {
+            <span class="comment">// Extract metrics here, we're about to drop the event/transaction.
+            </span><span class="self">self</span>.extract_transaction_metrics(state, SamplingDecision::Drop, profile_id)<span class="question-mark">?</span>;
+
             <span class="kw">let </span>keep_profiles = dynamic_sampling::forward_unsampled_profiles(state, <span class="kw-2">&amp;</span>global_config);
 
             <span class="comment">// Process profiles before dropping the transaction, if necessary.
@@ -5232,6 +5386,9 @@
         attachment::scrub(state);
 
         <span class="macro">if_processing!</span>(<span class="self">self</span>.inner.config, {
+            <span class="comment">// Always extract metrics in processing Relays for sampled items.
+            </span><span class="self">self</span>.extract_transaction_metrics(state, SamplingDecision::Keep, profile_id)<span class="question-mark">?</span>;
+
             profile::process(state, <span class="kw-2">&amp;</span><span class="self">self</span>.inner.config);
 
             <span class="kw">if </span>state
@@ -5242,6 +5399,7 @@
             }
 
             <span class="self">self</span>.enforce_quotas(state)<span class="question-mark">?</span>;
+
             span::maybe_discard_transaction(state);
         });
 
@@ -5522,7 +5680,7 @@
                         // requires recomputation of the context.
                         </span>state.managed_envelope.update();
 
-                        <span class="kw">let </span>has_metrics = !state.extracted_metrics.project_metrics.is_empty();
+                        <span class="kw">let </span>has_metrics = state.extracted_metrics.has_project_metrics();
 
                         state.extracted_metrics.send_metrics(
                             state.managed_envelope.envelope(),

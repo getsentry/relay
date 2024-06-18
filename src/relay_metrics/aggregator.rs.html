@@ -1626,6 +1626,22 @@
 <a href="#1626" id="1626">1626</a>
 <a href="#1627" id="1627">1627</a>
 <a href="#1628" id="1628">1628</a>
+<a href="#1629" id="1629">1629</a>
+<a href="#1630" id="1630">1630</a>
+<a href="#1631" id="1631">1631</a>
+<a href="#1632" id="1632">1632</a>
+<a href="#1633" id="1633">1633</a>
+<a href="#1634" id="1634">1634</a>
+<a href="#1635" id="1635">1635</a>
+<a href="#1636" id="1636">1636</a>
+<a href="#1637" id="1637">1637</a>
+<a href="#1638" id="1638">1638</a>
+<a href="#1639" id="1639">1639</a>
+<a href="#1640" id="1640">1640</a>
+<a href="#1641" id="1641">1641</a>
+<a href="#1642" id="1642">1642</a>
+<a href="#1643" id="1643">1643</a>
+<a href="#1644" id="1644">1644</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Core functionality of metrics aggregation.
 
 </span><span class="kw">use </span>std::collections::hash_map::Entry;
@@ -1692,6 +1708,7 @@
     timestamp: UnixTimestamp,
     metric_name: MetricName,
     tags: BTreeMap&lt;String, String&gt;,
+    extracted_from_indexed: bool,
 }
 
 <span class="kw">impl </span>BucketKey {
@@ -2353,6 +2370,7 @@
             timestamp,
             metric_name: bucket.name,
             tags: bucket.tags,
+            extracted_from_indexed: bucket.metadata.extracted_from_indexed,
         };
         <span class="kw">let </span>key = validate_bucket_key(key, <span class="kw-2">&amp;</span><span class="self">self</span>.config)<span class="question-mark">?</span>;
 
@@ -2640,6 +2658,7 @@
                         "c:transactions/foo@none",
                     ),
                     tags: {},
+                    extracted_from_indexed: false,
                 },
                 Counter(
                     85.0,
@@ -2689,10 +2708,11 @@
                 (<span class="string">"hello"</span>.to_owned(), <span class="string">"world"</span>.to_owned()),
                 (<span class="string">"answer"</span>.to_owned(), <span class="string">"42"</span>.to_owned()),
             ]),
+            extracted_from_indexed: <span class="bool-val">false</span>,
         };
         <span class="macro">assert_eq!</span>(
             bucket_key.cost(),
-            <span class="number">80 </span>+ <span class="comment">// BucketKey
+            <span class="number">88 </span>+ <span class="comment">// BucketKey
             </span><span class="number">5 </span>+ <span class="comment">// name
             </span>(<span class="number">5 </span>+ <span class="number">5 </span>+ <span class="number">6 </span>+ <span class="number">2</span>) <span class="comment">// tags
         </span>);
@@ -2735,6 +2755,7 @@
                         "c:transactions/foo@none",
                     ),
                     tags: {},
+                    extracted_from_indexed: false,
                 },
                 Counter(
                     84.0,
@@ -2748,6 +2769,7 @@
                         "c:transactions/foo@none",
                     ),
                     tags: {},
+                    extracted_from_indexed: false,
                 },
                 Counter(
                     42.0,
@@ -2870,6 +2892,7 @@
             timestamp: UnixTimestamp::now(),
             metric_name: <span class="string">"c:transactions/foo@none"</span>.into(),
             tags: BTreeMap::new(),
+            extracted_from_indexed: <span class="bool-val">false</span>,
         };
         <span class="kw">let </span>fixed_cost = bucket_key.cost() + mem::size_of::&lt;BucketValue&gt;();
         <span class="kw">for </span>(metric_name, metric_value, expected_added_cost) <span class="kw">in </span>[
@@ -3030,6 +3053,7 @@
                 tags.insert(<span class="string">"another\0garbage"</span>.to_owned(), <span class="string">"bye"</span>.to_owned());
                 tags
             },
+            extracted_from_indexed: <span class="bool-val">false</span>,
         };
 
         <span class="kw">let </span><span class="kw-2">mut </span>bucket_key = validate_bucket_key(bucket_key, <span class="kw-2">&amp;</span>test_config()).unwrap();
@@ -3055,6 +3079,7 @@
             timestamp: UnixTimestamp::now(),
             metric_name: <span class="string">"c:transactions/a_short_metric"</span>.into(),
             tags: BTreeMap::new(),
+            extracted_from_indexed: <span class="bool-val">false</span>,
         };
         <span class="macro">assert!</span>(validate_bucket_key(short_metric, <span class="kw-2">&amp;</span>test_config()).is_ok());
 
@@ -3063,6 +3088,7 @@
             timestamp: UnixTimestamp::now(),
             metric_name: <span class="string">"c:transactions/long_name_a_very_long_name_its_super_long_really_but_like_super_long_probably_the_longest_name_youve_seen_and_even_the_longest_name_ever_its_extremly_long_i_cant_tell_how_long_it_is_because_i_dont_have_that_many_fingers_thus_i_cant_count_the_many_characters_this_long_name_is"</span>.into(),
             tags: BTreeMap::new(),
+            extracted_from_indexed: <span class="bool-val">false</span>,
         };
         <span class="kw">let </span>validation = validate_bucket_key(long_metric, <span class="kw-2">&amp;</span>test_config());
 
@@ -3078,6 +3104,7 @@
             timestamp: UnixTimestamp::now(),
             metric_name: <span class="string">"c:transactions/a_short_metric_with_long_tag_key"</span>.into(),
             tags: BTreeMap::from([(<span class="string">"i_run_out_of_creativity_so_here_we_go_Lorem_Ipsum_is_simply_dummy_text_of_the_printing_and_typesetting_industry_Lorem_Ipsum_has_been_the_industrys_standard_dummy_text_ever_since_the_1500s_when_an_unknown_printer_took_a_galley_of_type_and_scrambled_it_to_make_a_type_specimen_book"</span>.into(), <span class="string">"tag_value"</span>.into())]),
+            extracted_from_indexed: <span class="bool-val">false</span>,
         };
         <span class="kw">let </span>validation = validate_bucket_key(short_metric_long_tag_key, <span class="kw-2">&amp;</span>test_config()).unwrap();
         <span class="macro">assert_eq!</span>(validation.tags.len(), <span class="number">0</span>);
@@ -3087,6 +3114,7 @@
             timestamp: UnixTimestamp::now(),
             metric_name: <span class="string">"c:transactions/a_short_metric_with_long_tag_value"</span>.into(),
             tags: BTreeMap::from([(<span class="string">"tag_key"</span>.into(), <span class="string">"i_run_out_of_creativity_so_here_we_go_Lorem_Ipsum_is_simply_dummy_text_of_the_printing_and_typesetting_industry_Lorem_Ipsum_has_been_the_industrys_standard_dummy_text_ever_since_the_1500s_when_an_unknown_printer_took_a_galley_of_type_and_scrambled_it_to_make_a_type_specimen_book"</span>.into())]),
+            extracted_from_indexed: <span class="bool-val">false</span>,
         };
         <span class="kw">let </span>validation = validate_bucket_key(short_metric_long_tag_value, <span class="kw-2">&amp;</span>test_config()).unwrap();
         <span class="macro">assert_eq!</span>(validation.tags.len(), <span class="number">0</span>);
@@ -3104,6 +3132,7 @@
             timestamp: UnixTimestamp::now(),
             metric_name: <span class="string">"c:transactions/a_short_metric"</span>.into(),
             tags: BTreeMap::from([(<span class="string">"foo"</span>.into(), tag_value.clone())]),
+            extracted_from_indexed: <span class="bool-val">false</span>,
         };
         <span class="kw">let </span>validated_bucket = validate_metric_tags(short_metric, <span class="kw-2">&amp;</span>test_config());
         <span class="macro">assert_eq!</span>(validated_bucket.tags[<span class="string">"foo"</span>], tag_value);
@@ -3211,6 +3240,7 @@
                 received_at: Some(
                     UnixTimestamp(999994711),
                 ),
+                extracted_from_indexed: false,
             },
         ]
         "###</span>);
@@ -3237,6 +3267,7 @@
             timestamp,
             metric_name: <span class="string">"c:transactions/foo"</span>.into(),
             tags: BTreeMap::new(),
+            extracted_from_indexed: <span class="bool-val">false</span>,
         };
 
         <span class="comment">// Second bucket has a timestamp in this hour.
@@ -3246,6 +3277,7 @@
             timestamp,
             metric_name: <span class="string">"c:transactions/foo"</span>.into(),
             tags: BTreeMap::new(),
+            extracted_from_indexed: <span class="bool-val">false</span>,
         };
 
         <span class="kw">let </span>flush_time_1 = get_flush_time(<span class="kw-2">&amp;</span>config, reference_time, <span class="kw-2">&amp;</span>bucket_key_1);
