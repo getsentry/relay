@@ -1331,20 +1331,10 @@ def test_span_reject_invalid_timestamps(
 
 
 def test_span_ingestion_with_performance_scores(
-    mini_sentry, relay_with_processing, spans_consumer, metrics_consumer
+    mini_sentry, relay_with_processing, spans_consumer
 ):
     spans_consumer = spans_consumer()
-    metrics_consumer = metrics_consumer()
-    relay = relay_with_processing(
-        options={
-            "aggregator": {
-                "bucket_interval": 1,
-                "initial_delay": 0,
-                "debounce_delay": 0,
-                "shift_key": "none",
-            }
-        }
-    )
+    relay = relay_with_processing()
 
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
