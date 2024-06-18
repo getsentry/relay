@@ -321,6 +321,11 @@ impl<D> RequestMeta<D> {
     pub fn set_from_internal_relay(&mut self, value: bool) {
         self.from_internal_relay = value;
     }
+
+    /// Sets the client for this [`RequestMeta`] on the current envelope.
+    pub fn set_client(&mut self, client: String) {
+        self.client = Some(client);
+    }
 }
 
 impl RequestMeta {

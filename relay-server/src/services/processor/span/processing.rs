@@ -21,18 +21,19 @@ use relay_log::protocol::{Attachment, AttachmentType};
 use relay_metrics::{aggregator::AggregatorConfig, MetricNamespace, UnixTimestamp};
 use relay_pii::PiiProcessor;
 use relay_protocol::{Annotated, Empty};
+use relay_quotas::DataCategory;
 use relay_spans::{otel_to_sentry_span, otel_trace::Span as OtelSpan};
 
 use crate::envelope::{ContentType, Envelope, Item, ItemType};
 use crate::metrics_extraction::generic::extract_metrics;
-use crate::services::outcome::{DiscardReason, Outcome, RuleCategories};
+use crate::services::outcome::{DiscardReason, Outcome};
 use crate::services::processor::span::extract_transaction_span;
 use crate::services::processor::{
     dynamic_sampling, Addrs, ProcessEnvelope, ProcessEnvelopeState, ProcessingError,
     ProcessingGroup, SpanGroup, TransactionGroup,
 };
 use crate::statsd::{RelayCounters, RelayHistograms};
-use crate::utils::{sample, BufferGuard, ItemAction, SamplingResult};
+use crate::utils::{sample, BufferGuard, ItemAction};
 use relay_event_normalization::span::ai::extract_ai_measurements;
 use thiserror::Error;
 
@@ -51,12 +52,7 @@ pub fn process(
 
     // We only implement trace-based sampling rules for now, which can be computed
     // once for all spans in the envelope.
-    let sampling_outcome = match dynamic_sampling::run(state, &config) {
-        SamplingResult::Match(sampling_match) if sampling_match.should_drop() => Some(
-            Outcome::FilteredSampling(RuleCategories::from(sampling_match.into_matched_rules())),
-        ),
-        _ => None,
-    };
+    let sampling_result = dynamic_sampling::run(state, &config);
 
     let span_metrics_extraction_config = match state.project_state.config.metric_extraction {
         ErrorBoundary::Ok(ref config) if config.is_enabled() => Some(config),
@@ -93,6 +89,7 @@ pub fn process(
     let client_ip = state.managed_envelope.envelope().meta().client_addr();
     let filter_settings = &state.project_state.config.filter_settings;
 
+    let mut dynamic_sampling_dropped_spans = 0;
     state.managed_envelope.retain_items(|item| {
         let mut annotated_span = match item.ty() {
             ItemType::OtelSpan => match serde_json::from_slice::<OtelSpan>(&item.payload()) {
@@ -161,16 +158,19 @@ pub fn process(
                 span,
                 CombinedMetricExtractionConfig::new(global_metrics_config, config),
             );
-            state.extracted_metrics.project_metrics.extend(metrics);
+            state
+                .extracted_metrics
+                .extend_project_metrics(metrics, Some(sampling_result.decision()));
             item.set_metrics_extracted(true);
         }
 
-        if let Some(sampling_outcome) = &sampling_outcome {
-            relay_log::trace!(
-                "Dropping span because of sampling rule {}",
-                sampling_outcome
-            );
-            return ItemAction::Drop(sampling_outcome.clone());
+        if sampling_result.decision().is_drop() {
+            relay_log::trace!("Dropping span because of sampling rule {sampling_result:?}");
+            dynamic_sampling_dropped_spans += 1;
+            // Drop silently and not with an outcome, we only want to emit an outcome for the
+            // indexed category if the span was dropped by dynamic sampling.
+            // Dropping through the envelope will emit for both categories.
+            return ItemAction::DropSilently;
         }
 
         if let Err(e) = scrub(&mut annotated_span, &state.project_state.config) {
@@ -226,6 +226,14 @@ pub fn process(
 
         ItemAction::Keep
     });
+
+    if let Some(outcome) = sampling_result.into_dropped_outcome() {
+        state.managed_envelope.track_outcome(
+            outcome,
+            DataCategory::SpanIndexed,
+            dynamic_sampling_dropped_spans,
+        );
+    }
 
     let mut transaction_count = 0;
     for transaction in extracted_transactions {

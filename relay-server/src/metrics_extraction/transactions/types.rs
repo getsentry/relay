@@ -161,7 +161,7 @@ impl From<UsageTags> for BTreeMap<String, String> {
     fn from(tags: UsageTags) -> Self {
         let mut map = BTreeMap::new();
         if tags.has_profile {
-            map.insert("has_profile".to_string(), "true".to_string());
+            map.insert("has_profile".to_owned(), "true".to_owned());
         }
         map
     }
@@ -178,11 +178,11 @@ impl From<TransactionMeasurementTags> for BTreeMap<String, String> {
     fn from(value: TransactionMeasurementTags) -> Self {
         let mut map: BTreeMap<String, String> = value.universal_tags.into();
         if let Some(decision) = value.measurement_rating {
-            map.insert("measurement_rating".to_string(), decision);
+            map.insert("measurement_rating".to_owned(), decision);
         }
         if let Some(score_profile_version) = value.score_profile_version {
             map.insert(
-                "sentry.score_profile_version".to_string(),
+                "sentry.score_profile_version".to_owned(),
                 score_profile_version,
             );
         }

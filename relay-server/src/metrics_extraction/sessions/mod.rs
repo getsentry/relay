@@ -496,6 +496,7 @@ mod tests {
                     received_at: Some(
                         UnixTimestamp(0),
                     ),
+                    extracted_from_indexed: false,
                 },
             },
             Bucket {
@@ -518,6 +519,7 @@ mod tests {
                     received_at: Some(
                         UnixTimestamp(0),
                     ),
+                    extracted_from_indexed: false,
                 },
             },
             Bucket {
@@ -540,6 +542,7 @@ mod tests {
                     received_at: Some(
                         UnixTimestamp(0),
                     ),
+                    extracted_from_indexed: false,
                 },
             },
             Bucket {
@@ -562,6 +565,7 @@ mod tests {
                     received_at: Some(
                         UnixTimestamp(0),
                     ),
+                    extracted_from_indexed: false,
                 },
             },
             Bucket {
@@ -584,6 +588,7 @@ mod tests {
                     received_at: Some(
                         UnixTimestamp(0),
                     ),
+                    extracted_from_indexed: false,
                 },
             },
             Bucket {
@@ -606,6 +611,7 @@ mod tests {
                     received_at: Some(
                         UnixTimestamp(0),
                     ),
+                    extracted_from_indexed: false,
                 },
             },
             Bucket {
@@ -630,6 +636,7 @@ mod tests {
                     received_at: Some(
                         UnixTimestamp(0),
                     ),
+                    extracted_from_indexed: false,
                 },
             },
         ]
