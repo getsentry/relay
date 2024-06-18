@@ -136,6 +136,7 @@ def test_monitor_endpoint_embedded_auth_with_processing(
     assert message["message_type"] == "check_in"
     assert message["start_time"] is not None
     assert message["project_id"] == project_id
+    assert message["sdk"] == "relay-http"
     assert check_in == {
         "check_in_id": "00000000000000000000000000000000",
         "monitor_slug": "my-monitor",

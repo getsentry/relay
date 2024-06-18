@@ -1,3 +1,4 @@
+use crate::constants::DEFAULT_CHECK_IN_CLIENT;
 use axum::extract::{DefaultBodyLimit, Path, Query};
 use axum::http::{Request, StatusCode};
 use axum::response::IntoResponse;
@@ -31,7 +32,7 @@ struct MonitorQuery {
 async fn handle<B>(
     state: ServiceState,
     content_type: RawContentType,
-    meta: RequestMeta,
+    mut meta: RequestMeta,
     Path(path): Path<MonitorPath>,
     request: Request<B>,
 ) -> axum::response::Result<impl IntoResponse>
@@ -59,6 +60,12 @@ where
 
     let json = serde_json::to_vec(&check_in).map_err(BadStoreRequest::InvalidJson)?;
 
+    // In case the `client` was not specified in the `RequestMeta` we mark the client as the Relay
+    // HTTP endpoint since we don't know from which client the request came from.
+    if meta.client().is_none() {
+        meta.set_client(DEFAULT_CHECK_IN_CLIENT.to_string());
+    }
+
     let mut envelope = Envelope::from_request(Some(EventId::new()), meta);
     let mut item = Item::new(ItemType::CheckIn);
     item.set_payload(ContentType::Json, json);
@@ -70,7 +77,7 @@ where
         Err(error) => return Err(error.into()),
     };
 
-    // Event will be proccessed by Sentry, respond with a 202
+    // Event will be processed by Sentry, respond with a 202
     Ok(StatusCode::ACCEPTED)
 }
 

@@ -28,3 +28,6 @@ pub const DEFAULT_EVENT_RETENTION: u16 = 90;
 
 /// Maximum size of JSON request bodies.
 pub const MAX_JSON_SIZE: usize = 262_144;
+
+/// The default client used for check ins whenever the incoming request has no client set.
+pub const DEFAULT_CHECK_IN_CLIENT: &str = "relay-http";
