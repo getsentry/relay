@@ -791,7 +791,7 @@ impl Project {
         outcome_aggregator: &Addr<TrackOutcome>,
         metric_outcomes: &MetricOutcomes,
     ) {
-        let buckets = self.state.update(project_state, &self.config);
+        let buckets = self.state.update(project_state);
 
         if let Some(buckets) = buckets {
             if !buckets.is_empty() {

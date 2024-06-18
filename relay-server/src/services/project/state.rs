@@ -73,36 +73,37 @@ impl State {
 
     /// Sets the cached state using provided `ProjectState`.
     /// If the variant was pending, the buckets will be returned.
-    pub fn update(
-        &mut self,
-        project_state: &Arc<ProjectState>,
-        config: &Config,
-    ) -> Option<Buckets<Filtered>> {
-        if project_state.disabled() {
-            self.inner = InternalState::Disabled;
-            None
+    pub fn update(&mut self, project_state: &Arc<ProjectState>) -> Option<Buckets<Filtered>> {
+        let Self {
+            config,
+            inner: old_state,
+        } = self;
+
+        let new_state = if project_state.disabled() {
+            InternalState::Disabled
         } else if project_state.invalid()
             || matches!(project_state.check_expiry(config), Expiry::Expired)
         {
             // Invalid or expired means we'll try again, set state to pending.
-            // TODO: ensure we'll fetch here (unite this function with get_or_fetch_state).
-            match self.inner {
-                InternalState::Pending(_) => {}
+            match old_state {
+                InternalState::Pending(_) => {
+                    // Early return to prevent having to take ownership of buffer:
+                    return None;
+                }
                 InternalState::Cached(_) | InternalState::Disabled => {
-                    self.inner = InternalState::pending(&self.config)
+                    // TODO: ensure we'll fetch here (unite this function with get_or_fetch_state).
+                    InternalState::pending(&self.config)
                 }
             }
-            None
         } else {
-            // Set state to cached and return buffer.
-            let old = std::mem::replace(
-                &mut self.inner,
-                InternalState::Cached(project_state.clone()),
-            );
-            match old {
-                InternalState::Pending(agg) => Some(Buckets::new(agg.into_buckets())),
-                _ => None,
-            }
+            InternalState::Cached(project_state.clone())
+        };
+
+        let old_state = std::mem::replace(&mut self.inner, new_state);
+
+        match old_state {
+            InternalState::Pending(agg) => Some(Buckets::new(agg.into_buckets())),
+            InternalState::Cached(_) | InternalState::Disabled => None,
         }
     }
 }
