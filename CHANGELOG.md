@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Internal**:
+
+- Aggregate metrics before rate limiting. ([#3746](https://github.com/getsentry/relay/pull/3746))
+
 ## 24.6.0
 
 **Bug fixes**:
