@@ -162,21 +162,10 @@ pub struct AggregatorConfig {
     /// The initial delay in seconds to wait before flushing a bucket.
     ///
     /// Defaults to `30` seconds. Before sending an aggregated bucket, this is the time Relay waits
-    /// for buckets that are being reported in real time. This should be higher than the
-    /// `debounce_delay`.
+    /// for buckets that are being reported in real time.
     ///
     /// Relay applies up to a full `bucket_interval` of additional jitter after the initial delay to spread out flushing real time buckets.
     pub initial_delay: u64,
-
-    /// The delay in seconds to wait before flushing a backdated buckets.
-    ///
-    /// Defaults to `10` seconds. Metrics can be sent with a past timestamp. Relay wait this time
-    /// before sending such a backdated bucket to the upsteam. This should be lower than
-    /// `initial_delay`.
-    ///
-    /// Unlike `initial_delay`, the debounce delay starts with the exact moment the first metric
-    /// is added to a backdated bucket.
-    pub debounce_delay: u64,
 
     /// The age in seconds of the oldest allowed bucket timestamp.
     ///
@@ -232,11 +221,6 @@ pub struct AggregatorConfig {
 }
 
 impl AggregatorConfig {
-    /// The delay to debounce backdated flushes.
-    fn debounce_delay(&self) -> Duration {
-        Duration::from_secs(self.debounce_delay)
-    }
-
     /// Returns the time width buckets.
     fn bucket_interval(&self) -> Duration {
         Duration::from_secs(self.bucket_interval)
@@ -301,7 +285,6 @@ impl Default for AggregatorConfig {
         Self {
             bucket_interval: 10,
             initial_delay: 30,
-            debounce_delay: 10,
             max_secs_in_past: 5 * 24 * 60 * 60, // 5 days, as for sessions
             max_secs_in_future: 60,             // 1 minute
             max_name_length: 200,
@@ -477,8 +460,7 @@ impl fmt::Debug for CostTracker {
 
 /// Returns the instant at which a bucket should be flushed.
 ///
-/// Recent buckets are flushed after a grace period of `initial_delay`. Backdated buckets, that
-/// is, buckets that lie in the past, are flushed after the shorter `debounce_delay`.
+/// All buckets are flushed after a grace period of `initial_delay`.
 fn get_flush_time(
     config: &AggregatorConfig,
     reference_time: Instant,
@@ -506,7 +488,7 @@ fn get_flush_time(
         let floored_timestamp = (now.as_secs() / config.bucket_interval) * config.bucket_interval;
         UnixTimestamp::from_secs(floored_timestamp)
             + config.bucket_interval()
-            + config.debounce_delay()
+            + config.initial_delay()
     } else {
         // If the initial flush is still pending, use that.
         initial_flush
@@ -961,7 +943,6 @@ mod tests {
         AggregatorConfig {
             bucket_interval: 1,
             initial_delay: 0,
-            debounce_delay: 0,
             max_secs_in_past: 50 * 365 * 24 * 60 * 60,
             max_secs_in_future: 50 * 365 * 24 * 60 * 60,
             max_name_length: 200,
@@ -1310,7 +1291,6 @@ mod tests {
         let config = AggregatorConfig {
             bucket_interval: 10,
             initial_delay: 0,
-            debounce_delay: 0,
             ..Default::default()
         };
 
@@ -1330,7 +1310,6 @@ mod tests {
         let config = AggregatorConfig {
             bucket_interval: 10,
             initial_delay: 0,
-            debounce_delay: 0,
             ..Default::default()
         };
 
@@ -1347,7 +1326,6 @@ mod tests {
         let config = AggregatorConfig {
             bucket_interval: 10,
             initial_delay: 0,
-            debounce_delay: 0,
             ..Default::default()
         };
 
@@ -1366,7 +1344,6 @@ mod tests {
         let config = AggregatorConfig {
             bucket_interval: 10,
             initial_delay: 0,
-            debounce_delay: 0,
             ..Default::default()
         };
 
@@ -1607,7 +1584,6 @@ mod tests {
         let mut config = test_config();
         config.bucket_interval = 3600;
         config.initial_delay = 1300;
-        config.debounce_delay = 1300;
         config.flush_partitions = Some(10);
         config.flush_batching = FlushBatching::Partition;
 
