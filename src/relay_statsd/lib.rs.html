@@ -667,6 +667,16 @@
 <a href="#667" id="667">667</a>
 <a href="#668" id="668">668</a>
 <a href="#669" id="669">669</a>
+<a href="#670" id="670">670</a>
+<a href="#671" id="671">671</a>
+<a href="#672" id="672">672</a>
+<a href="#673" id="673">673</a>
+<a href="#674" id="674">674</a>
+<a href="#675" id="675">675</a>
+<a href="#676" id="676">676</a>
+<a href="#677" id="677">677</a>
+<a href="#678" id="678">678</a>
+<a href="#679" id="679">679</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! A high-level StatsD metric client built on cadence.
 //!
 //! ## Defining Metrics
@@ -1198,24 +1208,34 @@
 </span><span class="macro">macro_rules!</span> metric {
     <span class="comment">// counter increment
     </span>(counter(<span class="macro-nonterminal">$id</span>:expr) += <span class="macro-nonterminal">$value</span>:expr $(, <span class="macro-nonterminal">$k</span>:ident = <span class="macro-nonterminal">$v</span>:expr)* $(,)<span class="question-mark">?</span>) =&gt; {
-        <span class="macro-nonterminal">$crate::with_client</span>(|client| {
-            <span class="kw">use </span><span class="macro-nonterminal">$crate::_pred</span>::<span class="kw-2">*</span>;
-            client.send_metric(
-                client.count_with_tags(<span class="kw-2">&amp;</span><span class="macro-nonterminal">$crate::CounterMetric::name</span>(<span class="kw-2">&amp;</span><span class="macro-nonterminal">$id</span>), <span class="macro-nonterminal">$value</span>)
-                $(.with_tag(<span class="macro">stringify!</span>(<span class="macro-nonterminal">$k</span>), <span class="macro-nonterminal">$v</span>))*
-            )
-        })
+        <span class="kw">match </span><span class="macro-nonterminal">$value </span>{
+            value <span class="kw">if </span>value != <span class="number">0 </span>=&gt; {
+                <span class="macro-nonterminal">$crate::with_client</span>(|client| {
+                    <span class="kw">use </span><span class="macro-nonterminal">$crate::_pred</span>::<span class="kw-2">*</span>;
+                    client.send_metric(
+                        client.count_with_tags(<span class="kw-2">&amp;</span><span class="macro-nonterminal">$crate::CounterMetric::name</span>(<span class="kw-2">&amp;</span><span class="macro-nonterminal">$id</span>), value)
+                        $(.with_tag(<span class="macro">stringify!</span>(<span class="macro-nonterminal">$k</span>), <span class="macro-nonterminal">$v</span>))*
+                    )
+                })
+            },
+            <span class="kw">_ </span>=&gt; {},
+        };
     };
 
     <span class="comment">// counter decrement
     </span>(counter(<span class="macro-nonterminal">$id</span>:expr) -= <span class="macro-nonterminal">$value</span>:expr $(, <span class="macro-nonterminal">$k</span>:ident = <span class="macro-nonterminal">$v</span>:expr)* $(,)<span class="question-mark">?</span>) =&gt; {
-        <span class="macro-nonterminal">$crate::with_client</span>(|client| {
-            <span class="kw">use </span><span class="macro-nonterminal">$crate::_pred</span>::<span class="kw-2">*</span>;
-            client.send_metric(
-                client.count_with_tags(<span class="kw-2">&amp;</span><span class="macro-nonterminal">$crate::CounterMetric::name</span>(<span class="kw-2">&amp;</span><span class="macro-nonterminal">$id</span>), -<span class="macro-nonterminal">$value</span>)
-                    $(.with_tag(<span class="macro">stringify!</span>(<span class="macro-nonterminal">$k</span>), <span class="macro-nonterminal">$v</span>))*
-            )
-        })
+        <span class="kw">match </span><span class="macro-nonterminal">$value </span>{
+            value <span class="kw">if </span>value != <span class="number">0 </span>=&gt; {
+                <span class="macro-nonterminal">$crate::with_client</span>(|client| {
+                    <span class="kw">use </span><span class="macro-nonterminal">$crate::_pred</span>::<span class="kw-2">*</span>;
+                    client.send_metric(
+                        client.count_with_tags(<span class="kw-2">&amp;</span><span class="macro-nonterminal">$crate::CounterMetric::name</span>(<span class="kw-2">&amp;</span><span class="macro-nonterminal">$id</span>), -value)
+                            $(.with_tag(<span class="macro">stringify!</span>(<span class="macro-nonterminal">$k</span>), <span class="macro-nonterminal">$v</span>))*
+                    )
+                })
+            },
+            <span class="kw">_ </span>=&gt; {},
+        };
     };
 
     <span class="comment">// gauge set

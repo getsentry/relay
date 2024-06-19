@@ -1324,7 +1324,7 @@
             <span class="kw">_ </span>=&gt; (),
         }
     }
-    <span class="kw">if </span>has_feedback &amp;&amp; num_attachments &gt; <span class="number">0 </span>{
+    <span class="kw">if </span>has_feedback {
         <span class="macro">metric!</span>(counter(RelayCounters::FeedbackAttachments) += num_attachments);
     }
 }
