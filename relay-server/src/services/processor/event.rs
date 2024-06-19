@@ -69,7 +69,7 @@ pub fn extract<G: EventProcessing>(
         return Err(ProcessingError::DuplicateItem(duplicate.ty().clone()));
     }
 
-    let normalization_skipped = config.processing_enabled()
+    let skip_normalization = config.processing_enabled()
         && global_config.options.processing_disable_normalization
         && event_fully_normalized;
 
@@ -82,7 +82,7 @@ pub fn extract<G: EventProcessing>(
             // Event items can never include transactions, so retain the event type and let
             // inference deal with this during normalization.
             if let Some(event) = annotated_event.value_mut() {
-                if !normalization_skipped {
+                if !skip_normalization {
                     event.ty.set_value(None);
                 }
             }

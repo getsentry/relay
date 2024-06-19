@@ -1408,13 +1408,12 @@ impl EnvelopeProcessorService {
             .envelope()
             .get_item_by(|item| item.attachment_type().is_some())
             .and_then(|item| item.attachment_type())
-            .map(|ty| ty.to_string())
-            .unwrap_or("none".to_string());
+            .map(|ty| ty.to_string());
 
         if !state.has_event() {
             metric!(
                 counter(RelayCounters::NormalizationDecision) += 1,
-                attachment_type = attachment_type.as_ref(),
+                attachment_type = attachment_type.as_deref().unwrap_or("none"),
                 decision = "no_event"
             );
 
@@ -1436,7 +1435,7 @@ impl EnvelopeProcessorService {
                 {
                     metric!(
                         counter(RelayCounters::NormalizationDecision) += 1,
-                        attachment_type = attachment_type.as_ref(),
+                        attachment_type = attachment_type.as_deref().unwrap_or("none"),
                         decision = "skip_normalized"
                     );
                     return Ok(());
@@ -1448,7 +1447,7 @@ impl EnvelopeProcessorService {
 
         metric!(
             counter(RelayCounters::NormalizationDecision) += 1,
-            attachment_type = attachment_type.as_ref(),
+            attachment_type = attachment_type.as_deref().unwrap_or("none"),
             decision = if full_normalization {
                 "full_normalization"
             } else {

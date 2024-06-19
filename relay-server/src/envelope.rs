@@ -572,6 +572,8 @@ pub struct ItemHeaders {
     ///
     /// If the event has been partially normalized, this flag is false. By
     /// default, all Relays run some normalization.
+    ///
+    /// Currently only used for events.
     #[serde(default, skip_serializing_if = "is_false")]
     fully_normalized: bool,
 
