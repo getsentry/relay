@@ -17,6 +17,7 @@ clean: ## remove python virtual environment and delete cached rust files togethe
 # Builds
 
 build: setup-git ## build relay with all features enabled without debug info
+	@echo ${CARGO_AGS}
 	cargo +stable build --all-features ${CARGO_AGS}
 .PHONY: build
 
