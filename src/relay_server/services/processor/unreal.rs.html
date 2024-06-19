@@ -41,6 +41,10 @@
 <a href="#41" id="41">41</a>
 <a href="#42" id="42">42</a>
 <a href="#43" id="43">43</a>
+<a href="#44" id="44">44</a>
+<a href="#45" id="45">45</a>
+<a href="#46" id="46">46</a>
+<a href="#47" id="47">47</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Unreal 4 processor related code.
 //!
 //! These functions are included only in the processing mode.
@@ -81,7 +85,11 @@
 /// If the event does not contain an unreal context, this function does not perform any action.
 /// If there was no event payload prior to this function, it is created.
 </span><span class="kw">pub fn </span>process(state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;ErrorGroup&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;(), ProcessingError&gt; {
-    utils::process_unreal_envelope(<span class="kw-2">&amp;mut </span>state.event, state.managed_envelope.envelope_mut())
-        .map_err(ProcessingError::InvalidUnrealReport)
+    <span class="kw">if </span>utils::process_unreal_envelope(<span class="kw-2">&amp;mut </span>state.event, state.managed_envelope.envelope_mut())
+        .map_err(ProcessingError::InvalidUnrealReport)<span class="question-mark">?
+    </span>{
+        state.event_fully_normalized = <span class="bool-val">false</span>;
+    }
+    <span class="prelude-val">Ok</span>(())
 }
 </code></pre></div></section></main></body></html>

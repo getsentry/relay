@@ -933,6 +933,7 @@
 <a href="#933" id="933">933</a>
 <a href="#934" id="934">934</a>
 <a href="#935" id="935">935</a>
+<a href="#936" id="936">936</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Contains the processing-only functionality.
 
 </span><span class="kw">use </span>std::error::Error;
@@ -1712,6 +1713,7 @@
             event_metrics_extracted: <span class="bool-val">false</span>,
             spans_extracted: <span class="bool-val">false</span>,
             reservoir: ReservoirEvaluator::new(ReservoirCounters::default()),
+            event_fully_normalized: <span class="bool-val">false</span>,
         }
     }
 

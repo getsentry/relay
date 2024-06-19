@@ -93,6 +93,8 @@
 <a href="#93" id="93">93</a>
 <a href="#94" id="94">94</a>
 <a href="#95" id="95">95</a>
+<a href="#96" id="96">96</a>
+<a href="#97" id="97">97</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Attachments processor code.
 
 </span><span class="kw">use </span>std::error::Error;
@@ -129,10 +131,12 @@
         <span class="kw">let </span>event = state.event.get_or_insert_with(Event::default);
         state.metrics.bytes_ingested_event_minidump = Annotated::new(item.len() <span class="kw">as </span>u64);
         utils::process_minidump(event, <span class="kw-2">&amp;</span>item.payload());
+        state.event_fully_normalized = <span class="bool-val">false</span>;
     } <span class="kw">else if let </span><span class="prelude-val">Some</span>(item) = apple_crash_report_attachment {
         <span class="kw">let </span>event = state.event.get_or_insert_with(Event::default);
         state.metrics.bytes_ingested_event_applecrashreport = Annotated::new(item.len() <span class="kw">as </span>u64);
         utils::process_apple_crash_report(event, <span class="kw-2">&amp;</span>item.payload());
+        state.event_fully_normalized = <span class="bool-val">false</span>;
     }
 }
 

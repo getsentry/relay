@@ -478,6 +478,10 @@
 <a href="#478" id="478">478</a>
 <a href="#479" id="479">479</a>
 <a href="#480" id="480">480</a>
+<a href="#481" id="481">481</a>
+<a href="#482" id="482">482</a>
+<a href="#483" id="483">483</a>
+<a href="#484" id="484">484</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>chrono::{TimeZone, Utc};
 <span class="kw">use </span>relay_config::Config;
 <span class="kw">use </span>relay_event_schema::protocol::{
@@ -772,10 +776,14 @@
     }
 }
 
-<span class="kw">pub fn </span>process_unreal_envelope(
+<span class="doccomment">/// Processes an unreal envelope.
+///
+/// This function returns either the processing error, or a boolean indicating
+/// whether the envelope contained an unreal item.
+</span><span class="kw">pub fn </span>process_unreal_envelope(
     event: <span class="kw-2">&amp;mut </span>Annotated&lt;Event&gt;,
     envelope: <span class="kw-2">&amp;mut </span>Envelope,
-) -&gt; <span class="prelude-ty">Result</span>&lt;(), Unreal4Error&gt; {
+) -&gt; <span class="prelude-ty">Result</span>&lt;bool, Unreal4Error&gt; {
     <span class="kw">let </span>user_header = envelope
         .get_header(UNREAL_USER_HEADER)
         .and_then(Value::as_str);
@@ -786,7 +794,7 @@
 
     <span class="comment">// Early exit if there is no information.
     </span><span class="kw">if </span>user_header.is_none() &amp;&amp; context_item.is_none() &amp;&amp; logs_item.is_none() {
-        <span class="kw">return </span><span class="prelude-val">Ok</span>(());
+        <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="bool-val">false</span>);
     }
 
     <span class="comment">// If we have UE4 info, ensure an event is there to fill. DO NOT fill if there is no unreal
@@ -817,7 +825,7 @@
         merge_unreal_context(event, context);
     }
 
-    <span class="prelude-val">Ok</span>(())
+    <span class="prelude-val">Ok</span>(<span class="bool-val">true</span>)
 }
 
 <span class="attr">#[cfg(test)]

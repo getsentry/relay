@@ -3735,6 +3735,56 @@
 <a href="#3735" id="3735">3735</a>
 <a href="#3736" id="3736">3736</a>
 <a href="#3737" id="3737">3737</a>
+<a href="#3738" id="3738">3738</a>
+<a href="#3739" id="3739">3739</a>
+<a href="#3740" id="3740">3740</a>
+<a href="#3741" id="3741">3741</a>
+<a href="#3742" id="3742">3742</a>
+<a href="#3743" id="3743">3743</a>
+<a href="#3744" id="3744">3744</a>
+<a href="#3745" id="3745">3745</a>
+<a href="#3746" id="3746">3746</a>
+<a href="#3747" id="3747">3747</a>
+<a href="#3748" id="3748">3748</a>
+<a href="#3749" id="3749">3749</a>
+<a href="#3750" id="3750">3750</a>
+<a href="#3751" id="3751">3751</a>
+<a href="#3752" id="3752">3752</a>
+<a href="#3753" id="3753">3753</a>
+<a href="#3754" id="3754">3754</a>
+<a href="#3755" id="3755">3755</a>
+<a href="#3756" id="3756">3756</a>
+<a href="#3757" id="3757">3757</a>
+<a href="#3758" id="3758">3758</a>
+<a href="#3759" id="3759">3759</a>
+<a href="#3760" id="3760">3760</a>
+<a href="#3761" id="3761">3761</a>
+<a href="#3762" id="3762">3762</a>
+<a href="#3763" id="3763">3763</a>
+<a href="#3764" id="3764">3764</a>
+<a href="#3765" id="3765">3765</a>
+<a href="#3766" id="3766">3766</a>
+<a href="#3767" id="3767">3767</a>
+<a href="#3768" id="3768">3768</a>
+<a href="#3769" id="3769">3769</a>
+<a href="#3770" id="3770">3770</a>
+<a href="#3771" id="3771">3771</a>
+<a href="#3772" id="3772">3772</a>
+<a href="#3773" id="3773">3773</a>
+<a href="#3774" id="3774">3774</a>
+<a href="#3775" id="3775">3775</a>
+<a href="#3776" id="3776">3776</a>
+<a href="#3777" id="3777">3777</a>
+<a href="#3778" id="3778">3778</a>
+<a href="#3779" id="3779">3779</a>
+<a href="#3780" id="3780">3780</a>
+<a href="#3781" id="3781">3781</a>
+<a href="#3782" id="3782">3782</a>
+<a href="#3783" id="3783">3783</a>
+<a href="#3784" id="3784">3784</a>
+<a href="#3785" id="3785">3785</a>
+<a href="#3786" id="3786">3786</a>
+<a href="#3787" id="3787">3787</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
@@ -4475,6 +4525,12 @@
 
     <span class="doccomment">/// Reservoir evaluator that we use for dynamic sampling.
     </span>reservoir: ReservoirEvaluator&lt;<span class="lifetime">'a</span>&gt;,
+
+    <span class="doccomment">/// Track whether the event has already been fully normalized.
+    ///
+    /// If the processing pipeline applies changes to the event, it should
+    /// disable this flag to ensure the event is always normalized.
+    </span>event_fully_normalized: bool,
 }
 
 <span class="kw">impl</span>&lt;<span class="lifetime">'a</span>, Group&gt; ProcessEnvelopeState&lt;<span class="lifetime">'a</span>, Group&gt; {
@@ -4929,6 +4985,12 @@
         //  2. The DSN was moved and the envelope sent to the old project ID.
         </span>envelope.meta_mut().set_project_id(project_id);
 
+        <span class="comment">// Only trust item headers in envelopes coming from internal relays
+        </span><span class="kw">let </span>event_fully_normalized = envelope.meta().is_from_internal_relay()
+            &amp;&amp; envelope
+                .items()
+                .any(|item| item.creates_event() &amp;&amp; item.fully_normalized());
+
         <span class="attr">#[allow(unused_mut)]
         </span><span class="kw">let </span><span class="kw-2">mut </span>reservoir = ReservoirEvaluator::new(reservoir_counters);
         <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
@@ -4949,6 +5011,7 @@
             project_id,
             managed_envelope,
             reservoir,
+            event_fully_normalized,
         }
     }
 
@@ -5128,36 +5191,56 @@
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;G&gt;,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ProcessingError&gt; {
+        <span class="kw">let </span>attachment_type = state
+            .envelope()
+            .get_item_by(|item| item.attachment_type().is_some())
+            .and_then(|item| item.attachment_type())
+            .map(|ty| ty.to_string());
+
+        <span class="kw">if </span>!state.has_event() {
+            <span class="macro">metric!</span>(
+                counter(RelayCounters::NormalizationDecision) += <span class="number">1</span>,
+                attachment_type = attachment_type.as_deref().unwrap_or(<span class="string">"none"</span>),
+                decision = <span class="string">"no_event"
+            </span>);
+
+            <span class="comment">// NOTE(iker): only processing relays create events from
+            // attachments, so these events won't be normalized in
+            // non-processing relays even if the config is set to run full
+            // normalization.
+            </span><span class="kw">return </span><span class="prelude-val">Ok</span>(());
+        }
+
         <span class="kw">let </span>options = <span class="kw-2">&amp;</span><span class="self">self</span>.inner.global_config.current().options;
 
-        <span class="kw">let </span>full_normalization = <span class="kw">if </span><span class="self">self</span>.inner.config.processing_enabled()
-            &amp;&amp; options.processing_disable_normalization
-            &amp;&amp; (state.envelope().meta().is_from_internal_relay())
-        {
-            <span class="kw">return </span><span class="prelude-val">Ok</span>(());
-        } <span class="kw">else if </span>!<span class="self">self</span>.inner.config.processing_enabled() &amp;&amp; options.force_full_normalization {
-            <span class="bool-val">true
-        </span>} <span class="kw">else </span>{
-            <span class="kw">match </span><span class="self">self</span>.inner.config.normalization_level() {
-                NormalizationLevel::Disabled =&gt; {
-                    <span class="comment">// We assume envelopes coming from an internal relay have
-                    // already been normalized. During incidents, like a PoP region
-                    // not being available, envelopes can go to other PoP regions or
-                    // directly to processing relays. Events should be fully
-                    // normalized, independently of the ingestion path.
-                    </span><span class="kw">if </span><span class="self">self</span>.inner.config.processing_enabled()
-                        &amp;&amp; (!state.envelope().meta().is_from_internal_relay())
-                    {
-                        <span class="bool-val">true
-                    </span>} <span class="kw">else </span>{
-                        <span class="macro">relay_log::trace!</span>(<span class="string">"Skipping event normalization"</span>);
-                        <span class="kw">return </span><span class="prelude-val">Ok</span>(());
-                    }
+        <span class="kw">let </span>full_normalization = <span class="kw">match </span><span class="self">self</span>.inner.config.normalization_level() {
+            NormalizationLevel::Full =&gt; <span class="bool-val">true</span>,
+            NormalizationLevel::Default =&gt; {
+                <span class="kw">if </span><span class="self">self</span>.inner.config.processing_enabled()
+                    &amp;&amp; options.processing_disable_normalization
+                    &amp;&amp; state.event_fully_normalized
+                {
+                    <span class="macro">metric!</span>(
+                        counter(RelayCounters::NormalizationDecision) += <span class="number">1</span>,
+                        attachment_type = attachment_type.as_deref().unwrap_or(<span class="string">"none"</span>),
+                        decision = <span class="string">"skip_normalized"
+                    </span>);
+                    <span class="kw">return </span><span class="prelude-val">Ok</span>(());
+                } <span class="kw">else </span>{
+                    <span class="self">self</span>.inner.config.processing_enabled() || options.force_full_normalization
                 }
-                NormalizationLevel::Full =&gt; <span class="bool-val">true</span>,
-                NormalizationLevel::Default =&gt; <span class="self">self</span>.inner.config.processing_enabled(),
             }
         };
+
+        <span class="macro">metric!</span>(
+            counter(RelayCounters::NormalizationDecision) += <span class="number">1</span>,
+            attachment_type = attachment_type.as_deref().unwrap_or(<span class="string">"none"</span>),
+            decision = <span class="kw">if </span>full_normalization {
+                <span class="string">"full_normalization"
+            </span>} <span class="kw">else </span>{
+                <span class="string">"limited_normalization"
+            </span>}
+        );
 
         <span class="kw">let </span>request_meta = state.managed_envelope.envelope().meta();
         <span class="kw">let </span>client_ipaddr = request_meta.client_addr().map(IpAddr::from);
@@ -5268,6 +5351,8 @@
             })
         })<span class="question-mark">?</span>;
 
+        state.event_fully_normalized |= full_normalization;
+
         <span class="prelude-val">Ok</span>(())
     }
 
@@ -5309,11 +5394,18 @@
         <span class="kw">if </span>state.has_event() {
             event::scrub(state)<span class="question-mark">?</span>;
             event::serialize(state)<span class="question-mark">?</span>;
-
             event::emit_feedback_metrics(state.envelope());
         }
 
         attachment::scrub(state);
+
+        <span class="kw">if </span><span class="self">self</span>.inner.config.processing_enabled() &amp;&amp; !state.event_fully_normalized {
+            <span class="macro">relay_log::error!</span>(
+                tags.project = %state.project_id,
+                tags.ty = state.event_type().map(|e| e.to_string()).unwrap_or(<span class="string">"none"</span>.to_owned()),
+                <span class="string">"ingested event without normalizing"
+            </span>);
+        }
 
         <span class="prelude-val">Ok</span>(())
     }
@@ -5407,6 +5499,14 @@
         </span><span class="kw">if </span>state.has_event() {
             event::serialize(state)<span class="question-mark">?</span>;
         }
+
+        <span class="kw">if </span><span class="self">self</span>.inner.config.processing_enabled() &amp;&amp; !state.event_fully_normalized {
+            <span class="macro">relay_log::error!</span>(
+                tags.project = %state.project_id,
+                tags.ty = state.event_type().map(|e| e.to_string()).unwrap_or(<span class="string">"none"</span>.to_owned()),
+                <span class="string">"ingested event without normalizing"
+            </span>);
+        };
 
         <span class="prelude-val">Ok</span>(())
     }

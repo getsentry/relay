@@ -2127,6 +2127,26 @@
 <a href="#2127" id="2127">2127</a>
 <a href="#2128" id="2128">2128</a>
 <a href="#2129" id="2129">2129</a>
+<a href="#2130" id="2130">2130</a>
+<a href="#2131" id="2131">2131</a>
+<a href="#2132" id="2132">2132</a>
+<a href="#2133" id="2133">2133</a>
+<a href="#2134" id="2134">2134</a>
+<a href="#2135" id="2135">2135</a>
+<a href="#2136" id="2136">2136</a>
+<a href="#2137" id="2137">2137</a>
+<a href="#2138" id="2138">2138</a>
+<a href="#2139" id="2139">2139</a>
+<a href="#2140" id="2140">2140</a>
+<a href="#2141" id="2141">2141</a>
+<a href="#2142" id="2142">2142</a>
+<a href="#2143" id="2143">2143</a>
+<a href="#2144" id="2144">2144</a>
+<a href="#2145" id="2145">2145</a>
+<a href="#2146" id="2146">2146</a>
+<a href="#2147" id="2147">2147</a>
+<a href="#2148" id="2148">2148</a>
+<a href="#2149" id="2149">2149</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Implementation of event envelopes.
 //!
 //! Envelopes are containers for payloads related to Sentry events. Similar to multipart form data
@@ -2697,6 +2717,15 @@
     </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">"is_false"</span>)]
     </span>spans_extracted: bool,
 
+    <span class="doccomment">/// Whether the event has been _fully_ normalized.
+    ///
+    /// If the event has been partially normalized, this flag is false. By
+    /// default, all Relays run some normalization.
+    ///
+    /// Currently only used for events.
+    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">"is_false"</span>)]
+    </span>fully_normalized: bool,
+
     <span class="doccomment">/// `false` if the sampling decision is "drop".
     ///
     /// In the most common use case, the item is dropped when the sampling decision is "drop".
@@ -2774,6 +2803,7 @@
                 transaction_extracted: <span class="bool-val">false</span>,
                 spans_extracted: <span class="bool-val">false</span>,
                 sampled: <span class="bool-val">true</span>,
+                fully_normalized: <span class="bool-val">false</span>,
             },
             payload: Bytes::new(),
         }
@@ -2984,6 +3014,16 @@
     <span class="doccomment">/// Sets the spans extracted flag.
     </span><span class="kw">pub fn </span>set_spans_extracted(<span class="kw-2">&amp;mut </span><span class="self">self</span>, spans_extracted: bool) {
         <span class="self">self</span>.headers.spans_extracted = spans_extracted;
+    }
+
+    <span class="doccomment">/// Returns the fully normalized flag.
+    </span><span class="kw">pub fn </span>fully_normalized(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="self">self</span>.headers.fully_normalized
+    }
+
+    <span class="doccomment">/// Sets the fully normalized flag.
+    </span><span class="kw">pub fn </span>set_fully_normalized(<span class="kw-2">&amp;mut </span><span class="self">self</span>, fully_normalized: bool) {
+        <span class="self">self</span>.headers.fully_normalized = fully_normalized;
     }
 
     <span class="doccomment">/// Gets the `sampled` flag.

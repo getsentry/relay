@@ -935,6 +935,7 @@
     config: <span class="kw-2">&amp;</span>Config,
     global_config: <span class="kw-2">&amp;</span>GlobalConfig,
 ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ProcessingError&gt; {
+    <span class="kw">let </span>event_fully_normalized = state.event_fully_normalized;
     <span class="kw">let </span>envelope = <span class="kw-2">&amp;mut </span>state.envelope_mut();
 
     <span class="comment">// Remove all items first, and then process them. After this function returns, only
@@ -961,12 +962,9 @@
         <span class="kw">return </span><span class="prelude-val">Err</span>(ProcessingError::DuplicateItem(duplicate.ty().clone()));
     }
 
-    <span class="kw">let </span>is_normalization_enabled =
-        <span class="kw">if </span>config.processing_enabled() &amp;&amp; global_config.options.processing_disable_normalization {
-            <span class="bool-val">false
-        </span>} <span class="kw">else </span>{
-            config.normalization_level().is_enabled()
-        };
+    <span class="kw">let </span>skip_normalization = config.processing_enabled()
+        &amp;&amp; global_config.options.processing_disable_normalization
+        &amp;&amp; event_fully_normalized;
 
     <span class="kw">let </span><span class="kw-2">mut </span>sample_rates = <span class="prelude-val">None</span>;
     <span class="kw">let </span>(event, event_len) = <span class="kw">if let </span><span class="prelude-val">Some</span>(<span class="kw-2">mut </span>item) = event_item.or(security_item) {
@@ -977,7 +975,7 @@
             <span class="comment">// Event items can never include transactions, so retain the event type and let
             // inference deal with this during normalization.
             </span><span class="kw">if let </span><span class="prelude-val">Some</span>(event) = annotated_event.value_mut() {
-                <span class="kw">if </span>is_normalization_enabled {
+                <span class="kw">if </span>!skip_normalization {
                     event.ty.set_value(<span class="prelude-val">None</span>);
                 }
             }
@@ -1290,6 +1288,8 @@
     </span><span class="kw">if let </span><span class="prelude-val">Some</span>(sample_rates) = state.sample_rates.take() {
         event_item.set_sample_rates(sample_rates);
     }
+
+    event_item.set_fully_normalized(state.event_fully_normalized);
 
     state.envelope_mut().add_item(event_item);
 

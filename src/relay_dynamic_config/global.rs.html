@@ -562,6 +562,7 @@
 <a href="#562" id="562">562</a>
 <a href="#563" id="563">563</a>
 <a href="#564" id="564">564</a>
+<a href="#565" id="565">565</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::btree_map::Entry;
 <span class="kw">use </span>std::collections::HashMap;
 <span class="kw">use </span>std::fs::File;
@@ -778,7 +779,7 @@
     </span>)]
     </span><span class="kw">pub </span>span_extraction_sample_rate: <span class="prelude-ty">Option</span>&lt;f32&gt;,
 
-    <span class="doccomment">/// If enabled, runs full normalization in non-processing Relays.
+    <span class="doccomment">/// If true, runs full normalization in non-processing Relays.
     ///
     /// Doesn't apply to processing Relays. Outdated relays with a stale
     /// protocol/normalization receiving this flag will not forward unknown
@@ -791,7 +792,8 @@
     </span>)]
     </span><span class="kw">pub </span>force_full_normalization: bool,
 
-    <span class="doccomment">/// If enabled, disables normalization in processing Relays.
+    <span class="doccomment">/// If true, disables normalization in processing Relays for events
+    /// normalized in a previous internal relay.
     </span><span class="attr">#[serde(
         default,
         rename = <span class="string">"relay.disable_normalization.processing"</span>,
