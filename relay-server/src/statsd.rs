@@ -684,6 +684,12 @@ pub enum RelayCounters {
     /// - `resource_id`: The COGS resource id.
     /// - `app_feature`: The COGS app feature.
     CogsUsage,
+    /// The decision on whether normalization should run for an event.
+    ///
+    /// This metric is tagged with:
+    /// - `decision`: the decision relay makes on the event.
+    /// - `attachment_type`: the type of the attachment in the envelope.
+    NormalizationDecision,
 }
 
 impl CounterMetric for RelayCounters {
@@ -728,6 +734,7 @@ impl CounterMetric for RelayCounters {
             RelayCounters::FeedbackAttachments => "processing.feedback_attachments",
             RelayCounters::CogsRaw => "cogs.raw",
             RelayCounters::CogsUsage => "cogs.usage",
+            RelayCounters::NormalizationDecision => "normalization.decision",
         }
     }
 }

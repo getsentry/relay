@@ -1062,11 +1062,6 @@ pub struct Normalization {
 #[derive(Copy, Clone, Debug, Default, Serialize, Deserialize, Eq, PartialEq)]
 #[serde(rename_all = "lowercase")]
 pub enum NormalizationLevel {
-    /// Disables normalization for events coming from internal Relays.
-    ///
-    /// Processing relays still do full normalization for events coming from
-    /// non-internal Relays.
-    Disabled,
     /// Runs normalization, excluding steps that break future compatibility.
     ///
     /// Processing Relays run [`NormalizationLevel::Full`] if this option is set.
@@ -1077,13 +1072,6 @@ pub enum NormalizationLevel {
     /// It includes steps that break future compatibility and should only run in
     /// the last layer of relays.
     Full,
-}
-
-impl NormalizationLevel {
-    /// Whether normalization is enabled (i.e. not disabled).
-    pub fn is_enabled(&self) -> bool {
-        !matches!(self, NormalizationLevel::Disabled)
-    }
 }
 
 /// Configuration values for the outcome aggregator

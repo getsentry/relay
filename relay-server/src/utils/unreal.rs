@@ -292,10 +292,14 @@ fn merge_unreal_context(event: &mut Event, context: Unreal4Context) {
     }
 }
 
+/// Processes an unreal envelope.
+///
+/// This function returns either the processing error, or a boolean indicating
+/// whether the envelope contained an unreal item.
 pub fn process_unreal_envelope(
     event: &mut Annotated<Event>,
     envelope: &mut Envelope,
-) -> Result<(), Unreal4Error> {
+) -> Result<bool, Unreal4Error> {
     let user_header = envelope
         .get_header(UNREAL_USER_HEADER)
         .and_then(Value::as_str);
@@ -306,7 +310,7 @@ pub fn process_unreal_envelope(
 
     // Early exit if there is no information.
     if user_header.is_none() && context_item.is_none() && logs_item.is_none() {
-        return Ok(());
+        return Ok(false);
     }
 
     // If we have UE4 info, ensure an event is there to fill. DO NOT fill if there is no unreal
@@ -337,7 +341,7 @@ pub fn process_unreal_envelope(
         merge_unreal_context(event, context);
     }
 
-    Ok(())
+    Ok(true)
 }
 
 #[cfg(test)]
