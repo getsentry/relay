@@ -68,7 +68,7 @@ fn parse_file(
 
 async fn load_local_states(
     projects_path: &Path,
-) -> tokio::io::Result<HashMap<ProjectKey, Arc<ProjectInfo>>> {
+) -> tokio::io::Result<HashMap<ProjectKey, ProjectState>> {
     let mut states = HashMap::new();
 
     let mut directory = match tokio::fs::read_dir(projects_path).await {
@@ -99,9 +99,8 @@ async fn load_local_states(
         }
 
         // serde_json is not async, so spawn a blocking task here:
-        let (path, state) = tokio::task::spawn_blocking(move || parse_file(path)).await??;
+        let (path, mut state) = tokio::task::spawn_blocking(move || parse_file(path)).await??;
 
-        if let Some(info) = state.info {}
         if state.info.project_id.is_none() {
             if let Some(project_id) = get_project_id(&path) {
                 state.info.project_id = Some(project_id);
@@ -115,7 +114,7 @@ async fn load_local_states(
         let keys = std::mem::take(&mut state.info.public_keys);
         for key in keys {
             state.info.public_keys = smallvec::smallvec![key.clone()];
-            if let Ok(state) = state.try_into() {
+            if let Ok(state) = ProjectState::try_from(state.clone()) {
                 states.insert(key.public_key, state.sanitize());
             } else {
                 relay_log::debug!("Invalid state");
@@ -126,7 +125,7 @@ async fn load_local_states(
     Ok(states)
 }
 
-async fn poll_local_states(path: &Path, tx: &mpsc::Sender<HashMap<ProjectKey, Arc<ProjectInfo>>>) {
+async fn poll_local_states(path: &Path, tx: &mpsc::Sender<HashMap<ProjectKey, ProjectState>>) {
     let states = load_local_states(path).await;
     match states {
         Ok(states) => {
@@ -144,7 +143,7 @@ async fn poll_local_states(path: &Path, tx: &mpsc::Sender<HashMap<ProjectKey, Ar
 
 async fn spawn_poll_local_states(
     config: &Config,
-    tx: mpsc::Sender<HashMap<ProjectKey, Arc<ProjectInfo>>>,
+    tx: mpsc::Sender<HashMap<ProjectKey, ProjectState>>,
 ) {
     let project_path = config.project_configs_path();
     let period = config.local_cache_interval();

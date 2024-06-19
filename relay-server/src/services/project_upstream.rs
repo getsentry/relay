@@ -17,7 +17,7 @@ use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc;
 use tokio::time::Instant;
 
-use crate::services::project::{ParsedProjectState, ProjectFetchState, ProjectInfo};
+use crate::services::project::{ParsedProjectState, ProjectFetchState};
 use crate::services::project_cache::FetchProjectState;
 use crate::services::upstream::{
     Method, RequestPriority, SendQuery, UpstreamQuery, UpstreamRelay, UpstreamRequestError,
@@ -79,7 +79,7 @@ impl UpstreamQuery for GetProjectStates {
 /// The wrapper struct for the incoming external requests which also keeps addition information.
 #[derive(Debug)]
 struct ProjectStateChannel {
-    channel: BroadcastChannel<Arc<ProjectFetchState>>,
+    channel: BroadcastChannel<ProjectFetchState>,
     deadline: Instant,
     no_cache: bool,
     attempts: u64,
@@ -91,7 +91,7 @@ struct ProjectStateChannel {
 
 impl ProjectStateChannel {
     pub fn new(
-        sender: BroadcastSender<Arc<ProjectFetchState>>,
+        sender: BroadcastSender<ProjectFetchState>,
         timeout: Duration,
         no_cache: bool,
     ) -> Self {
@@ -110,12 +110,12 @@ impl ProjectStateChannel {
         self.no_cache = true;
     }
 
-    pub fn attach(&mut self, sender: BroadcastSender<Arc<ProjectFetchState>>) {
+    pub fn attach(&mut self, sender: BroadcastSender<ProjectFetchState>) {
         self.channel.attach(sender)
     }
 
     pub fn send(self, state: ProjectFetchState) {
-        self.channel.send(Arc::new(state))
+        self.channel.send(state)
     }
 
     pub fn expired(&self) -> bool {
@@ -132,16 +132,16 @@ type ProjectStateChannels = HashMap<ProjectKey, ProjectStateChannel>;
 /// Internally it maintains the buffer queue of the incoming requests, which got scheduled to fetch the
 /// state and takes care of the backoff in case there is a problem with the requests.
 #[derive(Debug)]
-pub struct UpstreamProjectSource(FetchProjectState, BroadcastSender<Arc<ProjectFetchState>>);
+pub struct UpstreamProjectSource(FetchProjectState, BroadcastSender<ProjectFetchState>);
 
 impl Interface for UpstreamProjectSource {}
 
 impl FromMessage<FetchProjectState> for UpstreamProjectSource {
-    type Response = BroadcastResponse<Arc<ProjectFetchState>>;
+    type Response = BroadcastResponse<ProjectFetchState>;
 
     fn from_message(
         message: FetchProjectState,
-        sender: BroadcastSender<Arc<ProjectFetchState>>,
+        sender: BroadcastSender<ProjectFetchState>,
     ) -> Self {
         Self(message, sender)
     }

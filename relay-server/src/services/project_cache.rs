@@ -454,7 +454,7 @@ impl ProjectSource {
             .map_err(|_| ())?;
 
         if let Some(state) = state_opt {
-            return Ok(state);
+            return Ok(ProjectFetchState::new(state));
         }
 
         match self.config.relay_mode() {
@@ -724,7 +724,7 @@ impl ProjectCacheBroker {
             let state = source
                 .fetch(project_key, no_cache)
                 .await
-                .unwrap_or_else(|()| Arc::new(ProjectFetchState::disabled()));
+                .unwrap_or_else(|()| ProjectFetchState::disabled());
 
             let message = UpdateProjectState {
                 project_key,
@@ -784,7 +784,7 @@ impl ProjectCacheBroker {
             return;
         };
 
-        let Some(own_project_state) = project.valid_state().filter(|s| !s.invalid()) else {
+        let Some(own_project_state) = project.non_expired_state() else {
             relay_log::error!(
                 tags.project_key = %project_key,
                 "project has no valid cached state",
@@ -803,7 +803,7 @@ impl ProjectCacheBroker {
 
             let sampling_project_state = utils::get_sampling_key(managed_envelope.envelope())
                 .and_then(|key| self.projects.get(&key))
-                .and_then(|p| p.valid_state())
+                .and_then(|p| p.non_expired_state())
                 .filter(|state| state.organization_id == own_project_state.organization_id);
 
             let process = ProcessEnvelope {

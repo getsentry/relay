@@ -53,7 +53,7 @@ pub type ProjectSender = relay_system::BroadcastSender<ProjectFetchState>;
 pub struct ParsedProjectState {
     pub disabled: bool,
     #[serde(flatten)]
-    pub info: Arc<ProjectInfo>,
+    pub info: ProjectInfo,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -61,7 +61,7 @@ pub struct LimitedParsedProjectState {
     disabled: bool,
     #[serde(with = "LimitedProjectInfo")]
     #[serde(flatten)]
-    info: Arc<ProjectInfo>,
+    info: ProjectInfo,
 }
 
 impl TryFrom<ProjectState> for ParsedProjectState {
@@ -296,12 +296,12 @@ enum GetOrFetch<'a> {
 /// TODO: spool queued metrics to disk when the in-memory aggregator becomes too full.
 #[derive(Debug)]
 enum State {
-    Cached(FetchProjectState),
+    Cached(ProjectFetchState),
     Pending(Box<aggregator::Aggregator>),
 }
 
 impl State {
-    fn state_value(&self) -> Option<Arc<ProjectInfo>> {
+    fn state_value(&self) -> Option<ProjectFetchState> {
         match self {
             State::Cached(state) => Some(state.clone()),
             State::Pending(_) => None,
@@ -366,7 +366,7 @@ impl Project {
 
     /// If we know that a project is disabled, disallow metrics, too.
     fn metrics_allowed(&self) -> bool {
-        if let Some(state) = self.valid_state() {
+        if let Some(state) = self.non_expired_state() {
             // TODO(jjbayer): This reproduces the previous behavior, but
             // we want to allow metrics for invalid in the future.
             !(state.invalid() || state.disabled())
@@ -408,11 +408,14 @@ impl Project {
     /// Returns the project state if it is not expired.
     ///
     /// Convenience wrapper around [`expiry_state`](Self::expiry_state).
-    pub fn valid_state(&self) -> Option<Arc<ProjectInfo>> {
-        match self.expiry_state() {
-            ExpiryState::Updated(state) => Some(state),
-            ExpiryState::Stale(state) => Some(state),
-            ExpiryState::Expired => None,
+    pub fn non_expired_state(&self) -> Option<ProjectState> {
+        match self.state {
+            State::Cached(state) => match state.expiry_state(&self.config) {
+                ExpiryState::Updated(state) => Some(state),
+                ExpiryState::Stale(state) => Some(state),
+                ExpiryState::Expired => None,
+            },
+            State::Pending(_) => None,
         }
     }
 
@@ -465,10 +468,15 @@ impl Project {
         };
 
         // Only send if the project state is valid, otherwise drop the buckets.
-        if state.check_disabled(self.config.as_ref()).is_err() {
-            relay_log::trace!("project state invalid: dropping {} buckets", buckets.len());
-            return;
-        }
+        // TODO: invalid should also keep the data.
+        let state = match state.expiry_state(&self.config) {
+            ExpiryState::Updated(ProjectState::Enabled(state))
+            | ExpiryState::Stale(ProjectState::Enabled(state)) => state,
+            _ => {
+                relay_log::trace!("project state invalid: dropping {} buckets", buckets.len());
+                return;
+            }
+        };
 
         let buckets = buckets.apply_project_state(metric_outcomes, state, scoping);
 
@@ -794,7 +802,7 @@ impl Project {
         &mut self,
         project_cache: &Addr<ProjectCache>,
         aggregator: &Addr<Aggregator>,
-        mut state: Arc<ProjectFetchState>,
+        mut state: ProjectFetchState,
         envelope_processor: &Addr<EnvelopeProcessor>,
         outcome_aggregator: &Addr<TrackOutcome>,
         metric_outcomes: &MetricOutcomes,
@@ -896,7 +904,7 @@ impl Project {
         mut envelope: ManagedEnvelope,
         outcome_aggregator: Addr<TrackOutcome>,
     ) -> Result<CheckedEnvelope, DiscardReason> {
-        let state = self.valid_state().filter(|state| !state.invalid());
+        let state = self.non_expired_state().filter(|state| !state.invalid());
         let mut scoping = envelope.scoping();
 
         if let Some(ref state) = state {
@@ -953,7 +961,7 @@ impl Project {
         metric_outcomes: &MetricOutcomes,
         mut buckets: Vec<Bucket>,
     ) -> Option<(Scoping, ProjectMetrics)> {
-        let Some(project_state) = self.valid_state() else {
+        let Some(project_state) = self.non_expired_state() else {
             relay_log::error!(
                 tags.project_key = self.project_key.as_str(),
                 "there is no project state: dropping {} buckets",
@@ -1052,10 +1060,10 @@ mod tests {
 
             if expiry > 0 {
                 // With long expiry, should get a state
-                assert!(project.valid_state().is_some());
+                assert!(project.non_expired_state().is_some());
             } else {
                 // With 0 expiry, project should expire immediately. No state can be set.
-                assert!(project.valid_state().is_none());
+                assert!(project.non_expired_state().is_none());
             }
         }
     }

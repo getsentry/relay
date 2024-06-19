@@ -3,7 +3,6 @@ use std::sync::Arc;
 
 use relay_config::Config;
 use relay_dynamic_config::ProjectConfig;
-use serde::{Deserialize, Serialize};
 use tokio::time::Instant;
 
 use crate::envelope::Envelope;
@@ -115,7 +114,7 @@ impl ProjectFetchState {
     /// If this project state is hard outdated, this returns `Ok(())`, instead, to avoid prematurely
     /// dropping data.
     // TODO(jjbayer): Remove this function.
-    fn check_disabled(&self, config: &Config) -> Result<(), DiscardReason> {
+    pub fn check_disabled(&self, config: &Config) -> Result<(), DiscardReason> {
         // if the state is out of date, we proceed as if it was still up to date. The
         // upstream relay (or sentry) will still filter events.
         if self.check_expiry(config) == Expiry::Expired {
@@ -212,7 +211,7 @@ impl From<ParsedProjectState> for ProjectState {
         let ParsedProjectState { disabled, info } = value;
         match disabled {
             true => ProjectState::Disabled,
-            false => ProjectState::Enabled(info),
+            false => ProjectState::Enabled(Arc::new(info)),
         }
     }
 }
