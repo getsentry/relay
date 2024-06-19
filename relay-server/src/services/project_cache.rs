@@ -18,8 +18,10 @@ use tokio::time::Instant;
 
 use crate::services::global_config::{self, GlobalConfigManager, Subscribe};
 use crate::services::outcome::{DiscardReason, TrackOutcome};
-use crate::services::processor::{EncodeMetrics, EnvelopeProcessor, ProcessEnvelope};
-use crate::services::project::{Project, ProjectSender, ProjectState};
+use crate::services::processor::{
+    EncodeMetrics, EnvelopeProcessor, ProcessEnvelope, ProjectMetrics,
+};
+use crate::services::project::{CheckBuckets, Project, ProjectSender, ProjectState};
 use crate::services::project_local::{LocalProjectSource, LocalProjectSourceService};
 #[cfg(feature = "processing")]
 use crate::services::project_redis::RedisProjectSource;
@@ -683,18 +685,12 @@ impl ProjectCacheBroker {
         } = message;
 
         let project_cache = self.services.project_cache.clone();
-        let aggregator = self.services.aggregator.clone();
         let envelope_processor = self.services.envelope_processor.clone();
-        let outcome_aggregator = self.services.outcome_aggregator.clone();
-        let metric_outcomes = self.metric_outcomes.clone();
 
         self.get_or_create_project(project_key).update_state(
             &project_cache,
-            &aggregator,
             state,
             &envelope_processor,
-            &outcome_aggregator,
-            &metric_outcomes,
             no_cache,
         );
 
@@ -873,20 +869,10 @@ impl ProjectCacheBroker {
     fn handle_add_metric_buckets(&mut self, message: AddMetricBuckets) {
         let project_cache = self.services.project_cache.clone();
         let aggregator = self.services.aggregator.clone();
-        let outcome_aggregator = self.services.outcome_aggregator.clone();
-        let envelope_processor = self.services.envelope_processor.clone();
-        let metric_outcomes = self.metric_outcomes.clone();
 
         let project = self.get_or_create_project(message.project_key);
         project.prefetch(project_cache, false);
-        project.merge_buckets(
-            &aggregator,
-            &outcome_aggregator,
-            &metric_outcomes,
-            &envelope_processor,
-            message.buckets,
-            message.source,
-        );
+        project.merge_buckets(&aggregator, message.buckets, message.source);
     }
 
     fn handle_add_metric_meta(&mut self, message: AddMetricMeta) {
@@ -898,12 +884,33 @@ impl ProjectCacheBroker {
 
     fn handle_flush_buckets(&mut self, message: FlushBuckets) {
         let metric_outcomes = self.metric_outcomes.clone();
+        let outcome_aggregator = self.services.outcome_aggregator.clone();
+        let aggregator = self.services.aggregator.clone();
+        let project_cache = self.services.project_cache.clone();
 
         let mut scoped_buckets = BTreeMap::new();
         for (project_key, buckets) in message.buckets {
             let project = self.get_or_create_project(project_key);
-            if let Some((scoping, b)) = project.check_buckets(&metric_outcomes, buckets) {
-                scoped_buckets.insert(scoping, b);
+            match project.check_buckets(&metric_outcomes, &outcome_aggregator, buckets) {
+                CheckBuckets::NoProject(buckets) => {
+                    // Schedule an update for the project just in case.
+                    project.prefetch(project_cache.clone(), false);
+                    project.merge_buckets(&aggregator, buckets, BucketSource::Internal);
+                    // TODO: emit metric
+                }
+                CheckBuckets::Checked {
+                    scoping,
+                    project_state,
+                    buckets,
+                } => scoped_buckets
+                    .entry(scoping)
+                    .or_insert(ProjectMetrics {
+                        project_state,
+                        buckets: Vec::new(),
+                    })
+                    .buckets
+                    .extend(buckets),
+                CheckBuckets::Dropped => {}
             }
         }
 

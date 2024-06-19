@@ -178,8 +178,6 @@ impl ServiceState {
                 upstream_relay: upstream_relay.clone(),
                 test_store: test_store.clone(),
                 #[cfg(feature = "processing")]
-                aggregator: aggregator.clone(),
-                #[cfg(feature = "processing")]
                 store_forwarder: store.clone(),
             },
             metric_outcomes.clone(),
