@@ -684,6 +684,9 @@ pub enum RelayCounters {
     /// - `resource_id`: The COGS resource id.
     /// - `app_feature`: The COGS app feature.
     CogsUsage,
+    /// The amount of times metrics of a project have been flushed without the project being
+    /// fetched/available.
+    ProjectStateFlushMetricsNoProject,
 }
 
 impl CounterMetric for RelayCounters {
@@ -728,6 +731,7 @@ impl CounterMetric for RelayCounters {
             RelayCounters::FeedbackAttachments => "processing.feedback_attachments",
             RelayCounters::CogsRaw => "cogs.raw",
             RelayCounters::CogsUsage => "cogs.usage",
+            RelayCounters::ProjectStateFlushMetricsNoProject => "project_state.metrics.no_project",
         }
     }
 }

@@ -888,15 +888,16 @@ impl ProjectCacheBroker {
         let aggregator = self.services.aggregator.clone();
         let project_cache = self.services.project_cache.clone();
 
+        let mut no_project = 0;
         let mut scoped_buckets = BTreeMap::new();
         for (project_key, buckets) in message.buckets {
             let project = self.get_or_create_project(project_key);
             match project.check_buckets(&metric_outcomes, &outcome_aggregator, buckets) {
                 CheckBuckets::NoProject(buckets) => {
+                    no_project += 1;
                     // Schedule an update for the project just in case.
                     project.prefetch(project_cache.clone(), false);
                     project.merge_buckets(&aggregator, buckets, BucketSource::Internal);
-                    // TODO: emit metric
                 }
                 CheckBuckets::Checked {
                     scoping,
@@ -917,7 +918,13 @@ impl ProjectCacheBroker {
         self.services.envelope_processor.send(EncodeMetrics {
             partition_key: message.partition_key,
             scopes: scoped_buckets,
-        })
+        });
+
+        if no_project > 0 {
+            relay_statsd::metric!(
+                counter(RelayCounters::ProjectStateFlushMetricsNoProject) += no_project
+            );
+        }
     }
 
     fn handle_buffer_index(&mut self, message: UpdateSpoolIndex) {

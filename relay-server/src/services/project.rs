@@ -963,11 +963,6 @@ impl Project {
         buckets: Vec<Bucket>,
     ) -> CheckBuckets {
         let Some(project_state) = self.valid_state() else {
-            relay_log::error!(
-                tags.project_key = self.project_key.as_str(),
-                "there is no project state: dropping {} buckets",
-                buckets.len(),
-            );
             return CheckBuckets::NoProject(buckets);
         };
 
