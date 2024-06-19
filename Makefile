@@ -1,7 +1,7 @@
 SHELL=/bin/bash
 export RELAY_PYTHON_VERSION := python3
 export RELAY_FEATURES :=
-CARGO_AGS = ${CARGO_ARGS}
+RELAY_ARGO_AGS ?= ${CARGO_ARGS}
 
 all: check test ## run all checks and tests
 .PHONY: all
@@ -17,15 +17,15 @@ clean: ## remove python virtual environment and delete cached rust files togethe
 # Builds
 
 build: setup-git ## build relay with all features enabled without debug info
-	cargo +stable build --all-features ${CARGO_AGS}
+	cargo +stable build --all-features ${RELAY_CARGO_ARGS}
 .PHONY: build
 
 release: setup-git ## build production binary of the relay with debug info
-	@cd relay && cargo +stable build --release $(if ${RELAY_FEATURES}, --features ${RELAY_FEATURES}) ${CARGO_AGS}
+	@cd relay && cargo +stable build --release $(if ${RELAY_FEATURES}, --features ${RELAY_FEATURES}) ${RELAY_CARGO_ARGS}
 .PHONY: release
 
 build-linux-release: setup-git ## build linux release of the relay
-	cd relay && cargo build --release $(if ${RELAY_FEATURES}, --features ${RELAY_FEATURES}) ${CARGO_AGS}
+	cd relay && cargo build --release $(if ${RELAY_FEATURES}, --features ${RELAY_FEATURES}) ${RELAY_CARGO_ARGS}
 	objcopy --only-keep-debug target/${TARGET}/release/relay{,.debug}
 	objcopy --strip-debug --strip-unneeded target/${TARGET}/release/relay
 	objcopy --add-gnu-debuglink target/${TARGET}/release/relay{.debug,}
@@ -60,11 +60,11 @@ test: test-rust-all test-python test-integration ## run all unit and integration
 .PHONY: test
 
 test-rust: setup-git ## run tests for Rust code with default features enabled
-	cargo test --workspace ${CARGO_AGS}
+	cargo test --workspace ${RELAY_CARGO_ARGS}
 .PHONY: test-rust
 
 test-rust-all: setup-git ## run tests for Rust code with all the features enabled
-	cargo test --workspace --all-features ${CARGO_AGS}
+	cargo test --workspace --all-features ${RELAY_CARGO_ARGS}
 .PHONY: test-rust-all
 
 test-python: setup-git setup-venv ## run tests for Python code
@@ -82,7 +82,7 @@ doc: doc-rust ## generate all API docs
 .PHONY: doc
 
 doc-rust: setup-git ## generate API docs for Rust code
-	cargo doc --workspace --all-features --no-deps ${CARGO_AGS}
+	cargo doc --workspace --all-features --no-deps ${RELAY_CARGO_ARGS}
 .PHONY: doc-rust
 
 # Style checking
