@@ -16,7 +16,7 @@ clean: ## remove python virtual environment and delete cached rust files togethe
 # Builds
 
 build: setup-git ## build relay with all features enabled without debug info
-	cargo +stable build --all-features
+	cargo +stable build --all-features --locked
 .PHONY: build
 
 release: setup-git ## build production binary of the relay with debug info
@@ -59,11 +59,11 @@ test: test-rust-all test-python test-integration ## run all unit and integration
 .PHONY: test
 
 test-rust: setup-git ## run tests for Rust code with default features enabled
-	cargo test --workspace
+	cargo test --workspace --locked
 .PHONY: test-rust
 
 test-rust-all: setup-git ## run tests for Rust code with all the features enabled
-	cargo test --workspace --all-features
+	cargo test --workspace --all-features --locked
 .PHONY: test-rust-all
 
 test-python: setup-git setup-venv ## run tests for Python code
@@ -81,7 +81,7 @@ doc: doc-rust ## generate all API docs
 .PHONY: doc
 
 doc-rust: setup-git ## generate API docs for Rust code
-	cargo doc --workspace --all-features --no-deps
+	cargo doc --workspace --all-features --no-deps --locked
 .PHONY: doc-rust
 
 # Style checking
