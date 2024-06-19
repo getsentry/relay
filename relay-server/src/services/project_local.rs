@@ -1,3 +1,4 @@
+use std::borrow::BorrowMut;
 use std::collections::HashMap;
 use std::ffi::OsStr;
 use std::path::Path;
@@ -9,20 +10,20 @@ use relay_system::{AsyncResponse, FromMessage, Interface, Receiver, Sender, Serv
 use tokio::sync::mpsc;
 use tokio::time::Instant;
 
-use crate::services::project::ProjectInfo;
+use crate::services::project::{ParsedProjectState, ProjectInfo, ProjectState};
 use crate::services::project_cache::FetchOptionalProjectState;
 
 /// Service interface of the local project source.
 #[derive(Debug)]
-pub struct LocalProjectSource(FetchOptionalProjectState, Sender<Option<Arc<ProjectInfo>>>);
+pub struct LocalProjectSource(FetchOptionalProjectState, Sender<Option<ProjectState>>);
 
 impl Interface for LocalProjectSource {}
 
 impl FromMessage<FetchOptionalProjectState> for LocalProjectSource {
-    type Response = AsyncResponse<Option<Arc<ProjectInfo>>>;
+    type Response = AsyncResponse<Option<ProjectState>>;
     fn from_message(
         message: FetchOptionalProjectState,
-        sender: Sender<Option<Arc<ProjectInfo>>>,
+        sender: Sender<Option<ProjectState>>,
     ) -> Self {
         Self(message, sender)
     }
@@ -32,7 +33,7 @@ impl FromMessage<FetchOptionalProjectState> for LocalProjectSource {
 #[derive(Debug)]
 pub struct LocalProjectSourceService {
     config: Arc<Config>,
-    local_states: HashMap<ProjectKey, Arc<ProjectInfo>>,
+    local_states: HashMap<ProjectKey, ProjectState>,
 }
 
 impl LocalProjectSourceService {
@@ -56,10 +57,13 @@ fn get_project_id(path: &Path) -> Option<ProjectId> {
         .and_then(|stem| stem.parse().ok())
 }
 
-fn parse_file(path: std::path::PathBuf) -> tokio::io::Result<(std::path::PathBuf, ProjectInfo)> {
+fn parse_file(
+    path: std::path::PathBuf,
+) -> tokio::io::Result<(std::path::PathBuf, ParsedProjectState)> {
     let file = std::fs::File::open(&path)?;
     let reader = std::io::BufReader::new(file);
-    Ok((path, serde_json::from_reader(reader)?))
+    let state = serde_json::from_reader(reader)?;
+    Ok((path, state))
 }
 
 async fn load_local_states(
@@ -97,10 +101,10 @@ async fn load_local_states(
         // serde_json is not async, so spawn a blocking task here:
         let (path, state) = tokio::task::spawn_blocking(move || parse_file(path)).await??;
 
-        let mut sanitized = ProjectInfo::sanitize(state);
-        if sanitized.project_id.is_none() {
+        if let Some(info) = state.info {}
+        if state.info.project_id.is_none() {
             if let Some(project_id) = get_project_id(&path) {
-                sanitized.project_id = Some(project_id);
+                state.info.project_id = Some(project_id);
             } else {
                 relay_log::warn!(?path, "skipping file, filename is not a valid project id");
                 continue;
@@ -108,10 +112,14 @@ async fn load_local_states(
         }
 
         // Keep a separate project state per key.
-        let keys = std::mem::take(&mut sanitized.public_keys);
+        let keys = std::mem::take(&mut state.info.public_keys);
         for key in keys {
-            sanitized.public_keys = smallvec::smallvec![key.clone()];
-            states.insert(key.public_key, Arc::new(sanitized.clone()));
+            state.info.public_keys = smallvec::smallvec![key.clone()];
+            if let Ok(state) = state.try_into() {
+                states.insert(key.public_key, state.sanitize());
+            } else {
+                relay_log::debug!("Invalid state");
+            }
         }
     }
 
