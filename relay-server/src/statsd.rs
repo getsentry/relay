@@ -687,6 +687,12 @@ pub enum RelayCounters {
     /// The amount of times metrics of a project have been flushed without the project being
     /// fetched/available.
     ProjectStateFlushMetricsNoProject,
+    /// The decision on whether normalization should run for an event.
+    ///
+    /// This metric is tagged with:
+    /// - `decision`: the decision relay makes on the event.
+    /// - `attachment_type`: the type of the attachment in the envelope.
+    NormalizationDecision,
 }
 
 impl CounterMetric for RelayCounters {
@@ -732,6 +738,7 @@ impl CounterMetric for RelayCounters {
             RelayCounters::CogsRaw => "cogs.raw",
             RelayCounters::CogsUsage => "cogs.usage",
             RelayCounters::ProjectStateFlushMetricsNoProject => "project_state.metrics.no_project",
+            RelayCounters::NormalizationDecision => "normalization.decision",
         }
     }
 }

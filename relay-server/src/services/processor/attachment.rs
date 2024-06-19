@@ -34,10 +34,12 @@ pub fn create_placeholders<G: EventProcessing>(state: &mut ProcessEnvelopeState<
         let event = state.event.get_or_insert_with(Event::default);
         state.metrics.bytes_ingested_event_minidump = Annotated::new(item.len() as u64);
         utils::process_minidump(event, &item.payload());
+        state.event_fully_normalized = false;
     } else if let Some(item) = apple_crash_report_attachment {
         let event = state.event.get_or_insert_with(Event::default);
         state.metrics.bytes_ingested_event_applecrashreport = Annotated::new(item.len() as u64);
         utils::process_apple_crash_report(event, &item.payload());
+        state.event_fully_normalized = false;
     }
 }
 

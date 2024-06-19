@@ -738,6 +738,12 @@ struct ProcessEnvelopeState<'a, Group> {
 
     /// Reservoir evaluator that we use for dynamic sampling.
     reservoir: ReservoirEvaluator<'a>,
+
+    /// Track whether the event has already been fully normalized.
+    ///
+    /// If the processing pipeline applies changes to the event, it should
+    /// disable this flag to ensure the event is always normalized.
+    event_fully_normalized: bool,
 }
 
 impl<'a, Group> ProcessEnvelopeState<'a, Group> {
@@ -1168,6 +1174,12 @@ impl EnvelopeProcessorService {
         //  2. The DSN was moved and the envelope sent to the old project ID.
         envelope.meta_mut().set_project_id(project_id);
 
+        // Only trust item headers in envelopes coming from internal relays
+        let event_fully_normalized = envelope.meta().is_from_internal_relay()
+            && envelope
+                .items()
+                .any(|item| item.creates_event() && item.fully_normalized());
+
         #[allow(unused_mut)]
         let mut reservoir = ReservoirEvaluator::new(reservoir_counters);
         #[cfg(feature = "processing")]
@@ -1188,6 +1200,7 @@ impl EnvelopeProcessorService {
             project_id,
             managed_envelope,
             reservoir,
+            event_fully_normalized,
         }
     }
 
@@ -1367,36 +1380,56 @@ impl EnvelopeProcessorService {
         &self,
         state: &mut ProcessEnvelopeState<G>,
     ) -> Result<(), ProcessingError> {
+        let attachment_type = state
+            .envelope()
+            .get_item_by(|item| item.attachment_type().is_some())
+            .and_then(|item| item.attachment_type())
+            .map(|ty| ty.to_string());
+
+        if !state.has_event() {
+            metric!(
+                counter(RelayCounters::NormalizationDecision) += 1,
+                attachment_type = attachment_type.as_deref().unwrap_or("none"),
+                decision = "no_event"
+            );
+
+            // NOTE(iker): only processing relays create events from
+            // attachments, so these events won't be normalized in
+            // non-processing relays even if the config is set to run full
+            // normalization.
+            return Ok(());
+        }
+
         let options = &self.inner.global_config.current().options;
 
-        let full_normalization = if self.inner.config.processing_enabled()
-            && options.processing_disable_normalization
-            && (state.envelope().meta().is_from_internal_relay())
-        {
-            return Ok(());
-        } else if !self.inner.config.processing_enabled() && options.force_full_normalization {
-            true
-        } else {
-            match self.inner.config.normalization_level() {
-                NormalizationLevel::Disabled => {
-                    // We assume envelopes coming from an internal relay have
-                    // already been normalized. During incidents, like a PoP region
-                    // not being available, envelopes can go to other PoP regions or
-                    // directly to processing relays. Events should be fully
-                    // normalized, independently of the ingestion path.
-                    if self.inner.config.processing_enabled()
-                        && (!state.envelope().meta().is_from_internal_relay())
-                    {
-                        true
-                    } else {
-                        relay_log::trace!("Skipping event normalization");
-                        return Ok(());
-                    }
+        let full_normalization = match self.inner.config.normalization_level() {
+            NormalizationLevel::Full => true,
+            NormalizationLevel::Default => {
+                if self.inner.config.processing_enabled()
+                    && options.processing_disable_normalization
+                    && state.event_fully_normalized
+                {
+                    metric!(
+                        counter(RelayCounters::NormalizationDecision) += 1,
+                        attachment_type = attachment_type.as_deref().unwrap_or("none"),
+                        decision = "skip_normalized"
+                    );
+                    return Ok(());
+                } else {
+                    self.inner.config.processing_enabled() || options.force_full_normalization
                 }
-                NormalizationLevel::Full => true,
-                NormalizationLevel::Default => self.inner.config.processing_enabled(),
             }
         };
+
+        metric!(
+            counter(RelayCounters::NormalizationDecision) += 1,
+            attachment_type = attachment_type.as_deref().unwrap_or("none"),
+            decision = if full_normalization {
+                "full_normalization"
+            } else {
+                "limited_normalization"
+            }
+        );
 
         let request_meta = state.managed_envelope.envelope().meta();
         let client_ipaddr = request_meta.client_addr().map(IpAddr::from);
@@ -1507,6 +1540,8 @@ impl EnvelopeProcessorService {
             })
         })?;
 
+        state.event_fully_normalized |= full_normalization;
+
         Ok(())
     }
 
@@ -1548,11 +1583,18 @@ impl EnvelopeProcessorService {
         if state.has_event() {
             event::scrub(state)?;
             event::serialize(state)?;
-
             event::emit_feedback_metrics(state.envelope());
         }
 
         attachment::scrub(state);
+
+        if self.inner.config.processing_enabled() && !state.event_fully_normalized {
+            relay_log::error!(
+                tags.project = %state.project_id,
+                tags.ty = state.event_type().map(|e| e.to_string()).unwrap_or("none".to_owned()),
+                "ingested event without normalizing"
+            );
+        }
 
         Ok(())
     }
@@ -1646,6 +1688,14 @@ impl EnvelopeProcessorService {
         if state.has_event() {
             event::serialize(state)?;
         }
+
+        if self.inner.config.processing_enabled() && !state.event_fully_normalized {
+            relay_log::error!(
+                tags.project = %state.project_id,
+                tags.ty = state.event_type().map(|e| e.to_string()).unwrap_or("none".to_owned()),
+                "ingested event without normalizing"
+            );
+        };
 
         Ok(())
     }

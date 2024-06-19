@@ -161,5 +161,5 @@
         "username": "username"
     },
     "version": "7",
-    "location": null
+    "location": "not-empty-so-that-it-isnt-dropped"
 }
