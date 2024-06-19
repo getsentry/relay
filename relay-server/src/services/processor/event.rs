@@ -42,6 +42,7 @@ pub fn extract<G: EventProcessing>(
     config: &Config,
     global_config: &GlobalConfig,
 ) -> Result<(), ProcessingError> {
+    let event_fully_normalized = state.event_fully_normalized;
     let envelope = &mut state.envelope_mut();
 
     // Remove all items first, and then process them. After this function returns, only
@@ -68,12 +69,9 @@ pub fn extract<G: EventProcessing>(
         return Err(ProcessingError::DuplicateItem(duplicate.ty().clone()));
     }
 
-    let is_normalization_enabled =
-        if config.processing_enabled() && global_config.options.processing_disable_normalization {
-            false
-        } else {
-            config.normalization_level().is_enabled()
-        };
+    let skip_normalization = config.processing_enabled()
+        && global_config.options.processing_disable_normalization
+        && event_fully_normalized;
 
     let mut sample_rates = None;
     let (event, event_len) = if let Some(mut item) = event_item.or(security_item) {
@@ -84,7 +82,7 @@ pub fn extract<G: EventProcessing>(
             // Event items can never include transactions, so retain the event type and let
             // inference deal with this during normalization.
             if let Some(event) = annotated_event.value_mut() {
-                if is_normalization_enabled {
+                if !skip_normalization {
                     event.ty.set_value(None);
                 }
             }
@@ -397,6 +395,8 @@ pub fn serialize<G: EventProcessing>(
     if let Some(sample_rates) = state.sample_rates.take() {
         event_item.set_sample_rates(sample_rates);
     }
+
+    event_item.set_fully_normalized(state.event_fully_normalized);
 
     state.envelope_mut().add_item(event_item);
 

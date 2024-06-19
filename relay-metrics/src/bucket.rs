@@ -759,6 +759,17 @@ pub struct BucketMetadata {
     /// This field should be set to the time in which the first metric of a specific bucket was
     /// received in the outermost internal Relay.
     pub received_at: Option<UnixTimestamp>,
+
+    /// Is `true` if this metric was extracted from a sampled/indexed envelope item.
+    ///
+    /// The final dynamic sampling decision is always made in processing Relays.
+    /// If a metric was extracted from an item which is sampled (i.e. retained by dynamic sampling), this flag is `true`.
+    ///
+    /// Since these metrics from samples carry additional information, e.g. they don't
+    /// require rate limiting since the sample they've been extracted from was already
+    /// rate limited, this flag must be included in the aggregation key when aggregation buckets.
+    #[serde(skip)]
+    pub extracted_from_indexed: bool,
 }
 
 impl BucketMetadata {
@@ -769,6 +780,7 @@ impl BucketMetadata {
         Self {
             merges: 1,
             received_at: Some(received_at),
+            extracted_from_indexed: false,
         }
     }
 
@@ -793,6 +805,7 @@ impl Default for BucketMetadata {
         Self {
             merges: 1,
             received_at: None,
+            extracted_from_indexed: false,
         }
     }
 }
@@ -927,6 +940,7 @@ mod tests {
             metadata: BucketMetadata {
                 merges: 1,
                 received_at: None,
+                extracted_from_indexed: false,
             },
         }
         "###);
@@ -961,6 +975,7 @@ mod tests {
             metadata: BucketMetadata {
                 merges: 1,
                 received_at: None,
+                extracted_from_indexed: false,
             },
         }
         "###);
@@ -1013,6 +1028,7 @@ mod tests {
             metadata: BucketMetadata {
                 merges: 1,
                 received_at: None,
+                extracted_from_indexed: false,
             },
         }
         "###);
@@ -1073,6 +1089,7 @@ mod tests {
             metadata: BucketMetadata {
                 merges: 1,
                 received_at: None,
+                extracted_from_indexed: false,
             },
         }
         "###);
@@ -1103,6 +1120,7 @@ mod tests {
             metadata: BucketMetadata {
                 merges: 1,
                 received_at: None,
+                extracted_from_indexed: false,
             },
         }
         "###);
@@ -1127,6 +1145,7 @@ mod tests {
             metadata: BucketMetadata {
                 merges: 1,
                 received_at: None,
+                extracted_from_indexed: false,
             },
         }
         "###);
@@ -1330,6 +1349,7 @@ mod tests {
                     received_at: Some(
                         UnixTimestamp(1615889440),
                     ),
+                    extracted_from_indexed: false,
                 },
             },
         ]
@@ -1371,6 +1391,7 @@ mod tests {
                     received_at: Some(
                         UnixTimestamp(1615889440),
                     ),
+                    extracted_from_indexed: false,
                 },
             },
         ]
@@ -1459,7 +1480,8 @@ mod tests {
             metadata,
             BucketMetadata {
                 merges: 2,
-                received_at: None
+                received_at: None,
+                extracted_from_indexed: false,
             }
         );
 
@@ -1469,7 +1491,8 @@ mod tests {
             metadata,
             BucketMetadata {
                 merges: 3,
-                received_at: Some(UnixTimestamp::from_secs(10))
+                received_at: Some(UnixTimestamp::from_secs(10)),
+                extracted_from_indexed: false,
             }
         );
 
@@ -1479,7 +1502,8 @@ mod tests {
             metadata,
             BucketMetadata {
                 merges: 4,
-                received_at: Some(UnixTimestamp::from_secs(10))
+                received_at: Some(UnixTimestamp::from_secs(10)),
+                extracted_from_indexed: false,
             }
         );
     }

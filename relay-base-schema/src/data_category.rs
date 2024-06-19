@@ -169,8 +169,18 @@ impl DataCategory {
     pub fn index_category(self) -> Option<Self> {
         match self {
             Self::Transaction => Some(Self::TransactionIndexed),
+            Self::Span => Some(Self::SpanIndexed),
+            Self::Profile => Some(Self::ProfileIndexed),
             _ => None,
         }
+    }
+
+    /// Returns `true` if this data category is an indexed data category.
+    pub fn is_indexed(self) -> bool {
+        matches!(
+            self,
+            Self::TransactionIndexed | Self::SpanIndexed | Self::ProfileIndexed
+        )
     }
 }
 

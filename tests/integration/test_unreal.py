@@ -4,7 +4,7 @@ import json
 from .consts import TRANSACTION_EXTRACT_MAX_SUPPORTED_VERSION
 
 
-def _load_dump_file(base_file_name: str):
+def load_dump_file(base_file_name: str):
     dmp_path = os.path.join(
         os.path.dirname(__file__), "fixtures", "native", base_file_name
     )
@@ -27,7 +27,7 @@ def test_unreal_crash(mini_sentry, relay, dump_file_name, extract_metrics):
             "version": TRANSACTION_EXTRACT_MAX_SUPPORTED_VERSION,
         }
 
-    unreal_content = _load_dump_file(dump_file_name)
+    unreal_content = load_dump_file(dump_file_name)
 
     response = relay.send_unreal_request(project_id, unreal_content)
 
@@ -54,7 +54,7 @@ def test_unreal_minidump_with_processing(
     attachments_consumer = attachments_consumer()
 
     mini_sentry.add_full_project_config(project_id)
-    unreal_content = _load_dump_file("unreal_crash")
+    unreal_content = load_dump_file("unreal_crash")
 
     relay.send_unreal_request(project_id, unreal_content)
 
@@ -140,7 +140,7 @@ def test_unreal_apple_crash_with_processing(
     attachments_consumer = attachments_consumer()
 
     mini_sentry.add_full_project_config(project_id)
-    unreal_content = _load_dump_file("unreal_crash_apple")
+    unreal_content = load_dump_file("unreal_crash_apple")
 
     relay.send_unreal_request(project_id, unreal_content)
 
@@ -245,7 +245,7 @@ def test_unreal_minidump_with_config_and_processing(
     attachments_consumer = attachments_consumer()
 
     mini_sentry.add_full_project_config(project_id)
-    unreal_content = _load_dump_file("unreal_crash_with_config")
+    unreal_content = load_dump_file("unreal_crash_with_config")
 
     relay.send_unreal_request(project_id, unreal_content)
 
@@ -260,6 +260,11 @@ def test_unreal_minidump_with_config_and_processing(
 
     assert event
     assert event["type"] == "event"
+
+    # Test dump sets `IsAssert` to true but also supplies a custom `__sentry`
+    # value setting the error level to warning. Relay should not overwrite
+    # the user supplied level in this case.
+    assert json.loads(event["payload"])["level"] == "warning"
 
     project_id = event["project_id"]
     event_id = event["event_id"]
@@ -325,7 +330,7 @@ def test_unreal_minidump_with_config_and_processing(
 
 def test_unreal_crash_too_large(mini_sentry, relay_with_processing, outcomes_consumer):
     PROJECT_ID = 42
-    unreal_content = _load_dump_file("unreal_crash")
+    unreal_content = load_dump_file("unreal_crash")
     print("UE4 size: %s" % len(unreal_content))
 
     # Configure Relay so that it accepts the compressed UE4 archive. Once uncompressed, the file

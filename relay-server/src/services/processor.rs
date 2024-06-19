@@ -36,7 +36,7 @@ use relay_profiling::ProfileId;
 use relay_protocol::{Annotated, Value};
 use relay_quotas::{DataCategory, Scoping};
 use relay_sampling::config::RuleId;
-use relay_sampling::evaluation::{ReservoirCounters, ReservoirEvaluator};
+use relay_sampling::evaluation::{ReservoirCounters, ReservoirEvaluator, SamplingDecision};
 use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, NoResponse, Service};
 use reqwest::header;
@@ -55,7 +55,7 @@ use {
     },
     relay_dynamic_config::{CardinalityLimiterMode, GlobalConfig, MetricExtractionGroups},
     relay_metrics::{Aggregator, MergeBuckets, RedisMetricMetaStore},
-    relay_quotas::{Quota, RateLimitingError, RedisRateLimiter},
+    relay_quotas::{Quota, RateLimitingError, RateLimits, RedisRateLimiter},
     relay_redis::RedisPool,
     std::iter::Chain,
     std::slice::Iter,
@@ -581,18 +581,93 @@ impl From<ExtractMetricsError> for ProcessingError {
 
 type ExtractedEvent = (Annotated<Event>, usize);
 
-impl ExtractedMetrics {
+/// A container for extracted metrics during processing.
+///
+/// The container enforces that the extracted metrics are correctly tagged
+/// with the dynamic sampling decision.
+#[derive(Default, Debug)]
+pub struct ProcessingExtractedMetrics(ExtractedMetrics);
+
+impl ProcessingExtractedMetrics {
+    /// Extends the contained metrics with [`ExtractedMetrics`].
+    pub fn extend(
+        &mut self,
+        extracted: ExtractedMetrics,
+        sampling_decision: Option<SamplingDecision>,
+    ) {
+        self.extend_project_metrics(extracted.project_metrics, sampling_decision);
+        self.extend_sampling_metrics(extracted.sampling_metrics, sampling_decision);
+    }
+
+    /// Extends the contained project metrics.
+    pub fn extend_project_metrics(
+        &mut self,
+        mut buckets: Vec<Bucket>,
+        sampling_decision: Option<SamplingDecision>,
+    ) {
+        for bucket in &mut buckets {
+            bucket.metadata.extracted_from_indexed =
+                sampling_decision == Some(SamplingDecision::Keep);
+        }
+        self.0.project_metrics.extend(buckets);
+    }
+
+    /// Extends the contained sampling metrics.
+    pub fn extend_sampling_metrics(
+        &mut self,
+        mut buckets: Vec<Bucket>,
+        sampling_decision: Option<SamplingDecision>,
+    ) {
+        for bucket in &mut buckets {
+            bucket.metadata.extracted_from_indexed =
+                sampling_decision == Some(SamplingDecision::Keep);
+        }
+        self.0.sampling_metrics.extend(buckets);
+    }
+
+    /// Returns `true` if any project metrics are extracted.
+    pub fn has_project_metrics(&self) -> bool {
+        !self.0.project_metrics.is_empty()
+    }
+
+    /// Applies rate limits to the contained metrics.
+    ///
+    /// This is used to apply rate limits which have been enforced on sampled items of an envelope
+    /// to also consistently apply to the metrics extracted from these items.
+    #[cfg(feature = "processing")]
+    fn enforce_limits(&mut self, scoping: Scoping, limits: &RateLimits) {
+        for (category, namespace) in [
+            (DataCategory::Transaction, MetricNamespace::Transactions),
+            (DataCategory::Span, MetricNamespace::Spans),
+        ] {
+            if !limits.check(scoping.item(category)).is_empty() {
+                relay_log::trace!(
+                    "dropping {namespace} metrics, due to enforced limit on envelope"
+                );
+                self.retain(|bucket| bucket.name.try_namespace() != Some(namespace));
+            }
+        }
+    }
+
+    #[cfg(feature = "processing")]
+    fn retain(&mut self, mut f: impl FnMut(&Bucket) -> bool) {
+        self.0.project_metrics.retain(&mut f);
+        self.0.sampling_metrics.retain(&mut f);
+    }
+
     fn send_metrics(self, envelope: &Envelope, project_cache: Addr<ProjectCache>) {
         let project_key = envelope.meta().public_key();
 
-        if !self.project_metrics.is_empty() {
-            project_cache.send(AddMetricBuckets::internal(
-                project_key,
-                self.project_metrics,
-            ));
+        let ExtractedMetrics {
+            project_metrics,
+            sampling_metrics,
+        } = self.0;
+
+        if !project_metrics.is_empty() {
+            project_cache.send(AddMetricBuckets::internal(project_key, project_metrics));
         }
 
-        if !self.sampling_metrics.is_empty() {
+        if !sampling_metrics.is_empty() {
             // If no sampling project state is available, we associate the sampling
             // metrics with the current project.
             //
@@ -602,7 +677,7 @@ impl ExtractedMetrics {
             let sampling_project_key = utils::get_sampling_key(envelope).unwrap_or(project_key);
             project_cache.send(AddMetricBuckets::internal(
                 sampling_project_key,
-                self.sampling_metrics,
+                sampling_metrics,
             ));
         }
     }
@@ -642,7 +717,7 @@ struct ProcessEnvelopeState<'a, Group> {
     ///
     /// Relay can extract metrics for sessions and transactions, which is controlled by
     /// configuration objects in the project config.
-    extracted_metrics: ExtractedMetrics,
+    extracted_metrics: ProcessingExtractedMetrics,
 
     /// The state of the project that this envelope belongs to.
     project_state: Arc<ProjectState>,
@@ -663,6 +738,12 @@ struct ProcessEnvelopeState<'a, Group> {
 
     /// Reservoir evaluator that we use for dynamic sampling.
     reservoir: ReservoirEvaluator<'a>,
+
+    /// Track whether the event has already been fully normalized.
+    ///
+    /// If the processing pipeline applies changes to the event, it should
+    /// disable this flag to ensure the event is always normalized.
+    event_fully_normalized: bool,
 }
 
 impl<'a, Group> ProcessEnvelopeState<'a, Group> {
@@ -706,18 +787,13 @@ impl<'a, Group> ProcessEnvelopeState<'a, Group> {
     fn remove_event(&mut self) {
         self.event = Annotated::empty();
     }
-
-    fn reject_event(&mut self, outcome: Outcome) {
-        self.remove_event();
-        self.managed_envelope.reject_event(outcome);
-    }
 }
 
 /// The view out of the [`ProcessEnvelopeState`] after processing.
 #[derive(Debug)]
 struct ProcessingStateResult {
     managed_envelope: TypedEnvelope<Processed>,
-    extracted_metrics: ExtractedMetrics,
+    extracted_metrics: ProcessingExtractedMetrics,
 }
 
 /// Response of the [`ProcessEnvelope`] message.
@@ -1122,6 +1198,12 @@ impl EnvelopeProcessorService {
         //  2. The DSN was moved and the envelope sent to the old project ID.
         envelope.meta_mut().set_project_id(project_id);
 
+        // Only trust item headers in envelopes coming from internal relays
+        let event_fully_normalized = envelope.meta().is_from_internal_relay()
+            && envelope
+                .items()
+                .any(|item| item.creates_event() && item.fully_normalized());
+
         #[allow(unused_mut)]
         let mut reservoir = ReservoirEvaluator::new(reservoir_counters);
         #[cfg(feature = "processing")]
@@ -1142,6 +1224,7 @@ impl EnvelopeProcessorService {
             project_id,
             managed_envelope,
             reservoir,
+            event_fully_normalized,
         }
     }
 
@@ -1167,15 +1250,14 @@ impl EnvelopeProcessorService {
 
         // When invoking the rate limiter, capture if the event item has been rate limited to also
         // remove it from the processing state eventually.
-        let mut envelope_limiter =
-            EnvelopeLimiter::new(Some(&project_state.config), |item_scope, quantity| {
-                rate_limiter.is_rate_limited(quotas, item_scope, quantity, false)
-            });
+        let mut envelope_limiter = EnvelopeLimiter::new(|item_scope, quantity| {
+            rate_limiter.is_rate_limited(quotas, item_scope, quantity, false)
+        });
 
         // Tell the envelope limiter about the event, since it has been removed from the Envelope at
         // this stage in processing.
         if let Some(category) = event_category {
-            envelope_limiter.assume_event(category, state.event_metrics_extracted);
+            envelope_limiter.assume_event(category);
         }
 
         let scoping = state.managed_envelope.scoping();
@@ -1183,7 +1265,12 @@ impl EnvelopeProcessorService {
             envelope_limiter.enforce(state.managed_envelope.envelope_mut(), &scoping)?
         });
 
-        if limits.is_limited() {
+        // Use the same rate limits as used for the envelope on the metrics.
+        // Those rate limits should not be checked for expiry or similar to ensure a consistent
+        // limiting of envelope items and metrics.
+        state.extracted_metrics.enforce_limits(scoping, &limits);
+
+        if !limits.is_empty() {
             self.inner
                 .addrs
                 .project_cache
@@ -1208,7 +1295,7 @@ impl EnvelopeProcessorService {
     fn extract_transaction_metrics(
         &self,
         state: &mut ProcessEnvelopeState<TransactionGroup>,
-        sampling_result: &SamplingResult,
+        sampling_decision: SamplingDecision,
         profile_id: Option<ProfileId>,
     ) -> Result<(), ProcessingError> {
         if state.event_metrics_extracted {
@@ -1284,7 +1371,9 @@ impl EnvelopeProcessorService {
                 .max_tag_value_length,
             global.options.span_extraction_sample_rate,
         );
-        state.extracted_metrics.project_metrics.extend(metrics);
+        state
+            .extracted_metrics
+            .extend_project_metrics(metrics, Some(sampling_decision));
 
         if !state.project_state.has_feature(Feature::DiscardTransaction) {
             let transaction_from_dsc = state
@@ -1297,15 +1386,16 @@ impl EnvelopeProcessorService {
                 config: tx_config,
                 generic_config: Some(combined_config),
                 transaction_from_dsc,
-                sampling_result,
+                sampling_decision,
                 has_profile: profile_id.is_some(),
             };
 
-            state.extracted_metrics.extend(extractor.extract(event)?);
+            state
+                .extracted_metrics
+                .extend(extractor.extract(event)?, Some(sampling_decision));
         }
 
         state.event_metrics_extracted = true;
-        state.managed_envelope.set_event_metrics_extracted();
 
         Ok(())
     }
@@ -1314,36 +1404,56 @@ impl EnvelopeProcessorService {
         &self,
         state: &mut ProcessEnvelopeState<G>,
     ) -> Result<(), ProcessingError> {
+        let attachment_type = state
+            .envelope()
+            .get_item_by(|item| item.attachment_type().is_some())
+            .and_then(|item| item.attachment_type())
+            .map(|ty| ty.to_string());
+
+        if !state.has_event() {
+            metric!(
+                counter(RelayCounters::NormalizationDecision) += 1,
+                attachment_type = attachment_type.as_deref().unwrap_or("none"),
+                decision = "no_event"
+            );
+
+            // NOTE(iker): only processing relays create events from
+            // attachments, so these events won't be normalized in
+            // non-processing relays even if the config is set to run full
+            // normalization.
+            return Ok(());
+        }
+
         let options = &self.inner.global_config.current().options;
 
-        let full_normalization = if self.inner.config.processing_enabled()
-            && options.processing_disable_normalization
-            && (state.envelope().meta().is_from_internal_relay())
-        {
-            return Ok(());
-        } else if !self.inner.config.processing_enabled() && options.force_full_normalization {
-            true
-        } else {
-            match self.inner.config.normalization_level() {
-                NormalizationLevel::Disabled => {
-                    // We assume envelopes coming from an internal relay have
-                    // already been normalized. During incidents, like a PoP region
-                    // not being available, envelopes can go to other PoP regions or
-                    // directly to processing relays. Events should be fully
-                    // normalized, independently of the ingestion path.
-                    if self.inner.config.processing_enabled()
-                        && (!state.envelope().meta().is_from_internal_relay())
-                    {
-                        true
-                    } else {
-                        relay_log::trace!("Skipping event normalization");
-                        return Ok(());
-                    }
+        let full_normalization = match self.inner.config.normalization_level() {
+            NormalizationLevel::Full => true,
+            NormalizationLevel::Default => {
+                if self.inner.config.processing_enabled()
+                    && options.processing_disable_normalization
+                    && state.event_fully_normalized
+                {
+                    metric!(
+                        counter(RelayCounters::NormalizationDecision) += 1,
+                        attachment_type = attachment_type.as_deref().unwrap_or("none"),
+                        decision = "skip_normalized"
+                    );
+                    return Ok(());
+                } else {
+                    self.inner.config.processing_enabled() || options.force_full_normalization
                 }
-                NormalizationLevel::Full => true,
-                NormalizationLevel::Default => self.inner.config.processing_enabled(),
             }
         };
+
+        metric!(
+            counter(RelayCounters::NormalizationDecision) += 1,
+            attachment_type = attachment_type.as_deref().unwrap_or("none"),
+            decision = if full_normalization {
+                "full_normalization"
+            } else {
+                "limited_normalization"
+            }
+        );
 
         let request_meta = state.managed_envelope.envelope().meta();
         let client_ipaddr = request_meta.client_addr().map(IpAddr::from);
@@ -1454,6 +1564,8 @@ impl EnvelopeProcessorService {
             })
         })?;
 
+        state.event_fully_normalized |= full_normalization;
+
         Ok(())
     }
 
@@ -1495,11 +1607,18 @@ impl EnvelopeProcessorService {
         if state.has_event() {
             event::scrub(state)?;
             event::serialize(state)?;
-
             event::emit_feedback_metrics(state.envelope());
         }
 
         attachment::scrub(state);
+
+        if self.inner.config.processing_enabled() && !state.event_fully_normalized {
+            relay_log::error!(
+                tags.project = %state.project_id,
+                tags.ty = state.event_type().map(|e| e.to_string()).unwrap_or("none".to_owned()),
+                "ingested event without normalizing"
+            );
+        }
 
         Ok(())
     }
@@ -1533,20 +1652,18 @@ impl EnvelopeProcessorService {
 
         // Always run dynamic sampling on processing Relays,
         // but delay decision until inbound filters have been fully processed.
-        let sampling_result =
-            if self.inner.config.processing_enabled() || matches!(filter_run, FiltersStatus::Ok) {
-                dynamic_sampling::run(state, &self.inner.config)
-            } else {
-                SamplingResult::NoMatch
-            };
+        let run_dynamic_sampling =
+            matches!(filter_run, FiltersStatus::Ok) || self.inner.config.processing_enabled();
 
-        // We avoid extracting metrics if we are not sampling the event while in non-processing
-        // Relays, in order to synchronize rate limits on indexed and processed transactions.
-        if self.inner.config.processing_enabled() || sampling_result.should_drop() {
-            self.extract_transaction_metrics(state, &sampling_result, profile_id)?;
-        }
+        let sampling_result = match run_dynamic_sampling {
+            true => dynamic_sampling::run(state, &self.inner.config),
+            false => SamplingResult::Pending,
+        };
 
         if let Some(outcome) = sampling_result.into_dropped_outcome() {
+            // Extract metrics here, we're about to drop the event/transaction.
+            self.extract_transaction_metrics(state, SamplingDecision::Drop, profile_id)?;
+
             let keep_profiles = dynamic_sampling::forward_unsampled_profiles(state, &global_config);
 
             // Process profiles before dropping the transaction, if necessary.
@@ -1574,6 +1691,9 @@ impl EnvelopeProcessorService {
         attachment::scrub(state);
 
         if_processing!(self.inner.config, {
+            // Always extract metrics in processing Relays for sampled items.
+            self.extract_transaction_metrics(state, SamplingDecision::Keep, profile_id)?;
+
             profile::process(state, &self.inner.config);
 
             if state
@@ -1584,6 +1704,7 @@ impl EnvelopeProcessorService {
             }
 
             self.enforce_quotas(state)?;
+
             span::maybe_discard_transaction(state);
         });
 
@@ -1591,6 +1712,14 @@ impl EnvelopeProcessorService {
         if state.has_event() {
             event::serialize(state)?;
         }
+
+        if self.inner.config.processing_enabled() && !state.event_fully_normalized {
+            relay_log::error!(
+                tags.project = %state.project_id,
+                tags.ty = state.event_type().map(|e| e.to_string()).unwrap_or("none".to_owned()),
+                "ingested event without normalizing"
+            );
+        };
 
         Ok(())
     }
@@ -1864,7 +1993,7 @@ impl EnvelopeProcessorService {
                         // requires recomputation of the context.
                         state.managed_envelope.update();
 
-                        let has_metrics = !state.extracted_metrics.project_metrics.is_empty();
+                        let has_metrics = state.extracted_metrics.has_project_metrics();
 
                         state.extracted_metrics.send_metrics(
                             state.managed_envelope.envelope(),

@@ -568,6 +568,15 @@ pub struct ItemHeaders {
     #[serde(default, skip_serializing_if = "is_false")]
     spans_extracted: bool,
 
+    /// Whether the event has been _fully_ normalized.
+    ///
+    /// If the event has been partially normalized, this flag is false. By
+    /// default, all Relays run some normalization.
+    ///
+    /// Currently only used for events.
+    #[serde(default, skip_serializing_if = "is_false")]
+    fully_normalized: bool,
+
     /// `false` if the sampling decision is "drop".
     ///
     /// In the most common use case, the item is dropped when the sampling decision is "drop".
@@ -645,6 +654,7 @@ impl Item {
                 transaction_extracted: false,
                 spans_extracted: false,
                 sampled: true,
+                fully_normalized: false,
             },
             payload: Bytes::new(),
         }
@@ -678,14 +688,10 @@ impl Item {
     /// Returns the data category used for generating outcomes.
     ///
     /// Returns `None` if outcomes are not generated for this type (e.g. sessions).
-    pub fn outcome_category(&self, indexed: bool) -> Option<DataCategory> {
+    pub fn outcome_category(&self) -> Option<DataCategory> {
         match self.ty() {
             ItemType::Event => Some(DataCategory::Error),
-            ItemType::Transaction => Some(if indexed {
-                DataCategory::TransactionIndexed
-            } else {
-                DataCategory::Transaction
-            }),
+            ItemType::Transaction => Some(DataCategory::Transaction),
             ItemType::Security | ItemType::RawSecurity => Some(DataCategory::Security),
             ItemType::Nel => None,
             ItemType::UnrealReport => Some(DataCategory::Error),
@@ -695,21 +701,13 @@ impl Item {
             ItemType::FormData => None,
             ItemType::UserReport => None,
             ItemType::UserReportV2 => Some(DataCategory::UserReportV2),
-            ItemType::Profile => Some(if indexed {
-                DataCategory::ProfileIndexed
-            } else {
-                DataCategory::Profile
-            }),
+            ItemType::Profile => Some(DataCategory::Profile),
             ItemType::ReplayEvent | ItemType::ReplayRecording | ItemType::ReplayVideo => {
                 Some(DataCategory::Replay)
             }
             ItemType::ClientReport => None,
             ItemType::CheckIn => Some(DataCategory::Monitor),
-            ItemType::Span | ItemType::OtelSpan => Some(if indexed {
-                DataCategory::SpanIndexed
-            } else {
-                DataCategory::Span
-            }),
+            ItemType::Span | ItemType::OtelSpan => Some(DataCategory::Span),
             ItemType::ProfileChunk => Some(DataCategory::ProfileChunk),
             ItemType::Unknown(_) => None,
         }
@@ -867,6 +865,16 @@ impl Item {
     /// Sets the spans extracted flag.
     pub fn set_spans_extracted(&mut self, spans_extracted: bool) {
         self.headers.spans_extracted = spans_extracted;
+    }
+
+    /// Returns the fully normalized flag.
+    pub fn fully_normalized(&self) -> bool {
+        self.headers.fully_normalized
+    }
+
+    /// Sets the fully normalized flag.
+    pub fn set_fully_normalized(&mut self, fully_normalized: bool) {
+        self.headers.fully_normalized = fully_normalized;
     }
 
     /// Gets the `sampled` flag.

@@ -214,7 +214,7 @@ pub struct Options {
     )]
     pub span_extraction_sample_rate: Option<f32>,
 
-    /// If enabled, runs full normalization in non-processing Relays.
+    /// If true, runs full normalization in non-processing Relays.
     ///
     /// Doesn't apply to processing Relays. Outdated relays with a stale
     /// protocol/normalization receiving this flag will not forward unknown
@@ -227,7 +227,8 @@ pub struct Options {
     )]
     pub force_full_normalization: bool,
 
-    /// If enabled, disables normalization in processing Relays.
+    /// If true, disables normalization in processing Relays for events
+    /// normalized in a previous internal relay.
     #[serde(
         default,
         rename = "relay.disable_normalization.processing",

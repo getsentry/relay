@@ -13,7 +13,9 @@ use relay_metrics::aggregator::AggregatorConfig;
 use relay_metrics::{
     aggregator, Aggregator, Bucket, MergeBuckets, MetaAggregator, MetricMeta, MetricNamespace,
 };
-use relay_quotas::{DataCategory, MetricNamespaceScoping, Quota, RateLimits, Scoping};
+use relay_quotas::{
+    CachedRateLimits, DataCategory, MetricNamespaceScoping, Quota, RateLimits, Scoping,
+};
 use relay_sampling::evaluation::ReservoirCounters;
 use relay_statsd::metric;
 use relay_system::{Addr, BroadcastChannel};
@@ -467,7 +469,7 @@ pub struct Project {
     config: Arc<Config>,
     state: State,
     state_channel: Option<StateChannel>,
-    rate_limits: RateLimits,
+    rate_limits: CachedRateLimits,
     last_no_cache: Instant,
     reservoir_counters: ReservoirCounters,
     metric_meta_aggregator: MetaAggregator,
@@ -484,7 +486,7 @@ impl Project {
             project_key: key,
             state: State::new(config.permissive_aggregator_config()),
             state_channel: None,
-            rate_limits: RateLimits::new(),
+            rate_limits: CachedRateLimits::new(),
             last_no_cache: Instant::now(),
             reservoir_counters: Arc::default(),
             metric_meta_aggregator: MetaAggregator::new(config.metrics_meta_locations_max()),
@@ -561,11 +563,6 @@ impl Project {
         self.next_fetch_attempt
     }
 
-    /// The rate limits that are active for this project.
-    pub fn rate_limits(&self) -> &RateLimits {
-        &self.rate_limits
-    }
-
     /// The last time the project state was updated
     pub fn last_updated_at(&self) -> Instant {
         self.last_updated_at
@@ -579,14 +576,28 @@ impl Project {
     }
 
     fn merge_buckets_into_aggregator(
-        &self,
+        &mut self,
         aggregator: &Addr<Aggregator>,
         #[allow(unused_variables)] envelope_processor: &Addr<EnvelopeProcessor>,
         outcome_aggregator: &Addr<TrackOutcome>,
         metric_outcomes: &MetricOutcomes,
-        state: &ProjectState,
         buckets: Buckets<Filtered>,
     ) {
+        let state = match self.state {
+            State::Cached(ref state) => {
+                // TODO: When the state is present but expired, we should send buckets
+                // to the metrics buffer instead. In practice, the project state should be
+                // refreshed at the time when the buckets emerge from the aggregator though.
+                state
+            }
+            State::Pending(ref mut inner_agg) => {
+                // We need to queue the metrics in a temporary aggregator until the project state becomes available.
+                relay_log::debug!("sending metrics to metrics-buffer");
+                inner_agg.merge_all(self.project_key, buckets, None);
+                return;
+            }
+        };
+
         let Some(scoping) = self.scoping() else {
             relay_log::error!(
                 "there is no scoping due to missing project id: dropping {} buckets",
@@ -611,10 +622,10 @@ impl Project {
         let quotas = state.config.quotas.clone();
         let buckets = match MetricsLimiter::create(buckets, quotas, scoping) {
             Ok(mut bucket_limiter) => {
-                let cached_rate_limits = self.rate_limits().clone();
+                let current_limits = self.rate_limits.current_limits();
                 #[allow(unused_variables)]
                 let was_rate_limited = bucket_limiter.enforce_limits(
-                    &cached_rate_limits,
+                    current_limits,
                     metric_outcomes,
                     outcome_aggregator,
                 );
@@ -654,28 +665,13 @@ impl Project {
         }
 
         let buckets = Buckets::new(buckets).filter_namespaces(source);
-
-        match self.state {
-            State::Cached(ref state) => {
-                // TODO: When the state is present but expired, we should send buckets
-                // to the metrics buffer instead. In practice, the project state should be
-                // refreshed at the time when the buckets emerge from the aggregator though.
-
-                self.merge_buckets_into_aggregator(
-                    aggregator,
-                    envelope_processor,
-                    outcome_aggregator,
-                    metric_outcomes,
-                    state,
-                    buckets,
-                );
-            }
-            State::Pending(ref mut inner_agg) => {
-                // We need to queue the metrics in a temporary aggregator until the project state becomes available.
-                relay_log::debug!("sending metrics to metrics-buffer");
-                inner_agg.merge_all(self.project_key, buckets, None);
-            }
-        }
+        self.merge_buckets_into_aggregator(
+            aggregator,
+            envelope_processor,
+            outcome_aggregator,
+            metric_outcomes,
+            buckets,
+        );
     }
 
     pub fn add_metric_meta(
@@ -901,7 +897,6 @@ impl Project {
                     envelope_processor,
                     outcome_aggregator,
                     metric_outcomes,
-                    &state,
                     buckets,
                 );
             }
@@ -1051,12 +1046,11 @@ impl Project {
             }
         }
 
-        self.rate_limits.clean_expired();
+        let current_limits = self.rate_limits.current_limits();
 
-        let config = state.as_deref().map(|s| &s.config);
         let quotas = state.as_deref().map(|s| s.get_quotas()).unwrap_or(&[]);
-        let envelope_limiter = EnvelopeLimiter::new(config, |item_scoping, _| {
-            Ok(self.rate_limits.check_with_quotas(quotas, item_scoping))
+        let envelope_limiter = EnvelopeLimiter::new(|item_scoping, _| {
+            Ok(current_limits.check_with_quotas(quotas, item_scoping))
         });
 
         let (enforcement, mut rate_limits) =
@@ -1070,7 +1064,7 @@ impl Project {
         if envelope.envelope().items().any(|i| i.ty().is_metrics()) {
             let mut metrics_scoping = scoping.item(DataCategory::MetricBucket);
             metrics_scoping.namespace = MetricNamespaceScoping::Any;
-            rate_limits.merge(self.rate_limits.check_with_quotas(quotas, metrics_scoping));
+            rate_limits.merge(current_limits.check_with_quotas(quotas, metrics_scoping));
         }
 
         let envelope = if envelope.envelope().is_empty() {
@@ -1124,8 +1118,9 @@ impl Project {
             .filter_map(|bucket| bucket.name.try_namespace())
             .collect();
 
+        let current_limits = self.rate_limits.current_limits();
         for namespace in namespaces {
-            let limits = self.rate_limits().check_with_quotas(
+            let limits = current_limits.check_with_quotas(
                 project_state.get_quotas(),
                 scoping.item(DataCategory::MetricBucket),
             );
@@ -1387,13 +1382,12 @@ mod tests {
         let metric_outcomes =
             MetricOutcomes::new(MetricStats::test().0, outcome_aggregator.clone());
 
-        let project = create_project(None);
+        let mut project = create_project(None);
         project.merge_buckets_into_aggregator(
             &aggregator,
             &envelope_processor,
             &outcome_aggregator,
             &metric_outcomes,
-            &project.state_value().unwrap(),
             Buckets::test(vec![create_transaction_metric()]),
         );
         drop(aggregator);
@@ -1416,7 +1410,7 @@ mod tests {
         let metric_outcomes =
             MetricOutcomes::new(MetricStats::test().0, outcome_aggregator.clone());
 
-        let project = create_project(Some(json!({
+        let mut project = create_project(Some(json!({
             "quotas": [{
                "id": "foo",
                "categories": ["transaction"],
@@ -1430,7 +1424,6 @@ mod tests {
             &envelope_processor,
             &outcome_aggregator,
             &metric_outcomes,
-            &project.state_value().unwrap(),
             Buckets::test(vec![create_transaction_metric()]),
         );
         drop(aggregator);
@@ -1458,13 +1451,12 @@ mod tests {
         let metric_outcomes =
             MetricOutcomes::new(MetricStats::test().0, outcome_aggregator.clone());
 
-        let project = create_project(None);
+        let mut project = create_project(None);
         project.merge_buckets_into_aggregator(
             &aggregator,
             &envelope_processor,
             &outcome_aggregator,
             &metric_outcomes,
-            &project.state_value().unwrap(),
             Buckets::test(vec![create_transaction_bucket()]),
         );
         drop(aggregator);
@@ -1488,7 +1480,7 @@ mod tests {
         let metric_outcomes =
             MetricOutcomes::new(MetricStats::test().0, outcome_aggregator.clone());
 
-        let project = create_project(Some(json!({
+        let mut project = create_project(Some(json!({
             "quotas": [{
                "id": "foo",
                "categories": ["transaction"],
@@ -1502,7 +1494,6 @@ mod tests {
             &envelope_processor,
             &outcome_aggregator,
             &metric_outcomes,
-            &project.state_value().unwrap(),
             Buckets::test(vec![create_transaction_bucket()]),
         );
         drop(aggregator);
