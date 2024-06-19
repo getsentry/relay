@@ -10,11 +10,9 @@ use crate::protocol::EventId;
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct ProfileContext {
     /// The profile ID.
-    #[metastructure(required = "false")]
     pub profile_id: Annotated<EventId>,
 
     /// The profiler ID.
-    #[metastructure(required = "false")]
     pub profiler_id: Annotated<EventId>,
 }
 
@@ -61,6 +59,7 @@ mod tests {
   "type": "profile"
 }"#;
         let context = Annotated::new(Context::Profile(Box::new(ProfileContext {
+            profiler_id: Annotated::empty(),
             profile_id: Annotated::new(EventId(
                 "4c79f60c11214eb38604f4ae0781bfb2".parse().unwrap(),
             )),
@@ -77,6 +76,7 @@ mod tests {
   "type": "profile"
 }"#;
         let context = Annotated::new(Context::Profile(Box::new(ProfileContext {
+            profiler_id: Annotated::empty(),
             profile_id: Annotated::new(EventId(
                 "4c79f60c11214eb38604f4ae0781bfb2".parse().unwrap(),
             )),
