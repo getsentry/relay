@@ -59,10 +59,10 @@ mod tests {
   "type": "profile"
 }"#;
         let context = Annotated::new(Context::Profile(Box::new(ProfileContext {
-            profiler_id: Annotated::empty(),
             profile_id: Annotated::new(EventId(
                 "4c79f60c11214eb38604f4ae0781bfb2".parse().unwrap(),
             )),
+            ..ProfileContext::default()
         })));
 
         assert_eq!(context, Annotated::from_json(json).unwrap());
@@ -76,10 +76,10 @@ mod tests {
   "type": "profile"
 }"#;
         let context = Annotated::new(Context::Profile(Box::new(ProfileContext {
-            profiler_id: Annotated::empty(),
             profile_id: Annotated::new(EventId(
                 "4c79f60c11214eb38604f4ae0781bfb2".parse().unwrap(),
             )),
+            ..ProfileContext::default()
         })));
 
         assert_eq!(context, Annotated::from_json(json).unwrap());
