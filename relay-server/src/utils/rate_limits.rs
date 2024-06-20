@@ -1,4 +1,4 @@
-use serde::{de, Deserialize, Deserializer};
+use serde::de;
 use std::fmt::{self, Write};
 
 use relay_quotas::{
@@ -318,10 +318,10 @@ pub struct PartialEvent {
     pub spans_length: usize,
 }
 
-impl<'de> Deserialize<'de> for PartialEvent {
+impl<'de> de::Deserialize<'de> for PartialEvent {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
-        D: Deserializer<'de>,
+        D: de::Deserializer<'de>,
     {
         struct PartialEventVisitor;
 
@@ -435,7 +435,7 @@ impl Enforcement {
         let nested_spans = event.clone_for(DataCategory::Span, spans_length);
         let nested_spans_indexed = event_indexed.clone_for(DataCategory::SpanIndexed, spans_length);
 
-        let mut limits = [
+        let limits = [
             event,
             event_indexed,
             attachments,
