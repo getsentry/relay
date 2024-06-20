@@ -1032,7 +1032,7 @@ impl Project {
     ///   should be accepted or discarded
     ///
     /// IMPORTANT: If the [`ProjectState`] is invalid, the `check_request` will be skipped and only
-    /// rate limites will be validated. This function **must not** be called in the main processing
+    /// rate limits will be validated. This function **must not** be called in the main processing
     /// pipeline.
     pub fn check_envelope(
         &mut self,

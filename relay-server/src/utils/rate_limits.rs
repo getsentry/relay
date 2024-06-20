@@ -352,10 +352,12 @@ impl Enforcement {
         self.event.is_active() || self.event_indexed.is_active()
     }
 
+    /// Returns a reference to the `event` of [`CategoryLimit`].
     pub fn event_limit(&self) -> &CategoryLimit {
         &self.event
     }
 
+    /// Returns a reference to the `event_indexed` of [`CategoryLimit`].
     pub fn event_indexed_limit(&self) -> &CategoryLimit {
         &self.event_indexed
     }
