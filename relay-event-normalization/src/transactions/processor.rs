@@ -345,7 +345,8 @@ mod tests {
     use relay_event_schema::protocol::{ClientSdkInfo, Contexts, SpanId, TraceId};
     use relay_protocol::{assert_annotated_snapshot, get_value};
 
-    use crate::{validate_transaction, RedactionRule, TransactionValidationConfig};
+    use crate::validation::validate_event;
+    use crate::{EventValidationConfig, RedactionRule};
 
     use super::*;
 
@@ -546,7 +547,7 @@ mod tests {
         })
         .unwrap();
 
-        validate_transaction(&mut event, &TransactionValidationConfig::default()).unwrap();
+        validate_event(&mut event, &EventValidationConfig::default()).unwrap();
         process_value(
             &mut event,
             &mut TransactionsProcessor::default(),
