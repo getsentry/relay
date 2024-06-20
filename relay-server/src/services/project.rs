@@ -24,13 +24,14 @@ use smallvec::SmallVec;
 use tokio::time::Instant;
 use url::Url;
 
-use crate::envelope::Envelope;
+use crate::envelope::{Envelope, ItemType};
 use crate::metrics::{MetricOutcomes, MetricsLimiter};
 use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
 #[cfg(feature = "processing")]
 use crate::services::processor::RateLimitBuckets;
 use crate::services::processor::{EncodeMetricMeta, EnvelopeProcessor, ProjectMetrics};
 use crate::services::project_cache::{BucketSource, CheckedEnvelope, ProjectCache, RequestUpdate};
+use crate::utils::{Enforcement, SeqCount};
 
 use crate::extractors::RequestMeta;
 
@@ -454,6 +455,11 @@ impl State {
             config,
         )))
     }
+}
+
+#[derive(Debug, Deserialize)]
+pub struct PartialEvent {
+    pub spans: SeqCount,
 }
 
 /// Structure representing organization and project configuration for a project key.
@@ -1055,7 +1061,50 @@ impl Project {
 
         let (enforcement, mut rate_limits) =
             envelope_limiter.enforce(envelope.envelope_mut(), &scoping)?;
+
+        let event_limit = enforcement.event_limit().is_active();
+        let event_indexed_limit = enforcement.event_indexed_limit().is_active();
+        let event_limit_reason_code = enforcement.event_limit().reason_code().clone();
+        let event_indexed_limit_reason_code =
+            enforcement.event_indexed_limit().reason_code().clone();
+
         enforcement.track_outcomes(envelope.envelope(), &scoping, outcome_aggregator);
+
+        // On the fast path of rate limiting, we do not have nested spans of a transaction extracted
+        // as top-level spans, thus if we limited a transaction, we want to count and emit negative
+        // outcomes for each of the spans nested inside that transaction.
+        if let Some(ref state) = state {
+            if state.has_feature(Feature::ExtractSpansFromEvent)
+                && (event_limit || event_indexed_limit)
+            {
+                let spans_length: usize = envelope
+                    .envelope()
+                    .items()
+                    .filter(|i| *i.ty() == ItemType::Transaction && !i.spans_extracted())
+                    .filter_map(|i| serde_json::from_slice::<PartialEvent>(&i.payload()).ok())
+                    .map(|p| p.spans.0)
+                    .sum();
+
+                if spans_length > 0 {
+                    if event_limit {
+                        envelope.track_outcome(
+                            Outcome::RateLimited(event_limit_reason_code),
+                            DataCategory::Span,
+                            spans_length,
+                        );
+                    }
+
+                    if event_indexed_limit {
+                        envelope.track_outcome(
+                            Outcome::RateLimited(event_indexed_limit_reason_code),
+                            DataCategory::SpanIndexed,
+                            spans_length,
+                        );
+                    }
+                }
+            }
+        }
+
         envelope.update();
 
         // Special case: Expose active rate limits for all metric namespaces if there is at least

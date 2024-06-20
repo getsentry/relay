@@ -1,4 +1,3 @@
-use serde::de;
 use std::fmt::{self, Write};
 
 use relay_quotas::{
@@ -257,7 +256,7 @@ impl EnvelopeSummary {
 
 /// Rate limiting information for a data category.
 #[derive(Debug)]
-struct CategoryLimit {
+pub struct CategoryLimit {
     /// The limited data category.
     category: DataCategory,
     /// The total rate limited quantity across all items.
@@ -298,8 +297,13 @@ impl CategoryLimit {
     ///
     /// This indicates that the category is limited and a certain quantity is removed from the
     /// Envelope. If the limit is inactive, there is no change.
-    fn is_active(&self) -> bool {
+    pub fn is_active(&self) -> bool {
         self.quantity > 0
+    }
+
+    /// Returns a reference to the `reason_code` of the [`CategoryLimit`].
+    pub fn reason_code(&self) -> &Option<ReasonCode> {
+        &self.reason_code
     }
 }
 
@@ -310,53 +314,6 @@ impl Default for CategoryLimit {
             quantity: 0,
             reason_code: None,
         }
-    }
-}
-
-#[derive(Debug)]
-pub struct PartialEvent {
-    pub spans_length: usize,
-}
-
-impl<'de> de::Deserialize<'de> for PartialEvent {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: de::Deserializer<'de>,
-    {
-        struct PartialEventVisitor;
-
-        impl<'de> de::Visitor<'de> for PartialEventVisitor {
-            type Value = PartialEvent;
-
-            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-                formatter.write_str("struct PartialEvent")
-            }
-
-            fn visit_map<V>(self, mut map: V) -> Result<Self::Value, V::Error>
-            where
-                V: de::MapAccess<'de>,
-            {
-                let mut spans_length = None;
-
-                while let Some(key) = map.next_key()? {
-                    match key {
-                        "spans" => {
-                            let spans: Vec<serde_json::Value> = map.next_value()?;
-                            spans_length = Some(spans.len());
-                        }
-                        _ => {
-                            let _ = map.next_value::<serde_json::Value>()?;
-                        }
-                    }
-                }
-
-                let spans_length = spans_length.ok_or_else(|| de::Error::missing_field("spans"))?;
-
-                Ok(PartialEvent { spans_length })
-            }
-        }
-
-        deserializer.deserialize_map(PartialEventVisitor)
     }
 }
 
@@ -395,6 +352,14 @@ impl Enforcement {
         self.event.is_active() || self.event_indexed.is_active()
     }
 
+    pub fn event_limit(&self) -> &CategoryLimit {
+        &self.event
+    }
+
+    pub fn event_indexed_limit(&self) -> &CategoryLimit {
+        &self.event_indexed
+    }
+
     /// Helper for `track_outcomes`.
     fn get_outcomes(
         self,
@@ -405,17 +370,6 @@ impl Enforcement {
         let scoping = *scoping;
         let event_id = envelope.event_id();
         let remote_addr = envelope.meta().remote_addr();
-
-        // Since during the fast path of rate limiting we do not extract nested spans into top-level,
-        // we want to count the nested spans if a transaction didn't have them extracted. In this
-        // way, we can correctly emit negative outcomes for the nested spans that were inside a
-        // transaction that was rate limited in the fast path.
-        let spans_length: usize = envelope
-            .items()
-            .filter(|i| *i.ty() == ItemType::Transaction && !i.spans_extracted())
-            .filter_map(|i| serde_json::from_slice::<PartialEvent>(&i.payload()).ok())
-            .map(|p| p.spans_length)
-            .sum();
 
         let Self {
             event,
@@ -432,9 +386,6 @@ impl Enforcement {
             profile_chunks,
         } = self;
 
-        let nested_spans = event.clone_for(DataCategory::Span, spans_length);
-        let nested_spans_indexed = event_indexed.clone_for(DataCategory::SpanIndexed, spans_length);
-
         let limits = [
             event,
             event_indexed,
@@ -447,8 +398,6 @@ impl Enforcement {
             spans_indexed,
             user_reports_v2,
             profile_chunks,
-            nested_spans,
-            nested_spans_indexed,
         ];
 
         limits
@@ -803,7 +752,8 @@ mod tests {
     use relay_base_schema::project::{ProjectId, ProjectKey};
     use relay_metrics::MetricNamespace;
     use relay_quotas::RetryAfter;
-    use smallvec::smallvec;
+    use smallvec::{smallvec, SmallVec};
+    use tokio::time::Instant;
 
     use super::*;
     use crate::{
@@ -1534,5 +1484,19 @@ mod tests {
 
         assert_eq!(summary.profile_quantity, 2);
         assert_eq!(summary.secondary_transaction_quantity, 7);
+    }
+
+    #[test]
+    fn test_nested_spans_outcomes_tracked_when_no_spans_extracted() {
+        let rate_limit = RateLimit {
+            categories: SmallVec::new(),
+            scope: RateLimitScope::Global,
+            reason_code: Some(ReasonCode::new("my_rate_limit".to_owned())),
+            retry_after: RetryAfter::from_secs(10),
+            namespaces: Default::default(),
+        };
+        let mut enforcement = Enforcement::default();
+        enforcement.event = CategoryLimit::new(DataCategory::Transaction, 1, Some(&rate_limit));
+        let scoping = scoping();
     }
 }
