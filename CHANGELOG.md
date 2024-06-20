@@ -16,6 +16,7 @@
 - Improve flush time calculation in metrics aggregator. ([#3726](https://github.com/getsentry/relay/pull/3726))
 - Default `client` of `RequestMeta` to `relay-http` for incoming monitor requests. ([#3739](https://github.com/getsentry/relay/pull/3739))
 - Normalize events once in the ingestion pipeline, relying on item headers. ([#3730](https://github.com/getsentry/relay/pull/3730))
+- Decrease max allowed segment_id for replays. ([#3280]https://github.com/getsentry/relay/pull/3280)
 
 ## 24.5.1
 
