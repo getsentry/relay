@@ -11,6 +11,38 @@ use relay_protocol::{Annotated, ErrorKind, Meta};
 
 use crate::{ClockDriftProcessor, TimestampProcessor};
 
+/// Configuration for [`validate_event`].
+#[derive(Debug, Default)]
+pub struct EventValidationConfig {
+    /// The time at which the event was received in this Relay.
+    ///
+    /// This timestamp is persisted into the event payload.
+    pub received_at: Option<DateTime<Utc>>,
+
+    /// The maximum amount of seconds an event can be dated in the past.
+    ///
+    /// If the event's timestamp is older, the received timestamp is assumed.
+    pub max_secs_in_past: Option<i64>,
+
+    /// The maximum amount of seconds an event can be predated into the future.
+    ///
+    /// If the event's timestamp lies further into the future, the received timestamp is assumed.
+    pub max_secs_in_future: Option<i64>,
+
+    /// Timestamp range in which a transaction must end.
+    ///
+    /// Transactions that finish outside this range are invalid. The check is
+    /// skipped if no range is provided.
+    pub timestamp_range: Option<Range<UnixTimestamp>>,
+
+    /// Controls whether the event has been validated before, in which case disables validation.
+    ///
+    /// By default, `is_validated` is disabled and event validation is run.
+    ///
+    /// Similar to `is_renormalize` for normalization, `sentry_relay` may configure this value.
+    pub is_validated: bool,
+}
+
 /// Validates an event.
 ///
 /// Validation consists of performing multiple checks on the payload, based on
@@ -51,6 +83,55 @@ pub fn validate_event(
     }
 
     Ok(())
+}
+
+/// Validates the timestamp range and sets a default value.
+fn normalize_timestamps(
+    event: &mut Event,
+    meta: &mut Meta,
+    received_at: Option<DateTime<Utc>>,
+    max_secs_in_past: Option<i64>,
+    max_secs_in_future: Option<i64>,
+) {
+    let received_at = received_at.unwrap_or_else(Utc::now);
+
+    let mut sent_at = None;
+    let mut error_kind = ErrorKind::ClockDrift;
+
+    let _ = processor::apply(&mut event.timestamp, |timestamp, _meta| {
+        if let Some(secs) = max_secs_in_future {
+            if *timestamp > received_at + Duration::seconds(secs) {
+                error_kind = ErrorKind::FutureTimestamp;
+                sent_at = Some(*timestamp);
+                return Ok(());
+            }
+        }
+
+        if let Some(secs) = max_secs_in_past {
+            if *timestamp < received_at - Duration::seconds(secs) {
+                error_kind = ErrorKind::PastTimestamp;
+                sent_at = Some(*timestamp);
+                return Ok(());
+            }
+        }
+
+        Ok(())
+    });
+
+    let _ = ClockDriftProcessor::new(sent_at.map(|ts| ts.into_inner()), received_at)
+        .error_kind(error_kind)
+        .process_event(event, meta, ProcessingState::root());
+
+    // Apply this after clock drift correction, otherwise we will malform it.
+    event.received = Annotated::new(received_at.into());
+
+    if event.timestamp.value().is_none() {
+        event.timestamp.set_value(Some(received_at.into()));
+    }
+
+    let _ = processor::apply(&mut event.time_spent, |time_spent, _| {
+        validate_bounded_integer_field(*time_spent)
+    });
 }
 
 /// Returns whether the transacion's start and end timestamps are both set and start <= end.
@@ -221,87 +302,6 @@ pub fn validate_span(
     Ok(())
 }
 
-/// Configuration for [`validate_event`].
-#[derive(Debug, Default)]
-pub struct EventValidationConfig {
-    /// The time at which the event was received in this Relay.
-    ///
-    /// This timestamp is persisted into the event payload.
-    pub received_at: Option<DateTime<Utc>>,
-
-    /// The maximum amount of seconds an event can be dated in the past.
-    ///
-    /// If the event's timestamp is older, the received timestamp is assumed.
-    pub max_secs_in_past: Option<i64>,
-
-    /// The maximum amount of seconds an event can be predated into the future.
-    ///
-    /// If the event's timestamp lies further into the future, the received timestamp is assumed.
-    pub max_secs_in_future: Option<i64>,
-
-    /// Timestamp range in which a transaction must end.
-    ///
-    /// Transactions that finish outside this range are invalid. The check is
-    /// skipped if no range is provided.
-    pub timestamp_range: Option<Range<UnixTimestamp>>,
-
-    /// Controls whether the event has been validated before, in which case disables validation.
-    ///
-    /// By default, `is_validated` is disabled and event validation is run.
-    ///
-    /// Similar to `is_renormalize` for normalization, `sentry_relay` may configure this value.
-    pub is_validated: bool,
-}
-
-/// Validates the timestamp range and sets a default value.
-fn normalize_timestamps(
-    event: &mut Event,
-    meta: &mut Meta,
-    received_at: Option<DateTime<Utc>>,
-    max_secs_in_past: Option<i64>,
-    max_secs_in_future: Option<i64>,
-) {
-    let received_at = received_at.unwrap_or_else(Utc::now);
-
-    let mut sent_at = None;
-    let mut error_kind = ErrorKind::ClockDrift;
-
-    let _ = processor::apply(&mut event.timestamp, |timestamp, _meta| {
-        if let Some(secs) = max_secs_in_future {
-            if *timestamp > received_at + Duration::seconds(secs) {
-                error_kind = ErrorKind::FutureTimestamp;
-                sent_at = Some(*timestamp);
-                return Ok(());
-            }
-        }
-
-        if let Some(secs) = max_secs_in_past {
-            if *timestamp < received_at - Duration::seconds(secs) {
-                error_kind = ErrorKind::PastTimestamp;
-                sent_at = Some(*timestamp);
-                return Ok(());
-            }
-        }
-
-        Ok(())
-    });
-
-    let _ = ClockDriftProcessor::new(sent_at.map(|ts| ts.into_inner()), received_at)
-        .error_kind(error_kind)
-        .process_event(event, meta, ProcessingState::root());
-
-    // Apply this after clock drift correction, otherwise we will malform it.
-    event.received = Annotated::new(received_at.into());
-
-    if event.timestamp.value().is_none() {
-        event.timestamp.set_value(Some(received_at.into()));
-    }
-
-    let _ = processor::apply(&mut event.time_spent, |time_spent, _| {
-        validate_bounded_integer_field(*time_spent)
-    });
-}
-
 /// Validate fields that go into a `sentry.models.BoundedIntegerField`.
 fn validate_bounded_integer_field(value: u64) -> ProcessingResult {
     if value < 2_147_483_647 {
@@ -349,8 +349,6 @@ mod tests {
             ..Default::default()
         })
     }
-
-
 
     #[test]
     fn test_timestamp_added_if_missing() {
