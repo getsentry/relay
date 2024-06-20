@@ -771,6 +771,8 @@ impl ProjectCacheBroker {
     fn handle_processing(&mut self, key: QueueKey, managed_envelope: ManagedEnvelope) {
         let project_key = managed_envelope.envelope().meta().public_key();
 
+        // TODO(jjbayer): pass project(s) in handle_processing to make this check unnecessary.
+        // (need to remove `UnspooledEnvelope` code path first).
         let Some(project) = self.projects.get_mut(&project_key) else {
             relay_log::error!(
                 tags.project_key = %project_key,
@@ -784,7 +786,7 @@ impl ProjectCacheBroker {
             return;
         };
 
-        let Some(own_project_state) = project.valid_state().filter(|s| !s.invalid()) else {
+        let Some(own_project_state) = project.cached_state() else {
             relay_log::error!(
                 tags.project_key = %project_key,
                 "project has no valid cached state",
@@ -803,7 +805,7 @@ impl ProjectCacheBroker {
 
             let sampling_project_state = utils::get_sampling_key(managed_envelope.envelope())
                 .and_then(|key| self.projects.get(&key))
-                .and_then(|p| p.valid_state())
+                .and_then(|p| p.cached_state())
                 .filter(|state| state.organization_id == own_project_state.organization_id);
 
             let process = ProcessEnvelope {
