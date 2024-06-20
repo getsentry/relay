@@ -530,23 +530,6 @@
 <a href="#530" id="530">530</a>
 <a href="#531" id="531">531</a>
 <a href="#532" id="532">532</a>
-<a href="#533" id="533">533</a>
-<a href="#534" id="534">534</a>
-<a href="#535" id="535">535</a>
-<a href="#536" id="536">536</a>
-<a href="#537" id="537">537</a>
-<a href="#538" id="538">538</a>
-<a href="#539" id="539">539</a>
-<a href="#540" id="540">540</a>
-<a href="#541" id="541">541</a>
-<a href="#542" id="542">542</a>
-<a href="#543" id="543">543</a>
-<a href="#544" id="544">544</a>
-<a href="#545" id="545">545</a>
-<a href="#546" id="546">546</a>
-<a href="#547" id="547">547</a>
-<a href="#548" id="548">548</a>
-<a href="#549" id="549">549</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::HashMap;
 <span class="kw">use </span>std::time::Duration;
 
@@ -582,22 +565,8 @@
 
     <span class="doccomment">/// The initial delay in seconds to wait before flushing a bucket.
     ///
-    /// Defaults to `30` seconds. Before sending an aggregated bucket, this is the time Relay waits
-    /// for buckets that are being reported in real time. This should be higher than the
-    /// `debounce_delay`.
-    ///
     /// Relay applies up to a full `bucket_interval` of additional jitter after the initial delay to spread out flushing real time buckets.
     </span><span class="kw">pub </span>initial_delay: u64,
-
-    <span class="doccomment">/// The delay in seconds to wait before flushing a backdated buckets.
-    ///
-    /// Defaults to `10` seconds. Metrics can be sent with a past timestamp. Relay wait this time
-    /// before sending such a backdated bucket to the upsteam. This should be lower than
-    /// `initial_delay`.
-    ///
-    /// Unlike `initial_delay`, the debounce delay starts with the exact moment the first metric
-    /// is added to a backdated bucket.
-    </span><span class="kw">pub </span>debounce_delay: u64,
 
     <span class="doccomment">/// The age in seconds of the oldest allowed bucket timestamp.
     ///
@@ -671,7 +640,6 @@
             max_total_bucket_bytes: <span class="prelude-val">None</span>,
             bucket_interval: <span class="number">10</span>,
             initial_delay: <span class="number">30</span>,
-            debounce_delay: <span class="number">10</span>,
             max_secs_in_past: <span class="number">5 </span>* <span class="number">24 </span>* <span class="number">60 </span>* <span class="number">60</span>, <span class="comment">// 5 days, as for sessions
             </span>max_secs_in_future: <span class="number">60</span>,             <span class="comment">// 1 minute
             </span>max_name_length: <span class="number">200</span>,
@@ -691,7 +659,6 @@
         <span class="self">Self </span>{
             bucket_interval: value.bucket_interval,
             initial_delay: value.initial_delay,
-            debounce_delay: value.debounce_delay,
             max_secs_in_past: value.max_secs_in_past,
             max_secs_in_future: value.max_secs_in_future,
             max_name_length: value.max_name_length,
@@ -1071,7 +1038,6 @@
         <span class="kw">let </span>config = AggregatorServiceConfig {
             bucket_interval: <span class="number">1</span>,
             initial_delay: <span class="number">0</span>,
-            debounce_delay: <span class="number">0</span>,
             ..Default::default()
         };
         <span class="kw">let </span>aggregator = AggregatorService::new(config, <span class="prelude-val">Some</span>(recipient)).start();

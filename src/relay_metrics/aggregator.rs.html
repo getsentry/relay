@@ -1618,30 +1618,6 @@
 <a href="#1618" id="1618">1618</a>
 <a href="#1619" id="1619">1619</a>
 <a href="#1620" id="1620">1620</a>
-<a href="#1621" id="1621">1621</a>
-<a href="#1622" id="1622">1622</a>
-<a href="#1623" id="1623">1623</a>
-<a href="#1624" id="1624">1624</a>
-<a href="#1625" id="1625">1625</a>
-<a href="#1626" id="1626">1626</a>
-<a href="#1627" id="1627">1627</a>
-<a href="#1628" id="1628">1628</a>
-<a href="#1629" id="1629">1629</a>
-<a href="#1630" id="1630">1630</a>
-<a href="#1631" id="1631">1631</a>
-<a href="#1632" id="1632">1632</a>
-<a href="#1633" id="1633">1633</a>
-<a href="#1634" id="1634">1634</a>
-<a href="#1635" id="1635">1635</a>
-<a href="#1636" id="1636">1636</a>
-<a href="#1637" id="1637">1637</a>
-<a href="#1638" id="1638">1638</a>
-<a href="#1639" id="1639">1639</a>
-<a href="#1640" id="1640">1640</a>
-<a href="#1641" id="1641">1641</a>
-<a href="#1642" id="1642">1642</a>
-<a href="#1643" id="1643">1643</a>
-<a href="#1644" id="1644">1644</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Core functionality of metrics aggregation.
 
 </span><span class="kw">use </span>std::collections::hash_map::Entry;
@@ -1806,21 +1782,10 @@
     <span class="doccomment">/// The initial delay in seconds to wait before flushing a bucket.
     ///
     /// Defaults to `30` seconds. Before sending an aggregated bucket, this is the time Relay waits
-    /// for buckets that are being reported in real time. This should be higher than the
-    /// `debounce_delay`.
+    /// for buckets that are being reported in real time.
     ///
     /// Relay applies up to a full `bucket_interval` of additional jitter after the initial delay to spread out flushing real time buckets.
     </span><span class="kw">pub </span>initial_delay: u64,
-
-    <span class="doccomment">/// The delay in seconds to wait before flushing a backdated buckets.
-    ///
-    /// Defaults to `10` seconds. Metrics can be sent with a past timestamp. Relay wait this time
-    /// before sending such a backdated bucket to the upsteam. This should be lower than
-    /// `initial_delay`.
-    ///
-    /// Unlike `initial_delay`, the debounce delay starts with the exact moment the first metric
-    /// is added to a backdated bucket.
-    </span><span class="kw">pub </span>debounce_delay: u64,
 
     <span class="doccomment">/// The age in seconds of the oldest allowed bucket timestamp.
     ///
@@ -1876,11 +1841,6 @@
 }
 
 <span class="kw">impl </span>AggregatorConfig {
-    <span class="doccomment">/// The delay to debounce backdated flushes.
-    </span><span class="kw">fn </span>debounce_delay(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Duration {
-        Duration::from_secs(<span class="self">self</span>.debounce_delay)
-    }
-
     <span class="doccomment">/// Returns the time width buckets.
     </span><span class="kw">fn </span>bucket_interval(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Duration {
         Duration::from_secs(<span class="self">self</span>.bucket_interval)
@@ -1945,7 +1905,6 @@
         <span class="self">Self </span>{
             bucket_interval: <span class="number">10</span>,
             initial_delay: <span class="number">30</span>,
-            debounce_delay: <span class="number">10</span>,
             max_secs_in_past: <span class="number">5 </span>* <span class="number">24 </span>* <span class="number">60 </span>* <span class="number">60</span>, <span class="comment">// 5 days, as for sessions
             </span>max_secs_in_future: <span class="number">60</span>,             <span class="comment">// 1 minute
             </span>max_name_length: <span class="number">200</span>,
@@ -2121,8 +2080,7 @@
 
 <span class="doccomment">/// Returns the instant at which a bucket should be flushed.
 ///
-/// Recent buckets are flushed after a grace period of `initial_delay`. Backdated buckets, that
-/// is, buckets that lie in the past, are flushed after the shorter `debounce_delay`.
+/// All buckets are flushed after a grace period of `initial_delay`.
 </span><span class="kw">fn </span>get_flush_time(
     config: <span class="kw-2">&amp;</span>AggregatorConfig,
     reference_time: Instant,
@@ -2150,7 +2108,7 @@
         </span><span class="kw">let </span>floored_timestamp = (now.as_secs() / config.bucket_interval) * config.bucket_interval;
         UnixTimestamp::from_secs(floored_timestamp)
             + config.bucket_interval()
-            + config.debounce_delay()
+            + config.initial_delay()
     } <span class="kw">else </span>{
         <span class="comment">// If the initial flush is still pending, use that.
         </span>initial_flush
@@ -2605,7 +2563,6 @@
         AggregatorConfig {
             bucket_interval: <span class="number">1</span>,
             initial_delay: <span class="number">0</span>,
-            debounce_delay: <span class="number">0</span>,
             max_secs_in_past: <span class="number">50 </span>* <span class="number">365 </span>* <span class="number">24 </span>* <span class="number">60 </span>* <span class="number">60</span>,
             max_secs_in_future: <span class="number">50 </span>* <span class="number">365 </span>* <span class="number">24 </span>* <span class="number">60 </span>* <span class="number">60</span>,
             max_name_length: <span class="number">200</span>,
@@ -2954,7 +2911,6 @@
         <span class="kw">let </span>config = AggregatorConfig {
             bucket_interval: <span class="number">10</span>,
             initial_delay: <span class="number">0</span>,
-            debounce_delay: <span class="number">0</span>,
             ..Default::default()
         };
 
@@ -2974,7 +2930,6 @@
         <span class="kw">let </span>config = AggregatorConfig {
             bucket_interval: <span class="number">10</span>,
             initial_delay: <span class="number">0</span>,
-            debounce_delay: <span class="number">0</span>,
             ..Default::default()
         };
 
@@ -2991,7 +2946,6 @@
         <span class="kw">let </span>config = AggregatorConfig {
             bucket_interval: <span class="number">10</span>,
             initial_delay: <span class="number">0</span>,
-            debounce_delay: <span class="number">0</span>,
             ..Default::default()
         };
 
@@ -3010,7 +2964,6 @@
         <span class="kw">let </span>config = AggregatorConfig {
             bucket_interval: <span class="number">10</span>,
             initial_delay: <span class="number">0</span>,
-            debounce_delay: <span class="number">0</span>,
             ..Default::default()
         };
 
@@ -3251,7 +3204,6 @@
         <span class="kw">let </span><span class="kw-2">mut </span>config = test_config();
         config.bucket_interval = <span class="number">3600</span>;
         config.initial_delay = <span class="number">1300</span>;
-        config.debounce_delay = <span class="number">1300</span>;
         config.flush_partitions = <span class="prelude-val">Some</span>(<span class="number">10</span>);
         config.flush_batching = FlushBatching::Partition;
 
