@@ -1,3 +1,6 @@
+use serde::de::{MapAccess, Visitor};
+use serde::{de, Deserialize, Deserializer};
+use serde_json::Error;
 use std::fmt::{self, Write};
 
 use relay_quotas::{
@@ -312,6 +315,53 @@ impl Default for CategoryLimit {
     }
 }
 
+#[derive(Debug)]
+pub struct PartialEvent {
+    pub spans_length: usize,
+}
+
+impl<'de> Deserialize<'de> for PartialEvent {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        struct PartialEventVisitor;
+
+        impl<'de> Visitor<'de> for PartialEventVisitor {
+            type Value = PartialEvent;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                formatter.write_str("struct PartialEvent")
+            }
+
+            fn visit_map<V>(self, mut map: V) -> Result<Self::Value, V::Error>
+            where
+                V: MapAccess<'de>,
+            {
+                let mut spans_length = None;
+
+                while let Some(key) = map.next_key()? {
+                    match key {
+                        "spans" => {
+                            let spans: Vec<serde_json::Value> = map.next_value()?;
+                            spans_length = Some(spans.len());
+                        }
+                        _ => {
+                            let _ = map.next_value::<serde_json::Value>()?;
+                        }
+                    }
+                }
+
+                let spans_length = spans_length.ok_or_else(|| de::Error::missing_field("spans"))?;
+
+                Ok(PartialEvent { spans_length })
+            }
+        }
+
+        deserializer.deserialize_map(PartialEventVisitor)
+    }
+}
+
 /// Information on the limited quantities returned by [`EnvelopeLimiter::enforce`].
 #[derive(Default, Debug)]
 pub struct Enforcement {
@@ -358,6 +408,17 @@ impl Enforcement {
         let event_id = envelope.event_id();
         let remote_addr = envelope.meta().remote_addr();
 
+        // Since during the fast path of rate limiting we do not extract nested spans into top-level,
+        // we want to count the nested spans if a transaction didn't have them extracted. In this
+        // way, we can correctly emit negative outcomes for the nested spans that were inside a
+        // transaction that was rate limited in the fast path.
+        let spans_length: usize = envelope
+            .items()
+            .filter(|i| *i.ty() == ItemType::Transaction && !i.spans_extracted())
+            .filter_map(|i| serde_json::from_slice::<PartialEvent>(&i.payload()).ok())
+            .map(|p| p.spans_length)
+            .sum();
+
         let Self {
             event,
             event_indexed,
@@ -373,7 +434,10 @@ impl Enforcement {
             profile_chunks,
         } = self;
 
-        let limits = [
+        let nested_spans = event.clone_for(DataCategory::Span, spans_length);
+        let nested_spans_indexed = event_indexed.clone_for(DataCategory::SpanIndexed, spans_length);
+
+        let mut limits = [
             event,
             event_indexed,
             attachments,
@@ -385,6 +449,8 @@ impl Enforcement {
             spans_indexed,
             user_reports_v2,
             profile_chunks,
+            nested_spans,
+            nested_spans_indexed,
         ];
 
         limits
