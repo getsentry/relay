@@ -1,6 +1,4 @@
-use serde::de::{MapAccess, Visitor};
 use serde::{de, Deserialize, Deserializer};
-use serde_json::Error;
 use std::fmt::{self, Write};
 
 use relay_quotas::{
@@ -327,7 +325,7 @@ impl<'de> Deserialize<'de> for PartialEvent {
     {
         struct PartialEventVisitor;
 
-        impl<'de> Visitor<'de> for PartialEventVisitor {
+        impl<'de> de::Visitor<'de> for PartialEventVisitor {
             type Value = PartialEvent;
 
             fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
@@ -336,7 +334,7 @@ impl<'de> Deserialize<'de> for PartialEvent {
 
             fn visit_map<V>(self, mut map: V) -> Result<Self::Value, V::Error>
             where
-                V: MapAccess<'de>,
+                V: de::MapAccess<'de>,
             {
                 let mut spans_length = None;
 
