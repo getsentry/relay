@@ -82,6 +82,11 @@ impl FiniteF64 {
         Self((self.0 * other.0).clamp(f64::MIN, f64::MAX))
     }
 
+    /// Divides two numbers, saturating at the maximum and minimum representable values.
+    pub fn saturating_div(self, other: Self) -> Self {
+        Self((self.0 / other.0).clamp(f64::MIN, f64::MAX))
+    }
+
     // NB: There is no saturating_div, since 0/0 is NaN, which is not finite.
 }
 

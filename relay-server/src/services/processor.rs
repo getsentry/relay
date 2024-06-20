@@ -30,13 +30,17 @@ use relay_event_schema::protocol::{
 };
 use relay_filter::FilterStatKey;
 use relay_metrics::aggregator::AggregatorConfig;
-use relay_metrics::{Bucket, BucketMetadata, BucketView, BucketsView, MetricMeta, MetricNamespace};
+use relay_metrics::{
+    Bucket, BucketMetadata, BucketValue, BucketView, BucketsView, FiniteF64, MetricMeta,
+    MetricNamespace,
+};
 use relay_pii::PiiConfigError;
 use relay_profiling::ProfileId;
 use relay_protocol::{Annotated, Value};
 use relay_quotas::{DataCategory, Scoping};
 use relay_sampling::config::RuleId;
 use relay_sampling::evaluation::{ReservoirCounters, ReservoirEvaluator, SamplingDecision};
+use relay_sampling::DynamicSamplingContext;
 use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, NoResponse, Service};
 use reqwest::header;
@@ -679,6 +683,59 @@ impl ProcessingExtractedMetrics {
                 sampling_project_key,
                 sampling_metrics,
             ));
+        }
+    }
+
+    /// TODO(ja): Doc
+    fn extrapolate(&mut self, dsc: &DynamicSamplingContext) {
+        let Some(sample_rate) = dsc.sample_rate else {
+            return;
+        };
+
+        // no need for extrapolation if sample rate is 1.0, and a sample rate of `0` or lower is
+        // invalid, in which case we also skip.
+        if sample_rate <= 0.0 || sample_rate >= 1.0 {
+            return;
+        }
+
+        let Some(sample_rate) = FiniteF64::new(sample_rate) else {
+            return;
+        };
+
+        for bucket in &mut self.0.project_metrics {
+            if !matches!(
+                bucket.name.namespace(),
+                MetricNamespace::Spans | MetricNamespace::Custom
+            ) {
+                continue;
+            }
+
+            // TODO(ja): Is there a generic way to detect internal metrics?
+            if bucket.name.as_ref() == "c:spans/usage@none" {
+                continue;
+            }
+
+            match bucket.value {
+                BucketValue::Counter(ref mut counter) => {
+                    *counter = counter.saturating_div(sample_rate);
+                }
+                BucketValue::Distribution(ref mut dist) => {
+                    let duplication = (1.0 / sample_rate.to_f64()) as usize;
+                    *dist = std::mem::take(dist)
+                        .into_iter()
+                        .flat_map(|f| std::iter::repeat(f).take(duplication))
+                        .collect();
+                }
+                BucketValue::Set(_) => {
+                    // do nothing for sets
+                }
+                BucketValue::Gauge(ref mut gauge) => {
+                    gauge.sum = gauge.sum.saturating_div(sample_rate);
+                    gauge.count = FiniteF64::new(gauge.count as f64)
+                        .map(|f| f.saturating_div(sample_rate).to_f64() as u64)
+                        .unwrap_or(u64::MAX);
+                }
+            }
         }
     }
 }
@@ -1371,9 +1428,14 @@ impl EnvelopeProcessorService {
                 .max_tag_value_length,
             global.options.span_extraction_sample_rate,
         );
+
         state
             .extracted_metrics
             .extend_project_metrics(metrics, Some(sampling_decision));
+
+        if let Some(dsc) = state.managed_envelope.envelope().dsc() {
+            state.extracted_metrics.extrapolate(dsc);
+        }
 
         if !state.project_state.has_feature(Feature::DiscardTransaction) {
             let transaction_from_dsc = state
@@ -1828,6 +1890,11 @@ impl EnvelopeProcessorService {
                 &self.inner.addrs,
                 &self.inner.buffer_guard,
             );
+
+            if let Some(dsc) = state.managed_envelope.envelope().dsc() {
+                state.extracted_metrics.extrapolate(dsc);
+            }
+
             self.enforce_quotas(state)?;
         });
         Ok(())
@@ -1994,7 +2061,6 @@ impl EnvelopeProcessorService {
                         state.managed_envelope.update();
 
                         let has_metrics = state.extracted_metrics.has_project_metrics();
-
                         state.extracted_metrics.send_metrics(
                             state.managed_envelope.envelope(),
                             self.inner.addrs.project_cache.clone(),
