@@ -2,74 +2,63 @@
 
 use std::collections::BTreeSet;
 
-use relay_event_schema::protocol::Event;
 use relay_ua::UserAgent;
 
-use crate::{FilterStatKey, LegacyBrowser, LegacyBrowsersFilterConfig};
+use crate::{FilterStatKey, Filterable, LegacyBrowser, LegacyBrowsersFilterConfig};
 
 /// Checks if the event originates from legacy browsers.
-pub fn matches(event: &Event, browsers: &BTreeSet<LegacyBrowser>) -> bool {
-    if let Some(user_agent_string) = event.user_agent() {
-        let user_agent = relay_ua::parse_user_agent(user_agent_string);
+fn matches(user_agent: &str, browsers: &BTreeSet<LegacyBrowser>) -> bool {
+    let user_agent = relay_ua::parse_user_agent(user_agent);
 
-        // remap IE Mobile to IE (sentry python, filter compatibility)
-        let family = match user_agent.family.as_ref() {
-            "IE Mobile" => "IE",
-            other => other,
-        };
+    // remap IE Mobile to IE (sentry python, filter compatibility)
+    let family = match user_agent.family.as_ref() {
+        "IE Mobile" => "IE",
+        other => other,
+    };
 
-        if browsers.contains(&LegacyBrowser::Default) {
-            return default_filter(family, &user_agent);
-        }
+    if browsers.contains(&LegacyBrowser::Default) {
+        return default_filter(family, &user_agent);
+    }
 
-        for browser_type in browsers {
-            let should_filter = match browser_type {
-                LegacyBrowser::IePre9 => filter_browser(family, &user_agent, "IE", |x| x <= 8),
-                LegacyBrowser::Ie9 => filter_browser(family, &user_agent, "IE", |x| x == 9),
-                LegacyBrowser::Ie10 => filter_browser(family, &user_agent, "IE", |x| x == 10),
-                LegacyBrowser::Ie11 => filter_browser(family, &user_agent, "IE", |x| x == 11),
-                LegacyBrowser::OperaMiniPre8 => {
-                    filter_browser(family, &user_agent, "Opera Mini", |x| x < 8)
-                }
-                LegacyBrowser::OperaPre15 => {
-                    filter_browser(family, &user_agent, "Opera", |x| x < 15)
-                }
-                LegacyBrowser::AndroidPre4 => {
-                    filter_browser(family, &user_agent, "Android", |x| x < 4)
-                }
-                LegacyBrowser::SafariPre6 => {
-                    filter_browser(family, &user_agent, "Safari", |x| x < 6)
-                }
-                LegacyBrowser::EdgePre79 => filter_browser(family, &user_agent, "Edge", |x| x < 79),
-                LegacyBrowser::Ie => filter_browser(family, &user_agent, "IE", |x| x < 12),
-                LegacyBrowser::OperaMini => {
-                    filter_browser(family, &user_agent, "Opera Mini", |x| x < 35)
-                }
-                LegacyBrowser::Opera => filter_browser(family, &user_agent, "Opera", |x| x < 51),
-                LegacyBrowser::Android => filter_browser(family, &user_agent, "Android", |x| x < 4),
-                LegacyBrowser::Safari => filter_browser(family, &user_agent, "Safari", |x| x < 12),
-                LegacyBrowser::Edge => filter_browser(family, &user_agent, "Edge", |x| x < 79),
-                LegacyBrowser::Chrome => filter_browser(family, &user_agent, "Chrome", |x| x < 63),
-                LegacyBrowser::Firefox => {
-                    filter_browser(family, &user_agent, "Firefox", |x| x < 67)
-                }
-                LegacyBrowser::Unknown(_) => {
-                    // unknown browsers should not be filtered
-                    false
-                }
-                LegacyBrowser::Default => unreachable!(),
-            };
-            if should_filter {
-                return true;
+    for browser_type in browsers {
+        let should_filter = match browser_type {
+            LegacyBrowser::IePre9 => filter_browser(family, &user_agent, "IE", |x| x <= 8),
+            LegacyBrowser::Ie9 => filter_browser(family, &user_agent, "IE", |x| x == 9),
+            LegacyBrowser::Ie10 => filter_browser(family, &user_agent, "IE", |x| x == 10),
+            LegacyBrowser::Ie11 => filter_browser(family, &user_agent, "IE", |x| x == 11),
+            LegacyBrowser::OperaMiniPre8 => {
+                filter_browser(family, &user_agent, "Opera Mini", |x| x < 8)
             }
+            LegacyBrowser::OperaPre15 => filter_browser(family, &user_agent, "Opera", |x| x < 15),
+            LegacyBrowser::AndroidPre4 => filter_browser(family, &user_agent, "Android", |x| x < 4),
+            LegacyBrowser::SafariPre6 => filter_browser(family, &user_agent, "Safari", |x| x < 6),
+            LegacyBrowser::EdgePre79 => filter_browser(family, &user_agent, "Edge", |x| x < 79),
+            LegacyBrowser::Ie => filter_browser(family, &user_agent, "IE", |x| x < 12),
+            LegacyBrowser::OperaMini => {
+                filter_browser(family, &user_agent, "Opera Mini", |x| x < 35)
+            }
+            LegacyBrowser::Opera => filter_browser(family, &user_agent, "Opera", |x| x < 51),
+            LegacyBrowser::Android => filter_browser(family, &user_agent, "Android", |x| x < 4),
+            LegacyBrowser::Safari => filter_browser(family, &user_agent, "Safari", |x| x < 12),
+            LegacyBrowser::Edge => filter_browser(family, &user_agent, "Edge", |x| x < 79),
+            LegacyBrowser::Chrome => filter_browser(family, &user_agent, "Chrome", |x| x < 63),
+            LegacyBrowser::Firefox => filter_browser(family, &user_agent, "Firefox", |x| x < 67),
+            LegacyBrowser::Unknown(_) => {
+                // unknown browsers should not be filtered
+                false
+            }
+            LegacyBrowser::Default => unreachable!(),
+        };
+        if should_filter {
+            return true;
         }
     }
     false
 }
 
 /// Filters events originating from legacy browsers.
-pub fn should_filter(
-    event: &Event,
+pub fn should_filter<F: Filterable>(
+    item: &F,
     config: &LegacyBrowsersFilterConfig,
 ) -> Result<(), FilterStatKey> {
     if !config.is_enabled || config.browsers.is_empty() {
@@ -77,7 +66,7 @@ pub fn should_filter(
     }
 
     let browsers = &config.browsers;
-    if matches(event, browsers) {
+    if item.user_agent().map_or(false, |ua| matches(ua, browsers)) {
         Err(FilterStatKey::LegacyBrowsers)
     } else {
         Ok(())
@@ -177,8 +166,6 @@ mod tests {
     const EDGE_UA: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/70.0.3538.102 Safari/537.36 Edge/18.19582";
     const SAFARI_UA: &str = "Mozilla/5.0 (Macintosh; U; Intel Mac OS X 10.17.4; en-GB) AppleWebKit/605.1.5 (KHTML, like Gecko) Version/6.0 Safari/605.1.5";
     const ANDROID_UA: &str = "Mozilla/5.0 (Linux; U; Android 3.2; nl-nl; GT-P6800 Build/HTJ85B) AppleWebKit/534.13 (KHTML, like Gecko) Version/4.0 Safari/534.13";
-
-    use std::collections::BTreeSet;
 
     use super::*;
     use crate::testutils;

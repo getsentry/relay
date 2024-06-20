@@ -116,8 +116,8 @@ class Sentry(SentryLike):
             "publicKeys": [dsn_public_key],
             "rev": "5ceaea8c919811e8ae7daae9fe877901",
             "disabled": False,
-            "lastFetch": datetime.datetime.utcnow().isoformat() + "Z",
-            "lastChange": datetime.datetime.utcnow().isoformat() + "Z",
+            "lastFetch": datetime.datetime.now(datetime.UTC).isoformat(),
+            "lastChange": datetime.datetime.now(datetime.UTC).isoformat(),
             "config": {
                 "allowedDomains": ["*"],
                 "trustedRelays": list(self.iter_public_keys()),
@@ -182,6 +182,19 @@ class Sentry(SentryLike):
         self.project_configs[project_id] = ret_val
         return ret_val
 
+    def set_global_config_option(self, option_name, value):
+        # must be called before initializing relay fixture
+        self.global_config["options"][option_name] = value
+
+    def get_client_report(self, timeout=None):
+        envelope = self.captured_events.get(timeout=timeout)
+        items = envelope.items
+        assert len(items) == 1
+        item = items[0]
+        assert item.headers["type"] == "client_report"
+
+        return json.loads(item.payload.bytes)
+
 
 def _get_project_id(public_key, project_configs):
     for project_id, project_config in project_configs.items():
@@ -210,7 +223,7 @@ def mini_sentry(request):  # noqa
         exceptions = data.get("exception", {}).get("values", [])
         exc_msg = ": ".join(e.get("value", "") for e in reversed(exceptions))
         message = data.get("message", {})
-        message = message if type(message) == str else message.get("formatted")
+        message = message if isinstance(message, str) else message.get("formatted")
         return exc_msg or message or "unknown error"
 
     @app.before_request
@@ -462,5 +475,5 @@ GLOBAL_CONFIG = {
         "maxCustomMeasurements": 10,
     },
     "filters": {"version": 1, "filters": []},
-    "options": {},
+    "options": {"relay.span-usage-metric": True},
 }

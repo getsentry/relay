@@ -88,8 +88,7 @@ where
             .parse::<RelayId>()
             .map_err(|_| SignatureError::MalformedHeader("x-sentry-relay-id"))?;
 
-        // Track the relay header value even if is not a string.
-        relay_log::configure_scope(|s| s.set_tag("relay_id", relay_id.to_string()));
+        relay_log::configure_scope(|s| s.set_tag("relay_id", relay_id));
 
         let signature = get_header(&request, "x-sentry-relay-signature")?.to_owned();
 

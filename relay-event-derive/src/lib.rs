@@ -214,37 +214,6 @@ fn derive_process_value(mut s: synstructure::Structure<'_>) -> TokenStream {
     })
 }
 
-fn parse_max_chars(name: &str) -> TokenStream {
-    match name {
-        "logger" => quote!(crate::processor::MaxChars::Logger),
-        "hash" => quote!(crate::processor::MaxChars::Hash),
-        "enumlike" => quote!(crate::processor::MaxChars::EnumLike),
-        "summary" => quote!(crate::processor::MaxChars::Summary),
-        "message" => quote!(crate::processor::MaxChars::Message),
-        "symbol" => quote!(crate::processor::MaxChars::Symbol),
-        "path" => quote!(crate::processor::MaxChars::Path),
-        "short_path" => quote!(crate::processor::MaxChars::ShortPath),
-        "email" => quote!(crate::processor::MaxChars::Email),
-        "culprit" => quote!(crate::processor::MaxChars::Culprit),
-        "tag_key" => quote!(crate::processor::MaxChars::TagKey),
-        "tag_value" => quote!(crate::processor::MaxChars::TagValue),
-        "environment" => quote!(crate::processor::MaxChars::Environment),
-        "distribution" => quote!(crate::processor::MaxChars::Distribution),
-        _ => panic!("invalid max_chars variant '{name}'"),
-    }
-}
-
-fn parse_bag_size(name: &str) -> TokenStream {
-    match name {
-        "small" => quote!(crate::processor::BagSize::Small),
-        "medium" => quote!(crate::processor::BagSize::Medium),
-        "large" => quote!(crate::processor::BagSize::Large),
-        "larger" => quote!(crate::processor::BagSize::Larger),
-        "massive" => quote!(crate::processor::BagSize::Massive),
-        _ => panic!("invalid bag_size variant '{name}'"),
-    }
-}
-
 #[derive(Default)]
 struct TypeAttrs {
     process_func: Option<String>,
@@ -351,7 +320,10 @@ struct FieldAttrs {
     retain: bool,
     characters: Option<TokenStream>,
     max_chars: Option<TokenStream>,
-    bag_size: Option<TokenStream>,
+    max_chars_allowance: Option<TokenStream>,
+    max_depth: Option<TokenStream>,
+    max_bytes: Option<TokenStream>,
+    trim: Option<bool>,
 }
 
 impl FieldAttrs {
@@ -395,6 +367,14 @@ impl FieldAttrs {
             quote!(crate::processor::Pii::False)
         };
 
+        let trim = if let Some(trim) = self.trim {
+            quote!(#trim)
+        } else if let Some(ref parent_attrs) = inherit_from_field_attrs {
+            quote!(#parent_attrs.trim)
+        } else {
+            quote!(true)
+        };
+
         let retain = self.retain;
 
         let max_chars = if let Some(ref max_chars) = self.max_chars {
@@ -405,10 +385,26 @@ impl FieldAttrs {
             quote!(None)
         };
 
-        let bag_size = if let Some(ref bag_size) = self.bag_size {
-            quote!(Some(#bag_size))
+        let max_chars_allowance = if let Some(ref max_chars_allowance) = self.max_chars_allowance {
+            quote!(#max_chars_allowance)
         } else if let Some(ref parent_attrs) = inherit_from_field_attrs {
-            quote!(#parent_attrs.bag_size)
+            quote!(#parent_attrs.max_chars_allowance)
+        } else {
+            quote!(0)
+        };
+
+        let max_depth = if let Some(ref max_depth) = self.max_depth {
+            quote!(Some(#max_depth))
+        } else if let Some(ref parent_attrs) = inherit_from_field_attrs {
+            quote!(#parent_attrs.max_depth)
+        } else {
+            quote!(None)
+        };
+
+        let max_bytes = if let Some(ref max_bytes) = self.max_bytes {
+            quote!(Some(#max_bytes))
+        } else if let Some(ref parent_attrs) = inherit_from_field_attrs {
+            quote!(#parent_attrs.max_bytes)
         } else {
             quote!(None)
         };
@@ -428,10 +424,13 @@ impl FieldAttrs {
                 nonempty: #nonempty,
                 trim_whitespace: #trim_whitespace,
                 max_chars: #max_chars,
+                max_chars_allowance: #max_chars_allowance,
                 characters: #characters,
-                bag_size: #bag_size,
+                max_depth: #max_depth,
+                max_bytes: #max_bytes,
                 pii: #pii,
                 retain: #retain,
+                trim: #trim,
             }
         })
     }
@@ -544,27 +543,43 @@ fn parse_field_attributes(
                                         rv.characters = Some(attr);
                                     }
                                     _ => {
-                                        panic!("Got non string literal for max_chars");
+                                        panic!("Got non string literal for {}", ident);
                                     }
                                 }
                             } else if ident == "max_chars" {
                                 match name_value.lit {
-                                    Lit::Str(litstr) => {
-                                        let attr = parse_max_chars(litstr.value().as_str());
-                                        rv.max_chars = Some(quote!(#attr));
+                                    Lit::Int(litint) => {
+                                        rv.max_chars = Some(quote!(#litint));
                                     }
                                     _ => {
-                                        panic!("Got non string literal for max_chars");
+                                        panic!("Got non integer literal for max_chars");
                                     }
                                 }
-                            } else if ident == "bag_size" {
+                            } else if ident == "max_chars_allowance" {
                                 match name_value.lit {
-                                    Lit::Str(litstr) => {
-                                        let attr = parse_bag_size(litstr.value().as_str());
-                                        rv.bag_size = Some(quote!(#attr));
+                                    Lit::Int(litint) => {
+                                        rv.max_chars_allowance = Some(quote!(#litint));
                                     }
                                     _ => {
-                                        panic!("Got non string literal for bag_size");
+                                        panic!("Got non integer literal for max_chars_allowance");
+                                    }
+                                }
+                            } else if ident == "max_depth" {
+                                match name_value.lit {
+                                    Lit::Int(litint) => {
+                                        rv.max_depth = Some(quote!(#litint));
+                                    }
+                                    _ => {
+                                        panic!("Got non integer literal for max_depth");
+                                    }
+                                }
+                            } else if ident == "max_bytes" {
+                                match name_value.lit {
+                                    Lit::Int(litint) => {
+                                        rv.max_bytes = Some(quote!(#litint));
+                                    }
+                                    _ => {
+                                        panic!("Got non integer literal for max_bytes");
                                     }
                                 }
                             } else if ident == "pii" {
@@ -588,6 +603,17 @@ fn parse_field_attributes(
                                     },
                                     _ => {
                                         panic!("Got non string literal for retain");
+                                    }
+                                }
+                            } else if ident == "trim" {
+                                match name_value.lit {
+                                    Lit::Str(litstr) => match litstr.value().as_str() {
+                                        "true" => rv.trim = None,
+                                        "false" => rv.trim = Some(false),
+                                        other => panic!("Unknown value {other}"),
+                                    },
+                                    _ => {
+                                        panic!("Got non string literal for trim");
                                     }
                                 }
                             } else if ident == "legacy_alias" || ident == "skip_serialization" {

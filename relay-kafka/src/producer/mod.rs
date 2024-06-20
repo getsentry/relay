@@ -1,30 +1,29 @@
 //! This module contains the kafka producer related code.
-//!
-//! There are two different producers that are supported in Relay right now:
-//! - [`SingleProducer`] - which sends all the messages to the defined kafka [`KafkaTopic`],
-//! - [`ShardedProducer`] - which expects to have at least one shard configured, and depending on
-//! the shard number the different messages will be sent to different topics using the configured
-//! producer for the this exact shard.
 
 use std::borrow::Cow;
+use std::cell::Cell;
 use std::collections::{BTreeMap, HashMap};
 use std::fmt;
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 
 use rdkafka::message::{Header, OwnedHeaders};
-use rdkafka::producer::BaseRecord;
+use rdkafka::producer::{BaseRecord, Producer as _};
 use rdkafka::ClientConfig;
 use relay_statsd::metric;
 use thiserror::Error;
 
-use crate::config::{KafkaConfig, KafkaParams, KafkaTopic};
-use crate::statsd::KafkaHistograms;
+use crate::config::{KafkaParams, KafkaTopic};
+use crate::statsd::{KafkaCounters, KafkaGauges, KafkaHistograms};
 
 mod utils;
-use utils::{CaptureErrorContext, ThreadedProducer};
+use utils::{Context, ThreadedProducer};
 
 #[cfg(feature = "schemas")]
 mod schemas;
+
+const REPORT_FREQUENCY: Duration = Duration::from_secs(1);
+const KAFKA_FETCH_METADATA_TIMEOUT: Duration = Duration::from_secs(30);
 
 /// Kafka producer errors.
 #[derive(Error, Debug)]
@@ -57,6 +56,14 @@ pub enum ClientError {
     /// Configuration is wrong and it cannot be used to identify the number of a shard.
     #[error("invalid kafka shard")]
     InvalidShard,
+
+    /// Failed to fetch the metadata of Kafka.
+    #[error("failed to fetch the metadata of Kafka")]
+    MetadataFetchError(rdkafka::error::KafkaError),
+
+    /// Failed to validate the topic.
+    #[error("failed to validate the topic with name {0}: {1:?}")]
+    TopicError(String, rdkafka_sys::rd_kafka_resp_err_t),
 }
 
 /// Describes the type which can be sent using kafka producer provided by this crate.
@@ -79,66 +86,47 @@ pub trait Message {
 }
 
 /// Single kafka producer config with assigned topic.
-struct SingleProducer {
+struct Producer {
+    /// Time of the latest collection of stats.
+    last_report: Cell<Instant>,
     /// Kafka topic name.
     topic_name: String,
     /// Real kafka producer.
     producer: Arc<ThreadedProducer>,
 }
 
-impl fmt::Debug for SingleProducer {
+impl Producer {
+    fn new(topic_name: String, producer: Arc<ThreadedProducer>) -> Self {
+        Self {
+            last_report: Cell::new(Instant::now()),
+            topic_name,
+            producer,
+        }
+    }
+
+    /// Validates the topic by fetching the metadata of the topic directly from Kafka.
+    fn validate_topic(&self) -> Result<(), ClientError> {
+        let client = self.producer.client();
+        let metadata = client
+            .fetch_metadata(Some(&self.topic_name), KAFKA_FETCH_METADATA_TIMEOUT)
+            .map_err(ClientError::MetadataFetchError)?;
+
+        for topic in metadata.topics() {
+            if let Some(error) = topic.error() {
+                return Err(ClientError::TopicError(topic.name().to_string(), error));
+            }
+        }
+
+        Ok(())
+    }
+}
+
+impl fmt::Debug for Producer {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Single")
+        f.debug_struct("Producer")
+            .field("last_report", &self.last_report)
             .field("topic_name", &self.topic_name)
             .field("producer", &"<ThreadedProducer>")
-            .finish()
-    }
-}
-
-/// Sharded producer configuration.
-struct ShardedProducer {
-    /// The maximum number of shards for this producer.
-    shards: u64,
-    /// The actual Kafka producer assigned to the range of logical shards, where the `u64` in the map is
-    /// the inclusive beginning of the range.
-    producers: BTreeMap<u64, (String, Arc<ThreadedProducer>)>,
-}
-
-impl ShardedProducer {
-    /// Returns topic name and the Kafka producer based on the provided sharding key.
-    /// Returns error [`ClientError::InvalidShard`] if the shard range for the provided sharding
-    /// key could not be found.
-    ///
-    /// # Errors
-    /// Returns [`ClientError::InvalidShard`] error if the provided `sharding_key` could not be
-    /// placed in any configured shard ranges.
-    pub fn get_producer(
-        &self,
-        sharding_key: u64,
-    ) -> Result<(&str, &ThreadedProducer), ClientError> {
-        let shard = sharding_key % self.shards;
-        let (topic_name, producer) = self
-            .producers
-            .iter()
-            .take_while(|(k, _)| *k <= &shard)
-            .last()
-            .map(|(_, v)| v)
-            .ok_or(ClientError::InvalidShard)?;
-
-        Ok((topic_name, producer))
-    }
-}
-
-impl fmt::Debug for ShardedProducer {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let producers = &self
-            .producers
-            .iter()
-            .map(|(shard, (topic, _))| (shard, topic))
-            .collect::<BTreeMap<_, _>>();
-        f.debug_struct("ShardedProducer")
-            .field("shards", &self.shards)
-            .field("producers", producers)
             .finish()
     }
 }
@@ -158,12 +146,13 @@ impl KafkaClient {
     }
 
     /// Sends message to the provided kafka topic.
+    ///
+    /// Returns the name of the kafka topic to which the message was produced.
     pub fn send_message(
         &self,
         topic: KafkaTopic,
-        organization_id: u64,
         message: &impl Message,
-    ) -> Result<(), ClientError> {
+    ) -> Result<&str, ClientError> {
         let serialized = message.serialize()?;
         #[cfg(feature = "schemas")]
         self.schema_validator
@@ -173,7 +162,6 @@ impl KafkaClient {
         let key = message.key();
         self.send(
             topic,
-            organization_id,
             &key,
             message.headers(),
             message.variant(),
@@ -182,22 +170,23 @@ impl KafkaClient {
     }
 
     /// Sends the payload to the correct producer for the current topic.
+    ///
+    /// Returns the name of the kafka topic to which the message was produced.
     pub fn send(
         &self,
         topic: KafkaTopic,
-        organization_id: u64,
         key: &[u8; 16],
         headers: Option<&BTreeMap<String, String>>,
         variant: &str,
         payload: &[u8],
-    ) -> Result<(), ClientError> {
+    ) -> Result<&str, ClientError> {
         let producer = self.producers.get(&topic).ok_or_else(|| {
             relay_log::error!(
                 "attempted to send message to {topic:?} using an unconfigured kafka producer",
             );
             ClientError::InvalidTopicName
         })?;
-        producer.send(organization_id, key, headers, variant, payload)
+        producer.send(key, headers, variant, payload)
     }
 }
 
@@ -223,85 +212,48 @@ impl KafkaClientBuilder {
     pub fn add_kafka_topic_config(
         mut self,
         topic: KafkaTopic,
-        config: &KafkaConfig,
+        params: &KafkaParams,
+        validate_topic: bool,
     ) -> Result<Self, ClientError> {
         let mut client_config = ClientConfig::new();
-        match config {
-            KafkaConfig::Single { params } => {
-                let KafkaParams {
-                    topic_name,
-                    config_name,
-                    params,
-                } = params;
 
-                let config_name = config_name.map(str::to_string);
+        let KafkaParams {
+            topic_name,
+            config_name,
+            params,
+        } = params;
 
-                if let Some(producer) = self.reused_producers.get(&config_name) {
-                    self.producers.insert(
-                        topic,
-                        Producer::Single(SingleProducer {
-                            topic_name: (*topic_name).to_string(),
-                            producer: Arc::clone(producer),
-                        }),
-                    );
-                    return Ok(self);
-                }
+        let config_name = config_name.map(str::to_string);
 
-                for config_p in *params {
-                    client_config.set(config_p.name.as_str(), config_p.value.as_str());
-                }
-
-                let producer = Arc::new(
-                    client_config
-                        .create_with_context(CaptureErrorContext)
-                        .map_err(ClientError::InvalidConfig)?,
-                );
-
-                self.reused_producers
-                    .insert(config_name, Arc::clone(&producer));
-                self.producers.insert(
-                    topic,
-                    Producer::Single(SingleProducer {
-                        topic_name: (*topic_name).to_string(),
-                        producer,
-                    }),
-                );
-                Ok(self)
+        if let Some(producer) = self.reused_producers.get(&config_name) {
+            let producer = Producer::new((*topic_name).to_string(), Arc::clone(producer));
+            if validate_topic {
+                producer.validate_topic()?;
             }
-            KafkaConfig::Sharded { shards, configs } => {
-                let mut producers = BTreeMap::new();
-                for (shard, kafka_params) in configs {
-                    let config_name = kafka_params.config_name.map(str::to_string);
-                    if let Some(producer) = self.reused_producers.get(&config_name) {
-                        let cached_producer = Arc::clone(producer);
-                        producers.insert(
-                            *shard,
-                            (kafka_params.topic_name.to_string(), cached_producer),
-                        );
-                        continue;
-                    }
-                    for config_p in kafka_params.params {
-                        client_config.set(config_p.name.as_str(), config_p.value.as_str());
-                    }
-                    let producer = Arc::new(
-                        client_config
-                            .create_with_context(CaptureErrorContext)
-                            .map_err(ClientError::InvalidConfig)?,
-                    );
-                    self.reused_producers
-                        .insert(config_name, Arc::clone(&producer));
-                    producers.insert(*shard, (kafka_params.topic_name.to_string(), producer));
-                }
-                self.producers.insert(
-                    topic,
-                    Producer::Sharded(ShardedProducer {
-                        shards: *shards,
-                        producers,
-                    }),
-                );
-                Ok(self)
-            }
+            self.producers.insert(topic, producer);
+            return Ok(self);
         }
+
+        for config_p in *params {
+            client_config.set(config_p.name.as_str(), config_p.value.as_str());
+        }
+
+        let producer = Arc::new(
+            client_config
+                .create_with_context(Context)
+                .map_err(ClientError::InvalidConfig)?,
+        );
+
+        self.reused_producers
+            .insert(config_name, Arc::clone(&producer));
+
+        let producer = Producer::new((*topic_name).to_string(), producer);
+        if validate_topic {
+            producer.validate_topic()?;
+        }
+        self.producers.insert(topic, producer);
+
+        Ok(self)
     }
 
     /// Consumes self and returns the built [`KafkaClient`].
@@ -323,38 +275,21 @@ impl fmt::Debug for KafkaClientBuilder {
     }
 }
 
-/// This object contains the Kafka producer variants for single and sharded configurations.
-#[derive(Debug)]
-enum Producer {
-    /// Configuration variant for the single kafka producer.
-    Single(SingleProducer),
-    /// Configuration variant for sharded kafka producer, when one topic has different producers
-    /// dedicated to the range of the shards.
-    Sharded(ShardedProducer),
-}
-
 impl Producer {
     /// Sends the payload to the correct producer for the current topic.
     fn send(
         &self,
-        organization_id: u64,
         key: &[u8; 16],
         headers: Option<&BTreeMap<String, String>>,
         variant: &str,
         payload: &[u8],
-    ) -> Result<(), ClientError> {
+    ) -> Result<&str, ClientError> {
         metric!(
             histogram(KafkaHistograms::KafkaMessageSize) = payload.len() as u64,
             variant = variant
         );
-        let (topic_name, producer) = match self {
-            Self::Single(SingleProducer {
-                topic_name,
-                producer,
-            }) => (topic_name.as_str(), producer.as_ref()),
 
-            Self::Sharded(sharded) => sharded.get_producer(organization_id)?,
-        };
+        let topic_name = self.topic_name.as_str();
         let mut record = BaseRecord::to(topic_name).key(key).payload(payload);
 
         // Make sure to set the headers if provided.
@@ -369,13 +304,31 @@ impl Producer {
             record = record.headers(kafka_headers);
         }
 
-        producer.send(record).map_err(|(error, _message)| {
-            relay_log::error!(
-                error = &error as &dyn std::error::Error,
-                tags.variant = variant,
-                "error sending kafka message"
+        if self.last_report.get().elapsed() > REPORT_FREQUENCY {
+            self.last_report.replace(Instant::now());
+            metric!(
+                gauge(KafkaGauges::InFlightCount) = self.producer.in_flight_count() as u64,
+                variant = variant,
+                topic = topic_name
             );
-            ClientError::SendFailed(error)
-        })
+        }
+
+        self.producer
+            .send(record)
+            .map(|_| topic_name)
+            .map_err(|(error, _message)| {
+                relay_log::error!(
+                    error = &error as &dyn std::error::Error,
+                    tags.variant = variant,
+                    tags.topic = topic_name,
+                    "error sending kafka message",
+                );
+                metric!(
+                    counter(KafkaCounters::ProducerEnqueueError) += 1,
+                    variant = variant,
+                    topic = topic_name
+                );
+                ClientError::SendFailed(error)
+            })
     }
 }

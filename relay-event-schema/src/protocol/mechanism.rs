@@ -111,12 +111,7 @@ pub struct Mechanism {
     ///
     /// In the Python SDK this is merely the name of the framework integration that produced the
     /// exception, while for native it is e.g. `"minidump"` or `"applecrashreport"`.
-    #[metastructure(
-        field = "type",
-        required = "true",
-        nonempty = "true",
-        max_chars = "enumlike"
-    )]
+    #[metastructure(field = "type", required = "true", nonempty = "true", max_chars = 128)]
     pub ty: Annotated<String>,
 
     /// If this is set then the exception is not a real exception but some
@@ -128,11 +123,16 @@ pub struct Mechanism {
     /// Optional human-readable description of the error mechanism.
     ///
     /// May include a possible hint on how to solve this error.
-    #[metastructure(pii = "true", max_chars = "message")]
+    #[metastructure(pii = "true", max_chars = 8192, max_chars_allowance = 200)]
     pub description: Annotated<String>,
 
     /// Link to online resources describing this error.
-    #[metastructure(required = "false", nonempty = "true", max_chars = "path")]
+    #[metastructure(
+        required = "false",
+        nonempty = "true",
+        max_chars = 256,
+        max_chars_allowance = 40
+    )]
     pub help_link: Annotated<String>,
 
     /// Flag indicating whether this exception was handled.
@@ -162,7 +162,7 @@ pub struct Mechanism {
     #[metastructure(
         required = "false",
         nonempty = "true",
-        max_chars = "enumlike",
+        max_chars = 128,
         deny_chars = " \t\r\n"
     )]
     pub source: Annotated<String>,
@@ -191,7 +191,7 @@ pub struct Mechanism {
     pub parent_id: Annotated<u64>,
 
     /// Arbitrary extra data that might help the user understand the error thrown by this mechanism.
-    #[metastructure(pii = "true", bag_size = "medium")]
+    #[metastructure(pii = "true", max_depth = 5, max_bytes = 2048)]
     #[metastructure(skip_serialization = "empty")]
     pub data: Annotated<Object<Value>>,
 

@@ -1619,4 +1619,129 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         }
         "###);
     }
+
+    #[test]
+    fn test_bearer_tokens_scrubbed() {
+        let mut data = Event::from_value(
+            serde_json::json!({
+                "threads": {
+                    "values": [
+                        {
+                            "stacktrace": {
+                                "frames": [
+                                    {
+                                        "vars": {
+                                            "request": {
+                                                "headers": [
+                                                    [
+                                                        "AuthToken",
+                                                        "b'Bearer A1BBC234QWERTY0987MNBV012765HJKL'"
+                                                    ]
+                                                ]
+                                            }
+                                        }
+                                    }
+
+                                ]
+                            }
+                        }
+                    ]
+                }
+            })
+            .into(),
+        );
+
+        let pii_config = simple_enabled_pii_config();
+        let mut pii_processor = PiiProcessor::new(pii_config.compiled());
+        process_value(&mut data, &mut pii_processor, ProcessingState::root()).unwrap();
+        assert_annotated_snapshot!(data);
+    }
+
+    #[test]
+    fn test_pairlist_scrubbed_with_matching_keys() {
+        let mut data = Event::from_value(
+            serde_json::json!({
+                "threads": {
+                    "values": [
+                        {
+                            "stacktrace": {
+                                "frames": [
+                                    {
+                                        "vars": {
+                                            "request": {
+                                                "headers": [
+                                                    [
+                                                        "secret",
+                                                        // Should be filtered because of key `secret`.
+                                                        "A1BBC234QWERTY0987MNBV012765HJKL"
+                                                    ],
+                                                    [
+                                                        "passwd",
+                                                        // Should be filtered because of key `passwd`.
+                                                        "my_password"
+                                                    ]
+                                                ]
+                                            }
+                                        }
+                                    }
+
+                                ]
+                            }
+                        }
+                    ]
+                }
+            })
+            .into(),
+        );
+
+        let pii_config = simple_enabled_pii_config();
+        let mut pii_processor = PiiProcessor::new(pii_config.compiled());
+        process_value(&mut data, &mut pii_processor, ProcessingState::root()).unwrap();
+        assert_annotated_snapshot!(data);
+    }
+
+    #[test]
+    fn test_pairlist_scrubbed_with_matching_values() {
+        let mut data = Event::from_value(
+            serde_json::json!({
+                "threads": {
+                    "values": [
+                        {
+                            "stacktrace": {
+                                "frames": [
+                                    {
+                                        "vars": {
+                                            "request": {
+                                                "headers": [
+                                                    [
+                                                        "some_random_value",
+                                                        // Should be filtered because it's treated
+                                                        // as individual value.
+                                                        "my_password"
+                                                    ],
+                                                    [
+                                                        "some_random_value_2",
+                                                        // Should not be filtered because the value
+                                                        // is scraped by default.
+                                                        "abc"
+                                                    ]
+                                                ]
+                                            }
+                                        }
+                                    }
+
+                                ]
+                            }
+                        }
+                    ]
+                }
+            })
+            .into(),
+        );
+
+        let pii_config = simple_enabled_pii_config();
+        let mut pii_processor = PiiProcessor::new(pii_config.compiled());
+        process_value(&mut data, &mut pii_processor, ProcessingState::root()).unwrap();
+        assert_annotated_snapshot!(data);
+    }
 }

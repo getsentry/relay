@@ -1,8 +1,11 @@
 use std::collections::BTreeMap;
 
 use relay_common::time::UnixTimestamp;
-use relay_dynamic_config::{MetricExtractionConfig, Options, TagMapping, TagSource, TagSpec};
-use relay_metrics::{Bucket, BucketValue, FiniteF64, MetricResourceIdentifier, MetricType};
+use relay_dynamic_config::{CombinedMetricExtractionConfig, TagMapping, TagSource, TagSpec};
+
+use relay_metrics::{
+    Bucket, BucketMetadata, BucketValue, FiniteF64, MetricResourceIdentifier, MetricType,
+};
 use relay_protocol::{Getter, Val};
 use relay_quotas::DataCategory;
 
@@ -20,11 +23,10 @@ pub trait Extractable: Getter {
 /// The instance must have a valid timestamp; if the timestamp is missing or invalid, no metrics are
 /// extracted. Timestamp and clock drift correction should occur before metrics extraction to ensure
 /// valid timestamps.
-pub fn extract_metrics<T>(
-    instance: &T,
-    config: &MetricExtractionConfig,
-    global_options: Option<&Options>,
-) -> Vec<Bucket>
+///
+/// Any MRI can be defined multiple times in the config (this will create multiple buckets), but
+/// for every tag in a bucket, there can be only one value. The first encountered tag value wins.
+pub fn extract_metrics<T>(instance: &T, config: CombinedMetricExtractionConfig<'_>) -> Vec<Bucket>
 where
     T: Extractable,
 {
@@ -35,16 +37,15 @@ where
         return metrics;
     };
 
-    // HACK: The killswitch for the usage metric has a different life cycle
-    // than the project config, so we cannot apply it in `ProjectConfig::sanitize`,
-    // which runs when the project config is updated.
-    // This hack can be removed once the usage metric is stable.
-    let allow_span_usage_metric = global_options.map_or(false, |options| options.span_usage_metric);
-    for metric_spec in &config.metrics {
-        if !allow_span_usage_metric && metric_spec.mri == "c:spans/usage@none" {
-            continue;
-        }
+    // For extracted metrics we assume the `received_at` timestamp is equivalent to the time
+    // in which the metric is extracted.
+    let received_at = if cfg!(not(test)) {
+        UnixTimestamp::now()
+    } else {
+        UnixTimestamp::from_secs(0)
+    };
 
+    for metric_spec in config.metrics() {
         if metric_spec.category != instance.category() {
             continue;
         }
@@ -67,25 +68,29 @@ where
         };
 
         metrics.push(Bucket {
-            name: mri.to_string(),
+            name: mri.to_string().into(),
             width: 0,
             value,
             timestamp,
             tags: extract_tags(instance, &metric_spec.tags),
+            metadata: BucketMetadata::new(received_at),
         });
     }
 
     // TODO: Inline this again once transaction metric extraction has been moved to generic metrics.
-    tmp_apply_tags(&mut metrics, instance, &config.tags);
+    tmp_apply_tags(&mut metrics, instance, config.tags());
 
     metrics
 }
 
-pub fn tmp_apply_tags<T>(metrics: &mut [Bucket], instance: &T, mappings: &[TagMapping])
-where
+pub fn tmp_apply_tags<'a, T>(
+    metrics: &mut [Bucket],
+    instance: &T,
+    mappings: impl IntoIterator<Item = &'a TagMapping>,
+) where
     T: Getter,
 {
-    for mapping in mappings {
+    for mapping in mappings.into_iter() {
         let mut lazy_tags = None;
 
         for metric in &mut *metrics {
@@ -192,17 +197,29 @@ mod tests {
         });
         let config = serde_json::from_value(config_json).unwrap();
 
-        let metrics = extract_metrics(event.value().unwrap(), &config, None);
+        let metrics = extract_metrics(
+            event.value().unwrap(),
+            CombinedMetricExtractionConfig::from(&config),
+        );
         insta::assert_debug_snapshot!(metrics, @r###"
         [
             Bucket {
                 timestamp: UnixTimestamp(1597976302),
                 width: 0,
-                name: "c:transactions/counter@none",
+                name: MetricName(
+                    "c:transactions/counter@none",
+                ),
                 value: Counter(
                     1.0,
                 ),
                 tags: {},
+                metadata: BucketMetadata {
+                    merges: 1,
+                    received_at: Some(
+                        UnixTimestamp(0),
+                    ),
+                    extracted_from_indexed: false,
+                },
             },
         ]
         "###);
@@ -229,19 +246,31 @@ mod tests {
         });
         let config = serde_json::from_value(config_json).unwrap();
 
-        let metrics = extract_metrics(event.value().unwrap(), &config, None);
+        let metrics = extract_metrics(
+            event.value().unwrap(),
+            CombinedMetricExtractionConfig::from(&config),
+        );
         insta::assert_debug_snapshot!(metrics, @r###"
         [
             Bucket {
                 timestamp: UnixTimestamp(1597976302),
                 width: 0,
-                name: "d:transactions/duration@none",
+                name: MetricName(
+                    "d:transactions/duration@none",
+                ),
                 value: Distribution(
                     [
                         2000.0,
                     ],
                 ),
                 tags: {},
+                metadata: BucketMetadata {
+                    merges: 1,
+                    received_at: Some(
+                        UnixTimestamp(0),
+                    ),
+                    extracted_from_indexed: false,
+                },
             },
         ]
         "###);
@@ -270,19 +299,31 @@ mod tests {
         });
         let config = serde_json::from_value(config_json).unwrap();
 
-        let metrics = extract_metrics(event.value().unwrap(), &config, None);
+        let metrics = extract_metrics(
+            event.value().unwrap(),
+            CombinedMetricExtractionConfig::from(&config),
+        );
         insta::assert_debug_snapshot!(metrics, @r###"
         [
             Bucket {
                 timestamp: UnixTimestamp(1597976302),
                 width: 0,
-                name: "s:transactions/users@none",
+                name: MetricName(
+                    "s:transactions/users@none",
+                ),
                 value: Set(
                     {
                         943162418,
                     },
                 ),
                 tags: {},
+                metadata: BucketMetadata {
+                    merges: 1,
+                    received_at: Some(
+                        UnixTimestamp(0),
+                    ),
+                    extracted_from_indexed: false,
+                },
             },
         ]
         "###);
@@ -323,13 +364,18 @@ mod tests {
         });
         let config = serde_json::from_value(config_json).unwrap();
 
-        let metrics = extract_metrics(event.value().unwrap(), &config, None);
+        let metrics = extract_metrics(
+            event.value().unwrap(),
+            CombinedMetricExtractionConfig::from(&config),
+        );
         insta::assert_debug_snapshot!(metrics, @r###"
         [
             Bucket {
                 timestamp: UnixTimestamp(1597976302),
                 width: 0,
-                name: "c:transactions/counter@none",
+                name: MetricName(
+                    "c:transactions/counter@none",
+                ),
                 value: Counter(
                     1.0,
                 ),
@@ -337,6 +383,13 @@ mod tests {
                     "fast": "no",
                     "id": "4711",
                     "release": "myapp@1.0.0",
+                },
+                metadata: BucketMetadata {
+                    merges: 1,
+                    received_at: Some(
+                        UnixTimestamp(0),
+                    ),
+                    extracted_from_indexed: false,
                 },
             },
         ]
@@ -377,18 +430,30 @@ mod tests {
         });
         let config = serde_json::from_value(config_json).unwrap();
 
-        let metrics = extract_metrics(event.value().unwrap(), &config, None);
+        let metrics = extract_metrics(
+            event.value().unwrap(),
+            CombinedMetricExtractionConfig::from(&config),
+        );
         insta::assert_debug_snapshot!(metrics, @r###"
         [
             Bucket {
                 timestamp: UnixTimestamp(1597976302),
                 width: 0,
-                name: "c:transactions/counter@none",
+                name: MetricName(
+                    "c:transactions/counter@none",
+                ),
                 value: Counter(
                     1.0,
                 ),
                 tags: {
                     "fast": "yes",
+                },
+                metadata: BucketMetadata {
+                    merges: 1,
+                    received_at: Some(
+                        UnixTimestamp(0),
+                    ),
+                    extracted_from_indexed: false,
                 },
             },
         ]
@@ -433,18 +498,30 @@ mod tests {
         });
         let config = serde_json::from_value(config_json).unwrap();
 
-        let metrics = extract_metrics(event.value().unwrap(), &config, None);
+        let metrics = extract_metrics(
+            event.value().unwrap(),
+            CombinedMetricExtractionConfig::from(&config),
+        );
         insta::assert_debug_snapshot!(metrics, @r###"
         [
             Bucket {
                 timestamp: UnixTimestamp(1597976302),
                 width: 0,
-                name: "c:transactions/counter@none",
+                name: MetricName(
+                    "c:transactions/counter@none",
+                ),
                 value: Counter(
                     1.0,
                 ),
                 tags: {
                     "fast": "yes",
+                },
+                metadata: BucketMetadata {
+                    merges: 1,
+                    received_at: Some(
+                        UnixTimestamp(0),
+                    ),
+                    extracted_from_indexed: false,
                 },
             },
         ]
@@ -497,19 +574,31 @@ mod tests {
         });
         let config = serde_json::from_value(config_json).unwrap();
 
-        let metrics = extract_metrics(event.value().unwrap(), &config, None);
+        let metrics = extract_metrics(
+            event.value().unwrap(),
+            CombinedMetricExtractionConfig::from(&config),
+        );
         insta::assert_debug_snapshot!(metrics, @r###"
         [
             Bucket {
                 timestamp: UnixTimestamp(1597976302),
                 width: 0,
-                name: "d:transactions/measurements.valid@none",
+                name: MetricName(
+                    "d:transactions/measurements.valid@none",
+                ),
                 value: Distribution(
                     [
                         1.0,
                     ],
                 ),
                 tags: {},
+                metadata: BucketMetadata {
+                    merges: 1,
+                    received_at: Some(
+                        UnixTimestamp(0),
+                    ),
+                    extracted_from_indexed: false,
+                },
             },
         ]
         "###);

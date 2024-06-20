@@ -12,7 +12,7 @@ use crate::protocol::JsonLenientString;
 ///
 /// ```json
 /// {
-///   "message": {
+///   "logentry": {
 ///     "message": "My raw message with interpreted strings like %s",
 ///     "params": ["this"]
 ///   }
@@ -21,7 +21,7 @@ use crate::protocol::JsonLenientString;
 ///
 /// ```json
 /// {
-///   "message": {
+///   "logentry": {
 ///     "message": "My raw message with interpreted strings like {foo}",
 ///     "params": {"foo": "this"}
 ///   }
@@ -38,19 +38,19 @@ pub struct LogEntry {
     /// of `Sending 9999 requests`. The latter is much better at home in `formatted`.
     ///
     /// It must not exceed 8192 characters. Longer messages will be truncated.
-    #[metastructure(max_chars = "message")]
+    #[metastructure(max_chars = 8192, max_chars_allowance = 200)]
     pub message: Annotated<Message>,
 
     /// The formatted message. If `message` and `params` are given, Sentry
     /// will attempt to backfill `formatted` if empty.
     ///
     /// It must not exceed 8192 characters. Longer messages will be truncated.
-    #[metastructure(max_chars = "message", pii = "true")]
+    #[metastructure(max_chars = 8192, max_chars_allowance = 200, pii = "true")]
     pub formatted: Annotated<Message>,
 
     /// Parameters to be interpolated into the log message. This can be an array of positional
     /// parameters as well as a mapping of named arguments to their values.
-    #[metastructure(bag_size = "medium", pii = "true")]
+    #[metastructure(max_depth = 5, max_bytes = 2048, pii = "true")]
     pub params: Annotated<Value>,
 
     /// Additional arbitrary fields for forwards compatibility.

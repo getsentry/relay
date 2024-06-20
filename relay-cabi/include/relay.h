@@ -107,6 +107,28 @@ enum RelayDataCategory {
    */
   RELAY_DATA_CATEGORY_SPAN_INDEXED = 16,
   /**
+   * ProfileDuration
+   *
+   * This data category is used to count the number of milliseconds we have per indexed profile chunk.
+   * We will then bill per second.
+   */
+  RELAY_DATA_CATEGORY_PROFILE_DURATION = 17,
+  /**
+   * ProfileChunk
+   *
+   * This is a count of profile chunks received. It will not be used for billing but will be
+   * useful for customers to track what's being dropped.
+   */
+  RELAY_DATA_CATEGORY_PROFILE_CHUNK = 18,
+  /**
+   * MetricSecond
+   *
+   * Reserved by billing to summarize the bucketed product of metric volume
+   * and metric cardinality. Defined here so as not to clash with future
+   * categories.
+   */
+  RELAY_DATA_CATEGORY_METRIC_SECOND = 19,
+  /**
    * Any other data category not known by this Relay.
    */
   RELAY_DATA_CATEGORY_UNKNOWN = -1,
@@ -541,10 +563,10 @@ void relay_geoip_lookup_free(struct RelayGeoIpLookup *lookup);
 const struct RelayStr *relay_valid_platforms(uintptr_t *size_out);
 
 /**
- * Creates a new normalization processor.
+ * Creates a new normalization config.
  */
 struct RelayStoreNormalizer *relay_store_normalizer_new(const struct RelayStr *config,
-                                                        const struct RelayGeoIpLookup *geoip_lookup);
+                                                        const struct RelayGeoIpLookup *_geoip_lookup);
 
 /**
  * Frees a `RelayStoreNormalizer`.
@@ -629,16 +651,22 @@ struct RelayStr relay_validate_rule_condition(const struct RelayStr *value);
 struct RelayStr relay_validate_sampling_configuration(const struct RelayStr *value);
 
 /**
- * Validate entire project config.
+ * Normalize a project config.
  *
  * If `strict` is true, checks for unknown fields in the input.
  */
-struct RelayStr relay_validate_project_config(const struct RelayStr *value,
-                                              bool strict);
+struct RelayStr relay_normalize_project_config(const struct RelayStr *value);
+
+/**
+ * Validate cardinality limit config.
+ *
+ * If `strict` is true, checks for unknown fields in the input.
+ */
+struct RelayStr normalize_cardinality_limit_config(const struct RelayStr *value);
 
 /**
  * Normalize a global config.
  */
-struct RelayStr normalize_global_config(const struct RelayStr *value);
+struct RelayStr relay_normalize_global_config(const struct RelayStr *value);
 
 #endif /* RELAY_H_INCLUDED */

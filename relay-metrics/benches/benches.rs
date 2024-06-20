@@ -31,7 +31,7 @@ impl MetricInput {
             let key_id = i % self.num_project_keys;
             let metric_name = format!("c:transactions/foo{}", i % self.num_metric_names);
             let mut bucket = self.bucket.clone();
-            bucket.name = metric_name;
+            bucket.name = metric_name.into();
             let key = ProjectKey::parse(&format!("{key_id:0width$x}", width = 32)).unwrap();
             rv.push((key, bucket));
         }
@@ -57,16 +57,16 @@ fn bench_insert_and_flush(c: &mut Criterion) {
     let config = AggregatorConfig {
         bucket_interval: 1000,
         initial_delay: 0,
-        debounce_delay: 0,
         ..Default::default()
     };
 
     let counter = Bucket {
         timestamp: UnixTimestamp::now(),
         width: 0,
-        name: "c:transactions/foo@none".to_owned(),
+        name: "c:transactions/foo@none".into(),
         value: BucketValue::counter(42.into()),
         tags: BTreeMap::new(),
+        metadata: Default::default(),
     };
 
     let inputs = [
@@ -123,7 +123,10 @@ fn bench_insert_and_flush(c: &mut Criterion) {
             &input,
             |b, &input| {
                 b.iter_batched(
-                    || (Aggregator::new(config.clone()), input.get_buckets()),
+                    || {
+                        let aggregator: Aggregator = Aggregator::new(config.clone());
+                        (aggregator, input.get_buckets())
+                    },
                     |(mut aggregator, buckets)| {
                         for (project_key, bucket) in buckets {
                             aggregator.merge(project_key, bucket, None).unwrap();
@@ -140,7 +143,7 @@ fn bench_insert_and_flush(c: &mut Criterion) {
             |b, &input| {
                 b.iter_batched(
                     || {
-                        let mut aggregator = Aggregator::new(config.clone());
+                        let mut aggregator: Aggregator = Aggregator::new(config.clone());
                         for (project_key, bucket) in input.get_buckets() {
                             aggregator.merge(project_key, bucket, None).unwrap();
                         }

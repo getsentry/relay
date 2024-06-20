@@ -6,7 +6,6 @@ use axum::http::{header, HeaderName, HeaderValue};
 use axum::ServiceExt;
 use axum_server::{AddrIncomingConfig, Handle, HttpConfig};
 use relay_config::Config;
-use relay_log::tower::{NewSentryLayer, SentryHttpLayer};
 use relay_system::{Controller, Service, Shutdown};
 use tower::ServiceBuilder;
 use tower_http::compression::predicate::SizeAbove;
@@ -15,7 +14,8 @@ use tower_http::set_header::SetResponseHeaderLayer;
 
 use crate::constants;
 use crate::middlewares::{
-    self, CatchPanicLayer, HandleErrorLayer, NormalizePathLayer, RequestDecompressionLayer,
+    self, CatchPanicLayer, HandleErrorLayer, NewSentryLayer, NormalizePathLayer,
+    RequestDecompressionLayer, SentryHttpLayer,
 };
 use crate::service::ServiceState;
 use crate::statsd::RelayCounters;

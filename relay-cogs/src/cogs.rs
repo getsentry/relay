@@ -3,7 +3,6 @@ use std::collections::BTreeMap;
 use std::num::NonZeroUsize;
 use std::sync::Arc;
 use std::time::Instant;
-use std::usize;
 
 use crate::{AppFeature, ResourceId};
 use crate::{CogsMeasurement, CogsRecorder, Value};
@@ -119,7 +118,7 @@ impl Drop for Token {
         let elapsed = self.start.elapsed();
 
         for (feature, ratio) in self.features.weights() {
-            let time = elapsed.div_f32(ratio);
+            let time = elapsed.mul_f32(ratio);
             self.recorder.record(CogsMeasurement {
                 resource: self.resource,
                 feature,
@@ -203,6 +202,20 @@ impl FeatureWeights {
             let ratio = (weight.get() as f32 / total_weight as f32).clamp(0.0, 1.0);
             Some((*feature, ratio))
         })
+    }
+
+    /// Returns `true` if there are no weights contained.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use relay_cogs::{AppFeature, FeatureWeights};
+    ///
+    /// assert!(FeatureWeights::none().is_empty());
+    /// assert!(!FeatureWeights::new(AppFeature::Spans).is_empty());
+    /// ```
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
     }
 }
 
@@ -288,6 +301,7 @@ mod tests {
         let recorder = TestRecorder::default();
         let cogs = Cogs::new(recorder.clone());
 
+        let start = Instant::now();
         let f = FeatureWeights::builder()
             .weight(AppFeature::Spans, 1)
             .weight(AppFeature::Transactions, 1)
@@ -299,6 +313,7 @@ mod tests {
             let _token = cogs.timed(ResourceId::Relay, f);
             std::thread::sleep(Duration::from_millis(50));
         }
+        let elapsed = start.elapsed();
 
         let measurements = recorder.measurements();
         assert_eq!(measurements.len(), 2);
@@ -307,6 +322,9 @@ mod tests {
         assert_eq!(measurements[1].resource, ResourceId::Relay);
         assert_eq!(measurements[1].feature, AppFeature::MetricsSpans);
         assert_eq!(measurements[0].value, measurements[1].value);
+        let Value::Time(time) = measurements[0].value;
+        assert!(time >= Duration::from_millis(25), "{time:?}");
+        assert!(time <= elapsed.div_f32(1.99), "{time:?}");
     }
 
     #[test]

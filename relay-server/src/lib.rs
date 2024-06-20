@@ -258,6 +258,7 @@ mod endpoints;
 mod envelope;
 mod extractors;
 mod http;
+mod metrics;
 mod metrics_extraction;
 mod middlewares;
 mod service;
@@ -275,7 +276,7 @@ use std::sync::Arc;
 use relay_config::Config;
 use relay_system::{Controller, Service};
 
-use crate::service::{Runtimes, ServiceState};
+use crate::service::ServiceState;
 use crate::services::server::HttpServer;
 
 /// Runs a relay web server and spawns all internal worker threads.
@@ -290,23 +291,17 @@ pub fn run(config: Config) -> anyhow::Result<()> {
     // Creates the main runtime.
     let main_runtime = crate::service::create_runtime("main-rt", config.cpu_concurrency());
 
-    // Create secondary service runtimes.
-    //
-    // Runtimes must not be dropped within other runtimes, so keep them alive here.
-    let runtimes = Runtimes::new(&config);
-
     // Run the system and block until a shutdown signal is sent to this process. Inside, start a
     // web server and run all relevant services. See the `actors` module documentation for more
     // information on all services.
     main_runtime.block_on(async {
         Controller::start(config.shutdown_timeout());
-        let service = ServiceState::start(config.clone(), &runtimes)?;
+        let service = ServiceState::start(config.clone())?;
         HttpServer::new(config, service.clone())?.start();
         Controller::shutdown_handle().finished().await;
         anyhow::Ok(())
     })?;
 
-    drop(runtimes);
     drop(main_runtime);
 
     relay_log::info!("relay shutdown complete");

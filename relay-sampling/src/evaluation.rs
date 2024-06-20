@@ -65,6 +65,11 @@ impl<'a> ReservoirEvaluator<'a> {
         }
     }
 
+    /// Gets shared ownership of the reservoir counters.
+    pub fn counters(&self) -> ReservoirCounters {
+        Arc::clone(&self.counters)
+    }
+
     /// Sets the Redis pool and organiation ID for the [`ReservoirEvaluator`].
     ///
     /// These values are needed to synchronize with Redis.
@@ -145,32 +150,28 @@ pub struct SamplingEvaluator<'a> {
     now: DateTime<Utc>,
     rule_ids: Vec<RuleId>,
     factor: f64,
-    client_sample_rate: Option<f64>,
     reservoir: Option<&'a ReservoirEvaluator<'a>>,
 }
 
 impl<'a> SamplingEvaluator<'a> {
-    /// Constructor for [`SamplingEvaluator`].
+    /// Constructs an evaluator with reservoir sampling.
+    pub fn new_with_reservoir(now: DateTime<Utc>, reservoir: &'a ReservoirEvaluator<'a>) -> Self {
+        Self {
+            now,
+            rule_ids: vec![],
+            factor: 1.0,
+            reservoir: Some(reservoir),
+        }
+    }
+
+    /// Constructs an evaluator without reservoir sampling.
     pub fn new(now: DateTime<Utc>) -> Self {
         Self {
             now,
             rule_ids: vec![],
             factor: 1.0,
-            client_sample_rate: None,
             reservoir: None,
         }
-    }
-
-    /// Sets a [`ReservoirEvaluator`].
-    pub fn set_reservoir(mut self, reservoir: &'a ReservoirEvaluator) -> Self {
-        self.reservoir = Some(reservoir);
-        self
-    }
-
-    /// Sets a new client sample rate value.
-    pub fn adjust_client_sample_rate(mut self, client_sample_rate: Option<f64>) -> Self {
-        self.client_sample_rate = client_sample_rate;
-        self
     }
 
     /// Attempts to find a match for sampling rules using `ControlFlow`.
@@ -223,9 +224,7 @@ impl<'a> SamplingEvaluator<'a> {
             }
             SamplingValue::SampleRate { value } => {
                 let sample_rate = rule.apply_decaying_fn(value, self.now)?;
-                let adjusted = self
-                    .adjusted_sample_rate(sample_rate * self.factor)
-                    .clamp(0.0, 1.0);
+                let adjusted = (sample_rate * self.factor).clamp(0.0, 1.0);
 
                 self.rule_ids.push(rule.id);
                 Some(adjusted)
@@ -244,43 +243,13 @@ impl<'a> SamplingEvaluator<'a> {
             }
         }
     }
-
-    /// Tries to negate the client side sampling if the evaluator has been provided
-    /// with a client sample rate.
-    fn adjusted_sample_rate(&self, rule_sample_rate: f64) -> f64 {
-        let Some(client_sample_rate) = self.client_sample_rate else {
-            return rule_sample_rate;
-        };
-
-        if client_sample_rate <= 0.0 {
-            // client_sample_rate is 0, which is bogus because the SDK should've dropped the
-            // envelope. In that case let's pretend the sample rate was not sent, because clearly
-            // the sampling decision across the trace is still 1. The most likely explanation is
-            // that the SDK is reporting its own sample rate setting instead of the one from the
-            // continued trace.
-            //
-            // since we write back the client_sample_rate into the event's trace context, it should
-            // be possible to find those values + sdk versions via snuba
-            relay_log::warn!("client sample rate is <= 0");
-            rule_sample_rate
-        } else {
-            let adjusted_sample_rate = (rule_sample_rate / client_sample_rate).clamp(0.0, 1.0);
-            if adjusted_sample_rate.is_infinite() || adjusted_sample_rate.is_nan() {
-                relay_log::error!("adjusted sample rate ended up being nan/inf");
-                debug_assert!(false);
-                rule_sample_rate
-            } else {
-                adjusted_sample_rate
-            }
-        }
-    }
 }
 
-fn sampling_match(sample_rate: f64, seed: Uuid) -> bool {
-    if sample_rate == 0.0 {
-        return false;
-    } else if sample_rate == 1.0 {
-        return true;
+fn sampling_match(sample_rate: f64, seed: Uuid) -> SamplingDecision {
+    if sample_rate <= 0.0 {
+        return SamplingDecision::Drop;
+    } else if sample_rate >= 1.0 {
+        return SamplingDecision::Keep;
     }
 
     let random_number = pseudo_random_from_uuid(seed);
@@ -292,10 +261,45 @@ fn sampling_match(sample_rate: f64, seed: Uuid) -> bool {
 
     if random_number >= sample_rate {
         relay_log::trace!("dropping event that matched the configuration");
-        false
+        SamplingDecision::Drop
     } else {
         relay_log::trace!("keeping event that matched the configuration");
-        true
+        SamplingDecision::Keep
+    }
+}
+
+/// A sampling decision.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum SamplingDecision {
+    /// The item is sampled and should not be dropped.
+    Keep,
+    /// The item is not sampled and should be dropped.
+    Drop,
+}
+
+impl SamplingDecision {
+    /// Returns `true` if the sampling decision is [`Self::Keep`].
+    pub fn is_keep(self) -> bool {
+        matches!(self, Self::Keep)
+    }
+
+    /// Returns `true` if the sampling decision is [`Self::Drop`].
+    pub fn is_drop(self) -> bool {
+        matches!(self, Self::Drop)
+    }
+
+    /// Returns a string representation of the sampling decision.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Keep => "keep",
+            Self::Drop => "drop",
+        }
+    }
+}
+
+impl fmt::Display for SamplingDecision {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.as_str())
     }
 }
 
@@ -315,19 +319,19 @@ pub struct SamplingMatch {
     /// Whether this sampling match results in the item getting sampled.
     /// It's essentially a cache, as the value can be deterministically derived from
     /// the sample rate and the seed.
-    should_keep: bool,
+    decision: SamplingDecision,
 }
 
 impl SamplingMatch {
     fn new(sample_rate: f64, seed: Uuid, matched_rules: Vec<RuleId>) -> Self {
         let matched_rules = MatchedRuleIds(matched_rules);
-        let should_keep = sampling_match(sample_rate, seed);
+        let decision = sampling_match(sample_rate, seed);
 
         Self {
             sample_rate,
             seed,
             matched_rules,
-            should_keep,
+            decision,
         }
     }
 
@@ -344,14 +348,9 @@ impl SamplingMatch {
         self.matched_rules
     }
 
-    /// Returns true if event should be kept.
-    pub fn should_keep(&self) -> bool {
-        self.should_keep
-    }
-
-    /// Returns true if event should be dropped.
-    pub fn should_drop(&self) -> bool {
-        !self.should_keep()
+    /// Returns the sampling decision.
+    pub fn decision(&self) -> SamplingDecision {
+        self.decision
     }
 }
 
@@ -395,16 +394,12 @@ impl fmt::Display for MatchedRuleIds {
 mod tests {
     use std::str::FromStr;
 
-    use chrono::{TimeZone, Utc};
+    use chrono::TimeZone;
     use relay_protocol::RuleCondition;
     use similar_asserts::assert_eq;
-    use uuid::Uuid;
 
-    use crate::config::{
-        DecayingFunction, RuleId, RuleType, SamplingRule, SamplingValue, TimeRange,
-    };
+    use crate::config::{DecayingFunction, RuleType, TimeRange};
     use crate::dsc::TraceUserContext;
-    use crate::evaluation::MatchedRuleIds;
     use crate::DynamicSamplingContext;
 
     use super::*;
@@ -475,8 +470,8 @@ mod tests {
             match path {
                 "trace.release" => dsc.release = Some(value.to_owned()),
                 "trace.environment" => dsc.environment = Some(value.to_owned()),
-                "trace.user.id" => dsc.user.user_id = value.to_owned(),
-                "trace.user.segment" => dsc.user.user_segment = value.to_owned(),
+                "trace.user.id" => value.clone_into(&mut dsc.user.user_id),
+                "trace.user.segment" => value.clone_into(&mut dsc.user.user_segment),
                 "trace.transaction" => dsc.transaction = Some(value.to_owned()),
                 "trace.replay_id" => dsc.replay_id = Some(Uuid::from_str(value).unwrap()),
                 _ => panic!("invalid path"),
@@ -499,49 +494,6 @@ mod tests {
         // After 3 samples we have reached the limit, and the following rules are not sampled.
         assert!(!evaluator.evaluate(rule, limit, None));
         assert!(!evaluator.evaluate(rule, limit, None));
-    }
-
-    #[test]
-    fn test_adjust_sample_rate() {
-        // return the same as input if no client sample rate set in the sampling evaluator.
-        let eval = SamplingEvaluator::new(Utc::now());
-        assert_eq!(eval.adjusted_sample_rate(0.2), 0.2);
-
-        let eval = eval.adjust_client_sample_rate(Some(0.5));
-        assert_eq!(eval.adjusted_sample_rate(0.2), 0.4);
-
-        // tests that it doesn't exceed 1.0.
-        let eval = eval.adjust_client_sample_rate(Some(0.005));
-        assert_eq!(eval.adjusted_sample_rate(0.2), 1.0);
-
-        // tests that it doesn't go below 0.0.
-        let eval = eval.adjust_client_sample_rate(Some(0.005));
-        assert_eq!(eval.adjusted_sample_rate(-0.2), 0.0);
-    }
-
-    /// Checks that server side sampling can correctly negate any client side sampling if configured to.
-    #[test]
-    fn test_adjust_by_client_sample_rate() {
-        let rules = simple_sampling_rules(vec![
-            (RuleCondition::all(), SamplingValue::Factor { value: 0.5 }),
-            (
-                RuleCondition::all(),
-                SamplingValue::SampleRate { value: 0.25 },
-            ),
-        ]);
-
-        let dsc = mocked_dsc_with_getter_values(vec![]);
-
-        let res = SamplingEvaluator::new(Utc::now())
-            .adjust_client_sample_rate(Some(0.2))
-            .match_rules(Uuid::default(), &dsc, rules.iter());
-
-        let ControlFlow::Break(sampling_match) = res else {
-            panic!();
-        };
-
-        // ((0.5 * 0.25) / 0.2) == 0.625
-        assert_eq!(sampling_match.sample_rate(), 0.625);
     }
 
     #[test]
@@ -615,19 +567,19 @@ mod tests {
         // shares state among multiple evaluator instances.
         let reservoir = mock_reservoir_evaluator(vec![]);
 
-        let evaluator = SamplingEvaluator::new(Utc::now()).set_reservoir(&reservoir);
+        let evaluator = SamplingEvaluator::new_with_reservoir(Utc::now(), &reservoir);
         let matched_rules =
             get_matched_rules(&evaluator.match_rules(Uuid::default(), &dsc, rules.iter()));
         // Reservoir rule overrides 0 and 2.
         assert_eq!(&matched_rules, &[1]);
 
-        let evaluator = SamplingEvaluator::new(Utc::now()).set_reservoir(&reservoir);
+        let evaluator = SamplingEvaluator::new_with_reservoir(Utc::now(), &reservoir);
         let matched_rules =
             get_matched_rules(&evaluator.match_rules(Uuid::default(), &dsc, rules.iter()));
         // Reservoir rule overrides 0 and 2.
         assert_eq!(&matched_rules, &[1]);
 
-        let evaluator = SamplingEvaluator::new(Utc::now()).set_reservoir(&reservoir);
+        let evaluator = SamplingEvaluator::new_with_reservoir(Utc::now(), &reservoir);
         let matched_rules =
             get_matched_rules(&evaluator.match_rules(Uuid::default(), &dsc, rules.iter()));
         // Reservoir rule reached its limit, rule 0 and 2 are now matched instead.
@@ -865,7 +817,7 @@ mod tests {
         let mut rule = mocked_sampling_rule();
 
         let reservoir = ReservoirEvaluator::new(ReservoirCounters::default());
-        let mut eval = SamplingEvaluator::new(Utc::now()).set_reservoir(&reservoir);
+        let mut eval = SamplingEvaluator::new_with_reservoir(Utc::now(), &reservoir);
 
         rule.sampling_value = SamplingValue::SampleRate { value: 1.0 };
         assert_eq!(eval.try_compute_sample_rate(&rule), Some(1.0));

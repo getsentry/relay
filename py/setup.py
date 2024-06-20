@@ -48,8 +48,8 @@ class CustomSDist(sdist):
 def build_native(spec):
     cmd = ["cargo", "build", "-p", "relay-cabi"]
     if not DEBUG_BUILD:
-        cmd.append("--release")
-        target = "release"
+        cmd.extend(("--profile", "release-cabi"))
+        target = "release-cabi"
     else:
         target = "debug"
 
@@ -108,6 +108,7 @@ setup(
     author_email="hello@sentry.io",
     description="A python library to access sentry relay functionality.",
     long_description=readme,
+    long_description_content_type="text/markdown",
     include_package_data=True,
     package_data={"sentry_relay": ["py.typed", "_lowlevel.pyi"]},
     zip_safe=False,
@@ -116,5 +117,5 @@ setup(
     install_requires=["milksnake>=0.1.6"],
     setup_requires=["milksnake>=0.1.6"],
     milksnake_tasks=[build_native],
-    cmdclass={"sdist": CustomSDist},
+    cmdclass={"sdist": CustomSDist},  # type: ignore
 )

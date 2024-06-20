@@ -39,13 +39,8 @@ def test_dynamic_relays(mini_sentry, relay, caller, projects):
         id2: {"public_key": str(pk2), "internal": False},
     }
 
-    relay1 = relay(mini_sentry, wait_health_check=True, static_relays=relays_conf)
-    relay2 = relay(
-        mini_sentry,
-        wait_health_check=True,
-        external=True,
-        static_relays=relays_conf,
-    )
+    relay1 = relay(mini_sentry, static_relays=relays_conf)
+    relay2 = relay(mini_sentry, external=True, static_relays=relays_conf)
 
     # create info for our test parameters
     r1 = RelayInfo(
@@ -106,7 +101,7 @@ def test_dynamic_relays(mini_sentry, relay, caller, projects):
 
 
 def test_invalid_json(mini_sentry, relay):
-    relay = relay(mini_sentry, wait_health_check=True)
+    relay = relay(mini_sentry)
 
     body = {}  # missing the required `publicKeys` field
     packed, signature = SecretKey.parse(relay.secret_key).pack(body)
@@ -125,7 +120,7 @@ def test_invalid_json(mini_sentry, relay):
 
 
 def test_invalid_signature(mini_sentry, relay):
-    relay = relay(mini_sentry, wait_health_check=True)
+    relay = relay(mini_sentry)
 
     response = relay.post(
         "/api/0/relays/projectconfigs/?version=2",
@@ -141,7 +136,7 @@ def test_invalid_signature(mini_sentry, relay):
 
 
 def test_broken_projectkey(mini_sentry, relay):
-    relay = relay(mini_sentry, wait_health_check=True)
+    relay = relay(mini_sentry)
     mini_sentry.add_basic_project_config(42)
     public_key = mini_sentry.get_dsn_public_key(42)
 
@@ -172,7 +167,7 @@ def test_pending_projects(mini_sentry, relay):
     # V3 requests will never return a projectconfig on the first request, only some
     # subsequent request will contain the response.  However if the machine executing this
     # test is very slow this could still be a flaky test.
-    relay = relay(mini_sentry, wait_health_check=True)
+    relay = relay(mini_sentry)
     mini_sentry.add_basic_project_config(42)
     public_key = mini_sentry.get_dsn_public_key(42)
 
@@ -262,7 +257,7 @@ def test_unparsable_project_config(buffer_config, mini_sentry, relay):
         # set the buffer to something low to force the spooling
         relay_config["spool"] = {"envelopes": {"path": dbfile, "max_memory_size": 1000}}
 
-    relay = relay(mini_sentry, relay_config, wait_health_check=True)
+    relay = relay(mini_sentry, relay_config)
     mini_sentry.add_full_project_config(project_key)
     public_key = mini_sentry.get_dsn_public_key(project_key)
 
@@ -341,7 +336,7 @@ def test_cached_project_config(mini_sentry, relay):
     relay_config = {
         "cache": {"project_expiry": 2, "project_grace_period": 5, "miss_expiry": 2}
     }
-    relay = relay(mini_sentry, relay_config, wait_health_check=True)
+    relay = relay(mini_sentry, relay_config)
     mini_sentry.add_full_project_config(project_key)
     public_key = mini_sentry.get_dsn_public_key(project_key)
 
@@ -398,18 +393,21 @@ def test_get_global_config(mini_sentry, relay):
             "maxCustomMeasurements": 10,
         }
     }
-    relay = relay(mini_sentry, relay_config, wait_health_check=True)
+    relay = relay(mini_sentry, relay_config)
     mini_sentry.add_full_project_config(project_key)
 
     body = {"publicKeys": [], "global": True}
     packed, signature = SecretKey.parse(relay.secret_key).pack(body)
     data = get_response(relay, packed, signature, version="3")
 
+    global_extraction_config = data["global"].pop("metricExtraction")
+    assert "span_metrics_common" in global_extraction_config["groups"]
+
     assert data["global"] == mini_sentry.global_config
 
 
 def test_compression(mini_sentry, relay):
-    relay = relay(mini_sentry, wait_health_check=True)
+    relay = relay(mini_sentry)
     mini_sentry.add_basic_project_config(42)
     public_key = mini_sentry.get_dsn_public_key(42)
 

@@ -7,6 +7,7 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
+  RELAY_CARGO_ARGS: "--locked"
 
 jobs:
   linux:
@@ -15,7 +16,6 @@ jobs:
       fail-fast: false
       matrix:
         build-arch:
-          - i686
           - x86_64
           - aarch64
 
@@ -48,12 +48,12 @@ jobs:
       matrix:
         include:
           - target: x86_64-apple-darwin
-            py-platform: macosx-10_15_x86_64
+            py-platform: macosx-13_0_x86_64
           - target: aarch64-apple-darwin
-            py-platform: macosx-11_0_arm64
+            py-platform: macosx-14_0_arm64
 
     name: Python macOS ${{ matrix.py-platform }}
-    runs-on: macos-11
+    runs-on: macos-14
 
     steps:
       - uses: actions/checkout@v4
@@ -69,7 +69,7 @@ jobs:
 
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.10'
+          python-version: "3.10"
 
       - name: Build Wheel
         run: |
@@ -96,7 +96,7 @@ jobs:
 
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.10'
+          python-version: "3.10"
 
       - name: Build sdist
         run: python setup.py sdist --format=zip

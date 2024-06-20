@@ -5,7 +5,7 @@ use crate::metrics::MetricUnit;
 use serde::{Deserialize, Serialize};
 
 /// The type of a [`MetricResourceIdentifier`], determining its aggregation and evaluation.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, PartialOrd, Ord)]
 pub enum MetricType {
     /// Counts instances of an event.
     ///
@@ -116,6 +116,10 @@ pub enum MetricNamespace {
     Profiles,
     /// User-defined metrics directly sent by SDKs and applications.
     Custom,
+    /// Metric stats.
+    ///
+    /// Metrics about metrics.
+    Stats,
     /// An unknown and unsupported metric.
     ///
     /// Metrics that Relay either doesn't know or recognize the namespace of will be dropped before
@@ -129,15 +133,34 @@ pub enum MetricNamespace {
 }
 
 impl MetricNamespace {
+    /// Returns all namespaces/variants of this enum.
+    pub fn all() -> [Self; 7] {
+        [
+            Self::Sessions,
+            Self::Transactions,
+            Self::Spans,
+            Self::Profiles,
+            Self::Custom,
+            Self::Stats,
+            Self::Unsupported,
+        ]
+    }
+
+    /// Returns `true` if metric stats are enabled for this namespace.
+    pub fn has_metric_stats(&self) -> bool {
+        matches!(self, Self::Custom)
+    }
+
     /// Returns the string representation for this metric type.
     pub fn as_str(&self) -> &'static str {
         match self {
-            MetricNamespace::Sessions => "sessions",
-            MetricNamespace::Transactions => "transactions",
-            MetricNamespace::Spans => "spans",
-            MetricNamespace::Profiles => "profiles",
-            MetricNamespace::Custom => "custom",
-            MetricNamespace::Unsupported => "unsupported",
+            Self::Sessions => "sessions",
+            Self::Transactions => "transactions",
+            Self::Spans => "spans",
+            Self::Profiles => "profiles",
+            Self::Custom => "custom",
+            Self::Stats => "metric_stats",
+            Self::Unsupported => "unsupported",
         }
     }
 }
@@ -152,6 +175,7 @@ impl std::str::FromStr for MetricNamespace {
             "spans" => Ok(Self::Spans),
             "profiles" => Ok(Self::Profiles),
             "custom" => Ok(Self::Custom),
+            "metric_stats" => Ok(Self::Stats),
             _ => Ok(Self::Unsupported),
         }
     }
@@ -338,6 +362,16 @@ mod tests {
     }
 
     #[test]
+    fn test_metric_namespaces_conversion() {
+        for namespace in MetricNamespace::all() {
+            assert_eq!(
+                namespace,
+                namespace.as_str().parse::<MetricNamespace>().unwrap()
+            );
+        }
+    }
+
+    #[test]
     fn test_parse_mri_lenient() {
         assert_eq!(
             MetricResourceIdentifier::parse("c:foo@none").unwrap(),
@@ -427,6 +461,31 @@ mod tests {
                 .unwrap()
                 .name,
             "f_o"
+        );
+    }
+
+    #[test]
+    fn test_normalize_name_length() {
+        let long_mri = "c:custom/ThisIsACharacterLongStringForTestingPurposesToEnsureThatWeHaveEnoughCharactersToWorkWithAndToCheckIfOurFunctionProperlyHandlesSlicingAndNormalizationWithoutErrors";
+        assert_eq!(
+            MetricResourceIdentifier::parse(long_mri)
+                .unwrap()
+                .name,
+            "ThisIsACharacterLongStringForTestingPurposesToEnsureThatWeHaveEnoughCharactersToWorkWithAndToCheckIfOurFunctionProperlyHandlesSlicingAndNormalizationW"
+        );
+
+        let long_mri_with_replacement = "c:custom/ThisIsÄÂÏCharacterLongStringForŤestingPurposesToEnsureThatWeHaveEnoughCharactersToWorkWithAndToCheckIfOurFunctionProperlyHandlesSlicingAndNormalizationWithoutErrors";
+        assert_eq!(
+            MetricResourceIdentifier::parse(long_mri_with_replacement)
+                .unwrap()
+                .name,
+            "ThisIs_CharacterLongStringFor_estingPurposesToEnsureThatWeHaveEnoughCharactersToWorkWithAndToCheckIfOurFunctionProperlyHandlesSlicingAndNormalizationW"
+        );
+
+        let short_mri = "c:custom/ThisIsAShortName";
+        assert_eq!(
+            MetricResourceIdentifier::parse(short_mri).unwrap().name,
+            "ThisIsAShortName"
         );
     }
 

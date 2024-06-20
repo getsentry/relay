@@ -1,12 +1,10 @@
 use std::io;
 
 use relay_dynamic_config::{BucketEncoding, GlobalConfig};
-use relay_metrics::{
-    Bucket, BucketValue, FiniteF64, MetricNamespace, MetricResourceIdentifier, SetView,
-};
+use relay_metrics::{Bucket, BucketValue, FiniteF64, MetricNamespace, SetView};
 use serde::Serialize;
 
-static BASE64: data_encoding::Encoding = data_encoding::BASE64;
+static BASE64_NOPAD: data_encoding::Encoding = data_encoding::BASE64_NOPAD;
 
 pub struct BucketEncoder<'a> {
     global_config: &'a GlobalConfig,
@@ -30,9 +28,7 @@ impl<'a> BucketEncoder<'a> {
     /// afterwards the bucket can be split into multiple smaller views
     /// and encoded one by one.
     pub fn prepare(&self, bucket: &mut Bucket) -> MetricNamespace {
-        let namespace = MetricResourceIdentifier::parse(&bucket.name)
-            .map(|mri| mri.namespace)
-            .unwrap_or(MetricNamespace::Unsupported);
+        let namespace = bucket.name.namespace();
 
         if let BucketValue::Distribution(ref mut distribution) = bucket.value {
             let enc = self.global_config.options.metric_bucket_dist_encodings;
@@ -148,7 +144,7 @@ impl<'a, T> DynamicArrayEncoding<'a, T> {
 }
 
 fn base64<T: Encodable>(data: T, buffer: &mut String) -> io::Result<ArrayEncoding<T>> {
-    let mut writer = EncoderWriteAdapter(BASE64.new_encoder(buffer));
+    let mut writer = EncoderWriteAdapter(BASE64_NOPAD.new_encoder(buffer));
     data.write_to(&mut writer)?;
     drop(writer);
 
@@ -159,7 +155,7 @@ fn base64<T: Encodable>(data: T, buffer: &mut String) -> io::Result<ArrayEncodin
 
 fn zstd<T: Encodable>(data: T, buffer: &mut String) -> io::Result<ArrayEncoding<T>> {
     let mut writer = zstd::Encoder::new(
-        EncoderWriteAdapter(BASE64.new_encoder(buffer)),
+        EncoderWriteAdapter(BASE64_NOPAD.new_encoder(buffer)),
         zstd::DEFAULT_COMPRESSION_LEVEL,
     )?;
 

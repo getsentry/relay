@@ -44,7 +44,7 @@ def test_filters_are_applied(
         filter_settings[key] = filter_config[key]
 
     # create a unique message so we can make sure we don't test with stale data
-    now = datetime.datetime.utcnow()
+    now = datetime.datetime.now(datetime.UTC)
     message_text = f"some message {now.isoformat()}"
 
     event = {
@@ -195,7 +195,7 @@ def test_web_crawlers_filter_are_applied(
     events_consumer = events_consumer(timeout=10)
 
     # create a unique message so we can make sure we don't test with stale data
-    now = datetime.datetime.utcnow()
+    now = datetime.datetime.now(datetime.UTC)
     message_text = f"some message {now.isoformat()}"
 
     event = {
@@ -256,7 +256,7 @@ def test_ignore_transactions_filters_are_applied(
 
     transactions_consumer = transactions_consumer(timeout=10)
 
-    now = datetime.datetime.utcnow()
+    now = datetime.datetime.now(datetime.UTC)
     start_timestamp = (now - datetime.timedelta(minutes=1)).timestamp()
     timestamp = now.timestamp()
 
@@ -282,6 +282,31 @@ def test_ignore_transactions_filters_are_applied(
     else:
         event, _ = transactions_consumer.get_event()
         assert event["transaction"] == transaction_name
+
+
+def test_client_ip_filters_are_applied(
+    mini_sentry,
+    relay,
+):
+    """
+    Test that relay normalizes messages when processing is enabled and sends them via Kafka queues
+    """
+    relay = relay(mini_sentry)
+
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    filter_settings = project_config["config"]["filterSettings"]
+    filter_settings["clientIps"] = {"blacklistedIps": ["1.2.3.0/24"]}
+
+    event = {"message": "foo"}
+    relay.send_event(project_id, event, headers={"X-Forwarded-For": "1.2.3.4"})
+
+    report = mini_sentry.get_client_report()
+    assert report["filtered_events"] == [
+        {"reason": "ip-address", "category": "error", "quantity": 1}
+    ]
+
+    assert mini_sentry.captured_events.empty()
 
 
 def test_global_filters_drop_events(

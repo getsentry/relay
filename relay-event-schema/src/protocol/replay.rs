@@ -27,11 +27,13 @@
 
 #[cfg(feature = "jsonschema")]
 use relay_jsonschema_derive::JsonSchema;
-use relay_protocol::{Annotated, Array, Empty, FromValue, IntoValue};
+use relay_protocol::{Annotated, Array, Empty, FromValue, Getter, IntoValue, Val};
 
 use crate::processor::ProcessValue;
 use crate::protocol::{
-    ClientSdkInfo, Contexts, EventId, LenientString, Request, Tags, Timestamp, User,
+    AppContext, BrowserContext, ClientSdkInfo, Contexts, DefaultContext, DeviceContext, EventId,
+    LenientString, OsContext, ProfileContext, Request, ResponseContext, Tags, Timestamp,
+    TraceContext, User,
 };
 use uuid::Uuid;
 
@@ -83,7 +85,7 @@ pub struct Replay {
     ///   "replay_type": "session"
     /// }
     /// ```
-    #[metastructure(max_chars = "environment")]
+    #[metastructure(max_chars = 64)]
     pub replay_type: Annotated<String>,
 
     /// Segment identifier.
@@ -132,15 +134,15 @@ pub struct Replay {
     pub replay_start_timestamp: Annotated<Timestamp>,
 
     /// A list of URLs visted during the lifetime of the segment.
-    #[metastructure(pii = "true", bag_size = "large")]
+    #[metastructure(pii = "true", max_depth = 7, max_bytes = 8192)]
     pub urls: Annotated<Array<String>>,
 
     /// A list of error-ids discovered during the lifetime of the segment.
-    #[metastructure(bag_size = "medium")]
+    #[metastructure(max_depth = 5, max_bytes = 2048)]
     pub error_ids: Annotated<Array<Uuid>>,
 
     /// A list of trace-ids discovered during the lifetime of the segment.
-    #[metastructure(bag_size = "medium")]
+    #[metastructure(max_depth = 5, max_bytes = 2048)]
     pub trace_ids: Annotated<Array<Uuid>>,
 
     /// Contexts describing the environment (e.g. device, os or browser).
@@ -151,7 +153,7 @@ pub struct Replay {
     ///
     /// A string representing the platform the SDK is submitting from. This will be used by the
     /// Sentry interface to customize various components in the interface.
-    #[metastructure(max_chars = "environment")]
+    #[metastructure(max_chars = 64)]
     pub platform: Annotated<String>,
 
     /// The release version of the application.
@@ -159,7 +161,7 @@ pub struct Replay {
     /// **Release versions must be unique across all projects in your organization.** This value
     /// can be the git SHA for the given project, or a product identifier with a semantic version.
     #[metastructure(
-        max_chars = "tag_value",
+        max_chars = 200,
         required = "false",
         trim_whitespace = "true",
         nonempty = "true",
@@ -179,7 +181,7 @@ pub struct Replay {
         trim_whitespace = "true",
         required = "false",
         nonempty = "true",
-        max_chars = "environment"
+        max_chars = 64
     )]
     pub dist: Annotated<String>,
 
@@ -189,7 +191,7 @@ pub struct Replay {
     /// { "environment": "production" }
     /// ```
     #[metastructure(
-        max_chars = "environment",
+        max_chars = 64,
         nonempty = "true",
         required = "false",
         trim_whitespace = "true"
@@ -203,7 +205,7 @@ pub struct Replay {
     pub tags: Annotated<Tags>,
 
     /// Static value. Should always be "replay_event".
-    #[metastructure(field = "type", max_chars = "environment")]
+    #[metastructure(field = "type", max_chars = 64)]
     pub ty: Annotated<String>,
 
     /// Information about the user who triggered this event.
@@ -218,6 +220,170 @@ pub struct Replay {
     #[metastructure(field = "sdk")]
     #[metastructure(skip_serialization = "empty")]
     pub sdk: Annotated<ClientSdkInfo>,
+}
+
+impl Replay {
+    /// Returns a reference to the context if it exists in its default key.
+    pub fn context<C: DefaultContext>(&self) -> Option<&C> {
+        self.contexts.value()?.get()
+    }
+
+    /// Returns the raw user agent string.
+    ///
+    /// Returns `Some` if the event's request interface contains a `user-agent` header. Returns
+    /// `None` otherwise.
+    pub fn user_agent(&self) -> Option<&str> {
+        let headers = self.request.value()?.headers.value()?;
+
+        for item in headers.iter() {
+            if let Some((ref o_k, ref v)) = item.value() {
+                if let Some(k) = o_k.as_str() {
+                    if k.to_lowercase() == "user-agent" {
+                        return v.as_str();
+                    }
+                }
+            }
+        }
+
+        None
+    }
+}
+
+impl Getter for Replay {
+    fn get_value(&self, path: &str) -> Option<Val<'_>> {
+        Some(match path.strip_prefix("event.")? {
+            // Simple fields
+            "release" => self.release.as_str()?.into(),
+            "dist" => self.dist.as_str()?.into(),
+            "environment" => self.environment.as_str()?.into(),
+            "platform" => self.platform.as_str().unwrap_or("other").into(),
+
+            // Fields in top level structures (called "interfaces" in Sentry)
+            "user.email" => or_none(&self.user.value()?.email)?.into(),
+            "user.id" => or_none(&self.user.value()?.id)?.into(),
+            "user.ip_address" => self.user.value()?.ip_address.as_str()?.into(),
+            "user.name" => self.user.value()?.name.as_str()?.into(),
+            "user.segment" => or_none(&self.user.value()?.segment)?.into(),
+            "user.geo.city" => self.user.value()?.geo.value()?.city.as_str()?.into(),
+            "user.geo.country_code" => self
+                .user
+                .value()?
+                .geo
+                .value()?
+                .country_code
+                .as_str()?
+                .into(),
+            "user.geo.region" => self.user.value()?.geo.value()?.region.as_str()?.into(),
+            "user.geo.subdivision" => self.user.value()?.geo.value()?.subdivision.as_str()?.into(),
+            "request.method" => self.request.value()?.method.as_str()?.into(),
+            "request.url" => self.request.value()?.url.as_str()?.into(),
+            "sdk.name" => self.sdk.value()?.name.as_str()?.into(),
+            "sdk.version" => self.sdk.value()?.version.as_str()?.into(),
+
+            // Computed fields (after normalization).
+            "sentry_user" => self.user.value()?.sentry_user.as_str()?.into(),
+
+            // Partial implementation of contexts.
+            "contexts.app.in_foreground" => {
+                self.context::<AppContext>()?.in_foreground.value()?.into()
+            }
+            "contexts.device.arch" => self.context::<DeviceContext>()?.arch.as_str()?.into(),
+            "contexts.device.battery_level" => self
+                .context::<DeviceContext>()?
+                .battery_level
+                .value()?
+                .into(),
+            "contexts.device.brand" => self.context::<DeviceContext>()?.brand.as_str()?.into(),
+            "contexts.device.charging" => self.context::<DeviceContext>()?.charging.value()?.into(),
+            "contexts.device.family" => self.context::<DeviceContext>()?.family.as_str()?.into(),
+            "contexts.device.model" => self.context::<DeviceContext>()?.model.as_str()?.into(),
+            "contexts.device.locale" => self.context::<DeviceContext>()?.locale.as_str()?.into(),
+            "contexts.device.online" => self.context::<DeviceContext>()?.online.value()?.into(),
+            "contexts.device.orientation" => self
+                .context::<DeviceContext>()?
+                .orientation
+                .as_str()?
+                .into(),
+            "contexts.device.name" => self.context::<DeviceContext>()?.name.as_str()?.into(),
+            "contexts.device.screen_density" => self
+                .context::<DeviceContext>()?
+                .screen_density
+                .value()?
+                .into(),
+            "contexts.device.screen_dpi" => {
+                self.context::<DeviceContext>()?.screen_dpi.value()?.into()
+            }
+            "contexts.device.screen_width_pixels" => self
+                .context::<DeviceContext>()?
+                .screen_width_pixels
+                .value()?
+                .into(),
+            "contexts.device.screen_height_pixels" => self
+                .context::<DeviceContext>()?
+                .screen_height_pixels
+                .value()?
+                .into(),
+            "contexts.device.simulator" => {
+                self.context::<DeviceContext>()?.simulator.value()?.into()
+            }
+            "contexts.os.build" => self.context::<OsContext>()?.build.as_str()?.into(),
+            "contexts.os.kernel_version" => {
+                self.context::<OsContext>()?.kernel_version.as_str()?.into()
+            }
+            "contexts.os.name" => self.context::<OsContext>()?.name.as_str()?.into(),
+            "contexts.os.version" => self.context::<OsContext>()?.version.as_str()?.into(),
+            "contexts.browser.name" => self.context::<BrowserContext>()?.name.as_str()?.into(),
+            "contexts.browser.version" => {
+                self.context::<BrowserContext>()?.version.as_str()?.into()
+            }
+            "contexts.profile.profile_id" => self
+                .context::<ProfileContext>()?
+                .profile_id
+                .value()?
+                .0
+                .into(),
+            "contexts.device.uuid" => self.context::<DeviceContext>()?.uuid.value()?.into(),
+            "contexts.trace.status" => self
+                .context::<TraceContext>()?
+                .status
+                .value()?
+                .as_str()
+                .into(),
+            "contexts.trace.op" => self.context::<TraceContext>()?.op.as_str()?.into(),
+            "contexts.response.status_code" => self
+                .context::<ResponseContext>()?
+                .status_code
+                .value()?
+                .into(),
+            "contexts.unreal.crash_type" => match self.contexts.value()?.get_key("unreal")? {
+                super::Context::Other(context) => context.get("crash_type")?.value()?.into(),
+                _ => return None,
+            },
+
+            // Dynamic access to certain data bags
+            path => {
+                if let Some(rest) = path.strip_prefix("tags.") {
+                    self.tags.value()?.get(rest)?.into()
+                } else if let Some(rest) = path.strip_prefix("request.headers.") {
+                    self.request
+                        .value()?
+                        .headers
+                        .value()?
+                        .get_header(rest)?
+                        .into()
+                } else {
+                    return None;
+                }
+            }
+        })
+    }
+}
+
+fn or_none(string: &Annotated<impl AsRef<str>>) -> Option<&str> {
+    match string.as_str() {
+        None | Some("") => None,
+        Some(other) => Some(other),
+    }
 }
 
 #[cfg(test)]

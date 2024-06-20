@@ -30,7 +30,6 @@
 //!
 //! ```
 
-use relay_event_normalization::{normalize_transaction_name, TransactionNameRule};
 use std::borrow::Borrow;
 use std::collections::BTreeMap;
 use std::fmt;
@@ -41,8 +40,9 @@ use uuid::Uuid;
 
 use bytes::Bytes;
 use chrono::{DateTime, Utc};
-use relay_dynamic_config::ErrorBoundary;
-use relay_event_schema::protocol::{EventId, EventType};
+use relay_dynamic_config::{ErrorBoundary, Feature};
+use relay_event_normalization::{normalize_transaction_name, TransactionNameRule};
+use relay_event_schema::protocol::{Event, EventId, EventType};
 use relay_protocol::{Annotated, Value};
 use relay_quotas::DataCategory;
 use relay_sampling::DynamicSamplingContext;
@@ -124,6 +124,8 @@ pub enum ItemType {
     OtelSpan,
     /// UserReport as an Event
     UserReportV2,
+    /// ProfileChunk is a chunk of a profiling session.
+    ProfileChunk,
     /// A new item type that is yet unknown by this version of Relay.
     ///
     /// By default, items of this type are forwarded without modification. Processing Relays and
@@ -174,6 +176,7 @@ impl ItemType {
             Self::CheckIn => "check_in",
             Self::Span => "span",
             Self::OtelSpan => "otel_span",
+            Self::ProfileChunk => "profile_chunk",
             Self::Unknown(_) => "unknown",
         }
     }
@@ -229,6 +232,7 @@ impl std::str::FromStr for ItemType {
             "check_in" => Self::CheckIn,
             "span" => Self::Span,
             "otel_span" => Self::OtelSpan,
+            "profile_chunk" => Self::ProfileChunk,
             other => Self::Unknown(other.to_owned()),
         })
     }
@@ -269,7 +273,7 @@ impl ContentType {
             Self::OctetStream => "application/octet-stream",
             Self::Minidump => "application/x-dmp",
             Self::Xml => "text/xml",
-            Self::Envelope => self::CONTENT_TYPE,
+            Self::Envelope => CONTENT_TYPE,
             Self::Other(ref other) => other,
         }
     }
@@ -550,6 +554,29 @@ pub struct ItemHeaders {
     #[serde(default, skip_serializing_if = "is_false")]
     metrics_extracted: bool,
 
+    /// Whether or not a transaction has been extracted from a segment span.
+    #[serde(default, skip_serializing_if = "is_false")]
+    transaction_extracted: bool,
+
+    /// Whether or not spans and span metrics have been extracted from a transaction.
+    ///
+    /// This header is set to `true` after both span extraction and span metrics extraction,
+    /// and can be used to skip extraction.
+    ///
+    /// NOTE: This header is also set to `true` for transactions that are themselves extracted
+    /// from spans (the opposite direction), to prevent going in circles.
+    #[serde(default, skip_serializing_if = "is_false")]
+    spans_extracted: bool,
+
+    /// Whether the event has been _fully_ normalized.
+    ///
+    /// If the event has been partially normalized, this flag is false. By
+    /// default, all Relays run some normalization.
+    ///
+    /// Currently only used for events.
+    #[serde(default, skip_serializing_if = "is_false")]
+    fully_normalized: bool,
+
     /// `false` if the sampling decision is "drop".
     ///
     /// In the most common use case, the item is dropped when the sampling decision is "drop".
@@ -578,6 +605,8 @@ fn is_true(value: &bool) -> bool {
 pub struct SourceQuantities {
     /// Transaction quantity.
     pub transactions: usize,
+    /// Spans quantity.
+    pub spans: usize,
     /// Profile quantity.
     pub profiles: usize,
     /// Total number of buckets.
@@ -588,12 +617,14 @@ impl AddAssign for SourceQuantities {
     fn add_assign(&mut self, other: Self) {
         let Self {
             transactions,
+            spans,
             profiles,
             buckets,
         } = self;
         *transactions += other.transactions;
+        *spans += other.spans;
         *profiles += other.profiles;
-        *buckets = other.buckets;
+        *buckets += other.buckets;
     }
 }
 
@@ -620,7 +651,10 @@ impl Item {
                 sample_rates: None,
                 other: BTreeMap::new(),
                 metrics_extracted: false,
+                transaction_extracted: false,
+                spans_extracted: false,
                 sampled: true,
+                fully_normalized: false,
             },
             payload: Bytes::new(),
         }
@@ -654,14 +688,10 @@ impl Item {
     /// Returns the data category used for generating outcomes.
     ///
     /// Returns `None` if outcomes are not generated for this type (e.g. sessions).
-    pub fn outcome_category(&self, indexed: bool) -> Option<DataCategory> {
+    pub fn outcome_category(&self) -> Option<DataCategory> {
         match self.ty() {
             ItemType::Event => Some(DataCategory::Error),
-            ItemType::Transaction => Some(if indexed {
-                DataCategory::TransactionIndexed
-            } else {
-                DataCategory::Transaction
-            }),
+            ItemType::Transaction => Some(DataCategory::Transaction),
             ItemType::Security | ItemType::RawSecurity => Some(DataCategory::Security),
             ItemType::Nel => None,
             ItemType::UnrealReport => Some(DataCategory::Error),
@@ -670,22 +700,15 @@ impl Item {
             ItemType::Statsd | ItemType::MetricBuckets | ItemType::MetricMeta => None,
             ItemType::FormData => None,
             ItemType::UserReport => None,
-            ItemType::UserReportV2 => None,
-            ItemType::Profile => Some(if indexed {
-                DataCategory::ProfileIndexed
-            } else {
-                DataCategory::Profile
-            }),
+            ItemType::UserReportV2 => Some(DataCategory::UserReportV2),
+            ItemType::Profile => Some(DataCategory::Profile),
             ItemType::ReplayEvent | ItemType::ReplayRecording | ItemType::ReplayVideo => {
                 Some(DataCategory::Replay)
             }
             ItemType::ClientReport => None,
             ItemType::CheckIn => Some(DataCategory::Monitor),
-            ItemType::Span | ItemType::OtelSpan => Some(if indexed {
-                DataCategory::SpanIndexed
-            } else {
-                DataCategory::Span
-            }),
+            ItemType::Span | ItemType::OtelSpan => Some(DataCategory::Span),
+            ItemType::ProfileChunk => Some(DataCategory::ProfileChunk),
             ItemType::Unknown(_) => None,
         }
     }
@@ -720,19 +743,29 @@ impl Item {
         self.payload.clone()
     }
 
-    /// Sets the payload and content-type of this envelope.
-    pub fn set_payload<B>(&mut self, content_type: ContentType, payload: B)
+    /// Sets the payload of this envelope item without specifying a content-type.
+    /// Use `set_payload` if you want to define a content-type for the payload.
+    pub fn set_payload_without_content_type<B>(&mut self, payload: B)
     where
         B: Into<Bytes>,
     {
         let mut payload = payload.into();
 
-        let length = std::cmp::min(u32::max_value() as usize, payload.len());
+        let length = std::cmp::min(u32::MAX as usize, payload.len());
         payload.truncate(length);
 
         self.headers.length = Some(length as u32);
-        self.headers.content_type = Some(content_type);
         self.payload = payload;
+    }
+
+    /// Sets the payload and content-type of this envelope item. Use
+    /// `set_payload_without_content_type` if you need to set the payload without a content-type.
+    pub fn set_payload<B>(&mut self, content_type: ContentType, payload: B)
+    where
+        B: Into<Bytes>,
+    {
+        self.headers.content_type = Some(content_type);
+        self.set_payload_without_content_type(payload);
     }
 
     /// Returns the file name of this item, if it is an attachment.
@@ -812,6 +845,36 @@ impl Item {
     /// Sets the metrics extracted flag.
     pub fn set_metrics_extracted(&mut self, metrics_extracted: bool) {
         self.headers.metrics_extracted = metrics_extracted;
+    }
+
+    /// Returns the transaction extracted flag.
+    pub fn transaction_extracted(&self) -> bool {
+        self.headers.transaction_extracted
+    }
+
+    /// Sets the transaction extracted flag.
+    pub fn set_transaction_extracted(&mut self, transaction_extracted: bool) {
+        self.headers.transaction_extracted = transaction_extracted;
+    }
+
+    /// Returns the spans extracted flag.
+    pub fn spans_extracted(&self) -> bool {
+        self.headers.spans_extracted
+    }
+
+    /// Sets the spans extracted flag.
+    pub fn set_spans_extracted(&mut self, spans_extracted: bool) {
+        self.headers.spans_extracted = spans_extracted;
+    }
+
+    /// Returns the fully normalized flag.
+    pub fn fully_normalized(&self) -> bool {
+        self.headers.fully_normalized
+    }
+
+    /// Sets the fully normalized flag.
+    pub fn set_fully_normalized(&mut self, fully_normalized: bool) {
+        self.headers.fully_normalized = fully_normalized;
     }
 
     /// Gets the `sampled` flag.
@@ -894,7 +957,8 @@ impl Item {
             | ItemType::Profile
             | ItemType::CheckIn
             | ItemType::Span
-            | ItemType::OtelSpan => false,
+            | ItemType::OtelSpan
+            | ItemType::ProfileChunk => false,
 
             // The unknown item type can observe any behavior, most likely there are going to be no
             // item types added that create events.
@@ -930,6 +994,7 @@ impl Item {
             ItemType::CheckIn => false,
             ItemType::Span => false,
             ItemType::OtelSpan => false,
+            ItemType::ProfileChunk => false,
 
             // Since this Relay cannot interpret the semantics of this item, it does not know
             // whether it requires an event or not. Depending on the strategy, this can cause two
@@ -982,6 +1047,13 @@ pub struct EnvelopeHeaders<M = RequestMeta> {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     trace: Option<ErrorBoundary<DynamicSamplingContext>>,
 
+    /// A list of features required to process this envelope.
+    ///
+    /// This is an internal field that should only be set by Relay.
+    /// It is a serializable header such that it persists when spooling.
+    #[serde(default, skip_serializing_if = "SmallVec::is_empty")]
+    required_features: SmallVec<[Feature; 1]>,
+
     /// Other attributes for forward compatibility.
     #[serde(flatten)]
     other: BTreeMap<String, Value>,
@@ -1022,6 +1094,7 @@ impl EnvelopeHeaders<PartialMeta> {
             retention: self.retention,
             sent_at: self.sent_at,
             trace: self.trace,
+            required_features: self.required_features,
             other: self.other,
         })
     }
@@ -1039,6 +1112,21 @@ impl Envelope {
         Box::new(Self { items, headers })
     }
 
+    /// Creates an envelope from headers and an envelope.
+    pub fn try_from_event(
+        mut headers: EnvelopeHeaders,
+        event: Event,
+    ) -> Result<Box<Self>, serde_json::Error> {
+        headers.event_id = event.id.value().copied();
+        let event_type = event.ty.value().copied().unwrap_or_default();
+
+        let serialized = Annotated::new(event).to_json()?;
+        let mut item = Item::new(ItemType::from_event_type(event_type));
+        item.set_payload(ContentType::Json, serialized);
+
+        Ok(Self::from_parts(headers, smallvec::smallvec![item]))
+    }
+
     /// Creates an envelope from request information.
     pub fn from_request(event_id: Option<EventId>, meta: RequestMeta) -> Box<Self> {
         Box::new(Self {
@@ -1049,6 +1137,7 @@ impl Envelope {
                 sent_at: None,
                 other: BTreeMap::new(),
                 trace: None,
+                required_features: smallvec::smallvec![],
             },
             items: Items::new(),
         })
@@ -1202,6 +1291,16 @@ impl Envelope {
     /// Overrides the dynamic sampling context in envelope headers.
     pub fn set_dsc(&mut self, dsc: DynamicSamplingContext) {
         self.headers.trace = Some(ErrorBoundary::Ok(dsc));
+    }
+
+    /// Features required to process this envelope.
+    pub fn required_features(&self) -> &[Feature] {
+        &self.headers.required_features
+    }
+
+    /// Add a feature requirement to this envelope.
+    pub fn require_feature(&mut self, feature: Feature) {
+        self.headers.required_features.push(feature)
     }
 
     /// Returns the specified header value, if present.

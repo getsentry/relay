@@ -2,7 +2,11 @@ use relay_common::time::UnixTimestamp;
 use serde::ser::{SerializeMap, SerializeSeq};
 use serde::Serialize;
 
-use crate::{aggregator, CounterType, DistributionType, GaugeValue, SetType, SetValue};
+use crate::{
+    aggregator, BucketMetadata, CounterType, DistributionType, GaugeValue, MetricName, SetType,
+    SetValue,
+};
+use relay_base_schema::metrics::MetricType;
 use std::collections::BTreeMap;
 use std::fmt;
 use std::ops::Range;
@@ -55,9 +59,10 @@ struct Index {
 ///
 /// Using the above example, iterating over `View 1` yields the buckets:
 /// `[C:1], [C:12], [D:0, 1, 2, 3]`.
-pub struct BucketsView<'a> {
-    /// Source slice of buckets.
-    inner: &'a [Bucket],
+#[derive(Clone, Copy)]
+pub struct BucketsView<T> {
+    /// The contained buckets.
+    inner: T,
     /// Start index.
     ///
     /// - Slice index indicates bucket.
@@ -70,9 +75,13 @@ pub struct BucketsView<'a> {
     end: Index,
 }
 
-impl<'a> BucketsView<'a> {
+impl<T> BucketsView<T>
+where
+    T: AsRef<[Bucket]>,
+{
     /// Creates a new buckets view containing all data from the slice.
-    pub fn new(buckets: &'a [Bucket]) -> Self {
+    pub fn new(buckets: T) -> Self {
+        let len = buckets.as_ref().len();
         Self {
             inner: buckets,
             start: Index {
@@ -80,7 +89,7 @@ impl<'a> BucketsView<'a> {
                 bucket: 0,
             },
             end: Index {
-                slice: buckets.len(),
+                slice: len,
                 bucket: 0,
             },
         }
@@ -100,39 +109,66 @@ impl<'a> BucketsView<'a> {
         self.len() == 0
     }
 
+    /// Returns the same bucket view as a bucket view over a slice.
+    pub fn as_slice(&self) -> BucketsView<&[Bucket]> {
+        BucketsView {
+            inner: self.inner.as_ref(),
+            start: self.start,
+            end: self.end,
+        }
+    }
+
     /// Iterator over all buckets in the view.
-    pub fn iter(&self) -> BucketsViewIter<'a> {
-        BucketsViewIter::new(self.inner, self.start, self.end)
+    pub fn iter(&self) -> BucketsViewIter<'_> {
+        BucketsViewIter::new(self.inner.as_ref(), self.start, self.end)
     }
 
     /// Iterator which slices the source view into segments with an approximate size of `size_in_bytes`.
-    pub fn by_size(&self, size_in_bytes: usize) -> BucketsViewBySizeIter<'a> {
+    pub fn by_size(self, size_in_bytes: usize) -> BucketsViewBySizeIter<T> {
         BucketsViewBySizeIter::new(self.inner, self.start, self.end, size_in_bytes)
     }
 }
 
-impl<'a> fmt::Debug for BucketsView<'a> {
+impl<'a> From<&'a [Bucket]> for BucketsView<&'a [Bucket]> {
+    fn from(value: &'a [Bucket]) -> Self {
+        Self::new(value)
+    }
+}
+
+impl<'a> From<&'a Vec<Bucket>> for BucketsView<&'a [Bucket]> {
+    fn from(value: &'a Vec<Bucket>) -> Self {
+        Self::new(value.as_slice())
+    }
+}
+
+impl<T> fmt::Debug for BucketsView<T>
+where
+    T: AsRef<[Bucket]>,
+{
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let contents = self.iter().collect::<Vec<_>>();
         f.debug_tuple("BucketsView").field(&contents).finish()
     }
 }
 
-impl<'a> IntoIterator for BucketsView<'a> {
+impl<'a> IntoIterator for BucketsView<&'a [Bucket]> {
     type Item = BucketView<'a>;
     type IntoIter = BucketsViewIter<'a>;
 
     fn into_iter(self) -> Self::IntoIter {
-        self.iter()
+        BucketsViewIter::new(self.inner, self.start, self.end)
     }
 }
 
-impl<'a> IntoIterator for &'_ BucketsView<'a> {
+impl<'a, T> IntoIterator for &'a BucketsView<T>
+where
+    T: AsRef<[Bucket]>,
+{
     type Item = BucketView<'a>;
     type IntoIter = BucketsViewIter<'a>;
 
     fn into_iter(self) -> Self::IntoIter {
-        self.iter()
+        BucketsViewIter::new(self.inner.as_ref(), self.start, self.end)
     }
 }
 
@@ -208,9 +244,9 @@ impl<'a> Iterator for BucketsViewIter<'a> {
 /// Iterator slicing a [`BucketsView`] into smaller views constrained by a given size in bytes.
 ///
 // See [`estimate_size`] for how the size of a bucket is calculated.
-pub struct BucketsViewBySizeIter<'a> {
+pub struct BucketsViewBySizeIter<T> {
     /// Source slice.
-    inner: &'a [Bucket],
+    inner: T,
     /// Current position in the slice.
     current: Index,
     /// Terminal position.
@@ -219,11 +255,11 @@ pub struct BucketsViewBySizeIter<'a> {
     max_size_bytes: usize,
 }
 
-impl<'a> BucketsViewBySizeIter<'a> {
+impl<T> BucketsViewBySizeIter<T> {
     /// Creates a new iterator.
     ///
     /// Start and end must be valid indices or iterator may end early.
-    fn new(inner: &'a [Bucket], start: Index, end: Index, max_size_bytes: usize) -> Self {
+    fn new(inner: T, start: Index, end: Index, max_size_bytes: usize) -> Self {
         Self {
             inner,
             end,
@@ -233,8 +269,12 @@ impl<'a> BucketsViewBySizeIter<'a> {
     }
 }
 
-impl<'a> Iterator for BucketsViewBySizeIter<'a> {
-    type Item = BucketsView<'a>;
+impl<T> Iterator for BucketsViewBySizeIter<T>
+where
+    T: AsRef<[Bucket]>,
+    T: Clone,
+{
+    type Item = BucketsView<T>;
 
     fn next(&mut self) -> Option<Self::Item> {
         let start = self.current;
@@ -248,14 +288,15 @@ impl<'a> Iterator for BucketsViewBySizeIter<'a> {
                 break;
             }
 
+            let inner = self.inner.as_ref();
             // Select next potential bucket,
             // this should never overflow because `end` will never go past the slice and
             // we just validated that current is constrained by end.
             debug_assert!(
-                self.current.slice < self.inner.len(),
+                self.current.slice < inner.len(),
                 "invariant violated, iterator pointing past the slice"
             );
-            let bucket = self.inner.get(self.current.slice)?;
+            let bucket = inner.get(self.current.slice)?;
 
             // Selection should never fail, because either we select the entire range,
             // or we previously already split the bucket, which means this range is good.
@@ -299,14 +340,17 @@ impl<'a> Iterator for BucketsViewBySizeIter<'a> {
         // Current is the current for the next batch now,
         // which means, current is the end for this batch.
         Some(BucketsView {
-            inner: self.inner,
+            inner: self.inner.clone(),
             start,
             end: self.current,
         })
     }
 }
 
-impl<'a> Serialize for BucketsView<'a> {
+impl<T> Serialize for BucketsView<T>
+where
+    T: AsRef<[Bucket]>,
+{
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
@@ -370,7 +414,7 @@ impl<'a> BucketView<'a> {
     /// Name of the bucket.
     ///
     /// See also: [`Bucket::name`]
-    pub fn name(&self) -> &'a str {
+    pub fn name(&self) -> &'a MetricName {
         &self.inner.name
     }
 
@@ -381,6 +425,16 @@ impl<'a> BucketView<'a> {
             BucketValue::Distribution(d) => BucketViewValue::Distribution(&d[self.range.clone()]),
             BucketValue::Set(s) => BucketViewValue::Set(SetView::new(s, self.range.clone())),
             BucketValue::Gauge(g) => BucketViewValue::Gauge(*g),
+        }
+    }
+
+    /// Type of the value of the bucket view.
+    pub fn ty(&self) -> MetricType {
+        match &self.inner.value {
+            BucketValue::Counter(_) => MetricType::Counter,
+            BucketValue::Distribution(_) => MetricType::Distribution,
+            BucketValue::Set(_) => MetricType::Set,
+            BucketValue::Gauge(_) => MetricType::Gauge,
         }
     }
 
@@ -396,6 +450,36 @@ impl<'a> BucketView<'a> {
     /// See also: [`Bucket::tag()`]
     pub fn tag(&self, name: &str) -> Option<&'a str> {
         self.inner.tag(name)
+    }
+
+    /// Returns the metadata for this bucket.
+    ///
+    /// The aggregation process of metadata is inheritly lossy, which means
+    /// some metadata, for example the amount of merges, can not be accurately split
+    /// or divided over multiple bucket views.
+    ///
+    /// To compensate for this only a bucket view which contains the start of a bucket
+    /// will yield this metadata, all other views created from the bucket return an
+    /// identity value. Merging all metadata from non-overlapping bucket views must
+    /// yield the same values as stored on the original bucket.
+    ///
+    /// This causes some problems when operations on partial buckets are fallible,
+    /// for example transmitting two bucket views in separate http requests.
+    /// To deal with this Relay needs to prevent the splitting of buckets in the first place,
+    /// by never not creating too large buckets via aggregation in the first place.
+    ///
+    /// See also: [`Bucket::metadata`].
+    pub fn metadata(&self) -> BucketMetadata {
+        let merges = if self.range.start == 0 {
+            self.inner.metadata.merges
+        } else {
+            0
+        };
+
+        BucketMetadata {
+            merges,
+            ..self.inner.metadata
+        }
     }
 
     /// Number of raw datapoints in this view.
@@ -514,6 +598,7 @@ impl<'a> Serialize for BucketView<'a> {
             name,
             value: _,
             tags,
+            metadata,
         } = self.inner;
 
         let len = match tags.is_empty() {
@@ -538,6 +623,9 @@ impl<'a> Serialize for BucketView<'a> {
 
         if !tags.is_empty() {
             state.serialize_entry("tags", tags)?;
+        }
+        if !metadata.is_default() {
+            state.serialize_entry("metadata", metadata)?;
         }
 
         state.end()
@@ -695,8 +783,9 @@ fn split_at(bucket: &BucketView<'_>, max_size: usize, min_split_size: usize) -> 
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
     use insta::assert_json_snapshot;
-    use relay_common::time::UnixTimestamp;
 
     use super::*;
 
@@ -719,6 +808,12 @@ mod tests {
         assert!(BucketView::new(&bucket).select(0..0).is_none());
         assert!(BucketView::new(&bucket).select(0..2).is_none());
         assert!(BucketView::new(&bucket).select(1..1).is_none());
+    }
+
+    #[test]
+    fn test_bucket_view_counter_metadata() {
+        let bucket = Bucket::parse(b"b0:1|c", UnixTimestamp::from_secs(5000)).unwrap();
+        assert_eq!(bucket.metadata, BucketView::new(&bucket).metadata());
     }
 
     #[test]
@@ -755,6 +850,26 @@ mod tests {
     }
 
     #[test]
+    fn test_bucket_view_distribution_metadata() {
+        let bucket = Bucket::parse(b"b2:1:2:3:5:5|d", UnixTimestamp::from_secs(5000)).unwrap();
+        assert_eq!(bucket.metadata, BucketView::new(&bucket).metadata());
+
+        assert_eq!(
+            BucketView::new(&bucket).select(0..3).unwrap().metadata(),
+            bucket.metadata
+        );
+
+        let m = BucketView::new(&bucket).select(1..3).unwrap().metadata();
+        assert_eq!(
+            m,
+            BucketMetadata {
+                merges: 0,
+                ..bucket.metadata
+            }
+        );
+    }
+
+    #[test]
     fn test_bucket_view_select_set() {
         let bucket = Bucket::parse(b"b3:42:75|s", UnixTimestamp::from_secs(5000)).unwrap();
         let s = [42, 75].into();
@@ -777,6 +892,26 @@ mod tests {
         assert!(BucketView::new(&bucket).select(0..3).is_none());
         assert!(BucketView::new(&bucket).select(2..5).is_none());
         assert!(BucketView::new(&bucket).select(77..99).is_none());
+    }
+
+    #[test]
+    fn test_bucket_view_set_metadata() {
+        let bucket = Bucket::parse(b"b2:1:2:3:5:5|s", UnixTimestamp::from_secs(5000)).unwrap();
+        assert_eq!(bucket.metadata, BucketView::new(&bucket).metadata());
+
+        assert_eq!(
+            BucketView::new(&bucket).select(0..3).unwrap().metadata(),
+            bucket.metadata
+        );
+
+        let m = BucketView::new(&bucket).select(1..3).unwrap().metadata();
+        assert_eq!(
+            m,
+            BucketMetadata {
+                merges: 0,
+                ..bucket.metadata
+            }
+        );
     }
 
     #[test]
@@ -810,9 +945,25 @@ mod tests {
     }
 
     #[test]
+    fn test_bucket_view_gauge_metadata() {
+        let bucket =
+            Bucket::parse(b"b4:25:17:42:220:85|g", UnixTimestamp::from_secs(5000)).unwrap();
+        assert_eq!(BucketView::new(&bucket).metadata(), bucket.metadata);
+    }
+
+    fn buckets<T>(s: &[u8]) -> T
+    where
+        T: FromIterator<Bucket>,
+    {
+        let timestamp = UnixTimestamp::from_secs(5000);
+        Bucket::parse_all(s, timestamp)
+            .collect::<Result<T, _>>()
+            .unwrap()
+    }
+
+    #[test]
     fn test_buckets_view_empty() {
-        let buckets = Vec::new();
-        let view = BucketsView::new(&buckets);
+        let view = BucketsView::new(Vec::new());
         assert_eq!(view.len(), 0);
         assert!(view.is_empty());
         let partials = view.iter().collect::<Vec<_>>();
@@ -821,18 +972,9 @@ mod tests {
 
     #[test]
     fn test_buckets_view_iter_full() {
-        let b = br#"
-b0:1|c
-b1:12|c
-b2:1:2:3:5:5|d
-b3:42:75|s"#;
+        let buckets: Vec<_> = buckets(b"b0:1|c\nb1:12|c\nb2:1:2:3:5:5|d\nb3:42:75|s");
 
-        let timestamp = UnixTimestamp::from_secs(5000);
-        let buckets = Bucket::parse_all(b, timestamp)
-            .collect::<Result<Vec<_>, _>>()
-            .unwrap();
-
-        let view = BucketsView::new(&buckets);
+        let view = BucketsView::from(&buckets);
         assert_eq!(view.len(), 4);
         assert!(!view.is_empty());
         let partials = view.iter().collect::<Vec<_>>();
@@ -849,16 +991,7 @@ b3:42:75|s"#;
 
     #[test]
     fn test_buckets_view_iter_partial_end() {
-        let b = br#"
-b0:1|c
-b1:12|c
-b2:1:2:3:5:5|d
-b3:42:75|s"#;
-
-        let timestamp = UnixTimestamp::from_secs(5000);
-        let buckets = Bucket::parse_all(b, timestamp)
-            .collect::<Result<Vec<_>, _>>()
-            .unwrap();
+        let buckets: Vec<_> = buckets(b"b0:1|c\nb1:12|c\nb2:1:2:3:5:5|d\nb3:42:75|s");
 
         let mut view = BucketsView::new(&buckets);
         view.end.slice = 2;
@@ -878,18 +1011,9 @@ b3:42:75|s"#;
 
     #[test]
     fn test_buckets_view_iter_partial_start() {
-        let b = br#"
-b0:1|c
-b1:12|c
-b2:1:2:3:5:5|d
-b3:42:75|s"#;
+        let buckets: Vec<_> = buckets(b"b0:1|c\nb1:12|c\nb2:1:2:3:5:5|d\nb3:42:75|s");
 
-        let timestamp = UnixTimestamp::from_secs(5000);
-        let buckets = Bucket::parse_all(b, timestamp)
-            .collect::<Result<Vec<_>, _>>()
-            .unwrap();
-
-        let mut view = BucketsView::new(&buckets);
+        let mut view = BucketsView::new(buckets);
         view.start.slice = 2;
         view.start.bucket = 3;
         assert_eq!(view.len(), 2);
@@ -905,18 +1029,9 @@ b3:42:75|s"#;
 
     #[test]
     fn test_buckets_view_iter_partial_start_and_end() {
-        let b = br#"
-b0:1|c
-b1:12|c
-b2:1:2:3:5:5|d
-b3:42:75|s"#;
+        let buckets: Vec<_> = buckets(b"b0:1|c\nb1:12|c\nb2:1:2:3:5:5|d\nb3:42:75|s");
 
-        let timestamp = UnixTimestamp::from_secs(5000);
-        let buckets = Bucket::parse_all(b, timestamp)
-            .collect::<Result<Vec<_>, _>>()
-            .unwrap();
-
-        let mut view = BucketsView::new(&buckets);
+        let mut view = BucketsView::from(&buckets);
         view.start.slice = 2;
         view.start.bucket = 1;
         view.end.slice = 3;
@@ -934,18 +1049,26 @@ b3:42:75|s"#;
 
     #[test]
     fn test_buckets_view_by_size_small() {
-        let b = br#"
-b0:1|c
-b1:12|c
-b2:1:2:3:5:5|d
-b3:42:75|s"#;
+        let buckets: Vec<_> = buckets(b"b0:1|c\nb1:12|c\nb2:1:2:3:5:5|d\nb3:42:75|s");
 
-        let timestamp = UnixTimestamp::from_secs(5000);
-        let buckets = Bucket::parse_all(b, timestamp)
-            .collect::<Result<Vec<_>, _>>()
-            .unwrap();
+        let view = BucketsView::from(&buckets);
+        let partials = view
+            .by_size(100)
+            .map(|bv| {
+                let len: usize = bv.iter().map(|b| b.len()).sum();
+                let size: usize = bv.iter().map(|b| b.estimated_size()).sum();
+                (len, size)
+            })
+            .collect::<Vec<_>>();
 
-        let view = BucketsView::new(&buckets);
+        assert_eq!(partials, vec![(1, 74), (1, 74), (4, 98), (1, 74), (2, 82),]);
+    }
+
+    #[test]
+    fn test_buckets_view_by_size_small_as_arc() {
+        let buckets: Arc<_> = buckets(b"b0:1|c\nb1:12|c\nb2:1:2:3:5:5|d\nb3:42:75|s");
+
+        let view = BucketsView::new(buckets);
         let partials = view
             .by_size(100)
             .map(|bv| {
@@ -960,18 +1083,9 @@ b3:42:75|s"#;
 
     #[test]
     fn test_buckets_view_by_size_one_split() {
-        let b = br#"
-b0:1|c
-b1:12|c
-b2:1:2:3:5:5|d
-b3:42:75|s"#;
+        let buckets: Vec<_> = buckets(b"b0:1|c\nb1:12|c\nb2:1:2:3:5:5|d\nb3:42:75|s");
 
-        let timestamp = UnixTimestamp::from_secs(5000);
-        let buckets = Bucket::parse_all(b, timestamp)
-            .collect::<Result<Vec<_>, _>>()
-            .unwrap();
-
-        let view = BucketsView::new(&buckets);
+        let view = BucketsView::from(&buckets);
         let partials = view
             .by_size(250)
             .map(|bv| {
@@ -986,18 +1100,9 @@ b3:42:75|s"#;
 
     #[test]
     fn test_buckets_view_by_size_no_split() {
-        let b = br#"
-b0:1|c
-b1:12|c
-b2:1:2:3:5:5|d
-b3:42:75|s"#;
+        let buckets: Vec<_> = buckets(b"b0:1|c\nb1:12|c\nb2:1:2:3:5:5|d\nb3:42:75|s");
 
-        let timestamp = UnixTimestamp::from_secs(5000);
-        let buckets = Bucket::parse_all(b, timestamp)
-            .collect::<Result<Vec<_>, _>>()
-            .unwrap();
-
-        let view = BucketsView::new(&buckets);
+        let view = BucketsView::from(&buckets);
         let partials = view
             .by_size(500)
             .map(|bv| {
@@ -1012,18 +1117,9 @@ b3:42:75|s"#;
 
     #[test]
     fn test_buckets_view_by_size_no_too_small_no_bucket_fits() {
-        let b = br#"
-b0:1|c
-b1:12|c
-b2:1:2:3:5:5|d
-b3:42:75|s"#;
+        let buckets: Vec<_> = buckets(b"b0:1|c\nb1:12|c\nb2:1:2:3:5:5|d\nb3:42:75|s");
 
-        let timestamp = UnixTimestamp::from_secs(5000);
-        let buckets = Bucket::parse_all(b, timestamp)
-            .collect::<Result<Vec<_>, _>>()
-            .unwrap();
-
-        let view = BucketsView::new(&buckets);
+        let view = BucketsView::from(&buckets);
         let partials = view
             .by_size(50) // Too small, a bucket requires at least 74 bytes
             .count();
@@ -1033,15 +1129,9 @@ b3:42:75|s"#;
 
     #[test]
     fn test_buckets_view_by_size_do_not_split_gauge() {
-        let b = br#"
-transactions/foo:25:17:42:220:85|g"#;
+        let buckets: Vec<_> = buckets(b"transactions/foo:25:17:42:220:85|g");
 
-        let timestamp = UnixTimestamp::from_secs(5000);
-        let buckets = Bucket::parse_all(b, timestamp)
-            .collect::<Result<Vec<_>, _>>()
-            .unwrap();
-
-        let view = BucketsView::new(&buckets);
+        let view = BucketsView::from(&buckets);
         // 100 is too small to fit the gauge, but it is big enough to fit half a gauage,
         // make sure the gauge does not actually get split.
         let partials = view.by_size(100).count();
@@ -1051,38 +1141,21 @@ transactions/foo:25:17:42:220:85|g"#;
 
     #[test]
     fn test_buckets_view_serialize_full() {
-        let b = br#"
-b0:1|c
-b1:12|c|#foo,bar:baz
-b2:1:2:3:5:5|d|#foo,bar:baz
-b3:42:75|s
-transactions/foo:25:17:42:220:85|g"#;
-
-        let timestamp = UnixTimestamp::from_secs(5000);
-        let buckets = Bucket::parse_all(b, timestamp)
-            .collect::<Result<Vec<_>, _>>()
-            .unwrap();
+        let buckets: Vec<_> = buckets(b"b0:1|c\nb1:12|c|#foo,bar:baz\nb2:1:2:3:5:5|d|#foo,bar:baz b3:42:75|s\ntransactions/foo:25:17:42:220:85|g");
 
         assert_eq!(
-            serde_json::to_string(&BucketsView::new(&buckets)).unwrap(),
+            serde_json::to_string(&BucketsView::from(&buckets)).unwrap(),
             serde_json::to_string(&buckets).unwrap()
         );
     }
 
     #[test]
     fn test_buckets_view_serialize_partial() {
-        let b = br#"
-b1:12|c|#foo,bar:baz
-b2:1:2:3:5:5|d|#foo,bar:baz
-b3:42:75|s
-b4:25:17:42:220:85|g"#;
+        let buckets: Arc<[_]> = buckets(
+            b"b1:12|c|#foo,bar:baz\nb2:1:2:3:5:5|d|#foo,bar:baz\nb3:42:75|s\nb4:25:17:42:220:85|g",
+        );
 
-        let timestamp = UnixTimestamp::from_secs(5000);
-        let buckets = Bucket::parse_all(b, timestamp)
-            .collect::<Result<Vec<_>, _>>()
-            .unwrap();
-
-        let view = BucketsView::new(&buckets);
+        let view = BucketsView::new(buckets);
         // This creates 4 separate views, spanning 1-2, 2-3, 3, 4.
         // 4 is too big to fit into a view together with the remainder of 3.
         let partials = view.by_size(178).collect::<Vec<_>>();

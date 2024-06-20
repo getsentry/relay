@@ -169,8 +169,6 @@ impl TransactionNameRule {
 
 #[cfg(test)]
 mod tests {
-    use chrono::{DateTime, Utc};
-
     use super::*;
 
     #[test]

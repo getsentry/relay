@@ -1,5 +1,3 @@
-use std::iter::{FromIterator, IntoIterator};
-
 use cookie::Cookie;
 #[cfg(feature = "jsonschema")]
 use relay_jsonschema_derive::JsonSchema;
@@ -438,7 +436,7 @@ pub struct Request {
     /// The URL of the request if available.
     ///
     ///The query string can be declared either as part of the `url`, or separately in `query_string`.
-    #[metastructure(max_chars = "path", pii = "maybe")]
+    #[metastructure(max_chars = 256, max_chars_allowance = 40, pii = "maybe")]
     pub url: Annotated<String>,
 
     /// HTTP request method.
@@ -451,7 +449,7 @@ pub struct Request {
     ///
     /// SDKs should discard large and binary bodies by default. Can be given as a string or
     /// structural data of any format.
-    #[metastructure(pii = "true", bag_size = "large")]
+    #[metastructure(pii = "true", max_depth = 7, max_bytes = 8192)]
     pub data: Annotated<Value>,
 
     /// The query string component of the URL.
@@ -460,19 +458,19 @@ pub struct Request {
     ///
     /// If the query string is not declared and part of the `url`, Sentry moves it to the
     /// query string.
-    #[metastructure(pii = "true", bag_size = "small")]
+    #[metastructure(pii = "true", max_depth = 3, max_bytes = 1024)]
     #[metastructure(skip_serialization = "empty")]
     pub query_string: Annotated<Query>,
 
     /// The fragment of the request URI.
-    #[metastructure(pii = "true", max_chars = "summary")]
+    #[metastructure(pii = "true", max_chars = 1024, max_chars_allowance = 100)]
     #[metastructure(skip_serialization = "empty")]
     pub fragment: Annotated<String>,
 
     /// The cookie values.
     ///
     /// Can be given unparsed as string, as dictionary, or as a list of tuples.
-    #[metastructure(pii = "true", bag_size = "medium")]
+    #[metastructure(pii = "true", max_depth = 5, max_bytes = 2048)]
     #[metastructure(skip_serialization = "empty")]
     pub cookies: Annotated<Cookies>,
 
@@ -480,7 +478,7 @@ pub struct Request {
     ///
     /// If a header appears multiple times it, needs to be merged according to the HTTP standard
     /// for header merging. Header names are treated case-insensitively by Sentry.
-    #[metastructure(pii = "true", bag_size = "large")]
+    #[metastructure(pii = "true", max_depth = 7, max_bytes = 8192)]
     #[metastructure(skip_serialization = "empty")]
     pub headers: Annotated<Headers>,
 
@@ -493,7 +491,7 @@ pub struct Request {
     /// information such as CGI/WSGI/Rack keys go that are not HTTP headers.
     ///
     /// Sentry will explicitly look for `REMOTE_ADDR` to extract an IP address.
-    #[metastructure(pii = "true", bag_size = "large")]
+    #[metastructure(pii = "true", max_depth = 7, max_bytes = 8192)]
     #[metastructure(skip_serialization = "empty")]
     pub env: Annotated<Object<Value>>,
 

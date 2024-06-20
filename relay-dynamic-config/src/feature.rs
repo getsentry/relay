@@ -3,7 +3,7 @@ use std::collections::BTreeSet;
 use serde::{Deserialize, Serialize};
 
 /// Features exposed by project config.
-#[derive(Clone, Debug, Eq, PartialEq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub enum Feature {
     /// Enables ingestion of Session Replays (Replay Recordings and Replay Events).
     ///
@@ -35,11 +35,6 @@ pub enum Feature {
     /// Serialized as `organizations:device-class-synthesis`.
     #[serde(rename = "organizations:device-class-synthesis")]
     DeviceClassSynthesis,
-    /// Enables metric extraction from spans.
-    ///
-    /// Serialized as `projects:span-metrics-extraction`.
-    #[serde(rename = "projects:span-metrics-extraction")]
-    ExtractSpansAndSpanMetricsFromEvent,
     /// Allow ingestion of metrics in the "custom" namespace.
     ///
     /// Serialized as `organizations:custom-metrics`.
@@ -56,11 +51,11 @@ pub enum Feature {
     /// Serialized as `organizations:standalone-span-ingestion`.
     #[serde(rename = "organizations:standalone-span-ingestion")]
     StandaloneSpanIngestion,
-    /// Enable metric metadata.
+    /// Enable standalone span ingestion via the `/spans/` OTel endpoint.
     ///
-    /// Serialized as `organizations:metric-meta`.
-    #[serde(rename = "organizations:metric-meta")]
-    MetricMeta,
+    /// Serialized as `projects:relay-otel-endpoint`.
+    #[serde(rename = "projects:relay-otel-endpoint")]
+    OtelEndpoint,
     /// Enable processing and extracting data from profiles that would normally be dropped by dynamic sampling.
     ///
     /// This is required for [slowest function aggregation](https://github.com/getsentry/snuba/blob/b5311b404a6bd73a9e1997a46d38e7df88e5f391/snuba/snuba_migrations/functions/0001_functions.py#L209-L256). The profile payload will be dropped on the sentry side.
@@ -74,6 +69,39 @@ pub enum Feature {
     /// Serialized as `projects:discard-transaction`.
     #[serde(rename = "projects:discard-transaction")]
     DiscardTransaction,
+
+    /// Enable continuous profiling.
+    ///
+    /// Serialized as `organizations:continuous-profiling`.
+    #[serde(rename = "organizations:continuous-profiling")]
+    ContinuousProfiling,
+
+    /// When enabled, every standalone segment span will be duplicated as a transaction.
+    ///
+    /// This allows support of product features that rely on transactions for SDKs that only
+    /// send spans.
+    ///
+    /// Serialized as `projects:extract-transaction-from-segment-span`.
+    #[serde(rename = "projects:extract-transaction-from-segment-span")]
+    ExtractTransactionFromSegmentSpan,
+
+    /// Enables metric extraction from spans for common modules.
+    ///
+    /// Serialized as `projects:span-metrics-extraction`.
+    #[serde(rename = "projects:span-metrics-extraction")]
+    ExtractCommonSpanMetricsFromEvent,
+
+    /// Enables metric extraction from spans for addon modules.
+    ///
+    /// Serialized as `projects:span-metrics-extraction-addons`.
+    #[serde(rename = "projects:span-metrics-extraction-addons")]
+    ExtractAddonsSpanMetricsFromEvent,
+
+    /// When enabled, spans will be extracted from a transaction.
+    ///
+    /// Serialized as `projects:indexed-spans-extraction`.
+    #[serde(rename = "organizations:indexed-spans-extraction")]
+    ExtractSpansFromEvent,
 
     /// Deprecated, still forwarded for older downstream Relays.
     #[doc(hidden)]
@@ -94,7 +122,7 @@ pub enum Feature {
     /// Deprecated, still forwarded for older downstream Relays.
     #[doc(hidden)]
     #[serde(rename = "projects:span-metrics-extraction-all-modules")]
-    Deprected6,
+    Deprecated6,
     /// Forward compatibility.
     #[doc(hidden)]
     #[serde(other)]
@@ -114,6 +142,13 @@ impl FeatureSet {
     /// Returns `true` if the given feature is in the set.
     pub fn has(&self, feature: Feature) -> bool {
         self.0.contains(&feature)
+    }
+
+    /// Returns `true` if any spans are produced for this project.
+    pub fn produces_spans(&self) -> bool {
+        self.has(Feature::ExtractSpansFromEvent)
+            || self.has(Feature::StandaloneSpanIngestion)
+            || self.has(Feature::ExtractCommonSpanMetricsFromEvent)
     }
 }
 

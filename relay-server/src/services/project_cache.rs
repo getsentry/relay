@@ -3,10 +3,12 @@ use std::error::Error;
 use std::sync::Arc;
 use std::time::Duration;
 
+use crate::extractors::RequestMeta;
+use crate::metrics::MetricOutcomes;
 use hashbrown::HashSet;
 use relay_base_schema::project::ProjectKey;
 use relay_config::{Config, RelayMode};
-use relay_metrics::{Aggregator, FlushBuckets, MergeBuckets, MetricMeta};
+use relay_metrics::{Aggregator, Bucket, FlushBuckets, MetricMeta};
 use relay_quotas::RateLimits;
 use relay_redis::RedisPool;
 use relay_statsd::metric;
@@ -170,6 +172,56 @@ impl UpdateRateLimits {
     }
 }
 
+/// Source information where a metric bucket originates from.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum BucketSource {
+    /// The metric bucket originated from an internal Relay use case.
+    ///
+    /// The metric bucket originates either from within the same Relay
+    /// or was accepted coming from another Relay which is registered as
+    /// an internal Relay via Relay's configuration.
+    Internal,
+    /// The bucket source originated from an untrusted source.
+    ///
+    /// Managed Relays sending extracted metrics are considered external,
+    /// it's a project use case but it comes from an untrusted source.
+    External,
+}
+
+impl From<&RequestMeta> for BucketSource {
+    fn from(value: &RequestMeta) -> Self {
+        if value.is_from_internal_relay() {
+            Self::Internal
+        } else {
+            Self::External
+        }
+    }
+}
+
+/// Add metric buckets to the project.
+///
+/// Metric buckets added via the project are filtered and rate limited
+/// according to the project state.
+///
+/// Adding buckets directly to the aggregator bypasses all of these checks.
+#[derive(Debug)]
+pub struct AddMetricBuckets {
+    pub project_key: ProjectKey,
+    pub buckets: Vec<Bucket>,
+    pub source: BucketSource,
+}
+
+impl AddMetricBuckets {
+    /// Convenience constructor which creates an internal [`AddMetricBuckets`] message.
+    pub fn internal(project_key: ProjectKey, buckets: Vec<Bucket>) -> Self {
+        Self {
+            project_key,
+            buckets,
+            source: BucketSource::Internal,
+        }
+    }
+}
+
 /// Add metric metadata to the aggregator.
 #[derive(Debug)]
 pub struct AddMetricMeta {
@@ -214,7 +266,7 @@ pub struct RefreshIndexCache(pub HashSet<QueueKey>);
 /// information.
 ///
 /// There are also higher-level operations, such as [`CheckEnvelope`] and [`ValidateEnvelope`] that
-/// inspect contents of envelopes for ingestion, as well as [`MergeBuckets`] to aggregate metrics
+/// inspect contents of envelopes for ingestion, as well as [`AddMetricBuckets`] to aggregate metrics
 /// associated with a project.
 ///
 /// See the enumerated variants for a full list of available messages for this service.
@@ -228,7 +280,7 @@ pub enum ProjectCache {
     ),
     ValidateEnvelope(ValidateEnvelope),
     UpdateRateLimits(UpdateRateLimits),
-    MergeBuckets(MergeBuckets),
+    AddMetricBuckets(AddMetricBuckets),
     AddMetricMeta(AddMetricMeta),
     FlushBuckets(FlushBuckets),
     UpdateSpoolIndex(UpdateSpoolIndex),
@@ -245,7 +297,7 @@ impl ProjectCache {
             Self::CheckEnvelope(_, _) => "CheckEnvelope",
             Self::ValidateEnvelope(_) => "ValidateEnvelope",
             Self::UpdateRateLimits(_) => "UpdateRateLimits",
-            Self::MergeBuckets(_) => "MergeBuckets",
+            Self::AddMetricBuckets(_) => "AddMetricBuckets",
             Self::AddMetricMeta(_) => "AddMetricMeta",
             Self::FlushBuckets(_) => "FlushBuckets",
             Self::UpdateSpoolIndex(_) => "UpdateSpoolIndex",
@@ -327,11 +379,11 @@ impl FromMessage<UpdateRateLimits> for ProjectCache {
     }
 }
 
-impl FromMessage<MergeBuckets> for ProjectCache {
+impl FromMessage<AddMetricBuckets> for ProjectCache {
     type Response = relay_system::NoResponse;
 
-    fn from_message(message: MergeBuckets, _: ()) -> Self {
-        Self::MergeBuckets(message)
+    fn from_message(message: AddMetricBuckets, _: ()) -> Self {
+        Self::AddMetricBuckets(message)
     }
 }
 
@@ -501,18 +553,29 @@ impl Services {
 struct ProjectCacheBroker {
     config: Arc<Config>,
     services: Services,
+    metric_outcomes: MetricOutcomes,
     // Need hashbrown because extract_if is not stable in std yet.
     projects: hashbrown::HashMap<ProjectKey, Project>,
+    /// Utility for disposing of expired project data in a background thread.
     garbage_disposal: GarbageDisposal<Project>,
+    /// Source for fetching project states from the upstream or from disk.
     source: ProjectSource,
+    /// Tx channel used to send the updated project state whenever requested.
     state_tx: mpsc::UnboundedSender<UpdateProjectState>,
+    /// Tx channel used by the [`BufferService`] to send back the requested dequeued elements.
     buffer_tx: mpsc::UnboundedSender<UnspooledEnvelope>,
+    /// Shared semaphore used to control how many envelopes are currently running through Relay.
     buffer_guard: Arc<BufferGuard>,
-    /// Index of the buffered project keys.
+    /// Index containing all the [`QueueKey`] that have been enqueued in the [`BufferService`].
     index: HashSet<QueueKey>,
+    /// Handle to schedule periodic unspooling of buffered envelopes.
     buffer_unspool_handle: SleepHandle,
+    /// Backoff strategy for retrying unspool attempts.
     buffer_unspool_backoff: RetryBackoff,
+    /// Address of the [`BufferService`] used for enqueuing and dequeuing envelopes that can't be
+    /// immediately processed.
     buffer: Addr<Buffer>,
+    /// Status of the global configuration, used to determine readiness for processing.
     global_config: GlobalConfigStatus,
 }
 
@@ -623,13 +686,15 @@ impl ProjectCacheBroker {
         let aggregator = self.services.aggregator.clone();
         let envelope_processor = self.services.envelope_processor.clone();
         let outcome_aggregator = self.services.outcome_aggregator.clone();
+        let metric_outcomes = self.metric_outcomes.clone();
 
         self.get_or_create_project(project_key).update_state(
-            project_cache,
-            aggregator,
-            state.clone(),
-            envelope_processor,
-            outcome_aggregator,
+            &project_cache,
+            &aggregator,
+            state,
+            &envelope_processor,
+            &outcome_aggregator,
+            &metric_outcomes,
             no_cache,
         );
 
@@ -805,19 +870,22 @@ impl ProjectCacheBroker {
             .merge_rate_limits(message.rate_limits);
     }
 
-    fn handle_merge_buckets(&mut self, message: MergeBuckets) {
+    fn handle_add_metric_buckets(&mut self, message: AddMetricBuckets) {
         let project_cache = self.services.project_cache.clone();
         let aggregator = self.services.aggregator.clone();
         let outcome_aggregator = self.services.outcome_aggregator.clone();
         let envelope_processor = self.services.envelope_processor.clone();
+        let metric_outcomes = self.metric_outcomes.clone();
 
-        let project = self.get_or_create_project(message.project_key());
+        let project = self.get_or_create_project(message.project_key);
         project.prefetch(project_cache, false);
         project.merge_buckets(
-            aggregator,
-            outcome_aggregator,
-            envelope_processor,
-            message.buckets(),
+            &aggregator,
+            &outcome_aggregator,
+            &metric_outcomes,
+            &envelope_processor,
+            message.buckets,
+            message.source,
         );
     }
 
@@ -829,18 +897,20 @@ impl ProjectCacheBroker {
     }
 
     fn handle_flush_buckets(&mut self, message: FlushBuckets) {
-        let mut output = BTreeMap::new();
+        let metric_outcomes = self.metric_outcomes.clone();
+
+        let mut scoped_buckets = BTreeMap::new();
         for (project_key, buckets) in message.buckets {
-            let outcome_aggregator = self.services.outcome_aggregator.clone();
             let project = self.get_or_create_project(project_key);
-            if let Some((scoping, b)) = project.check_buckets(outcome_aggregator, buckets) {
-                output.insert(scoping, b);
+            if let Some((scoping, b)) = project.check_buckets(&metric_outcomes, buckets) {
+                scoped_buckets.insert(scoping, b);
             }
         }
 
-        self.services
-            .envelope_processor
-            .send(EncodeMetrics { scopes: output })
+        self.services.envelope_processor.send(EncodeMetrics {
+            partition_key: message.partition_key,
+            scopes: scoped_buckets,
+        })
     }
 
     fn handle_buffer_index(&mut self, message: UpdateSpoolIndex) {
@@ -923,28 +993,37 @@ impl ProjectCacheBroker {
     /// This makes sure we always moving the unspool forward, even if we do not fetch the project
     /// states updates, but still can process data based on the existing cache.
     fn handle_periodic_unspool(&mut self) {
+        let (num_keys, reason) = self.handle_periodic_unspool_inner();
+        relay_statsd::metric!(
+            gauge(RelayGauges::BufferPeriodicUnspool) = num_keys as u64,
+            reason = reason
+        );
+    }
+
+    fn handle_periodic_unspool_inner(&mut self) -> (usize, &str) {
         self.buffer_unspool_handle.reset();
 
         // If we don't yet have the global config, we will defer dequeuing until we do.
         if let GlobalConfigStatus::Pending = self.global_config {
             self.buffer_unspool_backoff.reset();
             self.schedule_unspool();
-            return;
+            return (0, "no_global_config");
         }
         // If there is nothing spooled, schedule the next check a little bit later.
         if self.index.is_empty() {
             self.schedule_unspool();
-            return;
+            return (0, "index_empty");
         }
 
         let mut index = std::mem::take(&mut self.index);
-        let values = index
+        let keys = index
             .extract_if(|key| self.is_state_valid(key))
             .take(BATCH_KEY_COUNT)
             .collect::<HashSet<_>>();
+        let num_keys = keys.len();
 
-        if !values.is_empty() {
-            self.dequeue(values);
+        if !keys.is_empty() {
+            self.dequeue(keys);
         }
 
         // Return all the un-used items to the index.
@@ -955,6 +1034,8 @@ impl ProjectCacheBroker {
         // Schedule unspool once we are done.
         self.buffer_unspool_backoff.reset();
         self.schedule_unspool();
+
+        (num_keys, "found_keys")
     }
 
     fn handle_message(&mut self, message: ProjectCache) {
@@ -976,7 +1057,9 @@ impl ProjectCacheBroker {
                         self.handle_validate_envelope(message)
                     }
                     ProjectCache::UpdateRateLimits(message) => self.handle_rate_limits(message),
-                    ProjectCache::MergeBuckets(message) => self.handle_merge_buckets(message),
+                    ProjectCache::AddMetricBuckets(message) => {
+                        self.handle_add_metric_buckets(message)
+                    }
                     ProjectCache::AddMetricMeta(message) => self.handle_add_metric_meta(message),
                     ProjectCache::FlushBuckets(message) => self.handle_flush_buckets(message),
                     ProjectCache::UpdateSpoolIndex(message) => self.handle_buffer_index(message),
@@ -996,6 +1079,7 @@ pub struct ProjectCacheService {
     buffer_guard: Arc<BufferGuard>,
     config: Arc<Config>,
     services: Services,
+    metric_outcomes: MetricOutcomes,
     redis: Option<RedisPool>,
 }
 
@@ -1005,12 +1089,14 @@ impl ProjectCacheService {
         config: Arc<Config>,
         buffer_guard: Arc<BufferGuard>,
         services: Services,
+        metric_outcomes: MetricOutcomes,
         redis: Option<RedisPool>,
     ) -> Self {
         Self {
             buffer_guard,
             config,
             services,
+            metric_outcomes,
             redis,
         }
     }
@@ -1024,6 +1110,7 @@ impl Service for ProjectCacheService {
             buffer_guard,
             config,
             services,
+            metric_outcomes,
             redis,
         } = self;
         let project_cache = services.project_cache.clone();
@@ -1102,6 +1189,7 @@ impl Service for ProjectCacheService {
                 buffer_unspool_backoff: RetryBackoff::new(config.http_max_retry_interval()),
                 buffer,
                 global_config,
+                metric_outcomes,
             };
 
             loop {
@@ -1109,7 +1197,7 @@ impl Service for ProjectCacheService {
                     biased;
 
                     Ok(()) = subscription.changed() => {
-                        metric!(timer(RelayTimers::EventProcessingDeserialize), task = "update_global_config", {
+                        metric!(timer(RelayTimers::ProjectCacheTaskDuration), task = "update_global_config", {
                             match subscription.borrow().clone() {
                                 global_config::Status::Ready(_) => broker.set_global_config_ready(),
                                 // The watch should only be updated if it gets a new value.
@@ -1176,8 +1264,9 @@ impl FetchOptionalProjectState {
 
 #[cfg(test)]
 mod tests {
-    use std::time::Duration;
-
+    use crate::metrics::MetricStats;
+    use crate::services::global_config::GlobalConfigHandle;
+    use relay_dynamic_config::GlobalConfig;
     use relay_test::mock_service;
     use tokio::select;
     use uuid::Uuid;
@@ -1244,6 +1333,14 @@ mod tests {
             }
         };
 
+        let metric_stats = MetricStats::new(
+            Arc::new(Config::default()),
+            GlobalConfigHandle::fixed(GlobalConfig::default()),
+            Addr::custom().0,
+        );
+        let metric_outcomes =
+            MetricOutcomes::new(metric_stats, services.outcome_aggregator.clone());
+
         (
             ProjectCacheBroker {
                 config: config.clone(),
@@ -1259,6 +1356,7 @@ mod tests {
                 global_config: GlobalConfigStatus::Pending,
                 buffer_unspool_handle: SleepHandle::idle(),
                 buffer_unspool_backoff: RetryBackoff::new(Duration::from_millis(100)),
+                metric_outcomes,
             },
             buffer,
         )

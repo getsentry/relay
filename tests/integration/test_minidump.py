@@ -397,7 +397,7 @@ def test_minidump_with_processing(
     attachments_consumer = attachments_consumer()
 
     attachments = [(MINIDUMP_ATTACHMENT_NAME, "minidump.dmp", content)]
-    relay.send_minidump(project_id=project_id, files=attachments)
+    response = relay.send_minidump(project_id=project_id, files=attachments)
 
     attachment = b""
     num_chunks = 0
@@ -411,6 +411,8 @@ def test_minidump_with_processing(
 
     event, message = attachments_consumer.get_event()
 
+    assert UUID(event["event_id"]) == UUID(response.text)
+
     # Check the placeholder payload
     assert event["platform"] == "native"
     assert event["exception"]["values"][0]["mechanism"]["type"] == "minidump"
@@ -422,7 +424,6 @@ def test_minidump_with_processing(
         {
             "id": attachment_id,
             "name": "minidump.dmp",
-            "content_type": "application/octet-stream",
             "attachment_type": "event.minidump",
             "chunks": num_chunks,
             "size": len(content),
@@ -466,7 +467,7 @@ def test_minidump_with_processing_invalid(
         {
             "id": attachment_id,
             "name": "minidump.dmp",
-            "content_type": "application/octet-stream",
+            "content_type": "application/x-dmp",
             "attachment_type": "event.minidump",
             "chunks": num_chunks,
             "size": len(content),

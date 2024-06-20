@@ -7,6 +7,7 @@ mod monitor;
 mod nel;
 mod os;
 mod otel;
+mod performance_score;
 mod profile;
 mod replay;
 mod reprocessing;
@@ -23,6 +24,7 @@ pub use monitor::*;
 pub use nel::*;
 pub use os::*;
 pub use otel::*;
+pub use performance_score::*;
 pub use profile::*;
 pub use replay::*;
 pub use reprocessing::*;
@@ -86,6 +88,8 @@ pub enum Context {
     CloudResource(Box<CloudResourceContext>),
     /// Nel information.
     Nel(Box<NelContext>),
+    /// Performance score information.
+    PerformanceScore(Box<PerformanceScoreContext>),
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(fallback_variant)]
     Other(#[metastructure(pii = "true")] Object<Value>),
@@ -93,7 +97,7 @@ pub enum Context {
 
 #[derive(Clone, Debug, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
-pub struct ContextInner(#[metastructure(bag_size = "large")] pub Context);
+pub struct ContextInner(#[metastructure(max_depth = 7, max_bytes = 8192)] pub Context);
 
 impl From<Context> for ContextInner {
     fn from(c: Context) -> ContextInner {

@@ -12,13 +12,18 @@ import pytest
 from .fixtures.gobetween import gobetween  # noqa
 from .fixtures.haproxy import haproxy  # noqa
 from .fixtures.mini_sentry import mini_sentry  # noqa
-from .fixtures.aws_lambda_runtime import aws_lambda_runtime  # noqa
-from .fixtures.relay import relay, get_relay_binary, latest_relay_version  # noqa
+from .fixtures.relay import (  # noqa
+    relay,
+    relay_credentials,
+    get_relay_binary,
+    latest_relay_version,
+)
 from .fixtures.processing import (  # noqa
     kafka_consumer,
     get_topic_name,
     processing_config,
     relay_with_processing,
+    consumer_fixture,
     events_consumer,
     outcomes_consumer,
     transactions_consumer,
@@ -32,6 +37,7 @@ from .fixtures.processing import (  # noqa
     profiles_consumer,
     metrics_summaries_consumer,
     cogs_consumer,
+    feedback_consumer,
 )
 
 

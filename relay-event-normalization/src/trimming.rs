@@ -1,23 +1,23 @@
 use std::borrow::Cow;
 
 use relay_event_schema::processor::{
-    self, BagSize, Chunk, MaxChars, ProcessValue, ProcessingAction, ProcessingResult,
-    ProcessingState, Processor, ValueType,
+    self, Chunk, ProcessValue, ProcessingAction, ProcessingResult, ProcessingState, Processor,
+    ValueType,
 };
-use relay_event_schema::protocol::{Frame, RawStacktrace};
+use relay_event_schema::protocol::{Frame, RawStacktrace, Replay};
 use relay_protocol::{Annotated, Array, Empty, Meta, Object, RemarkType, Value};
 
 #[derive(Clone, Debug)]
-struct BagSizeState {
-    bag_size: BagSize,
+struct SizeState {
+    max_depth: Option<usize>,
     encountered_at_depth: usize,
-    size_remaining: usize,
+    size_remaining: Option<usize>,
 }
 
-/// Limits data bags to a maximum size and depth.
+/// Limits properties to a maximum size and depth.
 #[derive(Default)]
 pub struct TrimmingProcessor {
-    bag_size_state: Vec<BagSizeState>,
+    size_state: Vec<SizeState>,
 }
 
 impl TrimmingProcessor {
@@ -29,28 +29,30 @@ impl TrimmingProcessor {
     fn should_remove_container<T: Empty>(&self, value: &T, state: &ProcessingState<'_>) -> bool {
         // Heuristic to avoid trimming a value like `[1, 1, 1, 1, ...]` into `[null, null, null,
         // null, ...]`, making it take up more space.
-        self.remaining_bag_depth(state) == Some(1) && !value.is_empty()
+        self.remaining_depth(state) == Some(1) && !value.is_empty()
     }
 
     #[inline]
-    fn remaining_bag_depth(&self, state: &ProcessingState<'_>) -> Option<usize> {
-        self.bag_size_state
+    fn remaining_depth(&self, state: &ProcessingState<'_>) -> Option<usize> {
+        self.size_state
             .iter()
-            .map(|bag_size_state| {
+            .filter_map(|size_state| {
                 // The current depth in the entire event payload minus the depth at which we found the
-                // bag_size attribute is the depth where we are at in the databag.
-                let databag_depth = state.depth() - bag_size_state.encountered_at_depth;
-                bag_size_state
-                    .bag_size
-                    .max_depth()
-                    .saturating_sub(databag_depth)
+                // max_depth attribute is the depth where we are at in the property.
+                let current_depth = state.depth() - size_state.encountered_at_depth;
+                size_state
+                    .max_depth
+                    .map(|max_depth| max_depth.saturating_sub(current_depth))
             })
             .min()
     }
 
     #[inline]
-    fn remaining_bag_size(&self) -> Option<usize> {
-        self.bag_size_state.iter().map(|x| x.size_remaining).min()
+    fn remaining_size(&self) -> Option<usize> {
+        self.size_state
+            .iter()
+            .filter_map(|x| x.size_remaining)
+            .min()
     }
 }
 
@@ -61,26 +63,27 @@ impl Processor for TrimmingProcessor {
         _: &mut Meta,
         state: &ProcessingState<'_>,
     ) -> ProcessingResult {
-        // If we encounter a bag size attribute it resets the depth and size
-        // that is permitted below it.
-        if let Some(bag_size) = state.attrs().bag_size {
-            self.bag_size_state.push(BagSizeState {
-                size_remaining: bag_size.max_size(),
+        // If we encounter a max_bytes or max_depth attribute it
+        // resets the size and depth that is permitted below it.
+        // XXX(iker): test setting only one of the two attributes.
+        if state.attrs().max_bytes.is_some() || state.attrs().max_depth.is_some() {
+            self.size_state.push(SizeState {
+                size_remaining: state.attrs().max_bytes,
                 encountered_at_depth: state.depth(),
-                bag_size,
+                max_depth: state.attrs().max_depth,
             });
         }
 
-        if self.remaining_bag_size() == Some(0) {
-            // TODO: Create remarks (ensure they do not bloat event)
-            return Err(ProcessingAction::DeleteValueHard);
+        if state.attrs().trim {
+            if self.remaining_size() == Some(0) {
+                // TODO: Create remarks (ensure they do not bloat event)
+                return Err(ProcessingAction::DeleteValueHard);
+            }
+            if self.remaining_depth(state) == Some(0) {
+                // TODO: Create remarks (ensure they do not bloat event)
+                return Err(ProcessingAction::DeleteValueHard);
+            }
         }
-
-        if self.remaining_bag_depth(state) == Some(0) {
-            // TODO: Create remarks (ensure they do not bloat event)
-            return Err(ProcessingAction::DeleteValueHard);
-        }
-
         Ok(())
     }
 
@@ -90,15 +93,15 @@ impl Processor for TrimmingProcessor {
         _: &mut Meta,
         state: &ProcessingState<'_>,
     ) -> ProcessingResult {
-        if let Some(ref mut bag_size_state) = self.bag_size_state.last_mut() {
+        if let Some(size_state) = self.size_state.last() {
             // If our current depth is the one where we found a bag_size attribute, this means we
             // are done processing a databag. Pop the bag size state.
-            if state.depth() == bag_size_state.encountered_at_depth {
-                self.bag_size_state.pop().unwrap();
+            if state.depth() == size_state.encountered_at_depth {
+                self.size_state.pop().unwrap();
             }
         }
 
-        for bag_size_state in self.bag_size_state.iter_mut() {
+        for size_state in self.size_state.iter_mut() {
             // After processing a value, update the remaining bag sizes. We have a separate if-let
             // here in case somebody defines nested databags (a struct with bag_size that contains
             // another struct with a different bag_size), in case we just exited a databag we want
@@ -110,8 +113,9 @@ impl Processor for TrimmingProcessor {
             if state.entered_anything() {
                 // Do not subtract if state is from newtype struct.
                 let item_length = relay_protocol::estimate_size_flat(value) + 1;
-                bag_size_state.size_remaining =
-                    bag_size_state.size_remaining.saturating_sub(item_length);
+                size_state.size_remaining = size_state
+                    .size_remaining
+                    .map(|size| size.saturating_sub(item_length));
             }
         }
 
@@ -125,11 +129,17 @@ impl Processor for TrimmingProcessor {
         state: &ProcessingState<'_>,
     ) -> ProcessingResult {
         if let Some(max_chars) = state.attrs().max_chars {
-            trim_string(value, meta, max_chars);
+            trim_string(value, meta, max_chars, state.attrs().max_chars_allowance);
         }
 
-        if let Some(ref mut bag_size_state) = self.bag_size_state.last_mut() {
-            trim_string(value, meta, MaxChars::Hard(bag_size_state.size_remaining));
+        if !state.attrs().trim {
+            return Ok(());
+        }
+
+        if let Some(size_state) = self.size_state.last() {
+            if let Some(size_remaining) = size_state.size_remaining {
+                trim_string(value, meta, size_remaining, 0);
+            }
         }
 
         Ok(())
@@ -144,8 +154,12 @@ impl Processor for TrimmingProcessor {
     where
         T: ProcessValue,
     {
+        if !state.attrs().trim {
+            return Ok(());
+        }
+
         // If we need to check the bag size, then we go down a different path
-        if !self.bag_size_state.is_empty() {
+        if !self.size_state.is_empty() {
             let original_length = value.len();
 
             if self.should_remove_container(value, state) {
@@ -154,7 +168,7 @@ impl Processor for TrimmingProcessor {
 
             let mut split_index = None;
             for (index, item) in value.iter_mut().enumerate() {
-                if self.remaining_bag_size().unwrap() == 0 {
+                if self.remaining_size() == Some(0) {
                     split_index = Some(index);
                     break;
                 }
@@ -186,8 +200,12 @@ impl Processor for TrimmingProcessor {
     where
         T: ProcessValue,
     {
+        if !state.attrs().trim {
+            return Ok(());
+        }
+
         // If we need to check the bag size, then we go down a different path
-        if !self.bag_size_state.is_empty() {
+        if !self.size_state.is_empty() {
             let original_length = value.len();
 
             if self.should_remove_container(value, state) {
@@ -196,7 +214,7 @@ impl Processor for TrimmingProcessor {
 
             let mut split_key = None;
             for (key, item) in value.iter_mut() {
-                if self.remaining_bag_size().unwrap() == 0 {
+                if self.remaining_size() == Some(0) {
                     split_key = Some(key.to_owned());
                     break;
                 }
@@ -225,9 +243,13 @@ impl Processor for TrimmingProcessor {
         _meta: &mut Meta,
         state: &ProcessingState<'_>,
     ) -> ProcessingResult {
+        if !state.attrs().trim {
+            return Ok(());
+        }
+
         match value {
             Value::Array(_) | Value::Object(_) => {
-                if self.remaining_bag_depth(state) == Some(1) {
+                if self.remaining_depth(state) == Some(1) {
                     if let Ok(x) = serde_json::to_string(&value) {
                         // Error case should not be possible
                         *value = Value::String(x);
@@ -241,12 +263,25 @@ impl Processor for TrimmingProcessor {
         Ok(())
     }
 
+    fn process_replay(
+        &mut self,
+        replay: &mut Replay,
+        _: &mut Meta,
+        state: &ProcessingState<'_>,
+    ) -> ProcessingResult {
+        replay.process_child_values(self, state)
+    }
+
     fn process_raw_stacktrace(
         &mut self,
         stacktrace: &mut RawStacktrace,
         _meta: &mut Meta,
         state: &ProcessingState<'_>,
     ) -> ProcessingResult {
+        if !state.attrs().trim {
+            return Ok(());
+        }
+
         processor::apply(&mut stacktrace.frames, |frames, meta| {
             enforce_frame_hard_limit(frames, meta, 250);
             Ok(())
@@ -264,9 +299,8 @@ impl Processor for TrimmingProcessor {
 }
 
 /// Trims the string to the given maximum length and updates meta data.
-fn trim_string(value: &mut String, meta: &mut Meta, max_chars: MaxChars) {
-    let soft_limit = max_chars.limit();
-    let hard_limit = soft_limit + max_chars.allowance();
+fn trim_string(value: &mut String, meta: &mut Meta, max_chars: usize, max_chars_allowance: usize) {
+    let hard_limit = max_chars + max_chars_allowance;
 
     if bytecount::num_chars(value.as_bytes()) <= hard_limit {
         return;
@@ -280,7 +314,7 @@ fn trim_string(value: &mut String, meta: &mut Meta, max_chars: MaxChars) {
             let chunk_chars = chunk.count();
 
             // if the entire chunk fits, just put it in
-            if length + chunk_chars < soft_limit {
+            if length + chunk_chars < max_chars {
                 new_chunks.push(chunk);
                 length += chunk_chars;
                 continue;
@@ -299,7 +333,7 @@ fn trim_string(value: &mut String, meta: &mut Meta, max_chars: MaxChars) {
                 Chunk::Text { text } => {
                     let mut remaining = String::new();
                     for c in text.chars() {
-                        if length + 3 < soft_limit {
+                        if length + 3 < max_chars {
                             remaining.push(c);
                         } else {
                             break;
@@ -388,15 +422,15 @@ fn slim_frame_data(frames: &mut Array<Frame>, frame_allowance: usize) {
 mod tests {
     use std::iter::repeat;
 
-    use relay_event_schema::processor::MaxChars;
+    use chrono::DateTime;
     use relay_event_schema::protocol::{
-        Breadcrumb, Context, Contexts, Event, Exception, ExtraValue, Frame, RawStacktrace,
-        TagEntry, Tags, Values,
+        Breadcrumb, Context, Contexts, Event, Exception, ExtraValue, Span, SpanId, TagEntry, Tags,
+        Timestamp, TraceId, Values,
     };
-    use relay_protocol::{
-        Annotated, Map, Meta, Object, Remark, RemarkType, SerializableAnnotated, Value,
-    };
+    use relay_protocol::{get_value, Map, Remark, SerializableAnnotated};
     use similar_asserts::assert_eq;
+
+    use crate::MaxChars;
 
     use super::*;
 
@@ -405,7 +439,7 @@ mod tests {
         let mut value =
             Annotated::new("This is my long string I want to have trimmed!".to_string());
         processor::apply(&mut value, |v, m| {
-            trim_string(v, m, MaxChars::Hard(20));
+            trim_string(v, m, 20, 0);
             Ok(())
         })
         .unwrap();
@@ -430,7 +464,7 @@ mod tests {
         let mut processor = TrimmingProcessor::new();
 
         let mut event = Annotated::new(Event {
-            culprit: Annotated::new("x".repeat(300)),
+            logger: Annotated::new("x".repeat(300)),
             ..Default::default()
         });
 
@@ -438,12 +472,25 @@ mod tests {
 
         let mut expected = Annotated::new("x".repeat(300));
         processor::apply(&mut expected, |v, m| {
-            trim_string(v, m, MaxChars::Culprit);
+            trim_string(v, m, MaxChars::Logger.limit(), 0);
             Ok(())
         })
         .unwrap();
 
-        assert_eq!(event.value().unwrap().culprit, expected);
+        assert_eq!(event.value().unwrap().logger, expected);
+    }
+
+    #[test]
+    fn test_max_char_allowance() {
+        let string = "This string requires some allowance to fit!";
+        let mut value = Annotated::new(string.to_owned()); // len == 43
+        processor::apply(&mut value, |v, m| {
+            trim_string(v, m, 40, 5);
+            Ok(())
+        })
+        .unwrap();
+
+        assert_eq!(value, Annotated::new(string.to_owned()));
     }
 
     #[test]
@@ -893,5 +940,144 @@ mod tests {
         ];
 
         assert_eq!(frames, expected);
+    }
+
+    #[test]
+    fn test_too_many_spans_trimmed() {
+        let span = Span {
+            platform: Annotated::new("a".repeat(1024 * 100)),
+            ..Default::default()
+        };
+        let spans = std::iter::repeat_with(|| Annotated::new(span.clone()))
+            .take(10)
+            .collect();
+
+        let mut event = Annotated::new(Event {
+            spans: Annotated::new(spans),
+            ..Default::default()
+        });
+
+        let mut processor = TrimmingProcessor::new();
+        processor::process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
+
+        assert_eq!(event.0.unwrap().spans.0.unwrap().len(), 8);
+    }
+
+    #[test]
+    fn test_untrimmable_fields() {
+        let original_description = "a".repeat(819163);
+        let original_trace_id = TraceId("b".repeat(48));
+        let mut event = Annotated::new(Event {
+            spans: Annotated::new(vec![
+                Span {
+                    description: original_description.clone().into(),
+                    ..Default::default()
+                }
+                .into(),
+                Span {
+                    trace_id: original_trace_id.clone().into(),
+                    ..Default::default()
+                }
+                .into(),
+            ]),
+            ..Default::default()
+        });
+
+        let mut processor = TrimmingProcessor::new();
+        processor::process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
+
+        assert_eq!(
+            get_value!(event.spans[0].description!),
+            &original_description
+        );
+        // Trace ID would be trimmed without `trim = "false"`
+        assert_eq!(get_value!(event.spans[1].trace_id!), &original_trace_id);
+    }
+
+    #[test]
+    fn test_untrimmable_fields_drop() {
+        let original_description = "a".repeat(819164);
+        let original_span_id = SpanId("b".repeat(48));
+        let original_trace_id = TraceId("c".repeat(48));
+        let original_segment_id = SpanId("d".repeat(48));
+        let original_op = "e".repeat(129);
+
+        let mut event = Annotated::new(Event {
+            spans: Annotated::new(vec![
+                Span {
+                    description: original_description.clone().into(),
+                    ..Default::default()
+                }
+                .into(),
+                Span {
+                    span_id: original_span_id.clone().into(),
+                    trace_id: original_trace_id.clone().into(),
+                    segment_id: original_segment_id.clone().into(),
+                    is_segment: false.into(),
+                    op: original_op.clone().into(),
+                    start_timestamp: Timestamp(
+                        DateTime::parse_from_rfc3339("1996-12-19T16:39:57Z")
+                            .unwrap()
+                            .into(),
+                    )
+                    .into(),
+                    timestamp: Timestamp(
+                        DateTime::parse_from_rfc3339("1996-12-19T16:39:58Z")
+                            .unwrap()
+                            .into(),
+                    )
+                    .into(),
+                    ..Default::default()
+                }
+                .into(),
+            ]),
+            ..Default::default()
+        });
+
+        let mut processor = TrimmingProcessor::new();
+        processor::process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
+
+        assert_eq!(
+            get_value!(event.spans[0].description!),
+            &original_description
+        );
+        // These fields would be dropped without `trim = "false"`
+        assert_eq!(get_value!(event.spans[1].span_id!), &original_span_id);
+        assert_eq!(get_value!(event.spans[1].trace_id!), &original_trace_id);
+        assert_eq!(get_value!(event.spans[1].segment_id!), &original_segment_id);
+        assert_eq!(get_value!(event.spans[1].is_segment!), &false);
+        // span.op is trimmed to its max_chars, but not dropped:
+        assert_eq!(get_value!(event.spans[1].op!).len(), 128);
+        assert!(get_value!(event.spans[1].start_timestamp).is_some());
+        assert!(get_value!(event.spans[1].timestamp).is_some());
+    }
+
+    #[test]
+    fn test_trim_false_contributes_to_budget() {
+        for span_id in ["short", "looooooooooooooooooooooooooong"] {
+            let original_span_id = SpanId(span_id.to_owned());
+            let original_description = "a".repeat(900000);
+
+            let mut event = Annotated::new(Event {
+                spans: Annotated::new(vec![Span {
+                    span_id: original_span_id.clone().into(),
+                    description: original_description.clone().into(),
+                    ..Default::default()
+                }
+                .into()]),
+                ..Default::default()
+            });
+
+            let mut processor = TrimmingProcessor::new();
+            processor::process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
+
+            assert_eq!(get_value!(event.spans[0].span_id!).as_ref(), span_id);
+
+            // The amount of trimming on the description depends on the length of the span id.
+            assert_eq!(
+                get_value!(event.spans[0].description!).len(),
+                1024 * 800 - 12 - span_id.len(),
+            );
+        }
     }
 }

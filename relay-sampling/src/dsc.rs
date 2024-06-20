@@ -33,11 +33,11 @@ pub struct DynamicSamplingContext {
     /// The environment.
     #[serde(default)]
     pub environment: Option<String>,
-    /// The name of the transaction extracted from the `transaction` field in the starting
-    /// transaction.
+    /// In the transaction-based model, this is the name of the transaction extracted from the `transaction`
+    /// field in the starting transaction and set on transaction start, or via `scope.transaction`.
     ///
-    /// Set on transaction start, or via `scope.transaction`.
-    #[serde(default)]
+    /// In the spans-only model, this is the segment name for the segment that started the trace.
+    #[serde(default, alias = "segment_name")]
     pub transaction: Option<String>,
     /// The sample rate with which this trace was sampled in the client. This is a float between
     /// `0.0` and `1.0`.

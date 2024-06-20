@@ -1,7 +1,6 @@
 //! Minidump scrubbing.
 
 use std::borrow::Cow;
-use std::convert::TryInto;
 use std::num::TryFromIntError;
 use std::ops::Range;
 use std::str::Utf8Error;
@@ -353,7 +352,8 @@ mod tests {
             // both our dumps different types which is awkward to work with.  So we store
             // the Vec separately to keep the slice alive and pretend we give Minidump a
             // &'static [u8].
-            let slice = unsafe { std::mem::transmute(scrubbed_data.as_slice()) };
+            let slice =
+                unsafe { std::mem::transmute::<&[u8], &'static [u8]>(scrubbed_data.as_slice()) };
             let scrubbed_dump = Minidump::read(slice).expect("scrubbed minidump failed to parse");
             Self {
                 orig_dump,

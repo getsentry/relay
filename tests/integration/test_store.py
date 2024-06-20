@@ -4,12 +4,18 @@ import queue
 import socket
 import threading
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta, timezone
 from time import sleep
+
+from .consts import (
+    TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION,
+    TRANSACTION_EXTRACT_MAX_SUPPORTED_VERSION,
+)
 
 import pytest
 from flask import Response, abort
 from requests.exceptions import HTTPError
+from sentry_sdk.envelope import Envelope
 
 
 def test_store(mini_sentry, relay_chain):
@@ -263,22 +269,8 @@ def test_store_max_concurrent_requests(mini_sentry, relay):
     store_count.acquire(timeout=2)
 
 
-def test_store_not_normalized(mini_sentry, relay):
-    """
-    Tests that relay does not normalize when processing is disabled
-    """
-    relay = relay(mini_sentry, {"processing": {"enabled": False}})
-    project_id = 42
-    mini_sentry.add_basic_project_config(project_id)
-    relay.send_event(project_id, {"message": "some_message"})
-    event = mini_sentry.captured_events.get(timeout=1).get_event()
-    assert event.get("key_id") is None
-    assert event.get("project") is None
-    assert event.get("version") is None
-
-
 def make_transaction(event):
-    now = datetime.utcnow()
+    now = datetime.now(UTC)
     event.update(
         {
             "type": "transaction",
@@ -491,7 +483,7 @@ def test_processing_quotas(
             relay.send_event(
                 project_id, transform({"message": f"otherkey{i}"}), dsn_key_idx=1
             )
-        event, _ = events_consumer.get_event(timeout=5)
+        event, _ = events_consumer.get_event(timeout=10)
 
         if event_type == "nel":
             assert event["logentry"]["formatted"] == "application / http.error"
@@ -499,8 +491,9 @@ def test_processing_quotas(
             assert event["logentry"]["formatted"] == f"otherkey{i}"
 
 
+@pytest.mark.parametrize("namespace", ["transactions", "custom"])
 def test_sends_metric_bucket_outcome(
-    mini_sentry, relay_with_processing, outcomes_consumer
+    mini_sentry, relay_with_processing, outcomes_consumer, namespace
 ):
     """
     Checks that with a zero-quota without categories specified we send metric bucket outcomes.
@@ -512,7 +505,6 @@ def test_sends_metric_bucket_outcome(
             "aggregator": {
                 "bucket_interval": 1,
                 "initial_delay": 0,
-                "debounce_delay": 0,
                 "flush_interval": 0,
             },
         }
@@ -526,6 +518,7 @@ def test_sends_metric_bucket_outcome(
     projectconfig["config"]["quotas"] = [
         {
             "scope": "organization",
+            "namespace": namespace,
             "limit": 0,
         }
     ]
@@ -536,8 +529,10 @@ def test_sends_metric_bucket_outcome(
 
     outcome = outcomes_consumer.get_outcome(timeout=3)
 
-    assert outcome["category"] == 15
+    assert outcome["category"] == 15  # metric_bucket
     assert outcome["quantity"] == 1
+
+    outcomes_consumer.assert_empty()
 
 
 def test_rate_limit_metric_bucket(
@@ -554,7 +549,6 @@ def test_rate_limit_metric_bucket(
             "aggregator": {
                 "bucket_interval": bucket_interval,
                 "initial_delay": 0,
-                "debounce_delay": 0,
             },
         }
     )
@@ -579,7 +573,7 @@ def test_rate_limit_metric_bucket(
 
     def generate_ticks():
         # Generate a new timestamp for every bucket, so they do not get merged by the aggregator
-        tick = int(datetime.utcnow().timestamp() // bucket_interval * bucket_interval)
+        tick = int(datetime.now(UTC).timestamp() // bucket_interval * bucket_interval)
         while True:
             yield tick
             tick += bucket_interval
@@ -612,7 +606,7 @@ def test_rate_limit_metric_bucket(
     assert len(produced_buckets) == metric_bucket_limit
 
 
-@pytest.mark.parametrize("violating_bucket", [[4.0, 5.0], [4.0, 5.0, 6.0]])
+@pytest.mark.parametrize("violating_bucket", [2.0, 3.0])
 def test_rate_limit_metrics_buckets(
     mini_sentry,
     relay_with_processing,
@@ -632,7 +626,6 @@ def test_rate_limit_metrics_buckets(
             "aggregator": {
                 "bucket_interval": bucket_interval,
                 "initial_delay": 0,
-                "debounce_delay": 0,
             },
         }
     )
@@ -663,7 +656,7 @@ def test_rate_limit_metrics_buckets(
 
     def generate_ticks():
         # Generate a new timestamp for every bucket, so they do not get merged by the aggregator
-        tick = int(datetime.utcnow().timestamp() // bucket_interval * bucket_interval)
+        tick = int(datetime.now(UTC).timestamp() // bucket_interval * bucket_interval)
         while True:
             yield tick
             tick += bucket_interval
@@ -699,7 +692,7 @@ def test_rate_limit_metrics_buckets(
     send_buckets(
         [
             # Duration metric, subtract 3 from quota
-            make_bucket("d:transactions/duration@millisecond", "d", [1, 2, 3]),
+            make_bucket("c:transactions/usage@none", "c", 3),
         ],
     )
     send_buckets(
@@ -710,9 +703,9 @@ def test_rate_limit_metrics_buckets(
     )
     send_buckets(
         [
-            # Duration metric, subtract from quota. This bucket is still accepted, but the rest
+            # Usage metric, subtract from quota. This bucket is still accepted, but the rest
             # will be exceeded.
-            make_bucket("d:transactions/duration@millisecond", "d", violating_bucket),
+            make_bucket("c:transactions/usage@none", "c", violating_bucket),
         ],
     )
     send_buckets(
@@ -723,21 +716,40 @@ def test_rate_limit_metrics_buckets(
     )
     send_buckets(
         [
-            # Another three for duration, won't make it into kafka.
-            make_bucket("d:transactions/duration@millisecond", "d", [7, 8, 9]),
+            # Another three for usage, won't make it into kafka.
+            make_bucket("c:transactions/usage@none", "c", 3),
             # Session metrics are still accepted.
             make_bucket("d:sessions/session@user", "s", [1254]),
         ],
     )
-    metrics = [m for m, _ in metrics_consumer.get_metrics(timeout=4)]
-    produced_buckets = metrics
+
+    produced_buckets = [m for m, _ in metrics_consumer.get_metrics(timeout=10, n=7)]
 
     # Sort buckets to prevent ordering flakiness:
     produced_buckets.sort(key=lambda b: (b["name"], b["value"]))
     for bucket in produced_buckets:
         del bucket["timestamp"]
+        del bucket["received_at"]
 
     assert produced_buckets == [
+        {
+            "name": "c:transactions/usage@none",
+            "org_id": 1,
+            "retention_days": 90,
+            "project_id": 42,
+            "tags": {},
+            "type": "c",
+            "value": violating_bucket,
+        },
+        {
+            "name": "c:transactions/usage@none",
+            "org_id": 1,
+            "retention_days": 90,
+            "project_id": 42,
+            "tags": {},
+            "type": "c",
+            "value": 3.0,
+        },
         {
             "name": "d:sessions/duration@second",
             "org_id": 1,
@@ -766,24 +778,6 @@ def test_rate_limit_metrics_buckets(
             "value": [1254],
         },
         {
-            "name": "d:transactions/duration@millisecond",
-            "org_id": 1,
-            "retention_days": 90,
-            "project_id": 42,
-            "tags": {},
-            "type": "d",
-            "value": [1.0, 2.0, 3.0],
-        },
-        {
-            "name": "d:transactions/duration@millisecond",
-            "org_id": 1,
-            "retention_days": 90,
-            "project_id": 42,
-            "tags": {},
-            "type": "d",
-            "value": violating_bucket,
-        },
-        {
             "name": "d:transactions/measurements.lcp@millisecond",
             "org_id": 1,
             "retention_days": 90,
@@ -806,12 +800,18 @@ def test_rate_limit_metrics_buckets(
     outcomes_consumer.assert_rate_limited(
         reason_code,
         key_id=key_id,
-        categories=["transaction"],
-        quantity=3,
+        categories=["transaction", "metric_bucket"],
+        quantity=5,
     )
 
 
-@pytest.mark.parametrize("extraction_version", [1, 3])
+@pytest.mark.parametrize(
+    "extraction_version",
+    [
+        TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION,
+        TRANSACTION_EXTRACT_MAX_SUPPORTED_VERSION,
+    ],
+)
 def test_processing_quota_transaction_indexing(
     mini_sentry,
     relay_with_processing,
@@ -827,7 +827,6 @@ def test_processing_quota_transaction_indexing(
             "aggregator": {
                 "bucket_interval": 1,
                 "initial_delay": 0,
-                "debounce_delay": 0,
             },
         }
     )
@@ -873,9 +872,11 @@ def test_processing_quota_transaction_indexing(
     buckets = list(metrics_consumer.get_metrics())
     assert len(buckets) > 0
 
+    relay.send_event(project_id, make_transaction({"message": "3rd tx"}))
+    tx_consumer.assert_empty()
+
     with pytest.raises(HTTPError) as exc_info:
         relay.send_event(project_id, make_transaction({"message": "4nd tx"}))
-
     assert exc_info.value.response.status_code == 429, "Expected a 429 status code"
 
 
@@ -1329,3 +1330,97 @@ def test_kafka_ssl(relay_with_processing):
     relay_with_processing(
         options={"kafka_config": [{"name": "ssl.key.password", "value": "foo"}]}
     )
+
+
+def test_error_with_type_transaction_fixed_by_inference(
+    mini_sentry, events_consumer, relay_with_processing, relay, relay_credentials
+):
+    """
+    Ensure Relay sets the correct type for bogus payloads of errors with
+    `type=transaction` some clients send.
+    """
+    project_id = 42
+    mini_sentry.add_basic_project_config(project_id)
+    events_consumer = events_consumer()
+
+    credentials = relay_credentials()
+    processing = relay_with_processing(
+        static_relays={
+            credentials["id"]: {
+                "public_key": credentials["public_key"],
+                "internal": True,
+            },
+        },
+        # normalization.level == 'default'
+    )
+    relay = relay(
+        processing,
+        credentials=credentials,
+        options={
+            "normalization": {
+                "level": "full",
+            }
+        },
+    )
+
+    bogus_error = make_error({"event_id": "cbf6960622e14a45abc1f03b2055b186"})
+    bogus_error["type"] = "transaction"
+    envelope = Envelope()
+    envelope.add_event(bogus_error)
+
+    relay.send_envelope(project_id, envelope)
+
+    ingested, _ = events_consumer.get_event(timeout=7)
+    assert ingested["type"] == "error"
+    events_consumer.assert_empty()
+
+
+@pytest.mark.parametrize("processing_disable_normalization", [False, True])
+def test_error_with_type_transaction_fixed_by_inference_even_if_only_feature_flags(
+    mini_sentry,
+    events_consumer,
+    relay_with_processing,
+    relay,
+    relay_credentials,
+    processing_disable_normalization,
+):
+    """
+    Ensure Relay sets the correct type for bogus payloads of errors with
+    `type=transaction` some clients send, even if configured by feature flags
+    and not static config.
+    """
+    project_id = 42
+    mini_sentry.add_basic_project_config(project_id)
+    events_consumer = events_consumer()
+
+    if processing_disable_normalization:
+        mini_sentry.global_config["options"] = {
+            "relay.disable_normalization.processing": True,
+        }
+
+    credentials = relay_credentials()
+    processing = relay_with_processing(
+        static_relays={
+            credentials["id"]: {
+                "public_key": credentials["public_key"],
+                "internal": True,
+            },
+        },
+        # normalization.level == 'default'
+    )
+    relay = relay(
+        processing,
+        credentials=credentials,
+        # normalization.level == 'default'
+    )
+
+    bogus_error = make_error({"event_id": "cbf6960622e14a45abc1f03b2055b186"})
+    bogus_error["type"] = "transaction"
+    envelope = Envelope()
+    envelope.add_event(bogus_error)
+
+    relay.send_envelope(project_id, envelope)
+
+    ingested, _ = events_consumer.get_event(timeout=7)
+    assert ingested["type"] == "error"
+    events_consumer.assert_empty()

@@ -2,10 +2,10 @@ use std::convert::Infallible;
 use std::fmt;
 use std::sync::Arc;
 
+use crate::metrics::{MetricOutcomes, MetricStats};
 use anyhow::{Context, Result};
 use axum::extract::FromRequestParts;
 use axum::http::request::Parts;
-use relay_aws_extension::AwsExtension;
 use relay_cogs::Cogs;
 use relay_config::Config;
 use relay_metrics::Aggregator;
@@ -18,7 +18,7 @@ use crate::services::global_config::{GlobalConfigManager, GlobalConfigService};
 use crate::services::health_check::{HealthCheck, HealthCheckService};
 use crate::services::outcome::{OutcomeProducer, OutcomeProducerService, TrackOutcome};
 use crate::services::outcome_aggregator::OutcomeAggregator;
-use crate::services::processor::{EnvelopeProcessor, EnvelopeProcessorService};
+use crate::services::processor::{self, EnvelopeProcessor, EnvelopeProcessorService};
 use crate::services::project_cache::{ProjectCache, ProjectCacheService, Services};
 use crate::services::relays::{RelayCache, RelayCacheService};
 #[cfg(feature = "processing")]
@@ -95,8 +95,8 @@ pub struct ServiceState {
 
 impl ServiceState {
     /// Starts all services and returns addresses to all of them.
-    pub fn start(config: Arc<Config>, runtimes: &Runtimes) -> Result<Self> {
-        let upstream_relay = UpstreamRelayService::new(config.clone()).start_in(&runtimes.upstream);
+    pub fn start(config: Arc<Config>) -> Result<Self> {
+        let upstream_relay = UpstreamRelayService::new(config.clone()).start();
         let test_store = TestStoreService::new(config.clone()).start();
 
         let redis_pool = match config.redis() {
@@ -106,7 +106,7 @@ impl ServiceState {
             _ => None,
         };
 
-        let buffer = Arc::new(BufferGuard::new(config.envelope_buffer_size()));
+        let buffer_guard = Arc::new(BufferGuard::new(config.envelope_buffer_size()));
 
         // Create an address for the `EnvelopeProcessor`, which can be injected into the
         // other services.
@@ -116,9 +116,8 @@ impl ServiceState {
             upstream_relay.clone(),
             processor.clone(),
         )?
-        .start_in(&runtimes.outcome);
-        let outcome_aggregator =
-            OutcomeAggregator::new(&config, outcome_producer.clone()).start_in(&runtimes.outcome);
+        .start();
+        let outcome_aggregator = OutcomeAggregator::new(&config, outcome_producer.clone()).start();
 
         let global_config = GlobalConfigService::new(config.clone(), upstream_relay.clone());
         let global_config_handle = global_config.handle();
@@ -134,20 +133,29 @@ impl ServiceState {
             config.secondary_aggregator_configs().clone(),
             Some(project_cache.clone().recipient()),
         )
-        .start_in(&runtimes.aggregator);
+        .start();
+
+        let metric_stats = MetricStats::new(
+            config.clone(),
+            global_config_handle.clone(),
+            aggregator.clone(),
+        );
+
+        let metric_outcomes = MetricOutcomes::new(metric_stats, outcome_aggregator.clone());
 
         #[cfg(feature = "processing")]
-        let store = match runtimes.store {
-            Some(ref rt) => Some(
+        let store = config
+            .processing_enabled()
+            .then(|| {
                 StoreService::create(
                     config.clone(),
                     global_config_handle.clone(),
                     outcome_aggregator.clone(),
-                )?
-                .start_in(rt),
-            ),
-            None => None,
-        };
+                    metric_outcomes.clone(),
+                )
+                .map(|s| s.start())
+            })
+            .transpose()?;
 
         let cogs = CogsService::new(
             &config,
@@ -162,14 +170,21 @@ impl ServiceState {
             cogs,
             #[cfg(feature = "processing")]
             redis_pool.clone(),
-            outcome_aggregator.clone(),
-            project_cache.clone(),
-            upstream_relay.clone(),
-            test_store.clone(),
+            processor::Addrs {
+                #[cfg(feature = "processing")]
+                envelope_processor: processor.clone(),
+                project_cache: project_cache.clone(),
+                outcome_aggregator: outcome_aggregator.clone(),
+                upstream_relay: upstream_relay.clone(),
+                test_store: test_store.clone(),
+                #[cfg(feature = "processing")]
+                aggregator: aggregator.clone(),
+                #[cfg(feature = "processing")]
+                store_forwarder: store.clone(),
+            },
+            metric_outcomes.clone(),
             #[cfg(feature = "processing")]
-            aggregator.clone(),
-            #[cfg(feature = "processing")]
-            store.clone(),
+            buffer_guard.clone(),
         )
         .spawn_handler(processor_rx);
 
@@ -183,15 +198,14 @@ impl ServiceState {
             upstream_relay.clone(),
             global_config.clone(),
         );
-        let guard = runtimes.project.enter();
         ProjectCacheService::new(
             config.clone(),
-            buffer.clone(),
+            buffer_guard.clone(),
             project_cache_services,
+            metric_outcomes,
             redis_pool,
         )
         .spawn_handler(project_cache_rx);
-        drop(guard);
 
         let health_check = HealthCheckService::new(
             config.clone(),
@@ -201,12 +215,6 @@ impl ServiceState {
         )
         .start();
         let relay_cache = RelayCacheService::new(config.clone(), upstream_relay.clone()).start();
-
-        if let Some(aws_api) = config.aws_runtime_api() {
-            if let Ok(aws_extension) = AwsExtension::new(aws_api) {
-                aws_extension.start();
-            }
-        }
 
         let registry = Registry {
             aggregator,
@@ -222,7 +230,7 @@ impl ServiceState {
         };
 
         let state = StateInner {
-            buffer_guard: buffer,
+            buffer_guard,
             config,
             registry,
         };
@@ -288,34 +296,6 @@ impl ServiceState {
     /// Returns the address of the [`OutcomeProducer`] service.
     pub fn outcome_aggregator(&self) -> &Addr<TrackOutcome> {
         &self.inner.registry.outcome_aggregator
-    }
-}
-
-/// Contains secondary service runtimes.
-#[derive(Debug)]
-pub struct Runtimes {
-    upstream: Runtime,
-    project: Runtime,
-    aggregator: Runtime,
-    outcome: Runtime,
-    #[cfg(feature = "processing")]
-    store: Option<Runtime>,
-}
-
-impl Runtimes {
-    /// Creates the secondary runtimes required by services.
-    #[allow(unused_variables)]
-    pub fn new(config: &Config) -> Self {
-        Self {
-            upstream: create_runtime("upstream-rt", 1),
-            project: create_runtime("project-rt", 2),
-            aggregator: create_runtime("aggregator-rt", 1),
-            outcome: create_runtime("outcome-rt", 1),
-            #[cfg(feature = "processing")]
-            store: config
-                .processing_enabled()
-                .then(|| create_runtime("store-rt", 1)),
-        }
     }
 }
 

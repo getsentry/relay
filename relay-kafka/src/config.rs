@@ -3,8 +3,6 @@
 //! The configuration can be either;
 //! - [`TopicAssignment::Primary`] - the main and default kafka configuration,
 //! - [`TopicAssignment::Secondary`] - used to configure any additional kafka topic,
-//! - [`TopicAssignment::Sharded`] - if we want to configure multiple kafka clusters,
-//! we can create a mapping of the range of logical shards to the kafka configuration.
 
 use std::collections::BTreeMap;
 
@@ -35,8 +33,6 @@ pub enum KafkaTopic {
     Outcomes,
     /// Override for billing critical outcomes.
     OutcomesBilling,
-    /// Session health updates.
-    Sessions,
     /// Any metric that is extracted from sessions.
     MetricsSessions,
     /// Generic metrics topic, excluding sessions (release health).
@@ -55,6 +51,8 @@ pub enum KafkaTopic {
     MetricsSummaries,
     /// COGS measurements topic.
     Cogs,
+    /// Feedback events topic.
+    Feedback,
 }
 
 impl KafkaTopic {
@@ -68,7 +66,6 @@ impl KafkaTopic {
             Transactions,
             Outcomes,
             OutcomesBilling,
-            Sessions,
             MetricsSessions,
             MetricsGeneric,
             Profiles,
@@ -78,96 +75,70 @@ impl KafkaTopic {
             Spans,
             MetricsSummaries,
             Cogs,
+            Feedback,
         ];
         TOPICS.iter()
     }
 }
 
-/// Configuration for topics.
-#[derive(Serialize, Deserialize, Debug)]
-#[serde(default)]
-pub struct TopicAssignments {
-    /// Simple events topic name.
-    pub events: TopicAssignment,
-    /// Events with attachments topic name.
-    pub attachments: TopicAssignment,
-    /// Transaction events topic name.
-    pub transactions: TopicAssignment,
-    /// Outcomes topic name.
-    pub outcomes: TopicAssignment,
-    /// Outcomes topic name for billing critical outcomes. Defaults to the assignment of `outcomes`.
-    pub outcomes_billing: Option<TopicAssignment>,
-    /// Session health topic name.
-    pub sessions: TopicAssignment,
-    /// Default topic name for all aggregate metrics. Specialized topics for session-based and
-    /// generic metrics can be configured via `metrics_sessions` and `metrics_generic` each.
-    pub metrics: TopicAssignment,
-    /// Topic name for metrics extracted from sessions. Defaults to the assignment of `metrics`.
-    pub metrics_sessions: Option<TopicAssignment>,
-    /// Topic name for all other kinds of metrics. Defaults to the assignment of `metrics`.
-    #[serde(alias = "metrics_transactions")]
-    pub metrics_generic: TopicAssignment,
-    /// Stacktrace topic name
-    pub profiles: TopicAssignment,
-    /// Replay Events topic name.
-    pub replay_events: TopicAssignment,
-    /// Recordings topic name.
-    pub replay_recordings: TopicAssignment,
-    /// Monitor check-ins.
-    pub monitors: TopicAssignment,
-    /// Standalone spans without a transaction.
-    pub spans: TopicAssignment,
-    /// Summary for metrics collected during a span.
-    pub metrics_summaries: TopicAssignment,
-    /// COGS measurements.
-    pub cogs: TopicAssignment,
+macro_rules! define_topic_assignments {
+    ($($field_name:ident : ($kafka_topic:path, $default_topic:literal, $doc:literal)),* $(,)?) => {
+        /// Configuration for topics.
+        #[derive(Serialize, Deserialize, Debug)]
+        #[serde(default)]
+        pub struct TopicAssignments {
+            $(
+                #[serde(alias = $default_topic)]
+                #[doc = $doc]
+                pub $field_name: TopicAssignment,
+            )*
+
+            /// Additional topic assignments configured but currently unused by this Relay instance.
+            #[serde(flatten)]
+            pub unused: BTreeMap<String, TopicAssignment>,
+        }
+
+        impl TopicAssignments{
+            /// Get a topic assignment by [`KafkaTopic`] value
+            #[must_use]
+            pub fn get(&self, kafka_topic: KafkaTopic) -> &TopicAssignment {
+                match kafka_topic {
+                    $(
+                        $kafka_topic => &self.$field_name,
+                    )*
+                }
+            }
+        }
+
+        impl Default for TopicAssignments {
+            fn default() -> Self {
+                Self {
+                    $(
+                        $field_name: $default_topic.to_owned().into(),
+                    )*
+                    unused: BTreeMap::new(),
+                }
+            }
+        }
+    };
 }
 
-impl TopicAssignments {
-    /// Get a topic assignment by [`KafkaTopic`] value
-    #[must_use]
-    pub fn get(&self, kafka_topic: KafkaTopic) -> &TopicAssignment {
-        match kafka_topic {
-            KafkaTopic::Attachments => &self.attachments,
-            KafkaTopic::Events => &self.events,
-            KafkaTopic::Transactions => &self.transactions,
-            KafkaTopic::Outcomes => &self.outcomes,
-            KafkaTopic::OutcomesBilling => self.outcomes_billing.as_ref().unwrap_or(&self.outcomes),
-            KafkaTopic::Sessions => &self.sessions,
-            KafkaTopic::MetricsSessions => self.metrics_sessions.as_ref().unwrap_or(&self.metrics),
-            KafkaTopic::MetricsGeneric => &self.metrics_generic,
-            KafkaTopic::Profiles => &self.profiles,
-            KafkaTopic::ReplayEvents => &self.replay_events,
-            KafkaTopic::ReplayRecordings => &self.replay_recordings,
-            KafkaTopic::Monitors => &self.monitors,
-            KafkaTopic::Spans => &self.spans,
-            KafkaTopic::MetricsSummaries => &self.metrics_summaries,
-            KafkaTopic::Cogs => &self.cogs,
-        }
-    }
-}
-
-impl Default for TopicAssignments {
-    fn default() -> Self {
-        Self {
-            events: "ingest-events".to_owned().into(),
-            attachments: "ingest-attachments".to_owned().into(),
-            transactions: "ingest-transactions".to_owned().into(),
-            outcomes: "outcomes".to_owned().into(),
-            outcomes_billing: None,
-            sessions: "ingest-sessions".to_owned().into(),
-            metrics: "ingest-metrics".to_owned().into(),
-            metrics_sessions: None,
-            metrics_generic: "ingest-performance-metrics".to_owned().into(),
-            profiles: "profiles".to_owned().into(),
-            replay_events: "ingest-replay-events".to_owned().into(),
-            replay_recordings: "ingest-replay-recordings".to_owned().into(),
-            monitors: "ingest-monitors".to_owned().into(),
-            spans: "snuba-spans".to_owned().into(),
-            metrics_summaries: "snuba-metrics-summaries".to_owned().into(),
-            cogs: "shared-resources-usage".to_owned().into(),
-        }
-    }
+define_topic_assignments! {
+    events: (KafkaTopic::Events, "ingest-events", "Simple events topic name."),
+    attachments: (KafkaTopic::Attachments, "ingest-attachments", "Events with attachments topic name."),
+    transactions: (KafkaTopic::Transactions, "ingest-transactions", "Transaction events topic name."),
+    outcomes: (KafkaTopic::Outcomes, "outcomes", "Outcomes topic name."),
+    outcomes_billing: (KafkaTopic::OutcomesBilling, "outcomes-billing", "Outcomes topic name for billing critical outcomes."),
+    metrics_sessions: (KafkaTopic::MetricsSessions, "ingest-metrics", "Topic name for metrics extracted from sessions, aka release health."),
+    metrics_generic: (KafkaTopic::MetricsGeneric, "ingest-performance-metrics", "Topic name for all other kinds of metrics."),
+    profiles: (KafkaTopic::Profiles, "profiles", "Stacktrace topic name"),
+    replay_events: (KafkaTopic::ReplayEvents, "ingest-replay-events", "Replay Events topic name."),
+    replay_recordings: (KafkaTopic::ReplayRecordings, "ingest-replay-recordings", "Recordings topic name."),
+    monitors: (KafkaTopic::Monitors, "ingest-monitors", "Monitor check-ins."),
+    spans: (KafkaTopic::Spans, "snuba-spans", "Standalone spans without a transaction."),
+    metrics_summaries: (KafkaTopic::MetricsSummaries, "snuba-metrics-summaries", "Summary for metrics collected during a span."),
+    cogs: (KafkaTopic::Cogs, "shared-resources-usage", "COGS measurements."),
+    feedback: (KafkaTopic::Feedback, "ingest-feedback-events", "Feedback events topic."),
 }
 
 /// Configuration for a "logical" topic/datasink that Relay should forward data into.
@@ -187,9 +158,6 @@ pub enum TopicAssignment {
     /// `secondary_kafka_configs`. In this case that custom kafka config will be used to produce
     /// data to the given topic name.
     Secondary(KafkaTopicConfig),
-    /// If we want to configure multiple kafka clusters, we can create a mapping of the
-    /// range of logical shards to the kafka configuration.
-    Sharded(Sharded),
 }
 
 /// Configuration for topic
@@ -203,57 +171,7 @@ pub struct KafkaTopicConfig {
     kafka_config_name: String,
 }
 
-/// Configuration for logical shards -> kafka configuration mapping.
-///
-/// The configuration for this should look like:
-///
-/// ```ignore
-/// metrics:
-///    shards: 65000
-///    mapping:
-///      0:
-///          name: "ingest-metrics-1"
-///          config: "metrics_1"
-///      25000:
-///          name: "ingest-metrics-2"
-///          config: "metrics_2"
-///      45000:
-///          name: "ingest-metrics-3"
-///          config: "metrics_3"
-/// ```
-///
-/// where the `shards` defines how many logical shards must be created, and `mapping`
-/// describes the per-shard configuration. Index in the `mapping` is the initial inclusive
-/// index of the shard and the range is last till the next index or the maximum shard defined in
-/// the `shards` option. The first index must always start with 0.
-#[derive(Serialize, Deserialize, Debug)]
-pub struct Sharded {
-    /// The number of shards used for this topic.
-    shards: u64,
-    /// The Kafka configuration assigned to the specific shard range.
-    mapping: BTreeMap<u64, KafkaTopicConfig>,
-}
-
-/// Describes Kafka config, with all the parameters extracted, which will be used for creating the
-/// kafka producer.
-#[derive(Debug)]
-pub enum KafkaConfig<'a> {
-    /// Single config with Kafka parameters.
-    Single {
-        /// Kafka parameters to create the kafka producer.
-        params: KafkaParams<'a>,
-    },
-
-    /// The list of the Kafka configs with related shard configs.
-    Sharded {
-        /// The maximum number of logical shards for this set of configs.
-        shards: u64,
-        /// The list of the sharded Kafka configs.
-        configs: BTreeMap<u64, KafkaParams<'a>>,
-    },
-}
-
-/// Sharded Kafka config.
+/// Config for creating a Kafka producer.
 #[derive(Debug)]
 pub struct KafkaParams<'a> {
     /// The topic name to use.
@@ -279,48 +197,23 @@ impl TopicAssignment {
         &'a self,
         default_config: &'a Vec<KafkaConfigParam>,
         secondary_configs: &'a BTreeMap<String, Vec<KafkaConfigParam>>,
-    ) -> Result<KafkaConfig<'_>, ConfigError> {
+    ) -> Result<KafkaParams<'_>, ConfigError> {
         let kafka_config = match self {
-            Self::Primary(topic_name) => KafkaConfig::Single {
-                params: KafkaParams {
-                    topic_name,
-                    config_name: None,
-                    params: default_config.as_slice(),
-                },
+            Self::Primary(topic_name) => KafkaParams {
+                topic_name,
+                config_name: None,
+                params: default_config.as_slice(),
             },
             Self::Secondary(KafkaTopicConfig {
                 topic_name,
                 kafka_config_name,
-            }) => KafkaConfig::Single {
-                params: KafkaParams {
-                    config_name: Some(kafka_config_name),
-                    topic_name,
-                    params: secondary_configs
-                        .get(kafka_config_name)
-                        .ok_or(ConfigError::UnknownKafkaConfigName)?,
-                },
+            }) => KafkaParams {
+                config_name: Some(kafka_config_name),
+                topic_name,
+                params: secondary_configs
+                    .get(kafka_config_name)
+                    .ok_or(ConfigError::UnknownKafkaConfigName)?,
             },
-            Self::Sharded(Sharded { shards, mapping }) => {
-                // quick fail if the config does not contain shard 0
-                if !mapping.contains_key(&0) {
-                    return Err(ConfigError::InvalidShard);
-                }
-                let mut kafka_params = BTreeMap::new();
-                for (shard, kafka_config) in mapping {
-                    let config = KafkaParams {
-                        topic_name: kafka_config.topic_name.as_str(),
-                        config_name: Some(kafka_config.kafka_config_name.as_str()),
-                        params: secondary_configs
-                            .get(kafka_config.kafka_config_name.as_str())
-                            .ok_or(ConfigError::UnknownKafkaConfigName)?,
-                    };
-                    kafka_params.insert(*shard, config);
-                }
-                KafkaConfig::Sharded {
-                    shards: *shards,
-                    configs: kafka_params,
-                }
-            }
         };
 
         Ok(kafka_config)
@@ -344,22 +237,12 @@ mod tests {
     #[test]
     fn test_kafka_config() {
         let yaml = r#"
-events: "ingest-events-kafka-topic"
+ingest-events: "ingest-events-kafka-topic"
 profiles:
     name: "ingest-profiles"
     config: "profiles"
-metrics:
-  shards: 65000
-  mapping:
-      0:
-          name: "ingest-metrics-1"
-          config: "metrics_1"
-      25000:
-          name: "ingest-metrics-2"
-          config: "metrics_2"
-      45000:
-          name: "ingest-metrics-3"
-          config: "metrics_3"
+ingest-metrics: "ingest-metrics-3"
+transactions: "ingest-transactions-kafka-topic"
 "#;
 
         let def_config = vec![KafkaConfigParam {
@@ -374,53 +257,86 @@ metrics:
                 value: "test-value".to_string(),
             }],
         );
-        second_config.insert(
-            "metrics_1".to_string(),
-            vec![KafkaConfigParam {
-                name: "test".to_string(),
-                value: "test-value".to_string(),
-            }],
-        );
-        second_config.insert(
-            "metrics_2".to_string(),
-            vec![KafkaConfigParam {
-                name: "test".to_string(),
-                value: "test-value".to_string(),
-            }],
-        );
-        second_config.insert(
-            "metrics_3".to_string(),
-            vec![KafkaConfigParam {
-                name: "test".to_string(),
-                value: "test-value".to_string(),
-            }],
-        );
+
         let topics: TopicAssignments = serde_yaml::from_str(yaml).unwrap();
         let events = topics.events;
         let profiles = topics.profiles;
-        let metrics = topics.metrics;
+        let metrics_sessions = topics.metrics_sessions;
+        let transactions = topics.transactions;
 
         assert!(matches!(events, TopicAssignment::Primary(_)));
         assert!(matches!(profiles, TopicAssignment::Secondary { .. }));
-        assert!(matches!(metrics, TopicAssignment::Sharded { .. }));
-
-        let events_config = metrics
-            .kafka_config(&def_config, &second_config)
-            .expect("Kafka config for metrics topic");
-        assert!(matches!(events_config, KafkaConfig::Sharded { .. }));
+        assert!(matches!(metrics_sessions, TopicAssignment::Primary(_)));
+        assert!(matches!(transactions, TopicAssignment::Primary(_)));
 
         let events_config = events
             .kafka_config(&def_config, &second_config)
             .expect("Kafka config for events topic");
-        assert!(matches!(events_config, KafkaConfig::Single { .. }));
+        assert!(matches!(
+            events_config,
+            KafkaParams {
+                topic_name: "ingest-events-kafka-topic",
+                ..
+            }
+        ));
 
-        let (shards, mapping) =
-            if let TopicAssignment::Sharded(Sharded { shards, mapping }) = metrics {
-                (shards, mapping)
-            } else {
-                unreachable!()
-            };
-        assert_eq!(shards, 65000);
-        assert_eq!(3, mapping.len());
+        let events_config = profiles
+            .kafka_config(&def_config, &second_config)
+            .expect("Kafka config for profiles topic");
+        assert!(matches!(
+            events_config,
+            KafkaParams {
+                topic_name: "ingest-profiles",
+                config_name: Some("profiles"),
+                ..
+            }
+        ));
+
+        let events_config = metrics_sessions
+            .kafka_config(&def_config, &second_config)
+            .expect("Kafka config for metrics topic");
+        assert!(matches!(
+            events_config,
+            KafkaParams {
+                topic_name: "ingest-metrics-3",
+                ..
+            }
+        ));
+
+        // Legacy keys are still supported
+        let transactions_config = transactions
+            .kafka_config(&def_config, &second_config)
+            .expect("Kafka config for transactions topic");
+        assert!(matches!(
+            transactions_config,
+            KafkaParams {
+                topic_name: "ingest-transactions-kafka-topic",
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn test_default_topic_is_valid() {
+        let topic_assignments = TopicAssignments::default();
+
+        // A few topics are not defined currently, remove this once added to `sentry-kafka-schemas`.
+        let currrently_undefined_topics = [
+            "ingest-attachments".to_string(),
+            "ingest-transactions".to_string(),
+            "profiles".to_string(),
+            "ingest-monitors".to_string(),
+        ];
+
+        for topic in KafkaTopic::iter() {
+            match topic_assignments.get(*topic) {
+                TopicAssignment::Primary(logical_topic_name) => {
+                    if !currrently_undefined_topics.contains(logical_topic_name) {
+                        assert!(sentry_kafka_schemas::get_schema(logical_topic_name, None).is_ok());
+                    }
+                }
+                _ => panic!("invalid default"),
+            }
+        }
     }
 }

@@ -32,7 +32,6 @@
 //!
 //!  - `relay`: Main entry point and command line interface.
 //!  - [`relay-auth`]: Authentication and crypto.
-//!  - [`relay-aws-extension`]: AWS extension implementation for Sentry's AWS Lambda layer.
 //!  - [`relay-base-schema`]: Basic types for Relay's API schema used across multiple services.
 //!  - [`relay-cabi`]: C-bindings for exposing functionality to Python.
 //!  - [`relay-cardinality`]: Metrics cardinality limiter.
@@ -78,7 +77,6 @@
 //!
 //! [relay documentation]: https://docs.sentry.io/product/relay/
 //! [`relay-auth`]: ../relay_auth/index.html
-//! [`relay-aws-extension`]: ../relay_aws_extension/index.html
 //! [`relay-base-schema`]: ../relay_base_schema/index.html
 //! [`relay-cabi`]: ../relay_cabi/index.html
 //! [`relay-cardinality`]: ../relay_cardinality/index.html

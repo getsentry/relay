@@ -24,7 +24,6 @@ use crate::utils::ItemAction;
 /// are out of range after clock drift correction.
 pub fn process(state: &mut ProcessEnvelopeState<SessionGroup>, config: &Config) {
     let received = state.managed_envelope.received_at();
-    let extracted_metrics = &mut state.extracted_metrics.project_metrics;
     let metrics_config = state.project_state.config().session_metrics;
     let envelope = state.managed_envelope.envelope_mut();
     let client = envelope.meta().client().map(|x| x.to_owned());
@@ -33,6 +32,7 @@ pub fn process(state: &mut ProcessEnvelopeState<SessionGroup>, config: &Config) 
     let clock_drift_processor =
         ClockDriftProcessor::new(envelope.sent_at(), received).at_least(MINIMUM_CLOCK_DRIFT);
 
+    let mut extracted_metrics = Vec::new();
     state.managed_envelope.retain_items(|item| {
         let should_keep = match item.ty() {
             ItemType::Session => process_session(
@@ -43,7 +43,7 @@ pub fn process(state: &mut ProcessEnvelopeState<SessionGroup>, config: &Config) 
                 client_addr,
                 metrics_config,
                 &clock_drift_processor,
-                extracted_metrics,
+                &mut extracted_metrics,
             ),
             ItemType::Sessions => process_session_aggregates(
                 item,
@@ -53,7 +53,7 @@ pub fn process(state: &mut ProcessEnvelopeState<SessionGroup>, config: &Config) 
                 client_addr,
                 metrics_config,
                 &clock_drift_processor,
-                extracted_metrics,
+                &mut extracted_metrics,
             ),
             _ => true, // Keep all other item types
         };
@@ -63,6 +63,10 @@ pub fn process(state: &mut ProcessEnvelopeState<SessionGroup>, config: &Config) 
             ItemAction::DropSilently // sessions never log outcomes.
         }
     });
+
+    state
+        .extracted_metrics
+        .extend_project_metrics(extracted_metrics, None);
 }
 
 /// Returns Ok(true) if attributes were modified.
@@ -220,7 +224,14 @@ fn process_session(
     }
 
     // Drop the session if metrics have been extracted in this or a prior Relay
-    if metrics_config.should_drop() && item.metrics_extracted() {
+    if item.metrics_extracted() {
+        return false;
+    } else if config.processing_enabled() {
+        relay_log::error!(
+            "Session metrics extraction disabled on a processing Relay, \
+            make sure you're running an up to date Relay matching the Sentry \
+            version."
+        );
         return false;
     }
 
@@ -284,7 +295,7 @@ fn process_session_aggregates(
         )
     });
 
-    // Aftter timestamp validation, aggregates could now be empty
+    // After timestamp validation, aggregates could now be empty
     if session.aggregates.is_empty() {
         return false;
     }
@@ -312,7 +323,7 @@ fn process_session_aggregates(
     }
 
     // Drop the aggregate if metrics have been extracted in this or a prior Relay
-    if metrics_config.should_drop() && item.metrics_extracted() {
+    if item.metrics_extracted() {
         return false;
     }
 

@@ -91,110 +91,6 @@ relay_common::derive_fromstr_and_display!(ValueType, UnknownValueTypeError, {
     ValueType::StackMemory => "stack_memory",
 });
 
-/// The maximum length of a field.
-#[derive(Debug, Clone, Copy, PartialEq, Hash)]
-pub enum MaxChars {
-    Hash,
-    EnumLike,
-    Summary,
-    Message,
-    Symbol,
-    Path,
-    ShortPath,
-    Logger,
-    Email,
-    Culprit,
-    TagKey,
-    TagValue,
-    Environment,
-    Distribution,
-    Hard(usize),
-    Soft(usize),
-}
-
-impl MaxChars {
-    /// The cap in number of unicode characters.
-    pub fn limit(self) -> usize {
-        match self {
-            MaxChars::Hash => 128,
-            MaxChars::EnumLike => 128,
-            MaxChars::Summary => 1024,
-            MaxChars::Message => 8192,
-            MaxChars::Symbol => 256,
-            MaxChars::Path => 256,
-            MaxChars::ShortPath => 128,
-            // These limits below were initially derived from Sentry's original implementation in
-            // Python. Before changing any of these limits, check if the values are inserted into
-            // the database by the Sentry processing pipeline, and if there are limits on the
-            // database column.
-            MaxChars::Logger => 64,       // src/sentry/constants.py:???
-            MaxChars::Email => 75,        // src/sentry/constants.py:MAX_EMAIL_FIELD_LENGTH
-            MaxChars::Culprit => 200,     // src/sentry/constants.py:MAX_CULPRIT_LENGTH
-            MaxChars::TagKey => 200,      // src/sentry/constants.py:MAX_TAG_KEY_LENGTH
-            MaxChars::TagValue => 200,    // src/sentry/constants.py:MAX_TAG_VALUE_LENGTH
-            MaxChars::Environment => 64,  // src/sentry/constants.py:ENVIRONMENT_NAME_MAX_LENGTH
-            MaxChars::Distribution => 64, // src/sentry/models/distribution.py
-            MaxChars::Soft(len) | MaxChars::Hard(len) => len,
-        }
-    }
-
-    /// The number of extra characters permitted.
-    pub fn allowance(self) -> usize {
-        match self {
-            MaxChars::Hash => 0,
-            MaxChars::EnumLike => 0,
-            MaxChars::Summary => 100,
-            MaxChars::Message => 200,
-            MaxChars::Symbol => 20,
-            MaxChars::Path => 40,
-            MaxChars::ShortPath => 20,
-            MaxChars::Logger => 0,
-            MaxChars::Email => 0,
-            MaxChars::Culprit => 0,
-            MaxChars::TagKey => 0,
-            MaxChars::TagValue => 0,
-            MaxChars::Environment => 0,
-            MaxChars::Distribution => 0,
-            MaxChars::Soft(_) => 10,
-            MaxChars::Hard(_) => 0,
-        }
-    }
-}
-
-/// The maximum size of a databag.
-#[derive(Debug, Clone, Copy, PartialEq, Hash)]
-pub enum BagSize {
-    Small,
-    Medium,
-    Large,
-    Larger,
-    Massive,
-}
-
-impl BagSize {
-    /// Maximum depth of the structure.
-    pub fn max_depth(self) -> usize {
-        match self {
-            BagSize::Small => 3,
-            BagSize::Medium => 5,
-            BagSize::Large => 7,
-            BagSize::Larger => 7,
-            BagSize::Massive => 7,
-        }
-    }
-
-    /// Maximum estimated JSON bytes.
-    pub fn max_size(self) -> usize {
-        match self {
-            BagSize::Small => 1024,
-            BagSize::Medium => 2048,
-            BagSize::Large => 8192,
-            BagSize::Larger => 16384,
-            BagSize::Massive => 262_144,
-        }
-    }
-}
-
 /// Whether an attribute should be PII-strippable/should be subject to datascrubbers
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 pub enum Pii {
@@ -221,13 +117,19 @@ pub struct FieldAttrs {
     /// A set of allowed or denied character ranges for this string.
     pub characters: Option<CharacterSet>,
     /// The maximum char length of this field.
-    pub max_chars: Option<MaxChars>,
-    /// The maximum bag size of this field.
-    pub bag_size: Option<BagSize>,
+    pub max_chars: Option<usize>,
+    /// The extra char length allowance on top of max_chars.
+    pub max_chars_allowance: usize,
+    /// The maximum depth of this field.
+    pub max_depth: Option<usize>,
+    /// The maximum number of bytes of this field.
+    pub max_bytes: Option<usize>,
     /// The type of PII on the field.
     pub pii: Pii,
     /// Whether additional properties should be retained during normalization.
     pub retain: bool,
+    /// Whether the trimming processor is allowed to shorten or drop this field.
+    pub trim: bool,
 }
 
 /// A set of characters allowed or denied for a (string) field.
@@ -262,9 +164,12 @@ impl FieldAttrs {
             trim_whitespace: false,
             characters: None,
             max_chars: None,
-            bag_size: None,
+            max_chars_allowance: 0,
+            max_depth: None,
+            max_bytes: None,
             pii: Pii::False,
             retain: false,
+            trim: true,
         }
     }
 
@@ -296,16 +201,8 @@ impl FieldAttrs {
     }
 
     /// Sets the maximum number of characters allowed in the field.
-    pub const fn max_chars(mut self, max_chars: MaxChars) -> Self {
+    pub const fn max_chars(mut self, max_chars: usize) -> Self {
         self.max_chars = Some(max_chars);
-        self
-    }
-
-    /// Sets the maximum size of all children in this field.
-    ///
-    /// This applies particularly to objects and arrays, but also to structures.
-    pub const fn bag_size(mut self, bag_size: BagSize) -> Self {
-        self.bag_size = Some(bag_size);
         self
     }
 

@@ -8,6 +8,7 @@ use bytes::Bytes;
 use relay_config::Config;
 use relay_event_schema::protocol::EventId;
 use serde::Deserialize;
+use serde_json::value::RawValue;
 
 use crate::endpoints::common::{self, BadStoreRequest};
 use crate::envelope::{ContentType, Envelope, Item, ItemType};
@@ -30,6 +31,21 @@ struct SecurityReportParams {
 }
 
 impl SecurityReportParams {
+    fn create_security_item(query: &SecurityReportQuery, item: Bytes) -> Item {
+        let mut report_item = Item::new(ItemType::RawSecurity);
+        report_item.set_payload(ContentType::Json, item);
+
+        if let Some(sentry_release) = &query.sentry_release {
+            report_item.set_header("sentry_release", sentry_release.clone());
+        }
+
+        if let Some(sentry_environment) = &query.sentry_environment {
+            report_item.set_header("sentry_environment", sentry_environment.clone());
+        }
+
+        report_item
+    }
+
     fn extract_envelope(self) -> Result<Box<Envelope>, BadStoreRequest> {
         let Self { meta, query, body } = self;
 
@@ -37,19 +53,20 @@ impl SecurityReportParams {
             return Err(BadStoreRequest::EmptyBody);
         }
 
-        let mut report_item = Item::new(ItemType::RawSecurity);
-        report_item.set_payload(ContentType::Json, body);
-
-        if let Some(sentry_release) = query.sentry_release {
-            report_item.set_header("sentry_release", sentry_release);
-        }
-
-        if let Some(sentry_environment) = query.sentry_environment {
-            report_item.set_header("sentry_environment", sentry_environment);
-        }
-
         let mut envelope = Envelope::from_request(Some(EventId::new()), meta);
-        envelope.add_item(report_item);
+        let variant =
+            serde_json::from_slice::<Vec<&RawValue>>(&body).map_err(BadStoreRequest::InvalidJson);
+
+        if let Ok(items) = variant {
+            for item in items {
+                let report_item =
+                    Self::create_security_item(&query, Bytes::from(item.to_owned().to_string()));
+                envelope.add_item(report_item);
+            }
+        } else {
+            let report_item = Self::create_security_item(&query, body);
+            envelope.add_item(report_item);
+        }
 
         Ok(envelope)
     }
@@ -67,6 +84,7 @@ fn is_security_mime(mime: Mime) -> bool {
             | ("application", "expect-ct-report", None)
             | ("application", "expect-ct-report", Some("json"))
             | ("application", "expect-staple-report", None)
+            | ("application", "reports", Some("json"))
     )
 }
 

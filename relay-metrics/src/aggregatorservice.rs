@@ -8,12 +8,9 @@ use relay_system::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::aggregator::{self, AggregatorConfig, ShiftKey};
+use crate::aggregator::{self, AggregatorConfig, FlushBatching};
 use crate::bucket::Bucket;
 use crate::statsd::{MetricCounters, MetricHistograms, MetricTimers};
-
-/// Interval for the flush cycle of the [`AggregatorService`].
-const FLUSH_INTERVAL: Duration = Duration::from_millis(100);
 
 /// Parameters used by the [`AggregatorService`].
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -36,22 +33,8 @@ pub struct AggregatorServiceConfig {
 
     /// The initial delay in seconds to wait before flushing a bucket.
     ///
-    /// Defaults to `30` seconds. Before sending an aggregated bucket, this is the time Relay waits
-    /// for buckets that are being reported in real time. This should be higher than the
-    /// `debounce_delay`.
-    ///
     /// Relay applies up to a full `bucket_interval` of additional jitter after the initial delay to spread out flushing real time buckets.
     pub initial_delay: u64,
-
-    /// The delay in seconds to wait before flushing a backdated buckets.
-    ///
-    /// Defaults to `10` seconds. Metrics can be sent with a past timestamp. Relay wait this time
-    /// before sending such a backdated bucket to the upsteam. This should be lower than
-    /// `initial_delay`.
-    ///
-    /// Unlike `initial_delay`, the debounce delay starts with the exact moment the first metric
-    /// is added to a backdated bucket.
-    pub debounce_delay: u64,
 
     /// The age in seconds of the oldest allowed bucket timestamp.
     ///
@@ -86,12 +69,6 @@ pub struct AggregatorServiceConfig {
     /// Defaults to `None`, i.e. no limit.
     pub max_project_key_bucket_bytes: Option<usize>,
 
-    /// Key used to shift the flush time of a bucket.
-    ///
-    /// This prevents flushing all buckets from a bucket interval at the same
-    /// time by computing an offset from the hash of the given key.
-    pub shift_key: ShiftKey,
-
     // TODO(dav1dde): move these config values to a better spot
     /// The approximate maximum number of bytes submitted within one flush cycle.
     ///
@@ -100,11 +77,29 @@ pub struct AggregatorServiceConfig {
     /// adds some additional overhead, this number is approxmate and some safety margin should be
     /// left to hard limits.
     pub max_flush_bytes: usize,
+
     /// The number of logical partitions that can receive flushed buckets.
     ///
     /// If set, buckets are partitioned by (bucket key % flush_partitions), and routed
     /// by setting the header `X-Sentry-Relay-Shard`.
     pub flush_partitions: Option<u64>,
+
+    /// The batching mode for the flushing of the aggregator.
+    ///
+    /// Batching is applied via shifts to the flushing time that is determined when the first bucket
+    /// is inserted. Thanks to the shifts, Relay is able to prevent flushing all buckets from a
+    /// bucket interval at the same time.
+    ///
+    /// For example, the aggregator can choose to shift by the same value all buckets within a given
+    /// partition, effectively allowing all the elements of that partition to be flushed together.
+    #[serde(alias = "shift_key")]
+    pub flush_batching: FlushBatching,
+
+    /// The flushing interval in milliseconds that determines how often the aggregator is polled for
+    /// flushing new buckets.
+    ///
+    /// Defaults to `100` milliseconds.
+    pub flush_interval_ms: u64,
 }
 
 impl Default for AggregatorServiceConfig {
@@ -113,16 +108,16 @@ impl Default for AggregatorServiceConfig {
             max_total_bucket_bytes: None,
             bucket_interval: 10,
             initial_delay: 30,
-            debounce_delay: 10,
             max_secs_in_past: 5 * 24 * 60 * 60, // 5 days, as for sessions
             max_secs_in_future: 60,             // 1 minute
             max_name_length: 200,
             max_tag_key_length: 200,
             max_tag_value_length: 200,
             max_project_key_bucket_bytes: None,
-            shift_key: ShiftKey::default(),
             max_flush_bytes: 5_000_000, // 5 MB
             flush_partitions: None,
+            flush_batching: FlushBatching::Project,
+            flush_interval_ms: 100, // 100 milliseconds
         }
     }
 }
@@ -132,14 +127,14 @@ impl From<&AggregatorServiceConfig> for AggregatorConfig {
         Self {
             bucket_interval: value.bucket_interval,
             initial_delay: value.initial_delay,
-            debounce_delay: value.debounce_delay,
             max_secs_in_past: value.max_secs_in_past,
             max_secs_in_future: value.max_secs_in_future,
             max_name_length: value.max_name_length,
             max_tag_key_length: value.max_tag_key_length,
             max_tag_value_length: value.max_tag_value_length,
             max_project_key_bucket_bytes: value.max_project_key_bucket_bytes,
-            shift_key: value.shift_key,
+            flush_partitions: value.flush_partitions,
+            flush_batching: value.flush_batching,
         }
     }
 }
@@ -219,6 +214,10 @@ pub struct BucketCountInquiry;
 ///   failed buckets. They will be merged back into the aggregator and flushed at a later time.
 #[derive(Clone, Debug)]
 pub struct FlushBuckets {
+    /// The partition to which the buckets belong.
+    ///
+    /// When set to `Some` it means that partitioning was enabled in the [`Aggregator`].
+    pub partition_key: Option<u64>,
     /// The buckets to be flushed.
     pub buckets: HashMap<ProjectKey, Vec<Bucket>>,
 }
@@ -234,6 +233,7 @@ pub struct AggregatorService {
     state: AggregatorState,
     receiver: Option<Recipient<FlushBuckets, NoResponse>>,
     max_total_bucket_bytes: Option<usize>,
+    flush_interval_ms: u64,
 }
 
 impl AggregatorService {
@@ -259,6 +259,7 @@ impl AggregatorService {
             state: AggregatorState::Running,
             max_total_bucket_bytes: config.max_total_bucket_bytes,
             aggregator: aggregator::Aggregator::named(name, AggregatorConfig::from(&config)),
+            flush_interval_ms: config.flush_interval_ms,
         }
     }
 
@@ -277,23 +278,30 @@ impl AggregatorService {
     /// If `force` is true, flush all buckets unconditionally and do not attempt to merge back.
     fn try_flush(&mut self) {
         let force_flush = matches!(&self.state, AggregatorState::ShuttingDown);
-        let buckets = self.aggregator.pop_flush_buckets(force_flush);
+        let partitions = self.aggregator.pop_flush_buckets(force_flush);
 
-        if buckets.is_empty() {
+        if partitions.is_empty() {
             return;
         }
 
-        relay_log::trace!("flushing {} projects to receiver", buckets.len());
+        let partitions_count = partitions.len() as u64;
+        relay_log::trace!("flushing {} partitions to receiver", partitions_count);
+        relay_statsd::metric!(
+            histogram(MetricHistograms::PartitionsFlushed) = partitions_count,
+            aggregator = self.aggregator.name(),
+        );
 
         let mut total_bucket_count = 0u64;
-        for buckets in buckets.values() {
-            let bucket_count = buckets.len() as u64;
-            total_bucket_count += bucket_count;
+        for buckets_by_project in partitions.values() {
+            for buckets in buckets_by_project.values() {
+                let bucket_count = buckets.len() as u64;
+                total_bucket_count += bucket_count;
 
-            relay_statsd::metric!(
-                histogram(MetricHistograms::BucketsFlushedPerProject) = bucket_count,
-                aggregator = self.aggregator.name(),
-            );
+                relay_statsd::metric!(
+                    histogram(MetricHistograms::BucketsFlushedPerProject) = bucket_count,
+                    aggregator = self.aggregator.name(),
+                );
+            }
         }
 
         relay_statsd::metric!(
@@ -302,7 +310,12 @@ impl AggregatorService {
         );
 
         if let Some(ref receiver) = self.receiver {
-            receiver.send(FlushBuckets { buckets })
+            for (partition_key, buckets_by_project) in partitions {
+                receiver.send(FlushBuckets {
+                    partition_key,
+                    buckets: buckets_by_project,
+                })
+            }
         }
     }
 
@@ -345,7 +358,7 @@ impl Service for AggregatorService {
 
     fn spawn_handler(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
         tokio::spawn(async move {
-            let mut ticker = tokio::time::interval(FLUSH_INTERVAL);
+            let mut ticker = tokio::time::interval(Duration::from_millis(self.flush_interval_ms));
             let mut shutdown = Controller::shutdown_handle();
 
             // Note that currently this loop never exits and will run till the tokio runtime shuts
@@ -415,9 +428,8 @@ mod tests {
     use std::sync::{Arc, RwLock};
 
     use relay_common::time::UnixTimestamp;
-    use relay_system::{FromMessage, Interface};
 
-    use crate::{BucketCountInquiry, BucketValue};
+    use crate::{BucketMetadata, BucketValue};
 
     use super::*;
 
@@ -472,12 +484,14 @@ mod tests {
     }
 
     fn some_bucket() -> Bucket {
+        let timestamp = UnixTimestamp::from_secs(999994711);
         Bucket {
-            timestamp: UnixTimestamp::from_secs(999994711),
+            timestamp,
             width: 0,
-            name: "c:transactions/foo".to_owned(),
+            name: "c:transactions/foo".into(),
             value: BucketValue::counter(42.into()),
             tags: BTreeMap::new(),
+            metadata: BucketMetadata::new(timestamp),
         }
     }
 
@@ -492,7 +506,6 @@ mod tests {
         let config = AggregatorServiceConfig {
             bucket_interval: 1,
             initial_delay: 0,
-            debounce_delay: 0,
             ..Default::default()
         };
         let aggregator = AggregatorService::new(config, Some(recipient)).start();

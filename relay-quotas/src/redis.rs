@@ -307,17 +307,18 @@ impl RedisRateLimiter {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
     use std::time::{SystemTime, UNIX_EPOCH};
 
     use relay_base_schema::metrics::MetricNamespace;
     use relay_base_schema::project::{ProjectId, ProjectKey};
     use relay_redis::redis::Commands;
     use relay_redis::RedisConfigOptions;
+    use smallvec::smallvec;
 
     use super::*;
     use crate::quota::{DataCategories, DataCategory, ReasonCode, Scoping};
     use crate::rate_limit::RateLimitScope;
+    use crate::MetricNamespaceScoping;
 
     fn build_rate_limiter() -> RedisRateLimiter {
         let url = std::env::var("RELAY_REDIS_URL")
@@ -364,7 +365,7 @@ mod tests {
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(44),
             },
-            namespace: None,
+            namespace: MetricNamespaceScoping::None,
         };
 
         let rate_limits: Vec<RateLimit> = build_rate_limiter()
@@ -380,7 +381,7 @@ mod tests {
                 scope: RateLimitScope::Organization(42),
                 reason_code: Some(ReasonCode::new("get_lost")),
                 retry_after: rate_limits[0].retry_after,
-                namespace: None,
+                namespaces: smallvec![],
             }]
         );
     }
@@ -413,7 +414,7 @@ mod tests {
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(44),
             },
-            namespace: Some(MetricNamespace::Transactions),
+            namespace: MetricNamespaceScoping::Some(MetricNamespace::Transactions),
         };
 
         let rate_limiter = build_rate_limiter();
@@ -476,7 +477,7 @@ mod tests {
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(44),
             },
-            namespace: None,
+            namespace: MetricNamespaceScoping::None,
         };
 
         let rate_limiter = build_rate_limiter();
@@ -496,7 +497,7 @@ mod tests {
                         scope: RateLimitScope::Organization(42),
                         reason_code: Some(ReasonCode::new("get_lost")),
                         retry_after: rate_limits[0].retry_after,
-                        namespace: None,
+                        namespaces: smallvec![],
                     }]
                 );
             } else {
@@ -526,7 +527,7 @@ mod tests {
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(44),
             },
-            namespace: None,
+            namespace: MetricNamespaceScoping::None,
         };
 
         let rate_limiter = build_rate_limiter();
@@ -546,7 +547,7 @@ mod tests {
                         scope: RateLimitScope::Global,
                         reason_code: Some(ReasonCode::new("get_lost")),
                         retry_after: rate_limits[0].retry_after,
-                        namespace: None,
+                        namespaces: smallvec![],
                     }]
                 );
             } else {
@@ -576,7 +577,7 @@ mod tests {
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(44),
             },
-            namespace: None,
+            namespace: MetricNamespaceScoping::None,
         };
 
         let rate_limiter = build_rate_limiter();
@@ -627,7 +628,7 @@ mod tests {
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(44),
             },
-            namespace: None,
+            namespace: MetricNamespaceScoping::None,
         };
 
         let rate_limiter = build_rate_limiter();
@@ -671,7 +672,7 @@ mod tests {
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(44),
             },
-            namespace: None,
+            namespace: MetricNamespaceScoping::None,
         };
 
         let rate_limits: Vec<RateLimit> = build_rate_limiter()
@@ -716,7 +717,7 @@ mod tests {
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(44),
             },
-            namespace: None,
+            namespace: MetricNamespaceScoping::None,
         };
 
         let rate_limiter = build_rate_limiter();
@@ -738,7 +739,7 @@ mod tests {
                         scope: RateLimitScope::Organization(42),
                         reason_code: Some(ReasonCode::new("project_quota1")),
                         retry_after: rate_limits[0].retry_after,
-                        namespace: None,
+                        namespaces: smallvec![],
                     }]
                 );
             }
@@ -766,7 +767,7 @@ mod tests {
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(44),
             },
-            namespace: None,
+            namespace: MetricNamespaceScoping::None,
         };
 
         let rate_limiter = build_rate_limiter();
@@ -786,7 +787,7 @@ mod tests {
                         scope: RateLimitScope::Organization(42),
                         reason_code: Some(ReasonCode::new("get_lost")),
                         retry_after: rate_limits[0].retry_after,
-                        namespace: None,
+                        namespaces: smallvec![],
                     }]
                 );
             } else {
@@ -816,7 +817,7 @@ mod tests {
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(4711),
             },
-            namespace: None,
+            namespace: MetricNamespaceScoping::None,
         };
 
         let timestamp = UnixTimestamp::from_secs(123_123_123);
@@ -845,7 +846,7 @@ mod tests {
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(4711),
             },
-            namespace: None,
+            namespace: MetricNamespaceScoping::None,
         };
 
         let timestamp = UnixTimestamp::from_secs(234_531);
@@ -874,7 +875,7 @@ mod tests {
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(4711),
             },
-            namespace: None,
+            namespace: MetricNamespaceScoping::None,
         };
 
         let timestamp = UnixTimestamp::from_secs(234_531);

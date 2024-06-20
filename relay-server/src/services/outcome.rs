@@ -5,8 +5,7 @@
 //! pipeline, outcomes may not be emitted if the item is accepted.
 
 use std::borrow::Cow;
-use std::collections::BTreeMap;
-use std::convert::TryInto;
+use std::collections::{BTreeMap, BTreeSet};
 use std::error::Error;
 use std::net::IpAddr;
 use std::sync::Arc;
@@ -19,11 +18,13 @@ use chrono::{DateTime, SecondsFormat, Utc};
 use relay_base_schema::project::ProjectId;
 use relay_common::time::UnixTimestamp;
 use relay_config::{Config, EmitOutcomes};
+use relay_dynamic_config::Feature;
 use relay_event_schema::protocol::{ClientReport, DiscardedEvent, EventId};
 use relay_filter::FilterStatKey;
 #[cfg(feature = "processing")]
 use relay_kafka::{ClientError, KafkaClient, KafkaTopic};
 use relay_quotas::{DataCategory, ReasonCode, Scoping};
+use relay_sampling::config::RuleId;
 use relay_sampling::evaluation::MatchedRuleIds;
 use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, Interface, NoResponse, Service};
@@ -81,6 +82,11 @@ impl OutcomeId {
     const INVALID: OutcomeId = OutcomeId(3);
     const ABUSE: OutcomeId = OutcomeId(4);
     const CLIENT_DISCARD: OutcomeId = OutcomeId(5);
+    const CARDINALITY_LIMITED: OutcomeId = OutcomeId(6);
+
+    pub fn as_u8(self) -> u8 {
+        self.0
+    }
 }
 
 trait TrackOutcomeLike {
@@ -99,6 +105,7 @@ trait TrackOutcomeLike {
             OutcomeId::INVALID => "invalid",
             OutcomeId::ABUSE => "abuse",
             OutcomeId::CLIENT_DISCARD => "client_discard",
+            OutcomeId::CARDINALITY_LIMITED => "cardinality_limited",
             _ => "<unknown>",
         }
     }
@@ -158,7 +165,7 @@ pub enum Outcome {
     Filtered(FilterStatKey),
 
     /// The event has been filtered by a Sampling Rule
-    FilteredSampling(MatchedRuleIds),
+    FilteredSampling(RuleCategories),
 
     /// The event has been rate limited.
     RateLimited(Option<ReasonCode>),
@@ -180,12 +187,12 @@ pub enum Outcome {
 
 impl Outcome {
     /// Returns the raw numeric value of this outcome for the JSON and Kafka schema.
-    fn to_outcome_id(&self) -> OutcomeId {
+    pub fn to_outcome_id(&self) -> OutcomeId {
         match self {
             Outcome::Filtered(_) | Outcome::FilteredSampling(_) => OutcomeId::FILTERED,
             Outcome::RateLimited(_) => OutcomeId::RATE_LIMITED,
             #[cfg(feature = "processing")]
-            Outcome::CardinalityLimited => OutcomeId::RATE_LIMITED,
+            Outcome::CardinalityLimited => OutcomeId::CARDINALITY_LIMITED,
             Outcome::Invalid(_) => OutcomeId::INVALID,
             Outcome::Abuse => OutcomeId::ABUSE,
             Outcome::ClientDiscard(_) => OutcomeId::CLIENT_DISCARD,
@@ -194,17 +201,16 @@ impl Outcome {
     }
 
     /// Returns the `reason` code field of this outcome.
-    fn to_reason(&self) -> Option<Cow<str>> {
+    pub fn to_reason(&self) -> Option<Cow<'_, str>> {
         match self {
             Outcome::Invalid(discard_reason) => Some(Cow::Borrowed(discard_reason.name())),
             Outcome::Filtered(filter_key) => Some(filter_key.clone().name()),
             Outcome::FilteredSampling(rule_ids) => Some(Cow::Owned(format!("Sampled:{rule_ids}"))),
-            //TODO can we do better ? (not re copying the string )
-            Outcome::RateLimited(code_opt) => code_opt
-                .as_ref()
-                .map(|code| Cow::Owned(code.as_str().into())),
+            Outcome::RateLimited(code_opt) => {
+                code_opt.as_ref().map(|code| Cow::Borrowed(code.as_str()))
+            }
             #[cfg(feature = "processing")]
-            Outcome::CardinalityLimited => Some(Cow::Borrowed("cardinality_limited")),
+            Outcome::CardinalityLimited => None,
             Outcome::ClientDiscard(ref discard_reason) => Some(Cow::Borrowed(discard_reason)),
             Outcome::Abuse => None,
             Outcome::Accepted => None,
@@ -243,6 +249,79 @@ impl fmt::Display for Outcome {
             Outcome::ClientDiscard(reason) => write!(f, "discarded by client ({reason})"),
             Outcome::Accepted => write!(f, "accepted"),
         }
+    }
+}
+
+/// A lower-cardinality version of [`RuleId`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum RuleCategory {
+    BoostLowVolumeProjects,
+    BoostEnvironments,
+    IgnoreHealthChecks,
+    BoostKeyTransactions,
+    Recalibration,
+    BoostReplayId,
+    BoostLowVolumeTransactions,
+    BoostLatestReleases,
+    Custom,
+    Other,
+}
+
+impl RuleCategory {
+    fn as_str(&self) -> &'static str {
+        match self {
+            Self::BoostLowVolumeProjects => "1000",
+            Self::BoostEnvironments => "1001",
+            Self::IgnoreHealthChecks => "1002",
+            Self::BoostKeyTransactions => "1003",
+            Self::Recalibration => "1004",
+            Self::BoostReplayId => "1005",
+            Self::BoostLowVolumeTransactions => "1400",
+            Self::BoostLatestReleases => "1500",
+            Self::Custom => "3000",
+            Self::Other => "0",
+        }
+    }
+}
+
+impl From<RuleId> for RuleCategory {
+    fn from(value: RuleId) -> Self {
+        match value.0 {
+            1000 => Self::BoostLowVolumeProjects,
+            1001 => Self::BoostEnvironments,
+            1002 => Self::IgnoreHealthChecks,
+            1003 => Self::BoostKeyTransactions,
+            1004 => Self::Recalibration,
+            1005 => Self::BoostReplayId,
+            1400..=1499 => Self::BoostLowVolumeTransactions,
+            1500..=1599 => Self::BoostLatestReleases,
+            3000..=4999 => Self::Custom,
+            _ => Self::Other,
+        }
+    }
+}
+
+/// An ordered set of categories that can be used as outcome reason.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct RuleCategories(pub BTreeSet<RuleCategory>);
+
+impl fmt::Display for RuleCategories {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        for (i, c) in self.0.iter().enumerate() {
+            if i > 0 {
+                write!(f, ",")?;
+            }
+            write!(f, "{}", c.as_str())?;
+        }
+        Ok(())
+    }
+}
+
+impl From<MatchedRuleIds> for RuleCategories {
+    fn from(value: MatchedRuleIds) -> Self {
+        RuleCategories(BTreeSet::from_iter(
+            value.0.into_iter().map(RuleCategory::from),
+        ))
     }
 }
 
@@ -373,6 +452,9 @@ pub enum DiscardReason {
 
     /// (Relay) A span is not valid after normalization.
     InvalidSpan,
+
+    /// (Relay) A required feature is not enabled.
+    FeatureDisabled(Feature),
 }
 
 impl DiscardReason {
@@ -417,6 +499,7 @@ impl DiscardReason {
             DiscardReason::InvalidReplayVideoEvent => "invalid_replay_video",
             DiscardReason::Profiling(reason) => reason,
             DiscardReason::InvalidSpan => "invalid_span",
+            DiscardReason::FeatureDisabled(_) => "feature_disabled",
         }
     }
 }
@@ -524,13 +607,12 @@ impl FromMessage<Self> for TrackRawOutcome {
 }
 
 #[derive(Debug)]
+#[cfg(feature = "processing")]
 #[cfg_attr(feature = "processing", derive(thiserror::Error))]
 pub enum OutcomeError {
     #[error("failed to send kafka message")]
-    #[cfg(feature = "processing")]
     SendFailed(ClientError),
     #[error("json serialization error")]
-    #[cfg(feature = "processing")]
     SerializationError(serde_json::Error),
 }
 
@@ -733,7 +815,7 @@ impl KafkaOutcomesProducer {
         for topic in &[KafkaTopic::Outcomes, KafkaTopic::OutcomesBilling] {
             let kafka_config = &config.kafka_config(*topic).context(ServiceError::Kafka)?;
             client_builder = client_builder
-                .add_kafka_topic_config(*topic, kafka_config)
+                .add_kafka_topic_config(*topic, kafka_config, config.kafka_validate_topics())
                 .context(ServiceError::Kafka)?;
         }
 
@@ -809,7 +891,6 @@ impl OutcomeBroker {
     fn send_kafka_message(
         &self,
         producer: &KafkaOutcomesProducer,
-        organization_id: u64,
         message: TrackRawOutcome,
     ) -> Result<(), OutcomeError> {
         relay_log::trace!("Tracking kafka outcome: {message:?}");
@@ -829,14 +910,10 @@ impl OutcomeBroker {
             KafkaTopic::Outcomes
         };
 
-        let result = producer.client.send(
-            topic,
-            organization_id,
-            key.as_bytes(),
-            None,
-            "outcome",
-            payload.as_bytes(),
-        );
+        let result =
+            producer
+                .client
+                .send(topic, key.as_bytes(), None, "outcome", payload.as_bytes());
 
         match result {
             Ok(_) => Ok(()),
@@ -849,11 +926,8 @@ impl OutcomeBroker {
             #[cfg(feature = "processing")]
             Self::Kafka(kafka_producer) => {
                 send_outcome_metric(&message, "kafka");
-                let organization_id = message.scoping.organization_id;
                 let raw_message = TrackRawOutcome::from_outcome(message, config);
-                if let Err(error) =
-                    self.send_kafka_message(kafka_producer, organization_id, raw_message)
-                {
+                if let Err(error) = self.send_kafka_message(kafka_producer, raw_message) {
                     relay_log::error!(error = &error as &dyn Error, "failed to produce outcome");
                 }
             }
@@ -874,8 +948,7 @@ impl OutcomeBroker {
             #[cfg(feature = "processing")]
             Self::Kafka(kafka_producer) => {
                 send_outcome_metric(&message, "kafka");
-                let sharding_id = message.org_id.unwrap_or_else(|| message.project_id.value());
-                if let Err(error) = self.send_kafka_message(kafka_producer, sharding_id, message) {
+                if let Err(error) = self.send_kafka_message(kafka_producer, message) {
                     relay_log::error!(error = &error as &dyn Error, "failed to produce outcome");
                 }
             }
@@ -970,5 +1043,25 @@ impl Service for OutcomeProducerService {
             }
             relay_log::info!("OutcomeProducer stopped.");
         });
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn rule_category_roundtrip() {
+        let input = "123,1004,1500,1403,1403,1404,1000";
+        let rule_ids = MatchedRuleIds::parse(input).unwrap();
+        let rule_categories = RuleCategories::from(rule_ids);
+
+        let serialized = rule_categories.to_string();
+        assert_eq!(&serialized, "1000,1004,1400,1500,0");
+
+        assert_eq!(
+            MatchedRuleIds::parse(&serialized).unwrap(),
+            MatchedRuleIds([1000, 1004, 1400, 1500, 0].map(RuleId).into())
+        );
     }
 }

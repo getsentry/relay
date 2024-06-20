@@ -6,7 +6,6 @@ TEST_CONFIG = {
     "aggregator": {
         "bucket_interval": 1,
         "initial_delay": 0,
-        "debounce_delay": 0,
         "shift_key": "none",
     }
 }
@@ -35,20 +34,20 @@ def test_cardinality_limits(mini_sentry, relay_with_processing, metrics_consumer
     relay = relay_with_processing(options=TEST_CONFIG)
     metrics_consumer = metrics_consumer()
 
-    project_id = 42
+    project_id = 10000
     cardinality_limits = [
         {
             "id": "transactions",
             "window": {"windowSeconds": 3600, "granularitySeconds": 600},
             "limit": 1,
-            "scope": "organization",
+            "scope": "project",
             "namespace": "transactions",
         },
         {
             "id": "custom",
             "window": {"windowSeconds": 3600, "granularitySeconds": 600},
             "limit": 2,
-            "scope": "organization",
+            "scope": "project",
             "namespace": "custom",
         },
     ]
@@ -83,13 +82,13 @@ def test_cardinality_limits_global_config_mode(
     relay = relay_with_processing(options=TEST_CONFIG)
     metrics_consumer = metrics_consumer()
 
-    project_id = 42
+    project_id = 10001
     cardinality_limits = [
         {
             "id": "transactions",
             "window": {"windowSeconds": 3600, "granularitySeconds": 600},
             "limit": 1,
-            "scope": "organization",
+            "scope": "project",
             "namespace": "transactions",
         },
     ]
@@ -113,28 +112,28 @@ def test_cardinality_limits_passive_limit(
     relay = relay_with_processing(options=TEST_CONFIG)
     metrics_consumer = metrics_consumer()
 
-    project_id = 42
+    project_id = 10002
     cardinality_limits = [
         {
             "id": "transactions_passive",
             "passive": True,
             "window": {"windowSeconds": 3600, "granularitySeconds": 600},
             "limit": 1,
-            "scope": "organization",
+            "scope": "project",
             "namespace": "transactions",
         },
         {
             "id": "transactions_enforced",
             "window": {"windowSeconds": 3600, "granularitySeconds": 600},
             "limit": 3,
-            "scope": "organization",
+            "scope": "project",
             "namespace": "transactions",
         },
         {
             "id": "custom",
             "window": {"windowSeconds": 3600, "granularitySeconds": 600},
             "limit": 2,
-            "scope": "organization",
+            "scope": "project",
             "namespace": "custom",
         },
     ]

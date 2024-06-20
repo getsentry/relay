@@ -2,19 +2,19 @@
 mod resource;
 mod sql;
 use once_cell::sync::Lazy;
+use psl;
 #[cfg(test)]
 pub use sql::{scrub_queries, Mode};
 
-use std::borrow::Cow;
-use std::path::Path;
-
-use itertools::Itertools;
 use relay_event_schema::protocol::Span;
-use url::Url;
+use std::borrow::Cow;
+use std::net::{Ipv4Addr, Ipv6Addr};
+use std::path::Path;
+use url::{Host, Url};
 
 use crate::regexes::{
-    DB_SQL_TRANSACTION_CORE_DATA_REGEX, DB_SUPABASE_REGEX, REDIS_COMMAND_REGEX,
-    RESOURCE_NORMALIZER_REGEX,
+    DB_SQL_TRANSACTION_CORE_DATA_REGEX, DB_SUPABASE_REGEX, FUNCTION_NORMALIZER_REGEX,
+    REDIS_COMMAND_REGEX, RESOURCE_NORMALIZER_REGEX,
 };
 use crate::span::description::resource::COMMON_PATH_SEGMENTS;
 use crate::span::tag_extraction::HTTP_METHOD_EXTRACTOR_REGEX;
@@ -29,6 +29,9 @@ const MAX_SEGMENT_LENGTH: usize = 25;
 
 /// Some bundlers attach characters to the end of a filename, try to catch those.
 const MAX_EXTENSION_LENGTH: usize = 10;
+
+/// Domain names that are preserved during scrubbing
+const DOMAIN_ALLOW_LIST: &[&str] = &["localhost"];
 
 /// Attempts to replace identifiers in the span description with placeholders.
 ///
@@ -55,6 +58,7 @@ pub(crate) fn scrub_span_description(
         .and_then(|(op, sub)| match (op, sub) {
             ("http", _) => scrub_http(description),
             ("cache", _) | ("db", "redis") => scrub_redis_keys(description),
+            ("db", _) if db_system == Some("redis") => scrub_redis_keys(description),
             ("db", sub) => {
                 if sub.contains("clickhouse")
                     || sub.contains("mongodb")
@@ -87,6 +91,14 @@ pub(crate) fn scrub_span_description(
                 }
             }
             ("resource", ty) => scrub_resource(ty, description),
+            ("ai", sub) => match sub.split_once('.').unwrap_or((sub, "")) {
+                ("run" | "pipeline", _) => {
+                    // ai.run.* and ai.pipeline.* are low cardinality (<100 per org) and describe
+                    // the names of nodes of an AI pipeline.
+                    Some(description.to_owned())
+                }
+                _ => None,
+            },
             ("ui", "load") => {
                 // `ui.load` spans contain component names like `ListAppViewController`, so
                 // they _should_ be low-cardinality.
@@ -123,6 +135,7 @@ pub(crate) fn scrub_span_description(
                 Some(description.to_owned())
             }
             ("file", _) => scrub_file(description),
+            ("function", _) => scrub_function(description),
             _ => None,
         });
     (scrubbed_description, parsed_sql)
@@ -165,9 +178,9 @@ fn scrub_http(string: &str) -> Option<String> {
 
     let scrubbed = match Url::parse(url) {
         Ok(url) => {
-            let host = url.host().map(|h| h.to_string())?;
-            let domain = normalize_domain(host.as_str(), url.port())?;
             let scheme = url.scheme();
+            let scrubbed_host = url.host().map(scrub_host);
+            let domain = concatenate_host_and_port(scrubbed_host.as_deref(), url.port());
 
             format!("{method} {scheme}://{domain}")
         }
@@ -186,58 +199,146 @@ fn scrub_file(description: &str) -> Option<String> {
     };
     match Path::new(filename).extension() {
         Some(extension) => {
-            let ext = extension.to_str()?;
-            Some(format!("*.{ext}"))
+            let ext = scrub_resource_file_extension(extension.to_str()?);
+            if ext != "*" {
+                Some(format!("*.{ext}"))
+            } else {
+                Some("*".to_string())
+            }
         }
         _ => Some("*".to_owned()),
     }
 }
 
-/// Normalize the domain and port of a URL.
+/// Scrub a [`Host`] object.
 ///
-/// # Arguments
+/// Domain names are run through a scrubber. All IP addresses except well known ones are replaced with a scrubbed variant.
+/// Returns the scrubbed value as a string.
 ///
-/// * `domain` - The domain of the URL.
-/// * `port` - The port of the URL.
+/// # Examples
 ///
-/// # Returns
+/// ```
+/// use url::{Host, Url};
+/// use std::net::{Ipv4Addr, Ipv6Addr};
+/// use relay_event_normalization::span::description::scrub_host;
 ///
-/// The normalized domain and port as a `String`, or `None` if normalization fails.
-pub fn normalize_domain(domain: &str, port: Option<u16>) -> Option<String> {
-    if let Some(allow_listed) = normalized_domain_from_allowlist(domain, port) {
-        return Some(allow_listed);
+/// assert_eq!(scrub_host(Host::Domain("foo.bar.baz")), "*.bar.baz");
+/// assert_eq!(scrub_host(Host::Ipv4(Ipv4Addr::LOCALHOST)), "127.0.0.1");
+/// ```
+pub fn scrub_host(host: Host<&str>) -> Cow<'_, str> {
+    match host {
+        Host::Ipv4(ip) => Cow::Borrowed(scrub_ipv4(ip)),
+        Host::Ipv6(ip) => Cow::Borrowed(scrub_ipv6(ip)),
+        Host::Domain(domain) => scrub_domain_name(domain),
     }
-
-    let mut tokens = domain.rsplitn(3, '.');
-    let tld = tokens.next();
-    let domain = tokens.next();
-    let prefix = tokens.next().map(|_| "*");
-
-    let mut replaced = prefix
-        .iter()
-        .chain(domain.iter())
-        .chain(tld.iter())
-        .join(".");
-
-    if let Some(port) = port {
-        replaced = format!("{replaced}:{port}");
-    }
-
-    if replaced.is_empty() {
-        return None;
-    }
-    Some(replaced)
 }
 
-/// Allow list of domains to not get subdomains scrubbed.
-const DOMAIN_ALLOW_LIST: &[&str] = &["127.0.0.1", "localhost"];
-
-fn normalized_domain_from_allowlist(domain: &str, port: Option<u16>) -> Option<String> {
-    if let Some(domain) = DOMAIN_ALLOW_LIST.iter().find(|allowed| **allowed == domain) {
-        let with_port = port.map_or_else(|| (*domain).to_owned(), |p| format!("{}:{}", domain, p));
-        return Some(with_port);
+/// Scrub an IPv4 address.
+///
+/// Allow well-known IPs like loopback, and fully scrub out all other IPs.
+/// Returns the scrubbed value as a string.
+///
+/// # Examples
+///
+/// ```
+/// use std::net::Ipv4Addr;
+/// use relay_event_normalization::span::description::{scrub_ipv4};
+///
+/// assert_eq!(scrub_ipv4(Ipv4Addr::LOCALHOST), "127.0.0.1");
+/// assert_eq!(scrub_ipv4(Ipv4Addr::new(8, 8, 8, 8)), "*.*.*.*");
+/// ```
+pub fn scrub_ipv4(ip: Ipv4Addr) -> &'static str {
+    match ip {
+        Ipv4Addr::LOCALHOST => "127.0.0.1",
+        _ => "*.*.*.*",
     }
-    None
+}
+
+/// Scrub an IPv6 address.
+///
+/// # Examples
+///
+/// ```
+/// use std::net::Ipv6Addr;
+/// use relay_event_normalization::span::description::{scrub_ipv6};
+///
+/// assert_eq!(scrub_ipv6(Ipv6Addr::LOCALHOST), "::1");
+/// assert_eq!(scrub_ipv6(Ipv6Addr::new(8, 8, 8, 8, 8, 8, 8, 8)), "*:*:*:*:*:*:*:*");
+/// ```
+pub fn scrub_ipv6(ip: Ipv6Addr) -> &'static str {
+    match ip {
+        Ipv6Addr::LOCALHOST => "::1",
+        _ => "*:*:*:*:*:*:*:*",
+    }
+}
+
+/// Sanitize a qualified domain string.
+///
+/// Replace all but the last two segments with asterisks.
+/// Returns a string. In cases where the string is not domain-like, returns the original string.
+///
+/// # Examples
+///
+/// ```
+/// use relay_event_normalization::span::description::scrub_domain_name;
+///
+/// assert_eq!(scrub_domain_name("my.domain.com"), "*.domain.com");
+/// assert_eq!(scrub_domain_name("data.bbc.co.uk"), "*.bbc.co.uk");
+/// assert_eq!(scrub_domain_name("hello world"), "hello world");
+/// ```
+pub fn scrub_domain_name(domain: &str) -> Cow<'_, str> {
+    if DOMAIN_ALLOW_LIST.contains(&domain) {
+        return Cow::Borrowed(domain);
+    }
+
+    let parsed_domain = psl::domain(domain.as_bytes());
+
+    let Some(parsed_domain) = parsed_domain else {
+        // If parsing fails, return the original string
+        return Cow::Borrowed(domain);
+    };
+
+    let suffix = parsed_domain.suffix().as_bytes();
+    let Some(second_level_domain) = parsed_domain.as_bytes().strip_suffix(suffix) else {
+        return Cow::Borrowed(domain);
+    };
+
+    let subdomain = domain
+        .as_bytes()
+        .strip_suffix(suffix)
+        .and_then(|s| s.strip_suffix(second_level_domain));
+
+    match subdomain {
+        None | Some(b"") => Cow::Borrowed(domain),
+        Some(_subdomain) => {
+            let scrubbed = [b"*.", second_level_domain, suffix].concat();
+            match String::from_utf8(scrubbed) {
+                Ok(s) => Cow::Owned(s),
+                Err(_) => Cow::Borrowed(domain),
+            }
+        }
+    }
+}
+
+/// Concatenate an optional host and an optional port.
+///
+/// Returns either a host + port combination, or the host. Never returns just the port.
+///
+/// # Examples
+///
+/// ```
+/// use relay_event_normalization::span::description::concatenate_host_and_port;
+///
+/// assert_eq!(concatenate_host_and_port(None, None), "");
+/// assert_eq!(concatenate_host_and_port(Some("my.domain.com"), None), "my.domain.com");
+/// assert_eq!(concatenate_host_and_port(Some("my.domain.com"), Some(1919)), "my.domain.com:1919");
+/// ```
+pub fn concatenate_host_and_port(host: Option<&str>, port: Option<u16>) -> Cow<str> {
+    match (host, port) {
+        (None, _) => Cow::Borrowed(""),
+        (Some(host), None) => Cow::Borrowed(host),
+        (Some(host), Some(port)) => Cow::Owned(format!("{host}:{port}")),
+    }
 }
 
 fn scrub_redis_keys(string: &str) -> Option<String> {
@@ -293,10 +394,9 @@ fn scrub_resource(resource_type: &str, string: &str) -> Option<String> {
             return Some("browser-extension://*".to_owned());
         }
         scheme => {
-            let domain = url
-                .domain()
-                .and_then(|d| normalize_domain(d, url.port()))
-                .unwrap_or("".into());
+            let scrubbed_host = url.host().map(scrub_host);
+            let domain = concatenate_host_and_port(scrubbed_host.as_deref(), url.port());
+
             let segment_count = url.path_segments().map(|s| s.count()).unwrap_or_default();
             let mut output_segments = vec![];
             for (i, segment) in url.path_segments().into_iter().flatten().enumerate() {
@@ -422,6 +522,10 @@ fn scrub_resource_file_extension(mut extension: &str) -> &str {
     extension
 }
 
+fn scrub_function(string: &str) -> Option<String> {
+    Some(FUNCTION_NORMALIZER_REGEX.replace_all(string, "*").into())
+}
+
 #[cfg(test)]
 mod tests {
     use relay_protocol::Annotated;
@@ -507,6 +611,27 @@ mod tests {
     );
 
     span_description_test!(
+        localhost,
+        "GET https://localhost/data",
+        "http.client",
+        "GET https://localhost"
+    );
+
+    span_description_test!(
+        loopback,
+        "GET https://127.0.0.1/data",
+        "http.client",
+        "GET https://127.0.0.1"
+    );
+
+    span_description_test!(
+        ip_address,
+        "GET https://8.8.8.8/data",
+        "http.client",
+        "GET https://*.*.*.*"
+    );
+
+    span_description_test!(
         path_md5_hashes,
         "GET /clients/563712f9722fb0996ac8f3905b40786f/project/01234",
         "http.client",
@@ -539,6 +664,27 @@ mod tests {
         "GET data:image/png;base64,drtfghaksjfdhaeh/blah/blah/blah",
         "http.client",
         "GET data:image/*"
+    );
+
+    span_description_test!(
+        simple_cctld,
+        "GET http://bbc.co.uk",
+        "http.client",
+        "GET http://bbc.co.uk"
+    );
+
+    span_description_test!(
+        longer_cctld,
+        "GET http://www.radio1.bbc.co.uk",
+        "http.client",
+        "GET http://*.bbc.co.uk"
+    );
+
+    span_description_test!(
+        complicated_tld,
+        "GET https://application.www.xn--85x722f.xn--55qx5d.cn",
+        "http.client",
+        "GET https://*.xn--85x722f.xn--55qx5d.cn"
     );
 
     span_description_test!(
@@ -781,6 +927,13 @@ mod tests {
     );
 
     span_description_test!(
+        span_description_file_extension_with_numbers_only,
+        "backup.2024041101",
+        "file.read",
+        "*"
+    );
+
+    span_description_test!(
         resource_url_with_fragment,
         "https://data.domain.com/data/guide123.gif#url=someotherurl",
         "resource.img",
@@ -924,6 +1077,34 @@ mod tests {
 
     span_description_test!(db_prisma, "User find", "db.sql.prisma", "User find");
 
+    span_description_test!(
+        function_python,
+        "sentry.event_manager.assign_event_to_group",
+        "function",
+        "sentry.event_manager.assign_event_to_group"
+    );
+
+    span_description_test!(
+        function_rust,
+        "symbolicator_native::symbolication::symbolicate::symbolicate",
+        "function",
+        "symbolicator_native::symbolication::symbolicate::symbolicate"
+    );
+
+    span_description_test!(
+        function_with_hex,
+        "symbolicator_native::symbolication::symbolicate::deadbeef",
+        "function",
+        "symbolicator_native::symbolication::symbolicate::*"
+    );
+
+    span_description_test!(
+        function_with_uuid,
+        "symbolicator_native::symbolication::fb37f08422034ee985e9fc553ef27e6e::symbolicate",
+        "function",
+        "symbolicator_native::symbolication::*::symbolicate"
+    );
+
     #[test]
     fn informed_sql_parser() {
         let json = r#"
@@ -975,6 +1156,24 @@ mod tests {
 
         // Can be scrubbed with db system.
         assert_eq!(scrubbed.0.as_deref(), Some("SELECT a FROM b"));
+    }
+
+    #[test]
+    fn redis_with_db_system() {
+        let json = r#"{
+            "description": "del myveryrandomkey:123Xalsdkxfhn",
+            "op": "db",
+            "data": {
+                "db.system": "redis"
+            }
+        }"#;
+
+        let mut span = Annotated::<Span>::from_json(json).unwrap();
+
+        let scrubbed = scrub_span_description(span.value_mut().as_mut().unwrap());
+
+        // NOTE: this should return `DEL *`, but we cannot detect lowercase command names yet.
+        assert_eq!(scrubbed.0.as_deref(), Some("*"));
     }
 
     #[test]

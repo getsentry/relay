@@ -4,14 +4,17 @@ authors = ["Sentry <oss@sentry.io>"]
 description = "User agent parser with built-in rules"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "24.2.0"
+version = "24.6.0"
 edition = "2021"
 license-file = "../LICENSE.md"
 publish = false
 
+[lints]
+workspace = true
+
 [dependencies]
 once_cell = { workspace = true }
-uaparser = { version = "0.6.0" }
+uaparser = { workspace = true }
 
 [features]
 default = []

@@ -1,8 +1,8 @@
 //! Serializable glob patterns for the API.
 
+use std::sync::OnceLock;
 use std::{fmt, str};
 
-use once_cell::sync::OnceCell;
 use regex::Regex;
 
 /// Glob options represent the underlying regex emulating the globs.
@@ -66,7 +66,7 @@ impl<'g> GlobBuilder<'g> {
 
         pattern.push('^');
 
-        static GLOB_RE: OnceCell<Regex> = OnceCell::new();
+        static GLOB_RE: OnceLock<Regex> = OnceLock::new();
         let regex = GLOB_RE.get_or_init(|| Regex::new(r"\\\?|\\\*\\\*|\\\*|\?|\*\*|\*").unwrap());
 
         for m in regex.find_iter(self.value) {
@@ -246,15 +246,15 @@ impl<T: Clone> GlobMatcher<T> {
 #[derive(Clone, Eq, PartialEq)]
 pub struct LazyGlob {
     raw: String,
-    glob: OnceCell<Glob>,
+    glob: OnceLock<Glob>,
 }
 
 impl LazyGlob {
     /// Create a new [`LazyGlob`] from the raw string.
-    pub fn new(raw: String) -> Self {
+    pub fn new(raw: impl Into<String>) -> Self {
         Self {
-            raw,
-            glob: OnceCell::new(),
+            raw: raw.into(),
+            glob: OnceLock::new(),
         }
     }
 

@@ -41,8 +41,8 @@ pipelines:
                     ${GO_REVISION_RELAY_REPO} \
                     "Integration Tests" \
                     "Test All Features (ubuntu-latest)" \
-                    "Push GCR Docker Image (relay)" \
-                    "Push GCR Docker Image (relay-pop)"
+                    "Publish Relay to GCR (relay)" \
+                    "Publish Relay to GCR (relay-pop)"
 
       - deploy-experimental:
           approval:
@@ -73,5 +73,5 @@ pipelines:
                     /devinfra/scripts/k8s/k8stunnel \
                     && /devinfra/scripts/k8s/k8s-deploy.py \
                     --label-selector="service=relay,deploy_if_canary=true" \
-                    --image="us.gcr.io/sentryio/relay:${GO_REVISION_RELAY_REPO}" \
+                    --image="us-central1-docker.pkg.dev/sentryio/relay/relay:${GO_REVISION_RELAY_REPO}" \
                     --container-name="relay"

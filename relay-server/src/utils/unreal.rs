@@ -5,7 +5,7 @@ use relay_event_schema::protocol::{
     GpuContext, LenientString, Level, LogEntry, Message, OsContext, TagEntry, Tags, Timestamp,
     User, UserReport, Values,
 };
-use relay_protocol::{Annotated, Array, Object, Value};
+use relay_protocol::{Annotated, Array, Empty, Object, Value};
 use symbolic_unreal::{
     Unreal4Context, Unreal4Crash, Unreal4Error, Unreal4ErrorKind, Unreal4FileType, Unreal4LogEntry,
 };
@@ -196,7 +196,7 @@ fn merge_unreal_context(event: &mut Event, context: Unreal4Context) {
             .user
             .get_or_insert_with(User::default)
             .username
-            .set_value(Some(username));
+            .set_value(Some(username.into()));
     }
 
     let contexts = event.contexts.get_or_insert_with(Contexts::default);
@@ -246,12 +246,12 @@ fn merge_unreal_context(event: &mut Event, context: Unreal4Context) {
         gpu_context.api_type = Annotated::new(rhi_name.into());
     }
 
-    if runtime_props.is_assert.unwrap_or(false) {
-        event.level = Annotated::new(Level::Error)
-    }
-
-    if runtime_props.is_ensure.unwrap_or(false) {
-        event.level = Annotated::new(Level::Warning)
+    if event.level.is_empty() {
+        if runtime_props.is_assert.unwrap_or(false) {
+            event.level = Annotated::new(Level::Error)
+        } else if runtime_props.is_ensure.unwrap_or(false) {
+            event.level = Annotated::new(Level::Warning)
+        }
     }
 
     // Modules are not used and later replaced with Modules from the Minidump or Apple Crash Report.
@@ -292,10 +292,14 @@ fn merge_unreal_context(event: &mut Event, context: Unreal4Context) {
     }
 }
 
+/// Processes an unreal envelope.
+///
+/// This function returns either the processing error, or a boolean indicating
+/// whether the envelope contained an unreal item.
 pub fn process_unreal_envelope(
     event: &mut Annotated<Event>,
     envelope: &mut Envelope,
-) -> Result<(), Unreal4Error> {
+) -> Result<bool, Unreal4Error> {
     let user_header = envelope
         .get_header(UNREAL_USER_HEADER)
         .and_then(Value::as_str);
@@ -306,7 +310,7 @@ pub fn process_unreal_envelope(
 
     // Early exit if there is no information.
     if user_header.is_none() && context_item.is_none() && logs_item.is_none() {
-        return Ok(());
+        return Ok(false);
     }
 
     // If we have UE4 info, ensure an event is there to fill. DO NOT fill if there is no unreal
@@ -337,7 +341,7 @@ pub fn process_unreal_envelope(
         merge_unreal_context(event, context);
     }
 
-    Ok(())
+    Ok(true)
 }
 
 #[cfg(test)]
@@ -428,6 +432,22 @@ mod tests {
         runtime_props.is_ensure = Some(true);
 
         let mut event = Event::default();
+
+        merge_unreal_context(&mut event, context);
+
+        assert_eq!(event.level, Annotated::new(Level::Warning));
+    }
+
+    #[test]
+    fn test_merge_unreal_context_is_assert_is_user_defined() {
+        let mut context = get_context();
+        let runtime_props = context.runtime_properties.as_mut().unwrap();
+        runtime_props.is_assert = Some(true);
+
+        let mut event = Event {
+            level: Annotated::new(Level::Warning),
+            ..Default::default()
+        };
 
         merge_unreal_context(&mut event, context);
 

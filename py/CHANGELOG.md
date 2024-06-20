@@ -1,5 +1,102 @@
 # Changelog
 
+## 0.8.67
+
+### Various fixes & improvements
+
+- release: 0.8.66 (8796b0b5) by @getsentry-bot
+- release: 0.8.65 (308c2438) by @getsentry-bot
+- ref: size-optimize the relay python library (#3610) by @asottile-sentry
+- ref: use macos arm builders to speed up library build (#3611) by @asottile-sentry
+- ref: Remove x86 wheels (#3596) by @asottile-sentry
+- release: 0.8.64 (5d573299) by @getsentry-bot
+- release: 0.8.63 (97262bb1) by @getsentry-bot
+- release: 0.8.61 (79138b46) by @getsentry-bot
+- ref(metrics): Change MetricHour data category to MetricSecond (#3558) by @mbauer404
+- release: 0.8.60 (ff993878) by @getsentry-bot
+- feat(cabi): normalize_project_config (#3495) by @jjbayer
+- release: 0.8.59 (70641b58) by @getsentry-bot
+
+## 0.8.66
+
+### Various fixes & improvements
+
+- release: 0.8.65 (308c2438) by @getsentry-bot
+- ref: size-optimize the relay python library (#3610) by @asottile-sentry
+- ref: use macos arm builders to speed up library build (#3611) by @asottile-sentry
+- ref: Remove x86 wheels (#3596) by @asottile-sentry
+- release: 0.8.64 (5d573299) by @getsentry-bot
+- release: 0.8.63 (97262bb1) by @getsentry-bot
+- release: 0.8.61 (79138b46) by @getsentry-bot
+- ref(metrics): Change MetricHour data category to MetricSecond (#3558) by @mbauer404
+- release: 0.8.60 (ff993878) by @getsentry-bot
+- feat(cabi): normalize_project_config (#3495) by @jjbayer
+- release: 0.8.59 (70641b58) by @getsentry-bot
+
+## 0.8.65
+
+- Remove publishing of x86 wheels. [#3596](https://github.com/getsentry/relay/pull/3596)
+- Require minimum macos 14.x for wheels [#3611](https://github.com/getsentry/relay/pull/3611)
+- Significantly reduce size of published wheels [#3610](https://github.com/getsentry/relay/pull/3610)
+
+## 0.8.64
+
+- Revert the Python version bump back to Python 3.10.
+
+## 0.8.63
+
+- This release requires Python 3.11 or later. There are no intentionally breaking changes included in this release, but we stopped testing against Python 3.10.
+- Add AI model costs to global config. ([#3579](https://github.com/getsentry/relay/pull/3579))
+
+## 0.8.61
+
+- Update data category metric hours to metric seconds. [#3558](https://github.com/getsentry/relay/pull/3558)
+
+## 0.8.60
+
+- Expose project config normalization. Drop support for `validate_project_config`. ([#3495](https://github.com/getsentry/relay/pull/3495))
+
+## 0.8.59
+
+- Expose cardinality limit config normalization. ([3489](https://github.com/getsentry/relay/pull/3489))
+- Consider "Bearer" (case-insensitive) a password. PII will scrub all strings matching that substring. ([#3484](https://github.com/getsentry/relay/pull/3484))
+
+## 0.8.58
+
+- Add ability to change the json parser. ([#3480](https://github.com/getsentry/relay/pull/3480))
+
+## 0.8.57
+
+- Add a data category for metirc hours. [#3384](https://github.com/getsentry/relay/pull/3384)
+
+## 0.8.56
+
+### Various fixes & improvements
+
+- feat(feedback): Emit outcomes for user feedback events (#3026) by @cmanallen
+- release: 0.8.55 (109ac110) by @getsentry-bot
+- feat(profiles): Add a new category to count profile chunks (#3303) by @phacops
+- release: 0.8.52 (65defad1) by @getsentry-bot
+- feat(profiles): Add a data category for continuous profiling (#3284) by @phacops
+
+## 0.8.55
+
+- Add a data category for profile chunks. [#3303](https://github.com/getsentry/relay/pull/3303))
+
+## 0.8.52
+
+- Add a data category for profile duration. ([#3284](https://github.com/getsentry/relay/pull/3284))
+
+## 0.8.50
+
+### Various fixes & improvements
+
+- release: 0.8.49 (99861e52) by @getsentry-bot
+- release: 0.8.48 (ff3e9662) by @getsentry-bot
+- fix(normalization): Skip validation on renormalization (#3214) by @iker-barriocanal
+- release: 0.8.46 (1292bbdb) by @getsentry-bot
+- fix(normalization): Accept transactions with unfinished spans (#3162) by @iker-barriocanal
+
 ## 0.8.49
 
 - Add namespace for profile metrics. ([#3229](https://github.com/getsentry/relay/pull/3229))
@@ -22,7 +119,6 @@
 ## 0.8.44
 
 - Add ability to block metrics matching a glob pattern. ([#2954](https://github.com/getsentry/relay/pull/2954))
-
 
 ## 0.8.43
 
@@ -113,10 +209,7 @@ This release requires Python 3.8 or later.
 - Add filter based on transaction names. ([#2118](https://github.com/getsentry/relay/pull/2118))
 - Add `lock` attribute to the frame protocol. ([#2171](https://github.com/getsentry/relay/pull/2171))
 
-
 ## 0.8.25
-
-
 
 ## 0.8.24
 

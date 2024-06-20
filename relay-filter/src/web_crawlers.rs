@@ -2,9 +2,8 @@
 
 use once_cell::sync::Lazy;
 use regex::Regex;
-use relay_event_schema::protocol::Event;
 
-use crate::{FilterConfig, FilterStatKey};
+use crate::{FilterConfig, FilterStatKey, Filterable};
 
 static WEB_CRAWLERS: Lazy<Regex> = Lazy::new(|| {
     Regex::new(
@@ -30,7 +29,10 @@ static WEB_CRAWLERS: Lazy<Regex> = Lazy::new(|| {
                                     # https://forums.aws.amazon.com/thread.jspa?messageID=932404
                                     # and https://github.com/getsentry/sentry-python/issues/641
         HubSpot\sCrawler|           # HubSpot web crawler (web-crawlers@hubspot.com)
-        Bytespider                  # Bytedance
+        Bytespider|                 # Bytedance
+        Better\sUptime|             # Better Uptime
+        Cloudflare-Healthchecks|    # Cloudflare Health Checks
+        GTmetrix                    # GTmetrix
     "
     )
     .expect("Invalid web crawlers filter Regex")
@@ -46,8 +48,8 @@ static ALLOWED_WEB_CRAWLERS: Lazy<Regex> = Lazy::new(|| {
 });
 
 /// Checks if the event originates from a known web crawler.
-pub fn matches(event: &Event) -> bool {
-    if let Some(user_agent) = event.user_agent() {
+fn matches(user_agent: Option<&str>) -> bool {
+    if let Some(user_agent) = user_agent {
         WEB_CRAWLERS.is_match(user_agent) && !ALLOWED_WEB_CRAWLERS.is_match(user_agent)
     } else {
         false
@@ -55,12 +57,12 @@ pub fn matches(event: &Event) -> bool {
 }
 
 /// Filters events originating from a known web crawler.
-pub fn should_filter(event: &Event, config: &FilterConfig) -> Result<(), FilterStatKey> {
+pub fn should_filter<F: Filterable>(item: &F, config: &FilterConfig) -> Result<(), FilterStatKey> {
     if !config.is_enabled {
         return Ok(());
     }
 
-    if matches(event) {
+    if matches(item.user_agent()) {
         return Err(FilterStatKey::WebCrawlers);
     }
 
@@ -115,7 +117,10 @@ mod tests {
             "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
             "AdsBot-Google (+http://www.google.com/adsbot.html)",
             "Mozilla/5.0 (compatible; HubSpot Crawler; web-crawlers@hubspot.com)",
-            "Mozilla/5.0 (Linux; Android 5.0) AppleWebKit/537.36 (KHTML, like Gecko) Mobile Safari/537.36 (compatible; Bytespider; spider-feedback@bytedance.com)"
+            "Mozilla/5.0 (Linux; Android 5.0) AppleWebKit/537.36 (KHTML, like Gecko) Mobile Safari/537.36 (compatible; Bytespider; spider-feedback@bytedance.com)",
+            "Better Uptime Bot Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/74.0.3729.169 Safari/537.36",
+            "Mozilla/5.0 (compatible;Cloudflare-Healthchecks/1.0;+https://www.cloudflare.com/; healthcheck-id: 0d1ca23e292c8c14)",
+            "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.0.0 Safari/537.36 GTmetrix",
         ];
 
         for banned_user_agent in &user_agents {

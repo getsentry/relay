@@ -1,5 +1,4 @@
 use std::collections::{BTreeMap, HashMap};
-use std::convert::TryInto;
 use std::error::Error;
 use std::io::Write;
 use std::net::{IpAddr, SocketAddr, ToSocketAddrs};
@@ -12,12 +11,11 @@ use anyhow::Context;
 use relay_auth::{generate_key_pair, generate_relay_id, PublicKey, RelayId, SecretKey};
 use relay_common::Dsn;
 use relay_kafka::{
-    ConfigError as KafkaConfigError, KafkaConfig, KafkaConfigParam, KafkaTopic, TopicAssignments,
+    ConfigError as KafkaConfigError, KafkaConfigParam, KafkaParams, KafkaTopic, TopicAssignment,
+    TopicAssignments,
 };
-use relay_metrics::aggregator::{AggregatorConfig, ShiftKey};
-use relay_metrics::{
-    AggregatorServiceConfig, Condition, Field, MetricNamespace, ScopedAggregatorConfig,
-};
+use relay_metrics::aggregator::{AggregatorConfig, FlushBatching};
+use relay_metrics::{AggregatorServiceConfig, MetricNamespace, ScopedAggregatorConfig};
 use relay_redis::RedisConfig;
 use serde::de::{DeserializeOwned, Unexpected, Visitor};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -249,8 +247,6 @@ pub struct OverridableConfig {
     pub outcome_source: Option<String>,
     /// shutdown timeout
     pub shutdown_timeout: Option<String>,
-    /// AWS Extensions API URL
-    pub aws_runtime_api: Option<String>,
 }
 
 /// The relay credentials
@@ -293,7 +289,7 @@ impl ConfigObject for Credentials {
 }
 
 /// Information on a downstream Relay.
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RelayInfo {
     /// The public key that this Relay uses to authenticate and sign requests.
@@ -524,6 +520,17 @@ struct SentryMetrics {
     ///
     /// Defaults to 5.
     pub meta_locations_max: usize,
+    /// Whether metric stats are collected and emitted.
+    ///
+    /// Metric stats are always collected and emitted when processing
+    /// is enabled.
+    ///
+    /// This option is required for running multiple trusted Relays in a chain
+    /// and you want the metric stats to be collected and forwarded from
+    /// the first Relay in the chain.
+    ///
+    /// Defaults to `false`.
+    pub metric_stats_enabled: bool,
 }
 
 impl Default for SentryMetrics {
@@ -531,6 +538,7 @@ impl Default for SentryMetrics {
         Self {
             meta_locations_expiry: 15 * 24 * 60 * 60,
             meta_locations_max: 5,
+            metric_stats_enabled: false,
         }
     }
 }
@@ -586,7 +594,7 @@ struct Limits {
     max_replay_message_size: ByteSize,
     /// The maximum number of threads to spawn for CPU and web work, each.
     ///
-    /// The total number of threads spawned will roughly be `2 * max_thread_count + 1`. Defaults to
+    /// The total number of threads spawned will roughly be `2 * max_thread_count`. Defaults to
     /// the number of logical CPU cores on the host.
     max_thread_count: usize,
     /// The maximum number of seconds a query is allowed to take across retries. Individual requests
@@ -1003,6 +1011,9 @@ pub struct Processing {
     /// Kafka topic names.
     #[serde(default)]
     pub topics: TopicAssignments,
+    /// Whether to validate the supplied topics by calling Kafka's metadata endpoints.
+    #[serde(default)]
+    pub kafka_validate_topics: bool,
     /// Redis hosts to connect to for storing state for rate limits.
     #[serde(default)]
     pub redis: Option<RedisConfig>,
@@ -1029,12 +1040,38 @@ impl Default for Processing {
             kafka_config: Vec::new(),
             secondary_kafka_configs: BTreeMap::new(),
             topics: TopicAssignments::default(),
+            kafka_validate_topics: false,
             redis: None,
             attachment_chunk_size: default_chunk_size(),
             projectconfig_cache_prefix: default_projectconfig_cache_prefix(),
             max_rate_limit: default_max_rate_limit(),
         }
     }
+}
+
+/// Configuration for normalization in this Relay.
+#[derive(Debug, Default, Serialize, Deserialize)]
+#[serde(default)]
+pub struct Normalization {
+    /// Level of normalization for Relay to apply to incoming data.
+    #[serde(default)]
+    pub level: NormalizationLevel,
+}
+
+/// Configuration for the level of normalization this Relay should do.
+#[derive(Copy, Clone, Debug, Default, Serialize, Deserialize, Eq, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum NormalizationLevel {
+    /// Runs normalization, excluding steps that break future compatibility.
+    ///
+    /// Processing Relays run [`NormalizationLevel::Full`] if this option is set.
+    #[default]
+    Default,
+    /// Run full normalization.
+    ///
+    /// It includes steps that break future compatibility and should only run in
+    /// the last layer of relays.
+    Full,
 }
 
 /// Configuration values for the outcome aggregator
@@ -1262,16 +1299,6 @@ pub struct AuthConfig {
     pub static_relays: HashMap<RelayId, RelayInfo>,
 }
 
-/// AWS extension config.
-#[derive(Serialize, Deserialize, Debug, Default)]
-pub struct AwsConfig {
-    /// The host and port of the AWS lambda extensions API.
-    ///
-    /// This value can be found in the `AWS_LAMBDA_RUNTIME_API` environment variable in a Lambda
-    /// Runtime and contains a socket address, usually `"127.0.0.1:9001"`.
-    pub runtime_api: Option<String>,
-}
-
 /// GeoIp database configuration options.
 #[derive(Serialize, Deserialize, Debug, Default)]
 pub struct GeoIpConfig {
@@ -1306,10 +1333,13 @@ impl Default for CardinalityLimiter {
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(default)]
 pub struct Health {
-    /// Interval in which Relay will refresh system information, like current memory usage.
+    /// Interval to refresh internal health checks.
     ///
-    /// Defaults to 3 seconds.
-    pub sys_info_refresh_interval_secs: u64,
+    /// Shorter intervals will decrease the time it takes the health check endpoint to report
+    /// issues, but can also increase sporadic unhealthy responses.
+    ///
+    /// Defaults to `3000`` (3 seconds).
+    pub refresh_interval_ms: u64,
     /// Maximum memory watermark in bytes.
     ///
     /// By default there is no absolute limit set and the watermark
@@ -1319,14 +1349,22 @@ pub struct Health {
     ///
     /// Defaults to `0.95` (95%).
     pub max_memory_percent: f32,
+    /// Health check probe timeout in milliseconds.
+    ///
+    /// Any probe exceeding the timeout will be considered failed.
+    /// This limits the max execution time of Relay health checks.
+    ///
+    /// Defaults to 900 milliseconds.
+    pub probe_timeout_ms: u64,
 }
 
 impl Default for Health {
     fn default() -> Self {
         Self {
-            sys_info_refresh_interval_secs: 3,
+            refresh_interval_ms: 3000,
             max_memory_bytes: None,
             max_memory_percent: 0.95,
+            probe_timeout_ms: 900,
         }
     }
 }
@@ -1407,9 +1445,9 @@ struct ConfigValues {
     #[serde(default)]
     auth: AuthConfig,
     #[serde(default)]
-    aws: AwsConfig,
-    #[serde(default)]
     geoip: GeoIpConfig,
+    #[serde(default)]
+    normalization: Normalization,
     #[serde(default)]
     cardinality_limiter: CardinalityLimiter,
     #[serde(default)]
@@ -1615,11 +1653,6 @@ impl Config {
             if let Ok(shutdown_timeout) = shutdown_timeout.parse::<u64>() {
                 limits.shutdown_timeout = shutdown_timeout;
             }
-        }
-
-        let aws = &mut self.values.aws;
-        if let Some(aws_runtime_api) = overrides.aws_runtime_api {
-            aws.runtime_api = Some(aws_runtime_api);
         }
 
         Ok(self)
@@ -2077,6 +2110,14 @@ impl Config {
         self.values.limits.max_metric_meta_size.as_bytes()
     }
 
+    /// Whether metric stats are collected and emitted.
+    ///
+    /// Metric stats are always collected and emitted when processing
+    /// is enabled.
+    pub fn metric_stats_enabled(&self) -> bool {
+        self.values.sentry_metrics.metric_stats_enabled || self.values.processing.enabled
+    }
+
     /// Returns the maximum payload size for general API requests.
     pub fn max_api_payload_size(&self) -> usize {
         self.values.limits.max_api_payload_size.as_bytes()
@@ -2164,6 +2205,11 @@ impl Config {
         self.values.processing.enabled
     }
 
+    /// Level of normalization for Relay to apply to incoming data.
+    pub fn normalization_level(&self) -> NormalizationLevel {
+        self.values.normalization.level
+    }
+
     /// The path to the GeoIp database required for event processing.
     pub fn geoip_path(&self) -> Option<&Path> {
         self.values
@@ -2191,11 +2237,21 @@ impl Config {
     }
 
     /// Configuration name and list of Kafka configuration parameters for a given topic.
-    pub fn kafka_config(&self, topic: KafkaTopic) -> Result<KafkaConfig, KafkaConfigError> {
+    pub fn kafka_config(&self, topic: KafkaTopic) -> Result<KafkaParams, KafkaConfigError> {
         self.values.processing.topics.get(topic).kafka_config(
             &self.values.processing.kafka_config,
             &self.values.processing.secondary_kafka_configs,
         )
+    }
+
+    /// Whether to validate the topics against Kafka.
+    pub fn kafka_validate_topics(&self) -> bool {
+        self.values.processing.kafka_validate_topics
+    }
+
+    /// All unused but configured topic assignments.
+    pub fn unused_topic_assignments(&self) -> &BTreeMap<String, TopicAssignment> {
+        &self.values.processing.topics.unused
     }
 
     /// Redis servers to connect to, for rate limiting.
@@ -2206,11 +2262,6 @@ impl Config {
     /// Chunk size of attachments in bytes.
     pub fn attachment_chunk_size(&self) -> usize {
         self.values.processing.attachment_chunk_size.as_bytes()
-    }
-
-    /// Amount of metric partitions.
-    pub fn metrics_partitions(&self) -> Option<u64> {
-        self.values.aggregator.flush_partitions
     }
 
     /// Maximum metrics batch size in bytes.
@@ -2236,9 +2287,9 @@ impl Config {
         Duration::from_secs(self.values.cardinality_limiter.cache_vacuum_interval)
     }
 
-    /// Interval to refresh system information.
-    pub fn health_sys_info_refresh_interval(&self) -> Duration {
-        Duration::from_secs(self.values.health.sys_info_refresh_interval_secs)
+    /// Interval to refresh internal health checks.
+    pub fn health_refresh_interval(&self) -> Duration {
+        Duration::from_millis(self.values.health.refresh_interval_ms)
     }
 
     /// Maximum memory watermark in bytes.
@@ -2253,6 +2304,11 @@ impl Config {
     /// Maximum memory watermark as a percentage of maximum system memory.
     pub fn health_max_memory_watermark_percent(&self) -> f32 {
         self.values.health.max_memory_percent
+    }
+
+    /// Health check probe timeout.
+    pub fn health_probe_timeout(&self) -> Duration {
+        Duration::from_millis(self.values.health.probe_timeout_ms)
     }
 
     /// Whether COGS measurements are enabled.
@@ -2324,8 +2380,8 @@ impl Config {
             max_tag_value_length,
             max_project_key_bucket_bytes,
             initial_delay: 30,
-            debounce_delay: 10,
-            shift_key: ShiftKey::Project,
+            flush_partitions: None,
+            flush_batching: FlushBatching::Project,
         }
     }
 
@@ -2342,9 +2398,8 @@ impl Config {
     /// Returns aggregator config for a given metrics namespace.
     pub fn aggregator_config_for(&self, namespace: MetricNamespace) -> &AggregatorServiceConfig {
         for entry in &self.values.secondary_aggregators {
-            match entry.condition {
-                Condition::Eq(Field::Namespace(ns)) if ns == namespace => return &entry.config,
-                _ => (),
+            if entry.condition.matches(Some(namespace)) {
+                return &entry.config;
             }
         }
         &self.values.aggregator
@@ -2359,11 +2414,6 @@ impl Config {
     pub fn accept_unknown_items(&self) -> bool {
         let forward = self.values.routing.accept_unknown_items;
         forward.unwrap_or_else(|| !self.processing_enabled())
-    }
-
-    /// Returns the host and port of the AWS lambda runtime API.
-    pub fn aws_runtime_api(&self) -> Option<&str> {
-        self.values.aws.runtime_api.as_deref()
     }
 }
 

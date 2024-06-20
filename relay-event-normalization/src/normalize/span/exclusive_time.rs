@@ -42,6 +42,11 @@ fn set_event_exclusive_time(
         return;
     };
 
+    if trace_context.exclusive_time.value().is_some() {
+        // Exclusive time already set, respect it.
+        return;
+    }
+
     let Some(span_id) = trace_context.span_id.value() else {
         return;
     };
@@ -136,10 +141,7 @@ pub fn compute_span_exclusive_time(event: &mut Event) {
 #[cfg(test)]
 mod tests {
     use chrono::{TimeZone, Utc};
-    use relay_event_schema::protocol::{
-        Contexts, Event, EventType, Span, SpanId, Timestamp, TraceContext, TraceId,
-    };
-    use relay_protocol::Annotated;
+    use relay_event_schema::protocol::{EventType, Timestamp, TraceId};
     use similar_asserts::assert_eq;
 
     use super::*;

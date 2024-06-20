@@ -1,11 +1,13 @@
+mod convert;
+
 #[cfg(feature = "jsonschema")]
 use relay_jsonschema_derive::JsonSchema;
 use relay_protocol::{Annotated, Empty, FromValue, Getter, IntoValue, Object, Val, Value};
 
 use crate::processor::ProcessValue;
 use crate::protocol::{
-    Event, EventId, JsonLenientString, Measurements, MetricsSummary, OperationType, OriginType,
-    ProfileContext, SpanId, SpanStatus, Timestamp, TraceContext, TraceId,
+    EventId, JsonLenientString, LenientString, Measurements, MetricsSummary, OperationType,
+    OriginType, SpanId, SpanStatus, Timestamp, TraceId,
 };
 
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
@@ -13,54 +15,57 @@ use crate::protocol::{
 #[metastructure(process_func = "process_span", value_type = "Span")]
 pub struct Span {
     /// Timestamp when the span was ended.
-    #[metastructure(required = "true")]
+    #[metastructure(required = "true", trim = "false")]
     pub timestamp: Annotated<Timestamp>,
 
     /// Timestamp when the span started.
-    #[metastructure(required = "true")]
+    #[metastructure(required = "true", trim = "false")]
     pub start_timestamp: Annotated<Timestamp>,
 
     /// The amount of time in milliseconds spent in this span,
     /// excluding its immediate child spans.
     pub exclusive_time: Annotated<f64>,
 
-    /// Human readable description of a span (e.g. method URL).
-    #[metastructure(pii = "maybe")]
-    pub description: Annotated<String>,
-
     /// Span type (see `OperationType` docs).
-    #[metastructure(max_chars = "enumlike")]
+    #[metastructure(max_chars = 128, trim = "false")]
     pub op: Annotated<OperationType>,
 
     /// The Span id.
-    #[metastructure(required = "true")]
+    #[metastructure(required = "true", trim = "false")]
     pub span_id: Annotated<SpanId>,
 
     /// The ID of the span enclosing this span.
+    #[metastructure(trim = "false")]
     pub parent_span_id: Annotated<SpanId>,
 
     /// The ID of the trace the span belongs to.
-    #[metastructure(required = "true")]
+    #[metastructure(required = "true", trim = "false")]
     pub trace_id: Annotated<TraceId>,
 
     /// A unique identifier for a segment within a trace (8 byte hexadecimal string).
     ///
     /// For spans embedded in transactions, the `segment_id` is the `span_id` of the containing
     /// transaction.
+    #[metastructure(trim = "false")]
     pub segment_id: Annotated<SpanId>,
 
     /// Whether or not the current span is the root of the segment.
+    #[metastructure(trim = "false")]
     pub is_segment: Annotated<bool>,
 
     /// The status of a span.
     pub status: Annotated<SpanStatus>,
+
+    /// Human readable description of a span (e.g. method URL).
+    #[metastructure(pii = "maybe")]
+    pub description: Annotated<String>,
 
     /// Arbitrary tags on a span, like on the top-level event.
     #[metastructure(pii = "maybe")]
     pub tags: Annotated<Object<JsonLenientString>>,
 
     /// The origin of the span indicates what created the span (see [OriginType] docs).
-    #[metastructure(max_chars = "enumlike", allow_chars = "a-zA-Z0-9_.")]
+    #[metastructure(max_chars = 128, allow_chars = "a-zA-Z0-9_.")]
     pub origin: Annotated<OriginType>,
 
     /// ID of a profile that can be associated with the span.
@@ -93,9 +98,13 @@ pub struct Span {
 
     /// Platform identifier.
     ///
-    /// See [`Event::platform`].
+    /// See [`Event::platform`](`crate::protocol::Event::platform`).
     #[metastructure(skip_serialization = "empty")]
     pub platform: Annotated<String>,
+
+    /// Whether the span is a segment span that was converted from a transaction.
+    #[metastructure(skip_serialization = "empty")]
+    pub was_transaction: Annotated<bool>,
 
     // TODO remove retain when the api stabilizes
     /// Additional arbitrary fields for forwards compatibility.
@@ -103,74 +112,58 @@ pub struct Span {
     pub other: Object<Value>,
 }
 
-impl From<&Event> for Span {
-    fn from(event: &Event) -> Self {
-        let mut span = Self {
-            _metrics_summary: event._metrics_summary.clone(),
-            description: event.transaction.clone(),
-            is_segment: Some(true).into(),
-            received: event.received.clone(),
-            start_timestamp: event.start_timestamp.clone(),
-            timestamp: event.timestamp.clone(),
-            measurements: event.measurements.clone(),
-            platform: event.platform.clone(),
-            ..Default::default()
-        };
-
-        if let Some(trace_context) = event.context::<TraceContext>().cloned() {
-            span.exclusive_time = trace_context.exclusive_time;
-            span.op = trace_context.op;
-            span.parent_span_id = trace_context.parent_span_id;
-            span.segment_id = trace_context.span_id.clone(); // a transaction is a segment
-            span.span_id = trace_context.span_id;
-            span.status = trace_context.status;
-            span.trace_id = trace_context.trace_id;
-        }
-
-        if let Some(profile_context) = event.context::<ProfileContext>() {
-            span.profile_id = profile_context.profile_id.clone();
-        }
-
-        span
-    }
-}
-
 impl Getter for Span {
     fn get_value(&self, path: &str) -> Option<Val<'_>> {
-        Some(match path.strip_prefix("span.")? {
-            "exclusive_time" => self.exclusive_time.value()?.into(),
-            "description" => self.description.as_str()?.into(),
-            "op" => self.op.as_str()?.into(),
-            "span_id" => self.span_id.as_str()?.into(),
-            "parent_span_id" => self.parent_span_id.as_str()?.into(),
-            "trace_id" => self.trace_id.as_str()?.into(),
-            "status" => self.status.as_str()?.into(),
-            "origin" => self.origin.as_str()?.into(),
-            "duration" => {
-                let start_timestamp = *self.start_timestamp.value()?;
-                let timestamp = *self.timestamp.value()?;
-                relay_common::time::chrono_to_positive_millis(timestamp - start_timestamp).into()
-            }
-            path => {
-                if let Some(key) = path.strip_prefix("tags.") {
-                    self.tags.value()?.get(key)?.as_str()?.into()
-                } else if let Some(key) = path.strip_prefix("data.") {
-                    self.data.value()?.get_value(key)?
-                } else if let Some(key) = path.strip_prefix("sentry_tags.") {
-                    self.sentry_tags.value()?.get(key)?.as_str()?.into()
-                } else if let Some(rest) = path.strip_prefix("measurements.") {
-                    let name = rest.strip_suffix(".value")?;
-                    self.measurements
-                        .value()?
-                        .get(name)?
-                        .value()?
-                        .value
-                        .value()?
+        let span_prefix = path.strip_prefix("span.");
+        if let Some(span_prefix) = span_prefix {
+            return Some(match span_prefix {
+                "exclusive_time" => self.exclusive_time.value()?.into(),
+                "description" => self.description.as_str()?.into(),
+                "op" => self.op.as_str()?.into(),
+                "span_id" => self.span_id.as_str()?.into(),
+                "parent_span_id" => self.parent_span_id.as_str()?.into(),
+                "trace_id" => self.trace_id.as_str()?.into(),
+                "status" => self.status.as_str()?.into(),
+                "origin" => self.origin.as_str()?.into(),
+                "duration" => {
+                    let start_timestamp = *self.start_timestamp.value()?;
+                    let timestamp = *self.timestamp.value()?;
+                    relay_common::time::chrono_to_positive_millis(timestamp - start_timestamp)
                         .into()
-                } else {
-                    return None;
                 }
-            }
+                "was_transaction" => self.was_transaction.value().unwrap_or(&false).into(),
+                path => {
+                    if let Some(key) = path.strip_prefix("tags.") {
+                        self.tags.value()?.get(key)?.as_str()?.into()
+                    } else if let Some(key) = path.strip_prefix("data.") {
+                        self.data.value()?.get_value(key)?
+                    } else if let Some(key) = path.strip_prefix("sentry_tags.") {
+                        self.sentry_tags.value()?.get(key)?.as_str()?.into()
+                    } else if let Some(rest) = path.strip_prefix("measurements.") {
+                        let name = rest.strip_suffix(".value")?;
+                        self.measurements
+                            .value()?
+                            .get(name)?
+                            .value()?
+                            .value
+                            .value()?
+                            .into()
+                    } else {
+                        return None;
+                    }
+                }
+            });
+        }
+
+        // For backward compatibility with event-based rules, we try to support `event.` fields also
+        // for a span.
+        let event_prefix = path.strip_prefix("event.")?;
+        Some(match event_prefix {
+            "release" => self.data.value()?.release.as_str()?.into(),
+            "environment" => self.data.value()?.environment.as_str()?.into(),
+            "transaction" => self.data.value()?.segment_name.as_str()?.into(),
+            // TODO: we might want to add additional fields once they are added to the span.
+            _ => return None,
         })
     }
 }
@@ -188,9 +181,21 @@ pub struct SpanData {
     #[metastructure(field = "app_start_type")] // TODO: no dot?
     pub app_start_type: Annotated<Value>,
 
+    /// The total tokens that were used by an LLM call
+    #[metastructure(field = "ai.total_tokens.used")]
+    pub ai_total_tokens_used: Annotated<Value>,
+
+    /// The input tokens used by an LLM call (usually cheaper than output tokens)
+    #[metastructure(field = "ai.prompt_tokens.used")]
+    pub ai_prompt_tokens_used: Annotated<Value>,
+
+    /// The output tokens used by an LLM call (the ones the LLM actually generated)
+    #[metastructure(field = "ai.completion_tokens.used")]
+    pub ai_completion_tokens_used: Annotated<Value>,
+
     /// The client's browser name.
     #[metastructure(field = "browser.name")]
-    pub browser_name: Annotated<Value>,
+    pub browser_name: Annotated<String>,
 
     /// The source code file name that identifies the code unit as uniquely as possible.
     #[metastructure(field = "code.filepath", pii = "maybe")]
@@ -225,8 +230,12 @@ pub struct SpanData {
     pub db_system: Annotated<Value>,
 
     /// The sentry environment.
-    #[metastructure(field = "environment")]
-    pub environment: Annotated<Value>,
+    #[metastructure(field = "sentry.environment", legacy_alias = "environment")]
+    pub environment: Annotated<String>,
+
+    /// The release version of the project.
+    #[metastructure(field = "sentry.release", legacy_alias = "release")]
+    pub release: Annotated<LenientString>,
 
     /// The decoded body size of the response (in bytes).
     #[metastructure(field = "http.decoded_response_content_length")]
@@ -252,22 +261,53 @@ pub struct SpanData {
     #[metastructure(field = "resource.render_blocking_status")]
     pub resource_render_blocking_status: Annotated<Value>,
 
-    /// Name of the database host.
+    /// Name of the web server host.
     #[metastructure(field = "server.address")]
     pub server_address: Annotated<Value>,
+
+    /// Whether cache was hit or miss on a read operation.
+    #[metastructure(field = "cache.hit")]
+    pub cache_hit: Annotated<Value>,
+
+    /// The name of the cache key.
+    #[metastructure(field = "cache.key")]
+    pub cache_key: Annotated<Value>,
+
+    /// The size of the cache item.
+    #[metastructure(field = "cache.item_size")]
+    pub cache_item_size: Annotated<Value>,
 
     /// The status HTTP response.
     #[metastructure(field = "http.response.status_code", legacy_alias = "status_code")]
     pub http_response_status_code: Annotated<Value>,
 
+    /// The 'name' field of the ancestor span with op ai.pipeline.*
+    #[metastructure(field = "ai.pipeline.name")]
+    pub ai_pipeline_name: Annotated<Value>,
+
+    /// The Model ID of an AI pipeline, e.g., gpt-4
+    #[metastructure(field = "ai.model_id")]
+    pub ai_model_id: Annotated<Value>,
+
+    /// The input messages to an AI model call
+    #[metastructure(field = "ai.input_messages")]
+    pub ai_input_messages: Annotated<Value>,
+
+    /// The responses to an AI model call
+    #[metastructure(field = "ai.responses")]
+    pub ai_responses: Annotated<Value>,
+
     /// Label identifying a thread from where the span originated.
     #[metastructure(field = "thread.name")]
     pub thread_name: Annotated<Value>,
 
-    /// Origin Transaction name of the span.
+    /// Name of the segment that this span belongs to (see `segment_id`).
+    ///
+    /// This corresponds to the transaction name in the transaction-based model.
     ///
     /// For INP spans, this is the route name where the interaction occurred.
-    pub transaction: Annotated<String>,
+    #[metastructure(field = "sentry.segment.name", legacy_alias = "transaction")]
+    pub segment_name: Annotated<String>,
 
     /// Name of the UI component (e.g. React).
     #[metastructure(field = "ui.component_name")]
@@ -282,8 +322,64 @@ pub struct SpanData {
     pub user: Annotated<Value>,
 
     /// Replay ID
-    #[metastructure(field = "replay_id")]
+    #[metastructure(field = "sentry.replay.id", legacy_alias = "replay_id")]
     pub replay_id: Annotated<Value>,
+
+    /// The sentry SDK (see [`crate::protocol::ClientSdkInfo`]).
+    #[metastructure(field = "sentry.sdk.name")]
+    pub sdk_name: Annotated<String>,
+
+    /// The sentry SDK version (see [`crate::protocol::ClientSdkInfo`]).
+    #[metastructure(field = "sentry.sdk.version")]
+    pub sdk_version: Annotated<String>,
+
+    /// Slow Frames
+    #[metastructure(field = "sentry.frames.slow", legacy_alias = "frames.slow")]
+    pub frames_slow: Annotated<Value>,
+
+    /// Frozen Frames
+    #[metastructure(field = "sentry.frames.frozen", legacy_alias = "frames.frozen")]
+    pub frames_frozen: Annotated<Value>,
+
+    /// Total Frames
+    #[metastructure(field = "sentry.frames.total", legacy_alias = "frames.total")]
+    pub frames_total: Annotated<Value>,
+
+    // Frames Delay (in seconds)
+    #[metastructure(field = "frames.delay")]
+    pub frames_delay: Annotated<Value>,
+
+    // Messaging Destination Name
+    #[metastructure(field = "messaging.destination.name")]
+    pub messaging_destination_name: Annotated<Value>,
+
+    /// Message Retry Count
+    #[metastructure(field = "messaging.message.retry.count")]
+    pub messaging_message_retry_count: Annotated<Value>,
+
+    /// Message Receive Latency
+    #[metastructure(field = "messaging.message.receive.latency")]
+    pub messaging_message_receive_latency: Annotated<Value>,
+
+    /// Message Body Size
+    #[metastructure(field = "messaging.message.body.size")]
+    pub messaging_message_body_size: Annotated<Value>,
+
+    /// Message ID
+    #[metastructure(field = "messaging.message.id")]
+    pub messaging_message_id: Annotated<Value>,
+
+    /// Value of the HTTP User-Agent header sent by the client.
+    #[metastructure(field = "user_agent.original")]
+    pub user_agent_original: Annotated<String>,
+
+    /// Absolute URL of a network resource.
+    #[metastructure(field = "url.full")]
+    pub url_full: Annotated<String>,
+
+    /// The client's IP address.
+    #[metastructure(field = "client.address")]
+    pub client_address: Annotated<String>,
 
     /// Other fields in `span.data`.
     #[metastructure(additional_properties, pii = "true", retain = "true")]
@@ -294,14 +390,14 @@ impl Getter for SpanData {
     fn get_value(&self, path: &str) -> Option<Val<'_>> {
         Some(match path {
             "app_start_type" => self.app_start_type.value()?.into(),
-            "browser\\.name" => self.browser_name.value()?.into(),
+            "browser\\.name" => self.browser_name.as_str()?.into(),
             "code\\.filepath" => self.code_filepath.value()?.into(),
             "code\\.function" => self.code_function.value()?.into(),
             "code\\.lineno" => self.code_lineno.value()?.into(),
             "code\\.namespace" => self.code_namespace.value()?.into(),
             "db.operation" => self.db_operation.value()?.into(),
             "db\\.system" => self.db_system.value()?.into(),
-            "environment" => self.environment.value()?.into(),
+            "environment" => self.environment.as_str()?.into(),
             "http\\.decoded_response_content_length" => {
                 self.http_decoded_response_content_length.value()?.into()
             }
@@ -320,7 +416,8 @@ impl Getter for SpanData {
             "thread\\.name" => self.thread_name.value()?.into(),
             "ui\\.component_name" => self.ui_component_name.value()?.into(),
             "url\\.scheme" => self.url_scheme.value()?.into(),
-            "transaction" => self.transaction.as_str()?.into(),
+            "transaction" => self.segment_name.as_str()?.into(),
+            "release" => self.release.as_str()?.into(),
             _ => {
                 let escaped = path.replace("\\.", "\0");
                 let mut path = escaped.split('.').map(|s| s.replace('\0', "."));
@@ -344,8 +441,8 @@ impl Getter for SpanData {
 mod tests {
     use crate::protocol::Measurement;
     use chrono::{TimeZone, Utc};
-    use insta::assert_debug_snapshot;
     use relay_base_schema::metrics::{InformationUnit, MetricUnit};
+    use relay_protocol::RuleCondition;
     use similar_asserts::assert_eq;
 
     use super::*;
@@ -356,11 +453,11 @@ mod tests {
   "timestamp": 0.0,
   "start_timestamp": -63158400.0,
   "exclusive_time": 1.23,
-  "description": "desc",
   "op": "operation",
   "span_id": "fa90fdead5f74052",
   "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
   "status": "ok",
+  "description": "desc",
   "origin": "auto.http",
   "measurements": {
     "memory": {
@@ -429,29 +526,40 @@ mod tests {
     }
 
     #[test]
-    fn span_from_event() {
-        let event = Annotated::<Event>::from_json(
+    fn test_getter_was_transaction() {
+        let mut span = Span::default();
+        assert_eq!(
+            span.get_value("span.was_transaction"),
+            Some(Val::Bool(false))
+        );
+        assert!(RuleCondition::eq("span.was_transaction", false).matches(&span));
+        assert!(!RuleCondition::eq("span.was_transaction", true).matches(&span));
+
+        span.was_transaction.set_value(Some(false));
+        assert_eq!(
+            span.get_value("span.was_transaction"),
+            Some(Val::Bool(false))
+        );
+        assert!(RuleCondition::eq("span.was_transaction", false).matches(&span));
+        assert!(!RuleCondition::eq("span.was_transaction", true).matches(&span));
+
+        span.was_transaction.set_value(Some(true));
+        assert_eq!(
+            span.get_value("span.was_transaction"),
+            Some(Val::Bool(true))
+        );
+        assert!(RuleCondition::eq("span.was_transaction", true).matches(&span));
+        assert!(!RuleCondition::eq("span.was_transaction", false).matches(&span));
+    }
+
+    #[test]
+    fn test_span_fields_as_event() {
+        let span = Annotated::<Span>::from_json(
             r#"{
-                "contexts": {
-                    "profile": {"profile_id": "a0aaaaaaaaaaaaaaaaaaaaaaaaaaaaab"},
-                    "trace": {
-                        "trace_id": "4C79F60C11214EB38604F4AE0781BFB2",
-                        "span_id": "FA90FDEAD5F74052",
-                        "type": "trace"
-                    }
-                },
-                "_metrics_summary": {
-                    "some_metric": [
-                        {
-                            "min": 1.0,
-                            "max": 2.0,
-                            "sum": 3.0,
-                            "count": 2,
-                            "tags": {
-                                "environment": "test"
-                            }
-                        }
-                    ]
+                "data": {
+                    "release": "1.0",
+                    "environment": "prod",
+                    "sentry.segment.name": "/api/endpoint"
                 }
             }"#,
         )
@@ -459,53 +567,15 @@ mod tests {
         .into_value()
         .unwrap();
 
-        assert_debug_snapshot!(Span::from(&event), @r###"
-        Span {
-            timestamp: ~,
-            start_timestamp: ~,
-            exclusive_time: ~,
-            description: ~,
-            op: ~,
-            span_id: SpanId(
-                "fa90fdead5f74052",
-            ),
-            parent_span_id: ~,
-            trace_id: TraceId(
-                "4c79f60c11214eb38604f4ae0781bfb2",
-            ),
-            segment_id: SpanId(
-                "fa90fdead5f74052",
-            ),
-            is_segment: true,
-            status: ~,
-            tags: ~,
-            origin: ~,
-            profile_id: EventId(
-                a0aaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaab,
-            ),
-            data: ~,
-            sentry_tags: ~,
-            received: ~,
-            measurements: ~,
-            _metrics_summary: MetricsSummary(
-                {
-                    "some_metric": [
-                        MetricSummary {
-                            min: 1.0,
-                            max: 2.0,
-                            sum: 3.0,
-                            count: 2,
-                            tags: {
-                                "environment": "test",
-                            },
-                        },
-                    ],
-                },
-            ),
-            platform: ~,
-            other: {},
-        }
-        "###);
+        assert_eq!(span.get_value("event.release"), Some(Val::String("1.0")));
+        assert_eq!(
+            span.get_value("event.environment"),
+            Some(Val::String("prod"))
+        );
+        assert_eq!(
+            span.get_value("event.transaction"),
+            Some(Val::String("/api/endpoint"))
+        );
     }
 
     #[test]
@@ -532,7 +602,19 @@ mod tests {
         "code.filepath": "task.py",
         "code.lineno": 123,
         "code.function": "fn()",
-        "code.namespace": "ns"
+        "code.namespace": "ns",
+        "frames.slow": 1,
+        "frames.frozen": 2,
+        "frames.total": 9,
+        "frames.delay": 100,
+        "messaging.destination.name": "default",
+        "messaging.message.retry.count": 3,
+        "messaging.message.receive.latency": 40,
+        "messaging.message.body.size": 100,
+        "messaging.message.id": "abc123",
+        "user_agent.original": "Chrome",
+        "url.full": "my_url.com",
+        "client.address": "192.168.0.1"
     }"#;
         let data = Annotated::<SpanData>::from_json(data)
             .unwrap()
@@ -541,6 +623,9 @@ mod tests {
         insta::assert_debug_snapshot!(data, @r###"
         SpanData {
             app_start_type: ~,
+            ai_total_tokens_used: ~,
+            ai_prompt_tokens_used: ~,
+            ai_completion_tokens_used: ~,
             browser_name: ~,
             code_filepath: String(
                 "task.py",
@@ -559,19 +644,59 @@ mod tests {
                 "mysql",
             ),
             environment: ~,
+            release: ~,
             http_decoded_response_content_length: ~,
             http_request_method: ~,
             http_response_content_length: ~,
             http_response_transfer_size: ~,
             resource_render_blocking_status: ~,
             server_address: ~,
+            cache_hit: ~,
+            cache_key: ~,
+            cache_item_size: ~,
             http_response_status_code: ~,
+            ai_pipeline_name: ~,
+            ai_model_id: ~,
+            ai_input_messages: ~,
+            ai_responses: ~,
             thread_name: ~,
-            transaction: ~,
+            segment_name: ~,
             ui_component_name: ~,
             url_scheme: ~,
             user: ~,
             replay_id: ~,
+            sdk_name: ~,
+            sdk_version: ~,
+            frames_slow: I64(
+                1,
+            ),
+            frames_frozen: I64(
+                2,
+            ),
+            frames_total: I64(
+                9,
+            ),
+            frames_delay: I64(
+                100,
+            ),
+            messaging_destination_name: String(
+                "default",
+            ),
+            messaging_message_retry_count: I64(
+                3,
+            ),
+            messaging_message_receive_latency: I64(
+                40,
+            ),
+            messaging_message_body_size: I64(
+                100,
+            ),
+            messaging_message_id: String(
+                "abc123",
+            ),
+            user_agent_original: "Chrome",
+            url_full: "my_url.com",
+            client_address: "192.168.0.1",
             other: {
                 "bar": String(
                     "3",

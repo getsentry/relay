@@ -10,8 +10,8 @@ use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
 
 use crate::protocol::{
-    self, hash_set_value, CounterType, DistributionType, GaugeType, MetricResourceIdentifier,
-    MetricType, SetType,
+    self, hash_set_value, CounterType, DistributionType, GaugeType, MetricName,
+    MetricResourceIdentifier, MetricType, SetType,
 };
 use crate::{FiniteF64, MetricNamespace, ParseMetricError};
 
@@ -412,10 +412,9 @@ fn parse_tags(string: &str) -> Option<BTreeMap<String, String>> {
             continue;
         }
 
-        let mut value = name_value.next().unwrap_or_default().to_owned();
-        protocol::validate_tag_value(&mut value);
-
-        map.insert(name.to_owned(), value);
+        if let Ok(value) = protocol::unescape_tag_value(name_value.next().unwrap_or_default()) {
+            map.insert(name.to_owned(), value);
+        }
     }
 
     Some(map)
@@ -502,7 +501,7 @@ pub struct Bucket {
     /// # Statsd Format
     ///
     /// In statsd, timestamps are part of the `|`-separated list following values. Timestamps start
-    /// with with the literal character `'T'` followed by the UNIX timestamp.
+    /// with the literal character `'T'` followed by the UNIX timestamp.
     ///
     /// The timestamp must be a positive integer in decimal notation representing the value of the
     /// UNIX timestamp.
@@ -537,7 +536,7 @@ pub struct Bucket {
     ///
     /// Namespaces and units must consist of ASCII characters and match the regular expression
     /// `/\w+/`. The name component of MRIs consist of unicode characters and must match the
-    /// regular expression `/\w[\w\d_-.]+/`. Note that the name must begin with a letter.
+    /// regular expression `/\w[\w\-.]*/`. Note that the name must begin with a letter.
     ///
     /// Per convention, dots separate metric names into components, where the leading components are
     /// considered namespaces and the final component is the name of the metric within its
@@ -550,7 +549,7 @@ pub struct Bucket {
     /// custom/endpoint.hits:1|c
     /// custom/endpoint.duration@millisecond:21.5|d
     /// ```
-    pub name: String,
+    pub name: MetricName,
 
     /// The type and aggregated values of this bucket.
     ///
@@ -592,8 +591,15 @@ pub struct Bucket {
     /// omitted.
     ///
     /// Tag keys are restricted to ASCII characters and must match the regular expression
-    /// `/[a-zA-Z0-9_/.-]+/`. Tag values can contain unicode characters and must match the regular
-    /// expression `/[\w\d\s_:/@.{}\[\]$-]+/`.
+    /// `/[\w\-.\/]+/`.
+    ///
+    /// Tag values can contain unicode characters with the following escaping rules:
+    ///  - Tab is escaped as `\t`.
+    ///  - Carriage return is escaped as `\r`.
+    ///  - Line feed is escaped as `\n`.
+    ///  - Backslash is escaped as `\\`.
+    ///  - Commas and pipes are given unicode escapes in the form `\u{2c}` and `\u{7c}`,
+    ///    respectively.
     ///
     /// # Example
     ///
@@ -602,14 +608,16 @@ pub struct Bucket {
     /// ```
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub tags: BTreeMap<String, String>,
+
+    /// Relay internal metadata for a metric bucket.
+    ///
+    /// The metadata contains meta information about the metric bucket itself,
+    /// for example how many this bucket has been aggregated in total.
+    #[serde(default, skip_serializing_if = "BucketMetadata::is_default")]
+    pub metadata: BucketMetadata,
 }
 
 impl Bucket {
-    /// Returns the [`MetricNamespace`] of the bucket.
-    pub fn parse_namespace(&self) -> Result<MetricNamespace, ParseMetricError> {
-        MetricResourceIdentifier::parse(&self.name).map(|mri| mri.namespace)
-    }
-
     /// Parses a statsd-compatible payload.
     ///
     /// ```text
@@ -632,9 +640,10 @@ impl Bucket {
         let mut bucket = Bucket {
             timestamp,
             width: 0,
-            name: mri.to_string(),
+            name: mri.to_string().into(),
             value,
             tags: Default::default(),
+            metadata: Default::default(),
         };
 
         for component in components {
@@ -712,19 +721,11 @@ impl Bucket {
 
 impl CardinalityItem for Bucket {
     fn namespace(&self) -> Option<MetricNamespace> {
-        let mri = match MetricResourceIdentifier::parse(&self.name) {
-            Err(error) => {
-                relay_log::debug!(
-                    error = &error as &dyn std::error::Error,
-                    metric = self.name,
-                    "rejecting metric with invalid MRI"
-                );
-                return None;
-            }
-            Ok(mri) => mri,
-        };
+        self.name.try_namespace()
+    }
 
-        Some(mri.namespace)
+    fn name(&self) -> &MetricName {
+        &self.name
     }
 
     fn to_hash(&self) -> u32 {
@@ -732,6 +733,80 @@ impl CardinalityItem for Bucket {
         self.name.hash(&mut hasher);
         self.tags.hash(&mut hasher);
         hasher.finish32()
+    }
+}
+
+/// Relay internal metadata for a metric bucket.
+#[derive(Clone, Copy, Debug, PartialEq, Deserialize, Serialize)]
+pub struct BucketMetadata {
+    /// How many times the bucket was merged.
+    ///
+    /// Creating a new bucket is the first merge.
+    /// Merging two buckets sums the amount of merges.
+    ///
+    /// For example: Merging two un-merged buckets will yield a total
+    /// of `2` merges.
+    ///
+    /// Due to how Relay aggregates metrics and later splits them into multiple
+    /// buckets again, the amount of merges can be zero.
+    /// When splitting a bucket the total volume of the bucket may only be attributed
+    /// to one part or distributed across the resulting buckets, in either case
+    /// values of `0` are possible.
+    pub merges: u32,
+
+    /// Received timestamp of the first metric in this bucket.
+    ///
+    /// This field should be set to the time in which the first metric of a specific bucket was
+    /// received in the outermost internal Relay.
+    pub received_at: Option<UnixTimestamp>,
+
+    /// Is `true` if this metric was extracted from a sampled/indexed envelope item.
+    ///
+    /// The final dynamic sampling decision is always made in processing Relays.
+    /// If a metric was extracted from an item which is sampled (i.e. retained by dynamic sampling), this flag is `true`.
+    ///
+    /// Since these metrics from samples carry additional information, e.g. they don't
+    /// require rate limiting since the sample they've been extracted from was already
+    /// rate limited, this flag must be included in the aggregation key when aggregation buckets.
+    #[serde(skip)]
+    pub extracted_from_indexed: bool,
+}
+
+impl BucketMetadata {
+    /// Creates a fresh metadata instance.
+    ///
+    /// The new metadata is initialized with `1` merge and a given `received_at` timestamp.
+    pub fn new(received_at: UnixTimestamp) -> Self {
+        Self {
+            merges: 1,
+            received_at: Some(received_at),
+            extracted_from_indexed: false,
+        }
+    }
+
+    /// Whether the metadata does not contain more information than the default.
+    pub fn is_default(&self) -> bool {
+        &Self::default() == self
+    }
+
+    /// Merges another metadata object into the current one.
+    pub fn merge(&mut self, other: Self) {
+        self.merges = self.merges.saturating_add(other.merges);
+        self.received_at = match (self.received_at, other.received_at) {
+            (Some(received_at), None) => Some(received_at),
+            (None, Some(received_at)) => Some(received_at),
+            (left, right) => left.min(right),
+        };
+    }
+}
+
+impl Default for BucketMetadata {
+    fn default() -> Self {
+        Self {
+            merges: 1,
+            received_at: None,
+            extracted_from_indexed: false,
+        }
     }
 }
 
@@ -855,11 +930,18 @@ mod tests {
         Bucket {
             timestamp: UnixTimestamp(4711),
             width: 0,
-            name: "c:transactions/foo@none",
+            name: MetricName(
+                "c:transactions/foo@none",
+            ),
             value: Counter(
                 42.0,
             ),
             tags: {},
+            metadata: BucketMetadata {
+                merges: 1,
+                received_at: None,
+                extracted_from_indexed: false,
+            },
         }
         "###);
     }
@@ -881,13 +963,20 @@ mod tests {
         Bucket {
             timestamp: UnixTimestamp(4711),
             width: 0,
-            name: "d:transactions/foo@none",
+            name: MetricName(
+                "d:transactions/foo@none",
+            ),
             value: Distribution(
                 [
                     17.5,
                 ],
             ),
             tags: {},
+            metadata: BucketMetadata {
+                merges: 1,
+                received_at: None,
+                extracted_from_indexed: false,
+            },
         }
         "###);
     }
@@ -927,13 +1016,20 @@ mod tests {
         Bucket {
             timestamp: UnixTimestamp(4711),
             width: 0,
-            name: "s:transactions/foo@none",
+            name: MetricName(
+                "s:transactions/foo@none",
+            ),
             value: Set(
                 {
                     4267882815,
                 },
             ),
             tags: {},
+            metadata: BucketMetadata {
+                merges: 1,
+                received_at: None,
+                extracted_from_indexed: false,
+            },
         }
         "###);
     }
@@ -977,7 +1073,9 @@ mod tests {
         Bucket {
             timestamp: UnixTimestamp(4711),
             width: 0,
-            name: "g:transactions/foo@none",
+            name: MetricName(
+                "g:transactions/foo@none",
+            ),
             value: Gauge(
                 GaugeValue {
                     last: 42.0,
@@ -988,6 +1086,11 @@ mod tests {
                 },
             ),
             tags: {},
+            metadata: BucketMetadata {
+                merges: 1,
+                received_at: None,
+                extracted_from_indexed: false,
+            },
         }
         "###);
     }
@@ -1001,7 +1104,9 @@ mod tests {
         Bucket {
             timestamp: UnixTimestamp(4711),
             width: 0,
-            name: "g:transactions/foo@none",
+            name: MetricName(
+                "g:transactions/foo@none",
+            ),
             value: Gauge(
                 GaugeValue {
                     last: 25.0,
@@ -1012,6 +1117,11 @@ mod tests {
                 },
             ),
             tags: {},
+            metadata: BucketMetadata {
+                merges: 1,
+                received_at: None,
+                extracted_from_indexed: false,
+            },
         }
         "###);
     }
@@ -1025,11 +1135,18 @@ mod tests {
         Bucket {
             timestamp: UnixTimestamp(4711),
             width: 0,
-            name: "c:custom/foo@none",
+            name: MetricName(
+                "c:custom/foo@none",
+            ),
             value: Counter(
                 42.0,
             ),
             tags: {},
+            metadata: BucketMetadata {
+                merges: 1,
+                received_at: None,
+                extracted_from_indexed: false,
+            },
         }
         "###);
     }
@@ -1066,6 +1183,18 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_tags_escaped() {
+        let s = "transactions/foo:17.5|d|#foo:😅\\u{2c}🚀";
+        let timestamp = UnixTimestamp::from_secs(4711);
+        let metric = Bucket::parse(s.as_bytes(), timestamp).unwrap();
+        insta::assert_debug_snapshot!(metric.tags, @r#"
+            {
+                "foo": "😅,🚀",
+            }
+            "#);
+    }
+
+    #[test]
     fn test_parse_timestamp() {
         let s = "transactions/foo:17.5|d|T1615889449";
         let timestamp = UnixTimestamp::from_secs(4711);
@@ -1086,7 +1215,7 @@ mod tests {
         let s = "foo#bar:42|c";
         let timestamp = UnixTimestamp::from_secs(4711);
         let metric = Bucket::parse(s.as_bytes(), timestamp).unwrap();
-        assert_eq!(metric.name, "c:custom/foo_bar@none");
+        assert_eq!(metric.name.as_ref(), "c:custom/foo_bar@none");
     }
 
     #[test]
@@ -1186,17 +1315,24 @@ mod tests {
             "width": 10,
             "tags": {
                 "route": "user_index"
+            },
+            "metadata": {
+                "merges": 1,
+                "received_at": 1615889440
             }
           }
         ]"#;
 
         let buckets = serde_json::from_str::<Vec<Bucket>>(json).unwrap();
+
         insta::assert_debug_snapshot!(buckets, @r###"
         [
             Bucket {
                 timestamp: UnixTimestamp(1615889440),
                 width: 10,
-                name: "endpoint.response_time",
+                name: MetricName(
+                    "endpoint.response_time",
+                ),
                 value: Distribution(
                     [
                         36.0,
@@ -1207,6 +1343,13 @@ mod tests {
                 ),
                 tags: {
                     "route": "user_index",
+                },
+                metadata: BucketMetadata {
+                    merges: 1,
+                    received_at: Some(
+                        UnixTimestamp(1615889440),
+                    ),
+                    extracted_from_indexed: false,
                 },
             },
         ]
@@ -1221,24 +1364,38 @@ mod tests {
             "value": 4,
             "type": "c",
             "timestamp": 1615889440,
-            "width": 10
+            "width": 10,
+            "metadata": {
+                "merges": 1,
+                "received_at": 1615889440
+            }
           }
         ]"#;
 
         let buckets = serde_json::from_str::<Vec<Bucket>>(json).unwrap();
-        insta::assert_debug_snapshot!(buckets, @r#"
+
+        insta::assert_debug_snapshot!(buckets, @r###"
         [
             Bucket {
                 timestamp: UnixTimestamp(1615889440),
                 width: 10,
-                name: "endpoint.hits",
+                name: MetricName(
+                    "endpoint.hits",
+                ),
                 value: Counter(
                     4.0,
                 ),
                 tags: {},
+                metadata: BucketMetadata {
+                    merges: 1,
+                    received_at: Some(
+                        UnixTimestamp(1615889440),
+                    ),
+                    extracted_from_indexed: false,
+                },
             },
         ]
-        "#);
+        "###);
     }
 
     #[test]
@@ -1311,5 +1468,43 @@ mod tests {
 
         let serialized = serde_json::to_string_pretty(&buckets).unwrap();
         assert_eq!(json, serialized);
+    }
+
+    #[test]
+    fn test_bucket_metadata_merge() {
+        let mut metadata = BucketMetadata::default();
+
+        let other_metadata = BucketMetadata::default();
+        metadata.merge(other_metadata);
+        assert_eq!(
+            metadata,
+            BucketMetadata {
+                merges: 2,
+                received_at: None,
+                extracted_from_indexed: false,
+            }
+        );
+
+        let other_metadata = BucketMetadata::new(UnixTimestamp::from_secs(10));
+        metadata.merge(other_metadata);
+        assert_eq!(
+            metadata,
+            BucketMetadata {
+                merges: 3,
+                received_at: Some(UnixTimestamp::from_secs(10)),
+                extracted_from_indexed: false,
+            }
+        );
+
+        let other_metadata = BucketMetadata::new(UnixTimestamp::from_secs(20));
+        metadata.merge(other_metadata);
+        assert_eq!(
+            metadata,
+            BucketMetadata {
+                merges: 4,
+                received_at: Some(UnixTimestamp::from_secs(10)),
+                extracted_from_indexed: false,
+            }
+        );
     }
 }

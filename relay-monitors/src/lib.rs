@@ -16,7 +16,8 @@
 )]
 #![warn(missing_docs)]
 
-use once_cell::sync::OnceCell;
+use std::sync::OnceLock;
+
 use relay_base_schema::project::ProjectId;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -43,7 +44,7 @@ pub enum ProcessCheckInError {
     InvalidEnvironment,
 }
 
-///
+/// Describes the status of the incoming CheckIn.
 #[derive(Clone, Copy, Debug, PartialEq, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum CheckInStatus {
@@ -113,6 +114,13 @@ pub struct MonitorConfig {
     /// How many consecutive OK check-ins it takes to resolve an issue.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     recovery_threshold: Option<u64>,
+
+    /// Who the owner of the monitor should be. Uses the ActorTuple [0]
+    /// identifier format.
+    ///
+    /// [0]: https://github.com/getsentry/sentry/blob/3644f5c4f2a99073bf925181b5237a6e05c1d6c2/src/sentry/utils/actor.py#L17
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    owner: Option<String>,
 }
 
 /// The trace context sent with a check-in.
@@ -201,7 +209,7 @@ pub fn process_check_in(
         return Err(ProcessCheckInError::InvalidEnvironment);
     }
 
-    static NAMESPACE: OnceCell<Uuid> = OnceCell::new();
+    static NAMESPACE: OnceLock<Uuid> = OnceLock::new();
     let namespace = NAMESPACE
         .get_or_init(|| Uuid::new_v5(&Uuid::NAMESPACE_URL, b"https://sentry.io/crons/#did"));
 
@@ -324,7 +332,8 @@ mod tests {
     "max_runtime": 10,
     "timezone": "America/Los_Angles",
     "failure_issue_threshold": 3,
-    "recovery_threshold": 1
+    "recovery_threshold": 1,
+    "owner": "user:123"
   }
 }"#;
 

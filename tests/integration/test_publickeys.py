@@ -1,6 +1,7 @@
 """
 Tests the publickeys endpoint (/api/0/relays/publickeys/)
 """
+
 import uuid
 import pytest
 from collections import namedtuple
@@ -54,8 +55,8 @@ def test_public_keys(mini_sentry, relay, caller, relays_to_fetch):
     }
 
     # create 2 normal relays
-    relay1 = relay(mini_sentry, wait_health_check=True, static_relays=relays_conf)
-    relay2 = relay(mini_sentry, wait_health_check=True, static_relays=relays_conf)
+    relay1 = relay(mini_sentry, static_relays=relays_conf)
+    relay2 = relay(mini_sentry, static_relays=relays_conf)
 
     # create info for our test parameters
     r1 = RelayInfo(

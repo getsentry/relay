@@ -1,9 +1,9 @@
 //! Event processor related code.
 
 use std::error::Error;
+use std::sync::OnceLock;
 
 use chrono::Duration as SignedDuration;
-use once_cell::sync::OnceCell;
 use relay_auth::RelayVersion;
 use relay_base_schema::events::EventType;
 use relay_config::Config;
@@ -12,7 +12,7 @@ use relay_event_normalization::{nel, ClockDriftProcessor};
 use relay_event_schema::processor::{self, ProcessingState};
 use relay_event_schema::protocol::{
     Breadcrumb, Csp, Event, ExpectCt, ExpectStaple, Hpkp, LenientString, NetworkReportError,
-    OtelContext, RelayInfo, SecurityReportType, Timestamp, Values,
+    OtelContext, RelayInfo, SecurityReportType, Values,
 };
 use relay_pii::PiiProcessor;
 use relay_protocol::{Annotated, Array, Empty, FromValue, Object, Value};
@@ -20,13 +20,7 @@ use relay_quotas::DataCategory;
 use relay_statsd::metric;
 use serde_json::Value as SerdeValue;
 
-#[cfg(feature = "processing")]
-use {
-    relay_event_normalization::{StoreConfig, StoreProcessor},
-    relay_event_schema::protocol::IpAddr,
-};
-
-use crate::envelope::{AttachmentType, ContentType, Item, ItemType};
+use crate::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType};
 use crate::extractors::RequestMeta;
 use crate::services::outcome::Outcome;
 use crate::services::processor::{
@@ -46,7 +40,9 @@ use crate::utils::{self, ChunkedFormDataAggregator, FormDataIter};
 pub fn extract<G: EventProcessing>(
     state: &mut ProcessEnvelopeState<G>,
     config: &Config,
+    global_config: &GlobalConfig,
 ) -> Result<(), ProcessingError> {
+    let event_fully_normalized = state.event_fully_normalized;
     let envelope = &mut state.envelope_mut();
 
     // Remove all items first, and then process them. After this function returns, only
@@ -73,19 +69,30 @@ pub fn extract<G: EventProcessing>(
         return Err(ProcessingError::DuplicateItem(duplicate.ty().clone()));
     }
 
+    let skip_normalization = config.processing_enabled()
+        && global_config.options.processing_disable_normalization
+        && event_fully_normalized;
+
     let mut sample_rates = None;
     let (event, event_len) = if let Some(mut item) = event_item.or(security_item) {
         relay_log::trace!("processing json event");
         sample_rates = item.take_sample_rates();
         metric!(timer(RelayTimers::EventProcessingDeserialize), {
+            let (mut annotated_event, len) = event_from_json_payload(item, None)?;
             // Event items can never include transactions, so retain the event type and let
-            // inference deal with this during store normalization.
-            event_from_json_payload(item, None)?
+            // inference deal with this during normalization.
+            if let Some(event) = annotated_event.value_mut() {
+                if !skip_normalization {
+                    event.ty.set_value(None);
+                }
+            }
+            (annotated_event, len)
         })
     } else if let Some(mut item) = transaction_item {
         relay_log::trace!("processing json transaction");
         sample_rates = item.take_sample_rates();
         state.event_metrics_extracted = item.metrics_extracted();
+        state.spans_extracted = item.spans_extracted();
         metric!(timer(RelayTimers::EventProcessingDeserialize), {
             // Transaction items can only contain transaction events. Force the event type to
             // hint to normalization that we're dealing with a transaction now.
@@ -103,10 +110,12 @@ pub fn extract<G: EventProcessing>(
         relay_log::trace!("processing security report");
         sample_rates = item.take_sample_rates();
         event_from_security_report(item, envelope.meta()).map_err(|error| {
-            relay_log::error!(
-                error = &error as &dyn Error,
-                "failed to extract security report"
-            );
+            if !matches!(error, ProcessingError::UnsupportedSecurityType) {
+                relay_log::error!(
+                    error = &error as &dyn Error,
+                    "failed to extract security report"
+                );
+            }
             error
         })?
     } else if let Some(item) = nel_item {
@@ -143,7 +152,6 @@ pub fn finalize<G: EventProcessing>(
     state: &mut ProcessEnvelopeState<G>,
     config: &Config,
 ) -> Result<(), ProcessingError> {
-    let is_transaction = state.event_type() == Some(EventType::Transaction);
     let envelope = state.managed_envelope.envelope_mut();
 
     let event = match state.event.value_mut() {
@@ -153,7 +161,7 @@ pub fn finalize<G: EventProcessing>(
     };
 
     if !config.processing_enabled() {
-        static MY_VERSION_STRING: OnceCell<String> = OnceCell::new();
+        static MY_VERSION_STRING: OnceLock<String> = OnceLock::new();
         let my_version = MY_VERSION_STRING.get_or_init(|| RelayVersion::current().to_string());
 
         event
@@ -240,17 +248,9 @@ pub fn finalize<G: EventProcessing>(
         }
     }
 
-    // TODO: Temporary workaround before processing. Experimental SDKs relied on a buggy
-    // clock drift correction that assumes the event timestamp is the sent_at time. This
-    // should be removed as soon as legacy ingestion has been removed.
-    let sent_at = match envelope.sent_at() {
-        Some(sent_at) => Some(sent_at),
-        None if is_transaction => event.timestamp.value().copied().map(Timestamp::into_inner),
-        None => None,
-    };
-
-    let mut processor = ClockDriftProcessor::new(sent_at, state.managed_envelope.received_at())
-        .at_least(MINIMUM_CLOCK_DRIFT);
+    let mut processor =
+        ClockDriftProcessor::new(envelope.sent_at(), state.managed_envelope.received_at())
+            .at_least(MINIMUM_CLOCK_DRIFT);
     processor::process_value(&mut state.event, &mut processor, ProcessingState::root())
         .map_err(|_| ProcessingError::InvalidTransaction)?;
 
@@ -387,80 +387,24 @@ pub fn serialize<G: EventProcessing>(
     // If transaction metrics were extracted, set the corresponding item header
     event_item.set_metrics_extracted(state.event_metrics_extracted);
 
+    // TODO: The state should simply maintain & update an `ItemHeaders` object.
+    event_item.set_spans_extracted(state.spans_extracted);
+
     // If there are sample rates, write them back to the envelope. In processing mode, sample
     // rates have been removed from the state and burnt into the event via `finalize_event`.
     if let Some(sample_rates) = state.sample_rates.take() {
         event_item.set_sample_rates(sample_rates);
     }
 
+    event_item.set_fully_normalized(state.event_fully_normalized);
+
     state.envelope_mut().add_item(event_item);
 
     Ok(())
 }
 
-#[cfg(feature = "processing")]
-pub fn store<G: EventProcessing>(
-    state: &mut ProcessEnvelopeState<G>,
-    config: &Config,
-) -> Result<(), ProcessingError> {
-    let ProcessEnvelopeState {
-        ref mut event,
-        ref project_state,
-        ref managed_envelope,
-        ..
-    } = *state;
-
-    let key_id = project_state
-        .get_public_key_config()
-        .and_then(|k| Some(k.numeric_id?.to_string()));
-
-    let envelope = state.managed_envelope.envelope();
-
-    if key_id.is_none() {
-        relay_log::error!(
-            "project state for key {} is missing key id",
-            envelope.meta().public_key()
-        );
-    }
-
-    let store_config = StoreConfig {
-        project_id: Some(state.project_id.value()),
-        client_ip: envelope.meta().client_addr().map(IpAddr::from),
-        client: envelope.meta().client().map(str::to_owned),
-        key_id,
-        protocol_version: Some(envelope.meta().version().to_string()),
-        grouping_config: project_state.config.grouping_config.clone(),
-        user_agent: envelope.meta().user_agent().map(str::to_owned),
-        max_secs_in_future: Some(config.max_secs_in_future()),
-        max_secs_in_past: Some(config.max_secs_in_past()),
-        enable_trimming: Some(true),
-        is_renormalize: Some(false),
-        remove_other: Some(true),
-        normalize_user_agent: Some(true),
-        sent_at: envelope.sent_at(),
-        received_at: Some(managed_envelope.received_at()),
-        breakdowns: project_state.config.breakdowns_v2.clone(),
-        client_sample_rate: envelope.dsc().and_then(|ctx| ctx.sample_rate),
-        replay_id: envelope.dsc().and_then(|ctx| ctx.replay_id),
-        client_hints: envelope.meta().client_hints().to_owned(),
-        normalize_spans: false, // noop
-    };
-
-    let mut store_processor = StoreProcessor::new(store_config);
-    metric!(timer(RelayTimers::EventProcessingProcess), {
-        processor::process_value(event, &mut store_processor, ProcessingState::root())
-            .map_err(|_| ProcessingError::InvalidTransaction)?;
-        if has_unprintable_fields(event) {
-            metric!(counter(RelayCounters::EventCorrupted) += 1);
-        }
-    });
-
-    Ok(())
-}
-
 /// Checks if the Event includes unprintable fields.
-#[cfg(feature = "processing")]
-fn has_unprintable_fields(event: &Annotated<Event>) -> bool {
+pub fn has_unprintable_fields(event: &Annotated<Event>) -> bool {
     fn is_unprintable(value: &&str) -> bool {
         value.chars().any(|c| {
             c == '\u{fffd}' // unicode replacement character
@@ -473,6 +417,22 @@ fn has_unprintable_fields(event: &Annotated<Event>) -> bool {
         env.is_some() || release.is_some()
     } else {
         false
+    }
+}
+
+/// Computes and emits metrics for monitoring user feedback (UserReportV2) ingest
+pub fn emit_feedback_metrics(envelope: &Envelope) {
+    let mut has_feedback = false;
+    let mut num_attachments = 0;
+    for item in envelope.items() {
+        match item.ty() {
+            ItemType::UserReportV2 => has_feedback = true,
+            ItemType::Attachment => num_attachments += 1,
+            _ => (),
+        }
+    }
+    if has_feedback {
+        metric!(counter(RelayCounters::FeedbackAttachments) += num_attachments);
     }
 }
 
@@ -512,6 +472,7 @@ fn is_duplicate(item: &Item, processing_enabled: bool) -> bool {
         ItemType::CheckIn => false,
         ItemType::Span => false,
         ItemType::OtelSpan => false,
+        ItemType::ProfileChunk => false,
 
         // Without knowing more, `Unknown` items are allowed to be repeated
         ItemType::Unknown(_) => false,
@@ -526,7 +487,9 @@ fn event_from_json_payload(
         .map_err(ProcessingError::InvalidJson)?;
 
     if let Some(event_value) = event.value_mut() {
-        event_value.ty.set_value(event_type);
+        if event_type.is_some() {
+            event_value.ty.set_value(event_type);
+        }
     }
 
     Ok((event, item.len()))
@@ -547,11 +510,18 @@ fn event_from_security_report(
         return Err(ProcessingError::InvalidSecurityType(bytes));
     };
 
-    let apply_result = match report_type {
-        SecurityReportType::Csp => Csp::apply_to_event(data, &mut event),
-        SecurityReportType::ExpectCt => ExpectCt::apply_to_event(data, &mut event),
-        SecurityReportType::ExpectStaple => ExpectStaple::apply_to_event(data, &mut event),
-        SecurityReportType::Hpkp => Hpkp::apply_to_event(data, &mut event),
+    let (apply_result, event_type) = match report_type {
+        SecurityReportType::Csp => (Csp::apply_to_event(data, &mut event), EventType::Csp),
+        SecurityReportType::ExpectCt => (
+            ExpectCt::apply_to_event(data, &mut event),
+            EventType::ExpectCt,
+        ),
+        SecurityReportType::ExpectStaple => (
+            ExpectStaple::apply_to_event(data, &mut event),
+            EventType::ExpectStaple,
+        ),
+        SecurityReportType::Hpkp => (Hpkp::apply_to_event(data, &mut event), EventType::Hpkp),
+        SecurityReportType::Unsupported => return Err(ProcessingError::UnsupportedSecurityType),
     };
 
     if let Err(json_error) = apply_result {
@@ -585,12 +555,7 @@ fn event_from_security_report(
 
     // Explicitly set the event type. This is required so that a `Security` item can be created
     // instead of a regular `Event` item.
-    event.ty = Annotated::new(match report_type {
-        SecurityReportType::Csp => EventType::Csp,
-        SecurityReportType::ExpectCt => EventType::ExpectCt,
-        SecurityReportType::ExpectStaple => EventType::ExpectStaple,
-        SecurityReportType::Hpkp => EventType::Hpkp,
-    });
+    event.ty = Annotated::new(event_type);
 
     Ok((Annotated::new(event), len))
 }
@@ -768,8 +733,6 @@ mod tests {
     use std::collections::BTreeMap;
 
     use chrono::{DateTime, TimeZone, Utc};
-
-    use crate::envelope::ContentType;
 
     use super::*;
 

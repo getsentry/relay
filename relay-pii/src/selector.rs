@@ -41,8 +41,10 @@ pub enum InvalidSelectorError {
     InternalError,
 }
 
+#[allow(unknown_lints)]
+#[allow(clippy::upper_case_acronyms)]
+#[allow(clippy::empty_docs)]
 mod parser {
-    #![allow(clippy::upper_case_acronyms)]
     use pest_derive::Parser;
 
     #[derive(Parser)]
@@ -152,7 +154,7 @@ impl SelectorPathItem {
 
 /// A selector that can match paths of processing states.
 ///
-/// To use a a selector, you most likely want to check whether it matches the path of a
+/// To use a selector, you most likely want to check whether it matches the path of a
 /// [`ProcessingState`].  For this you turn the state into a [`Path`] using
 /// [`ProcessingState::path`] and call [`SelectorSpec::matches_path`], which will iterate through
 /// the path items in the processing state and check whether the selector matches.

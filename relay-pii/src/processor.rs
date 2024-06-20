@@ -1,17 +1,17 @@
 use std::borrow::Cow;
 use std::collections::{BTreeMap, BTreeSet};
 use std::mem;
+use std::sync::OnceLock;
 
-use once_cell::sync::OnceCell;
 use regex::Regex;
 use relay_event_schema::processor::{
-    self, enum_set, Chunk, Pii, ProcessValue, ProcessingAction, ProcessingResult, ProcessingState,
-    Processor, ValueType,
+    self, enum_set, process_value, Chunk, Pii, ProcessValue, ProcessingAction, ProcessingResult,
+    ProcessingState, Processor, ValueType,
 };
 use relay_event_schema::protocol::{
     AsPair, Event, IpAddr, NativeImagePath, PairList, Replay, ResponseContext, User,
 };
-use relay_protocol::{Annotated, Meta, Remark, RemarkType, Value};
+use relay_protocol::{Annotated, Array, Meta, Remark, RemarkType, Value};
 
 use crate::compiledconfig::{CompiledPiiConfig, RuleRef};
 use crate::config::RuleType;
@@ -101,6 +101,48 @@ impl<'a> Processor for PiiProcessor<'a> {
         self.apply_all_rules(meta, state, None)
     }
 
+    fn process_array<T>(
+        &mut self,
+        array: &mut Array<T>,
+        _meta: &mut Meta,
+        state: &ProcessingState<'_>,
+    ) -> ProcessingResult
+    where
+        T: ProcessValue,
+    {
+        if is_pairlist(array) {
+            for annotated in array {
+                let mut mapped = mem::take(annotated).map_value(T::into_value);
+
+                if let Some(Value::Array(ref mut pair)) = mapped.value_mut() {
+                    let mut value = mem::take(&mut pair[1]);
+                    let value_type = ValueType::for_field(&value);
+
+                    if let Some(key_name) = &pair[0].as_str() {
+                        // We enter the key of the first element of the array, since we treat it
+                        // as a pair.
+                        let key_state =
+                            state.enter_borrowed(key_name, state.inner_attrs(), value_type);
+                        // We process the value with a state that "simulates" the first value of the
+                        // array as if it was the key of a dictionary.
+                        process_value(&mut value, self, &key_state)?;
+                    }
+
+                    // Put value back into pair.
+                    pair[1] = value;
+                }
+
+                // Put pair back into array.
+                *annotated = T::from_value(mapped);
+            }
+
+            Ok(())
+        } else {
+            // If we didn't find a pairlist, we can process child values as normal.
+            array.process_child_values(self, state)
+        }
+    }
+
     fn process_string(
         &mut self,
         value: &mut String,
@@ -137,7 +179,7 @@ impl<'a> Processor for PiiProcessor<'a> {
             match self.process_string(value, meta, state) {
                 Ok(()) => value.push_str(&basename),
                 Err(ProcessingAction::DeleteValueHard) | Err(ProcessingAction::DeleteValueSoft) => {
-                    *value = basename[1..].to_owned();
+                    basename[1..].clone_into(value);
                 }
                 Err(ProcessingAction::InvalidTransaction(x)) => {
                     return Err(ProcessingAction::InvalidTransaction(x))
@@ -200,6 +242,69 @@ impl<'a> Processor for PiiProcessor<'a> {
         replay.process_child_values(self, state)?;
         Ok(())
     }
+}
+
+#[derive(Default)]
+struct PairListProcessor {
+    is_pair: bool,
+    has_string_key: bool,
+}
+
+impl PairListProcessor {
+    /// Returns true if the processor identified the supplied data as an array composed of
+    /// a key (string) and a value.
+    fn is_pair_array(&self) -> bool {
+        self.is_pair && self.has_string_key
+    }
+}
+
+impl Processor for PairListProcessor {
+    fn process_array<T>(
+        &mut self,
+        value: &mut Array<T>,
+        _meta: &mut Meta,
+        state: &ProcessingState<'_>,
+    ) -> ProcessingResult
+    where
+        T: ProcessValue,
+    {
+        self.is_pair = state.depth() == 0 && value.len() == 2;
+        if self.is_pair {
+            let key_type = ValueType::for_field(&value[0]);
+            process_value(
+                &mut value[0],
+                self,
+                &state.enter_index(0, state.inner_attrs(), key_type),
+            )?;
+        }
+
+        Ok(())
+    }
+
+    fn process_string(
+        &mut self,
+        _value: &mut String,
+        _meta: &mut Meta,
+        state: &ProcessingState<'_>,
+    ) -> ProcessingResult where {
+        if state.depth() == 1 && state.path().index() == Some(0) {
+            self.has_string_key = true;
+        }
+
+        Ok(())
+    }
+}
+
+fn is_pairlist<T: ProcessValue>(array: &mut Array<T>) -> bool {
+    for element in array.iter_mut() {
+        let mut visitor = PairListProcessor::default();
+        process_value(element, &mut visitor, ProcessingState::root()).ok();
+        if !visitor.is_pair_array() {
+            return false;
+        }
+    }
+
+    !array.is_empty()
 }
 
 /// Scrubs GraphQL variables from the event.
@@ -374,7 +479,7 @@ fn apply_regex_to_chunks<'a>(
             return;
         }
 
-        static NULL_SPLIT_RE: OnceCell<Regex> = OnceCell::new();
+        static NULL_SPLIT_RE: OnceLock<Regex> = OnceLock::new();
         let regex = NULL_SPLIT_RE.get_or_init(|| {
             #[allow(clippy::trivial_regex)]
             Regex::new("\x00").unwrap()
@@ -466,15 +571,13 @@ fn insert_replacement_chunks(rule: &RuleRef, text: &str, output: &mut Vec<Chunk<
 
 #[cfg(test)]
 mod tests {
-    use insta::assert_debug_snapshot;
+    use insta::{allow_duplicates, assert_debug_snapshot};
     use relay_event_schema::processor::process_value;
     use relay_event_schema::protocol::{
-        Addr, Breadcrumb, DebugImage, DebugMeta, Event, ExtraValue, Headers, LogEntry, Message,
+        Addr, Breadcrumb, DebugImage, DebugMeta, ExtraValue, Headers, LogEntry, Message,
         NativeDebugImage, Request, Span, TagEntry, Tags, TraceContext,
     };
-    use relay_protocol::{
-        assert_annotated_snapshot, get_value, Annotated, FromValue, Object, Value,
-    };
+    use relay_protocol::{assert_annotated_snapshot, get_value, FromValue, Object};
     use serde_json::json;
 
     use super::*;
@@ -1599,5 +1702,210 @@ mod tests {
         },
     ],
 )"#);
+    }
+
+    #[test]
+    fn test_is_pairlist() {
+        for (case, expected) in [
+            (r#"[]"#, false),
+            (r#"["foo"]"#, false),
+            (r#"["foo", 123]"#, false),
+            (r#"[[1, "foo"]]"#, false),
+            (r#"[[["too_nested", 123]]]"#, false),
+            (r#"[["foo", "bar"], [1, "foo"]]"#, false),
+            (r#"[["foo", "bar"], ["foo", "bar", "baz"]]"#, false),
+            (r#"[["foo", "bar", "baz"], ["foo", "bar"]]"#, false),
+            (r#"["foo", ["bar", "baz"], ["foo", "bar"]]"#, false),
+            (r#"[["foo", "bar"], [["too_nested", 123]]]"#, false),
+            (r#"[["foo", 123]]"#, true),
+            (r#"[["foo", "bar"]]"#, true),
+            (
+                r#"[["foo", "bar"], ["foo", {"nested": {"something": 1}}]]"#,
+                true,
+            ),
+        ] {
+            let v = Annotated::<Value>::from_json(case).unwrap();
+            let Annotated(Some(Value::Array(mut a)), _) = v else {
+                panic!()
+            };
+            assert_eq!(is_pairlist(&mut a), expected, "{case}");
+        }
+    }
+
+    #[test]
+    fn test_tuple_array_scrubbed_with_path_selector() {
+        // We expect that both of these configs express the same semantics.
+        let configs = vec![
+            // This configuration matches on the authorization element (the 1st element of the array
+            // represents the key).
+            r##"
+                {
+                    "applications": {
+                        "exception.values.0.stacktrace.frames.0.vars.headers.authorization": ["@anything:replace"]
+                    }
+                }
+                "##,
+            // This configuration matches on the 2nd element of the array.
+            r##"
+                {
+                    "applications": {
+                        "exception.values.0.stacktrace.frames.0.vars.headers.0.1": ["@anything:replace"]
+                    }
+                }
+                "##,
+        ];
+
+        let mut event = Event::from_value(
+            serde_json::json!(
+            {
+              "message": "hi",
+              "exception": {
+                "values": [
+                  {
+                    "type": "BrokenException",
+                    "value": "Something failed",
+                    "stacktrace": {
+                      "frames": [
+                        {
+                            "vars": {
+                                "headers": [
+                                    ["authorization", "Bearer abc123"]
+                                ]
+                            }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            })
+            .into(),
+        );
+
+        for config in configs {
+            let config = serde_json::from_str::<PiiConfig>(config).unwrap();
+            let mut processor = PiiProcessor::new(config.compiled());
+            process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
+
+            let vars = get_value!(event.exceptions.values[0].stacktrace.frames[0].vars).unwrap();
+
+            allow_duplicates!(assert_debug_snapshot!(vars, @r#"
+        FrameVars(
+            {
+                "headers": Array(
+                    [
+                        Array(
+                            [
+                                String(
+                                    "authorization",
+                                ),
+                                Annotated(
+                                    String(
+                                        "[Filtered]",
+                                    ),
+                                    Meta {
+                                        remarks: [
+                                            Remark {
+                                                ty: Substituted,
+                                                rule_id: "@anything:replace",
+                                                range: Some(
+                                                    (
+                                                        0,
+                                                        10,
+                                                    ),
+                                                ),
+                                            },
+                                        ],
+                                        errors: [],
+                                        original_length: Some(
+                                            13,
+                                        ),
+                                        original_value: None,
+                                    },
+                                ),
+                            ],
+                        ),
+                    ],
+                ),
+            },
+        )
+        "#));
+        }
+    }
+
+    #[test]
+    fn test_tuple_array_scrubbed_with_string_selector_and_password_matcher() {
+        let config = serde_json::from_str::<PiiConfig>(
+            r##"
+                {
+                    "applications": {
+                        "$string": ["@password:remove"]
+                    }
+                }
+                "##,
+        )
+        .unwrap();
+
+        let mut event = Event::from_value(
+            serde_json::json!(
+            {
+              "message": "hi",
+              "exception": {
+                "values": [
+                  {
+                    "type": "BrokenException",
+                    "value": "Something failed",
+                    "stacktrace": {
+                      "frames": [
+                        {
+                            "vars": {
+                                "headers": [
+                                    ["authorization", "abc123"]
+                                ]
+                            }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            })
+            .into(),
+        );
+
+        let mut processor = PiiProcessor::new(config.compiled());
+        process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
+
+        let vars = get_value!(event.exceptions.values[0].stacktrace.frames[0].vars).unwrap();
+
+        assert_debug_snapshot!(vars, @r###"
+        FrameVars(
+            {
+                "headers": Array(
+                    [
+                        Array(
+                            [
+                                String(
+                                    "authorization",
+                                ),
+                                Meta {
+                                    remarks: [
+                                        Remark {
+                                            ty: Removed,
+                                            rule_id: "@password:remove",
+                                            range: None,
+                                        },
+                                    ],
+                                    errors: [],
+                                    original_length: None,
+                                    original_value: None,
+                                },
+                            ],
+                        ),
+                    ],
+                ),
+            },
+        )
+        "###);
     }
 }

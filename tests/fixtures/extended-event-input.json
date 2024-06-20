@@ -1,0 +1,165 @@
+{
+    "event_id": "69241adef5744ef19bde5bbd06fe8177",
+    "release": "release@abc123xyz789",
+    "platform": "python",
+    "message": "",
+    "tags": [
+        [
+            "browser",
+            "Python Requests 2.26"
+        ],
+        [
+            "browser.name",
+            "Python Requests"
+        ],
+        [
+            "environment",
+            "prod"
+        ]
+    ],
+    "culprit": "/api/0/organizations/{organization_slug}/projects/",
+    "environment": "prod",
+    "exception": {
+        "values": [
+            {
+                "type": "ValueError",
+                "value": "invalid literal for int() with base 10: ''",
+                "stacktrace": {
+                    "frames": [
+                        {
+                            "function": "get_prep_value",
+                            "module": "django.db.models.fields",
+                            "filename": "django/db/models/fields/__init__.py",
+                            "abs_path": "/usr/local/lib/python3.11/site-packages/django/db/models/fields/__init__.py",
+                            "lineno": 2117,
+                            "pre_context": [
+                                "    def get_prep_value(self, value):",
+                                "        value = super().get_prep_value(value)",
+                                "        if value is None:",
+                                "            return None",
+                                "        try:"
+                            ],
+                            "context_line": "            return int(value)",
+                            "post_context": [
+                                "        except (TypeError, ValueError) as e:",
+                                "            raise e.__class__(",
+                                "                \"Field '%s' expected a number but got %r.\" % (self.name, value),",
+                                "            ) from e",
+                                ""
+                            ],
+                            "in_app": false,
+                            "vars": {
+                                "__class__": "<class 'django.db.models.fields.IntegerField'>",
+                                "self": "<sentry.db.models.fields.bounded.BoundedBigAutoField: id>",
+                                "value": "''"
+                            }
+                        }
+                    ]
+                },
+                "mechanism": {
+                    "type": "generic",
+                    "handled": true
+                }
+            }
+        ]
+    },
+    "extra": {
+        "sys.argv": [
+            "uwsgi"
+        ]
+    },
+    "level": "error",
+    "modules": {
+        "celery": "5.3.5",
+        "getsentry": "0.0.0",
+        "requests": "2.31.0",
+        "snuba-sdk": "2.0.32",
+        "statsd": "3.3.0",
+        "symbolic": "12.8.0",
+        "wheel": "0.42.0"
+    },
+    "request": {
+        "url": "http://10.1.1.69:4321/api/0/organizations/my-sentry-organization/projects/",
+        "method": "GET",
+        "data": {},
+        "query_string": [
+            [
+                "query",
+                "id:"
+            ],
+            [
+                "statsPeriod",
+                "1h"
+            ],
+            [
+                "sessionStats",
+                "1"
+            ]
+        ],
+        "headers": [
+            [
+                "Accept",
+                "*/*"
+            ],
+            [
+                "Accept-Encoding",
+                "gzip, deflate"
+            ],
+            [
+                "Content-Length",
+                "0"
+            ],
+            [
+                "Sentry-Trace",
+                "2f7404e3ea814fd6acfecf68934e0786-a12def60334b9ec6-1"
+            ],
+            [
+                "User-Agent",
+                "python-requests/2.26.0"
+            ]
+        ],
+        "env": {
+            "REMOTE_ADDR": "127.0.0.1",
+            "SERVER_NAME": "sentry-web-server",
+            "SERVER_PORT": "9876"
+        }
+    },
+    "sdk": {
+        "name": "sentry.python.django",
+        "version": "2.0.0rc3",
+        "integrations": [
+            "argv",
+            "atexit",
+            "celery",
+            "dedupe",
+            "django",
+            "django_atomic",
+            "excepthook",
+            "logging",
+            "modules",
+            "redis",
+            "rust_info",
+            "stdlib",
+            "threading"
+        ],
+        "packages": [
+            {
+                "name": "pypi:sentry-sdk",
+                "version": "2.0.0rc3"
+            }
+        ]
+    },
+    "transaction": "/api/0/organizations/{organization_slug}/projects/",
+    "transaction_info": {
+        "source": "route"
+    },
+    "type": "default",
+    "user": {
+        "id": "1234567890",
+        "email": "useremail@example.com",
+        "ip_address": "123.123.123.123",
+        "username": "username"
+    },
+    "version": "7",
+    "location": "not-empty-so-that-it-isnt-dropped"
+}

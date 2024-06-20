@@ -1,16 +1,17 @@
+use std::collections::btree_map::Entry;
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::BufReader;
 use std::path::Path;
 
 use relay_base_schema::metrics::MetricNamespace;
-use relay_event_normalization::MeasurementsConfig;
+use relay_event_normalization::{MeasurementsConfig, ModelCosts};
 use relay_filter::GenericFiltersConfig;
 use relay_quotas::Quota;
 use serde::{de, Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::ErrorBoundary;
+use crate::{defaults, ErrorBoundary, MetricExtractionGroup, MetricExtractionGroups};
 
 /// A dynamic configuration for all Relays passed down from Sentry.
 ///
@@ -38,6 +39,17 @@ pub struct GlobalConfig {
         skip_serializing_if = "is_default"
     )]
     pub options: Options,
+
+    /// Configuration for global metrics extraction rules.
+    ///
+    /// These are merged with rules in project configs before
+    /// applying.
+    #[serde(skip_serializing_if = "is_ok_and_empty")]
+    pub metric_extraction: ErrorBoundary<MetricExtractionGroups>,
+
+    /// Configuration for AI span measurements.
+    #[serde(skip_serializing_if = "is_missing")]
+    pub ai_model_costs: ErrorBoundary<ModelCosts>,
 }
 
 impl GlobalConfig {
@@ -61,6 +73,25 @@ impl GlobalConfig {
         match &self.filters {
             ErrorBoundary::Err(_) => None,
             ErrorBoundary::Ok(f) => Some(f),
+        }
+    }
+
+    /// Modifies the global config after deserialization.
+    ///
+    /// - Adds hard-coded groups to metrics extraction configs.
+    pub fn normalize(&mut self) {
+        if let ErrorBoundary::Ok(config) = &mut self.metric_extraction {
+            for (group_name, metrics, tags) in defaults::hardcoded_span_metrics() {
+                // We only define these groups if they haven't been defined by the upstream yet.
+                // This ensures that the innermost Relay always defines the metrics.
+                if let Entry::Vacant(entry) = config.groups.entry(group_name) {
+                    entry.insert(MetricExtractionGroup {
+                        is_enabled: false, // must be enabled via project config
+                        metrics,
+                        tags,
+                    });
+                }
+            }
         }
     }
 }
@@ -130,16 +161,6 @@ pub struct Options {
     )]
     pub cardinality_limiter_error_sample_rate: f32,
 
-    /// Kill switch for disabling the span usage metric.
-    ///
-    /// This metric is converted into outcomes in a sentry-side consumer.
-    #[serde(
-        rename = "relay.span-usage-metric",
-        deserialize_with = "default_on_error",
-        skip_serializing_if = "is_default"
-    )]
-    pub span_usage_metric: bool,
-
     /// Metric bucket encoding configuration for sets by metric namespace.
     #[serde(
         rename = "relay.metric-bucket-set-encodings",
@@ -154,6 +175,67 @@ pub struct Options {
         skip_serializing_if = "is_default"
     )]
     pub metric_bucket_dist_encodings: BucketEncodings,
+
+    /// Rollout rate for metric stats.
+    ///
+    /// Rate needs to be between `0.0` and `1.0`.
+    /// If set to `1.0` all organizations will have metric stats enabled.
+    #[serde(
+        rename = "relay.metric-stats.rollout-rate",
+        deserialize_with = "default_on_error",
+        skip_serializing_if = "is_default"
+    )]
+    pub metric_stats_rollout_rate: f32,
+
+    /// Rollout rate for producing to the ingest-feedback-events topic.
+    ///
+    /// Rate needs to be between `0.0` and `1.0`.
+    /// If set to `1.0` all organizations will ingest to the feedback topic.
+    #[serde(
+        rename = "feedback.ingest-topic.rollout-rate",
+        deserialize_with = "default_on_error",
+        skip_serializing_if = "is_default"
+    )]
+    pub feedback_ingest_topic_rollout_rate: f32,
+
+    /// Overall sampling of span extraction.
+    ///
+    /// This number represents the fraction of transactions for which
+    /// spans are extracted. It applies on top of [`crate::Feature::ExtractCommonSpanMetricsFromEvent`],
+    /// so both feature flag and sample rate need to be enabled to get any spans extracted.
+    ///
+    /// `None` is the default and interpreted as a value of 1.0 (extract everything).
+    ///
+    /// Note: Any value below 1.0 will cause the product to break, so use with caution.
+    #[serde(
+        rename = "relay.span-extraction.sample-rate",
+        deserialize_with = "default_on_error",
+        skip_serializing_if = "is_default"
+    )]
+    pub span_extraction_sample_rate: Option<f32>,
+
+    /// If true, runs full normalization in non-processing Relays.
+    ///
+    /// Doesn't apply to processing Relays. Outdated relays with a stale
+    /// protocol/normalization receiving this flag will not forward unknown
+    /// fields. Disabling the flag solves this behavior.
+    #[serde(
+        default,
+        rename = "relay.force_full_normalization",
+        deserialize_with = "default_on_error",
+        skip_serializing_if = "is_default"
+    )]
+    pub force_full_normalization: bool,
+
+    /// If true, disables normalization in processing Relays for events
+    /// normalized in a previous internal relay.
+    #[serde(
+        default,
+        rename = "relay.disable_normalization.processing",
+        deserialize_with = "default_on_error",
+        skip_serializing_if = "is_default"
+    )]
+    pub processing_disable_normalization: bool,
 
     /// All other unknown options.
     #[serde(flatten)]
@@ -186,6 +268,7 @@ pub struct BucketEncodings {
     spans: BucketEncoding,
     profiles: BucketEncoding,
     custom: BucketEncoding,
+    metric_stats: BucketEncoding,
 }
 
 impl BucketEncodings {
@@ -196,6 +279,7 @@ impl BucketEncodings {
             MetricNamespace::Spans => self.spans,
             MetricNamespace::Profiles => self.profiles,
             MetricNamespace::Custom => self.custom,
+            MetricNamespace::Stats => self.metric_stats,
             // Always force the legacy encoding for sessions,
             // sessions are not part of the generic metrics platform with different
             // consumer which are not (yet) updated to support the new data.
@@ -231,6 +315,7 @@ where
                 spans: encoding,
                 profiles: encoding,
                 custom: encoding,
+                metric_stats: encoding,
             })
         }
 
@@ -301,9 +386,22 @@ where
     }
 }
 
+fn is_ok_and_empty(value: &ErrorBoundary<MetricExtractionGroups>) -> bool {
+    matches!(
+        value,
+        &ErrorBoundary::Ok(MetricExtractionGroups { ref groups }) if groups.is_empty()
+    )
+}
+
+fn is_missing(value: &ErrorBoundary<ModelCosts>) -> bool {
+    matches!(
+        value,
+        &ErrorBoundary::Ok(ModelCosts{ version, ref costs }) if version == 0 && costs.is_empty()
+    )
+}
+
 #[cfg(test)]
 mod tests {
-
     use super::*;
 
     #[test]
@@ -373,7 +471,10 @@ mod tests {
     #[test]
     fn test_global_config_invalid_value_is_default() {
         let options: Options = serde_json::from_str(
-            r#"{"relay.cardinality-limiter.mode":"passive","relay.span-usage-metric":123}"#,
+            r#"{
+                "relay.cardinality-limiter.mode": "passive",
+                "profiling.profile_metrics.unsampled_profiles.sample_rate": "foo"
+            }"#,
         )
         .unwrap();
 
@@ -424,7 +525,8 @@ mod tests {
                 transactions: BucketEncoding::Legacy,
                 spans: BucketEncoding::Legacy,
                 profiles: BucketEncoding::Legacy,
-                custom: BucketEncoding::Legacy
+                custom: BucketEncoding::Legacy,
+                metric_stats: BucketEncoding::Legacy,
             }
         );
         assert_eq!(
@@ -433,7 +535,8 @@ mod tests {
                 transactions: BucketEncoding::Zstd,
                 spans: BucketEncoding::Zstd,
                 profiles: BucketEncoding::Zstd,
-                custom: BucketEncoding::Zstd
+                custom: BucketEncoding::Zstd,
+                metric_stats: BucketEncoding::Zstd,
             }
         );
     }
@@ -445,6 +548,7 @@ mod tests {
             spans: BucketEncoding::Zstd,
             profiles: BucketEncoding::Base64,
             custom: BucketEncoding::Zstd,
+            metric_stats: BucketEncoding::Base64,
         };
         let s = serde_json::to_string(&original).unwrap();
         let s = format!(

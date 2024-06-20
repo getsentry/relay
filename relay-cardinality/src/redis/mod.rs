@@ -2,6 +2,7 @@ mod cache;
 mod limiter;
 mod quota;
 mod script;
+mod state;
 
 pub use self::limiter::{RedisSetLimiter, RedisSetLimiterOptions};
 

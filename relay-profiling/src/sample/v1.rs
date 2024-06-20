@@ -1,49 +1,25 @@
+//! Sample Format V1
+//!
+//! This is a way to send samples collected at regular intervals from our SDKs. We are expecting
+//! one profile per transaction at most and as such, we collect transaction metadata and add it to
+//! the profile in Relay.
+//!
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::ops::Range;
 
 use chrono::{DateTime, Utc};
 use itertools::Itertools;
-use relay_event_schema::protocol::{Addr, EventId};
+use relay_event_schema::protocol::{EventId, SpanId};
 use serde::{Deserialize, Serialize};
 
 use crate::error::ProfileError;
 use crate::measurements::Measurement;
-use crate::native_debug_image::NativeDebugImage;
+use crate::sample::{DebugMeta, Frame, ThreadMetadata, Version};
 use crate::transaction_metadata::TransactionMetadata;
 use crate::utils::{deserialize_number_from_string, string_is_null_or_empty};
 use crate::MAX_PROFILE_DURATION;
 
 const MAX_PROFILE_DURATION_NS: u64 = MAX_PROFILE_DURATION.as_nanos() as u64;
-
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
-struct Frame {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    abs_path: Option<String>,
-    #[serde(alias = "column", skip_serializing_if = "Option::is_none")]
-    colno: Option<u32>,
-    #[serde(alias = "file", skip_serializing_if = "Option::is_none")]
-    filename: Option<String>,
-    #[serde(alias = "name", skip_serializing_if = "Option::is_none")]
-    function: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    in_app: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    instruction_addr: Option<Addr>,
-    #[serde(alias = "line", skip_serializing_if = "Option::is_none")]
-    lineno: Option<u32>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    module: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    platform: Option<String>,
-}
-
-impl Frame {
-    fn strip_pointer_authentication_code(&mut self, pac_code: u64) {
-        if let Some(address) = self.instruction_addr {
-            self.instruction_addr = Some(Addr(address.0 & pac_code));
-        }
-    }
-}
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 struct Sample {
@@ -56,14 +32,6 @@ struct Sample {
     // cocoa only
     #[serde(default, skip_serializing_if = "Option::is_none")]
     queue_address: Option<String>,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-struct ThreadMetadata {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    name: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    priority: Option<u32>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -224,11 +192,6 @@ impl SampleProfile {
     }
 }
 
-#[derive(Default, Debug, Serialize, Deserialize, Clone)]
-struct DebugMeta {
-    images: Vec<NativeDebugImage>,
-}
-
 #[derive(Debug, Serialize, Deserialize, Clone)]
 struct OSMetadata {
     name: String,
@@ -256,14 +219,6 @@ struct DeviceMetadata {
     manufacturer: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     model: Option<String>,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone, Default, PartialEq, Eq)]
-pub enum Version {
-    #[default]
-    Unknown,
-    #[serde(rename = "1")]
-    V1,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -374,7 +329,7 @@ pub fn parse_sample_profile(
 
     if let Some(transaction_name) = transaction_metadata.get("transaction") {
         if let Some(ref mut transaction) = profile.metadata.transaction {
-            transaction.name = transaction_name.to_owned();
+            transaction_name.clone_into(&mut transaction.name)
         }
     }
 
@@ -386,11 +341,17 @@ pub fn parse_sample_profile(
     }
 
     if let Some(dist) = transaction_metadata.get("dist") {
-        profile.metadata.dist = dist.to_owned();
+        dist.clone_into(&mut profile.metadata.dist);
     }
 
     if let Some(environment) = transaction_metadata.get("environment") {
-        profile.metadata.environment = environment.to_owned();
+        environment.clone_into(&mut profile.metadata.environment);
+    }
+
+    if let Some(segment_id) = transaction_metadata.get("segment_id") {
+        if let Some(transaction_metadata) = profile.metadata.transaction.as_mut() {
+            transaction_metadata.segment_id = Some(SpanId(segment_id.to_owned()));
+        }
     }
 
     profile.metadata.transaction_metadata = transaction_metadata;
@@ -406,7 +367,7 @@ mod tests {
 
     #[test]
     fn test_roundtrip() {
-        let payload = include_bytes!("../tests/fixtures/profiles/sample/roundtrip.json");
+        let payload = include_bytes!("../../tests/fixtures/sample/v1/valid.json");
         let profile = parse_profile(payload);
         assert!(profile.is_ok());
         let data = serde_json::to_vec(&profile.unwrap());
@@ -415,7 +376,7 @@ mod tests {
 
     #[test]
     fn test_expand() {
-        let payload = include_bytes!("../tests/fixtures/profiles/sample/roundtrip.json");
+        let payload = include_bytes!("../../tests/fixtures/sample/v1/valid.json");
         let profile = parse_sample_profile(payload, BTreeMap::new(), BTreeMap::new());
         assert!(profile.is_ok());
     }
@@ -549,9 +510,10 @@ mod tests {
             relative_end_ns: 30,
             relative_start_ns: 10,
             trace_id: EventId::new(),
+            segment_id: Some(SpanId("bd2eb23da2beb459".to_string())),
         });
         profile.profile.stacks.push(vec![0]);
-        profile.profile.samples.extend(vec![
+        profile.profile.samples.extend([
             Sample {
                 stack_id: 0,
                 queue_address: Some("0xdeadbeef".to_string()),
@@ -600,6 +562,7 @@ mod tests {
             relative_end_ns: 100,
             relative_start_ns: 50,
             trace_id: EventId::new(),
+            segment_id: Some(SpanId("bd2eb23da2beb459".to_string())),
         });
         profile.profile.stacks.push(vec![0]);
         profile.profile.samples.extend(vec![
@@ -647,6 +610,7 @@ mod tests {
             relative_end_ns: 100,
             relative_start_ns: 0,
             trace_id: EventId::new(),
+            segment_id: Some(SpanId("bd2eb23da2beb459".to_string())),
         };
 
         profile.metadata.transactions.push(transaction.clone());
@@ -707,6 +671,7 @@ mod tests {
             relative_end_ns: 100,
             relative_start_ns: 0,
             trace_id: EventId::new(),
+            segment_id: Some(SpanId("bd2eb23da2beb459".to_string())),
         };
 
         profile.metadata.transaction = Some(transaction);
@@ -820,6 +785,7 @@ mod tests {
             relative_end_ns: 100,
             relative_start_ns: 0,
             trace_id: EventId::new(),
+            segment_id: Some(SpanId("bd2eb23da2beb459".to_string())),
         };
 
         profile.metadata.transaction = Some(transaction);
@@ -906,7 +872,7 @@ mod tests {
             "some-random-transaction".to_string(),
         )]);
 
-        let payload = include_bytes!("../tests/fixtures/profiles/sample/roundtrip.json");
+        let payload = include_bytes!("../../tests/fixtures/sample/v1/valid.json");
         let profile_json = parse_sample_profile(payload, transaction_metadata, BTreeMap::new());
         assert!(profile_json.is_ok());
 
@@ -990,7 +956,8 @@ mod tests {
                 "active_thread_id": 1,
                 "id":"9789498b-6970-4dda-b2a1-f9cb91d1a445",
                 "name":"blah",
-                "trace_id":"809ff2c0-e185-4c21-8f21-6a6fef009352"
+                "trace_id":"809ff2c0-e185-4c21-8f21-6a6fef009352",
+                "segment_id":"bd2eb23da2beb459"
             },
             "dist":"9999",
             "profile":{

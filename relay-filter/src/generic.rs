@@ -7,8 +7,8 @@
 use std::iter::FusedIterator;
 
 use crate::{FilterStatKey, GenericFilterConfig, GenericFiltersConfig, GenericFiltersMap};
-use relay_event_schema::protocol::Event;
-use relay_protocol::RuleCondition;
+
+use relay_protocol::{Getter, RuleCondition};
 
 /// Maximum supported version of the generic filters schema.
 ///
@@ -25,15 +25,19 @@ pub fn are_generic_filters_supported(
 }
 
 /// Checks events by patterns in their error messages.
-fn matches(event: &Event, condition: Option<&RuleCondition>) -> bool {
+fn matches<F: Getter>(item: &F, condition: Option<&RuleCondition>) -> bool {
     // TODO: the condition DSL needs to be extended to support more complex semantics, such as
     //  collections operations.
-    condition.map_or(false, |condition| condition.matches(event))
+    condition.map_or(false, |condition| condition.matches(item))
 }
 
-/// Filters events by patterns in their error messages.
-pub(crate) fn should_filter(
-    event: &Event,
+/// Filters events by any generic condition.
+///
+/// Note that conditions may have type-specific getter strings, e.g. `"event.some_field"`. In order
+/// to make such a generic filter apply to non-Event types, make sure that the [`Getter`] implementation
+/// for that type maps `"event.some_field"` to the corresponding field on that type.
+pub(crate) fn should_filter<F: Getter>(
+    item: &F,
     project_filters: &GenericFiltersConfig,
     global_filters: Option<&GenericFiltersConfig>,
 ) -> Result<(), FilterStatKey> {
@@ -45,7 +49,7 @@ pub(crate) fn should_filter(
     );
 
     for filter_config in filters {
-        if filter_config.is_enabled && matches(event, filter_config.condition) {
+        if filter_config.is_enabled && matches(item, filter_config.condition) {
             return Err(FilterStatKey::GenericFilter(filter_config.id.to_owned()));
         }
     }
@@ -173,11 +177,8 @@ mod tests {
 
     use super::*;
 
-    use crate::generic::{should_filter, MAX_SUPPORTED_VERSION};
-    use crate::{FilterStatKey, GenericFilterConfig, GenericFiltersConfig};
     use relay_event_schema::protocol::{Event, LenientString};
     use relay_protocol::Annotated;
-    use relay_protocol::RuleCondition;
 
     fn mock_filters() -> GenericFiltersMap {
         vec![
