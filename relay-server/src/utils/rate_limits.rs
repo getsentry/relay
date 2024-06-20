@@ -1485,18 +1485,4 @@ mod tests {
         assert_eq!(summary.profile_quantity, 2);
         assert_eq!(summary.secondary_transaction_quantity, 7);
     }
-
-    #[test]
-    fn test_nested_spans_outcomes_tracked_when_no_spans_extracted() {
-        let rate_limit = RateLimit {
-            categories: SmallVec::new(),
-            scope: RateLimitScope::Global,
-            reason_code: Some(ReasonCode::new("my_rate_limit".to_owned())),
-            retry_after: RetryAfter::from_secs(10),
-            namespaces: Default::default(),
-        };
-        let mut enforcement = Enforcement::default();
-        enforcement.event = CategoryLimit::new(DataCategory::Transaction, 1, Some(&rate_limit));
-        let scoping = scoping();
-    }
 }
