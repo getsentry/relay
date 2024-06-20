@@ -2,7 +2,6 @@
 
 ## Unreleased
 
-**Internal**:
 
 - Decrease max allowed segment_id for replays. ([#3280]https://github.com/getsentry/relay/pull/3280)
 
