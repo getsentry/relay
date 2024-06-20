@@ -505,7 +505,6 @@ def test_sends_metric_bucket_outcome(
             "aggregator": {
                 "bucket_interval": 1,
                 "initial_delay": 0,
-                "debounce_delay": 0,
                 "flush_interval": 0,
             },
         }
@@ -550,7 +549,6 @@ def test_rate_limit_metric_bucket(
             "aggregator": {
                 "bucket_interval": bucket_interval,
                 "initial_delay": 0,
-                "debounce_delay": 0,
             },
         }
     )
@@ -628,7 +626,6 @@ def test_rate_limit_metrics_buckets(
             "aggregator": {
                 "bucket_interval": bucket_interval,
                 "initial_delay": 0,
-                "debounce_delay": 0,
             },
         }
     )
@@ -830,7 +827,6 @@ def test_processing_quota_transaction_indexing(
             "aggregator": {
                 "bucket_interval": 1,
                 "initial_delay": 0,
-                "debounce_delay": 0,
             },
         }
     )
