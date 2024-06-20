@@ -955,7 +955,6 @@ impl Project {
     /// Drops metrics buckets if they are not allowed for this project.
     ///
     /// Reasons for dropping can be rate limits or a disabled project.
-    /// Returns `Some` if metrics are currently allowed.
     pub fn check_buckets(
         &mut self,
         metric_outcomes: &MetricOutcomes,
@@ -1026,14 +1025,27 @@ impl Project {
     }
 }
 
+/// Return value of [`Project::check_buckets`].
 #[derive(Debug)]
 pub enum CheckBuckets {
+    /// There is no project state available for these metrics yet.
+    ///
+    /// The metrics should be returned to the aggregator until the project state becomes available.
     NoProject(Vec<Bucket>),
+    /// The buckets have been validated and can be processed.
     Checked {
+        /// Project scoping.
         scoping: Scoping,
+        /// Project state.
         project_state: Arc<ProjectState>,
+        /// List of buckets.
         buckets: Vec<Bucket>,
     },
+    /// All buckets have been dropped.
+    ///
+    /// Can happen for multiple reasons:
+    /// - The project is disabled or not valid.
+    /// - All metrics have been filtered.
     Dropped,
 }
 
