@@ -736,15 +736,16 @@ impl<F> fmt::Debug for EnvelopeLimiter<F> {
 mod tests {
     use std::collections::{BTreeMap, BTreeSet};
 
+    use relay_base_schema::project::{ProjectId, ProjectKey};
+    use relay_metrics::MetricNamespace;
+    use relay_quotas::RetryAfter;
+    use smallvec::smallvec;
+
     use super::*;
     use crate::{
         envelope::{AttachmentType, ContentType, SourceQuantities},
         extractors::RequestMeta,
     };
-    use relay_base_schema::project::{ProjectId, ProjectKey};
-    use relay_metrics::MetricNamespace;
-    use relay_quotas::RetryAfter;
-    use smallvec::smallvec;
 
     #[test]
     fn test_format_rate_limits() {
