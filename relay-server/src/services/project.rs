@@ -457,11 +457,6 @@ impl State {
     }
 }
 
-#[derive(Debug, Deserialize)]
-pub struct PartialEvent {
-    pub spans: SeqCount,
-}
-
 /// Structure representing organization and project configuration for a project key.
 ///
 /// This structure no longer uniquely identifies a project. Instead, it identifies a project key.
@@ -1059,51 +1054,36 @@ impl Project {
             Ok(current_limits.check_with_quotas(quotas, item_scoping))
         });
 
+        let check_nested_spans = state
+            .as_ref()
+            .is_some_and(|s| s.has_feature(Feature::ExtractSpansFromEvent));
+
+        #[derive(Debug, Deserialize)]
+        struct PartialEvent {
+            spans: SeqCount,
+        }
+
+        // We compute the number of nested spans before rate limiting since we will remove the
+        // transaction item in case it is rate limited.
+        let spans = if check_nested_spans {
+            envelope
+                .envelope()
+                .items()
+                .find(|i| *i.ty() == ItemType::Transaction && !i.spans_extracted())
+                .and_then(|i| serde_json::from_slice::<PartialEvent>(&i.payload()).ok())
+                .map_or(0, |p| p.spans.0)
+        } else {
+            0
+        };
+
         let (enforcement, mut rate_limits) =
             envelope_limiter.enforce(envelope.envelope_mut(), &scoping)?;
 
-        let event_limit = enforcement.event_limit().is_active();
-        let event_indexed_limit = enforcement.event_indexed_limit().is_active();
-        let event_limit_reason_code = enforcement.event_limit().reason_code().clone();
-        let event_indexed_limit_reason_code =
-            enforcement.event_indexed_limit().reason_code().clone();
+        if check_nested_spans {
+            track_nested_spans_outcomes(&envelope, &enforcement, spans);
+        }
 
         enforcement.track_outcomes(envelope.envelope(), &scoping, outcome_aggregator);
-
-        // On the fast path of rate limiting, we do not have nested spans of a transaction extracted
-        // as top-level spans, thus if we limited a transaction, we want to count and emit negative
-        // outcomes for each of the spans nested inside that transaction.
-        if let Some(ref state) = state {
-            if state.has_feature(Feature::ExtractSpansFromEvent)
-                && (event_limit || event_indexed_limit)
-            {
-                let spans_length: usize = envelope
-                    .envelope()
-                    .items()
-                    .filter(|i| *i.ty() == ItemType::Transaction && !i.spans_extracted())
-                    .filter_map(|i| serde_json::from_slice::<PartialEvent>(&i.payload()).ok())
-                    .map(|p| p.spans.0)
-                    .sum();
-
-                if spans_length > 0 {
-                    if event_limit {
-                        envelope.track_outcome(
-                            Outcome::RateLimited(event_limit_reason_code),
-                            DataCategory::Span,
-                            spans_length,
-                        );
-                    }
-
-                    if event_indexed_limit {
-                        envelope.track_outcome(
-                            Outcome::RateLimited(event_indexed_limit_reason_code),
-                            DataCategory::SpanIndexed,
-                            spans_length,
-                        );
-                    }
-                }
-            }
-        }
 
         envelope.update();
 
@@ -1198,12 +1178,46 @@ impl Project {
     }
 }
 
+/// Tracks the negative outcomes for the nested spans inside a transaction.
+///
+/// On the fast path of rate limiting, we do not have nested spans of a transaction extracted
+/// as top-level spans, thus if we limited a transaction, we want to count and emit negative
+/// outcomes for each of the spans nested inside that transaction.
+fn track_nested_spans_outcomes(
+    envelope: &ManagedEnvelope,
+    enforcement: &Enforcement,
+    spans: usize,
+) {
+    if !enforcement.event_active() {
+        return;
+    }
+
+    if enforcement.event.is_active() {
+        envelope.track_outcome(
+            Outcome::RateLimited(enforcement.event.reason_code.clone()),
+            DataCategory::Span,
+            spans,
+        );
+    }
+
+    if enforcement.event_indexed.is_active() {
+        envelope.track_outcome(
+            Outcome::RateLimited(enforcement.event_indexed.reason_code.clone()),
+            DataCategory::SpanIndexed,
+            spans,
+        );
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::sync::Mutex;
 
+    use crate::envelope::{ContentType, Item};
     use crate::metrics::MetricStats;
+    use crate::services::processor::ProcessingGroup;
     use relay_common::time::UnixTimestamp;
+    use relay_event_schema::protocol::EventId;
     use relay_metrics::BucketValue;
     use relay_test::mock_service;
     use serde_json::json;
@@ -1319,10 +1333,16 @@ mod tests {
     }
 
     fn create_project(config: Option<serde_json::Value>) -> Project {
-        let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
+        let project_key = ProjectKey::parse("e12d836b15bb49d7bbf99e64295d995b").unwrap();
         let mut project = Project::new(project_key, Arc::new(Config::default()));
         let mut project_state = ProjectState::allowed();
         project_state.project_id = Some(ProjectId::new(42));
+        let mut public_keys = SmallVec::new();
+        public_keys.push(PublicKeyConfig {
+            public_key: project_key,
+            numeric_id: None,
+        });
+        project_state.public_keys = public_keys;
         if let Some(config) = config {
             project_state.config = serde_json::from_value(config).unwrap();
         }
@@ -1549,5 +1569,91 @@ mod tests {
 
         let value = aggregator_rx.blocking_recv();
         assert!(value.is_none());
+    }
+
+    fn request_meta() -> RequestMeta {
+        let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
+            .parse()
+            .unwrap();
+
+        RequestMeta::new(dsn)
+    }
+
+    #[test]
+    fn test_track_nested_spans_outcomes() {
+        let mut project = create_project(Some(json!({
+            "features": [
+                "organizations:indexed-spans-extraction"
+            ],
+            "quotas": [{
+               "id": "foo",
+               "categories": ["transaction"],
+               "window": 3600,
+               "limit": 0,
+               "reasonCode": "foo",
+           }]
+        })));
+
+        let mut envelope = Envelope::from_request(Some(EventId::new()), request_meta());
+
+        let mut transaction = Item::new(ItemType::Transaction);
+        transaction.set_payload(
+            ContentType::Json,
+            r#"{
+  "event_id": "52df9022835246eeb317dbd739ccd059",
+  "type": "transaction",
+  "transaction": "I have a stale timestamp, but I'm recent!",
+  "start_timestamp": 1,
+  "timestamp": 2,
+  "contexts": {
+    "trace": {
+      "trace_id": "ff62a8b040f340bda5d830223def1d81",
+      "span_id": "bd429c44b67a3eb4"
+    }
+  },
+  "spans": [
+    {
+      "span_id": "bd429c44b67a3eb4",
+      "start_timestamp": 1,
+      "timestamp": null,
+      "trace_id": "ff62a8b040f340bda5d830223def1d81"
+    },
+    {
+      "span_id": "bd429c44b67a3eb5",
+      "start_timestamp": 1,
+      "timestamp": null,
+      "trace_id": "ff62a8b040f340bda5d830223def1d81"
+    }
+  ]
+}"#,
+        );
+
+        envelope.add_item(transaction);
+
+        let (outcome_aggregator, mut outcome_aggregator_rx) = Addr::custom();
+        let (test_store, _) = Addr::custom();
+
+        let managed_envelope = ManagedEnvelope::standalone(
+            envelope,
+            outcome_aggregator.clone(),
+            test_store,
+            ProcessingGroup::Transaction,
+        );
+
+        let _ = project.check_envelope(managed_envelope, outcome_aggregator.clone());
+        drop(outcome_aggregator);
+
+        let expected = [
+            (DataCategory::Span, 2),
+            (DataCategory::SpanIndexed, 2),
+            (DataCategory::Transaction, 1),
+            (DataCategory::TransactionIndexed, 1),
+        ];
+
+        for (expected_category, expected_quantity) in expected {
+            let outcome = outcome_aggregator_rx.blocking_recv().unwrap();
+            assert_eq!(outcome.category, expected_category);
+            assert_eq!(outcome.quantity, expected_quantity);
+        }
     }
 }

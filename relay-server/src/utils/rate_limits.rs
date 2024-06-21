@@ -258,15 +258,15 @@ impl EnvelopeSummary {
 #[derive(Debug)]
 pub struct CategoryLimit {
     /// The limited data category.
-    category: DataCategory,
+    pub category: DataCategory,
     /// The total rate limited quantity across all items.
     ///
     /// This will be `0` if nothing was rate limited.
-    quantity: usize,
+    pub quantity: usize,
     /// The reason code of the applied rate limit.
     ///
     /// Defaults to `None` if the quota does not declare a reason code.
-    reason_code: Option<ReasonCode>,
+    pub reason_code: Option<ReasonCode>,
 }
 
 impl CategoryLimit {
@@ -300,11 +300,6 @@ impl CategoryLimit {
     pub fn is_active(&self) -> bool {
         self.quantity > 0
     }
-
-    /// Returns a reference to the `reason_code` of the [`CategoryLimit`].
-    pub fn reason_code(&self) -> &Option<ReasonCode> {
-        &self.reason_code
-    }
 }
 
 impl Default for CategoryLimit {
@@ -321,45 +316,35 @@ impl Default for CategoryLimit {
 #[derive(Default, Debug)]
 pub struct Enforcement {
     /// The event item rate limit.
-    event: CategoryLimit,
+    pub event: CategoryLimit,
     /// The rate limit for the indexed category of the event.
-    event_indexed: CategoryLimit,
+    pub event_indexed: CategoryLimit,
     /// The combined attachment item rate limit.
-    attachments: CategoryLimit,
+    pub attachments: CategoryLimit,
     /// The combined session item rate limit.
-    sessions: CategoryLimit,
+    pub sessions: CategoryLimit,
     /// The combined profile item rate limit.
-    profiles: CategoryLimit,
+    pub profiles: CategoryLimit,
     /// The rate limit for the indexed profiles category.
-    profiles_indexed: CategoryLimit,
+    pub profiles_indexed: CategoryLimit,
     /// The combined replay item rate limit.
-    replays: CategoryLimit,
+    pub replays: CategoryLimit,
     /// The combined check-in item rate limit.
-    check_ins: CategoryLimit,
+    pub check_ins: CategoryLimit,
     /// The combined spans rate limit.
-    spans: CategoryLimit,
+    pub spans: CategoryLimit,
     /// The rate limit for the indexed span category.
-    spans_indexed: CategoryLimit,
+    pub spans_indexed: CategoryLimit,
     /// The combined rate limit for user-reports.
-    user_reports_v2: CategoryLimit,
+    pub user_reports_v2: CategoryLimit,
     /// The combined profile chunk item rate limit.
-    profile_chunks: CategoryLimit,
+    pub profile_chunks: CategoryLimit,
 }
 
 impl Enforcement {
     /// Returns `true` if the event should be rate limited.
     pub fn event_active(&self) -> bool {
         self.event.is_active() || self.event_indexed.is_active()
-    }
-
-    /// Returns a reference to the `event` of [`CategoryLimit`].
-    pub fn event_limit(&self) -> &CategoryLimit {
-        &self.event
-    }
-
-    /// Returns a reference to the `event_indexed` of [`CategoryLimit`].
-    pub fn event_indexed_limit(&self) -> &CategoryLimit {
-        &self.event_indexed
     }
 
     /// Helper for `track_outcomes`.
@@ -751,17 +736,15 @@ impl<F> fmt::Debug for EnvelopeLimiter<F> {
 mod tests {
     use std::collections::{BTreeMap, BTreeSet};
 
-    use relay_base_schema::project::{ProjectId, ProjectKey};
-    use relay_metrics::MetricNamespace;
-    use relay_quotas::RetryAfter;
-    use smallvec::{smallvec, SmallVec};
-    use tokio::time::Instant;
-
     use super::*;
     use crate::{
         envelope::{AttachmentType, ContentType, SourceQuantities},
         extractors::RequestMeta,
     };
+    use relay_base_schema::project::{ProjectId, ProjectKey};
+    use relay_metrics::MetricNamespace;
+    use relay_quotas::RetryAfter;
+    use smallvec::smallvec;
 
     #[test]
     fn test_format_rate_limits() {
