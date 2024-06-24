@@ -48,15 +48,16 @@ pub type ProjectSender = relay_system::BroadcastSender<ProjectFetchState>;
 pub struct ParsedProjectState {
     pub disabled: bool,
     #[serde(flatten)]
-    pub info: Arc<ProjectInfo>,
+    pub info: ProjectInfo, // TODO(jjbayer): Should be Option<Arc> for efficiency?
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase", remote = "ParsedProjectState")]
 pub struct LimitedParsedProjectState {
     disabled: bool,
     #[serde(with = "LimitedProjectInfo")]
     #[serde(flatten)]
-    info: Arc<ProjectInfo>,
+    info: ProjectInfo,
 }
 
 impl TryFrom<ProjectState> for ParsedProjectState {
@@ -66,11 +67,11 @@ impl TryFrom<ProjectState> for ParsedProjectState {
         match value {
             ProjectState::Enabled(info) => Ok(ParsedProjectState {
                 disabled: false,
-                info: Some(info),
+                info: info.as_ref().clone(),
             }),
             ProjectState::Disabled => Ok(ParsedProjectState {
                 disabled: true,
-                info: None,
+                info: ProjectInfo::default(),
             }),
             ProjectState::Invalid => Err(()),
         }
@@ -78,7 +79,7 @@ impl TryFrom<ProjectState> for ParsedProjectState {
 }
 
 /// The project state is a cached server state of a project.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ProjectInfo {
     /// Unique identifier of this project.
