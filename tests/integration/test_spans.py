@@ -1734,9 +1734,8 @@ def test_rate_limit_is_consistent_between_transaction_and_spans(
     category,
     hits_fast_path,
 ):
-    """Rate limits for indexed are enforced consistently after metrics extraction.
-
-    This test does not cover consistent enforcement of total spans.
+    """
+    Rate limits are consistent between transactions and nested spans.
     """
     relay = relay_with_processing(options=TEST_CONFIG)
     project_id = 42
