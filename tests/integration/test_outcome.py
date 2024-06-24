@@ -1199,7 +1199,10 @@ def test_profile_outcomes(
             },
             "source": "processing-relay",
         },
-        "aggregator": {"bucket_interval": 1, "initial_delay": 0, "debounce_delay": 0},
+        "aggregator": {
+            "bucket_interval": 1,
+            "initial_delay": 0,
+        },
     }
 
     # The innermost Relay needs to be in processing mode
@@ -1330,7 +1333,10 @@ def test_profile_outcomes_invalid(
             },
             "source": "pop-relay",
         },
-        "aggregator": {"bucket_interval": 1, "initial_delay": 0, "debounce_delay": 0},
+        "aggregator": {
+            "bucket_interval": 1,
+            "initial_delay": 0,
+        },
     }
 
     upstream = relay_with_processing(config)
@@ -1407,7 +1413,10 @@ def test_profile_outcomes_too_many(
             },
             "source": "pop-relay",
         },
-        "aggregator": {"bucket_interval": 1, "initial_delay": 0, "debounce_delay": 0},
+        "aggregator": {
+            "bucket_interval": 1,
+            "initial_delay": 0,
+        },
     }
 
     upstream = relay_with_processing(config)
@@ -1491,7 +1500,10 @@ def test_profile_outcomes_data_invalid(
             },
             "source": "processing-relay",
         },
-        "aggregator": {"bucket_interval": 1, "initial_delay": 0, "debounce_delay": 0},
+        "aggregator": {
+            "bucket_interval": 1,
+            "initial_delay": 0,
+        },
     }
 
     upstream = relay_with_processing(config)
@@ -1577,7 +1589,10 @@ def test_profile_outcomes_rate_limited(
                 "flush_interval": 0,
             },
         },
-        "aggregator": {"bucket_interval": 1, "initial_delay": 0, "debounce_delay": 0},
+        "aggregator": {
+            "bucket_interval": 1,
+            "initial_delay": 0,
+        },
     }
 
     upstream = relay_with_processing(config)
@@ -1639,7 +1654,6 @@ def test_global_rate_limit(
             "aggregator": {
                 "bucket_interval": bucket_interval,
                 "initial_delay": 0,
-                "debounce_delay": 0,
             },
         }
     )
@@ -1762,7 +1776,10 @@ def test_span_outcomes(
             },
             "source": "processing-relay",
         },
-        "aggregator": {"bucket_interval": 1, "initial_delay": 0, "debounce_delay": 0},
+        "aggregator": {
+            "bucket_interval": 1,
+            "initial_delay": 0,
+        },
     }
 
     # The innermost Relay needs to be in processing mode
@@ -1869,7 +1886,10 @@ def test_span_outcomes_invalid(
             },
             "source": "pop-relay",
         },
-        "aggregator": {"bucket_interval": 1, "initial_delay": 0, "debounce_delay": 0},
+        "aggregator": {
+            "bucket_interval": 1,
+            "initial_delay": 0,
+        },
     }
     upstream = relay_with_processing(config)
 
@@ -1937,7 +1957,6 @@ def test_global_rate_limit_by_namespace(
             "aggregator": {
                 "bucket_interval": bucket_interval,
                 "initial_delay": 0,
-                "debounce_delay": 0,
             },
         }
     )
@@ -2075,7 +2094,10 @@ def test_replay_outcomes_item_failed(
             },
             "source": "pop-relay",
         },
-        "aggregator": {"bucket_interval": 1, "initial_delay": 0, "debounce_delay": 0},
+        "aggregator": {
+            "bucket_interval": 1,
+            "initial_delay": 0,
+        },
     }
 
     upstream = relay_with_processing(config)
