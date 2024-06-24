@@ -1471,8 +1471,8 @@ mod tests {
         drop(outcome_aggregator);
 
         let expected = [
-            (DataCategory::Span, 2),
-            (DataCategory::SpanIndexed, 2),
+            (DataCategory::Span, 3),
+            (DataCategory::SpanIndexed, 3),
             (DataCategory::Transaction, 1),
             (DataCategory::TransactionIndexed, 1),
         ];
