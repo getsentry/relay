@@ -797,13 +797,6 @@
 <a href="#797" id="797">797</a>
 <a href="#798" id="798">798</a>
 <a href="#799" id="799">799</a>
-<a href="#800" id="800">800</a>
-<a href="#801" id="801">801</a>
-<a href="#802" id="802">802</a>
-<a href="#803" id="803">803</a>
-<a href="#804" id="804">804</a>
-<a href="#805" id="805">805</a>
-<a href="#806" id="806">806</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric, TimerMetric};
 
 <span class="doccomment">/// Gauge metrics used by Relay
@@ -1478,12 +1471,6 @@
     </span>MissingDynamicSamplingContext,
     <span class="doccomment">/// The number of attachments processed in the same envelope as a user_report_v2 event.
     </span>FeedbackAttachments,
-    <span class="doccomment">/// All COGS tracked values before aggregation.
-    ///
-    /// This metric is tagged with:
-    /// - `resource_id`: The COGS resource id.
-    /// - `app_feature`: The COGS app feature.
-    </span>CogsRaw,
     <span class="doccomment">/// All COGS tracked values.
     ///
     /// This metric is tagged with:
@@ -1538,7 +1525,6 @@
             </span>RelayCounters::TransactionsFromSpans =&gt; <span class="string">"transactions_from_spans"</span>,
             RelayCounters::MissingDynamicSamplingContext =&gt; <span class="string">"missing_dynamic_sampling_context"</span>,
             RelayCounters::FeedbackAttachments =&gt; <span class="string">"processing.feedback_attachments"</span>,
-            RelayCounters::CogsRaw =&gt; <span class="string">"cogs.raw"</span>,
             RelayCounters::CogsUsage =&gt; <span class="string">"cogs.usage"</span>,
             RelayCounters::NormalizationDecision =&gt; <span class="string">"normalization.decision"</span>,
         }
