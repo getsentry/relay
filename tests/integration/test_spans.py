@@ -1719,9 +1719,8 @@ def test_rate_limit_spans_in_envelope(
 
 
 @pytest.mark.parametrize(
-    "category,raises_rate_limited",
+    "category,hits_fast_path",
     [
-        ("transaction", True),
         ("transaction", True),
         ("transaction_indexed", False),
     ],
@@ -1731,14 +1730,14 @@ def test_rate_limit_is_consistent_between_transaction_and_spans(
     relay_with_processing,
     transactions_consumer,
     spans_consumer,
+    outcomes_consumer,
     category,
-    raises_rate_limited,
+    hits_fast_path,
 ):
     """Rate limits for indexed are enforced consistently after metrics extraction.
 
     This test does not cover consistent enforcement of total spans.
     """
-    # TODO: add outcomes check when https://github.com/getsentry/relay/issues/3705 is done.
     relay = relay_with_processing(options=TEST_CONFIG)
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
@@ -1762,31 +1761,73 @@ def test_rate_limit_is_consistent_between_transaction_and_spans(
 
     transactions_consumer = transactions_consumer()
     spans_consumer = spans_consumer()
+    outcomes_consumer = outcomes_consumer()
 
     start = datetime.now(timezone.utc)
     end = start + timedelta(seconds=1)
 
     envelope = envelope_with_transaction_and_spans(start, end)
 
+    def summarize_outcomes():
+        counter = Counter()
+        for outcome in outcomes_consumer.get_outcomes(timeout=10):
+            counter[(outcome["category"], outcome["outcome"])] += outcome["quantity"]
+        return dict(counter)
+
     # First batch passes
     relay.send_envelope(project_id, envelope)
+
     event, _ = transactions_consumer.get_event(timeout=10)
     assert event["transaction"] == "my_transaction"
     # We have one nested span and the transaction itself becomes a span
     spans = spans_consumer.get_spans(n=2, timeout=10)
     assert len(spans) == 2
+    assert summarize_outcomes() == {(16, 0): 2}  # SpanIndexed, Accepted
 
+    # Second batch nothing passes
     relay.send_envelope(project_id, envelope)
+
     transactions_consumer.assert_empty()
     spans_consumer.assert_empty()
+    if category == "transaction":
+        assert summarize_outcomes() == {
+            (2, 2): 1,  # Transaction, Rate Limited
+            (9, 2): 1,  # TransactionIndexed, Rate Limited
+            (12, 2): 2,  # Span, Rate Limited
+            (16, 2): 2,  # SpanIndexed, Rate Limited
+        }
+    elif category == "transaction_indexed":
+        assert summarize_outcomes() == {
+            (9, 2): 1,  # TransactionIndexed, Rate Limited
+            (12, 2): 2,  # Span, Rate Limited
+            (16, 2): 2,  # SpanIndexed, Rate Limited
+        }
 
+    # Third batch might raise 429 since it hits the fast path
     maybe_raises = (
         pytest.raises(HTTPError, match="429 Client Error")
-        if raises_rate_limited
+        if hits_fast_path
         else contextlib.nullcontext()
     )
     with maybe_raises:
         relay.send_envelope(project_id, envelope)
+
+    # On the fast path, we don't count the transaction itself as a span, whereas in the slow path
+    # the transaction is extracted into a span itself, thus the count is 2.
+    spans_length = 1 if hits_fast_path else 2
+    if category == "transaction":
+        assert summarize_outcomes() == {
+            (2, 2): 1,  # Transaction, Rate Limited
+            (9, 2): 1,  # TransactionIndexed, Rate Limited
+            (12, 2): spans_length,  # Span, Rate Limited
+            (16, 2): spans_length,  # SpanIndexed, Rate Limited
+        }
+    elif category == "transaction_indexed":
+        assert summarize_outcomes() == {
+            (9, 2): 1,  # TransactionIndexed, Rate Limited
+            (12, 2): spans_length,  # Span, Rate Limited
+            (16, 2): spans_length,  # SpanIndexed, Rate Limited
+        }
 
     transactions_consumer.assert_empty()
     spans_consumer.assert_empty()
