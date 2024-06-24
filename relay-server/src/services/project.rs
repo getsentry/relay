@@ -960,7 +960,7 @@ impl Project {
         let (enforcement, mut rate_limits) =
             envelope_limiter.enforce(envelope.envelope_mut(), &scoping)?;
 
-        if check_nested_spans {
+        if spans > 0 {
             track_nested_spans_outcomes(&envelope, &enforcement, spans);
         }
 

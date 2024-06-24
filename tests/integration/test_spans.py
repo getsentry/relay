@@ -1718,7 +1718,7 @@ def test_rate_limit_spans_in_envelope(
 
 
 @pytest.mark.parametrize(
-    "category,hits_fast_path",
+    "category,raises_rate_limited",
     [
         ("transaction", True),
         ("transaction_indexed", False),
@@ -1731,7 +1731,7 @@ def test_rate_limit_is_consistent_between_transaction_and_spans(
     spans_consumer,
     outcomes_consumer,
     category,
-    hits_fast_path,
+    raises_rate_limited,
 ):
     """
     Rate limits are consistent between transactions and nested spans.
@@ -1804,7 +1804,7 @@ def test_rate_limit_is_consistent_between_transaction_and_spans(
     # Third batch might raise 429 since it hits the fast path
     maybe_raises = (
         pytest.raises(HTTPError, match="429 Client Error")
-        if hits_fast_path
+        if raises_rate_limited
         else contextlib.nullcontext()
     )
     with maybe_raises:
