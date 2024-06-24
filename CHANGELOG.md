@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+**Bug Fixes**:
+
+- Fixes metrics dropped due to missing project state. ([#3553](https://github.com/getsentry/relay/issues/3553))
+
+
+**Internal**:
+
+- Aggregate metrics before rate limiting. ([#3746](https://github.com/getsentry/relay/pull/3746))
+
 ## 24.6.0
 
 **Bug fixes**:

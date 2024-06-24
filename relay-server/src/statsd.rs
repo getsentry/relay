@@ -678,6 +678,9 @@ pub enum RelayCounters {
     /// - `resource_id`: The COGS resource id.
     /// - `app_feature`: The COGS app feature.
     CogsUsage,
+    /// The amount of times metrics of a project have been flushed without the project being
+    /// fetched/available.
+    ProjectStateFlushMetricsNoProject,
     /// The decision on whether normalization should run for an event.
     ///
     /// This metric is tagged with:
@@ -727,6 +730,7 @@ impl CounterMetric for RelayCounters {
             RelayCounters::MissingDynamicSamplingContext => "missing_dynamic_sampling_context",
             RelayCounters::FeedbackAttachments => "processing.feedback_attachments",
             RelayCounters::CogsUsage => "cogs.usage",
+            RelayCounters::ProjectStateFlushMetricsNoProject => "project_state.metrics.no_project",
             RelayCounters::NormalizationDecision => "normalization.decision",
         }
     }
