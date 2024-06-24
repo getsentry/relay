@@ -1,5 +1,4 @@
 use std::sync::Arc;
-use std::time::Duration;
 
 use relay_config::{Config, RelayMode};
 use relay_statsd::metric;
@@ -96,7 +95,9 @@ impl Service for RelayStats {
     type Interface = ();
 
     fn spawn_handler(self, _rx: relay_system::Receiver<Self::Interface>) {
-        let mut ticker = interval(Duration::from_secs(5));
+        let Some(mut ticker) = self.config.metrics_periodic_interval().map(interval) else {
+            return;
+        };
 
         tokio::spawn(async move {
             loop {
