@@ -10,6 +10,7 @@
 **Internal**:
 
 - Aggregate metrics before rate limiting. ([#3746](https://github.com/getsentry/relay/pull/3746))
+- Correctly emit negative outcomes for nested spans. ([#3749](https://github.com/getsentry/relay/pull/3749))
 
 ## 24.6.0
 
