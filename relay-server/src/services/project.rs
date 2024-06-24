@@ -1071,7 +1071,9 @@ impl Project {
                 .items()
                 .find(|i| *i.ty() == ItemType::Transaction && !i.spans_extracted())
                 .and_then(|i| serde_json::from_slice::<PartialEvent>(&i.payload()).ok())
-                .map_or(0, |p| p.spans.0)
+                // We do + 1, since we count the transaction itself because it will be extracted
+                // as a span and counted during the slow path of rate limiting.
+                .map_or(0, |p| p.spans.0 + 1)
         } else {
             0
         };

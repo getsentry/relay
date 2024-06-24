@@ -1811,21 +1811,18 @@ def test_rate_limit_is_consistent_between_transaction_and_spans(
     with maybe_raises:
         relay.send_envelope(project_id, envelope)
 
-    # On the fast path, we don't count the transaction itself as a span, whereas in the slow path
-    # the transaction is extracted into a span itself, thus the count is 2.
-    spans_length = 1 if hits_fast_path else 2
     if category == "transaction":
         assert summarize_outcomes() == {
             (2, 2): 1,  # Transaction, Rate Limited
             (9, 2): 1,  # TransactionIndexed, Rate Limited
-            (12, 2): spans_length,  # Span, Rate Limited
-            (16, 2): spans_length,  # SpanIndexed, Rate Limited
+            (12, 2): 2,  # Span, Rate Limited
+            (16, 2): 2,  # SpanIndexed, Rate Limited
         }
     elif category == "transaction_indexed":
         assert summarize_outcomes() == {
             (9, 2): 1,  # TransactionIndexed, Rate Limited
-            (12, 2): spans_length,  # Span, Rate Limited
-            (16, 2): spans_length,  # SpanIndexed, Rate Limited
+            (12, 2): 2,  # Span, Rate Limited
+            (16, 2): 2,  # SpanIndexed, Rate Limited
         }
 
     transactions_consumer.assert_empty()
