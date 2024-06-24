@@ -1,4 +1,6 @@
 use relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric, TimerMetric};
+#[cfg(doc)]
+use tokio::runtime::RuntimeMetrics;
 
 /// Gauge metrics used by Relay
 pub enum RelayGauges {
@@ -44,6 +46,95 @@ impl GaugeMetric for RelayGauges {
             RelayGauges::BufferPeriodicUnspool => "buffer.unspool.periodic",
             RelayGauges::SystemMemoryUsed => "health.system_memory.used",
             RelayGauges::SystemMemoryTotal => "health.system_memory.total",
+        }
+    }
+}
+
+/// Gauge metrics collected from the Tokio Runtime.
+pub enum TokioGauges {
+    /// Exposes [`RuntimeMetrics::active_tasks_count`].
+    ActiveTasksCount,
+    /// Exposes [`RuntimeMetrics::blocking_queue_depth`].
+    BlockingQueueDepth,
+    /// Exposes [`RuntimeMetrics::budget_forced_yield_count`].
+    BudgetForcedYieldCount,
+    /// Exposes [`RuntimeMetrics::num_blocking_threads`].
+    NumBlockingThreads,
+    /// Exposes [`RuntimeMetrics::num_idle_blocking_threads`].
+    NumIdleBlockingThreads,
+    /// Exposes [`RuntimeMetrics::num_workers`].
+    NumWorkers,
+    /// Exposes [`RuntimeMetrics::worker_local_queue_depth`].
+    ///
+    /// This metric is tagged with:
+    /// - `worker`: the worker id.
+    WorkerLocalQueueDepth,
+    /// Exposes [`RuntimeMetrics::worker_local_schedule_count`].
+    ///
+    /// This metric is tagged with:
+    /// - `worker`: the worker id.
+    WorkerLocalScheduleCount,
+    /// Exposes [`RuntimeMetrics::worker_mean_poll_time`].
+    ///
+    /// This metric is tagged with:
+    /// - `worker`: the worker id.
+    WorkerMeanPollTime,
+    /// Exposes [`RuntimeMetrics::worker_noop_count`].
+    ///
+    /// This metric is tagged with:
+    /// - `worker`: the worker id.
+    WorkerNoopCount,
+    /// Exposes [`RuntimeMetrics::worker_overflow_count`].
+    ///
+    /// This metric is tagged with:
+    /// - `worker`: the worker id.
+    WorkerOverflowCount,
+    /// Exposes [`RuntimeMetrics::worker_park_count`].
+    ///
+    /// This metric is tagged with:
+    /// - `worker`: the worker id.
+    WorkerParkCount,
+    /// Exposes [`RuntimeMetrics::worker_poll_count`].
+    ///
+    /// This metric is tagged with:
+    /// - `worker`: the worker id.
+    WorkerPollCount,
+    /// Exposes [`RuntimeMetrics::worker_steal_count`].
+    ///
+    /// This metric is tagged with:
+    /// - `worker`: the worker id.
+    WorkerStealCount,
+    /// Exposes [`RuntimeMetrics::worker_steal_operations`].
+    ///
+    /// This metric is tagged with:
+    /// - `worker`: the worker id.
+    WorkerStealOperations,
+    /// Exposes [`RuntimeMetrics::worker_total_busy_duration`].
+    ///
+    /// This metric is tagged with:
+    /// - `worker`: the worker id.
+    WorkerTotalBusyDuration,
+}
+
+impl GaugeMetric for TokioGauges {
+    fn name(&self) -> &'static str {
+        match self {
+            TokioGauges::ActiveTasksCount => "tokio.active_task_count",
+            TokioGauges::BlockingQueueDepth => "tokio.blocking_queue_depth",
+            TokioGauges::BudgetForcedYieldCount => "tokio.budget_forced_yield_count",
+            TokioGauges::NumBlockingThreads => "tokio.num_blocking_threads",
+            TokioGauges::NumIdleBlockingThreads => "tokio.num_idle_blocking_threads",
+            TokioGauges::NumWorkers => "tokio.num_workers",
+            TokioGauges::WorkerLocalQueueDepth => "tokio.worker_local_queue_depth",
+            TokioGauges::WorkerLocalScheduleCount => "tokio.worker_local_schedule_count",
+            TokioGauges::WorkerMeanPollTime => "tokio.worker_mean_poll_time",
+            TokioGauges::WorkerNoopCount => "tokio.worker_noop_count",
+            TokioGauges::WorkerOverflowCount => "tokio.worker_overflow_count",
+            TokioGauges::WorkerParkCount => "tokio.worker_park_count",
+            TokioGauges::WorkerPollCount => "tokio.worker_poll_count",
+            TokioGauges::WorkerStealCount => "tokio.worker_steal_count",
+            TokioGauges::WorkerStealOperations => "tokio.worker_steal_operations",
+            TokioGauges::WorkerTotalBusyDuration => "tokio.worker_total_busy_duration",
         }
     }
 }

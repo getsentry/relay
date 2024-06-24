@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use relay_config::{Config, RelayMode};
+use relay_config::Config;
 use relay_metrics::{AcceptsMetrics, Aggregator};
 use relay_statsd::metric;
 use relay_system::{Addr, AsyncResponse, Controller, FromMessage, Interface, Sender, Service};
@@ -10,7 +10,7 @@ use tokio::sync::watch;
 use tokio::time::{timeout, Instant};
 
 use crate::services::project_cache::{ProjectCache, SpoolHealth};
-use crate::services::upstream::{IsAuthenticated, IsNetworkOutage, UpstreamRelay};
+use crate::services::upstream::{IsAuthenticated, UpstreamRelay};
 use crate::statsd::{RelayGauges, RelayTimers};
 
 /// Checks whether Relay is alive and healthy based on its variant.
@@ -178,18 +178,6 @@ impl HealthCheckService {
             .map_or(Status::Unhealthy, Status::from)
     }
 
-    async fn network_outage_probe(&self) -> Status {
-        // Internal metric that we need to be logged in recurring intervals. This is a form of
-        // health check, but it does not contribute to the status of this service.
-        if self.config.relay_mode() == RelayMode::Managed {
-            if let Ok(is_outage) = self.upstream_relay.send(IsNetworkOutage).await {
-                metric!(gauge(RelayGauges::NetworkOutage) = u64::from(is_outage));
-            }
-        }
-
-        Status::Healthy
-    }
-
     async fn probe(&self, name: &'static str, fut: impl Future<Output = Status>) -> Status {
         match timeout(self.config.health_probe_timeout(), fut).await {
             Err(_) => {
@@ -208,12 +196,11 @@ impl HealthCheckService {
         // System memory is sync and requires mutable access, but we still want to log errors.
         let sys_mem = self.system_memory_probe();
 
-        let (sys_mem, auth, agg, proj, _) = tokio::join!(
+        let (sys_mem, auth, agg, proj) = tokio::join!(
             self.probe("system memory", async { sys_mem }),
             self.probe("auth", self.auth_probe()),
             self.probe("aggregator", self.aggregator_probe()),
             self.probe("spool health", self.spool_health_probe()),
-            self.probe("network outage", self.network_outage_probe()),
         );
 
         Status::from_iter([sys_mem, auth, agg, proj])
