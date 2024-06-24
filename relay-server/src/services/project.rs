@@ -1121,6 +1121,7 @@ pub enum CheckedBuckets {
 
 #[cfg(test)]
 mod tests {
+    use crate::envelope::{ContentType, Item};
     use crate::metrics::MetricStats;
     use crate::services::processor::ProcessingGroup;
     use relay_common::time::UnixTimestamp;
