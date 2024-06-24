@@ -67,52 +67,52 @@ pub enum TokioGauges {
     /// Exposes [`RuntimeMetrics::worker_local_queue_depth`].
     ///
     /// This metric is tagged with:
-    /// - `worker`: the worker id
+    /// - `worker`: the worker id.
     WorkerLocalQueueDepth,
     /// Exposes [`RuntimeMetrics::worker_local_schedule_count`].
     ///
     /// This metric is tagged with:
-    /// - `worker`: the worker id
+    /// - `worker`: the worker id.
     WorkerLocalScheduleCount,
     /// Exposes [`RuntimeMetrics::worker_mean_poll_time`].
     ///
     /// This metric is tagged with:
-    /// - `worker`: the worker id
+    /// - `worker`: the worker id.
     WorkerMeanPollTime,
     /// Exposes [`RuntimeMetrics::worker_noop_count`].
     ///
     /// This metric is tagged with:
-    /// - `worker`: the worker id
+    /// - `worker`: the worker id.
     WorkerNoopCount,
     /// Exposes [`RuntimeMetrics::worker_overflow_count`].
     ///
     /// This metric is tagged with:
-    /// - `worker`: the worker id
+    /// - `worker`: the worker id.
     WorkerOverflowCount,
     /// Exposes [`RuntimeMetrics::worker_park_count`].
     ///
     /// This metric is tagged with:
-    /// - `worker`: the worker id
+    /// - `worker`: the worker id.
     WorkerParkCount,
     /// Exposes [`RuntimeMetrics::worker_poll_count`].
     ///
     /// This metric is tagged with:
-    /// - `worker`: the worker id
+    /// - `worker`: the worker id.
     WorkerPollCount,
     /// Exposes [`RuntimeMetrics::worker_steal_count`].
     ///
     /// This metric is tagged with:
-    /// - `worker`: the worker id
+    /// - `worker`: the worker id.
     WorkerStealCount,
     /// Exposes [`RuntimeMetrics::worker_steal_operations`].
     ///
     /// This metric is tagged with:
-    /// - `worker`: the worker id
+    /// - `worker`: the worker id.
     WorkerStealOperations,
     /// Exposes [`RuntimeMetrics::worker_total_busy_duration`].
     ///
     /// This metric is tagged with:
-    /// - `worker`: the worker id
+    /// - `worker`: the worker id.
     WorkerTotalBusyDuration,
 }
 
