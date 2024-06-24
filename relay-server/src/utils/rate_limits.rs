@@ -258,15 +258,15 @@ impl EnvelopeSummary {
 #[derive(Debug)]
 pub struct CategoryLimit {
     /// The limited data category.
-    pub category: DataCategory,
+    category: DataCategory,
     /// The total rate limited quantity across all items.
     ///
     /// This will be `0` if nothing was rate limited.
-    pub quantity: usize,
+    quantity: usize,
     /// The reason code of the applied rate limit.
     ///
     /// Defaults to `None` if the quota does not declare a reason code.
-    pub reason_code: Option<ReasonCode>,
+    reason_code: Option<ReasonCode>,
 }
 
 impl CategoryLimit {
