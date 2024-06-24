@@ -797,6 +797,10 @@
 <a href="#797" id="797">797</a>
 <a href="#798" id="798">798</a>
 <a href="#799" id="799">799</a>
+<a href="#800" id="800">800</a>
+<a href="#801" id="801">801</a>
+<a href="#802" id="802">802</a>
+<a href="#803" id="803">803</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric, TimerMetric};
 
 <span class="doccomment">/// Gauge metrics used by Relay
@@ -1477,6 +1481,9 @@
     /// - `resource_id`: The COGS resource id.
     /// - `app_feature`: The COGS app feature.
     </span>CogsUsage,
+    <span class="doccomment">/// The amount of times metrics of a project have been flushed without the project being
+    /// fetched/available.
+    </span>ProjectStateFlushMetricsNoProject,
     <span class="doccomment">/// The decision on whether normalization should run for an event.
     ///
     /// This metric is tagged with:
@@ -1526,6 +1533,7 @@
             RelayCounters::MissingDynamicSamplingContext =&gt; <span class="string">"missing_dynamic_sampling_context"</span>,
             RelayCounters::FeedbackAttachments =&gt; <span class="string">"processing.feedback_attachments"</span>,
             RelayCounters::CogsUsage =&gt; <span class="string">"cogs.usage"</span>,
+            RelayCounters::ProjectStateFlushMetricsNoProject =&gt; <span class="string">"project_state.metrics.no_project"</span>,
             RelayCounters::NormalizationDecision =&gt; <span class="string">"normalization.decision"</span>,
         }
     }

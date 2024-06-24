@@ -3719,72 +3719,6 @@
 <a href="#3719" id="3719">3719</a>
 <a href="#3720" id="3720">3720</a>
 <a href="#3721" id="3721">3721</a>
-<a href="#3722" id="3722">3722</a>
-<a href="#3723" id="3723">3723</a>
-<a href="#3724" id="3724">3724</a>
-<a href="#3725" id="3725">3725</a>
-<a href="#3726" id="3726">3726</a>
-<a href="#3727" id="3727">3727</a>
-<a href="#3728" id="3728">3728</a>
-<a href="#3729" id="3729">3729</a>
-<a href="#3730" id="3730">3730</a>
-<a href="#3731" id="3731">3731</a>
-<a href="#3732" id="3732">3732</a>
-<a href="#3733" id="3733">3733</a>
-<a href="#3734" id="3734">3734</a>
-<a href="#3735" id="3735">3735</a>
-<a href="#3736" id="3736">3736</a>
-<a href="#3737" id="3737">3737</a>
-<a href="#3738" id="3738">3738</a>
-<a href="#3739" id="3739">3739</a>
-<a href="#3740" id="3740">3740</a>
-<a href="#3741" id="3741">3741</a>
-<a href="#3742" id="3742">3742</a>
-<a href="#3743" id="3743">3743</a>
-<a href="#3744" id="3744">3744</a>
-<a href="#3745" id="3745">3745</a>
-<a href="#3746" id="3746">3746</a>
-<a href="#3747" id="3747">3747</a>
-<a href="#3748" id="3748">3748</a>
-<a href="#3749" id="3749">3749</a>
-<a href="#3750" id="3750">3750</a>
-<a href="#3751" id="3751">3751</a>
-<a href="#3752" id="3752">3752</a>
-<a href="#3753" id="3753">3753</a>
-<a href="#3754" id="3754">3754</a>
-<a href="#3755" id="3755">3755</a>
-<a href="#3756" id="3756">3756</a>
-<a href="#3757" id="3757">3757</a>
-<a href="#3758" id="3758">3758</a>
-<a href="#3759" id="3759">3759</a>
-<a href="#3760" id="3760">3760</a>
-<a href="#3761" id="3761">3761</a>
-<a href="#3762" id="3762">3762</a>
-<a href="#3763" id="3763">3763</a>
-<a href="#3764" id="3764">3764</a>
-<a href="#3765" id="3765">3765</a>
-<a href="#3766" id="3766">3766</a>
-<a href="#3767" id="3767">3767</a>
-<a href="#3768" id="3768">3768</a>
-<a href="#3769" id="3769">3769</a>
-<a href="#3770" id="3770">3770</a>
-<a href="#3771" id="3771">3771</a>
-<a href="#3772" id="3772">3772</a>
-<a href="#3773" id="3773">3773</a>
-<a href="#3774" id="3774">3774</a>
-<a href="#3775" id="3775">3775</a>
-<a href="#3776" id="3776">3776</a>
-<a href="#3777" id="3777">3777</a>
-<a href="#3778" id="3778">3778</a>
-<a href="#3779" id="3779">3779</a>
-<a href="#3780" id="3780">3780</a>
-<a href="#3781" id="3781">3781</a>
-<a href="#3782" id="3782">3782</a>
-<a href="#3783" id="3783">3783</a>
-<a href="#3784" id="3784">3784</a>
-<a href="#3785" id="3785">3785</a>
-<a href="#3786" id="3786">3786</a>
-<a href="#3787" id="3787">3787</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
@@ -3841,7 +3775,7 @@
         RedisSetLimiterOptions,
     },
     relay_dynamic_config::{CardinalityLimiterMode, GlobalConfig, MetricExtractionGroups},
-    relay_metrics::{Aggregator, MergeBuckets, RedisMetricMetaStore},
+    relay_metrics::RedisMetricMetaStore,
     relay_quotas::{Quota, RateLimitingError, RateLimits, RedisRateLimiter},
     relay_redis::RedisPool,
     std::iter::Chain,
@@ -4701,13 +4635,6 @@
     </span><span class="kw">pub </span>scoping: Scoping,
 }
 
-<span class="doccomment">/// Applies rate limits to metrics buckets and forwards them to the [`Aggregator`].
-</span><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-#[derive(Debug)]
-</span><span class="kw">pub struct </span>RateLimitBuckets {
-    <span class="kw">pub </span>bucket_limiter: MetricsLimiter,
-}
-
 <span class="doccomment">/// CPU-intensive processing tasks for envelopes.
 </span><span class="attr">#[derive(Debug)]
 </span><span class="kw">pub enum </span>EnvelopeProcessor {
@@ -4719,8 +4646,6 @@
     EncodeMetricMeta(Box&lt;EncodeMetricMeta&gt;),
     SubmitEnvelope(Box&lt;SubmitEnvelope&gt;),
     SubmitClientReports(Box&lt;SubmitClientReports&gt;),
-    <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-    </span>RateLimitBuckets(RateLimitBuckets),
 }
 
 <span class="kw">impl </span>EnvelopeProcessor {
@@ -4735,8 +4660,6 @@
             EnvelopeProcessor::EncodeMetricMeta(<span class="kw">_</span>) =&gt; <span class="string">"EncodeMetricMeta"</span>,
             EnvelopeProcessor::SubmitEnvelope(<span class="kw">_</span>) =&gt; <span class="string">"SubmitEnvelope"</span>,
             EnvelopeProcessor::SubmitClientReports(<span class="kw">_</span>) =&gt; <span class="string">"SubmitClientReports"</span>,
-            <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-            </span>EnvelopeProcessor::RateLimitBuckets(<span class="kw">_</span>) =&gt; <span class="string">"RateLimitBuckets"</span>,
         }
     }
 }
@@ -4807,15 +4730,6 @@
     }
 }
 
-<span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-</span><span class="kw">impl </span>FromMessage&lt;RateLimitBuckets&gt; <span class="kw">for </span>EnvelopeProcessor {
-    <span class="kw">type </span>Response = NoResponse;
-
-    <span class="kw">fn </span>from_message(message: RateLimitBuckets, <span class="kw">_</span>: ()) -&gt; <span class="self">Self </span>{
-        <span class="self">Self</span>::RateLimitBuckets(message)
-    }
-}
-
 <span class="doccomment">/// Service implementing the [`EnvelopeProcessor`] interface.
 ///
 /// This service handles messages in a worker pool with configurable concurrency.
@@ -4830,8 +4744,6 @@
     </span><span class="kw">pub </span>envelope_processor: Addr&lt;EnvelopeProcessor&gt;,
     <span class="kw">pub </span>project_cache: Addr&lt;ProjectCache&gt;,
     <span class="kw">pub </span>outcome_aggregator: Addr&lt;TrackOutcome&gt;,
-    <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-    </span><span class="kw">pub </span>aggregator: Addr&lt;Aggregator&gt;,
     <span class="kw">pub </span>upstream_relay: Addr&lt;UpstreamRelay&gt;,
     <span class="kw">pub </span>test_store: Addr&lt;TestStore&gt;,
     <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
@@ -4845,8 +4757,6 @@
             </span>envelope_processor: Addr::dummy(),
             project_cache: Addr::dummy(),
             outcome_aggregator: Addr::dummy(),
-            <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-            </span>aggregator: Addr::dummy(),
             upstream_relay: Addr::dummy(),
             test_store: Addr::dummy(),
             <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
@@ -6089,13 +5999,69 @@
         });
     }
 
-    <span class="doccomment">/// Check and apply rate limits to metrics buckets.
-    </span><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-    </span><span class="kw">fn </span>handle_rate_limit_buckets(<span class="kw-2">&amp;</span><span class="self">self</span>, message: RateLimitBuckets) {
-        <span class="kw">use </span>relay_quotas::RateLimits;
+    <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
+    </span><span class="kw">fn </span>rate_limit_buckets(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        scoping: Scoping,
+        project_state: <span class="kw-2">&amp;</span>ProjectState,
+        <span class="kw-2">mut </span>buckets: Vec&lt;Bucket&gt;,
+    ) -&gt; Vec&lt;Bucket&gt; {
+        <span class="kw">let </span><span class="prelude-val">Some</span>(rate_limiter) = <span class="self">self</span>.inner.rate_limiter.as_ref() <span class="kw">else </span>{
+            <span class="kw">return </span>buckets;
+        };
 
+        <span class="kw">let </span>global_config = <span class="self">self</span>.inner.global_config.current();
+        <span class="kw">let </span>namespaces = buckets
+            .iter()
+            .filter_map(|bucket| bucket.name.try_namespace())
+            .counts();
+
+        <span class="kw">let </span>quotas = CombinedQuotas::new(<span class="kw-2">&amp;</span>global_config, project_state.get_quotas());
+
+        <span class="kw">for </span>(namespace, quantity) <span class="kw">in </span>namespaces {
+            <span class="kw">let </span>item_scoping = scoping.metric_bucket(namespace);
+
+            <span class="kw">let </span>limits = <span class="kw">match </span>rate_limiter.is_rate_limited(quotas, item_scoping, quantity, <span class="bool-val">false</span>) {
+                <span class="prelude-val">Ok</span>(limits) =&gt; limits,
+                <span class="prelude-val">Err</span>(err) =&gt; {
+                    <span class="macro">relay_log::error!</span>(
+                        error = <span class="kw-2">&amp;</span>err <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>std::error::Error,
+                        <span class="string">"failed to check redis rate limits"
+                    </span>);
+                    <span class="kw">break</span>;
+                }
+            };
+
+            <span class="kw">if </span>limits.is_limited() {
+                <span class="kw">let </span>rejected;
+                (buckets, rejected) = utils::split_off(buckets, |bucket| {
+                    bucket.name.try_namespace() == <span class="prelude-val">Some</span>(namespace)
+                });
+
+                <span class="kw">let </span>reason_code = limits.longest().and_then(|limit| limit.reason_code.clone());
+                <span class="self">self</span>.inner.metric_outcomes.track(
+                    scoping,
+                    <span class="kw-2">&amp;</span>rejected,
+                    Outcome::RateLimited(reason_code),
+                );
+
+                <span class="self">self</span>.inner.addrs.project_cache.send(UpdateRateLimits::new(
+                    item_scoping.scoping.project_key,
+                    limits,
+                ));
+            }
+        }
+
+        <span class="kw">match </span>MetricsLimiter::create(buckets, project_state.config.quotas.clone(), scoping) {
+            <span class="prelude-val">Err</span>(buckets) =&gt; buckets,
+            <span class="prelude-val">Ok</span>(bucket_limiter) =&gt; <span class="self">self</span>.apply_other_rate_limits(bucket_limiter),
+        }
+    }
+
+    <span class="doccomment">/// Check and apply rate limits to metrics buckets for transactions and spans.
+    </span><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
+    </span><span class="kw">fn </span>apply_other_rate_limits(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="kw-2">mut </span>bucket_limiter: MetricsLimiter) -&gt; Vec&lt;Bucket&gt; {
         <span class="macro">relay_log::trace!</span>(<span class="string">"handle_rate_limit_buckets"</span>);
-        <span class="kw">let </span>RateLimitBuckets { <span class="kw-2">mut </span>bucket_limiter } = message;
 
         <span class="kw">let </span>scoping = <span class="kw-2">*</span>bucket_limiter.scoping();
 
@@ -6164,88 +6130,7 @@
             }
         }
 
-        <span class="kw">let </span>project_key = bucket_limiter.scoping().project_key;
-        <span class="kw">let </span>buckets = bucket_limiter.into_buckets();
-
-        <span class="kw">if </span>!buckets.is_empty() {
-            <span class="self">self</span>.inner
-                .addrs
-                .aggregator
-                .send(MergeBuckets::new(project_key, buckets));
-        }
-    }
-
-    <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-    </span><span class="kw">fn </span>rate_limit_buckets_by_namespace(
-        <span class="kw-2">&amp;</span><span class="self">self</span>,
-        scoping: Scoping,
-        buckets: Vec&lt;Bucket&gt;,
-        quotas: CombinedQuotas&lt;<span class="lifetime">'_</span>&gt;,
-    ) -&gt; Vec&lt;Bucket&gt; {
-        <span class="kw">let </span><span class="prelude-val">Some</span>(rate_limiter) = <span class="self">self</span>.inner.rate_limiter.as_ref() <span class="kw">else </span>{
-            <span class="kw">return </span>buckets;
-        };
-
-        <span class="kw">let </span>buckets_by_ns: HashMap&lt;MetricNamespace, Vec&lt;Bucket&gt;&gt; = buckets
-            .into_iter()
-            .filter_map(|bucket| <span class="prelude-val">Some</span>((bucket.name.try_namespace()<span class="question-mark">?</span>, bucket)))
-            .into_group_map();
-
-        buckets_by_ns
-            .into_iter()
-            .flat_map(|(namespace, buckets)| {
-                <span class="kw">let </span>item_scoping = scoping.metric_bucket(namespace);
-                <span class="self">self</span>.rate_limit_buckets(item_scoping, buckets, quotas, rate_limiter)
-            })
-            .collect()
-    }
-
-    <span class="doccomment">/// Returns `true` if the batches should be rate limited.
-    </span><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-    </span><span class="kw">fn </span>rate_limit_buckets(
-        <span class="kw-2">&amp;</span><span class="self">self</span>,
-        item_scoping: relay_quotas::ItemScoping,
-        buckets: Vec&lt;Bucket&gt;,
-        quotas: CombinedQuotas&lt;<span class="lifetime">'_</span>&gt;,
-        rate_limiter: <span class="kw-2">&amp;</span>RedisRateLimiter,
-    ) -&gt; Vec&lt;Bucket&gt; {
-        <span class="kw">let </span>batch_size = <span class="self">self</span>.inner.config.metrics_max_batch_size_bytes();
-        <span class="kw">let </span>quantity = BucketsView::from(<span class="kw-2">&amp;</span>buckets)
-            .by_size(batch_size)
-            .flatten()
-            .count();
-
-        <span class="comment">// Check with redis if the throughput limit has been exceeded, while also updating
-        // the count so that other relays will be updated too.
-        </span><span class="kw">match </span>rate_limiter.is_rate_limited(quotas, item_scoping, quantity, <span class="bool-val">false</span>) {
-            <span class="prelude-val">Ok</span>(limits) <span class="kw">if </span>limits.is_limited() =&gt; {
-                <span class="macro">relay_log::debug!</span>(<span class="string">"dropping {quantity} buckets due to throughput rate limit"</span>);
-
-                <span class="kw">let </span>reason_code = limits.longest().and_then(|limit| limit.reason_code.clone());
-
-                <span class="self">self</span>.inner.metric_outcomes.track(
-                    <span class="kw-2">*</span>item_scoping.scoping,
-                    <span class="kw-2">&amp;</span>buckets,
-                    Outcome::RateLimited(reason_code),
-                );
-
-                <span class="self">self</span>.inner.addrs.project_cache.send(UpdateRateLimits::new(
-                    item_scoping.scoping.project_key,
-                    limits,
-                ));
-
-                Vec::new()
-            }
-            <span class="prelude-val">Ok</span>(<span class="kw">_</span>) =&gt; buckets,
-            <span class="prelude-val">Err</span>(e) =&gt; {
-                <span class="macro">relay_log::error!</span>(
-                    error = <span class="kw-2">&amp;</span>e <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>std::error::Error,
-                    <span class="string">"failed to check redis rate limits"
-                </span>);
-
-                buckets
-            }
-        }
+        bucket_limiter.into_buckets()
     }
 
     <span class="doccomment">/// Cardinality limits the passed buckets and returns a filtered vector of only accepted buckets.
@@ -6329,16 +6214,13 @@
         <span class="kw">use </span><span class="kw">crate</span>::constants::DEFAULT_EVENT_RETENTION;
         <span class="kw">use </span><span class="kw">crate</span>::services::store::StoreMetrics;
 
-        <span class="kw">let </span>global_config = <span class="self">self</span>.inner.global_config.current();
-
         <span class="kw">for </span>(scoping, message) <span class="kw">in </span>message.scopes {
             <span class="kw">let </span>ProjectMetrics {
                 buckets,
                 project_state,
             } = message;
 
-            <span class="kw">let </span>quotas = CombinedQuotas::new(<span class="kw-2">&amp;</span>global_config, project_state.get_quotas());
-            <span class="kw">let </span>buckets = <span class="self">self</span>.rate_limit_buckets_by_namespace(scoping, buckets, quotas);
+            <span class="kw">let </span>buckets = <span class="self">self</span>.rate_limit_buckets(scoping, <span class="kw-2">&amp;</span>project_state, buckets);
 
             <span class="kw">let </span>limits = project_state.get_cardinality_limits();
             <span class="kw">let </span>buckets = <span class="self">self</span>.cardinality_limit_buckets(scoping, limits, buckets);
@@ -6587,8 +6469,6 @@
                 EnvelopeProcessor::EncodeMetricMeta(m) =&gt; <span class="self">self</span>.handle_encode_metric_meta(<span class="kw-2">*</span>m),
                 EnvelopeProcessor::SubmitEnvelope(m) =&gt; <span class="self">self</span>.handle_submit_envelope(<span class="kw-2">*</span>m),
                 EnvelopeProcessor::SubmitClientReports(m) =&gt; <span class="self">self</span>.handle_submit_client_reports(<span class="kw-2">*</span>m),
-                <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-                </span>EnvelopeProcessor::RateLimitBuckets(m) =&gt; <span class="self">self</span>.handle_rate_limit_buckets(m),
             }
         });
     }
@@ -6615,18 +6495,6 @@
             EnvelopeProcessor::EncodeMetricMeta(<span class="kw">_</span>) =&gt; AppFeature::MetricMeta.into(),
             EnvelopeProcessor::SubmitEnvelope(v) =&gt; AppFeature::from(v.envelope.group()).into(),
             EnvelopeProcessor::SubmitClientReports(<span class="kw">_</span>) =&gt; AppFeature::ClientReports.into(),
-            <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-            </span>EnvelopeProcessor::RateLimitBuckets(v) =&gt; {
-                relay_metrics::cogs::ByCount(v.bucket_limiter.buckets().filter(|b| {
-                    <span class="comment">// Only spans and transactions are actually rate limited at this point.
-                    // Other metrics do not cause costs.
-                    </span><span class="macro">matches!</span>(
-                        b.name.try_namespace(),
-                        <span class="prelude-val">Some</span>(MetricNamespace::Spans | MetricNamespace::Transactions)
-                    )
-                }))
-                .into()
-            }
         }
     }
 }
