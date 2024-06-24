@@ -479,16 +479,6 @@ impl Project {
         }
     }
 
-    /// If we know that a project is disabled, disallow metrics, too.
-    fn metrics_allowed(&self) -> bool {
-        if let Some(state) = self.valid_state() {
-            state.check_disabled(&self.config).is_ok()
-        } else {
-            // Projects without state go back to the original state of allowing metrics.
-            true
-        }
-    }
-
     /// Returns the [`ReservoirCounters`] for the project.
     pub fn reservoir_counters(&self) -> ReservoirCounters {
         self.reservoir_counters.clone()
@@ -559,21 +549,39 @@ impl Project {
         self.last_updated_at = Instant::now();
     }
 
-    /// Inserts given [buckets](Bucket) into the metrics aggregator.
+    /// Validates and inserts given [buckets](Bucket) into the metrics aggregator.
     ///
     /// The buckets will be keyed underneath this project key.
     pub fn merge_buckets(
-        &self,
+        &mut self,
         aggregator: &Addr<Aggregator>,
+        metric_outcomes: &MetricOutcomes,
+        outcome_aggregator: &Addr<TrackOutcome>,
         buckets: Vec<Bucket>,
         source: BucketSource,
     ) {
-        if !self.metrics_allowed() {
-            relay_log::debug!("dropping metric buckets, project disabled");
-            return;
-        }
+        // Best effort check for rate limits and project state. Continue if there is no project state.
+        let buckets = match self.check_buckets(metric_outcomes, outcome_aggregator, buckets) {
+            CheckedBuckets::NoProject(buckets) => buckets,
+            CheckedBuckets::Checked { buckets, .. } => buckets,
+            CheckedBuckets::Dropped => return,
+        };
 
         let buckets = filter_namespaces(buckets, source);
+
+        aggregator.send(MergeBuckets::new(
+            self.project_key,
+            buckets.into_iter().collect(),
+        ));
+    }
+
+    /// Returns a list of buckets back to the aggregator.
+    ///
+    /// This is used to return flushed buckets back to the aggregator if the project has not been
+    /// loaded at the time of flush.
+    ///
+    /// Buckets at this stage are expected to be validated already.
+    pub fn return_buckets(&self, aggregator: &Addr<Aggregator>, buckets: Vec<Bucket>) {
         aggregator.send(MergeBuckets::new(
             self.project_key,
             buckets.into_iter().collect(),
@@ -960,14 +968,14 @@ impl Project {
         metric_outcomes: &MetricOutcomes,
         outcome_aggregator: &Addr<TrackOutcome>,
         buckets: Vec<Bucket>,
-    ) -> CheckBuckets {
+    ) -> CheckedBuckets {
         let Some(project_state) = self.valid_state() else {
-            return CheckBuckets::NoProject(buckets);
+            return CheckedBuckets::NoProject(buckets);
         };
 
         if project_state.invalid() || project_state.disabled() {
             relay_log::debug!("dropping {} buckets for disabled project", buckets.len());
-            return CheckBuckets::Dropped;
+            return CheckedBuckets::Dropped;
         }
 
         let Some(scoping) = self.scoping() else {
@@ -976,7 +984,7 @@ impl Project {
                 "there is no scoping: dropping {} buckets",
                 buckets.len(),
             );
-            return CheckBuckets::Dropped;
+            return CheckedBuckets::Dropped;
         };
 
         let mut buckets = apply_project_state(buckets, metric_outcomes, &project_state, scoping);
@@ -1014,10 +1022,10 @@ impl Project {
         };
 
         if buckets.is_empty() {
-            return CheckBuckets::Dropped;
+            return CheckedBuckets::Dropped;
         }
 
-        CheckBuckets::Checked {
+        CheckedBuckets::Checked {
             scoping,
             project_state,
             buckets,
@@ -1027,7 +1035,7 @@ impl Project {
 
 /// Return value of [`Project::check_buckets`].
 #[derive(Debug)]
-pub enum CheckBuckets {
+pub enum CheckedBuckets {
     /// There is no project state available for these metrics yet.
     ///
     /// The metrics should be returned to the aggregator until the project state becomes available.
@@ -1192,7 +1200,7 @@ mod tests {
         let cb = project.check_buckets(&metric_outcomes, &outcome_aggregator, buckets.clone());
 
         match cb {
-            CheckBuckets::NoProject(b) => {
+            CheckedBuckets::NoProject(b) => {
                 assert_eq!(b, buckets)
             }
             cb => panic!("{cb:?}"),
@@ -1213,7 +1221,7 @@ mod tests {
         let cb = project.check_buckets(&metric_outcomes, &outcome_aggregator, buckets.clone());
 
         match cb {
-            CheckBuckets::Checked {
+            CheckedBuckets::Checked {
                 scoping,
                 project_state: _,
                 buckets: b,
@@ -1249,7 +1257,7 @@ mod tests {
             vec![create_metric("d:transactions/foo")],
         );
 
-        assert!(matches!(cb, CheckBuckets::Dropped));
+        assert!(matches!(cb, CheckedBuckets::Dropped));
 
         drop(metric_outcomes);
         assert!(metric_stats_rx.blocking_recv().is_none());
@@ -1280,7 +1288,7 @@ mod tests {
         );
 
         match cb {
-            CheckBuckets::Checked {
+            CheckedBuckets::Checked {
                 scoping,
                 project_state: _,
                 buckets,
@@ -1308,7 +1316,7 @@ mod tests {
             vec![create_metric("d:custom/foo")],
         );
 
-        assert!(matches!(cb, CheckBuckets::Dropped));
+        assert!(matches!(cb, CheckedBuckets::Dropped));
 
         drop(metric_outcomes);
         let value = metric_stats_rx.blocking_recv().unwrap();

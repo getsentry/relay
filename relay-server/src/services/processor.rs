@@ -2278,9 +2278,68 @@ impl EnvelopeProcessorService {
         });
     }
 
-    /// Check and apply rate limits to metrics buckets.
     #[cfg(feature = "processing")]
-    fn handle_rate_limit_buckets(&self, mut bucket_limiter: MetricsLimiter) -> Vec<Bucket> {
+    fn rate_limit_buckets(
+        &self,
+        scoping: Scoping,
+        project_state: &ProjectState,
+        mut buckets: Vec<Bucket>,
+    ) -> Vec<Bucket> {
+        let Some(rate_limiter) = self.inner.rate_limiter.as_ref() else {
+            return buckets;
+        };
+
+        let global_config = self.inner.global_config.current();
+        let namespaces = buckets
+            .iter()
+            .filter_map(|bucket| bucket.name.try_namespace())
+            .counts();
+
+        let quotas = CombinedQuotas::new(&global_config, project_state.get_quotas());
+
+        for (namespace, quantity) in namespaces {
+            let item_scoping = scoping.metric_bucket(namespace);
+
+            let limits = match rate_limiter.is_rate_limited(quotas, item_scoping, quantity, false) {
+                Ok(limits) => limits,
+                Err(err) => {
+                    relay_log::error!(
+                        error = &err as &dyn std::error::Error,
+                        "failed to check redis rate limits"
+                    );
+                    break;
+                }
+            };
+
+            if limits.is_limited() {
+                let rejected;
+                (buckets, rejected) = utils::split_off(buckets, |bucket| {
+                    bucket.name.try_namespace() == Some(namespace)
+                });
+
+                let reason_code = limits.longest().and_then(|limit| limit.reason_code.clone());
+                self.inner.metric_outcomes.track(
+                    scoping,
+                    &rejected,
+                    Outcome::RateLimited(reason_code),
+                );
+
+                self.inner.addrs.project_cache.send(UpdateRateLimits::new(
+                    item_scoping.scoping.project_key,
+                    limits,
+                ));
+            }
+        }
+
+        match MetricsLimiter::create(buckets, project_state.config.quotas.clone(), scoping) {
+            Err(buckets) => buckets,
+            Ok(bucket_limiter) => self.apply_other_rate_limits(bucket_limiter),
+        }
+    }
+
+    /// Check and apply rate limits to metrics buckets for transactions and spans.
+    #[cfg(feature = "processing")]
+    fn apply_other_rate_limits(&self, mut bucket_limiter: MetricsLimiter) -> Vec<Bucket> {
         relay_log::trace!("handle_rate_limit_buckets");
 
         let scoping = *bucket_limiter.scoping();
@@ -2351,65 +2410,6 @@ impl EnvelopeProcessorService {
         }
 
         bucket_limiter.into_buckets()
-    }
-
-    #[cfg(feature = "processing")]
-    fn rate_limit_buckets(
-        &self,
-        scoping: Scoping,
-        project_state: &ProjectState,
-        mut buckets: Vec<Bucket>,
-    ) -> Vec<Bucket> {
-        let Some(rate_limiter) = self.inner.rate_limiter.as_ref() else {
-            return buckets;
-        };
-
-        let global_config = self.inner.global_config.current();
-        let namespaces = buckets
-            .iter()
-            .filter_map(|bucket| bucket.name.try_namespace())
-            .counts();
-
-        let quotas = CombinedQuotas::new(&global_config, project_state.get_quotas());
-
-        for (namespace, quantity) in namespaces {
-            let item_scoping = scoping.metric_bucket(namespace);
-
-            let limits = match rate_limiter.is_rate_limited(quotas, item_scoping, quantity, false) {
-                Ok(limits) => limits,
-                Err(err) => {
-                    relay_log::error!(
-                        error = &err as &dyn std::error::Error,
-                        "failed to check redis rate limits"
-                    );
-                    break;
-                }
-            };
-
-            if limits.is_limited() {
-                let rejected;
-                (buckets, rejected) = utils::split_off(buckets, |bucket| {
-                    bucket.name.try_namespace() == Some(namespace)
-                });
-
-                let reason_code = limits.longest().and_then(|limit| limit.reason_code.clone());
-                self.inner.metric_outcomes.track(
-                    scoping,
-                    &rejected,
-                    Outcome::RateLimited(reason_code),
-                );
-
-                self.inner.addrs.project_cache.send(UpdateRateLimits::new(
-                    item_scoping.scoping.project_key,
-                    limits,
-                ));
-            }
-        }
-
-        match MetricsLimiter::create(buckets, project_state.config.quotas.clone(), scoping) {
-            Err(buckets) => buckets,
-            Ok(bucket_limiter) => self.handle_rate_limit_buckets(bucket_limiter),
-        }
     }
 
     /// Cardinality limits the passed buckets and returns a filtered vector of only accepted buckets.

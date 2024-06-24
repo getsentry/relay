@@ -21,7 +21,7 @@ use crate::services::outcome::{DiscardReason, TrackOutcome};
 use crate::services::processor::{
     EncodeMetrics, EnvelopeProcessor, ProcessEnvelope, ProjectMetrics,
 };
-use crate::services::project::{CheckBuckets, Project, ProjectSender, ProjectState};
+use crate::services::project::{CheckedBuckets, Project, ProjectSender, ProjectState};
 use crate::services::project_local::{LocalProjectSource, LocalProjectSourceService};
 #[cfg(feature = "processing")]
 use crate::services::project_redis::RedisProjectSource;
@@ -869,10 +869,18 @@ impl ProjectCacheBroker {
     fn handle_add_metric_buckets(&mut self, message: AddMetricBuckets) {
         let project_cache = self.services.project_cache.clone();
         let aggregator = self.services.aggregator.clone();
+        let metric_outcomes = self.metric_outcomes.clone();
+        let outcome_aggregator = self.services.outcome_aggregator.clone();
 
         let project = self.get_or_create_project(message.project_key);
         project.prefetch(project_cache, false);
-        project.merge_buckets(&aggregator, message.buckets, message.source);
+        project.merge_buckets(
+            &aggregator,
+            &metric_outcomes,
+            &outcome_aggregator,
+            message.buckets,
+            message.source,
+        );
     }
 
     fn handle_add_metric_meta(&mut self, message: AddMetricMeta) {
@@ -893,13 +901,13 @@ impl ProjectCacheBroker {
         for (project_key, buckets) in message.buckets {
             let project = self.get_or_create_project(project_key);
             match project.check_buckets(&metric_outcomes, &outcome_aggregator, buckets) {
-                CheckBuckets::NoProject(buckets) => {
+                CheckedBuckets::NoProject(buckets) => {
                     no_project += 1;
                     // Schedule an update for the project just in case.
                     project.prefetch(project_cache.clone(), false);
-                    project.merge_buckets(&aggregator, buckets, BucketSource::Internal);
+                    project.return_buckets(&aggregator, buckets);
                 }
-                CheckBuckets::Checked {
+                CheckedBuckets::Checked {
                     scoping,
                     project_state,
                     buckets,
@@ -911,7 +919,7 @@ impl ProjectCacheBroker {
                     })
                     .buckets
                     .extend(buckets),
-                CheckBuckets::Dropped => {}
+                CheckedBuckets::Dropped => {}
             }
         }
 
@@ -920,11 +928,9 @@ impl ProjectCacheBroker {
             scopes: scoped_buckets,
         });
 
-        if no_project > 0 {
-            relay_statsd::metric!(
-                counter(RelayCounters::ProjectStateFlushMetricsNoProject) += no_project
-            );
-        }
+        relay_statsd::metric!(
+            counter(RelayCounters::ProjectStateFlushMetricsNoProject) += no_project
+        );
     }
 
     fn handle_buffer_index(&mut self, message: UpdateSpoolIndex) {
