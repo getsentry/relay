@@ -2463,6 +2463,22 @@
 <a href="#2463" id="2463">2463</a>
 <a href="#2464" id="2464">2464</a>
 <a href="#2465" id="2465">2465</a>
+<a href="#2466" id="2466">2466</a>
+<a href="#2467" id="2467">2467</a>
+<a href="#2468" id="2468">2468</a>
+<a href="#2469" id="2469">2469</a>
+<a href="#2470" id="2470">2470</a>
+<a href="#2471" id="2471">2471</a>
+<a href="#2472" id="2472">2472</a>
+<a href="#2473" id="2473">2473</a>
+<a href="#2474" id="2474">2474</a>
+<a href="#2475" id="2475">2475</a>
+<a href="#2476" id="2476">2476</a>
+<a href="#2477" id="2477">2477</a>
+<a href="#2478" id="2478">2478</a>
+<a href="#2479" id="2479">2479</a>
+<a href="#2480" id="2480">2480</a>
+<a href="#2481" id="2481">2481</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::io::Write;
@@ -2959,6 +2975,11 @@
     /// For example, a value of `0.3` means that only 30% of the emitted metrics will be sent.
     /// Defaults to `1.0` (100%).
     </span>sample_rate: f32,
+    <span class="doccomment">/// Interval for periodic metrics emitted from Relay.
+    ///
+    /// Setting it to `0` seconds disables the periodic metrics.
+    /// Defaults to 5 seconds.
+    </span>periodic_secs: u64,
 }
 
 <span class="kw">impl </span>Default <span class="kw">for </span>Metrics {
@@ -2969,6 +2990,7 @@
             default_tags: BTreeMap::new(),
             hostname_tag: <span class="prelude-val">None</span>,
             sample_rate: <span class="number">1.0</span>,
+            periodic_secs: <span class="number">5</span>,
         }
     }
 }
@@ -4403,6 +4425,16 @@
     <span class="doccomment">/// Returns the expiry for code locations.
     </span><span class="kw">pub fn </span>metrics_meta_locations_expiry(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Duration {
         Duration::from_secs(<span class="self">self</span>.values.sentry_metrics.meta_locations_expiry)
+    }
+
+    <span class="doccomment">/// Returns the interval for periodic metrics emitted from Relay.
+    ///
+    /// `None` if periodic metrics are disabled.
+    </span><span class="kw">pub fn </span>metrics_periodic_interval(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;Duration&gt; {
+        <span class="kw">match </span><span class="self">self</span>.values.metrics.periodic_secs {
+            <span class="number">0 </span>=&gt; <span class="prelude-val">None</span>,
+            secs =&gt; <span class="prelude-val">Some</span>(Duration::from_secs(secs)),
+        }
     }
 
     <span class="doccomment">/// Returns the default timeout for all upstream HTTP requests.

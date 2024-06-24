@@ -325,22 +325,9 @@
 <a href="#325" id="325">325</a>
 <a href="#326" id="326">326</a>
 <a href="#327" id="327">327</a>
-<a href="#328" id="328">328</a>
-<a href="#329" id="329">329</a>
-<a href="#330" id="330">330</a>
-<a href="#331" id="331">331</a>
-<a href="#332" id="332">332</a>
-<a href="#333" id="333">333</a>
-<a href="#334" id="334">334</a>
-<a href="#335" id="335">335</a>
-<a href="#336" id="336">336</a>
-<a href="#337" id="337">337</a>
-<a href="#338" id="338">338</a>
-<a href="#339" id="339">339</a>
-<a href="#340" id="340">340</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::sync::Arc;
 
-<span class="kw">use </span>relay_config::{Config, RelayMode};
+<span class="kw">use </span>relay_config::Config;
 <span class="kw">use </span>relay_metrics::{AcceptsMetrics, Aggregator};
 <span class="kw">use </span>relay_statsd::metric;
 <span class="kw">use </span>relay_system::{Addr, AsyncResponse, Controller, FromMessage, Interface, Sender, Service};
@@ -350,7 +337,7 @@
 <span class="kw">use </span>tokio::time::{timeout, Instant};
 
 <span class="kw">use </span><span class="kw">crate</span>::services::project_cache::{ProjectCache, SpoolHealth};
-<span class="kw">use </span><span class="kw">crate</span>::services::upstream::{IsAuthenticated, IsNetworkOutage, UpstreamRelay};
+<span class="kw">use </span><span class="kw">crate</span>::services::upstream::{IsAuthenticated, UpstreamRelay};
 <span class="kw">use </span><span class="kw">crate</span>::statsd::{RelayGauges, RelayTimers};
 
 <span class="doccomment">/// Checks whether Relay is alive and healthy based on its variant.
@@ -518,18 +505,6 @@
             </span>.map_or(Status::Unhealthy, Status::from)
     }
 
-    <span class="kw">async fn </span>network_outage_probe(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Status {
-        <span class="comment">// Internal metric that we need to be logged in recurring intervals. This is a form of
-        // health check, but it does not contribute to the status of this service.
-        </span><span class="kw">if </span><span class="self">self</span>.config.relay_mode() == RelayMode::Managed {
-            <span class="kw">if let </span><span class="prelude-val">Ok</span>(is_outage) = <span class="self">self</span>.upstream_relay.send(IsNetworkOutage).<span class="kw">await </span>{
-                <span class="macro">metric!</span>(gauge(RelayGauges::NetworkOutage) = u64::from(is_outage));
-            }
-        }
-
-        Status::Healthy
-    }
-
     <span class="kw">async fn </span>probe(<span class="kw-2">&amp;</span><span class="self">self</span>, name: <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str, fut: <span class="kw">impl </span>Future&lt;Output = Status&gt;) -&gt; Status {
         <span class="kw">match </span>timeout(<span class="self">self</span>.config.health_probe_timeout(), fut).<span class="kw">await </span>{
             <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; {
@@ -548,12 +523,11 @@
         <span class="comment">// System memory is sync and requires mutable access, but we still want to log errors.
         </span><span class="kw">let </span>sys_mem = <span class="self">self</span>.system_memory_probe();
 
-        <span class="kw">let </span>(sys_mem, auth, agg, proj, <span class="kw">_</span>) = <span class="macro">tokio::join!</span>(
+        <span class="kw">let </span>(sys_mem, auth, agg, proj) = <span class="macro">tokio::join!</span>(
             <span class="self">self</span>.probe(<span class="string">"system memory"</span>, <span class="kw">async </span>{ sys_mem }),
             <span class="self">self</span>.probe(<span class="string">"auth"</span>, <span class="self">self</span>.auth_probe()),
             <span class="self">self</span>.probe(<span class="string">"aggregator"</span>, <span class="self">self</span>.aggregator_probe()),
             <span class="self">self</span>.probe(<span class="string">"spool health"</span>, <span class="self">self</span>.spool_health_probe()),
-            <span class="self">self</span>.probe(<span class="string">"network outage"</span>, <span class="self">self</span>.network_outage_probe()),
         );
 
         Status::from_iter([sys_mem, auth, agg, proj])
