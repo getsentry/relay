@@ -171,7 +171,6 @@ async fn inner(
         if has_access {
             let full = relay.internal && inner.full_config;
             if let Ok(project_state) = ParsedProjectState::try_from(project_state.clone()) {
-                //todojjb clone mess
                 let wrapper = ProjectStateWrapper::new(project_state.clone().into(), full);
                 configs.insert(project_key, Some(wrapper));
             } else {

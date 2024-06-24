@@ -23,14 +23,13 @@ use smallvec::SmallVec;
 use tokio::time::Instant;
 use url::Url;
 
-use crate::envelope::Envelope;
 use crate::extractors::RequestMeta;
 use crate::metrics::{MetricOutcomes, MetricsLimiter};
 use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
 #[cfg(feature = "processing")]
 use crate::services::processor::RateLimitBuckets;
 use crate::services::processor::{EncodeMetricMeta, EnvelopeProcessor};
-use crate::services::project::metrics::{filter_namespaces, project_info};
+use crate::services::project::metrics::filter_namespaces;
 use crate::services::project_cache::{BucketSource, CheckedEnvelope, ProjectCache, RequestUpdate};
 
 use crate::statsd::RelayCounters;
@@ -280,7 +279,7 @@ impl StateChannel {
 }
 
 enum GetOrFetch<'a> {
-    Cached(Arc<ProjectState>),
+    Cached(ProjectState),
     Scheduled(&'a mut StateChannel),
 }
 
@@ -292,14 +291,14 @@ enum GetOrFetch<'a> {
 /// TODO: spool queued metrics to disk when the in-memory aggregator becomes too full.
 #[derive(Debug)]
 enum State {
-    Cached(Arc<ProjectState>),
+    Cached(ProjectFetchState),
     Pending,
 }
 
 impl State {
     fn state_value(&self) -> Option<ProjectFetchState> {
         match self {
-            State::Cached(state) => Some(Arc::clone(state)),
+            State::Cached(state) => Some(state.clone()),
             State::Pending => None,
         }
     }
@@ -353,15 +352,19 @@ impl Project {
         self.reservoir_counters.clone()
     }
 
-    fn state_value(&self) -> Option<Arc<ProjectInfo>> {
+    // TODO(jjbayer): Get rid of state_value()
+    fn state_value(&self) -> Option<ProjectFetchState> {
         self.state.state_value()
     }
 
     /// If a reservoir rule is no longer in the sampling config, we will remove those counters.
     fn remove_expired_reservoir_rules(&self) {
-        let Some(state) = self.state_value() else {
+        let Some(state) = &self.non_expired_state() else {
             return;
         };
+        let ProjectState::Enabled(state) = state else {
+            return;
+        }; // TODO: util
 
         let Some(ErrorBoundary::Ok(config)) = state.config.sampling.as_ref() else {
             return;
@@ -381,13 +384,13 @@ impl Project {
     ///
     /// Convenience wrapper around [`expiry_state`](Self::expiry_state).
     pub fn non_expired_state(&self) -> Option<ProjectState> {
-        match self.state {
+        match &self.state {
             State::Cached(state) => match state.expiry_state(&self.config) {
-                ExpiryState::Updated(state) => Some(state),
-                ExpiryState::Stale(state) => Some(state),
+                ExpiryState::Updated(state) => Some(state.clone()),
+                ExpiryState::Stale(state) => Some(state.clone()),
                 ExpiryState::Expired => None,
             },
-            State::Pending(_) => None,
+            State::Pending => None,
         }
     }
 
@@ -452,7 +455,8 @@ impl Project {
         meta: MetricMeta,
         envelope_processor: Addr<EnvelopeProcessor>,
     ) {
-        let state = self.state_value();
+        let state = self.non_expired_state();
+        // TODO(jjbayer): Use ExposedState here.
 
         // Only track metadata if custom metrics are enabled, or we don't know yet whether they are
         // enabled.
@@ -583,7 +587,7 @@ impl Project {
         let cached_state = match &self.state {
             // Never use the cached state if `no_cache` is set.
             _ if no_cache => None,
-            State::Pending(_) => None,
+            State::Pending => None,
             State::Cached(state) => {
                 match state.expiry_state(&self.config) {
                     // There is no project state that can be used, fetch a state and return it.
@@ -1156,7 +1160,7 @@ mod tests {
         match cb {
             CheckedBuckets::Checked {
                 scoping,
-                project_state: _,
+                project_info: _,
                 buckets,
             } => {
                 assert_eq!(scoping, project.scoping().unwrap());
