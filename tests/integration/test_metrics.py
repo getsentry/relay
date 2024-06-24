@@ -25,7 +25,6 @@ TEST_CONFIG = {
     "aggregator": {
         "bucket_interval": 1,
         "initial_delay": 0,
-        "debounce_delay": 0,
         "shift_key": "none",
     }
 }
@@ -92,7 +91,6 @@ def test_metrics_proxy_mode_buckets(mini_sentry, relay):
             "aggregator": {
                 "bucket_interval": 1,
                 "initial_delay": 0,
-                "debounce_delay": 0,
                 "shift_key": "none",
             },
         },
@@ -125,7 +123,6 @@ def test_metrics_proxy_mode_statsd(mini_sentry, relay):
             "aggregator": {
                 "bucket_interval": 1,
                 "initial_delay": 0,
-                "debounce_delay": 0,
                 "shift_key": "none",
             },
         },
@@ -151,7 +148,6 @@ def test_metrics_proxy_mode_metrics_meta(mini_sentry, relay):
             "aggregator": {
                 "bucket_interval": 1,
                 "initial_delay": 0,
-                "debounce_delay": 0,
                 "shift_key": "none",
             },
         },
@@ -278,7 +274,6 @@ def test_metrics_partition_key(mini_sentry, relay, metrics_partitions, expected_
         "aggregator": {
             "bucket_interval": 1,
             "initial_delay": 0,
-            "debounce_delay": 0,
             "max_secs_in_past": forever,
             "max_secs_in_future": forever,
             "shift_key": "partition",
@@ -321,7 +316,6 @@ def test_metrics_max_batch_size(mini_sentry, relay, max_batch_size, expected_eve
         "aggregator": {
             "bucket_interval": 1,
             "initial_delay": 0,
-            "debounce_delay": 0,
             "max_secs_in_past": forever,
             "max_secs_in_future": forever,
             "max_flush_bytes": max_batch_size,
@@ -458,7 +452,6 @@ def test_global_metrics_batching(mini_sentry, relay):
             "aggregator": {
                 "bucket_interval": 1,
                 "initial_delay": 0,
-                "debounce_delay": 0,
                 "max_flush_bytes": MAX_FLUSH_SIZE,
             },
         },
@@ -604,7 +597,6 @@ def test_metrics_full(mini_sentry, relay, relay_with_processing, metrics_consume
             "bucket_interval": 1,
             # Give upstream some time to process downstream entries:
             "initial_delay": 2,
-            "debounce_delay": 0,
         }
     }
     upstream = relay_with_processing(options=upstream_config)
@@ -1283,7 +1275,6 @@ def test_graceful_shutdown(mini_sentry, relay):
             "aggregator": {
                 "bucket_interval": 1,
                 "initial_delay": 100,
-                "debounce_delay": 0,
                 "shift_key": "none",
             },
         },
@@ -1606,7 +1597,6 @@ def test_span_metrics_secondary_aggregator(
                 # No metrics will arrive through the default aggregator:
                 "bucket_interval": 100,
                 "initial_delay": 100,
-                "debounce_delay": 100,
             },
             "secondary_aggregators": [
                 {
@@ -1616,7 +1606,6 @@ def test_span_metrics_secondary_aggregator(
                         # The spans-specific aggregator has config that will deliver metrics:
                         "bucket_interval": 1,
                         "initial_delay": 0,
-                        "debounce_delay": 0,
                         "max_tag_value_length": 10,
                     },
                 }
@@ -1735,7 +1724,6 @@ def test_relay_forwards_events_without_extracting_metrics_on_broken_global_filte
                 "aggregator": {
                     "bucket_interval": 1,
                     "initial_delay": 0,
-                    "debounce_delay": 0,
                     "shift_key": "none",
                 }
             }
@@ -1747,7 +1735,6 @@ def test_relay_forwards_events_without_extracting_metrics_on_broken_global_filte
                 "aggregator": {
                     "bucket_interval": 1,
                     "initial_delay": 0,
-                    "debounce_delay": 0,
                     "shift_key": "none",
                 }
             },
@@ -1798,7 +1785,6 @@ def test_relay_forwards_events_without_extracting_metrics_on_unsupported_project
                 "aggregator": {
                     "bucket_interval": 1,
                     "initial_delay": 0,
-                    "debounce_delay": 0,
                     "shift_key": "none",
                 }
             }
@@ -1810,7 +1796,6 @@ def test_relay_forwards_events_without_extracting_metrics_on_unsupported_project
                 "aggregator": {
                     "bucket_interval": 1,
                     "initial_delay": 0,
-                    "debounce_delay": 0,
                     "shift_key": "none",
                 }
             },
@@ -1853,7 +1838,6 @@ def test_missing_global_filters_enables_metric_extraction(
             "aggregator": {
                 "bucket_interval": 1,
                 "initial_delay": 0,
-                "debounce_delay": 0,
                 "shift_key": "none",
             }
         }

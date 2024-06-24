@@ -529,24 +529,34 @@ pub trait GaugeMetric {
 macro_rules! metric {
     // counter increment
     (counter($id:expr) += $value:expr $(, $k:ident = $v:expr)* $(,)?) => {
-        $crate::with_client(|client| {
-            use $crate::_pred::*;
-            client.send_metric(
-                client.count_with_tags(&$crate::CounterMetric::name(&$id), $value)
-                $(.with_tag(stringify!($k), $v))*
-            )
-        })
+        match $value {
+            value if value != 0 => {
+                $crate::with_client(|client| {
+                    use $crate::_pred::*;
+                    client.send_metric(
+                        client.count_with_tags(&$crate::CounterMetric::name(&$id), value)
+                        $(.with_tag(stringify!($k), $v))*
+                    )
+                })
+            },
+            _ => {},
+        };
     };
 
     // counter decrement
     (counter($id:expr) -= $value:expr $(, $k:ident = $v:expr)* $(,)?) => {
-        $crate::with_client(|client| {
-            use $crate::_pred::*;
-            client.send_metric(
-                client.count_with_tags(&$crate::CounterMetric::name(&$id), -$value)
-                    $(.with_tag(stringify!($k), $v))*
-            )
-        })
+        match $value {
+            value if value != 0 => {
+                $crate::with_client(|client| {
+                    use $crate::_pred::*;
+                    client.send_metric(
+                        client.count_with_tags(&$crate::CounterMetric::name(&$id), -value)
+                            $(.with_tag(stringify!($k), $v))*
+                    )
+                })
+            },
+            _ => {},
+        };
     };
 
     // gauge set

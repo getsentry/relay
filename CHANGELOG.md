@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+**Bug Fixes**:
+
+- Fixes metrics dropped due to missing project state. ([#3553](https://github.com/getsentry/relay/issues/3553))
+
+
+**Internal**:
+
+- Aggregate metrics before rate limiting. ([#3746](https://github.com/getsentry/relay/pull/3746))
+
 ## 24.6.0
 
 **Bug fixes**:
@@ -16,6 +27,7 @@
 - Improve flush time calculation in metrics aggregator. ([#3726](https://github.com/getsentry/relay/pull/3726))
 - Default `client` of `RequestMeta` to `relay-http` for incoming monitor requests. ([#3739](https://github.com/getsentry/relay/pull/3739))
 - Normalize events once in the ingestion pipeline, relying on item headers. ([#3730](https://github.com/getsentry/relay/pull/3730))
+- Provide access to values in `span.tags.*` via `span.data.*`. This serves as an opaque fallback to consolidate data attributes. ([#3751](https://github.com/getsentry/relay/pull/3751))
 
 ## 24.5.1
 

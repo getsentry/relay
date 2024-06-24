@@ -33,22 +33,8 @@ pub struct AggregatorServiceConfig {
 
     /// The initial delay in seconds to wait before flushing a bucket.
     ///
-    /// Defaults to `30` seconds. Before sending an aggregated bucket, this is the time Relay waits
-    /// for buckets that are being reported in real time. This should be higher than the
-    /// `debounce_delay`.
-    ///
     /// Relay applies up to a full `bucket_interval` of additional jitter after the initial delay to spread out flushing real time buckets.
     pub initial_delay: u64,
-
-    /// The delay in seconds to wait before flushing a backdated buckets.
-    ///
-    /// Defaults to `10` seconds. Metrics can be sent with a past timestamp. Relay wait this time
-    /// before sending such a backdated bucket to the upsteam. This should be lower than
-    /// `initial_delay`.
-    ///
-    /// Unlike `initial_delay`, the debounce delay starts with the exact moment the first metric
-    /// is added to a backdated bucket.
-    pub debounce_delay: u64,
 
     /// The age in seconds of the oldest allowed bucket timestamp.
     ///
@@ -122,7 +108,6 @@ impl Default for AggregatorServiceConfig {
             max_total_bucket_bytes: None,
             bucket_interval: 10,
             initial_delay: 30,
-            debounce_delay: 10,
             max_secs_in_past: 5 * 24 * 60 * 60, // 5 days, as for sessions
             max_secs_in_future: 60,             // 1 minute
             max_name_length: 200,
@@ -142,7 +127,6 @@ impl From<&AggregatorServiceConfig> for AggregatorConfig {
         Self {
             bucket_interval: value.bucket_interval,
             initial_delay: value.initial_delay,
-            debounce_delay: value.debounce_delay,
             max_secs_in_past: value.max_secs_in_past,
             max_secs_in_future: value.max_secs_in_future,
             max_name_length: value.max_name_length,
@@ -522,7 +506,6 @@ mod tests {
         let config = AggregatorServiceConfig {
             bucket_interval: 1,
             initial_delay: 0,
-            debounce_delay: 0,
             ..Default::default()
         };
         let aggregator = AggregatorService::new(config, Some(recipient)).start();

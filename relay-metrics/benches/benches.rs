@@ -57,7 +57,6 @@ fn bench_insert_and_flush(c: &mut Criterion) {
     let config = AggregatorConfig {
         bucket_interval: 1000,
         initial_delay: 0,
-        debounce_delay: 0,
         ..Default::default()
     };
 

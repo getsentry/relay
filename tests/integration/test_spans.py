@@ -485,7 +485,6 @@ def test_span_ingestion(
             "aggregator": {
                 "bucket_interval": 1,
                 "initial_delay": 0,
-                "debounce_delay": 0,
                 "max_secs_in_past": 2**64 - 1,
             }
         }
@@ -2009,7 +2008,6 @@ def test_dynamic_sampling(
             "aggregator": {
                 "bucket_interval": 1,
                 "initial_delay": 0,
-                "debounce_delay": 0,
                 "max_secs_in_past": 2**64 - 1,
             }
         }
