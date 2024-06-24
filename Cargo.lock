@@ -4645,7 +4645,8 @@ dependencies = [
 [[package]]
 name = "sentry_usage_accountant"
 version = "0.1.0"
-source = "git+https://github.com/getsentry/rust-usage-accountant.git?rev=48df2ef#48df2ef1cdc560b00db0a4fa0493f528307c5141"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "94f0a631e328036db251337a0076dc5858a155f6831110c6417fe2537502ceae"
 dependencies = [
  "chrono",
  "serde",

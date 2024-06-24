@@ -34,16 +34,10 @@ enum RelayProducer {
 impl Producer for RelayProducer {
     type Error = std::convert::Infallible;
 
-    fn send(&mut self, message: &sentry_usage_accountant::Message) -> Result<(), Self::Error> {
-        relay_statsd::metric!(
-            counter(RelayCounters::CogsUsage) += message.amount as i64,
-            resource_id = &message.shared_resource_id,
-            app_feature = &message.app_feature
-        );
-
+    fn send(&mut self, _message: Vec<u8>) -> Result<(), Self::Error> {
         match self {
             #[cfg(feature = "processing")]
-            Self::Store(addr) => addr.send(StoreCogs(message.serialize())),
+            Self::Store(addr) => addr.send(StoreCogs(_message)),
             Self::Noop => {}
         }
 
@@ -91,7 +85,7 @@ impl CogsService {
         };
 
         relay_statsd::metric!(
-            counter(RelayCounters::CogsRaw) += amount as i64,
+            counter(RelayCounters::CogsUsage) += amount as i64,
             resource_id = resource_id,
             app_feature = measurement.feature.as_str()
         );
