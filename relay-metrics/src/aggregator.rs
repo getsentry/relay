@@ -836,33 +836,10 @@ fn validate_metric_name(
 ) -> Result<BucketKey, AggregateMetricsError> {
     let metric_name_length = key.metric_name.len();
     if metric_name_length > aggregator_config.max_name_length {
-        relay_log::configure_scope(|scope| {
-            scope.set_extra(
-                "bucket.project_key",
-                key.project_key.as_str().to_owned().into(),
-            );
-            scope.set_extra(
-                "bucket.metric_name.length",
-                metric_name_length.to_string().into(),
-            );
-            scope.set_extra(
-                "aggregator_config.max_name_length",
-                aggregator_config.max_name_length.to_string().into(),
-            );
-        });
         return Err(AggregateMetricsErrorKind::InvalidStringLength(key.metric_name).into());
     }
 
-    if let Err(err) = normalize_metric_name(&mut key) {
-        relay_log::configure_scope(|scope| {
-            scope.set_extra(
-                "bucket.project_key",
-                key.project_key.as_str().to_owned().into(),
-            );
-            scope.set_extra("bucket.metric_name", key.metric_name.to_string().into());
-        });
-        return Err(err);
-    }
+    normalize_metric_name(&mut key)?;
 
     Ok(key)
 }
