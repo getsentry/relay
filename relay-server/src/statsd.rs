@@ -672,12 +672,6 @@ pub enum RelayCounters {
     MissingDynamicSamplingContext,
     /// The number of attachments processed in the same envelope as a user_report_v2 event.
     FeedbackAttachments,
-    /// All COGS tracked values before aggregation.
-    ///
-    /// This metric is tagged with:
-    /// - `resource_id`: The COGS resource id.
-    /// - `app_feature`: The COGS app feature.
-    CogsRaw,
     /// All COGS tracked values.
     ///
     /// This metric is tagged with:
@@ -732,7 +726,6 @@ impl CounterMetric for RelayCounters {
             RelayCounters::TransactionsFromSpans => "transactions_from_spans",
             RelayCounters::MissingDynamicSamplingContext => "missing_dynamic_sampling_context",
             RelayCounters::FeedbackAttachments => "processing.feedback_attachments",
-            RelayCounters::CogsRaw => "cogs.raw",
             RelayCounters::CogsUsage => "cogs.usage",
             RelayCounters::NormalizationDecision => "normalization.decision",
         }
