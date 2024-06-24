@@ -933,14 +933,17 @@ impl Project {
             Ok(current_limits.check_with_quotas(quotas, item_scoping))
         });
 
-        let check_nested_spans = state
-            .as_ref()
-            .is_some_and(|s| s.has_feature(Feature::ExtractSpansFromEvent));
+        let (mut enforcement, mut rate_limits) =
+            envelope_limiter.enforce(envelope.envelope_mut(), &scoping)?;
 
         #[derive(Debug, Deserialize)]
         struct PartialEvent {
             spans: SeqCount,
         }
+
+        let check_nested_spans = state
+            .as_ref()
+            .is_some_and(|s| s.has_feature(Feature::ExtractSpansFromEvent));
 
         // We compute the number of nested spans before rate limiting since we will remove the
         // transaction item in case it is rate limited.
@@ -957,14 +960,11 @@ impl Project {
             0
         };
 
-        let (enforcement, mut rate_limits) =
-            envelope_limiter.enforce(envelope.envelope_mut(), &scoping)?;
-
         if spans > 0 {
-            track_nested_spans_outcomes(&envelope, &enforcement, spans);
+            add_nested_span_enforcements(&mut enforcement, spans);
         }
 
-        enforcement.track_outcomes(envelope.envelope(), &scoping, outcome_aggregator);
+        enforcement.apply_with_outcomes(envelope.envelope_mut(), &scoping, outcome_aggregator);
 
         envelope.update();
 
@@ -1064,34 +1064,24 @@ impl Project {
     }
 }
 
-/// Tracks the negative outcomes for the nested spans inside a transaction.
+/// Adds category limits for the nested spans inside a transaction.
 ///
 /// On the fast path of rate limiting, we do not have nested spans of a transaction extracted
 /// as top-level spans, thus if we limited a transaction, we want to count and emit negative
 /// outcomes for each of the spans nested inside that transaction.
-fn track_nested_spans_outcomes(
-    envelope: &ManagedEnvelope,
-    enforcement: &Enforcement,
-    spans: usize,
-) {
+fn add_nested_span_enforcements(enforcement: &mut Enforcement, spans: usize) {
     if !enforcement.event_active() {
         return;
     }
 
     if enforcement.event.is_active() {
-        envelope.track_outcome(
-            Outcome::RateLimited(enforcement.event.reason_code.clone()),
-            DataCategory::Span,
-            spans,
-        );
+        enforcement.spans = enforcement.event.clone_for(DataCategory::Span, spans);
     }
 
     if enforcement.event_indexed.is_active() {
-        envelope.track_outcome(
-            Outcome::RateLimited(enforcement.event_indexed.reason_code.clone()),
-            DataCategory::SpanIndexed,
-            spans,
-        );
+        enforcement.spans_indexed = enforcement
+            .event_indexed
+            .clone_for(DataCategory::SpanIndexed, spans);
     }
 }
 

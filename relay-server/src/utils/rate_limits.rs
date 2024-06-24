@@ -285,7 +285,7 @@ impl CategoryLimit {
     }
 
     /// Recreates the category limit for a new category with the same reason.
-    fn clone_for(&self, category: DataCategory, quantity: usize) -> CategoryLimit {
+    pub fn clone_for(&self, category: DataCategory, quantity: usize) -> CategoryLimit {
         Self {
             category,
             quantity,
@@ -403,10 +403,71 @@ impl Enforcement {
             })
     }
 
+    /// Applies the [`Enforcement`] on the [`Envelope`] by removing all items that were rate limited
+    /// and emits outcomes for each rate limited category.
+    pub fn apply_with_outcomes(
+        self,
+        envelope: &mut Envelope,
+        scoping: &Scoping,
+        outcome_aggregator: Addr<TrackOutcome>,
+    ) {
+        envelope.retain_items(|item| self.retain_item(item));
+        self.track_outcomes(envelope, scoping, outcome_aggregator);
+    }
+
+    /// Returns `true` when an [`Item`] can be retained, `false` otherwise.
+    fn retain_item(&self, item: &mut Item) -> bool {
+        // Remove event items and all items that depend on this event
+        if self.event.is_active() && item.requires_event() {
+            return false;
+        }
+
+        // When checking limits for categories that have an indexed variant,
+        // we only have to check the more specific, the indexed, variant
+        // to determine whether an item is limited.
+        match item.ty() {
+            ItemType::Attachment => {
+                if !self.attachments.is_active() {
+                    return true;
+                }
+                if item.creates_event() {
+                    item.set_rate_limited(true);
+                    true
+                } else {
+                    false
+                }
+            }
+            ItemType::Session => !self.sessions.is_active(),
+            ItemType::Profile => !self.profiles_indexed.is_active(),
+            ItemType::ReplayEvent => !self.replays.is_active(),
+            ItemType::ReplayVideo => !self.replays.is_active(),
+            ItemType::ReplayRecording => !self.replays.is_active(),
+            ItemType::CheckIn => !self.check_ins.is_active(),
+            ItemType::Span => !self.spans_indexed.is_active(),
+            ItemType::OtelSpan => !self.spans_indexed.is_active(),
+            ItemType::Event
+            | ItemType::Transaction
+            | ItemType::Security
+            | ItemType::FormData
+            | ItemType::RawSecurity
+            | ItemType::Nel
+            | ItemType::UnrealReport
+            | ItemType::UserReport
+            | ItemType::Sessions
+            | ItemType::Statsd
+            | ItemType::MetricBuckets
+            | ItemType::MetricMeta
+            | ItemType::ClientReport
+            | ItemType::UserReportV2
+            | ItemType::ProfileChunk
+            | ItemType::Unknown(_) => true,
+        }
+    }
+
     /// Invokes [`TrackOutcome`] on all enforcements reported by the [`EnvelopeLimiter`].
     ///
     /// Relay generally does not emit outcomes for sessions, so those are skipped.
-    pub fn track_outcomes(
+    fn track_outcomes(
         self,
         envelope: &Envelope,
         scoping: &Scoping,
@@ -508,7 +569,6 @@ where
         summary.event_category = self.event_category.or(summary.event_category);
 
         let (enforcement, rate_limits) = self.execute(&summary, scoping)?;
-        envelope.retain_items(|item| self.retain_item(item, &enforcement));
         Ok((enforcement, rate_limits))
     }
 
@@ -673,54 +733,6 @@ where
         }
 
         Ok((enforcement, rate_limits))
-    }
-
-    fn retain_item(&self, item: &mut Item, enforcement: &Enforcement) -> bool {
-        // Remove event items and all items that depend on this event
-        if enforcement.event.is_active() && item.requires_event() {
-            return false;
-        }
-
-        // When checking limits for categories that have an indexed variant,
-        // we only have to check the more specific, the indexed, variant
-        // to determine whether an item is limited.
-        match item.ty() {
-            ItemType::Attachment => {
-                if !enforcement.attachments.is_active() {
-                    return true;
-                }
-                if item.creates_event() {
-                    item.set_rate_limited(true);
-                    true
-                } else {
-                    false
-                }
-            }
-            ItemType::Session => !enforcement.sessions.is_active(),
-            ItemType::Profile => !enforcement.profiles_indexed.is_active(),
-            ItemType::ReplayEvent => !enforcement.replays.is_active(),
-            ItemType::ReplayVideo => !enforcement.replays.is_active(),
-            ItemType::ReplayRecording => !enforcement.replays.is_active(),
-            ItemType::CheckIn => !enforcement.check_ins.is_active(),
-            ItemType::Span => !enforcement.spans_indexed.is_active(),
-            ItemType::OtelSpan => !enforcement.spans_indexed.is_active(),
-            ItemType::Event
-            | ItemType::Transaction
-            | ItemType::Security
-            | ItemType::FormData
-            | ItemType::RawSecurity
-            | ItemType::Nel
-            | ItemType::UnrealReport
-            | ItemType::UserReport
-            | ItemType::Sessions
-            | ItemType::Statsd
-            | ItemType::MetricBuckets
-            | ItemType::MetricMeta
-            | ItemType::ClientReport
-            | ItemType::UserReportV2
-            | ItemType::ProfileChunk
-            | ItemType::Unknown(_) => true,
-        }
     }
 }
 
