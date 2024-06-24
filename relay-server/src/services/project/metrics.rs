@@ -1,6 +1,3 @@
-use std::marker::PhantomData;
-use std::ops::Deref;
-
 use relay_dynamic_config::{ErrorBoundary, Feature, Metrics};
 use relay_filter::FilterStatKey;
 use relay_metrics::{Bucket, MetricNamespace};
@@ -11,114 +8,69 @@ use crate::services::outcome::Outcome;
 use crate::services::project::ProjectInfo;
 use crate::services::project_cache::BucketSource;
 
-pub struct Filtered;
-pub struct WithProjectState;
+pub fn filter_namespaces(mut buckets: Vec<Bucket>, source: BucketSource) -> Vec<Bucket> {
+    buckets.retain(|bucket| match bucket.name.namespace() {
+        MetricNamespace::Sessions => true,
+        MetricNamespace::Transactions => true,
+        MetricNamespace::Spans => true,
+        MetricNamespace::Profiles => true,
+        MetricNamespace::Custom => true,
+        MetricNamespace::Stats => source == BucketSource::Internal,
+        MetricNamespace::Unsupported => false,
+    });
 
-/// Container for a vector of buckets.
-#[derive(Debug)]
-pub struct Buckets<S> {
-    buckets: Vec<Bucket>,
-    state: PhantomData<S>,
+    buckets
 }
 
-impl<S> Buckets<S> {
-    /// Creates a list of buckets in their initial state.
-    pub fn new(buckets: Vec<Bucket>) -> Buckets<S> {
-        Self {
-            buckets,
-            state: PhantomData,
-        }
-    }
-}
+pub fn project_info(
+    mut buckets: Vec<Bucket>,
+    metric_outcomes: &MetricOutcomes,
+    project_info: &ProjectInfo,
+    scoping: Scoping,
+) -> Vec<Bucket> {
+    let mut denied_buckets = Vec::new();
+    let mut disabled_namespace_buckets = Vec::new();
 
-impl<S> Deref for Buckets<S> {
-    type Target = [Bucket];
+    buckets = buckets
+        .into_iter()
+        .filter_map(|mut bucket| {
+            if !is_metric_namespace_valid(project_info, bucket.name.namespace()) {
+                relay_log::trace!(mri = &*bucket.name, "dropping metric in disabled namespace");
+                disabled_namespace_buckets.push(bucket);
+                return None;
+            };
 
-    fn deref(&self) -> &Self::Target {
-        &self.buckets
-    }
-}
-
-impl<S> IntoIterator for Buckets<S> {
-    type Item = Bucket;
-    type IntoIter = std::vec::IntoIter<Bucket>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.buckets.into_iter()
-    }
-}
-
-impl Buckets<()> {
-    pub fn filter_namespaces(mut self, source: BucketSource) -> Buckets<Filtered> {
-        self.buckets.retain(|bucket| match bucket.name.namespace() {
-            MetricNamespace::Sessions => true,
-            MetricNamespace::Transactions => true,
-            MetricNamespace::Spans => true,
-            MetricNamespace::Profiles => true,
-            MetricNamespace::Custom => true,
-            MetricNamespace::Stats => source == BucketSource::Internal,
-            MetricNamespace::Unsupported => false,
-        });
-
-        Buckets::new(self.buckets)
-    }
-}
-
-impl Buckets<Filtered> {
-    pub fn apply_project_state(
-        mut self,
-        metric_outcomes: &MetricOutcomes,
-        project_state: &ProjectInfo,
-        scoping: Scoping,
-    ) -> Buckets<WithProjectState> {
-        let mut denied_buckets = Vec::new();
-        let mut disabled_namespace_buckets = Vec::new();
-
-        self.buckets = self
-            .buckets
-            .into_iter()
-            .filter_map(|mut bucket| {
-                if !is_metric_namespace_valid(project_state, bucket.name.namespace()) {
-                    relay_log::trace!(mri = &*bucket.name, "dropping metric in disabled namespace");
-                    disabled_namespace_buckets.push(bucket);
+            if let ErrorBoundary::Ok(ref metric_config) = project_info.config.metrics {
+                if metric_config.denied_names.is_match(&*bucket.name) {
+                    relay_log::trace!(mri = &*bucket.name, "dropping metrics due to block list");
+                    denied_buckets.push(bucket);
                     return None;
-                };
-
-                if let ErrorBoundary::Ok(ref metric_config) = project_state.config.metrics {
-                    if metric_config.denied_names.is_match(&*bucket.name) {
-                        relay_log::trace!(
-                            mri = &*bucket.name,
-                            "dropping metrics due to block list"
-                        );
-                        denied_buckets.push(bucket);
-                        return None;
-                    }
-
-                    remove_matching_bucket_tags(metric_config, &mut bucket);
                 }
 
-                Some(bucket)
-            })
-            .collect();
+                remove_matching_bucket_tags(metric_config, &mut bucket);
+            }
 
-        if !disabled_namespace_buckets.is_empty() {
-            metric_outcomes.track(
-                scoping,
-                &disabled_namespace_buckets,
-                Outcome::Filtered(FilterStatKey::DisabledNamespace),
-            );
-        }
+            Some(bucket)
+        })
+        .collect();
 
-        if !denied_buckets.is_empty() {
-            metric_outcomes.track(
-                scoping,
-                &denied_buckets,
-                Outcome::Filtered(FilterStatKey::DeniedName),
-            );
-        }
-
-        Buckets::new(self.buckets)
+    if !disabled_namespace_buckets.is_empty() {
+        metric_outcomes.track(
+            scoping,
+            &disabled_namespace_buckets,
+            Outcome::Filtered(FilterStatKey::DisabledNamespace),
+        );
     }
+
+    if !denied_buckets.is_empty() {
+        metric_outcomes.track(
+            scoping,
+            &denied_buckets,
+            Outcome::Filtered(FilterStatKey::DeniedName),
+        );
+    }
+
+    buckets
 }
 
 fn is_metric_namespace_valid(state: &ProjectInfo, namespace: MetricNamespace) -> bool {
@@ -157,16 +109,6 @@ mod tests {
     use crate::metrics::MetricStats;
 
     use super::*;
-
-    impl<S> Buckets<S> {
-        /// Constructor for tests which bypasses the state requirements.
-        pub fn test(buckets: Vec<Bucket>) -> Self {
-            Self {
-                buckets,
-                state: PhantomData,
-            }
-        }
-    }
 
     fn get_test_bucket(name: &str, tags: BTreeMap<String, String>) -> Bucket {
         let json = serde_json::json!({
@@ -235,9 +177,10 @@ mod tests {
 
         let b1 = create_custom_bucket_with_name("cpu_time".into());
         let b2 = create_custom_bucket_with_name("memory_usage".into());
-        let buckets = Buckets::test(vec![b1.clone(), b2.clone()]);
+        let buckets = vec![b1.clone(), b2.clone()];
 
-        let buckets = buckets.apply_project_state(
+        let buckets = project_info(
+            buckets,
             &metric_outcomes,
             &project_state,
             Scoping {
@@ -272,9 +215,10 @@ mod tests {
 
         let b1 = create_custom_bucket_with_name("cpu_time".into());
         let b2 = create_custom_bucket_with_name("memory_usage".into());
-        let buckets = Buckets::test(vec![b1.clone(), b2.clone()]);
+        let buckets = vec![b1.clone(), b2.clone()];
 
-        let buckets = buckets.apply_project_state(
+        let buckets = project_info(
+            buckets,
             &metric_outcomes,
             &ProjectInfo::allowed(),
             Scoping {

@@ -112,6 +112,19 @@ pub struct Span {
     pub other: Object<Value>,
 }
 
+impl Span {
+    /// Returns the value of an attribute on the span.
+    ///
+    /// This primarily looks up the attribute in the `data` object, but falls back to the `tags`
+    /// object if the attribute is not found.
+    fn attribute(&self, key: &str) -> Option<Val<'_>> {
+        Some(match self.data.value()?.get_value(key) {
+            Some(value) => value,
+            None => self.tags.value()?.get(key)?.as_str()?.into(),
+        })
+    }
+}
+
 impl Getter for Span {
     fn get_value(&self, path: &str) -> Option<Val<'_>> {
         let span_prefix = path.strip_prefix("span.");
@@ -136,7 +149,7 @@ impl Getter for Span {
                     if let Some(key) = path.strip_prefix("tags.") {
                         self.tags.value()?.get(key)?.as_str()?.into()
                     } else if let Some(key) = path.strip_prefix("data.") {
-                        self.data.value()?.get_value(key)?
+                        self.attribute(key)?
                     } else if let Some(key) = path.strip_prefix("sentry_tags.") {
                         self.sentry_tags.value()?.get(key)?.as_str()?.into()
                     } else if let Some(rest) = path.strip_prefix("measurements.") {

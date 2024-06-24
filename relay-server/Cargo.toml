@@ -4,7 +4,7 @@ authors = ["Sentry <oss@sentry.io>"]
 description = "Endpoints and services for Relay"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "24.5.1"
+version = "24.6.0"
 edition = "2021"
 build = "build.rs"
 license-file = "../LICENSE.md"
@@ -114,7 +114,7 @@ symbolic-unreal = { workspace = true, optional = true, default-features = false,
 ] }
 sysinfo = { workspace = true, default-features = false }
 thiserror = { workspace = true }
-tokio = { workspace = true, features = ["rt-multi-thread"] }
+tokio = { workspace = true, features = ["rt", "rt-multi-thread"] }
 tower = { workspace = true, default-features = false }
 tower-http = { workspace = true, default-features = false, features = [
     "catch-panic",

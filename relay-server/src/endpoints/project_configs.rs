@@ -10,7 +10,6 @@ use futures::future;
 use relay_base_schema::project::ProjectKey;
 use relay_dynamic_config::{ErrorBoundary, GlobalConfig};
 use serde::{Deserialize, Serialize};
-use url::form_urlencoded::Parse;
 
 use crate::endpoints::common::ServiceUnavailable;
 use crate::endpoints::forward;
@@ -154,7 +153,7 @@ async fn inner(
             continue;
         };
 
-        let project_state = match project_state.expiry_state(&config) {
+        let project_state = match project_state.expiry_state(state.config()) {
             ExpiryState::Updated(state) | ExpiryState::Stale(state) => state,
             ExpiryState::Expired => continue,
         };

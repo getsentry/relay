@@ -1,4 +1,3 @@
-use std::borrow::BorrowMut;
 use std::collections::HashMap;
 use std::ffi::OsStr;
 use std::path::Path;
@@ -10,7 +9,7 @@ use relay_system::{AsyncResponse, FromMessage, Interface, Receiver, Sender, Serv
 use tokio::sync::mpsc;
 use tokio::time::Instant;
 
-use crate::services::project::{ParsedProjectState, ProjectInfo, ProjectState};
+use crate::services::project::{ParsedProjectState, ProjectState};
 use crate::services::project_cache::FetchOptionalProjectState;
 
 /// Service interface of the local project source.
