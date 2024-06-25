@@ -69,32 +69,37 @@ impl ProjectFetchState {
         envelope: &Envelope,
         config: &Config,
     ) -> Result<(), DiscardReason> {
+        let project_info = match self.current_state(config) {
+            CurrentState::Enabled(info) => info,
+            CurrentState::Disabled => {
+                return Err(DiscardReason::ProjectId);
+            }
+            CurrentState::Pending => return Ok(()),
+        };
+
         // Verify that the stated project id in the DSN matches the public key used to retrieve this
         // project state.
         let meta = envelope.meta();
-        if !self.state.is_valid_project_id(meta.project_id(), config) {
+        if !project_info.is_valid_project_id(meta.project_id(), config) {
             return Err(DiscardReason::ProjectId);
         }
 
         // Try to verify the request origin with the project config.
-        if !self.state.is_valid_origin(meta.origin()) {
+        if !project_info.is_valid_origin(meta.origin()) {
             return Err(DiscardReason::Cors);
         }
 
         // sanity-check that the state has a matching public key loaded.
-        if !self.state.is_matching_key(meta.public_key()) {
+        if !project_info.is_matching_key(meta.public_key()) {
             relay_log::error!("public key mismatch on state {}", meta.public_key());
             return Err(DiscardReason::ProjectId);
         }
-
-        // Check for invalid or disabled projects.
-        self.check_disabled(config)?;
 
         // Check feature.
         if let Some(disabled_feature) = envelope
             .required_features()
             .iter()
-            .find(|f| !self.state.has_feature(**f))
+            .find(|f| !project_info.has_feature(**f))
         {
             return Err(DiscardReason::FeatureDisabled(*disabled_feature));
         }
@@ -121,26 +126,26 @@ impl ProjectFetchState {
     /// If this project state is hard outdated, this returns `Ok(())`, instead, to avoid prematurely
     /// dropping data.
     // TODO(jjbayer): Remove this function.
-    pub fn check_disabled(&self, config: &Config) -> Result<(), DiscardReason> {
-        // if the state is out of date, we proceed as if it was still up to date. The
-        // upstream relay (or sentry) will still filter events.
-        if self.check_expiry(config) == Expiry::Expired {
-            return Ok(());
-        }
+    // pub fn check_disabled(&self, config: &Config) -> Result<(), DiscardReason> {
+    //     // if the state is out of date, we proceed as if it was still up to date. The
+    //     // upstream relay (or sentry) will still filter events.
+    //     if self.check_expiry(config) == Expiry::Expired {
+    //         return Ok(());
+    //     }
 
-        // if we recorded an invalid project state response from the upstream (i.e. parsing
-        // failed), discard the event with a state reason.
-        if self.invalid() {
-            return Err(DiscardReason::ProjectState);
-        }
+    //     // if we recorded an invalid project state response from the upstream (i.e. parsing
+    //     // failed), discard the event with a state reason.
+    //     if self.invalid() {
+    //         return Err(DiscardReason::ProjectState);
+    //     }
 
-        // only drop events if we know for sure the project or key are disabled.
-        if matches!(self.state, ProjectState::Disabled) {
-            return Err(DiscardReason::ProjectId);
-        }
+    //     // only drop events if we know for sure the project or key are disabled.
+    //     if matches!(self.state, ProjectState::Disabled) {
+    //         return Err(DiscardReason::ProjectId);
+    //     }
 
-        Ok(())
-    }
+    //     Ok(())
+    // }
 
     pub fn expiry_state(&self, config: &Config) -> ExpiryState {
         match self.check_expiry(config) {

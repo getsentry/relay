@@ -42,7 +42,7 @@ mod state;
 pub use state::{CurrentState, ProjectFetchState, ProjectState};
 
 /// Sender type for messages that respond with project states.
-pub type ProjectSender = relay_system::BroadcastSender<ProjectFetchState>;
+pub type ProjectSender = relay_system::BroadcastSender<ProjectState>;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ParsedProjectState {
@@ -328,14 +328,27 @@ impl Project {
         self.reservoir_counters.clone()
     }
 
-    // TODO(jjbayer): Get rid of state_value()
-    fn state_value(&self) -> Option<ProjectFetchState> {
-        self.state.state_value()
+    pub fn enabled_state(&self) -> Option<Arc<ProjectInfo>> {
+        match self.current_state() {
+            CurrentState::Enabled(info) => Some(info.clone()),
+            CurrentState::Disabled | CurrentState::Pending => None,
+        }
+    }
+
+    fn current_state(&self) -> CurrentState {
+        self.state.current_state(&self.config)
+    }
+
+    fn non_expired_state(&self) -> Option<&ProjectState> {
+        match self.state.expiry_state(&self.config) {
+            ExpiryState::Updated(state) | ExpiryState::Stale(state) => Some(state),
+            ExpiryState::Expired => None,
+        }
     }
 
     /// If a reservoir rule is no longer in the sampling config, we will remove those counters.
     fn remove_expired_reservoir_rules(&self) {
-        let Some(state) = &self.non_expired_state() else {
+        let Some(state) = self.non_expired_state() else {
             return;
         };
         let ProjectState::Enabled(state) = state else {
@@ -453,7 +466,7 @@ impl Project {
         if !self.has_pending_metric_meta {
             return;
         }
-        let Some(state) = self.state_value() else {
+        let Some(state) = self.enabled_state() else {
             return;
         };
         let Some(scoping) = self.scoping() else {
@@ -586,7 +599,7 @@ impl Project {
         &mut self,
         project_cache: Addr<ProjectCache>,
         no_cache: bool,
-    ) -> Option<ProjectFetchState> {
+    ) -> Option<ProjectState> {
         match self.get_or_fetch_state(project_cache, no_cache) {
             GetOrFetch::Cached(state) => Some(state),
             GetOrFetch::Scheduled(_) => None,
@@ -669,11 +682,13 @@ impl Project {
             return;
         }
 
-        match self.expiry_state(&self.config) {
+        match self.state.expiry_state(&self.config) {
             // If the new state is invalid but the old one still usable, keep the old one.
-            ExpiryState::Updated(old) | ExpiryState::Stale(old) if state.invalid() => state = old,
+            ExpiryState::Updated(old) | ExpiryState::Stale(old) if state.invalid() => {
+                state = self.state
+            }
             // If the new state is valid or the old one is expired, always use the new one.
-            _ => self.state = State::Cached(Arc::clone(&state)),
+            _ => self.state = state.clone(),
         }
 
         // If the state is still invalid, return back the taken channel and schedule state update.
@@ -712,7 +727,7 @@ impl Project {
     ///
     /// NOTE: This function does not check the expiry of the project state.
     pub fn scoping(&self) -> Option<Scoping> {
-        let state = self.state_value()?;
+        let state = self.enabled_state()?;
         Some(Scoping {
             organization_id: state.organization_id.unwrap_or(0),
             project_id: state.project_id?,

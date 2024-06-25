@@ -16,9 +16,7 @@ use crate::endpoints::forward;
 use crate::extractors::SignedJson;
 use crate::service::ServiceState;
 use crate::services::global_config::{self, StatusResponse};
-use crate::services::project::{
-    CurrentState, LimitedParsedProjectState, ParsedProjectState, ProjectState,
-};
+use crate::services::project::{LimitedParsedProjectState, ParsedProjectState, ProjectState};
 use crate::services::project_cache::{GetCachedProjectState, GetProjectState};
 
 /// V2 version of this endpoint.
@@ -151,12 +149,6 @@ async fn inner(
         let Some(project_state) = state_result? else {
             pending.push(project_key);
             continue;
-        };
-
-        let project_state = match project_state.current_state(state.config()) {
-            CurrentState::Enabled(info) => ProjectState::Enabled(Arc::clone(&info)),
-            CurrentState::Disabled => ProjectState::Disabled,
-            CurrentState::Pending => continue,
         };
 
         // If public key is known (even if rate-limited, which is Some(false)), it has
