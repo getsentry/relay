@@ -1068,6 +1068,8 @@ mod tests {
             .enforce(envelope, &scoping)
             .unwrap();
 
+        // We implemented `clone` only for tests because we don't want to make `apply_with_outcomes`
+        // &self because we want move semantics to prevent double tracking.
         enforcement
             .clone()
             .apply_with_outcomes(envelope, &scoping, outcome_aggregator);
