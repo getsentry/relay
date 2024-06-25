@@ -942,10 +942,7 @@ impl Project {
         // If we can extract spans from the event, we want to try and count the number of nested
         // spans to correctly emit negative outcomes in case the transaction itself is dropped.
         if check_nested_spans {
-            let spans_count = count_nested_spans(&envelope);
-            if spans_count > 0 {
-                add_nested_span_enforcements(&mut enforcement, spans_count);
-            }
+            sync_spans_to_enforcement(&envelope, &mut enforcement);
         }
 
         enforcement.apply_with_outcomes(&mut envelope);
@@ -1048,16 +1045,39 @@ impl Project {
     }
 }
 
-/// Counts the nested spans inside an [`Envelope`] for each item of type
-/// transaction that didn't have spans extracted before.
+/// Adds category limits for the nested spans inside a transaction.
+///
+/// On the fast path of rate limiting, we do not have nested spans of a transaction extracted
+/// as top-level spans, thus if we limited a transaction, we want to count and emit negative
+/// outcomes for each of the spans nested inside that transaction.
+fn sync_spans_to_enforcement(envelope: &ManagedEnvelope, enforcement: &mut Enforcement) {
+    if !enforcement.event_active() {
+        return;
+    }
+    
+    let spans_count = count_nested_spans(envelope);
+    if spans_count == 0 {
+        return;
+    }
+
+    if enforcement.event.is_active() {
+        enforcement.spans = enforcement.event.clone_for(DataCategory::Span, spans_count);
+    }
+
+    if enforcement.event_indexed.is_active() {
+        enforcement.spans_indexed = enforcement
+            .event_indexed
+            .clone_for(DataCategory::SpanIndexed, spans_count);
+    }
+}
+
+/// Counts the nested spans inside the first transaction envelope item inside the [`Envelope`].
 fn count_nested_spans(envelope: &ManagedEnvelope) -> usize {
     #[derive(Debug, Deserialize)]
     struct PartialEvent {
         spans: SeqCount,
     }
-
-    // We compute the number of nested spans before rate limiting since we will remove the
-    // transaction item in case it is rate limited.
+    
     envelope
         .envelope()
         .items()
@@ -1066,27 +1086,6 @@ fn count_nested_spans(envelope: &ManagedEnvelope) -> usize {
         // We do + 1, since we count the transaction itself because it will be extracted
         // as a span and counted during the slow path of rate limiting.
         .map_or(0, |p| p.spans.0 + 1)
-}
-
-/// Adds category limits for the nested spans inside a transaction.
-///
-/// On the fast path of rate limiting, we do not have nested spans of a transaction extracted
-/// as top-level spans, thus if we limited a transaction, we want to count and emit negative
-/// outcomes for each of the spans nested inside that transaction.
-fn add_nested_span_enforcements(enforcement: &mut Enforcement, spans: usize) {
-    if !enforcement.event_active() {
-        return;
-    }
-
-    if enforcement.event.is_active() {
-        enforcement.spans = enforcement.event.clone_for(DataCategory::Span, spans);
-    }
-
-    if enforcement.event_indexed.is_active() {
-        enforcement.spans_indexed = enforcement
-            .event_indexed
-            .clone_for(DataCategory::SpanIndexed, spans);
-    }
 }
 
 /// Return value of [`Project::check_buckets`].
