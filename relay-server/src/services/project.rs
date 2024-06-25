@@ -1081,11 +1081,11 @@ fn count_nested_spans(envelope: &ManagedEnvelope) -> usize {
     envelope
         .envelope()
         .items()
-        .find(|i| *i.ty() == ItemType::Transaction && !i.spans_extracted())
-        .and_then(|i| serde_json::from_slice::<PartialEvent>(&i.payload()).ok())
+        .find(|item| *item.ty() == ItemType::Transaction && !item.spans_extracted())
+        .and_then(|item| serde_json::from_slice::<PartialEvent>(&item.payload()).ok())
         // We do + 1, since we count the transaction itself because it will be extracted
         // as a span and counted during the slow path of rate limiting.
-        .map_or(0, |p| p.spans.0 + 1)
+        .map_or(0, |event| event.spans.0 + 1)
 }
 
 /// Return value of [`Project::check_buckets`].
