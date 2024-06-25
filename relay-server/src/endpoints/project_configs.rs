@@ -17,7 +17,7 @@ use crate::extractors::SignedJson;
 use crate::service::ServiceState;
 use crate::services::global_config::{self, StatusResponse};
 use crate::services::project::{
-    ExpiryState, LimitedParsedProjectState, ParsedProjectState, ProjectState,
+    CurrentState, LimitedParsedProjectState, ParsedProjectState, ProjectState,
 };
 use crate::services::project_cache::{GetCachedProjectState, GetProjectState};
 
@@ -153,15 +153,16 @@ async fn inner(
             continue;
         };
 
-        let project_state = match project_state.expiry_state(state.config()) {
-            ExpiryState::Updated(state) | ExpiryState::Stale(state) => state,
-            ExpiryState::Expired => continue,
+        let project_state = match project_state.current_state(state.config()) {
+            CurrentState::Enabled(info) => ProjectState::Enabled(Arc::clone(&info)),
+            CurrentState::Disabled => ProjectState::Disabled,
+            CurrentState::Pending => continue,
         };
 
         // If public key is known (even if rate-limited, which is Some(false)), it has
         // access to the project config
         let has_access = relay.internal
-            || match project_state {
+            || match &project_state {
                 ProjectState::Disabled | ProjectState::Invalid => false,
                 ProjectState::Enabled(state) => {
                     state.config.trusted_relays.contains(&relay.public_key)

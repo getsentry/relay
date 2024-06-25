@@ -38,7 +38,7 @@ use crate::utils::{self, EnvelopeLimiter, ManagedEnvelope, RetryBackoff};
 mod metrics;
 mod state;
 
-pub use state::{ExpiryState, ProjectFetchState, ProjectState};
+pub use state::{CurrentState, ProjectFetchState, ProjectState};
 
 /// Sender type for messages that respond with project states.
 pub type ProjectSender = relay_system::BroadcastSender<ProjectFetchState>;
@@ -283,31 +283,6 @@ enum GetOrFetch<'a> {
     Scheduled(&'a mut StateChannel),
 }
 
-/// Represents either the project state or an aggregation of metrics.
-///
-/// We have to delay rate limiting on metrics until we have a valid project state,
-/// So when we don't have one yet, we hold them in this aggregator until the project state arrives.
-///
-/// TODO: spool queued metrics to disk when the in-memory aggregator becomes too full.
-#[derive(Debug)]
-enum State {
-    Cached(ProjectFetchState),
-    Pending,
-}
-
-impl State {
-    fn state_value(&self) -> Option<ProjectFetchState> {
-        match self {
-            State::Cached(state) => Some(state.clone()),
-            State::Pending => None,
-        }
-    }
-
-    fn new() -> Self {
-        Self::Pending
-    }
-}
-
 /// Structure representing organization and project configuration for a project key.
 ///
 /// This structure no longer uniquely identifies a project. Instead, it identifies a project key.
@@ -319,7 +294,7 @@ pub struct Project {
     last_updated_at: Instant,
     project_key: ProjectKey,
     config: Arc<Config>,
-    state: State,
+    state: ProjectFetchState,
     state_channel: Option<StateChannel>,
     rate_limits: CachedRateLimits,
     last_no_cache: Instant,
@@ -336,7 +311,7 @@ impl Project {
             next_fetch_attempt: None,
             last_updated_at: Instant::now(),
             project_key: key,
-            state: State::new(),
+            state: ProjectFetchState::never_fetched(),
             state_channel: None,
             rate_limits: CachedRateLimits::new(),
             last_no_cache: Instant::now(),
@@ -378,20 +353,6 @@ impl Project {
 
     pub fn merge_rate_limits(&mut self, rate_limits: RateLimits) {
         self.rate_limits.merge(rate_limits);
-    }
-
-    /// Returns the project state if it is not expired.
-    ///
-    /// Convenience wrapper around [`expiry_state`](Self::expiry_state).
-    pub fn non_expired_state(&self) -> Option<ProjectState> {
-        match &self.state {
-            State::Cached(state) => match state.expiry_state(&self.config) {
-                ExpiryState::Updated(state) => Some(state.clone()),
-                ExpiryState::Stale(state) => Some(state.clone()),
-                ExpiryState::Expired => None,
-            },
-            State::Pending => None,
-        }
     }
 
     /// Returns the next attempt `Instant` if backoff is initiated, or None otherwise.
@@ -455,12 +416,14 @@ impl Project {
         meta: MetricMeta,
         envelope_processor: Addr<EnvelopeProcessor>,
     ) {
-        let state = self.non_expired_state();
-        // TODO(jjbayer): Use ExposedState here.
+        let CurrentState::Enabled(state) = self.current_state() else {
+            relay_log::trace!("no valid state, unable to aggregate metric meta");
+            return;
+        };
 
         // Only track metadata if custom metrics are enabled, or we don't know yet whether they are
         // enabled.
-        if !state.map_or(true, |state| state.has_feature(Feature::CustomMetrics)) {
+        if !state.has_feature(Feature::CustomMetrics) {
             relay_log::trace!(
                 "metric meta feature flag not enabled for project {}",
                 self.project_key
