@@ -1054,7 +1054,7 @@ fn sync_spans_to_enforcement(envelope: &ManagedEnvelope, enforcement: &mut Enfor
     if !enforcement.event_active() {
         return;
     }
-    
+
     let spans_count = count_nested_spans(envelope);
     if spans_count == 0 {
         return;
@@ -1077,7 +1077,7 @@ fn count_nested_spans(envelope: &ManagedEnvelope) -> usize {
     struct PartialEvent {
         spans: SeqCount,
     }
-    
+
     envelope
         .envelope()
         .items()
