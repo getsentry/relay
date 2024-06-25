@@ -935,32 +935,17 @@ impl Project {
         let (mut enforcement, mut rate_limits) =
             envelope_limiter.compute(envelope.envelope_mut(), &scoping)?;
 
-        #[derive(Debug, Deserialize)]
-        struct PartialEvent {
-            spans: SeqCount,
-        }
-
         let check_nested_spans = state
             .as_ref()
             .is_some_and(|s| s.has_feature(Feature::ExtractSpansFromEvent));
 
-        // We compute the number of nested spans before rate limiting since we will remove the
-        // transaction item in case it is rate limited.
-        let spans = if check_nested_spans {
-            envelope
-                .envelope()
-                .items()
-                .find(|i| *i.ty() == ItemType::Transaction && !i.spans_extracted())
-                .and_then(|i| serde_json::from_slice::<PartialEvent>(&i.payload()).ok())
-                // We do + 1, since we count the transaction itself because it will be extracted
-                // as a span and counted during the slow path of rate limiting.
-                .map_or(0, |p| p.spans.0 + 1)
-        } else {
-            0
-        };
-
-        if spans > 0 {
-            add_nested_span_enforcements(&mut enforcement, spans);
+        // If we can extract spans from the event, we want to try and count the number of nested
+        // spans to correctly emit negative outcomes in case the transaction itself is dropped.
+        if check_nested_spans {
+            let spans_count = count_nested_spans(&envelope);
+            if spans_count > 0 {
+                add_nested_span_enforcements(&mut enforcement, spans_count);
+            }
         }
 
         enforcement.apply_with_outcomes(&mut envelope);
@@ -1061,6 +1046,26 @@ impl Project {
             buckets,
         }
     }
+}
+
+/// Counts the nested spans inside an [`Envelope`] for each [`Item`] of type
+/// [`ItemType::Transaction`] that didn't have spans extracted before.
+fn count_nested_spans(envelope: &ManagedEnvelope) -> usize {
+    #[derive(Debug, Deserialize)]
+    struct PartialEvent {
+        spans: SeqCount,
+    }
+
+    // We compute the number of nested spans before rate limiting since we will remove the
+    // transaction item in case it is rate limited.
+    envelope
+        .envelope()
+        .items()
+        .find(|i| *i.ty() == ItemType::Transaction && !i.spans_extracted())
+        .and_then(|i| serde_json::from_slice::<PartialEvent>(&i.payload()).ok())
+        // We do + 1, since we count the transaction itself because it will be extracted
+        // as a span and counted during the slow path of rate limiting.
+        .map_or(0, |p| p.spans.0 + 1)
 }
 
 /// Adds category limits for the nested spans inside a transaction.
