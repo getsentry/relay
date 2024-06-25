@@ -1048,8 +1048,8 @@ impl Project {
     }
 }
 
-/// Counts the nested spans inside an [`Envelope`] for each [`Item`] of type
-/// [`ItemType::Transaction`] that didn't have spans extracted before.
+/// Counts the nested spans inside an [`Envelope`] for each item of type
+/// transaction that didn't have spans extracted before.
 fn count_nested_spans(envelope: &ManagedEnvelope) -> usize {
     #[derive(Debug, Deserialize)]
     struct PartialEvent {

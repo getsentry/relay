@@ -450,7 +450,7 @@ impl Enforcement {
         }
     }
 
-    /// Invokes [`TrackOutcome`] on all enforcements reported by the [`EnvelopeLimiter`].
+    /// Invokes track outcome on all enforcements reported by the [`EnvelopeLimiter`].
     ///
     /// Relay generally does not emit outcomes for sessions, so those are skipped.
     fn track_outcomes(self, envelope: &mut ManagedEnvelope) {
