@@ -394,6 +394,39 @@ impl Enforcement {
 
     /// Applies the [`Enforcement`] on the [`Envelope`] by removing all items that were rate limited
     /// and emits outcomes for each rate limited category.
+    ///
+    /// # Example
+    ///
+    /// ## Interaction between Events and Attachments
+    ///
+    /// An envelope with an `Error` event and an `Attachment`. Two quotas specify to drop all
+    /// attachments (reason `"a"`) and all errors (reason `"e"`). The result of enforcement will be:
+    ///
+    /// 1. All items are removed from the envelope.
+    /// 2. Enforcements report both the event and the attachment dropped with reason `"e"`, since
+    ///    dropping an event automatically drops all attachments with the same reason.
+    /// 3. Rate limits report the single event limit `"e"`, since attachment limits do not need to
+    ///    be checked in this case.
+    ///
+    /// ## Required Attachments
+    ///
+    /// An envelope with a single Minidump `Attachment`, and a single quota specifying to drop all
+    /// attachments with reason `"a"`:
+    ///
+    /// 1. Since the minidump creates an event and is required for processing, it remains in the
+    ///    envelope and is marked as `rate_limited`.
+    /// 2. Enforcements report the attachment dropped with reason `"a"`.
+    /// 3. Rate limits are empty since it is allowed to send required attachments even when rate
+    ///    limited.
+    ///
+    /// ## Previously Rate Limited Attachments
+    ///
+    /// An envelope with a single item marked as `rate_limited`, and a quota specifying to drop
+    /// everything with reason `"d"`:
+    ///
+    /// 1. The item remains in the envelope.
+    /// 2. Enforcements are empty. Rate limiting has occurred at an earlier stage in the pipeline.
+    /// 3. Rate limits are empty.
     pub fn apply_with_outcomes(self, envelope: &mut ManagedEnvelope) {
         envelope
             .envelope_mut()
