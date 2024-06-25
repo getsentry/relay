@@ -1413,6 +1413,39 @@
 <a href="#1413" id="1413">1413</a>
 <a href="#1414" id="1414">1414</a>
 <a href="#1415" id="1415">1415</a>
+<a href="#1416" id="1416">1416</a>
+<a href="#1417" id="1417">1417</a>
+<a href="#1418" id="1418">1418</a>
+<a href="#1419" id="1419">1419</a>
+<a href="#1420" id="1420">1420</a>
+<a href="#1421" id="1421">1421</a>
+<a href="#1422" id="1422">1422</a>
+<a href="#1423" id="1423">1423</a>
+<a href="#1424" id="1424">1424</a>
+<a href="#1425" id="1425">1425</a>
+<a href="#1426" id="1426">1426</a>
+<a href="#1427" id="1427">1427</a>
+<a href="#1428" id="1428">1428</a>
+<a href="#1429" id="1429">1429</a>
+<a href="#1430" id="1430">1430</a>
+<a href="#1431" id="1431">1431</a>
+<a href="#1432" id="1432">1432</a>
+<a href="#1433" id="1433">1433</a>
+<a href="#1434" id="1434">1434</a>
+<a href="#1435" id="1435">1435</a>
+<a href="#1436" id="1436">1436</a>
+<a href="#1437" id="1437">1437</a>
+<a href="#1438" id="1438">1438</a>
+<a href="#1439" id="1439">1439</a>
+<a href="#1440" id="1440">1440</a>
+<a href="#1441" id="1441">1441</a>
+<a href="#1442" id="1442">1442</a>
+<a href="#1443" id="1443">1443</a>
+<a href="#1444" id="1444">1444</a>
+<a href="#1445" id="1445">1445</a>
+<a href="#1446" id="1446">1446</a>
+<a href="#1447" id="1447">1447</a>
+<a href="#1448" id="1448">1448</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::fmt::{<span class="self">self</span>, Write};
 
 <span class="kw">use </span>relay_quotas::{
@@ -1809,6 +1842,39 @@
 
     <span class="doccomment">/// Applies the [`Enforcement`] on the [`Envelope`] by removing all items that were rate limited
     /// and emits outcomes for each rate limited category.
+    ///
+    /// # Example
+    ///
+    /// ## Interaction between Events and Attachments
+    ///
+    /// An envelope with an `Error` event and an `Attachment`. Two quotas specify to drop all
+    /// attachments (reason `"a"`) and all errors (reason `"e"`). The result of enforcement will be:
+    ///
+    /// 1. All items are removed from the envelope.
+    /// 2. Enforcements report both the event and the attachment dropped with reason `"e"`, since
+    ///    dropping an event automatically drops all attachments with the same reason.
+    /// 3. Rate limits report the single event limit `"e"`, since attachment limits do not need to
+    ///    be checked in this case.
+    ///
+    /// ## Required Attachments
+    ///
+    /// An envelope with a single Minidump `Attachment`, and a single quota specifying to drop all
+    /// attachments with reason `"a"`:
+    ///
+    /// 1. Since the minidump creates an event and is required for processing, it remains in the
+    ///    envelope and is marked as `rate_limited`.
+    /// 2. Enforcements report the attachment dropped with reason `"a"`.
+    /// 3. Rate limits are empty since it is allowed to send required attachments even when rate
+    ///    limited.
+    ///
+    /// ## Previously Rate Limited Attachments
+    ///
+    /// An envelope with a single item marked as `rate_limited`, and a quota specifying to drop
+    /// everything with reason `"d"`:
+    ///
+    /// 1. The item remains in the envelope.
+    /// 2. Enforcements are empty. Rate limiting has occurred at an earlier stage in the pipeline.
+    /// 3. Rate limits are empty.
     </span><span class="kw">pub fn </span>apply_with_outcomes(<span class="self">self</span>, envelope: <span class="kw-2">&amp;mut </span>ManagedEnvelope) {
         envelope
             .envelope_mut()
