@@ -1601,7 +1601,6 @@
 <a href="#1601" id="1601">1601</a>
 <a href="#1602" id="1602">1602</a>
 <a href="#1603" id="1603">1603</a>
-<a href="#1604" id="1604">1604</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
 <span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::sync::Arc;
@@ -2357,14 +2356,13 @@
     ) -&gt; <span class="prelude-ty">Result</span>&lt;CheckedEnvelope, DiscardReason&gt; {
         <span class="kw">let </span>CheckEnvelope { envelope: context } = message;
         <span class="kw">let </span>project_cache = <span class="self">self</span>.services.project_cache.clone();
-        <span class="kw">let </span>outcome_aggregator = <span class="self">self</span>.services.outcome_aggregator.clone();
         <span class="kw">let </span>project = <span class="self">self</span>.get_or_create_project(context.envelope().meta().public_key());
 
         <span class="comment">// Preload the project cache so that it arrives a little earlier in processing. However,
         // do not pass `no_cache`. In case the project is rate limited, we do not want to force
         // a full reload. Fetching must not block the store request.
         </span>project.prefetch(project_cache, <span class="bool-val">false</span>);
-        project.check_envelope(context, outcome_aggregator)
+        project.check_envelope(context)
     }
 
     <span class="doccomment">/// Handles the processing of the provided envelope.
@@ -2397,7 +2395,7 @@
         </span><span class="kw">if let </span><span class="prelude-val">Ok</span>(CheckedEnvelope {
             envelope: <span class="prelude-val">Some</span>(managed_envelope),
             ..
-        }) = project.check_envelope(managed_envelope, <span class="self">self</span>.services.outcome_aggregator.clone())
+        }) = project.check_envelope(managed_envelope)
         {
             <span class="kw">let </span>reservoir_counters = project.reservoir_counters();
 

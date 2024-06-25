@@ -3715,10 +3715,6 @@
 <a href="#3715" id="3715">3715</a>
 <a href="#3716" id="3716">3716</a>
 <a href="#3717" id="3717">3717</a>
-<a href="#3718" id="3718">3718</a>
-<a href="#3719" id="3719">3719</a>
-<a href="#3720" id="3720">3720</a>
-<a href="#3721" id="3721">3721</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
@@ -4959,8 +4955,15 @@
 
         <span class="kw">let </span>scoping = state.managed_envelope.scoping();
         <span class="kw">let </span>(enforcement, limits) = <span class="macro">metric!</span>(timer(RelayTimers::EventProcessingRateLimiting), {
-            envelope_limiter.enforce(state.managed_envelope.envelope_mut(), <span class="kw-2">&amp;</span>scoping)<span class="question-mark">?
+            envelope_limiter.compute(state.managed_envelope.envelope_mut(), <span class="kw-2">&amp;</span>scoping)<span class="question-mark">?
         </span>});
+        <span class="kw">let </span>event_active = enforcement.event_active();
+        enforcement.apply_with_outcomes(<span class="kw-2">&amp;mut </span>state.managed_envelope);
+
+        <span class="kw">if </span>event_active {
+            state.remove_event();
+            <span class="macro">debug_assert!</span>(state.envelope().is_empty());
+        }
 
         <span class="comment">// Use the same rate limits as used for the envelope on the metrics.
         // Those rate limits should not be checked for expiry or similar to ensure a consistent
@@ -4973,17 +4976,6 @@
                 .project_cache
                 .send(UpdateRateLimits::new(scoping.project_key, limits));
         }
-
-        <span class="kw">if </span>enforcement.event_active() {
-            state.remove_event();
-            <span class="macro">debug_assert!</span>(state.envelope().is_empty());
-        }
-
-        enforcement.track_outcomes(
-            state.envelope(),
-            <span class="kw-2">&amp;</span>state.managed_envelope.scoping(),
-            <span class="self">self</span>.inner.addrs.outcome_aggregator.clone(),
-        );
 
         <span class="prelude-val">Ok</span>(())
     }
