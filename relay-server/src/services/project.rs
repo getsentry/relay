@@ -30,6 +30,7 @@ use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::services::processor::RateLimitBuckets;
 use crate::services::processor::{EncodeMetricMeta, EnvelopeProcessor};
 use crate::services::project::metrics::filter_namespaces;
+use crate::services::project::state::ExpiryState;
 use crate::services::project_cache::{BucketSource, CheckedEnvelope, ProjectCache, RequestUpdate};
 
 use crate::statsd::RelayCounters;
@@ -547,20 +548,15 @@ impl Project {
             }
         }
 
-        let cached_state = match &self.state {
+        let cached_state = match self.state.expiry_state(&self.config) {
             // Never use the cached state if `no_cache` is set.
             _ if no_cache => None,
-            State::Pending => None,
-            State::Cached(state) => {
-                match state.expiry_state(&self.config) {
-                    // There is no project state that can be used, fetch a state and return it.
-                    ExpiryState::Expired => None,
-                    // The project is semi-outdated, fetch new state but return old one.
-                    ExpiryState::Stale(state) => Some(state.clone()),
-                    // The project is not outdated, return early here to jump over fetching logic below.
-                    ExpiryState::Updated(state) => return GetOrFetch::Cached(state.clone()),
-                }
-            }
+            // There is no project state that can be used, fetch a state and return it.
+            ExpiryState::Expired => None,
+            // The project is semi-outdated, fetch new state but return old one.
+            ExpiryState::Stale(state) => Some(state.clone()),
+            // The project is not outdated, return early here to jump over fetching logic below.
+            ExpiryState::Updated(state) => return GetOrFetch::Cached(state.clone()),
         };
 
         let channel = self.fetch_state(project_cache, no_cache);

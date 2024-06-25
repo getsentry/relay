@@ -109,7 +109,7 @@ impl ProjectFetchState {
         }
     }
 
-    fn new(state: ProjectState) -> Self {
+    pub fn new(state: ProjectState) -> Self {
         Self {
             last_fetch: Instant::now(),
             state,
@@ -142,16 +142,23 @@ impl ProjectFetchState {
         Ok(())
     }
 
-    /// Returns the current [`ExpiryState`] for this project.
-    /// If the project state's [`Expiry`] is `Expired`, do not return it.
-    pub fn current_state(&self, config: &Config) -> CurrentState {
+    pub fn expiry_state(&self, config: &Config) -> ExpiryState {
         match self.check_expiry(config) {
-            Expiry::Stale | Expiry::Updated => match &self.state {
+            Expiry::Updated => ExpiryState::Updated(&self.state),
+            Expiry::Stale => ExpiryState::Stale(&self.state),
+            Expiry::Expired => ExpiryState::Expired,
+        }
+    }
+
+    /// Maps the expiry state to a usable state.
+    pub fn current_state(&self, config: &Config) -> CurrentState {
+        match self.expiry_state(config) {
+            ExpiryState::Updated(state) | ExpiryState::Stale(state) => match state {
                 ProjectState::Enabled(info) => CurrentState::Enabled(info),
                 ProjectState::Disabled => CurrentState::Disabled,
                 ProjectState::Invalid => CurrentState::Pending,
             },
-            Expiry::Expired => CurrentState::Pending,
+            ExpiryState::Expired => CurrentState::Pending,
         }
     }
 
@@ -199,6 +206,15 @@ enum Expiry {
     Expired,
 }
 
+pub enum ExpiryState<'a> {
+    /// An up-to-date project state. See [`Expiry::Updated`].
+    Updated(&'a ProjectState),
+    /// A stale project state that can still be used. See [`Expiry::Stale`].
+    Stale(&'a ProjectState),
+    /// An expired project state that should not be used. See [`Expiry::Expired`].
+    Expired,
+}
+
 /// TODO: docs
 #[derive(Clone, Debug)]
 pub enum ProjectState {
@@ -210,7 +226,9 @@ pub enum ProjectState {
 impl ProjectState {
     pub fn sanitize(self) -> Self {
         match self {
-            ProjectState::Enabled(state) => ProjectState::Enabled(state.sanitize()),
+            ProjectState::Enabled(state) => {
+                ProjectState::Enabled(Arc::new(state.as_ref().clone().sanitize()))
+            }
             ProjectState::Disabled => ProjectState::Disabled,
             ProjectState::Invalid => ProjectState::Invalid,
         }
