@@ -152,6 +152,12 @@ pub fn hardcoded_span_metrics() -> Vec<(GroupKey, Vec<MetricSpec>, Vec<TagMappin
             "Safari",
             "Edge",
             "Opera",
+            // Mobile Browsers
+            "Chrome Mobile",
+            "Firefox Mobile",
+            "Mobile Safari",
+            "Edge Mobile",
+            "Opera Mobile",
         ],
     );
 
