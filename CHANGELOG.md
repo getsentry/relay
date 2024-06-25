@@ -5,6 +5,7 @@
 **Bug Fixes**:
 
 - Fixes metrics dropped due to missing project state. ([#3553](https://github.com/getsentry/relay/issues/3553))
+- Report outcomes for spans when transactions are rate limited. ([#3749](https://github.com/getsentry/relay/pull/3749))
 
 
 **Internal**:

@@ -23,12 +23,13 @@ use smallvec::SmallVec;
 use tokio::time::Instant;
 use url::Url;
 
-use crate::envelope::Envelope;
+use crate::envelope::{Envelope, ItemType};
 use crate::metrics::{MetricOutcomes, MetricsLimiter};
 use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::services::processor::{EncodeMetricMeta, EnvelopeProcessor};
 use crate::services::project::metrics::{apply_project_state, filter_namespaces};
 use crate::services::project_cache::{BucketSource, CheckedEnvelope, ProjectCache, RequestUpdate};
+use crate::utils::{Enforcement, SeqCount};
 
 use crate::extractors::RequestMeta;
 
@@ -905,12 +906,11 @@ impl Project {
     ///   should be accepted or discarded
     ///
     /// IMPORTANT: If the [`ProjectState`] is invalid, the `check_request` will be skipped and only
-    /// rate limites will be validated. This function **must not** be called in the main processing
+    /// rate limits will be validated. This function **must not** be called in the main processing
     /// pipeline.
     pub fn check_envelope(
         &mut self,
         mut envelope: ManagedEnvelope,
-        outcome_aggregator: Addr<TrackOutcome>,
     ) -> Result<CheckedEnvelope, DiscardReason> {
         let state = self.valid_state().filter(|state| !state.invalid());
         let mut scoping = envelope.scoping();
@@ -932,9 +932,21 @@ impl Project {
             Ok(current_limits.check_with_quotas(quotas, item_scoping))
         });
 
-        let (enforcement, mut rate_limits) =
-            envelope_limiter.enforce(envelope.envelope_mut(), &scoping)?;
-        enforcement.track_outcomes(envelope.envelope(), &scoping, outcome_aggregator);
+        let (mut enforcement, mut rate_limits) =
+            envelope_limiter.compute(envelope.envelope_mut(), &scoping)?;
+
+        let check_nested_spans = state
+            .as_ref()
+            .is_some_and(|s| s.has_feature(Feature::ExtractSpansFromEvent));
+
+        // If we can extract spans from the event, we want to try and count the number of nested
+        // spans to correctly emit negative outcomes in case the transaction itself is dropped.
+        if check_nested_spans {
+            sync_spans_to_enforcement(&envelope, &mut enforcement);
+        }
+
+        enforcement.apply_with_outcomes(&mut envelope);
+
         envelope.update();
 
         // Special case: Expose active rate limits for all metric namespaces if there is at least
@@ -1033,6 +1045,49 @@ impl Project {
     }
 }
 
+/// Adds category limits for the nested spans inside a transaction.
+///
+/// On the fast path of rate limiting, we do not have nested spans of a transaction extracted
+/// as top-level spans, thus if we limited a transaction, we want to count and emit negative
+/// outcomes for each of the spans nested inside that transaction.
+fn sync_spans_to_enforcement(envelope: &ManagedEnvelope, enforcement: &mut Enforcement) {
+    if !enforcement.event_active() {
+        return;
+    }
+
+    let spans_count = count_nested_spans(envelope);
+    if spans_count == 0 {
+        return;
+    }
+
+    if enforcement.event.is_active() {
+        enforcement.spans = enforcement.event.clone_for(DataCategory::Span, spans_count);
+    }
+
+    if enforcement.event_indexed.is_active() {
+        enforcement.spans_indexed = enforcement
+            .event_indexed
+            .clone_for(DataCategory::SpanIndexed, spans_count);
+    }
+}
+
+/// Counts the nested spans inside the first transaction envelope item inside the [`Envelope`].
+fn count_nested_spans(envelope: &ManagedEnvelope) -> usize {
+    #[derive(Debug, Deserialize)]
+    struct PartialEvent {
+        spans: SeqCount,
+    }
+
+    envelope
+        .envelope()
+        .items()
+        .find(|item| *item.ty() == ItemType::Transaction && !item.spans_extracted())
+        .and_then(|item| serde_json::from_slice::<PartialEvent>(&item.payload()).ok())
+        // We do + 1, since we count the transaction itself because it will be extracted
+        // as a span and counted during the slow path of rate limiting.
+        .map_or(0, |event| event.spans.0 + 1)
+}
+
 /// Return value of [`Project::check_buckets`].
 #[derive(Debug)]
 pub enum CheckedBuckets {
@@ -1059,8 +1114,11 @@ pub enum CheckedBuckets {
 
 #[cfg(test)]
 mod tests {
+    use crate::envelope::{ContentType, Item};
     use crate::metrics::MetricStats;
+    use crate::services::processor::ProcessingGroup;
     use relay_common::time::UnixTimestamp;
+    use relay_event_schema::protocol::EventId;
     use relay_metrics::BucketValue;
     use relay_test::mock_service;
     use serde_json::json;
@@ -1166,10 +1224,16 @@ mod tests {
     }
 
     fn create_project(config: Option<serde_json::Value>) -> Project {
-        let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
+        let project_key = ProjectKey::parse("e12d836b15bb49d7bbf99e64295d995b").unwrap();
         let mut project = Project::new(project_key, Arc::new(Config::default()));
         let mut project_state = ProjectState::allowed();
         project_state.project_id = Some(ProjectId::new(42));
+        let mut public_keys = SmallVec::new();
+        public_keys.push(PublicKeyConfig {
+            public_key: project_key,
+            numeric_id: None,
+        });
+        project_state.public_keys = public_keys;
         if let Some(config) = config {
             project_state.config = serde_json::from_value(config).unwrap();
         }
@@ -1325,5 +1389,91 @@ mod tests {
         };
         assert_eq!(merge_buckets.buckets().len(), 1);
         assert!(metric_stats_rx.blocking_recv().is_none());
+    }
+
+    fn request_meta() -> RequestMeta {
+        let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
+            .parse()
+            .unwrap();
+
+        RequestMeta::new(dsn)
+    }
+
+    #[test]
+    fn test_track_nested_spans_outcomes() {
+        let mut project = create_project(Some(json!({
+            "features": [
+                "organizations:indexed-spans-extraction"
+            ],
+            "quotas": [{
+               "id": "foo",
+               "categories": ["transaction"],
+               "window": 3600,
+               "limit": 0,
+               "reasonCode": "foo",
+           }]
+        })));
+
+        let mut envelope = Envelope::from_request(Some(EventId::new()), request_meta());
+
+        let mut transaction = Item::new(ItemType::Transaction);
+        transaction.set_payload(
+            ContentType::Json,
+            r#"{
+  "event_id": "52df9022835246eeb317dbd739ccd059",
+  "type": "transaction",
+  "transaction": "I have a stale timestamp, but I'm recent!",
+  "start_timestamp": 1,
+  "timestamp": 2,
+  "contexts": {
+    "trace": {
+      "trace_id": "ff62a8b040f340bda5d830223def1d81",
+      "span_id": "bd429c44b67a3eb4"
+    }
+  },
+  "spans": [
+    {
+      "span_id": "bd429c44b67a3eb4",
+      "start_timestamp": 1,
+      "timestamp": null,
+      "trace_id": "ff62a8b040f340bda5d830223def1d81"
+    },
+    {
+      "span_id": "bd429c44b67a3eb5",
+      "start_timestamp": 1,
+      "timestamp": null,
+      "trace_id": "ff62a8b040f340bda5d830223def1d81"
+    }
+  ]
+}"#,
+        );
+
+        envelope.add_item(transaction);
+
+        let (outcome_aggregator, mut outcome_aggregator_rx) = Addr::custom();
+        let (test_store, _) = Addr::custom();
+
+        let managed_envelope = ManagedEnvelope::standalone(
+            envelope,
+            outcome_aggregator.clone(),
+            test_store,
+            ProcessingGroup::Transaction,
+        );
+
+        let _ = project.check_envelope(managed_envelope);
+        drop(outcome_aggregator);
+
+        let expected = [
+            (DataCategory::Transaction, 1),
+            (DataCategory::TransactionIndexed, 1),
+            (DataCategory::Span, 3),
+            (DataCategory::SpanIndexed, 3),
+        ];
+
+        for (expected_category, expected_quantity) in expected {
+            let outcome = outcome_aggregator_rx.blocking_recv().unwrap();
+            assert_eq!(outcome.category, expected_category);
+            assert_eq!(outcome.quantity, expected_quantity);
+        }
     }
 }
