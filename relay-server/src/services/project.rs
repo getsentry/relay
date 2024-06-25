@@ -911,7 +911,6 @@ impl Project {
     pub fn check_envelope(
         &mut self,
         mut envelope: ManagedEnvelope,
-        outcome_aggregator: Addr<TrackOutcome>,
     ) -> Result<CheckedEnvelope, DiscardReason> {
         let state = self.valid_state().filter(|state| !state.invalid());
         let mut scoping = envelope.scoping();
@@ -934,7 +933,7 @@ impl Project {
         });
 
         let (mut enforcement, mut rate_limits) =
-            envelope_limiter.enforce(envelope.envelope_mut(), &scoping)?;
+            envelope_limiter.compute(envelope.envelope_mut(), &scoping)?;
 
         #[derive(Debug, Deserialize)]
         struct PartialEvent {
@@ -964,7 +963,7 @@ impl Project {
             add_nested_span_enforcements(&mut enforcement, spans);
         }
 
-        enforcement.apply_with_outcomes(envelope.envelope_mut(), &scoping, outcome_aggregator);
+        enforcement.apply_with_outcomes(&mut envelope);
 
         envelope.update();
 
@@ -1457,7 +1456,7 @@ mod tests {
             ProcessingGroup::Transaction,
         );
 
-        let _ = project.check_envelope(managed_envelope, outcome_aggregator.clone());
+        let _ = project.check_envelope(managed_envelope);
         drop(outcome_aggregator);
 
         let expected = [

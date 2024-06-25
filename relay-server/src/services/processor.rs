@@ -1238,8 +1238,15 @@ impl EnvelopeProcessorService {
 
         let scoping = state.managed_envelope.scoping();
         let (enforcement, limits) = metric!(timer(RelayTimers::EventProcessingRateLimiting), {
-            envelope_limiter.enforce(state.managed_envelope.envelope_mut(), &scoping)?
+            envelope_limiter.compute(state.managed_envelope.envelope_mut(), &scoping)?
         });
+
+        if enforcement.event_active() {
+            state.remove_event();
+            debug_assert!(state.envelope().is_empty());
+        }
+
+        enforcement.apply_with_outcomes(&mut state.managed_envelope);
 
         // Use the same rate limits as used for the envelope on the metrics.
         // Those rate limits should not be checked for expiry or similar to ensure a consistent
@@ -1252,17 +1259,6 @@ impl EnvelopeProcessorService {
                 .project_cache
                 .send(UpdateRateLimits::new(scoping.project_key, limits));
         }
-
-        if enforcement.event_active() {
-            state.remove_event();
-            debug_assert!(state.envelope().is_empty());
-        }
-
-        enforcement.track_outcomes(
-            state.envelope(),
-            &state.managed_envelope.scoping(),
-            self.inner.addrs.outcome_aggregator.clone(),
-        );
 
         Ok(())
     }
