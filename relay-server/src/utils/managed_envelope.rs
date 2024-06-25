@@ -354,10 +354,6 @@ impl ManagedEnvelope {
         });
     }
 
-    pub fn track_outcome_object(&self, outcome: TrackOutcome) {
-        self.outcome_aggregator.send(outcome);
-    }
-
     /// Accepts the envelope and drops the context.
     ///
     /// This should be called if the envelope has been accepted by the upstream, which means that
