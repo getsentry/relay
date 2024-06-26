@@ -431,7 +431,7 @@ pub fn emit_feedback_metrics(envelope: &Envelope) {
             _ => (),
         }
     }
-    if has_feedback && num_attachments > 0 {
+    if has_feedback {
         metric!(counter(RelayCounters::FeedbackAttachments) += num_attachments);
     }
 }

@@ -46,7 +46,10 @@ def test_profile_chunk_outcomes(
             },
             "source": "processing-relay",
         },
-        "aggregator": {"bucket_interval": 1, "initial_delay": 0, "debounce_delay": 0},
+        "aggregator": {
+            "bucket_interval": 1,
+            "initial_delay": 0,
+        },
     }
 
     # The innermost Relay needs to be in processing mode
@@ -110,7 +113,10 @@ def test_profile_chunk_outcomes_invalid(
             },
             "source": "pop-relay",
         },
-        "aggregator": {"bucket_interval": 1, "initial_delay": 0, "debounce_delay": 0},
+        "aggregator": {
+            "bucket_interval": 1,
+            "initial_delay": 0,
+        },
     }
 
     upstream = relay_with_processing(config)
@@ -172,7 +178,10 @@ def test_profile_chunk_outcomes_rate_limited(
                 "flush_interval": 0,
             },
         },
-        "aggregator": {"bucket_interval": 1, "initial_delay": 0, "debounce_delay": 0},
+        "aggregator": {
+            "bucket_interval": 1,
+            "initial_delay": 0,
+        },
     }
 
     upstream = relay_with_processing(config)

@@ -258,12 +258,6 @@ impl<Q: AsRef<Vec<Quota>>> MetricsLimiter<Q> {
         false
     }
 
-    /// Returns a reference to the contained metrics.
-    #[cfg(feature = "processing")]
-    pub fn buckets(&self) -> impl Iterator<Item = &Bucket> {
-        self.buckets.iter().map(|s| &s.bucket)
-    }
-
     /// Consume this struct and return the contained metrics.
     pub fn into_buckets(self) -> Vec<Bucket> {
         self.buckets.into_iter().map(|s| s.bucket).collect()
