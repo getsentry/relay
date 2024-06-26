@@ -1381,11 +1381,23 @@ impl EnvelopeProcessorService {
             .get_item_by(|item| item.attachment_type().is_some())
             .and_then(|item| item.attachment_type())
             .map(|ty| ty.to_string());
+        let event_type = state
+            .event
+            .value()
+            .and_then(|e| e.ty.value())
+            .map(|ty| ty.as_str())
+            .unwrap_or("none");
 
         if !state.has_event() {
             metric!(
                 counter(RelayCounters::NormalizationDecision) += 1,
+                event_type = event_type,
                 attachment_type = attachment_type.as_deref().unwrap_or("none"),
+                origin = if state.envelope().meta().is_from_internal_relay() {
+                    "internal"
+                } else {
+                    "external"
+                },
                 decision = "no_event"
             );
 
@@ -1407,7 +1419,13 @@ impl EnvelopeProcessorService {
                 {
                     metric!(
                         counter(RelayCounters::NormalizationDecision) += 1,
+                        event_type = event_type,
                         attachment_type = attachment_type.as_deref().unwrap_or("none"),
+                        origin = if state.envelope().meta().is_from_internal_relay() {
+                            "internal"
+                        } else {
+                            "external"
+                        },
                         decision = "skip_normalized"
                     );
                     return Ok(());
@@ -1419,7 +1437,13 @@ impl EnvelopeProcessorService {
 
         metric!(
             counter(RelayCounters::NormalizationDecision) += 1,
+            event_type = event_type,
             attachment_type = attachment_type.as_deref().unwrap_or("none"),
+            origin = if state.envelope().meta().is_from_internal_relay() {
+                "internal"
+            } else {
+                "external"
+            },
             decision = if full_normalization {
                 "full_normalization"
             } else {
