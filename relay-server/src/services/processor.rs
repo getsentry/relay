@@ -1471,7 +1471,7 @@ impl EnvelopeProcessorService {
                 received_at: Some(state.managed_envelope.received_at()),
                 max_secs_in_past: Some(self.inner.config.max_secs_in_past()),
                 max_secs_in_future: Some(self.inner.config.max_secs_in_future()),
-                timestamp_range: Some(
+                transaction_timestamp_range: Some(
                     AggregatorConfig::from(transaction_aggregator_config).timestamp_range(),
                 ),
                 is_validated: false,

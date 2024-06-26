@@ -33,7 +33,7 @@ pub struct EventValidationConfig {
     ///
     /// Transactions that finish outside this range are invalid. The check is
     /// skipped if no range is provided.
-    pub timestamp_range: Option<Range<UnixTimestamp>>,
+    pub transaction_timestamp_range: Option<Range<UnixTimestamp>>,
 
     /// Controls whether the event has been validated before, in which case disables validation.
     ///
@@ -144,7 +144,7 @@ fn validate_transaction_timestamps(
         transaction_event.timestamp.value(),
     ) {
         (Some(start), Some(end)) => {
-            validate_timestamps(start, end, config.timestamp_range.as_ref())?;
+            validate_timestamps(start, end, config.transaction_timestamp_range.as_ref())?;
             Ok(())
         }
         (_, None) => Err(ProcessingAction::InvalidTransaction(
@@ -366,7 +366,7 @@ mod tests {
             validate_event(
                 &mut event,
                 &EventValidationConfig {
-                    timestamp_range: Some(UnixTimestamp::now()..UnixTimestamp::now()),
+                    transaction_timestamp_range: Some(UnixTimestamp::now()..UnixTimestamp::now()),
                     is_validated: false,
                     ..Default::default()
                 }
@@ -408,7 +408,7 @@ mod tests {
             validate_event(
                 &mut event,
                 &EventValidationConfig {
-                    timestamp_range: None,
+                    transaction_timestamp_range: None,
                     is_validated: false,
                     ..Default::default()
                 }
@@ -435,7 +435,7 @@ mod tests {
             validate_event(
                 &mut event,
                 &EventValidationConfig {
-                    timestamp_range: None,
+                    transaction_timestamp_range: None,
                     is_validated: false,
                     ..Default::default()
                 }
