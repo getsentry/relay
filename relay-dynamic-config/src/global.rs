@@ -237,6 +237,15 @@ pub struct Options {
     )]
     pub processing_disable_normalization: bool,
 
+    /// TODO(ja): Doc
+    #[serde(
+        default,
+        rename = "sentry-metrics.extrapolation.duplication-limit",
+        deserialize_with = "default_on_error",
+        skip_serializing_if = "is_default"
+    )]
+    pub extrapolation_duplication_limit: u32,
+
     /// All other unknown options.
     #[serde(flatten)]
     other: HashMap<String, Value>,

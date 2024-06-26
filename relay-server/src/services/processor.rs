@@ -589,10 +589,35 @@ type ExtractedEvent = (Annotated<Event>, usize);
 ///
 /// The container enforces that the extracted metrics are correctly tagged
 /// with the dynamic sampling decision.
-#[derive(Default, Debug)]
-pub struct ProcessingExtractedMetrics(ExtractedMetrics);
+#[derive(Debug)]
+pub struct ProcessingExtractedMetrics {
+    metrics: ExtractedMetrics,
+    project: Arc<ProjectState>,
+    global: Arc<GlobalConfig>,
+    extrapolation_factor: Option<FiniteF64>,
+}
 
 impl ProcessingExtractedMetrics {
+    pub fn new(
+        project: Arc<ProjectState>,
+        global: Arc<GlobalConfig>,
+        dsc: Option<&DynamicSamplingContext>,
+    ) -> Self {
+        let factor = match dsc.and_then(|dsc| dsc.sample_rate) {
+            // no need for extrapolation if sample rate is 1.0, and a sample rate of `0` or lower is
+            // invalid, in which case we also skip.
+            Some(rate) if rate > 0.0 && rate < 1.0 => FiniteF64::new(1.0 / rate),
+            _ => None,
+        };
+
+        Self {
+            metrics: ExtractedMetrics::default(),
+            project,
+            global,
+            extrapolation_factor: factor,
+        }
+    }
+
     /// Extends the contained metrics with [`ExtractedMetrics`].
     pub fn extend(
         &mut self,
@@ -613,7 +638,8 @@ impl ProcessingExtractedMetrics {
             bucket.metadata.extracted_from_indexed =
                 sampling_decision == Some(SamplingDecision::Keep);
         }
-        self.0.project_metrics.extend(buckets);
+        self.extrapolate(&mut buckets);
+        self.metrics.project_metrics.extend(buckets);
     }
 
     /// Extends the contained sampling metrics.
@@ -626,12 +652,8 @@ impl ProcessingExtractedMetrics {
             bucket.metadata.extracted_from_indexed =
                 sampling_decision == Some(SamplingDecision::Keep);
         }
-        self.0.sampling_metrics.extend(buckets);
-    }
-
-    /// Returns `true` if any project metrics are extracted.
-    pub fn has_project_metrics(&self) -> bool {
-        !self.0.project_metrics.is_empty()
+        self.extrapolate(&mut buckets);
+        self.metrics.sampling_metrics.extend(buckets);
     }
 
     /// Applies rate limits to the contained metrics.
@@ -655,72 +677,34 @@ impl ProcessingExtractedMetrics {
 
     #[cfg(feature = "processing")]
     fn retain(&mut self, mut f: impl FnMut(&Bucket) -> bool) {
-        self.0.project_metrics.retain(&mut f);
-        self.0.sampling_metrics.retain(&mut f);
-    }
-
-    fn send_metrics(self, envelope: &Envelope, project_cache: Addr<ProjectCache>) {
-        let project_key = envelope.meta().public_key();
-
-        let ExtractedMetrics {
-            project_metrics,
-            sampling_metrics,
-        } = self.0;
-
-        if !project_metrics.is_empty() {
-            project_cache.send(AddMetricBuckets::internal(project_key, project_metrics));
-        }
-
-        if !sampling_metrics.is_empty() {
-            // If no sampling project state is available, we associate the sampling
-            // metrics with the current project.
-            //
-            // project_without_tracing         -> metrics goes to self
-            // dependent_project_with_tracing  -> metrics goes to root
-            // root_project_with_tracing       -> metrics goes to root == self
-            let sampling_project_key = utils::get_sampling_key(envelope).unwrap_or(project_key);
-            project_cache.send(AddMetricBuckets::internal(
-                sampling_project_key,
-                sampling_metrics,
-            ));
-        }
+        self.metrics.project_metrics.retain(&mut f);
+        self.metrics.sampling_metrics.retain(&mut f);
     }
 
     /// TODO(ja): Doc
-    fn extrapolate(&mut self, dsc: &DynamicSamplingContext) {
-        let Some(sample_rate) = dsc.sample_rate else {
+    fn extrapolate(&self, buckets: &mut [Bucket]) {
+        let Some(factor) = self.extrapolation_factor else {
             return;
         };
 
-        // no need for extrapolation if sample rate is 1.0, and a sample rate of `0` or lower is
-        // invalid, in which case we also skip.
-        if sample_rate <= 0.0 || sample_rate >= 1.0 {
-            return;
-        }
-
-        let Some(sample_rate) = FiniteF64::new(sample_rate) else {
-            return;
+        let extrapolate = match self.project.config().metric_extraction {
+            ErrorBoundary::Ok(ref config) if !config.extrapolate.is_empty() => &config.extrapolate,
+            _ => return,
         };
 
-        for bucket in &mut self.0.project_metrics {
-            if !matches!(
-                bucket.name.namespace(),
-                MetricNamespace::Spans | MetricNamespace::Custom
-            ) {
-                continue;
-            }
+        let max_duplication = self.global.options.extrapolation_duplication_limit as usize;
+        let duplication = max_duplication.min(factor.to_f64().round() as usize);
 
-            // TODO(ja): Is there a generic way to detect internal metrics?
-            if bucket.name.as_ref() == "c:spans/usage@none" {
+        for bucket in buckets {
+            if !extrapolate.matches(&bucket.name) {
                 continue;
             }
 
             match bucket.value {
                 BucketValue::Counter(ref mut counter) => {
-                    *counter = counter.saturating_div(sample_rate);
+                    *counter = counter.saturating_mul(factor);
                 }
                 BucketValue::Distribution(ref mut dist) => {
-                    let duplication = (1.0 / sample_rate.to_f64()) as usize;
                     *dist = std::mem::take(dist)
                         .into_iter()
                         .flat_map(|f| std::iter::repeat(f).take(duplication))
@@ -730,13 +714,40 @@ impl ProcessingExtractedMetrics {
                     // do nothing for sets
                 }
                 BucketValue::Gauge(ref mut gauge) => {
-                    gauge.sum = gauge.sum.saturating_div(sample_rate);
+                    gauge.sum = gauge.sum.saturating_mul(factor);
                     gauge.count = FiniteF64::new(gauge.count as f64)
-                        .map(|f| f.saturating_div(sample_rate).to_f64() as u64)
+                        .map(|f| f.saturating_mul(factor).to_f64() as u64)
                         .unwrap_or(u64::MAX);
                 }
             }
         }
+    }
+}
+
+fn send_metrics(metrics: ExtractedMetrics, envelope: &Envelope, project_cache: Addr<ProjectCache>) {
+    let project_key = envelope.meta().public_key();
+
+    let ExtractedMetrics {
+        project_metrics,
+        sampling_metrics,
+    } = metrics;
+
+    if !project_metrics.is_empty() {
+        project_cache.send(AddMetricBuckets::internal(project_key, project_metrics));
+    }
+
+    if !sampling_metrics.is_empty() {
+        // If no sampling project state is available, we associate the sampling
+        // metrics with the current project.
+        //
+        // project_without_tracing         -> metrics goes to self
+        // dependent_project_with_tracing  -> metrics goes to root
+        // root_project_with_tracing       -> metrics goes to root == self
+        let sampling_project_key = utils::get_sampling_key(envelope).unwrap_or(project_key);
+        project_cache.send(AddMetricBuckets::internal(
+            sampling_project_key,
+            sampling_metrics,
+        ));
     }
 }
 
@@ -850,7 +861,7 @@ impl<'a, Group> ProcessEnvelopeState<'a, Group> {
 #[derive(Debug)]
 struct ProcessingStateResult {
     managed_envelope: TypedEnvelope<Processed>,
-    extracted_metrics: ProcessingExtractedMetrics,
+    extracted_metrics: ExtractedMetrics,
 }
 
 /// Response of the [`ProcessEnvelope`] message.
@@ -1235,6 +1246,7 @@ impl EnvelopeProcessorService {
     /// This applies defaults to the envelope and initializes empty rate limits.
     fn prepare_state<G>(
         &self,
+        global_config: Arc<GlobalConfig>,
         mut managed_envelope: TypedEnvelope<G>,
         project_id: ProjectId,
         project_state: Arc<ProjectState>,
@@ -1269,13 +1281,19 @@ impl EnvelopeProcessorService {
             reservoir.set_redis(org_id, redis_pool);
         }
 
+        let extracted_metrics = ProcessingExtractedMetrics::new(
+            project_state.clone(),
+            global_config,
+            managed_envelope.envelope().dsc(), // TODO(ja): this is fine
+        );
+
         ProcessEnvelopeState {
             event: Annotated::empty(),
             event_metrics_extracted: false,
             spans_extracted: false,
             metrics: Metrics::default(),
             sample_rates: None,
-            extracted_metrics: Default::default(),
+            extracted_metrics,
             project_state,
             sampling_project_state,
             project_id,
@@ -1432,10 +1450,6 @@ impl EnvelopeProcessorService {
         state
             .extracted_metrics
             .extend_project_metrics(metrics, Some(sampling_decision));
-
-        if let Some(dsc) = state.managed_envelope.envelope().dsc() {
-            state.extracted_metrics.extrapolate(dsc);
-        }
 
         if !state.project_state.has_feature(Feature::DiscardTransaction) {
             let transaction_from_dsc = state
@@ -1891,10 +1905,6 @@ impl EnvelopeProcessorService {
                 &self.inner.buffer_guard,
             );
 
-            if let Some(dsc) = state.managed_envelope.envelope().dsc() {
-                state.extracted_metrics.extrapolate(dsc);
-            }
-
             self.enforce_quotas(state)?;
         });
         Ok(())
@@ -1925,6 +1935,7 @@ impl EnvelopeProcessorService {
             ($fn:ident) => {{
                 let managed_envelope = managed_envelope.try_into()?;
                 let mut state = self.prepare_state(
+                    self.inner.global_config.current(),
                     managed_envelope,
                     project_id,
                     project_state,
@@ -1934,7 +1945,7 @@ impl EnvelopeProcessorService {
                 match self.$fn(&mut state) {
                     Ok(()) => Ok(ProcessingStateResult {
                         managed_envelope: state.managed_envelope.into_processed(),
-                        extracted_metrics: state.extracted_metrics,
+                        extracted_metrics: state.extracted_metrics.metrics,
                     }),
                     Err(e) => {
                         if let Some(outcome) = e.to_outcome() {
@@ -2060,8 +2071,9 @@ impl EnvelopeProcessorService {
                         // requires recomputation of the context.
                         state.managed_envelope.update();
 
-                        let has_metrics = state.extracted_metrics.has_project_metrics();
-                        state.extracted_metrics.send_metrics(
+                        let has_metrics = !state.extracted_metrics.project_metrics.is_empty();
+                        send_metrics(
+                            state.extracted_metrics,
                             state.managed_envelope.envelope(),
                             self.inner.addrs.project_cache.clone(),
                         );

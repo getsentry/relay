@@ -302,6 +302,10 @@ pub struct MetricExtractionConfig {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub tags: Vec<TagMapping>,
 
+    /// TODO(ja): Doc
+    #[serde(default, skip_serializing_if = "ExtrapolateConfig::is_empty")]
+    pub extrapolate: ExtrapolateConfig,
+
     /// This config has been extended with fields from `conditional_tagging`.
     ///
     /// At the moment, Relay will parse `conditional_tagging` rules and insert them into the `tags`
@@ -339,6 +343,7 @@ impl MetricExtractionConfig {
             global_groups: BTreeMap::new(),
             metrics: Default::default(),
             tags: Default::default(),
+            extrapolate: Default::default(),
             _conditional_tags_extended: false,
             _span_metrics_extended: false,
         }
@@ -566,7 +571,7 @@ impl Tag {
 
 /// Intermediate result of the tag spec builder.
 ///
-/// Can be transformed into `[TagSpec]`.
+/// Can be transformed into [`TagSpec`].
 pub struct TagWithSource {
     key: String,
     field: Option<String>,
@@ -635,6 +640,38 @@ pub fn convert_conditional_tagging(project_config: &mut ProjectConfig) {
     config._conditional_tags_extended = true;
     if config.version == 0 {
         config.version = MetricExtractionConfig::MAX_SUPPORTED_VERSION;
+    }
+}
+
+/// TODO(ja): Doc
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct ExtrapolateConfig {
+    /// TODO(ja): Doc
+    #[serde(default)]
+    pub include: Vec<LazyGlob>,
+
+    /// TODO(ja): Doc
+    #[serde(default)]
+    pub exclude: Vec<LazyGlob>,
+}
+
+impl ExtrapolateConfig {
+    /// Returns `true` if this config is empty.
+    pub fn is_empty(&self) -> bool {
+        self.include.is_empty()
+    }
+
+    /// Returns `true` if the given metric resource identifier matches the include and exclude
+    /// patterns.
+    pub fn matches(&self, mri: &str) -> bool {
+        !self
+            .exclude
+            .iter()
+            .any(|glob| glob.compiled().is_match(mri))
+            && self
+                .include
+                .iter()
+                .any(|glob| glob.compiled().is_match(mri))
     }
 }
 
@@ -815,5 +852,24 @@ mod tests {
                 .collect::<Vec<_>>(),
             vec!["tag1"]
         );
+    }
+
+    #[test]
+    fn test_extrapolation() {
+        let json = serde_json::json!({
+            "version": 1,
+            "extrapolate": {
+                "include": ["?:transactions/*", "?:spans/*", "?:custom/*"],
+                "exclude": ["c:spans/usage@none", "c:transactions/usage@none", "c:transactions/count_per_root_project@none"]
+            }
+        });
+
+        let config: MetricExtractionConfig = serde_json::from_value(json).unwrap();
+        let extrapolate = config.extrapolate;
+
+        assert!(!extrapolate.is_empty());
+        assert!(extrapolate.matches("d:custom/foo@none"));
+        assert!(extrapolate.matches("d:spans/foo@none"));
+        assert!(!extrapolate.matches("c:spans/usage@none"));
     }
 }
