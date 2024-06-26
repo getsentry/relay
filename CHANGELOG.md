@@ -11,6 +11,7 @@
 **Internal**:
 
 - Aggregate metrics before rate limiting. ([#3746](https://github.com/getsentry/relay/pull/3746))
+- Accept profiler_id in the profile context. ([#3714](https://github.com/getsentry/relay/pull/3714))
 
 ## 24.6.0
 
