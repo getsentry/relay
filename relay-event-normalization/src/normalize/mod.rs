@@ -1172,7 +1172,7 @@ mod tests {
         });
 
         let received_at = Some(Utc.with_ymd_and_hms(2000, 1, 3, 0, 0, 0).unwrap());
-        let max_secs_in_past = Some(30 * 24 * 3600);
+        let max_secs_in_past = Some(730 * 24 * 3600);
         let max_secs_in_future = Some(60);
 
         validate_transaction(&mut event, &TransactionValidationConfig::default()).unwrap();
@@ -1227,7 +1227,7 @@ mod tests {
         });
 
         let received_at = Some(Utc.with_ymd_and_hms(2000, 3, 3, 0, 0, 0).unwrap());
-        let max_secs_in_past = Some(30 * 24 * 3600);
+        let max_secs_in_past = Some(730 * 24 * 3600);
         let max_secs_in_future = Some(60);
 
         validate_event_timestamps(
