@@ -81,6 +81,23 @@
 <a href="#81" id="81">81</a>
 <a href="#82" id="82">82</a>
 <a href="#83" id="83">83</a>
+<a href="#84" id="84">84</a>
+<a href="#85" id="85">85</a>
+<a href="#86" id="86">86</a>
+<a href="#87" id="87">87</a>
+<a href="#88" id="88">88</a>
+<a href="#89" id="89">89</a>
+<a href="#90" id="90">90</a>
+<a href="#91" id="91">91</a>
+<a href="#92" id="92">92</a>
+<a href="#93" id="93">93</a>
+<a href="#94" id="94">94</a>
+<a href="#95" id="95">95</a>
+<a href="#96" id="96">96</a>
+<a href="#97" id="97">97</a>
+<a href="#98" id="98">98</a>
+<a href="#99" id="99">99</a>
+<a href="#100" id="100">100</a>
 </pre></div><pre class="rust"><code><span class="attr">#[cfg(feature = <span class="string">"jsonschema"</span>)]
 </span><span class="kw">use </span>relay_jsonschema_derive::JsonSchema;
 <span class="kw">use </span>relay_protocol::{Annotated, Empty, FromValue, IntoValue};
@@ -93,8 +110,10 @@
 #[cfg_attr(feature = <span class="string">"jsonschema"</span>, derive(JsonSchema))]
 </span><span class="kw">pub struct </span>ProfileContext {
     <span class="doccomment">/// The profile ID.
-    </span><span class="attr">#[metastructure(required = <span class="string">"true"</span>)]
     </span><span class="kw">pub </span>profile_id: Annotated&lt;EventId&gt;,
+
+    <span class="doccomment">/// The profiler ID.
+    </span><span class="kw">pub </span>profiler_id: Annotated&lt;EventId&gt;,
 }
 
 <span class="kw">impl </span><span class="kw">super</span>::DefaultContext <span class="kw">for </span>ProfileContext {
@@ -143,6 +162,7 @@
             profile_id: Annotated::new(EventId(
                 <span class="string">"4c79f60c11214eb38604f4ae0781bfb2"</span>.parse().unwrap(),
             )),
+            ..ProfileContext::default()
         })));
 
         <span class="macro">assert_eq!</span>(context, Annotated::from_json(json).unwrap());
@@ -159,6 +179,20 @@
             profile_id: Annotated::new(EventId(
                 <span class="string">"4c79f60c11214eb38604f4ae0781bfb2"</span>.parse().unwrap(),
             )),
+            ..ProfileContext::default()
+        })));
+
+        <span class="macro">assert_eq!</span>(context, Annotated::from_json(json).unwrap());
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>context_with_profiler_id() {
+        <span class="kw">let </span>json = <span class="string">r#"{"profiler_id": "4C79F60C11214EB38604F4AE0781BFB2", "type": "profile"}"#</span>;
+        <span class="kw">let </span>context = Annotated::new(Context::Profile(Box::new(ProfileContext {
+            profiler_id: Annotated::new(EventId(
+                <span class="string">"4c79f60c11214eb38604f4ae0781bfb2"</span>.parse().unwrap(),
+            )),
+            ..ProfileContext::default()
         })));
 
         <span class="macro">assert_eq!</span>(context, Annotated::from_json(json).unwrap());

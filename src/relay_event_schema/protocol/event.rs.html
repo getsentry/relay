@@ -1278,6 +1278,7 @@
 <a href="#1278" id="1278">1278</a>
 <a href="#1279" id="1279">1279</a>
 <a href="#1280" id="1280">1280</a>
+<a href="#1281" id="1281">1281</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::str::FromStr;
 
@@ -2436,6 +2437,7 @@
                     profile_id: Annotated::new(EventId(<span class="macro">uuid!</span>(
                         <span class="string">"abadcade-feed-dead-beef-8addadfeedaa"
                     </span>))),
+                    ..ProfileContext::default()
                 });
                 contexts
             }),
