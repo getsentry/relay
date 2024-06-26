@@ -1156,6 +1156,7 @@ mod tests {
                     profile_id: Annotated::new(EventId(uuid!(
                         "abadcade-feed-dead-beef-8addadfeedaa"
                     ))),
+                    ..ProfileContext::default()
                 });
                 contexts
             }),
