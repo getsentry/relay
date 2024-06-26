@@ -139,6 +139,13 @@
 <a href="#139" id="139">139</a>
 <a href="#140" id="140">140</a>
 <a href="#141" id="141">141</a>
+<a href="#142" id="142">142</a>
+<a href="#143" id="143">143</a>
+<a href="#144" id="144">144</a>
+<a href="#145" id="145">145</a>
+<a href="#146" id="146">146</a>
+<a href="#147" id="147">147</a>
+<a href="#148" id="148">148</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Defines types related to Sentry events.
 //!
 //! As opposed to the event protocol defined in `relay-event-schema`, these types are meant to be
@@ -194,6 +201,23 @@
     </span>Default,
 }
 
+<span class="kw">impl </span>EventType {
+    <span class="doccomment">/// Returns the string representation of this event type.
+    </span><span class="kw">pub fn </span>as_str(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
+        <span class="kw">match </span><span class="self">self </span>{
+            EventType::Default =&gt; <span class="string">"default"</span>,
+            EventType::Error =&gt; <span class="string">"error"</span>,
+            EventType::Csp =&gt; <span class="string">"csp"</span>,
+            EventType::Hpkp =&gt; <span class="string">"hpkp"</span>,
+            EventType::ExpectCt =&gt; <span class="string">"expectct"</span>,
+            EventType::ExpectStaple =&gt; <span class="string">"expectstaple"</span>,
+            EventType::Nel =&gt; <span class="string">"nel"</span>,
+            EventType::Transaction =&gt; <span class="string">"transaction"</span>,
+            EventType::UserReportV2 =&gt; <span class="string">"feedback"</span>,
+        }
+    }
+}
+
 <span class="doccomment">/// An error used when parsing `EventType`.
 </span><span class="attr">#[derive(Clone, Copy, Debug)]
 </span><span class="kw">pub struct </span>ParseEventTypeError;
@@ -227,17 +251,7 @@
 
 <span class="kw">impl </span>fmt::Display <span class="kw">for </span>EventType {
     <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
-        <span class="kw">match </span><span class="kw-2">*</span><span class="self">self </span>{
-            EventType::Default =&gt; <span class="macro">write!</span>(f, <span class="string">"default"</span>),
-            EventType::Error =&gt; <span class="macro">write!</span>(f, <span class="string">"error"</span>),
-            EventType::Csp =&gt; <span class="macro">write!</span>(f, <span class="string">"csp"</span>),
-            EventType::Hpkp =&gt; <span class="macro">write!</span>(f, <span class="string">"hpkp"</span>),
-            EventType::ExpectCt =&gt; <span class="macro">write!</span>(f, <span class="string">"expectct"</span>),
-            EventType::ExpectStaple =&gt; <span class="macro">write!</span>(f, <span class="string">"expectstaple"</span>),
-            EventType::Nel =&gt; <span class="macro">write!</span>(f, <span class="string">"nel"</span>),
-            EventType::Transaction =&gt; <span class="macro">write!</span>(f, <span class="string">"transaction"</span>),
-            EventType::UserReportV2 =&gt; <span class="macro">write!</span>(f, <span class="string">"feedback"</span>),
-        }
+        <span class="macro">write!</span>(f, <span class="string">"{}"</span>, <span class="self">self</span>.as_str())
     }
 }
 

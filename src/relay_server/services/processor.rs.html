@@ -3715,6 +3715,30 @@
 <a href="#3715" id="3715">3715</a>
 <a href="#3716" id="3716">3716</a>
 <a href="#3717" id="3717">3717</a>
+<a href="#3718" id="3718">3718</a>
+<a href="#3719" id="3719">3719</a>
+<a href="#3720" id="3720">3720</a>
+<a href="#3721" id="3721">3721</a>
+<a href="#3722" id="3722">3722</a>
+<a href="#3723" id="3723">3723</a>
+<a href="#3724" id="3724">3724</a>
+<a href="#3725" id="3725">3725</a>
+<a href="#3726" id="3726">3726</a>
+<a href="#3727" id="3727">3727</a>
+<a href="#3728" id="3728">3728</a>
+<a href="#3729" id="3729">3729</a>
+<a href="#3730" id="3730">3730</a>
+<a href="#3731" id="3731">3731</a>
+<a href="#3732" id="3732">3732</a>
+<a href="#3733" id="3733">3733</a>
+<a href="#3734" id="3734">3734</a>
+<a href="#3735" id="3735">3735</a>
+<a href="#3736" id="3736">3736</a>
+<a href="#3737" id="3737">3737</a>
+<a href="#3738" id="3738">3738</a>
+<a href="#3739" id="3739">3739</a>
+<a href="#3740" id="3740">3740</a>
+<a href="#3741" id="3741">3741</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
@@ -5098,11 +5122,23 @@
             .get_item_by(|item| item.attachment_type().is_some())
             .and_then(|item| item.attachment_type())
             .map(|ty| ty.to_string());
+        <span class="kw">let </span>event_type = state
+            .event
+            .value()
+            .and_then(|e| e.ty.value())
+            .map(|ty| ty.as_str())
+            .unwrap_or(<span class="string">"none"</span>);
 
         <span class="kw">if </span>!state.has_event() {
             <span class="macro">metric!</span>(
                 counter(RelayCounters::NormalizationDecision) += <span class="number">1</span>,
+                event_type = event_type,
                 attachment_type = attachment_type.as_deref().unwrap_or(<span class="string">"none"</span>),
+                origin = <span class="kw">if </span>state.envelope().meta().is_from_internal_relay() {
+                    <span class="string">"internal"
+                </span>} <span class="kw">else </span>{
+                    <span class="string">"external"
+                </span>},
                 decision = <span class="string">"no_event"
             </span>);
 
@@ -5124,7 +5160,13 @@
                 {
                     <span class="macro">metric!</span>(
                         counter(RelayCounters::NormalizationDecision) += <span class="number">1</span>,
+                        event_type = event_type,
                         attachment_type = attachment_type.as_deref().unwrap_or(<span class="string">"none"</span>),
+                        origin = <span class="kw">if </span>state.envelope().meta().is_from_internal_relay() {
+                            <span class="string">"internal"
+                        </span>} <span class="kw">else </span>{
+                            <span class="string">"external"
+                        </span>},
                         decision = <span class="string">"skip_normalized"
                     </span>);
                     <span class="kw">return </span><span class="prelude-val">Ok</span>(());
@@ -5136,7 +5178,13 @@
 
         <span class="macro">metric!</span>(
             counter(RelayCounters::NormalizationDecision) += <span class="number">1</span>,
+            event_type = event_type,
             attachment_type = attachment_type.as_deref().unwrap_or(<span class="string">"none"</span>),
+            origin = <span class="kw">if </span>state.envelope().meta().is_from_internal_relay() {
+                <span class="string">"internal"
+            </span>} <span class="kw">else </span>{
+                <span class="string">"external"
+            </span>},
             decision = <span class="kw">if </span>full_normalization {
                 <span class="string">"full_normalization"
             </span>} <span class="kw">else </span>{
