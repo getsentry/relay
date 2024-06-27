@@ -3260,10 +3260,11 @@ mod tests {
 
     use relay_base_schema::metrics::{DurationUnit, MetricUnit};
     use relay_common::glob2::LazyGlob;
-    use relay_dynamic_config::ProjectConfig;
+    use relay_dynamic_config::{ExtrapolationConfig, MetricExtractionConfig, ProjectConfig};
     use relay_event_normalization::{RedactionRule, TransactionNameRule};
     use relay_event_schema::protocol::TransactionSource;
     use relay_pii::DataScrubbingConfig;
+    use serde::Deserialize;
     use similar_asserts::assert_eq;
 
     use crate::metrics_extraction::transactions::types::{
@@ -3815,5 +3816,187 @@ mod tests {
             assert_eq!(buckets.len(), 1);
             assert_eq!(buckets[0].metadata.received_at, expected_received_at);
         }
+    }
+
+    #[test]
+    fn test_extrapolate() {
+        let mut project_state = ProjectState::allowed();
+        project_state.config.metric_extraction = ErrorBoundary::Ok(MetricExtractionConfig {
+            extrapolate: ExtrapolationConfig {
+                include: vec![LazyGlob::new("*")],
+                exclude: vec![],
+            },
+            ..Default::default()
+        });
+
+        let dsc = DynamicSamplingContext::deserialize(serde_json::json!({
+            "trace_id": "00000000-0000-0000-0000-000000000000",
+            "public_key": "abd0f232775f45feab79864e580d160b",
+            "sample_rate": "0.2",
+        }))
+        .unwrap();
+
+        let mut global_config = GlobalConfig::default();
+        global_config.options.extrapolation_duplication_limit = 3;
+
+        let mut extracted_metrics = ProcessingExtractedMetrics::new(
+            Arc::new(project_state),
+            Arc::new(global_config),
+            Some(&dsc),
+        );
+
+        let buckets = serde_json::from_value(serde_json::json!([
+          {
+            "timestamp": 1615889440,
+            "width": 10,
+            "name": "endpoint.response_time",
+            "type": "d",
+            "value": [
+              36.0,
+              49.0,
+              57.0,
+              68.0
+            ],
+            "tags": {
+              "route": "user_index"
+            }
+          },
+          {
+            "timestamp": 1615889440,
+            "width": 10,
+            "name": "endpoint.hits",
+            "type": "c",
+            "value": 4.0,
+            "tags": {
+              "route": "user_index"
+            }
+          },
+          {
+            "timestamp": 1615889440,
+            "width": 10,
+            "name": "endpoint.parallel_requests",
+            "type": "g",
+            "value": {
+              "last": 25.0,
+              "min": 17.0,
+              "max": 42.0,
+              "sum": 2210.0,
+              "count": 85
+            }
+          },
+          {
+            "timestamp": 1615889440,
+            "width": 10,
+            "name": "endpoint.users",
+            "type": "s",
+            "value": [
+              3182887624u32,
+              4267882815u32
+            ],
+            "tags": {
+              "route": "user_index"
+            }
+          }
+        ]))
+        .unwrap();
+
+        extracted_metrics.extend_project_metrics(buckets, None);
+
+        insta::assert_debug_snapshot!(extracted_metrics.metrics.project_metrics, @r###"
+        [
+            Bucket {
+                timestamp: UnixTimestamp(1615889440),
+                width: 10,
+                name: MetricName(
+                    "endpoint.response_time",
+                ),
+                value: Distribution(
+                    [
+                        36.0,
+                        36.0,
+                        36.0,
+                        49.0,
+                        49.0,
+                        49.0,
+                        57.0,
+                        57.0,
+                        57.0,
+                        68.0,
+                        68.0,
+                        68.0,
+                    ],
+                ),
+                tags: {
+                    "route": "user_index",
+                },
+                metadata: BucketMetadata {
+                    merges: 1,
+                    received_at: None,
+                    extracted_from_indexed: false,
+                },
+            },
+            Bucket {
+                timestamp: UnixTimestamp(1615889440),
+                width: 10,
+                name: MetricName(
+                    "endpoint.hits",
+                ),
+                value: Counter(
+                    20.0,
+                ),
+                tags: {
+                    "route": "user_index",
+                },
+                metadata: BucketMetadata {
+                    merges: 1,
+                    received_at: None,
+                    extracted_from_indexed: false,
+                },
+            },
+            Bucket {
+                timestamp: UnixTimestamp(1615889440),
+                width: 10,
+                name: MetricName(
+                    "endpoint.parallel_requests",
+                ),
+                value: Gauge(
+                    GaugeValue {
+                        last: 25.0,
+                        min: 17.0,
+                        max: 42.0,
+                        sum: 11050.0,
+                        count: 425,
+                    },
+                ),
+                tags: {},
+                metadata: BucketMetadata {
+                    merges: 1,
+                    received_at: None,
+                    extracted_from_indexed: false,
+                },
+            },
+            Bucket {
+                timestamp: UnixTimestamp(1615889440),
+                width: 10,
+                name: MetricName(
+                    "endpoint.users",
+                ),
+                value: Set(
+                    {
+                        3182887624,
+                        4267882815,
+                    },
+                ),
+                tags: {
+                    "route": "user_index",
+                },
+                metadata: BucketMetadata {
+                    merges: 1,
+                    received_at: None,
+                    extracted_from_indexed: false,
+                },
+            },
+        ]
+        "###);
     }
 }
