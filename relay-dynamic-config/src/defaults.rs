@@ -192,6 +192,13 @@ pub fn hardcoded_span_metrics() -> Vec<(GroupKey, Vec<MetricSpec>, Vec<TagMappin
     let is_app_start = RuleCondition::glob("span.op", "app.start.*")
         & RuleCondition::eq("span.description", APP_START_ROOT_SPAN_DESCRIPTIONS);
 
+    // Metrics for common modules:
+    let is_common = is_db.clone()
+        | is_resource.clone()
+        | is_http.clone()
+        | is_mobile.clone()
+        | is_interaction.clone();
+
     // Metrics for addon modules are only extracted if the feature flag is enabled:
     let is_addon = is_ai.clone() | is_queue_op.clone() | is_cache.clone();
 
@@ -203,7 +210,7 @@ pub fn hardcoded_span_metrics() -> Vec<(GroupKey, Vec<MetricSpec>, Vec<TagMappin
                     category: DataCategory::Span,
                     mri: "d:spans/exclusive_time@millisecond".into(),
                     field: Some("span.exclusive_time".into()),
-                    condition: Some(!is_addon.clone()),
+                    condition: Some(is_common.clone() | is_addon.clone()),
                     tags: vec![],
                 },
                 MetricSpec {
@@ -213,13 +220,7 @@ pub fn hardcoded_span_metrics() -> Vec<(GroupKey, Vec<MetricSpec>, Vec<TagMappin
                     condition: Some(
                         // The `!is_addon` check might be redundant, but we want to make sure that
                         // `exclusive_time_light` is not extracted twice.
-                        !is_addon.clone()
-                            & (is_db.clone()
-                                | is_resource.clone()
-                                | is_mobile.clone()
-                                | is_interaction.clone()
-                                | is_http.clone())
-                            & duration_condition.clone(),
+                        !is_addon.clone() & is_common.clone() & duration_condition.clone(),
                     ),
                     tags: vec![
                         Tag::with_key("environment")
@@ -278,7 +279,7 @@ pub fn hardcoded_span_metrics() -> Vec<(GroupKey, Vec<MetricSpec>, Vec<TagMappin
                     category: DataCategory::Span,
                     mri: "d:spans/duration@millisecond".into(),
                     field: Some("span.duration".into()),
-                    condition: Some(!is_addon.clone()),
+                    condition: Some(is_common.clone() | is_addon.clone()),
                     tags: vec![],
                 },
                 MetricSpec {
@@ -732,13 +733,6 @@ pub fn hardcoded_span_metrics() -> Vec<(GroupKey, Vec<MetricSpec>, Vec<TagMappin
                 // all addon modules
                 MetricSpec {
                     category: DataCategory::Span,
-                    mri: "d:spans/exclusive_time@millisecond".into(),
-                    field: Some("span.exclusive_time".into()),
-                    condition: Some(is_addon.clone()),
-                    tags: vec![],
-                },
-                MetricSpec {
-                    category: DataCategory::Span,
                     mri: "d:spans/exclusive_time_light@millisecond".into(),
                     field: Some("span.exclusive_time".into()),
                     condition: Some(is_addon.clone() & duration_condition.clone()),
@@ -759,13 +753,6 @@ pub fn hardcoded_span_metrics() -> Vec<(GroupKey, Vec<MetricSpec>, Vec<TagMappin
                             .from_field("span.sentry_tags.op")
                             .always(),
                     ],
-                },
-                MetricSpec {
-                    category: DataCategory::Span,
-                    mri: "d:spans/duration@millisecond".into(),
-                    field: Some("span.duration".into()),
-                    condition: Some(is_addon),
-                    tags: vec![],
                 },
                 // cache module
                 MetricSpec {
