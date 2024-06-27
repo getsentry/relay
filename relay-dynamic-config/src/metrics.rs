@@ -302,7 +302,7 @@ pub struct MetricExtractionConfig {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub tags: Vec<TagMapping>,
 
-    /// TODO(ja): Doc
+    /// Extrapolation for metrics extracted from sampled data.
     #[serde(default, skip_serializing_if = "ExtrapolationConfig::is_empty")]
     pub extrapolate: ExtrapolationConfig,
 
@@ -643,14 +643,14 @@ pub fn convert_conditional_tagging(project_config: &mut ProjectConfig) {
     }
 }
 
-/// TODO(ja): Doc
+/// Configuration for metric extrapolation from sampled data.
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct ExtrapolationConfig {
-    /// TODO(ja): Doc
+    /// A list of MRI glob patterns to include in extrapolation.
     #[serde(default)]
     pub include: Vec<LazyGlob>,
 
-    /// TODO(ja): Doc
+    /// A list of MRI glob patterns to exclude from extrapolation, overriding inclusion.
     #[serde(default)]
     pub exclude: Vec<LazyGlob>,
 }

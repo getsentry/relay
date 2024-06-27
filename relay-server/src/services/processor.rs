@@ -681,7 +681,6 @@ impl ProcessingExtractedMetrics {
         self.metrics.sampling_metrics.retain(&mut f);
     }
 
-    /// TODO(ja): Doc
     fn extrapolate(&self, buckets: &mut [Bucket]) {
         let Some(factor) = self.extrapolation_factor else {
             return;
@@ -693,7 +692,8 @@ impl ProcessingExtractedMetrics {
         };
 
         let duplication = (factor.to_f64().round() as usize)
-            .min(self.global.options.extrapolation_duplication_limit);
+            .min(self.global.options.extrapolation_duplication_limit)
+            .max(1);
 
         for bucket in buckets {
             if !extrapolate.matches(&bucket.name) {

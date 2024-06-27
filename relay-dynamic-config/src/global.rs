@@ -237,7 +237,11 @@ pub struct Options {
     )]
     pub processing_disable_normalization: bool,
 
-    /// TODO(ja): Doc
+    /// The maximum duplication factor used to extrapolate distribution metrics from sampled data.
+    ///
+    /// This applies as long as Relay duplicates distribution values to extrapolate. The default is
+    /// `0`, which disables extrapolation of distributions completely. This option does not apply to
+    /// any other metric types.
     #[serde(
         default,
         rename = "sentry-metrics.extrapolation.duplication-limit",
