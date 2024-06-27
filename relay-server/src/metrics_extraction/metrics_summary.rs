@@ -185,7 +185,11 @@ impl MetricsSummaryAggregator {
 }
 
 /// Computes the [`MetricsSummary`] from a slice of [`Bucket`]s.
-pub fn compute(buckets: &[Bucket]) -> MetricsSummary {
+pub fn compute(buckets: &[Bucket]) -> Option<MetricsSummary> {
+    if buckets.len() == 0 {
+        return None;
+    }
+
     let aggregator = MetricsSummaryAggregator::from_buckets(buckets);
-    aggregator.build_metrics_summary()
+    Some(aggregator.build_metrics_summary())
 }

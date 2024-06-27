@@ -3,7 +3,7 @@ use relay_metrics::Bucket;
 
 pub mod event;
 pub mod generic;
-mod metrics_summary;
+pub mod metrics_summary;
 pub mod sessions;
 pub mod transactions;
 
