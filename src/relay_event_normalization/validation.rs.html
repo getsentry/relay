@@ -857,54 +857,6 @@
 <a href="#857" id="857">857</a>
 <a href="#858" id="858">858</a>
 <a href="#859" id="859">859</a>
-<a href="#860" id="860">860</a>
-<a href="#861" id="861">861</a>
-<a href="#862" id="862">862</a>
-<a href="#863" id="863">863</a>
-<a href="#864" id="864">864</a>
-<a href="#865" id="865">865</a>
-<a href="#866" id="866">866</a>
-<a href="#867" id="867">867</a>
-<a href="#868" id="868">868</a>
-<a href="#869" id="869">869</a>
-<a href="#870" id="870">870</a>
-<a href="#871" id="871">871</a>
-<a href="#872" id="872">872</a>
-<a href="#873" id="873">873</a>
-<a href="#874" id="874">874</a>
-<a href="#875" id="875">875</a>
-<a href="#876" id="876">876</a>
-<a href="#877" id="877">877</a>
-<a href="#878" id="878">878</a>
-<a href="#879" id="879">879</a>
-<a href="#880" id="880">880</a>
-<a href="#881" id="881">881</a>
-<a href="#882" id="882">882</a>
-<a href="#883" id="883">883</a>
-<a href="#884" id="884">884</a>
-<a href="#885" id="885">885</a>
-<a href="#886" id="886">886</a>
-<a href="#887" id="887">887</a>
-<a href="#888" id="888">888</a>
-<a href="#889" id="889">889</a>
-<a href="#890" id="890">890</a>
-<a href="#891" id="891">891</a>
-<a href="#892" id="892">892</a>
-<a href="#893" id="893">893</a>
-<a href="#894" id="894">894</a>
-<a href="#895" id="895">895</a>
-<a href="#896" id="896">896</a>
-<a href="#897" id="897">897</a>
-<a href="#898" id="898">898</a>
-<a href="#899" id="899">899</a>
-<a href="#900" id="900">900</a>
-<a href="#901" id="901">901</a>
-<a href="#902" id="902">902</a>
-<a href="#903" id="903">903</a>
-<a href="#904" id="904">904</a>
-<a href="#905" id="905">905</a>
-<a href="#906" id="906">906</a>
-<a href="#907" id="907">907</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::ops::Range;
 
 <span class="kw">use </span>chrono::{DateTime, Duration, Utc};
@@ -918,69 +870,140 @@
 
 <span class="kw">use crate</span>::{ClockDriftProcessor, TimestampProcessor};
 
-<span class="doccomment">/// Configuration for [`validate_transaction`].
+<span class="doccomment">/// Configuration for [`validate_event`].
 </span><span class="attr">#[derive(Debug, Default)]
-</span><span class="kw">pub struct </span>TransactionValidationConfig {
+</span><span class="kw">pub struct </span>EventValidationConfig {
+    <span class="doccomment">/// The time at which the event was received in this Relay.
+    ///
+    /// This timestamp is persisted into the event payload.
+    </span><span class="kw">pub </span>received_at: <span class="prelude-ty">Option</span>&lt;DateTime&lt;Utc&gt;&gt;,
+
+    <span class="doccomment">/// The maximum amount of seconds an event can be dated in the past.
+    ///
+    /// If the event's timestamp is older, the received timestamp is assumed.
+    </span><span class="kw">pub </span>max_secs_in_past: <span class="prelude-ty">Option</span>&lt;i64&gt;,
+
+    <span class="doccomment">/// The maximum amount of seconds an event can be predated into the future.
+    ///
+    /// If the event's timestamp lies further into the future, the received timestamp is assumed.
+    </span><span class="kw">pub </span>max_secs_in_future: <span class="prelude-ty">Option</span>&lt;i64&gt;,
+
     <span class="doccomment">/// Timestamp range in which a transaction must end.
     ///
     /// Transactions that finish outside this range are invalid. The check is
     /// skipped if no range is provided.
-    </span><span class="kw">pub </span>timestamp_range: <span class="prelude-ty">Option</span>&lt;Range&lt;UnixTimestamp&gt;&gt;,
+    </span><span class="kw">pub </span>transaction_timestamp_range: <span class="prelude-ty">Option</span>&lt;Range&lt;UnixTimestamp&gt;&gt;,
 
     <span class="doccomment">/// Controls whether the event has been validated before, in which case disables validation.
     ///
-    /// By default, `is_validated` is disabled and transaction validation is run.
+    /// By default, `is_validated` is disabled and event validation is run.
     ///
     /// Similar to `is_renormalize` for normalization, `sentry_relay` may configure this value.
     </span><span class="kw">pub </span>is_validated: bool,
 }
 
-<span class="doccomment">/// Validates a transaction.
+<span class="doccomment">/// Validates an event.
 ///
 /// Validation consists of performing multiple checks on the payload, based on
-/// the given configuration. Noop for non-transaction events.
+/// the given configuration.
 ///
-/// The returned [`ProcessingResult`] indicates whether the passed transaction
-/// is invalid and thus should be dropped.
-///
-/// Note: this function does not validate a transaction's timestamp values are
-/// up-to-date, [`validate_event_timestamps`] should be used for that.
-</span><span class="kw">pub fn </span>validate_transaction(
+/// The returned [`ProcessingResult`] indicates whether the passed event is
+/// invalid and thus should be dropped.
+</span><span class="kw">pub fn </span>validate_event(
     event: <span class="kw-2">&amp;mut </span>Annotated&lt;Event&gt;,
-    config: <span class="kw-2">&amp;</span>TransactionValidationConfig,
+    config: <span class="kw-2">&amp;</span>EventValidationConfig,
 ) -&gt; ProcessingResult {
     <span class="kw">if </span>config.is_validated {
         <span class="kw">return </span><span class="prelude-val">Ok</span>(());
     }
 
-    <span class="kw">let </span>Annotated(<span class="prelude-val">Some</span>(<span class="kw-2">ref mut </span>event), <span class="kw-2">ref </span>_meta) = event <span class="kw">else </span>{
+    <span class="kw">let </span>Annotated(<span class="prelude-val">Some</span>(<span class="kw-2">ref mut </span>event), <span class="kw-2">ref mut </span>meta) = event <span class="kw">else </span>{
         <span class="kw">return </span><span class="prelude-val">Ok</span>(());
     };
-    <span class="kw">if </span>event.ty.value() != <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>EventType::Transaction) {
-        <span class="kw">return </span><span class="prelude-val">Ok</span>(());
+
+    <span class="comment">// TimestampProcessor is required in validation, and requires normalizing
+    // timestamps before (especially clock drift changes).
+    </span>normalize_timestamps(
+        event,
+        meta,
+        config.received_at,
+        config.max_secs_in_past,
+        config.max_secs_in_future,
+    );
+    TimestampProcessor.process_event(event, meta, ProcessingState::root())<span class="question-mark">?</span>;
+
+    <span class="kw">if </span>event.ty.value() == <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>EventType::Transaction) {
+        validate_transaction_timestamps(event, config)<span class="question-mark">?</span>;
+        validate_trace_context(event)<span class="question-mark">?</span>;
+        <span class="comment">// There are no timestamp range requirements for span timestamps.
+        // Transaction will be rejected only if either end or start timestamp is missing.
+        </span>end_all_spans(event);
+        validate_spans(event, <span class="prelude-val">None</span>)<span class="question-mark">?</span>;
     }
 
-    validate_transaction_timestamps(event, config)<span class="question-mark">?</span>;
-    validate_trace_context(event)<span class="question-mark">?</span>;
-    <span class="comment">// There are no timestamp range requirements for span timestamps.
-    // Transaction will be rejected only if either end or start timestamp is missing.
-    </span>end_all_spans(event);
-    validate_spans(event, <span class="prelude-val">None</span>)<span class="question-mark">?</span>;
-
     <span class="prelude-val">Ok</span>(())
+}
+
+<span class="doccomment">/// Validates the timestamp range and sets a default value.
+</span><span class="kw">fn </span>normalize_timestamps(
+    event: <span class="kw-2">&amp;mut </span>Event,
+    meta: <span class="kw-2">&amp;mut </span>Meta,
+    received_at: <span class="prelude-ty">Option</span>&lt;DateTime&lt;Utc&gt;&gt;,
+    max_secs_in_past: <span class="prelude-ty">Option</span>&lt;i64&gt;,
+    max_secs_in_future: <span class="prelude-ty">Option</span>&lt;i64&gt;,
+) {
+    <span class="kw">let </span>received_at = received_at.unwrap_or_else(Utc::now);
+
+    <span class="kw">let </span><span class="kw-2">mut </span>sent_at = <span class="prelude-val">None</span>;
+    <span class="kw">let </span><span class="kw-2">mut </span>error_kind = ErrorKind::ClockDrift;
+
+    <span class="kw">let _ </span>= processor::apply(<span class="kw-2">&amp;mut </span>event.timestamp, |timestamp, _meta| {
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(secs) = max_secs_in_future {
+            <span class="kw">if </span><span class="kw-2">*</span>timestamp &gt; received_at + Duration::seconds(secs) {
+                error_kind = ErrorKind::FutureTimestamp;
+                sent_at = <span class="prelude-val">Some</span>(<span class="kw-2">*</span>timestamp);
+                <span class="kw">return </span><span class="prelude-val">Ok</span>(());
+            }
+        }
+
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(secs) = max_secs_in_past {
+            <span class="kw">if </span><span class="kw-2">*</span>timestamp &lt; received_at - Duration::seconds(secs) {
+                error_kind = ErrorKind::PastTimestamp;
+                sent_at = <span class="prelude-val">Some</span>(<span class="kw-2">*</span>timestamp);
+                <span class="kw">return </span><span class="prelude-val">Ok</span>(());
+            }
+        }
+
+        <span class="prelude-val">Ok</span>(())
+    });
+
+    <span class="kw">let _ </span>= ClockDriftProcessor::new(sent_at.map(|ts| ts.into_inner()), received_at)
+        .error_kind(error_kind)
+        .process_event(event, meta, ProcessingState::root());
+
+    <span class="comment">// Apply this after clock drift correction, otherwise we will malform it.
+    </span>event.received = Annotated::new(received_at.into());
+
+    <span class="kw">if </span>event.timestamp.value().is_none() {
+        event.timestamp.set_value(<span class="prelude-val">Some</span>(received_at.into()));
+    }
+
+    <span class="kw">let _ </span>= processor::apply(<span class="kw-2">&amp;mut </span>event.time_spent, |time_spent, <span class="kw">_</span>| {
+        validate_bounded_integer_field(<span class="kw-2">*</span>time_spent)
+    });
 }
 
 <span class="doccomment">/// Returns whether the transacion's start and end timestamps are both set and start &lt;= end.
 </span><span class="kw">fn </span>validate_transaction_timestamps(
     transaction_event: <span class="kw-2">&amp;</span>Event,
-    config: <span class="kw-2">&amp;</span>TransactionValidationConfig,
+    config: <span class="kw-2">&amp;</span>EventValidationConfig,
 ) -&gt; ProcessingResult {
     <span class="kw">match </span>(
         transaction_event.start_timestamp.value(),
         transaction_event.timestamp.value(),
     ) {
         (<span class="prelude-val">Some</span>(start), <span class="prelude-val">Some</span>(end)) =&gt; {
-            validate_timestamps(start, end, config.timestamp_range.as_ref())<span class="question-mark">?</span>;
+            validate_timestamps(start, end, config.transaction_timestamp_range.as_ref())<span class="question-mark">?</span>;
             <span class="prelude-val">Ok</span>(())
         }
         (<span class="kw">_</span>, <span class="prelude-val">None</span>) =&gt; <span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
@@ -1138,122 +1161,6 @@
     <span class="prelude-val">Ok</span>(())
 }
 
-<span class="doccomment">/// Configuration for [`validate_event_timestamps`].
-</span><span class="attr">#[derive(Debug, Default)]
-</span><span class="kw">pub struct </span>EventValidationConfig {
-    <span class="doccomment">/// The time at which the event was received in this Relay.
-    ///
-    /// This timestamp is persisted into the event payload.
-    </span><span class="kw">pub </span>received_at: <span class="prelude-ty">Option</span>&lt;DateTime&lt;Utc&gt;&gt;,
-
-    <span class="doccomment">/// The maximum amount of seconds an event can be dated in the past.
-    ///
-    /// If the event's timestamp is older, the received timestamp is assumed.
-    </span><span class="kw">pub </span>max_secs_in_past: <span class="prelude-ty">Option</span>&lt;i64&gt;,
-
-    <span class="doccomment">/// The maximum amount of seconds an event can be predated into the future.
-    ///
-    /// If the event's timestamp lies further into the future, the received timestamp is assumed.
-    </span><span class="kw">pub </span>max_secs_in_future: <span class="prelude-ty">Option</span>&lt;i64&gt;,
-
-    <span class="doccomment">/// Controls whether the event has been validated before, in which case disables validation.
-    ///
-    /// By default, `is_validated` is disabled and event validation is run.
-    ///
-    /// Similar to `is_renormalize` for normalization, `sentry_relay` may configure this value.
-    </span><span class="kw">pub </span>is_validated: bool,
-}
-
-<span class="doccomment">/// Validates the timestamp values of an event, after performing minimal timestamp normalization.
-///
-/// A minimal normalization is performed on an event's timestamps before
-/// checking for validity, like clock drift correction. This normalization
-/// depends on the given configuration.
-///
-/// Validation is checked individually on timestamps. For transaction events,
-/// [`validate_transaction`] should run after this method to perform additional
-/// transaction-specific checks.
-///
-/// The returned [`ProcessingResult`] indicates whether the event is invalid and
-/// thus should be dropped.
-///
-/// Normalization changes should not be performed during validation, unless
-/// strictly required. Consider adding placing the normalization in
-/// [`crate::event::normalize_event`].
-</span><span class="kw">pub fn </span>validate_event_timestamps(
-    event: <span class="kw-2">&amp;mut </span>Annotated&lt;Event&gt;,
-    config: <span class="kw-2">&amp;</span>EventValidationConfig,
-) -&gt; ProcessingResult {
-    <span class="kw">if </span>config.is_validated {
-        <span class="kw">return </span><span class="prelude-val">Ok</span>(());
-    }
-
-    <span class="kw">let </span>Annotated(<span class="prelude-val">Some</span>(<span class="kw-2">ref mut </span>event), <span class="kw-2">ref mut </span>meta) = event <span class="kw">else </span>{
-        <span class="kw">return </span><span class="prelude-val">Ok</span>(());
-    };
-
-    <span class="comment">//  timestamp processor is required in validation, and requires the clockdrift changes
-    </span>normalize_timestamps(
-        event,
-        meta,
-        config.received_at,
-        config.max_secs_in_past,
-        config.max_secs_in_future,
-    ); <span class="comment">// Timestamps are core in the metrics extraction
-    </span>TimestampProcessor.process_event(event, meta, ProcessingState::root())<span class="question-mark">?</span>;
-
-    <span class="prelude-val">Ok</span>(())
-}
-
-<span class="doccomment">/// Validates the timestamp range and sets a default value.
-</span><span class="kw">fn </span>normalize_timestamps(
-    event: <span class="kw-2">&amp;mut </span>Event,
-    meta: <span class="kw-2">&amp;mut </span>Meta,
-    received_at: <span class="prelude-ty">Option</span>&lt;DateTime&lt;Utc&gt;&gt;,
-    max_secs_in_past: <span class="prelude-ty">Option</span>&lt;i64&gt;,
-    max_secs_in_future: <span class="prelude-ty">Option</span>&lt;i64&gt;,
-) {
-    <span class="kw">let </span>received_at = received_at.unwrap_or_else(Utc::now);
-
-    <span class="kw">let </span><span class="kw-2">mut </span>sent_at = <span class="prelude-val">None</span>;
-    <span class="kw">let </span><span class="kw-2">mut </span>error_kind = ErrorKind::ClockDrift;
-
-    <span class="kw">let _ </span>= processor::apply(<span class="kw-2">&amp;mut </span>event.timestamp, |timestamp, _meta| {
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(secs) = max_secs_in_future {
-            <span class="kw">if </span><span class="kw-2">*</span>timestamp &gt; received_at + Duration::seconds(secs) {
-                error_kind = ErrorKind::FutureTimestamp;
-                sent_at = <span class="prelude-val">Some</span>(<span class="kw-2">*</span>timestamp);
-                <span class="kw">return </span><span class="prelude-val">Ok</span>(());
-            }
-        }
-
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(secs) = max_secs_in_past {
-            <span class="kw">if </span><span class="kw-2">*</span>timestamp &lt; received_at - Duration::seconds(secs) {
-                error_kind = ErrorKind::PastTimestamp;
-                sent_at = <span class="prelude-val">Some</span>(<span class="kw-2">*</span>timestamp);
-                <span class="kw">return </span><span class="prelude-val">Ok</span>(());
-            }
-        }
-
-        <span class="prelude-val">Ok</span>(())
-    });
-
-    <span class="kw">let _ </span>= ClockDriftProcessor::new(sent_at.map(|ts| ts.into_inner()), received_at)
-        .error_kind(error_kind)
-        .process_event(event, meta, ProcessingState::root());
-
-    <span class="comment">// Apply this after clock drift correction, otherwise we will malform it.
-    </span>event.received = Annotated::new(received_at.into());
-
-    <span class="kw">if </span>event.timestamp.value().is_none() {
-        event.timestamp.set_value(<span class="prelude-val">Some</span>(received_at.into()));
-    }
-
-    <span class="kw">let _ </span>= processor::apply(<span class="kw-2">&amp;mut </span>event.time_spent, |time_spent, <span class="kw">_</span>| {
-        validate_bounded_integer_field(<span class="kw-2">*</span>time_spent)
-    });
-}
-
 <span class="doccomment">/// Validate fields that go into a `sentry.models.BoundedIntegerField`.
 </span><span class="kw">fn </span>validate_bounded_integer_field(value: u64) -&gt; ProcessingResult {
     <span class="kw">if </span>value &lt; <span class="number">2_147_483_647 </span>{
@@ -1303,18 +1210,11 @@
     }
 
     <span class="attr">#[test]
-    </span><span class="kw">fn </span>test_discards_when_missing_timestamp() {
-        <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::new(Event {
-            ty: Annotated::new(EventType::Transaction),
-            ..Default::default()
-        });
-
-        <span class="macro">assert_eq!</span>(
-            validate_transaction(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>TransactionValidationConfig::default()),
-            <span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
-                <span class="string">"timestamp hard-required for transaction events"
-            </span>))
-        );
+    </span><span class="kw">fn </span>test_timestamp_added_if_missing() {
+        <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::new(Event::default());
+        <span class="macro">assert!</span>(<span class="macro">get_value!</span>(event.timestamp).is_none());
+        <span class="macro">assert!</span>(validate_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>EventValidationConfig::default()).is_ok());
+        <span class="macro">assert!</span>(<span class="macro">get_value!</span>(event.timestamp).is_some());
     }
 
     <span class="attr">#[test]
@@ -1322,12 +1222,13 @@
         <span class="kw">let </span><span class="kw-2">mut </span>event = new_test_event();
 
         <span class="macro">assert!</span>(<span class="macro">matches!</span>(
-            validate_transaction(
+            validate_event(
                 <span class="kw-2">&amp;mut </span>event,
-                <span class="kw-2">&amp;</span>TransactionValidationConfig {
-                    timestamp_range: <span class="prelude-val">Some</span>(UnixTimestamp::now()..UnixTimestamp::now()),
-                    is_validated: <span class="bool-val">false
-                </span>}
+                <span class="kw-2">&amp;</span>EventValidationConfig {
+                    transaction_timestamp_range: <span class="prelude-val">Some</span>(UnixTimestamp::now()..UnixTimestamp::now()),
+                    is_validated: <span class="bool-val">false</span>,
+                    ..Default::default()
+                }
             ),
             <span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
                 <span class="string">"timestamp is out of the valid range for metrics"
@@ -1344,7 +1245,7 @@
         });
 
         <span class="macro">assert_eq!</span>(
-            validate_transaction(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>TransactionValidationConfig::default()),
+            validate_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>EventValidationConfig::default()),
             <span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
                 <span class="string">"start_timestamp hard-required for transaction events"
             </span>))
@@ -1363,12 +1264,13 @@
         });
 
         <span class="macro">assert_eq!</span>(
-            validate_transaction(
+            validate_event(
                 <span class="kw-2">&amp;mut </span>event,
-                <span class="kw-2">&amp;</span>TransactionValidationConfig {
-                    timestamp_range: <span class="prelude-val">None</span>,
-                    is_validated: <span class="bool-val">false
-                </span>}
+                <span class="kw-2">&amp;</span>EventValidationConfig {
+                    transaction_timestamp_range: <span class="prelude-val">None</span>,
+                    is_validated: <span class="bool-val">false</span>,
+                    ..Default::default()
+                }
             ),
             <span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
                 <span class="string">"missing valid trace context"
@@ -1389,12 +1291,13 @@
         });
 
         <span class="macro">assert_eq!</span>(
-            validate_transaction(
+            validate_event(
                 <span class="kw-2">&amp;mut </span>event,
-                <span class="kw-2">&amp;</span>TransactionValidationConfig {
-                    timestamp_range: <span class="prelude-val">None</span>,
-                    is_validated: <span class="bool-val">false
-                </span>}
+                <span class="kw-2">&amp;</span>EventValidationConfig {
+                    transaction_timestamp_range: <span class="prelude-val">None</span>,
+                    is_validated: <span class="bool-val">false</span>,
+                    ..Default::default()
+                }
             ),
             <span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
                 <span class="string">"missing valid trace context"
@@ -1419,7 +1322,7 @@
         });
 
         <span class="macro">assert_eq!</span>(
-            validate_transaction(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>TransactionValidationConfig::default()),
+            validate_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>EventValidationConfig::default()),
             <span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
                 <span class="string">"missing valid trace context"
             </span>))
@@ -1443,7 +1346,7 @@
         });
 
         <span class="macro">assert_eq!</span>(
-            validate_transaction(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>TransactionValidationConfig::default()),
+            validate_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>EventValidationConfig::default()),
             <span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
                 <span class="string">"trace context is missing trace_id"
             </span>))
@@ -1470,7 +1373,7 @@
         });
 
         <span class="macro">assert_eq!</span>(
-            validate_transaction(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>TransactionValidationConfig::default()),
+            validate_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>EventValidationConfig::default()),
             <span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
                 <span class="string">"trace context is missing span_id"
             </span>))
@@ -1500,7 +1403,7 @@
         });
 
         <span class="macro">assert_eq!</span>(
-            validate_transaction(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>TransactionValidationConfig::default()),
+            validate_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>EventValidationConfig::default()),
             <span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
                 <span class="string">"spans must be valid in transaction event"
             </span>))
@@ -1535,7 +1438,7 @@
         });
 
         <span class="macro">assert_eq!</span>(
-            validate_transaction(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>TransactionValidationConfig::default()),
+            validate_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>EventValidationConfig::default()),
             <span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
                 <span class="string">"span is missing start_timestamp"
             </span>))
@@ -1573,7 +1476,7 @@
         });
 
         <span class="macro">assert_eq!</span>(
-            validate_transaction(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>TransactionValidationConfig::default()),
+            validate_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>EventValidationConfig::default()),
             <span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
                 <span class="string">"span is missing trace_id"
             </span>))
@@ -1612,7 +1515,7 @@
         });
 
         <span class="macro">assert_eq!</span>(
-            validate_transaction(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>TransactionValidationConfig::default()),
+            validate_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>EventValidationConfig::default()),
             <span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
                 <span class="string">"span is missing span_id"
             </span>))
@@ -1627,7 +1530,7 @@
   "timestamp": -1
 }"#</span>;
         <span class="kw">let </span><span class="kw-2">mut </span>transaction = Annotated::&lt;Event&gt;::from_json(json).unwrap();
-        <span class="kw">let </span>res = validate_event_timestamps(<span class="kw-2">&amp;mut </span>transaction, <span class="kw-2">&amp;</span>EventValidationConfig::default());
+        <span class="kw">let </span>res = validate_event(<span class="kw-2">&amp;mut </span>transaction, <span class="kw-2">&amp;</span>EventValidationConfig::default());
         <span class="macro">assert_eq!</span>(
             res.unwrap_err().to_string(),
             <span class="string">"invalid transaction event: timestamp is too stale"
@@ -1643,6 +1546,7 @@
             max_secs_in_past: <span class="prelude-val">Some</span>(<span class="number">2</span>),
             max_secs_in_future: <span class="prelude-val">Some</span>(<span class="number">1</span>),
             is_validated: <span class="bool-val">false</span>,
+            ..Default::default()
         };
 
         <span class="kw">let </span>json = <span class="string">r#"{
@@ -1653,7 +1557,7 @@
 }"#</span>;
         <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::&lt;Event&gt;::from_json(json).unwrap();
 
-        <span class="macro">assert!</span>(validate_event_timestamps(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>config).is_ok());
+        <span class="macro">assert!</span>(validate_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>config).is_ok());
     }
 
     <span class="doccomment">/// Test that transactions are rejected as invalid when timestamp normalization isn't enough.
@@ -1669,6 +1573,7 @@
             max_secs_in_past: <span class="prelude-val">Some</span>(<span class="number">2</span>),
             max_secs_in_future: <span class="prelude-val">Some</span>(<span class="number">1</span>),
             is_validated: <span class="bool-val">false</span>,
+            ..Default::default()
         };
 
         <span class="kw">let </span>json = <span class="macro">format!</span>(
@@ -1683,9 +1588,7 @@
         <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::&lt;Event&gt;::from_json(json.as_str()).unwrap();
 
         <span class="macro">assert_eq!</span>(
-            validate_event_timestamps(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>config)
-                .unwrap_err()
-                .to_string(),
+            validate_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>config).unwrap_err().to_string(),
             <span class="string">"invalid transaction event: timestamp is too stale"
         </span>);
     }
@@ -1716,7 +1619,7 @@
 }"#</span>;
         <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::&lt;Event&gt;::from_json(json).unwrap();
 
-        <span class="macro">assert!</span>(validate_transaction(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>TransactionValidationConfig::default()).is_ok());
+        <span class="macro">assert!</span>(validate_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>EventValidationConfig::default()).is_ok());
 
         <span class="kw">let </span>event = <span class="macro">get_value!</span>(<span class="macro">event!</span>);
         <span class="kw">let </span>spans = <span class="kw-2">&amp;</span>event.spans;
@@ -1752,17 +1655,18 @@
 }"#</span>;
         <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::&lt;Event&gt;::from_json(json).unwrap();
 
-        validate_event_timestamps(
+        validate_event(
             <span class="kw-2">&amp;mut </span>event,
             <span class="kw-2">&amp;</span>EventValidationConfig {
                 received_at: <span class="prelude-val">Some</span>(Utc::now()),
                 max_secs_in_past: <span class="prelude-val">Some</span>(<span class="number">2</span>),
                 max_secs_in_future: <span class="prelude-val">Some</span>(<span class="number">1</span>),
                 is_validated: <span class="bool-val">false</span>,
+                ..Default::default()
             },
         )
         .unwrap();
-        validate_transaction(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>TransactionValidationConfig::default()).unwrap();
+        validate_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>EventValidationConfig::default()).unwrap();
 
         <span class="kw">let </span>event = <span class="macro">get_value!</span>(<span class="macro">event!</span>);
         <span class="kw">let </span>spans = <span class="kw-2">&amp;</span>event.spans;
@@ -1780,10 +1684,10 @@
 }"#</span>;
         <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::&lt;Event&gt;::from_json(json).unwrap();
 
-        <span class="macro">assert!</span>(validate_transaction(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>TransactionValidationConfig::default()).is_err());
-        <span class="macro">assert!</span>(validate_transaction(
+        <span class="macro">assert!</span>(validate_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>EventValidationConfig::default()).is_err());
+        <span class="macro">assert!</span>(validate_event(
             <span class="kw-2">&amp;mut </span>event,
-            <span class="kw-2">&amp;</span>TransactionValidationConfig {
+            <span class="kw-2">&amp;</span>EventValidationConfig {
                 is_validated: <span class="bool-val">true</span>,
                 ..Default::default()
             }
@@ -1801,8 +1705,8 @@
 }"#</span>;
         <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::&lt;Event&gt;::from_json(json).unwrap();
 
-        <span class="macro">assert!</span>(validate_event_timestamps(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>EventValidationConfig::default()).is_err());
-        <span class="macro">assert!</span>(validate_event_timestamps(
+        <span class="macro">assert!</span>(validate_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>EventValidationConfig::default()).is_err());
+        <span class="macro">assert!</span>(validate_event(
             <span class="kw-2">&amp;mut </span>event,
             <span class="kw-2">&amp;</span>EventValidationConfig {
                 is_validated: <span class="bool-val">true</span>,

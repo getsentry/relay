@@ -64,9 +64,6 @@
 <a href="#64" id="64">64</a>
 <a href="#65" id="65">65</a>
 <a href="#66" id="66">66</a>
-<a href="#67" id="67">67</a>
-<a href="#68" id="68">68</a>
-<a href="#69" id="69">69</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Event normalization and processing.
 
 </span><span class="attr">#![warn(missing_docs)]
@@ -93,10 +90,7 @@
 <span class="kw">mod </span>trimming;
 <span class="kw">mod </span>validation;
 
-<span class="kw">pub use </span>validation::{
-    validate_event_timestamps, validate_span, validate_transaction, EventValidationConfig,
-    TransactionValidationConfig,
-};
+<span class="kw">pub use </span>validation::{validate_event, validate_span, EventValidationConfig};
 <span class="kw">pub mod </span>replay;
 <span class="kw">pub use </span>event::{
     normalize_event, normalize_measurements, normalize_performance_score, NormalizationConfig,

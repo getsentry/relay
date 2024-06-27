@@ -1817,9 +1817,6 @@
 <a href="#1817" id="1817">1817</a>
 <a href="#1818" id="1818">1818</a>
 <a href="#1819" id="1819">1819</a>
-<a href="#1820" id="1820">1820</a>
-<a href="#1821" id="1821">1821</a>
-<a href="#1822" id="1822">1822</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::hash::Hash;
 
 <span class="kw">use </span>relay_base_schema::metrics::MetricUnit;
@@ -2105,10 +2102,8 @@
     <span class="kw">use </span>uuid::Uuid;
 
     <span class="kw">use </span><span class="kw">crate</span>::stacktrace::normalize_non_raw_frame;
-    <span class="kw">use crate</span>::{
-        normalize_event, validate_event_timestamps, validate_transaction, EventValidationConfig,
-        GeoIpLookup, NormalizationConfig, TransactionValidationConfig,
-    };
+    <span class="kw">use </span><span class="kw">crate</span>::validation::validate_event;
+    <span class="kw">use crate</span>::{normalize_event, EventValidationConfig, GeoIpLookup, NormalizationConfig};
 
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
 
@@ -2881,7 +2876,7 @@
             ..Default::default()
         });
 
-        validate_event_timestamps(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>EventValidationConfig::default()).unwrap();
+        validate_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>EventValidationConfig::default()).unwrap();
         normalize_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>NormalizationConfig::default());
 
         <span class="macro">assert_eq!</span>(<span class="macro">get_value!</span>(event.<span class="macro">received!</span>), <span class="macro">get_value!</span>(event.<span class="macro">timestamp!</span>));
@@ -2897,7 +2892,7 @@
             ..Default::default()
         });
 
-        validate_event_timestamps(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>EventValidationConfig::default()).unwrap();
+        validate_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>EventValidationConfig::default()).unwrap();
         normalize_event(
             <span class="kw-2">&amp;mut </span>event,
             <span class="kw-2">&amp;</span>NormalizationConfig {
@@ -2997,18 +2992,17 @@
         <span class="kw">let </span>max_secs_in_past = <span class="prelude-val">Some</span>(<span class="number">30 </span>* <span class="number">24 </span>* <span class="number">3600</span>);
         <span class="kw">let </span>max_secs_in_future = <span class="prelude-val">Some</span>(<span class="number">60</span>);
 
-        validate_transaction(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>TransactionValidationConfig::default()).unwrap();
-        validate_event_timestamps(
+        validate_event(
             <span class="kw-2">&amp;mut </span>event,
             <span class="kw-2">&amp;</span>EventValidationConfig {
                 received_at,
                 max_secs_in_past,
                 max_secs_in_future,
                 is_validated: <span class="bool-val">false</span>,
+                ..Default::default()
             },
         )
         .unwrap();
-        validate_transaction(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>TransactionValidationConfig::default()).unwrap();
         normalize_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>NormalizationConfig::default());
 
         <span class="macro">insta::assert_ron_snapshot!</span>(SerializableAnnotated(<span class="kw-2">&amp;</span>event), {
@@ -3052,13 +3046,14 @@
         <span class="kw">let </span>max_secs_in_past = <span class="prelude-val">Some</span>(<span class="number">30 </span>* <span class="number">24 </span>* <span class="number">3600</span>);
         <span class="kw">let </span>max_secs_in_future = <span class="prelude-val">Some</span>(<span class="number">60</span>);
 
-        validate_event_timestamps(
+        validate_event(
             <span class="kw-2">&amp;mut </span>event,
             <span class="kw-2">&amp;</span>EventValidationConfig {
                 received_at,
                 max_secs_in_past,
                 max_secs_in_future,
                 is_validated: <span class="bool-val">false</span>,
+                ..Default::default()
             },
         )
         .unwrap();
@@ -3409,8 +3404,7 @@
                 .spans
                 .set_value(<span class="prelude-val">Some</span>(<span class="macro">vec!</span>[Annotated::&lt;Span&gt;::from_json(span).unwrap()]));
 
-            <span class="kw">let </span>res =
-                validate_transaction(<span class="kw-2">&amp;mut </span>modified_event, <span class="kw-2">&amp;</span>TransactionValidationConfig::default());
+            <span class="kw">let </span>res = validate_event(<span class="kw-2">&amp;mut </span>modified_event, <span class="kw-2">&amp;</span>EventValidationConfig::default());
 
             <span class="macro">assert!</span>(res.is_err(), <span class="string">"{span:?}"</span>);
         }

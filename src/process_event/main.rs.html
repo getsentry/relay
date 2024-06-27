@@ -121,9 +121,6 @@
 <a href="#121" id="121">121</a>
 <a href="#122" id="122">122</a>
 <a href="#123" id="123">123</a>
-<a href="#124" id="124">124</a>
-<a href="#125" id="125">125</a>
-<a href="#126" id="126">126</a>
 </pre></div><pre class="rust"><code><span class="attr">#![doc(
     html_logo_url = <span class="string">"https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"</span>,
     html_favicon_url = <span class="string">"https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"
@@ -136,8 +133,7 @@
 <span class="kw">use </span>anyhow::{format_err, Context, <span class="prelude-ty">Result</span>};
 <span class="kw">use </span>clap::Parser;
 <span class="kw">use </span>relay_event_normalization::{
-    normalize_event, validate_event_timestamps, validate_transaction, EventValidationConfig,
-    NormalizationConfig, TransactionValidationConfig,
+    normalize_event, validate_event, EventValidationConfig, NormalizationConfig,
 };
 <span class="kw">use </span>relay_event_schema::processor::{process_value, ProcessingState};
 <span class="kw">use </span>relay_event_schema::protocol::Event;
@@ -210,9 +206,7 @@
         }
 
         <span class="kw">if </span><span class="self">self</span>.store {
-            validate_event_timestamps(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>EventValidationConfig::default())
-                .map_err(|e| <span class="macro">format_err!</span>(<span class="string">"{e}"</span>))<span class="question-mark">?</span>;
-            validate_transaction(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>TransactionValidationConfig::default())
+            validate_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>EventValidationConfig::default())
                 .map_err(|e| <span class="macro">format_err!</span>(<span class="string">"{e}"</span>))<span class="question-mark">?</span>;
             normalize_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>NormalizationConfig::default());
         }

@@ -2287,9 +2287,6 @@
 <a href="#2287" id="2287">2287</a>
 <a href="#2288" id="2288">2288</a>
 <a href="#2289" id="2289">2289</a>
-<a href="#2290" id="2290">2290</a>
-<a href="#2291" id="2291">2291</a>
-<a href="#2292" id="2292">2292</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
 
 <span class="kw">use </span>relay_base_schema::events::EventType;
@@ -2777,10 +2774,9 @@
         AcceptTransactionNames, CombinedMetricExtractionConfig, MetricExtractionConfig, TagMapping,
     };
     <span class="kw">use </span>relay_event_normalization::{
-        normalize_event, set_default_transaction_source, validate_event_timestamps,
-        validate_transaction, BreakdownsConfig, CombinedMeasurementsConfig, EventValidationConfig,
-        MeasurementsConfig, NormalizationConfig, PerformanceScoreConfig, PerformanceScoreProfile,
-        PerformanceScoreWeightedComponent, TransactionValidationConfig,
+        normalize_event, set_default_transaction_source, validate_event, BreakdownsConfig,
+        CombinedMeasurementsConfig, EventValidationConfig, MeasurementsConfig, NormalizationConfig,
+        PerformanceScoreConfig, PerformanceScoreProfile, PerformanceScoreWeightedComponent,
     };
     <span class="kw">use </span>relay_metrics::BucketValue;
     <span class="kw">use </span>relay_protocol::{Annotated, RuleCondition};
@@ -2858,9 +2854,7 @@
         )
         .unwrap();
 
-        <span class="comment">// Validate and normalize first, to make sure that all things are correct as in the real pipeline:
-        </span>validate_event_timestamps(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>EventValidationConfig::default()).unwrap();
-        validate_transaction(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>TransactionValidationConfig::default()).unwrap();
+        validate_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>EventValidationConfig::default()).unwrap();
 
         normalize_event(
             <span class="kw-2">&amp;mut </span>event,

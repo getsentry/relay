@@ -3736,11 +3736,6 @@
 <a href="#3736" id="3736">3736</a>
 <a href="#3737" id="3737">3737</a>
 <a href="#3738" id="3738">3738</a>
-<a href="#3739" id="3739">3739</a>
-<a href="#3740" id="3740">3740</a>
-<a href="#3741" id="3741">3741</a>
-<a href="#3742" id="3742">3742</a>
-<a href="#3743" id="3743">3743</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
@@ -3763,9 +3758,9 @@
 <span class="kw">use </span>relay_config::{Config, HttpEncoding, NormalizationLevel, RelayMode};
 <span class="kw">use </span>relay_dynamic_config::{CombinedMetricExtractionConfig, ErrorBoundary, Feature};
 <span class="kw">use </span>relay_event_normalization::{
-    normalize_event, validate_event_timestamps, validate_transaction, ClockDriftProcessor,
-    CombinedMeasurementsConfig, EventValidationConfig, GeoIpLookup, MeasurementsConfig,
-    NormalizationConfig, RawUserAgentInfo, TransactionNameConfig, TransactionValidationConfig,
+    normalize_event, validate_event, ClockDriftProcessor, CombinedMeasurementsConfig,
+    EventValidationConfig, GeoIpLookup, MeasurementsConfig, NormalizationConfig, RawUserAgentInfo,
+    TransactionNameConfig,
 };
 <span class="kw">use </span>relay_event_schema::processor::ProcessingAction;
 <span class="kw">use </span>relay_event_schema::protocol::{
@@ -5206,16 +5201,13 @@
         <span class="kw">let </span>ai_model_costs = global_config.ai_model_costs.clone().ok();
 
         utils::log_transaction_name_metrics(<span class="kw-2">&amp;mut </span>state.event, |event| {
-            <span class="kw">let </span>tx_validation_config = TransactionValidationConfig {
-                timestamp_range: <span class="prelude-val">Some</span>(
-                    AggregatorConfig::from(transaction_aggregator_config).timestamp_range(),
-                ),
-                is_validated: <span class="bool-val">false</span>,
-            };
             <span class="kw">let </span>event_validation_config = EventValidationConfig {
                 received_at: <span class="prelude-val">Some</span>(state.managed_envelope.received_at()),
                 max_secs_in_past: <span class="prelude-val">Some</span>(<span class="self">self</span>.inner.config.max_secs_in_past()),
                 max_secs_in_future: <span class="prelude-val">Some</span>(<span class="self">self</span>.inner.config.max_secs_in_future()),
+                transaction_timestamp_range: <span class="prelude-val">Some</span>(
+                    AggregatorConfig::from(transaction_aggregator_config).timestamp_range(),
+                ),
                 is_validated: <span class="bool-val">false</span>,
             };
 
@@ -5291,9 +5283,7 @@
             };
 
             <span class="macro">metric!</span>(timer(RelayTimers::EventProcessingNormalization), {
-                validate_event_timestamps(event, <span class="kw-2">&amp;</span>event_validation_config)
-                    .map_err(|<span class="kw">_</span>| ProcessingError::InvalidTransaction)<span class="question-mark">?</span>;
-                validate_transaction(event, <span class="kw-2">&amp;</span>tx_validation_config)
+                validate_event(event, <span class="kw-2">&amp;</span>event_validation_config)
                     .map_err(|<span class="kw">_</span>| ProcessingError::InvalidTransaction)<span class="question-mark">?</span>;
                 normalize_event(event, <span class="kw-2">&amp;</span>normalization_config);
                 <span class="kw">if </span>full_normalization &amp;&amp; event::has_unprintable_fields(event) {
