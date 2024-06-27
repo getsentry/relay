@@ -2,9 +2,11 @@ use relay_common::time::UnixTimestamp;
 use relay_dynamic_config::CombinedMetricExtractionConfig;
 use relay_event_schema::protocol::{Event, Span};
 use relay_metrics::Bucket;
+use relay_protocol::Annotated;
 use relay_quotas::DataCategory;
 
 use crate::metrics_extraction::generic::{self, Extractable};
+use crate::metrics_extraction::metrics_summary;
 use crate::services::processor::extract_transaction_span;
 use crate::statsd::RelayTimers;
 use crate::utils::sample;
@@ -46,7 +48,7 @@ impl Extractable for Span {
 ///
 /// If this is a transaction event with spans, metrics will also be extracted from the spans.
 pub fn extract_metrics(
-    event: &Event,
+    event: &mut Event,
     spans_extracted: bool,
     config: CombinedMetricExtractionConfig<'_>,
     max_tag_value_size: usize,
@@ -64,20 +66,26 @@ pub fn extract_metrics(
 }
 
 fn extract_span_metrics_for_event(
-    event: &Event,
+    event: &mut Event,
     config: CombinedMetricExtractionConfig<'_>,
     max_tag_value_size: usize,
     output: &mut Vec<Bucket>,
 ) {
     relay_statsd::metric!(timer(RelayTimers::EventProcessingSpanMetricsExtraction), {
         if let Some(transaction_span) = extract_transaction_span(event, max_tag_value_size) {
-            output.extend(generic::extract_metrics(&transaction_span, config));
+            let extracted_metrics = generic::extract_metrics(&transaction_span, config);
+            let metrics_summary = metrics_summary::compute(&extracted_metrics);
+            event._metrics_summary = Annotated::new(metrics_summary);
+            output.extend(extracted_metrics);
         }
 
-        if let Some(spans) = event.spans.value() {
+        if let Some(spans) = event.spans.value_mut() {
             for annotated_span in spans {
-                if let Some(span) = annotated_span.value() {
-                    output.extend(generic::extract_metrics(span, config));
+                if let Some(span) = annotated_span.value_mut() {
+                    let extracted_metrics = generic::extract_metrics(span, config);
+                    let metrics_summary = metrics_summary::compute(&extracted_metrics);
+                    span._metrics_summary = Annotated::new(metrics_summary);
+                    output.extend(extracted_metrics);
                 }
             }
         }
@@ -1181,7 +1189,7 @@ mod tests {
         );
 
         extract_metrics(
-            event.value().unwrap(),
+            event.value_mut().as_mut().unwrap(),
             false,
             combined_config(features).combined(),
             200,
@@ -1383,7 +1391,7 @@ mod tests {
         );
 
         let metrics = extract_metrics(
-            event.value().unwrap(),
+            event.value_mut().as_mut().unwrap(),
             false,
             combined_config([Feature::ExtractCommonSpanMetricsFromEvent]).combined(),
             200,
@@ -1437,10 +1445,10 @@ mod tests {
             ]
         }
         "#;
-        let event = Annotated::from_json(json).unwrap();
+        let mut event = Annotated::from_json(json).unwrap();
 
         let metrics = extract_metrics(
-            event.value().unwrap(),
+            event.value_mut().as_mut().unwrap(),
             false,
             combined_config([Feature::ExtractCommonSpanMetricsFromEvent]).combined(),
             200,
@@ -1472,7 +1480,7 @@ mod tests {
         );
 
         let metrics = extract_metrics(
-            event.value().unwrap(),
+            event.value_mut().as_mut().unwrap(),
             false,
             combined_config([Feature::ExtractCommonSpanMetricsFromEvent]).combined(),
             200,
@@ -1692,10 +1700,10 @@ mod tests {
                 }
             }
             "#;
-        let event = Annotated::<Event>::from_json(event).unwrap();
+        let mut event = Annotated::<Event>::from_json(event).unwrap();
 
         let metrics = extract_metrics(
-            event.value().unwrap(),
+            event.value_mut().as_mut().unwrap(),
             false,
             combined_config([Feature::ExtractCommonSpanMetricsFromEvent]).combined(),
             200,

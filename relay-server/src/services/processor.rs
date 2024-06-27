@@ -1273,7 +1273,7 @@ impl EnvelopeProcessorService {
         if state.event_metrics_extracted {
             return Ok(());
         }
-        let Some(event) = state.event.value() else {
+        let Some(event) = state.event.value_mut() else {
             return Ok(());
         };
 
