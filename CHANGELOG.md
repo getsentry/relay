@@ -11,6 +11,7 @@
 **Internal**:
 
 - Aggregate metrics before rate limiting. ([#3746](https://github.com/getsentry/relay/pull/3746))
+- Make sure outcomes for dropped profiles are consistent between indexed and non-indexed categories. ([#3767](https://github.com/getsentry/relay/pull/3767))
 - Add web vitals support for mobile browsers. ([#3762](https://github.com/getsentry/relay/pull/3762))
 - Accept profiler_id in the profile context. ([#3714](https://github.com/getsentry/relay/pull/3714))
 

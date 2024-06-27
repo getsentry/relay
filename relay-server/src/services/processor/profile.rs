@@ -90,8 +90,13 @@ pub fn transfer_id(
 }
 
 /// Processes profiles and set the profile ID in the profile context on the transaction if successful.
-pub fn process(state: &mut ProcessEnvelopeState<TransactionGroup>, config: &Config) {
+pub fn process(
+    state: &mut ProcessEnvelopeState<TransactionGroup>,
+    config: &Config,
+) -> Option<ProfileId> {
     let profiling_enabled = state.project_state.has_feature(Feature::Profiling);
+    let mut profile_id = None;
+
     state.managed_envelope.retain_items(|item| match item.ty() {
         ItemType::Profile => {
             if !profiling_enabled {
@@ -104,26 +109,34 @@ pub fn process(state: &mut ProcessEnvelopeState<TransactionGroup>, config: &Conf
                 return ItemAction::DropSilently;
             };
 
-            expand_profile(item, event, config)
+            match expand_profile(item, event, config) {
+                Ok(id) => {
+                    profile_id = Some(id);
+                    ItemAction::Keep
+                }
+                Err(outcome) => ItemAction::Drop(outcome),
+            }
         }
         _ => ItemAction::Keep,
     });
+
+    profile_id
 }
 
 /// Transfers transaction metadata to profile and check its size.
-fn expand_profile(item: &mut Item, event: &Event, config: &Config) -> ItemAction {
+fn expand_profile(item: &mut Item, event: &Event, config: &Config) -> Result<ProfileId, Outcome> {
     match relay_profiling::expand_profile(&item.payload(), event) {
-        Ok((_id, payload)) => {
+        Ok((id, payload)) => {
             if payload.len() <= config.max_profile_size() {
                 item.set_payload(ContentType::Json, payload);
-                ItemAction::Keep
+                Ok(id)
             } else {
-                ItemAction::Drop(Outcome::Invalid(DiscardReason::Profiling(
+                Err(Outcome::Invalid(DiscardReason::Profiling(
                     relay_profiling::discard_reason(relay_profiling::ProfileError::ExceedSizeLimit),
                 )))
             }
         }
-        Err(err) => ItemAction::Drop(Outcome::Invalid(DiscardReason::Profiling(
+        Err(err) => Err(Outcome::Invalid(DiscardReason::Profiling(
             relay_profiling::discard_reason(err),
         ))),
     }

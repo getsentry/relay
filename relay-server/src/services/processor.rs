@@ -1657,15 +1657,16 @@ impl EnvelopeProcessorService {
         };
 
         if let Some(outcome) = sampling_result.into_dropped_outcome() {
+            let keep_profiles = dynamic_sampling::forward_unsampled_profiles(state, &global_config);
+            // Process profiles before dropping the transaction, if necessary.
+            // Before metric extraction to make sure the profile count is reflected correctly.
+            let profile_id = match keep_profiles {
+                true => profile::process(state, &self.inner.config),
+                false => profile_id,
+            };
+
             // Extract metrics here, we're about to drop the event/transaction.
             self.extract_transaction_metrics(state, SamplingDecision::Drop, profile_id)?;
-
-            let keep_profiles = dynamic_sampling::forward_unsampled_profiles(state, &global_config);
-
-            // Process profiles before dropping the transaction, if necessary.
-            if keep_profiles {
-                profile::process(state, &self.inner.config);
-            }
 
             dynamic_sampling::drop_unsampled_items(state, outcome, keep_profiles);
 
@@ -1687,10 +1688,11 @@ impl EnvelopeProcessorService {
         attachment::scrub(state);
 
         if_processing!(self.inner.config, {
+            // Process profiles before extracting metrics, to make sure they are removed if they are invalid.
+            let profile_id = profile::process(state, &self.inner.config);
+
             // Always extract metrics in processing Relays for sampled items.
             self.extract_transaction_metrics(state, SamplingDecision::Keep, profile_id)?;
-
-            profile::process(state, &self.inner.config);
 
             if state
                 .project_state
