@@ -303,7 +303,7 @@ pub struct MetricExtractionConfig {
     pub tags: Vec<TagMapping>,
 
     /// TODO(ja): Doc
-    #[serde(default, skip_serializing_if = "ExtrapolateConfig::is_empty")]
+    #[serde(default, skip_serializing_if = "ExtrapolationConfig::is_empty")]
     pub extrapolate: ExtrapolationConfig,
 
     /// This config has been extended with fields from `conditional_tagging`.
