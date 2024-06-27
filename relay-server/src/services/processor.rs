@@ -692,8 +692,8 @@ impl ProcessingExtractedMetrics {
             _ => return,
         };
 
-        let max_duplication = self.global.options.extrapolation_duplication_limit as usize;
-        let duplication = max_duplication.min(factor.to_f64().round() as usize);
+        let duplication = (factor.to_f64().round() as usize)
+            .min(self.global.options.extrapolation_duplication_limit);
 
         for bucket in buckets {
             if !extrapolate.matches(&bucket.name) {

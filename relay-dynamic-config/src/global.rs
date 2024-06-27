@@ -244,7 +244,7 @@ pub struct Options {
         deserialize_with = "default_on_error",
         skip_serializing_if = "is_default"
     )]
-    pub extrapolation_duplication_limit: u32,
+    pub extrapolation_duplication_limit: usize,
 
     /// All other unknown options.
     #[serde(flatten)]

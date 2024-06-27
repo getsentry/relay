@@ -304,7 +304,7 @@ pub struct MetricExtractionConfig {
 
     /// TODO(ja): Doc
     #[serde(default, skip_serializing_if = "ExtrapolateConfig::is_empty")]
-    pub extrapolate: ExtrapolateConfig,
+    pub extrapolate: ExtrapolationConfig,
 
     /// This config has been extended with fields from `conditional_tagging`.
     ///
@@ -645,7 +645,7 @@ pub fn convert_conditional_tagging(project_config: &mut ProjectConfig) {
 
 /// TODO(ja): Doc
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
-pub struct ExtrapolateConfig {
+pub struct ExtrapolationConfig {
     /// TODO(ja): Doc
     #[serde(default)]
     pub include: Vec<LazyGlob>,
@@ -655,7 +655,7 @@ pub struct ExtrapolateConfig {
     pub exclude: Vec<LazyGlob>,
 }
 
-impl ExtrapolateConfig {
+impl ExtrapolationConfig {
     /// Returns `true` if this config is empty.
     pub fn is_empty(&self) -> bool {
         self.include.is_empty()
