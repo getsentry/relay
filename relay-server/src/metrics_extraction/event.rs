@@ -1730,4 +1730,89 @@ mod tests {
 
         assert_eq!(&*metrics[3].name, "d:spans/duration@millisecond");
     }
+
+    #[test]
+    fn test_metrics_summaries_on_transaction_and_spans() {
+        let mut event = Annotated::from_json(
+            r#"
+        {
+            "type": "transaction",
+            "sdk": {"name": "sentry.javascript.react-native"},
+            "start_timestamp": "2021-04-26T07:59:01+0100",
+            "timestamp": "2021-04-26T08:00:00+0100",
+            "release": "1.2.3",
+            "transaction": "gEt /api/:version/users/",
+            "transaction_info": {"source": "custom"},
+            "platform": "cocoa",
+            "contexts": {
+                "trace": {
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "span_id": "bd429c44b67a3eb4",
+                    "op": "ui.load"
+                },
+                "device": {
+                    "family": "iOS",
+                    "model": "iPhone1,1"
+                },
+                "app": {
+                    "app_identifier": "org.reactjs.native.example.RnDiffApp",
+                    "app_name": "RnDiffApp"
+                },
+                "os": {
+                    "name": "iOS",
+                    "version": "16.2"
+                }
+            },
+            "measurements": {
+                "app_start_warm": {
+                    "value": 1.0,
+                    "unit": "millisecond"
+                }
+            },
+            "spans": [
+                {
+                    "op": "ui.load.initial_display",
+                    "span_id": "bd429c44b67a3eb2",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976303.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "data": {
+                        "frames.slow": 1,
+                        "frames.frozen": 2,
+                        "frames.total": 9,
+                        "frames.delay": 0.1
+                    }
+                }
+            ]
+        }
+        "#,
+        )
+        .unwrap();
+
+        // Normalize first, to make sure that all things are correct as in the real pipeline:
+        normalize_event(
+            &mut event,
+            &NormalizationConfig {
+                enrich_spans: true,
+                device_class_synthesis_config: true,
+                ..Default::default()
+            },
+        );
+
+        let _ = extract_metrics(
+            event.value_mut().as_mut().unwrap(),
+            false,
+            combined_config([Feature::ExtractCommonSpanMetricsFromEvent]).combined(),
+            200,
+            None,
+        );
+
+        insta::assert_debug_snapshot!(&event.value().unwrap()._metrics_summary);
+        insta::assert_debug_snapshot!(
+            &event.value().unwrap().spans.value().unwrap()[0]
+                .value()
+                .unwrap()
+                ._metrics_summary
+        );
+    }
 }

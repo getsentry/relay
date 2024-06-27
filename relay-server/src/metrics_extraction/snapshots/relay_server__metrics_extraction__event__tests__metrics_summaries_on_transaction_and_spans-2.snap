@@ -1,0 +1,134 @@
+---
+source: relay-server/src/metrics_extraction/event.rs
+expression: "&event.value().unwrap().spans.value().unwrap()[0].value().unwrap()._metrics_summary"
+---
+MetricsSummary(
+    {
+        "c:spans/usage@none": [
+            MetricSummary {
+                min: 1.0,
+                max: 1.0,
+                sum: 1.0,
+                count: 1,
+                tags: {},
+            },
+        ],
+        "d:spans/duration@millisecond": [
+            MetricSummary {
+                min: 3000.0,
+                max: 3000.0,
+                sum: 3000.0,
+                count: 1,
+                tags: {
+                    "app_start_type": "warm",
+                    "device.class": "1",
+                    "os.name": "iOS",
+                    "release": "1.2.3",
+                    "span.op": "ui.load.initial_display",
+                    "transaction": "gEt /api/:version/users/",
+                    "transaction.method": "GET",
+                    "transaction.op": "ui.load",
+                    "ttid": "ttid",
+                },
+            },
+        ],
+        "d:spans/exclusive_time@millisecond": [
+            MetricSummary {
+                min: 3000.0,
+                max: 3000.0,
+                sum: 3000.0,
+                count: 1,
+                tags: {
+                    "app_start_type": "warm",
+                    "device.class": "1",
+                    "os.name": "iOS",
+                    "release": "1.2.3",
+                    "span.op": "ui.load.initial_display",
+                    "transaction": "gEt /api/:version/users/",
+                    "transaction.method": "GET",
+                    "transaction.op": "ui.load",
+                    "ttid": "ttid",
+                },
+            },
+        ],
+        "d:spans/exclusive_time_light@millisecond": [
+            MetricSummary {
+                min: 3000.0,
+                max: 3000.0,
+                sum: 3000.0,
+                count: 1,
+                tags: {
+                    "device.class": "1",
+                    "os.name": "iOS",
+                    "release": "1.2.3",
+                    "span.op": "ui.load.initial_display",
+                    "transaction.op": "ui.load",
+                },
+            },
+        ],
+        "g:spans/mobile.frames_delay@second": [
+            MetricSummary {
+                min: 0.1,
+                max: 0.1,
+                sum: 0.1,
+                count: 1,
+                tags: {
+                    "device.class": "1",
+                    "os.name": "iOS",
+                    "release": "1.2.3",
+                    "span.op": "ui.load.initial_display",
+                    "transaction": "gEt /api/:version/users/",
+                    "transaction.op": "ui.load",
+                },
+            },
+        ],
+        "g:spans/mobile.frozen_frames@none": [
+            MetricSummary {
+                min: 2.0,
+                max: 2.0,
+                sum: 2.0,
+                count: 1,
+                tags: {
+                    "device.class": "1",
+                    "os.name": "iOS",
+                    "release": "1.2.3",
+                    "span.op": "ui.load.initial_display",
+                    "transaction": "gEt /api/:version/users/",
+                    "transaction.op": "ui.load",
+                },
+            },
+        ],
+        "g:spans/mobile.slow_frames@none": [
+            MetricSummary {
+                min: 1.0,
+                max: 1.0,
+                sum: 1.0,
+                count: 1,
+                tags: {
+                    "device.class": "1",
+                    "os.name": "iOS",
+                    "release": "1.2.3",
+                    "span.op": "ui.load.initial_display",
+                    "transaction": "gEt /api/:version/users/",
+                    "transaction.op": "ui.load",
+                },
+            },
+        ],
+        "g:spans/mobile.total_frames@none": [
+            MetricSummary {
+                min: 9.0,
+                max: 9.0,
+                sum: 9.0,
+                count: 1,
+                tags: {
+                    "device.class": "1",
+                    "os.name": "iOS",
+                    "release": "1.2.3",
+                    "span.op": "ui.load.initial_display",
+                    "transaction": "gEt /api/:version/users/",
+                    "transaction.op": "ui.load",
+                },
+            },
+        ],
+    },
+)
