@@ -20,9 +20,9 @@ use relay_common::time::UnixTimestamp;
 use relay_config::{Config, HttpEncoding, NormalizationLevel, RelayMode};
 use relay_dynamic_config::{CombinedMetricExtractionConfig, ErrorBoundary, Feature};
 use relay_event_normalization::{
-    normalize_event, validate_event_timestamps, validate_transaction, ClockDriftProcessor,
-    CombinedMeasurementsConfig, EventValidationConfig, GeoIpLookup, MeasurementsConfig,
-    NormalizationConfig, RawUserAgentInfo, TransactionNameConfig, TransactionValidationConfig,
+    normalize_event, validate_event, ClockDriftProcessor, CombinedMeasurementsConfig,
+    EventValidationConfig, GeoIpLookup, MeasurementsConfig, NormalizationConfig, RawUserAgentInfo,
+    TransactionNameConfig,
 };
 use relay_event_schema::processor::ProcessingAction;
 use relay_event_schema::protocol::{
@@ -1463,16 +1463,13 @@ impl EnvelopeProcessorService {
         let ai_model_costs = global_config.ai_model_costs.clone().ok();
 
         utils::log_transaction_name_metrics(&mut state.event, |event| {
-            let tx_validation_config = TransactionValidationConfig {
-                timestamp_range: Some(
-                    AggregatorConfig::from(transaction_aggregator_config).timestamp_range(),
-                ),
-                is_validated: false,
-            };
             let event_validation_config = EventValidationConfig {
                 received_at: Some(state.managed_envelope.received_at()),
                 max_secs_in_past: Some(self.inner.config.max_secs_in_past()),
                 max_secs_in_future: Some(self.inner.config.max_secs_in_future()),
+                transaction_timestamp_range: Some(
+                    AggregatorConfig::from(transaction_aggregator_config).timestamp_range(),
+                ),
                 is_validated: false,
             };
 
@@ -1548,9 +1545,7 @@ impl EnvelopeProcessorService {
             };
 
             metric!(timer(RelayTimers::EventProcessingNormalization), {
-                validate_event_timestamps(event, &event_validation_config)
-                    .map_err(|_| ProcessingError::InvalidTransaction)?;
-                validate_transaction(event, &tx_validation_config)
+                validate_event(event, &event_validation_config)
                     .map_err(|_| ProcessingError::InvalidTransaction)?;
                 normalize_event(event, &normalization_config);
                 if full_normalization && event::has_unprintable_fields(event) {

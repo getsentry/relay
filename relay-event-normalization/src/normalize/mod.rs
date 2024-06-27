@@ -283,10 +283,8 @@ mod tests {
     use uuid::Uuid;
 
     use crate::stacktrace::normalize_non_raw_frame;
-    use crate::{
-        normalize_event, validate_event_timestamps, validate_transaction, EventValidationConfig,
-        GeoIpLookup, NormalizationConfig, TransactionValidationConfig,
-    };
+    use crate::validation::validate_event;
+    use crate::{normalize_event, EventValidationConfig, GeoIpLookup, NormalizationConfig};
 
     use super::*;
 
@@ -1059,7 +1057,7 @@ mod tests {
             ..Default::default()
         });
 
-        validate_event_timestamps(&mut event, &EventValidationConfig::default()).unwrap();
+        validate_event(&mut event, &EventValidationConfig::default()).unwrap();
         normalize_event(&mut event, &NormalizationConfig::default());
 
         assert_eq!(get_value!(event.received!), get_value!(event.timestamp!));
@@ -1075,7 +1073,7 @@ mod tests {
             ..Default::default()
         });
 
-        validate_event_timestamps(&mut event, &EventValidationConfig::default()).unwrap();
+        validate_event(&mut event, &EventValidationConfig::default()).unwrap();
         normalize_event(
             &mut event,
             &NormalizationConfig {
@@ -1175,18 +1173,17 @@ mod tests {
         let max_secs_in_past = Some(30 * 24 * 3600);
         let max_secs_in_future = Some(60);
 
-        validate_transaction(&mut event, &TransactionValidationConfig::default()).unwrap();
-        validate_event_timestamps(
+        validate_event(
             &mut event,
             &EventValidationConfig {
                 received_at,
                 max_secs_in_past,
                 max_secs_in_future,
                 is_validated: false,
+                ..Default::default()
             },
         )
         .unwrap();
-        validate_transaction(&mut event, &TransactionValidationConfig::default()).unwrap();
         normalize_event(&mut event, &NormalizationConfig::default());
 
         insta::assert_ron_snapshot!(SerializableAnnotated(&event), {
@@ -1230,13 +1227,14 @@ mod tests {
         let max_secs_in_past = Some(30 * 24 * 3600);
         let max_secs_in_future = Some(60);
 
-        validate_event_timestamps(
+        validate_event(
             &mut event,
             &EventValidationConfig {
                 received_at,
                 max_secs_in_past,
                 max_secs_in_future,
                 is_validated: false,
+                ..Default::default()
             },
         )
         .unwrap();
@@ -1587,8 +1585,7 @@ mod tests {
                 .spans
                 .set_value(Some(vec![Annotated::<Span>::from_json(span).unwrap()]));
 
-            let res =
-                validate_transaction(&mut modified_event, &TransactionValidationConfig::default());
+            let res = validate_event(&mut modified_event, &EventValidationConfig::default());
 
             assert!(res.is_err(), "{span:?}");
         }
