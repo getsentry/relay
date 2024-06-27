@@ -1,6 +1,6 @@
 use relay_common::time::UnixTimestamp;
 use relay_dynamic_config::CombinedMetricExtractionConfig;
-use relay_event_schema::protocol::{Event, Span};
+use relay_event_schema::protocol::{Event, MetricsSummary, Span};
 use relay_metrics::Bucket;
 use relay_protocol::Annotated;
 use relay_quotas::DataCategory;
@@ -75,7 +75,10 @@ fn extract_span_metrics_for_event(
         if let Some(transaction_span) = extract_transaction_span(event, max_tag_value_size) {
             let metrics = generic::extract_metrics(&transaction_span, config);
             if let Some(metrics_summary) = metrics_summary::compute(&metrics) {
-                event._metrics_summary = Annotated::new(metrics_summary);
+                event
+                    ._metrics_summary
+                    .get_or_insert_with(MetricsSummary::empty)
+                    .merge(metrics_summary)
             }
             output.extend(metrics);
         }
@@ -85,7 +88,10 @@ fn extract_span_metrics_for_event(
                 if let Some(span) = annotated_span.value_mut() {
                     let metrics = generic::extract_metrics(span, config);
                     if let Some(metrics_summary) = metrics_summary::compute(&metrics) {
-                        event._metrics_summary = Annotated::new(metrics_summary);
+                        event
+                            ._metrics_summary
+                            .get_or_insert_with(MetricsSummary::empty)
+                            .merge(metrics_summary)
                     }
                     output.extend(metrics);
                 }
@@ -1783,9 +1789,37 @@ mod tests {
                         "frames.frozen": 2,
                         "frames.total": 9,
                         "frames.delay": 0.1
+                    },
+                    "_metrics_summary": {
+                        "d:spans/duration@millisecond": [
+                            {
+                                "min": 50.0,
+                                "max": 100.0,
+                                "sum": 150.0,
+                                "count": 2,
+                                "tags": {
+                                    "app_start_type": "warm",
+                                    "device.class": "1"
+                                }
+                            }
+                        ]
                     }
                 }
-            ]
+            ],
+            "_metrics_summary": {
+                "d:spans/duration@millisecond": [
+                    {
+                        "min": 50.0,
+                        "max": 100.0,
+                        "sum": 150.0,
+                        "count": 2,
+                        "tags": {
+                            "app_start_type": "warm",
+                            "device.class": "1"
+                        }
+                    }
+                ]
+            }
         }
         "#,
         )

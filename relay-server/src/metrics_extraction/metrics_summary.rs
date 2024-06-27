@@ -4,11 +4,11 @@ use relay_metrics::{
     Bucket, BucketValue, CounterType, DistributionValue, FiniteF64, GaugeValue, SetValue,
 };
 use relay_protocol::Annotated;
-use std::collections::hash_map::Entry;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::btree_map::Entry;
+use std::collections::BTreeMap;
 
 /// Key of a bucket used to keep track of aggregates for the [`MetricsSummary`].
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 struct MetricsSummaryBucketKey {
     /// Name of the metric.
     metric_name: MetricName,
@@ -109,13 +109,13 @@ impl MetricsSummaryBucketValue {
 /// generically on any slice of [`Bucket`]s meaning that we need to handle cases in which
 /// the same metrics as identified by the [`MetricsSummaryBucketKey`] have to be merged.
 struct MetricsSummaryAggregator {
-    buckets: HashMap<MetricsSummaryBucketKey, MetricsSummaryBucketValue>,
+    buckets: BTreeMap<MetricsSummaryBucketKey, MetricsSummaryBucketValue>,
 }
 
 impl MetricsSummaryAggregator {
     pub fn new() -> MetricsSummaryAggregator {
         MetricsSummaryAggregator {
-            buckets: HashMap::new(),
+            buckets: BTreeMap::new(),
         }
     }
 
@@ -186,10 +186,170 @@ impl MetricsSummaryAggregator {
 
 /// Computes the [`MetricsSummary`] from a slice of [`Bucket`]s.
 pub fn compute(buckets: &[Bucket]) -> Option<MetricsSummary> {
-    if buckets.len() == 0 {
+    if buckets.is_empty() {
         return None;
     }
 
     let aggregator = MetricsSummaryAggregator::from_buckets(buckets);
     Some(aggregator.build_metrics_summary())
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::metrics_extraction::metrics_summary::MetricsSummaryAggregator;
+    use relay_common::time::UnixTimestamp;
+    use relay_event_schema::protocol::MetricsSummary;
+    use relay_metrics::Bucket;
+    use relay_protocol::Annotated;
+    use std::collections::BTreeMap;
+
+    fn build_buckets(slice: &[u8]) -> Vec<Bucket> {
+        Bucket::parse_all(slice, UnixTimestamp::now())
+            .map(|b| b.unwrap())
+            .collect()
+    }
+
+    #[test]
+    fn test_with_counter_buckets() {
+        let buckets =
+            build_buckets(b"my_counter:3|c|#platform:ios\nmy_counter:2|c|#platform:android");
+
+        let aggregator = MetricsSummaryAggregator::from_buckets(&buckets);
+        let metrics_summary = aggregator.build_metrics_summary();
+
+        insta::assert_debug_snapshot!(metrics_summary, @r###"
+        MetricsSummary(
+            {
+                "c:custom/my_counter@none": [
+                    MetricSummary {
+                        min: 2.0,
+                        max: 2.0,
+                        sum: 2.0,
+                        count: 1,
+                        tags: {
+                            "platform": "android",
+                        },
+                    },
+                    MetricSummary {
+                        min: 3.0,
+                        max: 3.0,
+                        sum: 3.0,
+                        count: 1,
+                        tags: {
+                            "platform": "ios",
+                        },
+                    },
+                ],
+            },
+        )
+        "###);
+    }
+
+    #[test]
+    fn test_with_distribution_buckets() {
+        let buckets =
+            build_buckets(b"my_dist:3.0:5.0|d|#platform:ios\nmy_dist:2.0:4.0|d|#platform:android");
+
+        let aggregator = MetricsSummaryAggregator::from_buckets(&buckets);
+        let metrics_summary = aggregator.build_metrics_summary();
+
+        insta::assert_debug_snapshot!(metrics_summary, @r###"
+        MetricsSummary(
+            {
+                "d:custom/my_dist@none": [
+                    MetricSummary {
+                        min: 2.0,
+                        max: 4.0,
+                        sum: 6.0,
+                        count: 2,
+                        tags: {
+                            "platform": "android",
+                        },
+                    },
+                    MetricSummary {
+                        min: 3.0,
+                        max: 5.0,
+                        sum: 8.0,
+                        count: 2,
+                        tags: {
+                            "platform": "ios",
+                        },
+                    },
+                ],
+            },
+        )
+        "###);
+    }
+
+    #[test]
+    fn test_with_set_buckets() {
+        let buckets =
+            build_buckets(b"my_set:3.0:5.0|s|#platform:ios\nmy_set:2.0:4.0|s|#platform:android");
+
+        let aggregator = MetricsSummaryAggregator::from_buckets(&buckets);
+        let metrics_summary = aggregator.build_metrics_summary();
+
+        insta::assert_debug_snapshot!(metrics_summary, @r###"
+        MetricsSummary(
+            {
+                "s:custom/my_set@none": [
+                    MetricSummary {
+                        min: 0.0,
+                        max: 0.0,
+                        sum: 0.0,
+                        count: 2,
+                        tags: {
+                            "platform": "android",
+                        },
+                    },
+                    MetricSummary {
+                        min: 0.0,
+                        max: 0.0,
+                        sum: 0.0,
+                        count: 2,
+                        tags: {
+                            "platform": "ios",
+                        },
+                    },
+                ],
+            },
+        )
+        "###);
+    }
+
+    #[test]
+    fn test_with_gauge_buckets() {
+        let buckets =
+            build_buckets(b"my_gauge:3.0|g|#platform:ios\nmy_gauge:2.0|g|#platform:android");
+
+        let aggregator = MetricsSummaryAggregator::from_buckets(&buckets);
+        let metrics_summary = aggregator.build_metrics_summary();
+
+        insta::assert_debug_snapshot!(metrics_summary, @r###"
+        MetricsSummary(
+            {
+                "g:custom/my_gauge@none": [
+                    MetricSummary {
+                        min: 2.0,
+                        max: 2.0,
+                        sum: 2.0,
+                        count: 1,
+                        tags: {
+                            "platform": "android",
+                        },
+                    },
+                    MetricSummary {
+                        min: 3.0,
+                        max: 3.0,
+                        sum: 3.0,
+                        count: 1,
+                        tags: {
+                            "platform": "ios",
+                        },
+                    },
+                ],
+            },
+        )
+        "###);
+    }
 }
