@@ -645,6 +645,7 @@ pub fn convert_conditional_tagging(project_config: &mut ProjectConfig) {
 
 /// Configuration for metric extrapolation from sampled data.
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ExtrapolationConfig {
     /// A list of MRI glob patterns to include in extrapolation.
     #[serde(default)]
