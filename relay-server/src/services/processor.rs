@@ -58,7 +58,7 @@ use {
         RedisSetLimiterOptions,
     },
     relay_dynamic_config::{CardinalityLimiterMode, MetricExtractionGroups},
-    relay_metrics::{Aggregator, MergeBuckets, RedisMetricMetaStore},
+    relay_metrics::RedisMetricMetaStore,
     relay_quotas::{Quota, RateLimitingError, RateLimits, RedisRateLimiter},
     relay_redis::RedisPool,
     std::iter::Chain,
@@ -982,13 +982,6 @@ pub struct SubmitClientReports {
     pub scoping: Scoping,
 }
 
-/// Applies rate limits to metrics buckets and forwards them to the [`Aggregator`].
-#[cfg(feature = "processing")]
-#[derive(Debug)]
-pub struct RateLimitBuckets {
-    pub bucket_limiter: MetricsLimiter,
-}
-
 /// CPU-intensive processing tasks for envelopes.
 #[derive(Debug)]
 pub enum EnvelopeProcessor {
@@ -1000,8 +993,6 @@ pub enum EnvelopeProcessor {
     EncodeMetricMeta(Box<EncodeMetricMeta>),
     SubmitEnvelope(Box<SubmitEnvelope>),
     SubmitClientReports(Box<SubmitClientReports>),
-    #[cfg(feature = "processing")]
-    RateLimitBuckets(RateLimitBuckets),
 }
 
 impl EnvelopeProcessor {
@@ -1016,8 +1007,6 @@ impl EnvelopeProcessor {
             EnvelopeProcessor::EncodeMetricMeta(_) => "EncodeMetricMeta",
             EnvelopeProcessor::SubmitEnvelope(_) => "SubmitEnvelope",
             EnvelopeProcessor::SubmitClientReports(_) => "SubmitClientReports",
-            #[cfg(feature = "processing")]
-            EnvelopeProcessor::RateLimitBuckets(_) => "RateLimitBuckets",
         }
     }
 }
@@ -1088,15 +1077,6 @@ impl FromMessage<SubmitClientReports> for EnvelopeProcessor {
     }
 }
 
-#[cfg(feature = "processing")]
-impl FromMessage<RateLimitBuckets> for EnvelopeProcessor {
-    type Response = NoResponse;
-
-    fn from_message(message: RateLimitBuckets, _: ()) -> Self {
-        Self::RateLimitBuckets(message)
-    }
-}
-
 /// Service implementing the [`EnvelopeProcessor`] interface.
 ///
 /// This service handles messages in a worker pool with configurable concurrency.
@@ -1111,8 +1091,6 @@ pub struct Addrs {
     pub envelope_processor: Addr<EnvelopeProcessor>,
     pub project_cache: Addr<ProjectCache>,
     pub outcome_aggregator: Addr<TrackOutcome>,
-    #[cfg(feature = "processing")]
-    pub aggregator: Addr<Aggregator>,
     pub upstream_relay: Addr<UpstreamRelay>,
     pub test_store: Addr<TestStore>,
     #[cfg(feature = "processing")]
@@ -1126,8 +1104,6 @@ impl Default for Addrs {
             envelope_processor: Addr::dummy(),
             project_cache: Addr::dummy(),
             outcome_aggregator: Addr::dummy(),
-            #[cfg(feature = "processing")]
-            aggregator: Addr::dummy(),
             upstream_relay: Addr::dummy(),
             test_store: Addr::dummy(),
             #[cfg(feature = "processing")]
@@ -1337,8 +1313,15 @@ impl EnvelopeProcessorService {
 
         let scoping = state.managed_envelope.scoping();
         let (enforcement, limits) = metric!(timer(RelayTimers::EventProcessingRateLimiting), {
-            envelope_limiter.enforce(state.managed_envelope.envelope_mut(), &scoping)?
+            envelope_limiter.compute(state.managed_envelope.envelope_mut(), &scoping)?
         });
+        let event_active = enforcement.event_active();
+        enforcement.apply_with_outcomes(&mut state.managed_envelope);
+
+        if event_active {
+            state.remove_event();
+            debug_assert!(state.envelope().is_empty());
+        }
 
         // Use the same rate limits as used for the envelope on the metrics.
         // Those rate limits should not be checked for expiry or similar to ensure a consistent
@@ -1351,17 +1334,6 @@ impl EnvelopeProcessorService {
                 .project_cache
                 .send(UpdateRateLimits::new(scoping.project_key, limits));
         }
-
-        if enforcement.event_active() {
-            state.remove_event();
-            debug_assert!(state.envelope().is_empty());
-        }
-
-        enforcement.track_outcomes(
-            state.envelope(),
-            &state.managed_envelope.scoping(),
-            self.inner.addrs.outcome_aggregator.clone(),
-        );
 
         Ok(())
     }
@@ -1485,11 +1457,23 @@ impl EnvelopeProcessorService {
             .get_item_by(|item| item.attachment_type().is_some())
             .and_then(|item| item.attachment_type())
             .map(|ty| ty.to_string());
+        let event_type = state
+            .event
+            .value()
+            .and_then(|e| e.ty.value())
+            .map(|ty| ty.as_str())
+            .unwrap_or("none");
 
         if !state.has_event() {
             metric!(
                 counter(RelayCounters::NormalizationDecision) += 1,
+                event_type = event_type,
                 attachment_type = attachment_type.as_deref().unwrap_or("none"),
+                origin = if state.envelope().meta().is_from_internal_relay() {
+                    "internal"
+                } else {
+                    "external"
+                },
                 decision = "no_event"
             );
 
@@ -1511,7 +1495,13 @@ impl EnvelopeProcessorService {
                 {
                     metric!(
                         counter(RelayCounters::NormalizationDecision) += 1,
+                        event_type = event_type,
                         attachment_type = attachment_type.as_deref().unwrap_or("none"),
+                        origin = if state.envelope().meta().is_from_internal_relay() {
+                            "internal"
+                        } else {
+                            "external"
+                        },
                         decision = "skip_normalized"
                     );
                     return Ok(());
@@ -1523,7 +1513,13 @@ impl EnvelopeProcessorService {
 
         metric!(
             counter(RelayCounters::NormalizationDecision) += 1,
+            event_type = event_type,
             attachment_type = attachment_type.as_deref().unwrap_or("none"),
+            origin = if state.envelope().meta().is_from_internal_relay() {
+                "internal"
+            } else {
+                "external"
+            },
             decision = if full_normalization {
                 "full_normalization"
             } else {
@@ -2380,13 +2376,69 @@ impl EnvelopeProcessorService {
         });
     }
 
-    /// Check and apply rate limits to metrics buckets.
     #[cfg(feature = "processing")]
-    fn handle_rate_limit_buckets(&self, message: RateLimitBuckets) {
-        use relay_quotas::RateLimits;
+    fn rate_limit_buckets(
+        &self,
+        scoping: Scoping,
+        project_state: &ProjectState,
+        mut buckets: Vec<Bucket>,
+    ) -> Vec<Bucket> {
+        let Some(rate_limiter) = self.inner.rate_limiter.as_ref() else {
+            return buckets;
+        };
 
+        let global_config = self.inner.global_config.current();
+        let namespaces = buckets
+            .iter()
+            .filter_map(|bucket| bucket.name.try_namespace())
+            .counts();
+
+        let quotas = CombinedQuotas::new(&global_config, project_state.get_quotas());
+
+        for (namespace, quantity) in namespaces {
+            let item_scoping = scoping.metric_bucket(namespace);
+
+            let limits = match rate_limiter.is_rate_limited(quotas, item_scoping, quantity, false) {
+                Ok(limits) => limits,
+                Err(err) => {
+                    relay_log::error!(
+                        error = &err as &dyn std::error::Error,
+                        "failed to check redis rate limits"
+                    );
+                    break;
+                }
+            };
+
+            if limits.is_limited() {
+                let rejected;
+                (buckets, rejected) = utils::split_off(buckets, |bucket| {
+                    bucket.name.try_namespace() == Some(namespace)
+                });
+
+                let reason_code = limits.longest().and_then(|limit| limit.reason_code.clone());
+                self.inner.metric_outcomes.track(
+                    scoping,
+                    &rejected,
+                    Outcome::RateLimited(reason_code),
+                );
+
+                self.inner.addrs.project_cache.send(UpdateRateLimits::new(
+                    item_scoping.scoping.project_key,
+                    limits,
+                ));
+            }
+        }
+
+        match MetricsLimiter::create(buckets, project_state.config.quotas.clone(), scoping) {
+            Err(buckets) => buckets,
+            Ok(bucket_limiter) => self.apply_other_rate_limits(bucket_limiter),
+        }
+    }
+
+    /// Check and apply rate limits to metrics buckets for transactions and spans.
+    #[cfg(feature = "processing")]
+    fn apply_other_rate_limits(&self, mut bucket_limiter: MetricsLimiter) -> Vec<Bucket> {
         relay_log::trace!("handle_rate_limit_buckets");
-        let RateLimitBuckets { mut bucket_limiter } = message;
 
         let scoping = *bucket_limiter.scoping();
 
@@ -2455,88 +2507,7 @@ impl EnvelopeProcessorService {
             }
         }
 
-        let project_key = bucket_limiter.scoping().project_key;
-        let buckets = bucket_limiter.into_buckets();
-
-        if !buckets.is_empty() {
-            self.inner
-                .addrs
-                .aggregator
-                .send(MergeBuckets::new(project_key, buckets));
-        }
-    }
-
-    #[cfg(feature = "processing")]
-    fn rate_limit_buckets_by_namespace(
-        &self,
-        scoping: Scoping,
-        buckets: Vec<Bucket>,
-        quotas: CombinedQuotas<'_>,
-    ) -> Vec<Bucket> {
-        let Some(rate_limiter) = self.inner.rate_limiter.as_ref() else {
-            return buckets;
-        };
-
-        let buckets_by_ns: HashMap<MetricNamespace, Vec<Bucket>> = buckets
-            .into_iter()
-            .filter_map(|bucket| Some((bucket.name.try_namespace()?, bucket)))
-            .into_group_map();
-
-        buckets_by_ns
-            .into_iter()
-            .flat_map(|(namespace, buckets)| {
-                let item_scoping = scoping.metric_bucket(namespace);
-                self.rate_limit_buckets(item_scoping, buckets, quotas, rate_limiter)
-            })
-            .collect()
-    }
-
-    /// Returns `true` if the batches should be rate limited.
-    #[cfg(feature = "processing")]
-    fn rate_limit_buckets(
-        &self,
-        item_scoping: relay_quotas::ItemScoping,
-        buckets: Vec<Bucket>,
-        quotas: CombinedQuotas<'_>,
-        rate_limiter: &RedisRateLimiter,
-    ) -> Vec<Bucket> {
-        let batch_size = self.inner.config.metrics_max_batch_size_bytes();
-        let quantity = BucketsView::from(&buckets)
-            .by_size(batch_size)
-            .flatten()
-            .count();
-
-        // Check with redis if the throughput limit has been exceeded, while also updating
-        // the count so that other relays will be updated too.
-        match rate_limiter.is_rate_limited(quotas, item_scoping, quantity, false) {
-            Ok(limits) if limits.is_limited() => {
-                relay_log::debug!("dropping {quantity} buckets due to throughput rate limit");
-
-                let reason_code = limits.longest().and_then(|limit| limit.reason_code.clone());
-
-                self.inner.metric_outcomes.track(
-                    *item_scoping.scoping,
-                    &buckets,
-                    Outcome::RateLimited(reason_code),
-                );
-
-                self.inner.addrs.project_cache.send(UpdateRateLimits::new(
-                    item_scoping.scoping.project_key,
-                    limits,
-                ));
-
-                Vec::new()
-            }
-            Ok(_) => buckets,
-            Err(e) => {
-                relay_log::error!(
-                    error = &e as &dyn std::error::Error,
-                    "failed to check redis rate limits"
-                );
-
-                buckets
-            }
-        }
+        bucket_limiter.into_buckets()
     }
 
     /// Cardinality limits the passed buckets and returns a filtered vector of only accepted buckets.
@@ -2620,16 +2591,13 @@ impl EnvelopeProcessorService {
         use crate::constants::DEFAULT_EVENT_RETENTION;
         use crate::services::store::StoreMetrics;
 
-        let global_config = self.inner.global_config.current();
-
         for (scoping, message) in message.scopes {
             let ProjectMetrics {
                 buckets,
                 project_state,
             } = message;
 
-            let quotas = CombinedQuotas::new(&global_config, project_state.get_quotas());
-            let buckets = self.rate_limit_buckets_by_namespace(scoping, buckets, quotas);
+            let buckets = self.rate_limit_buckets(scoping, &project_state, buckets);
 
             let limits = project_state.get_cardinality_limits();
             let buckets = self.cardinality_limit_buckets(scoping, limits, buckets);
@@ -2878,8 +2846,6 @@ impl EnvelopeProcessorService {
                 EnvelopeProcessor::EncodeMetricMeta(m) => self.handle_encode_metric_meta(*m),
                 EnvelopeProcessor::SubmitEnvelope(m) => self.handle_submit_envelope(*m),
                 EnvelopeProcessor::SubmitClientReports(m) => self.handle_submit_client_reports(*m),
-                #[cfg(feature = "processing")]
-                EnvelopeProcessor::RateLimitBuckets(m) => self.handle_rate_limit_buckets(m),
             }
         });
     }
@@ -2906,18 +2872,6 @@ impl EnvelopeProcessorService {
             EnvelopeProcessor::EncodeMetricMeta(_) => AppFeature::MetricMeta.into(),
             EnvelopeProcessor::SubmitEnvelope(v) => AppFeature::from(v.envelope.group()).into(),
             EnvelopeProcessor::SubmitClientReports(_) => AppFeature::ClientReports.into(),
-            #[cfg(feature = "processing")]
-            EnvelopeProcessor::RateLimitBuckets(v) => {
-                relay_metrics::cogs::ByCount(v.bucket_limiter.buckets().filter(|b| {
-                    // Only spans and transactions are actually rate limited at this point.
-                    // Other metrics do not cause costs.
-                    matches!(
-                        b.name.try_namespace(),
-                        Some(MetricNamespace::Spans | MetricNamespace::Transactions)
-                    )
-                }))
-                .into()
-            }
         }
     }
 }

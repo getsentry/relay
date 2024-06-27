@@ -836,33 +836,15 @@ fn validate_metric_name(
 ) -> Result<BucketKey, AggregateMetricsError> {
     let metric_name_length = key.metric_name.len();
     if metric_name_length > aggregator_config.max_name_length {
-        relay_log::configure_scope(|scope| {
-            scope.set_extra(
-                "bucket.project_key",
-                key.project_key.as_str().to_owned().into(),
-            );
-            scope.set_extra(
-                "bucket.metric_name.length",
-                metric_name_length.to_string().into(),
-            );
-            scope.set_extra(
-                "aggregator_config.max_name_length",
-                aggregator_config.max_name_length.to_string().into(),
-            );
-        });
+        relay_log::debug!(
+            "Invalid metric name, too long (> {}): {:?}",
+            aggregator_config.max_name_length,
+            key.metric_name
+        );
         return Err(AggregateMetricsErrorKind::InvalidStringLength(key.metric_name).into());
     }
 
-    if let Err(err) = normalize_metric_name(&mut key) {
-        relay_log::configure_scope(|scope| {
-            scope.set_extra(
-                "bucket.project_key",
-                key.project_key.as_str().to_owned().into(),
-            );
-            scope.set_extra("bucket.metric_name", key.metric_name.to_string().into());
-        });
-        return Err(err);
-    }
+    normalize_metric_name(&mut key)?;
 
     Ok(key)
 }
@@ -892,29 +874,12 @@ fn normalize_metric_name(key: &mut BucketKey) -> Result<(), AggregateMetricsErro
 ///
 /// Tag values are validated with `protocol::validate_tag_value`.
 fn validate_metric_tags(mut key: BucketKey, aggregator_config: &AggregatorConfig) -> BucketKey {
-    let proj_key = key.project_key.as_str();
     key.tags.retain(|tag_key, tag_value| {
         if tag_key.len() > aggregator_config.max_tag_key_length {
-            relay_log::configure_scope(|scope| {
-                scope.set_extra("bucket.project_key", proj_key.to_owned().into());
-                scope.set_extra("bucket.metric.tag_key", tag_key.to_owned().into());
-                scope.set_extra(
-                    "aggregator_config.max_tag_key_length",
-                    aggregator_config.max_tag_key_length.to_string().into(),
-                );
-            });
             relay_log::debug!("Invalid metric tag key");
             return false;
         }
         if bytecount::num_chars(tag_value.as_bytes()) > aggregator_config.max_tag_value_length {
-            relay_log::configure_scope(|scope| {
-                scope.set_extra("bucket.project_key", proj_key.to_owned().into());
-                scope.set_extra("bucket.metric.tag_value", tag_value.to_owned().into());
-                scope.set_extra(
-                    "aggregator_config.max_tag_value_length",
-                    aggregator_config.max_tag_value_length.to_string().into(),
-                );
-            });
             relay_log::debug!("Invalid metric tag value");
             return false;
         }

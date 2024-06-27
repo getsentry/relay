@@ -2988,12 +2988,22 @@ expression: "relay_event_schema::protocol::event_json_schema()"
       "anyOf": [
         {
           "type": "object",
-          "required": [
-            "profile_id"
-          ],
           "properties": {
             "profile_id": {
               "description": " The profile ID.",
+              "default": null,
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/EventId"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "profiler_id": {
+              "description": " The profiler ID.",
+              "default": null,
               "anyOf": [
                 {
                   "$ref": "#/definitions/EventId"

@@ -3,6 +3,7 @@ use std::fmt;
 use std::sync::Arc;
 
 use crate::metrics::{MetricOutcomes, MetricStats};
+use crate::services::stats::RelayStats;
 use anyhow::{Context, Result};
 use axum::extract::FromRequestParts;
 use axum::http::request::Parts;
@@ -178,8 +179,6 @@ impl ServiceState {
                 upstream_relay: upstream_relay.clone(),
                 test_store: test_store.clone(),
                 #[cfg(feature = "processing")]
-                aggregator: aggregator.clone(),
-                #[cfg(feature = "processing")]
                 store_forwarder: store.clone(),
             },
             metric_outcomes.clone(),
@@ -214,6 +213,9 @@ impl ServiceState {
             project_cache.clone(),
         )
         .start();
+
+        RelayStats::new(config.clone(), upstream_relay.clone()).start();
+
         let relay_cache = RelayCacheService::new(config.clone(), upstream_relay.clone()).start();
 
         let registry = Registry {

@@ -10,8 +10,10 @@ use crate::protocol::EventId;
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct ProfileContext {
     /// The profile ID.
-    #[metastructure(required = "true")]
     pub profile_id: Annotated<EventId>,
+
+    /// The profiler ID.
+    pub profiler_id: Annotated<EventId>,
 }
 
 impl super::DefaultContext for ProfileContext {
@@ -60,6 +62,7 @@ mod tests {
             profile_id: Annotated::new(EventId(
                 "4c79f60c11214eb38604f4ae0781bfb2".parse().unwrap(),
             )),
+            ..ProfileContext::default()
         })));
 
         assert_eq!(context, Annotated::from_json(json).unwrap());
@@ -76,6 +79,20 @@ mod tests {
             profile_id: Annotated::new(EventId(
                 "4c79f60c11214eb38604f4ae0781bfb2".parse().unwrap(),
             )),
+            ..ProfileContext::default()
+        })));
+
+        assert_eq!(context, Annotated::from_json(json).unwrap());
+    }
+
+    #[test]
+    fn context_with_profiler_id() {
+        let json = r#"{"profiler_id": "4C79F60C11214EB38604F4AE0781BFB2", "type": "profile"}"#;
+        let context = Annotated::new(Context::Profile(Box::new(ProfileContext {
+            profiler_id: Annotated::new(EventId(
+                "4c79f60c11214eb38604f4ae0781bfb2".parse().unwrap(),
+            )),
+            ..ProfileContext::default()
         })));
 
         assert_eq!(context, Annotated::from_json(json).unwrap());

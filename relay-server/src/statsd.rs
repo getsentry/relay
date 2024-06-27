@@ -1,4 +1,6 @@
 use relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric, TimerMetric};
+#[cfg(doc)]
+use tokio::runtime::RuntimeMetrics;
 
 /// Gauge metrics used by Relay
 pub enum RelayGauges {
@@ -44,6 +46,95 @@ impl GaugeMetric for RelayGauges {
             RelayGauges::BufferPeriodicUnspool => "buffer.unspool.periodic",
             RelayGauges::SystemMemoryUsed => "health.system_memory.used",
             RelayGauges::SystemMemoryTotal => "health.system_memory.total",
+        }
+    }
+}
+
+/// Gauge metrics collected from the Tokio Runtime.
+pub enum TokioGauges {
+    /// Exposes [`RuntimeMetrics::active_tasks_count`].
+    ActiveTasksCount,
+    /// Exposes [`RuntimeMetrics::blocking_queue_depth`].
+    BlockingQueueDepth,
+    /// Exposes [`RuntimeMetrics::budget_forced_yield_count`].
+    BudgetForcedYieldCount,
+    /// Exposes [`RuntimeMetrics::num_blocking_threads`].
+    NumBlockingThreads,
+    /// Exposes [`RuntimeMetrics::num_idle_blocking_threads`].
+    NumIdleBlockingThreads,
+    /// Exposes [`RuntimeMetrics::num_workers`].
+    NumWorkers,
+    /// Exposes [`RuntimeMetrics::worker_local_queue_depth`].
+    ///
+    /// This metric is tagged with:
+    /// - `worker`: the worker id.
+    WorkerLocalQueueDepth,
+    /// Exposes [`RuntimeMetrics::worker_local_schedule_count`].
+    ///
+    /// This metric is tagged with:
+    /// - `worker`: the worker id.
+    WorkerLocalScheduleCount,
+    /// Exposes [`RuntimeMetrics::worker_mean_poll_time`].
+    ///
+    /// This metric is tagged with:
+    /// - `worker`: the worker id.
+    WorkerMeanPollTime,
+    /// Exposes [`RuntimeMetrics::worker_noop_count`].
+    ///
+    /// This metric is tagged with:
+    /// - `worker`: the worker id.
+    WorkerNoopCount,
+    /// Exposes [`RuntimeMetrics::worker_overflow_count`].
+    ///
+    /// This metric is tagged with:
+    /// - `worker`: the worker id.
+    WorkerOverflowCount,
+    /// Exposes [`RuntimeMetrics::worker_park_count`].
+    ///
+    /// This metric is tagged with:
+    /// - `worker`: the worker id.
+    WorkerParkCount,
+    /// Exposes [`RuntimeMetrics::worker_poll_count`].
+    ///
+    /// This metric is tagged with:
+    /// - `worker`: the worker id.
+    WorkerPollCount,
+    /// Exposes [`RuntimeMetrics::worker_steal_count`].
+    ///
+    /// This metric is tagged with:
+    /// - `worker`: the worker id.
+    WorkerStealCount,
+    /// Exposes [`RuntimeMetrics::worker_steal_operations`].
+    ///
+    /// This metric is tagged with:
+    /// - `worker`: the worker id.
+    WorkerStealOperations,
+    /// Exposes [`RuntimeMetrics::worker_total_busy_duration`].
+    ///
+    /// This metric is tagged with:
+    /// - `worker`: the worker id.
+    WorkerTotalBusyDuration,
+}
+
+impl GaugeMetric for TokioGauges {
+    fn name(&self) -> &'static str {
+        match self {
+            TokioGauges::ActiveTasksCount => "tokio.active_task_count",
+            TokioGauges::BlockingQueueDepth => "tokio.blocking_queue_depth",
+            TokioGauges::BudgetForcedYieldCount => "tokio.budget_forced_yield_count",
+            TokioGauges::NumBlockingThreads => "tokio.num_blocking_threads",
+            TokioGauges::NumIdleBlockingThreads => "tokio.num_idle_blocking_threads",
+            TokioGauges::NumWorkers => "tokio.num_workers",
+            TokioGauges::WorkerLocalQueueDepth => "tokio.worker_local_queue_depth",
+            TokioGauges::WorkerLocalScheduleCount => "tokio.worker_local_schedule_count",
+            TokioGauges::WorkerMeanPollTime => "tokio.worker_mean_poll_time",
+            TokioGauges::WorkerNoopCount => "tokio.worker_noop_count",
+            TokioGauges::WorkerOverflowCount => "tokio.worker_overflow_count",
+            TokioGauges::WorkerParkCount => "tokio.worker_park_count",
+            TokioGauges::WorkerPollCount => "tokio.worker_poll_count",
+            TokioGauges::WorkerStealCount => "tokio.worker_steal_count",
+            TokioGauges::WorkerStealOperations => "tokio.worker_steal_operations",
+            TokioGauges::WorkerTotalBusyDuration => "tokio.worker_total_busy_duration",
         }
     }
 }
@@ -667,23 +758,17 @@ pub enum RelayCounters {
     /// Counts how many transactions were created from segment spans.
     #[cfg(feature = "processing")]
     TransactionsFromSpans,
-    /// Counter for when the DSC is missing from an event that comes from an SDK that should support
-    /// it.
-    MissingDynamicSamplingContext,
     /// The number of attachments processed in the same envelope as a user_report_v2 event.
     FeedbackAttachments,
-    /// All COGS tracked values before aggregation.
-    ///
-    /// This metric is tagged with:
-    /// - `resource_id`: The COGS resource id.
-    /// - `app_feature`: The COGS app feature.
-    CogsRaw,
     /// All COGS tracked values.
     ///
     /// This metric is tagged with:
     /// - `resource_id`: The COGS resource id.
     /// - `app_feature`: The COGS app feature.
     CogsUsage,
+    /// The amount of times metrics of a project have been flushed without the project being
+    /// fetched/available.
+    ProjectStateFlushMetricsNoProject,
     /// The decision on whether normalization should run for an event.
     ///
     /// This metric is tagged with:
@@ -730,10 +815,9 @@ impl CounterMetric for RelayCounters {
             RelayCounters::GlobalConfigFetched => "global_config.fetch",
             #[cfg(feature = "processing")]
             RelayCounters::TransactionsFromSpans => "transactions_from_spans",
-            RelayCounters::MissingDynamicSamplingContext => "missing_dynamic_sampling_context",
             RelayCounters::FeedbackAttachments => "processing.feedback_attachments",
-            RelayCounters::CogsRaw => "cogs.raw",
             RelayCounters::CogsUsage => "cogs.usage",
+            RelayCounters::ProjectStateFlushMetricsNoProject => "project_state.metrics.no_project",
             RelayCounters::NormalizationDecision => "normalization.decision",
         }
     }

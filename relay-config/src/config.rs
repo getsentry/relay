@@ -494,6 +494,11 @@ struct Metrics {
     /// For example, a value of `0.3` means that only 30% of the emitted metrics will be sent.
     /// Defaults to `1.0` (100%).
     sample_rate: f32,
+    /// Interval for periodic metrics emitted from Relay.
+    ///
+    /// Setting it to `0` seconds disables the periodic metrics.
+    /// Defaults to 5 seconds.
+    periodic_secs: u64,
 }
 
 impl Default for Metrics {
@@ -504,6 +509,7 @@ impl Default for Metrics {
             default_tags: BTreeMap::new(),
             hostname_tag: None,
             sample_rate: 1.0,
+            periodic_secs: 5,
         }
     }
 }
@@ -1938,6 +1944,16 @@ impl Config {
     /// Returns the expiry for code locations.
     pub fn metrics_meta_locations_expiry(&self) -> Duration {
         Duration::from_secs(self.values.sentry_metrics.meta_locations_expiry)
+    }
+
+    /// Returns the interval for periodic metrics emitted from Relay.
+    ///
+    /// `None` if periodic metrics are disabled.
+    pub fn metrics_periodic_interval(&self) -> Option<Duration> {
+        match self.values.metrics.periodic_secs {
+            0 => None,
+            secs => Some(Duration::from_secs(secs)),
+        }
     }
 
     /// Returns the default timeout for all upstream HTTP requests.
