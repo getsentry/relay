@@ -1563,10 +1563,9 @@ def test_profile_outcomes_data_invalid(
         for category in [6, 11]  # Profile, ProfileIndexed
     ]
 
-    # Because invalid data is detected _after_ metrics extraction, there is still a metric:
     metrics = metrics_by_name(metrics_consumer, 4)
     assert "has_profile" not in metrics["d:transactions/duration@millisecond"]["tags"]
-    assert metrics["c:transactions/usage@none"]["tags"]["has_profile"] == "true"
+    assert "has_profile" not in metrics["c:transactions/usage@none"]["tags"]
 
 
 @pytest.mark.parametrize("quota_category", ["transaction", "profile"])
