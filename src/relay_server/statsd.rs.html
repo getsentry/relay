@@ -888,10 +888,6 @@
 <a href="#888" id="888">888</a>
 <a href="#889" id="889">889</a>
 <a href="#890" id="890">890</a>
-<a href="#891" id="891">891</a>
-<a href="#892" id="892">892</a>
-<a href="#893" id="893">893</a>
-<a href="#894" id="894">894</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric, TimerMetric};
 <span class="attr">#[cfg(doc)]
 </span><span class="kw">use </span>tokio::runtime::RuntimeMetrics;
@@ -1652,9 +1648,6 @@
     <span class="doccomment">/// Counts how many transactions were created from segment spans.
     </span><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
     </span>TransactionsFromSpans,
-    <span class="doccomment">/// Counter for when the DSC is missing from an event that comes from an SDK that should support
-    /// it.
-    </span>MissingDynamicSamplingContext,
     <span class="doccomment">/// The number of attachments processed in the same envelope as a user_report_v2 event.
     </span>FeedbackAttachments,
     <span class="doccomment">/// All COGS tracked values.
@@ -1712,7 +1705,6 @@
             RelayCounters::GlobalConfigFetched =&gt; <span class="string">"global_config.fetch"</span>,
             <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
             </span>RelayCounters::TransactionsFromSpans =&gt; <span class="string">"transactions_from_spans"</span>,
-            RelayCounters::MissingDynamicSamplingContext =&gt; <span class="string">"missing_dynamic_sampling_context"</span>,
             RelayCounters::FeedbackAttachments =&gt; <span class="string">"processing.feedback_attachments"</span>,
             RelayCounters::CogsUsage =&gt; <span class="string">"cogs.usage"</span>,
             RelayCounters::ProjectStateFlushMetricsNoProject =&gt; <span class="string">"project_state.metrics.no_project"</span>,
