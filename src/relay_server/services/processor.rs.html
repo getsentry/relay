@@ -3739,6 +3739,8 @@
 <a href="#3739" id="3739">3739</a>
 <a href="#3740" id="3740">3740</a>
 <a href="#3741" id="3741">3741</a>
+<a href="#3742" id="3742">3742</a>
+<a href="#3743" id="3743">3743</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
@@ -5398,15 +5400,16 @@
         };
 
         <span class="kw">if let </span><span class="prelude-val">Some</span>(outcome) = sampling_result.into_dropped_outcome() {
+            <span class="kw">let </span>keep_profiles = dynamic_sampling::forward_unsampled_profiles(state, <span class="kw-2">&amp;</span>global_config);
+            <span class="comment">// Process profiles before dropping the transaction, if necessary.
+            // Before metric extraction to make sure the profile count is reflected correctly.
+            </span><span class="kw">let </span>profile_id = <span class="kw">match </span>keep_profiles {
+                <span class="bool-val">true </span>=&gt; profile::process(state, <span class="kw-2">&amp;</span><span class="self">self</span>.inner.config),
+                <span class="bool-val">false </span>=&gt; profile_id,
+            };
+
             <span class="comment">// Extract metrics here, we're about to drop the event/transaction.
             </span><span class="self">self</span>.extract_transaction_metrics(state, SamplingDecision::Drop, profile_id)<span class="question-mark">?</span>;
-
-            <span class="kw">let </span>keep_profiles = dynamic_sampling::forward_unsampled_profiles(state, <span class="kw-2">&amp;</span>global_config);
-
-            <span class="comment">// Process profiles before dropping the transaction, if necessary.
-            </span><span class="kw">if </span>keep_profiles {
-                profile::process(state, <span class="kw-2">&amp;</span><span class="self">self</span>.inner.config);
-            }
 
             dynamic_sampling::drop_unsampled_items(state, outcome, keep_profiles);
 
@@ -5428,10 +5431,11 @@
         attachment::scrub(state);
 
         <span class="macro">if_processing!</span>(<span class="self">self</span>.inner.config, {
+            <span class="comment">// Process profiles before extracting metrics, to make sure they are removed if they are invalid.
+            </span><span class="kw">let </span>profile_id = profile::process(state, <span class="kw-2">&amp;</span><span class="self">self</span>.inner.config);
+
             <span class="comment">// Always extract metrics in processing Relays for sampled items.
             </span><span class="self">self</span>.extract_transaction_metrics(state, SamplingDecision::Keep, profile_id)<span class="question-mark">?</span>;
-
-            profile::process(state, <span class="kw-2">&amp;</span><span class="self">self</span>.inner.config);
 
             <span class="kw">if </span>state
                 .project_state

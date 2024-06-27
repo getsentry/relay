@@ -382,6 +382,19 @@
 <a href="#382" id="382">382</a>
 <a href="#383" id="383">383</a>
 <a href="#384" id="384">384</a>
+<a href="#385" id="385">385</a>
+<a href="#386" id="386">386</a>
+<a href="#387" id="387">387</a>
+<a href="#388" id="388">388</a>
+<a href="#389" id="389">389</a>
+<a href="#390" id="390">390</a>
+<a href="#391" id="391">391</a>
+<a href="#392" id="392">392</a>
+<a href="#393" id="393">393</a>
+<a href="#394" id="394">394</a>
+<a href="#395" id="395">395</a>
+<a href="#396" id="396">396</a>
+<a href="#397" id="397">397</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Profiles related processor code.
 
 </span><span class="kw">use </span>relay_dynamic_config::Feature;
@@ -474,8 +487,13 @@
 }
 
 <span class="doccomment">/// Processes profiles and set the profile ID in the profile context on the transaction if successful.
-</span><span class="kw">pub fn </span>process(state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;TransactionGroup&gt;, config: <span class="kw-2">&amp;</span>Config) {
+</span><span class="kw">pub fn </span>process(
+    state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;TransactionGroup&gt;,
+    config: <span class="kw-2">&amp;</span>Config,
+) -&gt; <span class="prelude-ty">Option</span>&lt;ProfileId&gt; {
     <span class="kw">let </span>profiling_enabled = state.project_state.has_feature(Feature::Profiling);
+    <span class="kw">let </span><span class="kw-2">mut </span>profile_id = <span class="prelude-val">None</span>;
+
     state.managed_envelope.retain_items(|item| <span class="kw">match </span>item.ty() {
         ItemType::Profile =&gt; {
             <span class="kw">if </span>!profiling_enabled {
@@ -488,26 +506,34 @@
                 <span class="kw">return </span>ItemAction::DropSilently;
             };
 
-            expand_profile(item, event, config)
+            <span class="kw">match </span>expand_profile(item, event, config) {
+                <span class="prelude-val">Ok</span>(id) =&gt; {
+                    profile_id = <span class="prelude-val">Some</span>(id);
+                    ItemAction::Keep
+                }
+                <span class="prelude-val">Err</span>(outcome) =&gt; ItemAction::Drop(outcome),
+            }
         }
         <span class="kw">_ </span>=&gt; ItemAction::Keep,
     });
+
+    profile_id
 }
 
 <span class="doccomment">/// Transfers transaction metadata to profile and check its size.
-</span><span class="kw">fn </span>expand_profile(item: <span class="kw-2">&amp;mut </span>Item, event: <span class="kw-2">&amp;</span>Event, config: <span class="kw-2">&amp;</span>Config) -&gt; ItemAction {
+</span><span class="kw">fn </span>expand_profile(item: <span class="kw-2">&amp;mut </span>Item, event: <span class="kw-2">&amp;</span>Event, config: <span class="kw-2">&amp;</span>Config) -&gt; <span class="prelude-ty">Result</span>&lt;ProfileId, Outcome&gt; {
     <span class="kw">match </span>relay_profiling::expand_profile(<span class="kw-2">&amp;</span>item.payload(), event) {
-        <span class="prelude-val">Ok</span>((_id, payload)) =&gt; {
+        <span class="prelude-val">Ok</span>((id, payload)) =&gt; {
             <span class="kw">if </span>payload.len() &lt;= config.max_profile_size() {
                 item.set_payload(ContentType::Json, payload);
-                ItemAction::Keep
+                <span class="prelude-val">Ok</span>(id)
             } <span class="kw">else </span>{
-                ItemAction::Drop(Outcome::Invalid(DiscardReason::Profiling(
+                <span class="prelude-val">Err</span>(Outcome::Invalid(DiscardReason::Profiling(
                     relay_profiling::discard_reason(relay_profiling::ProfileError::ExceedSizeLimit),
                 )))
             }
         }
-        <span class="prelude-val">Err</span>(err) =&gt; ItemAction::Drop(Outcome::Invalid(DiscardReason::Profiling(
+        <span class="prelude-val">Err</span>(err) =&gt; <span class="prelude-val">Err</span>(Outcome::Invalid(DiscardReason::Profiling(
             relay_profiling::discard_reason(err),
         ))),
     }
