@@ -2,7 +2,6 @@ use relay_common::time::UnixTimestamp;
 use relay_dynamic_config::CombinedMetricExtractionConfig;
 use relay_event_schema::protocol::{Event, MetricsSummary, Span};
 use relay_metrics::Bucket;
-use relay_protocol::Annotated;
 use relay_quotas::DataCategory;
 
 use crate::metrics_extraction::generic::{self, Extractable};

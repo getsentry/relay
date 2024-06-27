@@ -25,11 +25,13 @@ impl MetricsSummary {
 
     /// Merges a [`MetricsSummary`] into itself.
     ///
-    /// The merge operation purposefully concatenates the metrics of the same name even if they have the
-    /// same tags in order to make the implementation simpler. This is not a big deal since ClickHouse
-    /// will correctly merge data on its own, so it's mostly going to cause bigger payloads.
+    /// The merge operation concatenates tags of the same metric even if they are identical for the
+    /// sake of simplicity. This doesn't cause issues for us, under the assumption that the two
+    /// summaries do not have overlapping metric names (which is the case for us since summaries
+    /// computed by the SDKs have metric names that are different from the ones we generate in
+    /// Relay).
     ///
-    /// We do not expect this merge to happen very frequently because SDKs should stop sending summaries.
+    /// Do not use this function to merge any arbitrary [`MetricsSummary`]s.
     pub fn merge(&mut self, metrics_summary: MetricsSummary) {
         for (metric_name, metrics) in metrics_summary.0 {
             let original_metrics = self.0.entry(metric_name).or_insert(Annotated::new(vec![]));

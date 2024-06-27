@@ -198,10 +198,7 @@ pub fn compute(buckets: &[Bucket]) -> Option<MetricsSummary> {
 mod tests {
     use crate::metrics_extraction::metrics_summary::MetricsSummaryAggregator;
     use relay_common::time::UnixTimestamp;
-    use relay_event_schema::protocol::MetricsSummary;
     use relay_metrics::Bucket;
-    use relay_protocol::Annotated;
-    use std::collections::BTreeMap;
 
     fn build_buckets(slice: &[u8]) -> Vec<Bucket> {
         Bucket::parse_all(slice, UnixTimestamp::now())
