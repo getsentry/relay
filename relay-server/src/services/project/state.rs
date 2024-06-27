@@ -5,8 +5,6 @@ use relay_config::Config;
 use relay_dynamic_config::ProjectConfig;
 use tokio::time::Instant;
 
-use crate::envelope::Envelope;
-use crate::services::outcome::DiscardReason;
 use crate::services::project::{ParsedProjectState, ProjectInfo};
 
 #[derive(Clone, Debug)]
@@ -53,58 +51,6 @@ impl ProjectFetchState {
             last_fetch,
             state: state.sanitize(),
         }
-    }
-
-    /// Determines whether the given envelope should be accepted or discarded.
-    ///
-    /// Returns `Ok(())` if the envelope should be accepted. Returns `Err(DiscardReason)` if the
-    /// envelope should be discarded, by indicating the reason. The checks preformed for this are:
-    ///
-    ///  - Allowed origin headers
-    ///  - Disabled or unknown projects
-    ///  - Disabled project keys (DSN)
-    ///  - Feature flags
-    pub fn check_envelope(
-        &self,
-        envelope: &Envelope,
-        config: &Config,
-    ) -> Result<(), DiscardReason> {
-        let project_info = match self.current_state(config) {
-            CurrentState::Enabled(info) => info,
-            CurrentState::Disabled => {
-                return Err(DiscardReason::ProjectId);
-            }
-            CurrentState::Pending => return Ok(()),
-        };
-
-        // Verify that the stated project id in the DSN matches the public key used to retrieve this
-        // project state.
-        let meta = envelope.meta();
-        if !project_info.is_valid_project_id(meta.project_id(), config) {
-            return Err(DiscardReason::ProjectId);
-        }
-
-        // Try to verify the request origin with the project config.
-        if !project_info.is_valid_origin(meta.origin()) {
-            return Err(DiscardReason::Cors);
-        }
-
-        // sanity-check that the state has a matching public key loaded.
-        if !project_info.is_matching_key(meta.public_key()) {
-            relay_log::error!("public key mismatch on state {}", meta.public_key());
-            return Err(DiscardReason::ProjectId);
-        }
-
-        // Check feature.
-        if let Some(disabled_feature) = envelope
-            .required_features()
-            .iter()
-            .find(|f| !project_info.has_feature(**f))
-        {
-            return Err(DiscardReason::FeatureDisabled(*disabled_feature));
-        }
-
-        Ok(())
     }
 
     pub fn never_fetched() -> Self {

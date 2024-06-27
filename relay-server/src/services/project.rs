@@ -23,13 +23,14 @@ use smallvec::SmallVec;
 use tokio::time::Instant;
 use url::Url;
 
+use crate::envelope::Envelope;
 use crate::extractors::RequestMeta;
 use crate::metrics::{MetricOutcomes, MetricsLimiter};
 use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
 #[cfg(feature = "processing")]
 use crate::services::processor::RateLimitBuckets;
 use crate::services::processor::{EncodeMetricMeta, EnvelopeProcessor};
-use crate::services::project::metrics::filter_namespaces;
+use crate::services::project::metrics::{apply_project_info, filter_namespaces};
 use crate::services::project::state::ExpiryState;
 use crate::services::project_cache::{BucketSource, CheckedEnvelope, ProjectCache, RequestUpdate};
 
@@ -132,12 +133,56 @@ impl ProjectInfo {
         &self.config
     }
 
+    /// Determines whether the given envelope should be accepted or discarded.
+    ///
+    /// Returns `Ok(())` if the envelope should be accepted. Returns `Err(DiscardReason)` if the
+    /// envelope should be discarded, by indicating the reason. The checks preformed for this are:
+    ///
+    ///  - Allowed origin headers
+    ///  - Disabled or unknown projects
+    ///  - Disabled project keys (DSN)
+    ///  - Feature flags
+    pub fn check_envelope(
+        &self,
+        envelope: &Envelope,
+        config: &Config,
+    ) -> Result<(), DiscardReason> {
+        // Verify that the stated project id in the DSN matches the public key used to retrieve this
+        // project state.
+        let meta = envelope.meta();
+        if !self.is_valid_project_id(meta.project_id(), config) {
+            return Err(DiscardReason::ProjectId);
+        }
+
+        // Try to verify the request origin with the project config.
+        if !self.is_valid_origin(meta.origin()) {
+            return Err(DiscardReason::Cors);
+        }
+
+        // sanity-check that the state has a matching public key loaded.
+        if !self.is_matching_key(meta.public_key()) {
+            relay_log::error!("public key mismatch on state {}", meta.public_key());
+            return Err(DiscardReason::ProjectId);
+        }
+
+        // Check feature.
+        if let Some(disabled_feature) = envelope
+            .required_features()
+            .iter()
+            .find(|f| !self.has_feature(**f))
+        {
+            return Err(DiscardReason::FeatureDisabled(*disabled_feature));
+        }
+
+        Ok(())
+    }
+
     /// Returns `true` if the given project ID matches this project.
     ///
     /// If the project state has not been loaded, this check is skipped because the project
     /// identifier is not yet known. Likewise, this check is skipped for the legacy store endpoint
     /// which comes without a project ID. The id is later overwritten in `check_envelope`.
-    pub fn is_valid_project_id(&self, stated_id: Option<ProjectId>, config: &Config) -> bool {
+    fn is_valid_project_id(&self, stated_id: Option<ProjectId>, config: &Config) -> bool {
         match (self.project_id, stated_id, config.override_project_ids()) {
             (Some(actual_id), Some(stated_id), false) => actual_id == stated_id,
             _ => true,
@@ -170,7 +215,7 @@ impl ProjectInfo {
     ///
     /// This is a sanity check since project states are keyed by the DSN public key. Unless the
     /// state is invalid or unloaded, it must always match the public key.
-    pub fn is_matching_key(&self, project_key: ProjectKey) -> bool {
+    fn is_matching_key(&self, project_key: ProjectKey) -> bool {
         if let Some(key_config) = self.get_public_key_config() {
             // Always validate if we have a key config.
             key_config.public_key == project_key
@@ -261,7 +306,7 @@ pub struct PublicKeyConfig {
 
 #[derive(Debug)]
 struct StateChannel {
-    inner: BroadcastChannel<Arc<ProjectInfo>>,
+    inner: BroadcastChannel<ProjectState>,
     no_cache: bool,
 }
 
@@ -754,7 +799,11 @@ impl Project {
         mut envelope: ManagedEnvelope,
         outcome_aggregator: Addr<TrackOutcome>,
     ) -> Result<CheckedEnvelope, DiscardReason> {
-        let state = self.non_expired_state().filter(|state| !state.invalid());
+        let state = match self.current_state() {
+            CurrentState::Enabled(state) => Some(state.clone()),
+            CurrentState::Disabled => return Err(DiscardReason::ProjectId),
+            CurrentState::Pending => None,
+        };
         let mut scoping = envelope.scoping();
 
         if let Some(ref state) = state {
@@ -831,7 +880,7 @@ impl Project {
             return CheckedBuckets::Dropped;
         };
 
-        let mut buckets = project_info(buckets, metric_outcomes, &project_info, scoping);
+        let mut buckets = apply_project_info(buckets, metric_outcomes, &project_info, scoping);
 
         let namespaces: BTreeSet<MetricNamespace> = buckets
             .iter()

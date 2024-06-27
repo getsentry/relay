@@ -1005,7 +1005,7 @@ impl ProjectCacheBroker {
             project
                 .get_cached_state(self.services.project_cache.clone(), false)
                 // Makes sure that the state also is valid.
-                .map_or(false, |state| !state.invalid())
+                .is_some_and(|state| !matches!(state, ProjectState::Invalid))
         });
 
         let is_sampling_state_valid = if own_key != sampling_key {
@@ -1017,7 +1017,7 @@ impl ProjectCacheBroker {
                     project
                         .get_cached_state(self.services.project_cache.clone(), false)
                         // Makes sure that the state also is valid.
-                        .map_or(false, |state| !state.invalid())
+                        .is_some_and(|state| !matches!(state, ProjectState::Invalid))
                 })
         } else {
             is_own_state_valid

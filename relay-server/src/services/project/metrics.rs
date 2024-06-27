@@ -22,7 +22,7 @@ pub fn filter_namespaces(mut buckets: Vec<Bucket>, source: BucketSource) -> Vec<
     buckets
 }
 
-pub fn project_info(
+pub fn apply_project_info(
     mut buckets: Vec<Bucket>,
     metric_outcomes: &MetricOutcomes,
     project_info: &ProjectInfo,
@@ -179,7 +179,7 @@ mod tests {
         let b2 = create_custom_bucket_with_name("memory_usage".into());
         let buckets = vec![b1.clone(), b2.clone()];
 
-        let buckets = project_info(
+        let buckets = apply_project_info(
             buckets,
             &metric_outcomes,
             &project_state,
@@ -217,7 +217,7 @@ mod tests {
         let b2 = create_custom_bucket_with_name("memory_usage".into());
         let buckets = vec![b1.clone(), b2.clone()];
 
-        let buckets = project_info(
+        let buckets = apply_project_info(
             buckets,
             &metric_outcomes,
             &ProjectInfo::allowed(),
