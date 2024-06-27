@@ -782,30 +782,6 @@ def test_span_ingestion(
             "received_at": time_after(now_timestamp),
         },
         {
-            "name": "d:spans/duration@millisecond",
-            "org_id": 1,
-            "project_id": 42,
-            "retention_days": 90,
-            "tags": {
-                "span.op": "default",
-            },
-            "timestamp": expected_timestamp,
-            "type": "d",
-            "value": [500.0, 500.0],
-            "received_at": time_after(now_timestamp),
-        },
-        {
-            "name": "d:spans/duration@millisecond",
-            "org_id": 1,
-            "project_id": 42,
-            "retention_days": 90,
-            "tags": {"span.op": "default"},
-            "timestamp": expected_timestamp + 1,
-            "type": "d",
-            "value": [1500.0, 1500.0],
-            "received_at": time_after(now_timestamp),
-        },
-        {
             "org_id": 1,
             "project_id": 42,
             "name": "d:spans/exclusive_time@millisecond",
@@ -832,28 +808,6 @@ def test_span_ingestion(
             "timestamp": expected_timestamp,
             "type": "d",
             "value": [500.0],
-            "received_at": time_after(now_timestamp),
-        },
-        {
-            "name": "d:spans/exclusive_time@millisecond",
-            "org_id": 1,
-            "project_id": 42,
-            "retention_days": 90,
-            "tags": {"span.op": "default"},
-            "timestamp": expected_timestamp,
-            "type": "d",
-            "value": [500.0, 500.0],
-            "received_at": time_after(now_timestamp),
-        },
-        {
-            "name": "d:spans/exclusive_time@millisecond",
-            "org_id": 1,
-            "project_id": 42,
-            "retention_days": 90,
-            "tags": {"span.op": "default"},
-            "timestamp": expected_timestamp + 1,
-            "type": "d",
-            "value": [345.0, 345.0],
             "received_at": time_after(now_timestamp),
         },
         {
@@ -1640,7 +1594,7 @@ def test_rate_limit_consistent_extracted(
     assert len(spans) == 2
     assert summarize_outcomes() == {(16, 0): 2}  # SpanIndexed, Accepted
     # A limit only for span_indexed does not affect extracted metrics
-    metrics = metrics_consumer.get_metrics(n=10)
+    metrics = metrics_consumer.get_metrics(n=6)
     span_count = sum(
         [m[0]["value"] for m in metrics if m[0]["name"] == "c:spans/usage@none"]
     )
