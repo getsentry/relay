@@ -1632,7 +1632,8 @@ impl EnvelopeProcessorService {
             &self.inner.global_config.current(),
         )?;
 
-        profile::filter(state);
+        let profile_id = profile::filter(state);
+        profile::transfer_id(state, profile_id);
 
         if_processing!(self.inner.config, {
             attachment::create_placeholders(state);
@@ -1661,7 +1662,7 @@ impl EnvelopeProcessorService {
             // Before metric extraction to make sure the profile count is reflected correctly.
             let profile_id = match keep_profiles {
                 true => profile::process(state, &self.inner.config),
-                false => None,
+                false => profile_id,
             };
 
             // Extract metrics here, we're about to drop the event/transaction.

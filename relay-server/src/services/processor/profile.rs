@@ -16,7 +16,7 @@ use crate::utils::ItemAction;
 /// Filters out invalid and duplicate profiles.
 ///
 /// Returns the profile id of the single remaining profile, if there is one.
-pub fn filter<G>(state: &mut ProcessEnvelopeState<G>) {
+pub fn filter<G>(state: &mut ProcessEnvelopeState<G>) -> Option<ProfileId> {
     let profiling_enabled = state.project_state.has_feature(Feature::Profiling);
     let has_transaction = state.event_type() == Some(EventType::Transaction);
     let keep_unsampled_profiles = state
@@ -55,11 +55,18 @@ pub fn filter<G>(state: &mut ProcessEnvelopeState<G>) {
         _ => ItemAction::Keep,
     });
 
-    // Transfers the profile ID from the profile item to the transaction item.
-    //
-    // The profile id may be `None` when the envelope does not contain a profile,
-    // in that case the profile context is removed.
-    // Some SDKs send transactions with profile ids but omit the profile in the envelope.
+    profile_id
+}
+
+/// Transfers the profile ID from the profile item to the transaction item.
+///
+/// The profile id may be `None` when the envelope does not contain a profile,
+/// in that case the profile context is removed.
+/// Some SDKs send transactions with profile ids but omit the profile in the envelope.
+pub fn transfer_id(
+    state: &mut ProcessEnvelopeState<TransactionGroup>,
+    profile_id: Option<ProfileId>,
+) {
     let Some(event) = state.event.value_mut() else {
         return;
     };
