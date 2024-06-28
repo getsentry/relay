@@ -7,7 +7,7 @@ use relay_protocol::{Annotated, Empty, FromValue, Getter, IntoValue, Object, Val
 use crate::processor::ProcessValue;
 use crate::protocol::{
     EventId, JsonLenientString, LenientString, Measurements, MetricsSummary, OperationType,
-    OriginType, SpanId, SpanStatus, Timestamp, TraceId,
+    OriginType, SpanId, SpanStatus, ThreadId, Timestamp, TraceId,
 };
 
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
@@ -313,6 +313,10 @@ pub struct SpanData {
     /// Label identifying a thread from where the span originated.
     #[metastructure(field = "thread.name")]
     pub thread_name: Annotated<Value>,
+
+    /// ID of thread from where the span originated.
+    #[metastructure(field = "thread.id")]
+    pub thread_id: Annotated<ThreadId>,
 
     /// Name of the segment that this span belongs to (see `segment_id`).
     ///
