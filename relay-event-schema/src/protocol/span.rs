@@ -677,6 +677,7 @@ mod tests {
             ai_input_messages: ~,
             ai_responses: ~,
             thread_name: ~,
+            thread_id: ~,
             segment_name: ~,
             ui_component_name: ~,
             url_scheme: ~,
