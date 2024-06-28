@@ -2124,13 +2124,9 @@ def test_metrics_summary_with_standalone_spans(
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = [
-        "organizations:custom-metrics",
         "projects:span-metrics-extraction",
         "organizations:standalone-span-ingestion",
     ]
-    project_config["config"]["transactionMetrics"] = {
-        "version": TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION,
-    }
 
     duration = timedelta(milliseconds=500)
     now = datetime.now(timezone.utc)
