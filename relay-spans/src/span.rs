@@ -654,6 +654,7 @@ mod tests {
                 ai_input_messages: ~,
                 ai_responses: ~,
                 thread_name: ~,
+                thread_id: ~,
                 segment_name: "my 1st transaction",
                 ui_component_name: ~,
                 url_scheme: ~,
