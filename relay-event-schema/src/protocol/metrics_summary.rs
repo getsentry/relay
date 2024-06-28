@@ -35,7 +35,6 @@ impl MetricsSummary {
     pub fn merge(&mut self, metrics_summary: MetricsSummary) {
         for (metric_name, metrics) in metrics_summary.0 {
             let original_metrics = self.0.entry(metric_name).or_insert(Annotated::new(vec![]));
-
             match (original_metrics.value_mut(), metrics.0) {
                 (Some(original_metrics), Some(metrics)) => {
                     original_metrics.extend(metrics);

@@ -164,7 +164,7 @@ pub fn process(
             if let Some(metrics_summary) = metrics_summary::compute(&metrics) {
                 span._metrics_summary
                     .get_or_insert_with(MetricsSummary::empty)
-                    .merge(metrics_summary)
+                    .merge(metrics_summary);
             }
 
             state

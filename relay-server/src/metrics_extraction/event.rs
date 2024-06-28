@@ -77,7 +77,7 @@ fn extract_span_metrics_for_event(
                 event
                     ._metrics_summary
                     .get_or_insert_with(MetricsSummary::empty)
-                    .merge(metrics_summary)
+                    .merge(metrics_summary);
             }
             output.extend(metrics);
         }
@@ -87,10 +87,9 @@ fn extract_span_metrics_for_event(
                 if let Some(span) = annotated_span.value_mut() {
                     let metrics = generic::extract_metrics(span, config);
                     if let Some(metrics_summary) = metrics_summary::compute(&metrics) {
-                        event
-                            ._metrics_summary
+                        span._metrics_summary
                             .get_or_insert_with(MetricsSummary::empty)
-                            .merge(metrics_summary)
+                            .merge(metrics_summary);
                     }
                     output.extend(metrics);
                 }
@@ -1793,8 +1792,8 @@ mod tests {
                         "d:spans/duration@millisecond": [
                             {
                                 "min": 50.0,
-                                "max": 100.0,
-                                "sum": 150.0,
+                                "max": 60.0,
+                                "sum": 100.0,
                                 "count": 2,
                                 "tags": {
                                     "app_start_type": "warm",

@@ -15,6 +15,16 @@ MetricsSummary(
         ],
         "d:spans/duration@millisecond": [
             MetricSummary {
+                min: 50.0,
+                max: 60.0,
+                sum: 100.0,
+                count: 2,
+                tags: {
+                    "app_start_type": "warm",
+                    "device.class": "1",
+                },
+            },
+            MetricSummary {
                 min: 3000.0,
                 max: 3000.0,
                 sum: 3000.0,
