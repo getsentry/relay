@@ -13,6 +13,7 @@
 - Aggregate metrics before rate limiting. ([#3746](https://github.com/getsentry/relay/pull/3746))
 - Add web vitals support for mobile browsers. ([#3762](https://github.com/getsentry/relay/pull/3762))
 - Accept profiler_id in the profile context. ([#3714](https://github.com/getsentry/relay/pull/3714))
+- Add ability to compute metrics summary on the extracted metrics. ([#3769](https://github.com/getsentry/relay/pull/3769))
 
 ## 24.6.0
 
