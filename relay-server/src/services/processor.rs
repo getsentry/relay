@@ -705,6 +705,13 @@ impl ProcessingExtractedMetrics {
                     *counter = counter.saturating_mul(factor);
                 }
                 BucketValue::Distribution(ref mut dist) => {
+                    // Duplicate values in the distribution to ensure that higher sample rates are
+                    // represented correctly in the final distribution sketch. This is inefficient
+                    // and there are two ways to optimize this:
+                    //  1. Store the sample rate or weight directly in the distribution structure.
+                    //     Then duplicate on the fly in the kafka producer.
+                    //  2. Change the schema to include sample rates or weights and then extrapolate
+                    //     in storage.
                     *dist = std::mem::take(dist)
                         .into_iter()
                         .flat_map(|f| std::iter::repeat(f).take(duplication))
@@ -1260,7 +1267,11 @@ impl EnvelopeProcessorService {
         let extracted_metrics = ProcessingExtractedMetrics::new(
             project_state.clone(),
             global_config,
-            managed_envelope.envelope().dsc(), // TODO(ja): this is fine
+            // The processor sometimes computes a DSC just-in-time for dynamic sampling if it is not
+            // provided by the SDK so that trace rules can still match. Metric extraction won't see
+            // this generated DSC. However, metric extraction just needs the client sample rate,
+            // which is never affected by this. Hence, this operation is safe.
+            managed_envelope.envelope().dsc(),
         );
 
         ProcessEnvelopeState {
