@@ -2045,3 +2045,108 @@ def test_dynamic_sampling(
 
     spans_consumer.assert_empty()
     outcomes_consumer.assert_empty()
+
+
+def test_metrics_summary_with_extracted_spans(
+    mini_sentry,
+    relay_with_processing,
+    metrics_summaries_consumer,
+):
+    metrics_summaries_consumer = metrics_summaries_consumer()
+
+    relay = relay_with_processing()
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = [
+        "organizations:custom-metrics",
+        "projects:span-metrics-extraction",
+        "organizations:indexed-spans-extraction",
+    ]
+    project_config["config"]["transactionMetrics"] = {
+        "version": TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION,
+    }
+
+    event = make_transaction({"event_id": "cbf6960622e14a45abc1f03b2055b186"})
+    end = datetime.now(timezone.utc) - timedelta(seconds=1)
+    duration = timedelta(milliseconds=500)
+    start = end - duration
+    event["spans"] = [
+        {
+            "description": "GET /api/0/organizations/?member=1",
+            "op": "http",
+            "origin": "manual",
+            "parent_span_id": "aaaaaaaaaaaaaaaa",
+            "span_id": "bbbbbbbbbbbbbbbb",
+            "start_timestamp": start.isoformat(),
+            "status": "success",
+            "timestamp": end.isoformat(),
+            "trace_id": "ff62a8b040f340bda5d830223def1d81",
+        },
+    ]
+
+    mri = "c:spans/some_metric@none"
+    metrics_summary = {
+        mri: [
+            {
+                "min": 1.0,
+                "max": 2.0,
+                "sum": 3.0,
+                "count": 4,
+                "tags": {
+                    "environment": "test",
+                },
+            },
+        ],
+    }
+    event["_metrics_summary"] = metrics_summary
+
+    relay.send_event(project_id, event)
+
+    metrics_summaries = metrics_summaries_consumer.get_metrics_summaries(n=7)
+    expected_mris = [
+        "d:spans/exclusive_time@millisecond",
+        "c:spans/some_metric@none",
+        "d:spans/duration@millisecond",
+        "c:spans/usage@none",
+    ]
+    for metric_summary in metrics_summaries:
+        assert metric_summary["mri"] in expected_mris
+
+
+def test_metrics_summary_with_standalone_spans(
+    mini_sentry,
+    relay_with_processing,
+    metrics_summaries_consumer,
+):
+    metrics_summaries_consumer = metrics_summaries_consumer()
+
+    relay = relay_with_processing()
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = [
+        "organizations:custom-metrics",
+        "projects:span-metrics-extraction",
+        "organizations:standalone-span-ingestion",
+    ]
+    project_config["config"]["transactionMetrics"] = {
+        "version": TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION,
+    }
+
+    duration = timedelta(milliseconds=500)
+    now = datetime.now(timezone.utc)
+    end = now - timedelta(seconds=1)
+    start = end - duration
+
+    envelope = envelope_with_spans(start, end)
+    relay.send_envelope(project_id, envelope)
+
+    metrics_summaries = metrics_summaries_consumer.get_metrics_summaries(n=14)
+    expected_mris = [
+        "d:spans/exclusive_time@millisecond",
+        "d:spans/exclusive_time_light@millisecond",
+        "c:spans/some_metric@none",
+        "d:spans/duration@millisecond",
+        "c:spans/usage@none",
+    ]
+    for metric_summary in metrics_summaries:
+        assert metric_summary["mri"] in expected_mris
