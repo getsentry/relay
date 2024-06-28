@@ -20,11 +20,11 @@ struct MetricsSummaryBucketKey {
 #[derive(Debug)]
 struct MetricsSummaryBucketValue {
     /// The minimum value reported in the bucket.
-    pub min: FiniteF64,
+    pub min: Option<FiniteF64>,
     /// The maximum value reported in the bucket.
-    pub max: FiniteF64,
+    pub max: Option<FiniteF64>,
     /// The sum of all values reported in the bucket.
-    pub sum: FiniteF64,
+    pub sum: Option<FiniteF64>,
     /// The number of times this bucket was updated with a new value.
     pub count: u64,
 }
@@ -44,9 +44,9 @@ impl MetricsSummaryBucketValue {
     /// Builds a [`MetricsSummaryBucketValue`] from a [`CounterType`].
     fn from_counter(counter: &CounterType) -> MetricsSummaryBucketValue {
         MetricsSummaryBucketValue {
-            min: *counter,
-            max: *counter,
-            sum: *counter,
+            min: Some(*counter),
+            max: Some(*counter),
+            sum: Some(*counter),
             count: 1,
         }
     }
@@ -64,9 +64,9 @@ impl MetricsSummaryBucketValue {
         }
 
         MetricsSummaryBucketValue {
-            min,
-            max,
-            sum,
+            min: Some(min),
+            max: Some(max),
+            sum: Some(sum),
             count: distribution.len() as u64,
         }
     }
@@ -75,9 +75,9 @@ impl MetricsSummaryBucketValue {
     fn from_set(set: &SetValue) -> MetricsSummaryBucketValue {
         // For sets, we limit to counting the number of occurrences.
         MetricsSummaryBucketValue {
-            min: FiniteF64::new(0.0).unwrap(),
-            max: FiniteF64::new(0.0).unwrap(),
-            sum: FiniteF64::new(0.0).unwrap(),
+            min: None,
+            max: None,
+            sum: None,
             count: set.len() as u64,
         }
     }
@@ -85,9 +85,9 @@ impl MetricsSummaryBucketValue {
     /// Builds a [`MetricsSummaryBucketValue`] from a [`GaugeValue`].
     fn from_gauge(gauge: &GaugeValue) -> MetricsSummaryBucketValue {
         MetricsSummaryBucketValue {
-            min: gauge.min,
-            max: gauge.max,
-            sum: gauge.sum,
+            min: Some(gauge.min),
+            max: Some(gauge.max),
+            sum: Some(gauge.sum),
             count: gauge.count,
         }
     }
@@ -97,7 +97,12 @@ impl MetricsSummaryBucketValue {
     fn merge(&mut self, other: MetricsSummaryBucketValue) {
         self.min = std::cmp::min(self.min, other.min);
         self.max = std::cmp::max(self.max, other.max);
-        self.sum = self.sum.saturating_add(other.sum);
+        self.sum = match (self.sum, other.sum) {
+            (Some(sum), Some(other_sum)) => Some(sum.saturating_add(other_sum)),
+            (None, Some(other_sum)) => Some(other_sum),
+            (Some(sum), None) => Some(sum),
+            _ => None,
+        };
         self.count += other.count;
     }
 }
@@ -164,9 +169,15 @@ impl MetricsSummaryAggregator {
                 .collect();
 
             let metric_summary = MetricSummary {
-                min: Annotated::new(value.min.to_f64()),
-                max: Annotated::new(value.max.to_f64()),
-                sum: Annotated::new(value.sum.to_f64()),
+                min: value
+                    .min
+                    .map_or(Annotated::empty(), |m| Annotated::new(m.to_f64())),
+                max: value
+                    .max
+                    .map_or(Annotated::empty(), |m| Annotated::new(m.to_f64())),
+                sum: value
+                    .sum
+                    .map_or(Annotated::empty(), |m| Annotated::new(m.to_f64())),
                 count: Annotated::new(value.count),
                 tags: Annotated::new(tags),
             };
@@ -291,18 +302,18 @@ mod tests {
             {
                 "s:custom/my_set@none": [
                     MetricSummary {
-                        min: 0.0,
-                        max: 0.0,
-                        sum: 0.0,
+                        min: ~,
+                        max: ~,
+                        sum: ~,
                         count: 2,
                         tags: {
                             "platform": "android",
                         },
                     },
                     MetricSummary {
-                        min: 0.0,
-                        max: 0.0,
-                        sum: 0.0,
+                        min: ~,
+                        max: ~,
+                        sum: ~,
                         count: 2,
                         tags: {
                             "platform": "ios",
