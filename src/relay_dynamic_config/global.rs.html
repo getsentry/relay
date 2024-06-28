@@ -563,6 +563,19 @@
 <a href="#563" id="563">563</a>
 <a href="#564" id="564">564</a>
 <a href="#565" id="565">565</a>
+<a href="#566" id="566">566</a>
+<a href="#567" id="567">567</a>
+<a href="#568" id="568">568</a>
+<a href="#569" id="569">569</a>
+<a href="#570" id="570">570</a>
+<a href="#571" id="571">571</a>
+<a href="#572" id="572">572</a>
+<a href="#573" id="573">573</a>
+<a href="#574" id="574">574</a>
+<a href="#575" id="575">575</a>
+<a href="#576" id="576">576</a>
+<a href="#577" id="577">577</a>
+<a href="#578" id="578">578</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::btree_map::Entry;
 <span class="kw">use </span>std::collections::HashMap;
 <span class="kw">use </span>std::fs::File;
@@ -801,6 +814,19 @@
         skip_serializing_if = <span class="string">"is_default"
     </span>)]
     </span><span class="kw">pub </span>processing_disable_normalization: bool,
+
+    <span class="doccomment">/// The maximum duplication factor used to extrapolate distribution metrics from sampled data.
+    ///
+    /// This applies as long as Relay duplicates distribution values to extrapolate. The default is
+    /// `0`, which disables extrapolation of distributions completely. This option does not apply to
+    /// any other metric types.
+    </span><span class="attr">#[serde(
+        default,
+        rename = <span class="string">"sentry-metrics.extrapolation.duplication-limit"</span>,
+        deserialize_with = <span class="string">"default_on_error"</span>,
+        skip_serializing_if = <span class="string">"is_default"
+    </span>)]
+    </span><span class="kw">pub </span>extrapolation_duplication_limit: usize,
 
     <span class="doccomment">/// All other unknown options.
     </span><span class="attr">#[serde(flatten)]

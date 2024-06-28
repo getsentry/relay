@@ -371,6 +371,11 @@
 <a href="#371" id="371">371</a>
 <a href="#372" id="372">372</a>
 <a href="#373" id="373">373</a>
+<a href="#374" id="374">374</a>
+<a href="#375" id="375">375</a>
+<a href="#376" id="376">376</a>
+<a href="#377" id="377">377</a>
+<a href="#378" id="378">378</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::cmp::Ordering;
 <span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::hash::{Hash, Hasher};
@@ -453,6 +458,11 @@
     <span class="doccomment">/// Multiplies two numbers, saturating at the maximum and minimum representable values.
     </span><span class="kw">pub fn </span>saturating_mul(<span class="self">self</span>, other: <span class="self">Self</span>) -&gt; <span class="self">Self </span>{
         <span class="self">Self</span>((<span class="self">self</span>.<span class="number">0 </span>* other.<span class="number">0</span>).clamp(f64::MIN, f64::MAX))
+    }
+
+    <span class="doccomment">/// Divides two numbers, saturating at the maximum and minimum representable values.
+    </span><span class="kw">pub fn </span>saturating_div(<span class="self">self</span>, other: <span class="self">Self</span>) -&gt; <span class="self">Self </span>{
+        <span class="self">Self</span>((<span class="self">self</span>.<span class="number">0 </span>/ other.<span class="number">0</span>).clamp(f64::MIN, f64::MAX))
     }
 
     <span class="comment">// NB: There is no saturating_div, since 0/0 is NaN, which is not finite.

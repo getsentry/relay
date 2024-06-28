@@ -789,6 +789,20 @@
 <a href="#789" id="789">789</a>
 <a href="#790" id="790">790</a>
 <a href="#791" id="791">791</a>
+<a href="#792" id="792">792</a>
+<a href="#793" id="793">793</a>
+<a href="#794" id="794">794</a>
+<a href="#795" id="795">795</a>
+<a href="#796" id="796">796</a>
+<a href="#797" id="797">797</a>
+<a href="#798" id="798">798</a>
+<a href="#799" id="799">799</a>
+<a href="#800" id="800">800</a>
+<a href="#801" id="801">801</a>
+<a href="#802" id="802">802</a>
+<a href="#803" id="803">803</a>
+<a href="#804" id="804">804</a>
+<a href="#805" id="805">805</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Dynamic sampling processor related code.
 
 </span><span class="kw">use </span>std::ops::ControlFlow;
@@ -1067,7 +1081,9 @@
 
     <span class="kw">use </span><span class="kw">crate</span>::envelope::{ContentType, Envelope, Item};
     <span class="kw">use </span><span class="kw">crate</span>::extractors::RequestMeta;
-    <span class="kw">use </span><span class="kw">crate</span>::services::processor::{ProcessEnvelope, ProcessingGroup, SpanGroup};
+    <span class="kw">use </span><span class="kw">crate</span>::services::processor::{
+        ProcessEnvelope, ProcessingExtractedMetrics, ProcessingGroup, SpanGroup,
+    };
     <span class="kw">use </span><span class="kw">crate</span>::services::project::ProjectState;
     <span class="kw">use </span><span class="kw">crate</span>::testutils::{
         <span class="self">self</span>, create_test_processor, new_envelope, state_with_rule_and_condition,
@@ -1243,16 +1259,23 @@
                     .into();
             }
 
+            <span class="kw">let </span>project_state = Arc::new(project_state);
+            <span class="kw">let </span>envelope = new_envelope(<span class="bool-val">false</span>, <span class="string">"foo"</span>);
+
             ProcessEnvelopeState::&lt;TransactionGroup&gt; {
                 event: Annotated::from(event),
                 metrics: Default::default(),
                 sample_rates: <span class="prelude-val">None</span>,
-                extracted_metrics: Default::default(),
-                project_state: Arc::new(project_state),
+                extracted_metrics: ProcessingExtractedMetrics::new(
+                    project_state.clone(),
+                    Arc::new(GlobalConfig::default()),
+                    envelope.dsc(),
+                ),
+                project_state,
                 sampling_project_state: <span class="prelude-val">None</span>,
                 project_id: ProjectId::new(<span class="number">42</span>),
                 managed_envelope: ManagedEnvelope::new(
-                    new_envelope(<span class="bool-val">false</span>, <span class="string">"foo"</span>),
+                    envelope,
                     TestSemaphore::new(<span class="number">42</span>).try_acquire().unwrap(),
                     outcome_aggregator.clone(),
                     test_store.clone(),
@@ -1500,6 +1523,15 @@
     <span class="kw">where
         </span>G: Sampling + TryFrom&lt;ProcessingGroup&gt;,
     {
+        <span class="kw">let </span>project_state = {
+            <span class="kw">let </span><span class="kw-2">mut </span>state = ProjectState::allowed();
+            state.config.transaction_metrics = <span class="prelude-val">Some</span>(ErrorBoundary::Ok(TransactionMetricsConfig {
+                version: <span class="number">1</span>,
+                ..Default::default()
+            }));
+            Arc::new(state)
+        };
+
         <span class="kw">let </span>bytes = Bytes::from(
             <span class="string">r#"{"dsn":"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42","trace":{"trace_id":"89143b0763095bd9c9955e8175d1fb23","public_key":"e12d836b15bb49d7bbf99e64295d995b"}}"#</span>,
         );
@@ -1510,16 +1542,12 @@
             spans_extracted: <span class="bool-val">false</span>,
             metrics: Default::default(),
             sample_rates: Default::default(),
-            extracted_metrics: Default::default(),
-            project_state: {
-                <span class="kw">let </span><span class="kw-2">mut </span>state = ProjectState::allowed();
-                state.config.transaction_metrics =
-                    <span class="prelude-val">Some</span>(ErrorBoundary::Ok(TransactionMetricsConfig {
-                        version: <span class="number">1</span>,
-                        ..Default::default()
-                    }));
-                Arc::new(state)
-            },
+            extracted_metrics: ProcessingExtractedMetrics::new(
+                project_state.clone(),
+                Arc::new(GlobalConfig::default()),
+                envelope.dsc(),
+            ),
+            project_state,
             sampling_project_state: {
                 <span class="kw">let </span><span class="kw-2">mut </span>state = ProjectState::allowed();
                 state.config.metric_extraction =
