@@ -360,4 +360,73 @@ mod tests {
         )
         "###);
     }
+
+    #[test]
+    fn test_merge_buckets() {
+        let mut buckets =
+            build_buckets(b"my_counter:3|c|#platform:ios\nmy_counter:2|c|#platform:ios");
+        buckets.extend(build_buckets(
+            b"my_dist:3.0:5.0|d|#platform:ios\nmy_dist:2.0:4.0|d|#platform:ios",
+        ));
+        buckets.extend(build_buckets(
+            b"my_set:3.0:5.0|s|#platform:ios\nmy_set:2.0:4.0|s|#platform:ios",
+        ));
+        buckets.extend(build_buckets(
+            b"my_gauge:3.0|g|#platform:ios\nmy_gauge:2.0|g|#platform:ios",
+        ));
+
+        let aggregator = MetricsSummaryAggregator::from_buckets(&buckets);
+        let metrics_summary = aggregator.build_metrics_summary();
+
+        insta::assert_debug_snapshot!(metrics_summary, @r###"
+        MetricsSummary(
+            {
+                "c:custom/my_counter@none": [
+                    MetricSummary {
+                        min: 2.0,
+                        max: 3.0,
+                        sum: 5.0,
+                        count: 2,
+                        tags: {
+                            "platform": "ios",
+                        },
+                    },
+                ],
+                "d:custom/my_dist@none": [
+                    MetricSummary {
+                        min: 2.0,
+                        max: 5.0,
+                        sum: 14.0,
+                        count: 4,
+                        tags: {
+                            "platform": "ios",
+                        },
+                    },
+                ],
+                "g:custom/my_gauge@none": [
+                    MetricSummary {
+                        min: 2.0,
+                        max: 3.0,
+                        sum: 5.0,
+                        count: 2,
+                        tags: {
+                            "platform": "ios",
+                        },
+                    },
+                ],
+                "s:custom/my_set@none": [
+                    MetricSummary {
+                        min: ~,
+                        max: ~,
+                        sum: ~,
+                        count: 4,
+                        tags: {
+                            "platform": "ios",
+                        },
+                    },
+                ],
+            },
+        )
+        "###);
+    }
 }
