@@ -33,7 +33,7 @@ use crate::services::processor::{
     ProcessingGroup, SpanGroup, TransactionGroup,
 };
 use crate::statsd::{RelayCounters, RelayHistograms};
-use crate::utils::{is_rolled_out, sample, BufferGuard, ItemAction};
+use crate::utils::{sample, BufferGuard, ItemAction};
 use relay_event_normalization::span::ai::extract_ai_measurements;
 use thiserror::Error;
 
@@ -154,17 +154,18 @@ pub fn process(
                 return ItemAction::Drop(Outcome::Invalid(DiscardReason::Internal));
             };
 
-            let compute_metrics_summaries = state
-                .project_state
-                .has_feature(Feature::ComputeMetricsSummaries);
-            let metrics = generic::extract_and_summarize_metrics(
+            let (metrics, metrics_summary) = generic::extract_and_summarize_metrics(
                 span,
-                CombinedMetricExtractionConfig::new(
-                    global_metrics_config,
-                    config,
-                    compute_metrics_summaries,
-                ),
+                CombinedMetricExtractionConfig::new(global_metrics_config, config),
             );
+            if sample(
+                global_config
+                    .options
+                    .compute_metrics_summaries_sample_rate
+                    .unwrap_or(1.0),
+            ) {
+                metrics_summary.apply_on(&mut span._metrics_summary)
+            }
 
             state
                 .extracted_metrics
