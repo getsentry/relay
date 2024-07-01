@@ -16,9 +16,7 @@ use relay_event_normalization::{
 };
 use relay_event_normalization::{normalize_transaction_name, ModelCosts};
 use relay_event_schema::processor::{process_value, ProcessingState};
-use relay_event_schema::protocol::{
-    BrowserContext, Contexts, Event, MetricsSummary, Span, SpanData,
-};
+use relay_event_schema::protocol::{BrowserContext, Contexts, Event, Span, SpanData};
 use relay_log::protocol::{Attachment, AttachmentType};
 use relay_metrics::{aggregator::AggregatorConfig, MetricNamespace, UnixTimestamp};
 use relay_pii::PiiProcessor;
