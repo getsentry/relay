@@ -3,7 +3,10 @@ import json
 import uuid
 from collections import Counter
 from datetime import datetime, timedelta, timezone, UTC
-from .consts import TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION
+from .consts import (
+    TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION,
+    METRICS_EXTRACTION_MIN_SUPPORTED_VERSION,
+)
 
 import pytest
 from opentelemetry.proto.common.v1.common_pb2 import AnyValue, KeyValue
@@ -2065,6 +2068,16 @@ def test_metrics_summary_with_extracted_spans(
     project_config["config"]["transactionMetrics"] = {
         "version": TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION,
     }
+    project_config["config"]["metricExtraction"] = {
+        "version": METRICS_EXTRACTION_MIN_SUPPORTED_VERSION,
+        "metrics": [
+            {
+                "category": "span",
+                "mri": "d:custom/my_metric@millisecond",
+                "field": "span.duration",
+            }
+        ],
+    }
 
     event = make_transaction({"event_id": "cbf6960622e14a45abc1f03b2055b186"})
     end = datetime.now(timezone.utc) - timedelta(seconds=1)
@@ -2102,13 +2115,8 @@ def test_metrics_summary_with_extracted_spans(
 
     relay.send_event(project_id, event)
 
-    metrics_summaries = metrics_summaries_consumer.get_metrics_summaries(n=7)
-    expected_mris = [
-        "d:spans/exclusive_time@millisecond",
-        "c:spans/some_metric@none",
-        "d:spans/duration@millisecond",
-        "c:spans/usage@none",
-    ]
+    metrics_summaries = metrics_summaries_consumer.get_metrics_summaries(n=3)
+    expected_mris = ["c:spans/some_metric@none", "d:custom/my_metric@millisecond"]
     for metric_summary in metrics_summaries:
         assert metric_summary["mri"] in expected_mris
 
@@ -2127,6 +2135,16 @@ def test_metrics_summary_with_standalone_spans(
         "projects:span-metrics-extraction",
         "organizations:standalone-span-ingestion",
     ]
+    project_config["config"]["metricExtraction"] = {
+        "version": METRICS_EXTRACTION_MIN_SUPPORTED_VERSION,
+        "metrics": [
+            {
+                "category": "span",
+                "mri": "d:custom/my_metric@millisecond",
+                "field": "span.duration",
+            }
+        ],
+    }
 
     duration = timedelta(milliseconds=500)
     now = datetime.now(timezone.utc)
@@ -2136,13 +2154,7 @@ def test_metrics_summary_with_standalone_spans(
     envelope = envelope_with_spans(start, end)
     relay.send_envelope(project_id, envelope)
 
-    metrics_summaries = metrics_summaries_consumer.get_metrics_summaries(n=14)
-    expected_mris = [
-        "d:spans/exclusive_time@millisecond",
-        "d:spans/exclusive_time_light@millisecond",
-        "c:spans/some_metric@none",
-        "d:spans/duration@millisecond",
-        "c:spans/usage@none",
-    ]
+    metrics_summaries = metrics_summaries_consumer.get_metrics_summaries(n=4)
+    expected_mris = ["c:spans/some_metric@none", "d:custom/my_metric@millisecond"]
     for metric_summary in metrics_summaries:
         assert metric_summary["mri"] in expected_mris
