@@ -4,15 +4,6 @@ expression: "&event.value().unwrap()._metrics_summary"
 ---
 MetricsSummary(
     {
-        "c:spans/usage@none": [
-            MetricSummary {
-                min: 1.0,
-                max: 1.0,
-                sum: 1.0,
-                count: 1,
-                tags: {},
-            },
-        ],
         "d:spans/duration@millisecond": [
             MetricSummary {
                 min: 50.0,
@@ -22,61 +13,6 @@ MetricsSummary(
                 tags: {
                     "app_start_type": "warm",
                     "device.class": "1",
-                },
-            },
-            MetricSummary {
-                min: 59000.0,
-                max: 59000.0,
-                sum: 59000.0,
-                count: 1,
-                tags: {
-                    "app_start_type": "warm",
-                    "device.class": "1",
-                    "os.name": "iOS",
-                    "release": "1.2.3",
-                    "span.description": "gEt /api/:version/users/",
-                    "span.group": "368c4046e9831b12",
-                    "span.op": "ui.load",
-                    "transaction": "gEt /api/:version/users/",
-                    "transaction.method": "GET",
-                    "transaction.op": "ui.load",
-                },
-            },
-        ],
-        "d:spans/exclusive_time@millisecond": [
-            MetricSummary {
-                min: 59000.0,
-                max: 59000.0,
-                sum: 59000.0,
-                count: 1,
-                tags: {
-                    "app_start_type": "warm",
-                    "device.class": "1",
-                    "os.name": "iOS",
-                    "release": "1.2.3",
-                    "span.description": "gEt /api/:version/users/",
-                    "span.group": "368c4046e9831b12",
-                    "span.op": "ui.load",
-                    "transaction": "gEt /api/:version/users/",
-                    "transaction.method": "GET",
-                    "transaction.op": "ui.load",
-                },
-            },
-        ],
-        "d:spans/exclusive_time_light@millisecond": [
-            MetricSummary {
-                min: 59000.0,
-                max: 59000.0,
-                sum: 59000.0,
-                count: 1,
-                tags: {
-                    "device.class": "1",
-                    "os.name": "iOS",
-                    "release": "1.2.3",
-                    "span.description": "gEt /api/:version/users/",
-                    "span.group": "368c4046e9831b12",
-                    "span.op": "ui.load",
-                    "transaction.op": "ui.load",
                 },
             },
         ],

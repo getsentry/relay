@@ -1,4 +1,5 @@
-use relay_base_schema::metrics::MetricName;
+use relay_base_schema::metrics::{MetricName, MetricNamespace};
+use relay_cardinality::CardinalityItem;
 use relay_event_schema::protocol::{MetricSummary, MetricsSummary};
 use relay_metrics::{
     Bucket, BucketValue, CounterType, DistributionValue, FiniteF64, GaugeValue, SetValue,
@@ -125,7 +126,7 @@ impl MetricsSummaryAggregator {
     }
 
     /// Merges into the [`MetricsSummaryAggregator`] a slice of [`Bucket`]s.
-    pub fn from_buckets(buckets: &[Bucket]) -> MetricsSummaryAggregator {
+    pub fn from_buckets<'a>(buckets: impl Iterator<Item = &'a Bucket>) -> MetricsSummaryAggregator {
         let mut aggregator = MetricsSummaryAggregator::new();
 
         for bucket in buckets {
@@ -201,7 +202,12 @@ pub fn compute(buckets: &[Bucket]) -> Option<MetricsSummary> {
         return None;
     }
 
-    let aggregator = MetricsSummaryAggregator::from_buckets(buckets);
+    // For now, we only want metrics summaries to be extracted for custom metrics.
+    let filtered_buckets = buckets
+        .iter()
+        .filter(|b| matches!(b.name.namespace(), MetricNamespace::Custom));
+
+    let aggregator = MetricsSummaryAggregator::from_buckets(filtered_buckets);
     Some(aggregator.build_metrics_summary())
 }
 
@@ -222,7 +228,7 @@ mod tests {
         let buckets =
             build_buckets(b"my_counter:3|c|#platform:ios\nmy_counter:2|c|#platform:android");
 
-        let aggregator = MetricsSummaryAggregator::from_buckets(&buckets);
+        let aggregator = MetricsSummaryAggregator::from_buckets(buckets.iter());
         let metrics_summary = aggregator.build_metrics_summary();
 
         insta::assert_debug_snapshot!(metrics_summary, @r###"
@@ -258,7 +264,7 @@ mod tests {
         let buckets =
             build_buckets(b"my_dist:3.0:5.0|d|#platform:ios\nmy_dist:2.0:4.0|d|#platform:android");
 
-        let aggregator = MetricsSummaryAggregator::from_buckets(&buckets);
+        let aggregator = MetricsSummaryAggregator::from_buckets(buckets.iter());
         let metrics_summary = aggregator.build_metrics_summary();
 
         insta::assert_debug_snapshot!(metrics_summary, @r###"
@@ -294,7 +300,7 @@ mod tests {
         let buckets =
             build_buckets(b"my_set:3.0:5.0|s|#platform:ios\nmy_set:2.0:4.0|s|#platform:android");
 
-        let aggregator = MetricsSummaryAggregator::from_buckets(&buckets);
+        let aggregator = MetricsSummaryAggregator::from_buckets(buckets.iter());
         let metrics_summary = aggregator.build_metrics_summary();
 
         insta::assert_debug_snapshot!(metrics_summary, @r###"
@@ -330,7 +336,7 @@ mod tests {
         let buckets =
             build_buckets(b"my_gauge:3.0|g|#platform:ios\nmy_gauge:2.0|g|#platform:android");
 
-        let aggregator = MetricsSummaryAggregator::from_buckets(&buckets);
+        let aggregator = MetricsSummaryAggregator::from_buckets(buckets.iter());
         let metrics_summary = aggregator.build_metrics_summary();
 
         insta::assert_debug_snapshot!(metrics_summary, @r###"
@@ -375,7 +381,7 @@ mod tests {
             b"my_gauge:3.0|g|#platform:ios\nmy_gauge:2.0|g|#platform:ios",
         ));
 
-        let aggregator = MetricsSummaryAggregator::from_buckets(&buckets);
+        let aggregator = MetricsSummaryAggregator::from_buckets(buckets.iter());
         let metrics_summary = aggregator.build_metrics_summary();
 
         insta::assert_debug_snapshot!(metrics_summary, @r###"
