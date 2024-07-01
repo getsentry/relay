@@ -180,11 +180,17 @@ impl TransactionMetricsConfig {
 pub struct CombinedMetricExtractionConfig<'a> {
     global: &'a MetricExtractionGroups,
     project: &'a MetricExtractionConfig,
+    /// Controls whether Relay will compute metrics summaries when extracting metrics.
+    pub compute_metrics_summaries: bool,
 }
 
 impl<'a> CombinedMetricExtractionConfig<'a> {
     /// Creates a new combined view from two references.
-    pub fn new(global: &'a MetricExtractionGroups, project: &'a MetricExtractionConfig) -> Self {
+    pub fn new(
+        global: &'a MetricExtractionGroups,
+        project: &'a MetricExtractionConfig,
+        compute_metrics_summaries: bool,
+    ) -> Self {
         for key in project.global_groups.keys() {
             if !global.groups.contains_key(key) {
                 relay_log::error!(
@@ -193,7 +199,11 @@ impl<'a> CombinedMetricExtractionConfig<'a> {
             }
         }
 
-        Self { global, project }
+        Self {
+            global,
+            project,
+            compute_metrics_summaries,
+        }
     }
 
     /// Returns an iterator of metric specs.
@@ -229,7 +239,7 @@ impl<'a> CombinedMetricExtractionConfig<'a> {
 impl<'a> From<&'a MetricExtractionConfig> for CombinedMetricExtractionConfig<'a> {
     /// Creates a combined config with an empty global component. Used in tests.
     fn from(value: &'a MetricExtractionConfig) -> Self {
-        Self::new(MetricExtractionGroups::EMPTY, value)
+        Self::new(MetricExtractionGroups::EMPTY, value, false)
     }
 }
 
@@ -808,7 +818,7 @@ mod tests {
             "global_templates": {}
         }))
         .unwrap();
-        let combined = CombinedMetricExtractionConfig::new(&global, &project);
+        let combined = CombinedMetricExtractionConfig::new(&global, &project, false);
 
         assert_eq!(
             combined
@@ -837,7 +847,7 @@ mod tests {
             }
         }))
         .unwrap();
-        let combined = CombinedMetricExtractionConfig::new(&global, &project);
+        let combined = CombinedMetricExtractionConfig::new(&global, &project, false);
 
         assert_eq!(
             combined

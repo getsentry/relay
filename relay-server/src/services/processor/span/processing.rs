@@ -27,8 +27,7 @@ use relay_quotas::DataCategory;
 use relay_spans::{otel_to_sentry_span, otel_trace::Span as OtelSpan};
 
 use crate::envelope::{ContentType, Envelope, Item, ItemType};
-use crate::metrics_extraction::generic::extract_metrics;
-use crate::metrics_extraction::metrics_summary;
+use crate::metrics_extraction::generic;
 use crate::services::outcome::{DiscardReason, Outcome};
 use crate::services::processor::span::extract_transaction_span;
 use crate::services::processor::{
@@ -157,20 +156,17 @@ pub fn process(
                 return ItemAction::Drop(Outcome::Invalid(DiscardReason::Internal));
             };
 
-            let metrics = extract_metrics(
-                span,
-                CombinedMetricExtractionConfig::new(global_metrics_config, config),
-            );
-            if state
+            let compute_metrics_summaries = state
                 .project_state
-                .has_feature(Feature::ComputeMetricsSummaries)
-            {
-                if let Some(metrics_summary) = metrics_summary::compute(&metrics) {
-                    span._metrics_summary
-                        .get_or_insert_with(MetricsSummary::empty)
-                        .merge(metrics_summary);
-                }
-            }
+                .has_feature(Feature::ComputeMetricsSummaries);
+            let metrics = generic::extract_and_summarize_metrics(
+                span,
+                CombinedMetricExtractionConfig::new(
+                    global_metrics_config,
+                    config,
+                    compute_metrics_summaries,
+                ),
+            );
 
             state
                 .extracted_metrics

@@ -30,6 +30,26 @@ struct MetricsSummaryBucketValue {
 }
 
 impl MetricsSummaryBucketValue {
+    /// Builds a [`MetricsSummaryBucketValue`] from a [`MetricSummary`] by aggregating the data into
+    /// a gauge like summary.
+    fn from_metric_summary(summary: &MetricSummary) -> MetricsSummaryBucketValue {
+        MetricsSummaryBucketValue {
+            min: summary
+                .min
+                .value()
+                .and_then(|min| FiniteF64::try_from(*min).ok()),
+            max: summary
+                .max
+                .value()
+                .and_then(|max| FiniteF64::try_from(*max).ok()),
+            sum: summary
+                .sum
+                .value()
+                .and_then(|sum| FiniteF64::try_from(*sum).ok()),
+            count: summary.count.value().cloned().unwrap_or(0),
+        }
+    }
+
     /// Builds a [`MetricsSummaryBucketValue`] from a [`BucketValue`] by aggregating the data into
     /// a gauge like summary.
     fn from_bucket_value(value: &BucketValue) -> MetricsSummaryBucketValue {
@@ -107,36 +127,36 @@ impl MetricsSummaryBucketValue {
     }
 }
 
-/// Aggregator that tracks all the buckets containing the summaries for each
+/// metrics_summary_spec that tracks all the buckets containing the summaries for each
 /// [`MetricsSummaryBucketKey`].
 ///
-/// The need for an aggregator arises from the fact that we want to compute metrics summaries
+/// The need for an metrics_summary_spec arises from the fact that we want to compute metrics summaries
 /// generically on any slice of [`Bucket`]s meaning that we need to handle cases in which
 /// the same metrics as identified by the [`MetricsSummaryBucketKey`] have to be merged.
-struct MetricsSummaryAggregator {
+struct MetricsSummarySpec {
     buckets: BTreeMap<MetricsSummaryBucketKey, MetricsSummaryBucketValue>,
 }
 
-impl MetricsSummaryAggregator {
-    pub fn new() -> MetricsSummaryAggregator {
-        MetricsSummaryAggregator {
+impl MetricsSummarySpec {
+    fn new() -> MetricsSummarySpec {
+        MetricsSummarySpec {
             buckets: BTreeMap::new(),
         }
     }
 
-    /// Merges into the [`MetricsSummaryAggregator`] a slice of [`Bucket`]s.
-    pub fn from_buckets<'a>(buckets: impl Iterator<Item = &'a Bucket>) -> MetricsSummaryAggregator {
-        let mut aggregator = MetricsSummaryAggregator::new();
+    /// Merges into the [`MetricsSummarySpec`] a slice of [`Bucket`]s.
+    fn from_buckets<'a>(buckets: impl Iterator<Item = &'a Bucket>) -> MetricsSummarySpec {
+        let mut metrics_summary_spec = MetricsSummarySpec::new();
 
         for bucket in buckets {
-            aggregator.add(bucket);
+            metrics_summary_spec.merge_bucket(bucket);
         }
 
-        aggregator
+        metrics_summary_spec
     }
 
-    /// Adds a [`Bucket`] into the [`MetricsSummaryAggregator`].
-    pub fn add(&mut self, bucket: &Bucket) {
+    /// Merges a [`Bucket`] into the [`MetricsSummarySpec`].
+    fn merge_bucket(&mut self, bucket: &Bucket) {
         let key = MetricsSummaryBucketKey {
             metric_name: bucket.name.clone(),
             tags: bucket.tags.clone(),
@@ -144,6 +164,46 @@ impl MetricsSummaryAggregator {
 
         let value = MetricsSummaryBucketValue::from_bucket_value(&bucket.value);
 
+        self.merge(key, value);
+    }
+
+    /// Merges a [`MetricsSummary`] into the [`MetricsSummarySpec`].
+    fn merge_metrics_summary(&mut self, metrics_summary: &MetricsSummary) {
+        for (metric, summary_per_tag) in metrics_summary.0.iter() {
+            let Some(summary_per_tag) = summary_per_tag.value() else {
+                continue;
+            };
+
+            for summary in summary_per_tag {
+                let Some(summary) = summary.value() else {
+                    continue;
+                };
+
+                let mut tags = BTreeMap::new();
+                if let Some(inner_tags) = summary.tags.value() {
+                    for (tag_key, tag_value) in inner_tags.iter() {
+                        let Some(tag_value) = tag_value.value() else {
+                            continue;
+                        };
+
+                        tags.insert(tag_key.clone(), tag_value.clone());
+                    }
+                }
+
+                let key = MetricsSummaryBucketKey {
+                    metric_name: MetricName::from(metric.clone()),
+                    tags,
+                };
+
+                let value = MetricsSummaryBucketValue::from_metric_summary(summary);
+
+                self.merge(key, value);
+            }
+        }
+    }
+
+    /// Merges a [`MetricsSummaryBucketKey`] and [`MetricsSummaryBucketValue`] in the spec.
+    fn merge(&mut self, key: MetricsSummaryBucketKey, value: MetricsSummaryBucketValue) {
         match self.buckets.entry(key) {
             Entry::Occupied(mut entry) => {
                 entry.get_mut().merge(value);
@@ -154,11 +214,11 @@ impl MetricsSummaryAggregator {
         }
     }
 
-    /// Builds the [`MetricsSummary`] from the [`MetricsSummaryAggregator`].
+    /// Builds the [`MetricsSummary`] from the [`MetricsSummarySpec`].
     ///
-    /// Note that this method consumes the aggregator itself, since the purpose of the aggregator
+    /// Note that this method consumes the metrics_summary_spec itself, since the purpose of the metrics_summary_spec
     /// is to be built and destroyed once the summary is ready to be computed.
-    pub fn build_metrics_summary(self) -> MetricsSummary {
+    fn build_metrics_summary(self) -> MetricsSummary {
         let mut metrics_summary = BTreeMap::new();
 
         for (key, value) in self.buckets {
@@ -194,34 +254,49 @@ impl MetricsSummaryAggregator {
         MetricsSummary(metrics_summary)
     }
 
-    /// Returns `true` if the [`MetricsSummaryAggregator`] is empty, `false` otherwise.
+    /// Returns `true` if the [`MetricsSummarySpec`] is empty, `false` otherwise.
     fn is_empty(&self) -> bool {
         self.buckets.is_empty()
     }
 }
 
 /// Computes the [`MetricsSummary`] from a slice of [`Bucket`]s.
-pub fn compute(buckets: &[Bucket]) -> Option<MetricsSummary> {
-    if buckets.is_empty() {
-        return None;
-    }
-
+fn compute(buckets: &[Bucket]) -> MetricsSummarySpec {
     // For now, we only want metrics summaries to be extracted for custom metrics.
     let filtered_buckets = buckets
         .iter()
         .filter(|b| matches!(b.name.namespace(), MetricNamespace::Custom));
 
-    let aggregator = MetricsSummaryAggregator::from_buckets(filtered_buckets);
-    if aggregator.is_empty() {
+    MetricsSummarySpec::from_buckets(filtered_buckets)
+}
+
+/// Computes the [`MetricsSummary`] from a slice of [`Bucket`]s and extends it with a pre-existing
+/// [`MetricsSummary`].
+///
+/// The extension is defined as a merge operation, meaning that the resulting [`MetricsSummary`]
+/// will contain the summaries of both the buckets and the supplied metrics summary.
+pub fn compute_and_extend(
+    buckets: &[Bucket],
+    metrics_summary: Option<&MetricsSummary>,
+) -> Option<MetricsSummary> {
+    if buckets.is_empty() {
         return None;
     }
 
-    Some(aggregator.build_metrics_summary())
+    let mut metrics_summary_spec = compute(buckets);
+    if let Some(current_metrics_summary) = metrics_summary {
+        metrics_summary_spec.merge_metrics_summary(current_metrics_summary);
+    }
+    if metrics_summary_spec.is_empty() {
+        return None;
+    }
+
+    Some(metrics_summary_spec.build_metrics_summary())
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::metrics_extraction::metrics_summary::MetricsSummaryAggregator;
+    use crate::metrics_extraction::metrics_summary::MetricsSummarySpec;
     use relay_common::time::UnixTimestamp;
     use relay_metrics::Bucket;
 
@@ -236,8 +311,8 @@ mod tests {
         let buckets =
             build_buckets(b"my_counter:3|c|#platform:ios\nmy_counter:2|c|#platform:android");
 
-        let aggregator = MetricsSummaryAggregator::from_buckets(buckets.iter());
-        let metrics_summary = aggregator.build_metrics_summary();
+        let metrics_summary_spec = MetricsSummarySpec::from_buckets(buckets.iter());
+        let metrics_summary = metrics_summary_spec.build_metrics_summary();
 
         insta::assert_debug_snapshot!(metrics_summary, @r###"
         MetricsSummary(
@@ -272,8 +347,8 @@ mod tests {
         let buckets =
             build_buckets(b"my_dist:3.0:5.0|d|#platform:ios\nmy_dist:2.0:4.0|d|#platform:android");
 
-        let aggregator = MetricsSummaryAggregator::from_buckets(buckets.iter());
-        let metrics_summary = aggregator.build_metrics_summary();
+        let metrics_summary_spec = MetricsSummarySpec::from_buckets(buckets.iter());
+        let metrics_summary = metrics_summary_spec.build_metrics_summary();
 
         insta::assert_debug_snapshot!(metrics_summary, @r###"
         MetricsSummary(
@@ -308,8 +383,8 @@ mod tests {
         let buckets =
             build_buckets(b"my_set:3.0:5.0|s|#platform:ios\nmy_set:2.0:4.0|s|#platform:android");
 
-        let aggregator = MetricsSummaryAggregator::from_buckets(buckets.iter());
-        let metrics_summary = aggregator.build_metrics_summary();
+        let metrics_summary_spec = MetricsSummarySpec::from_buckets(buckets.iter());
+        let metrics_summary = metrics_summary_spec.build_metrics_summary();
 
         insta::assert_debug_snapshot!(metrics_summary, @r###"
         MetricsSummary(
@@ -344,8 +419,8 @@ mod tests {
         let buckets =
             build_buckets(b"my_gauge:3.0|g|#platform:ios\nmy_gauge:2.0|g|#platform:android");
 
-        let aggregator = MetricsSummaryAggregator::from_buckets(buckets.iter());
-        let metrics_summary = aggregator.build_metrics_summary();
+        let metrics_summary_spec = MetricsSummarySpec::from_buckets(buckets.iter());
+        let metrics_summary = metrics_summary_spec.build_metrics_summary();
 
         insta::assert_debug_snapshot!(metrics_summary, @r###"
         MetricsSummary(
@@ -389,8 +464,8 @@ mod tests {
             b"my_gauge:3.0|g|#platform:ios\nmy_gauge:2.0|g|#platform:ios",
         ));
 
-        let aggregator = MetricsSummaryAggregator::from_buckets(buckets.iter());
-        let metrics_summary = aggregator.build_metrics_summary();
+        let metrics_summary_spec = MetricsSummarySpec::from_buckets(buckets.iter());
+        let metrics_summary = metrics_summary_spec.build_metrics_summary();
 
         insta::assert_debug_snapshot!(metrics_summary, @r###"
         MetricsSummary(

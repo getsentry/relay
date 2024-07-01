@@ -1363,6 +1363,10 @@ impl EnvelopeProcessorService {
             return Ok(());
         };
 
+        let compute_metrics_summaries = state
+            .project_state
+            .has_feature(Feature::ComputeMetricsSummaries);
+
         // NOTE: This function requires a `metric_extraction` in the project config. Legacy configs
         // will upsert this configuration from transaction and conditional tagging fields, even if
         // it is not present in the actual project config payload.
@@ -1389,7 +1393,7 @@ impl EnvelopeProcessorService {
                     })
                 }
             };
-            CombinedMetricExtractionConfig::new(global_config, config)
+            CombinedMetricExtractionConfig::new(global_config, config, compute_metrics_summaries)
         };
 
         // Require a valid transaction metrics config.
@@ -1428,9 +1432,6 @@ impl EnvelopeProcessorService {
                 .aggregator_config_for(MetricNamespace::Spans)
                 .max_tag_value_length,
             global.options.span_extraction_sample_rate,
-            state
-                .project_state
-                .has_feature(Feature::ComputeMetricsSummaries),
         );
 
         state

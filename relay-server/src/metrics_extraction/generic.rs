@@ -1,8 +1,9 @@
 use std::collections::BTreeMap;
 
+use crate::metrics_extraction::metrics_summary;
 use relay_common::time::UnixTimestamp;
 use relay_dynamic_config::{CombinedMetricExtractionConfig, TagMapping, TagSource, TagSpec};
-
+use relay_event_schema::protocol::MetricsSummary;
 use relay_metrics::{
     Bucket, BucketMetadata, BucketValue, FiniteF64, MetricResourceIdentifier, MetricType,
 };
@@ -18,6 +19,39 @@ pub trait Extractable: Getter {
     fn timestamp(&self) -> Option<UnixTimestamp>;
 }
 
+/// Item from which a [`MetricsSummary`] can be retrieved and set.
+pub trait Summarizable {
+    /// Gets the [`MetricsSummary`] on the item. Returns `None` if the summary
+    /// is not present.
+    fn get_summary(&self) -> Option<&MetricsSummary>;
+
+    /// Sets the [`MetricsSummary`] on the item.
+    fn set_summary(&mut self, metrics_summary: MetricsSummary);
+}
+
+/// Extract metrics and summarizes them on any type that implements [`Extractable`],
+/// [`Summarizable`] and [`Getter`].
+///
+/// The summarization of the metrics happens by mutating the original `instance`.
+pub fn extract_and_summarize_metrics<T>(
+    instance: &mut T,
+    config: CombinedMetricExtractionConfig<'_>,
+) -> Vec<Bucket>
+where
+    T: Extractable + Summarizable,
+{
+    let metrics = extract_metrics(instance, config);
+    if config.compute_metrics_summaries {
+        if let Some(metrics_summary) =
+            metrics_summary::compute_and_extend(&metrics, instance.get_summary())
+        {
+            instance.set_summary(metrics_summary);
+        }
+    }
+
+    metrics
+}
+
 /// Extract metrics from any type that implements both [`Extractable`] and [`Getter`].
 ///
 /// The instance must have a valid timestamp; if the timestamp is missing or invalid, no metrics are
@@ -26,7 +60,7 @@ pub trait Extractable: Getter {
 ///
 /// Any MRI can be defined multiple times in the config (this will create multiple buckets), but
 /// for every tag in a bucket, there can be only one value. The first encountered tag value wins.
-pub fn extract_metrics<T>(instance: &T, config: CombinedMetricExtractionConfig<'_>) -> Vec<Bucket>
+fn extract_metrics<T>(instance: &T, config: CombinedMetricExtractionConfig<'_>) -> Vec<Bucket>
 where
     T: Extractable,
 {
