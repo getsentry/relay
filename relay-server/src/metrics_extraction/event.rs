@@ -2,10 +2,9 @@ use relay_common::time::UnixTimestamp;
 use relay_dynamic_config::CombinedMetricExtractionConfig;
 use relay_event_schema::protocol::{Event, MetricsSummary, Span};
 use relay_metrics::Bucket;
-use relay_protocol::Annotated;
 use relay_quotas::DataCategory;
 
-use crate::metrics_extraction::generic::{self, Extractable, Summarizable};
+use crate::metrics_extraction::generic::{self, Extractable};
 use crate::services::processor::extract_transaction_span;
 use crate::statsd::RelayTimers;
 use crate::utils::sample;
@@ -25,6 +24,10 @@ impl Extractable for Event {
             .value()
             .and_then(|ts| UnixTimestamp::from_datetime(ts.0))
     }
+
+    fn summary(&self) -> Option<&MetricsSummary> {
+        self._metrics_summary.value()
+    }
 }
 
 impl Extractable for Span {
@@ -37,25 +40,9 @@ impl Extractable for Span {
             .value()
             .and_then(|ts| UnixTimestamp::from_datetime(ts.0))
     }
-}
 
-impl Summarizable for Event {
-    fn get_summary(&self) -> Option<&MetricsSummary> {
+    fn summary(&self) -> Option<&MetricsSummary> {
         self._metrics_summary.value()
-    }
-
-    fn set_summary(&mut self, metrics_summary: MetricsSummary) {
-        self._metrics_summary = Annotated::new(metrics_summary)
-    }
-}
-
-impl Summarizable for Span {
-    fn get_summary(&self) -> Option<&MetricsSummary> {
-        self._metrics_summary.value()
-    }
-
-    fn set_summary(&mut self, metrics_summary: MetricsSummary) {
-        self._metrics_summary = Annotated::new(metrics_summary)
     }
 }
 
@@ -72,12 +59,25 @@ pub fn extract_metrics(
     config: CombinedMetricExtractionConfig<'_>,
     max_tag_value_size: usize,
     span_extraction_sample_rate: Option<f32>,
+    compute_metrics_summaries_sample_rate: Option<f32>,
 ) -> Vec<Bucket> {
-    let mut metrics = generic::extract_and_summarize_metrics(event, config);
+    let compute_metrics_summaries_sample_rate =
+        compute_metrics_summaries_sample_rate.unwrap_or(1.0);
+
+    let (mut metrics, metrics_summary) = generic::extract_and_summarize_metrics(event, config);
+    if sample(compute_metrics_summaries_sample_rate) {
+        metrics_summary.apply_on(&mut event._metrics_summary);
+    }
 
     // If spans were already extracted for an event, we rely on span processing to extract metrics.
     if !spans_extracted && sample(span_extraction_sample_rate.unwrap_or(1.0)) {
-        extract_span_metrics_for_event(event, config, max_tag_value_size, &mut metrics);
+        extract_span_metrics_for_event(
+            event,
+            config,
+            max_tag_value_size,
+            &mut metrics,
+            compute_metrics_summaries_sample_rate,
+        );
     }
 
     metrics
@@ -88,18 +88,26 @@ fn extract_span_metrics_for_event(
     config: CombinedMetricExtractionConfig<'_>,
     max_tag_value_size: usize,
     output: &mut Vec<Bucket>,
+    compute_metrics_summaries_sample_rate: f32,
 ) {
     relay_statsd::metric!(timer(RelayTimers::EventProcessingSpanMetricsExtraction), {
-        if let Some(mut transaction_span) = extract_transaction_span(event, max_tag_value_size) {
-            let metrics = generic::extract_and_summarize_metrics(&mut transaction_span, config);
-            event._metrics_summary = transaction_span._metrics_summary;
+        if let Some(transaction_span) = extract_transaction_span(event, max_tag_value_size) {
+            let (metrics, metrics_summary) =
+                generic::extract_and_summarize_metrics(&transaction_span, config);
+            if sample(compute_metrics_summaries_sample_rate) {
+                metrics_summary.apply_on(&mut event._metrics_summary);
+            }
             output.extend(metrics);
         }
 
         if let Some(spans) = event.spans.value_mut() {
             for annotated_span in spans {
                 if let Some(span) = annotated_span.value_mut() {
-                    let metrics = generic::extract_and_summarize_metrics(span, config);
+                    let (metrics, metrics_summary) =
+                        generic::extract_and_summarize_metrics(span, config);
+                    if sample(compute_metrics_summaries_sample_rate) {
+                        metrics_summary.apply_on(&mut span._metrics_summary);
+                    }
                     output.extend(metrics);
                 }
             }
@@ -130,7 +138,7 @@ mod tests {
 
     impl OwnedConfig {
         fn combined(&self) -> CombinedMetricExtractionConfig {
-            CombinedMetricExtractionConfig::new(&self.global, &self.project, false)
+            CombinedMetricExtractionConfig::new(&self.global, &self.project)
         }
     }
 
@@ -1209,6 +1217,7 @@ mod tests {
             combined_config(features).combined(),
             200,
             None,
+            None,
         )
     }
 
@@ -1411,6 +1420,7 @@ mod tests {
             combined_config([Feature::ExtractCommonSpanMetricsFromEvent]).combined(),
             200,
             None,
+            None,
         );
         insta::assert_debug_snapshot!((&event.value().unwrap().spans, metrics));
     }
@@ -1468,6 +1478,7 @@ mod tests {
             combined_config([Feature::ExtractCommonSpanMetricsFromEvent]).combined(),
             200,
             None,
+            None,
         );
 
         // When transaction.op:ui.load and mobile:true, HTTP spans still get both
@@ -1500,6 +1511,7 @@ mod tests {
             combined_config([Feature::ExtractCommonSpanMetricsFromEvent]).combined(),
             200,
             None,
+            None,
         );
 
         let usage_metrics = metrics
@@ -1526,9 +1538,10 @@ mod tests {
         span.exclusive_time.set_value(Some(duration_millis));
 
         generic::extract_and_summarize_metrics(
-            &mut span,
+            &span,
             combined_config([Feature::ExtractCommonSpanMetricsFromEvent]).combined(),
         )
+        .0
     }
 
     #[test]
@@ -1634,14 +1647,15 @@ mod tests {
                 "ttfd": "ttfd"
             }
         }"#;
-        let mut span = Annotated::<Span>::from_json(span)
+        let span = Annotated::<Span>::from_json(span)
             .unwrap()
             .into_value()
             .unwrap();
         let metrics = generic::extract_and_summarize_metrics(
-            &mut span,
+            &span,
             combined_config([Feature::ExtractCommonSpanMetricsFromEvent]).combined(),
-        );
+        )
+        .0;
 
         assert!(!metrics.is_empty());
         for metric in metrics {
@@ -1680,11 +1694,12 @@ mod tests {
                 }
             }
         "#;
-        let mut span = Annotated::<Span>::from_json(json).unwrap();
+        let span = Annotated::<Span>::from_json(json).unwrap();
         let metrics = generic::extract_and_summarize_metrics(
-            span.value_mut().as_mut().unwrap(),
+            span.value().unwrap(),
             combined_config([Feature::ExtractCommonSpanMetricsFromEvent]).combined(),
-        );
+        )
+        .0;
 
         for mri in [
             "d:spans/webvital.inp@millisecond",
@@ -1722,6 +1737,7 @@ mod tests {
             false,
             combined_config([Feature::ExtractCommonSpanMetricsFromEvent]).combined(),
             200,
+            None,
             None,
         );
 
@@ -1847,6 +1863,7 @@ mod tests {
             false,
             combined_config([Feature::ExtractCommonSpanMetricsFromEvent]).combined(),
             200,
+            None,
             None,
         );
 

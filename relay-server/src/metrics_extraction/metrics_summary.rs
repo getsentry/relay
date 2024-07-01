@@ -253,11 +253,6 @@ impl MetricsSummarySpec {
 
         MetricsSummary(metrics_summary)
     }
-
-    /// Returns `true` if the [`MetricsSummarySpec`] is empty, `false` otherwise.
-    fn is_empty(&self) -> bool {
-        self.buckets.is_empty()
-    }
 }
 
 /// Computes the [`MetricsSummary`] from a slice of [`Bucket`]s.
@@ -278,20 +273,13 @@ fn compute(buckets: &[Bucket]) -> MetricsSummarySpec {
 pub fn compute_and_extend(
     buckets: &[Bucket],
     metrics_summary: Option<&MetricsSummary>,
-) -> Option<MetricsSummary> {
-    if buckets.is_empty() {
-        return None;
-    }
-
+) -> MetricsSummary {
     let mut metrics_summary_spec = compute(buckets);
-    if let Some(current_metrics_summary) = metrics_summary {
-        metrics_summary_spec.merge_metrics_summary(current_metrics_summary);
-    }
-    if metrics_summary_spec.is_empty() {
-        return None;
+    if let Some(metrics_summary) = metrics_summary {
+        metrics_summary_spec.merge_metrics_summary(metrics_summary);
     }
 
-    Some(metrics_summary_spec.build_metrics_summary())
+    metrics_summary_spec.build_metrics_summary()
 }
 
 #[cfg(test)]

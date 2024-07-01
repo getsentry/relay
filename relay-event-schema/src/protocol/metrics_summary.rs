@@ -1,6 +1,7 @@
 #[cfg(feature = "jsonschema")]
 use relay_jsonschema_derive::JsonSchema;
 use relay_protocol::{Annotated, Array, Empty, FromValue, IntoValue, Object};
+use std::collections::BTreeMap;
 
 use crate::processor::ProcessValue;
 
@@ -12,9 +13,21 @@ pub type MetricSummaryMapping = Object<Array<MetricSummary>>;
 pub struct MetricsSummary(pub MetricSummaryMapping);
 
 impl MetricsSummary {
+    /// Creates an empty [`MetricsSummary`].
+    pub fn empty() -> MetricsSummary {
+        MetricsSummary(BTreeMap::new())
+    }
+
     /// Combinator to modify the contained metric summaries.
     pub fn update_value<F: FnOnce(MetricSummaryMapping) -> MetricSummaryMapping>(&mut self, f: F) {
         self.0 = f(std::mem::take(&mut self.0));
+    }
+
+    /// Applies this [`MetricsSummary`] on a `receiver`.
+    pub fn apply_on(self, receiver: &mut Annotated<MetricsSummary>) {
+        if !self.is_empty() {
+            receiver.set_value(Some(self));
+        }
     }
 }
 

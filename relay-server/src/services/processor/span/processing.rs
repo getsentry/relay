@@ -33,7 +33,7 @@ use crate::services::processor::{
     ProcessingGroup, SpanGroup, TransactionGroup,
 };
 use crate::statsd::{RelayCounters, RelayHistograms};
-use crate::utils::{sample, BufferGuard, ItemAction};
+use crate::utils::{is_rolled_out, sample, BufferGuard, ItemAction};
 use relay_event_normalization::span::ai::extract_ai_measurements;
 use thiserror::Error;
 

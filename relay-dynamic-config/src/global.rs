@@ -214,6 +214,14 @@ pub struct Options {
     )]
     pub span_extraction_sample_rate: Option<f32>,
 
+    /// Overall sampling of metrics summaries computation.
+    #[serde(
+        rename = "relay.compute-metrics-summaries.sample-rate",
+        deserialize_with = "default_on_error",
+        skip_serializing_if = "is_default"
+    )]
+    pub compute_metrics_summaries_sample_rate: Option<f32>,
+
     /// If true, runs full normalization in non-processing Relays.
     ///
     /// Doesn't apply to processing Relays. Outdated relays with a stale

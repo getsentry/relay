@@ -103,12 +103,6 @@ pub enum Feature {
     #[serde(rename = "organizations:indexed-spans-extraction")]
     ExtractSpansFromEvent,
 
-    /// Enables metrics summaries computation during metrics extraction.
-    ///
-    /// Serialized as `organizations:compute-metrics-summaries`.
-    #[serde(rename = "organizations:compute-metrics-summaries")]
-    ComputeMetricsSummaries,
-
     /// Deprecated, still forwarded for older downstream Relays.
     #[doc(hidden)]
     #[serde(rename = "organizations:transaction-name-mark-scrubbed-as-sanitized")]

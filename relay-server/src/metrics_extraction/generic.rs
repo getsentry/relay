@@ -17,39 +17,25 @@ pub trait Extractable: Getter {
 
     /// The timestamp to associate with the extracted metrics.
     fn timestamp(&self) -> Option<UnixTimestamp>;
+
+    /// The [`MetricsSummary`] of the item.
+    fn summary(&self) -> Option<&MetricsSummary>;
 }
 
-/// Item from which a [`MetricsSummary`] can be retrieved and set.
-pub trait Summarizable {
-    /// Gets the [`MetricsSummary`] on the item. Returns `None` if the summary
-    /// is not present.
-    fn get_summary(&self) -> Option<&MetricsSummary>;
-
-    /// Sets the [`MetricsSummary`] on the item.
-    fn set_summary(&mut self, metrics_summary: MetricsSummary);
-}
-
-/// Extract metrics and summarizes them on any type that implements [`Extractable`],
-/// [`Summarizable`] and [`Getter`].
+/// Extract metrics and summarizes them on any type that implements [`Extractable`] and [`Getter`].
 ///
 /// The summarization of the metrics happens by mutating the original `instance`.
 pub fn extract_and_summarize_metrics<T>(
-    instance: &mut T,
+    instance: &T,
     config: CombinedMetricExtractionConfig<'_>,
-) -> Vec<Bucket>
+) -> (Vec<Bucket>, MetricsSummary)
 where
-    T: Extractable + Summarizable,
+    T: Extractable,
 {
     let metrics = extract_metrics(instance, config);
-    if config.compute_metrics_summaries {
-        if let Some(metrics_summary) =
-            metrics_summary::compute_and_extend(&metrics, instance.get_summary())
-        {
-            instance.set_summary(metrics_summary);
-        }
-    }
+    let metrics_summaries = metrics_summary::compute_and_extend(&metrics, instance.summary());
 
-    metrics
+    (metrics, metrics_summaries)
 }
 
 /// Extract metrics from any type that implements both [`Extractable`] and [`Getter`].
