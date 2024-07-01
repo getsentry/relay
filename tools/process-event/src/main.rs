@@ -10,8 +10,7 @@ use std::path::PathBuf;
 use anyhow::{format_err, Context, Result};
 use clap::Parser;
 use relay_event_normalization::{
-    normalize_event, validate_event_timestamps, validate_transaction, EventValidationConfig,
-    NormalizationConfig, TransactionValidationConfig,
+    normalize_event, validate_event, EventValidationConfig, NormalizationConfig,
 };
 use relay_event_schema::processor::{process_value, ProcessingState};
 use relay_event_schema::protocol::Event;
@@ -84,9 +83,7 @@ impl Cli {
         }
 
         if self.store {
-            validate_event_timestamps(&mut event, &EventValidationConfig::default())
-                .map_err(|e| format_err!("{e}"))?;
-            validate_transaction(&mut event, &TransactionValidationConfig::default())
+            validate_event(&mut event, &EventValidationConfig::default())
                 .map_err(|e| format_err!("{e}"))?;
             normalize_event(&mut event, &NormalizationConfig::default());
         }

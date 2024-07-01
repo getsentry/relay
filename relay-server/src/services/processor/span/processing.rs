@@ -727,7 +727,7 @@ mod tests {
     use relay_system::Addr;
 
     use crate::envelope::Envelope;
-    use crate::services::processor::ProcessingGroup;
+    use crate::services::processor::{ProcessingExtractedMetrics, ProcessingGroup};
     use crate::services::project::ProjectState;
     use crate::utils::ManagedEnvelope;
 
@@ -747,6 +747,7 @@ mod tests {
             .features
             .0
             .insert(Feature::ExtractCommonSpanMetricsFromEvent);
+        let project_state = Arc::new(project_state);
 
         let event = Event {
             ty: EventType::Transaction.into(),
@@ -778,8 +779,12 @@ mod tests {
             event: Annotated::from(event),
             metrics: Default::default(),
             sample_rates: None,
-            extracted_metrics: Default::default(),
-            project_state: Arc::new(project_state),
+            extracted_metrics: ProcessingExtractedMetrics::new(
+                project_state.clone(),
+                Arc::new(GlobalConfig::default()),
+                managed_envelope.envelope().dsc(),
+            ),
+            project_state,
             sampling_project_state: None,
             project_id: ProjectId::new(42),
             managed_envelope: managed_envelope.try_into().unwrap(),

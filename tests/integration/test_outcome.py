@@ -1302,11 +1302,25 @@ def test_profile_outcomes(
     assert outcomes == expected_outcomes, outcomes
 
 
+@pytest.mark.parametrize(
+    "profile_payload,expected_outcome",
+    [
+        # Completely invalid header
+        (b"foobar", "profiling_invalid_json"),
+        # Invalid platform -> invalid profile, but a valid profile header
+        (
+            b"""{"profile_id":"11111111111111111111111111111111","version":"2","platform":"<this does not exist>"}""",
+            "profiling_platform_not_supported",
+        ),
+    ],
+)
 def test_profile_outcomes_invalid(
     mini_sentry,
     relay_with_processing,
     outcomes_consumer,
     metrics_consumer,
+    profile_payload,
+    expected_outcome,
 ):
     """
     Tests that Relay reports correct outcomes for invalid profiles as `Profile`.
@@ -1351,7 +1365,9 @@ def test_profile_outcomes_invalid(
                 type="transaction",
             )
         )
-        envelope.add_item(Item(payload=PayloadRef(bytes=b""), type="profile"))
+        envelope.add_item(
+            Item(payload=PayloadRef(bytes=profile_payload), type="profile")
+        )
 
         return envelope
 
@@ -1369,7 +1385,7 @@ def test_profile_outcomes_invalid(
             "outcome": 3,  # Invalid
             "project_id": 42,
             "quantity": 1,
-            "reason": "profiling_invalid_json",
+            "reason": expected_outcome,
             "source": "pop-relay",
             "timestamp": time_within_delta(),
         }
@@ -1547,10 +1563,9 @@ def test_profile_outcomes_data_invalid(
         for category in [6, 11]  # Profile, ProfileIndexed
     ]
 
-    # Because invalid data is detected _after_ metrics extraction, there is still a metric:
     metrics = metrics_by_name(metrics_consumer, 4)
     assert "has_profile" not in metrics["d:transactions/duration@millisecond"]["tags"]
-    assert metrics["c:transactions/usage@none"]["tags"]["has_profile"] == "true"
+    assert "has_profile" not in metrics["c:transactions/usage@none"]["tags"]
 
 
 @pytest.mark.parametrize("quota_category", ["transaction", "profile"])
