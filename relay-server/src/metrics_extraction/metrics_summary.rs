@@ -274,6 +274,7 @@ pub fn compute_and_extend(
     buckets: &[Bucket],
     metrics_summary: Option<&MetricsSummary>,
 ) -> MetricsSummary {
+    // TODO: there are many ways to avoid this unnecessary cloning.
     if buckets.is_empty() {
         return metrics_summary.cloned().unwrap_or(MetricsSummary::empty());
     }
