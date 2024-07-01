@@ -1428,6 +1428,9 @@ impl EnvelopeProcessorService {
                 .aggregator_config_for(MetricNamespace::Spans)
                 .max_tag_value_length,
             global.options.span_extraction_sample_rate,
+            state
+                .project_state
+                .has_feature(Feature::ComputeMetricsSummaries),
         );
 
         state

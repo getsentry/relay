@@ -52,13 +52,20 @@ pub fn extract_metrics(
     config: CombinedMetricExtractionConfig<'_>,
     max_tag_value_size: usize,
     span_extraction_sample_rate: Option<f32>,
+    compute_metrics_summaries: bool,
 ) -> Vec<Bucket> {
     let mut metrics = generic::extract_metrics(event, config);
 
     // If spans were already extracted for an event,
     // we rely on span processing to extract metrics.
     if !spans_extracted && sample(span_extraction_sample_rate.unwrap_or(1.0)) {
-        extract_span_metrics_for_event(event, config, max_tag_value_size, &mut metrics);
+        extract_span_metrics_for_event(
+            event,
+            config,
+            max_tag_value_size,
+            &mut metrics,
+            compute_metrics_summaries,
+        );
     }
 
     metrics
@@ -69,15 +76,18 @@ fn extract_span_metrics_for_event(
     config: CombinedMetricExtractionConfig<'_>,
     max_tag_value_size: usize,
     output: &mut Vec<Bucket>,
+    compute_metrics_summaries: bool,
 ) {
     relay_statsd::metric!(timer(RelayTimers::EventProcessingSpanMetricsExtraction), {
         if let Some(transaction_span) = extract_transaction_span(event, max_tag_value_size) {
             let metrics = generic::extract_metrics(&transaction_span, config);
-            if let Some(metrics_summary) = metrics_summary::compute(&metrics) {
-                event
-                    ._metrics_summary
-                    .get_or_insert_with(MetricsSummary::empty)
-                    .merge(metrics_summary);
+            if compute_metrics_summaries {
+                if let Some(metrics_summary) = metrics_summary::compute(&metrics) {
+                    event
+                        ._metrics_summary
+                        .get_or_insert_with(MetricsSummary::empty)
+                        .merge(metrics_summary);
+                }
             }
             output.extend(metrics);
         }
@@ -86,10 +96,12 @@ fn extract_span_metrics_for_event(
             for annotated_span in spans {
                 if let Some(span) = annotated_span.value_mut() {
                     let metrics = generic::extract_metrics(span, config);
-                    if let Some(metrics_summary) = metrics_summary::compute(&metrics) {
-                        span._metrics_summary
-                            .get_or_insert_with(MetricsSummary::empty)
-                            .merge(metrics_summary);
+                    if compute_metrics_summaries {
+                        if let Some(metrics_summary) = metrics_summary::compute(&metrics) {
+                            span._metrics_summary
+                                .get_or_insert_with(MetricsSummary::empty)
+                                .merge(metrics_summary);
+                        }
                     }
                     output.extend(metrics);
                 }
@@ -1200,6 +1212,7 @@ mod tests {
             combined_config(features).combined(),
             200,
             None,
+            false,
         )
     }
 
@@ -1402,6 +1415,7 @@ mod tests {
             combined_config([Feature::ExtractCommonSpanMetricsFromEvent]).combined(),
             200,
             None,
+            false,
         );
         insta::assert_debug_snapshot!((&event.value().unwrap().spans, metrics));
     }
@@ -1459,6 +1473,7 @@ mod tests {
             combined_config([Feature::ExtractCommonSpanMetricsFromEvent]).combined(),
             200,
             None,
+            false,
         );
 
         // When transaction.op:ui.load and mobile:true, HTTP spans still get both
@@ -1491,6 +1506,7 @@ mod tests {
             combined_config([Feature::ExtractCommonSpanMetricsFromEvent]).combined(),
             200,
             None,
+            false,
         );
 
         let usage_metrics = metrics
@@ -1714,6 +1730,7 @@ mod tests {
             combined_config([Feature::ExtractCommonSpanMetricsFromEvent]).combined(),
             200,
             None,
+            false,
         );
 
         assert_eq!(metrics.len(), 4);
@@ -1839,6 +1856,7 @@ mod tests {
             combined_config([Feature::ExtractCommonSpanMetricsFromEvent]).combined(),
             200,
             None,
+            true,
         );
 
         insta::assert_debug_snapshot!(&event.value().unwrap()._metrics_summary);

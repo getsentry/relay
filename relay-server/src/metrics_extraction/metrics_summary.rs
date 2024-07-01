@@ -193,6 +193,11 @@ impl MetricsSummaryAggregator {
 
         MetricsSummary(metrics_summary)
     }
+
+    /// Returns `true` if the [`MetricsSummaryAggregator`] is empty, `false` otherwise.
+    fn is_empty(&self) -> bool {
+        self.buckets.is_empty()
+    }
 }
 
 /// Computes the [`MetricsSummary`] from a slice of [`Bucket`]s.
@@ -207,6 +212,10 @@ pub fn compute(buckets: &[Bucket]) -> Option<MetricsSummary> {
         .filter(|b| matches!(b.name.namespace(), MetricNamespace::Custom));
 
     let aggregator = MetricsSummaryAggregator::from_buckets(filtered_buckets);
+    if aggregator.is_empty() {
+        return None;
+    }
+
     Some(aggregator.build_metrics_summary())
 }
 
