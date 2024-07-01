@@ -274,6 +274,10 @@ pub fn compute_and_extend(
     buckets: &[Bucket],
     metrics_summary: Option<&MetricsSummary>,
 ) -> MetricsSummary {
+    if buckets.is_empty() {
+        return metrics_summary.cloned().unwrap_or(MetricsSummary::empty());
+    }
+
     let mut metrics_summary_spec = compute(buckets);
     if let Some(metrics_summary) = metrics_summary {
         metrics_summary_spec.merge_metrics_summary(metrics_summary);
