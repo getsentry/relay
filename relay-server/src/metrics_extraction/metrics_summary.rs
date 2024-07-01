@@ -1,5 +1,4 @@
 use relay_base_schema::metrics::{MetricName, MetricNamespace};
-use relay_cardinality::CardinalityItem;
 use relay_event_schema::protocol::{MetricSummary, MetricsSummary};
 use relay_metrics::{
     Bucket, BucketValue, CounterType, DistributionValue, FiniteF64, GaugeValue, SetValue,
