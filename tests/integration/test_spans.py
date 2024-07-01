@@ -2064,6 +2064,7 @@ def test_metrics_summary_with_extracted_spans(
         "organizations:custom-metrics",
         "projects:span-metrics-extraction",
         "organizations:indexed-spans-extraction",
+        "organizations:compute-metrics-summaries",
     ]
     project_config["config"]["transactionMetrics"] = {
         "version": TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION,
@@ -2134,6 +2135,7 @@ def test_metrics_summary_with_standalone_spans(
     project_config["config"]["features"] = [
         "projects:span-metrics-extraction",
         "organizations:standalone-span-ingestion",
+        "organizations:compute-metrics-summaries",
     ]
     project_config["config"]["metricExtraction"] = {
         "version": METRICS_EXTRACTION_MIN_SUPPORTED_VERSION,

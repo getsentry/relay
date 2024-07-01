@@ -161,10 +161,15 @@ pub fn process(
                 span,
                 CombinedMetricExtractionConfig::new(global_metrics_config, config),
             );
-            if let Some(metrics_summary) = metrics_summary::compute(&metrics) {
-                span._metrics_summary
-                    .get_or_insert_with(MetricsSummary::empty)
-                    .merge(metrics_summary);
+            if state
+                .project_state
+                .has_feature(Feature::ComputeMetricsSummaries)
+            {
+                if let Some(metrics_summary) = metrics_summary::compute(&metrics) {
+                    span._metrics_summary
+                        .get_or_insert_with(MetricsSummary::empty)
+                        .merge(metrics_summary);
+                }
             }
 
             state
