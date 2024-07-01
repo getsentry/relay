@@ -20,13 +20,13 @@ struct MetricsSummaryBucketKey {
 #[derive(Debug)]
 struct MetricsSummaryBucketValue {
     /// The minimum value reported in the bucket.
-    pub min: Option<FiniteF64>,
+    min: Option<FiniteF64>,
     /// The maximum value reported in the bucket.
-    pub max: Option<FiniteF64>,
+    max: Option<FiniteF64>,
     /// The sum of all values reported in the bucket.
-    pub sum: Option<FiniteF64>,
+    sum: Option<FiniteF64>,
     /// The number of times this bucket was updated with a new value.
-    pub count: u64,
+    count: u64,
 }
 
 impl MetricsSummaryBucketValue {
@@ -133,7 +133,7 @@ impl MetricsSummaryBucketValue {
 /// The need for an metrics_summary_spec arises from the fact that we want to compute metrics summaries
 /// generically on any slice of [`Bucket`]s meaning that we need to handle cases in which
 /// the same metrics as identified by the [`MetricsSummaryBucketKey`] have to be merged.
-struct MetricsSummarySpec {
+pub struct MetricsSummarySpec {
     buckets: BTreeMap<MetricsSummaryBucketKey, MetricsSummaryBucketValue>,
 }
 
@@ -214,14 +214,31 @@ impl MetricsSummarySpec {
         }
     }
 
+    /// Applies the [`MetricsSummarySpec`] on a receiving [`Annotated<MetricsSummary>`].
+    ///
+    /// In case the [`MetricsSummarySpec`] is empty, no mutation will take place.
+    pub fn apply_on(mut self, receiver: &mut Annotated<MetricsSummary>) {
+        if self.buckets.is_empty() {
+            return;
+        }
+
+        if let Some(receiver) = receiver.value() {
+            self.merge_metrics_summary(receiver);
+        }
+
+        *receiver = self.into()
+    }
+}
+
+impl From<MetricsSummarySpec> for Annotated<MetricsSummary> {
     /// Builds the [`MetricsSummary`] from the [`MetricsSummarySpec`].
     ///
     /// Note that this method consumes the metrics_summary_spec itself, since the purpose of the metrics_summary_spec
     /// is to be built and destroyed once the summary is ready to be computed.
-    fn build_metrics_summary(self) -> MetricsSummary {
+    fn from(spec: MetricsSummarySpec) -> Self {
         let mut metrics_summary = BTreeMap::new();
 
-        for (key, value) in self.buckets {
+        for (key, value) in spec.buckets {
             let tags = key
                 .tags
                 .into_iter()
@@ -251,40 +268,18 @@ impl MetricsSummarySpec {
             }
         }
 
-        MetricsSummary(metrics_summary)
+        Annotated::new(MetricsSummary(metrics_summary))
     }
 }
 
 /// Computes the [`MetricsSummary`] from a slice of [`Bucket`]s.
-fn compute(buckets: &[Bucket]) -> MetricsSummarySpec {
+pub fn compute(buckets: &[Bucket]) -> MetricsSummarySpec {
     // For now, we only want metrics summaries to be extracted for custom metrics.
     let filtered_buckets = buckets
         .iter()
         .filter(|b| matches!(b.name.namespace(), MetricNamespace::Custom));
 
     MetricsSummarySpec::from_buckets(filtered_buckets)
-}
-
-/// Computes the [`MetricsSummary`] from a slice of [`Bucket`]s and extends it with a pre-existing
-/// [`MetricsSummary`].
-///
-/// The extension is defined as a merge operation, meaning that the resulting [`MetricsSummary`]
-/// will contain the summaries of both the buckets and the supplied metrics summary.
-pub fn compute_and_extend(
-    buckets: &[Bucket],
-    metrics_summary: Option<&MetricsSummary>,
-) -> MetricsSummary {
-    // TODO: there are many ways to avoid this unnecessary cloning.
-    if buckets.is_empty() {
-        return metrics_summary.cloned().unwrap_or(MetricsSummary::empty());
-    }
-
-    let mut metrics_summary_spec = compute(buckets);
-    if let Some(metrics_summary) = metrics_summary {
-        metrics_summary_spec.merge_metrics_summary(metrics_summary);
-    }
-
-    metrics_summary_spec.build_metrics_summary()
 }
 
 #[cfg(test)]

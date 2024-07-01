@@ -1,6 +1,7 @@
 use std::collections::BTreeMap;
 
 use crate::metrics_extraction::metrics_summary;
+use crate::metrics_extraction::metrics_summary::MetricsSummarySpec;
 use relay_common::time::UnixTimestamp;
 use relay_dynamic_config::{CombinedMetricExtractionConfig, TagMapping, TagSource, TagSpec};
 use relay_event_schema::protocol::MetricsSummary;
@@ -28,12 +29,12 @@ pub trait Extractable: Getter {
 pub fn extract_and_summarize_metrics<T>(
     instance: &T,
     config: CombinedMetricExtractionConfig<'_>,
-) -> (Vec<Bucket>, MetricsSummary)
+) -> (Vec<Bucket>, MetricsSummarySpec)
 where
     T: Extractable,
 {
     let metrics = extract_metrics(instance, config);
-    let metrics_summaries = metrics_summary::compute_and_extend(&metrics, instance.summary());
+    let metrics_summaries = metrics_summary::compute(&metrics);
 
     (metrics, metrics_summaries)
 }

@@ -64,9 +64,9 @@ pub fn extract_metrics(
     let compute_metrics_summaries_sample_rate =
         compute_metrics_summaries_sample_rate.unwrap_or(1.0);
 
-    let (mut metrics, metrics_summary) = generic::extract_and_summarize_metrics(event, config);
+    let (mut metrics, metrics_summary_spec) = generic::extract_and_summarize_metrics(event, config);
     if sample(compute_metrics_summaries_sample_rate) {
-        metrics_summary.apply_on(&mut event._metrics_summary);
+        metrics_summary_spec.apply_on(&mut event._metrics_summary);
     }
 
     // If spans were already extracted for an event, we rely on span processing to extract metrics.
@@ -92,10 +92,10 @@ fn extract_span_metrics_for_event(
 ) {
     relay_statsd::metric!(timer(RelayTimers::EventProcessingSpanMetricsExtraction), {
         if let Some(transaction_span) = extract_transaction_span(event, max_tag_value_size) {
-            let (metrics, metrics_summary) =
+            let (metrics, metrics_summary_spec) =
                 generic::extract_and_summarize_metrics(&transaction_span, config);
             if sample(compute_metrics_summaries_sample_rate) {
-                metrics_summary.apply_on(&mut event._metrics_summary);
+                metrics_summary_spec.apply_on(&mut event._metrics_summary);
             }
             output.extend(metrics);
         }
@@ -103,10 +103,10 @@ fn extract_span_metrics_for_event(
         if let Some(spans) = event.spans.value_mut() {
             for annotated_span in spans {
                 if let Some(span) = annotated_span.value_mut() {
-                    let (metrics, metrics_summary) =
+                    let (metrics, metrics_summary_spec) =
                         generic::extract_and_summarize_metrics(span, config);
                     if sample(compute_metrics_summaries_sample_rate) {
-                        metrics_summary.apply_on(&mut span._metrics_summary);
+                        metrics_summary_spec.apply_on(&mut span._metrics_summary);
                     }
                     output.extend(metrics);
                 }
@@ -122,8 +122,8 @@ mod tests {
     use chrono::{DateTime, Utc};
     use insta::assert_debug_snapshot;
     use relay_dynamic_config::{
-        Feature, FeatureSet, GlobalConfig, MetricExtractionConfig, MetricExtractionGroups,
-        ProjectConfig,
+        ErrorBoundary, Feature, FeatureSet, GlobalConfig, MetricExtractionConfig,
+        MetricExtractionGroups, MetricSpec, ProjectConfig,
     };
     use relay_event_normalization::{normalize_event, NormalizationConfig};
     use relay_event_schema::protocol::Timestamp;
@@ -142,7 +142,10 @@ mod tests {
         }
     }
 
-    fn combined_config(features: impl Into<BTreeSet<Feature>>) -> OwnedConfig {
+    fn combined_config(
+        features: impl Into<BTreeSet<Feature>>,
+        metric_extraction: Option<MetricExtractionConfig>,
+    ) -> OwnedConfig {
         let mut global = GlobalConfig::default();
         global.normalize(); // defines metrics extraction rules
         let global = global.metric_extraction.ok().unwrap();
@@ -151,6 +154,9 @@ mod tests {
 
         let mut project = ProjectConfig {
             features,
+            metric_extraction: metric_extraction
+                .map(|m| ErrorBoundary::Ok(m))
+                .unwrap_or(ErrorBoundary::default()),
             ..ProjectConfig::default()
         };
         project.sanitize(); // enables metrics extraction rules
@@ -1214,7 +1220,7 @@ mod tests {
         extract_metrics(
             event.value_mut().as_mut().unwrap(),
             false,
-            combined_config(features).combined(),
+            combined_config(features, None).combined(),
             200,
             None,
             None,
@@ -1417,7 +1423,7 @@ mod tests {
         let metrics = extract_metrics(
             event.value_mut().as_mut().unwrap(),
             false,
-            combined_config([Feature::ExtractCommonSpanMetricsFromEvent]).combined(),
+            combined_config([Feature::ExtractCommonSpanMetricsFromEvent], None).combined(),
             200,
             None,
             None,
@@ -1475,7 +1481,7 @@ mod tests {
         let metrics = extract_metrics(
             event.value_mut().as_mut().unwrap(),
             false,
-            combined_config([Feature::ExtractCommonSpanMetricsFromEvent]).combined(),
+            combined_config([Feature::ExtractCommonSpanMetricsFromEvent], None).combined(),
             200,
             None,
             None,
@@ -1508,7 +1514,7 @@ mod tests {
         let metrics = extract_metrics(
             event.value_mut().as_mut().unwrap(),
             false,
-            combined_config([Feature::ExtractCommonSpanMetricsFromEvent]).combined(),
+            combined_config([Feature::ExtractCommonSpanMetricsFromEvent], None).combined(),
             200,
             None,
             None,
@@ -1539,7 +1545,7 @@ mod tests {
 
         generic::extract_and_summarize_metrics(
             &span,
-            combined_config([Feature::ExtractCommonSpanMetricsFromEvent]).combined(),
+            combined_config([Feature::ExtractCommonSpanMetricsFromEvent], None).combined(),
         )
         .0
     }
@@ -1653,7 +1659,7 @@ mod tests {
             .unwrap();
         let metrics = generic::extract_and_summarize_metrics(
             &span,
-            combined_config([Feature::ExtractCommonSpanMetricsFromEvent]).combined(),
+            combined_config([Feature::ExtractCommonSpanMetricsFromEvent], None).combined(),
         )
         .0;
 
@@ -1697,7 +1703,7 @@ mod tests {
         let span = Annotated::<Span>::from_json(json).unwrap();
         let metrics = generic::extract_and_summarize_metrics(
             span.value().unwrap(),
-            combined_config([Feature::ExtractCommonSpanMetricsFromEvent]).combined(),
+            combined_config([Feature::ExtractCommonSpanMetricsFromEvent], None).combined(),
         )
         .0;
 
@@ -1735,7 +1741,7 @@ mod tests {
         let metrics = extract_metrics(
             event.value_mut().as_mut().unwrap(),
             false,
-            combined_config([Feature::ExtractCommonSpanMetricsFromEvent]).combined(),
+            combined_config([Feature::ExtractCommonSpanMetricsFromEvent], None).combined(),
             200,
             None,
             None,
@@ -1858,10 +1864,27 @@ mod tests {
             },
         );
 
+        let metric_extraction = MetricExtractionConfig {
+            version: 4,
+            metrics: vec![MetricSpec {
+                category: DataCategory::Span,
+                mri: "d:custom/my_metric@millisecond".to_owned(),
+                field: Some("span.duration".to_owned()),
+                condition: None,
+                tags: vec![],
+            }],
+            ..MetricExtractionConfig::default()
+        };
+        let binding = combined_config(
+            [Feature::ExtractCommonSpanMetricsFromEvent],
+            Some(metric_extraction),
+        );
+        let config = binding.combined();
+
         let _ = extract_metrics(
             event.value_mut().as_mut().unwrap(),
             false,
-            combined_config([Feature::ExtractCommonSpanMetricsFromEvent]).combined(),
+            config,
             200,
             None,
             None,
