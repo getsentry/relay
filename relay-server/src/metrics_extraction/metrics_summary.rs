@@ -166,9 +166,12 @@ impl MetricsSummary {
 
     /// Applies the [`MetricsSummary`] on a receiving [`Annotated<MetricsSummary>`].
     pub fn apply_on(self, receiver: &mut Annotated<event::MetricsSummary>) {
-        let Some(event::MetricsSummary(mapping)) = receiver.value_mut() else {
+        if self.buckets.is_empty() {
             return;
-        };
+        }
+
+        let event::MetricsSummary(metrics_summary_mapping) =
+            &mut receiver.get_or_insert_with(|| event::MetricsSummary(BTreeMap::new()));
 
         for (key, value) in self.buckets {
             let min = value.min.map_or(Annotated::empty(), |m| m.to_f64().into());
@@ -192,7 +195,7 @@ impl MetricsSummary {
                 continue;
             };
 
-            let existing_summary = mapping
+            let existing_summary = metrics_summary_mapping
                 .get_mut(key.metric_name.as_ref())
                 .and_then(|v| v.value_mut().as_mut());
 
@@ -229,7 +232,7 @@ impl MetricsSummary {
                     }
                 }
                 None => {
-                    mapping.insert(
+                    metrics_summary_mapping.insert(
                         key.metric_name.to_string(),
                         Annotated::new(vec![Annotated::new(metric_summary)]),
                     );
