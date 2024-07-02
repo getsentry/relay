@@ -1400,54 +1400,6 @@ expression: "(&event.value().unwrap().spans, metrics)"
             timestamp: UnixTimestamp(1597976303),
             width: 0,
             name: MetricName(
-                "d:spans/exclusive_time@millisecond",
-            ),
-            value: Distribution(
-                [
-                    3000.0,
-                ],
-            ),
-            tags: {
-                "span.op": "custom.op",
-                "transaction": "gEt /api/:version/users/",
-                "transaction.op": "ui.load",
-            },
-            metadata: BucketMetadata {
-                merges: 1,
-                received_at: Some(
-                    UnixTimestamp(0),
-                ),
-                extracted_from_indexed: false,
-            },
-        },
-        Bucket {
-            timestamp: UnixTimestamp(1597976303),
-            width: 0,
-            name: MetricName(
-                "d:spans/duration@millisecond",
-            ),
-            value: Distribution(
-                [
-                    3000.0,
-                ],
-            ),
-            tags: {
-                "span.op": "custom.op",
-                "transaction": "gEt /api/:version/users/",
-                "transaction.op": "ui.load",
-            },
-            metadata: BucketMetadata {
-                merges: 1,
-                received_at: Some(
-                    UnixTimestamp(0),
-                ),
-                extracted_from_indexed: false,
-            },
-        },
-        Bucket {
-            timestamp: UnixTimestamp(1597976303),
-            width: 0,
-            name: MetricName(
                 "c:spans/usage@none",
             ),
             value: Counter(

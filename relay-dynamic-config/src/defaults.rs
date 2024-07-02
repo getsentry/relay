@@ -192,6 +192,14 @@ pub fn hardcoded_span_metrics() -> Vec<(GroupKey, Vec<MetricSpec>, Vec<TagMappin
     let is_app_start = RuleCondition::glob("span.op", "app.start.*")
         & RuleCondition::eq("span.description", APP_START_ROOT_SPAN_DESCRIPTIONS);
 
+    // Metrics for common modules:
+    let is_common = is_app_start.clone()
+        | is_db.clone()
+        | is_resource.clone()
+        | is_http.clone()
+        | is_mobile.clone()
+        | is_interaction.clone();
+
     // Metrics for addon modules are only extracted if the feature flag is enabled:
     let is_addon = is_ai.clone() | is_queue_op.clone() | is_cache.clone();
 
@@ -203,7 +211,7 @@ pub fn hardcoded_span_metrics() -> Vec<(GroupKey, Vec<MetricSpec>, Vec<TagMappin
                     category: DataCategory::Span,
                     mri: "d:spans/exclusive_time@millisecond".into(),
                     field: Some("span.exclusive_time".into()),
-                    condition: Some(!is_addon.clone()),
+                    condition: Some(!is_addon.clone() & is_common.clone()),
                     tags: vec![],
                 },
                 MetricSpec {
@@ -278,7 +286,7 @@ pub fn hardcoded_span_metrics() -> Vec<(GroupKey, Vec<MetricSpec>, Vec<TagMappin
                     category: DataCategory::Span,
                     mri: "d:spans/duration@millisecond".into(),
                     field: Some("span.duration".into()),
-                    condition: Some(!is_addon.clone()),
+                    condition: Some(!is_addon.clone() & is_common.clone()),
                     tags: vec![],
                 },
                 MetricSpec {
