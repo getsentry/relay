@@ -844,7 +844,7 @@ impl ProjectCacheBroker {
                 // TODO: outcomes?
                 return;
             }
-            Some(ProjectState::Invalid) | None => None,
+            Some(ProjectState::Pending) | None => None,
         };
 
         // Also, fetch the project state for sampling key and make sure it's not invalid.
@@ -859,7 +859,7 @@ impl ProjectCacheBroker {
                     // We accept events even if its root project has been disabled.
                     None
                 }
-                Some(ProjectState::Invalid) | None => None,
+                Some(ProjectState::Pending) | None => None,
             }
         } else {
             None
@@ -1005,7 +1005,7 @@ impl ProjectCacheBroker {
             project
                 .get_cached_state(self.services.project_cache.clone(), false)
                 // Makes sure that the state also is valid.
-                .is_some_and(|state| !matches!(state, ProjectState::Invalid))
+                .is_some_and(|state| !matches!(state, ProjectState::Pending))
         });
 
         let is_sampling_state_valid = if own_key != sampling_key {
@@ -1017,7 +1017,7 @@ impl ProjectCacheBroker {
                     project
                         .get_cached_state(self.services.project_cache.clone(), false)
                         // Makes sure that the state also is valid.
-                        .is_some_and(|state| !matches!(state, ProjectState::Invalid))
+                        .is_some_and(|state| !matches!(state, ProjectState::Pending))
                 })
         } else {
             is_own_state_valid

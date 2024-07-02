@@ -390,7 +390,7 @@ impl UpstreamProjectSourceService {
                             ErrorBoundary::Ok(Some(state)) => ProjectFetchState::new(state.into()),
                         };
 
-                        let result = if state.invalid() { "invalid" } else { "ok" };
+                        let result = if state.pending() { "invalid" } else { "ok" };
                         metric!(
                             histogram(RelayHistograms::ProjectStateAttempts) = channel.attempts,
                             result = result,

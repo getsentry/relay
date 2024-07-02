@@ -32,7 +32,7 @@ impl ProjectFetchState {
     // Returns an invalid state.
     pub fn err() -> Self {
         // TODO: rename to invalid()
-        Self::new(ProjectState::Invalid)
+        Self::new(ProjectState::Pending)
     }
 
     // Returns a disabled state.
@@ -41,8 +41,8 @@ impl ProjectFetchState {
     }
 
     /// Returns `true` if the contained state is invalid.
-    pub fn invalid(&self) -> bool {
-        matches!(self.state, ProjectState::Invalid)
+    pub fn pending(&self) -> bool {
+        matches!(self.state, ProjectState::Pending)
     }
 
     pub fn sanitize(self) -> Self {
@@ -56,7 +56,7 @@ impl ProjectFetchState {
     pub fn never_fetched() -> Self {
         Self {
             last_fetch: Instant::now(),
-            state: ProjectState::Invalid,
+            state: ProjectState::Pending,
         }
     }
 
@@ -102,14 +102,10 @@ impl ProjectFetchState {
     }
 
     /// Maps the expiry state to a usable state.
-    pub fn current_state(&self, config: &Config) -> CurrentState {
+    pub fn current_state(&self, config: &Config) -> ProjectState {
         match self.expiry_state(config) {
-            ExpiryState::Updated(state) | ExpiryState::Stale(state) => match state {
-                ProjectState::Enabled(info) => CurrentState::Enabled(info),
-                ProjectState::Disabled => CurrentState::Disabled,
-                ProjectState::Invalid => CurrentState::Pending,
-            },
-            ExpiryState::Expired => CurrentState::Pending,
+            ExpiryState::Updated(state) | ExpiryState::Stale(state) => state.clone(),
+            ExpiryState::Expired => ProjectState::Pending,
         }
     }
 
@@ -132,16 +128,6 @@ impl ProjectFetchState {
             Expiry::Updated
         }
     }
-}
-
-/// The exposed state of a project.
-pub enum CurrentState<'a> {
-    /// An enabled project that has not yet expired.
-    Enabled(&'a Arc<ProjectInfo>),
-    /// A disabled project.
-    Disabled,
-    /// A project that needs fetching.
-    Pending,
 }
 
 /// The expiry status of a project state. Return value of [`ProjectState::check_expiry`].
@@ -171,7 +157,7 @@ pub enum ExpiryState<'a> {
 pub enum ProjectState {
     Enabled(Arc<ProjectInfo>),
     Disabled,
-    Invalid,
+    Pending,
 }
 
 impl ProjectState {
@@ -181,7 +167,7 @@ impl ProjectState {
                 ProjectState::Enabled(Arc::new(state.as_ref().clone().sanitize()))
             }
             ProjectState::Disabled => ProjectState::Disabled,
-            ProjectState::Invalid => ProjectState::Invalid,
+            ProjectState::Pending => ProjectState::Pending,
         }
     }
 }

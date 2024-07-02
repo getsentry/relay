@@ -155,7 +155,7 @@ async fn inner(
         // access to the project config
         let has_access = relay.internal
             || match &project_state {
-                ProjectState::Disabled | ProjectState::Invalid => false,
+                ProjectState::Disabled | ProjectState::Pending => false,
                 ProjectState::Enabled(state) => {
                     state.config.trusted_relays.contains(&relay.public_key)
                 }

@@ -40,7 +40,7 @@ use crate::utils::{self, EnvelopeLimiter, ManagedEnvelope, RetryBackoff};
 mod metrics;
 mod state;
 
-pub use state::{CurrentState, ProjectFetchState, ProjectState};
+pub use state::{ProjectFetchState, ProjectState};
 
 /// Sender type for messages that respond with project states.
 pub type ProjectSender = relay_system::BroadcastSender<ProjectState>;
@@ -74,7 +74,7 @@ impl TryFrom<ProjectState> for ParsedProjectState {
                 disabled: true,
                 info: ProjectInfo::default(),
             }),
-            ProjectState::Invalid => Err(()),
+            ProjectState::Pending => Err(()),
         }
     }
 }
@@ -304,6 +304,7 @@ pub struct PublicKeyConfig {
     pub numeric_id: Option<u64>,
 }
 
+/// Channel used to respond to state requests (e.g. by project config endpoint).
 #[derive(Debug)]
 struct StateChannel {
     inner: BroadcastChannel<ProjectState>,
@@ -375,12 +376,12 @@ impl Project {
 
     pub fn enabled_state(&self) -> Option<Arc<ProjectInfo>> {
         match self.current_state() {
-            CurrentState::Enabled(info) => Some(info.clone()),
-            CurrentState::Disabled | CurrentState::Pending => None,
+            ProjectState::Enabled(info) => Some(info.clone()),
+            ProjectState::Disabled | ProjectState::Pending => None,
         }
     }
 
-    fn current_state(&self) -> CurrentState {
+    fn current_state(&self) -> ProjectState {
         self.state.current_state(&self.config)
     }
 
@@ -475,7 +476,7 @@ impl Project {
         meta: MetricMeta,
         envelope_processor: Addr<EnvelopeProcessor>,
     ) {
-        let CurrentState::Enabled(state) = self.current_state() else {
+        let ProjectState::Enabled(state) = self.current_state() else {
             relay_log::trace!("no valid state, unable to aggregate metric meta");
             return;
         };
@@ -699,16 +700,15 @@ impl Project {
     /// take precedence.
     ///
     /// [`ValidateEnvelope`]: crate::services::project_cache::ValidateEnvelope
-    #[allow(clippy::too_many_arguments)]
     pub fn update_state(
         &mut self,
         project_cache: &Addr<ProjectCache>,
-        mut state: ProjectFetchState,
+        state: ProjectFetchState,
         envelope_processor: &Addr<EnvelopeProcessor>,
         no_cache: bool,
     ) {
         // Initiate the backoff if the incoming state is invalid. Reset it otherwise.
-        if state.invalid() {
+        if state.pending() {
             self.next_fetch_attempt = Instant::now().checked_add(self.backoff.next_backoff());
         } else {
             self.next_fetch_attempt = None;
@@ -727,17 +727,14 @@ impl Project {
             return;
         }
 
-        match self.state.expiry_state(&self.config) {
-            // If the new state is invalid but the old one still usable, keep the old one.
-            ExpiryState::Updated(old) | ExpiryState::Stale(old) if state.invalid() => {
-                state = self.state
-            }
-            // If the new state is valid or the old one is expired, always use the new one.
-            _ => self.state = state.clone(),
-        }
-
         // If the state is still invalid, return back the taken channel and schedule state update.
-        if state.invalid() {
+        if state.pending() {
+            // Only overwrite if the old state is expired:
+            let is_expired = matches!(self.state.expiry_state(&self.config), ExpiryState::Expired);
+            if is_expired {
+                self.state = state;
+            }
+
             self.state_channel = Some(channel);
             let attempts = self.backoff.attempt() + 1;
             relay_log::debug!(
@@ -749,9 +746,11 @@ impl Project {
             return;
         }
 
+        self.state = state;
+
         // Flush all waiting recipients.
         relay_log::debug!("project state {} updated", self.project_key);
-        channel.inner.send(state);
+        channel.inner.send(self.current_state());
 
         self.after_state_updated(envelope_processor);
     }
@@ -800,9 +799,9 @@ impl Project {
         outcome_aggregator: Addr<TrackOutcome>,
     ) -> Result<CheckedEnvelope, DiscardReason> {
         let state = match self.current_state() {
-            CurrentState::Enabled(state) => Some(state.clone()),
-            CurrentState::Disabled => return Err(DiscardReason::ProjectId),
-            CurrentState::Pending => None,
+            ProjectState::Enabled(state) => Some(state.clone()),
+            ProjectState::Disabled => return Err(DiscardReason::ProjectId),
+            ProjectState::Pending => None,
         };
         let mut scoping = envelope.scoping();
 
@@ -863,7 +862,7 @@ impl Project {
         let project_info = match self.non_expired_state() {
             Some(p) => match p {
                 ProjectState::Enabled(info) => info.clone(),
-                ProjectState::Invalid | ProjectState::Disabled => {
+                ProjectState::Pending | ProjectState::Disabled => {
                     relay_log::debug!("dropping {} buckets for disabled project", buckets.len());
                     return CheckedBuckets::Dropped;
                 }
