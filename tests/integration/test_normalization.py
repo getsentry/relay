@@ -47,8 +47,12 @@ def test_relay_with_full_normalization(mini_sentry, relay, config_full_normaliza
     relay.send_event(project_id, input)
     envelope = mini_sentry.captured_events.get(timeout=10)
 
-    assert "fully_normalized" in envelope.items[0].headers
-    assert drop_props(expected) == drop_props(envelope.get_event())
+    if config_full_normalization:
+        assert "fully_normalized" in envelope.items[0].headers
+        assert drop_props(expected) == drop_props(envelope.get_event())
+    else:
+        assert "fully_normalized" not in envelope.items[0].headers
+        assert drop_props(expected) != drop_props(envelope.get_event())
 
 
 @pytest.mark.parametrize("config_full_normalization", (False, True))
@@ -155,14 +159,10 @@ def test_relay_chain_normalizes_events(
 
     ingested, _ = events_consumer.get_event(timeout=15)
 
-    # Running full normalization twice on the same envelope adds the errors
-    # twice, one per run. The rest is the same.
     if relay_static_config_normalization:
         assert ingested["errors"] == [
             {"name": "location", "type": "invalid_attribute"},
-            {"name": "location", "type": "invalid_attribute"},
         ]
-        ingested["errors"].pop(0)
 
     assert drop_props(expected) == drop_props(ingested)
 
@@ -326,7 +326,6 @@ def test_relay_chain_normalizes_minidump_events(
     relay,
     relay_credentials,
     relay_static_config_normalization,
-    processing_skip_normalization,
 ):
 
     attachments_consumer = attachments_consumer()
