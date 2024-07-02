@@ -862,7 +862,7 @@ impl Project {
     ) -> CheckedBuckets {
         let project_info = match self.non_expired_state() {
             Some(p) => match p {
-                ProjectState::Enabled(info) => info,
+                ProjectState::Enabled(info) => info.clone(),
                 ProjectState::Invalid | ProjectState::Disabled => {
                     relay_log::debug!("dropping {} buckets for disabled project", buckets.len());
                     return CheckedBuckets::Dropped;
