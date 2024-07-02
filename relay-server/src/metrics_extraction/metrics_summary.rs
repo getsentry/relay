@@ -114,12 +114,15 @@ impl<'a> From<&'a GaugeValue> for MetricsSummaryBucketValue {
     }
 }
 
-/// metrics_summary_spec that tracks all the buckets containing the summaries for each
+/// [`MetricsSummary`] that tracks all the buckets containing the summaries for each
 /// [`MetricsSummaryBucketKey`].
 ///
-/// The need for a metrics_summary_spec arises from the fact that we want to compute metrics summaries
+/// The need for a [`MetricsSummary`] arises from the fact that we want to compute metrics summaries
 /// generically on any slice of [`Bucket`]s meaning that we need to handle cases in which
 /// the same metrics as identified by the [`MetricsSummaryBucketKey`] have to be merged.
+///
+/// The [`MetricsSummary`] is a different in-memory representation of a metric summary from the
+/// [`event::MetricsSummary`].
 #[derive(Debug, Default)]
 pub struct MetricsSummary {
     buckets: BTreeMap<MetricsSummaryBucketKey, MetricsSummaryBucketValue>,
@@ -185,6 +188,7 @@ impl MetricsSummary {
             };
 
             let Some(metric_summary_tags) = metric_summary.tags.value() else {
+                // This code should never be reached.
                 continue;
             };
 
@@ -200,18 +204,18 @@ impl MetricsSummary {
                             continue;
                         };
 
-                        if existing_summary.tags.0.is_none() && metric_summary_tags.is_empty() {
-                            found_summary = Some(existing_summary);
-                            break;
-                        }
-
-                        let Some(existing_summary_tags) = existing_summary.tags.value() else {
-                            continue;
-                        };
-
-                        if *metric_summary_tags == *existing_summary_tags {
-                            found_summary = Some(existing_summary);
-                            break;
+                        match existing_summary.tags.value() {
+                            Some(existing_summary_tags)
+                                if *metric_summary_tags == *existing_summary_tags =>
+                            {
+                                found_summary = Some(existing_summary);
+                                break;
+                            }
+                            None if metric_summary_tags.is_empty() => {
+                                found_summary = Some(existing_summary);
+                                break;
+                            }
+                            _ => {}
                         }
                     }
 
@@ -246,9 +250,7 @@ fn compute(buckets: &[Bucket]) -> MetricsSummary {
     MetricsSummary::from_buckets(filtered_buckets)
 }
 
-/// Extract metrics and summarizes them on any type that implements [`Extractable`] and [`Getter`].
-///
-/// The summarization of the metrics happens by mutating the original `instance`.
+/// Extract metrics and summarizes them.
 pub fn extract_and_summarize_metrics<T>(
     instance: &T,
     config: CombinedMetricExtractionConfig<'_>,
@@ -628,6 +630,41 @@ mod tests {
                         tags: {
                             "platform": "ios",
                         },
+                    },
+                ],
+            },
+        )
+        "###);
+    }
+
+    #[test]
+    fn test_apply_on_with_same_metric_and_same_empty_tags() {
+        let buckets = build_buckets(b"my_counter:3|c");
+        let mut summary_map = BTreeMap::new();
+        summary_map.insert(
+            "c:custom/my_counter@none".to_owned(),
+            Annotated::new(vec![Annotated::new(event::MetricSummary {
+                min: Annotated::new(5.0),
+                max: Annotated::new(10.0),
+                sum: Annotated::new(15.0),
+                count: Annotated::new(2),
+                tags: Annotated::new(BTreeMap::new()),
+            })]),
+        );
+
+        let metrics_summary_spec = MetricsSummary::from_buckets(buckets.iter());
+        let mut metrics_summary = Annotated::new(event::MetricsSummary(summary_map));
+        metrics_summary_spec.apply_on(&mut metrics_summary);
+
+        insta::assert_debug_snapshot!(metrics_summary.value().unwrap(), @r###"
+        MetricsSummary(
+            {
+                "c:custom/my_counter@none": [
+                    MetricSummary {
+                        min: 3.0,
+                        max: 10.0,
+                        sum: 18.0,
+                        count: 3,
                     },
                 ],
             },
