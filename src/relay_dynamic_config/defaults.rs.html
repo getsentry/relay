@@ -945,6 +945,14 @@
 <a href="#945" id="945">945</a>
 <a href="#946" id="946">946</a>
 <a href="#947" id="947">947</a>
+<a href="#948" id="948">948</a>
+<a href="#949" id="949">949</a>
+<a href="#950" id="950">950</a>
+<a href="#951" id="951">951</a>
+<a href="#952" id="952">952</a>
+<a href="#953" id="953">953</a>
+<a href="#954" id="954">954</a>
+<a href="#955" id="955">955</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_base_schema::data_category::DataCategory;
 <span class="kw">use </span>relay_common::glob2::LazyGlob;
 <span class="kw">use </span>relay_event_normalization::utils::MAX_DURATION_MOBILE_MS;
@@ -1139,6 +1147,14 @@
     <span class="kw">let </span>is_app_start = RuleCondition::glob(<span class="string">"span.op"</span>, <span class="string">"app.start.*"</span>)
         &amp; RuleCondition::eq(<span class="string">"span.description"</span>, APP_START_ROOT_SPAN_DESCRIPTIONS);
 
+    <span class="comment">// Metrics for common modules:
+    </span><span class="kw">let </span>is_common = is_app_start.clone()
+        | is_db.clone()
+        | is_resource.clone()
+        | is_http.clone()
+        | is_mobile.clone()
+        | is_interaction.clone();
+
     <span class="comment">// Metrics for addon modules are only extracted if the feature flag is enabled:
     </span><span class="kw">let </span>is_addon = is_ai.clone() | is_queue_op.clone() | is_cache.clone();
 
@@ -1150,7 +1166,7 @@
                     category: DataCategory::Span,
                     mri: <span class="string">"d:spans/exclusive_time@millisecond"</span>.into(),
                     field: <span class="prelude-val">Some</span>(<span class="string">"span.exclusive_time"</span>.into()),
-                    condition: <span class="prelude-val">Some</span>(!is_addon.clone()),
+                    condition: <span class="prelude-val">Some</span>(!is_addon.clone() &amp; is_common.clone()),
                     tags: <span class="macro">vec!</span>[],
                 },
                 MetricSpec {
@@ -1225,7 +1241,7 @@
                     category: DataCategory::Span,
                     mri: <span class="string">"d:spans/duration@millisecond"</span>.into(),
                     field: <span class="prelude-val">Some</span>(<span class="string">"span.duration"</span>.into()),
-                    condition: <span class="prelude-val">Some</span>(!is_addon.clone()),
+                    condition: <span class="prelude-val">Some</span>(!is_addon.clone() &amp; is_common.clone()),
                     tags: <span class="macro">vec!</span>[],
                 },
                 MetricSpec {
