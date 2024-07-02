@@ -6,7 +6,7 @@ use relay_event_schema::protocol as event;
 use relay_metrics::{
     Bucket, BucketValue, CounterType, DistributionValue, FiniteF64, GaugeValue, SetValue,
 };
-use relay_protocol::{Annotated, Getter};
+use relay_protocol::Annotated;
 use std::collections::btree_map::Entry;
 use std::collections::BTreeMap;
 
@@ -266,7 +266,7 @@ where
 mod tests {
     use crate::metrics_extraction::metrics_summary::MetricsSummary;
     use relay_common::time::UnixTimestamp;
-    use relay_event_schema::protocol::{MetricSummary, MetricsSummary};
+    use relay_event_schema::protocol as event;
     use relay_metrics::Bucket;
     use relay_protocol::Annotated;
     use std::collections::BTreeMap;
@@ -283,7 +283,7 @@ mod tests {
             build_buckets(b"my_counter:3|c|#platform:ios\nmy_counter:2|c|#platform:android");
 
         let metrics_summary_spec = MetricsSummary::from_buckets(buckets.iter());
-        let mut metrics_summary = Annotated::new(MetricsSummary(BTreeMap::new()));
+        let mut metrics_summary = Annotated::new(event::MetricsSummary(BTreeMap::new()));
         metrics_summary_spec.apply_on(&mut metrics_summary);
 
         insta::assert_debug_snapshot!(metrics_summary.value().unwrap(), @r###"
@@ -320,7 +320,7 @@ mod tests {
             build_buckets(b"my_dist:3.0:5.0|d|#platform:ios\nmy_dist:2.0:4.0|d|#platform:android");
 
         let metrics_summary_spec = MetricsSummary::from_buckets(buckets.iter());
-        let mut metrics_summary = Annotated::new(MetricsSummary(BTreeMap::new()));
+        let mut metrics_summary = Annotated::new(event::MetricsSummary(BTreeMap::new()));
         metrics_summary_spec.apply_on(&mut metrics_summary);
 
         insta::assert_debug_snapshot!(metrics_summary.value().unwrap(), @r###"
@@ -357,7 +357,7 @@ mod tests {
             build_buckets(b"my_set:3.0:5.0|s|#platform:ios\nmy_set:2.0:4.0|s|#platform:android");
 
         let metrics_summary_spec = MetricsSummary::from_buckets(buckets.iter());
-        let mut metrics_summary = Annotated::new(MetricsSummary(BTreeMap::new()));
+        let mut metrics_summary = Annotated::new(event::MetricsSummary(BTreeMap::new()));
         metrics_summary_spec.apply_on(&mut metrics_summary);
 
         insta::assert_debug_snapshot!(metrics_summary.value().unwrap(), @r###"
@@ -394,7 +394,7 @@ mod tests {
             build_buckets(b"my_gauge:3.0|g|#platform:ios\nmy_gauge:2.0|g|#platform:android");
 
         let metrics_summary_spec = MetricsSummary::from_buckets(buckets.iter());
-        let mut metrics_summary = Annotated::new(MetricsSummary(BTreeMap::new()));
+        let mut metrics_summary = Annotated::new(event::MetricsSummary(BTreeMap::new()));
         metrics_summary_spec.apply_on(&mut metrics_summary);
 
         insta::assert_debug_snapshot!(metrics_summary.value().unwrap(), @r###"
@@ -440,7 +440,7 @@ mod tests {
         ));
 
         let metrics_summary_spec = MetricsSummary::from_buckets(buckets.iter());
-        let mut metrics_summary = Annotated::new(MetricsSummary(BTreeMap::new()));
+        let mut metrics_summary = Annotated::new(event::MetricsSummary(BTreeMap::new()));
         metrics_summary_spec.apply_on(&mut metrics_summary);
 
         insta::assert_debug_snapshot!(metrics_summary.value().unwrap(), @r###"
@@ -503,7 +503,7 @@ mod tests {
         let mut summary_map = BTreeMap::new();
         summary_map.insert(
             "c:custom/my_other_counter@none".to_owned(),
-            Annotated::new(vec![Annotated::new(MetricSummary {
+            Annotated::new(vec![Annotated::new(event::MetricSummary {
                 min: Annotated::new(5.0),
                 max: Annotated::new(10.0),
                 sum: Annotated::new(15.0),
@@ -513,7 +513,7 @@ mod tests {
         );
 
         let metrics_summary_spec = MetricsSummary::from_buckets(buckets.iter());
-        let mut metrics_summary = Annotated::new(MetricsSummary(summary_map));
+        let mut metrics_summary = Annotated::new(event::MetricsSummary(summary_map));
         metrics_summary_spec.apply_on(&mut metrics_summary);
 
         insta::assert_debug_snapshot!(metrics_summary.value().unwrap(), @r###"
@@ -554,7 +554,7 @@ mod tests {
         let mut summary_map = BTreeMap::new();
         summary_map.insert(
             "c:custom/my_counter@none".to_owned(),
-            Annotated::new(vec![Annotated::new(MetricSummary {
+            Annotated::new(vec![Annotated::new(event::MetricSummary {
                 min: Annotated::new(5.0),
                 max: Annotated::new(10.0),
                 sum: Annotated::new(15.0),
@@ -564,7 +564,7 @@ mod tests {
         );
 
         let metrics_summary_spec = MetricsSummary::from_buckets(buckets.iter());
-        let mut metrics_summary = Annotated::new(MetricsSummary(summary_map));
+        let mut metrics_summary = Annotated::new(event::MetricsSummary(summary_map));
         metrics_summary_spec.apply_on(&mut metrics_summary);
 
         insta::assert_debug_snapshot!(metrics_summary.value().unwrap(), @r###"
@@ -603,7 +603,7 @@ mod tests {
         let mut summary_map = BTreeMap::new();
         summary_map.insert(
             "c:custom/my_counter@none".to_owned(),
-            Annotated::new(vec![Annotated::new(MetricSummary {
+            Annotated::new(vec![Annotated::new(event::MetricSummary {
                 min: Annotated::new(5.0),
                 max: Annotated::new(10.0),
                 sum: Annotated::new(15.0),
@@ -613,7 +613,7 @@ mod tests {
         );
 
         let metrics_summary_spec = MetricsSummary::from_buckets(buckets.iter());
-        let mut metrics_summary = Annotated::new(MetricsSummary(summary_map));
+        let mut metrics_summary = Annotated::new(event::MetricsSummary(summary_map));
         metrics_summary_spec.apply_on(&mut metrics_summary);
 
         insta::assert_debug_snapshot!(metrics_summary.value().unwrap(), @r###"

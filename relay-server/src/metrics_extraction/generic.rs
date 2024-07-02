@@ -1,7 +1,5 @@
 use std::collections::BTreeMap;
 
-use crate::metrics_extraction::metrics_summary;
-use crate::metrics_extraction::metrics_summary::MetricsSummary;
 use relay_common::time::UnixTimestamp;
 use relay_dynamic_config::{CombinedMetricExtractionConfig, TagMapping, TagSource, TagSpec};
 use relay_metrics::{
