@@ -2073,7 +2073,9 @@ def test_metrics_summary_with_extracted_spans(
 
     relay.send_event(project_id, event)
 
-    metrics_summaries = metrics_summaries_consumer.get_metrics_summaries(n=3)
+    metrics_summaries = metrics_summaries_consumer.get_metrics_summaries(
+        timeout=10.0, n=3
+    )
     expected_mris = ["c:spans/some_metric@none", "d:custom/my_metric@millisecond"]
     for metric_summary in metrics_summaries:
         assert metric_summary["mri"] in expected_mris
@@ -2116,7 +2118,9 @@ def test_metrics_summary_with_standalone_spans(
     envelope = envelope_with_spans(start, end)
     relay.send_envelope(project_id, envelope)
 
-    metrics_summaries = metrics_summaries_consumer.get_metrics_summaries(n=4)
+    metrics_summaries = metrics_summaries_consumer.get_metrics_summaries(
+        timeout=10.0, n=4
+    )
     expected_mris = ["c:spans/some_metric@none", "d:custom/my_metric@millisecond"]
     for metric_summary in metrics_summaries:
         assert metric_summary["mri"] in expected_mris
