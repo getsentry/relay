@@ -10,7 +10,8 @@ use once_cell::sync::Lazy;
 use regex::Regex;
 use relay_base_schema::metrics::{DurationUnit, InformationUnit, MetricUnit};
 use relay_event_schema::protocol::{
-    AppContext, BrowserContext, Event, Measurement, OsContext, Span, Timestamp, TraceContext,
+    AppContext, BrowserContext, Event, Measurement, OsContext, ProfileContext, Span, Timestamp,
+    TraceContext,
 };
 use relay_protocol::{Annotated, Value};
 use sqlparser::ast::Visit;
@@ -81,6 +82,7 @@ pub enum SpanTagKey {
     TraceStatus,
     MessagingDestinationName,
     MessagingMessageId,
+    ProfilerId,
 }
 
 impl SpanTagKey {
@@ -132,6 +134,8 @@ impl SpanTagKey {
             SpanTagKey::TraceStatus => "trace.status",
             SpanTagKey::MessagingDestinationName => "messaging.destination.name",
             SpanTagKey::MessagingMessageId => "messaging.message.id",
+
+            SpanTagKey::ProfilerId => "profiler_id",
         }
     }
 }
@@ -323,6 +327,13 @@ fn extract_shared_tags(event: &Event) -> BTreeMap<SpanTagKey, String> {
         .and_then(|v| v.name.value())
     {
         tags.insert(SpanTagKey::BrowserName, browser_name.into());
+    }
+
+    if let Some(profiler_id) = event
+        .context::<ProfileContext>()
+        .and_then(|profile_context| profile_context.profiler_id.value())
+    {
+        tags.insert(SpanTagKey::ProfilerId, profiler_id.into());
     }
 
     tags.insert(SpanTagKey::SdkName, event.sdk_name().into());
