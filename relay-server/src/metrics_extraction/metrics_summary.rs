@@ -8,7 +8,7 @@ use std::collections::btree_map::Entry;
 use std::collections::BTreeMap;
 
 /// Key of a bucket used to keep track of aggregates for the [`MetricsSummary`].
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 struct MetricsSummaryBucketKey {
     /// Name of the metric.
     metric_name: MetricName,
@@ -17,7 +17,7 @@ struct MetricsSummaryBucketKey {
 }
 
 /// Value of a bucket used to keep track of aggregates for the [`MetricsSummary`].
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 struct MetricsSummaryBucketValue {
     /// The minimum value reported in the bucket.
     min: Option<FiniteF64>,
@@ -29,40 +29,35 @@ struct MetricsSummaryBucketValue {
     count: u64,
 }
 
-impl MetricsSummaryBucketValue {
-    /// Builds a [`MetricsSummaryBucketValue`] from a [`MetricSummary`] by aggregating the data into
-    /// a gauge like summary.
-    fn from_metric_summary(summary: &MetricSummary) -> MetricsSummaryBucketValue {
-        MetricsSummaryBucketValue {
-            min: summary
-                .min
-                .value()
-                .and_then(|min| FiniteF64::try_from(*min).ok()),
-            max: summary
-                .max
-                .value()
-                .and_then(|max| FiniteF64::try_from(*max).ok()),
-            sum: summary
-                .sum
-                .value()
-                .and_then(|sum| FiniteF64::try_from(*sum).ok()),
-            count: summary.count.value().cloned().unwrap_or(0),
+impl std::ops::AddAssign for MetricsSummaryBucketValue {
+    fn add_assign(&mut self, rhs: Self) {
+        *self = MetricsSummaryBucketValue {
+            min: std::cmp::min(self.min, rhs.min),
+            max: std::cmp::max(self.max, rhs.max),
+            sum: match (self.sum, rhs.sum) {
+                (Some(sum), Some(other_sum)) => Some(sum.saturating_add(other_sum)),
+                (None, Some(other_sum)) => Some(other_sum),
+                (Some(sum), None) => Some(sum),
+                _ => None,
+            },
+            count: self.count + rhs.count,
         }
     }
+}
 
-    /// Builds a [`MetricsSummaryBucketValue`] from a [`BucketValue`] by aggregating the data into
-    /// a gauge like summary.
-    fn from_bucket_value(value: &BucketValue) -> MetricsSummaryBucketValue {
+impl<'a> From<&'a BucketValue> for MetricsSummaryBucketValue {
+    fn from(value: &'a BucketValue) -> Self {
         match value {
-            BucketValue::Counter(counter) => Self::from_counter(counter),
-            BucketValue::Distribution(distribution) => Self::from_distribution(distribution),
-            BucketValue::Set(set) => Self::from_set(set),
-            BucketValue::Gauge(gauge) => Self::from_gauge(gauge),
+            BucketValue::Counter(counter) => counter.into(),
+            BucketValue::Distribution(distribution) => distribution.into(),
+            BucketValue::Set(set) => set.into(),
+            BucketValue::Gauge(gauge) => gauge.into(),
         }
     }
+}
 
-    /// Builds a [`MetricsSummaryBucketValue`] from a [`CounterType`].
-    fn from_counter(counter: &CounterType) -> MetricsSummaryBucketValue {
+impl<'a> From<&'a CounterType> for MetricsSummaryBucketValue {
+    fn from(counter: &'a CounterType) -> Self {
         MetricsSummaryBucketValue {
             min: Some(*counter),
             max: Some(*counter),
@@ -70,9 +65,10 @@ impl MetricsSummaryBucketValue {
             count: 1,
         }
     }
+}
 
-    /// Builds a [`MetricsSummaryBucketValue`] from a [`DistributionValue`].
-    fn from_distribution(distribution: &DistributionValue) -> MetricsSummaryBucketValue {
+impl<'a> From<&'a DistributionValue> for MetricsSummaryBucketValue {
+    fn from(distribution: &'a DistributionValue) -> Self {
         let mut min = FiniteF64::MAX;
         let mut max = FiniteF64::MIN;
         let mut sum = FiniteF64::new(0.0).unwrap();
@@ -90,9 +86,10 @@ impl MetricsSummaryBucketValue {
             count: distribution.len() as u64,
         }
     }
+}
 
-    /// Builds a [`MetricsSummaryBucketValue`] from a [`SetValue`].
-    fn from_set(set: &SetValue) -> MetricsSummaryBucketValue {
+impl<'a> From<&'a SetValue> for MetricsSummaryBucketValue {
+    fn from(set: &'a SetValue) -> Self {
         // For sets, we limit to counting the number of occurrences.
         MetricsSummaryBucketValue {
             min: None,
@@ -101,9 +98,10 @@ impl MetricsSummaryBucketValue {
             count: set.len() as u64,
         }
     }
+}
 
-    /// Builds a [`MetricsSummaryBucketValue`] from a [`GaugeValue`].
-    fn from_gauge(gauge: &GaugeValue) -> MetricsSummaryBucketValue {
+impl<'a> From<&'a GaugeValue> for MetricsSummaryBucketValue {
+    fn from(gauge: &'a GaugeValue) -> Self {
         MetricsSummaryBucketValue {
             min: Some(gauge.min),
             max: Some(gauge.max),
@@ -111,28 +109,15 @@ impl MetricsSummaryBucketValue {
             count: gauge.count,
         }
     }
-
-    /// Merges two [`MetricsSummaryBucketValue`]s together by mutating `self` and consuming
-    /// `other`.
-    fn merge(&mut self, other: MetricsSummaryBucketValue) {
-        self.min = std::cmp::min(self.min, other.min);
-        self.max = std::cmp::max(self.max, other.max);
-        self.sum = match (self.sum, other.sum) {
-            (Some(sum), Some(other_sum)) => Some(sum.saturating_add(other_sum)),
-            (None, Some(other_sum)) => Some(other_sum),
-            (Some(sum), None) => Some(sum),
-            _ => None,
-        };
-        self.count += other.count;
-    }
 }
 
 /// metrics_summary_spec that tracks all the buckets containing the summaries for each
 /// [`MetricsSummaryBucketKey`].
 ///
-/// The need for an metrics_summary_spec arises from the fact that we want to compute metrics summaries
+/// The need for a metrics_summary_spec arises from the fact that we want to compute metrics summaries
 /// generically on any slice of [`Bucket`]s meaning that we need to handle cases in which
 /// the same metrics as identified by the [`MetricsSummaryBucketKey`] have to be merged.
+#[derive(Debug, Default)]
 pub struct MetricsSummarySpec {
     buckets: BTreeMap<MetricsSummaryBucketKey, MetricsSummaryBucketValue>,
 }
@@ -162,51 +147,10 @@ impl MetricsSummarySpec {
             tags: bucket.tags.clone(),
         };
 
-        let value = MetricsSummaryBucketValue::from_bucket_value(&bucket.value);
-
-        self.merge(key, value);
-    }
-
-    /// Merges a [`MetricsSummary`] into the [`MetricsSummarySpec`].
-    fn merge_metrics_summary(&mut self, metrics_summary: &MetricsSummary) {
-        for (metric, summary_per_tag) in metrics_summary.0.iter() {
-            let Some(summary_per_tag) = summary_per_tag.value() else {
-                continue;
-            };
-
-            for summary in summary_per_tag {
-                let Some(summary) = summary.value() else {
-                    continue;
-                };
-
-                let mut tags = BTreeMap::new();
-                if let Some(inner_tags) = summary.tags.value() {
-                    for (tag_key, tag_value) in inner_tags.iter() {
-                        let Some(tag_value) = tag_value.value() else {
-                            continue;
-                        };
-
-                        tags.insert(tag_key.clone(), tag_value.clone());
-                    }
-                }
-
-                let key = MetricsSummaryBucketKey {
-                    metric_name: MetricName::from(metric.clone()),
-                    tags,
-                };
-
-                let value = MetricsSummaryBucketValue::from_metric_summary(summary);
-
-                self.merge(key, value);
-            }
-        }
-    }
-
-    /// Merges a [`MetricsSummaryBucketKey`] and [`MetricsSummaryBucketValue`] in the spec.
-    fn merge(&mut self, key: MetricsSummaryBucketKey, value: MetricsSummaryBucketValue) {
+        let value = (&bucket.value).into();
         match self.buckets.entry(key) {
             Entry::Occupied(mut entry) => {
-                entry.get_mut().merge(value);
+                *entry.get_mut() += value;
             }
             Entry::Vacant(entry) => {
                 entry.insert(value);
@@ -215,64 +159,81 @@ impl MetricsSummarySpec {
     }
 
     /// Applies the [`MetricsSummarySpec`] on a receiving [`Annotated<MetricsSummary>`].
-    ///
-    /// In case the [`MetricsSummarySpec`] is empty, no mutation will take place.
-    pub fn apply_on(mut self, receiver: &mut Annotated<MetricsSummary>) {
-        if self.buckets.is_empty() {
+    pub fn apply_on(self, receiver: &mut Annotated<MetricsSummary>) {
+        let Some(MetricsSummary(mapping)) = receiver.value_mut() else {
             return;
-        }
+        };
 
-        if let Some(receiver) = receiver.value() {
-            self.merge_metrics_summary(receiver);
-        }
-
-        *receiver = self.into()
-    }
-}
-
-impl From<MetricsSummarySpec> for Annotated<MetricsSummary> {
-    /// Builds the [`MetricsSummary`] from the spec.
-    ///
-    /// Note that this method consumes the metrics_summary_spec itself, since the purpose of the metrics_summary_spec
-    /// is to be built and destroyed once the summary is ready to be computed.
-    fn from(spec: MetricsSummarySpec) -> Self {
-        let mut metrics_summary = BTreeMap::new();
-
-        for (key, value) in spec.buckets {
-            let tags = key
-                .tags
-                .into_iter()
-                .map(|(tag_key, tag_value)| (tag_key, Annotated::new(tag_value)))
-                .collect();
-
+        for (key, value) in self.buckets {
+            let min = value.min.map_or(Annotated::empty(), |m| m.to_f64().into());
+            let max = value.max.map_or(Annotated::empty(), |m| m.to_f64().into());
+            let sum = value.sum.map_or(Annotated::empty(), |m| m.to_f64().into());
             let metric_summary = MetricSummary {
-                min: value
-                    .min
-                    .map_or(Annotated::empty(), |m| Annotated::new(m.to_f64())),
-                max: value
-                    .max
-                    .map_or(Annotated::empty(), |m| Annotated::new(m.to_f64())),
-                sum: value
-                    .sum
-                    .map_or(Annotated::empty(), |m| Annotated::new(m.to_f64())),
+                min,
+                max,
+                sum,
                 count: Annotated::new(value.count),
-                tags: Annotated::new(tags),
+                tags: Annotated::new(
+                    key.tags
+                        .into_iter()
+                        .map(|(tag_key, tag_value)| (tag_key, Annotated::new(tag_value)))
+                        .collect(),
+                ),
             };
 
-            let entry = metrics_summary
-                .entry(key.metric_name.to_string())
-                .or_insert(Annotated::new(vec![]));
+            let Some(metric_summary_tags) = metric_summary.tags.value() else {
+                continue;
+            };
 
-            if let Some(x) = entry.value_mut() {
-                x.push(Annotated::new(metric_summary));
+            let existing_summary = mapping
+                .get_mut(key.metric_name.as_ref())
+                .and_then(|v| v.value_mut().as_mut());
+
+            match existing_summary {
+                Some(existing_summary) => {
+                    let mut found_summary = None;
+                    for existing_summary in existing_summary.iter_mut() {
+                        let Some(existing_summary) = existing_summary.value_mut() else {
+                            continue;
+                        };
+
+                        if existing_summary.tags.0.is_none() && metric_summary_tags.is_empty() {
+                            found_summary = Some(existing_summary);
+                            break;
+                        }
+
+                        let Some(existing_summary_tags) = existing_summary.tags.value() else {
+                            continue;
+                        };
+
+                        if *metric_summary_tags == *existing_summary_tags {
+                            found_summary = Some(existing_summary);
+                            break;
+                        }
+                    }
+
+                    match found_summary {
+                        Some(found_summary) => {
+                            found_summary.merge(metric_summary);
+                        }
+                        None => {
+                            existing_summary.push(Annotated::new(metric_summary));
+                        }
+                    }
+                }
+                None => {
+                    mapping.insert(
+                        key.metric_name.to_string(),
+                        Annotated::new(vec![Annotated::new(metric_summary)]),
+                    );
+                }
             }
         }
-
-        Annotated::new(MetricsSummary(metrics_summary))
     }
 }
 
-/// Computes the [`MetricsSummary`] from a slice of [`Bucket`]s.
+/// Computes the [`MetricsSummary`] from a slice of [`Bucket`]s that belong to
+/// [`MetricNamespace::Custom`].
 pub fn compute(buckets: &[Bucket]) -> MetricsSummarySpec {
     // For now, we only want metrics summaries to be extracted for custom metrics.
     let filtered_buckets = buckets
@@ -286,9 +247,10 @@ pub fn compute(buckets: &[Bucket]) -> MetricsSummarySpec {
 mod tests {
     use crate::metrics_extraction::metrics_summary::MetricsSummarySpec;
     use relay_common::time::UnixTimestamp;
-    use relay_event_schema::protocol::MetricsSummary;
+    use relay_event_schema::protocol::{MetricSummary, MetricsSummary};
     use relay_metrics::Bucket;
     use relay_protocol::Annotated;
+    use std::collections::BTreeMap;
 
     fn build_buckets(slice: &[u8]) -> Vec<Bucket> {
         Bucket::parse_all(slice, UnixTimestamp::now())
@@ -302,7 +264,8 @@ mod tests {
             build_buckets(b"my_counter:3|c|#platform:ios\nmy_counter:2|c|#platform:android");
 
         let metrics_summary_spec = MetricsSummarySpec::from_buckets(buckets.iter());
-        let metrics_summary: Annotated<MetricsSummary> = metrics_summary_spec.into();
+        let mut metrics_summary = Annotated::new(MetricsSummary(BTreeMap::new()));
+        metrics_summary_spec.apply_on(&mut metrics_summary);
 
         insta::assert_debug_snapshot!(metrics_summary.value().unwrap(), @r###"
         MetricsSummary(
@@ -338,7 +301,8 @@ mod tests {
             build_buckets(b"my_dist:3.0:5.0|d|#platform:ios\nmy_dist:2.0:4.0|d|#platform:android");
 
         let metrics_summary_spec = MetricsSummarySpec::from_buckets(buckets.iter());
-        let metrics_summary: Annotated<MetricsSummary> = metrics_summary_spec.into();
+        let mut metrics_summary = Annotated::new(MetricsSummary(BTreeMap::new()));
+        metrics_summary_spec.apply_on(&mut metrics_summary);
 
         insta::assert_debug_snapshot!(metrics_summary.value().unwrap(), @r###"
         MetricsSummary(
@@ -374,7 +338,8 @@ mod tests {
             build_buckets(b"my_set:3.0:5.0|s|#platform:ios\nmy_set:2.0:4.0|s|#platform:android");
 
         let metrics_summary_spec = MetricsSummarySpec::from_buckets(buckets.iter());
-        let metrics_summary: Annotated<MetricsSummary> = metrics_summary_spec.into();
+        let mut metrics_summary = Annotated::new(MetricsSummary(BTreeMap::new()));
+        metrics_summary_spec.apply_on(&mut metrics_summary);
 
         insta::assert_debug_snapshot!(metrics_summary.value().unwrap(), @r###"
         MetricsSummary(
@@ -410,7 +375,8 @@ mod tests {
             build_buckets(b"my_gauge:3.0|g|#platform:ios\nmy_gauge:2.0|g|#platform:android");
 
         let metrics_summary_spec = MetricsSummarySpec::from_buckets(buckets.iter());
-        let metrics_summary: Annotated<MetricsSummary> = metrics_summary_spec.into();
+        let mut metrics_summary = Annotated::new(MetricsSummary(BTreeMap::new()));
+        metrics_summary_spec.apply_on(&mut metrics_summary);
 
         insta::assert_debug_snapshot!(metrics_summary.value().unwrap(), @r###"
         MetricsSummary(
@@ -455,7 +421,8 @@ mod tests {
         ));
 
         let metrics_summary_spec = MetricsSummarySpec::from_buckets(buckets.iter());
-        let metrics_summary: Annotated<MetricsSummary> = metrics_summary_spec.into();
+        let mut metrics_summary = Annotated::new(MetricsSummary(BTreeMap::new()));
+        metrics_summary_spec.apply_on(&mut metrics_summary);
 
         insta::assert_debug_snapshot!(metrics_summary.value().unwrap(), @r###"
         MetricsSummary(
@@ -499,6 +466,146 @@ mod tests {
                         max: ~,
                         sum: ~,
                         count: 4,
+                        tags: {
+                            "platform": "ios",
+                        },
+                    },
+                ],
+            },
+        )
+        "###);
+    }
+
+    #[test]
+    fn test_apply_on_with_different_metric() {
+        let buckets = build_buckets(b"my_counter:3|c|#platform:ios");
+        let mut tags_map = BTreeMap::new();
+        tags_map.insert("region".to_owned(), Annotated::new("us".to_owned()));
+        let mut summary_map = BTreeMap::new();
+        summary_map.insert(
+            "c:custom/my_other_counter@none".to_owned(),
+            Annotated::new(vec![Annotated::new(MetricSummary {
+                min: Annotated::new(5.0),
+                max: Annotated::new(10.0),
+                sum: Annotated::new(15.0),
+                count: Annotated::new(2),
+                tags: Annotated::new(tags_map),
+            })]),
+        );
+
+        let metrics_summary_spec = MetricsSummarySpec::from_buckets(buckets.iter());
+        let mut metrics_summary = Annotated::new(MetricsSummary(summary_map));
+        metrics_summary_spec.apply_on(&mut metrics_summary);
+
+        insta::assert_debug_snapshot!(metrics_summary.value().unwrap(), @r###"
+        MetricsSummary(
+            {
+                "c:custom/my_counter@none": [
+                    MetricSummary {
+                        min: 3.0,
+                        max: 3.0,
+                        sum: 3.0,
+                        count: 1,
+                        tags: {
+                            "platform": "ios",
+                        },
+                    },
+                ],
+                "c:custom/my_other_counter@none": [
+                    MetricSummary {
+                        min: 5.0,
+                        max: 10.0,
+                        sum: 15.0,
+                        count: 2,
+                        tags: {
+                            "region": "us",
+                        },
+                    },
+                ],
+            },
+        )
+        "###);
+    }
+
+    #[test]
+    fn test_apply_on_with_same_metric_and_different_tags() {
+        let buckets = build_buckets(b"my_counter:3|c|#platform:ios");
+        let mut tags_map = BTreeMap::new();
+        tags_map.insert("region".to_owned(), Annotated::new("us".to_owned()));
+        let mut summary_map = BTreeMap::new();
+        summary_map.insert(
+            "c:custom/my_counter@none".to_owned(),
+            Annotated::new(vec![Annotated::new(MetricSummary {
+                min: Annotated::new(5.0),
+                max: Annotated::new(10.0),
+                sum: Annotated::new(15.0),
+                count: Annotated::new(2),
+                tags: Annotated::new(tags_map),
+            })]),
+        );
+
+        let metrics_summary_spec = MetricsSummarySpec::from_buckets(buckets.iter());
+        let mut metrics_summary = Annotated::new(MetricsSummary(summary_map));
+        metrics_summary_spec.apply_on(&mut metrics_summary);
+
+        insta::assert_debug_snapshot!(metrics_summary.value().unwrap(), @r###"
+        MetricsSummary(
+            {
+                "c:custom/my_counter@none": [
+                    MetricSummary {
+                        min: 5.0,
+                        max: 10.0,
+                        sum: 15.0,
+                        count: 2,
+                        tags: {
+                            "region": "us",
+                        },
+                    },
+                    MetricSummary {
+                        min: 3.0,
+                        max: 3.0,
+                        sum: 3.0,
+                        count: 1,
+                        tags: {
+                            "platform": "ios",
+                        },
+                    },
+                ],
+            },
+        )
+        "###);
+    }
+
+    #[test]
+    fn test_apply_on_with_same_metric_and_same_tags() {
+        let buckets = build_buckets(b"my_counter:3|c|#platform:ios");
+        let mut tags_map = BTreeMap::new();
+        tags_map.insert("platform".to_owned(), Annotated::new("ios".to_owned()));
+        let mut summary_map = BTreeMap::new();
+        summary_map.insert(
+            "c:custom/my_counter@none".to_owned(),
+            Annotated::new(vec![Annotated::new(MetricSummary {
+                min: Annotated::new(5.0),
+                max: Annotated::new(10.0),
+                sum: Annotated::new(15.0),
+                count: Annotated::new(2),
+                tags: Annotated::new(tags_map),
+            })]),
+        );
+
+        let metrics_summary_spec = MetricsSummarySpec::from_buckets(buckets.iter());
+        let mut metrics_summary = Annotated::new(MetricsSummary(summary_map));
+        metrics_summary_spec.apply_on(&mut metrics_summary);
+
+        insta::assert_debug_snapshot!(metrics_summary.value().unwrap(), @r###"
+        MetricsSummary(
+            {
+                "c:custom/my_counter@none": [
+                    MetricSummary {
+                        min: 3.0,
+                        max: 10.0,
+                        sum: 18.0,
+                        count: 3,
                         tags: {
                             "platform": "ios",
                         },

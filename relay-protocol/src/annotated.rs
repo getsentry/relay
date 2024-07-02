@@ -236,6 +236,21 @@ where
 
 impl<T> Annotated<T>
 where
+    T: Copy,
+{
+    /// Merges two [`Annotated`]s and applies a `block` in case both values are non-empty.
+    pub fn merge(&mut self, other: &Annotated<T>, block: impl FnOnce(&T, &T) -> T) {
+        match (self.value(), other.value()) {
+            (Some(left), Some(right)) => self.set_value(Some(block(left, right))),
+            (None, Some(right)) => self.set_value(Some(*right)),
+            (Some(_), None) => {}
+            (None, None) => {}
+        }
+    }
+}
+
+impl<T> Annotated<T>
+where
     T: FromValue,
 {
     /// Deserializes an annotated from a deserializer

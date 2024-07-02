@@ -56,10 +56,7 @@ pub fn extract_metrics(
     let compute_metrics_summaries_sample_rate =
         compute_metrics_summaries_sample_rate.unwrap_or(1.0);
 
-    let (mut metrics, metrics_summary_spec) = generic::extract_and_summarize_metrics(event, config);
-    if sample(compute_metrics_summaries_sample_rate) {
-        metrics_summary_spec.apply_on(&mut event._metrics_summary);
-    }
+    let (mut metrics, _) = generic::extract_and_summarize_metrics(event, config);
 
     // If spans were already extracted for an event, we rely on span processing to extract metrics.
     if !spans_extracted && sample(span_extraction_sample_rate.unwrap_or(1.0)) {
