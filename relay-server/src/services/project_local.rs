@@ -112,12 +112,9 @@ async fn load_local_states(
         // Keep a separate project state per key.
         let keys = std::mem::take(&mut state.info.public_keys);
         for key in keys {
+            let mut state = state.clone();
             state.info.public_keys = smallvec::smallvec![key.clone()];
-            if let Ok(state) = ProjectState::try_from(state.clone()) {
-                states.insert(key.public_key, state.sanitize());
-            } else {
-                relay_log::debug!("Invalid state");
-            }
+            states.insert(key.public_key, ProjectState::from(state).sanitize());
         }
     }
 
