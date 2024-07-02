@@ -1495,15 +1495,10 @@ impl EnvelopeProcessorService {
             return Ok(());
         }
 
-        let options = &self.inner.global_config.current().options;
-
         let full_normalization = match self.inner.config.normalization_level() {
             NormalizationLevel::Full => true,
             NormalizationLevel::Default => {
-                if self.inner.config.processing_enabled()
-                    && options.processing_disable_normalization
-                    && state.event_fully_normalized
-                {
+                if self.inner.config.processing_enabled() && state.event_fully_normalized {
                     metric!(
                         counter(RelayCounters::NormalizationDecision) += 1,
                         event_type = event_type,
@@ -1517,7 +1512,7 @@ impl EnvelopeProcessorService {
                     );
                     return Ok(());
                 } else {
-                    self.inner.config.processing_enabled() || options.force_full_normalization
+                    self.inner.config.processing_enabled()
                 }
             }
         };
@@ -1659,11 +1654,7 @@ impl EnvelopeProcessorService {
             unreal::expand(state, &self.inner.config)?;
         });
 
-        event::extract(
-            state,
-            &self.inner.config,
-            &self.inner.global_config.current(),
-        )?;
+        event::extract(state, &self.inner.config)?;
 
         if_processing!(self.inner.config, {
             unreal::process(state)?;
@@ -1708,11 +1699,7 @@ impl EnvelopeProcessorService {
     ) -> Result<(), ProcessingError> {
         let global_config = self.inner.global_config.current();
 
-        event::extract(
-            state,
-            &self.inner.config,
-            &self.inner.global_config.current(),
-        )?;
+        event::extract(state, &self.inner.config)?;
 
         let profile_id = profile::filter(state);
         profile::transfer_id(state, profile_id);

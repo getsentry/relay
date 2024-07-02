@@ -1375,14 +1375,12 @@ def test_error_with_type_transaction_fixed_by_inference(
     events_consumer.assert_empty()
 
 
-@pytest.mark.parametrize("processing_disable_normalization", [False, True])
 def test_error_with_type_transaction_fixed_by_inference_even_if_only_feature_flags(
     mini_sentry,
     events_consumer,
     relay_with_processing,
     relay,
     relay_credentials,
-    processing_disable_normalization,
 ):
     """
     Ensure Relay sets the correct type for bogus payloads of errors with
@@ -1392,11 +1390,6 @@ def test_error_with_type_transaction_fixed_by_inference_even_if_only_feature_fla
     project_id = 42
     mini_sentry.add_basic_project_config(project_id)
     events_consumer = events_consumer()
-
-    if processing_disable_normalization:
-        mini_sentry.global_config["options"] = {
-            "relay.disable_normalization.processing": True,
-        }
 
     credentials = relay_credentials()
     processing = relay_with_processing(
