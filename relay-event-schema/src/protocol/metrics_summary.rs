@@ -1,7 +1,6 @@
 #[cfg(feature = "jsonschema")]
 use relay_jsonschema_derive::JsonSchema;
 use relay_protocol::{Annotated, Array, Empty, FromValue, IntoValue, Object};
-use std::collections::BTreeMap;
 
 use crate::processor::ProcessValue;
 
