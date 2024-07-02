@@ -336,6 +336,19 @@ fn extract_shared_tags(event: &Event) -> BTreeMap<SpanTagKey, String> {
         event.platform.as_str().unwrap_or("other").into(),
     );
 
+    if let Some(data) = event
+        .context::<TraceContext>()
+        .and_then(|trace_context| trace_context.data.value())
+    {
+        if let Some(thread_id) = data.thread_id.value() {
+            tags.insert(SpanTagKey::ThreadId, thread_id.to_string());
+        }
+
+        if let Some(thread_name) = data.thread_name.value() {
+            tags.insert(SpanTagKey::ThreadName, thread_name.to_string());
+        }
+    }
+
     tags
 }
 
@@ -406,16 +419,6 @@ fn extract_segment_tags(event: &Event) -> BTreeMap<SpanTagKey, String> {
                 {
                     tags.insert(SpanTagKey::MessagingMessageId, message_id.into());
                 }
-            }
-        }
-
-        if let Some(data) = trace_context.data.value() {
-            if let Some(thread_id) = data.thread_id.value() {
-                tags.insert(SpanTagKey::ThreadId, thread_id.to_string());
-            }
-
-            if let Some(thread_name) = data.thread_name.value() {
-                tags.insert(SpanTagKey::ThreadName, thread_name.to_string());
             }
         }
     }
