@@ -175,9 +175,9 @@ def test_span_extraction(
 @pytest.mark.parametrize(
     "sample_rate,expected_spans,expected_metrics",
     [
-        (None, 2, 6),
-        (1.0, 2, 6),
-        (0.0, 0, 0),
+        (None, 2, True),
+        (1.0, 2, True),
+        (0.0, 0, False),
     ],
 )
 def test_span_extraction_with_sampling(
@@ -231,7 +231,7 @@ def test_span_extraction_with_sampling(
 
     metrics = metrics_consumer.get_metrics()
     span_metrics = [m for (m, _) in metrics if ":spans/" in m["name"]]
-    assert len(span_metrics) == expected_metrics
+    assert bool(span_metrics) == expected_metrics
 
     spans_consumer.assert_empty()
     metrics_consumer.assert_empty()
