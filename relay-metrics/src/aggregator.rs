@@ -927,7 +927,7 @@ mod tests {
             max_project_key_bucket_bytes: None,
             flush_batching: FlushBatching::default(),
             flush_partitions: None,
-            aggregate: false,
+            aggregate: true,
         }
     }
 
@@ -973,6 +973,7 @@ mod tests {
                     ),
                     tags: {},
                     extracted_from_indexed: false,
+                    randomness: None,
                 },
                 Counter(
                     85.0,
@@ -1027,9 +1028,9 @@ mod tests {
         };
         assert_eq!(
             bucket_key.cost(),
-            88 + // BucketKey
+            104 + // BucketKey
             5 + // name
-            (5 + 5 + 6 + 2) // tags
+            (5 + 5 + 6 + 2), // tags
         );
     }
 
@@ -1071,6 +1072,7 @@ mod tests {
                     ),
                     tags: {},
                     extracted_from_indexed: false,
+                    randomness: None,
                 },
                 Counter(
                     84.0,
@@ -1085,6 +1087,7 @@ mod tests {
                     ),
                     tags: {},
                     extracted_from_indexed: false,
+                    randomness: None,
                 },
                 Counter(
                     42.0,
