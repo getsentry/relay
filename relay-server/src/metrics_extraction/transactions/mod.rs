@@ -485,10 +485,9 @@ mod tests {
         AcceptTransactionNames, CombinedMetricExtractionConfig, MetricExtractionConfig, TagMapping,
     };
     use relay_event_normalization::{
-        normalize_event, set_default_transaction_source, validate_event_timestamps,
-        validate_transaction, BreakdownsConfig, CombinedMeasurementsConfig, EventValidationConfig,
-        MeasurementsConfig, NormalizationConfig, PerformanceScoreConfig, PerformanceScoreProfile,
-        PerformanceScoreWeightedComponent, TransactionValidationConfig,
+        normalize_event, set_default_transaction_source, validate_event, BreakdownsConfig,
+        CombinedMeasurementsConfig, EventValidationConfig, MeasurementsConfig, NormalizationConfig,
+        PerformanceScoreConfig, PerformanceScoreProfile, PerformanceScoreWeightedComponent,
     };
     use relay_metrics::BucketValue;
     use relay_protocol::{Annotated, RuleCondition};
@@ -566,9 +565,7 @@ mod tests {
         )
         .unwrap();
 
-        // Validate and normalize first, to make sure that all things are correct as in the real pipeline:
-        validate_event_timestamps(&mut event, &EventValidationConfig::default()).unwrap();
-        validate_transaction(&mut event, &TransactionValidationConfig::default()).unwrap();
+        validate_event(&mut event, &EventValidationConfig::default()).unwrap();
 
         normalize_event(
             &mut event,
