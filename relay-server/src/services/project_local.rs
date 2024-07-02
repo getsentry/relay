@@ -199,7 +199,7 @@ mod tests {
     use std::str::FromStr;
 
     use super::*;
-    use crate::services::project::PublicKeyConfig;
+    use crate::services::project::{ProjectInfo, PublicKeyConfig};
 
     /// Tests that we can follow the symlinks and read the project file properly.
     #[tokio::test]
@@ -210,7 +210,7 @@ mod tests {
         let tmp_project_file = "111111.json";
         let project_key = ProjectKey::parse("55f6b2d962564e99832a39890ee4573e").unwrap();
 
-        let mut tmp_project_state = ProjectInfo::allowed();
+        let mut tmp_project_state = ProjectInfo::default();
         tmp_project_state.public_keys.push(PublicKeyConfig {
             public_key: project_key,
             numeric_id: None,
@@ -233,23 +233,19 @@ mod tests {
         .unwrap();
 
         let extracted_project_state = load_local_states(temp2.path()).await.unwrap();
+        let ProjectState::Enabled(project_info) =
+            extracted_project_state.get(&project_key).unwrap()
+        else {
+            panic!();
+        };
 
         assert_eq!(
-            extracted_project_state
-                .get(&project_key)
-                .unwrap()
-                .project_id,
+            project_info.project_id,
             Some(ProjectId::from_str("111111").unwrap())
         );
 
         assert_eq!(
-            extracted_project_state
-                .get(&project_key)
-                .unwrap()
-                .public_keys
-                .first()
-                .unwrap()
-                .public_key,
+            project_info.public_keys.first().unwrap().public_key,
             project_key,
         )
     }
@@ -262,7 +258,7 @@ mod tests {
         let project_key1 = ProjectKey::parse("55f6b2d962564e99832a39890ee4573e").unwrap();
         let project_key2 = ProjectKey::parse("55bbb2d96256bb9983bb39890bb457bb").unwrap();
 
-        let mut tmp_project_state = ProjectInfo::allowed();
+        let mut tmp_project_state = ProjectInfo::default();
         tmp_project_state.public_keys.extend(vec![
             PublicKeyConfig {
                 public_key: project_key1,

@@ -19,14 +19,19 @@ impl ProjectFetchState {
     ///
     /// This state is used for forwarding in Proxy mode.
     pub fn allowed() -> Self {
-        Self::new(ProjectState::Enabled(Arc::new(ProjectInfo {
+        Self::enabled(ProjectInfo {
             project_id: None,
             last_change: None,
             public_keys: Default::default(),
             slug: None,
             config: ProjectConfig::default(),
             organization_id: None,
-        })))
+        })
+    }
+
+    /// An enabled project state created from a project info.
+    pub fn enabled(project_info: ProjectInfo) -> Self {
+        Self::new(ProjectState::Enabled(Arc::new(project_info)))
     }
 
     // Returns an invalid state.
@@ -41,7 +46,7 @@ impl ProjectFetchState {
     }
 
     /// Returns `true` if the contained state is invalid.
-    pub fn pending(&self) -> bool {
+    pub fn is_pending(&self) -> bool {
         matches!(self.state, ProjectState::Pending)
     }
 
@@ -53,7 +58,7 @@ impl ProjectFetchState {
         }
     }
 
-    pub fn never_fetched() -> Self {
+    pub fn pending() -> Self {
         Self {
             last_fetch: Instant::now(),
             state: ProjectState::Pending,

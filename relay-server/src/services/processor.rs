@@ -2282,7 +2282,7 @@ impl EnvelopeProcessorService {
     fn rate_limit_buckets(
         &self,
         scoping: Scoping,
-        project_state: &ProjectState,
+        project_state: &ProjectInfo,
         mut buckets: Vec<Bucket>,
     ) -> Vec<Bucket> {
         let Some(rate_limiter) = self.inner.rate_limiter.as_ref() else {
@@ -2496,19 +2496,19 @@ impl EnvelopeProcessorService {
         for (scoping, message) in message.scopes {
             let ProjectMetrics {
                 buckets,
-                project_info: project_state,
+                project_info,
             } = message;
 
-            let buckets = self.rate_limit_buckets(scoping, &project_state, buckets);
+            let buckets = self.rate_limit_buckets(scoping, &project_info, buckets);
 
-            let limits = project_state.get_cardinality_limits();
+            let limits = project_info.get_cardinality_limits();
             let buckets = self.cardinality_limit_buckets(scoping, limits, buckets);
 
             if buckets.is_empty() {
                 continue;
             }
 
-            let retention = project_state
+            let retention = project_info
                 .config
                 .event_retention
                 .unwrap_or(DEFAULT_EVENT_RETENTION);
@@ -3225,7 +3225,7 @@ mod tests {
         let not_ratelimited_org = 2;
 
         let message = {
-            let project_state = {
+            let project_info = {
                 let quota = Quota {
                     id: Some("testing".into()),
                     categories: vec![DataCategory::MetricBucket].into(),
@@ -3240,7 +3240,7 @@ mod tests {
                 let mut config = ProjectConfig::default();
                 config.quotas.push(quota);
 
-                let mut project_state = ProjectInfo::allowed();
+                let mut project_state = ProjectInfo::default();
                 project_state.config = config;
                 Arc::new(project_state)
             };
@@ -3361,7 +3361,7 @@ mod tests {
             ..Default::default()
         };
 
-        let mut project_state = ProjectInfo::allowed();
+        let mut project_state = ProjectInfo::default();
         project_state.config = config;
 
         let mut envelopes = ProcessingGroup::split_envelope(*envelope);

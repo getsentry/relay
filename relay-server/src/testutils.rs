@@ -40,7 +40,7 @@ pub fn state_with_rule_and_condition(
         None => Vec::new(),
     };
 
-    let mut state = ProjectInfo::allowed();
+    let mut state = ProjectInfo::default();
     state.config.sampling = Some(ErrorBoundary::Ok(SamplingConfig {
         rules,
         ..SamplingConfig::new()

@@ -27,8 +27,8 @@ use crate::envelope::Envelope;
 use crate::extractors::RequestMeta;
 use crate::metrics::{MetricOutcomes, MetricsLimiter};
 use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
-#[cfg(feature = "processing")]
-use crate::services::processor::RateLimitBuckets;
+// #[cfg(feature = "processing")]
+// use crate::services::processor::RateLimitBuckets;
 use crate::services::processor::{EncodeMetricMeta, EnvelopeProcessor};
 use crate::services::project::metrics::{apply_project_info, filter_namespaces};
 use crate::services::project::state::ExpiryState;
@@ -358,7 +358,7 @@ impl Project {
             next_fetch_attempt: None,
             last_updated_at: Instant::now(),
             project_key: key,
-            state: ProjectFetchState::never_fetched(),
+            state: ProjectFetchState::pending(),
             state_channel: None,
             rate_limits: CachedRateLimits::new(),
             last_no_cache: Instant::now(),
@@ -708,7 +708,7 @@ impl Project {
         no_cache: bool,
     ) {
         // Initiate the backoff if the incoming state is invalid. Reset it otherwise.
-        if state.pending() {
+        if state.is_pending() {
             self.next_fetch_attempt = Instant::now().checked_add(self.backoff.next_backoff());
         } else {
             self.next_fetch_attempt = None;
@@ -728,7 +728,7 @@ impl Project {
         }
 
         // If the state is still invalid, return back the taken channel and schedule state update.
-        if state.pending() {
+        if state.is_pending() {
             // Only overwrite if the old state is expired:
             let is_expired = matches!(self.state.expiry_state(&self.config), ExpiryState::Expired);
             if is_expired {
@@ -977,13 +977,10 @@ mod tests {
 
             // Initialize project with a state
             let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
-            let mut project_state = ProjectInfo::allowed();
-            project_state.project_id = Some(ProjectId::new(123));
+            let mut project_info = ProjectInfo::default();
+            project_info.project_id = Some(ProjectId::new(123));
             let mut project = Project::new(project_key, config.clone());
-            project.state = State::Cached(Arc::new(project_state));
-
-            // Direct access should always yield a state:
-            assert!(project.state_value().is_some());
+            project.state = ProjectFetchState::enabled(project_info);
 
             if expiry > 0 {
                 // With long expiry, should get a state
@@ -1017,25 +1014,23 @@ mod tests {
 
         // Initialize project with a state.
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
-        let mut project_state = ProjectInfo::allowed();
-        project_state.project_id = Some(ProjectId::new(123));
+        let mut project_info = ProjectInfo::default();
+        project_info.project_id = Some(ProjectId::new(123));
         let mut project = Project::new(project_key, config);
         project.state_channel = Some(channel);
-        project.state = State::Cached(Arc::new(project_state));
+        project.state = ProjectFetchState::allowed();
 
-        // The project ID must be set.
-        assert!(!project.state_value().unwrap().invalid());
         assert!(project.next_fetch_attempt.is_none());
         // Try to update project with errored project state.
         project.update_state(
             &addr,
-            Arc::new(ProjectState::err()),
+            ProjectFetchState::pending(),
             &envelope_processor,
             false,
         );
         // Since we got invalid project state we still keep the old one meaning there
         // still must be the project id set.
-        assert!(!project.state_value().unwrap().invalid());
+        assert!(matches!(project.current_state(), ProjectState::Enabled(_)));
         assert!(project.next_fetch_attempt.is_some());
 
         // This tests that we actually initiate the backoff and the backoff mechanism works:
@@ -1050,7 +1045,7 @@ mod tests {
         project.state_channel = Some(channel);
         project.update_state(
             &addr,
-            Arc::new(ProjectState::err()),
+            ProjectFetchState::pending(),
             &envelope_processor,
             false,
         );
@@ -1060,12 +1055,12 @@ mod tests {
     fn create_project(config: Option<serde_json::Value>) -> Project {
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
         let mut project = Project::new(project_key, Arc::new(Config::default()));
-        let mut project_state = ProjectInfo::allowed();
-        project_state.project_id = Some(ProjectId::new(42));
+        let mut project_info = ProjectInfo::default();
+        project_info.project_id = Some(ProjectId::new(42));
         if let Some(config) = config {
-            project_state.config = serde_json::from_value(config).unwrap();
+            project_info.config = serde_json::from_value(config).unwrap();
         }
-        project.state = State::Cached(Arc::new(project_state));
+        project.state = ProjectFetchState::enabled(project_info);
         project
     }
 
@@ -1087,7 +1082,7 @@ mod tests {
         let metric_outcomes = MetricOutcomes::new(metric_stats, outcome_aggregator.clone());
 
         let mut project = create_project(None);
-        project.state = State::Pending;
+        project.state = ProjectFetchState::pending();
         let buckets = vec![create_metric("d:transactions/foo")];
         let cb = project.check_buckets(&metric_outcomes, &outcome_aggregator, buckets.clone());
 

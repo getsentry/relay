@@ -203,7 +203,7 @@ mod tests {
             item
         });
 
-        let mut project_state = ProjectInfo::allowed();
+        let mut project_state = ProjectInfo::default();
         project_state.config.features.0.insert(Feature::Profiling);
 
         let mut envelopes = ProcessingGroup::split_envelope(*envelope);
@@ -273,7 +273,7 @@ mod tests {
             item
         });
 
-        let mut project_state = ProjectInfo::allowed();
+        let mut project_state = ProjectInfo::default();
         project_state.config.features.0.insert(Feature::Profiling);
 
         let mut envelopes = ProcessingGroup::split_envelope(*envelope);

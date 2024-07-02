@@ -166,7 +166,7 @@ mod tests {
         let metric_outcomes = MetricOutcomes::new(metric_stats, outcome_aggregator);
 
         let project_state = {
-            let mut project_state = ProjectInfo::allowed();
+            let mut project_state = ProjectInfo::default();
             project_state.config = serde_json::from_value(serde_json::json!({
                 "metrics": { "deniedNames": ["*cpu_time*"] },
                 "features": ["organizations:custom-metrics"]
@@ -220,7 +220,7 @@ mod tests {
         let buckets = apply_project_info(
             buckets,
             &metric_outcomes,
-            &ProjectInfo::allowed(),
+            &ProjectInfo::default(),
             Scoping {
                 organization_id: 42,
                 project_id: ProjectId::new(43),

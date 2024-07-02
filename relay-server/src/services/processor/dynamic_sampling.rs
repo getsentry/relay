@@ -322,7 +322,7 @@ mod tests {
 
         let message = ProcessEnvelope {
             envelope: ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store, group),
-            project_state: Arc::new(ProjectInfo::allowed()),
+            project_state: Arc::new(ProjectInfo::default()),
             sampling_project_state,
             reservoir_counters: ReservoirCounters::default(),
         };
@@ -505,7 +505,7 @@ mod tests {
             ..SamplingConfig::new()
         };
 
-        let mut sampling_project_state = ProjectInfo::allowed();
+        let mut sampling_project_state = ProjectInfo::default();
         sampling_project_state.config.sampling = Some(ErrorBoundary::Ok(sampling_config));
         sampling_project_state
     }
@@ -721,7 +721,7 @@ mod tests {
             sample_rates: Default::default(),
             extracted_metrics: Default::default(),
             project_state: {
-                let mut state = ProjectInfo::allowed();
+                let mut state = ProjectInfo::default();
                 state.config.transaction_metrics =
                     Some(ErrorBoundary::Ok(TransactionMetricsConfig {
                         version: 1,
@@ -730,7 +730,7 @@ mod tests {
                 Arc::new(state)
             },
             sampling_project_state: {
-                let mut state = ProjectInfo::allowed();
+                let mut state = ProjectInfo::default();
                 state.config.metric_extraction =
                     ErrorBoundary::Ok(MetricExtractionConfig::default());
                 state.config.sampling = Some(ErrorBoundary::Ok(SamplingConfig {

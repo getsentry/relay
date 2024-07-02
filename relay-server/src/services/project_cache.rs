@@ -472,19 +472,19 @@ impl ProjectSource {
                     .await
                     .map_err(|_| ())?;
 
-            let state_opt = match state_fetch_result {
-                Ok(state) => state.map(ProjectInfo::sanitize).map(Arc::new),
+            let state = match state_fetch_result {
+                Ok(state) => state.sanitize(),
                 Err(error) => {
                     relay_log::error!(
                         error = &error as &dyn Error,
                         "failed to fetch project from Redis",
                     );
-                    None
+                    ProjectState::Pending
                 }
             };
 
-            if let Some(state) = state_opt {
-                return Ok(state);
+            if !matches!(state, ProjectState::Pending) {
+                return Ok(ProjectFetchState::new(state));
             }
         };
 
@@ -1543,7 +1543,7 @@ mod tests {
 
         let update_dsn1_project_state = UpdateProjectState {
             project_key: ProjectKey::parse(dsn1).unwrap(),
-            state: ProjectInfo::allowed().into(),
+            state: ProjectFetchState::allowed(),
             no_cache: false,
         };
 
@@ -1557,7 +1557,7 @@ mod tests {
 
         let update_dsn2_project_state = UpdateProjectState {
             project_key: ProjectKey::parse(dsn2).unwrap(),
-            state: ProjectInfo::allowed().into(),
+            state: ProjectFetchState::allowed(),
             no_cache: false,
         };
 

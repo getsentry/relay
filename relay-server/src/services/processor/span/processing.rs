@@ -732,7 +732,7 @@ mod tests {
         );
 
         let dummy_envelope = Envelope::parse_bytes(bytes).unwrap();
-        let mut project_state = ProjectInfo::allowed();
+        let mut project_state = ProjectInfo::default();
         project_state
             .config
             .features
