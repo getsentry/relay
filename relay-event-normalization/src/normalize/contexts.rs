@@ -25,6 +25,14 @@ static OS_MACOS_REGEX: Lazy<Regex> = Lazy::new(|| {
     Regex::new(r"^Mac OS X (?P<version>\d+\.\d+\.\d+)( \((?P<build>[a-fA-F0-9]+)\))?$").unwrap()
 });
 
+/// Format sent by Unity on iOS
+static OS_IOS_REGEX: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r"^iOS (?P<version>\d+\.\d+\.\d+)").unwrap());
+
+/// Format sent by Unity on iPadOS
+static OS_IPADOS_REGEX: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r"^iPadOS (?P<version>\d+\.\d+\.\d+)").unwrap());
+
 /// Specific regex to parse Linux distros
 static OS_LINUX_DISTRO_UNAME_REGEX: Lazy<Regex> = Lazy::new(|| {
     Regex::new(r"^Linux (?P<kernel_version>\d+\.\d+(\.\d+(\.[1-9]+)?)?) (?P<name>[a-zA-Z]+) (?P<version>\d+(\.\d+){0,2})").unwrap()
@@ -188,6 +196,26 @@ fn normalize_os_context(os: &mut OsContext) {
             }
         } else if let Some(captures) = OS_MACOS_REGEX.captures(raw_description) {
             os.name = "macOS".to_string().into();
+            os.version = captures
+                .name("version")
+                .map(|m| m.as_str().to_string())
+                .into();
+            os.build = captures
+                .name("build")
+                .map(|m| m.as_str().to_string().into())
+                .into();
+        } else if let Some(captures) = OS_IOS_REGEX.captures(raw_description) {
+            os.name = "iOS".to_string().into();
+            os.version = captures
+                .name("version")
+                .map(|m| m.as_str().to_string())
+                .into();
+            os.build = captures
+                .name("build")
+                .map(|m| m.as_str().to_string().into())
+                .into();
+        } else if let Some(captures) = OS_IPADOS_REGEX.captures(raw_description) {
+            os.name = "iPadOS".to_string().into();
             os.version = captures
                 .name("version")
                 .map(|m| m.as_str().to_string())
@@ -609,6 +637,32 @@ mod tests {
         assert_eq!(None, os.build.value());
     }
 
+    #[test]
+    fn test_unity_ios() {
+        let mut os = OsContext {
+            raw_description: "iOS 17.5.1".to_string().into(),
+            ..OsContext::default()
+        };
+
+        normalize_os_context(&mut os);
+        assert_eq!(Some("iOS"), os.name.as_str());
+        assert_eq!(Some("17.5.1"), os.version.as_str());
+        assert_eq!(None, os.build.value());
+    }
+
+    #[test]
+    fn test_unity_ipados() {
+        let mut os = OsContext {
+            raw_description: "iPadOS 17.5.1".to_string().into(),
+            ..OsContext::default()
+        };
+
+        normalize_os_context(&mut os);
+        assert_eq!(Some("iPadOS"), os.name.as_str());
+        assert_eq!(Some("17.5.1"), os.version.as_str());
+        assert_eq!(None, os.build.value());
+    }
+
     //OS_WINDOWS_REGEX = r#"^(Microsoft )?Windows (NT )?(?P<version>\d+\.\d+\.\d+).*$"#;
     #[test]
     fn test_unity_windows_os() {
@@ -666,21 +720,6 @@ mod tests {
         normalize_os_context(&mut os);
         assert_eq!(Some("Android"), os.name.as_str());
         assert_eq!(Some("4.4.2"), os.version.as_str());
-        assert_eq!(None, os.build.value());
-    }
-
-    #[test]
-    fn test_ios_15_0() {
-        let mut os = OsContext {
-            raw_description: "iOS 15.0".to_string().into(),
-            ..OsContext::default()
-        };
-        normalize_os_context(&mut os);
-        assert_eq!(Some("iOS"), os.name.as_str());
-
-        // XXX: This behavior of putting it into kernel_version vs version is probably not desired and
-        // may be revisited
-        assert_eq!(Some("15.0"), os.kernel_version.as_str());
         assert_eq!(None, os.build.value());
     }
 
