@@ -156,7 +156,7 @@ mod tests {
     use crate::envelope::Envelope;
     use crate::extractors::RequestMeta;
     use crate::services::processor::{ProcessEnvelope, ProcessingGroup};
-    use crate::services::project::ProjectState;
+    use crate::services::project::ProjectInfo;
     use crate::testutils::create_test_processor;
     use crate::utils::ManagedEnvelope;
 
@@ -219,7 +219,7 @@ mod tests {
             item
         });
 
-        let mut project_state = ProjectState::allowed();
+        let mut project_state = ProjectInfo::default();
         project_state.config.features.0.insert(Feature::Profiling);
 
         let mut envelopes = ProcessingGroup::split_envelope(*envelope);
@@ -290,7 +290,7 @@ mod tests {
             item
         });
 
-        let mut project_state = ProjectState::allowed();
+        let mut project_state = ProjectInfo::default();
         project_state.config.features.0.insert(Feature::Profiling);
 
         let mut envelopes = ProcessingGroup::split_envelope(*envelope);
@@ -354,7 +354,7 @@ mod tests {
             item
         });
 
-        let mut project_state = ProjectState::allowed();
+        let mut project_state = ProjectInfo::default();
         project_state.config.features.0.insert(Feature::Profiling);
 
         let mut envelopes = ProcessingGroup::split_envelope(*envelope);

@@ -16,7 +16,7 @@ use crate::endpoints::forward;
 use crate::extractors::SignedJson;
 use crate::service::ServiceState;
 use crate::services::global_config::{self, StatusResponse};
-use crate::services::project::{LimitedProjectState, ProjectState};
+use crate::services::project::{LimitedParsedProjectState, ParsedProjectState, ProjectState};
 use crate::services::project_cache::{GetCachedProjectState, GetProjectState};
 
 /// V2 version of this endpoint.
@@ -49,13 +49,13 @@ struct VersionQuery {
 #[derive(Debug, Clone, Serialize)]
 #[serde(untagged)]
 enum ProjectStateWrapper {
-    Full(ProjectState),
-    Limited(#[serde(with = "LimitedProjectState")] ProjectState),
+    Full(ParsedProjectState),
+    Limited(#[serde(with = "LimitedParsedProjectState")] ParsedProjectState),
 }
 
 impl ProjectStateWrapper {
     /// Create a wrapper which forces serialization into external or internal format
-    pub fn new(state: ProjectState, full: bool) -> Self {
+    pub fn new(state: ParsedProjectState, full: bool) -> Self {
         if full {
             Self::Full(state)
         } else {
@@ -154,15 +154,25 @@ async fn inner(
         // If public key is known (even if rate-limited, which is Some(false)), it has
         // access to the project config
         let has_access = relay.internal
-            || project_state
-                .config
-                .trusted_relays
-                .contains(&relay.public_key);
+            || match &project_state {
+                ProjectState::Disabled | ProjectState::Pending => false,
+                ProjectState::Enabled(state) => {
+                    state.config.trusted_relays.contains(&relay.public_key)
+                }
+            };
 
         if has_access {
             let full = relay.internal && inner.full_config;
-            let wrapper = ProjectStateWrapper::new((*project_state).clone(), full);
-            configs.insert(project_key, Some(wrapper));
+            if let Ok(project_state) = ParsedProjectState::try_from(project_state.clone()) {
+                let wrapper = ProjectStateWrapper::new(project_state, full);
+                configs.insert(project_key, Some(wrapper));
+            } else {
+                relay_log::debug!(
+                    relay = %relay.public_key,
+                    project_key = %project_key,
+                    "project state is invalid",
+                );
+            }
         } else {
             relay_log::debug!(
                 relay = %relay.public_key,

@@ -75,7 +75,7 @@ use crate::service::ServiceError;
 use crate::services::global_config::GlobalConfigHandle;
 use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::services::processor::event::FiltersStatus;
-use crate::services::project::ProjectState;
+use crate::services::project::ProjectInfo;
 use crate::services::project_cache::{
     AddMetricBuckets, AddMetricMeta, BucketSource, ProjectCache, UpdateRateLimits,
 };
@@ -172,7 +172,7 @@ pub trait EventProcessing {}
 /// A trait for processing groups that can be dynamically sampled.
 pub trait Sampling {
     /// Whether dynamic sampling should run under the given project's conditions.
-    fn supports_sampling(project_state: &ProjectState) -> bool;
+    fn supports_sampling(project_state: &ProjectInfo) -> bool;
 
     /// Whether reservoir sampling applies to this processing group (a.k.a. data type).
     fn supports_reservoir_sampling() -> bool;
@@ -182,7 +182,7 @@ processing_group!(TransactionGroup, Transaction);
 impl EventProcessing for TransactionGroup {}
 
 impl Sampling for TransactionGroup {
-    fn supports_sampling(project_state: &ProjectState) -> bool {
+    fn supports_sampling(project_state: &ProjectInfo) -> bool {
         // For transactions, we require transaction metrics to be enabled before sampling.
         matches!(&project_state.config.transaction_metrics, Some(ErrorBoundary::Ok(c)) if c.is_enabled())
     }
@@ -203,7 +203,7 @@ processing_group!(CheckInGroup, CheckIn);
 processing_group!(SpanGroup, Span);
 
 impl Sampling for SpanGroup {
-    fn supports_sampling(project_state: &ProjectState) -> bool {
+    fn supports_sampling(project_state: &ProjectInfo) -> bool {
         // If no metrics could be extracted, do not sample anything.
         matches!(&project_state.config().metric_extraction, ErrorBoundary::Ok(c) if c.is_supported())
     }
@@ -592,14 +592,14 @@ type ExtractedEvent = (Annotated<Event>, usize);
 #[derive(Debug)]
 pub struct ProcessingExtractedMetrics {
     metrics: ExtractedMetrics,
-    project: Arc<ProjectState>,
+    project: Arc<ProjectInfo>,
     global: Arc<GlobalConfig>,
     extrapolation_factor: Option<FiniteF64>,
 }
 
 impl ProcessingExtractedMetrics {
     pub fn new(
-        project: Arc<ProjectState>,
+        project: Arc<ProjectInfo>,
         global: Arc<GlobalConfig>,
         dsc: Option<&DynamicSamplingContext>,
     ) -> Self {
@@ -795,11 +795,11 @@ struct ProcessEnvelopeState<'a, Group> {
     extracted_metrics: ProcessingExtractedMetrics,
 
     /// The state of the project that this envelope belongs to.
-    project_state: Arc<ProjectState>,
+    project_state: Arc<ProjectInfo>,
 
     /// The state of the project that initiated the current trace.
     /// This is the config used for trace-based dynamic sampling.
-    sampling_project_state: Option<Arc<ProjectState>>,
+    sampling_project_state: Option<Arc<ProjectInfo>>,
 
     /// The id of the project that this envelope is ingested into.
     ///
@@ -894,8 +894,8 @@ pub struct ProcessEnvelopeResponse {
 #[derive(Debug)]
 pub struct ProcessEnvelope {
     pub envelope: ManagedEnvelope,
-    pub project_state: Arc<ProjectState>,
-    pub sampling_project_state: Option<Arc<ProjectState>>,
+    pub project_state: Arc<ProjectInfo>,
+    pub sampling_project_state: Option<Arc<ProjectInfo>>,
     pub reservoir_counters: ReservoirCounters,
 }
 
@@ -951,8 +951,8 @@ pub struct ProcessMetricMeta {
 pub struct ProjectMetrics {
     /// The metric buckets to encode.
     pub buckets: Vec<Bucket>,
-    /// Project state for extracting quotas.
-    pub project_state: Arc<ProjectState>,
+    /// Project info for extracting quotas.
+    pub project_info: Arc<ProjectInfo>,
 }
 
 /// Encodes metrics into an envelope ready to be sent upstream.
@@ -1232,8 +1232,8 @@ impl EnvelopeProcessorService {
         global_config: Arc<GlobalConfig>,
         mut managed_envelope: TypedEnvelope<G>,
         project_id: ProjectId,
-        project_state: Arc<ProjectState>,
-        sampling_project_state: Option<Arc<ProjectState>>,
+        project_state: Arc<ProjectInfo>,
+        sampling_project_state: Option<Arc<ProjectInfo>>,
         reservoir_counters: Arc<Mutex<BTreeMap<RuleId, i64>>>,
     ) -> ProcessEnvelopeState<G> {
         let envelope = managed_envelope.envelope_mut();
@@ -1918,8 +1918,8 @@ impl EnvelopeProcessorService {
         &self,
         mut managed_envelope: ManagedEnvelope,
         project_id: ProjectId,
-        project_state: Arc<ProjectState>,
-        sampling_project_state: Option<Arc<ProjectState>>,
+        project_state: Arc<ProjectInfo>,
+        sampling_project_state: Option<Arc<ProjectInfo>>,
         reservoir_counters: Arc<Mutex<BTreeMap<RuleId, i64>>>,
     ) -> Result<ProcessingStateResult, ProcessingError> {
         // Get the group from the managed envelope context, and if it's not set, try to guess it
@@ -2388,7 +2388,7 @@ impl EnvelopeProcessorService {
     fn rate_limit_buckets(
         &self,
         scoping: Scoping,
-        project_state: &ProjectState,
+        project_state: &ProjectInfo,
         mut buckets: Vec<Bucket>,
     ) -> Vec<Bucket> {
         let Some(rate_limiter) = self.inner.rate_limiter.as_ref() else {
@@ -2602,19 +2602,19 @@ impl EnvelopeProcessorService {
         for (scoping, message) in message.scopes {
             let ProjectMetrics {
                 buckets,
-                project_state,
+                project_info,
             } = message;
 
-            let buckets = self.rate_limit_buckets(scoping, &project_state, buckets);
+            let buckets = self.rate_limit_buckets(scoping, &project_info, buckets);
 
-            let limits = project_state.get_cardinality_limits();
+            let limits = project_info.get_cardinality_limits();
             let buckets = self.cardinality_limit_buckets(scoping, limits, buckets);
 
             if buckets.is_empty() {
                 continue;
             }
 
-            let retention = project_state
+            let retention = project_info
                 .config
                 .event_retention
                 .unwrap_or(DEFAULT_EVENT_RETENTION);
@@ -3332,7 +3332,7 @@ mod tests {
         let not_ratelimited_org = 2;
 
         let message = {
-            let project_state = {
+            let project_info = {
                 let quota = Quota {
                     id: Some("testing".into()),
                     categories: vec![DataCategory::MetricBucket].into(),
@@ -3347,7 +3347,7 @@ mod tests {
                 let mut config = ProjectConfig::default();
                 config.quotas.push(quota);
 
-                let mut project_state = ProjectState::allowed();
+                let mut project_state = ProjectInfo::default();
                 project_state.config = config;
                 Arc::new(project_state)
             };
@@ -3361,7 +3361,7 @@ mod tests {
                     width: 10,
                     metadata: BucketMetadata::default(),
                 }],
-                project_state,
+                project_info,
             };
 
             let scoping_by_org_id = |org_id: u64| Scoping {
@@ -3468,7 +3468,7 @@ mod tests {
             ..Default::default()
         };
 
-        let mut project_state = ProjectState::allowed();
+        let mut project_state = ProjectInfo::default();
         project_state.config = config;
 
         let mut envelopes = ProcessingGroup::split_envelope(*envelope);
@@ -3828,8 +3828,8 @@ mod tests {
 
     #[test]
     fn test_extrapolate() {
-        let mut project_state = ProjectState::allowed();
-        project_state.config.metric_extraction = ErrorBoundary::Ok(MetricExtractionConfig {
+        let mut project_info = ProjectInfo::default();
+        project_info.config.metric_extraction = ErrorBoundary::Ok(MetricExtractionConfig {
             extrapolate: ExtrapolationConfig {
                 include: vec![LazyGlob::new("*")],
                 exclude: vec![],
@@ -3848,7 +3848,7 @@ mod tests {
         global_config.options.extrapolation_duplication_limit = 3;
 
         let mut extracted_metrics = ProcessingExtractedMetrics::new(
-            Arc::new(project_state),
+            Arc::new(project_info),
             Arc::new(global_config),
             Some(&dsc),
         );

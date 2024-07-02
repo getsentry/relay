@@ -17,7 +17,7 @@ use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc;
 use tokio::time::Instant;
 
-use crate::services::project::ProjectState;
+use crate::services::project::{ParsedProjectState, ProjectFetchState};
 use crate::services::project_cache::FetchProjectState;
 use crate::services::upstream::{
     Method, RequestPriority, SendQuery, UpstreamQuery, UpstreamRelay, UpstreamRequestError,
@@ -46,7 +46,7 @@ pub struct GetProjectStates {
 pub struct GetProjectStatesResponse {
     /// Map of [`ProjectKey`] to [`ProjectState`] that was fetched from the upstream.
     #[serde(default)]
-    configs: HashMap<ProjectKey, ErrorBoundary<Option<ProjectState>>>,
+    configs: HashMap<ProjectKey, ErrorBoundary<Option<ParsedProjectState>>>,
     /// The [`ProjectKey`]'s that couldn't be immediately retrieved from the upstream.
     #[serde(default)]
     pending: Vec<ProjectKey>,
@@ -79,7 +79,7 @@ impl UpstreamQuery for GetProjectStates {
 /// The wrapper struct for the incoming external requests which also keeps addition information.
 #[derive(Debug)]
 struct ProjectStateChannel {
-    channel: BroadcastChannel<Arc<ProjectState>>,
+    channel: BroadcastChannel<ProjectFetchState>,
     deadline: Instant,
     no_cache: bool,
     attempts: u64,
@@ -91,7 +91,7 @@ struct ProjectStateChannel {
 
 impl ProjectStateChannel {
     pub fn new(
-        sender: BroadcastSender<Arc<ProjectState>>,
+        sender: BroadcastSender<ProjectFetchState>,
         timeout: Duration,
         no_cache: bool,
     ) -> Self {
@@ -110,12 +110,12 @@ impl ProjectStateChannel {
         self.no_cache = true;
     }
 
-    pub fn attach(&mut self, sender: BroadcastSender<Arc<ProjectState>>) {
+    pub fn attach(&mut self, sender: BroadcastSender<ProjectFetchState>) {
         self.channel.attach(sender)
     }
 
-    pub fn send(self, state: ProjectState) {
-        self.channel.send(Arc::new(state))
+    pub fn send(self, state: ProjectFetchState) {
+        self.channel.send(state)
     }
 
     pub fn expired(&self) -> bool {
@@ -132,16 +132,16 @@ type ProjectStateChannels = HashMap<ProjectKey, ProjectStateChannel>;
 /// Internally it maintains the buffer queue of the incoming requests, which got scheduled to fetch the
 /// state and takes care of the backoff in case there is a problem with the requests.
 #[derive(Debug)]
-pub struct UpstreamProjectSource(FetchProjectState, BroadcastSender<Arc<ProjectState>>);
+pub struct UpstreamProjectSource(FetchProjectState, BroadcastSender<ProjectFetchState>);
 
 impl Interface for UpstreamProjectSource {}
 
 impl FromMessage<FetchProjectState> for UpstreamProjectSource {
-    type Response = BroadcastResponse<Arc<ProjectState>>;
+    type Response = BroadcastResponse<ProjectFetchState>;
 
     fn from_message(
         message: FetchProjectState,
-        sender: BroadcastSender<Arc<ProjectState>>,
+        sender: BroadcastSender<ProjectFetchState>,
     ) -> Self {
         Self(message, sender)
     }
@@ -379,13 +379,18 @@ impl UpstreamProjectSourceService {
                         let state = response
                             .configs
                             .remove(&key)
-                            .unwrap_or(ErrorBoundary::Ok(None))
-                            .unwrap_or_else(|error| {
+                            .unwrap_or(ErrorBoundary::Ok(None));
+                        let state = match state {
+                            ErrorBoundary::Err(error) => {
+                                let error = &error as &dyn std::error::Error;
                                 relay_log::error!(error, "error fetching project state {key}");
-                                Some(ProjectState::err())
-                            })
-                            .unwrap_or_else(ProjectState::missing);
-                        let result = if state.invalid() { "invalid" } else { "ok" };
+                                ProjectFetchState::pending()
+                            }
+                            ErrorBoundary::Ok(None) => ProjectFetchState::disabled(),
+                            ErrorBoundary::Ok(Some(state)) => ProjectFetchState::new(state.into()),
+                        };
+
+                        let result = if state.is_pending() { "invalid" } else { "ok" };
                         metric!(
                             histogram(RelayHistograms::ProjectStateAttempts) = channel.attempts,
                             result = result,
