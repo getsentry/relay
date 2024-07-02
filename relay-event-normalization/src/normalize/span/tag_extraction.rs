@@ -333,7 +333,7 @@ fn extract_shared_tags(event: &Event) -> BTreeMap<SpanTagKey, String> {
         .context::<ProfileContext>()
         .and_then(|profile_context| profile_context.profiler_id.value())
     {
-        tags.insert(SpanTagKey::ProfilerId, profiler_id.into());
+        tags.insert(SpanTagKey::ProfilerId, profiler_id.to_string());
     }
 
     tags.insert(SpanTagKey::SdkName, event.sdk_name().into());
