@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
 use crate::metrics_extraction::metrics_summary;
-use crate::metrics_extraction::metrics_summary::MetricsSummarySpec;
+use crate::metrics_extraction::metrics_summary::MetricsSummary;
 use relay_common::time::UnixTimestamp;
 use relay_dynamic_config::{CombinedMetricExtractionConfig, TagMapping, TagSource, TagSpec};
 use relay_metrics::{
@@ -19,22 +19,6 @@ pub trait Extractable: Getter {
     fn timestamp(&self) -> Option<UnixTimestamp>;
 }
 
-/// Extract metrics and summarizes them on any type that implements [`Extractable`] and [`Getter`].
-///
-/// The summarization of the metrics happens by mutating the original `instance`.
-pub fn extract_and_summarize_metrics<T>(
-    instance: &T,
-    config: CombinedMetricExtractionConfig<'_>,
-) -> (Vec<Bucket>, MetricsSummarySpec)
-where
-    T: Extractable,
-{
-    let metrics = extract_metrics(instance, config);
-    let metrics_summaries = metrics_summary::compute(&metrics);
-
-    (metrics, metrics_summaries)
-}
-
 /// Extract metrics from any type that implements both [`Extractable`] and [`Getter`].
 ///
 /// The instance must have a valid timestamp; if the timestamp is missing or invalid, no metrics are
@@ -43,7 +27,7 @@ where
 ///
 /// Any MRI can be defined multiple times in the config (this will create multiple buckets), but
 /// for every tag in a bucket, there can be only one value. The first encountered tag value wins.
-fn extract_metrics<T>(instance: &T, config: CombinedMetricExtractionConfig<'_>) -> Vec<Bucket>
+pub fn extract_metrics<T>(instance: &T, config: CombinedMetricExtractionConfig<'_>) -> Vec<Bucket>
 where
     T: Extractable,
 {

@@ -1,9 +1,12 @@
+use crate::metrics_extraction::generic;
+use crate::metrics_extraction::generic::Extractable;
 use relay_base_schema::metrics::{MetricName, MetricNamespace};
-use relay_event_schema::protocol::{MetricSummary, MetricsSummary};
+use relay_dynamic_config::CombinedMetricExtractionConfig;
+use relay_event_schema::protocol as event;
 use relay_metrics::{
     Bucket, BucketValue, CounterType, DistributionValue, FiniteF64, GaugeValue, SetValue,
 };
-use relay_protocol::Annotated;
+use relay_protocol::{Annotated, Getter};
 use std::collections::btree_map::Entry;
 use std::collections::BTreeMap;
 
@@ -118,20 +121,20 @@ impl<'a> From<&'a GaugeValue> for MetricsSummaryBucketValue {
 /// generically on any slice of [`Bucket`]s meaning that we need to handle cases in which
 /// the same metrics as identified by the [`MetricsSummaryBucketKey`] have to be merged.
 #[derive(Debug, Default)]
-pub struct MetricsSummarySpec {
+pub struct MetricsSummary {
     buckets: BTreeMap<MetricsSummaryBucketKey, MetricsSummaryBucketValue>,
 }
 
-impl MetricsSummarySpec {
-    fn new() -> MetricsSummarySpec {
-        MetricsSummarySpec {
+impl MetricsSummary {
+    fn new() -> MetricsSummary {
+        MetricsSummary {
             buckets: BTreeMap::new(),
         }
     }
 
-    /// Merges into the [`MetricsSummarySpec`] a slice of [`Bucket`]s.
-    fn from_buckets<'a>(buckets: impl Iterator<Item = &'a Bucket>) -> MetricsSummarySpec {
-        let mut metrics_summary_spec = MetricsSummarySpec::new();
+    /// Merges into the [`MetricsSummary`] a slice of [`Bucket`]s.
+    fn from_buckets<'a>(buckets: impl Iterator<Item = &'a Bucket>) -> MetricsSummary {
+        let mut metrics_summary_spec = MetricsSummary::new();
 
         for bucket in buckets {
             metrics_summary_spec.merge_bucket(bucket);
@@ -140,7 +143,7 @@ impl MetricsSummarySpec {
         metrics_summary_spec
     }
 
-    /// Merges a [`Bucket`] into the [`MetricsSummarySpec`].
+    /// Merges a [`Bucket`] into the [`MetricsSummary`].
     fn merge_bucket(&mut self, bucket: &Bucket) {
         let key = MetricsSummaryBucketKey {
             metric_name: bucket.name.clone(),
@@ -158,9 +161,9 @@ impl MetricsSummarySpec {
         }
     }
 
-    /// Applies the [`MetricsSummarySpec`] on a receiving [`Annotated<MetricsSummary>`].
-    pub fn apply_on(self, receiver: &mut Annotated<MetricsSummary>) {
-        let Some(MetricsSummary(mapping)) = receiver.value_mut() else {
+    /// Applies the [`MetricsSummary`] on a receiving [`Annotated<MetricsSummary>`].
+    pub fn apply_on(self, receiver: &mut Annotated<event::MetricsSummary>) {
+        let Some(event::MetricsSummary(mapping)) = receiver.value_mut() else {
             return;
         };
 
@@ -168,7 +171,7 @@ impl MetricsSummarySpec {
             let min = value.min.map_or(Annotated::empty(), |m| m.to_f64().into());
             let max = value.max.map_or(Annotated::empty(), |m| m.to_f64().into());
             let sum = value.sum.map_or(Annotated::empty(), |m| m.to_f64().into());
-            let metric_summary = MetricSummary {
+            let metric_summary = event::MetricSummary {
                 min,
                 max,
                 sum,
@@ -234,18 +237,34 @@ impl MetricsSummarySpec {
 
 /// Computes the [`MetricsSummary`] from a slice of [`Bucket`]s that belong to
 /// [`MetricNamespace::Custom`].
-pub fn compute(buckets: &[Bucket]) -> MetricsSummarySpec {
+fn compute(buckets: &[Bucket]) -> MetricsSummary {
     // For now, we only want metrics summaries to be extracted for custom metrics.
     let filtered_buckets = buckets
         .iter()
         .filter(|b| matches!(b.name.namespace(), MetricNamespace::Custom));
 
-    MetricsSummarySpec::from_buckets(filtered_buckets)
+    MetricsSummary::from_buckets(filtered_buckets)
+}
+
+/// Extract metrics and summarizes them on any type that implements [`Extractable`] and [`Getter`].
+///
+/// The summarization of the metrics happens by mutating the original `instance`.
+pub fn extract_and_summarize_metrics<T>(
+    instance: &T,
+    config: CombinedMetricExtractionConfig<'_>,
+) -> (Vec<Bucket>, MetricsSummary)
+where
+    T: Extractable,
+{
+    let metrics = generic::extract_metrics(instance, config);
+    let metrics_summaries = compute(&metrics);
+
+    (metrics, metrics_summaries)
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::metrics_extraction::metrics_summary::MetricsSummarySpec;
+    use crate::metrics_extraction::metrics_summary::MetricsSummary;
     use relay_common::time::UnixTimestamp;
     use relay_event_schema::protocol::{MetricSummary, MetricsSummary};
     use relay_metrics::Bucket;
@@ -263,7 +282,7 @@ mod tests {
         let buckets =
             build_buckets(b"my_counter:3|c|#platform:ios\nmy_counter:2|c|#platform:android");
 
-        let metrics_summary_spec = MetricsSummarySpec::from_buckets(buckets.iter());
+        let metrics_summary_spec = MetricsSummary::from_buckets(buckets.iter());
         let mut metrics_summary = Annotated::new(MetricsSummary(BTreeMap::new()));
         metrics_summary_spec.apply_on(&mut metrics_summary);
 
@@ -300,7 +319,7 @@ mod tests {
         let buckets =
             build_buckets(b"my_dist:3.0:5.0|d|#platform:ios\nmy_dist:2.0:4.0|d|#platform:android");
 
-        let metrics_summary_spec = MetricsSummarySpec::from_buckets(buckets.iter());
+        let metrics_summary_spec = MetricsSummary::from_buckets(buckets.iter());
         let mut metrics_summary = Annotated::new(MetricsSummary(BTreeMap::new()));
         metrics_summary_spec.apply_on(&mut metrics_summary);
 
@@ -337,7 +356,7 @@ mod tests {
         let buckets =
             build_buckets(b"my_set:3.0:5.0|s|#platform:ios\nmy_set:2.0:4.0|s|#platform:android");
 
-        let metrics_summary_spec = MetricsSummarySpec::from_buckets(buckets.iter());
+        let metrics_summary_spec = MetricsSummary::from_buckets(buckets.iter());
         let mut metrics_summary = Annotated::new(MetricsSummary(BTreeMap::new()));
         metrics_summary_spec.apply_on(&mut metrics_summary);
 
@@ -374,7 +393,7 @@ mod tests {
         let buckets =
             build_buckets(b"my_gauge:3.0|g|#platform:ios\nmy_gauge:2.0|g|#platform:android");
 
-        let metrics_summary_spec = MetricsSummarySpec::from_buckets(buckets.iter());
+        let metrics_summary_spec = MetricsSummary::from_buckets(buckets.iter());
         let mut metrics_summary = Annotated::new(MetricsSummary(BTreeMap::new()));
         metrics_summary_spec.apply_on(&mut metrics_summary);
 
@@ -420,7 +439,7 @@ mod tests {
             b"my_gauge:3.0|g|#platform:ios\nmy_gauge:2.0|g|#platform:ios",
         ));
 
-        let metrics_summary_spec = MetricsSummarySpec::from_buckets(buckets.iter());
+        let metrics_summary_spec = MetricsSummary::from_buckets(buckets.iter());
         let mut metrics_summary = Annotated::new(MetricsSummary(BTreeMap::new()));
         metrics_summary_spec.apply_on(&mut metrics_summary);
 
@@ -493,7 +512,7 @@ mod tests {
             })]),
         );
 
-        let metrics_summary_spec = MetricsSummarySpec::from_buckets(buckets.iter());
+        let metrics_summary_spec = MetricsSummary::from_buckets(buckets.iter());
         let mut metrics_summary = Annotated::new(MetricsSummary(summary_map));
         metrics_summary_spec.apply_on(&mut metrics_summary);
 
@@ -544,7 +563,7 @@ mod tests {
             })]),
         );
 
-        let metrics_summary_spec = MetricsSummarySpec::from_buckets(buckets.iter());
+        let metrics_summary_spec = MetricsSummary::from_buckets(buckets.iter());
         let mut metrics_summary = Annotated::new(MetricsSummary(summary_map));
         metrics_summary_spec.apply_on(&mut metrics_summary);
 
@@ -593,7 +612,7 @@ mod tests {
             })]),
         );
 
-        let metrics_summary_spec = MetricsSummarySpec::from_buckets(buckets.iter());
+        let metrics_summary_spec = MetricsSummary::from_buckets(buckets.iter());
         let mut metrics_summary = Annotated::new(MetricsSummary(summary_map));
         metrics_summary_spec.apply_on(&mut metrics_summary);
 

@@ -5,6 +5,7 @@ use relay_metrics::Bucket;
 use relay_quotas::DataCategory;
 
 use crate::metrics_extraction::generic::{self, Extractable};
+use crate::metrics_extraction::metrics_summary;
 use crate::services::processor::extract_transaction_span;
 use crate::statsd::RelayTimers;
 use crate::utils::sample;
@@ -56,7 +57,7 @@ pub fn extract_metrics(
     let compute_metrics_summaries_sample_rate =
         compute_metrics_summaries_sample_rate.unwrap_or(1.0);
 
-    let (mut metrics, _) = generic::extract_and_summarize_metrics(event, config);
+    let mut metrics = generic::extract_metrics(event, config);
 
     // If spans were already extracted for an event, we rely on span processing to extract metrics.
     if !spans_extracted && sample(span_extraction_sample_rate.unwrap_or(1.0)) {
@@ -81,10 +82,10 @@ fn extract_span_metrics_for_event(
 ) {
     relay_statsd::metric!(timer(RelayTimers::EventProcessingSpanMetricsExtraction), {
         if let Some(transaction_span) = extract_transaction_span(event, max_tag_value_size) {
-            let (metrics, metrics_summary_spec) =
-                generic::extract_and_summarize_metrics(&transaction_span, config);
+            let (metrics, metrics_summary) =
+                metrics_summary::extract_and_summarize_metrics(&transaction_span, config);
             if sample(compute_metrics_summaries_sample_rate) {
-                metrics_summary_spec.apply_on(&mut event._metrics_summary);
+                metrics_summary.apply_on(&mut event._metrics_summary);
             }
             output.extend(metrics);
         }
@@ -92,10 +93,10 @@ fn extract_span_metrics_for_event(
         if let Some(spans) = event.spans.value_mut() {
             for annotated_span in spans {
                 if let Some(span) = annotated_span.value_mut() {
-                    let (metrics, metrics_summary_spec) =
-                        generic::extract_and_summarize_metrics(span, config);
+                    let (metrics, metrics_summary) =
+                        metrics_summary::extract_and_summarize_metrics(span, config);
                     if sample(compute_metrics_summaries_sample_rate) {
-                        metrics_summary_spec.apply_on(&mut span._metrics_summary);
+                        metrics_summary.apply_on(&mut span._metrics_summary);
                     }
                     output.extend(metrics);
                 }
