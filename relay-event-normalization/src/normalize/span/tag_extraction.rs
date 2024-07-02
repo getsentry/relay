@@ -2389,6 +2389,51 @@ LIMIT 1
     }
 
     #[test]
+    fn extract_profiler_id_into_sentry_tags() {
+        let json = r#"
+            {
+                "type": "transaction",
+                "platform": "javascript",
+                "start_timestamp": "2021-04-26T07:59:01+0100",
+                "timestamp": "2021-04-26T08:00:00+0100",
+                "transaction": "foo",
+                "contexts": {
+                    "profile": {
+                        "profiler_id": "ff62a8b040f340bda5d830223def1d81"
+                    }
+                },
+                "spans": [
+                    {
+                        "op": "before_first_display",
+                        "span_id": "bd429c44b67a3eb1",
+                        "start_timestamp": 1597976300.0000000,
+                        "timestamp": 1597976302.0000000,
+                        "trace_id": "ff62a8b040f340bda5d830223def1d81"
+                    }
+                ]
+            }
+        "#;
+
+        let mut event = Annotated::<Event>::from_json(json).unwrap();
+
+        normalize_event(
+            &mut event,
+            &NormalizationConfig {
+                enrich_spans: true,
+                ..Default::default()
+            },
+        );
+
+        let spans = get_value!(event.spans!);
+        let span = &spans[0];
+
+        assert_eq!(
+            get_value!(span.sentry_tags["profiler_id"]!),
+            "ff62a8b040f340bda5d830223def1d81",
+        );
+    }
+
+    #[test]
     fn extract_user_into_sentry_tags() {
         let json = r#"
             {
