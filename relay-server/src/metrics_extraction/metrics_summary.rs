@@ -665,6 +665,7 @@ mod tests {
                         max: 10.0,
                         sum: 18.0,
                         count: 3,
+                        tags: {},
                     },
                 ],
             },

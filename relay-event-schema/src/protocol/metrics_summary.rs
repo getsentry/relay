@@ -42,6 +42,7 @@ pub struct MetricSummary {
 }
 
 impl MetricSummary {
+    /// Merges another [`MetricSummary`] in this [`MetricsSummary`].
     pub fn merge(&mut self, other: MetricSummary) {
         self.min.merge(&other.min, |&l, &r| l.min(r));
         self.max.merge(&other.max, |&l, &r| l.max(r));

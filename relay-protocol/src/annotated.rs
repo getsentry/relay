@@ -243,8 +243,7 @@ where
         match (self.value(), other.value()) {
             (Some(left), Some(right)) => self.set_value(Some(block(left, right))),
             (None, Some(right)) => self.set_value(Some(*right)),
-            (Some(_), None) => {}
-            (None, None) => {}
+            _ => {}
         }
     }
 }
