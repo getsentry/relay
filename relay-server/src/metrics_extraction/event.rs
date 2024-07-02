@@ -1531,11 +1531,10 @@ mod tests {
         span.op.set_value(Some(span_op.into()));
         span.exclusive_time.set_value(Some(duration_millis));
 
-        generic::extract_and_summarize_metrics(
+        generic::extract_metrics(
             &span,
             combined_config([Feature::ExtractCommonSpanMetricsFromEvent], None).combined(),
         )
-        .0
     }
 
     #[test]
@@ -1645,11 +1644,10 @@ mod tests {
             .unwrap()
             .into_value()
             .unwrap();
-        let metrics = generic::extract_and_summarize_metrics(
+        let metrics = generic::extract_metrics(
             &span,
             combined_config([Feature::ExtractCommonSpanMetricsFromEvent], None).combined(),
-        )
-        .0;
+        );
 
         assert!(!metrics.is_empty());
         for metric in metrics {
@@ -1689,11 +1687,10 @@ mod tests {
             }
         "#;
         let span = Annotated::<Span>::from_json(json).unwrap();
-        let metrics = generic::extract_and_summarize_metrics(
+        let metrics = generic::extract_metrics(
             span.value().unwrap(),
             combined_config([Feature::ExtractCommonSpanMetricsFromEvent], None).combined(),
-        )
-        .0;
+        );
 
         for mri in [
             "d:spans/webvital.inp@millisecond",
