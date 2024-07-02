@@ -535,7 +535,7 @@ def test_sends_metric_bucket_outcome(
     outcomes_consumer.assert_empty()
 
 
-def test_rate_limit_metric_bucket(
+def test_enforce_bucket_rate_limits(
     mini_sentry,
     relay_with_processing,
     metrics_consumer,
@@ -607,7 +607,7 @@ def test_rate_limit_metric_bucket(
 
 
 @pytest.mark.parametrize("violating_bucket", [2.0, 3.0])
-def test_rate_limit_metrics_buckets(
+def test_enforce_transaction_rate_limit_on_metric_buckets(
     mini_sentry,
     relay_with_processing,
     metrics_consumer,
@@ -682,7 +682,7 @@ def test_rate_limit_metrics_buckets(
     # and also the order of rate limiting is not deterministic.
     send_buckets(
         [
-            # Send a few non-duration buckets, they will not deplete the quota
+            # Send a few non-usage buckets, they will not deplete the quota
             make_bucket("d:transactions/measurements.lcp@millisecond", "d", 10 * [1.0]),
             # Session metrics are accepted
             make_bucket("d:sessions/session@none", "c", 1),
@@ -691,32 +691,32 @@ def test_rate_limit_metrics_buckets(
     )
     send_buckets(
         [
-            # Duration metric, subtract 3 from quota
+            # Usage metric, subtract 3 from quota
             make_bucket("c:transactions/usage@none", "c", 3),
         ],
     )
     send_buckets(
         [
-            # Can still send unlimited non-duration metrics
+            # Can still send unlimited non-usage metrics
             make_bucket("d:transactions/measurements.lcp@millisecond", "d", 10 * [2.0]),
         ],
     )
     send_buckets(
         [
-            # Usage metric, subtract from quota. This bucket is still accepted, but the rest
-            # will be exceeded.
+            # Usage metric, subtract from quota. This bucket is still accepted (see over_accept_once),
+            # but the rest will be rejected.
             make_bucket("c:transactions/usage@none", "c", violating_bucket),
         ],
     )
     send_buckets(
         [
-            # FCP buckets won't make it into kakfa
+            # FCP buckets won't make it into kakfa because quota is zero.
             make_bucket("d:transactions/measurements.fcp@millisecond", "d", 10 * [7.0]),
         ],
     )
     send_buckets(
         [
-            # Another three for usage, won't make it into kafka.
+            # Another three for usage, won't make it into kafka because quota is zero.
             make_bucket("c:transactions/usage@none", "c", 3),
             # Session metrics are still accepted.
             make_bucket("d:sessions/session@user", "s", [1254]),

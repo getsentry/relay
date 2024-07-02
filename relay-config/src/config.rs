@@ -2360,7 +2360,10 @@ impl Config {
             mut max_tag_key_length,
             mut max_tag_value_length,
             mut max_project_key_bucket_bytes,
-            ..
+            initial_delay: _,
+            flush_partitions: _,
+            flush_batching: _,
+            aggregate,
         } = AggregatorConfig::from(self.default_aggregator_config());
 
         for secondary_config in self.secondary_aggregator_configs() {
@@ -2398,6 +2401,7 @@ impl Config {
             initial_delay: 30,
             flush_partitions: None,
             flush_batching: FlushBatching::Project,
+            aggregate,
         }
     }
 

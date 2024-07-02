@@ -22,6 +22,7 @@ fnv = { workspace = true }
 hash32 = { workspace = true }
 hashbrown = { workspace = true }
 itertools = { workspace = true }
+rand = { workspace = true }
 relay-base-schema = { workspace = true }
 relay-cardinality = { workspace = true }
 relay-cogs = { workspace = true }
@@ -40,7 +41,6 @@ unescaper = { workspace = true }
 [dev-dependencies]
 criterion = { workspace = true }
 insta = { workspace = true }
-rand = { workspace = true }
 relay-statsd = { workspace = true, features = ["test"] }
 relay-test = { workspace = true }
 similar-asserts = { workspace = true }
