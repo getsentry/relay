@@ -286,7 +286,9 @@ pub fn compute(buckets: &[Bucket]) -> MetricsSummarySpec {
 mod tests {
     use crate::metrics_extraction::metrics_summary::MetricsSummarySpec;
     use relay_common::time::UnixTimestamp;
+    use relay_event_schema::protocol::MetricsSummary;
     use relay_metrics::Bucket;
+    use relay_protocol::Annotated;
 
     fn build_buckets(slice: &[u8]) -> Vec<Bucket> {
         Bucket::parse_all(slice, UnixTimestamp::now())
@@ -300,9 +302,9 @@ mod tests {
             build_buckets(b"my_counter:3|c|#platform:ios\nmy_counter:2|c|#platform:android");
 
         let metrics_summary_spec = MetricsSummarySpec::from_buckets(buckets.iter());
-        let metrics_summary = metrics_summary_spec.build_metrics_summary();
+        let metrics_summary: Annotated<MetricsSummary> = metrics_summary_spec.into();
 
-        insta::assert_debug_snapshot!(metrics_summary, @r###"
+        insta::assert_debug_snapshot!(metrics_summary.value().unwrap(), @r###"
         MetricsSummary(
             {
                 "c:custom/my_counter@none": [
@@ -336,9 +338,9 @@ mod tests {
             build_buckets(b"my_dist:3.0:5.0|d|#platform:ios\nmy_dist:2.0:4.0|d|#platform:android");
 
         let metrics_summary_spec = MetricsSummarySpec::from_buckets(buckets.iter());
-        let metrics_summary = metrics_summary_spec.build_metrics_summary();
+        let metrics_summary: Annotated<MetricsSummary> = metrics_summary_spec.into();
 
-        insta::assert_debug_snapshot!(metrics_summary, @r###"
+        insta::assert_debug_snapshot!(metrics_summary.value().unwrap(), @r###"
         MetricsSummary(
             {
                 "d:custom/my_dist@none": [
@@ -372,9 +374,9 @@ mod tests {
             build_buckets(b"my_set:3.0:5.0|s|#platform:ios\nmy_set:2.0:4.0|s|#platform:android");
 
         let metrics_summary_spec = MetricsSummarySpec::from_buckets(buckets.iter());
-        let metrics_summary = metrics_summary_spec.build_metrics_summary();
+        let metrics_summary: Annotated<MetricsSummary> = metrics_summary_spec.into();
 
-        insta::assert_debug_snapshot!(metrics_summary, @r###"
+        insta::assert_debug_snapshot!(metrics_summary.value().unwrap(), @r###"
         MetricsSummary(
             {
                 "s:custom/my_set@none": [
@@ -408,9 +410,9 @@ mod tests {
             build_buckets(b"my_gauge:3.0|g|#platform:ios\nmy_gauge:2.0|g|#platform:android");
 
         let metrics_summary_spec = MetricsSummarySpec::from_buckets(buckets.iter());
-        let metrics_summary = metrics_summary_spec.build_metrics_summary();
+        let metrics_summary: Annotated<MetricsSummary> = metrics_summary_spec.into();
 
-        insta::assert_debug_snapshot!(metrics_summary, @r###"
+        insta::assert_debug_snapshot!(metrics_summary.value().unwrap(), @r###"
         MetricsSummary(
             {
                 "g:custom/my_gauge@none": [
@@ -453,9 +455,9 @@ mod tests {
         ));
 
         let metrics_summary_spec = MetricsSummarySpec::from_buckets(buckets.iter());
-        let metrics_summary = metrics_summary_spec.build_metrics_summary();
+        let metrics_summary: Annotated<MetricsSummary> = metrics_summary_spec.into();
 
-        insta::assert_debug_snapshot!(metrics_summary, @r###"
+        insta::assert_debug_snapshot!(metrics_summary.value().unwrap(), @r###"
         MetricsSummary(
             {
                 "c:custom/my_counter@none": [

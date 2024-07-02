@@ -4,7 +4,6 @@ use crate::metrics_extraction::metrics_summary;
 use crate::metrics_extraction::metrics_summary::MetricsSummarySpec;
 use relay_common::time::UnixTimestamp;
 use relay_dynamic_config::{CombinedMetricExtractionConfig, TagMapping, TagSource, TagSpec};
-use relay_event_schema::protocol::MetricsSummary;
 use relay_metrics::{
     Bucket, BucketMetadata, BucketValue, FiniteF64, MetricResourceIdentifier, MetricType,
 };
@@ -18,9 +17,6 @@ pub trait Extractable: Getter {
 
     /// The timestamp to associate with the extracted metrics.
     fn timestamp(&self) -> Option<UnixTimestamp>;
-
-    /// The [`MetricsSummary`] of the item.
-    fn summary(&self) -> Option<&MetricsSummary>;
 }
 
 /// Extract metrics and summarizes them on any type that implements [`Extractable`] and [`Getter`].

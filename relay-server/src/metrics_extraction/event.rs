@@ -1,6 +1,6 @@
 use relay_common::time::UnixTimestamp;
 use relay_dynamic_config::CombinedMetricExtractionConfig;
-use relay_event_schema::protocol::{Event, MetricsSummary, Span};
+use relay_event_schema::protocol::{Event, Span};
 use relay_metrics::Bucket;
 use relay_quotas::DataCategory;
 
@@ -24,10 +24,6 @@ impl Extractable for Event {
             .value()
             .and_then(|ts| UnixTimestamp::from_datetime(ts.0))
     }
-
-    fn summary(&self) -> Option<&MetricsSummary> {
-        self._metrics_summary.value()
-    }
 }
 
 impl Extractable for Span {
@@ -39,10 +35,6 @@ impl Extractable for Span {
         self.timestamp
             .value()
             .and_then(|ts| UnixTimestamp::from_datetime(ts.0))
-    }
-
-    fn summary(&self) -> Option<&MetricsSummary> {
-        self._metrics_summary.value()
     }
 }
 
@@ -154,9 +146,7 @@ mod tests {
 
         let mut project = ProjectConfig {
             features,
-            metric_extraction: metric_extraction
-                .map(|m| ErrorBoundary::Ok(m))
-                .unwrap_or(ErrorBoundary::default()),
+            metric_extraction: metric_extraction.map(ErrorBoundary::Ok).unwrap_or_default(),
             ..ProjectConfig::default()
         };
         project.sanitize(); // enables metrics extraction rules
