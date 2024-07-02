@@ -1,3 +1,5 @@
+use std::fmt;
+
 #[cfg(feature = "jsonschema")]
 use relay_jsonschema_derive::JsonSchema;
 use relay_protocol::{
@@ -67,6 +69,15 @@ impl Empty for ThreadId {
         match self {
             ThreadId::Int(_) => false,
             ThreadId::String(string) => string.is_empty(),
+        }
+    }
+}
+
+impl fmt::Display for ThreadId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ThreadId::Int(id) => write!(f, "{}", id),
+            ThreadId::String(id) => write!(f, "{}", id),
         }
     }
 }

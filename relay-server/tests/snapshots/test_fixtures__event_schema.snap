@@ -1079,6 +1079,26 @@ expression: "relay_event_schema::protocol::event_json_schema()"
                   "type": "null"
                 }
               ]
+            },
+            "thread.id": {
+              "description": " The ID of the thread from which the transaction originated from",
+              "default": null,
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/ThreadId"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "thread.name": {
+              "description": " The name of the thread from which the transaction originated from",
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
             }
           },
           "additionalProperties": false
