@@ -752,14 +752,13 @@ impl ProjectCacheBroker {
     ) -> Result<CheckedEnvelope, DiscardReason> {
         let CheckEnvelope { envelope: context } = message;
         let project_cache = self.services.project_cache.clone();
-        let outcome_aggregator = self.services.outcome_aggregator.clone();
         let project = self.get_or_create_project(context.envelope().meta().public_key());
 
         // Preload the project cache so that it arrives a little earlier in processing. However,
         // do not pass `no_cache`. In case the project is rate limited, we do not want to force
         // a full reload. Fetching must not block the store request.
         project.prefetch(project_cache, false);
-        project.check_envelope(context, outcome_aggregator)
+        project.check_envelope(context)
     }
 
     /// Handles the processing of the provided envelope.
@@ -793,7 +792,7 @@ impl ProjectCacheBroker {
         if let Ok(CheckedEnvelope {
             envelope: Some(managed_envelope),
             ..
-        }) = project.check_envelope(managed_envelope, self.services.outcome_aggregator.clone())
+        }) = project.check_envelope(managed_envelope)
         {
             let reservoir_counters = project.reservoir_counters();
 

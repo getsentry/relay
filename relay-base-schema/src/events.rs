@@ -53,6 +53,23 @@ pub enum EventType {
     Default,
 }
 
+impl EventType {
+    /// Returns the string representation of this event type.
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            EventType::Default => "default",
+            EventType::Error => "error",
+            EventType::Csp => "csp",
+            EventType::Hpkp => "hpkp",
+            EventType::ExpectCt => "expectct",
+            EventType::ExpectStaple => "expectstaple",
+            EventType::Nel => "nel",
+            EventType::Transaction => "transaction",
+            EventType::UserReportV2 => "feedback",
+        }
+    }
+}
+
 /// An error used when parsing `EventType`.
 #[derive(Clone, Copy, Debug)]
 pub struct ParseEventTypeError;
@@ -86,17 +103,7 @@ impl FromStr for EventType {
 
 impl fmt::Display for EventType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match *self {
-            EventType::Default => write!(f, "default"),
-            EventType::Error => write!(f, "error"),
-            EventType::Csp => write!(f, "csp"),
-            EventType::Hpkp => write!(f, "hpkp"),
-            EventType::ExpectCt => write!(f, "expectct"),
-            EventType::ExpectStaple => write!(f, "expectstaple"),
-            EventType::Nel => write!(f, "nel"),
-            EventType::Transaction => write!(f, "transaction"),
-            EventType::UserReportV2 => write!(f, "feedback"),
-        }
+        write!(f, "{}", self.as_str())
     }
 }
 

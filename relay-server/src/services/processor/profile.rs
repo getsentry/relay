@@ -76,19 +76,27 @@ pub fn transfer_id(
             let contexts = event.contexts.get_or_insert_with(Contexts::new);
             contexts.add(ProfileContext {
                 profile_id: Annotated::new(profile_id),
+                ..ProfileContext::default()
             });
         }
         None => {
             if let Some(contexts) = event.contexts.value_mut() {
-                contexts.remove::<ProfileContext>();
+                if let Some(profile_context) = contexts.get_mut::<ProfileContext>() {
+                    profile_context.profile_id = Annotated::empty();
+                }
             }
         }
     }
 }
 
 /// Processes profiles and set the profile ID in the profile context on the transaction if successful.
-pub fn process(state: &mut ProcessEnvelopeState<TransactionGroup>, config: &Config) {
+pub fn process(
+    state: &mut ProcessEnvelopeState<TransactionGroup>,
+    config: &Config,
+) -> Option<ProfileId> {
     let profiling_enabled = state.project_state.has_feature(Feature::Profiling);
+    let mut profile_id = None;
+
     state.managed_envelope.retain_items(|item| match item.ty() {
         ItemType::Profile => {
             if !profiling_enabled {
@@ -101,26 +109,34 @@ pub fn process(state: &mut ProcessEnvelopeState<TransactionGroup>, config: &Conf
                 return ItemAction::DropSilently;
             };
 
-            expand_profile(item, event, config)
+            match expand_profile(item, event, config) {
+                Ok(id) => {
+                    profile_id = Some(id);
+                    ItemAction::Keep
+                }
+                Err(outcome) => ItemAction::Drop(outcome),
+            }
         }
         _ => ItemAction::Keep,
     });
+
+    profile_id
 }
 
 /// Transfers transaction metadata to profile and check its size.
-fn expand_profile(item: &mut Item, event: &Event, config: &Config) -> ItemAction {
+fn expand_profile(item: &mut Item, event: &Event, config: &Config) -> Result<ProfileId, Outcome> {
     match relay_profiling::expand_profile(&item.payload(), event) {
-        Ok((_id, payload)) => {
+        Ok((id, payload)) => {
             if payload.len() <= config.max_profile_size() {
                 item.set_payload(ContentType::Json, payload);
-                ItemAction::Keep
+                Ok(id)
             } else {
-                ItemAction::Drop(Outcome::Invalid(DiscardReason::Profiling(
+                Err(Outcome::Invalid(DiscardReason::Profiling(
                     relay_profiling::discard_reason(relay_profiling::ProfileError::ExceedSizeLimit),
                 )))
             }
         }
-        Err(err) => ItemAction::Drop(Outcome::Invalid(DiscardReason::Profiling(
+        Err(err) => Err(Outcome::Invalid(DiscardReason::Profiling(
             relay_profiling::discard_reason(err),
         ))),
     }
@@ -239,6 +255,7 @@ mod tests {
             profile_id: EventId(
                 012d836b-15bb-49d7-bbf9-9e64295d995b,
             ),
+            profiler_id: ~,
         }
         "###);
     }
@@ -292,5 +309,89 @@ mod tests {
 
         let envelope_response = processor.process(message).unwrap();
         assert!(envelope_response.envelope.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_profile_id_removed_profiler_id_kept() {
+        // Setup
+        let processor = create_test_processor(Default::default());
+        let event_id = EventId::new();
+        let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
+            .parse()
+            .unwrap();
+        let request_meta = RequestMeta::new(dsn);
+        let mut envelope = Envelope::from_request(Some(event_id), request_meta);
+
+        // Add a valid transaction item.
+        envelope.add_item({
+            let mut item = Item::new(ItemType::Transaction);
+
+            item.set_payload(
+                ContentType::Json,
+                r#"{
+                "type": "transaction",
+                "transaction": "/foo/",
+                "timestamp": 946684810.0,
+                "start_timestamp": 946684800.0,
+                "contexts": {
+                    "trace": {
+                        "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+                        "span_id": "fa90fdead5f74053",
+                        "op": "http.server",
+                        "type": "trace"
+                    },
+                    "profile": {
+                        "profile_id": "4c79f60c11214eb38604f4ae0781bfb2",
+                        "profiler_id": "4c79f60c11214eb38604f4ae0781bfb2",
+                        "type": "profile"
+                    }
+                },
+                "transaction_info": {
+                    "source": "url"
+                }
+            }"#,
+            );
+            item
+        });
+
+        let mut project_state = ProjectInfo::default();
+        project_state.config.features.0.insert(Feature::Profiling);
+
+        let mut envelopes = ProcessingGroup::split_envelope(*envelope);
+        assert_eq!(envelopes.len(), 1);
+
+        let (group, envelope) = envelopes.pop().unwrap();
+        let envelope = ManagedEnvelope::standalone(envelope, Addr::dummy(), Addr::dummy(), group);
+
+        let message = ProcessEnvelope {
+            envelope,
+            project_state: Arc::new(project_state),
+            sampling_project_state: None,
+            reservoir_counters: ReservoirCounters::default(),
+        };
+
+        let envelope_response = processor.process(message).unwrap();
+        let ctx = envelope_response.envelope.unwrap();
+        let new_envelope = ctx.envelope();
+
+        // Get the re-serialized context.
+        let item = new_envelope
+            .get_item_by(|item| item.ty() == &ItemType::Transaction)
+            .unwrap();
+        let transaction = Annotated::<Event>::from_json_bytes(&item.payload()).unwrap();
+        let context = transaction
+            .value()
+            .unwrap()
+            .context::<ProfileContext>()
+            .unwrap();
+
+        assert_debug_snapshot!(context, @r###"
+        ProfileContext {
+            profile_id: ~,
+            profiler_id: EventId(
+                4c79f60c-1121-4eb3-8604-f4ae0781bfb2,
+            ),
+        }
+        "###);
     }
 }

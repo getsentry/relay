@@ -276,7 +276,9 @@ mod tests {
 
     use crate::envelope::{ContentType, Envelope, Item};
     use crate::extractors::RequestMeta;
-    use crate::services::processor::{ProcessEnvelope, ProcessingGroup, SpanGroup};
+    use crate::services::processor::{
+        ProcessEnvelope, ProcessingExtractedMetrics, ProcessingGroup, SpanGroup,
+    };
     use crate::services::project::ProjectInfo;
     use crate::testutils::{
         self, create_test_processor, new_envelope, state_with_rule_and_condition,
@@ -452,16 +454,23 @@ mod tests {
                     .into();
             }
 
+            let project_state = Arc::new(project_state);
+            let envelope = new_envelope(false, "foo");
+
             ProcessEnvelopeState::<TransactionGroup> {
                 event: Annotated::from(event),
                 metrics: Default::default(),
                 sample_rates: None,
-                extracted_metrics: Default::default(),
-                project_state: Arc::new(project_state),
+                extracted_metrics: ProcessingExtractedMetrics::new(
+                    project_state.clone(),
+                    Arc::new(GlobalConfig::default()),
+                    envelope.dsc(),
+                ),
+                project_state,
                 sampling_project_state: None,
                 project_id: ProjectId::new(42),
                 managed_envelope: ManagedEnvelope::new(
-                    new_envelope(false, "foo"),
+                    envelope,
                     TestSemaphore::new(42).try_acquire().unwrap(),
                     outcome_aggregator.clone(),
                     test_store.clone(),
@@ -709,6 +718,15 @@ mod tests {
     where
         G: Sampling + TryFrom<ProcessingGroup>,
     {
+        let project_info = {
+            let mut info = ProjectInfo::default();
+            info.config.transaction_metrics = Some(ErrorBoundary::Ok(TransactionMetricsConfig {
+                version: 1,
+                ..Default::default()
+            }));
+            Arc::new(info)
+        };
+
         let bytes = Bytes::from(
             r#"{"dsn":"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42","trace":{"trace_id":"89143b0763095bd9c9955e8175d1fb23","public_key":"e12d836b15bb49d7bbf99e64295d995b"}}"#,
         );
@@ -719,16 +737,12 @@ mod tests {
             spans_extracted: false,
             metrics: Default::default(),
             sample_rates: Default::default(),
-            extracted_metrics: Default::default(),
-            project_state: {
-                let mut state = ProjectInfo::default();
-                state.config.transaction_metrics =
-                    Some(ErrorBoundary::Ok(TransactionMetricsConfig {
-                        version: 1,
-                        ..Default::default()
-                    }));
-                Arc::new(state)
-            },
+            extracted_metrics: ProcessingExtractedMetrics::new(
+                project_info.clone(),
+                Arc::new(GlobalConfig::default()),
+                envelope.dsc(),
+            ),
+            project_state: project_info,
             sampling_project_state: {
                 let mut state = ProjectInfo::default();
                 state.config.metric_extraction =

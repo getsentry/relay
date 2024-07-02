@@ -16,6 +16,7 @@ mod statsd;
 
 #[cfg(feature = "processing")]
 mod native;
+mod serde;
 #[cfg(feature = "processing")]
 mod unreal;
 
@@ -32,6 +33,7 @@ pub use self::pick::*;
 pub use self::rate_limits::*;
 pub use self::retry::*;
 pub use self::semaphore::*;
+pub use self::serde::*;
 pub use self::sizes::*;
 pub use self::sleep_handle::*;
 pub use self::split_off::*;
