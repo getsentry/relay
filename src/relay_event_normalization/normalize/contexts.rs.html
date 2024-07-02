@@ -733,6 +733,45 @@
 <a href="#733" id="733">733</a>
 <a href="#734" id="734">734</a>
 <a href="#735" id="735">735</a>
+<a href="#736" id="736">736</a>
+<a href="#737" id="737">737</a>
+<a href="#738" id="738">738</a>
+<a href="#739" id="739">739</a>
+<a href="#740" id="740">740</a>
+<a href="#741" id="741">741</a>
+<a href="#742" id="742">742</a>
+<a href="#743" id="743">743</a>
+<a href="#744" id="744">744</a>
+<a href="#745" id="745">745</a>
+<a href="#746" id="746">746</a>
+<a href="#747" id="747">747</a>
+<a href="#748" id="748">748</a>
+<a href="#749" id="749">749</a>
+<a href="#750" id="750">750</a>
+<a href="#751" id="751">751</a>
+<a href="#752" id="752">752</a>
+<a href="#753" id="753">753</a>
+<a href="#754" id="754">754</a>
+<a href="#755" id="755">755</a>
+<a href="#756" id="756">756</a>
+<a href="#757" id="757">757</a>
+<a href="#758" id="758">758</a>
+<a href="#759" id="759">759</a>
+<a href="#760" id="760">760</a>
+<a href="#761" id="761">761</a>
+<a href="#762" id="762">762</a>
+<a href="#763" id="763">763</a>
+<a href="#764" id="764">764</a>
+<a href="#765" id="765">765</a>
+<a href="#766" id="766">766</a>
+<a href="#767" id="767">767</a>
+<a href="#768" id="768">768</a>
+<a href="#769" id="769">769</a>
+<a href="#770" id="770">770</a>
+<a href="#771" id="771">771</a>
+<a href="#772" id="772">772</a>
+<a href="#773" id="773">773</a>
+<a href="#774" id="774">774</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Computation and normalization of contexts from event data.
 
 </span><span class="kw">use </span>std::collections::HashMap;
@@ -759,6 +798,14 @@
 </span><span class="kw">static </span>OS_MACOS_REGEX: Lazy&lt;Regex&gt; = Lazy::new(|| {
     Regex::new(<span class="string">r"^Mac OS X (?P&lt;version&gt;\d+\.\d+\.\d+)( \((?P&lt;build&gt;[a-fA-F0-9]+)\))?$"</span>).unwrap()
 });
+
+<span class="doccomment">/// Format sent by Unity on iOS
+</span><span class="kw">static </span>OS_IOS_REGEX: Lazy&lt;Regex&gt; =
+    Lazy::new(|| Regex::new(<span class="string">r"^iOS (?P&lt;version&gt;\d+\.\d+\.\d+)"</span>).unwrap());
+
+<span class="doccomment">/// Format sent by Unity on iPadOS
+</span><span class="kw">static </span>OS_IPADOS_REGEX: Lazy&lt;Regex&gt; =
+    Lazy::new(|| Regex::new(<span class="string">r"^iPadOS (?P&lt;version&gt;\d+\.\d+\.\d+)"</span>).unwrap());
 
 <span class="doccomment">/// Specific regex to parse Linux distros
 </span><span class="kw">static </span>OS_LINUX_DISTRO_UNAME_REGEX: Lazy&lt;Regex&gt; = Lazy::new(|| {
@@ -923,6 +970,26 @@
             }
         } <span class="kw">else if let </span><span class="prelude-val">Some</span>(captures) = OS_MACOS_REGEX.captures(raw_description) {
             os.name = <span class="string">"macOS"</span>.to_string().into();
+            os.version = captures
+                .name(<span class="string">"version"</span>)
+                .map(|m| m.as_str().to_string())
+                .into();
+            os.build = captures
+                .name(<span class="string">"build"</span>)
+                .map(|m| m.as_str().to_string().into())
+                .into();
+        } <span class="kw">else if let </span><span class="prelude-val">Some</span>(captures) = OS_IOS_REGEX.captures(raw_description) {
+            os.name = <span class="string">"iOS"</span>.to_string().into();
+            os.version = captures
+                .name(<span class="string">"version"</span>)
+                .map(|m| m.as_str().to_string())
+                .into();
+            os.build = captures
+                .name(<span class="string">"build"</span>)
+                .map(|m| m.as_str().to_string().into())
+                .into();
+        } <span class="kw">else if let </span><span class="prelude-val">Some</span>(captures) = OS_IPADOS_REGEX.captures(raw_description) {
+            os.name = <span class="string">"iPadOS"</span>.to_string().into();
             os.version = captures
                 .name(<span class="string">"version"</span>)
                 .map(|m| m.as_str().to_string())
@@ -1344,6 +1411,32 @@
         <span class="macro">assert_eq!</span>(<span class="prelude-val">None</span>, os.build.value());
     }
 
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_unity_ios() {
+        <span class="kw">let </span><span class="kw-2">mut </span>os = OsContext {
+            raw_description: <span class="string">"iOS 17.5.1"</span>.to_string().into(),
+            ..OsContext::default()
+        };
+
+        normalize_os_context(<span class="kw-2">&amp;mut </span>os);
+        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="string">"iOS"</span>), os.name.as_str());
+        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="string">"17.5.1"</span>), os.version.as_str());
+        <span class="macro">assert_eq!</span>(<span class="prelude-val">None</span>, os.build.value());
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_unity_ipados() {
+        <span class="kw">let </span><span class="kw-2">mut </span>os = OsContext {
+            raw_description: <span class="string">"iPadOS 17.5.1"</span>.to_string().into(),
+            ..OsContext::default()
+        };
+
+        normalize_os_context(<span class="kw-2">&amp;mut </span>os);
+        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="string">"iPadOS"</span>), os.name.as_str());
+        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="string">"17.5.1"</span>), os.version.as_str());
+        <span class="macro">assert_eq!</span>(<span class="prelude-val">None</span>, os.build.value());
+    }
+
     <span class="comment">//OS_WINDOWS_REGEX = r#"^(Microsoft )?Windows (NT )?(?P&lt;version&gt;\d+\.\d+\.\d+).*$"#;
     </span><span class="attr">#[test]
     </span><span class="kw">fn </span>test_unity_windows_os() {
@@ -1401,21 +1494,6 @@
         normalize_os_context(<span class="kw-2">&amp;mut </span>os);
         <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="string">"Android"</span>), os.name.as_str());
         <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="string">"4.4.2"</span>), os.version.as_str());
-        <span class="macro">assert_eq!</span>(<span class="prelude-val">None</span>, os.build.value());
-    }
-
-    <span class="attr">#[test]
-    </span><span class="kw">fn </span>test_ios_15_0() {
-        <span class="kw">let </span><span class="kw-2">mut </span>os = OsContext {
-            raw_description: <span class="string">"iOS 15.0"</span>.to_string().into(),
-            ..OsContext::default()
-        };
-        normalize_os_context(<span class="kw-2">&amp;mut </span>os);
-        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="string">"iOS"</span>), os.name.as_str());
-
-        <span class="comment">// XXX: This behavior of putting it into kernel_version vs version is probably not desired and
-        // may be revisited
-        </span><span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="string">"15.0"</span>), os.kernel_version.as_str());
         <span class="macro">assert_eq!</span>(<span class="prelude-val">None</span>, os.build.value());
     }
 
