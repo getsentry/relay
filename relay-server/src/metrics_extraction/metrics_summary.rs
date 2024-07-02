@@ -231,7 +231,7 @@ impl MetricsSummarySpec {
 }
 
 impl From<MetricsSummarySpec> for Annotated<MetricsSummary> {
-    /// Builds the [`MetricsSummary`] from the [`MetricsSummarySpec`].
+    /// Builds the [`MetricsSummary`] from the spec.
     ///
     /// Note that this method consumes the metrics_summary_spec itself, since the purpose of the metrics_summary_spec
     /// is to be built and destroyed once the summary is ready to be computed.
