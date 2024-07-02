@@ -15,6 +15,14 @@ pub struct ProjectFetchState {
 }
 
 impl ProjectFetchState {
+    /// Takes a [`ProjectState`] and sets it's last fetch to the current time.
+    pub fn new(state: ProjectState) -> Self {
+        Self {
+            last_fetch: Instant::now(),
+            state,
+        }
+    }
+
     /// Project state for an unknown but allowed project.
     ///
     /// This state is used for forwarding in Proxy mode.
@@ -34,15 +42,28 @@ impl ProjectFetchState {
         Self::new(ProjectState::Enabled(Arc::new(project_info)))
     }
 
-    // Returns an invalid state.
-    pub fn err() -> Self {
-        // TODO: rename to invalid()
-        Self::new(ProjectState::Pending)
-    }
-
     // Returns a disabled state.
     pub fn disabled() -> Self {
         Self::new(ProjectState::Disabled)
+    }
+
+    /// Returns a pending or invalid state.
+    pub fn pending() -> Self {
+        Self {
+            last_fetch: Instant::now(),
+            state: ProjectState::Pending,
+        }
+    }
+
+    /// Create a config that immediately counts as expired.
+    ///
+    /// This is what [`super::Project`] initializes itself with.
+    pub fn expired(config: &Config) -> Self {
+        Self {
+            // Make sure the state immediately qualifies as expired:
+            last_fetch: Instant::now() - config.project_cache_expiry(),
+            state: ProjectState::Pending,
+        }
     }
 
     /// Returns `true` if the contained state is invalid.
@@ -57,46 +78,6 @@ impl ProjectFetchState {
             state: state.sanitize(),
         }
     }
-
-    pub fn pending() -> Self {
-        Self {
-            last_fetch: Instant::now(),
-            state: ProjectState::Pending,
-        }
-    }
-
-    pub fn new(state: ProjectState) -> Self {
-        Self {
-            last_fetch: Instant::now(),
-            state,
-        }
-    }
-
-    /// Returns `Err` if the project is known to be invalid or disabled.
-    ///
-    /// If this project state is hard outdated, this returns `Ok(())`, instead, to avoid prematurely
-    /// dropping data.
-    // TODO(jjbayer): Remove this function.
-    // pub fn check_disabled(&self, config: &Config) -> Result<(), DiscardReason> {
-    //     // if the state is out of date, we proceed as if it was still up to date. The
-    //     // upstream relay (or sentry) will still filter events.
-    //     if self.check_expiry(config) == Expiry::Expired {
-    //         return Ok(());
-    //     }
-
-    //     // if we recorded an invalid project state response from the upstream (i.e. parsing
-    //     // failed), discard the event with a state reason.
-    //     if self.invalid() {
-    //         return Err(DiscardReason::ProjectState);
-    //     }
-
-    //     // only drop events if we know for sure the project or key are disabled.
-    //     if matches!(self.state, ProjectState::Disabled) {
-    //         return Err(DiscardReason::ProjectId);
-    //     }
-
-    //     Ok(())
-    // }
 
     pub fn expiry_state(&self, config: &Config) -> ExpiryState {
         match self.check_expiry(config) {
@@ -148,6 +129,7 @@ enum Expiry {
     Expired,
 }
 
+#[derive(Clone, Copy, Debug)]
 pub enum ExpiryState<'a> {
     /// An up-to-date project state. See [`Expiry::Updated`].
     Updated(&'a ProjectState),

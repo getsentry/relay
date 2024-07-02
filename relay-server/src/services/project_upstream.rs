@@ -384,7 +384,7 @@ impl UpstreamProjectSourceService {
                             ErrorBoundary::Err(error) => {
                                 let error = &error as &dyn std::error::Error;
                                 relay_log::error!(error, "error fetching project state {key}");
-                                ProjectFetchState::err()
+                                ProjectFetchState::pending()
                             }
                             ErrorBoundary::Ok(None) => ProjectFetchState::disabled(),
                             ErrorBoundary::Ok(Some(state)) => ProjectFetchState::new(state.into()),
