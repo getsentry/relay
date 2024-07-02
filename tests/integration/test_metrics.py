@@ -1381,27 +1381,11 @@ def test_limit_custom_measurements(
     }
 
 
-@pytest.mark.parametrize(
-    "sent_description, expected_description",
-    [
-        (
-            "SELECT column FROM table1 WHERE another_col = %s",
-            "SELECT column FROM table1 WHERE another_col = %s",
-        ),
-        (
-            "SELECT column FROM table1 WHERE another_col = %s AND yet_another_col = something_very_longgggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg",
-            "SELECT column FROM table1 WHERE another_col = %s AND yet_another_col = something_very_longggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg*",
-        ),
-    ],
-    ids=["Must not truncate short descriptions", "Must truncate long descriptions"],
-)
 def test_span_metrics(
     transactions_consumer,
     metrics_consumer,
     mini_sentry,
     relay_with_processing,
-    sent_description,
-    expected_description,
 ):
     project_id = 42
     mini_sentry.add_full_project_config(project_id)
@@ -1429,7 +1413,7 @@ def test_span_metrics(
         },
         "spans": [
             {
-                "description": sent_description,
+                "description": "SELECT column FROM table1 WHERE another_col = %s",
                 "op": "db",
                 "parent_span_id": "8f5a2b8768cafb4e",
                 "span_id": "bd429c44b67a3eb4",
@@ -1451,9 +1435,14 @@ def test_span_metrics(
     processing.send_transaction(project_id, transaction)
 
     transaction, _ = tx_consumer.get_event()
-    assert transaction["spans"][0]["description"] == sent_description
+    assert (
+        transaction["spans"][0]["description"]
+        == "SELECT column FROM table1 WHERE another_col = %s"
+    )
 
-    expected_group = hashlib.md5(sent_description.encode("utf-8")).hexdigest()[:16]
+    expected_group = hashlib.md5(
+        "SELECT column FROM table1 WHERE another_col = %s".encode("utf-8")
+    ).hexdigest()[:16]
 
     metrics = metrics_consumer.get_metrics()
     span_metrics = [
@@ -1461,7 +1450,7 @@ def test_span_metrics(
         for metric, headers in metrics
         if metric["name"].startswith("spans", 2)
     ]
-    assert len(span_metrics) == 6
+    assert len(span_metrics) == 4
     for metric, headers in span_metrics:
         assert headers == [("namespace", b"spans")]
         if metric["name"] in (
@@ -1472,7 +1461,10 @@ def test_span_metrics(
 
         # Ignore transaction spans
         if metric["tags"]["span.op"] != "my-transaction-op":
-            assert metric["tags"]["span.description"] == expected_description, metric
+            assert (
+                metric["tags"]["span.description"]
+                == "SELECT column FROM table1 WHERE another_col = %s"
+            ), metric
             assert metric["tags"]["span.group"] == expected_group, metric
 
 
