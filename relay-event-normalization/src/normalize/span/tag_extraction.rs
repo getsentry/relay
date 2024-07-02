@@ -2524,18 +2524,33 @@ LIMIT 1
                             "thread.id": 42
                         }
                     }
-                }
+                },
+                "spans": [
+                    {
+                        "op": "before_first_display",
+                        "span_id": "bd429c44b67a3eb1",
+                        "start_timestamp": 1597976300.0000000,
+                        "timestamp": 1597976302.0000000,
+                        "trace_id": "ff62a8b040f340bda5d830223def1d81"
+                    }
+                ]
             }
         "#;
 
-        let event = Annotated::<Event>::from_json(json)
-            .unwrap()
-            .into_value()
-            .unwrap();
+        let mut event = Annotated::<Event>::from_json(json).unwrap();
 
-        let tags = extract_segment_tags(&event);
+        normalize_event(
+            &mut event,
+            &NormalizationConfig {
+                enrich_spans: true,
+                ..Default::default()
+            },
+        );
 
-        assert_eq!(tags.get(&SpanTagKey::ThreadId), Some(&"42".to_string()));
-        assert_eq!(tags.get(&SpanTagKey::ThreadName), Some(&"main".to_string()));
+        let spans = get_value!(event.spans!);
+        let span = &spans[0];
+
+        assert_eq!(get_value!(span.sentry_tags["thread.id"]!), "42",);
+        assert_eq!(get_value!(span.sentry_tags["thread.name"]!), "main",);
     }
 }
