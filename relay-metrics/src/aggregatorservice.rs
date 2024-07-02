@@ -100,6 +100,11 @@ pub struct AggregatorServiceConfig {
     ///
     /// Defaults to `100` milliseconds.
     pub flush_interval_ms: u64,
+
+    /// Whether or not buckets with the same key should be merged.
+    ///
+    /// Setting this to `false` defeats the purpose of the aggregator. Only use in tests.
+    pub aggregate: bool,
 }
 
 impl Default for AggregatorServiceConfig {
@@ -118,6 +123,7 @@ impl Default for AggregatorServiceConfig {
             flush_partitions: None,
             flush_batching: FlushBatching::Project,
             flush_interval_ms: 100, // 100 milliseconds
+            aggregate: true,
         }
     }
 }
@@ -135,6 +141,7 @@ impl From<&AggregatorServiceConfig> for AggregatorConfig {
             max_project_key_bucket_bytes: value.max_project_key_bucket_bytes,
             flush_partitions: value.flush_partitions,
             flush_batching: value.flush_batching,
+            aggregate: value.aggregate,
         }
     }
 }
