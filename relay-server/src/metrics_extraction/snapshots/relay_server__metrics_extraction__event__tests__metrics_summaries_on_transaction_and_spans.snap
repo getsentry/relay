@@ -4,6 +4,15 @@ expression: "&event.value().unwrap()._metrics_summary"
 ---
 MetricsSummary(
     {
+        "d:custom/my_metric@millisecond": [
+            MetricSummary {
+                min: 59000.0,
+                max: 59000.0,
+                sum: 59000.0,
+                count: 1,
+                tags: {},
+            },
+        ],
         "d:spans/duration@millisecond": [
             MetricSummary {
                 min: 50.0,

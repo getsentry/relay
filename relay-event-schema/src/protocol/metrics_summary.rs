@@ -13,11 +13,6 @@ pub type MetricSummaryMapping = Object<Array<MetricSummary>>;
 pub struct MetricsSummary(pub MetricSummaryMapping);
 
 impl MetricsSummary {
-    /// Creates an empty [`MetricsSummary`].
-    pub fn empty() -> MetricsSummary {
-        MetricsSummary(BTreeMap::new())
-    }
-
     /// Combinator to modify the contained metric summaries.
     pub fn update_value<F: FnOnce(MetricSummaryMapping) -> MetricSummaryMapping>(&mut self, f: F) {
         self.0 = f(std::mem::take(&mut self.0));
