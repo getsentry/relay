@@ -864,7 +864,7 @@ def test_transaction_metrics(
         assert_transaction()
         assert_transaction()
 
-    metrics = metrics_by_name(metrics_consumer, count=10, timeout=6)
+    metrics = metrics_by_name(metrics_consumer, count=8, timeout=6)
 
     timestamp = int(timestamp.timestamp())
     common = {
@@ -1607,52 +1607,8 @@ def test_span_metrics_secondary_aggregator(
     processing.send_transaction(project_id, transaction)
 
     metrics = metrics_consumer.get_metrics()
-    # Transaction metrics are still aggregated:
+    # Transaction metrics are still stuck in the aggregator:
     assert all([m[0]["name"].startswith("spans", 2) for m in metrics])
-
-    span_metrics = [
-        (metric, headers)
-        for metric, headers in metrics
-        if metric["name"] == "d:spans/exclusive_time@millisecond"
-    ]
-    span_metrics.sort(key=lambda m: m[0]["tags"]["span.op"])
-    timestamp = int(timestamp.timestamp())
-    assert span_metrics == [
-        (
-            {
-                "name": "d:spans/exclusive_time@millisecond",
-                "org_id": 1,
-                "project_id": 42,
-                "retention_days": 90,
-                "tags": {
-                    "span.action": "SELECT",
-                    "span.description": "SELECT %s*",
-                    "span.category": "db",
-                    "span.domain": ",foo,",
-                    "span.op": "db",
-                },
-                "timestamp": time_after(timestamp),
-                "type": "d",
-                "value": [123.0],
-                "received_at": time_after(timestamp),
-            },
-            [("namespace", b"spans")],
-        ),
-        (
-            {
-                "name": "d:spans/exclusive_time@millisecond",
-                "org_id": 1,
-                "project_id": 42,
-                "retention_days": 90,
-                "tags": {"span.op": "default"},
-                "timestamp": time_after(timestamp),
-                "type": "d",
-                "value": [3.0],
-                "received_at": time_after(timestamp),
-            },
-            [("namespace", b"spans")],
-        ),
-    ]
 
 
 def test_custom_metrics_disabled(mini_sentry, relay_with_processing, metrics_consumer):

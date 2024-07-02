@@ -211,7 +211,7 @@ pub fn hardcoded_span_metrics() -> Vec<(GroupKey, Vec<MetricSpec>, Vec<TagMappin
                     category: DataCategory::Span,
                     mri: "d:spans/exclusive_time@millisecond".into(),
                     field: Some("span.exclusive_time".into()),
-                    condition: Some(!is_addon.clone() /* & is_common.clone() */),
+                    condition: Some(!is_addon.clone() & is_common.clone()),
                     tags: vec![],
                 },
                 MetricSpec {
@@ -286,7 +286,7 @@ pub fn hardcoded_span_metrics() -> Vec<(GroupKey, Vec<MetricSpec>, Vec<TagMappin
                     category: DataCategory::Span,
                     mri: "d:spans/duration@millisecond".into(),
                     field: Some("span.duration".into()),
-                    condition: Some(!is_addon.clone() /* & is_common.clone() */),
+                    condition: Some(!is_addon.clone() & is_common.clone()),
                     tags: vec![],
                 },
                 MetricSpec {
