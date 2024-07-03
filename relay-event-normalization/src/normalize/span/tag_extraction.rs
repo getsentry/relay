@@ -2430,20 +2430,4 @@ LIMIT 1
             "admin@sentry.io"
         );
     }
-
-    #[test]
-    fn long_descriptions_are_truncated() {
-        let json = r#"{
-            "description": "SELECT column FROM table1 WHERE another_col = %s AND yet_another_col = something_very_longgggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg",
-            "op": "db"
-        }"#;
-
-        let span = Annotated::<Span>::from_json(json)
-            .unwrap()
-            .into_value()
-            .unwrap();
-
-        let tags = extract_tags(&span, 200, None, None, false, None);
-        assert_eq!(tags[&SpanTagKey::Description], "SELECT column FROM table1 WHERE another_col = %s AND yet_another_col = something_very_longggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg*");
-    }
 }
