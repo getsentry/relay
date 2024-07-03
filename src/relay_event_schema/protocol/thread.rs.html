@@ -395,7 +395,20 @@
 <a href="#395" id="395">395</a>
 <a href="#396" id="396">396</a>
 <a href="#397" id="397">397</a>
-</pre></div><pre class="rust"><code><span class="attr">#[cfg(feature = <span class="string">"jsonschema"</span>)]
+<a href="#398" id="398">398</a>
+<a href="#399" id="399">399</a>
+<a href="#400" id="400">400</a>
+<a href="#401" id="401">401</a>
+<a href="#402" id="402">402</a>
+<a href="#403" id="403">403</a>
+<a href="#404" id="404">404</a>
+<a href="#405" id="405">405</a>
+<a href="#406" id="406">406</a>
+<a href="#407" id="407">407</a>
+<a href="#408" id="408">408</a>
+</pre></div><pre class="rust"><code><span class="kw">use </span>std::fmt;
+
+<span class="attr">#[cfg(feature = <span class="string">"jsonschema"</span>)]
 </span><span class="kw">use </span>relay_jsonschema_derive::JsonSchema;
 <span class="kw">use </span>relay_protocol::{
     Annotated, Empty, Error, ErrorKind, FromValue, IntoValue, Object, SkipSerialization, Value,
@@ -464,6 +477,15 @@
         <span class="kw">match </span><span class="self">self </span>{
             ThreadId::Int(<span class="kw">_</span>) =&gt; <span class="bool-val">false</span>,
             ThreadId::String(string) =&gt; string.is_empty(),
+        }
+    }
+}
+
+<span class="kw">impl </span>fmt::Display <span class="kw">for </span>ThreadId {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
+        <span class="kw">match </span><span class="self">self </span>{
+            ThreadId::Int(id) =&gt; <span class="macro">write!</span>(f, <span class="string">"{}"</span>, id),
+            ThreadId::String(id) =&gt; <span class="macro">write!</span>(f, <span class="string">"{}"</span>, id),
         }
     }
 }

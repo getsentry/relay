@@ -730,6 +730,11 @@
 <a href="#730" id="730">730</a>
 <a href="#731" id="731">731</a>
 <a href="#732" id="732">732</a>
+<a href="#733" id="733">733</a>
+<a href="#734" id="734">734</a>
+<a href="#735" id="735">735</a>
+<a href="#736" id="736">736</a>
+<a href="#737" id="737">737</a>
 </pre></div><pre class="rust"><code><span class="kw">mod </span>convert;
 
 <span class="attr">#[cfg(feature = <span class="string">"jsonschema"</span>)]
@@ -739,7 +744,7 @@
 <span class="kw">use </span><span class="kw">crate</span>::processor::ProcessValue;
 <span class="kw">use </span><span class="kw">crate</span>::protocol::{
     EventId, JsonLenientString, LenientString, Measurements, MetricsSummary, OperationType,
-    OriginType, SpanId, SpanStatus, Timestamp, TraceId,
+    OriginType, SpanId, SpanStatus, ThreadId, Timestamp, TraceId,
 };
 
 <span class="attr">#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
@@ -1045,6 +1050,10 @@
     <span class="doccomment">/// Label identifying a thread from where the span originated.
     </span><span class="attr">#[metastructure(field = <span class="string">"thread.name"</span>)]
     </span><span class="kw">pub </span>thread_name: Annotated&lt;Value&gt;,
+
+    <span class="doccomment">/// ID of thread from where the span originated.
+    </span><span class="attr">#[metastructure(field = <span class="string">"thread.id"</span>)]
+    </span><span class="kw">pub </span>thread_id: Annotated&lt;ThreadId&gt;,
 
     <span class="doccomment">/// Name of the segment that this span belongs to (see `segment_id`).
     ///
@@ -1405,6 +1414,7 @@
             ai_input_messages: ~,
             ai_responses: ~,
             thread_name: ~,
+            thread_id: ~,
             segment_name: ~,
             ui_component_name: ~,
             url_scheme: ~,

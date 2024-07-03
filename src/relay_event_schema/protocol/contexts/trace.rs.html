@@ -412,6 +412,14 @@
 <a href="#412" id="412">412</a>
 <a href="#413" id="413">413</a>
 <a href="#414" id="414">414</a>
+<a href="#415" id="415">415</a>
+<a href="#416" id="416">416</a>
+<a href="#417" id="417">417</a>
+<a href="#418" id="418">418</a>
+<a href="#419" id="419">419</a>
+<a href="#420" id="420">420</a>
+<a href="#421" id="421">421</a>
+<a href="#422" id="422">422</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::str::FromStr;
 
@@ -420,7 +428,7 @@
 <span class="kw">use </span>relay_protocol::{Annotated, Empty, Error, FromValue, IntoValue, Object, Value};
 
 <span class="kw">use </span><span class="kw">crate</span>::processor::ProcessValue;
-<span class="kw">use </span><span class="kw">crate</span>::protocol::{OperationType, OriginType, SpanStatus};
+<span class="kw">use </span><span class="kw">crate</span>::protocol::{OperationType, OriginType, SpanStatus, ThreadId};
 
 <span class="doccomment">/// A 32-character hex string as described in the W3C trace context spec.
 </span><span class="attr">#[derive(Clone, Debug, Default, PartialEq, Empty, IntoValue, ProcessValue)]
@@ -604,6 +612,14 @@
     /// Set by backend SDKs with messaging integration.
     </span><span class="attr">#[metastructure(field = <span class="string">"messaging.message.body.size"</span>)]
     </span><span class="kw">pub </span>messaging_message_body_size: Annotated&lt;Value&gt;,
+
+    <span class="doccomment">/// The ID of the thread from which the transaction originated from
+    </span><span class="attr">#[metastructure(field = <span class="string">"thread.id"</span>)]
+    </span><span class="kw">pub </span>thread_id: Annotated&lt;ThreadId&gt;,
+
+    <span class="doccomment">/// The name of the thread from which the transaction originated from
+    </span><span class="attr">#[metastructure(field = <span class="string">"thread.name"</span>)]
+    </span><span class="kw">pub </span>thread_name: Annotated&lt;String&gt;,
 
     <span class="doccomment">/// Additional arbitrary fields for forwards compatibility.
     </span><span class="attr">#[metastructure(
