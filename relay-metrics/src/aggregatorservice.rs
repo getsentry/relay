@@ -8,7 +8,7 @@ use relay_system::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::aggregator::{self, AggregatorConfig, FlushBatching};
+use crate::aggregator::{self, AggregatorConfig};
 use crate::bucket::Bucket;
 use crate::statsd::{MetricCounters, MetricHistograms, MetricTimers};
 
@@ -16,6 +16,10 @@ use crate::statsd::{MetricCounters, MetricHistograms, MetricTimers};
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(default)]
 pub struct AggregatorServiceConfig {
+    /// The config used by the internal aggregator.
+    #[serde(flatten)]
+    pub aggregator: AggregatorConfig,
+
     /// Maximum amount of bytes used for metrics aggregation.
     ///
     /// When aggregating metrics, Relay keeps track of how many bytes a metric takes in memory.
@@ -25,50 +29,6 @@ pub struct AggregatorServiceConfig {
     /// Defaults to `None`, i.e. no limit.
     pub max_total_bucket_bytes: Option<usize>,
 
-    /// Determines the wall clock time interval for buckets in seconds.
-    ///
-    /// Defaults to `10` seconds. Every metric is sorted into a bucket of this size based on its
-    /// timestamp. This defines the minimum granularity with which metrics can be queried later.
-    pub bucket_interval: u64,
-
-    /// The initial delay in seconds to wait before flushing a bucket.
-    ///
-    /// Relay applies up to a full `bucket_interval` of additional jitter after the initial delay to spread out flushing real time buckets.
-    pub initial_delay: u64,
-
-    /// The age in seconds of the oldest allowed bucket timestamp.
-    ///
-    /// Defaults to 5 days.
-    pub max_secs_in_past: u64,
-
-    /// The time in seconds that a timestamp may be in the future.
-    ///
-    /// Defaults to 1 minute.
-    pub max_secs_in_future: u64,
-
-    /// The length the name of a metric is allowed to be.
-    ///
-    /// Defaults to `200` bytes.
-    pub max_name_length: usize,
-
-    /// The length the tag key is allowed to be.
-    ///
-    /// Defaults to `200` bytes.
-    pub max_tag_key_length: usize,
-
-    /// The length the tag value is allowed to be.
-    ///
-    /// Defaults to `200` chars.
-    pub max_tag_value_length: usize,
-
-    /// Maximum amount of bytes used for metrics aggregation per project key.
-    ///
-    /// Similar measuring technique to `max_total_bucket_bytes`, but instead of a
-    /// global/process-wide limit, it is enforced per project key.
-    ///
-    /// Defaults to `None`, i.e. no limit.
-    pub max_project_key_bucket_bytes: Option<usize>,
-
     // TODO(dav1dde): move these config values to a better spot
     /// The approximate maximum number of bytes submitted within one flush cycle.
     ///
@@ -77,23 +37,6 @@ pub struct AggregatorServiceConfig {
     /// adds some additional overhead, this number is approxmate and some safety margin should be
     /// left to hard limits.
     pub max_flush_bytes: usize,
-
-    /// The number of logical partitions that can receive flushed buckets.
-    ///
-    /// If set, buckets are partitioned by (bucket key % flush_partitions), and routed
-    /// by setting the header `X-Sentry-Relay-Shard`.
-    pub flush_partitions: Option<u64>,
-
-    /// The batching mode for the flushing of the aggregator.
-    ///
-    /// Batching is applied via shifts to the flushing time that is determined when the first bucket
-    /// is inserted. Thanks to the shifts, Relay is able to prevent flushing all buckets from a
-    /// bucket interval at the same time.
-    ///
-    /// For example, the aggregator can choose to shift by the same value all buckets within a given
-    /// partition, effectively allowing all the elements of that partition to be flushed together.
-    #[serde(alias = "shift_key")]
-    pub flush_batching: FlushBatching,
 
     /// The flushing interval in milliseconds that determines how often the aggregator is polled for
     /// flushing new buckets.
@@ -105,36 +48,10 @@ pub struct AggregatorServiceConfig {
 impl Default for AggregatorServiceConfig {
     fn default() -> Self {
         Self {
+            aggregator: AggregatorConfig::default(),
             max_total_bucket_bytes: None,
-            bucket_interval: 10,
-            initial_delay: 30,
-            max_secs_in_past: 5 * 24 * 60 * 60, // 5 days, as for sessions
-            max_secs_in_future: 60,             // 1 minute
-            max_name_length: 200,
-            max_tag_key_length: 200,
-            max_tag_value_length: 200,
-            max_project_key_bucket_bytes: None,
             max_flush_bytes: 5_000_000, // 5 MB
-            flush_partitions: None,
-            flush_batching: FlushBatching::Project,
-            flush_interval_ms: 100, // 100 milliseconds
-        }
-    }
-}
-
-impl From<&AggregatorServiceConfig> for AggregatorConfig {
-    fn from(value: &AggregatorServiceConfig) -> Self {
-        Self {
-            bucket_interval: value.bucket_interval,
-            initial_delay: value.initial_delay,
-            max_secs_in_past: value.max_secs_in_past,
-            max_secs_in_future: value.max_secs_in_future,
-            max_name_length: value.max_name_length,
-            max_tag_key_length: value.max_tag_key_length,
-            max_tag_value_length: value.max_tag_value_length,
-            max_project_key_bucket_bytes: value.max_project_key_bucket_bytes,
-            flush_partitions: value.flush_partitions,
-            flush_batching: value.flush_batching,
+            flush_interval_ms: 100,     // 100 milliseconds
         }
     }
 }
@@ -258,7 +175,7 @@ impl AggregatorService {
             receiver,
             state: AggregatorState::Running,
             max_total_bucket_bytes: config.max_total_bucket_bytes,
-            aggregator: aggregator::Aggregator::named(name, AggregatorConfig::from(&config)),
+            aggregator: aggregator::Aggregator::named(name, config.aggregator),
             flush_interval_ms: config.flush_interval_ms,
         }
     }
@@ -504,8 +421,11 @@ mod tests {
         let recipient = receiver.clone().start().recipient();
 
         let config = AggregatorServiceConfig {
-            bucket_interval: 1,
-            initial_delay: 0,
+            aggregator: AggregatorConfig {
+                bucket_interval: 1,
+                initial_delay: 0,
+                ..Default::default()
+            },
             ..Default::default()
         };
         let aggregator = AggregatorService::new(config, Some(recipient)).start();
