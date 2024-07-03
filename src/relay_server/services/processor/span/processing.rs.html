@@ -938,7 +938,6 @@
 <a href="#938" id="938">938</a>
 <a href="#939" id="939">939</a>
 <a href="#940" id="940">940</a>
-<a href="#941" id="941">941</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Contains the processing-only functionality.
 
 </span><span class="kw">use </span>std::error::Error;
@@ -959,7 +958,7 @@
 <span class="kw">use </span>relay_event_schema::processor::{process_value, ProcessingState};
 <span class="kw">use </span>relay_event_schema::protocol::{BrowserContext, Contexts, Event, Span, SpanData};
 <span class="kw">use </span>relay_log::protocol::{Attachment, AttachmentType};
-<span class="kw">use </span>relay_metrics::{aggregator::AggregatorConfig, MetricNamespace, UnixTimestamp};
+<span class="kw">use </span>relay_metrics::{MetricNamespace, UnixTimestamp};
 <span class="kw">use </span>relay_pii::PiiProcessor;
 <span class="kw">use </span>relay_protocol::{Annotated, Empty};
 <span class="kw">use </span>relay_quotas::DataCategory;
@@ -1301,6 +1300,7 @@
         event,
         config
             .aggregator_config_for(MetricNamespace::Spans)
+            .aggregator
             .max_tag_value_length,
     ) <span class="kw">else </span>{
         <span class="kw">return</span>;
@@ -1375,21 +1375,19 @@
     performance_score: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>PerformanceScoreConfig&gt;,
     ai_model_costs: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>ModelCosts&gt;,
 ) -&gt; NormalizeSpanConfig&lt;<span class="lifetime">'a</span>&gt; {
-    <span class="kw">let </span>aggregator_config =
-        AggregatorConfig::from(config.aggregator_config_for(MetricNamespace::Spans));
+    <span class="kw">let </span>aggregator_config = config.aggregator_config_for(MetricNamespace::Spans);
 
     NormalizeSpanConfig {
         received_at,
-        timestamp_range: aggregator_config.timestamp_range(),
-        max_tag_value_size: config
-            .aggregator_config_for(MetricNamespace::Spans)
-            .max_tag_value_length,
+        timestamp_range: aggregator_config.aggregator.timestamp_range(),
+        max_tag_value_size: aggregator_config.aggregator.max_tag_value_length,
         measurements: <span class="prelude-val">Some</span>(CombinedMeasurementsConfig::new(
             project_measurements_config,
             global_measurements_config,
         )),
         max_name_and_unit_len: <span class="prelude-val">Some</span>(
             aggregator_config
+                .aggregator
                 .max_name_length
                 .saturating_sub(MeasurementsConfig::MEASUREMENT_MRI_OVERHEAD),
         ),
