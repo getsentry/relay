@@ -3995,19 +3995,6 @@
 <a href="#3995" id="3995">3995</a>
 <a href="#3996" id="3996">3996</a>
 <a href="#3997" id="3997">3997</a>
-<a href="#3998" id="3998">3998</a>
-<a href="#3999" id="3999">3999</a>
-<a href="#4000" id="4000">4000</a>
-<a href="#4001" id="4001">4001</a>
-<a href="#4002" id="4002">4002</a>
-<a href="#4003" id="4003">4003</a>
-<a href="#4004" id="4004">4004</a>
-<a href="#4005" id="4005">4005</a>
-<a href="#4006" id="4006">4006</a>
-<a href="#4007" id="4007">4007</a>
-<a href="#4008" id="4008">4008</a>
-<a href="#4009" id="4009">4009</a>
-<a href="#4010" id="4010">4010</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
@@ -5505,15 +5492,10 @@
             </span><span class="kw">return </span><span class="prelude-val">Ok</span>(());
         }
 
-        <span class="kw">let </span>options = <span class="kw-2">&amp;</span><span class="self">self</span>.inner.global_config.current().options;
-
         <span class="kw">let </span>full_normalization = <span class="kw">match </span><span class="self">self</span>.inner.config.normalization_level() {
             NormalizationLevel::Full =&gt; <span class="bool-val">true</span>,
             NormalizationLevel::Default =&gt; {
-                <span class="kw">if </span><span class="self">self</span>.inner.config.processing_enabled()
-                    &amp;&amp; options.processing_disable_normalization
-                    &amp;&amp; state.event_fully_normalized
-                {
+                <span class="kw">if </span><span class="self">self</span>.inner.config.processing_enabled() &amp;&amp; state.event_fully_normalized {
                     <span class="macro">metric!</span>(
                         counter(RelayCounters::NormalizationDecision) += <span class="number">1</span>,
                         event_type = event_type,
@@ -5527,7 +5509,7 @@
                     </span>);
                     <span class="kw">return </span><span class="prelude-val">Ok</span>(());
                 } <span class="kw">else </span>{
-                    <span class="self">self</span>.inner.config.processing_enabled() || options.force_full_normalization
+                    <span class="self">self</span>.inner.config.processing_enabled()
                 }
             }
         };
@@ -5669,11 +5651,7 @@
             unreal::expand(state, <span class="kw-2">&amp;</span><span class="self">self</span>.inner.config)<span class="question-mark">?</span>;
         });
 
-        event::extract(
-            state,
-            <span class="kw-2">&amp;</span><span class="self">self</span>.inner.config,
-            <span class="kw-2">&amp;</span><span class="self">self</span>.inner.global_config.current(),
-        )<span class="question-mark">?</span>;
+        event::extract(state, <span class="kw-2">&amp;</span><span class="self">self</span>.inner.config)<span class="question-mark">?</span>;
 
         <span class="macro">if_processing!</span>(<span class="self">self</span>.inner.config, {
             unreal::process(state)<span class="question-mark">?</span>;
@@ -5718,11 +5696,7 @@
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ProcessingError&gt; {
         <span class="kw">let </span>global_config = <span class="self">self</span>.inner.global_config.current();
 
-        event::extract(
-            state,
-            <span class="kw-2">&amp;</span><span class="self">self</span>.inner.config,
-            <span class="kw-2">&amp;</span><span class="self">self</span>.inner.global_config.current(),
-        )<span class="question-mark">?</span>;
+        event::extract(state, <span class="kw-2">&amp;</span><span class="self">self</span>.inner.config)<span class="question-mark">?</span>;
 
         <span class="kw">let </span>profile_id = profile::filter(state);
         profile::transfer_id(state, profile_id);
