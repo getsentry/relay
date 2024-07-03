@@ -18,7 +18,7 @@ use relay_event_normalization::{normalize_transaction_name, ModelCosts};
 use relay_event_schema::processor::{process_value, ProcessingState};
 use relay_event_schema::protocol::{BrowserContext, Contexts, Event, Span, SpanData};
 use relay_log::protocol::{Attachment, AttachmentType};
-use relay_metrics::{aggregator::AggregatorConfig, MetricNamespace, UnixTimestamp};
+use relay_metrics::{MetricNamespace, UnixTimestamp};
 use relay_pii::PiiProcessor;
 use relay_protocol::{Annotated, Empty};
 use relay_quotas::DataCategory;
@@ -360,6 +360,7 @@ pub fn extract_from_event(
         event,
         config
             .aggregator_config_for(MetricNamespace::Spans)
+            .aggregator
             .max_tag_value_length,
     ) else {
         return;
@@ -434,21 +435,19 @@ fn get_normalize_span_config<'a>(
     performance_score: Option<&'a PerformanceScoreConfig>,
     ai_model_costs: Option<&'a ModelCosts>,
 ) -> NormalizeSpanConfig<'a> {
-    let aggregator_config =
-        AggregatorConfig::from(config.aggregator_config_for(MetricNamespace::Spans));
+    let aggregator_config = config.aggregator_config_for(MetricNamespace::Spans);
 
     NormalizeSpanConfig {
         received_at,
-        timestamp_range: aggregator_config.timestamp_range(),
-        max_tag_value_size: config
-            .aggregator_config_for(MetricNamespace::Spans)
-            .max_tag_value_length,
+        timestamp_range: aggregator_config.aggregator.timestamp_range(),
+        max_tag_value_size: aggregator_config.aggregator.max_tag_value_length,
         measurements: Some(CombinedMeasurementsConfig::new(
             project_measurements_config,
             global_measurements_config,
         )),
         max_name_and_unit_len: Some(
             aggregator_config
+                .aggregator
                 .max_name_length
                 .saturating_sub(MeasurementsConfig::MEASUREMENT_MRI_OVERHEAD),
         ),
@@ -718,7 +717,7 @@ mod tests {
     use relay_system::Addr;
 
     use crate::envelope::Envelope;
-    use crate::services::processor::ProcessingGroup;
+    use crate::services::processor::{ProcessingExtractedMetrics, ProcessingGroup};
     use crate::services::project::ProjectState;
     use crate::utils::ManagedEnvelope;
 
@@ -738,6 +737,7 @@ mod tests {
             .features
             .0
             .insert(Feature::ExtractCommonSpanMetricsFromEvent);
+        let project_state = Arc::new(project_state);
 
         let event = Event {
             ty: EventType::Transaction.into(),
@@ -769,8 +769,12 @@ mod tests {
             event: Annotated::from(event),
             metrics: Default::default(),
             sample_rates: None,
-            extracted_metrics: Default::default(),
-            project_state: Arc::new(project_state),
+            extracted_metrics: ProcessingExtractedMetrics::new(
+                project_state.clone(),
+                Arc::new(GlobalConfig::default()),
+                managed_envelope.envelope().dsc(),
+            ),
+            project_state,
             sampling_project_state: None,
             project_id: ProjectId::new(42),
             managed_envelope: managed_envelope.try_into().unwrap(),
