@@ -10,7 +10,8 @@ use once_cell::sync::Lazy;
 use regex::Regex;
 use relay_base_schema::metrics::{DurationUnit, InformationUnit, MetricUnit};
 use relay_event_schema::protocol::{
-    AppContext, BrowserContext, Event, Measurement, OsContext, Span, Timestamp, TraceContext,
+    AppContext, BrowserContext, Event, Measurement, OsContext, ProfileContext, Span, Timestamp,
+    TraceContext,
 };
 use relay_protocol::{Annotated, Value};
 use sqlparser::ast::Visit;
@@ -81,6 +82,7 @@ pub enum SpanTagKey {
     TraceStatus,
     MessagingDestinationName,
     MessagingMessageId,
+    ProfilerId,
 }
 
 impl SpanTagKey {
@@ -132,6 +134,8 @@ impl SpanTagKey {
             SpanTagKey::TraceStatus => "trace.status",
             SpanTagKey::MessagingDestinationName => "messaging.destination.name",
             SpanTagKey::MessagingMessageId => "messaging.message.id",
+
+            SpanTagKey::ProfilerId => "profiler_id",
         }
     }
 }
@@ -323,6 +327,13 @@ fn extract_shared_tags(event: &Event) -> BTreeMap<SpanTagKey, String> {
         .and_then(|v| v.name.value())
     {
         tags.insert(SpanTagKey::BrowserName, browser_name.into());
+    }
+
+    if let Some(profiler_id) = event
+        .context::<ProfileContext>()
+        .and_then(|profile_context| profile_context.profiler_id.value())
+    {
+        tags.insert(SpanTagKey::ProfilerId, profiler_id.to_string());
     }
 
     tags.insert(SpanTagKey::SdkName, event.sdk_name().into());
@@ -2375,6 +2386,51 @@ LIMIT 1
 
         assert_eq!(tags.get(&SpanTagKey::Description), None);
         assert_eq!(tags.get(&SpanTagKey::Domain), None);
+    }
+
+    #[test]
+    fn extract_profiler_id_into_sentry_tags() {
+        let json = r#"
+            {
+                "type": "transaction",
+                "platform": "javascript",
+                "start_timestamp": "2021-04-26T07:59:01+0100",
+                "timestamp": "2021-04-26T08:00:00+0100",
+                "transaction": "foo",
+                "contexts": {
+                    "profile": {
+                        "profiler_id": "ff62a8b040f340bda5d830223def1d81"
+                    }
+                },
+                "spans": [
+                    {
+                        "op": "before_first_display",
+                        "span_id": "bd429c44b67a3eb1",
+                        "start_timestamp": 1597976300.0000000,
+                        "timestamp": 1597976302.0000000,
+                        "trace_id": "ff62a8b040f340bda5d830223def1d81"
+                    }
+                ]
+            }
+        "#;
+
+        let mut event = Annotated::<Event>::from_json(json).unwrap();
+
+        normalize_event(
+            &mut event,
+            &NormalizationConfig {
+                enrich_spans: true,
+                ..Default::default()
+            },
+        );
+
+        let spans = get_value!(event.spans!);
+        let span = &spans[0];
+
+        assert_eq!(
+            get_value!(span.sentry_tags["profiler_id"]!),
+            "ff62a8b040f340bda5d830223def1d81",
+        );
     }
 
     #[test]
