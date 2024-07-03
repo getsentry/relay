@@ -7,8 +7,18 @@ use relay_metrics::{
     Bucket, BucketValue, CounterType, DistributionValue, FiniteF64, GaugeValue, SetValue,
 };
 use relay_protocol::Annotated;
-use std::collections::btree_map::Entry;
 use std::collections::BTreeMap;
+use std::ops::AddAssign;
+
+/// Maps two [`Option<T>`] values using a provided function.
+fn map_multiple<T: Ord>(a: Option<T>, b: Option<T>, f: fn(T, T) -> T) -> Option<T> {
+    match (a, b) {
+        (Some(x), Some(y)) => Some(f(x, y)),
+        (Some(x), None) => Some(x),
+        (None, Some(y)) => Some(y),
+        (None, None) => None,
+    }
+}
 
 /// Key of a bucket used to keep track of aggregates for the [`MetricsSummary`].
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -20,7 +30,7 @@ struct MetricsSummaryBucketKey {
 }
 
 /// Value of a bucket used to keep track of aggregates for the [`MetricsSummary`].
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, Default, PartialEq, Eq)]
 struct MetricsSummaryBucketValue {
     /// The minimum value reported in the bucket.
     min: Option<FiniteF64>,
@@ -32,17 +42,12 @@ struct MetricsSummaryBucketValue {
     count: u64,
 }
 
-impl std::ops::AddAssign for MetricsSummaryBucketValue {
+impl AddAssign for MetricsSummaryBucketValue {
     fn add_assign(&mut self, rhs: Self) {
         *self = MetricsSummaryBucketValue {
-            min: std::cmp::min(self.min, rhs.min),
-            max: std::cmp::max(self.max, rhs.max),
-            sum: match (self.sum, rhs.sum) {
-                (Some(sum), Some(other_sum)) => Some(sum.saturating_add(other_sum)),
-                (None, Some(other_sum)) => Some(other_sum),
-                (Some(sum), None) => Some(sum),
-                _ => None,
-            },
+            min: map_multiple(self.min, rhs.min, std::cmp::min),
+            max: map_multiple(self.max, rhs.max, std::cmp::max),
+            sum: map_multiple(self.sum, rhs.sum, |l, r| l.saturating_add(r)),
             count: self.count + rhs.count,
         }
     }
@@ -154,14 +159,10 @@ impl MetricsSummary {
         };
 
         let value = (&bucket.value).into();
-        match self.buckets.entry(key) {
-            Entry::Occupied(mut entry) => {
-                *entry.get_mut() += value;
-            }
-            Entry::Vacant(entry) => {
-                entry.insert(value);
-            }
-        }
+        self.buckets
+            .entry(key)
+            .and_modify(|e| *e += value)
+            .or_insert(value);
     }
 
     /// Applies the [`MetricsSummary`] on a receiving [`Annotated<MetricsSummary>`].
@@ -269,10 +270,10 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::metrics_extraction::metrics_summary::MetricsSummary;
+    use crate::metrics_extraction::metrics_summary::{MetricsSummary, MetricsSummaryBucketValue};
     use relay_common::time::UnixTimestamp;
     use relay_event_schema::protocol as event;
-    use relay_metrics::Bucket;
+    use relay_metrics::{Bucket, FiniteF64};
     use relay_protocol::Annotated;
     use std::collections::BTreeMap;
 
@@ -674,5 +675,70 @@ mod tests {
             },
         )
         "###);
+    }
+
+    #[test]
+    fn test_apply_on_with_same_metric_and_same_empty_tags_and_none_values() {
+        let buckets = build_buckets(b"my_counter:3|c");
+        let mut summary_map = BTreeMap::new();
+        summary_map.insert(
+            "c:custom/my_counter@none".to_owned(),
+            Annotated::new(vec![Annotated::new(event::MetricSummary {
+                min: Annotated::empty(),
+                max: Annotated::new(10.0),
+                sum: Annotated::empty(),
+                count: Annotated::new(2),
+                tags: Annotated::new(BTreeMap::new()),
+            })]),
+        );
+
+        let metrics_summary_spec = MetricsSummary::from_buckets(buckets.iter());
+        let mut metrics_summary = Annotated::new(event::MetricsSummary(summary_map));
+        metrics_summary_spec.apply_on(&mut metrics_summary);
+
+        insta::assert_debug_snapshot!(metrics_summary.value().unwrap(), @r###"
+        MetricsSummary(
+            {
+                "c:custom/my_counter@none": [
+                    MetricSummary {
+                        min: 3.0,
+                        max: 10.0,
+                        sum: 3.0,
+                        count: 3,
+                        tags: {},
+                    },
+                ],
+            },
+        )
+        "###);
+    }
+
+    #[test]
+    fn test_bucket_value_merge() {
+        let mut value_1 = MetricsSummaryBucketValue {
+            min: Some(FiniteF64::MIN),
+            max: None,
+            sum: None,
+            count: 0,
+        };
+
+        let value_2 = MetricsSummaryBucketValue {
+            min: None,
+            max: Some(FiniteF64::MAX),
+            sum: Some(FiniteF64::from(10)),
+            count: 10,
+        };
+
+        value_1 += value_2;
+
+        assert_eq!(
+            value_1,
+            MetricsSummaryBucketValue {
+                min: Some(FiniteF64::MIN),
+                max: Some(FiniteF64::MAX),
+                sum: Some(FiniteF64::from(10)),
+                count: 10
+            }
+        );
     }
 }

@@ -234,15 +234,12 @@ where
     }
 }
 
-impl<T> Annotated<T>
-where
-    T: Copy,
-{
-    /// Merges two [`Annotated`]s and applies a `block` in case both values are non-empty.
-    pub fn merge(&mut self, other: &Annotated<T>, block: impl FnOnce(&T, &T) -> T) {
-        match (self.value(), other.value()) {
-            (Some(left), Some(right)) => self.set_value(Some(block(left, right))),
-            (None, Some(right)) => self.set_value(Some(*right)),
+impl<T> Annotated<T> {
+    /// Merges the supplied [`Annotated`] in the left [`Annotated`].
+    pub fn merge(&mut self, other: Annotated<T>, block: impl FnOnce(&mut T, T)) {
+        match (self.value_mut(), other.into_value()) {
+            (Some(left), Some(right)) => block(left, right),
+            (None, Some(right)) => self.set_value(Some(right)),
             _ => {}
         }
     }
