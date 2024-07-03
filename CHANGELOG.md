@@ -15,7 +15,6 @@
 - Add web vitals support for mobile browsers. ([#3762](https://github.com/getsentry/relay/pull/3762))
 - Accept profiler_id in the profile context. ([#3714](https://github.com/getsentry/relay/pull/3714))
 - Support extrapolation of metrics extracted from sampled data, as long as the sample rate is set in the DynamicSamplingContext. ([#3753](https://github.com/getsentry/relay/pull/3753))
-- Only extract span duration metrics for known modules. ([#3768](https://github.com/getsentry/relay/pull/3768))
 - Compute metrics summary on the extracted custom metrics. ([#3769](https://github.com/getsentry/relay/pull/3769))
 
 ## 24.6.0
