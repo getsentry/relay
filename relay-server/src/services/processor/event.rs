@@ -40,7 +40,6 @@ use crate::utils::{self, ChunkedFormDataAggregator, FormDataIter};
 pub fn extract<G: EventProcessing>(
     state: &mut ProcessEnvelopeState<G>,
     config: &Config,
-    global_config: &GlobalConfig,
 ) -> Result<(), ProcessingError> {
     let event_fully_normalized = state.event_fully_normalized;
     let envelope = &mut state.envelope_mut();
@@ -69,9 +68,7 @@ pub fn extract<G: EventProcessing>(
         return Err(ProcessingError::DuplicateItem(duplicate.ty().clone()));
     }
 
-    let skip_normalization = config.processing_enabled()
-        && global_config.options.processing_disable_normalization
-        && event_fully_normalized;
+    let skip_normalization = config.processing_enabled() && event_fully_normalized;
 
     let mut sample_rates = None;
     let (event, event_len) = if let Some(mut item) = event_item.or(security_item) {
