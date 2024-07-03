@@ -15,6 +15,7 @@
 - Add web vitals support for mobile browsers. ([#3762](https://github.com/getsentry/relay/pull/3762))
 - Ingest profiler_id in the profile context and in spans. ([#3714](https://github.com/getsentry/relay/pull/3714), [#3784](https://github.com/getsentry/relay/pull/3784))
 - Support extrapolation of metrics extracted from sampled data, as long as the sample rate is set in the DynamicSamplingContext. ([#3753](https://github.com/getsentry/relay/pull/3753))
+- Extract thread ID and name in spans. ([#3771](https://github.com/getsentry/relay/pull/3771))
 
 ## 24.6.0
 
