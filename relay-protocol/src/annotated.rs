@@ -190,6 +190,15 @@ impl<T> Annotated<T> {
     {
         self.value_mut().get_or_insert_with(f)
     }
+
+    /// Merges the supplied [`Annotated`] in the left [`Annotated`].
+    pub fn merge(&mut self, other: Annotated<T>, block: impl FnOnce(&mut T, T)) {
+        match (self.value_mut(), other.into_value()) {
+            (Some(left), Some(right)) => block(left, right),
+            (None, Some(right)) => self.set_value(Some(right)),
+            _ => {}
+        }
+    }
 }
 
 impl<T> Annotated<T>
@@ -230,17 +239,6 @@ where
             SkipSerialization::Null(_) => self.value().is_none(),
             SkipSerialization::Empty(false) => self.value().map_or(true, Empty::is_empty),
             SkipSerialization::Empty(true) => self.value().map_or(true, Empty::is_deep_empty),
-        }
-    }
-}
-
-impl<T> Annotated<T> {
-    /// Merges the supplied [`Annotated`] in the left [`Annotated`].
-    pub fn merge(&mut self, other: Annotated<T>, block: impl FnOnce(&mut T, T)) {
-        match (self.value_mut(), other.into_value()) {
-            (Some(left), Some(right)) => block(left, right),
-            (None, Some(right)) => self.set_value(Some(right)),
-            _ => {}
         }
     }
 }

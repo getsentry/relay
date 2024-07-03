@@ -175,13 +175,10 @@ impl MetricsSummary {
             &mut receiver.get_or_insert_with(|| event::MetricsSummary(BTreeMap::new()));
 
         for (key, value) in self.buckets {
-            let min = value.min.map_or(Annotated::empty(), |m| m.to_f64().into());
-            let max = value.max.map_or(Annotated::empty(), |m| m.to_f64().into());
-            let sum = value.sum.map_or(Annotated::empty(), |m| m.to_f64().into());
             let metric_summary = event::MetricSummary {
-                min,
-                max,
-                sum,
+                min: value.min.map(|m| m.to_f64()).into(),
+                max: value.max.map(|m| m.to_f64()).into(),
+                sum: value.sum.map(|m| m.to_f64()).into(),
                 count: Annotated::new(value.count),
                 tags: Annotated::new(
                     key.tags
@@ -191,53 +188,27 @@ impl MetricsSummary {
                 ),
             };
 
-            let Some(metric_summary_tags) = metric_summary.tags.value() else {
-                // This code should never be reached.
-                continue;
-            };
-
             let existing_summary = metrics_summary_mapping
                 .get_mut(key.metric_name.as_ref())
                 .and_then(|v| v.value_mut().as_mut());
 
-            match existing_summary {
-                Some(existing_summary) => {
-                    let mut found_summary = None;
-                    for existing_summary in existing_summary.iter_mut() {
-                        let Some(existing_summary) = existing_summary.value_mut() else {
-                            continue;
-                        };
+            if let Some(summaries) = existing_summary {
+                let found = summaries.iter_mut().find_map(|s| {
+                    s.value_mut()
+                        .as_mut()
+                        .filter(|v| v.tags == metric_summary.tags)
+                });
 
-                        match existing_summary.tags.value() {
-                            Some(existing_summary_tags)
-                                if *metric_summary_tags == *existing_summary_tags =>
-                            {
-                                found_summary = Some(existing_summary);
-                                break;
-                            }
-                            None if metric_summary_tags.is_empty() => {
-                                found_summary = Some(existing_summary);
-                                break;
-                            }
-                            _ => {}
-                        }
-                    }
-
-                    match found_summary {
-                        Some(found_summary) => {
-                            found_summary.merge(metric_summary);
-                        }
-                        None => {
-                            existing_summary.push(Annotated::new(metric_summary));
-                        }
-                    }
+                if let Some(found) = found {
+                    found.merge(metric_summary);
+                } else {
+                    summaries.push(Annotated::new(metric_summary));
                 }
-                None => {
-                    metrics_summary_mapping.insert(
-                        key.metric_name.to_string(),
-                        Annotated::new(vec![Annotated::new(metric_summary)]),
-                    );
-                }
+            } else {
+                metrics_summary_mapping.insert(
+                    key.metric_name.to_string(),
+                    Annotated::new(vec![Annotated::new(metric_summary)]),
+                );
             }
         }
     }
