@@ -654,6 +654,10 @@ impl Getter for Event {
             "logger" => self.logger.as_str()?.into(),
             "platform" => self.platform.as_str().unwrap_or("other").into(),
 
+            "exceptions" => {
+                Val::Array(Arr::new_annotated(self.exceptions.value()?.values.value()?))
+            }
+
             // Fields in top level structures (called "interfaces" in Sentry)
             "user.email" => or_none(&self.user.value()?.email)?.into(),
             "user.id" => or_none(&self.user.value()?.id)?.into(),
@@ -808,12 +812,12 @@ impl Getter for Event {
         })
     }
 
-    fn get_iter(&self, path: &str) -> Option<GetterIter<'_>> {
-        Some(match path.strip_prefix("event.")? {
-            "exceptions" => GetterIter::new_annotated(self.exceptions.value()?.values.value()?),
-            _ => return None,
-        })
-    }
+    // fn get_iter(&self, path: &str) -> Option<GetterIter<'_>> {
+    //     Some(match path.strip_prefix("event.")? {
+    //         "exceptions" => GetterIter::new_annotated(self.exceptions.value()?.values.value()?),
+    //         _ => return None,
+    //     })
+    // }
 }
 
 impl Getter for Exception {

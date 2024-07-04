@@ -325,11 +325,11 @@ impl AnyCondition {
     where
         T: Getter + ?Sized,
     {
-        let Some(mut getter_iter) = instance.get_iter(self.name.as_str()) else {
+        let Some(Val::Array(arr)) = instance.get_value(self.name.as_str()) else {
             return false;
         };
 
-        getter_iter.any(|g| self.inner.matches(g))
+        arr.iter().any(|g| self.inner.matches(g))
     }
 }
 
@@ -350,11 +350,11 @@ impl AllCondition {
     where
         T: Getter + ?Sized,
     {
-        let Some(mut getter_iter) = instance.get_iter(self.name.as_str()) else {
+        let Some(Val::Array(arr)) = instance.get_value(self.name.as_str()) else {
             return false;
         };
 
-        getter_iter.all(|g| self.inner.matches(g))
+        arr.iter().all(|g| self.inner.matches(g))
     }
 }
 
@@ -780,7 +780,7 @@ impl std::ops::Not for RuleCondition {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{Annotated, Array, GetterIter};
+    use crate::{Annotated, Arr, Array, GetterIter};
 
     #[derive(Debug)]
     struct Exception {
@@ -811,16 +811,10 @@ mod tests {
                 "release" => self.release.as_str().into(),
                 "environment" => self.environment.as_str().into(),
                 "user.segment" => self.user_segment.as_str().into(),
+                "exceptions" => Val::Array(Arr::new(self.exceptions.iter())),
                 _ => {
                     return None;
                 }
-            })
-        }
-
-        fn get_iter(&self, path: &str) -> Option<GetterIter<'_>> {
-            Some(match path.strip_prefix("trace.")? {
-                "exceptions" => GetterIter::new(self.exceptions.iter()),
-                _ => return None,
             })
         }
     }
@@ -1197,7 +1191,7 @@ mod tests {
 
     #[test]
     fn test_loop_condition() {
-        let condition = RuleCondition::Loop(AnyCondition {
+        let condition = RuleCondition::Any(AnyCondition {
             name: "trace.exceptions".to_string(),
             inner: Box::new(RuleCondition::glob("name", "*Exception")),
         });

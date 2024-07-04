@@ -353,20 +353,81 @@ where
     serde_json::to_value(value).map(Value::from_json)
 }
 
+pub trait GetterTrait<'a>: Iterator<Item = &'a dyn Getter> + Debug {
+    fn clone_2(&self) -> Box<dyn GetterTrait<'a> + 'a>;
+}
+
+impl<'a, T> GetterTrait<'a> for T
+where
+    T: Iterator<Item = &'a dyn Getter> + Clone + Debug + 'a,
+{
+    fn clone_2(&self) -> Box<dyn GetterTrait<'a> + 'a> {
+        Box::new(self.clone())
+    }
+}
+
+#[derive(Debug)]
+pub struct GetterIter<'a> {
+    iter: Box<dyn GetterTrait<'a> + 'a>,
+}
+
+impl<'a> Clone for GetterIter<'a> {
+    fn clone(&self) -> Self {
+        Self {
+            iter: self.clone_2(),
+        }
+    }
+}
+
+impl<'a> Iterator for GetterIter<'a> {
+    type Item = &'a dyn Getter;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.iter.next()
+    }
+}
+
 /// Borrowed version of [`Array`].
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug)]
 pub struct Arr<'a> {
-    _phantom: std::marker::PhantomData<&'a ()>,
+    iter: GetterIter<'a>,
+}
+
+impl<'a> Arr<'a> {
+    pub fn new<I, T>(iterator: I) -> Self
+    where
+        I: Iterator<Item = &'a T> + Clone + Debug + 'a,
+        T: 'a + Getter,
+    {
+        Self {
+            iter: GetterIter {
+                iter: Box::new(iterator.map(|v| v as &dyn Getter)),
+            },
+        }
+    }
+
+    pub fn new_annotated<I, T>(iterator: I) -> Self
+    where
+        I: IntoIterator<Item = &'a Annotated<T>>,
+        I::IntoIter: Clone + Debug + 'a,
+        T: 'static + Getter,
+    {
+        Self::new(iterator.into_iter().filter_map(Annotated::value))
+    }
+
+    pub fn iter(&self) -> GetterIter<'a> {
+        self.iter.clone()
+    }
 }
 
 /// Borrowed version of [`Object`].
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug)]
 pub struct Obj<'a> {
     _phantom: std::marker::PhantomData<&'a ()>,
 }
 
 /// Borrowed version of [`Value`].
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug)]
 pub enum Val<'a> {
     /// A boolean value.
     Bool(bool),
@@ -495,9 +556,7 @@ impl<'a> From<&'a Value> for Val<'a> {
             Value::U64(value) => Self::U64(*value),
             Value::F64(value) => Self::F64(*value),
             Value::String(value) => Self::String(value),
-            Value::Array(_) => Self::Array(Arr {
-                _phantom: Default::default(),
-            }),
+            Value::Array(value) => Self::Array(Arr::new_annotated(value)),
             Value::Object(_) => Self::Object(Obj {
                 _phantom: Default::default(),
             }),
