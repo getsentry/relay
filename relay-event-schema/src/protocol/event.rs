@@ -4,7 +4,9 @@ use std::str::FromStr;
 use relay_common::time;
 #[cfg(feature = "jsonschema")]
 use relay_jsonschema_derive::JsonSchema;
-use relay_protocol::{Annotated, Array, Empty, FromValue, Getter, IntoValue, Object, Val, Value};
+use relay_protocol::{
+    Annotated, Arr, Array, Empty, FromValue, Getter, GetterIter, IntoValue, Object, Val, Value,
+};
 #[cfg(feature = "jsonschema")]
 use schemars::{gen::SchemaGenerator, schema::Schema};
 use sentry_release_parser::Release as ParsedRelease;
@@ -803,6 +805,23 @@ impl Getter for Event {
                     return None;
                 }
             }
+        })
+    }
+
+    fn get_iter(&self, path: &str) -> Option<GetterIter<'_>> {
+        Some(match path.strip_prefix("event.")? {
+            "exceptions" => GetterIter::new_annotated(self.exceptions.value()?.values.value()?),
+            _ => return None,
+        })
+    }
+}
+
+impl Getter for Exception {
+    fn get_value(&self, path: &str) -> Option<Val<'_>> {
+        Some(match path {
+            "ty" => self.ty.as_str()?.into(),
+            "value" => self.value.as_str()?.into(),
+            _ => return None,
         })
     }
 }

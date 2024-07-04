@@ -125,6 +125,39 @@ pub trait IntoValue: Debug + Empty {
     }
 }
 
+pub struct GetterIter<'a> {
+    iter: Box<dyn Iterator<Item = &'a dyn Getter> + 'a>,
+}
+
+impl<'a> GetterIter<'a> {
+    pub fn new<I, T>(iterator: I) -> Self
+    where
+        I: Iterator<Item = &'a T> + 'a,
+        T: 'a + Getter,
+    {
+        Self {
+            iter: Box::new(iterator.map(|v| v as &dyn Getter)),
+        }
+    }
+
+    pub fn new_annotated<I, T>(iterator: I) -> Self
+    where
+        I: IntoIterator<Item = &'a Annotated<T>>,
+        I::IntoIter: 'a,
+        T: 'static + Getter,
+    {
+        Self::new(iterator.into_iter().filter_map(Annotated::value))
+    }
+}
+
+impl<'a> Iterator for GetterIter<'a> {
+    type Item = &'a dyn Getter;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.iter.next()
+    }
+}
+
 /// A type that supports field access by paths.
 ///
 /// This is the runtime version of [`get_value!`](crate::get_value!) and additionally supports
@@ -195,4 +228,8 @@ pub trait IntoValue: Debug + Empty {
 pub trait Getter {
     /// Returns the serialized value of a field pointed to by a `path`.
     fn get_value(&self, path: &str) -> Option<Val<'_>>;
+
+    fn get_iter(&self, path: &str) -> Option<GetterIter<'_>> {
+        None
+    }
 }
