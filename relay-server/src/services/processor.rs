@@ -1358,7 +1358,7 @@ impl EnvelopeProcessorService {
         if state.event_metrics_extracted {
             return Ok(());
         }
-        let Some(event) = state.event.value() else {
+        let Some(event) = state.event.value_mut() else {
             return Ok(());
         };
 
@@ -1428,6 +1428,7 @@ impl EnvelopeProcessorService {
                 .aggregator
                 .max_tag_value_length,
             global.options.span_extraction_sample_rate,
+            global.options.compute_metrics_summaries_sample_rate,
         );
 
         state
