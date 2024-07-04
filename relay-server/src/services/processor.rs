@@ -50,7 +50,7 @@ use tokio::sync::Semaphore;
 use {
     crate::metrics::MetricsLimiter,
     crate::services::store::{Store, StoreEnvelope},
-    crate::utils::{sample, EnvelopeLimiter, ItemAction},
+    crate::utils::{sample, Enforcement, EnvelopeLimiter, ItemAction},
     itertools::Itertools,
     relay_cardinality::{
         CardinalityLimit, CardinalityLimiter, CardinalityLimitsSplit, RedisSetLimiter,
@@ -660,12 +660,12 @@ impl ProcessingExtractedMetrics {
     /// This is used to apply rate limits which have been enforced on sampled items of an envelope
     /// to also consistently apply to the metrics extracted from these items.
     #[cfg(feature = "processing")]
-    fn enforce_limits(&mut self, scoping: Scoping, limits: &RateLimits) {
-        for (category, namespace) in [
-            (DataCategory::Transaction, MetricNamespace::Transactions),
-            (DataCategory::Span, MetricNamespace::Spans),
+    fn apply_enforcement(&mut self, enforcement: &Enforcement) {
+        for (namespace, limit) in [
+            (MetricNamespace::Transactions, &enforcement.event),
+            (MetricNamespace::Spans, &enforcement.spans),
         ] {
-            if !limits.check(scoping.item(category)).is_empty() {
+            if limit.is_active() {
                 relay_log::trace!(
                     "dropping {namespace} metrics, due to enforced limit on envelope"
                 );
@@ -1325,10 +1325,8 @@ impl EnvelopeProcessorService {
         let (enforcement, limits) = metric!(timer(RelayTimers::EventProcessingRateLimiting), {
             envelope_limiter.compute(state.managed_envelope.envelope_mut(), &scoping)?
         });
-        let event_active = enforcement.event_active();
-        enforcement.apply_with_outcomes(&mut state.managed_envelope);
 
-        if event_active {
+        if enforcement.is_event_active() {
             state.remove_event();
             debug_assert!(state.envelope().is_empty());
         }
@@ -1336,7 +1334,8 @@ impl EnvelopeProcessorService {
         // Use the same rate limits as used for the envelope on the metrics.
         // Those rate limits should not be checked for expiry or similar to ensure a consistent
         // limiting of envelope items and metrics.
-        state.extracted_metrics.enforce_limits(scoping, &limits);
+        state.extracted_metrics.apply_enforcement(&enforcement);
+        enforcement.apply_with_outcomes(&mut state.managed_envelope);
 
         if !limits.is_empty() {
             self.inner

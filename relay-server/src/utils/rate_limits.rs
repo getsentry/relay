@@ -285,8 +285,12 @@ impl CategoryLimit {
         }
     }
 
-    /// Recreates the category limit for a new category with the same reason.
+    /// Recreates the category limit, if active, for a new category with the same reason.
     pub fn clone_for(&self, category: DataCategory, quantity: usize) -> CategoryLimit {
+        if !self.is_active() {
+            return Self::default();
+        }
+
         Self {
             category,
             quantity,
@@ -344,9 +348,22 @@ pub struct Enforcement {
 }
 
 impl Enforcement {
-    /// Returns `true` if the event should be rate limited.
-    pub fn event_active(&self) -> bool {
-        self.event.is_active() || self.event_indexed.is_active()
+    /// Returns the `CategoryLimit` for the event.
+    ///
+    /// `None` if the event is not rate limited.
+    pub fn active_event(&self) -> Option<&CategoryLimit> {
+        if self.event.is_active() {
+            Some(&self.event)
+        } else if self.event_indexed.is_active() {
+            Some(&self.event_indexed)
+        } else {
+            None
+        }
+    }
+
+    /// Returns `true` if the event is rate limited.
+    pub fn is_event_active(&self) -> bool {
+        self.active_event().is_some()
     }
 
     /// Helper for `track_outcomes`.
@@ -580,10 +597,9 @@ where
             rate_limits.merge(event_limits);
         }
 
-        if enforcement.event_active() {
-            enforcement.attachments = enforcement
-                .event
-                .clone_for(DataCategory::Attachment, summary.attachment_quantity);
+        if let Some(limit) = enforcement.active_event() {
+            enforcement.attachments =
+                limit.clone_for(DataCategory::Attachment, summary.attachment_quantity);
         } else if summary.attachment_quantity > 0 {
             let item_scoping = scoping.item(DataCategory::Attachment);
             let attachment_limits = (self.check)(item_scoping, summary.attachment_quantity)?;
@@ -612,7 +628,7 @@ where
             rate_limits.merge(session_limits);
         }
 
-        if enforcement.event_active() {
+        if enforcement.is_event_active() {
             enforcement.profiles = enforcement
                 .event
                 .clone_for(DataCategory::Profile, summary.profile_quantity);
@@ -669,14 +685,14 @@ where
             rate_limits.merge(checkin_limits);
         }
 
-        if enforcement.event_active() {
+        if enforcement.is_event_active() {
             enforcement.spans = enforcement
                 .event
                 .clone_for(DataCategory::Span, summary.span_quantity);
 
             enforcement.spans_indexed = enforcement
                 .event_indexed
-                .clone_for(DataCategory::SpanIndexed, summary.span_quantity)
+                .clone_for(DataCategory::SpanIndexed, summary.span_quantity);
         } else if summary.span_quantity > 0 {
             let mut span_limits =
                 (self.check)(scoping.item(DataCategory::Span), summary.span_quantity)?;
