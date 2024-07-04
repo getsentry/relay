@@ -154,6 +154,8 @@ macro_rules! map_fields {
 // This macro call implements a bidirectional mapping between transaction event and segment spans,
 // allowing users to call both `Event::from(&span)` and `Span::from(&event)`.
 map_fields!(
+    // Data must go first to ensure it doesn't overwrite more specific fields
+    span.data <=> event.contexts.trace.data,
     span._metrics_summary <=> event._metrics_summary,
     span.description <=> event.transaction,
     span.data.segment_name <=> event.transaction,
@@ -188,6 +190,7 @@ map_fields!(
 #[cfg(test)]
 mod tests {
     use relay_protocol::Annotated;
+    use similar_asserts::assert_eq;
 
     use crate::protocol::{SpanData, SpanId};
 
@@ -214,7 +217,10 @@ mod tests {
                         "op": "myop",
                         "status": "ok",
                         "exclusive_time": 123.4,
-                        "parent_span_id": "FA90FDEAD5F74051"
+                        "parent_span_id": "FA90FDEAD5F74051",
+                        "data": {
+                            "custom_attribute": 42
+                        }
                     }
                 },
                 "_metrics_summary": {
@@ -320,7 +326,13 @@ mod tests {
                 user_agent_original: ~,
                 url_full: ~,
                 client_address: ~,
-                other: {},
+                other: {
+                    "custom_attribute": I64(
+                        42,
+                    ),
+                    "previousRoute": ~,
+                    "route": ~,
+                },
             },
             sentry_tags: ~,
             received: ~,
