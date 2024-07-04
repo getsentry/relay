@@ -354,6 +354,7 @@ where
 /// Borrowed version of [`Array`].
 #[derive(Debug, Clone, Copy)]
 pub struct Arr<'a> {
+    pub length: usize,
     _phantom: std::marker::PhantomData<&'a ()>,
 }
 
@@ -493,13 +494,23 @@ impl<'a> From<&'a Value> for Val<'a> {
             Value::U64(value) => Self::U64(*value),
             Value::F64(value) => Self::F64(*value),
             Value::String(value) => Self::String(value),
-            Value::Array(_) => Self::Array(Arr {
+            Value::Array(value) => Self::Array(Arr {
+                length: value.len(),
                 _phantom: Default::default(),
             }),
             Value::Object(_) => Self::Object(Obj {
                 _phantom: Default::default(),
             }),
         }
+    }
+}
+
+impl<'a, T> From<&'a Array<T>> for Val<'a> {
+    fn from(value: &'a Array<T>) -> Self {
+        Self::Array(Arr {
+            length: value.len(),
+            _phantom: Default::default(),
+        })
     }
 }
 

@@ -307,6 +307,87 @@ impl NotCondition {
     }
 }
 
+/// Combines multiple conditions using logical AND.
+///
+/// This condition matches if **all** of the inner conditions match. The default value for this
+/// condition is `true`, that is, this rule matches if there are no inner conditions.
+///
+/// See [`RuleCondition::and`].
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct LoopCondition {
+    /// Path of the field that should match the value.
+    pub name: String,
+    /// Inner rule to match on each element.
+    pub inner: Box<RuleCondition>,
+}
+
+impl LoopCondition {
+    fn supported(&self) -> bool {
+        self.inner.supported()
+    }
+    fn matches<T>(&self, instance: &T) -> bool
+    where
+        T: Getter + ?Sized,
+    {
+        let Some(Val::Array(arr)) = instance.get_value(self.name.as_str()) else {
+            return false;
+        };
+
+        for i in 0..arr.length {
+            let prefix = format!("{}.{}", self.name.as_str(), i);
+            // TODO: we might want to explore how to keep a single cloned copy and mutate that
+            //  in place each time.
+            let mut inner = self.inner.clone();
+            apply_prefix(prefix.as_str(), inner.as_mut());
+            if inner.matches(instance) {
+                return true;
+            }
+        }
+
+        false
+    }
+}
+
+fn apply_prefix(prefix: &str, condition: &mut RuleCondition) {
+    match condition {
+        RuleCondition::Eq(eq) => {
+            eq.name = format!("{}.{}", prefix, eq.name);
+        }
+        RuleCondition::Gte(gte) => {
+            gte.name = format!("{}.{}", prefix, gte.name);
+        }
+        RuleCondition::Lte(lte) => {
+            lte.name = format!("{}.{}", prefix, lte.name);
+        }
+        RuleCondition::Gt(gt) => {
+            gt.name = format!("{}.{}", prefix, gt.name);
+        }
+        RuleCondition::Lt(lt) => {
+            lt.name = format!("{}.{}", prefix, lt.name);
+        }
+        RuleCondition::Glob(glob) => {
+            glob.name = format!("{}.{}", prefix, glob.name);
+        }
+        RuleCondition::Or(or) => {
+            for element in or.inner.iter_mut() {
+                apply_prefix(prefix, element);
+            }
+        }
+        RuleCondition::And(and) => {
+            for element in and.inner.iter_mut() {
+                apply_prefix(prefix, element);
+            }
+        }
+        RuleCondition::Not(not) => {
+            apply_prefix(prefix, not.inner.as_mut());
+        }
+        RuleCondition::Loop(_loop) => {
+            apply_prefix(prefix, _loop.inner.as_mut());
+        }
+        RuleCondition::Unsupported => {}
+    }
+}
+
 /// A condition that can be evaluated on structured data.
 ///
 /// The basic conditions are [`eq`](Self::eq), [`glob`](Self::glob), and the comparison operators.
@@ -444,6 +525,15 @@ pub enum RuleCondition {
     /// let condition = !RuleCondition::eq("obj.status", "invalid");
     /// ```
     Not(NotCondition),
+
+    /// Loops over an array field and returns true if at least one element matches
+    /// the inner condition.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// ```
+    Loop(LoopCondition),
 
     /// An unsupported condition for future compatibility.
     #[serde(other)]
@@ -655,6 +745,7 @@ impl RuleCondition {
             RuleCondition::And(rules) => rules.supported(),
             RuleCondition::Or(rules) => rules.supported(),
             RuleCondition::Not(rule) => rule.supported(),
+            RuleCondition::Loop(rule) => rule.supported(),
         }
     }
 
@@ -673,6 +764,7 @@ impl RuleCondition {
             RuleCondition::And(conditions) => conditions.matches(value),
             RuleCondition::Or(conditions) => conditions.matches(value),
             RuleCondition::Not(condition) => condition.matches(value),
+            RuleCondition::Loop(condition) => condition.matches(value),
             RuleCondition::Unsupported => false,
         }
     }
@@ -705,21 +797,45 @@ impl std::ops::Not for RuleCondition {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::{Annotated, Array};
+
+    struct Exception {
+        name: String,
+    }
 
     struct MockDSC {
         transaction: String,
         release: String,
         environment: String,
         user_segment: String,
+        exceptions: Array<Exception>,
     }
 
     impl Getter for MockDSC {
         fn get_value(&self, path: &str) -> Option<Val<'_>> {
-            Some(match path.strip_prefix("trace.")? {
+            let path = path.strip_prefix("trace.")?;
+            let mut components = path.split('.');
+
+            Some(match components.next()? {
                 "transaction" => self.transaction.as_str().into(),
                 "release" => self.release.as_str().into(),
                 "environment" => self.environment.as_str().into(),
-                "user.segment" => self.user_segment.as_str().into(),
+                "user" => match components.next()? {
+                    "segment" => self.user_segment.as_str().into(),
+                    _ => return None,
+                },
+                "exceptions" => {
+                    if let Some(value) = components.next() {
+                        let index: usize = value.parse().ok()?;
+                        let v = self.exceptions.get(index)?.value()?;
+                        match components.next()? {
+                            "name" => v.name.as_str().into(),
+                            _ => return None,
+                        }
+                    } else {
+                        (&self.exceptions).into()
+                    }
+                }
                 _ => {
                     return None;
                 }
@@ -733,6 +849,9 @@ mod tests {
             release: "1.1.1".to_string(),
             environment: "debug".to_string(),
             user_segment: "vip".to_string(),
+            exceptions: vec![Annotated::new(Exception {
+                name: "NullPointerException".to_string(),
+            })],
         }
     }
 
@@ -1092,5 +1211,17 @@ mod tests {
             let failure_name = format!("Failed on test: '{rule_test_name}'!!!");
             assert!(!condition.matches(&dsc), "{failure_name}");
         }
+    }
+
+    #[test]
+    fn test_loop_condition() {
+        let condition = RuleCondition::Loop(LoopCondition {
+            name: "trace.exceptions".to_string(),
+            inner: Box::new(RuleCondition::glob("name", "*Exception")),
+        });
+
+        let dsc = mock_dsc();
+
+        assert_eq!(condition.matches(&dsc), true);
     }
 }
