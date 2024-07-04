@@ -18,8 +18,6 @@
 - Extract thread ID and name in spans. ([#3771](https://github.com/getsentry/relay/pull/3771))
 - Compute metrics summary on the extracted custom metrics. ([#3769](https://github.com/getsentry/relay/pull/3769))
 
->>>>>>> master
-
 ## 24.6.0
 
 **Bug fixes**:
