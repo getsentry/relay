@@ -2,8 +2,8 @@ name: Library Release Build
 
 on:
   push:
-    # branches:
-    #   - release-library/**
+    branches:
+      - release-library/**
 
 env:
   CARGO_TERM_COLOR: always
