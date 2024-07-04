@@ -222,29 +222,6 @@ pub struct Options {
     )]
     pub compute_metrics_summaries_sample_rate: Option<f32>,
 
-    /// If true, runs full normalization in non-processing Relays.
-    ///
-    /// Doesn't apply to processing Relays. Outdated relays with a stale
-    /// protocol/normalization receiving this flag will not forward unknown
-    /// fields. Disabling the flag solves this behavior.
-    #[serde(
-        default,
-        rename = "relay.force_full_normalization",
-        deserialize_with = "default_on_error",
-        skip_serializing_if = "is_default"
-    )]
-    pub force_full_normalization: bool,
-
-    /// If true, disables normalization in processing Relays for events
-    /// normalized in a previous internal relay.
-    #[serde(
-        default,
-        rename = "relay.disable_normalization.processing",
-        deserialize_with = "default_on_error",
-        skip_serializing_if = "is_default"
-    )]
-    pub processing_disable_normalization: bool,
-
     /// The maximum duplication factor used to extrapolate distribution metrics from sampled data.
     ///
     /// This applies as long as Relay duplicates distribution values to extrapolate. The default is
