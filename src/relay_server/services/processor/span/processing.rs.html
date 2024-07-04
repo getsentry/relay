@@ -938,6 +938,15 @@
 <a href="#938" id="938">938</a>
 <a href="#939" id="939">939</a>
 <a href="#940" id="940">940</a>
+<a href="#941" id="941">941</a>
+<a href="#942" id="942">942</a>
+<a href="#943" id="943">943</a>
+<a href="#944" id="944">944</a>
+<a href="#945" id="945">945</a>
+<a href="#946" id="946">946</a>
+<a href="#947" id="947">947</a>
+<a href="#948" id="948">948</a>
+<a href="#949" id="949">949</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Contains the processing-only functionality.
 
 </span><span class="kw">use </span>std::error::Error;
@@ -965,7 +974,7 @@
 <span class="kw">use </span>relay_spans::{otel_to_sentry_span, otel_trace::Span <span class="kw">as </span>OtelSpan};
 
 <span class="kw">use </span><span class="kw">crate</span>::envelope::{ContentType, Envelope, Item, ItemType};
-<span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::generic::extract_metrics;
+<span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::metrics_summary;
 <span class="kw">use </span><span class="kw">crate</span>::services::outcome::{DiscardReason, Outcome};
 <span class="kw">use </span><span class="kw">crate</span>::services::processor::span::extract_transaction_span;
 <span class="kw">use </span><span class="kw">crate</span>::services::processor::{
@@ -1094,10 +1103,19 @@
                 <span class="kw">return </span>ItemAction::Drop(Outcome::Invalid(DiscardReason::Internal));
             };
 
-            <span class="kw">let </span>metrics = extract_metrics(
+            <span class="kw">let </span>(metrics, metrics_summary) = metrics_summary::extract_and_summarize_metrics(
                 span,
                 CombinedMetricExtractionConfig::new(global_metrics_config, config),
             );
+            <span class="kw">if </span>sample(
+                global_config
+                    .options
+                    .compute_metrics_summaries_sample_rate
+                    .unwrap_or(<span class="number">1.0</span>),
+            ) {
+                metrics_summary.apply_on(<span class="kw-2">&amp;mut </span>span._metrics_summary)
+            }
+
             state
                 .extracted_metrics
                 .extend_project_metrics(metrics, <span class="prelude-val">Some</span>(sampling_result.decision()));

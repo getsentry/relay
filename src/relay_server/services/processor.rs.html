@@ -3997,6 +3997,7 @@
 <a href="#3997" id="3997">3997</a>
 <a href="#3998" id="3998">3998</a>
 <a href="#3999" id="3999">3999</a>
+<a href="#4000" id="4000">4000</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
@@ -5357,7 +5358,7 @@
         <span class="kw">if </span>state.event_metrics_extracted {
             <span class="kw">return </span><span class="prelude-val">Ok</span>(());
         }
-        <span class="kw">let </span><span class="prelude-val">Some</span>(event) = state.event.value() <span class="kw">else </span>{
+        <span class="kw">let </span><span class="prelude-val">Some</span>(event) = state.event.value_mut() <span class="kw">else </span>{
             <span class="kw">return </span><span class="prelude-val">Ok</span>(());
         };
 
@@ -5427,6 +5428,7 @@
                 .aggregator
                 .max_tag_value_length,
             global.options.span_extraction_sample_rate,
+            global.options.compute_metrics_summaries_sample_rate,
         );
 
         state
