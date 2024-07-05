@@ -525,7 +525,7 @@ pub enum RuleCondition {
     /// ```
     /// use relay_protocol::RuleCondition;
     ///
-    /// let condition = RuleCondition::for_any("event.exceptions",
+    /// let condition = RuleCondition::for_any("obj.exceptions",
     ///     RuleCondition::eq("name", "NullPointerException")
     /// );
     /// ```
@@ -538,7 +538,7 @@ pub enum RuleCondition {
     /// ```
     /// use relay_protocol::RuleCondition;
     ///
-    /// let condition = RuleCondition::for_all("event.exceptions",
+    /// let condition = RuleCondition::for_all("obj.exceptions",
     ///     RuleCondition::eq("name", "NullPointerException")
     /// );
     /// ```
@@ -744,7 +744,7 @@ impl RuleCondition {
     /// ```
     /// use relay_protocol::RuleCondition;
     ///
-    /// let condition = RuleCondition::for_any("event.exception.values",
+    /// let condition = RuleCondition::for_any("obj.exceptions",
     ///     RuleCondition::eq("name", "NullPointerException")
     /// );
     /// ```
@@ -759,7 +759,7 @@ impl RuleCondition {
     /// ```
     /// use relay_protocol::RuleCondition;
     ///
-    /// let condition = RuleCondition::for_all("event.exceptions",
+    /// let condition = RuleCondition::for_all("obj.exceptions",
     ///     RuleCondition::eq("name", "NullPointerException")
     /// );
     /// ```
@@ -947,7 +947,7 @@ mod tests {
             },
             {
                 "op": "any",
-                "name": "event.exceptions",
+                "name": "obj.exceptions",
                 "inner": {
                     "op": "glob",
                     "name": "value",
@@ -956,7 +956,7 @@ mod tests {
             },
             {
                 "op": "all",
-                "name": "event.exceptions",
+                "name": "obj.exceptions",
                 "inner": {
                     "op": "glob",
                     "name": "value",
@@ -1033,7 +1033,7 @@ mod tests {
           ),
           AnyCondition(
             op: "any",
-            name: "event.exceptions",
+            name: "obj.exceptions",
             inner: GlobCondition(
               op: "glob",
               name: "value",
@@ -1044,7 +1044,7 @@ mod tests {
           ),
           AllCondition(
             op: "all",
-            name: "event.exceptions",
+            name: "obj.exceptions",
             inner: GlobCondition(
               op: "glob",
               name: "value",
