@@ -3,6 +3,7 @@ mod resource;
 mod sql;
 use once_cell::sync::Lazy;
 use psl;
+use serde_json::{Map, Value};
 #[cfg(test)]
 pub use sql::{scrub_queries, Mode};
 
@@ -44,7 +45,6 @@ pub(crate) fn scrub_span_description(
     };
 
     let data = span.data.value();
-
     let db_system = data
         .and_then(|data| data.db_system.value())
         .and_then(|system| system.as_str());
@@ -59,6 +59,7 @@ pub(crate) fn scrub_span_description(
             ("http", _) => scrub_http(description),
             ("cache", _) | ("db", "redis") => scrub_redis_keys(description),
             ("db", _) if db_system == Some("redis") => scrub_redis_keys(description),
+            ("db", _) if db_system == Some("mongodb") => scrub_mongodb_query(description),
             ("db", sub) => {
                 if sub.contains("clickhouse")
                     || sub.contains("mongodb")
@@ -524,6 +525,21 @@ fn scrub_resource_file_extension(mut extension: &str) -> &str {
 
 fn scrub_function(string: &str) -> Option<String> {
     Some(FUNCTION_NORMALIZER_REGEX.replace_all(string, "*").into())
+}
+
+fn scrub_mongodb_query(query: &str) -> Option<String> {
+    let original: Value = match serde_json::from_str(query) {
+        Ok(v) => v,
+        Err(_) => return None,
+    };
+
+    let mut scrubbed_map: Map<String, Value> = Map::new();
+    original.as_object()?.keys().for_each(|k| {
+        scrubbed_map.insert(k.clone(), Value::String("?".to_owned()));
+    });
+    let scrubbed_query = Value::Object(scrubbed_map).to_string();
+    relay_log::info!("scrub_mongodb_query {}", scrubbed_query);
+    Some(scrubbed_query)
 }
 
 #[cfg(test)]

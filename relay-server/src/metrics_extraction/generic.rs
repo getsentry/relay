@@ -75,6 +75,7 @@ where
             tags: extract_tags(instance, &metric_spec.tags),
             metadata: BucketMetadata::new(received_at),
         });
+        relay_log::info!("pushing metric {}", mri.to_string());
     }
 
     // TODO: Inline this again once transaction metric extraction has been moved to generic metrics.

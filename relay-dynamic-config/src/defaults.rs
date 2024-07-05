@@ -128,9 +128,7 @@ pub fn hardcoded_span_metrics() -> Vec<(GroupKey, Vec<MetricSpec>, Vec<TagMappin
     let is_ai = RuleCondition::glob("span.op", "ai.*");
 
     let is_db = RuleCondition::eq("span.sentry_tags.category", "db")
-        & !(RuleCondition::eq("span.system", "mongodb")
-            | RuleCondition::glob("span.op", DISABLED_DATABASES)
-            | RuleCondition::glob("span.description", MONGODB_QUERIES));
+        & !RuleCondition::glob("span.op", DISABLED_DATABASES);
     let is_resource = RuleCondition::glob("span.op", RESOURCE_SPAN_OPS);
 
     let is_cache = RuleCondition::glob("span.op", CACHE_SPAN_OPS);

@@ -552,9 +552,29 @@ pub fn extract_tags(
                 .and_then(|s| s.strip_suffix(')'))
                 .map(String::from)
         } else if span_op.starts_with("db") {
-            span.description
+            let db_system = span
+                .data
                 .value()
-                .and_then(|query| sql_tables_from_query(query, &parsed_sql))
+                .and_then(|data| data.db_system.value())
+                .and_then(|value| value.as_str());
+            let db_collection_name = span
+                .data
+                .value()
+                .and_then(|data| data.db_collection_name.value())
+                .and_then(|value| value.as_str());
+            match (db_system, db_collection_name) {
+                (Some("mongodb"), Some(name)) => Some(name.to_owned()),
+                _ => {
+                    relay_log::info!(
+                        "db_system: {:?}, db_collection_name: {:?}",
+                        db_system,
+                        db_collection_name
+                    );
+                    span.description
+                        .value()
+                        .and_then(|query| sql_tables_from_query(query, &parsed_sql))
+                }
+            }
         } else {
             None
         };

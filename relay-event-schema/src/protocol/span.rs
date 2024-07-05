@@ -242,6 +242,24 @@ pub struct SpanData {
     #[metastructure(field = "db.system")]
     pub db_system: Annotated<Value>,
 
+    /// The database query being executed.
+    ///
+    /// See [OpenTelemetry's database span semantic conventions](https://opentelemetry.io/docs/specs/semconv/database/database-spans/#common-attributes).
+    #[metastructure(field = "db.query.text", legacy_alias = "db.statement")]
+    pub db_query_text: Annotated<Value>,
+
+    /// The name of a collection (table, container) within the database.
+    ///
+    /// See [OpenTelemetry's database span semantic conventions](https://opentelemetry.io/docs/specs/semconv/database/database-spans/#common-attributes).
+    #[metastructure(
+        field = "db.collection.name",
+        // legacy_alias = "db.cassandra.table",
+        // legacy_alias = "db.cosmosdb.container",
+        legacy_alias = "db.mongodb.collection",
+        // legacy_alias = "db.sql.table"
+    )]
+    pub db_collection_name: Annotated<Value>,
+
     /// The sentry environment.
     #[metastructure(field = "sentry.environment", legacy_alias = "environment")]
     pub environment: Annotated<String>,
