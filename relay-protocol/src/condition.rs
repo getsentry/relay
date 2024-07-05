@@ -737,7 +737,7 @@ impl RuleCondition {
         }
     }
 
-    /// Creates a [`AnyCondition`].
+    /// Creates an [`AnyCondition`].
     ///
     /// # Example
     ///
