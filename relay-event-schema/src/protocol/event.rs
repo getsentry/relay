@@ -810,7 +810,9 @@ impl Getter for Event {
 
     fn get_iter(&self, path: &str) -> Option<GetterIter<'_>> {
         Some(match path.strip_prefix("event.")? {
-            "exceptions" => GetterIter::new_annotated(self.exceptions.value()?.values.value()?),
+            "exceptions.values" => {
+                GetterIter::new_annotated(self.exceptions.value()?.values.value()?)
+            }
             _ => return None,
         })
     }
@@ -1264,6 +1266,14 @@ mod tests {
             Some(Val::String("route")),
             event.get_value("event.transaction.source")
         );
+
+        let mut exceptions = event.get_iter("event.exceptions.values").unwrap();
+        let exception = exceptions.next().unwrap();
+        assert_eq!(
+            Some(Val::String("canvas.contentDocument")),
+            exception.get_value("value")
+        );
+        assert!(exceptions.next().is_none());
     }
 
     #[test]
