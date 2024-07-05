@@ -18,14 +18,14 @@ use relay_event_normalization::{normalize_transaction_name, ModelCosts};
 use relay_event_schema::processor::{process_value, ProcessingState};
 use relay_event_schema::protocol::{BrowserContext, Contexts, Event, Span, SpanData};
 use relay_log::protocol::{Attachment, AttachmentType};
-use relay_metrics::{aggregator::AggregatorConfig, MetricNamespace, UnixTimestamp};
+use relay_metrics::{MetricNamespace, UnixTimestamp};
 use relay_pii::PiiProcessor;
 use relay_protocol::{Annotated, Empty};
 use relay_quotas::DataCategory;
 use relay_spans::{otel_to_sentry_span, otel_trace::Span as OtelSpan};
 
 use crate::envelope::{ContentType, Envelope, Item, ItemType};
-use crate::metrics_extraction::generic::extract_metrics;
+use crate::metrics_extraction::metrics_summary;
 use crate::services::outcome::{DiscardReason, Outcome};
 use crate::services::processor::span::extract_transaction_span;
 use crate::services::processor::{
@@ -154,10 +154,19 @@ pub fn process(
                 return ItemAction::Drop(Outcome::Invalid(DiscardReason::Internal));
             };
 
-            let metrics = extract_metrics(
+            let (metrics, metrics_summary) = metrics_summary::extract_and_summarize_metrics(
                 span,
                 CombinedMetricExtractionConfig::new(global_metrics_config, config),
             );
+            if sample(
+                global_config
+                    .options
+                    .compute_metrics_summaries_sample_rate
+                    .unwrap_or(1.0),
+            ) {
+                metrics_summary.apply_on(&mut span._metrics_summary)
+            }
+
             state
                 .extracted_metrics
                 .extend_project_metrics(metrics, Some(sampling_result.decision()));
@@ -360,6 +369,7 @@ pub fn extract_from_event(
         event,
         config
             .aggregator_config_for(MetricNamespace::Spans)
+            .aggregator
             .max_tag_value_length,
     ) else {
         return;
@@ -434,21 +444,19 @@ fn get_normalize_span_config<'a>(
     performance_score: Option<&'a PerformanceScoreConfig>,
     ai_model_costs: Option<&'a ModelCosts>,
 ) -> NormalizeSpanConfig<'a> {
-    let aggregator_config =
-        AggregatorConfig::from(config.aggregator_config_for(MetricNamespace::Spans));
+    let aggregator_config = config.aggregator_config_for(MetricNamespace::Spans);
 
     NormalizeSpanConfig {
         received_at,
-        timestamp_range: aggregator_config.timestamp_range(),
-        max_tag_value_size: config
-            .aggregator_config_for(MetricNamespace::Spans)
-            .max_tag_value_length,
+        timestamp_range: aggregator_config.aggregator.timestamp_range(),
+        max_tag_value_size: aggregator_config.aggregator.max_tag_value_length,
         measurements: Some(CombinedMeasurementsConfig::new(
             project_measurements_config,
             global_measurements_config,
         )),
         max_name_and_unit_len: Some(
             aggregator_config
+                .aggregator
                 .max_name_length
                 .saturating_sub(MeasurementsConfig::MEASUREMENT_MRI_OVERHEAD),
         ),

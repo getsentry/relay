@@ -5,6 +5,7 @@ use relay_metrics::Bucket;
 use relay_quotas::DataCategory;
 
 use crate::metrics_extraction::generic::{self, Extractable};
+use crate::metrics_extraction::metrics_summary;
 use crate::services::processor::extract_transaction_span;
 use crate::statsd::RelayTimers;
 use crate::utils::sample;
@@ -46,38 +47,58 @@ impl Extractable for Span {
 ///
 /// If this is a transaction event with spans, metrics will also be extracted from the spans.
 pub fn extract_metrics(
-    event: &Event,
+    event: &mut Event,
     spans_extracted: bool,
     config: CombinedMetricExtractionConfig<'_>,
     max_tag_value_size: usize,
     span_extraction_sample_rate: Option<f32>,
+    compute_metrics_summaries_sample_rate: Option<f32>,
 ) -> Vec<Bucket> {
     let mut metrics = generic::extract_metrics(event, config);
-
-    // If spans were already extracted for an event,
-    // we rely on span processing to extract metrics.
+    // If spans were already extracted for an event, we rely on span processing to extract metrics.
     if !spans_extracted && sample(span_extraction_sample_rate.unwrap_or(1.0)) {
-        extract_span_metrics_for_event(event, config, max_tag_value_size, &mut metrics);
+        let compute_metrics_summaries_sample_rate =
+            compute_metrics_summaries_sample_rate.unwrap_or(1.0);
+        extract_span_metrics_for_event(
+            event,
+            config,
+            max_tag_value_size,
+            &mut metrics,
+            compute_metrics_summaries_sample_rate,
+        );
     }
 
     metrics
 }
 
 fn extract_span_metrics_for_event(
-    event: &Event,
+    event: &mut Event,
     config: CombinedMetricExtractionConfig<'_>,
     max_tag_value_size: usize,
     output: &mut Vec<Bucket>,
+    compute_metrics_summaries_sample_rate: f32,
 ) {
+    let compute_metrics_summaries = sample(compute_metrics_summaries_sample_rate);
+
     relay_statsd::metric!(timer(RelayTimers::EventProcessingSpanMetricsExtraction), {
         if let Some(transaction_span) = extract_transaction_span(event, max_tag_value_size) {
-            output.extend(generic::extract_metrics(&transaction_span, config));
+            let (metrics, metrics_summary) =
+                metrics_summary::extract_and_summarize_metrics(&transaction_span, config);
+            if compute_metrics_summaries {
+                metrics_summary.apply_on(&mut event._metrics_summary);
+            }
+            output.extend(metrics);
         }
 
-        if let Some(spans) = event.spans.value() {
+        if let Some(spans) = event.spans.value_mut() {
             for annotated_span in spans {
-                if let Some(span) = annotated_span.value() {
-                    output.extend(generic::extract_metrics(span, config));
+                if let Some(span) = annotated_span.value_mut() {
+                    let (metrics, metrics_summary) =
+                        metrics_summary::extract_and_summarize_metrics(span, config);
+                    if compute_metrics_summaries {
+                        metrics_summary.apply_on(&mut span._metrics_summary);
+                    }
+                    output.extend(metrics);
                 }
             }
         }
@@ -91,8 +112,8 @@ mod tests {
     use chrono::{DateTime, Utc};
     use insta::assert_debug_snapshot;
     use relay_dynamic_config::{
-        Feature, FeatureSet, GlobalConfig, MetricExtractionConfig, MetricExtractionGroups,
-        ProjectConfig,
+        ErrorBoundary, Feature, FeatureSet, GlobalConfig, MetricExtractionConfig,
+        MetricExtractionGroups, MetricSpec, ProjectConfig,
     };
     use relay_event_normalization::{normalize_event, NormalizationConfig};
     use relay_event_schema::protocol::Timestamp;
@@ -111,7 +132,10 @@ mod tests {
         }
     }
 
-    fn combined_config(features: impl Into<BTreeSet<Feature>>) -> OwnedConfig {
+    fn combined_config(
+        features: impl Into<BTreeSet<Feature>>,
+        metric_extraction: Option<MetricExtractionConfig>,
+    ) -> OwnedConfig {
         let mut global = GlobalConfig::default();
         global.normalize(); // defines metrics extraction rules
         let global = global.metric_extraction.ok().unwrap();
@@ -120,6 +144,7 @@ mod tests {
 
         let mut project = ProjectConfig {
             features,
+            metric_extraction: metric_extraction.map(ErrorBoundary::Ok).unwrap_or_default(),
             ..ProjectConfig::default()
         };
         project.sanitize(); // enables metrics extraction rules
@@ -1181,10 +1206,11 @@ mod tests {
         );
 
         extract_metrics(
-            event.value().unwrap(),
+            event.value_mut().as_mut().unwrap(),
             false,
-            combined_config(features).combined(),
+            combined_config(features, None).combined(),
             200,
+            None,
             None,
         )
     }
@@ -1383,10 +1409,11 @@ mod tests {
         );
 
         let metrics = extract_metrics(
-            event.value().unwrap(),
+            event.value_mut().as_mut().unwrap(),
             false,
-            combined_config([Feature::ExtractCommonSpanMetricsFromEvent]).combined(),
+            combined_config([Feature::ExtractCommonSpanMetricsFromEvent], None).combined(),
             200,
+            None,
             None,
         );
         insta::assert_debug_snapshot!((&event.value().unwrap().spans, metrics));
@@ -1437,13 +1464,14 @@ mod tests {
             ]
         }
         "#;
-        let event = Annotated::from_json(json).unwrap();
+        let mut event = Annotated::from_json(json).unwrap();
 
         let metrics = extract_metrics(
-            event.value().unwrap(),
+            event.value_mut().as_mut().unwrap(),
             false,
-            combined_config([Feature::ExtractCommonSpanMetricsFromEvent]).combined(),
+            combined_config([Feature::ExtractCommonSpanMetricsFromEvent], None).combined(),
             200,
+            None,
             None,
         );
 
@@ -1472,10 +1500,11 @@ mod tests {
         );
 
         let metrics = extract_metrics(
-            event.value().unwrap(),
+            event.value_mut().as_mut().unwrap(),
             false,
-            combined_config([Feature::ExtractCommonSpanMetricsFromEvent]).combined(),
+            combined_config([Feature::ExtractCommonSpanMetricsFromEvent], None).combined(),
             200,
+            None,
             None,
         );
 
@@ -1504,7 +1533,7 @@ mod tests {
 
         generic::extract_metrics(
             &span,
-            combined_config([Feature::ExtractCommonSpanMetricsFromEvent]).combined(),
+            combined_config([Feature::ExtractCommonSpanMetricsFromEvent], None).combined(),
         )
     }
 
@@ -1617,7 +1646,7 @@ mod tests {
             .unwrap();
         let metrics = generic::extract_metrics(
             &span,
-            combined_config([Feature::ExtractCommonSpanMetricsFromEvent]).combined(),
+            combined_config([Feature::ExtractCommonSpanMetricsFromEvent], None).combined(),
         );
 
         assert!(!metrics.is_empty());
@@ -1660,7 +1689,7 @@ mod tests {
         let span = Annotated::<Span>::from_json(json).unwrap();
         let metrics = generic::extract_metrics(
             span.value().unwrap(),
-            combined_config([Feature::ExtractCommonSpanMetricsFromEvent]).combined(),
+            combined_config([Feature::ExtractCommonSpanMetricsFromEvent], None).combined(),
         );
 
         for mri in [
@@ -1692,13 +1721,14 @@ mod tests {
                 }
             }
             "#;
-        let event = Annotated::<Event>::from_json(event).unwrap();
+        let mut event = Annotated::<Event>::from_json(event).unwrap();
 
         let metrics = extract_metrics(
-            event.value().unwrap(),
+            event.value_mut().as_mut().unwrap(),
             false,
-            combined_config([Feature::ExtractCommonSpanMetricsFromEvent]).combined(),
+            combined_config([Feature::ExtractCommonSpanMetricsFromEvent], None).combined(),
             200,
+            None,
             None,
         );
 
@@ -1721,5 +1751,136 @@ mod tests {
         );
 
         assert_eq!(&*metrics[3].name, "d:spans/duration@millisecond");
+    }
+
+    #[test]
+    fn test_metrics_summaries_on_transaction_and_spans() {
+        let mut event = Annotated::from_json(
+            r#"
+        {
+            "type": "transaction",
+            "sdk": {"name": "sentry.javascript.react-native"},
+            "start_timestamp": "2021-04-26T07:59:01+0100",
+            "timestamp": "2021-04-26T08:00:00+0100",
+            "release": "1.2.3",
+            "transaction": "gEt /api/:version/users/",
+            "transaction_info": {"source": "custom"},
+            "platform": "cocoa",
+            "contexts": {
+                "trace": {
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "span_id": "bd429c44b67a3eb4",
+                    "op": "ui.load"
+                },
+                "device": {
+                    "family": "iOS",
+                    "model": "iPhone1,1"
+                },
+                "app": {
+                    "app_identifier": "org.reactjs.native.example.RnDiffApp",
+                    "app_name": "RnDiffApp"
+                },
+                "os": {
+                    "name": "iOS",
+                    "version": "16.2"
+                }
+            },
+            "measurements": {
+                "app_start_warm": {
+                    "value": 1.0,
+                    "unit": "millisecond"
+                }
+            },
+            "spans": [
+                {
+                    "op": "ui.load.initial_display",
+                    "span_id": "bd429c44b67a3eb2",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976303.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "data": {
+                        "frames.slow": 1,
+                        "frames.frozen": 2,
+                        "frames.total": 9,
+                        "frames.delay": 0.1
+                    },
+                    "_metrics_summary": {
+                        "d:spans/duration@millisecond": [
+                            {
+                                "min": 50.0,
+                                "max": 60.0,
+                                "sum": 100.0,
+                                "count": 2,
+                                "tags": {
+                                    "app_start_type": "warm",
+                                    "device.class": "1"
+                                }
+                            }
+                        ]
+                    }
+                }
+            ],
+            "_metrics_summary": {
+                "d:spans/duration@millisecond": [
+                    {
+                        "min": 50.0,
+                        "max": 100.0,
+                        "sum": 150.0,
+                        "count": 2,
+                        "tags": {
+                            "app_start_type": "warm",
+                            "device.class": "1"
+                        }
+                    }
+                ]
+            }
+        }
+        "#,
+        )
+        .unwrap();
+
+        // Normalize first, to make sure that all things are correct as in the real pipeline:
+        normalize_event(
+            &mut event,
+            &NormalizationConfig {
+                enrich_spans: true,
+                device_class_synthesis_config: true,
+                ..Default::default()
+            },
+        );
+
+        let metric_extraction = MetricExtractionConfig {
+            version: 4,
+            metrics: vec![MetricSpec {
+                category: DataCategory::Span,
+                mri: "d:custom/my_metric@millisecond".to_owned(),
+                field: Some("span.duration".to_owned()),
+                condition: None,
+                tags: vec![],
+            }],
+            ..MetricExtractionConfig::default()
+        };
+        let binding = combined_config(
+            [Feature::ExtractCommonSpanMetricsFromEvent],
+            Some(metric_extraction),
+        );
+        let config = binding.combined();
+
+        let _ = extract_metrics(
+            event.value_mut().as_mut().unwrap(),
+            false,
+            config,
+            200,
+            None,
+            None,
+        );
+
+        insta::assert_debug_snapshot!(&event.value().unwrap()._metrics_summary);
+        insta::assert_debug_snapshot!(
+            &event.value().unwrap().spans.value().unwrap()[0]
+                .value()
+                .unwrap()
+                ._metrics_summary
+        );
     }
 }

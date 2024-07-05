@@ -29,7 +29,6 @@ use relay_event_schema::protocol::{
     ClientReport, Event, EventId, EventType, IpAddr, Metrics, NetworkReportError,
 };
 use relay_filter::FilterStatKey;
-use relay_metrics::aggregator::AggregatorConfig;
 use relay_metrics::{
     Bucket, BucketMetadata, BucketValue, BucketView, BucketsView, FiniteF64, MetricMeta,
     MetricNamespace,
@@ -51,7 +50,7 @@ use tokio::sync::Semaphore;
 use {
     crate::metrics::MetricsLimiter,
     crate::services::store::{Store, StoreEnvelope},
-    crate::utils::{sample, EnvelopeLimiter, ItemAction},
+    crate::utils::{sample, Enforcement, EnvelopeLimiter, ItemAction},
     itertools::Itertools,
     relay_cardinality::{
         CardinalityLimit, CardinalityLimiter, CardinalityLimitsSplit, RedisSetLimiter,
@@ -661,12 +660,12 @@ impl ProcessingExtractedMetrics {
     /// This is used to apply rate limits which have been enforced on sampled items of an envelope
     /// to also consistently apply to the metrics extracted from these items.
     #[cfg(feature = "processing")]
-    fn enforce_limits(&mut self, scoping: Scoping, limits: &RateLimits) {
-        for (category, namespace) in [
-            (DataCategory::Transaction, MetricNamespace::Transactions),
-            (DataCategory::Span, MetricNamespace::Spans),
+    fn apply_enforcement(&mut self, enforcement: &Enforcement) {
+        for (namespace, limit) in [
+            (MetricNamespace::Transactions, &enforcement.event),
+            (MetricNamespace::Spans, &enforcement.spans),
         ] {
-            if !limits.check(scoping.item(category)).is_empty() {
+            if limit.is_active() {
                 relay_log::trace!(
                     "dropping {namespace} metrics, due to enforced limit on envelope"
                 );
@@ -1326,18 +1325,18 @@ impl EnvelopeProcessorService {
         let (enforcement, limits) = metric!(timer(RelayTimers::EventProcessingRateLimiting), {
             envelope_limiter.compute(state.managed_envelope.envelope_mut(), &scoping)?
         });
-        let event_active = enforcement.event_active();
+        let event_active = enforcement.is_event_active();
+
+        // Use the same rate limits as used for the envelope on the metrics.
+        // Those rate limits should not be checked for expiry or similar to ensure a consistent
+        // limiting of envelope items and metrics.
+        state.extracted_metrics.apply_enforcement(&enforcement);
         enforcement.apply_with_outcomes(&mut state.managed_envelope);
 
         if event_active {
             state.remove_event();
             debug_assert!(state.envelope().is_empty());
         }
-
-        // Use the same rate limits as used for the envelope on the metrics.
-        // Those rate limits should not be checked for expiry or similar to ensure a consistent
-        // limiting of envelope items and metrics.
-        state.extracted_metrics.enforce_limits(scoping, &limits);
 
         if !limits.is_empty() {
             self.inner
@@ -1359,7 +1358,7 @@ impl EnvelopeProcessorService {
         if state.event_metrics_extracted {
             return Ok(());
         }
-        let Some(event) = state.event.value() else {
+        let Some(event) = state.event.value_mut() else {
             return Ok(());
         };
 
@@ -1426,8 +1425,10 @@ impl EnvelopeProcessorService {
             self.inner
                 .config
                 .aggregator_config_for(MetricNamespace::Spans)
+                .aggregator
                 .max_tag_value_length,
             global.options.span_extraction_sample_rate,
+            global.options.compute_metrics_summaries_sample_rate,
         );
 
         state
@@ -1495,15 +1496,10 @@ impl EnvelopeProcessorService {
             return Ok(());
         }
 
-        let options = &self.inner.global_config.current().options;
-
         let full_normalization = match self.inner.config.normalization_level() {
             NormalizationLevel::Full => true,
             NormalizationLevel::Default => {
-                if self.inner.config.processing_enabled()
-                    && options.processing_disable_normalization
-                    && state.event_fully_normalized
-                {
+                if self.inner.config.processing_enabled() && state.event_fully_normalized {
                     metric!(
                         counter(RelayCounters::NormalizationDecision) += 1,
                         event_type = event_type,
@@ -1517,7 +1513,7 @@ impl EnvelopeProcessorService {
                     );
                     return Ok(());
                 } else {
-                    self.inner.config.processing_enabled() || options.force_full_normalization
+                    self.inner.config.processing_enabled()
                 }
             }
         };
@@ -1555,7 +1551,7 @@ impl EnvelopeProcessorService {
                 max_secs_in_past: Some(self.inner.config.max_secs_in_past()),
                 max_secs_in_future: Some(self.inner.config.max_secs_in_future()),
                 transaction_timestamp_range: Some(
-                    AggregatorConfig::from(transaction_aggregator_config).timestamp_range(),
+                    transaction_aggregator_config.aggregator.timestamp_range(),
                 ),
                 is_validated: false,
             };
@@ -1589,6 +1585,7 @@ impl EnvelopeProcessorService {
                 },
                 max_name_and_unit_len: Some(
                     transaction_aggregator_config
+                        .aggregator
                         .max_name_length
                         .saturating_sub(MeasurementsConfig::MEASUREMENT_MRI_OVERHEAD),
                 ),
@@ -1611,6 +1608,7 @@ impl EnvelopeProcessorService {
                     .inner
                     .config
                     .aggregator_config_for(MetricNamespace::Spans)
+                    .aggregator
                     .max_tag_value_length,
                 is_renormalize: false,
                 remove_other: full_normalization,
@@ -1659,11 +1657,7 @@ impl EnvelopeProcessorService {
             unreal::expand(state, &self.inner.config)?;
         });
 
-        event::extract(
-            state,
-            &self.inner.config,
-            &self.inner.global_config.current(),
-        )?;
+        event::extract(state, &self.inner.config)?;
 
         if_processing!(self.inner.config, {
             unreal::process(state)?;
@@ -1708,11 +1702,7 @@ impl EnvelopeProcessorService {
     ) -> Result<(), ProcessingError> {
         let global_config = self.inner.global_config.current();
 
-        event::extract(
-            state,
-            &self.inner.config,
-            &self.inner.global_config.current(),
-        )?;
+        event::extract(state, &self.inner.config)?;
 
         let profile_id = profile::filter(state);
         profile::transfer_id(state, profile_id);
