@@ -744,7 +744,7 @@ impl RuleCondition {
     /// ```
     /// use relay_protocol::RuleCondition;
     ///
-    /// let condition = RuleCondition::for_any("event.exceptions",
+    /// let condition = RuleCondition::for_any("event.exception.values",
     ///     RuleCondition::eq("name", "NullPointerException")
     /// );
     /// ```
