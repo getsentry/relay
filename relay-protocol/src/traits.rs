@@ -125,8 +125,9 @@ pub trait IntoValue: Debug + Empty {
     }
 }
 
-/// Hides an iterator of [`Getter`]s that is used to iterate over arbitrary [`Getter`]
-/// implementations.
+/// A type-erased iterator over a collection of [`Getter`]s.
+///
+/// This type is usually returned from [`Getter::get_iter`]. 
 ///
 /// # Example
 ///
