@@ -5,7 +5,7 @@ use relay_common::time;
 #[cfg(feature = "jsonschema")]
 use relay_jsonschema_derive::JsonSchema;
 use relay_protocol::{
-    Annotated, Arr, Array, Empty, FromValue, Getter, GetterIter, IntoValue, Object, Val, Value,
+    Annotated, Array, Empty, FromValue, Getter, GetterIter, IntoValue, Object, Val, Value,
 };
 #[cfg(feature = "jsonschema")]
 use schemars::{gen::SchemaGenerator, schema::Schema};

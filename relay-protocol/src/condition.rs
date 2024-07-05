@@ -838,7 +838,7 @@ impl std::ops::Not for RuleCondition {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{Array, GetterIter};
+    use crate::GetterIter;
 
     #[derive(Debug)]
     struct Exception {
