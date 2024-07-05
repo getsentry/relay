@@ -203,7 +203,7 @@ impl<'a> GetterIter<'a> {
         }
     }
 
-    /// Creates a new [`GetterIter`] given an element that can be converted into an iterator of
+    /// Creates a new [`GetterIter`] given a collection of
     /// [`Annotated`]s whose type implement [`Getter`].
     pub fn new_annotated<I, T>(iterator: I) -> Self
     where
