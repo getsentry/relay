@@ -4,13 +4,11 @@ use serde::de::{Deserialize, MapAccess, SeqAccess, Visitor};
 use serde::ser::{Serialize, SerializeMap, SerializeSeq, Serializer};
 use std::collections::BTreeMap;
 use std::fmt::Debug;
-use std::marker::PhantomData;
 use std::{fmt, str};
 use uuid::Uuid;
 
 use crate::annotated::Annotated;
 use crate::meta::Meta;
-use crate::Getter;
 
 /// Alias for typed arrays.
 pub type Array<T> = Vec<Annotated<T>>;

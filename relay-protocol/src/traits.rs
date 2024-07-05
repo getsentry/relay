@@ -125,26 +125,90 @@ pub trait IntoValue: Debug + Empty {
     }
 }
 
+/// Hides an iterator of [`Getter`]s that is used to iterate over arbitrary [`Getter`]
+/// implementations.
+///
+/// # Example
+///
+/// ```
+/// use relay_protocol::{Getter, GetterIter, Val};
+///
+/// struct Exception {
+///     name: String,
+/// }
+///
+/// impl Getter for Exception {
+///     fn get_value(&self, path: &str) -> Option<Val<'_>> {
+///         Some(match path {
+///             "name" => self.name.as_str().into(),
+///                _ => return None,
+///         })
+///     }
+/// }
+///
+/// struct Error {
+///     platform: String,
+///     exceptions: Vec<Exception>,
+/// }
+///
+/// impl Getter for Error {
+///     fn get_value(&self, path: &str) -> Option<Val<'_>> {
+///         Some(match path.strip_prefix("error.")? {
+///             "platform" => self.platform.as_str().into(),
+///             _ => {
+///                 return None;
+///             }
+///         })
+///     }
+///
+///     // `get_iter` should return a `GetterIter` that can be used for iterating on the
+///     // `Getter`(s).
+///     fn get_iter(&self, path: &str) -> Option<GetterIter<'_>> {
+///         Some(match path.strip_prefix("error.")? {
+///             "exceptions" => GetterIter::new(self.exceptions.iter()),
+///             _ => return None,
+///         })
+///     }
+/// }
+///
+/// // An example usage given an instance that implement `Getter`.
+/// fn matches<T>(instance: &T) -> bool
+///     where T: Getter + ?Sized
+/// {
+///     let Some(mut getter_iter) = instance.get_iter("error.exceptions") else {
+///         return false;
+///     };
+///
+///     for getter in getter_iter {
+///         let exception_name = getter.get_value("name");
+///     }
+///
+///     true
+/// }
+/// ```
 pub struct GetterIter<'a> {
     iter: Box<dyn Iterator<Item = &'a dyn Getter> + 'a>,
 }
 
 impl<'a> GetterIter<'a> {
+    /// Creates a new [`GetterIter`] given an iterator of a type that implements [`Getter`].
     pub fn new<I, T>(iterator: I) -> Self
     where
         I: Iterator<Item = &'a T> + 'a,
-        T: 'a + Getter,
+        T: Getter + 'a,
     {
         Self {
             iter: Box::new(iterator.map(|v| v as &dyn Getter)),
         }
     }
 
+    /// Creates a new [`GetterIter`] given an element that can be converted into an iterator of
+    /// [`Annotated`]s whose type implement [`Getter`].
     pub fn new_annotated<I, T>(iterator: I) -> Self
     where
         I: IntoIterator<Item = &'a Annotated<T>>,
         I::IntoIter: 'a,
-        T: 'static + Getter,
+        T: Getter + 'a,
     {
         Self::new(iterator.into_iter().filter_map(Annotated::value))
     }
@@ -229,7 +293,9 @@ pub trait Getter {
     /// Returns the serialized value of a field pointed to by a `path`.
     fn get_value(&self, path: &str) -> Option<Val<'_>>;
 
-    fn get_iter(&self, path: &str) -> Option<GetterIter<'_>> {
+    /// Returns a [`GetterIter`] that allows iteration on [`Getter`] implementations
+    /// of fields pointed on by `path`.
+    fn get_iter(&self, _path: &str) -> Option<GetterIter<'_>> {
         None
     }
 }

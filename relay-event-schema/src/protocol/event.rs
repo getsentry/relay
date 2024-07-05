@@ -816,16 +816,6 @@ impl Getter for Event {
     }
 }
 
-impl Getter for Exception {
-    fn get_value(&self, path: &str) -> Option<Val<'_>> {
-        Some(match path {
-            "ty" => self.ty.as_str()?.into(),
-            "value" => self.value.as_str()?.into(),
-            _ => return None,
-        })
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use chrono::{TimeZone, Utc};
