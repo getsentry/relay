@@ -4050,7 +4050,7 @@
 </span><span class="kw">use </span>{
     <span class="kw">crate</span>::metrics::MetricsLimiter,
     <span class="kw">crate</span>::services::store::{Store, StoreEnvelope},
-    <span class="kw">crate</span>::utils::{sample, EnvelopeLimiter, ItemAction},
+    <span class="kw">crate</span>::utils::{sample, Enforcement, EnvelopeLimiter, ItemAction},
     itertools::Itertools,
     relay_cardinality::{
         CardinalityLimit, CardinalityLimiter, CardinalityLimitsSplit, RedisSetLimiter,
@@ -4660,12 +4660,12 @@
     /// This is used to apply rate limits which have been enforced on sampled items of an envelope
     /// to also consistently apply to the metrics extracted from these items.
     </span><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-    </span><span class="kw">fn </span>enforce_limits(<span class="kw-2">&amp;mut </span><span class="self">self</span>, scoping: Scoping, limits: <span class="kw-2">&amp;</span>RateLimits) {
-        <span class="kw">for </span>(category, namespace) <span class="kw">in </span>[
-            (DataCategory::Transaction, MetricNamespace::Transactions),
-            (DataCategory::Span, MetricNamespace::Spans),
+    </span><span class="kw">fn </span>apply_enforcement(<span class="kw-2">&amp;mut </span><span class="self">self</span>, enforcement: <span class="kw-2">&amp;</span>Enforcement) {
+        <span class="kw">for </span>(namespace, limit) <span class="kw">in </span>[
+            (MetricNamespace::Transactions, <span class="kw-2">&amp;</span>enforcement.event),
+            (MetricNamespace::Spans, <span class="kw-2">&amp;</span>enforcement.spans),
         ] {
-            <span class="kw">if </span>!limits.check(scoping.item(category)).is_empty() {
+            <span class="kw">if </span>limit.is_active() {
                 <span class="macro">relay_log::trace!</span>(
                     <span class="string">"dropping {namespace} metrics, due to enforced limit on envelope"
                 </span>);
@@ -5325,18 +5325,18 @@
         <span class="kw">let </span>(enforcement, limits) = <span class="macro">metric!</span>(timer(RelayTimers::EventProcessingRateLimiting), {
             envelope_limiter.compute(state.managed_envelope.envelope_mut(), <span class="kw-2">&amp;</span>scoping)<span class="question-mark">?
         </span>});
-        <span class="kw">let </span>event_active = enforcement.event_active();
+        <span class="kw">let </span>event_active = enforcement.is_event_active();
+
+        <span class="comment">// Use the same rate limits as used for the envelope on the metrics.
+        // Those rate limits should not be checked for expiry or similar to ensure a consistent
+        // limiting of envelope items and metrics.
+        </span>state.extracted_metrics.apply_enforcement(<span class="kw-2">&amp;</span>enforcement);
         enforcement.apply_with_outcomes(<span class="kw-2">&amp;mut </span>state.managed_envelope);
 
         <span class="kw">if </span>event_active {
             state.remove_event();
             <span class="macro">debug_assert!</span>(state.envelope().is_empty());
         }
-
-        <span class="comment">// Use the same rate limits as used for the envelope on the metrics.
-        // Those rate limits should not be checked for expiry or similar to ensure a consistent
-        // limiting of envelope items and metrics.
-        </span>state.extracted_metrics.enforce_limits(scoping, <span class="kw-2">&amp;</span>limits);
 
         <span class="kw">if </span>!limits.is_empty() {
             <span class="self">self</span>.inner

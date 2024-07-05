@@ -1446,6 +1446,22 @@
 <a href="#1446" id="1446">1446</a>
 <a href="#1447" id="1447">1447</a>
 <a href="#1448" id="1448">1448</a>
+<a href="#1449" id="1449">1449</a>
+<a href="#1450" id="1450">1450</a>
+<a href="#1451" id="1451">1451</a>
+<a href="#1452" id="1452">1452</a>
+<a href="#1453" id="1453">1453</a>
+<a href="#1454" id="1454">1454</a>
+<a href="#1455" id="1455">1455</a>
+<a href="#1456" id="1456">1456</a>
+<a href="#1457" id="1457">1457</a>
+<a href="#1458" id="1458">1458</a>
+<a href="#1459" id="1459">1459</a>
+<a href="#1460" id="1460">1460</a>
+<a href="#1461" id="1461">1461</a>
+<a href="#1462" id="1462">1462</a>
+<a href="#1463" id="1463">1463</a>
+<a href="#1464" id="1464">1464</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::fmt::{<span class="self">self</span>, Write};
 
 <span class="kw">use </span>relay_quotas::{
@@ -1733,8 +1749,12 @@
         }
     }
 
-    <span class="doccomment">/// Recreates the category limit for a new category with the same reason.
+    <span class="doccomment">/// Recreates the category limit, if active, for a new category with the same reason.
     </span><span class="kw">pub fn </span>clone_for(<span class="kw-2">&amp;</span><span class="self">self</span>, category: DataCategory, quantity: usize) -&gt; CategoryLimit {
+        <span class="kw">if </span>!<span class="self">self</span>.is_active() {
+            <span class="kw">return </span><span class="self">Self</span>::default();
+        }
+
         <span class="self">Self </span>{
             category,
             quantity,
@@ -1792,9 +1812,22 @@
 }
 
 <span class="kw">impl </span>Enforcement {
-    <span class="doccomment">/// Returns `true` if the event should be rate limited.
-    </span><span class="kw">pub fn </span>event_active(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
-        <span class="self">self</span>.event.is_active() || <span class="self">self</span>.event_indexed.is_active()
+    <span class="doccomment">/// Returns the `CategoryLimit` for the event.
+    ///
+    /// `None` if the event is not rate limited.
+    </span><span class="kw">pub fn </span>active_event(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>CategoryLimit&gt; {
+        <span class="kw">if </span><span class="self">self</span>.event.is_active() {
+            <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.event)
+        } <span class="kw">else if </span><span class="self">self</span>.event_indexed.is_active() {
+            <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.event_indexed)
+        } <span class="kw">else </span>{
+            <span class="prelude-val">None
+        </span>}
+    }
+
+    <span class="doccomment">/// Returns `true` if the event is rate limited.
+    </span><span class="kw">pub fn </span>is_event_active(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="self">self</span>.active_event().is_some()
     }
 
     <span class="doccomment">/// Helper for `track_outcomes`.
@@ -2028,10 +2061,9 @@
             rate_limits.merge(event_limits);
         }
 
-        <span class="kw">if </span>enforcement.event_active() {
-            enforcement.attachments = enforcement
-                .event
-                .clone_for(DataCategory::Attachment, summary.attachment_quantity);
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(limit) = enforcement.active_event() {
+            enforcement.attachments =
+                limit.clone_for(DataCategory::Attachment, summary.attachment_quantity);
         } <span class="kw">else if </span>summary.attachment_quantity &gt; <span class="number">0 </span>{
             <span class="kw">let </span>item_scoping = scoping.item(DataCategory::Attachment);
             <span class="kw">let </span>attachment_limits = (<span class="self">self</span>.check)(item_scoping, summary.attachment_quantity)<span class="question-mark">?</span>;
@@ -2060,7 +2092,7 @@
             rate_limits.merge(session_limits);
         }
 
-        <span class="kw">if </span>enforcement.event_active() {
+        <span class="kw">if </span>enforcement.is_event_active() {
             enforcement.profiles = enforcement
                 .event
                 .clone_for(DataCategory::Profile, summary.profile_quantity);
@@ -2117,14 +2149,14 @@
             rate_limits.merge(checkin_limits);
         }
 
-        <span class="kw">if </span>enforcement.event_active() {
+        <span class="kw">if </span>enforcement.is_event_active() {
             enforcement.spans = enforcement
                 .event
                 .clone_for(DataCategory::Span, summary.span_quantity);
 
             enforcement.spans_indexed = enforcement
                 .event_indexed
-                .clone_for(DataCategory::SpanIndexed, summary.span_quantity)
+                .clone_for(DataCategory::SpanIndexed, summary.span_quantity);
         } <span class="kw">else if </span>summary.span_quantity &gt; <span class="number">0 </span>{
             <span class="kw">let </span><span class="kw-2">mut </span>span_limits =
                 (<span class="self">self</span>.check)(scoping.item(DataCategory::Span), summary.span_quantity)<span class="question-mark">?</span>;

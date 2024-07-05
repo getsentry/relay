@@ -2530,7 +2530,7 @@
 /// as top-level spans, thus if we limited a transaction, we want to count and emit negative
 /// outcomes for each of the spans nested inside that transaction.
 </span><span class="kw">fn </span>sync_spans_to_enforcement(envelope: <span class="kw-2">&amp;</span>ManagedEnvelope, enforcement: <span class="kw-2">&amp;mut </span>Enforcement) {
-    <span class="kw">if </span>!enforcement.event_active() {
+    <span class="kw">if </span>!enforcement.is_event_active() {
         <span class="kw">return</span>;
     }
 
