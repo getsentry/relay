@@ -737,14 +737,14 @@ impl RuleCondition {
         }
     }
 
-    /// Creates a [`AnyCondition`].
+    /// Creates an [`AnyCondition`].
     ///
     /// # Example
     ///
     /// ```
     /// use relay_protocol::RuleCondition;
     ///
-    /// let condition = RuleCondition::for_any("event.exceptions",
+    /// let condition = RuleCondition::for_any("event.exception.values",
     ///     RuleCondition::eq("name", "NullPointerException")
     /// );
     /// ```
@@ -752,7 +752,7 @@ impl RuleCondition {
         Self::Any(AnyCondition::new(field, inner))
     }
 
-    /// Creates a [`AllCondition`].
+    /// Creates an [`AllCondition`].
     ///
     /// # Example
     ///

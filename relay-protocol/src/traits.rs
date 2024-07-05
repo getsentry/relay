@@ -125,8 +125,9 @@ pub trait IntoValue: Debug + Empty {
     }
 }
 
-/// Hides an iterator of [`Getter`]s that is used to iterate over arbitrary [`Getter`]
-/// implementations.
+/// A type-erased iterator over a collection of [`Getter`]s.
+///
+/// This type is usually returned from [`Getter::get_iter`]. 
 ///
 /// # Example
 ///
@@ -202,7 +203,7 @@ impl<'a> GetterIter<'a> {
         }
     }
 
-    /// Creates a new [`GetterIter`] given an element that can be converted into an iterator of
+    /// Creates a new [`GetterIter`] given a collection of
     /// [`Annotated`]s whose type implement [`Getter`].
     pub fn new_annotated<I, T>(iterator: I) -> Self
     where
@@ -293,8 +294,9 @@ pub trait Getter {
     /// Returns the serialized value of a field pointed to by a `path`.
     fn get_value(&self, path: &str) -> Option<Val<'_>>;
 
-    /// Returns a [`GetterIter`] that allows iteration on [`Getter`] implementations
-    /// of fields pointed on by `path`.
+    /// Returns an iterator over the array pointed to by a `path`.
+    ///
+    /// If the path does not exist or is not an array, this returns `None`. Note that `get_value` may not return a value for paths that expose an iterator.
     fn get_iter(&self, _path: &str) -> Option<GetterIter<'_>> {
         None
     }
