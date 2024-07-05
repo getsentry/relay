@@ -1,10 +1,11 @@
+use std::collections::BTreeMap;
+use std::fmt::Debug;
+use std::{fmt, str};
+
 #[cfg(feature = "jsonschema")]
 use schemars::{gen::SchemaGenerator, schema::Schema, JsonSchema};
 use serde::de::{Deserialize, MapAccess, SeqAccess, Visitor};
 use serde::ser::{Serialize, SerializeMap, SerializeSeq, Serializer};
-use std::collections::BTreeMap;
-use std::fmt::Debug;
-use std::{fmt, str};
 use uuid::Uuid;
 
 use crate::annotated::Annotated;
