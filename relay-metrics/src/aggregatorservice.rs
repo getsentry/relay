@@ -241,6 +241,7 @@ pub struct AggregatorService {
     receiver: Option<Recipient<FlushBuckets, NoResponse>>,
     max_total_bucket_bytes: Option<usize>,
     flush_interval_ms: u64,
+    aggregate: bool,
 }
 
 impl AggregatorService {
@@ -267,6 +268,7 @@ impl AggregatorService {
             max_total_bucket_bytes: config.max_total_bucket_bytes,
             aggregator: aggregator::Aggregator::named(name, AggregatorConfig::from(&config)),
             flush_interval_ms: config.flush_interval_ms,
+            aggregate: config.aggregate,
         }
     }
 
@@ -283,9 +285,8 @@ impl AggregatorService {
     /// and we require another re-try.
     ///
     /// If `force` is true, flush all buckets unconditionally and do not attempt to merge back.
-    fn try_flush(&mut self) {
-        let force_flush = matches!(&self.state, AggregatorState::ShuttingDown);
-        let partitions = self.aggregator.pop_flush_buckets(force_flush);
+    fn try_flush(&mut self, force: bool) {
+        let partitions = self.aggregator.pop_flush_buckets(force);
 
         if partitions.is_empty() {
             return;
@@ -333,6 +334,11 @@ impl AggregatorService {
         } = msg;
         self.aggregator
             .merge_all(project_key, buckets, self.max_total_bucket_bytes);
+
+        // Automatic force flush for tests:
+        if !self.aggregate {
+            self.try_flush(true);
+        }
     }
 
     fn handle_message(&mut self, message: Aggregator) {
@@ -358,6 +364,10 @@ impl AggregatorService {
             self.state = AggregatorState::ShuttingDown;
         }
     }
+
+    fn is_shutting_down(&self) -> bool {
+        matches!(&self.state, AggregatorState::ShuttingDown)
+    }
 }
 
 impl Service for AggregatorService {
@@ -374,7 +384,7 @@ impl Service for AggregatorService {
                 tokio::select! {
                     biased;
 
-                    _ = ticker.tick() => self.try_flush(),
+                    _ = ticker.tick() => self.try_flush(self.is_shutting_down()),
                     Some(message) = rx.recv() => self.handle_message(message),
                     shutdown = shutdown.notified() => self.handle_shutdown(shutdown),
 
