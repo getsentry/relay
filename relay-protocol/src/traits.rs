@@ -127,35 +127,35 @@ pub trait IntoValue: Debug + Empty {
 
 /// A type-erased iterator over a collection of [`Getter`]s.
 ///
-/// This type is usually returned from [`Getter::get_iter`]. 
+/// This type is usually returned from [`Getter::get_iter`].
 ///
 /// # Example
 ///
 /// ```
 /// use relay_protocol::{Getter, GetterIter, Val};
 ///
-/// struct Exception {
-///     name: String,
+/// struct Nested {
+///     nested_value: String,
 /// }
 ///
-/// impl Getter for Exception {
+/// impl Getter for Nested {
 ///     fn get_value(&self, path: &str) -> Option<Val<'_>> {
 ///         Some(match path {
-///             "name" => self.name.as_str().into(),
+///             "nested_value" => self.nested_value.as_str().into(),
 ///                _ => return None,
 ///         })
 ///     }
 /// }
 ///
-/// struct Error {
-///     platform: String,
-///     exceptions: Vec<Exception>,
+/// struct Root {
+///     value_1: String,
+///     value_2: Vec<Nested>,
 /// }
 ///
-/// impl Getter for Error {
+/// impl Getter for Root {
 ///     fn get_value(&self, path: &str) -> Option<Val<'_>> {
-///         Some(match path.strip_prefix("error.")? {
-///             "platform" => self.platform.as_str().into(),
+///         Some(match path.strip_prefix("root.")? {
+///             "value_1" => self.value_1.as_str().into(),
 ///             _ => {
 ///                 return None;
 ///             }
@@ -165,8 +165,8 @@ pub trait IntoValue: Debug + Empty {
 ///     // `get_iter` should return a `GetterIter` that can be used for iterating on the
 ///     // `Getter`(s).
 ///     fn get_iter(&self, path: &str) -> Option<GetterIter<'_>> {
-///         Some(match path.strip_prefix("error.")? {
-///             "exceptions" => GetterIter::new(self.exceptions.iter()),
+///         Some(match path.strip_prefix("root.")? {
+///             "value_2" => GetterIter::new(self.value_2.iter()),
 ///             _ => return None,
 ///         })
 ///     }
@@ -176,12 +176,12 @@ pub trait IntoValue: Debug + Empty {
 /// fn matches<T>(instance: &T) -> bool
 ///     where T: Getter + ?Sized
 /// {
-///     let Some(mut getter_iter) = instance.get_iter("error.exceptions") else {
+///     let Some(mut getter_iter) = instance.get_iter("root.value_2") else {
 ///         return false;
 ///     };
 ///
 ///     for getter in getter_iter {
-///         let exception_name = getter.get_value("name");
+///         let nested_value = getter.get_value("nested_value");
 ///     }
 ///
 ///     true
