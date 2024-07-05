@@ -752,7 +752,7 @@ impl RuleCondition {
         Self::Any(AnyCondition::new(field, inner))
     }
 
-    /// Creates a [`AllCondition`].
+    /// Creates an [`AllCondition`].
     ///
     /// # Example
     ///
