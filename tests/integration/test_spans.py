@@ -1720,21 +1720,15 @@ def test_rate_limit_spans_in_envelope(
     metrics_consumer.assert_empty()
 
 
-@pytest.mark.parametrize(
-    "category,raises_rate_limited",
-    [
-        ("transaction", True),
-        ("transaction_indexed", False),
-    ],
-)
+@pytest.mark.parametrize("category", ["transaction", "transaction_indexed"])
 def test_rate_limit_is_consistent_between_transaction_and_spans(
     mini_sentry,
     relay_with_processing,
     transactions_consumer,
     spans_consumer,
+    metrics_consumer,
     outcomes_consumer,
     category,
-    raises_rate_limited,
 ):
     """
     Rate limits are consistent between transactions and nested spans.
@@ -1763,17 +1757,30 @@ def test_rate_limit_is_consistent_between_transaction_and_spans(
     transactions_consumer = transactions_consumer()
     spans_consumer = spans_consumer()
     outcomes_consumer = outcomes_consumer()
+    metrics_consumer = metrics_consumer()
 
-    start = datetime.now(timezone.utc)
-    end = start + timedelta(seconds=1)
-
-    envelope = envelope_with_transaction_and_spans(start, end)
+    def usage_metrics():
+        metrics = metrics_consumer.get_metrics()
+        transaction_count = sum(
+            m[0]["value"]
+            for m in metrics
+            if m[0]["name"] == "c:transactions/usage@none"
+        )
+        span_count = sum(
+            m[0]["value"] for m in metrics if m[0]["name"] == "c:spans/usage@none"
+        )
+        return (transaction_count, span_count)
 
     def summarize_outcomes():
         counter = Counter()
         for outcome in outcomes_consumer.get_outcomes(timeout=10):
             counter[(outcome["category"], outcome["outcome"])] += outcome["quantity"]
         return dict(counter)
+
+    start = datetime.now(timezone.utc)
+    end = start + timedelta(seconds=1)
+
+    envelope = envelope_with_transaction_and_spans(start, end)
 
     # First batch passes
     relay.send_envelope(project_id, envelope)
@@ -1784,6 +1791,7 @@ def test_rate_limit_is_consistent_between_transaction_and_spans(
     spans = spans_consumer.get_spans(n=2, timeout=10)
     assert len(spans) == 2
     assert summarize_outcomes() == {(16, 0): 2}  # SpanIndexed, Accepted
+    assert usage_metrics() == (1, 2)
 
     # Second batch nothing passes
     relay.send_envelope(project_id, envelope)
@@ -1797,17 +1805,18 @@ def test_rate_limit_is_consistent_between_transaction_and_spans(
             (12, 2): 2,  # Span, Rate Limited
             (16, 2): 2,  # SpanIndexed, Rate Limited
         }
+        assert usage_metrics() == (0, 0)
     elif category == "transaction_indexed":
         assert summarize_outcomes() == {
             (9, 2): 1,  # TransactionIndexed, Rate Limited
-            (12, 2): 2,  # Span, Rate Limited
             (16, 2): 2,  # SpanIndexed, Rate Limited
         }
+        assert usage_metrics() == (1, 2)
 
     # Third batch might raise 429 since it hits the fast path
     maybe_raises = (
         pytest.raises(HTTPError, match="429 Client Error")
-        if raises_rate_limited
+        if category == "transaction"
         else contextlib.nullcontext()
     )
     with maybe_raises:
@@ -1820,15 +1829,13 @@ def test_rate_limit_is_consistent_between_transaction_and_spans(
             (12, 2): 2,  # Span, Rate Limited
             (16, 2): 2,  # SpanIndexed, Rate Limited
         }
+        assert usage_metrics() == (0, 0)
     elif category == "transaction_indexed":
         assert summarize_outcomes() == {
             (9, 2): 1,  # TransactionIndexed, Rate Limited
-            (12, 2): 2,  # Span, Rate Limited
             (16, 2): 2,  # SpanIndexed, Rate Limited
         }
-
-    transactions_consumer.assert_empty()
-    spans_consumer.assert_empty()
+        assert usage_metrics() == (1, 2)
 
 
 @pytest.mark.parametrize(

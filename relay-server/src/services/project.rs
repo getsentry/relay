@@ -1051,7 +1051,7 @@ impl Project {
 /// as top-level spans, thus if we limited a transaction, we want to count and emit negative
 /// outcomes for each of the spans nested inside that transaction.
 fn sync_spans_to_enforcement(envelope: &ManagedEnvelope, enforcement: &mut Enforcement) {
-    if !enforcement.event_active() {
+    if !enforcement.is_event_active() {
         return;
     }
 
