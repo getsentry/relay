@@ -1325,17 +1325,18 @@ impl EnvelopeProcessorService {
         let (enforcement, limits) = metric!(timer(RelayTimers::EventProcessingRateLimiting), {
             envelope_limiter.compute(state.managed_envelope.envelope_mut(), &scoping)?
         });
-
-        if enforcement.is_event_active() {
-            state.remove_event();
-            debug_assert!(state.envelope().is_empty());
-        }
+        let event_active = enforcement.is_event_active();
 
         // Use the same rate limits as used for the envelope on the metrics.
         // Those rate limits should not be checked for expiry or similar to ensure a consistent
         // limiting of envelope items and metrics.
         state.extracted_metrics.apply_enforcement(&enforcement);
         enforcement.apply_with_outcomes(&mut state.managed_envelope);
+
+        if event_active {
+            state.remove_event();
+            debug_assert!(state.envelope().is_empty());
+        }
 
         if !limits.is_empty() {
             self.inner
