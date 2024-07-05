@@ -8,10 +8,6 @@
 - Fixes metrics dropped due to missing project state. ([#3553](https://github.com/getsentry/relay/issues/3553))
 - Report outcomes for spans when transactions are rate limited. ([#3749](https://github.com/getsentry/relay/pull/3749))
 
-**Features**:
-
-- Add support for `all` and `any` `RuleCondition`(s). ([#3791](https://github.com/getsentry/relay/pull/3791))
-
 **Internal**:
 
 - Aggregate metrics before rate limiting. ([#3746](https://github.com/getsentry/relay/pull/3746))
@@ -21,6 +17,7 @@
 - Support extrapolation of metrics extracted from sampled data, as long as the sample rate is set in the DynamicSamplingContext. ([#3753](https://github.com/getsentry/relay/pull/3753))
 - Extract thread ID and name in spans. ([#3771](https://github.com/getsentry/relay/pull/3771))
 - Compute metrics summary on the extracted custom metrics. ([#3769](https://github.com/getsentry/relay/pull/3769))
+- Add support for `all` and `any` `RuleCondition`(s). ([#3791](https://github.com/getsentry/relay/pull/3791))
 
 ## 24.6.0
 
