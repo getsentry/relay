@@ -3947,57 +3947,6 @@
 <a href="#3947" id="3947">3947</a>
 <a href="#3948" id="3948">3948</a>
 <a href="#3949" id="3949">3949</a>
-<a href="#3950" id="3950">3950</a>
-<a href="#3951" id="3951">3951</a>
-<a href="#3952" id="3952">3952</a>
-<a href="#3953" id="3953">3953</a>
-<a href="#3954" id="3954">3954</a>
-<a href="#3955" id="3955">3955</a>
-<a href="#3956" id="3956">3956</a>
-<a href="#3957" id="3957">3957</a>
-<a href="#3958" id="3958">3958</a>
-<a href="#3959" id="3959">3959</a>
-<a href="#3960" id="3960">3960</a>
-<a href="#3961" id="3961">3961</a>
-<a href="#3962" id="3962">3962</a>
-<a href="#3963" id="3963">3963</a>
-<a href="#3964" id="3964">3964</a>
-<a href="#3965" id="3965">3965</a>
-<a href="#3966" id="3966">3966</a>
-<a href="#3967" id="3967">3967</a>
-<a href="#3968" id="3968">3968</a>
-<a href="#3969" id="3969">3969</a>
-<a href="#3970" id="3970">3970</a>
-<a href="#3971" id="3971">3971</a>
-<a href="#3972" id="3972">3972</a>
-<a href="#3973" id="3973">3973</a>
-<a href="#3974" id="3974">3974</a>
-<a href="#3975" id="3975">3975</a>
-<a href="#3976" id="3976">3976</a>
-<a href="#3977" id="3977">3977</a>
-<a href="#3978" id="3978">3978</a>
-<a href="#3979" id="3979">3979</a>
-<a href="#3980" id="3980">3980</a>
-<a href="#3981" id="3981">3981</a>
-<a href="#3982" id="3982">3982</a>
-<a href="#3983" id="3983">3983</a>
-<a href="#3984" id="3984">3984</a>
-<a href="#3985" id="3985">3985</a>
-<a href="#3986" id="3986">3986</a>
-<a href="#3987" id="3987">3987</a>
-<a href="#3988" id="3988">3988</a>
-<a href="#3989" id="3989">3989</a>
-<a href="#3990" id="3990">3990</a>
-<a href="#3991" id="3991">3991</a>
-<a href="#3992" id="3992">3992</a>
-<a href="#3993" id="3993">3993</a>
-<a href="#3994" id="3994">3994</a>
-<a href="#3995" id="3995">3995</a>
-<a href="#3996" id="3996">3996</a>
-<a href="#3997" id="3997">3997</a>
-<a href="#3998" id="3998">3998</a>
-<a href="#3999" id="3999">3999</a>
-<a href="#4000" id="4000">4000</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
@@ -5464,31 +5413,7 @@
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;G&gt;,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ProcessingError&gt; {
-        <span class="kw">let </span>attachment_type = state
-            .envelope()
-            .get_item_by(|item| item.attachment_type().is_some())
-            .and_then(|item| item.attachment_type())
-            .map(|ty| ty.to_string());
-        <span class="kw">let </span>event_type = state
-            .event
-            .value()
-            .and_then(|e| e.ty.value())
-            .map(|ty| ty.as_str())
-            .unwrap_or(<span class="string">"none"</span>);
-
         <span class="kw">if </span>!state.has_event() {
-            <span class="macro">metric!</span>(
-                counter(RelayCounters::NormalizationDecision) += <span class="number">1</span>,
-                event_type = event_type,
-                attachment_type = attachment_type.as_deref().unwrap_or(<span class="string">"none"</span>),
-                origin = <span class="kw">if </span>state.envelope().meta().is_from_internal_relay() {
-                    <span class="string">"internal"
-                </span>} <span class="kw">else </span>{
-                    <span class="string">"external"
-                </span>},
-                decision = <span class="string">"no_event"
-            </span>);
-
             <span class="comment">// NOTE(iker): only processing relays create events from
             // attachments, so these events won't be normalized in
             // non-processing relays even if the config is set to run full
@@ -5500,39 +5425,12 @@
             NormalizationLevel::Full =&gt; <span class="bool-val">true</span>,
             NormalizationLevel::Default =&gt; {
                 <span class="kw">if </span><span class="self">self</span>.inner.config.processing_enabled() &amp;&amp; state.event_fully_normalized {
-                    <span class="macro">metric!</span>(
-                        counter(RelayCounters::NormalizationDecision) += <span class="number">1</span>,
-                        event_type = event_type,
-                        attachment_type = attachment_type.as_deref().unwrap_or(<span class="string">"none"</span>),
-                        origin = <span class="kw">if </span>state.envelope().meta().is_from_internal_relay() {
-                            <span class="string">"internal"
-                        </span>} <span class="kw">else </span>{
-                            <span class="string">"external"
-                        </span>},
-                        decision = <span class="string">"skip_normalized"
-                    </span>);
                     <span class="kw">return </span><span class="prelude-val">Ok</span>(());
-                } <span class="kw">else </span>{
-                    <span class="self">self</span>.inner.config.processing_enabled()
                 }
+
+                <span class="self">self</span>.inner.config.processing_enabled()
             }
         };
-
-        <span class="macro">metric!</span>(
-            counter(RelayCounters::NormalizationDecision) += <span class="number">1</span>,
-            event_type = event_type,
-            attachment_type = attachment_type.as_deref().unwrap_or(<span class="string">"none"</span>),
-            origin = <span class="kw">if </span>state.envelope().meta().is_from_internal_relay() {
-                <span class="string">"internal"
-            </span>} <span class="kw">else </span>{
-                <span class="string">"external"
-            </span>},
-            decision = <span class="kw">if </span>full_normalization {
-                <span class="string">"full_normalization"
-            </span>} <span class="kw">else </span>{
-                <span class="string">"limited_normalization"
-            </span>}
-        );
 
         <span class="kw">let </span>request_meta = state.managed_envelope.envelope().meta();
         <span class="kw">let </span>client_ipaddr = request_meta.client_addr().map(IpAddr::from);

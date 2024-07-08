@@ -881,13 +881,6 @@
 <a href="#881" id="881">881</a>
 <a href="#882" id="882">882</a>
 <a href="#883" id="883">883</a>
-<a href="#884" id="884">884</a>
-<a href="#885" id="885">885</a>
-<a href="#886" id="886">886</a>
-<a href="#887" id="887">887</a>
-<a href="#888" id="888">888</a>
-<a href="#889" id="889">889</a>
-<a href="#890" id="890">890</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric, TimerMetric};
 <span class="attr">#[cfg(doc)]
 </span><span class="kw">use </span>tokio::runtime::RuntimeMetrics;
@@ -1659,12 +1652,6 @@
     <span class="doccomment">/// The amount of times metrics of a project have been flushed without the project being
     /// fetched/available.
     </span>ProjectStateFlushMetricsNoProject,
-    <span class="doccomment">/// The decision on whether normalization should run for an event.
-    ///
-    /// This metric is tagged with:
-    /// - `decision`: the decision relay makes on the event.
-    /// - `attachment_type`: the type of the attachment in the envelope.
-    </span>NormalizationDecision,
 }
 
 <span class="kw">impl </span>CounterMetric <span class="kw">for </span>RelayCounters {
@@ -1708,7 +1695,6 @@
             RelayCounters::FeedbackAttachments =&gt; <span class="string">"processing.feedback_attachments"</span>,
             RelayCounters::CogsUsage =&gt; <span class="string">"cogs.usage"</span>,
             RelayCounters::ProjectStateFlushMetricsNoProject =&gt; <span class="string">"project_state.metrics.no_project"</span>,
-            RelayCounters::NormalizationDecision =&gt; <span class="string">"normalization.decision"</span>,
         }
     }
 }
