@@ -52,20 +52,11 @@ pub fn extract_metrics(
     config: CombinedMetricExtractionConfig<'_>,
     max_tag_value_size: usize,
     span_extraction_sample_rate: Option<f32>,
-    compute_metrics_summaries_sample_rate: Option<f32>,
 ) -> Vec<Bucket> {
     let mut metrics = generic::extract_metrics(event, config);
     // If spans were already extracted for an event, we rely on span processing to extract metrics.
     if !spans_extracted && sample(span_extraction_sample_rate.unwrap_or(1.0)) {
-        let compute_metrics_summaries_sample_rate =
-            compute_metrics_summaries_sample_rate.unwrap_or(1.0);
-        extract_span_metrics_for_event(
-            event,
-            config,
-            max_tag_value_size,
-            &mut metrics,
-            compute_metrics_summaries_sample_rate,
-        );
+        extract_span_metrics_for_event(event, config, max_tag_value_size, &mut metrics);
     }
 
     metrics
@@ -76,17 +67,12 @@ fn extract_span_metrics_for_event(
     config: CombinedMetricExtractionConfig<'_>,
     max_tag_value_size: usize,
     output: &mut Vec<Bucket>,
-    compute_metrics_summaries_sample_rate: f32,
 ) {
-    let compute_metrics_summaries = sample(compute_metrics_summaries_sample_rate);
-
     relay_statsd::metric!(timer(RelayTimers::EventProcessingSpanMetricsExtraction), {
         if let Some(transaction_span) = extract_transaction_span(event, max_tag_value_size) {
             let (metrics, metrics_summary) =
                 metrics_summary::extract_and_summarize_metrics(&transaction_span, config);
-            if compute_metrics_summaries {
-                metrics_summary.apply_on(&mut event._metrics_summary);
-            }
+            metrics_summary.apply_on(&mut event._metrics_summary);
             output.extend(metrics);
         }
 
@@ -95,9 +81,7 @@ fn extract_span_metrics_for_event(
                 if let Some(span) = annotated_span.value_mut() {
                     let (metrics, metrics_summary) =
                         metrics_summary::extract_and_summarize_metrics(span, config);
-                    if compute_metrics_summaries {
-                        metrics_summary.apply_on(&mut span._metrics_summary);
-                    }
+                    metrics_summary.apply_on(&mut span._metrics_summary);
                     output.extend(metrics);
                 }
             }
@@ -1211,7 +1195,6 @@ mod tests {
             combined_config(features, None).combined(),
             200,
             None,
-            None,
         )
     }
 
@@ -1414,7 +1397,6 @@ mod tests {
             combined_config([Feature::ExtractCommonSpanMetricsFromEvent], None).combined(),
             200,
             None,
-            None,
         );
         insta::assert_debug_snapshot!((&event.value().unwrap().spans, metrics));
     }
@@ -1472,7 +1454,6 @@ mod tests {
             combined_config([Feature::ExtractCommonSpanMetricsFromEvent], None).combined(),
             200,
             None,
-            None,
         );
 
         // When transaction.op:ui.load and mobile:true, HTTP spans still get both
@@ -1504,7 +1485,6 @@ mod tests {
             false,
             combined_config([Feature::ExtractCommonSpanMetricsFromEvent], None).combined(),
             200,
-            None,
             None,
         );
 
@@ -1729,7 +1709,6 @@ mod tests {
             combined_config([Feature::ExtractCommonSpanMetricsFromEvent], None).combined(),
             200,
             None,
-            None,
         );
 
         assert_eq!(metrics.len(), 4);
@@ -1871,7 +1850,6 @@ mod tests {
             false,
             config,
             200,
-            None,
             None,
         );
 

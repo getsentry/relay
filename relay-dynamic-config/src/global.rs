@@ -214,14 +214,6 @@ pub struct Options {
     )]
     pub span_extraction_sample_rate: Option<f32>,
 
-    /// Overall sampling of metrics summaries computation.
-    #[serde(
-        rename = "relay.compute-metrics-summaries.sample-rate",
-        deserialize_with = "default_on_error",
-        skip_serializing_if = "is_default"
-    )]
-    pub compute_metrics_summaries_sample_rate: Option<f32>,
-
     /// The maximum duplication factor used to extrapolate distribution metrics from sampled data.
     ///
     /// This applies as long as Relay duplicates distribution values to extrapolate. The default is
