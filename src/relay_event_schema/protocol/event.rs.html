@@ -1279,13 +1279,34 @@
 <a href="#1279" id="1279">1279</a>
 <a href="#1280" id="1280">1280</a>
 <a href="#1281" id="1281">1281</a>
+<a href="#1282" id="1282">1282</a>
+<a href="#1283" id="1283">1283</a>
+<a href="#1284" id="1284">1284</a>
+<a href="#1285" id="1285">1285</a>
+<a href="#1286" id="1286">1286</a>
+<a href="#1287" id="1287">1287</a>
+<a href="#1288" id="1288">1288</a>
+<a href="#1289" id="1289">1289</a>
+<a href="#1290" id="1290">1290</a>
+<a href="#1291" id="1291">1291</a>
+<a href="#1292" id="1292">1292</a>
+<a href="#1293" id="1293">1293</a>
+<a href="#1294" id="1294">1294</a>
+<a href="#1295" id="1295">1295</a>
+<a href="#1296" id="1296">1296</a>
+<a href="#1297" id="1297">1297</a>
+<a href="#1298" id="1298">1298</a>
+<a href="#1299" id="1299">1299</a>
+<a href="#1300" id="1300">1300</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::str::FromStr;
 
 <span class="kw">use </span>relay_common::time;
 <span class="attr">#[cfg(feature = <span class="string">"jsonschema"</span>)]
 </span><span class="kw">use </span>relay_jsonschema_derive::JsonSchema;
-<span class="kw">use </span>relay_protocol::{Annotated, Array, Empty, FromValue, Getter, IntoValue, Object, Val, Value};
+<span class="kw">use </span>relay_protocol::{
+    Annotated, Array, Empty, FromValue, Getter, GetterIter, IntoValue, Object, Val, Value,
+};
 <span class="attr">#[cfg(feature = <span class="string">"jsonschema"</span>)]
 </span><span class="kw">use </span>schemars::{gen::SchemaGenerator, schema::Schema};
 <span class="kw">use </span>sentry_release_parser::Release <span class="kw">as </span>ParsedRelease;
@@ -2086,6 +2107,15 @@
             }
         })
     }
+
+    <span class="kw">fn </span>get_iter(<span class="kw-2">&amp;</span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;GetterIter&lt;<span class="lifetime">'_</span>&gt;&gt; {
+        <span class="prelude-val">Some</span>(<span class="kw">match </span>path.strip_prefix(<span class="string">"event."</span>)<span class="question-mark">? </span>{
+            <span class="string">"exception.values" </span>=&gt; {
+                GetterIter::new_annotated(<span class="self">self</span>.exceptions.value()<span class="question-mark">?</span>.values.value()<span class="question-mark">?</span>)
+            }
+            <span class="kw">_ </span>=&gt; <span class="kw">return </span><span class="prelude-val">None</span>,
+        })
+    }
 }
 
 <span class="attr">#[cfg(test)]
@@ -2536,6 +2566,14 @@
             <span class="prelude-val">Some</span>(Val::String(<span class="string">"route"</span>)),
             event.get_value(<span class="string">"event.transaction.source"</span>)
         );
+
+        <span class="kw">let </span><span class="kw-2">mut </span>exceptions = event.get_iter(<span class="string">"event.exception.values"</span>).unwrap();
+        <span class="kw">let </span>exception = exceptions.next().unwrap();
+        <span class="macro">assert_eq!</span>(
+            <span class="prelude-val">Some</span>(Val::String(<span class="string">"canvas.contentDocument"</span>)),
+            exception.get_value(<span class="string">"value"</span>)
+        );
+        <span class="macro">assert!</span>(exceptions.next().is_none());
     }
 
     <span class="attr">#[test]
