@@ -61,7 +61,7 @@ android_trace_log = { version = "0.3.0", features = ["serde"] }
 ansi-to-html = "0.1.3"
 anyhow = "1.0.66"
 axum = "0.6.20"
-axum-extra = "0.7.7"
+axum-extra = "0.8.0"
 axum-server = "0.4.7"
 backoff = "0.4.0"
 bindgen = "0.64.0"
@@ -114,7 +114,7 @@ multer = "2.0.4"
 num-traits = "0.2.18"
 num_cpus = "1.13.0"
 once_cell = "1.13.1"
-opentelemetry-proto = { git = "https://github.com/open-telemetry/opentelemetry-rust", rev = "dd4c13bd69ca4b24d5a8f21024a466fbb35cdd14" }
+opentelemetry-proto = { version = "0.6.0", default-features = false }
 parking_lot = "0.12.1"
 path-slash = "0.2.1"
 pest = "2.1.3"
