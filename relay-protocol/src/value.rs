@@ -1,4 +1,5 @@
 use std::collections::BTreeMap;
+use std::fmt::Debug;
 use std::{fmt, str};
 
 #[cfg(feature = "jsonschema")]
