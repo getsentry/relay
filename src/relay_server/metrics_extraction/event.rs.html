@@ -1862,28 +1862,6 @@
 <a href="#1862" id="1862">1862</a>
 <a href="#1863" id="1863">1863</a>
 <a href="#1864" id="1864">1864</a>
-<a href="#1865" id="1865">1865</a>
-<a href="#1866" id="1866">1866</a>
-<a href="#1867" id="1867">1867</a>
-<a href="#1868" id="1868">1868</a>
-<a href="#1869" id="1869">1869</a>
-<a href="#1870" id="1870">1870</a>
-<a href="#1871" id="1871">1871</a>
-<a href="#1872" id="1872">1872</a>
-<a href="#1873" id="1873">1873</a>
-<a href="#1874" id="1874">1874</a>
-<a href="#1875" id="1875">1875</a>
-<a href="#1876" id="1876">1876</a>
-<a href="#1877" id="1877">1877</a>
-<a href="#1878" id="1878">1878</a>
-<a href="#1879" id="1879">1879</a>
-<a href="#1880" id="1880">1880</a>
-<a href="#1881" id="1881">1881</a>
-<a href="#1882" id="1882">1882</a>
-<a href="#1883" id="1883">1883</a>
-<a href="#1884" id="1884">1884</a>
-<a href="#1885" id="1885">1885</a>
-<a href="#1886" id="1886">1886</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_common::time::UnixTimestamp;
 <span class="kw">use </span>relay_dynamic_config::CombinedMetricExtractionConfig;
 <span class="kw">use </span>relay_event_schema::protocol::{Event, Span};
@@ -1938,20 +1916,11 @@
     config: CombinedMetricExtractionConfig&lt;<span class="lifetime">'_</span>&gt;,
     max_tag_value_size: usize,
     span_extraction_sample_rate: <span class="prelude-ty">Option</span>&lt;f32&gt;,
-    compute_metrics_summaries_sample_rate: <span class="prelude-ty">Option</span>&lt;f32&gt;,
 ) -&gt; Vec&lt;Bucket&gt; {
     <span class="kw">let </span><span class="kw-2">mut </span>metrics = generic::extract_metrics(event, config);
     <span class="comment">// If spans were already extracted for an event, we rely on span processing to extract metrics.
     </span><span class="kw">if </span>!spans_extracted &amp;&amp; sample(span_extraction_sample_rate.unwrap_or(<span class="number">1.0</span>)) {
-        <span class="kw">let </span>compute_metrics_summaries_sample_rate =
-            compute_metrics_summaries_sample_rate.unwrap_or(<span class="number">1.0</span>);
-        extract_span_metrics_for_event(
-            event,
-            config,
-            max_tag_value_size,
-            <span class="kw-2">&amp;mut </span>metrics,
-            compute_metrics_summaries_sample_rate,
-        );
+        extract_span_metrics_for_event(event, config, max_tag_value_size, <span class="kw-2">&amp;mut </span>metrics);
     }
 
     metrics
@@ -1962,17 +1931,12 @@
     config: CombinedMetricExtractionConfig&lt;<span class="lifetime">'_</span>&gt;,
     max_tag_value_size: usize,
     output: <span class="kw-2">&amp;mut </span>Vec&lt;Bucket&gt;,
-    compute_metrics_summaries_sample_rate: f32,
 ) {
-    <span class="kw">let </span>compute_metrics_summaries = sample(compute_metrics_summaries_sample_rate);
-
     <span class="macro">relay_statsd::metric!</span>(timer(RelayTimers::EventProcessingSpanMetricsExtraction), {
         <span class="kw">if let </span><span class="prelude-val">Some</span>(transaction_span) = extract_transaction_span(event, max_tag_value_size) {
             <span class="kw">let </span>(metrics, metrics_summary) =
                 metrics_summary::extract_and_summarize_metrics(<span class="kw-2">&amp;</span>transaction_span, config);
-            <span class="kw">if </span>compute_metrics_summaries {
-                metrics_summary.apply_on(<span class="kw-2">&amp;mut </span>event._metrics_summary);
-            }
+            metrics_summary.apply_on(<span class="kw-2">&amp;mut </span>event._metrics_summary);
             output.extend(metrics);
         }
 
@@ -1981,9 +1945,7 @@
                 <span class="kw">if let </span><span class="prelude-val">Some</span>(span) = annotated_span.value_mut() {
                     <span class="kw">let </span>(metrics, metrics_summary) =
                         metrics_summary::extract_and_summarize_metrics(span, config);
-                    <span class="kw">if </span>compute_metrics_summaries {
-                        metrics_summary.apply_on(<span class="kw-2">&amp;mut </span>span._metrics_summary);
-                    }
+                    metrics_summary.apply_on(<span class="kw-2">&amp;mut </span>span._metrics_summary);
                     output.extend(metrics);
                 }
             }
@@ -3097,7 +3059,6 @@
             combined_config(features, <span class="prelude-val">None</span>).combined(),
             <span class="number">200</span>,
             <span class="prelude-val">None</span>,
-            <span class="prelude-val">None</span>,
         )
     }
 
@@ -3300,7 +3261,6 @@
             combined_config([Feature::ExtractCommonSpanMetricsFromEvent], <span class="prelude-val">None</span>).combined(),
             <span class="number">200</span>,
             <span class="prelude-val">None</span>,
-            <span class="prelude-val">None</span>,
         );
         <span class="macro">insta::assert_debug_snapshot!</span>((<span class="kw-2">&amp;</span>event.value().unwrap().spans, metrics));
     }
@@ -3358,7 +3318,6 @@
             combined_config([Feature::ExtractCommonSpanMetricsFromEvent], <span class="prelude-val">None</span>).combined(),
             <span class="number">200</span>,
             <span class="prelude-val">None</span>,
-            <span class="prelude-val">None</span>,
         );
 
         <span class="comment">// When transaction.op:ui.load and mobile:true, HTTP spans still get both
@@ -3390,7 +3349,6 @@
             <span class="bool-val">false</span>,
             combined_config([Feature::ExtractCommonSpanMetricsFromEvent], <span class="prelude-val">None</span>).combined(),
             <span class="number">200</span>,
-            <span class="prelude-val">None</span>,
             <span class="prelude-val">None</span>,
         );
 
@@ -3615,7 +3573,6 @@
             combined_config([Feature::ExtractCommonSpanMetricsFromEvent], <span class="prelude-val">None</span>).combined(),
             <span class="number">200</span>,
             <span class="prelude-val">None</span>,
-            <span class="prelude-val">None</span>,
         );
 
         <span class="macro">assert_eq!</span>(metrics.len(), <span class="number">4</span>);
@@ -3757,7 +3714,6 @@
             <span class="bool-val">false</span>,
             config,
             <span class="number">200</span>,
-            <span class="prelude-val">None</span>,
             <span class="prelude-val">None</span>,
         );
 
