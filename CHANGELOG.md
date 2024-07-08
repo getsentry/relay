@@ -18,6 +18,7 @@
 - Support extrapolation of metrics extracted from sampled data, as long as the sample rate is set in the DynamicSamplingContext. ([#3753](https://github.com/getsentry/relay/pull/3753))
 - Extract thread ID and name in spans. ([#3771](https://github.com/getsentry/relay/pull/3771))
 - Compute metrics summary on the extracted custom metrics. ([#3769](https://github.com/getsentry/relay/pull/3769))
+- Add support for `all` and `any` `RuleCondition`(s). ([#3791](https://github.com/getsentry/relay/pull/3791))
 
 ## 24.6.0
 

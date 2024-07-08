@@ -4,7 +4,9 @@ use std::str::FromStr;
 use relay_common::time;
 #[cfg(feature = "jsonschema")]
 use relay_jsonschema_derive::JsonSchema;
-use relay_protocol::{Annotated, Array, Empty, FromValue, Getter, IntoValue, Object, Val, Value};
+use relay_protocol::{
+    Annotated, Array, Empty, FromValue, Getter, GetterIter, IntoValue, Object, Val, Value,
+};
 #[cfg(feature = "jsonschema")]
 use schemars::{gen::SchemaGenerator, schema::Schema};
 use sentry_release_parser::Release as ParsedRelease;
@@ -805,6 +807,15 @@ impl Getter for Event {
             }
         })
     }
+
+    fn get_iter(&self, path: &str) -> Option<GetterIter<'_>> {
+        Some(match path.strip_prefix("event.")? {
+            "exception.values" => {
+                GetterIter::new_annotated(self.exceptions.value()?.values.value()?)
+            }
+            _ => return None,
+        })
+    }
 }
 
 #[cfg(test)]
@@ -1255,6 +1266,14 @@ mod tests {
             Some(Val::String("route")),
             event.get_value("event.transaction.source")
         );
+
+        let mut exceptions = event.get_iter("event.exception.values").unwrap();
+        let exception = exceptions.next().unwrap();
+        assert_eq!(
+            Some(Val::String("canvas.contentDocument")),
+            exception.get_value("value")
+        );
+        assert!(exceptions.next().is_none());
     }
 
     #[test]
