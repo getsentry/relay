@@ -1464,31 +1464,7 @@ impl EnvelopeProcessorService {
         &self,
         state: &mut ProcessEnvelopeState<G>,
     ) -> Result<(), ProcessingError> {
-        let attachment_type = state
-            .envelope()
-            .get_item_by(|item| item.attachment_type().is_some())
-            .and_then(|item| item.attachment_type())
-            .map(|ty| ty.to_string());
-        let event_type = state
-            .event
-            .value()
-            .and_then(|e| e.ty.value())
-            .map(|ty| ty.as_str())
-            .unwrap_or("none");
-
         if !state.has_event() {
-            metric!(
-                counter(RelayCounters::NormalizationDecision) += 1,
-                event_type = event_type,
-                attachment_type = attachment_type.as_deref().unwrap_or("none"),
-                origin = if state.envelope().meta().is_from_internal_relay() {
-                    "internal"
-                } else {
-                    "external"
-                },
-                decision = "no_event"
-            );
-
             // NOTE(iker): only processing relays create events from
             // attachments, so these events won't be normalized in
             // non-processing relays even if the config is set to run full
@@ -1500,39 +1476,12 @@ impl EnvelopeProcessorService {
             NormalizationLevel::Full => true,
             NormalizationLevel::Default => {
                 if self.inner.config.processing_enabled() && state.event_fully_normalized {
-                    metric!(
-                        counter(RelayCounters::NormalizationDecision) += 1,
-                        event_type = event_type,
-                        attachment_type = attachment_type.as_deref().unwrap_or("none"),
-                        origin = if state.envelope().meta().is_from_internal_relay() {
-                            "internal"
-                        } else {
-                            "external"
-                        },
-                        decision = "skip_normalized"
-                    );
                     return Ok(());
-                } else {
-                    self.inner.config.processing_enabled()
                 }
+
+                self.inner.config.processing_enabled()
             }
         };
-
-        metric!(
-            counter(RelayCounters::NormalizationDecision) += 1,
-            event_type = event_type,
-            attachment_type = attachment_type.as_deref().unwrap_or("none"),
-            origin = if state.envelope().meta().is_from_internal_relay() {
-                "internal"
-            } else {
-                "external"
-            },
-            decision = if full_normalization {
-                "full_normalization"
-            } else {
-                "limited_normalization"
-            }
-        );
 
         let request_meta = state.managed_envelope.envelope().meta();
         let client_ipaddr = request_meta.client_addr().map(IpAddr::from);
