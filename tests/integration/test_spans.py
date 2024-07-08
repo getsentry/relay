@@ -309,8 +309,8 @@ def envelope_with_spans(
                         "traceId": "89143b0763095bd9c9955e8175d1fb23",
                         "spanId": "a342abb1214ca181",
                         "name": "my 1st OTel span",
-                        "startTimeUnixNano": int(start.timestamp() * 1e9),
-                        "endTimeUnixNano": int(end.timestamp() * 1e9),
+                        "startTimeUnixNano": str(int(start.timestamp() * 1e9)),
+                        "endTimeUnixNano": str(int(end.timestamp() * 1e9)),
                         "attributes": [
                             {
                                 "key": "sentry.op",
@@ -321,9 +321,9 @@ def envelope_with_spans(
                             {
                                 "key": "sentry.exclusive_time_nano",
                                 "value": {
-                                    "intValue": int(
+                                    "intValue": str(int(
                                         (end - start).total_seconds() * 1e9
-                                    ),
+                                    )),
                                 },
                             },
                         ],
@@ -449,15 +449,15 @@ def make_otel_span(start, end):
                                 "traceId": "89143b0763095bd9c9955e8175d1fb24",
                                 "spanId": "d342abb1214ca182",
                                 "name": "my 2nd OTel span",
-                                "startTimeUnixNano": int(start.timestamp() * 1e9),
-                                "endTimeUnixNano": int(end.timestamp() * 1e9),
+                                "startTimeUnixNano": str(int(start.timestamp() * 1e9)),
+                                "endTimeUnixNano": str(int(end.timestamp() * 1e9)),
                                 "attributes": [
                                     {
                                         "key": "sentry.exclusive_time_nano",
                                         "value": {
-                                            "intValue": int(
+                                            "intValue": str(int(
                                                 (end - start).total_seconds() * 1e9
-                                            ),
+                                            )),
                                         },
                                     },
                                 ],
