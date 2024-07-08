@@ -372,6 +372,21 @@ mod tests {
         let event_id = event_from_span.id.value_mut().take().unwrap();
         assert_eq!(&event_id.to_string(), "0000000000000000fa90fdead5f74052");
 
+        // Before comparing, remove any additional data that was injected into trace data during
+        // span conversion. Note that the keys are renamed on the `SpanData` struct and mostly start
+        // with `sentry.`.
+        let trace = event_from_span.context_mut::<TraceContext>().unwrap();
+        let trace_data = trace.data.value_mut().as_mut().unwrap();
+
+        trace_data.other.retain(|k, v| {
+            if v.value().is_none() || k.starts_with("sentry.") {
+                return false;
+            }
+
+            // Seems to be a special case
+            k != "browser.name"
+        });
+
         assert_eq!(event, event_from_span);
     }
 
