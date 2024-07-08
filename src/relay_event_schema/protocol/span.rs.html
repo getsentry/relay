@@ -735,6 +735,22 @@
 <a href="#735" id="735">735</a>
 <a href="#736" id="736">736</a>
 <a href="#737" id="737">737</a>
+<a href="#738" id="738">738</a>
+<a href="#739" id="739">739</a>
+<a href="#740" id="740">740</a>
+<a href="#741" id="741">741</a>
+<a href="#742" id="742">742</a>
+<a href="#743" id="743">743</a>
+<a href="#744" id="744">744</a>
+<a href="#745" id="745">745</a>
+<a href="#746" id="746">746</a>
+<a href="#747" id="747">747</a>
+<a href="#748" id="748">748</a>
+<a href="#749" id="749">749</a>
+<a href="#750" id="750">750</a>
+<a href="#751" id="751">751</a>
+<a href="#752" id="752">752</a>
+<a href="#753" id="753">753</a>
 </pre></div><pre class="rust"><code><span class="kw">mod </span>convert;
 
 <span class="attr">#[cfg(feature = <span class="string">"jsonschema"</span>)]
@@ -743,8 +759,8 @@
 
 <span class="kw">use </span><span class="kw">crate</span>::processor::ProcessValue;
 <span class="kw">use </span><span class="kw">crate</span>::protocol::{
-    EventId, JsonLenientString, LenientString, Measurements, MetricsSummary, OperationType,
-    OriginType, SpanId, SpanStatus, ThreadId, Timestamp, TraceId,
+    Data <span class="kw">as </span>TraceData, EventId, JsonLenientString, LenientString, Measurements, MetricsSummary,
+    OperationType, OriginType, SpanId, SpanStatus, ThreadId, Timestamp, TraceId,
 };
 
 <span class="attr">#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
@@ -1188,6 +1204,22 @@
                 val.into()
             }
         })
+    }
+}
+
+<span class="kw">impl </span>From&lt;TraceData&gt; <span class="kw">for </span>SpanData {
+    <span class="kw">fn </span>from(trace_data: TraceData) -&gt; <span class="self">Self </span>{
+        FromValue::from_value(Annotated::new(trace_data.into_value()))
+            .into_value()
+            .unwrap_or_default()
+    }
+}
+
+<span class="kw">impl </span>From&lt;SpanData&gt; <span class="kw">for </span>TraceData {
+    <span class="kw">fn </span>from(span_data: SpanData) -&gt; <span class="self">Self </span>{
+        FromValue::from_value(Annotated::new(span_data.into_value()))
+            .into_value()
+            .unwrap_or_default()
     }
 }
 

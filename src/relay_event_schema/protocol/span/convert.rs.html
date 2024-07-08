@@ -395,6 +395,33 @@
 <a href="#395" id="395">395</a>
 <a href="#396" id="396">396</a>
 <a href="#397" id="397">397</a>
+<a href="#398" id="398">398</a>
+<a href="#399" id="399">399</a>
+<a href="#400" id="400">400</a>
+<a href="#401" id="401">401</a>
+<a href="#402" id="402">402</a>
+<a href="#403" id="403">403</a>
+<a href="#404" id="404">404</a>
+<a href="#405" id="405">405</a>
+<a href="#406" id="406">406</a>
+<a href="#407" id="407">407</a>
+<a href="#408" id="408">408</a>
+<a href="#409" id="409">409</a>
+<a href="#410" id="410">410</a>
+<a href="#411" id="411">411</a>
+<a href="#412" id="412">412</a>
+<a href="#413" id="413">413</a>
+<a href="#414" id="414">414</a>
+<a href="#415" id="415">415</a>
+<a href="#416" id="416">416</a>
+<a href="#417" id="417">417</a>
+<a href="#418" id="418">418</a>
+<a href="#419" id="419">419</a>
+<a href="#420" id="420">420</a>
+<a href="#421" id="421">421</a>
+<a href="#422" id="422">422</a>
+<a href="#423" id="423">423</a>
+<a href="#424" id="424">424</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module defines bidirectional field mappings between spans and transactions.
 
 </span><span class="kw">use </span><span class="kw">crate</span>::protocol::{BrowserContext, Contexts, Event, ProfileContext, Span, TraceContext};
@@ -551,6 +578,8 @@
 <span class="comment">// This macro call implements a bidirectional mapping between transaction event and segment spans,
 // allowing users to call both `Event::from(&amp;span)` and `Span::from(&amp;event)`.
 </span><span class="macro">map_fields!</span>(
+    <span class="comment">// Data must go first to ensure it doesn't overwrite more specific fields
+    </span>span.data &lt;=&gt; event.contexts.trace.data,
     span._metrics_summary &lt;=&gt; event._metrics_summary,
     span.description &lt;=&gt; event.transaction,
     span.data.segment_name &lt;=&gt; event.transaction,
@@ -585,6 +614,7 @@
 <span class="attr">#[cfg(test)]
 </span><span class="kw">mod </span>tests {
     <span class="kw">use </span>relay_protocol::Annotated;
+    <span class="kw">use </span>similar_asserts::assert_eq;
 
     <span class="kw">use </span><span class="kw">crate</span>::protocol::{SpanData, SpanId};
 
@@ -611,7 +641,10 @@
                         "op": "myop",
                         "status": "ok",
                         "exclusive_time": 123.4,
-                        "parent_span_id": "FA90FDEAD5F74051"
+                        "parent_span_id": "FA90FDEAD5F74051",
+                        "data": {
+                            "custom_attribute": 42
+                        }
                     }
                 },
                 "_metrics_summary": {
@@ -717,7 +750,13 @@
                 user_agent_original: ~,
                 url_full: ~,
                 client_address: ~,
-                other: {},
+                other: {
+                    "custom_attribute": I64(
+                        42,
+                    ),
+                    "previousRoute": ~,
+                    "route": ~,
+                },
             },
             sentry_tags: ~,
             received: ~,
@@ -756,6 +795,21 @@
 
         <span class="kw">let </span>event_id = event_from_span.id.value_mut().take().unwrap();
         <span class="macro">assert_eq!</span>(<span class="kw-2">&amp;</span>event_id.to_string(), <span class="string">"0000000000000000fa90fdead5f74052"</span>);
+
+        <span class="comment">// Before comparing, remove any additional data that was injected into trace data during
+        // span conversion. Note that the keys are renamed on the `SpanData` struct and mostly start
+        // with `sentry.`.
+        </span><span class="kw">let </span>trace = event_from_span.context_mut::&lt;TraceContext&gt;().unwrap();
+        <span class="kw">let </span>trace_data = trace.data.value_mut().as_mut().unwrap();
+
+        trace_data.other.retain(|k, v| {
+            <span class="kw">if </span>v.value().is_none() || k.starts_with(<span class="string">"sentry."</span>) {
+                <span class="kw">return </span><span class="bool-val">false</span>;
+            }
+
+            <span class="comment">// Seems to be a special case
+            </span>k != <span class="string">"browser.name"
+        </span>});
 
         <span class="macro">assert_eq!</span>(event, event_from_span);
     }
