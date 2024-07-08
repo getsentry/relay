@@ -81,11 +81,6 @@ pub fn process(
         &user_agent_info,
     );
 
-    let mut extracted_transactions = vec![];
-    let should_extract_transactions = state
-        .project_state
-        .has_feature(Feature::ExtractTransactionFromSegmentSpan);
-
     let client_ip = state.managed_envelope.envelope().meta().client_addr();
     let filter_settings = &state.project_state.config.filter_settings;
 
@@ -111,13 +106,6 @@ pub fn process(
         };
 
         set_segment_attributes(&mut annotated_span);
-
-        if should_extract_transactions && !item.transaction_extracted() {
-            if let Some(transaction) = convert_to_transaction(&annotated_span) {
-                extracted_transactions.push(transaction);
-                item.set_transaction_extracted(true);
-            }
-        }
 
         if let Err(e) = normalize(
             &mut annotated_span,
@@ -241,62 +229,6 @@ pub fn process(
             outcome,
             DataCategory::SpanIndexed,
             dynamic_sampling_dropped_spans,
-        );
-    }
-
-    let mut transaction_count = 0;
-    for transaction in extracted_transactions {
-        // Enqueue a full processing request for every extracted transaction item.
-        match Envelope::try_from_event(state.envelope().headers().clone(), transaction) {
-            Ok(mut envelope) => {
-                // In order to force normalization, treat as external:
-                envelope.meta_mut().set_from_internal_relay(false);
-
-                // We don't want to extract spans or span metrics from a transaction extracted from spans,
-                // so set the spans_extracted flag:
-                for item in envelope.items_mut() {
-                    item.set_spans_extracted(true);
-                }
-
-                transaction_count += 1;
-
-                let managed_envelope = buffer_guard.enter(
-                    envelope,
-                    addrs.outcome_aggregator.clone(),
-                    addrs.test_store.clone(),
-                    ProcessingGroup::Transaction,
-                );
-
-                match managed_envelope {
-                    Ok(managed_envelope) => {
-                        addrs.envelope_processor.send(ProcessEnvelope {
-                            envelope: managed_envelope,
-                            project_state: state.project_state.clone(),
-                            sampling_project_state: state.sampling_project_state.clone(),
-                            reservoir_counters: state.reservoir.counters(),
-                        });
-                    }
-                    Err(e) => {
-                        relay_log::error!(
-                            error = &e as &dyn Error,
-                            "Failed to obtain permit for spinoff envelope:"
-                        );
-                    }
-                }
-            }
-            Err(e) => {
-                relay_log::error!(
-                    error = &e as &dyn Error,
-                    "Failed to create spinoff envelope:"
-                );
-            }
-        }
-    }
-
-    if transaction_count > 0 {
-        relay_statsd::metric!(counter(RelayCounters::TransactionsFromSpans) += transaction_count);
-        relay_statsd::metric!(
-            histogram(RelayHistograms::TransactionsFromSpansPerEnvelope) = transaction_count as u64
         );
     }
 }

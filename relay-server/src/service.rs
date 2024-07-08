@@ -172,8 +172,6 @@ impl ServiceState {
             #[cfg(feature = "processing")]
             redis_pool.clone(),
             processor::Addrs {
-                #[cfg(feature = "processing")]
-                envelope_processor: processor.clone(),
                 project_cache: project_cache.clone(),
                 outcome_aggregator: outcome_aggregator.clone(),
                 upstream_relay: upstream_relay.clone(),
