@@ -6,8 +6,8 @@ use relay_protocol::{Annotated, Empty, FromValue, Getter, IntoValue, Object, Val
 
 use crate::processor::ProcessValue;
 use crate::protocol::{
-    EventId, JsonLenientString, LenientString, Measurements, MetricsSummary, OperationType,
-    OriginType, SpanId, SpanStatus, ThreadId, Timestamp, TraceId,
+    Data as TraceData, EventId, JsonLenientString, LenientString, Measurements, MetricsSummary,
+    OperationType, OriginType, SpanId, SpanStatus, ThreadId, Timestamp, TraceId,
 };
 
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
@@ -451,6 +451,22 @@ impl Getter for SpanData {
                 val.into()
             }
         })
+    }
+}
+
+impl From<TraceData> for SpanData {
+    fn from(trace_data: TraceData) -> Self {
+        FromValue::from_value(Annotated::new(trace_data.into_value()))
+            .into_value()
+            .unwrap_or_default()
+    }
+}
+
+impl From<SpanData> for TraceData {
+    fn from(span_data: SpanData) -> Self {
+        FromValue::from_value(Annotated::new(span_data.into_value()))
+            .into_value()
+            .unwrap_or_default()
     }
 }
 
