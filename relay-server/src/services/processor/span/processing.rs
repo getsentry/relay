@@ -158,14 +158,7 @@ pub fn process(
                 span,
                 CombinedMetricExtractionConfig::new(global_metrics_config, config),
             );
-            if sample(
-                global_config
-                    .options
-                    .compute_metrics_summaries_sample_rate
-                    .unwrap_or(1.0),
-            ) {
-                metrics_summary.apply_on(&mut span._metrics_summary)
-            }
+            metrics_summary.apply_on(&mut span._metrics_summary);
 
             state
                 .extracted_metrics

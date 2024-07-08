@@ -2062,10 +2062,6 @@ def test_metrics_summary_with_extracted_spans(
     relay_with_processing,
     metrics_summaries_consumer,
 ):
-    mini_sentry.global_config["options"] = {
-        "relay.compute-metrics-summaries.sample-rate": 1.0
-    }
-
     metrics_summaries_consumer = metrics_summaries_consumer()
 
     relay = relay_with_processing()
@@ -2139,10 +2135,6 @@ def test_metrics_summary_with_standalone_spans(
     relay_with_processing,
     metrics_summaries_consumer,
 ):
-    mini_sentry.global_config["options"] = {
-        "relay.compute-metrics-summaries.sample-rate": 1.0
-    }
-
     metrics_summaries_consumer = metrics_summaries_consumer()
 
     relay = relay_with_processing()
