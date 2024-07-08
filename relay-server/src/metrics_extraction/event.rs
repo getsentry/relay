@@ -1195,7 +1195,6 @@ mod tests {
             combined_config(features, None).combined(),
             200,
             None,
-            None,
         )
     }
 
@@ -1398,7 +1397,6 @@ mod tests {
             combined_config([Feature::ExtractCommonSpanMetricsFromEvent], None).combined(),
             200,
             None,
-            None,
         );
         insta::assert_debug_snapshot!((&event.value().unwrap().spans, metrics));
     }
@@ -1456,7 +1454,6 @@ mod tests {
             combined_config([Feature::ExtractCommonSpanMetricsFromEvent], None).combined(),
             200,
             None,
-            None,
         );
 
         // When transaction.op:ui.load and mobile:true, HTTP spans still get both
@@ -1488,7 +1485,6 @@ mod tests {
             false,
             combined_config([Feature::ExtractCommonSpanMetricsFromEvent], None).combined(),
             200,
-            None,
             None,
         );
 
@@ -1713,7 +1709,6 @@ mod tests {
             combined_config([Feature::ExtractCommonSpanMetricsFromEvent], None).combined(),
             200,
             None,
-            None,
         );
 
         assert_eq!(metrics.len(), 4);
@@ -1855,7 +1850,6 @@ mod tests {
             false,
             config,
             200,
-            None,
             None,
         );
 
