@@ -655,6 +655,8 @@ impl Getter for Event {
             "platform" => self.platform.as_str().unwrap_or("other").into(),
 
             // Fields in top level structures (called "interfaces" in Sentry)
+            "logentry.formatted" => self.logentry.value()?.formatted.value()?.as_ref().into(),
+            "logentry.message" => self.logentry.value()?.message.value()?.as_ref().into(),
             "user.email" => or_none(&self.user.value()?.email)?.into(),
             "user.id" => or_none(&self.user.value()?.id)?.into(),
             "user.ip_address" => self.user.value()?.ip_address.as_str()?.into(),
@@ -1123,6 +1125,11 @@ mod tests {
                 })]),
                 ..Default::default()
             }),
+            logentry: Annotated::new(LogEntry {
+                formatted: Annotated::new("formatted".to_string().into()),
+                message: Annotated::new("message".to_string().into()),
+                ..Default::default()
+            }),
             request: Annotated::new(Request {
                 headers: Annotated::new(Headers(PairList(vec![Annotated::new((
                     Annotated::new("user-agent".into()),
@@ -1274,6 +1281,15 @@ mod tests {
             exception.get_value("value")
         );
         assert!(exceptions.next().is_none());
+
+        assert_eq!(
+            Some(Val::String("formatted")),
+            event.get_value("event.logentry.formatted")
+        );
+        assert_eq!(
+            Some(Val::String("message")),
+            event.get_value("event.logentry.message")
+        );
     }
 
     #[test]
