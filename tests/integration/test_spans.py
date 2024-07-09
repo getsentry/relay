@@ -321,9 +321,9 @@ def envelope_with_spans(
                             {
                                 "key": "sentry.exclusive_time_nano",
                                 "value": {
-                                    "intValue": str(int(
-                                        (end - start).total_seconds() * 1e9
-                                    )),
+                                    "intValue": str(
+                                        int((end - start).total_seconds() * 1e9)
+                                    ),
                                 },
                             },
                         ],
@@ -455,9 +455,9 @@ def make_otel_span(start, end):
                                     {
                                         "key": "sentry.exclusive_time_nano",
                                         "value": {
-                                            "intValue": str(int(
-                                                (end - start).total_seconds() * 1e9
-                                            )),
+                                            "intValue": str(
+                                                int((end - start).total_seconds() * 1e9)
+                                            ),
                                         },
                                     },
                                 ],
