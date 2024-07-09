@@ -1608,6 +1608,7 @@ fn bool_to_str(value: bool) -> &'static str {
 
 #[cfg(test)]
 mod tests {
+
     use super::*;
 
     #[test]
@@ -1622,5 +1623,33 @@ mod tests {
 
             assert!(matches!(res, Err(ClientError::InvalidTopicName)));
         }
+    }
+
+    #[test]
+    fn missing_exclusive_time() {
+        let serialized = r#"{
+    "received": 0,
+    "span_id": "foo",
+    "trace_id": "fc6d8c0c43fc4630ad850ee518f1b9d0",
+    "start_timestamp": 1,
+    "timestamp": 2
+}"#;
+        let span: SpanKafkaMessage<'_> = serde_json::from_str(serialized).unwrap();
+        assert_eq!(
+            serde_json::to_string_pretty(&span).unwrap(),
+            r#"{
+  "duration_ms": 0,
+  "is_segment": false,
+  "organization_id": 0,
+  "project_id": 0,
+  "received": 0.0,
+  "retention_days": 0,
+  "span_id": "foo",
+  "trace_id": "fc6d8c0c43fc4630ad850ee518f1b9d0",
+  "start_timestamp_ms": 0,
+  "start_timestamp_precise": 1.0,
+  "end_timestamp_precise": 2.0
+}"#
+        );
     }
 }
