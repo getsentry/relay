@@ -180,8 +180,6 @@ impl ServiceState {
                 store_forwarder: store.clone(),
             },
             metric_outcomes.clone(),
-            #[cfg(feature = "processing")]
-            buffer_guard.clone(),
         )
         .spawn_handler(processor_rx);
 

@@ -24,16 +24,14 @@ use relay_protocol::{Annotated, Empty};
 use relay_quotas::DataCategory;
 use relay_spans::{otel_to_sentry_span, otel_trace::Span as OtelSpan};
 
-use crate::envelope::{ContentType, Envelope, Item, ItemType};
+use crate::envelope::{ContentType, Item, ItemType};
 use crate::metrics_extraction::metrics_summary;
 use crate::services::outcome::{DiscardReason, Outcome};
 use crate::services::processor::span::extract_transaction_span;
 use crate::services::processor::{
-    dynamic_sampling, Addrs, ProcessEnvelope, ProcessEnvelopeState, ProcessingError,
-    ProcessingGroup, SpanGroup, TransactionGroup,
+    dynamic_sampling, ProcessEnvelopeState, ProcessingError, SpanGroup, TransactionGroup,
 };
-use crate::statsd::{RelayCounters, RelayHistograms};
-use crate::utils::{sample, BufferGuard, ItemAction};
+use crate::utils::{sample, ItemAction};
 use relay_event_normalization::span::ai::extract_ai_measurements;
 use thiserror::Error;
 
@@ -45,8 +43,6 @@ pub fn process(
     state: &mut ProcessEnvelopeState<SpanGroup>,
     config: Arc<Config>,
     global_config: &GlobalConfig,
-    addrs: &Addrs,
-    buffer_guard: &BufferGuard,
 ) {
     use relay_event_normalization::RemoveOtherProcessor;
 
@@ -628,20 +624,6 @@ fn validate(span: &mut Annotated<Span>) -> Result<(), ValidationError> {
     }
 
     Ok(())
-}
-
-fn convert_to_transaction(annotated_span: &Annotated<Span>) -> Option<Event> {
-    let span = annotated_span.value()?;
-
-    // HACK: This is an exception from the JS SDK v8 and we do not want to turn it into a transaction.
-    if let Some(span_op) = span.op.value() {
-        if span_op == "http.client" && span.parent_span_id.is_empty() {
-            return None;
-        }
-    }
-
-    relay_log::trace!("Extracting transaction for span {:?}", &span.span_id);
-    Event::try_from(span).ok()
 }
 
 #[cfg(test)]

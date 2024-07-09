@@ -1,62 +1,24 @@
 //! This module defines bidirectional field mappings between spans and transactions.
 
-use crate::protocol::{
-    BrowserContext, Contexts, Event, ProfileContext, Span, SpanData, TraceContext,
-};
+use crate::protocol::{BrowserContext, Event, ProfileContext, Span, SpanData, TraceContext};
 
 impl From<&Event> for Span {
     fn from(event: &Event) -> Self {
         let Event {
-            id,
-            level,
-            version,
-            ty,
-            fingerprint,
-            culprit,
             transaction,
-            transaction_info,
-            time_spent,
-            logentry,
-            logger,
-            modules,
+
             platform,
             timestamp,
             start_timestamp,
             received,
-            server_name,
             release,
-            dist,
             environment,
-            site,
-            user,
-            request,
-            contexts,
-            breadcrumbs,
-            exceptions,
-            stacktrace,
-            template,
-            threads,
             tags,
-            extra,
-            debug_meta,
-            client_sdk,
-            ingest_path,
-            errors,
-            key_id,
-            project,
-            grouping_config,
-            checksum,
-            csp,
-            hpkp,
-            expectct,
-            expectstaple,
-            spans,
+
             measurements,
-            breakdowns,
-            scraping_attempts,
             _metrics,
             _metrics_summary,
-            other,
+            ..
         } = event;
 
         let trace = event.context::<TraceContext>();
@@ -68,6 +30,7 @@ impl From<&Event> for Span {
 
         // Overwrite specific fields:
         let span_data = data.get_or_insert_with(Default::default);
+        span_data.segment_name = transaction.clone();
         span_data.release = release.clone();
         span_data.environment = environment.clone();
         if let Some(browser) = event.context::<BrowserContext>() {
@@ -111,9 +74,6 @@ impl From<&Event> for Span {
 #[cfg(test)]
 mod tests {
     use relay_protocol::Annotated;
-    use similar_asserts::assert_eq;
-
-    use crate::protocol::{SpanData, SpanId};
 
     use super::*;
 

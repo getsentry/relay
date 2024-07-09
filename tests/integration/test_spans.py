@@ -470,18 +470,14 @@ def make_otel_span(start, end):
     }
 
 
-@pytest.mark.parametrize("extract_transaction", [False, True])
 def test_span_ingestion(
     mini_sentry,
     relay_with_processing,
     spans_consumer,
     metrics_consumer,
-    transactions_consumer,
-    extract_transaction,
 ):
     spans_consumer = spans_consumer()
     metrics_consumer = metrics_consumer()
-    transactions_consumer = transactions_consumer()
 
     relay = relay_with_processing(
         options={
@@ -502,10 +498,6 @@ def test_span_ingestion(
     project_config["config"]["transactionMetrics"] = {
         "version": TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION
     }
-    if extract_transaction:
-        project_config["config"]["features"].append(
-            "projects:extract-transaction-from-segment-span"
-        )
 
     duration = timedelta(milliseconds=500)
     now = datetime.now(timezone.utc)
@@ -692,32 +684,6 @@ def test_span_ingestion(
     ]
 
     spans_consumer.assert_empty()
-
-    # If transaction extraction is enabled, expect transactions:
-    if extract_transaction:
-        expected_transactions = 3
-
-        transactions = [
-            transactions_consumer.get_event()[0] for _ in range(expected_transactions)
-        ]
-
-        assert len(transactions) == expected_transactions
-        assert sorted([transaction["event_id"] for transaction in transactions]) == [
-            "0000000000000000a342abb1214ca181",
-            "0000000000000000b0429c44b67a3eb1",
-            "0000000000000000d342abb1214ca182",
-        ]
-        for transaction in transactions:
-            # Not checking all individual fields here, most should be tested in convert.rs
-
-            # SDK gets taken from the header:
-            if sdk := transaction.get("sdk"):
-                assert sdk == {"name": "raven-node", "version": "2.6.3"}
-
-            # No errors during normalization:
-            assert not transaction.get("errors")
-
-    transactions_consumer.assert_empty()
 
     metrics = [metric for (metric, _headers) in metrics_consumer.get_metrics()]
     metrics.sort(key=lambda m: (m["name"], sorted(m["tags"].items()), m["timestamp"]))
@@ -1077,61 +1043,6 @@ def test_span_extraction_with_metrics_summary(
     metrics_summary = metrics_summaries_consumer.get_metrics_summary()
 
     assert metrics_summary["mri"] == mri
-
-
-def test_extracted_transaction_gets_normalized(
-    mini_sentry, transactions_consumer, relay_with_processing, relay, relay_credentials
-):
-    """When normalization in processing relays has been disabled, an extracted
-    transaction still gets normalized.
-
-    This test was copied and adapted from test_store::test_relay_chain_normalization
-
-    """
-    project_id = 42
-    project_config = mini_sentry.add_full_project_config(project_id)
-    project_config["config"]["features"] = [
-        "organizations:standalone-span-ingestion",
-        "projects:extract-transaction-from-segment-span",
-        "projects:relay-otel-endpoint",
-    ]
-
-    transactions_consumer = transactions_consumer()
-
-    credentials = relay_credentials()
-    processing = relay_with_processing(
-        static_relays={
-            credentials["id"]: {
-                "public_key": credentials["public_key"],
-                "internal": True,
-            },
-        },
-        options={"processing": {"normalize": "disabled"}},
-    )
-    relay = relay(
-        processing,
-        credentials=credentials,
-        options={
-            "processing": {
-                "normalize": "full",
-            }
-        },
-    )
-
-    duration = timedelta(milliseconds=500)
-    end = datetime.now(timezone.utc) - timedelta(seconds=1)
-    start = end - duration
-    otel_payload = make_otel_span(start, end)
-
-    # Unset name to validate transaction normalization
-    del otel_payload["resourceSpans"][0]["scopeSpans"][0]["spans"][0]["name"]
-
-    relay.send_otel_span(project_id, json=otel_payload)
-
-    ingested, _ = transactions_consumer.get_event(timeout=10)
-
-    # "<unlabeled transaction>" was set by normalization:
-    assert ingested["transaction"] == "<unlabeled transaction>"
 
 
 def test_span_no_extraction_with_metrics_summary(

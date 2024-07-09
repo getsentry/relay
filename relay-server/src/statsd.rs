@@ -747,9 +747,6 @@ pub enum RelayCounters {
     /// This metric is tagged with:
     ///  - `success`: whether deserializing the global config succeeded.
     GlobalConfigFetched,
-    /// Counts how many transactions were created from segment spans.
-    #[cfg(feature = "processing")]
-    TransactionsFromSpans,
     /// The number of attachments processed in the same envelope as a user_report_v2 event.
     FeedbackAttachments,
     /// All COGS tracked values.
@@ -799,8 +796,6 @@ impl CounterMetric for RelayCounters {
             RelayCounters::MetricsTransactionNameExtracted => "metrics.transaction_name",
             RelayCounters::OpenTelemetryEvent => "event.opentelemetry",
             RelayCounters::GlobalConfigFetched => "global_config.fetch",
-            #[cfg(feature = "processing")]
-            RelayCounters::TransactionsFromSpans => "transactions_from_spans",
             RelayCounters::FeedbackAttachments => "processing.feedback_attachments",
             RelayCounters::CogsUsage => "cogs.usage",
             RelayCounters::ProjectStateFlushMetricsNoProject => "project_state.metrics.no_project",
