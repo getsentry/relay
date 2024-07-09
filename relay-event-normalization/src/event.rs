@@ -946,6 +946,7 @@ pub fn normalize_performance_score(
                     );
                 }
             }
+            break; // Stop after the first matching profile.
         }
     }
 }
@@ -3300,8 +3301,8 @@ mod tests {
                         {
                             "measurement": "inp",
                             "weight": 1.0,
-                            "p10": 0.1,
-                            "p50": 0.25
+                            "p10": 100,
+                            "p50": 2500
                         },
                     ],
                     "condition": {
@@ -3341,6 +3342,276 @@ mod tests {
             },
             "score.weight.inp": {
               "value": 1.0,
+              "unit": "ratio",
+            },
+          },
+        }
+        "###);
+    }
+
+    #[test]
+    fn test_computed_performance_score_uses_first_matching_profile() {
+        let json = r#"
+        {
+            "type": "transaction",
+            "timestamp": "2021-04-26T08:00:05+0100",
+            "start_timestamp": "2021-04-26T08:00:00+0100",
+            "measurements": {
+                "a": {"value": 213, "unit": "millisecond"},
+                "b": {"value": 213, "unit": "millisecond"}
+            },
+            "contexts": {
+                "browser": {
+                    "name": "Chrome",
+                    "version": "120.1.1",
+                    "type": "browser"
+                }
+            }
+        }
+        "#;
+
+        let mut event = Annotated::<Event>::from_json(json).unwrap().0.unwrap();
+
+        let performance_score: PerformanceScoreConfig = serde_json::from_value(json!({
+            "profiles": [
+                {
+                    "name": "Desktop",
+                    "scoreComponents": [
+                        {
+                            "measurement": "a",
+                            "weight": 0.15,
+                            "p10": 900,
+                            "p50": 1600,
+                        },
+                        {
+                            "measurement": "b",
+                            "weight": 0.30,
+                            "p10": 1200,
+                            "p50": 2400,
+                            "optional": true
+                        },
+                        {
+                            "measurement": "c",
+                            "weight": 0.55,
+                            "p10": 1200,
+                            "p50": 2400,
+                            "optional": true
+                        },
+                    ],
+                    "condition": {
+                        "op":"eq",
+                        "name": "event.contexts.browser.name",
+                        "value": "Chrome"
+                    }
+                },
+                {
+                    "name": "Default",
+                    "scoreComponents": [
+                        {
+                            "measurement": "a",
+                            "weight": 0.15,
+                            "p10": 100,
+                            "p50": 200,
+                        },
+                        {
+                            "measurement": "b",
+                            "weight": 0.30,
+                            "p10": 100,
+                            "p50": 200,
+                            "optional": true
+                        },
+                        {
+                            "measurement": "c",
+                            "weight": 0.55,
+                            "p10": 100,
+                            "p50": 200,
+                            "optional": true
+                        },
+                    ],
+                    "condition": {
+                        "op": "and",
+                        "inner": [],
+                    }
+                }
+            ]
+        }))
+        .unwrap();
+
+        normalize_performance_score(&mut event, Some(&performance_score));
+
+        insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r###"
+        {
+          "type": "transaction",
+          "timestamp": 1619420405.0,
+          "start_timestamp": 1619420400.0,
+          "contexts": {
+            "browser": {
+              "name": "Chrome",
+              "version": "120.1.1",
+              "type": "browser",
+            },
+          },
+          "measurements": {
+            "a": {
+              "value": 213.0,
+              "unit": "millisecond",
+            },
+            "b": {
+              "value": 213.0,
+              "unit": "millisecond",
+            },
+            "score.a": {
+              "value": 0.33333215313291975,
+              "unit": "ratio",
+            },
+            "score.b": {
+              "value": 0.66666415149198,
+              "unit": "ratio",
+            },
+            "score.total": {
+              "value": 0.9999963046248997,
+              "unit": "ratio",
+            },
+            "score.weight.a": {
+              "value": 0.33333333333333337,
+              "unit": "ratio",
+            },
+            "score.weight.b": {
+              "value": 0.6666666666666667,
+              "unit": "ratio",
+            },
+            "score.weight.c": {
+              "value": 0.0,
+              "unit": "ratio",
+            },
+          },
+        }
+        "###);
+    }
+
+    #[test]
+    fn test_computed_performance_score_falls_back_to_default_profile() {
+        let json = r#"
+        {
+            "type": "transaction",
+            "timestamp": "2021-04-26T08:00:05+0100",
+            "start_timestamp": "2021-04-26T08:00:00+0100",
+            "measurements": {
+                "a": {"value": 213, "unit": "millisecond"},
+                "b": {"value": 213, "unit": "millisecond"}
+            },
+            "contexts": {}
+        }
+        "#;
+
+        let mut event = Annotated::<Event>::from_json(json).unwrap().0.unwrap();
+
+        let performance_score: PerformanceScoreConfig = serde_json::from_value(json!({
+            "profiles": [
+                {
+                    "name": "Desktop",
+                    "scoreComponents": [
+                        {
+                            "measurement": "a",
+                            "weight": 0.15,
+                            "p10": 900,
+                            "p50": 1600,
+                            "optional": true
+                        },
+                        {
+                            "measurement": "b",
+                            "weight": 0.30,
+                            "p10": 1200,
+                            "p50": 2400,
+                            "optional": true
+                        },
+                        {
+                            "measurement": "c",
+                            "weight": 0.55,
+                            "p10": 1200,
+                            "p50": 2400,
+                            "optional": true
+                        },
+                    ],
+                    "condition": {
+                        "op":"eq",
+                        "name": "event.contexts.browser.name",
+                        "value": "Chrome"
+                    }
+                },
+                {
+                    "name": "Default",
+                    "scoreComponents": [
+                        {
+                            "measurement": "a",
+                            "weight": 0.15,
+                            "p10": 100,
+                            "p50": 200,
+                            "optional": true
+                        },
+                        {
+                            "measurement": "b",
+                            "weight": 0.30,
+                            "p10": 100,
+                            "p50": 200,
+                            "optional": true
+                        },
+                        {
+                            "measurement": "c",
+                            "weight": 0.55,
+                            "p10": 100,
+                            "p50": 200,
+                            "optional": true
+                        },
+                    ],
+                    "condition": {
+                        "op": "and",
+                        "inner": [],
+                    }
+                }
+            ]
+        }))
+        .unwrap();
+
+        normalize_performance_score(&mut event, Some(&performance_score));
+
+        insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r###"
+        {
+          "type": "transaction",
+          "timestamp": 1619420405.0,
+          "start_timestamp": 1619420400.0,
+          "contexts": {},
+          "measurements": {
+            "a": {
+              "value": 213.0,
+              "unit": "millisecond",
+            },
+            "b": {
+              "value": 213.0,
+              "unit": "millisecond",
+            },
+            "score.a": {
+              "value": 0.15121816827413334,
+              "unit": "ratio",
+            },
+            "score.b": {
+              "value": 0.3024363365482667,
+              "unit": "ratio",
+            },
+            "score.total": {
+              "value": 0.4536545048224,
+              "unit": "ratio",
+            },
+            "score.weight.a": {
+              "value": 0.33333333333333337,
+              "unit": "ratio",
+            },
+            "score.weight.b": {
+              "value": 0.6666666666666667,
+              "unit": "ratio",
+            },
+            "score.weight.c": {
+              "value": 0.0,
               "unit": "ratio",
             },
           },
