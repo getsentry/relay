@@ -3301,8 +3301,8 @@ mod tests {
                         {
                             "measurement": "inp",
                             "weight": 1.0,
-                            "p10": 100,
-                            "p50": 2500
+                            "p10": 0.1,
+                            "p50": 0.25
                         },
                     ],
                     "condition": {
@@ -3374,6 +3374,36 @@ mod tests {
 
         let performance_score: PerformanceScoreConfig = serde_json::from_value(json!({
             "profiles": [
+                {
+                    "name": "Mobile",
+                    "scoreComponents": [
+                        {
+                            "measurement": "a",
+                            "weight": 0.15,
+                            "p10": 100,
+                            "p50": 200,
+                        },
+                        {
+                            "measurement": "b",
+                            "weight": 0.30,
+                            "p10": 100,
+                            "p50": 200,
+                            "optional": true
+                        },
+                        {
+                            "measurement": "c",
+                            "weight": 0.55,
+                            "p10": 100,
+                            "p50": 200,
+                            "optional": true
+                        },
+                    ],
+                    "condition": {
+                        "op":"eq",
+                        "name": "event.contexts.browser.name",
+                        "value": "Chrome Mobile"
+                    }
+                },
                 {
                     "name": "Desktop",
                     "scoreComponents": [
@@ -3508,6 +3538,37 @@ mod tests {
 
         let performance_score: PerformanceScoreConfig = serde_json::from_value(json!({
             "profiles": [
+                {
+                    "name": "Mobile",
+                    "scoreComponents": [
+                        {
+                            "measurement": "a",
+                            "weight": 0.15,
+                            "p10": 900,
+                            "p50": 1600,
+                            "optional": true
+                        },
+                        {
+                            "measurement": "b",
+                            "weight": 0.30,
+                            "p10": 1200,
+                            "p50": 2400,
+                            "optional": true
+                        },
+                        {
+                            "measurement": "c",
+                            "weight": 0.55,
+                            "p10": 1200,
+                            "p50": 2400,
+                            "optional": true
+                        },
+                    ],
+                    "condition": {
+                        "op":"eq",
+                        "name": "event.contexts.browser.name",
+                        "value": "Chrome Mobile"
+                    }
+                },
                 {
                     "name": "Desktop",
                     "scoreComponents": [
