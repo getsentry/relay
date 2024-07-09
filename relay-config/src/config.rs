@@ -2365,7 +2365,7 @@ impl Config {
             flush_batching: _,
             aggregate,
         } = self.default_aggregator_config().aggregator;
-      
+
         for secondary_config in self.secondary_aggregator_configs() {
             let agg = &secondary_config.config.aggregator;
 
