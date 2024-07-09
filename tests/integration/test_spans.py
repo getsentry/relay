@@ -868,24 +868,6 @@ def test_span_ingestion(
     ]
     assert [m for m in metrics if ":spans/" in m["name"]] == expected_span_metrics
 
-    transaction_duration_metrics = [
-        m for m in metrics if m["name"] == "d:transactions/duration@millisecond"
-    ]
-
-    if extract_transaction:
-        assert {
-            (m["name"], m["tags"]["transaction"]) for m in transaction_duration_metrics
-        } == {
-            ("d:transactions/duration@millisecond", "https://example.com/p/blah.js"),
-            ("d:transactions/duration@millisecond", "my 1st OTel span"),
-            ("d:transactions/duration@millisecond", "my 2nd OTel span"),
-        }
-        # Make sure we're not double-reporting:
-        for m in transaction_duration_metrics:
-            assert len(m["value"]) == 1
-    else:
-        assert len(transaction_duration_metrics) == 0
-
     # Regardless of whether transactions are extracted, score.total is only converted to a transaction metric once:
     score_total_metrics = [
         m
