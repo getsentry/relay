@@ -938,13 +938,6 @@
 <a href="#938" id="938">938</a>
 <a href="#939" id="939">939</a>
 <a href="#940" id="940">940</a>
-<a href="#941" id="941">941</a>
-<a href="#942" id="942">942</a>
-<a href="#943" id="943">943</a>
-<a href="#944" id="944">944</a>
-<a href="#945" id="945">945</a>
-<a href="#946" id="946">946</a>
-<a href="#947" id="947">947</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_base_schema::data_category::DataCategory;
 <span class="kw">use </span>relay_common::glob2::LazyGlob;
 <span class="kw">use </span>relay_event_normalization::utils::MAX_DURATION_MOBILE_MS;
@@ -1048,18 +1041,11 @@
             .is_enabled = <span class="bool-val">true</span>;
     }
 
-    <span class="comment">// Enable transaction metrics for span (score.total), but only if double-write to transactions
-    // is disabled.
-    </span><span class="kw">if </span>!project_config
-        .features
-        .has(Feature::ExtractTransactionFromSegmentSpan)
-    {
-        <span class="kw">let </span>span_metrics_tx = config
-            .global_groups
-            .entry(GroupKey::SpanMetricsTx)
-            .or_default();
-        span_metrics_tx.is_enabled = <span class="bool-val">true</span>;
-    }
+    <span class="kw">let </span>span_metrics_tx = config
+        .global_groups
+        .entry(GroupKey::SpanMetricsTx)
+        .or_default();
+    span_metrics_tx.is_enabled = <span class="bool-val">true</span>;
 
     config._span_metrics_extended = <span class="bool-val">true</span>;
     <span class="kw">if </span>config.version == <span class="number">0 </span>{

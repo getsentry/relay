@@ -868,19 +868,6 @@
 <a href="#868" id="868">868</a>
 <a href="#869" id="869">869</a>
 <a href="#870" id="870">870</a>
-<a href="#871" id="871">871</a>
-<a href="#872" id="872">872</a>
-<a href="#873" id="873">873</a>
-<a href="#874" id="874">874</a>
-<a href="#875" id="875">875</a>
-<a href="#876" id="876">876</a>
-<a href="#877" id="877">877</a>
-<a href="#878" id="878">878</a>
-<a href="#879" id="879">879</a>
-<a href="#880" id="880">880</a>
-<a href="#881" id="881">881</a>
-<a href="#882" id="882">882</a>
-<a href="#883" id="883">883</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric, TimerMetric};
 <span class="attr">#[cfg(doc)]
 </span><span class="kw">use </span>tokio::runtime::RuntimeMetrics;
@@ -1158,10 +1145,6 @@
     /// If it is not, this metric should expose it.
     </span>PartitionKeys,
 
-    <span class="doccomment">/// Measures how many transactions were created from segment spans in a single envelope.
-    </span><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-    </span>TransactionsFromSpansPerEnvelope,
-
     <span class="doccomment">/// Measures how many splits were performed when sending out a partition.
     </span>PartitionSplits,
 }
@@ -1197,10 +1180,6 @@
             RelayHistograms::UpstreamEnvelopeBodySize =&gt; <span class="string">"upstream.envelope.body_size"</span>,
             RelayHistograms::UpstreamMetricsBodySize =&gt; <span class="string">"upstream.metrics.body_size"</span>,
             RelayHistograms::PartitionKeys =&gt; <span class="string">"metrics.buckets.partition_keys"</span>,
-            <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-            </span>RelayHistograms::TransactionsFromSpansPerEnvelope =&gt; {
-                <span class="string">"transactions_from_spans_per_envelope"
-            </span>}
             RelayHistograms::PartitionSplits =&gt; <span class="string">"partition_splits"</span>,
         }
     }
@@ -1638,9 +1617,6 @@
     /// This metric is tagged with:
     ///  - `success`: whether deserializing the global config succeeded.
     </span>GlobalConfigFetched,
-    <span class="doccomment">/// Counts how many transactions were created from segment spans.
-    </span><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-    </span>TransactionsFromSpans,
     <span class="doccomment">/// The number of attachments processed in the same envelope as a user_report_v2 event.
     </span>FeedbackAttachments,
     <span class="doccomment">/// All COGS tracked values.
@@ -1690,8 +1666,6 @@
             RelayCounters::MetricsTransactionNameExtracted =&gt; <span class="string">"metrics.transaction_name"</span>,
             RelayCounters::OpenTelemetryEvent =&gt; <span class="string">"event.opentelemetry"</span>,
             RelayCounters::GlobalConfigFetched =&gt; <span class="string">"global_config.fetch"</span>,
-            <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-            </span>RelayCounters::TransactionsFromSpans =&gt; <span class="string">"transactions_from_spans"</span>,
             RelayCounters::FeedbackAttachments =&gt; <span class="string">"processing.feedback_attachments"</span>,
             RelayCounters::CogsUsage =&gt; <span class="string">"cogs.usage"</span>,
             RelayCounters::ProjectStateFlushMetricsNoProject =&gt; <span class="string">"project_state.metrics.no_project"</span>,

@@ -854,92 +854,6 @@
 <a href="#854" id="854">854</a>
 <a href="#855" id="855">855</a>
 <a href="#856" id="856">856</a>
-<a href="#857" id="857">857</a>
-<a href="#858" id="858">858</a>
-<a href="#859" id="859">859</a>
-<a href="#860" id="860">860</a>
-<a href="#861" id="861">861</a>
-<a href="#862" id="862">862</a>
-<a href="#863" id="863">863</a>
-<a href="#864" id="864">864</a>
-<a href="#865" id="865">865</a>
-<a href="#866" id="866">866</a>
-<a href="#867" id="867">867</a>
-<a href="#868" id="868">868</a>
-<a href="#869" id="869">869</a>
-<a href="#870" id="870">870</a>
-<a href="#871" id="871">871</a>
-<a href="#872" id="872">872</a>
-<a href="#873" id="873">873</a>
-<a href="#874" id="874">874</a>
-<a href="#875" id="875">875</a>
-<a href="#876" id="876">876</a>
-<a href="#877" id="877">877</a>
-<a href="#878" id="878">878</a>
-<a href="#879" id="879">879</a>
-<a href="#880" id="880">880</a>
-<a href="#881" id="881">881</a>
-<a href="#882" id="882">882</a>
-<a href="#883" id="883">883</a>
-<a href="#884" id="884">884</a>
-<a href="#885" id="885">885</a>
-<a href="#886" id="886">886</a>
-<a href="#887" id="887">887</a>
-<a href="#888" id="888">888</a>
-<a href="#889" id="889">889</a>
-<a href="#890" id="890">890</a>
-<a href="#891" id="891">891</a>
-<a href="#892" id="892">892</a>
-<a href="#893" id="893">893</a>
-<a href="#894" id="894">894</a>
-<a href="#895" id="895">895</a>
-<a href="#896" id="896">896</a>
-<a href="#897" id="897">897</a>
-<a href="#898" id="898">898</a>
-<a href="#899" id="899">899</a>
-<a href="#900" id="900">900</a>
-<a href="#901" id="901">901</a>
-<a href="#902" id="902">902</a>
-<a href="#903" id="903">903</a>
-<a href="#904" id="904">904</a>
-<a href="#905" id="905">905</a>
-<a href="#906" id="906">906</a>
-<a href="#907" id="907">907</a>
-<a href="#908" id="908">908</a>
-<a href="#909" id="909">909</a>
-<a href="#910" id="910">910</a>
-<a href="#911" id="911">911</a>
-<a href="#912" id="912">912</a>
-<a href="#913" id="913">913</a>
-<a href="#914" id="914">914</a>
-<a href="#915" id="915">915</a>
-<a href="#916" id="916">916</a>
-<a href="#917" id="917">917</a>
-<a href="#918" id="918">918</a>
-<a href="#919" id="919">919</a>
-<a href="#920" id="920">920</a>
-<a href="#921" id="921">921</a>
-<a href="#922" id="922">922</a>
-<a href="#923" id="923">923</a>
-<a href="#924" id="924">924</a>
-<a href="#925" id="925">925</a>
-<a href="#926" id="926">926</a>
-<a href="#927" id="927">927</a>
-<a href="#928" id="928">928</a>
-<a href="#929" id="929">929</a>
-<a href="#930" id="930">930</a>
-<a href="#931" id="931">931</a>
-<a href="#932" id="932">932</a>
-<a href="#933" id="933">933</a>
-<a href="#934" id="934">934</a>
-<a href="#935" id="935">935</a>
-<a href="#936" id="936">936</a>
-<a href="#937" id="937">937</a>
-<a href="#938" id="938">938</a>
-<a href="#939" id="939">939</a>
-<a href="#940" id="940">940</a>
-<a href="#941" id="941">941</a>
-<a href="#942" id="942">942</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Contains the processing-only functionality.
 
 </span><span class="kw">use </span>std::error::Error;
@@ -966,16 +880,14 @@
 <span class="kw">use </span>relay_quotas::DataCategory;
 <span class="kw">use </span>relay_spans::{otel_to_sentry_span, otel_trace::Span <span class="kw">as </span>OtelSpan};
 
-<span class="kw">use </span><span class="kw">crate</span>::envelope::{ContentType, Envelope, Item, ItemType};
+<span class="kw">use </span><span class="kw">crate</span>::envelope::{ContentType, Item, ItemType};
 <span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::metrics_summary;
 <span class="kw">use </span><span class="kw">crate</span>::services::outcome::{DiscardReason, Outcome};
 <span class="kw">use </span><span class="kw">crate</span>::services::processor::span::extract_transaction_span;
 <span class="kw">use </span><span class="kw">crate</span>::services::processor::{
-    dynamic_sampling, Addrs, ProcessEnvelope, ProcessEnvelopeState, ProcessingError,
-    ProcessingGroup, SpanGroup, TransactionGroup,
+    dynamic_sampling, ProcessEnvelopeState, ProcessingError, SpanGroup, TransactionGroup,
 };
-<span class="kw">use </span><span class="kw">crate</span>::statsd::{RelayCounters, RelayHistograms};
-<span class="kw">use </span><span class="kw">crate</span>::utils::{sample, BufferGuard, ItemAction};
+<span class="kw">use </span><span class="kw">crate</span>::utils::{sample, ItemAction};
 <span class="kw">use </span>relay_event_normalization::span::ai::extract_ai_measurements;
 <span class="kw">use </span>thiserror::Error;
 
@@ -987,8 +899,6 @@
     state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;SpanGroup&gt;,
     config: Arc&lt;Config&gt;,
     global_config: <span class="kw-2">&amp;</span>GlobalConfig,
-    addrs: <span class="kw-2">&amp;</span>Addrs,
-    buffer_guard: <span class="kw-2">&amp;</span>BufferGuard,
 ) {
     <span class="kw">use </span>relay_event_normalization::RemoveOtherProcessor;
 
@@ -1023,11 +933,6 @@
         <span class="kw-2">&amp;</span>user_agent_info,
     );
 
-    <span class="kw">let </span><span class="kw-2">mut </span>extracted_transactions = <span class="macro">vec!</span>[];
-    <span class="kw">let </span>should_extract_transactions = state
-        .project_state
-        .has_feature(Feature::ExtractTransactionFromSegmentSpan);
-
     <span class="kw">let </span>client_ip = state.managed_envelope.envelope().meta().client_addr();
     <span class="kw">let </span>filter_settings = <span class="kw-2">&amp;</span>state.project_state.config.filter_settings;
 
@@ -1053,13 +958,6 @@
         };
 
         set_segment_attributes(<span class="kw-2">&amp;mut </span>annotated_span);
-
-        <span class="kw">if </span>should_extract_transactions &amp;&amp; !item.transaction_extracted() {
-            <span class="kw">if let </span><span class="prelude-val">Some</span>(transaction) = convert_to_transaction(<span class="kw-2">&amp;</span>annotated_span) {
-                extracted_transactions.push(transaction);
-                item.set_transaction_extracted(<span class="bool-val">true</span>);
-            }
-        }
 
         <span class="kw">if let </span><span class="prelude-val">Err</span>(e) = normalize(
             <span class="kw-2">&amp;mut </span>annotated_span,
@@ -1176,62 +1074,6 @@
             outcome,
             DataCategory::SpanIndexed,
             dynamic_sampling_dropped_spans,
-        );
-    }
-
-    <span class="kw">let </span><span class="kw-2">mut </span>transaction_count = <span class="number">0</span>;
-    <span class="kw">for </span>transaction <span class="kw">in </span>extracted_transactions {
-        <span class="comment">// Enqueue a full processing request for every extracted transaction item.
-        </span><span class="kw">match </span>Envelope::try_from_event(state.envelope().headers().clone(), transaction) {
-            <span class="prelude-val">Ok</span>(<span class="kw-2">mut </span>envelope) =&gt; {
-                <span class="comment">// In order to force normalization, treat as external:
-                </span>envelope.meta_mut().set_from_internal_relay(<span class="bool-val">false</span>);
-
-                <span class="comment">// We don't want to extract spans or span metrics from a transaction extracted from spans,
-                // so set the spans_extracted flag:
-                </span><span class="kw">for </span>item <span class="kw">in </span>envelope.items_mut() {
-                    item.set_spans_extracted(<span class="bool-val">true</span>);
-                }
-
-                transaction_count += <span class="number">1</span>;
-
-                <span class="kw">let </span>managed_envelope = buffer_guard.enter(
-                    envelope,
-                    addrs.outcome_aggregator.clone(),
-                    addrs.test_store.clone(),
-                    ProcessingGroup::Transaction,
-                );
-
-                <span class="kw">match </span>managed_envelope {
-                    <span class="prelude-val">Ok</span>(managed_envelope) =&gt; {
-                        addrs.envelope_processor.send(ProcessEnvelope {
-                            envelope: managed_envelope,
-                            project_state: state.project_state.clone(),
-                            sampling_project_state: state.sampling_project_state.clone(),
-                            reservoir_counters: state.reservoir.counters(),
-                        });
-                    }
-                    <span class="prelude-val">Err</span>(e) =&gt; {
-                        <span class="macro">relay_log::error!</span>(
-                            error = <span class="kw-2">&amp;</span>e <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error,
-                            <span class="string">"Failed to obtain permit for spinoff envelope:"
-                        </span>);
-                    }
-                }
-            }
-            <span class="prelude-val">Err</span>(e) =&gt; {
-                <span class="macro">relay_log::error!</span>(
-                    error = <span class="kw-2">&amp;</span>e <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error,
-                    <span class="string">"Failed to create spinoff envelope:"
-                </span>);
-            }
-        }
-    }
-
-    <span class="kw">if </span>transaction_count &gt; <span class="number">0 </span>{
-        <span class="macro">relay_statsd::metric!</span>(counter(RelayCounters::TransactionsFromSpans) += transaction_count);
-        <span class="macro">relay_statsd::metric!</span>(
-            histogram(RelayHistograms::TransactionsFromSpansPerEnvelope) = transaction_count <span class="kw">as </span>u64
         );
     }
 }
@@ -1631,20 +1473,6 @@
     }
 
     <span class="prelude-val">Ok</span>(())
-}
-
-<span class="kw">fn </span>convert_to_transaction(annotated_span: <span class="kw-2">&amp;</span>Annotated&lt;Span&gt;) -&gt; <span class="prelude-ty">Option</span>&lt;Event&gt; {
-    <span class="kw">let </span>span = annotated_span.value()<span class="question-mark">?</span>;
-
-    <span class="comment">// HACK: This is an exception from the JS SDK v8 and we do not want to turn it into a transaction.
-    </span><span class="kw">if let </span><span class="prelude-val">Some</span>(span_op) = span.op.value() {
-        <span class="kw">if </span>span_op == <span class="string">"http.client" </span>&amp;&amp; span.parent_span_id.is_empty() {
-            <span class="kw">return </span><span class="prelude-val">None</span>;
-        }
-    }
-
-    <span class="macro">relay_log::trace!</span>(<span class="string">"Extracting transaction for span {:?}"</span>, <span class="kw-2">&amp;</span>span.span_id);
-    Event::try_from(span).ok()
 }
 
 <span class="attr">#[cfg(test)]
