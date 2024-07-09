@@ -3,7 +3,10 @@ import json
 import uuid
 from collections import Counter
 from datetime import datetime, timedelta, timezone, UTC
-from .consts import TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION
+from .consts import (
+    TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION,
+    METRICS_EXTRACTION_MIN_SUPPORTED_VERSION,
+)
 
 import pytest
 from opentelemetry.proto.common.v1.common_pb2 import AnyValue, KeyValue
@@ -175,9 +178,9 @@ def test_span_extraction(
 @pytest.mark.parametrize(
     "sample_rate,expected_spans,expected_metrics",
     [
-        (None, 2, True),
-        (1.0, 2, True),
-        (0.0, 0, False),
+        (None, 2, 6),
+        (1.0, 2, 6),
+        (0.0, 0, 0),
     ],
 )
 def test_span_extraction_with_sampling(
@@ -231,7 +234,7 @@ def test_span_extraction_with_sampling(
 
     metrics = metrics_consumer.get_metrics()
     span_metrics = [m for (m, _) in metrics if ":spans/" in m["name"]]
-    assert bool(span_metrics) == expected_metrics
+    assert len(span_metrics) == expected_metrics
 
     spans_consumer.assert_empty()
     metrics_consumer.assert_empty()
@@ -795,6 +798,30 @@ def test_span_ingestion(
             "received_at": time_after(now_timestamp),
         },
         {
+            "name": "d:spans/duration@millisecond",
+            "org_id": 1,
+            "project_id": 42,
+            "retention_days": 90,
+            "tags": {
+                "span.op": "default",
+            },
+            "timestamp": expected_timestamp,
+            "type": "d",
+            "value": [500.0, 500.0],
+            "received_at": time_after(now_timestamp),
+        },
+        {
+            "name": "d:spans/duration@millisecond",
+            "org_id": 1,
+            "project_id": 42,
+            "retention_days": 90,
+            "tags": {"span.op": "default"},
+            "timestamp": expected_timestamp + 1,
+            "type": "d",
+            "value": [1500.0, 1500.0],
+            "received_at": time_after(now_timestamp),
+        },
+        {
             "org_id": 1,
             "project_id": 42,
             "name": "d:spans/exclusive_time@millisecond",
@@ -821,6 +848,28 @@ def test_span_ingestion(
             "timestamp": expected_timestamp,
             "type": "d",
             "value": [500.0],
+            "received_at": time_after(now_timestamp),
+        },
+        {
+            "name": "d:spans/exclusive_time@millisecond",
+            "org_id": 1,
+            "project_id": 42,
+            "retention_days": 90,
+            "tags": {"span.op": "default"},
+            "timestamp": expected_timestamp,
+            "type": "d",
+            "value": [500.0, 500.0],
+            "received_at": time_after(now_timestamp),
+        },
+        {
+            "name": "d:spans/exclusive_time@millisecond",
+            "org_id": 1,
+            "project_id": 42,
+            "retention_days": 90,
+            "tags": {"span.op": "default"},
+            "timestamp": expected_timestamp + 1,
+            "type": "d",
+            "value": [345.0, 345.0],
             "received_at": time_after(now_timestamp),
         },
         {
@@ -1607,7 +1656,7 @@ def test_rate_limit_consistent_extracted(
     assert len(spans) == 2
     assert summarize_outcomes() == {(16, 0): 2}  # SpanIndexed, Accepted
     # A limit only for span_indexed does not affect extracted metrics
-    metrics = metrics_consumer.get_metrics(n=6)
+    metrics = metrics_consumer.get_metrics(n=10)
     span_count = sum(
         [m[0]["value"] for m in metrics if m[0]["name"] == "c:spans/usage@none"]
     )
@@ -1684,21 +1733,15 @@ def test_rate_limit_spans_in_envelope(
     metrics_consumer.assert_empty()
 
 
-@pytest.mark.parametrize(
-    "category,raises_rate_limited",
-    [
-        ("transaction", True),
-        ("transaction_indexed", False),
-    ],
-)
+@pytest.mark.parametrize("category", ["transaction", "transaction_indexed"])
 def test_rate_limit_is_consistent_between_transaction_and_spans(
     mini_sentry,
     relay_with_processing,
     transactions_consumer,
     spans_consumer,
+    metrics_consumer,
     outcomes_consumer,
     category,
-    raises_rate_limited,
 ):
     """
     Rate limits are consistent between transactions and nested spans.
@@ -1727,17 +1770,30 @@ def test_rate_limit_is_consistent_between_transaction_and_spans(
     transactions_consumer = transactions_consumer()
     spans_consumer = spans_consumer()
     outcomes_consumer = outcomes_consumer()
+    metrics_consumer = metrics_consumer()
 
-    start = datetime.now(timezone.utc)
-    end = start + timedelta(seconds=1)
-
-    envelope = envelope_with_transaction_and_spans(start, end)
+    def usage_metrics():
+        metrics = metrics_consumer.get_metrics()
+        transaction_count = sum(
+            m[0]["value"]
+            for m in metrics
+            if m[0]["name"] == "c:transactions/usage@none"
+        )
+        span_count = sum(
+            m[0]["value"] for m in metrics if m[0]["name"] == "c:spans/usage@none"
+        )
+        return (transaction_count, span_count)
 
     def summarize_outcomes():
         counter = Counter()
         for outcome in outcomes_consumer.get_outcomes(timeout=10):
             counter[(outcome["category"], outcome["outcome"])] += outcome["quantity"]
         return dict(counter)
+
+    start = datetime.now(timezone.utc)
+    end = start + timedelta(seconds=1)
+
+    envelope = envelope_with_transaction_and_spans(start, end)
 
     # First batch passes
     relay.send_envelope(project_id, envelope)
@@ -1748,6 +1804,7 @@ def test_rate_limit_is_consistent_between_transaction_and_spans(
     spans = spans_consumer.get_spans(n=2, timeout=10)
     assert len(spans) == 2
     assert summarize_outcomes() == {(16, 0): 2}  # SpanIndexed, Accepted
+    assert usage_metrics() == (1, 2)
 
     # Second batch nothing passes
     relay.send_envelope(project_id, envelope)
@@ -1761,17 +1818,18 @@ def test_rate_limit_is_consistent_between_transaction_and_spans(
             (12, 2): 2,  # Span, Rate Limited
             (16, 2): 2,  # SpanIndexed, Rate Limited
         }
+        assert usage_metrics() == (0, 0)
     elif category == "transaction_indexed":
         assert summarize_outcomes() == {
             (9, 2): 1,  # TransactionIndexed, Rate Limited
-            (12, 2): 2,  # Span, Rate Limited
             (16, 2): 2,  # SpanIndexed, Rate Limited
         }
+        assert usage_metrics() == (1, 2)
 
     # Third batch might raise 429 since it hits the fast path
     maybe_raises = (
         pytest.raises(HTTPError, match="429 Client Error")
-        if raises_rate_limited
+        if category == "transaction"
         else contextlib.nullcontext()
     )
     with maybe_raises:
@@ -1784,15 +1842,13 @@ def test_rate_limit_is_consistent_between_transaction_and_spans(
             (12, 2): 2,  # Span, Rate Limited
             (16, 2): 2,  # SpanIndexed, Rate Limited
         }
+        assert usage_metrics() == (0, 0)
     elif category == "transaction_indexed":
         assert summarize_outcomes() == {
             (9, 2): 1,  # TransactionIndexed, Rate Limited
-            (12, 2): 2,  # Span, Rate Limited
             (16, 2): 2,  # SpanIndexed, Rate Limited
         }
-
-    transactions_consumer.assert_empty()
-    spans_consumer.assert_empty()
+        assert usage_metrics() == (1, 2)
 
 
 @pytest.mark.parametrize(
@@ -2012,3 +2068,117 @@ def test_dynamic_sampling(
 
     spans_consumer.assert_empty()
     outcomes_consumer.assert_empty()
+
+
+def test_metrics_summary_with_extracted_spans(
+    mini_sentry,
+    relay_with_processing,
+    metrics_summaries_consumer,
+):
+    metrics_summaries_consumer = metrics_summaries_consumer()
+
+    relay = relay_with_processing()
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = [
+        "organizations:custom-metrics",
+        "projects:span-metrics-extraction",
+        "organizations:indexed-spans-extraction",
+    ]
+    project_config["config"]["transactionMetrics"] = {
+        "version": TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION,
+    }
+    project_config["config"]["metricExtraction"] = {
+        "version": METRICS_EXTRACTION_MIN_SUPPORTED_VERSION,
+        "metrics": [
+            {
+                "category": "span",
+                "mri": "d:custom/my_metric@millisecond",
+                "field": "span.duration",
+            }
+        ],
+    }
+
+    event = make_transaction({"event_id": "cbf6960622e14a45abc1f03b2055b186"})
+    end = datetime.now(timezone.utc) - timedelta(seconds=1)
+    duration = timedelta(milliseconds=500)
+    start = end - duration
+    event["spans"] = [
+        {
+            "description": "GET /api/0/organizations/?member=1",
+            "op": "http",
+            "origin": "manual",
+            "parent_span_id": "aaaaaaaaaaaaaaaa",
+            "span_id": "bbbbbbbbbbbbbbbb",
+            "start_timestamp": start.isoformat(),
+            "status": "success",
+            "timestamp": end.isoformat(),
+            "trace_id": "ff62a8b040f340bda5d830223def1d81",
+        },
+    ]
+
+    mri = "c:spans/some_metric@none"
+    metrics_summary = {
+        mri: [
+            {
+                "min": 1.0,
+                "max": 2.0,
+                "sum": 3.0,
+                "count": 4,
+                "tags": {
+                    "environment": "test",
+                },
+            },
+        ],
+    }
+    event["_metrics_summary"] = metrics_summary
+
+    relay.send_event(project_id, event)
+
+    metrics_summaries = metrics_summaries_consumer.get_metrics_summaries(
+        timeout=10.0, n=3
+    )
+    expected_mris = ["c:spans/some_metric@none", "d:custom/my_metric@millisecond"]
+    for metric_summary in metrics_summaries:
+        assert metric_summary["mri"] in expected_mris
+
+
+def test_metrics_summary_with_standalone_spans(
+    mini_sentry,
+    relay_with_processing,
+    metrics_summaries_consumer,
+):
+    metrics_summaries_consumer = metrics_summaries_consumer()
+
+    relay = relay_with_processing()
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = [
+        "projects:span-metrics-extraction",
+        "organizations:standalone-span-ingestion",
+    ]
+    project_config["config"]["metricExtraction"] = {
+        "version": METRICS_EXTRACTION_MIN_SUPPORTED_VERSION,
+        "metrics": [
+            {
+                "category": "span",
+                "mri": "d:custom/my_metric@millisecond",
+                "field": "span.duration",
+            }
+        ],
+    }
+
+    duration = timedelta(milliseconds=500)
+    now = datetime.now(timezone.utc)
+    end = now - timedelta(seconds=1)
+    start = end - duration
+
+    envelope = envelope_with_spans(start, end)
+    relay.send_envelope(project_id, envelope)
+
+    metrics_summaries = metrics_summaries_consumer.get_metrics_summaries(
+        timeout=10.0, n=4
+    )
+    expected_mris = ["c:spans/some_metric@none", "d:custom/my_metric@millisecond"]
+    for metric_summary in metrics_summaries:
+        assert metric_summary["mri"] in expected_mris

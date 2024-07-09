@@ -864,7 +864,7 @@ def test_transaction_metrics(
         assert_transaction()
         assert_transaction()
 
-    metrics = metrics_by_name(metrics_consumer, count=8, timeout=6)
+    metrics = metrics_by_name(metrics_consumer, count=10, timeout=6)
 
     timestamp = int(timestamp.timestamp())
     common = {
@@ -1381,11 +1381,27 @@ def test_limit_custom_measurements(
     }
 
 
+@pytest.mark.parametrize(
+    "sent_description, expected_description",
+    [
+        (
+            "SELECT column FROM table1 WHERE another_col = %s",
+            "SELECT column FROM table1 WHERE another_col = %s",
+        ),
+        (
+            "SELECT column FROM table1 WHERE another_col = %s AND yet_another_col = something_very_longgggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg",
+            "SELECT column FROM table1 WHERE another_col = %s AND yet_another_col = something_very_longggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg*",
+        ),
+    ],
+    ids=["Must not truncate short descriptions", "Must truncate long descriptions"],
+)
 def test_span_metrics(
     transactions_consumer,
     metrics_consumer,
     mini_sentry,
     relay_with_processing,
+    sent_description,
+    expected_description,
 ):
     project_id = 42
     mini_sentry.add_full_project_config(project_id)
@@ -1413,7 +1429,7 @@ def test_span_metrics(
         },
         "spans": [
             {
-                "description": "SELECT column FROM table1 WHERE another_col = %s",
+                "description": sent_description,
                 "op": "db",
                 "parent_span_id": "8f5a2b8768cafb4e",
                 "span_id": "bd429c44b67a3eb4",
@@ -1435,14 +1451,9 @@ def test_span_metrics(
     processing.send_transaction(project_id, transaction)
 
     transaction, _ = tx_consumer.get_event()
-    assert (
-        transaction["spans"][0]["description"]
-        == "SELECT column FROM table1 WHERE another_col = %s"
-    )
+    assert transaction["spans"][0]["description"] == sent_description
 
-    expected_group = hashlib.md5(
-        "SELECT column FROM table1 WHERE another_col = %s".encode("utf-8")
-    ).hexdigest()[:16]
+    expected_group = hashlib.md5(sent_description.encode("utf-8")).hexdigest()[:16]
 
     metrics = metrics_consumer.get_metrics()
     span_metrics = [
@@ -1450,7 +1461,7 @@ def test_span_metrics(
         for metric, headers in metrics
         if metric["name"].startswith("spans", 2)
     ]
-    assert len(span_metrics) == 4
+    assert len(span_metrics) == 6
     for metric, headers in span_metrics:
         assert headers == [("namespace", b"spans")]
         if metric["name"] in (
@@ -1461,10 +1472,7 @@ def test_span_metrics(
 
         # Ignore transaction spans
         if metric["tags"]["span.op"] != "my-transaction-op":
-            assert (
-                metric["tags"]["span.description"]
-                == "SELECT column FROM table1 WHERE another_col = %s"
-            ), metric
+            assert metric["tags"]["span.description"] == expected_description, metric
             assert metric["tags"]["span.group"] == expected_group, metric
 
 
@@ -1607,8 +1615,52 @@ def test_span_metrics_secondary_aggregator(
     processing.send_transaction(project_id, transaction)
 
     metrics = metrics_consumer.get_metrics()
-    # Transaction metrics are still stuck in the aggregator:
+    # Transaction metrics are still aggregated:
     assert all([m[0]["name"].startswith("spans", 2) for m in metrics])
+
+    span_metrics = [
+        (metric, headers)
+        for metric, headers in metrics
+        if metric["name"] == "d:spans/exclusive_time@millisecond"
+    ]
+    span_metrics.sort(key=lambda m: m[0]["tags"]["span.op"])
+    timestamp = int(timestamp.timestamp())
+    assert span_metrics == [
+        (
+            {
+                "name": "d:spans/exclusive_time@millisecond",
+                "org_id": 1,
+                "project_id": 42,
+                "retention_days": 90,
+                "tags": {
+                    "span.action": "SELECT",
+                    "span.description": "SELECT %s*",
+                    "span.category": "db",
+                    "span.domain": ",foo,",
+                    "span.op": "db",
+                },
+                "timestamp": time_after(timestamp),
+                "type": "d",
+                "value": [123.0],
+                "received_at": time_after(timestamp),
+            },
+            [("namespace", b"spans")],
+        ),
+        (
+            {
+                "name": "d:spans/exclusive_time@millisecond",
+                "org_id": 1,
+                "project_id": 42,
+                "retention_days": 90,
+                "tags": {"span.op": "default"},
+                "timestamp": time_after(timestamp),
+                "type": "d",
+                "value": [3.0],
+                "received_at": time_after(timestamp),
+            },
+            [("namespace", b"spans")],
+        ),
+    ]
 
 
 def test_custom_metrics_disabled(mini_sentry, relay_with_processing, metrics_consumer):

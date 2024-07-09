@@ -34,7 +34,7 @@ docker run \
   -v "$(pwd):/work" \
   -e SKIP_RELAY_LIB_BUILD=1 \
   -e CARGO_BUILD_TARGET \
-  quay.io/pypa/manylinux2014_${TARGET} \
+  quay.io/pypa/manylinux_2_28_${TARGET} \
   sh manylinux.sh
 
 # Fix permissions for shared directories

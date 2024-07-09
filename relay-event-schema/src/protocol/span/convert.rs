@@ -154,6 +154,8 @@ macro_rules! map_fields {
 // This macro call implements a bidirectional mapping between transaction event and segment spans,
 // allowing users to call both `Event::from(&span)` and `Span::from(&event)`.
 map_fields!(
+    // Data must go first to ensure it doesn't overwrite more specific fields
+    span.data <=> event.contexts.trace.data,
     span._metrics_summary <=> event._metrics_summary,
     span.description <=> event.transaction,
     span.data.segment_name <=> event.transaction,
@@ -188,6 +190,7 @@ map_fields!(
 #[cfg(test)]
 mod tests {
     use relay_protocol::Annotated;
+    use similar_asserts::assert_eq;
 
     use crate::protocol::{SpanData, SpanId};
 
@@ -214,7 +217,10 @@ mod tests {
                         "op": "myop",
                         "status": "ok",
                         "exclusive_time": 123.4,
-                        "parent_span_id": "FA90FDEAD5F74051"
+                        "parent_span_id": "FA90FDEAD5F74051",
+                        "data": {
+                            "custom_attribute": 42
+                        }
                     }
                 },
                 "_metrics_summary": {
@@ -300,6 +306,7 @@ mod tests {
                 ai_input_messages: ~,
                 ai_responses: ~,
                 thread_name: ~,
+                thread_id: ~,
                 segment_name: "my 1st transaction",
                 ui_component_name: ~,
                 url_scheme: ~,
@@ -319,7 +326,13 @@ mod tests {
                 user_agent_original: ~,
                 url_full: ~,
                 client_address: ~,
-                other: {},
+                other: {
+                    "custom_attribute": I64(
+                        42,
+                    ),
+                    "previousRoute": ~,
+                    "route": ~,
+                },
             },
             sentry_tags: ~,
             received: ~,
@@ -358,6 +371,21 @@ mod tests {
 
         let event_id = event_from_span.id.value_mut().take().unwrap();
         assert_eq!(&event_id.to_string(), "0000000000000000fa90fdead5f74052");
+
+        // Before comparing, remove any additional data that was injected into trace data during
+        // span conversion. Note that the keys are renamed on the `SpanData` struct and mostly start
+        // with `sentry.`.
+        let trace = event_from_span.context_mut::<TraceContext>().unwrap();
+        let trace_data = trace.data.value_mut().as_mut().unwrap();
+
+        trace_data.other.retain(|k, v| {
+            if v.value().is_none() || k.starts_with("sentry.") {
+                return false;
+            }
+
+            // Seems to be a special case
+            k != "browser.name"
+        });
 
         assert_eq!(event, event_from_span);
     }

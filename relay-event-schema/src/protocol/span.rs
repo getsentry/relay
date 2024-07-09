@@ -6,8 +6,8 @@ use relay_protocol::{Annotated, Empty, FromValue, Getter, IntoValue, Object, Val
 
 use crate::processor::ProcessValue;
 use crate::protocol::{
-    EventId, JsonLenientString, LenientString, Measurements, MetricsSummary, OperationType,
-    OriginType, SpanId, SpanStatus, Timestamp, TraceId,
+    Data as TraceData, EventId, JsonLenientString, LenientString, Measurements, MetricsSummary,
+    OperationType, OriginType, SpanId, SpanStatus, ThreadId, Timestamp, TraceId,
 };
 
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
@@ -314,6 +314,10 @@ pub struct SpanData {
     #[metastructure(field = "thread.name")]
     pub thread_name: Annotated<Value>,
 
+    /// ID of thread from where the span originated.
+    #[metastructure(field = "thread.id")]
+    pub thread_id: Annotated<ThreadId>,
+
     /// Name of the segment that this span belongs to (see `segment_id`).
     ///
     /// This corresponds to the transaction name in the transaction-based model.
@@ -447,6 +451,22 @@ impl Getter for SpanData {
                 val.into()
             }
         })
+    }
+}
+
+impl From<TraceData> for SpanData {
+    fn from(trace_data: TraceData) -> Self {
+        FromValue::from_value(Annotated::new(trace_data.into_value()))
+            .into_value()
+            .unwrap_or_default()
+    }
+}
+
+impl From<SpanData> for TraceData {
+    fn from(span_data: SpanData) -> Self {
+        FromValue::from_value(Annotated::new(span_data.into_value()))
+            .into_value()
+            .unwrap_or_default()
     }
 }
 
@@ -673,6 +693,7 @@ mod tests {
             ai_input_messages: ~,
             ai_responses: ~,
             thread_name: ~,
+            thread_id: ~,
             segment_name: ~,
             ui_component_name: ~,
             url_scheme: ~,

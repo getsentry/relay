@@ -31,16 +31,11 @@ def drop_props(payload):
 
 
 @pytest.mark.parametrize("config_full_normalization", (False, True))
-@pytest.mark.parametrize("feat_flag_force_normalization", (False, True))
-def test_relay_with_full_normalization(
-    mini_sentry, relay, config_full_normalization, feat_flag_force_normalization
-):
+def test_relay_with_full_normalization(mini_sentry, relay, config_full_normalization):
     input, expected = get_test_data("extended-event")
 
     project_id = 42
     mini_sentry.add_basic_project_config(project_id)
-    if feat_flag_force_normalization:
-        mini_sentry.global_config["options"] = {"relay.force_full_normalization": True}
 
     relay = relay(
         upstream=mini_sentry,
@@ -52,7 +47,7 @@ def test_relay_with_full_normalization(
     relay.send_event(project_id, input)
     envelope = mini_sentry.captured_events.get(timeout=10)
 
-    if config_full_normalization or feat_flag_force_normalization:
+    if config_full_normalization:
         assert "fully_normalized" in envelope.items[0].headers
         assert drop_props(expected) == drop_props(envelope.get_event())
     else:
@@ -61,7 +56,6 @@ def test_relay_with_full_normalization(
 
 
 @pytest.mark.parametrize("config_full_normalization", (False, True))
-@pytest.mark.parametrize("feat_flag_skip_normalization", (False, True))
 @pytest.mark.parametrize("request_from_internal", (False, True))
 @pytest.mark.parametrize("fully_normalized", (False, True))
 def test_processing_with_full_normalization(
@@ -70,7 +64,6 @@ def test_processing_with_full_normalization(
     relay_with_processing,
     relay_credentials,
     config_full_normalization,
-    feat_flag_skip_normalization,
     request_from_internal,
     fully_normalized,
 ):
@@ -79,10 +72,6 @@ def test_processing_with_full_normalization(
     events_consumer = events_consumer()
     project_id = 42
     mini_sentry.add_basic_project_config(project_id)
-    if feat_flag_skip_normalization:
-        mini_sentry.global_config["options"][
-            "relay.disable_normalization.processing"
-        ] = True
 
     credentials = relay_credentials()
     relay_config = {}
@@ -119,26 +108,17 @@ def test_processing_with_full_normalization(
     )
 
     ingested, _ = events_consumer.get_event(timeout=10)
-    if (
-        not config_full_normalization
-        and feat_flag_skip_normalization
-        and request_from_internal
-        and fully_normalized
-    ):
+    if not config_full_normalization and request_from_internal and fully_normalized:
         assert drop_props(expected) != drop_props(ingested)
     else:
         assert drop_props(expected) == drop_props(ingested)
 
 
 @pytest.mark.parametrize(
-    "relay_static_config_normalization, relay_force_normalization, processing_skip_normalization",
+    "relay_static_config_normalization",
     [
-        (False, False, False),  # 0. nothing enabled
-        (False, True, False),  # 1. enable flag in relay
-        (False, True, True),  # 2. enable flag in processing
-        (True, True, True),  # 3. enable config in relay
-        (True, False, True),  # x. disable config in relay still works
-        (True, False, False),  # x. disable config in processing still works
+        False,
+        True,
     ],
 )
 def test_relay_chain_normalizes_events(
@@ -148,8 +128,6 @@ def test_relay_chain_normalizes_events(
     relay,
     relay_credentials,
     relay_static_config_normalization,
-    relay_force_normalization,
-    processing_skip_normalization,
 ):
     input, expected = get_test_data("extended-event")
 
@@ -157,12 +135,6 @@ def test_relay_chain_normalizes_events(
     project_id = 42
 
     mini_sentry.add_basic_project_config(project_id)
-    if relay_force_normalization:
-        mini_sentry.global_config["options"]["relay.force_full_normalization"] = True
-    if processing_skip_normalization:
-        mini_sentry.global_config["options"][
-            "relay.disable_normalization.processing"
-        ] = True
 
     credentials = relay_credentials()
     processing = relay_with_processing(
@@ -187,29 +159,21 @@ def test_relay_chain_normalizes_events(
 
     ingested, _ = events_consumer.get_event(timeout=15)
 
-    # Running full normalization twice on the same envelope adds the errors
-    # twice, one per run. The rest is the same.
-    if (
-        relay_static_config_normalization or relay_force_normalization
-    ) and not processing_skip_normalization:
+    if relay_static_config_normalization:
         assert ingested["errors"] == [
             {"name": "location", "type": "invalid_attribute"},
-            {"name": "location", "type": "invalid_attribute"},
         ]
-        ingested["errors"].pop(0)
 
     assert drop_props(expected) == drop_props(ingested)
 
 
 @pytest.mark.parametrize("config_full_normalization", (False, True))
-@pytest.mark.parametrize("feat_flag_force_normalization", (False, True))
 @pytest.mark.parametrize("dump_file_name", ("unreal_crash", "unreal_crash_apple"))
 def test_relay_doesnt_normalize_unextracted_unreal_event(
     mini_sentry,
     relay,
     dump_file_name,
     config_full_normalization,
-    feat_flag_force_normalization,
 ):
     """
     Independently of the configuration, relays forward minidumps, apple crash
@@ -217,8 +181,6 @@ def test_relay_doesnt_normalize_unextracted_unreal_event(
     """
     project_id = 42
     mini_sentry.add_basic_project_config(project_id)
-    if feat_flag_force_normalization:
-        mini_sentry.global_config["options"] = {"relay.force_full_normalization": True}
 
     relay = relay(
         mini_sentry,
@@ -243,29 +205,21 @@ def test_relay_doesnt_normalize_unextracted_unreal_event(
     assert "fully_normalized" not in envelope.items[0].headers
 
 
-@pytest.mark.parametrize("processing_skip_normalization", (False, True))
 @pytest.mark.parametrize("request_from_internal", (False, True))
 @pytest.mark.parametrize("fully_normalized", (False, True))
 @pytest.mark.parametrize("dump_file_name", ("unreal_crash", "unreal_crash_apple"))
 def test_processing_normalizes_unreal_event(
     mini_sentry,
-    events_consumer,
     attachments_consumer,
     relay_credentials,
     relay_with_processing,
-    processing_skip_normalization,
     request_from_internal,
     fully_normalized,
     dump_file_name,
 ):
-    events_consumer = events_consumer()
     attachments_consumer = attachments_consumer()
     project_id = 42
     mini_sentry.add_basic_project_config(project_id)
-    if processing_skip_normalization:
-        mini_sentry.global_config["options"][
-            "relay.disable_normalization.processing"
-        ] = True
 
     credentials = relay_credentials()
     relay_config = {"processing": {"attachment_chunk_size": "1.23 GB"}}
@@ -304,7 +258,6 @@ def test_processing_normalizes_unreal_event(
     assert event["type"] == "error"
 
 
-@pytest.mark.parametrize("processing_skip_normalization", (False, True))
 @pytest.mark.parametrize("request_from_internal", (False, True))
 @pytest.mark.parametrize("fully_normalized", (False, True))
 def test_processing_normalizes_minidump_events(
@@ -312,17 +265,12 @@ def test_processing_normalizes_minidump_events(
     attachments_consumer,
     relay_with_processing,
     relay_credentials,
-    processing_skip_normalization,
     request_from_internal,
     fully_normalized,
 ):
     attachments_consumer = attachments_consumer()
     project_id = 42
     mini_sentry.add_full_project_config(project_id)
-    if processing_skip_normalization:
-        mini_sentry.global_config["options"][
-            "relay.disable_normalization.processing"
-        ] = True
 
     credentials = relay_credentials()
     if request_from_internal:
@@ -365,12 +313,10 @@ def test_processing_normalizes_minidump_events(
 
 
 @pytest.mark.parametrize(
-    "relay_static_config_normalization, relay_force_normalization, processing_skip_normalization",
+    "relay_static_config_normalization",
     [
-        (False, False, False),
-        (False, True, False),
-        (False, True, True),
-        (True, True, True),
+        False,
+        True,
     ],
 )
 def test_relay_chain_normalizes_minidump_events(
@@ -380,20 +326,12 @@ def test_relay_chain_normalizes_minidump_events(
     relay,
     relay_credentials,
     relay_static_config_normalization,
-    relay_force_normalization,
-    processing_skip_normalization,
 ):
 
     attachments_consumer = attachments_consumer()
     project_id = 42
 
     mini_sentry.add_basic_project_config(project_id)
-    if relay_force_normalization:
-        mini_sentry.global_config["options"]["relay.force_full_normalization"] = True
-    if processing_skip_normalization:
-        mini_sentry.global_config["options"][
-            "relay.disable_normalization.processing"
-        ] = True
 
     credentials = relay_credentials()
     processing = relay_with_processing(

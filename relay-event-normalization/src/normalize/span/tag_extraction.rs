@@ -10,7 +10,8 @@ use once_cell::sync::Lazy;
 use regex::Regex;
 use relay_base_schema::metrics::{DurationUnit, InformationUnit, MetricUnit};
 use relay_event_schema::protocol::{
-    AppContext, BrowserContext, Event, Measurement, OsContext, Span, Timestamp, TraceContext,
+    AppContext, BrowserContext, Event, Measurement, OsContext, ProfileContext, Span, Timestamp,
+    TraceContext,
 };
 use relay_protocol::{Annotated, Value};
 use sqlparser::ast::Visit;
@@ -81,6 +82,9 @@ pub enum SpanTagKey {
     TraceStatus,
     MessagingDestinationName,
     MessagingMessageId,
+    ThreadName,
+    ThreadId,
+    ProfilerId,
 }
 
 impl SpanTagKey {
@@ -132,6 +136,9 @@ impl SpanTagKey {
             SpanTagKey::TraceStatus => "trace.status",
             SpanTagKey::MessagingDestinationName => "messaging.destination.name",
             SpanTagKey::MessagingMessageId => "messaging.message.id",
+            SpanTagKey::ThreadName => "thread.name",
+            SpanTagKey::ThreadId => "thread.id",
+            SpanTagKey::ProfilerId => "profiler_id",
         }
     }
 }
@@ -325,12 +332,32 @@ fn extract_shared_tags(event: &Event) -> BTreeMap<SpanTagKey, String> {
         tags.insert(SpanTagKey::BrowserName, browser_name.into());
     }
 
+    if let Some(profiler_id) = event
+        .context::<ProfileContext>()
+        .and_then(|profile_context| profile_context.profiler_id.value())
+    {
+        tags.insert(SpanTagKey::ProfilerId, profiler_id.to_string());
+    }
+
     tags.insert(SpanTagKey::SdkName, event.sdk_name().into());
     tags.insert(SpanTagKey::SdkVersion, event.sdk_version().into());
     tags.insert(
         SpanTagKey::Platform,
         event.platform.as_str().unwrap_or("other").into(),
     );
+
+    if let Some(data) = event
+        .context::<TraceContext>()
+        .and_then(|trace_context| trace_context.data.value())
+    {
+        if let Some(thread_id) = data.thread_id.value() {
+            tags.insert(SpanTagKey::ThreadId, thread_id.to_string());
+        }
+
+        if let Some(thread_name) = data.thread_name.value() {
+            tags.insert(SpanTagKey::ThreadName, thread_name.to_string());
+        }
+    }
 
     tags
 }
@@ -750,6 +777,16 @@ pub fn extract_tags(
 
     if let Some(browser_name) = span.data.value().and_then(|data| data.browser_name.value()) {
         span_tags.insert(SpanTagKey::BrowserName, browser_name.clone());
+    }
+
+    if let Some(data) = span.data.value() {
+        if let Some(thread_id) = data.thread_id.value() {
+            span_tags.insert(SpanTagKey::ThreadId, thread_id.to_string());
+        }
+
+        if let Some(thread_name) = data.thread_name.value().and_then(|name| name.as_str()) {
+            span_tags.insert(SpanTagKey::ThreadName, thread_name.into());
+        }
     }
 
     span_tags
@@ -2378,6 +2415,51 @@ LIMIT 1
     }
 
     #[test]
+    fn extract_profiler_id_into_sentry_tags() {
+        let json = r#"
+            {
+                "type": "transaction",
+                "platform": "javascript",
+                "start_timestamp": "2021-04-26T07:59:01+0100",
+                "timestamp": "2021-04-26T08:00:00+0100",
+                "transaction": "foo",
+                "contexts": {
+                    "profile": {
+                        "profiler_id": "ff62a8b040f340bda5d830223def1d81"
+                    }
+                },
+                "spans": [
+                    {
+                        "op": "before_first_display",
+                        "span_id": "bd429c44b67a3eb1",
+                        "start_timestamp": 1597976300.0000000,
+                        "timestamp": 1597976302.0000000,
+                        "trace_id": "ff62a8b040f340bda5d830223def1d81"
+                    }
+                ]
+            }
+        "#;
+
+        let mut event = Annotated::<Event>::from_json(json).unwrap();
+
+        normalize_event(
+            &mut event,
+            &NormalizationConfig {
+                enrich_spans: true,
+                ..Default::default()
+            },
+        );
+
+        let spans = get_value!(event.spans!);
+        let span = &spans[0];
+
+        assert_eq!(
+            get_value!(span.sentry_tags["profiler_id"]!),
+            "ff62a8b040f340bda5d830223def1d81",
+        );
+    }
+
+    #[test]
     fn extract_user_into_sentry_tags() {
         let json = r#"
             {
@@ -2432,18 +2514,98 @@ LIMIT 1
     }
 
     #[test]
-    fn long_descriptions_are_truncated() {
-        let json = r#"{
-            "description": "SELECT column FROM table1 WHERE another_col = %s AND yet_another_col = something_very_longgggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg",
-            "op": "db"
-        }"#;
+    fn extract_thread_id_name_from_span_data_into_sentry_tags() {
+        let json = r#"
+            {
+                "type": "transaction",
+                "platform": "javascript",
+                "start_timestamp": "2021-04-26T07:59:01+0100",
+                "timestamp": "2021-04-26T08:00:00+0100",
+                "transaction": "foo",
+                "contexts": {
+                    "trace": {
+                        "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                        "span_id": "bd429c44b67a3eb4"
+                    }
+                },
+                "spans": [
+                    {
+                        "op": "before_first_display",
+                        "span_id": "bd429c44b67a3eb1",
+                        "start_timestamp": 1597976300.0000000,
+                        "timestamp": 1597976302.0000000,
+                        "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                        "data": {
+                            "thread.name": "main",
+                            "thread.id": 42
+                        }
+                    }
+                ]
+            }
+        "#;
 
-        let span = Annotated::<Span>::from_json(json)
-            .unwrap()
-            .into_value()
-            .unwrap();
+        let mut event = Annotated::<Event>::from_json(json).unwrap();
 
-        let tags = extract_tags(&span, 200, None, None, false, None);
-        assert_eq!(tags[&SpanTagKey::Description], "SELECT column FROM table1 WHERE another_col = %s AND yet_another_col = something_very_longggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg*");
+        normalize_event(
+            &mut event,
+            &NormalizationConfig {
+                enrich_spans: true,
+                ..Default::default()
+            },
+        );
+
+        let spans = get_value!(event.spans!);
+        let span = &spans[0];
+
+        assert_eq!(get_value!(span.sentry_tags["thread.id"]!), "42",);
+        assert_eq!(get_value!(span.sentry_tags["thread.name"]!), "main",);
+    }
+
+    #[test]
+    fn extract_thread_id_name_from_trace_context_into_sentry_tags() {
+        let json = r#"
+            {
+                "type": "transaction",
+                "platform": "python",
+                "start_timestamp": "2021-04-26T07:59:01+0100",
+                "timestamp": "2021-04-26T08:00:00+0100",
+                "transaction": "foo",
+                "contexts": {
+                    "trace": {
+                        "op": "queue.process",
+                        "status": "ok",
+                        "data": {
+                            "thread.name": "main",
+                            "thread.id": 42
+                        }
+                    }
+                },
+                "spans": [
+                    {
+                        "op": "before_first_display",
+                        "span_id": "bd429c44b67a3eb1",
+                        "start_timestamp": 1597976300.0000000,
+                        "timestamp": 1597976302.0000000,
+                        "trace_id": "ff62a8b040f340bda5d830223def1d81"
+                    }
+                ]
+            }
+        "#;
+
+        let mut event = Annotated::<Event>::from_json(json).unwrap();
+
+        normalize_event(
+            &mut event,
+            &NormalizationConfig {
+                enrich_spans: true,
+                ..Default::default()
+            },
+        );
+
+        let spans = get_value!(event.spans!);
+        let span = &spans[0];
+
+        assert_eq!(get_value!(span.sentry_tags["thread.id"]!), "42",);
+        assert_eq!(get_value!(span.sentry_tags["thread.name"]!), "main",);
     }
 }

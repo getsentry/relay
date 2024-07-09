@@ -4,7 +4,9 @@
 
 **Bug Fixes**:
 
+- Fixes raw OS description parsing for iOS and iPadOS originating from the Unity SDK. ([#3780](https://github.com/getsentry/relay/pull/3780))
 - Fixes metrics dropped due to missing project state. ([#3553](https://github.com/getsentry/relay/issues/3553))
+- Incorrect span outcomes when generated from a indexed transaction quota. ([#3793](https://github.com/getsentry/relay/pull/3793))
 - Report outcomes for spans when transactions are rate limited. ([#3749](https://github.com/getsentry/relay/pull/3749))
 
 **Internal**:
@@ -12,9 +14,12 @@
 - Aggregate metrics before rate limiting. ([#3746](https://github.com/getsentry/relay/pull/3746))
 - Make sure outcomes for dropped profiles are consistent between indexed and non-indexed categories. ([#3767](https://github.com/getsentry/relay/pull/3767))
 - Add web vitals support for mobile browsers. ([#3762](https://github.com/getsentry/relay/pull/3762))
-- Accept profiler_id in the profile context. ([#3714](https://github.com/getsentry/relay/pull/3714))
+- Ingest profiler_id in the profile context and in spans. ([#3714](https://github.com/getsentry/relay/pull/3714), [#3784](https://github.com/getsentry/relay/pull/3784))
 - Support extrapolation of metrics extracted from sampled data, as long as the sample rate is set in the DynamicSamplingContext. ([#3753](https://github.com/getsentry/relay/pull/3753))
-- Only extract span duration metrics for known modules. ([#3768](https://github.com/getsentry/relay/pull/3768))
+- Extract thread ID and name in spans. ([#3771](https://github.com/getsentry/relay/pull/3771))
+- Compute metrics summary on the extracted custom metrics. ([#3769](https://github.com/getsentry/relay/pull/3769))
+- Add support for `all` and `any` `RuleCondition`(s). ([#3791](https://github.com/getsentry/relay/pull/3791))
+- Copy root span data from `contexts.trace.data` when converting transaction events into raw spans. ([#3790](https://github.com/getsentry/relay/pull/3790))
 
 ## 24.6.0
 

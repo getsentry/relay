@@ -6,7 +6,7 @@ use relay_jsonschema_derive::JsonSchema;
 use relay_protocol::{Annotated, Empty, Error, FromValue, IntoValue, Object, Value};
 
 use crate::processor::ProcessValue;
-use crate::protocol::{OperationType, OriginType, SpanStatus};
+use crate::protocol::{OperationType, OriginType, SpanStatus, ThreadId};
 
 /// A 32-character hex string as described in the W3C trace context spec.
 #[derive(Clone, Debug, Default, PartialEq, Empty, IntoValue, ProcessValue)]
@@ -190,6 +190,14 @@ pub struct Data {
     /// Set by backend SDKs with messaging integration.
     #[metastructure(field = "messaging.message.body.size")]
     pub messaging_message_body_size: Annotated<Value>,
+
+    /// The ID of the thread from which the transaction originated from
+    #[metastructure(field = "thread.id")]
+    pub thread_id: Annotated<ThreadId>,
+
+    /// The name of the thread from which the transaction originated from
+    #[metastructure(field = "thread.name")]
+    pub thread_name: Annotated<String>,
 
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(
