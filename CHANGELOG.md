@@ -20,6 +20,7 @@
 - Compute metrics summary on the extracted custom metrics. ([#3769](https://github.com/getsentry/relay/pull/3769))
 - Add support for `all` and `any` `RuleCondition`(s). ([#3791](https://github.com/getsentry/relay/pull/3791))
 - Copy root span data from `contexts.trace.data` when converting transaction events into raw spans. ([#3790](https://github.com/getsentry/relay/pull/3790))
+- Remove experimental double-write from spans to transactions. ([#3801](https://github.com/getsentry/relay/pull/3801))
 
 ## 24.6.0
 

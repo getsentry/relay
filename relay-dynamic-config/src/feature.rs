@@ -76,15 +76,6 @@ pub enum Feature {
     #[serde(rename = "organizations:continuous-profiling")]
     ContinuousProfiling,
 
-    /// When enabled, every standalone segment span will be duplicated as a transaction.
-    ///
-    /// This allows support of product features that rely on transactions for SDKs that only
-    /// send spans.
-    ///
-    /// Serialized as `projects:extract-transaction-from-segment-span`.
-    #[serde(rename = "projects:extract-transaction-from-segment-span")]
-    ExtractTransactionFromSegmentSpan,
-
     /// Enables metric extraction from spans for common modules.
     ///
     /// Serialized as `projects:span-metrics-extraction`.

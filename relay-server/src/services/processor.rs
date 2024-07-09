@@ -83,8 +83,6 @@ use crate::services::upstream::{
     SendRequest, UpstreamRelay, UpstreamRequest, UpstreamRequestError,
 };
 use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
-#[cfg(feature = "processing")]
-use crate::utils::BufferGuard;
 use crate::utils::{
     self, InvalidProcessingGroupType, ManagedEnvelope, SamplingResult, TypedEnvelope,
 };
@@ -1093,8 +1091,6 @@ pub struct EnvelopeProcessorService {
 
 /// Contains the addresses of services that the processor publishes to.
 pub struct Addrs {
-    #[cfg(feature = "processing")]
-    pub envelope_processor: Addr<EnvelopeProcessor>,
     pub project_cache: Addr<ProjectCache>,
     pub outcome_aggregator: Addr<TrackOutcome>,
     pub upstream_relay: Addr<UpstreamRelay>,
@@ -1106,8 +1102,6 @@ pub struct Addrs {
 impl Default for Addrs {
     fn default() -> Self {
         Addrs {
-            #[cfg(feature = "processing")]
-            envelope_processor: Addr::dummy(),
             project_cache: Addr::dummy(),
             outcome_aggregator: Addr::dummy(),
             upstream_relay: Addr::dummy(),
@@ -1133,8 +1127,6 @@ struct InnerProcessor {
     #[cfg(feature = "processing")]
     cardinality_limiter: Option<CardinalityLimiter>,
     metric_outcomes: MetricOutcomes,
-    #[cfg(feature = "processing")]
-    buffer_guard: Arc<BufferGuard>,
 }
 
 impl EnvelopeProcessorService {
@@ -1146,7 +1138,6 @@ impl EnvelopeProcessorService {
         #[cfg(feature = "processing")] redis: Option<RedisPool>,
         addrs: Addrs,
         metric_outcomes: MetricOutcomes,
-        #[cfg(feature = "processing")] buffer_guard: Arc<BufferGuard>,
     ) -> Self {
         let geoip_lookup = config.geoip_path().and_then(|p| {
             match GeoIpLookup::open(p).context(ServiceError::GeoIp) {
@@ -1188,8 +1179,6 @@ impl EnvelopeProcessorService {
                 .map(CardinalityLimiter::new),
             metric_outcomes,
             config,
-            #[cfg(feature = "processing")]
-            buffer_guard,
         };
 
         Self {
@@ -1839,13 +1828,7 @@ impl EnvelopeProcessorService {
         if_processing!(self.inner.config, {
             let global_config = self.inner.global_config.current();
 
-            span::process(
-                state,
-                self.inner.config.clone(),
-                &global_config,
-                &self.inner.addrs,
-                &self.inner.buffer_guard,
-            );
+            span::process(state, self.inner.config.clone(), &global_config);
 
             self.enforce_quotas(state)?;
         });
