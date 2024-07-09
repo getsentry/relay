@@ -664,10 +664,6 @@ fn validate(span: &mut Annotated<Span>) -> Result<(), ValidationError> {
         }
     }
 
-    exclusive_time
-        .value()
-        .ok_or(anyhow::anyhow!("missing exclusive_time"))?;
-
     if let Some(sentry_tags) = sentry_tags.value_mut() {
         sentry_tags.retain(|key, value| match value.value() {
             Some(s) => {
