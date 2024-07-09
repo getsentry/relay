@@ -311,10 +311,10 @@ fn handle_replay_video_item(
 
 // Pre-processors
 
-fn count_replay_video_events(state: &mut ProcessEnvelopeState<ReplayGroup>) -> i32 {
+fn count_replay_video_events(state: &mut ProcessEnvelopeState<ReplayGroup>) -> u8 {
     state
         .managed_envelope
         .envelope()
         .items()
-        .fold(0, |acc, item| (item.ty() == ItemType::ReplayVideo) as i32)
+        .fold(0, |acc, item| (item.ty() == ItemType::ReplayVideo) as u8)
 }
