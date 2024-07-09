@@ -1336,8 +1336,11 @@ struct SpanKafkaMessage<'a> {
     /// The ID of the transaction event associated to this span, if any.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     event_id: Option<EventId>,
-    #[serde(rename(deserialize = "exclusive_time"))]
-    exclusive_time_ms: f64,
+    #[serde(
+        rename(deserialize = "exclusive_time"),
+        skip_serializing_if = "Option::is_none"
+    )]
+    exclusive_time_ms: Option<f64>,
     #[serde(default)]
     is_segment: bool,
 
