@@ -56,29 +56,8 @@ impl Default for AggregatorServiceConfig {
             aggregator: AggregatorConfig::default(),
             max_total_bucket_bytes: None,
             max_flush_bytes: 5_000_000, // 5 MB
-            flush_partitions: None,
-            flush_batching: FlushBatching::Project,
-            flush_interval_ms: 100, // 100 milliseconds
+            flush_interval_ms: 100,     // 100 milliseconds
             aggregate: true,
-        }
-    }
-}
-
-impl From<&AggregatorServiceConfig> for AggregatorConfig {
-    fn from(value: &AggregatorServiceConfig) -> Self {
-        Self {
-            bucket_interval: value.bucket_interval,
-            initial_delay: value.initial_delay,
-            max_secs_in_past: value.max_secs_in_past,
-            max_secs_in_future: value.max_secs_in_future,
-            max_name_length: value.max_name_length,
-            max_tag_key_length: value.max_tag_key_length,
-            max_tag_value_length: value.max_tag_value_length,
-            max_project_key_bucket_bytes: value.max_project_key_bucket_bytes,
-            flush_partitions: value.flush_partitions,
-            flush_batching: value.flush_batching,
-            flush_interval_ms: value.flush_interval_ms,
-            aggregate: value.aggregate,
         }
     }
 }
