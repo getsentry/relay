@@ -335,7 +335,10 @@ impl AggregatorService {
         self.aggregator
             .merge_all(project_key, buckets, self.max_total_bucket_bytes);
 
-        // Automatic force flush for tests:
+        // Automatic force flush for tests.
+        // NOTE: Instead of merging and immediately flushing, we could skip the merge altogether.
+        // However, we do still want to run all the aggregator's logic, such as `validate_bucket_key`
+        // (called by `merge_all`).
         if !self.aggregate {
             self.try_flush(true);
         }
