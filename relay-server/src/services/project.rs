@@ -387,21 +387,11 @@ impl Project {
         self.state.current_state(&self.config)
     }
 
-    fn non_expired_state(&self) -> Option<&ProjectState> {
-        match self.state.expiry_state(&self.config) {
-            ExpiryState::Updated(state) | ExpiryState::Stale(state) => Some(state),
-            ExpiryState::Expired => None,
-        }
-    }
-
     /// If a reservoir rule is no longer in the sampling config, we will remove those counters.
     fn remove_expired_reservoir_rules(&self) {
-        let Some(state) = self.non_expired_state() else {
+        let ProjectState::Enabled(state) = self.current_state() else {
             return;
         };
-        let ProjectState::Enabled(state) = state else {
-            return;
-        }; // TODO: util
 
         let Some(ErrorBoundary::Ok(config)) = state.config.sampling.as_ref() else {
             return;
@@ -770,8 +760,6 @@ impl Project {
     ///
     /// Returns `Some` if the project state has been fetched and contains a project identifier,
     /// otherwise `None`.
-    ///
-    /// NOTE: This function does not check the expiry of the project state.
     pub fn scoping(&self) -> Option<Scoping> {
         let state = self.enabled_state()?;
         Some(Scoping {
@@ -872,15 +860,13 @@ impl Project {
         outcome_aggregator: &Addr<TrackOutcome>,
         buckets: Vec<Bucket>,
     ) -> CheckedBuckets {
-        let project_info = match self.non_expired_state() {
-            Some(p) => match p {
-                ProjectState::Enabled(info) => info.clone(),
-                ProjectState::Pending | ProjectState::Disabled => {
-                    relay_log::debug!("dropping {} buckets for disabled project", buckets.len());
-                    return CheckedBuckets::Dropped;
-                }
-            },
-            None => return CheckedBuckets::NoProject(buckets),
+        let project_info = match self.current_state() {
+            ProjectState::Enabled(info) => info.clone(),
+            ProjectState::Disabled => {
+                relay_log::debug!("dropping {} buckets for disabled project", buckets.len());
+                return CheckedBuckets::Dropped;
+            }
+            ProjectState::Pending => return CheckedBuckets::NoProject(buckets),
         };
 
         let Some(scoping) = self.scoping() else {
@@ -1043,10 +1029,10 @@ mod tests {
 
             if expiry > 0 {
                 // With long expiry, should get a state
-                assert!(project.non_expired_state().is_some());
+                assert!(matches!(project.current_state(), ProjectState::Enabled(_)));
             } else {
                 // With 0 expiry, project should expire immediately. No state can be set.
-                assert!(project.non_expired_state().is_none());
+                assert!(matches!(project.current_state(), ProjectState::Pending));
             }
         }
     }
