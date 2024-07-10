@@ -76,7 +76,7 @@ impl ProjectStateWrapper {
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct GetProjectStatesResponseWrapper {
-    configs: HashMap<ProjectKey, Option<ProjectStateWrapper>>,
+    configs: HashMap<ProjectKey, ProjectStateWrapper>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pending: Vec<ProjectKey>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -123,7 +123,6 @@ async fn inner(
             project_cache
                 .send(GetProjectState::new(project_key).no_cache(no_cache))
                 .await
-                .map(Some)
         };
 
         (project_key, state_result)
@@ -146,33 +145,36 @@ async fn inner(
     let mut pending = Vec::with_capacity(keys_len);
     let mut configs = HashMap::with_capacity(keys_len);
     for (project_key, state_result) in future::join_all(futures).await {
-        let Some(project_state) = state_result? else {
-            pending.push(project_key);
-            continue;
+        let project_info = match state_result? {
+            ProjectState::Enabled(info) => info,
+            ProjectState::Disabled => {
+                // Don't insert project config. Downstream Relay will consider it disabled.
+                continue;
+            }
+            ProjectState::Pending => {
+                pending.push(project_key);
+                continue;
+            }
         };
 
         // If public key is known (even if rate-limited, which is Some(false)), it has
         // access to the project config
         let has_access = relay.internal
-            || match &project_state {
-                ProjectState::Disabled | ProjectState::Pending => false,
-                ProjectState::Enabled(state) => {
-                    state.config.trusted_relays.contains(&relay.public_key)
-                }
-            };
+            || project_info
+                .config
+                .trusted_relays
+                .contains(&relay.public_key);
 
         if has_access {
             let full = relay.internal && inner.full_config;
-            if let Ok(project_state) = ParsedProjectState::try_from(project_state.clone()) {
-                let wrapper = ProjectStateWrapper::new(project_state, full);
-                configs.insert(project_key, Some(wrapper));
-            } else {
-                relay_log::debug!(
-                    relay = %relay.public_key,
-                    project_key = %project_key,
-                    "project state is invalid",
-                );
-            }
+            let wrapper = ProjectStateWrapper::new(
+                ParsedProjectState {
+                    disabled: false,
+                    info: project_info.as_ref().clone(),
+                },
+                full,
+            );
+            configs.insert(project_key, wrapper);
         } else {
             relay_log::debug!(
                 relay = %relay.public_key,

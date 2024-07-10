@@ -277,7 +277,7 @@ pub struct RefreshIndexCache(pub HashSet<QueueKey>);
 pub enum ProjectCache {
     RequestUpdate(RequestUpdate),
     Get(GetProjectState, ProjectSender),
-    GetCached(GetCachedProjectState, Sender<Option<ProjectState>>),
+    GetCached(GetCachedProjectState, Sender<ProjectState>),
     CheckEnvelope(
         CheckEnvelope,
         Sender<Result<CheckedEnvelope, DiscardReason>>,
@@ -346,9 +346,9 @@ impl FromMessage<GetProjectState> for ProjectCache {
 }
 
 impl FromMessage<GetCachedProjectState> for ProjectCache {
-    type Response = relay_system::AsyncResponse<Option<ProjectState>>;
+    type Response = relay_system::AsyncResponse<ProjectState>;
 
-    fn from_message(message: GetCachedProjectState, sender: Sender<Option<ProjectState>>) -> Self {
+    fn from_message(message: GetCachedProjectState, sender: Sender<ProjectState>) -> Self {
         Self::GetCached(message, sender)
     }
 }
@@ -740,7 +740,7 @@ impl ProjectCacheBroker {
         );
     }
 
-    fn handle_get_cached(&mut self, message: GetCachedProjectState) -> Option<ProjectState> {
+    fn handle_get_cached(&mut self, message: GetCachedProjectState) -> ProjectState {
         let project_cache = self.services.project_cache.clone();
         self.get_or_create_project(message.project_key)
             .get_cached_state(project_cache, false)
@@ -838,12 +838,12 @@ impl ProjectCacheBroker {
 
         // TODO: make get_cached_state return a project state.
         let project_state = match project_state {
-            Some(ProjectState::Enabled(state)) => Some(state),
-            Some(ProjectState::Disabled) => {
+            ProjectState::Enabled(state) => Some(state),
+            ProjectState::Disabled => {
                 // TODO: outcomes?
                 return;
             }
-            Some(ProjectState::Pending) | None => None,
+            ProjectState::Pending => None,
         };
 
         // Also, fetch the project state for sampling key and make sure it's not invalid.
@@ -853,12 +853,12 @@ impl ProjectCacheBroker {
                 .get_or_create_project(sampling_key)
                 .get_cached_state(project_cache, envelope.meta().no_cache());
             match state {
-                Some(ProjectState::Enabled(state)) => Some(state),
-                Some(ProjectState::Disabled) => {
+                ProjectState::Enabled(state) => Some(state),
+                ProjectState::Disabled => {
                     // We accept events even if its root project has been disabled.
                     None
                 }
-                Some(ProjectState::Pending) | None => None,
+                ProjectState::Pending => None,
             }
         } else {
             None
@@ -989,40 +989,18 @@ impl ProjectCacheBroker {
 
     /// Returns `true` if the project state valid for the [`QueueKey`].
     ///
-    /// Which includes the own key and the samplig key for the project.
-    /// Note: this function will trigger [`ProjectState`] refresh if it's already expired or not
-    /// valid.
-    fn is_state_valid(&mut self, key: &QueueKey) -> bool {
-        let QueueKey {
-            own_key,
-            sampling_key,
-        } = key;
-
-        let is_own_state_valid = self.projects.get_mut(own_key).map_or(false, |project| {
-            // Returns `Some` if the project is cached otherwise None and also triggers refresh
-            // in background.
-            project
-                .get_cached_state(self.services.project_cache.clone(), false)
-                // Makes sure that the state also is valid.
-                .is_some_and(|state| !matches!(state, ProjectState::Pending))
-        });
-
-        let is_sampling_state_valid = if own_key != sampling_key {
-            self.projects
-                .get_mut(sampling_key)
-                .map_or(false, |project| {
-                    // Returns `Some` if the project is cached otherwise None and also triggers refresh
-                    // in background.
-                    project
-                        .get_cached_state(self.services.project_cache.clone(), false)
-                        // Makes sure that the state also is valid.
-                        .is_some_and(|state| !matches!(state, ProjectState::Pending))
-                })
-        } else {
-            is_own_state_valid
-        };
-
-        is_own_state_valid && is_sampling_state_valid
+    /// Which includes the own key and the sampling key for the project.
+    /// Note: this function will trigger [`ProjectState`] refresh if it's already expired.
+    fn is_state_cached(&mut self, key: &QueueKey) -> bool {
+        key.unique_keys().iter().all(|key| {
+            self.projects.get_mut(key).is_some_and(|project| {
+                // Returns `Some` if the project is cached otherwise None and also triggers refresh
+                // in background.
+                !project
+                    .get_cached_state(self.services.project_cache.clone(), false)
+                    .is_pending()
+            })
+        })
     }
 
     /// Iterates the buffer index and tries to unspool the envelopes for projects with a valid
@@ -1055,7 +1033,7 @@ impl ProjectCacheBroker {
 
         let mut index = std::mem::take(&mut self.index);
         let keys = index
-            .extract_if(|key| self.is_state_valid(key))
+            .extract_if(|key| self.is_state_cached(key))
             .take(BATCH_KEY_COUNT)
             .collect::<HashSet<_>>();
         let num_keys = keys.len();

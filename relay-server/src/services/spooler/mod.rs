@@ -41,6 +41,7 @@ use relay_base_schema::project::{ParseProjectKeyError, ProjectKey};
 use relay_config::Config;
 use relay_statsd::metric;
 use relay_system::{Addr, Controller, FromMessage, Interface, Sender, Service};
+use smallvec::{smallvec, SmallVec};
 use sqlx::migrate::MigrateError;
 use sqlx::sqlite::{
     SqliteAutoVacuum, SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteRow,
@@ -131,6 +132,14 @@ impl QueueKey {
             own_key,
             sampling_key,
         }
+    }
+
+    pub fn unique_keys(&self) -> SmallVec<[ProjectKey; 2]> {
+        let mut keys = smallvec![self.own_key];
+        if self.sampling_key != self.own_key {
+            keys.push(self.sampling_key);
+        }
+        keys
     }
 }
 

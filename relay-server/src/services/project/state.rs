@@ -157,6 +157,10 @@ impl ProjectState {
             ProjectState::Pending => ProjectState::Pending,
         }
     }
+
+    pub fn is_pending(&self) -> bool {
+        matches!(self, ProjectState::Pending)
+    }
 }
 
 impl From<ParsedProjectState> for ProjectState {

@@ -637,10 +637,10 @@ impl Project {
         &mut self,
         project_cache: Addr<ProjectCache>,
         no_cache: bool,
-    ) -> Option<ProjectState> {
+    ) -> ProjectState {
         match self.get_or_fetch_state(project_cache, no_cache) {
-            GetOrFetch::Cached(state) => Some(state),
-            GetOrFetch::Scheduled(_) => None,
+            GetOrFetch::Cached(state) => state,
+            GetOrFetch::Scheduled(_) => ProjectState::Pending,
         }
     }
 
