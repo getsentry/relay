@@ -62,24 +62,6 @@ pub struct LimitedParsedProjectState {
     info: ProjectInfo,
 }
 
-impl TryFrom<ProjectState> for ParsedProjectState {
-    type Error = ();
-
-    fn try_from(value: ProjectState) -> Result<Self, Self::Error> {
-        match value {
-            ProjectState::Enabled(info) => Ok(ParsedProjectState {
-                disabled: false,
-                info: info.as_ref().clone(),
-            }),
-            ProjectState::Disabled => Ok(ParsedProjectState {
-                disabled: true,
-                info: ProjectInfo::default(),
-            }),
-            ProjectState::Pending => Err(()),
-        }
-    }
-}
-
 /// The project state is a cached server state of a project.
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
