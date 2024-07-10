@@ -163,7 +163,7 @@ symbolic-unreal = { version = "12.1.2", default-features = false }
 syn = "1.0.14"
 syn2 = { package = "syn", version = "2.0.11" }
 synstructure = "0.12.3"
-sysinfo = { git = "https://github.com/getsentry/sysinfo.git", rev = "e2e5d530600f96bdd79652c856918da23e5dd938", default-features = false }
+sysinfo = { git = "https://github.com/getsentry/sysinfo.git", rev = "e2e5d530600f96bdd79652c856918da23e5dd938" }
 tempfile = "3.5.0"
 thiserror = "1.0.38"
 tikv-jemallocator = "0.5.0"
