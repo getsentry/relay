@@ -1,200 +1,84 @@
 //! This module defines bidirectional field mappings between spans and transactions.
 
-use crate::protocol::{BrowserContext, Contexts, Event, ProfileContext, Span, TraceContext};
+use crate::protocol::{BrowserContext, Event, ProfileContext, Span, SpanData, TraceContext};
 
-use relay_base_schema::events::EventType;
-use relay_protocol::Annotated;
+impl From<&Event> for Span {
+    fn from(event: &Event) -> Self {
+        let Event {
+            transaction,
 
-macro_rules! write_path(
-    ($root:expr, $path_root:ident $($path_segment:ident)*) => {
-        {
-            let annotated = &mut ($root).$path_root;
-            $(
-                let value = annotated.get_or_insert_with(Default::default);
-                let annotated = &mut value.$path_segment;
-            )*
-            annotated
+            platform,
+            timestamp,
+            start_timestamp,
+            received,
+            release,
+            environment,
+            tags,
+
+            measurements,
+            _metrics,
+            _metrics_summary,
+            ..
+        } = event;
+
+        let trace = event.context::<TraceContext>();
+
+        // Fill data from trace context:
+        let mut data = trace
+            .map(|c| c.data.clone().map_value(SpanData::from))
+            .unwrap_or_default();
+
+        // Overwrite specific fields:
+        let span_data = data.get_or_insert_with(Default::default);
+        span_data.segment_name = transaction.clone();
+        span_data.release = release.clone();
+        span_data.environment = environment.clone();
+        if let Some(browser) = event.context::<BrowserContext>() {
+            span_data.browser_name = browser.name.clone();
         }
-    };
-);
-
-macro_rules! read_value(
-    ($span:expr, $path_root:ident $($path_segment:ident)*) => {
-        {
-            let value = ($span).$path_root.value();
-            $(
-                let value = value.and_then(|value| value.$path_segment.value());
-            )*
-            value
+        if let Some(client_sdk) = event.client_sdk.value() {
+            span_data.sdk_name = client_sdk.name.clone();
+            span_data.sdk_version = client_sdk.version.clone();
         }
-    };
-);
 
-macro_rules! context_write_path (
-    ($event:expr, $ContextType:ty, $context_field:ident) => {
-        {
-            let contexts = $event.contexts.get_or_insert_with(Contexts::default);
-            let context = contexts.get_or_default::<$ContextType>();
-            write_path!(context, $context_field)
+        Self {
+            timestamp: timestamp.clone(),
+            start_timestamp: start_timestamp.clone(),
+            exclusive_time: trace.map(|c| c.exclusive_time.clone()).unwrap_or_default(),
+            op: trace.map(|c| c.op.clone()).unwrap_or_default(),
+            span_id: trace.map(|c| c.span_id.clone()).unwrap_or_default(),
+            parent_span_id: trace.map(|c| c.parent_span_id.clone()).unwrap_or_default(),
+            trace_id: trace.map(|c| c.trace_id.clone()).unwrap_or_default(),
+            segment_id: trace.map(|c| c.span_id.clone()).unwrap_or_default(),
+            is_segment: true.into(),
+            status: trace.map(|c| c.status.clone()).unwrap_or_default(),
+            description: transaction.clone(),
+            tags: tags.clone().map_value(|t| t.into()),
+            origin: trace.map(|c| c.origin.clone()).unwrap_or_default(),
+            profile_id: event
+                .context::<ProfileContext>()
+                .map(|c| c.profile_id.clone())
+                .unwrap_or_default(),
+            data,
+            sentry_tags: Default::default(),
+            received: received.clone(),
+            measurements: measurements.clone(),
+            _metrics_summary: _metrics_summary.clone(),
+            platform: platform.clone(),
+            was_transaction: true.into(),
+            other: Default::default(),
         }
-    };
-);
-
-macro_rules! event_write_path(
-    ($event:expr, contexts browser $context_field:ident) => {
-        context_write_path!($event, BrowserContext, $context_field)
-    };
-    ($event:expr, contexts trace $context_field:ident) => {
-        context_write_path!($event, TraceContext, $context_field)
-    };
-    ($event:expr, contexts profile $context_field:ident) => {
-        context_write_path!($event, ProfileContext, $context_field)
-    };
-    ($event:expr, $path_root:ident $($path_segment:ident)*) => {
-        {
-            write_path!($event, $path_root $($path_segment)*)
-        }
-    };
-);
-
-macro_rules! context_value (
-    ($event:expr, $ContextType:ty, $context_field:ident) => {
-        {
-            let context = &($event).context::<$ContextType>();
-            context.map_or(None, |ctx|ctx.$context_field.value())
-        }
-    };
-);
-
-macro_rules! event_value(
-    ($event:expr, contexts browser $context_field:ident) => {
-        context_value!($event, BrowserContext, $context_field)
-    };
-    ($event:expr, contexts trace $context_field:ident) => {
-        context_value!($event, TraceContext, $context_field)
-    };
-    ($event:expr, contexts profile $context_field:ident) => {
-        context_value!($event, ProfileContext, $context_field)
-    };
-    ($event:expr, $path_root:ident $($path_segment:ident)*) => {
-        {
-            let value = ($event).$path_root.value();
-            $(
-                let value = value.and_then(|value|value.$path_segment.value());
-            )*
-            value
-        }
-    };
-);
-
-#[derive(Debug, thiserror::Error)]
-pub enum TryFromSpanError {
-    #[error("span is not a segment")]
-    NotASegment,
-    #[error("span has no span ID")]
-    MissingSpanId,
-    #[error("failed to parse event ID")]
-    InvalidSpanId(#[from] uuid::Error),
+    }
 }
-
-/// Implements the conversion between transaction events and segment spans.
-///
-/// Invoking this macro implements both `From<&Event> for Span` and `From<&Span> for Event`.
-macro_rules! map_fields {
-    (
-        $(span $(. $span_path:ident)+ <=> event $(. $event_path:ident)+),+
-        ;
-        $(span . $fixed_span_path:tt <= $fixed_span_field:expr),+
-        ;
-        $($fixed_event_field:expr => event . $fixed_event_path:tt),+
-    ) => {
-        impl From<&Event> for Span {
-            fn from(event: &Event) -> Self {
-                let mut span = Span::default();
-                $(
-                    if let Some(value) = event_value!(event, $($event_path)+) {
-                        *write_path!(&mut span, $($span_path)+) = Annotated::new(value.clone()).map_value(Into::into);
-                    }
-                )+
-                $(
-                    *write_path!(&mut span, $fixed_span_path) = Annotated::new($fixed_span_field);
-                )+
-                span
-            }
-        }
-
-        impl<'a> TryFrom<&'a Span> for Event {
-            type Error = TryFromSpanError;
-
-            fn try_from(span: &Span) -> Result<Self, Self::Error> {
-                let mut event = Event::default();
-                let span_id = span.span_id.value().ok_or(TryFromSpanError::MissingSpanId)?;
-                event.id = Annotated::new(span_id.try_into()?);
-
-                if !span.is_segment.value().unwrap_or(&false) {
-                    // Only segment spans can become transactions.
-                    return Err(TryFromSpanError::NotASegment);
-                }
-
-                $(
-                    if let Some(value) = read_value!(span, $($span_path)+) {
-                        *event_write_path!(&mut event, $($event_path)+) = Annotated::new(value.clone()).map_value(Into::into)
-                    }
-                )+
-                $(
-                    *event_write_path!(&mut event, $fixed_event_path) = Annotated::new($fixed_event_field);
-                )+
-
-                Ok(event)
-            }
-        }
-    };
-}
-
-// This macro call implements a bidirectional mapping between transaction event and segment spans,
-// allowing users to call both `Event::from(&span)` and `Span::from(&event)`.
-map_fields!(
-    span._metrics_summary <=> event._metrics_summary,
-    span.description <=> event.transaction,
-    span.data.segment_name <=> event.transaction,
-    span.measurements <=> event.measurements,
-    span.platform <=> event.platform,
-    span.received <=> event.received,
-    span.start_timestamp <=> event.start_timestamp,
-    span.tags <=> event.tags,
-    span.timestamp <=> event.timestamp,
-    span.exclusive_time <=> event.contexts.trace.exclusive_time,
-    span.op <=> event.contexts.trace.op,
-    span.parent_span_id <=> event.contexts.trace.parent_span_id,
-    // A transaction corresponds to a segment span, so span_id and segment_id have the same value:
-    span.span_id <=> event.contexts.trace.span_id,
-    span.segment_id <=> event.contexts.trace.span_id,
-    span.status <=> event.contexts.trace.status,
-    span.trace_id <=> event.contexts.trace.trace_id,
-    span.profile_id <=> event.contexts.profile.profile_id,
-    span.data.release <=> event.release,
-    span.data.environment <=> event.environment,
-    span.data.browser_name <=> event.contexts.browser.name,
-    span.data.sdk_name <=> event.client_sdk.name,
-    span.data.sdk_version <=> event.client_sdk.version,
-    span.origin <=> event.contexts.trace.origin
-    ;
-    span.is_segment <= true,
-    span.was_transaction <= true
-    ;
-    EventType::Transaction => event.ty
-);
 
 #[cfg(test)]
 mod tests {
     use relay_protocol::Annotated;
 
-    use crate::protocol::{SpanData, SpanId};
-
     use super::*;
 
     #[test]
-    fn roundtrip() {
+    fn convert() {
         let event = Annotated::<Event>::from_json(
             r#"{
                 "type": "transaction",
@@ -214,7 +98,10 @@ mod tests {
                         "op": "myop",
                         "status": "ok",
                         "exclusive_time": 123.4,
-                        "parent_span_id": "FA90FDEAD5F74051"
+                        "parent_span_id": "FA90FDEAD5F74051",
+                        "data": {
+                            "custom_attribute": 42
+                        }
                     }
                 },
                 "_metrics_summary": {
@@ -320,7 +207,13 @@ mod tests {
                 user_agent_original: ~,
                 url_full: ~,
                 client_address: ~,
-                other: {},
+                other: {
+                    "custom_attribute": I64(
+                        42,
+                    ),
+                    "previousRoute": ~,
+                    "route": ~,
+                },
             },
             sentry_tags: ~,
             received: ~,
@@ -354,44 +247,5 @@ mod tests {
             other: {},
         }
         "###);
-
-        let mut event_from_span = Event::try_from(&span_from_event).unwrap();
-
-        let event_id = event_from_span.id.value_mut().take().unwrap();
-        assert_eq!(&event_id.to_string(), "0000000000000000fa90fdead5f74052");
-
-        assert_eq!(event, event_from_span);
-    }
-
-    #[test]
-    fn segment_name_takes_precedence_over_description() {
-        let span = Span {
-            span_id: SpanId("fa90fdead5f74052".to_owned()).into(),
-            is_segment: true.into(),
-            description: "This is the description".to_owned().into(),
-            data: SpanData {
-                segment_name: "This is the segment name".to_owned().into(),
-                ..Default::default()
-            }
-            .into(),
-            ..Default::default()
-        };
-        let event = Event::try_from(&span).unwrap();
-
-        assert_eq!(event.transaction.as_str(), Some("This is the segment name"));
-    }
-
-    #[test]
-    fn no_empty_profile_context() {
-        let span = Span {
-            span_id: SpanId("fa90fdead5f74052".to_owned()).into(),
-            is_segment: true.into(),
-            ..Default::default()
-        };
-        let event = Event::try_from(&span).unwrap();
-
-        // No profile context is set.
-        // profile_id is required on ProfileContext so we should not create an empty one.
-        assert!(event.context::<ProfileContext>().is_none());
     }
 }

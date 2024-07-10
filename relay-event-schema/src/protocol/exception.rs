@@ -1,6 +1,6 @@
 #[cfg(feature = "jsonschema")]
 use relay_jsonschema_derive::JsonSchema;
-use relay_protocol::{Annotated, Empty, FromValue, IntoValue, Object, Value};
+use relay_protocol::{Annotated, Empty, FromValue, Getter, IntoValue, Object, Val, Value};
 
 use crate::processor::ProcessValue;
 use crate::protocol::{JsonLenientString, Mechanism, RawStacktrace, Stacktrace, ThreadId};
@@ -70,6 +70,16 @@ pub struct Exception {
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(additional_properties)]
     pub other: Object<Value>,
+}
+
+impl Getter for Exception {
+    fn get_value(&self, path: &str) -> Option<Val<'_>> {
+        Some(match path {
+            "ty" => self.ty.as_str()?.into(),
+            "value" => self.value.as_str()?.into(),
+            _ => return None,
+        })
+    }
 }
 
 #[cfg(test)]

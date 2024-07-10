@@ -275,10 +275,6 @@ pub enum RelayHistograms {
     /// If it is not, this metric should expose it.
     PartitionKeys,
 
-    /// Measures how many transactions were created from segment spans in a single envelope.
-    #[cfg(feature = "processing")]
-    TransactionsFromSpansPerEnvelope,
-
     /// Measures how many splits were performed when sending out a partition.
     PartitionSplits,
 }
@@ -314,10 +310,6 @@ impl HistogramMetric for RelayHistograms {
             RelayHistograms::UpstreamEnvelopeBodySize => "upstream.envelope.body_size",
             RelayHistograms::UpstreamMetricsBodySize => "upstream.metrics.body_size",
             RelayHistograms::PartitionKeys => "metrics.buckets.partition_keys",
-            #[cfg(feature = "processing")]
-            RelayHistograms::TransactionsFromSpansPerEnvelope => {
-                "transactions_from_spans_per_envelope"
-            }
             RelayHistograms::PartitionSplits => "partition_splits",
         }
     }
@@ -755,9 +747,6 @@ pub enum RelayCounters {
     /// This metric is tagged with:
     ///  - `success`: whether deserializing the global config succeeded.
     GlobalConfigFetched,
-    /// Counts how many transactions were created from segment spans.
-    #[cfg(feature = "processing")]
-    TransactionsFromSpans,
     /// The number of attachments processed in the same envelope as a user_report_v2 event.
     FeedbackAttachments,
     /// All COGS tracked values.
@@ -769,12 +758,6 @@ pub enum RelayCounters {
     /// The amount of times metrics of a project have been flushed without the project being
     /// fetched/available.
     ProjectStateFlushMetricsNoProject,
-    /// The decision on whether normalization should run for an event.
-    ///
-    /// This metric is tagged with:
-    /// - `decision`: the decision relay makes on the event.
-    /// - `attachment_type`: the type of the attachment in the envelope.
-    NormalizationDecision,
 }
 
 impl CounterMetric for RelayCounters {
@@ -813,12 +796,9 @@ impl CounterMetric for RelayCounters {
             RelayCounters::MetricsTransactionNameExtracted => "metrics.transaction_name",
             RelayCounters::OpenTelemetryEvent => "event.opentelemetry",
             RelayCounters::GlobalConfigFetched => "global_config.fetch",
-            #[cfg(feature = "processing")]
-            RelayCounters::TransactionsFromSpans => "transactions_from_spans",
             RelayCounters::FeedbackAttachments => "processing.feedback_attachments",
             RelayCounters::CogsUsage => "cogs.usage",
             RelayCounters::ProjectStateFlushMetricsNoProject => "project_state.metrics.no_project",
-            RelayCounters::NormalizationDecision => "normalization.decision",
         }
     }
 }
