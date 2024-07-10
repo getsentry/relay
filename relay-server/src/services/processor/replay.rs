@@ -311,7 +311,7 @@ fn handle_replay_video_item(
 
 // Pre-processors
 
-fn count_replay_video_events(state: &ProcessEnvelopeState<ReplayGroup>) -> u8 {
+fn count_replay_video_events(state: &ProcessEnvelopeState<ReplayGroup>) -> usize {
     state
         .managed_envelope
         .envelope()
