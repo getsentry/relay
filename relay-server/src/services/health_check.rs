@@ -114,6 +114,8 @@ impl HealthCheckService {
             .refresh_memory_specifics(MemoryRefreshKind::new().with_ram());
 
         // Use the cgroup if available in case Relay is running in a container.
+        // TODO: once we measured the new rss metric, we will remove `rss` and just used cgroup.rss
+        //  `used`.
         let memory = match self.system.cgroup_limits() {
             Some(cgroup) => Memory {
                 used: cgroup.total_memory.saturating_sub(cgroup.free_memory),
@@ -123,13 +125,13 @@ impl HealthCheckService {
             None => Memory {
                 used: self.system.used_memory(),
                 total: self.system.total_memory(),
-                rss: 0,
+                rss: self.system.used_memory(),
             },
         };
 
         metric!(gauge(RelayGauges::SystemMemoryUsed) = memory.used);
         metric!(gauge(RelayGauges::SystemMemoryTotal) = memory.total);
-        metric!(gauge(RelayGauges::SystemMemoryRSS) = memory.rss);
+        metric!(gauge(RelayGauges::SystemMemoryRss) = memory.rss);
 
         if memory.used_percent() >= self.config.health_max_memory_watermark_percent() {
             relay_log::error!(
