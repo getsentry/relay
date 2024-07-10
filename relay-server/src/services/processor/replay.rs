@@ -29,7 +29,7 @@ pub fn process(
     let project_state = &state.project_state;
     let replays_enabled = project_state.has_feature(Feature::SessionReplay);
     let scrubbing_enabled = project_state.has_feature(Feature::SessionReplayRecordingScrubbing);
-    let replay_video_disabled = project_state.has_feature(Feature::SessionReplayVideoDenylist);
+    let replay_video_disabled = project_state.has_feature(Feature::SessionReplayVideoDisabled);
 
     let meta = state.envelope().meta().clone();
     let client_addr = meta.client_addr();

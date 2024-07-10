@@ -25,7 +25,7 @@ pub enum Feature {
     ///
     /// Serialized as `organizations:session-replay-video-disabled`.
     #[serde(rename = "organizations:session-replay-video-disabled")]
-    SessionReplayVideoDenylist,
+    SessionReplayVideoDisabled,
     /// Enables new User Feedback ingest.
     ///
     /// TODO(jferg): rename to UserFeedbackIngest once old UserReport logic is deprecated.
