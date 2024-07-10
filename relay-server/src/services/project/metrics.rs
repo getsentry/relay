@@ -165,14 +165,13 @@ mod tests {
         let (metric_stats, mut metric_stats_rx) = MetricStats::test();
         let metric_outcomes = MetricOutcomes::new(metric_stats, outcome_aggregator);
 
-        let project_state = {
-            let mut project_state = ProjectInfo::default();
-            project_state.config = serde_json::from_value(serde_json::json!({
+        let project_state = ProjectInfo {
+            config: serde_json::from_value(serde_json::json!({
                 "metrics": { "deniedNames": ["*cpu_time*"] },
                 "features": ["organizations:custom-metrics"]
             }))
-            .unwrap();
-            project_state
+            .unwrap(),
+            ..Default::default()
         };
 
         let b1 = create_custom_bucket_with_name("cpu_time".into());

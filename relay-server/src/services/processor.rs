@@ -3337,9 +3337,10 @@ mod tests {
                 let mut config = ProjectConfig::default();
                 config.quotas.push(quota);
 
-                let mut project_state = ProjectInfo::default();
-                project_state.config = config;
-                Arc::new(project_state)
+                Arc::new(ProjectInfo {
+                    config,
+                    ..Default::default()
+                })
             };
 
             let project_metrics = ProjectMetrics {
@@ -3458,8 +3459,10 @@ mod tests {
             ..Default::default()
         };
 
-        let mut project_state = ProjectInfo::default();
-        project_state.config = config;
+        let project_info = ProjectInfo {
+            config,
+            ..Default::default()
+        };
 
         let mut envelopes = ProcessingGroup::split_envelope(*envelope);
         assert_eq!(envelopes.len(), 1);
@@ -3469,7 +3472,7 @@ mod tests {
 
         let message = ProcessEnvelope {
             envelope,
-            project_state: Arc::new(project_state),
+            project_state: Arc::new(project_info),
             sampling_project_state: None,
             reservoir_counters: ReservoirCounters::default(),
         };

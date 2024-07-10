@@ -1004,8 +1004,10 @@ mod tests {
 
             // Initialize project with a state
             let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
-            let mut project_info = ProjectInfo::default();
-            project_info.project_id = Some(ProjectId::new(123));
+            let project_info = ProjectInfo {
+                project_id: Some(ProjectId::new(123)),
+                ..Default::default()
+            };
             let mut project = Project::new(project_key, config.clone());
             project.state = ProjectFetchState::enabled(project_info);
 
@@ -1041,8 +1043,6 @@ mod tests {
 
         // Initialize project with a state.
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
-        let mut project_info = ProjectInfo::default();
-        project_info.project_id = Some(ProjectId::new(123));
         let mut project = Project::new(project_key, config);
         project.state_channel = Some(channel);
         project.state = ProjectFetchState::allowed();
@@ -1082,8 +1082,10 @@ mod tests {
     fn create_project(config: Option<serde_json::Value>) -> Project {
         let project_key = ProjectKey::parse("e12d836b15bb49d7bbf99e64295d995b").unwrap();
         let mut project = Project::new(project_key, Arc::new(Config::default()));
-        let mut project_info = ProjectInfo::default();
-        project_info.project_id = Some(ProjectId::new(42));
+        let mut project_info = ProjectInfo {
+            project_id: Some(ProjectId::new(42)),
+            ..Default::default()
+        };
         let mut public_keys = SmallVec::new();
         public_keys.push(PublicKeyConfig {
             public_key: project_key,
