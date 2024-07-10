@@ -2675,15 +2675,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "ntapi"
-version = "0.4.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e8a3895c6391c39d7fe7ebc444a87eb2991b2a0bc718fdabd071eec617fc68e4"
-dependencies = [
- "winapi",
-]
-
-[[package]]
 name = "nu-ansi-term"
 version = "0.46.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5294,14 +5285,12 @@ dependencies = [
 [[package]]
 name = "sysinfo"
 version = "0.30.13"
-source = "git+https://github.com/iambriccardo/sysinfo.git?rev=e2e5d530600f96bdd79652c856918da23e5dd938#e2e5d530600f96bdd79652c856918da23e5dd938"
+source = "git+https://github.com/getsentry/sysinfo.git?rev=e2e5d530600f96bdd79652c856918da23e5dd938#e2e5d530600f96bdd79652c856918da23e5dd938"
 dependencies = [
  "bstr 1.9.1",
  "core-foundation-sys",
  "libc",
  "memchr",
- "ntapi",
- "rayon",
  "windows",
 ]
 
