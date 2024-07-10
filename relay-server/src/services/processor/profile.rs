@@ -179,25 +179,24 @@ mod tests {
 
             item.set_payload(
                 ContentType::Json,
-                r#"
-            {
-                "type": "transaction",
-                "transaction": "/foo/",
-                "timestamp": 946684810.0,
-                "start_timestamp": 946684800.0,
-                "contexts": {
-                    "trace": {
-                    "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
-                    "span_id": "fa90fdead5f74053",
-                    "op": "http.server",
-                    "type": "trace"
+                r#"{
+                    "event_id": "9b73438f70e044ecbd006b7fd15b7373",
+                    "type": "transaction",
+                    "transaction": "/foo/",
+                    "timestamp": 946684810.0,
+                    "start_timestamp": 946684800.0,
+                    "contexts": {
+                        "trace": {
+                        "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+                        "span_id": "fa90fdead5f74053",
+                        "op": "http.server",
+                        "type": "trace"
+                        }
+                    },
+                    "transaction_info": {
+                        "source": "url"
                     }
-                },
-                "transaction_info": {
-                    "source": "url"
-                }
-            }
-            "#,
+                }"#,
             );
             item
         });
@@ -213,7 +212,32 @@ mod tests {
                     "platform": "android",
                     "os": {"name": "foo", "version": "bar"},
                     "device": {"architecture": "zap"},
-                    "timestamp": "2023-10-10 00:00:00Z"
+                    "timestamp": "2023-10-10 00:00:00Z",
+                    "profile": {
+                        "samples":[
+                            {
+                                "stack_id":0,
+                                "elapsed_since_start_ns":1,
+                                "thread_id":1
+                            },
+                            {
+                                "stack_id":0,
+                                "elapsed_since_start_ns":2,
+                                "thread_id":1
+                            }
+                        ],
+                        "stacks":[[0]],
+                        "frames":[{
+                            "function":"main"
+                        }]
+                    },
+                    "transactions": [
+                        {
+                            "id": "9b73438f70e044ecbd006b7fd15b7373",
+                            "name": "/foo/",
+                            "trace_id": "4c79f60c11214eb38604f4ae0781bfb2"
+                        }
+                    ]
                 }"#,
             );
             item
@@ -258,6 +282,116 @@ mod tests {
             profiler_id: ~,
         }
         "###);
+    }
+
+    #[tokio::test]
+    async fn test_invalid_profile_id_not_transfered() {
+        // Setup
+        let processor = create_test_processor(Default::default());
+        let event_id = EventId::new();
+        let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
+            .parse()
+            .unwrap();
+        let request_meta = RequestMeta::new(dsn);
+        let mut envelope = Envelope::from_request(Some(event_id), request_meta);
+
+        // Add a valid transaction item.
+        envelope.add_item({
+            let mut item = Item::new(ItemType::Transaction);
+
+            item.set_payload(
+                ContentType::Json,
+                r#"{
+                    "event_id": "9b73438f70e044ecbd006b7fd15b7373",
+                    "type": "transaction",
+                    "transaction": "/foo/",
+                    "timestamp": 946684810.0,
+                    "start_timestamp": 946684800.0,
+                    "contexts": {
+                        "trace": {
+                        "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+                        "span_id": "fa90fdead5f74053",
+                        "op": "http.server",
+                        "type": "trace"
+                        }
+                    },
+                    "transaction_info": {
+                        "source": "url"
+                    }
+                }"#,
+            );
+            item
+        });
+
+        // Add a profile to the same envelope.
+        envelope.add_item({
+            let mut item = Item::new(ItemType::Profile);
+            item.set_payload(
+                ContentType::Json,
+                r#"{
+                    "profile_id": "012d836b15bb49d7bbf99e64295d995b",
+                    "version": "1",
+                    "platform": "android",
+                    "os": {"name": "foo", "version": "bar"},
+                    "device": {"architecture": "zap"},
+                    "timestamp": "2023-10-10 00:00:00Z",
+                    "profile": {
+                        "samples":[
+                            {
+                                "stack_id":0,
+                                "elapsed_since_start_ns":1,
+                                "thread_id":1
+                            },
+                            {
+                                "stack_id":1,
+                                "elapsed_since_start_ns":2,
+                                "thread_id":1
+                            }
+                        ],
+                        "stacks":[[0],[]],
+                        "frames":[{
+                            "function":"main"
+                        }]
+                    },
+                    "transactions": [
+                        {
+                            "id": "9b73438f70e044ecbd006b7fd15b7373",
+                            "name": "/foo/",
+                            "trace_id": "4c79f60c11214eb38604f4ae0781bfb2"
+                        }
+                    ]
+                }"#,
+            );
+            item
+        });
+
+        let mut project_state = ProjectState::allowed();
+        project_state.config.features.0.insert(Feature::Profiling);
+
+        let mut envelopes = ProcessingGroup::split_envelope(*envelope);
+        assert_eq!(envelopes.len(), 1);
+
+        let (group, envelope) = envelopes.pop().unwrap();
+        let envelope = ManagedEnvelope::standalone(envelope, Addr::dummy(), Addr::dummy(), group);
+
+        let message = ProcessEnvelope {
+            envelope,
+            project_state: Arc::new(project_state),
+            sampling_project_state: None,
+            reservoir_counters: ReservoirCounters::default(),
+        };
+
+        let envelope_response = processor.process(message).unwrap();
+        let ctx = envelope_response.envelope.unwrap();
+        let new_envelope = ctx.envelope();
+
+        // Get the re-serialized context.
+        let item = new_envelope
+            .get_item_by(|item| item.ty() == &ItemType::Transaction)
+            .unwrap();
+        let transaction = Annotated::<Event>::from_json_bytes(&item.payload()).unwrap();
+        let context = transaction.value().unwrap().context::<ProfileContext>();
+        assert!(context.is_none());
     }
 
     #[tokio::test]
