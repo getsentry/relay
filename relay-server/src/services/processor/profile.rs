@@ -4,8 +4,11 @@ use relay_dynamic_config::Feature;
 
 use relay_base_schema::events::EventType;
 use relay_config::Config;
-use relay_event_schema::protocol::{Contexts, Event, ProfileContext};
+use relay_event_schema::protocol::Event;
+#[cfg(feature = "processing")]
+use relay_event_schema::protocol::{Contexts, ProfileContext};
 use relay_profiling::{ProfileError, ProfileId};
+#[cfg(feature = "processing")]
 use relay_protocol::Annotated;
 
 use crate::envelope::{ContentType, Item, ItemType};
@@ -63,6 +66,7 @@ pub fn filter<G>(state: &mut ProcessEnvelopeState<G>) -> Option<ProfileId> {
 /// The profile id may be `None` when the envelope does not contain a profile,
 /// in that case the profile context is removed.
 /// Some SDKs send transactions with profile ids but omit the profile in the envelope.
+#[cfg(feature = "processing")]
 pub fn transfer_id(
     state: &mut ProcessEnvelopeState<TransactionGroup>,
     profile_id: Option<ProfileId>,
@@ -146,6 +150,7 @@ fn expand_profile(item: &mut Item, event: &Event, config: &Config) -> Result<Pro
 mod tests {
     use std::sync::Arc;
 
+    #[cfg(feature = "processing")]
     use insta::assert_debug_snapshot;
     #[cfg(not(feature = "processing"))]
     use relay_dynamic_config::Feature;
@@ -162,6 +167,7 @@ mod tests {
 
     use super::*;
 
+    #[cfg(feature = "processing")]
     #[tokio::test]
     async fn test_profile_id_transfered() {
         // Setup
@@ -291,6 +297,7 @@ mod tests {
         "###);
     }
 
+    #[cfg(feature = "processing")]
     #[tokio::test]
     async fn test_invalid_profile_id_not_transfered() {
         // Setup
@@ -459,6 +466,7 @@ mod tests {
         assert!(envelope_response.envelope.is_none());
     }
 
+    #[cfg(feature = "processing")]
     #[tokio::test]
     async fn test_profile_id_removed_profiler_id_kept() {
         // Setup
