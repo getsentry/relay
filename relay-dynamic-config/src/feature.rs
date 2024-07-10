@@ -24,7 +24,7 @@ pub enum Feature {
     /// Disables select organizations from processing mobile replay events.
     ///
     /// Serialized as `organizations:session-replay-video-denylist`.
-    #[serde(rename = "organizations:session-replay-video-denylist")]
+    #[serde(rename = "organizations:session-replay-video-disabled")]
     SessionReplayVideoDenylist,
     /// Enables new User Feedback ingest.
     ///
