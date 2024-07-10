@@ -300,6 +300,25 @@
 <a href="#300" id="300">300</a>
 <a href="#301" id="301">301</a>
 <a href="#302" id="302">302</a>
+<a href="#303" id="303">303</a>
+<a href="#304" id="304">304</a>
+<a href="#305" id="305">305</a>
+<a href="#306" id="306">306</a>
+<a href="#307" id="307">307</a>
+<a href="#308" id="308">308</a>
+<a href="#309" id="309">309</a>
+<a href="#310" id="310">310</a>
+<a href="#311" id="311">311</a>
+<a href="#312" id="312">312</a>
+<a href="#313" id="313">313</a>
+<a href="#314" id="314">314</a>
+<a href="#315" id="315">315</a>
+<a href="#316" id="316">316</a>
+<a href="#317" id="317">317</a>
+<a href="#318" id="318">318</a>
+<a href="#319" id="319">319</a>
+<a href="#320" id="320">320</a>
+<a href="#321" id="321">321</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Replay related processor code.
 </span><span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::net::IpAddr;
@@ -331,6 +350,7 @@
     <span class="kw">let </span>project_state = <span class="kw-2">&amp;</span>state.project_state;
     <span class="kw">let </span>replays_enabled = project_state.has_feature(Feature::SessionReplay);
     <span class="kw">let </span>scrubbing_enabled = project_state.has_feature(Feature::SessionReplayRecordingScrubbing);
+    <span class="kw">let </span>replay_video_disabled = project_state.has_feature(Feature::SessionReplayVideoDisabled);
 
     <span class="kw">let </span>meta = state.envelope().meta().clone();
     <span class="kw">let </span>client_addr = meta.client_addr();
@@ -358,6 +378,13 @@
 
     <span class="comment">// If the replay feature is not enabled drop the items silenty.
     </span><span class="kw">if </span>!replays_enabled {
+        state.managed_envelope.drop_items_silently();
+        <span class="kw">return </span><span class="prelude-val">Ok</span>(());
+    }
+
+    <span class="comment">// If the replay video feature is not enabled check the envelope items for a
+    // replay video event.
+    </span><span class="kw">if </span>replay_video_disabled &amp;&amp; count_replay_video_events(state) &gt; <span class="number">0 </span>{
         state.managed_envelope.drop_items_silently();
         <span class="kw">return </span><span class="prelude-val">Ok</span>(());
     }
@@ -601,5 +628,16 @@
             DiscardReason::InvalidReplayVideoEvent,
         )),
     }
+}
+
+<span class="comment">// Pre-processors
+
+</span><span class="kw">fn </span>count_replay_video_events(state: <span class="kw-2">&amp;</span>ProcessEnvelopeState&lt;ReplayGroup&gt;) -&gt; usize {
+    state
+        .managed_envelope
+        .envelope()
+        .items()
+        .filter(|item| item.ty() == <span class="kw-2">&amp;</span>ItemType::ReplayVideo)
+        .count()
 }
 </code></pre></div></section></main></body></html>

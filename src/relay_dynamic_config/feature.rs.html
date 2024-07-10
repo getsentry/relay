@@ -178,6 +178,11 @@
 <a href="#178" id="178">178</a>
 <a href="#179" id="179">179</a>
 <a href="#180" id="180">180</a>
+<a href="#181" id="181">181</a>
+<a href="#182" id="182">182</a>
+<a href="#183" id="183">183</a>
+<a href="#184" id="184">184</a>
+<a href="#185" id="185">185</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeSet;
 
 <span class="kw">use </span>serde::{Deserialize, Serialize};
@@ -201,6 +206,11 @@
     /// Serialized as `organizations:session-replay-combined-envelope-items`.
     </span><span class="attr">#[serde(rename = <span class="string">"organizations:session-replay-combined-envelope-items"</span>)]
     </span>SessionReplayCombinedEnvelopeItems,
+    <span class="doccomment">/// Disables select organizations from processing mobile replay events.
+    ///
+    /// Serialized as `organizations:session-replay-video-disabled`.
+    </span><span class="attr">#[serde(rename = <span class="string">"organizations:session-replay-video-disabled"</span>)]
+    </span>SessionReplayVideoDisabled,
     <span class="doccomment">/// Enables new User Feedback ingest.
     ///
     /// TODO(jferg): rename to UserFeedbackIngest once old UserReport logic is deprecated.
