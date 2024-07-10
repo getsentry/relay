@@ -118,15 +118,18 @@ impl HealthCheckService {
             Some(cgroup) => Memory {
                 used: cgroup.total_memory.saturating_sub(cgroup.free_memory),
                 total: cgroup.total_memory,
+                rss: cgroup.rss,
             },
             None => Memory {
                 used: self.system.used_memory(),
                 total: self.system.total_memory(),
+                rss: 0,
             },
         };
 
         metric!(gauge(RelayGauges::SystemMemoryUsed) = memory.used);
         metric!(gauge(RelayGauges::SystemMemoryTotal) = memory.total);
+        metric!(gauge(RelayGauges::SystemMemoryRSS) = memory.rss);
 
         if memory.used_percent() >= self.config.health_max_memory_watermark_percent() {
             relay_log::error!(
@@ -254,6 +257,7 @@ impl Service for HealthCheckService {
 struct Memory {
     pub used: u64,
     pub total: u64,
+    pub rss: u64,
 }
 
 impl Memory {
@@ -303,6 +307,7 @@ mod tests {
         let memory = Memory {
             used: 100,
             total: 0,
+            rss: 0,
         };
         assert_eq!(memory.used_percent(), 1.0);
     }
@@ -312,6 +317,7 @@ mod tests {
         let memory = Memory {
             used: 0,
             total: 100,
+            rss: 0,
         };
         assert_eq!(memory.used_percent(), 0.0);
     }
@@ -321,6 +327,7 @@ mod tests {
         let memory = Memory {
             used: 50,
             total: 100,
+            rss: 0,
         };
         assert_eq!(memory.used_percent(), 0.5);
     }

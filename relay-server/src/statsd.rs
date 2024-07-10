@@ -34,6 +34,8 @@ pub enum RelayGauges {
     ///
     /// Relay uses the same value for its memory health check.
     SystemMemoryTotal,
+    /// The currently used Resident Set Size (RSS).
+    SystemMemoryRSS,
 }
 
 impl GaugeMetric for RelayGauges {
@@ -46,6 +48,7 @@ impl GaugeMetric for RelayGauges {
             RelayGauges::BufferPeriodicUnspool => "buffer.unspool.periodic",
             RelayGauges::SystemMemoryUsed => "health.system_memory.used",
             RelayGauges::SystemMemoryTotal => "health.system_memory.total",
+            RelayGauges::SystemMemoryRSS => "health.system_memory.rss",
         }
     }
 }
