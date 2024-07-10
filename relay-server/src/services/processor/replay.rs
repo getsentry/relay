@@ -316,5 +316,6 @@ fn count_replay_video_events(state: &ProcessEnvelopeState<ReplayGroup>) -> u8 {
         .managed_envelope
         .envelope()
         .items()
-        .fold(0, |_: u8, item| (item.ty() == &ItemType::ReplayVideo) as u8)
+        .filter(|item| item.ty() == &ItemType::ReplayVideo)
+        .count()
 }
