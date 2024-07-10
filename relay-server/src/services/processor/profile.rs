@@ -165,7 +165,14 @@ mod tests {
     #[tokio::test]
     async fn test_profile_id_transfered() {
         // Setup
-        let processor = create_test_processor(Default::default());
+        let config = Config::from_json_value(serde_json::json!({
+            "processing": {
+                "enabled": true,
+                "kafka_config": []
+            }
+        }))
+        .unwrap();
+        let processor = create_test_processor(config);
         let event_id = EventId::new();
         let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
             .parse()
@@ -287,7 +294,14 @@ mod tests {
     #[tokio::test]
     async fn test_invalid_profile_id_not_transfered() {
         // Setup
-        let processor = create_test_processor(Default::default());
+        let config = Config::from_json_value(serde_json::json!({
+            "processing": {
+                "enabled": true,
+                "kafka_config": []
+            }
+        }))
+        .unwrap();
+        let processor = create_test_processor(config);
         let event_id = EventId::new();
         let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
             .parse()
@@ -448,7 +462,14 @@ mod tests {
     #[tokio::test]
     async fn test_profile_id_removed_profiler_id_kept() {
         // Setup
-        let processor = create_test_processor(Default::default());
+        let config = Config::from_json_value(serde_json::json!({
+            "processing": {
+                "enabled": true,
+                "kafka_config": []
+            }
+        }))
+        .unwrap();
+        let processor = create_test_processor(config);
         let event_id = EventId::new();
         let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
             .parse()
