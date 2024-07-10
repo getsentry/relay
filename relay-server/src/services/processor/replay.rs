@@ -29,6 +29,7 @@ pub fn process(
     let project_state = &state.project_state;
     let replays_enabled = project_state.has_feature(Feature::SessionReplay);
     let scrubbing_enabled = project_state.has_feature(Feature::SessionReplayRecordingScrubbing);
+    let replay_video_disabled = project_state.has_feature(Feature::SessionReplayVideoDisabled);
 
     let meta = state.envelope().meta().clone();
     let client_addr = meta.client_addr();
@@ -56,6 +57,13 @@ pub fn process(
 
     // If the replay feature is not enabled drop the items silenty.
     if !replays_enabled {
+        state.managed_envelope.drop_items_silently();
+        return Ok(());
+    }
+
+    // If the replay video feature is not enabled check the envelope items for a
+    // replay video event.
+    if replay_video_disabled && count_replay_video_events(state) > 0 {
         state.managed_envelope.drop_items_silently();
         return Ok(());
     }
@@ -299,4 +307,15 @@ fn handle_replay_video_item(
             DiscardReason::InvalidReplayVideoEvent,
         )),
     }
+}
+
+// Pre-processors
+
+fn count_replay_video_events(state: &ProcessEnvelopeState<ReplayGroup>) -> usize {
+    state
+        .managed_envelope
+        .envelope()
+        .items()
+        .filter(|item| item.ty() == &ItemType::ReplayVideo)
+        .count()
 }

@@ -21,6 +21,11 @@ pub enum Feature {
     /// Serialized as `organizations:session-replay-combined-envelope-items`.
     #[serde(rename = "organizations:session-replay-combined-envelope-items")]
     SessionReplayCombinedEnvelopeItems,
+    /// Disables select organizations from processing mobile replay events.
+    ///
+    /// Serialized as `organizations:session-replay-video-disabled`.
+    #[serde(rename = "organizations:session-replay-video-disabled")]
+    SessionReplayVideoDisabled,
     /// Enables new User Feedback ingest.
     ///
     /// TODO(jferg): rename to UserFeedbackIngest once old UserReport logic is deprecated.
