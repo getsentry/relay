@@ -10,7 +10,6 @@ use tokio::sync::watch;
 use tokio::time::{timeout, Instant};
 
 use crate::services::project_cache::{ProjectCache, SpoolHealth};
-use crate::services::upstream::{IsAuthenticated, UpstreamRelay};
 use crate::statsd::{RelayGauges, RelayTimers};
 
 /// Checks whether Relay is alive and healthy based on its variant.
@@ -85,7 +84,6 @@ impl StatusUpdate {
 pub struct HealthCheckService {
     config: Arc<Config>,
     aggregator: Addr<Aggregator>,
-    upstream_relay: Addr<UpstreamRelay>,
     project_cache: Addr<ProjectCache>,
     system: System,
 }
@@ -97,13 +95,11 @@ impl HealthCheckService {
     pub fn new(
         config: Arc<Config>,
         aggregator: Addr<Aggregator>,
-        upstream_relay: Addr<UpstreamRelay>,
         project_cache: Addr<ProjectCache>,
     ) -> Self {
         Self {
             system: System::new(),
             aggregator,
-            upstream_relay,
             project_cache,
             config,
         }
@@ -153,17 +149,6 @@ impl HealthCheckService {
         Status::Healthy
     }
 
-    async fn auth_probe(&self) -> Status {
-        if !self.config.requires_auth() {
-            return Status::Healthy;
-        }
-
-        self.upstream_relay
-            .send(IsAuthenticated)
-            .await
-            .map_or(Status::Unhealthy, Status::from)
-    }
-
     async fn aggregator_probe(&self) -> Status {
         self.aggregator
             .send(AcceptsMetrics)
@@ -196,14 +181,13 @@ impl HealthCheckService {
         // System memory is sync and requires mutable access, but we still want to log errors.
         let sys_mem = self.system_memory_probe();
 
-        let (sys_mem, auth, agg, proj) = tokio::join!(
+        let (sys_mem, agg, proj) = tokio::join!(
             self.probe("system memory", async { sys_mem }),
-            self.probe("auth", self.auth_probe()),
             self.probe("aggregator", self.aggregator_probe()),
             self.probe("spool health", self.spool_health_probe()),
         );
 
-        Status::from_iter([sys_mem, auth, agg, proj])
+        Status::from_iter([sys_mem, agg, proj])
     }
 }
 

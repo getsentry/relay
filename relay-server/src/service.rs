@@ -202,13 +202,9 @@ impl ServiceState {
         )
         .spawn_handler(project_cache_rx);
 
-        let health_check = HealthCheckService::new(
-            config.clone(),
-            aggregator.clone(),
-            upstream_relay.clone(),
-            project_cache.clone(),
-        )
-        .start();
+        let health_check =
+            HealthCheckService::new(config.clone(), aggregator.clone(), project_cache.clone())
+                .start();
 
         RelayStats::new(config.clone(), upstream_relay.clone()).start();
 
