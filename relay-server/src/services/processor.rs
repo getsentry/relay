@@ -1641,6 +1641,8 @@ impl EnvelopeProcessorService {
 
         event::extract(state, &self.inner.config)?;
 
+        let profile_id = profile::filter(state);
+
         if_processing!(self.inner.config, {
             attachment::create_placeholders(state);
         });
@@ -1668,7 +1670,7 @@ impl EnvelopeProcessorService {
             // Before metric extraction to make sure the profile count is reflected correctly.
             let profile_id = match keep_profiles {
                 true => profile::process(state, &self.inner.config),
-                false => None,
+                false => profile_id,
             };
 
             // Extract metrics here, we're about to drop the event/transaction.
