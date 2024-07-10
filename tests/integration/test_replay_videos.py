@@ -95,7 +95,7 @@ def test_replay_recording_with_video_denied(
             "config": {
                 "features": [
                     "organizations:session-replay",
-                    "organizations:session-replay-video-denylist",
+                    "organizations:session-replay-video-disabled",
                 ]
             }
         },
