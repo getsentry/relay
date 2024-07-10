@@ -103,10 +103,11 @@ mod tests {
     use relay_base_schema::project::{ProjectId, ProjectKey};
     use relay_common::glob3::GlobPatterns;
     use relay_dynamic_config::TagBlock;
-    use relay_metrics::{Aggregator, BucketValue, UnixTimestamp};
+    use relay_metrics::{BucketValue, UnixTimestamp};
     use relay_system::Addr;
 
     use crate::metrics::MetricStats;
+    use crate::services::aggregatorservice::Aggregator;
 
     use super::*;
 
@@ -199,10 +200,9 @@ mod tests {
         let Aggregator::MergeBuckets(merge_buckets) = value else {
             panic!();
         };
-        let merge_buckets = merge_buckets.buckets();
-        assert_eq!(merge_buckets.len(), 1);
+        assert_eq!(merge_buckets.buckets.len(), 1);
         assert_eq!(
-            merge_buckets[0].tags.get("mri").unwrap().as_str(),
+            merge_buckets.buckets[0].tags.get("mri").unwrap().as_str(),
             &*b1.name
         );
     }
@@ -237,9 +237,8 @@ mod tests {
             let Aggregator::MergeBuckets(merge_buckets) = value else {
                 panic!();
             };
-            let buckets = merge_buckets.buckets();
-            assert_eq!(buckets.len(), 1);
-            let BucketValue::Counter(value) = buckets[0].value else {
+            assert_eq!(merge_buckets.buckets.len(), 1);
+            let BucketValue::Counter(value) = merge_buckets.buckets[0].value else {
                 panic!();
             };
             assert_eq!(value.to_f64(), 1.0);
