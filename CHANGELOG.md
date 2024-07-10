@@ -21,7 +21,7 @@
 - Add support for `all` and `any` `RuleCondition`(s). ([#3791](https://github.com/getsentry/relay/pull/3791))
 - Copy root span data from `contexts.trace.data` when converting transaction events into raw spans. ([#3790](https://github.com/getsentry/relay/pull/3790))
 - Remove experimental double-write from spans to transactions. ([#3801](https://github.com/getsentry/relay/pull/3801))
-- Add denylist for replay-video events. ([#3803](https://github.com/getsentry/relay/pull/3803))
+- Add feature flag to disable replay-video events. ([#3803](https://github.com/getsentry/relay/pull/3803))
 
 ## 24.6.0
 
