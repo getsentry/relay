@@ -4,11 +4,8 @@ use relay_dynamic_config::Feature;
 
 use relay_base_schema::events::EventType;
 use relay_config::Config;
-use relay_event_schema::protocol::Event;
-#[cfg(feature = "processing")]
-use relay_event_schema::protocol::{Contexts, ProfileContext};
+use relay_event_schema::protocol::{Contexts, Event, ProfileContext};
 use relay_profiling::{ProfileError, ProfileId};
-#[cfg(feature = "processing")]
 use relay_protocol::Annotated;
 
 use crate::envelope::{ContentType, Item, ItemType};
@@ -66,7 +63,6 @@ pub fn filter<G>(state: &mut ProcessEnvelopeState<G>) -> Option<ProfileId> {
 /// The profile id may be `None` when the envelope does not contain a profile,
 /// in that case the profile context is removed.
 /// Some SDKs send transactions with profile ids but omit the profile in the envelope.
-#[cfg(feature = "processing")]
 pub fn transfer_id(
     state: &mut ProcessEnvelopeState<TransactionGroup>,
     profile_id: Option<ProfileId>,
@@ -411,8 +407,18 @@ mod tests {
             .get_item_by(|item| item.ty() == &ItemType::Transaction)
             .unwrap();
         let transaction = Annotated::<Event>::from_json_bytes(&item.payload()).unwrap();
-        let context = transaction.value().unwrap().context::<ProfileContext>();
-        assert!(context.is_none());
+        let context = transaction
+            .value()
+            .unwrap()
+            .context::<ProfileContext>()
+            .unwrap();
+
+        assert_debug_snapshot!(context, @r###"
+        ProfileContext {
+            profile_id: ~,
+            profiler_id: ~,
+        }
+        "###);
     }
 
     #[tokio::test]
