@@ -48,6 +48,7 @@ pub type ProjectSender = relay_system::BroadcastSender<ProjectState>;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ParsedProjectState {
+    #[serde(default)]
     pub disabled: bool,
     #[serde(flatten)]
     pub info: ProjectInfo, // TODO(jjbayer): Should be Option<Arc> for efficiency?
