@@ -2,7 +2,7 @@
 //! with their own limits, bucket intervals, etc.
 
 use itertools::Itertools;
-use relay_config::{AggregatorCondition, AggregatorServiceConfig, ScopedAggregatorConfig};
+use relay_config::{aggregator::Condition, AggregatorServiceConfig, ScopedAggregatorConfig};
 use relay_system::{Addr, NoResponse, Recipient, Service};
 
 use crate::services::aggregatorservice::{
@@ -62,7 +62,7 @@ impl Service for RouterService {
 /// Helper struct that holds the [`Addr`]s of started aggregators.
 struct StartedRouter {
     default: Addr<Aggregator>,
-    secondary: Vec<(AggregatorCondition, Addr<Aggregator>)>,
+    secondary: Vec<(Condition, Addr<Aggregator>)>,
 }
 
 impl StartedRouter {
@@ -141,7 +141,7 @@ mod tests {
     fn condition_roundtrip() {
         let json = json!({"op": "eq", "field": "namespace", "value": "spans"});
         assert_debug_snapshot!(
-            serde_json::from_value::<AggregatorCondition>(json).unwrap(),
+            serde_json::from_value::<Condition>(json).unwrap(),
             @r###"
         Eq(
             Namespace(
@@ -162,7 +162,7 @@ mod tests {
             ]
         });
 
-        let condition = serde_json::from_value::<AggregatorCondition>(json).unwrap();
+        let condition = serde_json::from_value::<Condition>(json).unwrap();
         assert!(condition.matches(Some(MetricNamespace::Spans)));
         assert!(condition.matches(Some(MetricNamespace::Custom)));
         assert!(!condition.matches(Some(MetricNamespace::Transactions)));
