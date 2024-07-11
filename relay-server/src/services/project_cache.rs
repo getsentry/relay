@@ -17,7 +17,7 @@ use tokio::sync::mpsc;
 use tokio::time::Instant;
 
 use crate::services::global_config::{self, GlobalConfigManager, Subscribe};
-use crate::services::outcome::{DiscardReason, TrackOutcome};
+use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::services::processor::{
     EncodeMetrics, EnvelopeProcessor, ProcessEnvelope, ProjectMetrics,
 };
@@ -759,8 +759,6 @@ impl ProjectCacheBroker {
         project.check_envelope(context)
     }
 
-    // TODO(jjbayer): Make sure that check_envelope is called before this.
-
     /// Checks an incoming envelope and decides either process it immediately or buffer it.
     ///
     /// Few conditions are checked here:
@@ -778,7 +776,7 @@ impl ProjectCacheBroker {
         // TODO: check_envelope here?
 
         let ValidateEnvelope {
-            envelope: managed_envelope,
+            envelope: mut managed_envelope,
         } = message;
 
         let project_cache = self.services.project_cache.clone();
@@ -796,7 +794,7 @@ impl ProjectCacheBroker {
         let project_state = match project_state {
             ProjectState::Enabled(state) => Some(state),
             ProjectState::Disabled => {
-                // TODO: outcomes?
+                managed_envelope.reject(Outcome::Invalid(DiscardReason::ProjectId));
                 return;
             }
             ProjectState::Pending => None,

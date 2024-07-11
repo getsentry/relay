@@ -51,7 +51,7 @@ pub struct ParsedProjectState {
     #[serde(default)]
     pub disabled: bool,
     #[serde(flatten)]
-    pub info: ProjectInfo, // TODO(jjbayer): Should be Option<Arc> for efficiency?
+    pub info: ProjectInfo,
 }
 
 #[derive(Debug, Clone, Serialize)]

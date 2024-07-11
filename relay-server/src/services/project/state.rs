@@ -93,7 +93,6 @@ impl ProjectFetchState {
     }
 
     /// Returns whether this state is outdated and needs to be refetched.
-    /// TODO(jjbayer): can be merged w/
     fn check_expiry(&self, config: &Config) -> Expiry {
         let Some(last_fetch) = self.last_fetch else {
             return Expiry::Expired;
