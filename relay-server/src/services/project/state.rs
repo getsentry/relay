@@ -10,7 +10,7 @@ use crate::services::project::{ParsedProjectState, ProjectInfo};
 #[derive(Clone, Debug)]
 pub struct ProjectFetchState {
     /// The time at which this project state was last updated.
-    last_fetch: Instant,
+    last_fetch: Option<Instant>,
     state: ProjectState,
 }
 
@@ -18,7 +18,7 @@ impl ProjectFetchState {
     /// Takes a [`ProjectState`] and sets it's last fetch to the current time.
     pub fn new(state: ProjectState) -> Self {
         Self {
-            last_fetch: Instant::now(),
+            last_fetch: Some(Instant::now()),
             state,
         }
     }
@@ -49,19 +49,16 @@ impl ProjectFetchState {
 
     /// Returns a pending or invalid state.
     pub fn pending() -> Self {
-        Self {
-            last_fetch: Instant::now(),
-            state: ProjectState::Pending,
-        }
+        Self::new(ProjectState::Pending)
     }
 
     /// Create a config that immediately counts as expired.
     ///
     /// This is what [`super::Project`] initializes itself with.
-    pub fn expired(config: &Config) -> Self {
+    pub fn expired() -> Self {
         Self {
             // Make sure the state immediately qualifies as expired:
-            last_fetch: Instant::now() - config.project_cache_expiry(),
+            last_fetch: None,
             state: ProjectState::Pending,
         }
     }
@@ -98,6 +95,9 @@ impl ProjectFetchState {
     /// Returns whether this state is outdated and needs to be refetched.
     /// TODO(jjbayer): can be merged w/
     fn check_expiry(&self, config: &Config) -> Expiry {
+        let Some(last_fetch) = self.last_fetch else {
+            return Expiry::Expired;
+        };
         let expiry = match &self.state {
             ProjectState::Enabled(info) if info.project_id.is_some() => {
                 config.project_cache_expiry()
@@ -105,7 +105,7 @@ impl ProjectFetchState {
             _ => config.cache_miss_expiry(),
         };
 
-        let elapsed = self.last_fetch.elapsed();
+        let elapsed = last_fetch.elapsed();
         if elapsed >= expiry + config.project_grace_period() {
             Expiry::Expired
         } else if elapsed >= expiry {

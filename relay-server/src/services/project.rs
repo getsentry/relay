@@ -342,7 +342,7 @@ impl Project {
             next_fetch_attempt: None,
             last_updated_at: Instant::now(),
             project_key: key,
-            state: ProjectFetchState::expired(&config),
+            state: ProjectFetchState::expired(),
             state_channel: None,
             rate_limits: CachedRateLimits::new(),
             last_no_cache: Instant::now(),
