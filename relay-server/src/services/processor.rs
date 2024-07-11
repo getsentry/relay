@@ -749,7 +749,7 @@ fn send_metrics(metrics: ExtractedMetrics, envelope: &Envelope, project_cache: A
         // project_without_tracing         -> metrics goes to self
         // dependent_project_with_tracing  -> metrics goes to root
         // root_project_with_tracing       -> metrics goes to root == self
-        let sampling_project_key = utils::get_sampling_key(envelope).unwrap_or(project_key);
+        let sampling_project_key = envelope.sampling_key().unwrap_or(project_key);
         project_cache.send(AddMetricBuckets::internal(
             sampling_project_key,
             sampling_metrics,
