@@ -3,7 +3,7 @@ mod resource;
 mod sql;
 use once_cell::sync::Lazy;
 use psl;
-use serde_json::Value;
+use serde_json::{Map, Value};
 #[cfg(test)]
 pub use sql::{scrub_queries, Mode};
 
@@ -554,14 +554,25 @@ fn scrub_mongodb_query(query: &str, command: &str, collection: &str) -> Option<S
     scrubbed_query.push_str(collection);
     scrubbed_query.push('"');
 
-    original.as_object()?.keys().for_each(|key| {
+    original.as_object()?.iter().for_each(|(key, value)| {
         if key == command {
             return;
         }
 
         scrubbed_query.push_str(", \"");
         scrubbed_query.push_str(key);
-        scrubbed_query.push_str("\": \"?\"");
+
+        if key == "filter" {
+            scrubbed_query.push_str("\": ");
+            let scrubbed_value = scrub_leaf_nodes(value);
+            let json_string = match serde_json::to_string_pretty(&scrubbed_value) {
+                Ok(str) => str,
+                Err(_) => "?".to_owned(),
+            };
+            scrubbed_query.push_str(json_string.as_str())
+        } else {
+            scrubbed_query.push_str("\": \"?\"");
+        }
     });
 
     scrubbed_query.push_str(" }");
@@ -569,6 +580,19 @@ fn scrub_mongodb_query(query: &str, command: &str, collection: &str) -> Option<S
     // let scrubbed_query = Value::Object(scrubbed_map).to_string();
     relay_log::info!("scrub_mongodb_query {}", scrubbed_query);
     Some(scrubbed_query)
+}
+
+fn scrub_leaf_nodes(value: &Value) -> Value {
+    match value {
+        Value::Object(map) => {
+            let mut scrubbed_map = Map::new();
+            map.iter().for_each(|(key, value)| {
+                scrubbed_map.insert(key.clone(), scrub_leaf_nodes(value));
+            });
+            Value::Object(map.to_owned())
+        }
+        _ => Value::String("?".to_string()),
+    }
 }
 
 #[cfg(test)]
