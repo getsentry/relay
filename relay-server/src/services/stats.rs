@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use relay_config::{Config, RelayMode};
+#[cfg(feature = "processing")]
 use relay_redis::RedisPool;
 use relay_statsd::metric;
 use relay_system::{Addr, Service};
