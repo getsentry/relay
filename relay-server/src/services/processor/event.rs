@@ -243,6 +243,12 @@ pub fn finalize<G: EventProcessing>(
                 );
             }
         }
+
+        if let Some(dsc) = envelope.dsc() {
+            if let Ok(Some(value)) = relay_protocol::to_value(dsc) {
+                event._dsc = Annotated::new(value);
+            }
+        }
     }
 
     let mut processor =

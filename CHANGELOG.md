@@ -22,6 +22,7 @@
 - Copy root span data from `contexts.trace.data` when converting transaction events into raw spans. ([#3790](https://github.com/getsentry/relay/pull/3790))
 - Remove experimental double-write from spans to transactions. ([#3801](https://github.com/getsentry/relay/pull/3801))
 - Add feature flag to disable replay-video events. ([#3803](https://github.com/getsentry/relay/pull/3803))
+- Write the envelope's Dynamic Sampling Context (DSC) into event payloads for debugging. ([#3811](https://github.com/getsentry/relay/pull/3811))
 
 ## 24.6.0
 
