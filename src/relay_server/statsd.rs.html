@@ -899,6 +899,16 @@
 <a href="#899" id="899">899</a>
 <a href="#900" id="900">900</a>
 <a href="#901" id="901">901</a>
+<a href="#902" id="902">902</a>
+<a href="#903" id="903">903</a>
+<a href="#904" id="904">904</a>
+<a href="#905" id="905">905</a>
+<a href="#906" id="906">906</a>
+<a href="#907" id="907">907</a>
+<a href="#908" id="908">908</a>
+<a href="#909" id="909">909</a>
+<a href="#910" id="910">910</a>
+<a href="#911" id="911">911</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric, TimerMetric};
 <span class="attr">#[cfg(doc)]
 </span><span class="kw">use </span>tokio::runtime::RuntimeMetrics;
@@ -935,6 +945,12 @@
     ///
     /// Relay uses the same value for its memory health check.
     </span>SystemMemoryTotal,
+    <span class="doccomment">/// The number of connections currently being managed by the Redis Pool.
+    </span><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
+    </span>RedisPoolConnections,
+    <span class="doccomment">/// The number of idle connections in the Redis Pool.
+    </span><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
+    </span>RedisPoolIdleConnections,
 }
 
 <span class="kw">impl </span>GaugeMetric <span class="kw">for </span>RelayGauges {
@@ -947,6 +963,10 @@
             RelayGauges::BufferPeriodicUnspool =&gt; <span class="string">"buffer.unspool.periodic"</span>,
             RelayGauges::SystemMemoryUsed =&gt; <span class="string">"health.system_memory.used"</span>,
             RelayGauges::SystemMemoryTotal =&gt; <span class="string">"health.system_memory.total"</span>,
+            <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
+            </span>RelayGauges::RedisPoolConnections =&gt; <span class="string">"redis.pool.connections"</span>,
+            <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
+            </span>RelayGauges::RedisPoolIdleConnections =&gt; <span class="string">"redis.pool.idle_connections"</span>,
         }
     }
 }

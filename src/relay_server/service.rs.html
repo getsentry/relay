@@ -305,6 +305,12 @@
 <a href="#305" id="305">305</a>
 <a href="#306" id="306">306</a>
 <a href="#307" id="307">307</a>
+<a href="#308" id="308">308</a>
+<a href="#309" id="309">309</a>
+<a href="#310" id="310">310</a>
+<a href="#311" id="311">311</a>
+<a href="#312" id="312">312</a>
+<a href="#313" id="313">313</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::convert::Infallible;
 <span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::sync::Arc;
@@ -505,7 +511,7 @@
             buffer_guard.clone(),
             project_cache_services,
             metric_outcomes,
-            redis_pool,
+            redis_pool.clone(),
         )
         .spawn_handler(project_cache_rx);
 
@@ -517,7 +523,13 @@
         )
         .start();
 
-        RelayStats::new(config.clone(), upstream_relay.clone()).start();
+        RelayStats::new(
+            config.clone(),
+            upstream_relay.clone(),
+            <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
+            </span>redis_pool,
+        )
+        .start();
 
         <span class="kw">let </span>relay_cache = RelayCacheService::new(config.clone(), upstream_relay.clone()).start();
 
