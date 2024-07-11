@@ -1293,4 +1293,26 @@ mod tests {
             Some(r#"{ "insert": "documents", "foo": "?" }"#)
         );
     }
+
+    #[test]
+    fn mongodb_find_query() {
+        let json = r#"{
+            "description": "{\"find\":\"?\",\"filter\":{\"size.h\":{\"$lt\":\"?\"},\"size.uom\":\"?\",\"status\":\"?\"}}",
+            "op": "db",
+            "data": {
+                "db.system": "mongodb",
+                "db.collection.name": "documents",
+                "db.operation": "find"
+            }
+        }"#;
+
+                let mut span = Annotated::<Span>::from_json(json).unwrap();
+
+        let scrubbed = scrub_span_description(span.value_mut().as_mut().unwrap());
+
+        assert_eq!(
+            scrubbed.0.as_deref(),
+            Some(r#"{ "find": "documents", "filter": { "size.h": { "$lt": "?" }, "size.uom": "?", "status": "?" } }"#)
+        );
+    }
 }
