@@ -2,12 +2,12 @@ mod convert;
 
 #[cfg(feature = "jsonschema")]
 use relay_jsonschema_derive::JsonSchema;
-use relay_protocol::{Annotated, Empty, FromValue, Getter, IntoValue, Object, Val, Value};
+use relay_protocol::{Annotated, Empty, Error, FromValue, Getter, IntoValue, Object, Val, Value};
 
 use crate::processor::ProcessValue;
 use crate::protocol::{
-    Data as TraceData, EventId, JsonLenientString, LenientString, Measurements, MetricsSummary,
-    OperationType, OriginType, SpanId, SpanStatus, ThreadId, Timestamp, TraceId,
+    EventId, JsonLenientString, LenientString, Measurements, MetricsSummary, OperationType,
+    OriginType, SpanId, SpanStatus, ThreadId, Timestamp, TraceId,
 };
 
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
@@ -312,7 +312,7 @@ pub struct SpanData {
 
     /// Label identifying a thread from where the span originated.
     #[metastructure(field = "thread.name")]
-    pub thread_name: Annotated<Value>,
+    pub thread_name: Annotated<String>,
 
     /// ID of thread from where the span originated.
     #[metastructure(field = "thread.id")]
@@ -368,7 +368,7 @@ pub struct SpanData {
 
     // Messaging Destination Name
     #[metastructure(field = "messaging.destination.name")]
-    pub messaging_destination_name: Annotated<Value>,
+    pub messaging_destination_name: Annotated<String>,
 
     /// Message Retry Count
     #[metastructure(field = "messaging.message.retry.count")]
@@ -384,7 +384,7 @@ pub struct SpanData {
 
     /// Message ID
     #[metastructure(field = "messaging.message.id")]
-    pub messaging_message_id: Annotated<Value>,
+    pub messaging_message_id: Annotated<String>,
 
     /// Value of the HTTP User-Agent header sent by the client.
     #[metastructure(field = "user_agent.original")]
@@ -398,9 +398,25 @@ pub struct SpanData {
     #[metastructure(field = "client.address")]
     pub client_address: Annotated<String>,
 
+    /// The current route in the application.
+    ///
+    /// Set by React Native SDK.
+    #[metastructure(pii = "maybe", skip_serialization = "empty")]
+    pub route: Annotated<Route>,
+    /// The previous route in the application
+    ///
+    /// Set by React Native SDK.
+    #[metastructure(field = "previousRoute", pii = "maybe", skip_serialization = "empty")]
+    pub previous_route: Annotated<Route>,
+
     /// Other fields in `span.data`.
-    #[metastructure(additional_properties, pii = "true", retain = "true")]
-    other: Object<Value>,
+    #[metastructure(
+        additional_properties,
+        pii = "true",
+        retain = "true",
+        skip_serialization = "empty"
+    )]
+    pub other: Object<Value>,
 }
 
 impl Getter for SpanData {
@@ -430,7 +446,7 @@ impl Getter for SpanData {
                 self.resource_render_blocking_status.value()?.into()
             }
             "server\\.address" => self.server_address.value()?.into(),
-            "thread\\.name" => self.thread_name.value()?.into(),
+            "thread\\.name" => self.thread_name.as_str()?.into(),
             "ui\\.component_name" => self.ui_component_name.value()?.into(),
             "url\\.scheme" => self.url_scheme.value()?.into(),
             "transaction" => self.segment_name.as_str()?.into(),
@@ -454,19 +470,68 @@ impl Getter for SpanData {
     }
 }
 
-impl From<TraceData> for SpanData {
-    fn from(trace_data: TraceData) -> Self {
-        FromValue::from_value(Annotated::new(trace_data.into_value()))
-            .into_value()
-            .unwrap_or_default()
-    }
+/// The route in the application, set by React Native SDK.
+#[derive(Clone, Debug, Default, PartialEq, Empty, IntoValue, ProcessValue)]
+#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
+pub struct Route {
+    /// The name of the route.
+    #[metastructure(pii = "maybe", skip_serialization = "empty")]
+    pub name: Annotated<String>,
+
+    /// Parameters assigned to this route.
+    #[metastructure(
+        pii = "true",
+        skip_serialization = "empty",
+        max_depth = 5,
+        max_bytes = 2048
+    )]
+    pub params: Annotated<Object<Value>>,
+
+    /// Additional arbitrary fields for forwards compatibility.
+    #[metastructure(
+        additional_properties,
+        retain = "true",
+        pii = "maybe",
+        skip_serialization = "empty"
+    )]
+    pub other: Object<Value>,
 }
 
-impl From<SpanData> for TraceData {
-    fn from(span_data: SpanData) -> Self {
-        FromValue::from_value(Annotated::new(span_data.into_value()))
-            .into_value()
-            .unwrap_or_default()
+impl FromValue for Route {
+    fn from_value(value: Annotated<Value>) -> Annotated<Self>
+    where
+        Self: Sized,
+    {
+        match value {
+            Annotated(Some(Value::String(name)), meta) => Annotated(
+                Some(Route {
+                    name: Annotated::new(name),
+                    ..Default::default()
+                }),
+                meta,
+            ),
+            Annotated(Some(Value::Object(mut values)), meta) => {
+                let mut route: Route = Default::default();
+                if let Some(Annotated(Some(Value::String(name)), _)) = values.remove("name") {
+                    route.name = Annotated::new(name);
+                }
+                if let Some(Annotated(Some(Value::Object(params)), _)) = values.remove("params") {
+                    route.params = Annotated::new(params);
+                }
+
+                if !values.is_empty() {
+                    route.other = values;
+                }
+
+                Annotated(Some(route), meta)
+            }
+            Annotated(None, meta) => Annotated(None, meta),
+            Annotated(Some(value), mut meta) => {
+                meta.add_error(Error::expected("route expected to be an object"));
+                meta.set_original_value(Some(value));
+                Annotated(None, meta)
+            }
+        }
     }
 }
 
@@ -713,9 +778,7 @@ mod tests {
             frames_delay: I64(
                 100,
             ),
-            messaging_destination_name: String(
-                "default",
-            ),
+            messaging_destination_name: "default",
             messaging_message_retry_count: I64(
                 3,
             ),
@@ -725,12 +788,12 @@ mod tests {
             messaging_message_body_size: I64(
                 100,
             ),
-            messaging_message_id: String(
-                "abc123",
-            ),
+            messaging_message_id: "abc123",
             user_agent_original: "Chrome",
             url_full: "my_url.com",
             client_address: "192.168.0.1",
+            route: ~,
+            previous_route: ~,
             other: {
                 "bar": String(
                     "3",

@@ -610,16 +610,14 @@ pub fn extract_tags(
             if let Some(destination) = span
                 .data
                 .value()
-                .and_then(|data| data.messaging_destination_name.value())
-                .and_then(|value| value.as_str())
+                .and_then(|data| data.messaging_destination_name.as_str())
             {
                 span_tags.insert(SpanTagKey::MessagingDestinationName, destination.into());
             }
             if let Some(message_id) = span
                 .data
                 .value()
-                .and_then(|data| data.messaging_message_id.value())
-                .and_then(|value| value.as_str())
+                .and_then(|data| data.messaging_message_id.as_str())
             {
                 span_tags.insert(SpanTagKey::MessagingMessageId, message_id.into());
             }
@@ -737,12 +735,7 @@ pub fn extract_tags(
     }
 
     if is_mobile {
-        if let Some(thread_name) = span
-            .data
-            .value()
-            .and_then(|data| data.thread_name.value())
-            .and_then(|value| value.as_str())
-        {
+        if let Some(thread_name) = span.data.value().and_then(|data| data.thread_name.as_str()) {
             if thread_name == MAIN_THREAD_NAME {
                 span_tags.insert(SpanTagKey::MainThread, "true".to_owned());
             }
@@ -784,7 +777,7 @@ pub fn extract_tags(
             span_tags.insert(SpanTagKey::ThreadId, thread_id.to_string());
         }
 
-        if let Some(thread_name) = data.thread_name.value().and_then(|name| name.as_str()) {
+        if let Some(thread_name) = data.thread_name.as_str() {
             span_tags.insert(SpanTagKey::ThreadName, thread_name.into());
         }
     }
