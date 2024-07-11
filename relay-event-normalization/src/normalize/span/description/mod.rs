@@ -59,7 +59,20 @@ pub(crate) fn scrub_span_description(
             ("http", _) => scrub_http(description),
             ("cache", _) | ("db", "redis") => scrub_redis_keys(description),
             ("db", _) if db_system == Some("redis") => scrub_redis_keys(description),
-            ("db", _) if db_system == Some("mongodb") => scrub_mongodb_query(description),
+            ("db", _) if db_system == Some("mongodb") => {
+                let command = data
+                    .and_then(|data| data.db_operation.value())
+                    .and_then(|command| command.as_str());
+
+                let collection = data
+                    .and_then(|data| data.db_collection_name.value())
+                    .and_then(|collection| collection.as_str());
+
+                match (command, collection) {
+                    (Some(command), Some(collection)) => scrub_mongodb_query(description, command, collection),
+                    _ => None
+                }
+            },
             ("db", sub) => {
                 if sub.contains("clickhouse")
                     || sub.contains("mongodb")
@@ -527,7 +540,7 @@ fn scrub_function(string: &str) -> Option<String> {
     Some(FUNCTION_NORMALIZER_REGEX.replace_all(string, "*").into())
 }
 
-fn scrub_mongodb_query(query: &str) -> Option<String> {
+fn scrub_mongodb_query(query: &str, command: &str, collection: &str) -> Option<String> {
     let original: Value = match serde_json::from_str(query) {
         Ok(v) => v,
         Err(_) => return None,
@@ -537,6 +550,9 @@ fn scrub_mongodb_query(query: &str) -> Option<String> {
     original.as_object()?.keys().for_each(|k| {
         scrubbed_map.insert(k.clone(), Value::String("?".to_owned()));
     });
+
+    scrubbed_map.insert(command.to_owned(), Value::String(collection.to_owned()));
+
     let scrubbed_query = Value::Object(scrubbed_map).to_string();
     relay_log::info!("scrub_mongodb_query {}", scrubbed_query);
     Some(scrubbed_query)
