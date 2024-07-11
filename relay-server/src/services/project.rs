@@ -23,7 +23,7 @@ use url::Url;
 
 use crate::envelope::{Envelope, ItemType};
 use crate::metrics::{MetricOutcomes, MetricsLimiter};
-use crate::services::aggregatorservice::{Aggregator, MergeBuckets};
+use crate::services::metrics::{Aggregator, MergeBuckets};
 use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::services::processor::{EncodeMetricMeta, EnvelopeProcessor};
 use crate::services::project::metrics::{apply_project_state, filter_namespaces};

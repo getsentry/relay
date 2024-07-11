@@ -5,7 +5,7 @@ use itertools::Itertools;
 use relay_config::{aggregator::Condition, AggregatorServiceConfig, ScopedAggregatorConfig};
 use relay_system::{Addr, NoResponse, Recipient, Service};
 
-use crate::services::aggregatorservice::{
+use crate::services::metrics::{
     AcceptsMetrics, Aggregator, AggregatorService, FlushBuckets, MergeBuckets,
 };
 

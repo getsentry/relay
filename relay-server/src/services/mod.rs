@@ -27,10 +27,10 @@
 //! Controller::run(|| Server::start())
 //!     .expect("failed to start relay");
 //! ```
-pub mod aggregatorservice;
 pub mod cogs;
 pub mod global_config;
 pub mod health_check;
+pub mod metrics;
 pub mod outcome;
 pub mod outcome_aggregator;
 pub mod processor;
@@ -39,7 +39,6 @@ pub mod project_cache;
 pub mod project_local;
 pub mod project_upstream;
 pub mod relays;
-pub mod router;
 pub mod server;
 pub mod spooler;
 pub mod stats;

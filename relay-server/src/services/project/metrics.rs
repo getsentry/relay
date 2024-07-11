@@ -107,7 +107,7 @@ mod tests {
     use relay_system::Addr;
 
     use crate::metrics::MetricStats;
-    use crate::services::aggregatorservice::Aggregator;
+    use crate::services::metrics::Aggregator;
 
     use super::*;
 

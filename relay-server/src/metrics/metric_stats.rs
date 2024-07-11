@@ -11,8 +11,8 @@ use relay_quotas::Scoping;
 use relay_system::Addr;
 
 use crate::metrics::TrackableBucket;
-use crate::services::aggregatorservice::{Aggregator, MergeBuckets};
 use crate::services::global_config::GlobalConfigHandle;
+use crate::services::metrics::{Aggregator, MergeBuckets};
 use crate::services::outcome::Outcome;
 use crate::utils::is_rolled_out;
 
