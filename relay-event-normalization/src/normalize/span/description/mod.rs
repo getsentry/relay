@@ -3,7 +3,7 @@ mod resource;
 mod sql;
 use once_cell::sync::Lazy;
 use psl;
-use serde_json::{Map, Value};
+use serde_json::Value;
 #[cfg(test)]
 pub use sql::{scrub_queries, Mode};
 
@@ -69,10 +69,12 @@ pub(crate) fn scrub_span_description(
                     .and_then(|collection| collection.as_str());
 
                 match (command, collection) {
-                    (Some(command), Some(collection)) => scrub_mongodb_query(description, command, collection),
-                    _ => None
+                    (Some(command), Some(collection)) => {
+                        scrub_mongodb_query(description, command, collection)
+                    }
+                    _ => None,
                 }
-            },
+            }
             ("db", sub) => {
                 if sub.contains("clickhouse")
                     || sub.contains("mongodb")
@@ -546,14 +548,25 @@ fn scrub_mongodb_query(query: &str, command: &str, collection: &str) -> Option<S
         Err(_) => return None,
     };
 
-    let mut scrubbed_map: Map<String, Value> = Map::new();
-    original.as_object()?.keys().for_each(|k| {
-        scrubbed_map.insert(k.clone(), Value::String("?".to_owned()));
+    let mut scrubbed_query = String::from("{ \"");
+    scrubbed_query.push_str(command);
+    scrubbed_query.push_str("\": \"");
+    scrubbed_query.push_str(collection);
+    scrubbed_query.push('"');
+
+    original.as_object()?.keys().for_each(|key| {
+        if key == command {
+            return;
+        }
+
+        scrubbed_query.push_str(", \"");
+        scrubbed_query.push_str(key);
+        scrubbed_query.push_str("\": \"?\"");
     });
 
-    scrubbed_map.insert(command.to_owned(), Value::String(collection.to_owned()));
+    scrubbed_query.push_str(" }");
 
-    let scrubbed_query = Value::Object(scrubbed_map).to_string();
+    // let scrubbed_query = Value::Object(scrubbed_map).to_string();
     relay_log::info!("scrub_mongodb_query {}", scrubbed_query);
     Some(scrubbed_query)
 }
@@ -1257,5 +1270,27 @@ mod tests {
 
         // Can be scrubbed with db system.
         assert_eq!(scrubbed.0.as_deref(), Some("my-component-name"));
+    }
+
+    #[test]
+    fn mongodb_insert_query() {
+        let json = r#"{
+            "description": "{\"foo\": \"bar\"}",
+            "op": "db",
+            "data": {
+                "db.system": "mongodb",
+                "db.collection.name": "documents",
+                "db.operation": "insert"
+            }
+        }"#;
+
+        let mut span = Annotated::<Span>::from_json(json).unwrap();
+
+        let scrubbed = scrub_span_description(span.value_mut().as_mut().unwrap());
+
+        assert_eq!(
+            scrubbed.0.as_deref(),
+            Some(r#"{ "insert": "documents", "foo": "?" }"#)
+        );
     }
 }
