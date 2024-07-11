@@ -1192,10 +1192,15 @@ impl Service for ProjectCacheService {
                     // Buffer will not dequeue the envelopes from the spool if there is not enough
                     // permits in `BufferGuard` available. Currently this is 50%.
                     Some(UnspooledEnvelope { managed_envelope }) = buffer_rx.recv() => {
-                        // TODO(jjbayer): Call check_envelope here, just in case there are new rate limits.
-                        metric!(timer(RelayTimers::ProjectCacheTaskDuration), task = "handle_validate_envelope", {
-                            broker.handle_validate_envelope(ValidateEnvelope { envelope: managed_envelope })
+                        // Unspooled envelopes need to be checked, just like we do on the fast path.
+                        if let Ok(CheckedEnvelope { envelope: Some(envelope), rate_limits: _ }) = metric!(timer(RelayTimers::ProjectCacheTaskDuration), task = "handle_check_envelope", {
+                            broker.handle_check_envelope(CheckEnvelope::new(managed_envelope))
+                        }) {
+                            metric!(timer(RelayTimers::ProjectCacheTaskDuration), task = "handle_validate_envelope", {
+                            broker.handle_validate_envelope(ValidateEnvelope { envelope })
                         })
+                        }
+
                     },
                     _ = ticker.tick() => {
                         metric!(timer(RelayTimers::ProjectCacheTaskDuration), task = "evict_project_caches", {
