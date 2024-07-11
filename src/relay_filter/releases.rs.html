@@ -95,6 +95,7 @@
 <a href="#95" id="95">95</a>
 <a href="#96" id="96">96</a>
 <a href="#97" id="97">97</a>
+<a href="#98" id="98">98</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Implements event filtering based on application release version.
 //!
 //! A user may configure the server to ignore certain application releases
@@ -133,10 +134,11 @@
     }
 
     <span class="kw">fn </span>get_span_for_release(release: <span class="kw-2">&amp;</span>str) -&gt; Span {
-        <span class="kw">let </span><span class="kw-2">mut </span>data = SpanData::default();
-        data.release = Annotated::from(LenientString::from(release.to_string()));
         Span {
-            data: Annotated::new(data),
+            data: Annotated::new(SpanData {
+                release: Annotated::from(LenientString::from(release.to_string())),
+                ..Default::default()
+            }),
             ..Default::default()
         }
     }

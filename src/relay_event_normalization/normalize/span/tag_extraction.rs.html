@@ -2602,13 +2602,6 @@
 <a href="#2602" id="2602">2602</a>
 <a href="#2603" id="2603">2603</a>
 <a href="#2604" id="2604">2604</a>
-<a href="#2605" id="2605">2605</a>
-<a href="#2606" id="2606">2606</a>
-<a href="#2607" id="2607">2607</a>
-<a href="#2608" id="2608">2608</a>
-<a href="#2609" id="2609">2609</a>
-<a href="#2610" id="2610">2610</a>
-<a href="#2611" id="2611">2611</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Logic for persisting items into `span.sentry_tags` and `span.measurements` fields.
 //! These are then used for metrics extraction.
 </span><span class="kw">use </span>std::borrow::Cow;
@@ -3221,16 +3214,14 @@
             <span class="kw">if let </span><span class="prelude-val">Some</span>(destination) = span
                 .data
                 .value()
-                .and_then(|data| data.messaging_destination_name.value())
-                .and_then(|value| value.as_str())
+                .and_then(|data| data.messaging_destination_name.as_str())
             {
                 span_tags.insert(SpanTagKey::MessagingDestinationName, destination.into());
             }
             <span class="kw">if let </span><span class="prelude-val">Some</span>(message_id) = span
                 .data
                 .value()
-                .and_then(|data| data.messaging_message_id.value())
-                .and_then(|value| value.as_str())
+                .and_then(|data| data.messaging_message_id.as_str())
             {
                 span_tags.insert(SpanTagKey::MessagingMessageId, message_id.into());
             }
@@ -3348,12 +3339,7 @@
     }
 
     <span class="kw">if </span>is_mobile {
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(thread_name) = span
-            .data
-            .value()
-            .and_then(|data| data.thread_name.value())
-            .and_then(|value| value.as_str())
-        {
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(thread_name) = span.data.value().and_then(|data| data.thread_name.as_str()) {
             <span class="kw">if </span>thread_name == MAIN_THREAD_NAME {
                 span_tags.insert(SpanTagKey::MainThread, <span class="string">"true"</span>.to_owned());
             }
@@ -3395,7 +3381,7 @@
             span_tags.insert(SpanTagKey::ThreadId, thread_id.to_string());
         }
 
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(thread_name) = data.thread_name.value().and_then(|name| name.as_str()) {
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(thread_name) = data.thread_name.as_str() {
             span_tags.insert(SpanTagKey::ThreadName, thread_name.into());
         }
     }

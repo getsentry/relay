@@ -751,16 +751,79 @@
 <a href="#751" id="751">751</a>
 <a href="#752" id="752">752</a>
 <a href="#753" id="753">753</a>
+<a href="#754" id="754">754</a>
+<a href="#755" id="755">755</a>
+<a href="#756" id="756">756</a>
+<a href="#757" id="757">757</a>
+<a href="#758" id="758">758</a>
+<a href="#759" id="759">759</a>
+<a href="#760" id="760">760</a>
+<a href="#761" id="761">761</a>
+<a href="#762" id="762">762</a>
+<a href="#763" id="763">763</a>
+<a href="#764" id="764">764</a>
+<a href="#765" id="765">765</a>
+<a href="#766" id="766">766</a>
+<a href="#767" id="767">767</a>
+<a href="#768" id="768">768</a>
+<a href="#769" id="769">769</a>
+<a href="#770" id="770">770</a>
+<a href="#771" id="771">771</a>
+<a href="#772" id="772">772</a>
+<a href="#773" id="773">773</a>
+<a href="#774" id="774">774</a>
+<a href="#775" id="775">775</a>
+<a href="#776" id="776">776</a>
+<a href="#777" id="777">777</a>
+<a href="#778" id="778">778</a>
+<a href="#779" id="779">779</a>
+<a href="#780" id="780">780</a>
+<a href="#781" id="781">781</a>
+<a href="#782" id="782">782</a>
+<a href="#783" id="783">783</a>
+<a href="#784" id="784">784</a>
+<a href="#785" id="785">785</a>
+<a href="#786" id="786">786</a>
+<a href="#787" id="787">787</a>
+<a href="#788" id="788">788</a>
+<a href="#789" id="789">789</a>
+<a href="#790" id="790">790</a>
+<a href="#791" id="791">791</a>
+<a href="#792" id="792">792</a>
+<a href="#793" id="793">793</a>
+<a href="#794" id="794">794</a>
+<a href="#795" id="795">795</a>
+<a href="#796" id="796">796</a>
+<a href="#797" id="797">797</a>
+<a href="#798" id="798">798</a>
+<a href="#799" id="799">799</a>
+<a href="#800" id="800">800</a>
+<a href="#801" id="801">801</a>
+<a href="#802" id="802">802</a>
+<a href="#803" id="803">803</a>
+<a href="#804" id="804">804</a>
+<a href="#805" id="805">805</a>
+<a href="#806" id="806">806</a>
+<a href="#807" id="807">807</a>
+<a href="#808" id="808">808</a>
+<a href="#809" id="809">809</a>
+<a href="#810" id="810">810</a>
+<a href="#811" id="811">811</a>
+<a href="#812" id="812">812</a>
+<a href="#813" id="813">813</a>
+<a href="#814" id="814">814</a>
+<a href="#815" id="815">815</a>
+<a href="#816" id="816">816</a>
 </pre></div><pre class="rust"><code><span class="kw">mod </span>convert;
 
 <span class="attr">#[cfg(feature = <span class="string">"jsonschema"</span>)]
 </span><span class="kw">use </span>relay_jsonschema_derive::JsonSchema;
-<span class="kw">use </span>relay_protocol::{Annotated, Empty, FromValue, Getter, IntoValue, Object, Val, Value};
+<span class="kw">use </span>relay_protocol::{Annotated, Empty, Error, FromValue, Getter, IntoValue, Object, Val, Value};
 
 <span class="kw">use </span><span class="kw">crate</span>::processor::ProcessValue;
 <span class="kw">use </span><span class="kw">crate</span>::protocol::{
-    Data <span class="kw">as </span>TraceData, EventId, JsonLenientString, LenientString, Measurements, MetricsSummary,
-    OperationType, OriginType, SpanId, SpanStatus, ThreadId, Timestamp, TraceId,
+    EventId, JsonLenientString, LenientString, Measurements, MetricsSummary, OperationType,
+    OriginType, SpanId, SpanStatus, ThreadId, Timestamp, TraceId,
 };
 
 <span class="attr">#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
@@ -1065,7 +1128,7 @@
 
     <span class="doccomment">/// Label identifying a thread from where the span originated.
     </span><span class="attr">#[metastructure(field = <span class="string">"thread.name"</span>)]
-    </span><span class="kw">pub </span>thread_name: Annotated&lt;Value&gt;,
+    </span><span class="kw">pub </span>thread_name: Annotated&lt;String&gt;,
 
     <span class="doccomment">/// ID of thread from where the span originated.
     </span><span class="attr">#[metastructure(field = <span class="string">"thread.id"</span>)]
@@ -1121,7 +1184,7 @@
 
     <span class="comment">// Messaging Destination Name
     </span><span class="attr">#[metastructure(field = <span class="string">"messaging.destination.name"</span>)]
-    </span><span class="kw">pub </span>messaging_destination_name: Annotated&lt;Value&gt;,
+    </span><span class="kw">pub </span>messaging_destination_name: Annotated&lt;String&gt;,
 
     <span class="doccomment">/// Message Retry Count
     </span><span class="attr">#[metastructure(field = <span class="string">"messaging.message.retry.count"</span>)]
@@ -1137,7 +1200,7 @@
 
     <span class="doccomment">/// Message ID
     </span><span class="attr">#[metastructure(field = <span class="string">"messaging.message.id"</span>)]
-    </span><span class="kw">pub </span>messaging_message_id: Annotated&lt;Value&gt;,
+    </span><span class="kw">pub </span>messaging_message_id: Annotated&lt;String&gt;,
 
     <span class="doccomment">/// Value of the HTTP User-Agent header sent by the client.
     </span><span class="attr">#[metastructure(field = <span class="string">"user_agent.original"</span>)]
@@ -1151,9 +1214,25 @@
     </span><span class="attr">#[metastructure(field = <span class="string">"client.address"</span>)]
     </span><span class="kw">pub </span>client_address: Annotated&lt;String&gt;,
 
+    <span class="doccomment">/// The current route in the application.
+    ///
+    /// Set by React Native SDK.
+    </span><span class="attr">#[metastructure(pii = <span class="string">"maybe"</span>, skip_serialization = <span class="string">"empty"</span>)]
+    </span><span class="kw">pub </span>route: Annotated&lt;Route&gt;,
+    <span class="doccomment">/// The previous route in the application
+    ///
+    /// Set by React Native SDK.
+    </span><span class="attr">#[metastructure(field = <span class="string">"previousRoute"</span>, pii = <span class="string">"maybe"</span>, skip_serialization = <span class="string">"empty"</span>)]
+    </span><span class="kw">pub </span>previous_route: Annotated&lt;Route&gt;,
+
     <span class="doccomment">/// Other fields in `span.data`.
-    </span><span class="attr">#[metastructure(additional_properties, pii = <span class="string">"true"</span>, retain = <span class="string">"true"</span>)]
-    </span>other: Object&lt;Value&gt;,
+    </span><span class="attr">#[metastructure(
+        additional_properties,
+        pii = <span class="string">"true"</span>,
+        retain = <span class="string">"true"</span>,
+        skip_serialization = <span class="string">"empty"
+    </span>)]
+    </span><span class="kw">pub </span>other: Object&lt;Value&gt;,
 }
 
 <span class="kw">impl </span>Getter <span class="kw">for </span>SpanData {
@@ -1183,7 +1262,7 @@
                 <span class="self">self</span>.resource_render_blocking_status.value()<span class="question-mark">?</span>.into()
             }
             <span class="string">"server\\.address" </span>=&gt; <span class="self">self</span>.server_address.value()<span class="question-mark">?</span>.into(),
-            <span class="string">"thread\\.name" </span>=&gt; <span class="self">self</span>.thread_name.value()<span class="question-mark">?</span>.into(),
+            <span class="string">"thread\\.name" </span>=&gt; <span class="self">self</span>.thread_name.as_str()<span class="question-mark">?</span>.into(),
             <span class="string">"ui\\.component_name" </span>=&gt; <span class="self">self</span>.ui_component_name.value()<span class="question-mark">?</span>.into(),
             <span class="string">"url\\.scheme" </span>=&gt; <span class="self">self</span>.url_scheme.value()<span class="question-mark">?</span>.into(),
             <span class="string">"transaction" </span>=&gt; <span class="self">self</span>.segment_name.as_str()<span class="question-mark">?</span>.into(),
@@ -1207,19 +1286,68 @@
     }
 }
 
-<span class="kw">impl </span>From&lt;TraceData&gt; <span class="kw">for </span>SpanData {
-    <span class="kw">fn </span>from(trace_data: TraceData) -&gt; <span class="self">Self </span>{
-        FromValue::from_value(Annotated::new(trace_data.into_value()))
-            .into_value()
-            .unwrap_or_default()
-    }
+<span class="doccomment">/// The route in the application, set by React Native SDK.
+</span><span class="attr">#[derive(Clone, Debug, Default, PartialEq, Empty, IntoValue, ProcessValue)]
+#[cfg_attr(feature = <span class="string">"jsonschema"</span>, derive(JsonSchema))]
+</span><span class="kw">pub struct </span>Route {
+    <span class="doccomment">/// The name of the route.
+    </span><span class="attr">#[metastructure(pii = <span class="string">"maybe"</span>, skip_serialization = <span class="string">"empty"</span>)]
+    </span><span class="kw">pub </span>name: Annotated&lt;String&gt;,
+
+    <span class="doccomment">/// Parameters assigned to this route.
+    </span><span class="attr">#[metastructure(
+        pii = <span class="string">"true"</span>,
+        skip_serialization = <span class="string">"empty"</span>,
+        max_depth = <span class="number">5</span>,
+        max_bytes = <span class="number">2048
+    </span>)]
+    </span><span class="kw">pub </span>params: Annotated&lt;Object&lt;Value&gt;&gt;,
+
+    <span class="doccomment">/// Additional arbitrary fields for forwards compatibility.
+    </span><span class="attr">#[metastructure(
+        additional_properties,
+        retain = <span class="string">"true"</span>,
+        pii = <span class="string">"maybe"</span>,
+        skip_serialization = <span class="string">"empty"
+    </span>)]
+    </span><span class="kw">pub </span>other: Object&lt;Value&gt;,
 }
 
-<span class="kw">impl </span>From&lt;SpanData&gt; <span class="kw">for </span>TraceData {
-    <span class="kw">fn </span>from(span_data: SpanData) -&gt; <span class="self">Self </span>{
-        FromValue::from_value(Annotated::new(span_data.into_value()))
-            .into_value()
-            .unwrap_or_default()
+<span class="kw">impl </span>FromValue <span class="kw">for </span>Route {
+    <span class="kw">fn </span>from_value(value: Annotated&lt;Value&gt;) -&gt; Annotated&lt;<span class="self">Self</span>&gt;
+    <span class="kw">where
+        </span><span class="self">Self</span>: Sized,
+    {
+        <span class="kw">match </span>value {
+            Annotated(<span class="prelude-val">Some</span>(Value::String(name)), meta) =&gt; Annotated(
+                <span class="prelude-val">Some</span>(Route {
+                    name: Annotated::new(name),
+                    ..Default::default()
+                }),
+                meta,
+            ),
+            Annotated(<span class="prelude-val">Some</span>(Value::Object(<span class="kw-2">mut </span>values)), meta) =&gt; {
+                <span class="kw">let </span><span class="kw-2">mut </span>route: Route = Default::default();
+                <span class="kw">if let </span><span class="prelude-val">Some</span>(Annotated(<span class="prelude-val">Some</span>(Value::String(name)), <span class="kw">_</span>)) = values.remove(<span class="string">"name"</span>) {
+                    route.name = Annotated::new(name);
+                }
+                <span class="kw">if let </span><span class="prelude-val">Some</span>(Annotated(<span class="prelude-val">Some</span>(Value::Object(params)), <span class="kw">_</span>)) = values.remove(<span class="string">"params"</span>) {
+                    route.params = Annotated::new(params);
+                }
+
+                <span class="kw">if </span>!values.is_empty() {
+                    route.other = values;
+                }
+
+                Annotated(<span class="prelude-val">Some</span>(route), meta)
+            }
+            Annotated(<span class="prelude-val">None</span>, meta) =&gt; Annotated(<span class="prelude-val">None</span>, meta),
+            Annotated(<span class="prelude-val">Some</span>(value), <span class="kw-2">mut </span>meta) =&gt; {
+                meta.add_error(Error::expected(<span class="string">"route expected to be an object"</span>));
+                meta.set_original_value(<span class="prelude-val">Some</span>(value));
+                Annotated(<span class="prelude-val">None</span>, meta)
+            }
+        }
     }
 }
 
@@ -1466,9 +1594,7 @@
             frames_delay: I64(
                 100,
             ),
-            messaging_destination_name: String(
-                "default",
-            ),
+            messaging_destination_name: "default",
             messaging_message_retry_count: I64(
                 3,
             ),
@@ -1478,12 +1604,12 @@
             messaging_message_body_size: I64(
                 100,
             ),
-            messaging_message_id: String(
-                "abc123",
-            ),
+            messaging_message_id: "abc123",
             user_agent_original: "Chrome",
             url_full: "my_url.com",
             client_address: "192.168.0.1",
+            route: ~,
+            previous_route: ~,
             other: {
                 "bar": String(
                     "3",
