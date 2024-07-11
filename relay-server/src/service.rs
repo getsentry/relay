@@ -198,7 +198,7 @@ impl ServiceState {
             buffer_guard.clone(),
             project_cache_services,
             metric_outcomes,
-            redis_pool,
+            redis_pool.clone(),
         )
         .spawn_handler(project_cache_rx);
 
@@ -210,7 +210,7 @@ impl ServiceState {
         )
         .start();
 
-        RelayStats::new(config.clone(), upstream_relay.clone()).start();
+        RelayStats::new(config.clone(), upstream_relay.clone(), redis_pool).start();
 
         let relay_cache = RelayCacheService::new(config.clone(), upstream_relay.clone()).start();
 

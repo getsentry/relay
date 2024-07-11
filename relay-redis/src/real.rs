@@ -208,4 +208,25 @@ impl RedisPool {
             inner,
         })
     }
+
+    /// Returns information about the current state of the pool.
+    pub fn state(&self) -> State {
+        let s = match &self.inner {
+            RedisPoolInner::Cluster(p) => p.state(),
+            RedisPoolInner::Single(p) => p.state(),
+        };
+
+        State {
+            connections: s.connections,
+            idle_connections: s.idle_connections,
+        }
+    }
+}
+
+/// Information about the state of a [`RedisPool`].
+pub struct State {
+    /// The number of connections currently being managed by the pool.
+    pub connections: u32,
+    /// The number of idle connections.
+    pub idle_connections: u32,
 }
