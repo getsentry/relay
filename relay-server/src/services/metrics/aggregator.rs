@@ -2,59 +2,14 @@ use std::collections::HashMap;
 use std::time::Duration;
 
 use relay_base_schema::project::ProjectKey;
+use relay_config::AggregatorServiceConfig;
 use relay_system::{
     AsyncResponse, Controller, FromMessage, Interface, NoResponse, Recipient, Sender, Service,
     Shutdown,
 };
-use serde::{Deserialize, Serialize};
 
-use crate::aggregator::{self, AggregatorConfig};
-use crate::bucket::Bucket;
-use crate::statsd::{MetricCounters, MetricHistograms, MetricTimers};
-
-/// Parameters used by the [`AggregatorService`].
-#[derive(Clone, Debug, Deserialize, Serialize)]
-#[serde(default)]
-pub struct AggregatorServiceConfig {
-    /// The config used by the internal aggregator.
-    #[serde(flatten)]
-    pub aggregator: AggregatorConfig,
-
-    /// Maximum amount of bytes used for metrics aggregation.
-    ///
-    /// When aggregating metrics, Relay keeps track of how many bytes a metric takes in memory.
-    /// This is only an approximation and does not take into account things such as pre-allocation
-    /// in hashmaps.
-    ///
-    /// Defaults to `None`, i.e. no limit.
-    pub max_total_bucket_bytes: Option<usize>,
-
-    // TODO(dav1dde): move these config values to a better spot
-    /// The approximate maximum number of bytes submitted within one flush cycle.
-    ///
-    /// This controls how big flushed batches of buckets get, depending on the number of buckets,
-    /// the cumulative length of their keys, and the number of raw values. Since final serialization
-    /// adds some additional overhead, this number is approxmate and some safety margin should be
-    /// left to hard limits.
-    pub max_flush_bytes: usize,
-
-    /// The flushing interval in milliseconds that determines how often the aggregator is polled for
-    /// flushing new buckets.
-    ///
-    /// Defaults to `100` milliseconds.
-    pub flush_interval_ms: u64,
-}
-
-impl Default for AggregatorServiceConfig {
-    fn default() -> Self {
-        Self {
-            aggregator: AggregatorConfig::default(),
-            max_total_bucket_bytes: None,
-            max_flush_bytes: 5_000_000, // 5 MB
-            flush_interval_ms: 100,     // 100 milliseconds
-        }
-    }
-}
+use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
+use relay_metrics::{aggregator, Bucket};
 
 /// Aggregator for metric buckets.
 ///
@@ -204,7 +159,7 @@ impl AggregatorService {
         let partitions_count = partitions.len() as u64;
         relay_log::trace!("flushing {} partitions to receiver", partitions_count);
         relay_statsd::metric!(
-            histogram(MetricHistograms::PartitionsFlushed) = partitions_count,
+            histogram(RelayHistograms::PartitionsFlushed) = partitions_count,
             aggregator = self.aggregator.name(),
         );
 
@@ -215,14 +170,14 @@ impl AggregatorService {
                 total_bucket_count += bucket_count;
 
                 relay_statsd::metric!(
-                    histogram(MetricHistograms::BucketsFlushedPerProject) = bucket_count,
+                    histogram(RelayHistograms::BucketsFlushedPerProject) = bucket_count,
                     aggregator = self.aggregator.name(),
                 );
             }
         }
 
         relay_statsd::metric!(
-            histogram(MetricHistograms::BucketsFlushed) = total_bucket_count,
+            histogram(RelayHistograms::BucketsFlushed) = total_bucket_count,
             aggregator = self.aggregator.name(),
         );
 
@@ -248,7 +203,7 @@ impl AggregatorService {
     fn handle_message(&mut self, message: Aggregator) {
         let ty = message.variant();
         relay_statsd::metric!(
-            timer(MetricTimers::AggregatorServiceDuration),
+            timer(RelayTimers::AggregatorServiceDuration),
             message = ty,
             {
                 match message {
@@ -304,7 +259,7 @@ impl Drop for AggregatorService {
                 "metrics aggregator dropping {remaining_buckets} buckets"
             );
             relay_statsd::metric!(
-                counter(MetricCounters::BucketsDropped) += remaining_buckets as i64,
+                counter(RelayCounters::BucketsDropped) += remaining_buckets as i64,
                 aggregator = self.aggregator.name(),
             );
         }
@@ -314,8 +269,8 @@ impl Drop for AggregatorService {
 /// A message containing a list of [`Bucket`]s to be inserted into the aggregator.
 #[derive(Debug)]
 pub struct MergeBuckets {
-    pub(crate) project_key: ProjectKey,
-    pub(crate) buckets: Vec<Bucket>,
+    pub project_key: ProjectKey,
+    pub buckets: Vec<Bucket>,
 }
 
 impl MergeBuckets {
@@ -326,17 +281,6 @@ impl MergeBuckets {
             buckets,
         }
     }
-
-    /// Returns the `ProjectKey` for the the current `MergeBuckets` message.
-    pub fn project_key(&self) -> ProjectKey {
-        self.project_key
-    }
-
-    /// Returns the list of the buckets in the current `MergeBuckets` message, consuming the
-    /// message itself.
-    pub fn buckets(self) -> Vec<Bucket> {
-        self.buckets
-    }
 }
 
 #[cfg(test)]
@@ -345,8 +289,7 @@ mod tests {
     use std::sync::{Arc, RwLock};
 
     use relay_common::time::UnixTimestamp;
-
-    use crate::{BucketMetadata, BucketValue};
+    use relay_metrics::{aggregator::AggregatorConfig, BucketMetadata, BucketValue};
 
     use super::*;
 

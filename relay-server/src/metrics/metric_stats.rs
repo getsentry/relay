@@ -6,12 +6,13 @@ use relay_cardinality::{CardinalityLimit, CardinalityReport};
 use relay_config::Config;
 #[cfg(feature = "processing")]
 use relay_metrics::GaugeValue;
-use relay_metrics::{Aggregator, Bucket, BucketValue, MergeBuckets, MetricName, UnixTimestamp};
+use relay_metrics::{Bucket, BucketValue, MetricName, UnixTimestamp};
 use relay_quotas::Scoping;
 use relay_system::Addr;
 
 use crate::metrics::TrackableBucket;
 use crate::services::global_config::GlobalConfigHandle;
+use crate::services::metrics::{Aggregator, MergeBuckets};
 use crate::services::outcome::Outcome;
 use crate::utils::is_rolled_out;
 
@@ -277,14 +278,13 @@ mod tests {
 
         drop(ms);
 
-        let Aggregator::MergeBuckets(mb) = receiver.blocking_recv().unwrap() else {
+        let Aggregator::MergeBuckets(mut mb) = receiver.blocking_recv().unwrap() else {
             panic!();
         };
-        assert_eq!(mb.project_key(), scoping.project_key);
+        assert_eq!(mb.project_key, scoping.project_key);
 
-        let mut buckets = mb.buckets();
-        assert_eq!(buckets.len(), 1);
-        let bucket = buckets.pop().unwrap();
+        assert_eq!(mb.buckets.len(), 1);
+        let bucket = mb.buckets.pop().unwrap();
 
         assert_eq!(&*bucket.name, "c:metric_stats/volume@none");
         assert_eq!(bucket.value, BucketValue::Counter(1.into()));
@@ -298,14 +298,13 @@ mod tests {
             )
         );
 
-        let Aggregator::MergeBuckets(mb) = receiver.blocking_recv().unwrap() else {
+        let Aggregator::MergeBuckets(mut mb) = receiver.blocking_recv().unwrap() else {
             panic!();
         };
-        assert_eq!(mb.project_key(), scoping.project_key);
+        assert_eq!(mb.project_key, scoping.project_key);
 
-        let mut buckets = mb.buckets();
-        assert_eq!(buckets.len(), 1);
-        let bucket = buckets.pop().unwrap();
+        assert_eq!(mb.buckets.len(), 1);
+        let bucket = mb.buckets.pop().unwrap();
 
         assert_eq!(&*bucket.name, "c:metric_stats/volume@none");
         assert_eq!(bucket.value, BucketValue::Counter(42.into()));
@@ -354,14 +353,13 @@ mod tests {
 
         drop(ms);
 
-        let Aggregator::MergeBuckets(mb) = receiver.blocking_recv().unwrap() else {
+        let Aggregator::MergeBuckets(mut mb) = receiver.blocking_recv().unwrap() else {
             panic!();
         };
-        assert_eq!(mb.project_key(), scoping.project_key);
+        assert_eq!(mb.project_key, scoping.project_key);
 
-        let mut buckets = mb.buckets();
-        assert_eq!(buckets.len(), 1);
-        let bucket = buckets.pop().unwrap();
+        assert_eq!(mb.buckets.len(), 1);
+        let bucket = mb.buckets.pop().unwrap();
 
         assert_eq!(&*bucket.name, "g:metric_stats/cardinality@none");
         assert_eq!(bucket.timestamp, UnixTimestamp::from_secs(3333));
@@ -421,14 +419,13 @@ mod tests {
 
         drop(ms);
 
-        let Aggregator::MergeBuckets(mb) = receiver.blocking_recv().unwrap() else {
+        let Aggregator::MergeBuckets(mut mb) = receiver.blocking_recv().unwrap() else {
             panic!();
         };
-        assert_eq!(mb.project_key(), scoping.project_key);
+        assert_eq!(mb.project_key, scoping.project_key);
 
-        let mut buckets = mb.buckets();
-        assert_eq!(buckets.len(), 1);
-        let bucket = buckets.pop().unwrap();
+        assert_eq!(mb.buckets.len(), 1);
+        let bucket = mb.buckets.pop().unwrap();
 
         assert_eq!(&*bucket.name, "g:metric_stats/cardinality@none");
         assert_eq!(bucket.timestamp, UnixTimestamp::from_secs(2222));

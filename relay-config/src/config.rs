@@ -15,12 +15,13 @@ use relay_kafka::{
     TopicAssignments,
 };
 use relay_metrics::aggregator::{AggregatorConfig, FlushBatching};
-use relay_metrics::{AggregatorServiceConfig, MetricNamespace, ScopedAggregatorConfig};
+use relay_metrics::MetricNamespace;
 use relay_redis::RedisConfig;
 use serde::de::{DeserializeOwned, Unexpected, Visitor};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use uuid::Uuid;
 
+use crate::aggregator::{AggregatorServiceConfig, ScopedAggregatorConfig};
 use crate::byte_size::ByteSize;
 use crate::upstream::UpstreamDescriptor;
 
@@ -2401,12 +2402,12 @@ impl Config {
         }
     }
 
-    /// Returns configuration for the default metrics [aggregator](relay_metrics::Aggregator).
+    /// Returns configuration for the default metrics aggregator.
     pub fn default_aggregator_config(&self) -> &AggregatorServiceConfig {
         &self.values.aggregator
     }
 
-    /// Returns configuration for non-default metrics [aggregators](relay_metrics::Aggregator).
+    /// Returns configuration for non-default metrics aggregator.
     pub fn secondary_aggregator_configs(&self) -> &Vec<ScopedAggregatorConfig> {
         &self.values.secondary_aggregators
     }

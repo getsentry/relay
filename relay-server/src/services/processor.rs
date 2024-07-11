@@ -3433,6 +3433,78 @@ mod tests {
         );
     }
 
+    #[tokio::test]
+    #[cfg(feature = "processing")]
+    async fn test_materialize_dsc() {
+        let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
+            .parse()
+            .unwrap();
+        let request_meta = RequestMeta::new(dsn);
+        let mut envelope = Envelope::from_request(None, request_meta);
+
+        let dsc = r#"{
+            "trace_id": "00000000-0000-0000-0000-000000000000",
+            "public_key": "e12d836b15bb49d7bbf99e64295d995b",
+            "sample_rate": "0.2"
+        }"#;
+        envelope.set_dsc(serde_json::from_str(dsc).unwrap());
+
+        let mut item = Item::new(ItemType::Event);
+        item.set_payload(ContentType::Json, r#"{}"#);
+        envelope.add_item(item);
+
+        let (outcome_aggregator, test_store) = testutils::processor_services();
+        let managed_envelope = ManagedEnvelope::standalone(
+            envelope,
+            outcome_aggregator,
+            test_store,
+            ProcessingGroup::Error,
+        );
+
+        let process_message = ProcessEnvelope {
+            envelope: managed_envelope,
+            project_state: Arc::new(ProjectState::allowed()),
+            sampling_project_state: None,
+            reservoir_counters: ReservoirCounters::default(),
+        };
+
+        let config = Config::from_json_value(serde_json::json!({
+            "processing": {
+                "enabled": true,
+                "kafka_config": [],
+            }
+        }))
+        .unwrap();
+
+        let processor = create_test_processor(config);
+        let response = processor.process(process_message).unwrap();
+        let envelope = response.envelope.as_ref().unwrap().envelope();
+        let event = envelope
+            .get_item_by(|item| item.ty() == &ItemType::Event)
+            .unwrap();
+
+        let event = Annotated::<Event>::from_json_bytes(&event.payload()).unwrap();
+        insta::assert_debug_snapshot!(event.value().unwrap()._dsc, @r###"
+        Object(
+            {
+                "environment": ~,
+                "public_key": String(
+                    "e12d836b15bb49d7bbf99e64295d995b",
+                ),
+                "release": ~,
+                "replay_id": ~,
+                "sample_rate": String(
+                    "0.2",
+                ),
+                "trace_id": String(
+                    "00000000-0000-0000-0000-000000000000",
+                ),
+                "transaction": ~,
+            },
+        )
+        "###);
+    }
+
     fn capture_test_event(transaction_name: &str, source: TransactionSource) -> Vec<String> {
         let mut event = Annotated::<Event>::from_json(
             r#"
@@ -3443,10 +3515,10 @@ mod tests {
                 "start_timestamp": 946684800.0,
                 "contexts": {
                     "trace": {
-                    "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
-                    "span_id": "fa90fdead5f74053",
-                    "op": "http.server",
-                    "type": "trace"
+                        "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+                        "span_id": "fa90fdead5f74053",
+                        "op": "http.server",
+                        "type": "trace"
                     }
                 },
                 "transaction_info": {

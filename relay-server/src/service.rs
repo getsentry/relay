@@ -9,7 +9,6 @@ use axum::extract::FromRequestParts;
 use axum::http::request::Parts;
 use relay_cogs::Cogs;
 use relay_config::Config;
-use relay_metrics::Aggregator;
 use relay_redis::RedisPool;
 use relay_system::{channel, Addr, Service};
 use tokio::runtime::Runtime;
@@ -17,6 +16,7 @@ use tokio::runtime::Runtime;
 use crate::services::cogs::{CogsService, CogsServiceRecorder};
 use crate::services::global_config::{GlobalConfigManager, GlobalConfigService};
 use crate::services::health_check::{HealthCheck, HealthCheckService};
+use crate::services::metrics::{Aggregator, RouterService};
 use crate::services::outcome::{OutcomeProducer, OutcomeProducerService, TrackOutcome};
 use crate::services::outcome_aggregator::OutcomeAggregator;
 use crate::services::processor::{self, EnvelopeProcessor, EnvelopeProcessorService};
@@ -129,7 +129,7 @@ impl ServiceState {
 
         let (project_cache, project_cache_rx) = channel(ProjectCacheService::name());
 
-        let aggregator = relay_metrics::RouterService::new(
+        let aggregator = RouterService::new(
             config.default_aggregator_config().clone(),
             config.secondary_aggregator_configs().clone(),
             Some(project_cache.clone().recipient()),
@@ -198,7 +198,7 @@ impl ServiceState {
             buffer_guard.clone(),
             project_cache_services,
             metric_outcomes,
-            redis_pool,
+            redis_pool.clone(),
         )
         .spawn_handler(project_cache_rx);
 
@@ -210,7 +210,13 @@ impl ServiceState {
         )
         .start();
 
-        RelayStats::new(config.clone(), upstream_relay.clone()).start();
+        RelayStats::new(
+            config.clone(),
+            upstream_relay.clone(),
+            #[cfg(feature = "processing")]
+            redis_pool,
+        )
+        .start();
 
         let relay_cache = RelayCacheService::new(config.clone(), upstream_relay.clone()).start();
 
