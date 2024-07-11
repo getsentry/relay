@@ -97,6 +97,10 @@ impl RelayStats {
         }
     }
 
+    #[cfg(not(feature = "processing"))]
+    async fn redis_pool(&self) {}
+
+    #[cfg(feature = "processing")]
     async fn redis_pool(&self) {
         let Some(ref redis_pool) = self.redis_pool else {
             return;
@@ -121,7 +125,7 @@ impl Service for RelayStats {
                 let _ = tokio::join!(
                     self.upstream_status(),
                     self.tokio_metrics(),
-                    self.redis_pool()
+                    self.redis_pool(),
                 );
                 ticker.tick().await;
             }
