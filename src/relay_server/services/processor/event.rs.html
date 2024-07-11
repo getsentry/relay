@@ -888,6 +888,12 @@
 <a href="#888" id="888">888</a>
 <a href="#889" id="889">889</a>
 <a href="#890" id="890">890</a>
+<a href="#891" id="891">891</a>
+<a href="#892" id="892">892</a>
+<a href="#893" id="893">893</a>
+<a href="#894" id="894">894</a>
+<a href="#895" id="895">895</a>
+<a href="#896" id="896">896</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Event processor related code.
 
 </span><span class="kw">use </span>std::error::Error;
@@ -1131,6 +1137,12 @@
                     sdk = envelope.meta().client_name().unwrap_or(<span class="string">"proprietary"</span>),
                     platform = event.platform.as_str().unwrap_or(<span class="string">"other"</span>),
                 );
+            }
+        }
+
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(dsc) = envelope.dsc() {
+            <span class="kw">if let </span><span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(value)) = relay_protocol::to_value(dsc) {
+                event._dsc = Annotated::new(value);
             }
         }
     }

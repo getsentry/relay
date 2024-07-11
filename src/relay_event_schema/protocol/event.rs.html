@@ -1314,6 +1314,10 @@
 <a href="#1314" id="1314">1314</a>
 <a href="#1315" id="1315">1315</a>
 <a href="#1316" id="1316">1316</a>
+<a href="#1317" id="1317">1317</a>
+<a href="#1318" id="1318">1318</a>
+<a href="#1319" id="1319">1319</a>
+<a href="#1320" id="1320">1320</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::str::FromStr;
 
@@ -1826,6 +1830,10 @@
     /// interface.  This is intentionally not typed today.
     </span><span class="attr">#[metastructure(omit_from_schema)]
     </span><span class="kw">pub </span>_metrics_summary: Annotated&lt;MetricsSummary&gt;,
+
+    <span class="doccomment">/// Value of the `DynamicSamplingContext` for this event.
+    </span><span class="attr">#[metastructure(omit_from_schema)]
+    </span><span class="kw">pub </span>_dsc: Annotated&lt;Value&gt;,
 
     <span class="doccomment">/// Additional arbitrary fields for forwards compatibility.
     </span><span class="attr">#[metastructure(additional_properties, pii = <span class="string">"true"</span>)]

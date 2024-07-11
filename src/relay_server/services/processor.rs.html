@@ -3929,6 +3929,78 @@
 <a href="#3929" id="3929">3929</a>
 <a href="#3930" id="3930">3930</a>
 <a href="#3931" id="3931">3931</a>
+<a href="#3932" id="3932">3932</a>
+<a href="#3933" id="3933">3933</a>
+<a href="#3934" id="3934">3934</a>
+<a href="#3935" id="3935">3935</a>
+<a href="#3936" id="3936">3936</a>
+<a href="#3937" id="3937">3937</a>
+<a href="#3938" id="3938">3938</a>
+<a href="#3939" id="3939">3939</a>
+<a href="#3940" id="3940">3940</a>
+<a href="#3941" id="3941">3941</a>
+<a href="#3942" id="3942">3942</a>
+<a href="#3943" id="3943">3943</a>
+<a href="#3944" id="3944">3944</a>
+<a href="#3945" id="3945">3945</a>
+<a href="#3946" id="3946">3946</a>
+<a href="#3947" id="3947">3947</a>
+<a href="#3948" id="3948">3948</a>
+<a href="#3949" id="3949">3949</a>
+<a href="#3950" id="3950">3950</a>
+<a href="#3951" id="3951">3951</a>
+<a href="#3952" id="3952">3952</a>
+<a href="#3953" id="3953">3953</a>
+<a href="#3954" id="3954">3954</a>
+<a href="#3955" id="3955">3955</a>
+<a href="#3956" id="3956">3956</a>
+<a href="#3957" id="3957">3957</a>
+<a href="#3958" id="3958">3958</a>
+<a href="#3959" id="3959">3959</a>
+<a href="#3960" id="3960">3960</a>
+<a href="#3961" id="3961">3961</a>
+<a href="#3962" id="3962">3962</a>
+<a href="#3963" id="3963">3963</a>
+<a href="#3964" id="3964">3964</a>
+<a href="#3965" id="3965">3965</a>
+<a href="#3966" id="3966">3966</a>
+<a href="#3967" id="3967">3967</a>
+<a href="#3968" id="3968">3968</a>
+<a href="#3969" id="3969">3969</a>
+<a href="#3970" id="3970">3970</a>
+<a href="#3971" id="3971">3971</a>
+<a href="#3972" id="3972">3972</a>
+<a href="#3973" id="3973">3973</a>
+<a href="#3974" id="3974">3974</a>
+<a href="#3975" id="3975">3975</a>
+<a href="#3976" id="3976">3976</a>
+<a href="#3977" id="3977">3977</a>
+<a href="#3978" id="3978">3978</a>
+<a href="#3979" id="3979">3979</a>
+<a href="#3980" id="3980">3980</a>
+<a href="#3981" id="3981">3981</a>
+<a href="#3982" id="3982">3982</a>
+<a href="#3983" id="3983">3983</a>
+<a href="#3984" id="3984">3984</a>
+<a href="#3985" id="3985">3985</a>
+<a href="#3986" id="3986">3986</a>
+<a href="#3987" id="3987">3987</a>
+<a href="#3988" id="3988">3988</a>
+<a href="#3989" id="3989">3989</a>
+<a href="#3990" id="3990">3990</a>
+<a href="#3991" id="3991">3991</a>
+<a href="#3992" id="3992">3992</a>
+<a href="#3993" id="3993">3993</a>
+<a href="#3994" id="3994">3994</a>
+<a href="#3995" id="3995">3995</a>
+<a href="#3996" id="3996">3996</a>
+<a href="#3997" id="3997">3997</a>
+<a href="#3998" id="3998">3998</a>
+<a href="#3999" id="3999">3999</a>
+<a href="#4000" id="4000">4000</a>
+<a href="#4001" id="4001">4001</a>
+<a href="#4002" id="4002">4002</a>
+<a href="#4003" id="4003">4003</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
@@ -7363,6 +7435,78 @@
         );
     }
 
+    <span class="attr">#[tokio::test]
+    #[cfg(feature = <span class="string">"processing"</span>)]
+    </span><span class="kw">async fn </span>test_materialize_dsc() {
+        <span class="kw">let </span>dsn = <span class="string">"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
+            </span>.parse()
+            .unwrap();
+        <span class="kw">let </span>request_meta = RequestMeta::new(dsn);
+        <span class="kw">let </span><span class="kw-2">mut </span>envelope = Envelope::from_request(<span class="prelude-val">None</span>, request_meta);
+
+        <span class="kw">let </span>dsc = <span class="string">r#"{
+            "trace_id": "00000000-0000-0000-0000-000000000000",
+            "public_key": "e12d836b15bb49d7bbf99e64295d995b",
+            "sample_rate": "0.2"
+        }"#</span>;
+        envelope.set_dsc(serde_json::from_str(dsc).unwrap());
+
+        <span class="kw">let </span><span class="kw-2">mut </span>item = Item::new(ItemType::Event);
+        item.set_payload(ContentType::Json, <span class="string">r#"{}"#</span>);
+        envelope.add_item(item);
+
+        <span class="kw">let </span>(outcome_aggregator, test_store) = testutils::processor_services();
+        <span class="kw">let </span>managed_envelope = ManagedEnvelope::standalone(
+            envelope,
+            outcome_aggregator,
+            test_store,
+            ProcessingGroup::Error,
+        );
+
+        <span class="kw">let </span>process_message = ProcessEnvelope {
+            envelope: managed_envelope,
+            project_state: Arc::new(ProjectState::allowed()),
+            sampling_project_state: <span class="prelude-val">None</span>,
+            reservoir_counters: ReservoirCounters::default(),
+        };
+
+        <span class="kw">let </span>config = Config::from_json_value(<span class="macro">serde_json::json!</span>({
+            <span class="string">"processing"</span>: {
+                <span class="string">"enabled"</span>: <span class="bool-val">true</span>,
+                <span class="string">"kafka_config"</span>: [],
+            }
+        }))
+        .unwrap();
+
+        <span class="kw">let </span>processor = create_test_processor(config);
+        <span class="kw">let </span>response = processor.process(process_message).unwrap();
+        <span class="kw">let </span>envelope = response.envelope.as_ref().unwrap().envelope();
+        <span class="kw">let </span>event = envelope
+            .get_item_by(|item| item.ty() == <span class="kw-2">&amp;</span>ItemType::Event)
+            .unwrap();
+
+        <span class="kw">let </span>event = Annotated::&lt;Event&gt;::from_json_bytes(<span class="kw-2">&amp;</span>event.payload()).unwrap();
+        <span class="macro">insta::assert_debug_snapshot!</span>(event.value().unwrap()._dsc, @<span class="string">r###"
+        Object(
+            {
+                "environment": ~,
+                "public_key": String(
+                    "e12d836b15bb49d7bbf99e64295d995b",
+                ),
+                "release": ~,
+                "replay_id": ~,
+                "sample_rate": String(
+                    "0.2",
+                ),
+                "trace_id": String(
+                    "00000000-0000-0000-0000-000000000000",
+                ),
+                "transaction": ~,
+            },
+        )
+        "###</span>);
+    }
+
     <span class="kw">fn </span>capture_test_event(transaction_name: <span class="kw-2">&amp;</span>str, source: TransactionSource) -&gt; Vec&lt;String&gt; {
         <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::&lt;Event&gt;::from_json(
             <span class="string">r#"
@@ -7373,10 +7517,10 @@
                 "start_timestamp": 946684800.0,
                 "contexts": {
                     "trace": {
-                    "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
-                    "span_id": "fa90fdead5f74053",
-                    "op": "http.server",
-                    "type": "trace"
+                        "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+                        "span_id": "fa90fdead5f74053",
+                        "op": "http.server",
+                        "type": "trace"
                     }
                 },
                 "transaction_info": {
