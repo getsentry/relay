@@ -1306,13 +1306,15 @@ mod tests {
             }
         }"#;
 
-                let mut span = Annotated::<Span>::from_json(json).unwrap();
+        let mut span = Annotated::<Span>::from_json(json).unwrap();
 
         let scrubbed = scrub_span_description(span.value_mut().as_mut().unwrap());
 
         assert_eq!(
             scrubbed.0.as_deref(),
-            Some(r#"{ "find": "documents", "filter": { "size.h": { "$lt": "?" }, "size.uom": "?", "status": "?" } }"#)
+            Some(
+                r#"{ "find": "documents", "filter": { "size.h": { "$lt": "?" }, "size.uom": "?", "status": "?" } }"#
+            )
         );
     }
 }
