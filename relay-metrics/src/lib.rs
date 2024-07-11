@@ -41,7 +41,7 @@
 //! # Aggregation
 //!
 //! Relay accumulates all metrics in [time buckets](Bucket) before sending them onwards. Aggregation
-//! is handled by the [`Aggregator`], which should be created once for the entire system. It flushes
+//! is handled by the [`aggregator::Aggregator`], which should be created once for the entire system. It flushes
 //! aggregates in regular intervals, either shortly after their original time window has passed or
 //! with a debounce delay for backdated submissions.
 //!
@@ -72,20 +72,16 @@ pub mod aggregator;
 pub mod cogs;
 pub mod meta;
 
-mod aggregatorservice;
 mod bucket;
 mod finite;
 mod protocol;
-mod router;
 mod statsd;
 mod view;
 
-pub use aggregatorservice::*;
 pub use bucket::*;
 pub use finite::*;
 #[cfg(feature = "redis")]
 pub use meta::RedisMetricMetaStore;
 pub use meta::{MetaAggregator, MetricMeta};
 pub use protocol::*;
-pub use router::*;
 pub use view::*;
