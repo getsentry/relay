@@ -109,5 +109,6 @@ Event {
     scraping_attempts: ~,
     _metrics: ~,
     _metrics_summary: ~,
+    _dsc: ~,
     other: {},
 }
