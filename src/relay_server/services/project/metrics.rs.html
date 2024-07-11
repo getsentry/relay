@@ -245,7 +245,6 @@
 <a href="#245" id="245">245</a>
 <a href="#246" id="246">246</a>
 <a href="#247" id="247">247</a>
-<a href="#248" id="248">248</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_dynamic_config::{ErrorBoundary, Feature, Metrics};
 <span class="kw">use </span>relay_filter::FilterStatKey;
 <span class="kw">use </span>relay_metrics::{Bucket, MetricNamespace};
@@ -351,10 +350,11 @@
     <span class="kw">use </span>relay_base_schema::project::{ProjectId, ProjectKey};
     <span class="kw">use </span>relay_common::glob3::GlobPatterns;
     <span class="kw">use </span>relay_dynamic_config::TagBlock;
-    <span class="kw">use </span>relay_metrics::{Aggregator, BucketValue, UnixTimestamp};
+    <span class="kw">use </span>relay_metrics::{BucketValue, UnixTimestamp};
     <span class="kw">use </span>relay_system::Addr;
 
     <span class="kw">use </span><span class="kw">crate</span>::metrics::MetricStats;
+    <span class="kw">use </span><span class="kw">crate</span>::services::metrics::Aggregator;
 
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
 
@@ -447,10 +447,9 @@
         <span class="kw">let </span>Aggregator::MergeBuckets(merge_buckets) = value <span class="kw">else </span>{
             <span class="macro">panic!</span>();
         };
-        <span class="kw">let </span>merge_buckets = merge_buckets.buckets();
-        <span class="macro">assert_eq!</span>(merge_buckets.len(), <span class="number">1</span>);
+        <span class="macro">assert_eq!</span>(merge_buckets.buckets.len(), <span class="number">1</span>);
         <span class="macro">assert_eq!</span>(
-            merge_buckets[<span class="number">0</span>].tags.get(<span class="string">"mri"</span>).unwrap().as_str(),
+            merge_buckets.buckets[<span class="number">0</span>].tags.get(<span class="string">"mri"</span>).unwrap().as_str(),
             <span class="kw-2">&amp;*</span>b1.name
         );
     }
@@ -485,9 +484,8 @@
             <span class="kw">let </span>Aggregator::MergeBuckets(merge_buckets) = value <span class="kw">else </span>{
                 <span class="macro">panic!</span>();
             };
-            <span class="kw">let </span>buckets = merge_buckets.buckets();
-            <span class="macro">assert_eq!</span>(buckets.len(), <span class="number">1</span>);
-            <span class="kw">let </span>BucketValue::Counter(value) = buckets[<span class="number">0</span>].value <span class="kw">else </span>{
+            <span class="macro">assert_eq!</span>(merge_buckets.buckets.len(), <span class="number">1</span>);
+            <span class="kw">let </span>BucketValue::Counter(value) = merge_buckets.buckets[<span class="number">0</span>].value <span class="kw">else </span>{
                 <span class="macro">panic!</span>();
             };
             <span class="macro">assert_eq!</span>(value.to_f64(), <span class="number">1.0</span>);

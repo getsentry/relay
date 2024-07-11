@@ -480,9 +480,6 @@
 <a href="#480" id="480">480</a>
 <a href="#481" id="481">481</a>
 <a href="#482" id="482">482</a>
-<a href="#483" id="483">483</a>
-<a href="#484" id="484">484</a>
-<a href="#485" id="485">485</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::sync::{Arc, OnceLock};
 
@@ -491,12 +488,13 @@
 <span class="kw">use </span>relay_config::Config;
 <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
 </span><span class="kw">use </span>relay_metrics::GaugeValue;
-<span class="kw">use </span>relay_metrics::{Aggregator, Bucket, BucketValue, MergeBuckets, MetricName, UnixTimestamp};
+<span class="kw">use </span>relay_metrics::{Bucket, BucketValue, MetricName, UnixTimestamp};
 <span class="kw">use </span>relay_quotas::Scoping;
 <span class="kw">use </span>relay_system::Addr;
 
 <span class="kw">use </span><span class="kw">crate</span>::metrics::TrackableBucket;
 <span class="kw">use </span><span class="kw">crate</span>::services::global_config::GlobalConfigHandle;
+<span class="kw">use </span><span class="kw">crate</span>::services::metrics::{Aggregator, MergeBuckets};
 <span class="kw">use </span><span class="kw">crate</span>::services::outcome::Outcome;
 <span class="kw">use </span><span class="kw">crate</span>::utils::is_rolled_out;
 
@@ -762,14 +760,13 @@
 
         drop(ms);
 
-        <span class="kw">let </span>Aggregator::MergeBuckets(mb) = receiver.blocking_recv().unwrap() <span class="kw">else </span>{
+        <span class="kw">let </span>Aggregator::MergeBuckets(<span class="kw-2">mut </span>mb) = receiver.blocking_recv().unwrap() <span class="kw">else </span>{
             <span class="macro">panic!</span>();
         };
-        <span class="macro">assert_eq!</span>(mb.project_key(), scoping.project_key);
+        <span class="macro">assert_eq!</span>(mb.project_key, scoping.project_key);
 
-        <span class="kw">let </span><span class="kw-2">mut </span>buckets = mb.buckets();
-        <span class="macro">assert_eq!</span>(buckets.len(), <span class="number">1</span>);
-        <span class="kw">let </span>bucket = buckets.pop().unwrap();
+        <span class="macro">assert_eq!</span>(mb.buckets.len(), <span class="number">1</span>);
+        <span class="kw">let </span>bucket = mb.buckets.pop().unwrap();
 
         <span class="macro">assert_eq!</span>(<span class="kw-2">&amp;*</span>bucket.name, <span class="string">"c:metric_stats/volume@none"</span>);
         <span class="macro">assert_eq!</span>(bucket.value, BucketValue::Counter(<span class="number">1</span>.into()));
@@ -783,14 +780,13 @@
             )
         );
 
-        <span class="kw">let </span>Aggregator::MergeBuckets(mb) = receiver.blocking_recv().unwrap() <span class="kw">else </span>{
+        <span class="kw">let </span>Aggregator::MergeBuckets(<span class="kw-2">mut </span>mb) = receiver.blocking_recv().unwrap() <span class="kw">else </span>{
             <span class="macro">panic!</span>();
         };
-        <span class="macro">assert_eq!</span>(mb.project_key(), scoping.project_key);
+        <span class="macro">assert_eq!</span>(mb.project_key, scoping.project_key);
 
-        <span class="kw">let </span><span class="kw-2">mut </span>buckets = mb.buckets();
-        <span class="macro">assert_eq!</span>(buckets.len(), <span class="number">1</span>);
-        <span class="kw">let </span>bucket = buckets.pop().unwrap();
+        <span class="macro">assert_eq!</span>(mb.buckets.len(), <span class="number">1</span>);
+        <span class="kw">let </span>bucket = mb.buckets.pop().unwrap();
 
         <span class="macro">assert_eq!</span>(<span class="kw-2">&amp;*</span>bucket.name, <span class="string">"c:metric_stats/volume@none"</span>);
         <span class="macro">assert_eq!</span>(bucket.value, BucketValue::Counter(<span class="number">42</span>.into()));
@@ -839,14 +835,13 @@
 
         drop(ms);
 
-        <span class="kw">let </span>Aggregator::MergeBuckets(mb) = receiver.blocking_recv().unwrap() <span class="kw">else </span>{
+        <span class="kw">let </span>Aggregator::MergeBuckets(<span class="kw-2">mut </span>mb) = receiver.blocking_recv().unwrap() <span class="kw">else </span>{
             <span class="macro">panic!</span>();
         };
-        <span class="macro">assert_eq!</span>(mb.project_key(), scoping.project_key);
+        <span class="macro">assert_eq!</span>(mb.project_key, scoping.project_key);
 
-        <span class="kw">let </span><span class="kw-2">mut </span>buckets = mb.buckets();
-        <span class="macro">assert_eq!</span>(buckets.len(), <span class="number">1</span>);
-        <span class="kw">let </span>bucket = buckets.pop().unwrap();
+        <span class="macro">assert_eq!</span>(mb.buckets.len(), <span class="number">1</span>);
+        <span class="kw">let </span>bucket = mb.buckets.pop().unwrap();
 
         <span class="macro">assert_eq!</span>(<span class="kw-2">&amp;*</span>bucket.name, <span class="string">"g:metric_stats/cardinality@none"</span>);
         <span class="macro">assert_eq!</span>(bucket.timestamp, UnixTimestamp::from_secs(<span class="number">3333</span>));
@@ -906,14 +901,13 @@
 
         drop(ms);
 
-        <span class="kw">let </span>Aggregator::MergeBuckets(mb) = receiver.blocking_recv().unwrap() <span class="kw">else </span>{
+        <span class="kw">let </span>Aggregator::MergeBuckets(<span class="kw-2">mut </span>mb) = receiver.blocking_recv().unwrap() <span class="kw">else </span>{
             <span class="macro">panic!</span>();
         };
-        <span class="macro">assert_eq!</span>(mb.project_key(), scoping.project_key);
+        <span class="macro">assert_eq!</span>(mb.project_key, scoping.project_key);
 
-        <span class="kw">let </span><span class="kw-2">mut </span>buckets = mb.buckets();
-        <span class="macro">assert_eq!</span>(buckets.len(), <span class="number">1</span>);
-        <span class="kw">let </span>bucket = buckets.pop().unwrap();
+        <span class="macro">assert_eq!</span>(mb.buckets.len(), <span class="number">1</span>);
+        <span class="kw">let </span>bucket = mb.buckets.pop().unwrap();
 
         <span class="macro">assert_eq!</span>(<span class="kw-2">&amp;*</span>bucket.name, <span class="string">"g:metric_stats/cardinality@none"</span>);
         <span class="macro">assert_eq!</span>(bucket.timestamp, UnixTimestamp::from_secs(<span class="number">2222</span>));

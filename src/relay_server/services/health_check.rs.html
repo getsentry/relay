@@ -328,7 +328,6 @@
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::sync::Arc;
 
 <span class="kw">use </span>relay_config::Config;
-<span class="kw">use </span>relay_metrics::{AcceptsMetrics, Aggregator};
 <span class="kw">use </span>relay_statsd::metric;
 <span class="kw">use </span>relay_system::{Addr, AsyncResponse, Controller, FromMessage, Interface, Sender, Service};
 <span class="kw">use </span>std::future::Future;
@@ -336,6 +335,7 @@
 <span class="kw">use </span>tokio::sync::watch;
 <span class="kw">use </span>tokio::time::{timeout, Instant};
 
+<span class="kw">use </span><span class="kw">crate</span>::services::metrics::{AcceptsMetrics, Aggregator};
 <span class="kw">use </span><span class="kw">crate</span>::services::project_cache::{ProjectCache, SpoolHealth};
 <span class="kw">use </span><span class="kw">crate</span>::services::upstream::{IsAuthenticated, UpstreamRelay};
 <span class="kw">use </span><span class="kw">crate</span>::statsd::{RelayGauges, RelayTimers};

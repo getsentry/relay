@@ -1476,7 +1476,6 @@
 <a href="#1476" id="1476">1476</a>
 <a href="#1477" id="1477">1477</a>
 <a href="#1478" id="1478">1478</a>
-<a href="#1479" id="1479">1479</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeSet;
 <span class="kw">use </span>std::sync::Arc;
 <span class="kw">use </span>std::time::Duration;
@@ -1488,9 +1487,7 @@
 <span class="kw">use </span>relay_config::Config;
 <span class="kw">use </span>relay_dynamic_config::{ErrorBoundary, Feature, LimitedProjectConfig, ProjectConfig};
 <span class="kw">use </span>relay_filter::matches_any_origin;
-<span class="kw">use </span>relay_metrics::{
-    Aggregator, Bucket, MergeBuckets, MetaAggregator, MetricMeta, MetricNamespace,
-};
+<span class="kw">use </span>relay_metrics::{Bucket, MetaAggregator, MetricMeta, MetricNamespace};
 <span class="kw">use </span>relay_quotas::{
     CachedRateLimits, DataCategory, MetricNamespaceScoping, Quota, RateLimits, Scoping,
 };
@@ -1504,6 +1501,7 @@
 
 <span class="kw">use </span><span class="kw">crate</span>::envelope::{Envelope, ItemType};
 <span class="kw">use </span><span class="kw">crate</span>::metrics::{MetricOutcomes, MetricsLimiter};
+<span class="kw">use </span><span class="kw">crate</span>::services::metrics::{Aggregator, MergeBuckets};
 <span class="kw">use </span><span class="kw">crate</span>::services::outcome::{DiscardReason, Outcome, TrackOutcome};
 <span class="kw">use </span><span class="kw">crate</span>::services::processor::{EncodeMetricMeta, EnvelopeProcessor};
 <span class="kw">use </span><span class="kw">crate</span>::services::project::metrics::{apply_project_state, filter_namespaces};
@@ -2866,7 +2864,7 @@
         <span class="kw">let </span>Aggregator::MergeBuckets(merge_buckets) = value <span class="kw">else </span>{
             <span class="macro">panic!</span>();
         };
-        <span class="macro">assert_eq!</span>(merge_buckets.buckets().len(), <span class="number">1</span>);
+        <span class="macro">assert_eq!</span>(merge_buckets.buckets.len(), <span class="number">1</span>);
         <span class="macro">assert!</span>(metric_stats_rx.blocking_recv().is_none());
     }
 

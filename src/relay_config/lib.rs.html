@@ -13,6 +13,8 @@
 <a href="#13" id="13">13</a>
 <a href="#14" id="14">14</a>
 <a href="#15" id="15">15</a>
+<a href="#16" id="16">16</a>
+<a href="#17" id="17">17</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Configuration for the Relay CLI and server.
 </span><span class="attr">#![warn(missing_docs)]
 #![doc(
@@ -21,10 +23,12 @@
 </span>)]
 #![allow(clippy::derive_partial_eq_without_eq)]
 
-</span><span class="kw">mod </span>byte_size;
+</span><span class="kw">pub mod </span>aggregator;
+<span class="kw">mod </span>byte_size;
 <span class="kw">mod </span>config;
 <span class="kw">mod </span>upstream;
 
+<span class="kw">pub use </span><span class="kw">crate</span>::aggregator::{AggregatorServiceConfig, ScopedAggregatorConfig};
 <span class="kw">pub use </span><span class="kw">crate</span>::byte_size::<span class="kw-2">*</span>;
 <span class="kw">pub use </span><span class="kw">crate</span>::config::<span class="kw-2">*</span>;
 <span class="kw">pub use </span><span class="kw">crate</span>::upstream::<span class="kw-2">*</span>;

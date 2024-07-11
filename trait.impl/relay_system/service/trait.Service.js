@@ -1,3 +1,0 @@
-(function() {var implementors = {
-"relay_metrics":[["impl Service for <a class=\"struct\" href=\"relay_metrics/struct.AggregatorService.html\" title=\"struct relay_metrics::AggregatorService\">AggregatorService</a>"],["impl Service for <a class=\"struct\" href=\"relay_metrics/struct.RouterService.html\" title=\"struct relay_metrics::RouterService\">RouterService</a>"]]
-};if (window.register_implementors) {window.register_implementors(implementors);} else {window.pending_implementors = implementors;}})()

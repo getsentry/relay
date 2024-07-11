@@ -144,45 +144,6 @@
 <a href="#144" id="144">144</a>
 <a href="#145" id="145">145</a>
 <a href="#146" id="146">146</a>
-<a href="#147" id="147">147</a>
-<a href="#148" id="148">148</a>
-<a href="#149" id="149">149</a>
-<a href="#150" id="150">150</a>
-<a href="#151" id="151">151</a>
-<a href="#152" id="152">152</a>
-<a href="#153" id="153">153</a>
-<a href="#154" id="154">154</a>
-<a href="#155" id="155">155</a>
-<a href="#156" id="156">156</a>
-<a href="#157" id="157">157</a>
-<a href="#158" id="158">158</a>
-<a href="#159" id="159">159</a>
-<a href="#160" id="160">160</a>
-<a href="#161" id="161">161</a>
-<a href="#162" id="162">162</a>
-<a href="#163" id="163">163</a>
-<a href="#164" id="164">164</a>
-<a href="#165" id="165">165</a>
-<a href="#166" id="166">166</a>
-<a href="#167" id="167">167</a>
-<a href="#168" id="168">168</a>
-<a href="#169" id="169">169</a>
-<a href="#170" id="170">170</a>
-<a href="#171" id="171">171</a>
-<a href="#172" id="172">172</a>
-<a href="#173" id="173">173</a>
-<a href="#174" id="174">174</a>
-<a href="#175" id="175">175</a>
-<a href="#176" id="176">176</a>
-<a href="#177" id="177">177</a>
-<a href="#178" id="178">178</a>
-<a href="#179" id="179">179</a>
-<a href="#180" id="180">180</a>
-<a href="#181" id="181">181</a>
-<a href="#182" id="182">182</a>
-<a href="#183" id="183">183</a>
-<a href="#184" id="184">184</a>
-<a href="#185" id="185">185</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric, SetMetric, TimerMetric};
 
 <span class="doccomment">/// Set metrics for Relay Metrics.
@@ -226,13 +187,6 @@
     ///  - `namespace`: The namespace of the metric.
     </span>MergeMiss,
 
-    <span class="doccomment">/// Incremented every time a bucket is dropped.
-    ///
-    /// This should only happen when a project state is invalid during graceful shutdown.
-    ///
-    /// This metric is tagged with:
-    ///  - `aggregator`: The name of the metrics aggregator (usually `"default"`).
-    </span>BucketsDropped,
     <span class="doccomment">/// Incremented every time the meta aggregator emitted an update that needs to be stored or
     /// sent upstream.
     </span>MetaAggregatorUpdate,
@@ -248,7 +202,6 @@
         <span class="kw">match </span><span class="kw-2">*</span><span class="self">self </span>{
             <span class="self">Self</span>::MergeHit =&gt; <span class="string">"metrics.buckets.merge.hit"</span>,
             <span class="self">Self</span>::MergeMiss =&gt; <span class="string">"metrics.buckets.merge.miss"</span>,
-            <span class="self">Self</span>::BucketsDropped =&gt; <span class="string">"metrics.buckets.dropped"</span>,
             <span class="self">Self</span>::MetaAggregatorUpdate =&gt; <span class="string">"metrics.meta.agg.update"</span>,
             <span class="self">Self</span>::MetaAggregatorItems =&gt; <span class="string">"metrics.meta.agg.items"</span>,
             <span class="attr">#[cfg(feature = <span class="string">"redis"</span>)]
@@ -268,18 +221,12 @@
     /// This metric is tagged with:
     ///  - `aggregator`: The name of the metrics aggregator (usually `"default"`).
     </span>BucketsScanDuration,
-    <span class="doccomment">/// Timing in milliseconds for processing a message in the aggregator service.
-    ///
-    /// This metric is tagged with:
-    ///  - `message`: The type of message that was processed.
-    </span>AggregatorServiceDuration,
 }
 
 <span class="kw">impl </span>TimerMetric <span class="kw">for </span>MetricTimers {
     <span class="kw">fn </span>name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
         <span class="kw">match </span><span class="kw-2">*</span><span class="self">self </span>{
             <span class="self">Self</span>::BucketsScanDuration =&gt; <span class="string">"metrics.buckets.scan_duration"</span>,
-            <span class="self">Self</span>::AggregatorServiceDuration =&gt; <span class="string">"metrics.aggregator.message.duration"</span>,
         }
     }
 }
@@ -287,22 +234,6 @@
 <span class="doccomment">/// Histogram metrics for Relay Metrics.
 </span><span class="attr">#[allow(clippy::enum_variant_names)]
 </span><span class="kw">pub enum </span>MetricHistograms {
-    <span class="doccomment">/// The total number of metric buckets flushed in a cycle across all projects.
-    ///
-    /// This metric is tagged with:
-    ///  - `aggregator`: The name of the metrics aggregator (usually `"default"`).
-    </span>BucketsFlushed,
-
-    <span class="doccomment">/// The number of metric buckets flushed in a cycle for each project.
-    ///
-    /// Relay scans metric buckets in regular intervals and flushes expired buckets. This histogram
-    /// is logged for each project that is being flushed. The count of the histogram values is
-    /// equivalent to the number of projects being flushed.
-    ///
-    /// This metric is tagged with:
-    ///  - `aggregator`: The name of the metrics aggregator (usually `"default"`).
-    </span>BucketsFlushedPerProject,
-
     <span class="doccomment">/// The reporting delay at which a bucket arrives in Relay.
     ///
     /// A positive delay indicates the bucket arrives after its stated timestamp. Large delays
@@ -319,22 +250,13 @@
     ///
     /// This is a temporary metric to better understand why we see so many invalid timestamp errors.
     </span>InvalidBucketTimestamp,
-
-    <span class="doccomment">/// The number of metric partitions flushed in a cycle.
-    ///
-    /// This metric is tagged with:
-    ///  - `aggregator`: The name of the metrics aggregator (usually `"default"`).
-    </span>PartitionsFlushed,
 }
 
 <span class="kw">impl </span>HistogramMetric <span class="kw">for </span>MetricHistograms {
     <span class="kw">fn </span>name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
         <span class="kw">match </span><span class="kw-2">*</span><span class="self">self </span>{
-            <span class="self">Self</span>::BucketsFlushed =&gt; <span class="string">"metrics.buckets.flushed"</span>,
-            <span class="self">Self</span>::BucketsFlushedPerProject =&gt; <span class="string">"metrics.buckets.flushed_per_project"</span>,
             <span class="self">Self</span>::BucketsDelay =&gt; <span class="string">"metrics.buckets.delay"</span>,
             <span class="self">Self</span>::InvalidBucketTimestamp =&gt; <span class="string">"metrics.buckets.invalid_timestamp"</span>,
-            <span class="self">Self</span>::PartitionsFlushed =&gt; <span class="string">"metrics.partitions.flushed"</span>,
         }
     }
 }

@@ -2479,6 +2479,7 @@
 <a href="#2479" id="2479">2479</a>
 <a href="#2480" id="2480">2480</a>
 <a href="#2481" id="2481">2481</a>
+<a href="#2482" id="2482">2482</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::io::Write;
@@ -2496,12 +2497,13 @@
     TopicAssignments,
 };
 <span class="kw">use </span>relay_metrics::aggregator::{AggregatorConfig, FlushBatching};
-<span class="kw">use </span>relay_metrics::{AggregatorServiceConfig, MetricNamespace, ScopedAggregatorConfig};
+<span class="kw">use </span>relay_metrics::MetricNamespace;
 <span class="kw">use </span>relay_redis::RedisConfig;
 <span class="kw">use </span>serde::de::{DeserializeOwned, Unexpected, Visitor};
 <span class="kw">use </span>serde::{Deserialize, Deserializer, Serialize, Serializer};
 <span class="kw">use </span>uuid::Uuid;
 
+<span class="kw">use </span><span class="kw">crate</span>::aggregator::{AggregatorServiceConfig, ScopedAggregatorConfig};
 <span class="kw">use </span><span class="kw">crate</span>::byte_size::ByteSize;
 <span class="kw">use </span><span class="kw">crate</span>::upstream::UpstreamDescriptor;
 
@@ -4882,12 +4884,12 @@
         }
     }
 
-    <span class="doccomment">/// Returns configuration for the default metrics [aggregator](relay_metrics::Aggregator).
+    <span class="doccomment">/// Returns configuration for the default metrics aggregator.
     </span><span class="kw">pub fn </span>default_aggregator_config(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>AggregatorServiceConfig {
         <span class="kw-2">&amp;</span><span class="self">self</span>.values.aggregator
     }
 
-    <span class="doccomment">/// Returns configuration for non-default metrics [aggregators](relay_metrics::Aggregator).
+    <span class="doccomment">/// Returns configuration for non-default metrics aggregator.
     </span><span class="kw">pub fn </span>secondary_aggregator_configs(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>Vec&lt;ScopedAggregatorConfig&gt; {
         <span class="kw-2">&amp;</span><span class="self">self</span>.values.secondary_aggregators
     }

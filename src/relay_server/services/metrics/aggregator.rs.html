@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-metrics/src/aggregatorservice.rs`."><title>aggregatorservice.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-46f98efaafac5295.ttf.woff2,FiraSans-Regular-018c141bf0843ffd.woff2,FiraSans-Medium-8f9a781e4970d388.woff2,SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2,SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-081576b923113409.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="relay_metrics" data-themes="" data-resource-suffix="" data-rustdoc-version="1.79.0 (129f3b996 2024-06-10)" data-channel="1.79.0" data-search-js="search-bf21c90c8c1d92b1.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../static.files/storage-e32f0c247825364d.js"></script><script defer src="../../static.files/src-script-e66d777a5a92e9b2.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-20a3ad099b048cf2.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-09095024cf37855e.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer"></div><main><nav class="sub"><form class="search-form"><span></span><div id="sidebar-button" tabindex="-1"><a href="../../relay_metrics/all.html" title="show sidebar"></a></div><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Type ‘S’ or ‘/’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings">Settings</a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/services/metrics/aggregator.rs`."><title>aggregator.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-46f98efaafac5295.ttf.woff2,FiraSans-Regular-018c141bf0843ffd.woff2,FiraSans-Medium-8f9a781e4970d388.woff2,SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2,SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../../static.files/rustdoc-081576b923113409.css"><meta name="rustdoc-vars" data-root-path="../../../../" data-static-root-path="../../../../static.files/" data-current-crate="relay_server" data-themes="" data-resource-suffix="" data-rustdoc-version="1.79.0 (129f3b996 2024-06-10)" data-channel="1.79.0" data-search-js="search-bf21c90c8c1d92b1.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../../../static.files/storage-e32f0c247825364d.js"></script><script defer src="../../../../static.files/src-script-e66d777a5a92e9b2.js"></script><script defer src="../../../../src-files.js"></script><script defer src="../../../../static.files/main-20a3ad099b048cf2.js"></script><noscript><link rel="stylesheet" href="../../../../static.files/noscript-09095024cf37855e.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer"></div><main><nav class="sub"><form class="search-form"><span></span><div id="sidebar-button" tabindex="-1"><a href="../../../../relay_server/all.html" title="show sidebar"></a></div><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Type ‘S’ or ‘/’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../../settings.html" title="settings">Settings</a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -393,120 +393,18 @@
 <a href="#393" id="393">393</a>
 <a href="#394" id="394">394</a>
 <a href="#395" id="395">395</a>
-<a href="#396" id="396">396</a>
-<a href="#397" id="397">397</a>
-<a href="#398" id="398">398</a>
-<a href="#399" id="399">399</a>
-<a href="#400" id="400">400</a>
-<a href="#401" id="401">401</a>
-<a href="#402" id="402">402</a>
-<a href="#403" id="403">403</a>
-<a href="#404" id="404">404</a>
-<a href="#405" id="405">405</a>
-<a href="#406" id="406">406</a>
-<a href="#407" id="407">407</a>
-<a href="#408" id="408">408</a>
-<a href="#409" id="409">409</a>
-<a href="#410" id="410">410</a>
-<a href="#411" id="411">411</a>
-<a href="#412" id="412">412</a>
-<a href="#413" id="413">413</a>
-<a href="#414" id="414">414</a>
-<a href="#415" id="415">415</a>
-<a href="#416" id="416">416</a>
-<a href="#417" id="417">417</a>
-<a href="#418" id="418">418</a>
-<a href="#419" id="419">419</a>
-<a href="#420" id="420">420</a>
-<a href="#421" id="421">421</a>
-<a href="#422" id="422">422</a>
-<a href="#423" id="423">423</a>
-<a href="#424" id="424">424</a>
-<a href="#425" id="425">425</a>
-<a href="#426" id="426">426</a>
-<a href="#427" id="427">427</a>
-<a href="#428" id="428">428</a>
-<a href="#429" id="429">429</a>
-<a href="#430" id="430">430</a>
-<a href="#431" id="431">431</a>
-<a href="#432" id="432">432</a>
-<a href="#433" id="433">433</a>
-<a href="#434" id="434">434</a>
-<a href="#435" id="435">435</a>
-<a href="#436" id="436">436</a>
-<a href="#437" id="437">437</a>
-<a href="#438" id="438">438</a>
-<a href="#439" id="439">439</a>
-<a href="#440" id="440">440</a>
-<a href="#441" id="441">441</a>
-<a href="#442" id="442">442</a>
-<a href="#443" id="443">443</a>
-<a href="#444" id="444">444</a>
-<a href="#445" id="445">445</a>
-<a href="#446" id="446">446</a>
-<a href="#447" id="447">447</a>
-<a href="#448" id="448">448</a>
-<a href="#449" id="449">449</a>
-<a href="#450" id="450">450</a>
-<a href="#451" id="451">451</a>
-<a href="#452" id="452">452</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::HashMap;
 <span class="kw">use </span>std::time::Duration;
 
 <span class="kw">use </span>relay_base_schema::project::ProjectKey;
+<span class="kw">use </span>relay_config::AggregatorServiceConfig;
 <span class="kw">use </span>relay_system::{
     AsyncResponse, Controller, FromMessage, Interface, NoResponse, Recipient, Sender, Service,
     Shutdown,
 };
-<span class="kw">use </span>serde::{Deserialize, Serialize};
 
-<span class="kw">use </span><span class="kw">crate</span>::aggregator::{<span class="self">self</span>, AggregatorConfig};
-<span class="kw">use </span><span class="kw">crate</span>::bucket::Bucket;
-<span class="kw">use </span><span class="kw">crate</span>::statsd::{MetricCounters, MetricHistograms, MetricTimers};
-
-<span class="doccomment">/// Parameters used by the [`AggregatorService`].
-</span><span class="attr">#[derive(Clone, Debug, Deserialize, Serialize)]
-#[serde(default)]
-</span><span class="kw">pub struct </span>AggregatorServiceConfig {
-    <span class="doccomment">/// The config used by the internal aggregator.
-    </span><span class="attr">#[serde(flatten)]
-    </span><span class="kw">pub </span>aggregator: AggregatorConfig,
-
-    <span class="doccomment">/// Maximum amount of bytes used for metrics aggregation.
-    ///
-    /// When aggregating metrics, Relay keeps track of how many bytes a metric takes in memory.
-    /// This is only an approximation and does not take into account things such as pre-allocation
-    /// in hashmaps.
-    ///
-    /// Defaults to `None`, i.e. no limit.
-    </span><span class="kw">pub </span>max_total_bucket_bytes: <span class="prelude-ty">Option</span>&lt;usize&gt;,
-
-    <span class="comment">// TODO(dav1dde): move these config values to a better spot
-    </span><span class="doccomment">/// The approximate maximum number of bytes submitted within one flush cycle.
-    ///
-    /// This controls how big flushed batches of buckets get, depending on the number of buckets,
-    /// the cumulative length of their keys, and the number of raw values. Since final serialization
-    /// adds some additional overhead, this number is approxmate and some safety margin should be
-    /// left to hard limits.
-    </span><span class="kw">pub </span>max_flush_bytes: usize,
-
-    <span class="doccomment">/// The flushing interval in milliseconds that determines how often the aggregator is polled for
-    /// flushing new buckets.
-    ///
-    /// Defaults to `100` milliseconds.
-    </span><span class="kw">pub </span>flush_interval_ms: u64,
-}
-
-<span class="kw">impl </span>Default <span class="kw">for </span>AggregatorServiceConfig {
-    <span class="kw">fn </span>default() -&gt; <span class="self">Self </span>{
-        <span class="self">Self </span>{
-            aggregator: AggregatorConfig::default(),
-            max_total_bucket_bytes: <span class="prelude-val">None</span>,
-            max_flush_bytes: <span class="number">5_000_000</span>, <span class="comment">// 5 MB
-            </span>flush_interval_ms: <span class="number">100</span>,     <span class="comment">// 100 milliseconds
-        </span>}
-    }
-}
+<span class="kw">use </span><span class="kw">crate</span>::statsd::{RelayCounters, RelayHistograms, RelayTimers};
+<span class="kw">use </span>relay_metrics::{aggregator, Bucket};
 
 <span class="doccomment">/// Aggregator for metric buckets.
 ///
@@ -656,7 +554,7 @@
         <span class="kw">let </span>partitions_count = partitions.len() <span class="kw">as </span>u64;
         <span class="macro">relay_log::trace!</span>(<span class="string">"flushing {} partitions to receiver"</span>, partitions_count);
         <span class="macro">relay_statsd::metric!</span>(
-            histogram(MetricHistograms::PartitionsFlushed) = partitions_count,
+            histogram(RelayHistograms::PartitionsFlushed) = partitions_count,
             aggregator = <span class="self">self</span>.aggregator.name(),
         );
 
@@ -667,14 +565,14 @@
                 total_bucket_count += bucket_count;
 
                 <span class="macro">relay_statsd::metric!</span>(
-                    histogram(MetricHistograms::BucketsFlushedPerProject) = bucket_count,
+                    histogram(RelayHistograms::BucketsFlushedPerProject) = bucket_count,
                     aggregator = <span class="self">self</span>.aggregator.name(),
                 );
             }
         }
 
         <span class="macro">relay_statsd::metric!</span>(
-            histogram(MetricHistograms::BucketsFlushed) = total_bucket_count,
+            histogram(RelayHistograms::BucketsFlushed) = total_bucket_count,
             aggregator = <span class="self">self</span>.aggregator.name(),
         );
 
@@ -700,7 +598,7 @@
     <span class="kw">fn </span>handle_message(<span class="kw-2">&amp;mut </span><span class="self">self</span>, message: Aggregator) {
         <span class="kw">let </span>ty = message.variant();
         <span class="macro">relay_statsd::metric!</span>(
-            timer(MetricTimers::AggregatorServiceDuration),
+            timer(RelayTimers::AggregatorServiceDuration),
             message = ty,
             {
                 <span class="kw">match </span>message {
@@ -756,7 +654,7 @@
                 <span class="string">"metrics aggregator dropping {remaining_buckets} buckets"
             </span>);
             <span class="macro">relay_statsd::metric!</span>(
-                counter(MetricCounters::BucketsDropped) += remaining_buckets <span class="kw">as </span>i64,
+                counter(RelayCounters::BucketsDropped) += remaining_buckets <span class="kw">as </span>i64,
                 aggregator = <span class="self">self</span>.aggregator.name(),
             );
         }
@@ -766,8 +664,8 @@
 <span class="doccomment">/// A message containing a list of [`Bucket`]s to be inserted into the aggregator.
 </span><span class="attr">#[derive(Debug)]
 </span><span class="kw">pub struct </span>MergeBuckets {
-    <span class="kw">pub</span>(<span class="kw">crate</span>) project_key: ProjectKey,
-    <span class="kw">pub</span>(<span class="kw">crate</span>) buckets: Vec&lt;Bucket&gt;,
+    <span class="kw">pub </span>project_key: ProjectKey,
+    <span class="kw">pub </span>buckets: Vec&lt;Bucket&gt;,
 }
 
 <span class="kw">impl </span>MergeBuckets {
@@ -778,17 +676,6 @@
             buckets,
         }
     }
-
-    <span class="doccomment">/// Returns the `ProjectKey` for the the current `MergeBuckets` message.
-    </span><span class="kw">pub fn </span>project_key(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; ProjectKey {
-        <span class="self">self</span>.project_key
-    }
-
-    <span class="doccomment">/// Returns the list of the buckets in the current `MergeBuckets` message, consuming the
-    /// message itself.
-    </span><span class="kw">pub fn </span>buckets(<span class="self">self</span>) -&gt; Vec&lt;Bucket&gt; {
-        <span class="self">self</span>.buckets
-    }
 }
 
 <span class="attr">#[cfg(test)]
@@ -797,8 +684,7 @@
     <span class="kw">use </span>std::sync::{Arc, RwLock};
 
     <span class="kw">use </span>relay_common::time::UnixTimestamp;
-
-    <span class="kw">use crate</span>::{BucketMetadata, BucketValue};
+    <span class="kw">use </span>relay_metrics::{aggregator::AggregatorConfig, BucketMetadata, BucketValue};
 
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
 

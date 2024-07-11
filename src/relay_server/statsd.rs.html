@@ -868,6 +868,37 @@
 <a href="#868" id="868">868</a>
 <a href="#869" id="869">869</a>
 <a href="#870" id="870">870</a>
+<a href="#871" id="871">871</a>
+<a href="#872" id="872">872</a>
+<a href="#873" id="873">873</a>
+<a href="#874" id="874">874</a>
+<a href="#875" id="875">875</a>
+<a href="#876" id="876">876</a>
+<a href="#877" id="877">877</a>
+<a href="#878" id="878">878</a>
+<a href="#879" id="879">879</a>
+<a href="#880" id="880">880</a>
+<a href="#881" id="881">881</a>
+<a href="#882" id="882">882</a>
+<a href="#883" id="883">883</a>
+<a href="#884" id="884">884</a>
+<a href="#885" id="885">885</a>
+<a href="#886" id="886">886</a>
+<a href="#887" id="887">887</a>
+<a href="#888" id="888">888</a>
+<a href="#889" id="889">889</a>
+<a href="#890" id="890">890</a>
+<a href="#891" id="891">891</a>
+<a href="#892" id="892">892</a>
+<a href="#893" id="893">893</a>
+<a href="#894" id="894">894</a>
+<a href="#895" id="895">895</a>
+<a href="#896" id="896">896</a>
+<a href="#897" id="897">897</a>
+<a href="#898" id="898">898</a>
+<a href="#899" id="899">899</a>
+<a href="#900" id="900">900</a>
+<a href="#901" id="901">901</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric, TimerMetric};
 <span class="attr">#[cfg(doc)]
 </span><span class="kw">use </span>tokio::runtime::RuntimeMetrics;
@@ -1128,25 +1159,39 @@
     ///   - `route`: The endpoint that was called on the upstream.
     ///   - `status-code`: The status code of the request when available, otherwise "-".
     </span>UpstreamRetries,
-
     <span class="doccomment">/// Size of envelopes sent over HTTP in bytes.
     </span>UpstreamQueryBodySize,
-
     <span class="doccomment">/// Size of queries (projectconfig queries, i.e. the request payload, not the response) sent by
     /// Relay over HTTP in bytes.
     </span>UpstreamEnvelopeBodySize,
-
     <span class="doccomment">/// Size of batched global metrics requests sent by Relay over HTTP in bytes.
     </span>UpstreamMetricsBodySize,
-
     <span class="doccomment">/// Distribution of flush buckets over partition keys.
     ///
     /// The distribution of buckets should be even.
     /// If it is not, this metric should expose it.
     </span>PartitionKeys,
-
     <span class="doccomment">/// Measures how many splits were performed when sending out a partition.
     </span>PartitionSplits,
+    <span class="doccomment">/// The total number of metric buckets flushed in a cycle across all projects.
+    ///
+    /// This metric is tagged with:
+    ///  - `aggregator`: The name of the metrics aggregator (usually `"default"`).
+    </span>BucketsFlushed,
+    <span class="doccomment">/// The number of metric buckets flushed in a cycle for each project.
+    ///
+    /// Relay scans metric buckets in regular intervals and flushes expired buckets. This histogram
+    /// is logged for each project that is being flushed. The count of the histogram values is
+    /// equivalent to the number of projects being flushed.
+    ///
+    /// This metric is tagged with:
+    ///  - `aggregator`: The name of the metrics aggregator (usually `"default"`).
+    </span>BucketsFlushedPerProject,
+    <span class="doccomment">/// The number of metric partitions flushed in a cycle.
+    ///
+    /// This metric is tagged with:
+    ///  - `aggregator`: The name of the metrics aggregator (usually `"default"`).
+    </span>PartitionsFlushed,
 }
 
 <span class="kw">impl </span>HistogramMetric <span class="kw">for </span>RelayHistograms {
@@ -1181,6 +1226,9 @@
             RelayHistograms::UpstreamMetricsBodySize =&gt; <span class="string">"upstream.metrics.body_size"</span>,
             RelayHistograms::PartitionKeys =&gt; <span class="string">"metrics.buckets.partition_keys"</span>,
             RelayHistograms::PartitionSplits =&gt; <span class="string">"partition_splits"</span>,
+            RelayHistograms::BucketsFlushed =&gt; <span class="string">"metrics.buckets.flushed"</span>,
+            RelayHistograms::BucketsFlushedPerProject =&gt; <span class="string">"metrics.buckets.flushed_per_project"</span>,
+            RelayHistograms::PartitionsFlushed =&gt; <span class="string">"metrics.partitions.flushed"</span>,
         }
     }
 }
@@ -1357,6 +1405,11 @@
     ///  - `count`: How many items matching the data category are contained in the batch.
     </span><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
     </span>RateLimitBucketsDuration,
+    <span class="doccomment">/// Timing in milliseconds for processing a message in the aggregator service.
+    ///
+    /// This metric is tagged with:
+    ///  - `message`: The type of message that was processed.
+    </span>AggregatorServiceDuration,
 }
 
 <span class="kw">impl </span>TimerMetric <span class="kw">for </span>RelayTimers {
@@ -1394,6 +1447,7 @@
             RelayTimers::HealthCheckDuration =&gt; <span class="string">"health.message.duration"</span>,
             <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
             </span>RelayTimers::RateLimitBucketsDuration =&gt; <span class="string">"processor.rate_limit_buckets"</span>,
+            RelayTimers::AggregatorServiceDuration =&gt; <span class="string">"metrics.aggregator.message.duration"</span>,
         }
     }
 }
@@ -1628,6 +1682,13 @@
     <span class="doccomment">/// The amount of times metrics of a project have been flushed without the project being
     /// fetched/available.
     </span>ProjectStateFlushMetricsNoProject,
+    <span class="doccomment">/// Incremented every time a bucket is dropped.
+    ///
+    /// This should only happen when a project state is invalid during graceful shutdown.
+    ///
+    /// This metric is tagged with:
+    ///  - `aggregator`: The name of the metrics aggregator (usually `"default"`).
+    </span>BucketsDropped,
 }
 
 <span class="kw">impl </span>CounterMetric <span class="kw">for </span>RelayCounters {
@@ -1669,6 +1730,7 @@
             RelayCounters::FeedbackAttachments =&gt; <span class="string">"processing.feedback_attachments"</span>,
             RelayCounters::CogsUsage =&gt; <span class="string">"cogs.usage"</span>,
             RelayCounters::ProjectStateFlushMetricsNoProject =&gt; <span class="string">"project_state.metrics.no_project"</span>,
+            RelayCounters::BucketsDropped =&gt; <span class="string">"metrics.buckets.dropped"</span>,
         }
     }
 }

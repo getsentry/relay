@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["Condition","FieldCondition"],"struct":["AggregatorServiceConfig","ScopedAggregatorConfig"]};

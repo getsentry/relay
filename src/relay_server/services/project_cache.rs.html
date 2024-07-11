@@ -1601,6 +1601,7 @@
 <a href="#1601" id="1601">1601</a>
 <a href="#1602" id="1602">1602</a>
 <a href="#1603" id="1603">1603</a>
+<a href="#1604" id="1604">1604</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
 <span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::sync::Arc;
@@ -1611,7 +1612,7 @@
 <span class="kw">use </span>hashbrown::HashSet;
 <span class="kw">use </span>relay_base_schema::project::ProjectKey;
 <span class="kw">use </span>relay_config::{Config, RelayMode};
-<span class="kw">use </span>relay_metrics::{Aggregator, Bucket, FlushBuckets, MetricMeta};
+<span class="kw">use </span>relay_metrics::{Bucket, MetricMeta};
 <span class="kw">use </span>relay_quotas::RateLimits;
 <span class="kw">use </span>relay_redis::RedisPool;
 <span class="kw">use </span>relay_statsd::metric;
@@ -1620,6 +1621,7 @@
 <span class="kw">use </span>tokio::time::Instant;
 
 <span class="kw">use </span><span class="kw">crate</span>::services::global_config::{<span class="self">self</span>, GlobalConfigManager, Subscribe};
+<span class="kw">use </span><span class="kw">crate</span>::services::metrics::{Aggregator, FlushBuckets};
 <span class="kw">use </span><span class="kw">crate</span>::services::outcome::{DiscardReason, TrackOutcome};
 <span class="kw">use </span><span class="kw">crate</span>::services::processor::{
     EncodeMetrics, EnvelopeProcessor, ProcessEnvelope, ProjectMetrics,

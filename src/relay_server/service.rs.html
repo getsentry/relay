@@ -316,7 +316,6 @@
 <span class="kw">use </span>axum::http::request::Parts;
 <span class="kw">use </span>relay_cogs::Cogs;
 <span class="kw">use </span>relay_config::Config;
-<span class="kw">use </span>relay_metrics::Aggregator;
 <span class="kw">use </span>relay_redis::RedisPool;
 <span class="kw">use </span>relay_system::{channel, Addr, Service};
 <span class="kw">use </span>tokio::runtime::Runtime;
@@ -324,6 +323,7 @@
 <span class="kw">use </span><span class="kw">crate</span>::services::cogs::{CogsService, CogsServiceRecorder};
 <span class="kw">use </span><span class="kw">crate</span>::services::global_config::{GlobalConfigManager, GlobalConfigService};
 <span class="kw">use </span><span class="kw">crate</span>::services::health_check::{HealthCheck, HealthCheckService};
+<span class="kw">use </span><span class="kw">crate</span>::services::metrics::{Aggregator, RouterService};
 <span class="kw">use </span><span class="kw">crate</span>::services::outcome::{OutcomeProducer, OutcomeProducerService, TrackOutcome};
 <span class="kw">use </span><span class="kw">crate</span>::services::outcome_aggregator::OutcomeAggregator;
 <span class="kw">use </span><span class="kw">crate</span>::services::processor::{<span class="self">self</span>, EnvelopeProcessor, EnvelopeProcessorService};
@@ -436,7 +436,7 @@
 
         <span class="kw">let </span>(project_cache, project_cache_rx) = channel(ProjectCacheService::name());
 
-        <span class="kw">let </span>aggregator = relay_metrics::RouterService::new(
+        <span class="kw">let </span>aggregator = RouterService::new(
             config.default_aggregator_config().clone(),
             config.secondary_aggregator_configs().clone(),
             <span class="prelude-val">Some</span>(project_cache.clone().recipient()),
