@@ -21,6 +21,11 @@ pub enum Feature {
     /// Serialized as `organizations:session-replay-combined-envelope-items`.
     #[serde(rename = "organizations:session-replay-combined-envelope-items")]
     SessionReplayCombinedEnvelopeItems,
+    /// Disables select organizations from processing mobile replay events.
+    ///
+    /// Serialized as `organizations:session-replay-video-disabled`.
+    #[serde(rename = "organizations:session-replay-video-disabled")]
+    SessionReplayVideoDisabled,
     /// Enables new User Feedback ingest.
     ///
     /// TODO(jferg): rename to UserFeedbackIngest once old UserReport logic is deprecated.
@@ -75,15 +80,6 @@ pub enum Feature {
     /// Serialized as `organizations:continuous-profiling`.
     #[serde(rename = "organizations:continuous-profiling")]
     ContinuousProfiling,
-
-    /// When enabled, every standalone segment span will be duplicated as a transaction.
-    ///
-    /// This allows support of product features that rely on transactions for SDKs that only
-    /// send spans.
-    ///
-    /// Serialized as `projects:extract-transaction-from-segment-span`.
-    #[serde(rename = "projects:extract-transaction-from-segment-span")]
-    ExtractTransactionFromSegmentSpan,
 
     /// Enables metric extraction from spans for common modules.
     ///

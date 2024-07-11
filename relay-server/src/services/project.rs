@@ -9,9 +9,7 @@ use relay_cardinality::CardinalityLimit;
 use relay_config::Config;
 use relay_dynamic_config::{ErrorBoundary, Feature, LimitedProjectConfig, ProjectConfig};
 use relay_filter::matches_any_origin;
-use relay_metrics::{
-    Aggregator, Bucket, MergeBuckets, MetaAggregator, MetricMeta, MetricNamespace,
-};
+use relay_metrics::{Bucket, MetaAggregator, MetricMeta, MetricNamespace};
 use relay_quotas::{
     CachedRateLimits, DataCategory, MetricNamespaceScoping, Quota, RateLimits, Scoping,
 };
@@ -26,6 +24,7 @@ use url::Url;
 use crate::envelope::{Envelope, ItemType};
 use crate::extractors::RequestMeta;
 use crate::metrics::{MetricOutcomes, MetricsLimiter};
+use crate::services::metrics::{Aggregator, MergeBuckets};
 use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
 // #[cfg(feature = "processing")]
 // use crate::services::processor::RateLimitBuckets;
@@ -1246,7 +1245,7 @@ mod tests {
         let Aggregator::MergeBuckets(merge_buckets) = value else {
             panic!();
         };
-        assert_eq!(merge_buckets.buckets().len(), 1);
+        assert_eq!(merge_buckets.buckets.len(), 1);
         assert!(metric_stats_rx.blocking_recv().is_none());
     }
 

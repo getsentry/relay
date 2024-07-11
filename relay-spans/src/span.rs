@@ -674,6 +674,8 @@ mod tests {
                 user_agent_original: ~,
                 url_full: ~,
                 client_address: ~,
+                route: ~,
+                previous_route: ~,
                 other: {},
             },
             sentry_tags: ~,

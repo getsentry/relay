@@ -556,10 +556,6 @@ pub struct ItemHeaders {
     #[serde(default, skip_serializing_if = "is_false")]
     metrics_extracted: bool,
 
-    /// Whether or not a transaction has been extracted from a segment span.
-    #[serde(default, skip_serializing_if = "is_false")]
-    transaction_extracted: bool,
-
     /// Whether or not spans and span metrics have been extracted from a transaction.
     ///
     /// This header is set to `true` after both span extraction and span metrics extraction,
@@ -653,7 +649,6 @@ impl Item {
                 sample_rates: None,
                 other: BTreeMap::new(),
                 metrics_extracted: false,
-                transaction_extracted: false,
                 spans_extracted: false,
                 sampled: true,
                 fully_normalized: false,
@@ -847,16 +842,6 @@ impl Item {
     /// Sets the metrics extracted flag.
     pub fn set_metrics_extracted(&mut self, metrics_extracted: bool) {
         self.headers.metrics_extracted = metrics_extracted;
-    }
-
-    /// Returns the transaction extracted flag.
-    pub fn transaction_extracted(&self) -> bool {
-        self.headers.transaction_extracted
-    }
-
-    /// Sets the transaction extracted flag.
-    pub fn set_transaction_extracted(&mut self, transaction_extracted: bool) {
-        self.headers.transaction_extracted = transaction_extracted;
     }
 
     /// Returns the spans extracted flag.

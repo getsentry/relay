@@ -83,8 +83,6 @@ use crate::services::upstream::{
     SendRequest, UpstreamRelay, UpstreamRequest, UpstreamRequestError,
 };
 use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
-#[cfg(feature = "processing")]
-use crate::utils::BufferGuard;
 use crate::utils::{
     self, InvalidProcessingGroupType, ManagedEnvelope, SamplingResult, TypedEnvelope,
 };
@@ -1093,8 +1091,6 @@ pub struct EnvelopeProcessorService {
 
 /// Contains the addresses of services that the processor publishes to.
 pub struct Addrs {
-    #[cfg(feature = "processing")]
-    pub envelope_processor: Addr<EnvelopeProcessor>,
     pub project_cache: Addr<ProjectCache>,
     pub outcome_aggregator: Addr<TrackOutcome>,
     pub upstream_relay: Addr<UpstreamRelay>,
@@ -1106,8 +1102,6 @@ pub struct Addrs {
 impl Default for Addrs {
     fn default() -> Self {
         Addrs {
-            #[cfg(feature = "processing")]
-            envelope_processor: Addr::dummy(),
             project_cache: Addr::dummy(),
             outcome_aggregator: Addr::dummy(),
             upstream_relay: Addr::dummy(),
@@ -1133,8 +1127,6 @@ struct InnerProcessor {
     #[cfg(feature = "processing")]
     cardinality_limiter: Option<CardinalityLimiter>,
     metric_outcomes: MetricOutcomes,
-    #[cfg(feature = "processing")]
-    buffer_guard: Arc<BufferGuard>,
 }
 
 impl EnvelopeProcessorService {
@@ -1146,7 +1138,6 @@ impl EnvelopeProcessorService {
         #[cfg(feature = "processing")] redis: Option<RedisPool>,
         addrs: Addrs,
         metric_outcomes: MetricOutcomes,
-        #[cfg(feature = "processing")] buffer_guard: Arc<BufferGuard>,
     ) -> Self {
         let geoip_lookup = config.geoip_path().and_then(|p| {
             match GeoIpLookup::open(p).context(ServiceError::GeoIp) {
@@ -1188,8 +1179,6 @@ impl EnvelopeProcessorService {
                 .map(CardinalityLimiter::new),
             metric_outcomes,
             config,
-            #[cfg(feature = "processing")]
-            buffer_guard,
         };
 
         Self {
@@ -1428,7 +1417,6 @@ impl EnvelopeProcessorService {
                 .aggregator
                 .max_tag_value_length,
             global.options.span_extraction_sample_rate,
-            global.options.compute_metrics_summaries_sample_rate,
         );
 
         state
@@ -1464,31 +1452,7 @@ impl EnvelopeProcessorService {
         &self,
         state: &mut ProcessEnvelopeState<G>,
     ) -> Result<(), ProcessingError> {
-        let attachment_type = state
-            .envelope()
-            .get_item_by(|item| item.attachment_type().is_some())
-            .and_then(|item| item.attachment_type())
-            .map(|ty| ty.to_string());
-        let event_type = state
-            .event
-            .value()
-            .and_then(|e| e.ty.value())
-            .map(|ty| ty.as_str())
-            .unwrap_or("none");
-
         if !state.has_event() {
-            metric!(
-                counter(RelayCounters::NormalizationDecision) += 1,
-                event_type = event_type,
-                attachment_type = attachment_type.as_deref().unwrap_or("none"),
-                origin = if state.envelope().meta().is_from_internal_relay() {
-                    "internal"
-                } else {
-                    "external"
-                },
-                decision = "no_event"
-            );
-
             // NOTE(iker): only processing relays create events from
             // attachments, so these events won't be normalized in
             // non-processing relays even if the config is set to run full
@@ -1500,39 +1464,12 @@ impl EnvelopeProcessorService {
             NormalizationLevel::Full => true,
             NormalizationLevel::Default => {
                 if self.inner.config.processing_enabled() && state.event_fully_normalized {
-                    metric!(
-                        counter(RelayCounters::NormalizationDecision) += 1,
-                        event_type = event_type,
-                        attachment_type = attachment_type.as_deref().unwrap_or("none"),
-                        origin = if state.envelope().meta().is_from_internal_relay() {
-                            "internal"
-                        } else {
-                            "external"
-                        },
-                        decision = "skip_normalized"
-                    );
                     return Ok(());
-                } else {
-                    self.inner.config.processing_enabled()
                 }
+
+                self.inner.config.processing_enabled()
             }
         };
-
-        metric!(
-            counter(RelayCounters::NormalizationDecision) += 1,
-            event_type = event_type,
-            attachment_type = attachment_type.as_deref().unwrap_or("none"),
-            origin = if state.envelope().meta().is_from_internal_relay() {
-                "internal"
-            } else {
-                "external"
-            },
-            decision = if full_normalization {
-                "full_normalization"
-            } else {
-                "limited_normalization"
-            }
-        );
 
         let request_meta = state.managed_envelope.envelope().meta();
         let client_ipaddr = request_meta.client_addr().map(IpAddr::from);
@@ -1891,13 +1828,7 @@ impl EnvelopeProcessorService {
         if_processing!(self.inner.config, {
             let global_config = self.inner.global_config.current();
 
-            span::process(
-                state,
-                self.inner.config.clone(),
-                &global_config,
-                &self.inner.addrs,
-                &self.inner.buffer_guard,
-            );
+            span::process(state, self.inner.config.clone(), &global_config);
 
             self.enforce_quotas(state)?;
         });
