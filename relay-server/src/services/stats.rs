@@ -15,6 +15,7 @@ use crate::statsd::{RelayGauges, TokioGauges};
 pub struct RelayStats {
     config: Arc<Config>,
     upstream_relay: Addr<UpstreamRelay>,
+    #[cfg(feature = "processing")]
     redis_pool: Option<RedisPool>,
 }
 
@@ -22,11 +23,12 @@ impl RelayStats {
     pub fn new(
         config: Arc<Config>,
         upstream_relay: Addr<UpstreamRelay>,
-        redis_pool: Option<RedisPool>,
+        #[cfg(feature = "processing")] redis_pool: Option<RedisPool>,
     ) -> Self {
         Self {
             config,
             upstream_relay,
+            #[cfg(feature = "processing")]
             redis_pool,
         }
     }
@@ -98,9 +100,7 @@ impl RelayStats {
     }
 
     #[cfg(not(feature = "processing"))]
-    async fn redis_pool(&self) {
-        let _redis_pool = self.redis_pool; // silence unused warning
-    }
+    async fn redis_pool(&self) {}
 
     #[cfg(feature = "processing")]
     async fn redis_pool(&self) {
@@ -108,7 +108,7 @@ impl RelayStats {
             return;
         };
 
-        let state = redis_pool.state();
+        let state = redis_pool.stats();
         metric!(gauge(RelayGauges::RedisPoolConnections) = u64::from(state.connections));
         metric!(gauge(RelayGauges::RedisPoolIdleConnections) = u64::from(state.idle_connections));
     }

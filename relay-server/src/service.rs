@@ -210,7 +210,13 @@ impl ServiceState {
         )
         .start();
 
-        RelayStats::new(config.clone(), upstream_relay.clone(), redis_pool).start();
+        RelayStats::new(
+            config.clone(),
+            upstream_relay.clone(),
+            #[cfg(feature = "processing")]
+            redis_pool,
+        )
+        .start();
 
         let relay_cache = RelayCacheService::new(config.clone(), upstream_relay.clone()).start();
 
