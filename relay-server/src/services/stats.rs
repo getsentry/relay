@@ -98,7 +98,9 @@ impl RelayStats {
     }
 
     #[cfg(not(feature = "processing"))]
-    async fn redis_pool(&self) {}
+    async fn redis_pool(&self) {
+        let _redis_pool = self.redis_pool; // silence unused warning
+    }
 
     #[cfg(feature = "processing")]
     async fn redis_pool(&self) {
