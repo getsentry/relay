@@ -486,9 +486,15 @@ impl Project {
         if !self.has_pending_metric_meta {
             return;
         }
-        let Some(state) = self.enabled_state() else {
-            return;
+        let is_enabled = match self.current_state() {
+            ProjectState::Enabled(project_info) => project_info.has_feature(Feature::CustomMetrics),
+            ProjectState::Disabled => false,
+            ProjectState::Pending => {
+                // Cannot flush, wait for project state to be loaded.
+                return;
+            }
         };
+
         let Some(scoping) = self.scoping() else {
             return;
         };
@@ -496,7 +502,7 @@ impl Project {
         // All relevant info has been gathered, consider us flushed.
         self.has_pending_metric_meta = false;
 
-        if !state.has_feature(Feature::CustomMetrics) {
+        if !is_enabled {
             relay_log::debug!(
                 "clearing metric meta aggregator, because project {} does not have feature flag enabled",
                 self.project_key,

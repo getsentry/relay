@@ -63,17 +63,17 @@ impl ProjectFetchState {
         }
     }
 
-    /// Returns `true` if the contained state is invalid.
-    pub fn is_pending(&self) -> bool {
-        matches!(self.state, ProjectState::Pending)
-    }
-
     pub fn sanitize(self) -> Self {
         let Self { last_fetch, state } = self;
         Self {
             last_fetch,
             state: state.sanitize(),
         }
+    }
+
+    /// Returns `true` if the contained state is invalid.
+    pub fn is_pending(&self) -> bool {
+        matches!(self.state, ProjectState::Pending)
     }
 
     pub fn expiry_state(&self, config: &Config) -> ExpiryState {
