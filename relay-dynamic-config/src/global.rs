@@ -227,6 +227,16 @@ pub struct Options {
     )]
     pub extrapolation_duplication_limit: usize,
 
+    /// List of values on span description that are allowed to be sent to Sentry without being scrubbed.
+    ///
+    /// At this point, it doesn't accept IP addresses in CIDR format.. yet.
+    #[serde(
+        rename = "relay.scrubbing.http-host-allow-list",
+        deserialize_with = "default_on_error",
+        skip_serializing_if = "Vec::is_empty"
+    )]
+    pub http_scrubbing_allow_list: Vec<String>,
+
     /// All other unknown options.
     #[serde(flatten)]
     other: HashMap<String, Value>,
