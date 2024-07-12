@@ -4001,6 +4001,7 @@
 <a href="#4001" id="4001">4001</a>
 <a href="#4002" id="4002">4002</a>
 <a href="#4003" id="4003">4003</a>
+<a href="#4004" id="4004">4004</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
@@ -5702,6 +5703,7 @@
         <span class="macro">if_processing!</span>(<span class="self">self</span>.inner.config, {
             <span class="comment">// Process profiles before extracting metrics, to make sure they are removed if they are invalid.
             </span><span class="kw">let </span>profile_id = profile::process(state, <span class="kw-2">&amp;</span><span class="self">self</span>.inner.config);
+            profile::transfer_id(state, profile_id);
 
             <span class="comment">// Always extract metrics in processing Relays for sampled items.
             </span><span class="self">self</span>.extract_transaction_metrics(state, SamplingDecision::Keep, profile_id)<span class="question-mark">?</span>;
