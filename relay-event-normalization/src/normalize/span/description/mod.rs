@@ -36,9 +36,9 @@ const DOMAIN_ALLOW_LIST: &[&str] = &["localhost"];
 /// Attempts to replace identifiers in the span description with placeholders.
 ///
 /// Returns `None` if no scrubbing can be performed.
-pub(crate) fn scrub_span_description(
+pub(crate) fn scrub_span_description<'a>(
     span: &Span,
-    http_scrubbing_allow_list: Option<Vec<String>>,
+    span_allowed_hosts: &'a [String],
 ) -> (Option<String>, Option<Vec<sqlparser::ast::Statement>>) {
     let Some(description) = span.description.as_str() else {
         return (None, None);
@@ -57,7 +57,7 @@ pub(crate) fn scrub_span_description(
         .as_str()
         .map(|op| op.split_once('.').unwrap_or((op, "")))
         .and_then(|(op, sub)| match (op, sub) {
-            ("http", _) => scrub_http(description, http_scrubbing_allow_list),
+            ("http", _) => scrub_http(description, span_allowed_hosts),
             ("cache", _) | ("db", "redis") => scrub_redis_keys(description),
             ("db", _) if db_system == Some("redis") => scrub_redis_keys(description),
             ("db", sub) => {
@@ -167,7 +167,7 @@ fn scrub_supabase(string: &str) -> Option<String> {
     Some(DB_SUPABASE_REGEX.replace_all(string, "{%s}").into())
 }
 
-fn scrub_http(string: &str, allow_list: Option<Vec<String>>) -> Option<String> {
+fn scrub_http(string: &str, allow_list: &[String]) -> Option<String> {
     let (method, url) = string.split_once(' ')?;
     if !HTTP_METHOD_EXTRACTOR_REGEX.is_match(method) {
         return None;
@@ -227,15 +227,13 @@ fn scrub_file(description: &str) -> Option<String> {
 /// use std::net::{Ipv4Addr, Ipv6Addr};
 /// use relay_event_normalization::span::description::scrub_host;
 ///
-/// assert_eq!(scrub_host(Host::Domain("foo.bar.baz"), None), "*.bar.baz");
-/// assert_eq!(scrub_host(Host::Ipv4(Ipv4Addr::LOCALHOST), None), "127.0.0.1");
-/// assert_eq!(scrub_host(Host::Ipv4(Ipv4Addr::new(8, 8, 8, 8)), Some(vec![String::from("8.8.8.8")])), "8.8.8.8");
+/// assert_eq!(scrub_host(Host::Domain("foo.bar.baz"), &*[]), "*.bar.baz");
+/// assert_eq!(scrub_host(Host::Ipv4(Ipv4Addr::LOCALHOST), &*[]), "127.0.0.1");
+/// assert_eq!(scrub_host(Host::Ipv4(Ipv4Addr::new(8, 8, 8, 8)), &*[String::from("8.8.8.8")], "8.8.8.8");
 /// ```
-pub fn scrub_host(host: Host<&str>, allow_list: Option<Vec<String>>) -> Cow<'_, str> {
-    if let Some(allow_list) = allow_list {
-        if allow_list.contains(&host.to_string().into()) {
-            return host.to_string().into();
-        }
+pub fn scrub_host<'a>(host: Host<&'a str>, allow_list: &'a [String]) -> Cow<'a, str> {
+    if allow_list.contains(&host.to_string().into()) {
+        return host.to_string().into();
     }
 
     match host {
@@ -407,7 +405,7 @@ fn scrub_resource(resource_type: &str, string: &str) -> Option<String> {
         }
         scheme => {
             let scrubbed_host = if let Some(host) = url.host() {
-                Some(scrub_host(host, None))
+                Some(scrub_host(host, &[]))
             } else {
                 None
             };

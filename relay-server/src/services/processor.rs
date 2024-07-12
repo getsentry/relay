@@ -1481,7 +1481,7 @@ impl EnvelopeProcessorService {
 
         let global_config = self.inner.global_config.current();
         let ai_model_costs = global_config.ai_model_costs.clone().ok();
-        let http_scrubbing_allow_list = global_config.options.http_scrubbing_allow_list.clone();
+        let http_span_allowed_hosts = global_config.options.http_span_allowed_hosts.clone();
 
         utils::log_transaction_name_metrics(&mut state.event, |event| {
             let event_validation_config = EventValidationConfig {
@@ -1565,11 +1565,7 @@ impl EnvelopeProcessorService {
                     .envelope()
                     .dsc()
                     .and_then(|ctx| ctx.replay_id),
-                http_scrubbing_allow_list: if http_scrubbing_allow_list.is_empty() {
-                    None
-                } else {
-                    Some(http_scrubbing_allow_list.clone())
-                },
+                span_allowed_hosts: http_span_allowed_hosts.as_ref(),
             };
 
             metric!(timer(RelayTimers::EventProcessingNormalization), {

@@ -176,13 +176,22 @@ impl std::fmt::Display for RenderBlockingStatus {
 /// Wrapper for [`extract_span_tags`].
 ///
 /// Tags longer than `max_tag_value_size` bytes will be truncated.
-pub(crate) fn extract_span_tags_from_event(event: &mut Event, max_tag_value_size: usize, http_scrubbing_allow_list: Option<Vec<String>>) {
+pub(crate) fn extract_span_tags_from_event(
+    event: &mut Event,
+    max_tag_value_size: usize,
+    http_scrubbing_allow_list: &[String],
+) {
     // Temporarily take ownership to pass both an event reference and a mutable span reference to `extract_span_tags`.
     let mut spans = std::mem::take(&mut event.spans);
     let Some(spans_vec) = spans.value_mut() else {
         return;
     };
-    extract_span_tags(event, spans_vec.as_mut_slice(), max_tag_value_size, http_scrubbing_allow_list);
+    extract_span_tags(
+        event,
+        spans_vec.as_mut_slice(),
+        max_tag_value_size,
+        http_scrubbing_allow_list,
+    );
 
     event.spans = spans;
 }
@@ -190,7 +199,12 @@ pub(crate) fn extract_span_tags_from_event(event: &mut Event, max_tag_value_size
 /// Extracts tags and measurements from event and spans and materializes them into the spans.
 ///
 /// Tags longer than `max_tag_value_size` bytes will be truncated.
-pub fn extract_span_tags(event: &Event, spans: &mut [Annotated<Span>], max_tag_value_size: usize, http_scrubbing_allow_list: Option<Vec<String>>) {
+pub fn extract_span_tags<'a>(
+    event: &Event,
+    spans: &mut [Annotated<Span>],
+    max_tag_value_size: usize,
+    span_allowed_hosts: &'a [String],
+) {
     // TODO: To prevent differences between metrics and payloads, we should not extract tags here
     // when they have already been extracted by a downstream relay.
     let shared_tags = extract_shared_tags(event);
@@ -207,7 +221,15 @@ pub fn extract_span_tags(event: &Event, spans: &mut [Annotated<Span>], max_tag_v
             continue;
         };
 
-        let tags = extract_tags(span, max_tag_value_size, ttid, ttfd, is_mobile, start_type, http_scrubbing_allow_list.clone());
+        let tags = extract_tags(
+            span,
+            max_tag_value_size,
+            ttid,
+            ttfd,
+            is_mobile,
+            start_type,
+            span_allowed_hosts,
+        );
 
         span.sentry_tags = Annotated::new(
             shared_tags
@@ -442,14 +464,14 @@ fn extract_segment_tags(event: &Event) -> BTreeMap<SpanTagKey, String> {
 /// [span operations](https://develop.sentry.dev/sdk/performance/span-operations/) and
 /// existing [span data](https://develop.sentry.dev/sdk/performance/span-data-conventions/) fields,
 /// and rely on Sentry conventions and heuristics.
-pub fn extract_tags(
+pub fn extract_tags<'a>(
     span: &Span,
     max_tag_value_size: usize,
     initial_display: Option<Timestamp>,
     full_display: Option<Timestamp>,
     is_mobile: bool,
     start_type: Option<&str>,
-    http_scrubbing_allow_list: Option<Vec<String>>,
+    span_allowed_hosts: &'a [String],
 ) -> BTreeMap<SpanTagKey, String> {
     let mut span_tags: BTreeMap<SpanTagKey, String> = BTreeMap::new();
 
@@ -476,7 +498,7 @@ pub fn extract_tags(
             span_tags.insert(SpanTagKey::Category, category.to_owned());
         }
 
-        let (scrubbed_description, parsed_sql) = scrub_span_description(span, http_scrubbing_allow_list);
+        let (scrubbed_description, parsed_sql) = scrub_span_description(span, span_allowed_hosts);
 
         let action = match (category, span_op.as_str(), &scrubbed_description) {
             (Some("http"), _, _) => span

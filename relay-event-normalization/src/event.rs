@@ -156,7 +156,7 @@ pub struct NormalizationConfig<'a> {
     pub replay_id: Option<Uuid>,
 
     /// Controls list of hosts to be excluded from scrubbing
-    pub span_allowed_hosts: &'a [String]>,
+    pub span_allowed_hosts: &'a [String],
 }
 
 impl<'a> Default for NormalizationConfig<'a> {
@@ -188,7 +188,7 @@ impl<'a> Default for NormalizationConfig<'a> {
             measurements: None,
             normalize_spans: true,
             replay_id: Default::default(),
-            http_scrubbing_allow_list: None,
+            span_allowed_hosts: Default::default(),
         }
     }
 }
@@ -321,7 +321,11 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) {
     }
 
     if config.enrich_spans {
-        extract_span_tags_from_event(event, config.max_tag_value_length, config.http_scrubbing_allow_list.clone());
+        extract_span_tags_from_event(
+            event,
+            config.max_tag_value_length,
+            config.span_allowed_hosts,
+        );
     }
 
     if let Some(context) = event.context_mut::<TraceContext>() {

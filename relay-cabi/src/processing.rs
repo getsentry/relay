@@ -273,7 +273,7 @@ pub unsafe extern "C" fn relay_store_normalizer_normalize_event(
         measurements: None,
         normalize_spans: config.normalize_spans,
         replay_id: config.replay_id,
-        http_scrubbing_allow_list: None, // only supported in relay
+        span_allowed_hosts: &[], // only supported in relay
     };
     normalize_event(&mut event, &normalization_config);
 
