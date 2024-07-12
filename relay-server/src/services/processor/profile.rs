@@ -230,8 +230,8 @@ mod tests {
 
         let message = ProcessEnvelope {
             envelope,
-            project_state: Arc::new(project_state),
-            sampling_project_state: None,
+            project_info: Arc::new(project_state),
+            sampling_project_info: None,
             reservoir_counters: ReservoirCounters::default(),
         };
 
@@ -302,8 +302,8 @@ mod tests {
 
         let message = ProcessEnvelope {
             envelope,
-            project_state: Arc::new(project_state),
-            sampling_project_state: None,
+            project_info: Arc::new(project_state),
+            sampling_project_info: None,
             reservoir_counters: ReservoirCounters::default(),
         };
 
@@ -365,8 +365,8 @@ mod tests {
 
         let message = ProcessEnvelope {
             envelope,
-            project_state: Arc::new(project_state),
-            sampling_project_state: None,
+            project_info: Arc::new(project_state),
+            sampling_project_info: None,
             reservoir_counters: ReservoirCounters::default(),
         };
 

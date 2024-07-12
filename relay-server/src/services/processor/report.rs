@@ -318,8 +318,8 @@ mod tests {
         let envelope = ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store, group);
         let message = ProcessEnvelope {
             envelope,
-            project_state: Arc::new(ProjectInfo::default()),
-            sampling_project_state: None,
+            project_info: Arc::new(ProjectInfo::default()),
+            sampling_project_info: None,
             reservoir_counters: ReservoirCounters::default(),
         };
 
@@ -372,8 +372,8 @@ mod tests {
 
         let message = ProcessEnvelope {
             envelope,
-            project_state: Arc::new(ProjectInfo::default()),
-            sampling_project_state: None,
+            project_info: Arc::new(ProjectInfo::default()),
+            sampling_project_info: None,
             reservoir_counters: ReservoirCounters::default(),
         };
 
@@ -434,8 +434,8 @@ mod tests {
         let envelope = ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store, group);
         let message = ProcessEnvelope {
             envelope,
-            project_state: Arc::new(ProjectInfo::default()),
-            sampling_project_state: None,
+            project_info: Arc::new(ProjectInfo::default()),
+            sampling_project_info: None,
             reservoir_counters: ReservoirCounters::default(),
         };
 
@@ -474,8 +474,8 @@ mod tests {
         let envelope = ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store, group);
         let message = ProcessEnvelope {
             envelope,
-            project_state: Arc::new(ProjectInfo::default()),
-            sampling_project_state: None,
+            project_info: Arc::new(ProjectInfo::default()),
+            sampling_project_info: None,
             reservoir_counters: ReservoirCounters::default(),
         };
 
@@ -522,8 +522,8 @@ mod tests {
 
         let message = ProcessEnvelope {
             envelope,
-            project_state: Arc::new(ProjectInfo::default()),
-            sampling_project_state: None,
+            project_info: Arc::new(ProjectInfo::default()),
+            sampling_project_info: None,
             reservoir_counters: ReservoirCounters::default(),
         };
 

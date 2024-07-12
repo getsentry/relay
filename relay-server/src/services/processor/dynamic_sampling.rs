@@ -324,8 +324,8 @@ mod tests {
 
         let message = ProcessEnvelope {
             envelope: ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store, group),
-            project_state: Arc::new(ProjectInfo::default()),
-            sampling_project_state,
+            project_info: Arc::new(ProjectInfo::default()),
+            sampling_project_info: sampling_project_state,
             reservoir_counters: ReservoirCounters::default(),
         };
 

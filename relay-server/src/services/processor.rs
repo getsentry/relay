@@ -891,8 +891,8 @@ pub struct ProcessEnvelopeResponse {
 #[derive(Debug)]
 pub struct ProcessEnvelope {
     pub envelope: ManagedEnvelope,
-    pub project_state: Arc<ProjectInfo>,
-    pub sampling_project_state: Option<Arc<ProjectInfo>>,
+    pub project_info: Arc<ProjectInfo>,
+    pub sampling_project_info: Option<Arc<ProjectInfo>>,
     pub reservoir_counters: ReservoirCounters,
 }
 
@@ -1939,8 +1939,8 @@ impl EnvelopeProcessorService {
     ) -> Result<ProcessEnvelopeResponse, ProcessingError> {
         let ProcessEnvelope {
             envelope: mut managed_envelope,
-            project_state,
-            sampling_project_state,
+            project_info,
+            sampling_project_info,
             reservoir_counters,
         } = message;
 
@@ -1950,7 +1950,7 @@ impl EnvelopeProcessorService {
         //
         // Neither ID can be available in proxy mode on the /store/ endpoint. This is not supported,
         // since we cannot process an envelope without project ID, so drop it.
-        let project_id = match project_state
+        let project_id = match project_info
             .project_id
             .or_else(|| managed_envelope.envelope().meta().project_id())
         {
@@ -1987,8 +1987,8 @@ impl EnvelopeProcessorService {
                 match self.process_envelope(
                     managed_envelope,
                     project_id,
-                    project_state,
-                    sampling_project_state,
+                    project_info,
+                    sampling_project_info,
                     reservoir_counters,
                 ) {
                     Ok(mut state) => {
@@ -3403,8 +3403,8 @@ mod tests {
 
         let message = ProcessEnvelope {
             envelope,
-            project_state: Arc::new(project_info),
-            sampling_project_state: None,
+            project_info: Arc::new(project_info),
+            sampling_project_info: None,
             reservoir_counters: ReservoirCounters::default(),
         };
 
@@ -3465,8 +3465,8 @@ mod tests {
 
         let process_message = ProcessEnvelope {
             envelope: managed_envelope,
-            project_state: Arc::new(ProjectState::allowed()),
-            sampling_project_state: None,
+            project_info: Arc::new(ProjectInfo::default()),
+            sampling_project_info: None,
             reservoir_counters: ReservoirCounters::default(),
         };
 

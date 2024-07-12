@@ -830,8 +830,8 @@ impl ProjectCacheBroker {
             {
                 self.services.envelope_processor.send(ProcessEnvelope {
                     envelope: managed_envelope,
-                    project_state,
-                    sampling_project_state: sampling_state,
+                    project_info: project_state,
+                    sampling_project_info: sampling_state,
                     reservoir_counters,
                 });
 
