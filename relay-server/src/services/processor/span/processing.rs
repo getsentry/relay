@@ -292,6 +292,7 @@ pub fn extract_from_event(
             .aggregator_config_for(MetricNamespace::Spans)
             .aggregator
             .max_tag_value_length,
+        &[],
     ) else {
         return;
     };
@@ -498,7 +499,8 @@ fn normalize(
 
     // Tag extraction:
     let is_mobile = false; // TODO: find a way to determine is_mobile from a standalone span.
-    let tags = tag_extraction::extract_tags(span, max_tag_value_size, None, None, is_mobile, None);
+    let tags =
+        tag_extraction::extract_tags(span, max_tag_value_size, None, None, is_mobile, None, &[]);
     span.sentry_tags = Annotated::new(
         tags.into_iter()
             .map(|(k, v)| (k.sentry_tag_key().to_owned(), Annotated::new(v)))

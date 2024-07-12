@@ -199,11 +199,11 @@ pub(crate) fn extract_span_tags_from_event(
 /// Extracts tags and measurements from event and spans and materializes them into the spans.
 ///
 /// Tags longer than `max_tag_value_size` bytes will be truncated.
-pub fn extract_span_tags<'a>(
+pub fn extract_span_tags(
     event: &Event,
     spans: &mut [Annotated<Span>],
     max_tag_value_size: usize,
-    span_allowed_hosts: &'a [String],
+    span_allowed_hosts: &[String],
 ) {
     // TODO: To prevent differences between metrics and payloads, we should not extract tags here
     // when they have already been extracted by a downstream relay.
@@ -464,14 +464,14 @@ fn extract_segment_tags(event: &Event) -> BTreeMap<SpanTagKey, String> {
 /// [span operations](https://develop.sentry.dev/sdk/performance/span-operations/) and
 /// existing [span data](https://develop.sentry.dev/sdk/performance/span-data-conventions/) fields,
 /// and rely on Sentry conventions and heuristics.
-pub fn extract_tags<'a>(
+pub fn extract_tags(
     span: &Span,
     max_tag_value_size: usize,
     initial_display: Option<Timestamp>,
     full_display: Option<Timestamp>,
     is_mobile: bool,
     start_type: Option<&str>,
-    span_allowed_hosts: &'a [String],
+    span_allowed_hosts: &[String],
 ) -> BTreeMap<SpanTagKey, String> {
     let mut span_tags: BTreeMap<SpanTagKey, String> = BTreeMap::new();
 

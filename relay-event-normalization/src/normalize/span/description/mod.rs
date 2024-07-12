@@ -36,9 +36,9 @@ const DOMAIN_ALLOW_LIST: &[&str] = &["localhost"];
 /// Attempts to replace identifiers in the span description with placeholders.
 ///
 /// Returns `None` if no scrubbing can be performed.
-pub(crate) fn scrub_span_description<'a>(
+pub(crate) fn scrub_span_description(
     span: &Span,
-    span_allowed_hosts: &'a [String],
+    span_allowed_hosts: &[String],
 ) -> (Option<String>, Option<Vec<sqlparser::ast::Statement>>) {
     let Some(description) = span.description.as_str() else {
         return (None, None);
@@ -180,11 +180,7 @@ fn scrub_http(string: &str, allow_list: &[String]) -> Option<String> {
     let scrubbed = match Url::parse(url) {
         Ok(url) => {
             let scheme = url.scheme();
-            let scrubbed_host = if let Some(host) = url.host() {
-                Some(scrub_host(host, allow_list))
-            } else {
-                None
-            };
+            let scrubbed_host = url.host().map(|host| scrub_host(host, allow_list));
             let domain = concatenate_host_and_port(scrubbed_host.as_deref(), url.port());
 
             format!("{method} {scheme}://{domain}")
@@ -227,12 +223,12 @@ fn scrub_file(description: &str) -> Option<String> {
 /// use std::net::{Ipv4Addr, Ipv6Addr};
 /// use relay_event_normalization::span::description::scrub_host;
 ///
-/// assert_eq!(scrub_host(Host::Domain("foo.bar.baz"), &*[]), "*.bar.baz");
-/// assert_eq!(scrub_host(Host::Ipv4(Ipv4Addr::LOCALHOST), &*[]), "127.0.0.1");
-/// assert_eq!(scrub_host(Host::Ipv4(Ipv4Addr::new(8, 8, 8, 8)), &*[String::from("8.8.8.8")], "8.8.8.8");
+/// assert_eq!(scrub_host(Host::Domain("foo.bar.baz"), &[]), "*.bar.baz");
+/// assert_eq!(scrub_host(Host::Ipv4(Ipv4Addr::LOCALHOST), &[]), "127.0.0.1");
+/// assert_eq!(scrub_host(Host::Ipv4(Ipv4Addr::new(8, 8, 8, 8)), &[String::from("8.8.8.8")]), "8.8.8.8");
 /// ```
 pub fn scrub_host<'a>(host: Host<&'a str>, allow_list: &'a [String]) -> Cow<'a, str> {
-    if allow_list.contains(&host.to_string().into()) {
+    if allow_list.contains(&host.to_string()) {
         return host.to_string().into();
     }
 
@@ -404,11 +400,7 @@ fn scrub_resource(resource_type: &str, string: &str) -> Option<String> {
             return Some("browser-extension://*".to_owned());
         }
         scheme => {
-            let scrubbed_host = if let Some(host) = url.host() {
-                Some(scrub_host(host, &[]))
-            } else {
-                None
-            };
+            let scrubbed_host = url.host().map(|host| scrub_host(host, &[]));
             let domain = concatenate_host_and_port(scrubbed_host.as_deref(), url.port());
 
             let segment_count = url.path_segments().map(|s| s.count()).unwrap_or_default();
@@ -576,7 +568,7 @@ mod tests {
                     .description
                     .set_value(Some($description_in.into()));
 
-                let scrubbed = scrub_span_description(span.value_mut().as_mut().unwrap(), None);
+                let scrubbed = scrub_span_description(span.value_mut().as_mut().unwrap(), &[]);
 
                 if $expected == "" {
                     assert!(scrubbed.0.is_none());
@@ -1135,7 +1127,7 @@ mod tests {
 
         let mut span = Annotated::<Span>::from_json(json).unwrap();
         let span = span.value_mut().as_mut().unwrap();
-        let scrubbed = scrub_span_description(span, None);
+        let scrubbed = scrub_span_description(span, &[]);
         assert_eq!(scrubbed.0.as_deref(), Some("SELECT %s"));
     }
 
@@ -1148,7 +1140,7 @@ mod tests {
 
         let mut span = Annotated::<Span>::from_json(json).unwrap();
 
-        let scrubbed = scrub_span_description(span.value_mut().as_mut().unwrap(), None);
+        let scrubbed = scrub_span_description(span.value_mut().as_mut().unwrap(), &[]);
 
         // When db.system is missing, no scrubbed description (i.e. no group) is set.
         assert!(scrubbed.0.is_none());
@@ -1166,7 +1158,7 @@ mod tests {
 
         let mut span = Annotated::<Span>::from_json(json).unwrap();
 
-        let scrubbed = scrub_span_description(span.value_mut().as_mut().unwrap(), None);
+        let scrubbed = scrub_span_description(span.value_mut().as_mut().unwrap(), &[]);
 
         // Can be scrubbed with db system.
         assert_eq!(scrubbed.0.as_deref(), Some("SELECT a FROM b"));
@@ -1184,7 +1176,7 @@ mod tests {
 
         let mut span = Annotated::<Span>::from_json(json).unwrap();
 
-        let scrubbed = scrub_span_description(span.value_mut().as_mut().unwrap(), None);
+        let scrubbed = scrub_span_description(span.value_mut().as_mut().unwrap(), &[]);
 
         // NOTE: this should return `DEL *`, but we cannot detect lowercase command names yet.
         assert_eq!(scrubbed.0.as_deref(), Some("*"));
@@ -1200,7 +1192,7 @@ mod tests {
 
         let mut span = Annotated::<Span>::from_json(json).unwrap();
 
-        let scrubbed = scrub_span_description(span.value_mut().as_mut().unwrap(), None);
+        let scrubbed = scrub_span_description(span.value_mut().as_mut().unwrap(), &[]);
 
         assert_eq!(scrubbed.0.as_deref(), Some("INSERTED * 'UAEventData'"));
     }
@@ -1215,7 +1207,7 @@ mod tests {
 
         let mut span = Annotated::<Span>::from_json(json).unwrap();
 
-        let scrubbed = scrub_span_description(span.value_mut().as_mut().unwrap(), None);
+        let scrubbed = scrub_span_description(span.value_mut().as_mut().unwrap(), &[]);
 
         assert_eq!(
             scrubbed.0.as_deref(),
@@ -1235,7 +1227,7 @@ mod tests {
 
         let mut span = Annotated::<Span>::from_json(json).unwrap();
 
-        let scrubbed = scrub_span_description(span.value_mut().as_mut().unwrap(), None);
+        let scrubbed = scrub_span_description(span.value_mut().as_mut().unwrap(), &[]);
 
         // Can be scrubbed with db system.
         assert_eq!(scrubbed.0.as_deref(), Some("my-component-name"));
