@@ -777,7 +777,12 @@ impl Project {
     ) -> Result<CheckedEnvelope, DiscardReason> {
         let state = match self.current_state() {
             ProjectState::Enabled(state) => Some(state.clone()),
-            ProjectState::Disabled => return Err(DiscardReason::ProjectId),
+            ProjectState::Disabled => {
+                // TODO(jjbayer): This function should not return an Error and reject the envelope.
+                // (rejection should be done by the caller).
+                envelope.reject(Outcome::Invalid(DiscardReason::ProjectId));
+                return Err(DiscardReason::ProjectId);
+            }
             ProjectState::Pending => None,
         };
         let mut scoping = envelope.scoping();
@@ -827,7 +832,7 @@ impl Project {
 
         let envelope = if envelope.envelope().is_empty() {
             // Individual rate limits have already been issued above
-            envelope.reject(Outcome::RateLimited(None));
+            envelope.reject(dbg!(Outcome::RateLimited(None)));
             None
         } else {
             Some(envelope)

@@ -757,7 +757,7 @@ impl ProjectCacheBroker {
         // do not pass `no_cache`. In case the project is rate limited, we do not want to force
         // a full reload. Fetching must not block the store request.
         project.prefetch(project_cache, false);
-        project.check_envelope(context)
+        dbg!(project.check_envelope(context))
     }
 
     /// Checks an incoming envelope and decides either process it immediately or buffer it.
@@ -1197,7 +1197,7 @@ impl Service for ProjectCacheService {
                             broker.handle_check_envelope(CheckEnvelope::new(managed_envelope))
                         }) {
                             metric!(timer(RelayTimers::ProjectCacheTaskDuration), task = "handle_validate_envelope", {
-                            broker.handle_validate_envelope(ValidateEnvelope { envelope })
+                            broker.handle_validate_envelope(ValidateEnvelope { envelope });
                         })
                         }
 
