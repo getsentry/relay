@@ -390,7 +390,8 @@ impl UpstreamProjectSourceService {
                             ErrorBoundary::Ok(Some(state)) => ProjectFetchState::new(state.into()),
                         };
 
-                        let result = if state.is_pending() { "invalid" } else { "ok" };
+                        let invalid = state.is_pending();
+                        let result = if invalid { "invalid" } else { "ok" };
                         metric!(
                             histogram(RelayHistograms::ProjectStateAttempts) = channel.attempts,
                             result = result,
@@ -399,7 +400,17 @@ impl UpstreamProjectSourceService {
                             counter(RelayCounters::ProjectUpstreamCompleted) += 1,
                             result = result,
                         );
-                        channel.send(state.sanitize());
+
+                        if invalid {
+                            // Treat invalid as pending, try again:
+                            // NOTE: We might want to implement a backoff here, because the
+                            // chance that an invalid config will turn into a valid config
+                            // within `retry_delay` is low.
+                            channel.pending += 1;
+                            self.state_channels.insert(key, channel);
+                        } else {
+                            channel.send(state.sanitize());
+                        }
                     }
                 }
                 Err(err) => {
