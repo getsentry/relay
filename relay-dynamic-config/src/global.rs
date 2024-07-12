@@ -231,11 +231,11 @@ pub struct Options {
     ///
     /// At this point, it doesn't accept IP addresses in CIDR format.. yet.
     #[serde(
-        rename = "relay.scrubbing.http-host-allow-list",
+        rename = "relay.span-normalization.allowed_hosts",
         deserialize_with = "default_on_error",
         skip_serializing_if = "Vec::is_empty"
     )]
-    pub http_scrubbing_allow_list: Vec<String>,
+    pub http_span_allowed_hosts: Vec<String>,
 
     /// All other unknown options.
     #[serde(flatten)]

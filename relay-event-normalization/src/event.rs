@@ -156,7 +156,7 @@ pub struct NormalizationConfig<'a> {
     pub replay_id: Option<Uuid>,
 
     /// Controls list of hosts to be excluded from scrubbing
-    pub http_scrubbing_allow_list: Option<Vec<String>>,
+    pub span_allowed_hosts: &'a [String]>,
 }
 
 impl<'a> Default for NormalizationConfig<'a> {
