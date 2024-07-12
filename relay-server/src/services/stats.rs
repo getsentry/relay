@@ -1,6 +1,8 @@
 use std::sync::Arc;
 
 use relay_config::{Config, RelayMode};
+#[cfg(feature = "processing")]
+use relay_redis::RedisPool;
 use relay_statsd::metric;
 use relay_system::{Addr, Service};
 use tokio::time::interval;
@@ -14,13 +16,21 @@ use crate::statsd::{RelayGauges, TokioGauges};
 pub struct RelayStats {
     config: Arc<Config>,
     upstream_relay: Addr<UpstreamRelay>,
+    #[cfg(feature = "processing")]
+    redis_pool: Option<RedisPool>,
 }
 
 impl RelayStats {
-    pub fn new(config: Arc<Config>, upstream_relay: Addr<UpstreamRelay>) -> Self {
+    pub fn new(
+        config: Arc<Config>,
+        upstream_relay: Addr<UpstreamRelay>,
+        #[cfg(feature = "processing")] redis_pool: Option<RedisPool>,
+    ) -> Self {
         Self {
             config,
             upstream_relay,
+            #[cfg(feature = "processing")]
+            redis_pool,
         }
     }
 
@@ -89,6 +99,20 @@ impl RelayStats {
             }
         }
     }
+
+    #[cfg(not(feature = "processing"))]
+    async fn redis_pool(&self) {}
+
+    #[cfg(feature = "processing")]
+    async fn redis_pool(&self) {
+        let Some(ref redis_pool) = self.redis_pool else {
+            return;
+        };
+
+        let state = redis_pool.stats();
+        metric!(gauge(RelayGauges::RedisPoolConnections) = u64::from(state.connections));
+        metric!(gauge(RelayGauges::RedisPoolIdleConnections) = u64::from(state.idle_connections));
+    }
 }
 
 impl Service for RelayStats {
@@ -101,7 +125,11 @@ impl Service for RelayStats {
 
         tokio::spawn(async move {
             loop {
-                let _ = tokio::join!(self.tokio_metrics(), self.upstream_status());
+                let _ = tokio::join!(
+                    self.upstream_status(),
+                    self.tokio_metrics(),
+                    self.redis_pool(),
+                );
                 ticker.tick().await;
             }
         });

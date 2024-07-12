@@ -34,6 +34,12 @@ pub enum RelayGauges {
     ///
     /// Relay uses the same value for its memory health check.
     SystemMemoryTotal,
+    /// The number of connections currently being managed by the Redis Pool.
+    #[cfg(feature = "processing")]
+    RedisPoolConnections,
+    /// The number of idle connections in the Redis Pool.
+    #[cfg(feature = "processing")]
+    RedisPoolIdleConnections,
 }
 
 impl GaugeMetric for RelayGauges {
@@ -46,6 +52,10 @@ impl GaugeMetric for RelayGauges {
             RelayGauges::BufferPeriodicUnspool => "buffer.unspool.periodic",
             RelayGauges::SystemMemoryUsed => "health.system_memory.used",
             RelayGauges::SystemMemoryTotal => "health.system_memory.total",
+            #[cfg(feature = "processing")]
+            RelayGauges::RedisPoolConnections => "redis.pool.connections",
+            #[cfg(feature = "processing")]
+            RelayGauges::RedisPoolIdleConnections => "redis.pool.idle_connections",
         }
     }
 }
