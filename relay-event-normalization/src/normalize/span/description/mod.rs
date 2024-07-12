@@ -3,12 +3,15 @@ mod resource;
 mod sql;
 use once_cell::sync::Lazy;
 use psl;
+use serde::Serialize;
+use serde_json::ser::Formatter;
 use serde_json::{Map, Value};
 #[cfg(test)]
 pub use sql::{scrub_queries, Mode};
 
 use relay_event_schema::protocol::Span;
 use std::borrow::Cow;
+use std::io;
 use std::net::{Ipv4Addr, Ipv6Addr};
 use std::path::Path;
 use url::{Host, Url};
@@ -561,18 +564,22 @@ fn scrub_mongodb_query(query: &str, command: &str, collection: &str) -> Option<S
 
         scrubbed_query.push_str(", \"");
         scrubbed_query.push_str(key);
+        scrubbed_query.push_str("\": ");
+
+        let mut value_str = "\"?\"".to_string();
 
         if key == "filter" {
-            scrubbed_query.push_str("\": ");
             let scrubbed_value = scrub_leaf_nodes(value);
-            let json_string = match serde_json::to_string_pretty(&scrubbed_value) {
-                Ok(str) => str,
-                Err(_) => "?".to_owned(),
-            };
-            scrubbed_query.push_str(json_string.as_str())
-        } else {
-            scrubbed_query.push_str("\": \"?\"");
+            let mut buf = Vec::new();
+            let mut out = serde_json::Serializer::with_formatter(&mut buf, MongoDBFormatter::new());
+            if scrubbed_value.serialize(&mut out).is_ok() {
+                if let Ok(json_string) = String::from_utf8(buf) {
+                    value_str = json_string;
+                }
+            }
         }
+
+        scrubbed_query.push_str(value_str.as_str());
     });
 
     scrubbed_query.push_str(" }");
@@ -592,6 +599,74 @@ fn scrub_leaf_nodes(value: &Value) -> Value {
             Value::Object(map.to_owned())
         }
         _ => Value::String("?".to_string()),
+    }
+}
+
+struct MongoDBFormatter;
+
+impl MongoDBFormatter {
+    fn new() -> Self {
+        MongoDBFormatter {}
+    }
+}
+
+impl Formatter for MongoDBFormatter {
+    #[inline]
+    fn begin_array<W>(&mut self, writer: &mut W) -> io::Result<()>
+    where
+        W: ?Sized + io::Write,
+    {
+        writer.write_all(b"[ ")
+    }
+
+    fn end_array<W>(&mut self, writer: &mut W) -> io::Result<()>
+    where
+        W: ?Sized + io::Write,
+    {
+        writer.write_all(b" ]")
+    }
+
+    fn begin_array_value<W>(&mut self, writer: &mut W, first: bool) -> io::Result<()>
+    where
+        W: ?Sized + io::Write,
+    {
+        if first {
+            Ok(())
+        } else {
+            writer.write_all(b", ")
+        }
+    }
+
+    fn begin_object<W>(&mut self, writer: &mut W) -> io::Result<()>
+    where
+        W: ?Sized + io::Write,
+    {
+        writer.write_all(b"{ ")
+    }
+
+    fn end_object<W>(&mut self, writer: &mut W) -> io::Result<()>
+    where
+        W: ?Sized + io::Write,
+    {
+        writer.write_all(b" }")
+    }
+
+    fn begin_object_key<W>(&mut self, writer: &mut W, first: bool) -> io::Result<()>
+    where
+        W: ?Sized + io::Write,
+    {
+        if first {
+            Ok(())
+        } else {
+            writer.write_all(b", ")
+        }
+    }
+
+    fn begin_object_value<W>(&mut self, writer: &mut W) -> io::Result<()>
+    where
+        W: ?Sized + io::Write,
+    {
+        writer.write_all(b": ")
     }
 }
 
