@@ -51,7 +51,11 @@ pub fn validate(replay: &Replay) -> Result<(), ReplayError> {
         .value()
         .ok_or_else(|| ReplayError::InvalidPayload("missing segment_id".to_string()))?;
 
-    if segment_id > 720 {
+    // Each segment is expected to be 5 seconds in length. We take the number of seconds in
+    // an hour and divide by five to get the max segment-id.
+    const MAX_SEGMENT_ID: u64 = 60 * 60 / 5;
+
+    if segment_id > MAX_SEGMENT_ID {
         return Err(ReplayError::InvalidPayload(
             "segment_id limit exceeded".to_string(),
         ));
