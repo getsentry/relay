@@ -16,7 +16,7 @@ use relay_kafka::{
 };
 use relay_metrics::aggregator::{AggregatorConfig, FlushBatching};
 use relay_metrics::MetricNamespace;
-use relay_redis::RedisConfig;
+use relay_redis::RedisConfigOptions;
 use serde::de::{DeserializeOwned, Unexpected, Visitor};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use uuid::Uuid;
@@ -24,6 +24,7 @@ use uuid::Uuid;
 use crate::aggregator::{AggregatorServiceConfig, ScopedAggregatorConfig};
 use crate::byte_size::ByteSize;
 use crate::upstream::UpstreamDescriptor;
+use crate::{RedisConfig, RedisConnection};
 
 const DEFAULT_NETWORK_OUTAGE_GRACE_PERIOD: u64 = 10;
 
@@ -1577,7 +1578,7 @@ impl Config {
         }
 
         if let Some(redis) = overrides.redis_url {
-            processing.redis = Some(RedisConfig::Single(redis))
+            processing.redis = Some(RedisConfig::single(redis))
         }
 
         if let Some(kafka_url) = overrides.kafka_url {
@@ -2272,8 +2273,24 @@ impl Config {
     }
 
     /// Redis servers to connect to, for rate limiting.
-    pub fn redis(&self) -> Option<&RedisConfig> {
-        self.values.processing.redis.as_ref()
+    pub fn redis(&self) -> Option<(&RedisConnection, RedisConfigOptions)> {
+        let cpu_concurrency = self.cpu_concurrency();
+
+        let redis = self.values.processing.redis.as_ref()?;
+
+        let options = RedisConfigOptions {
+            max_connections: redis
+                .options
+                .max_connections
+                .unwrap_or(cpu_concurrency as u32 * 2),
+            connection_timeout: redis.options.connection_timeout,
+            max_lifetime: redis.options.max_lifetime,
+            idle_timeout: redis.options.idle_timeout,
+            read_timeout: redis.options.read_timeout,
+            write_timeout: redis.options.write_timeout,
+        };
+
+        Some((&redis.connection, options))
     }
 
     /// Chunk size of attachments in bytes.
