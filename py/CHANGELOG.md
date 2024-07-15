@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.9.0
+
+- Build wheels with manylinux_2_28 and alma linux 8. [#3787](https://github.com/getsentry/relay/pull/3787)
+
 ## 0.8.67
 
 ### Various fixes & improvements

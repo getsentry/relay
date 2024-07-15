@@ -9,9 +9,7 @@ use relay_cardinality::CardinalityLimit;
 use relay_config::Config;
 use relay_dynamic_config::{ErrorBoundary, Feature, LimitedProjectConfig, ProjectConfig};
 use relay_filter::matches_any_origin;
-use relay_metrics::{
-    Aggregator, Bucket, MergeBuckets, MetaAggregator, MetricMeta, MetricNamespace,
-};
+use relay_metrics::{Bucket, MetaAggregator, MetricMeta, MetricNamespace};
 use relay_quotas::{
     CachedRateLimits, DataCategory, MetricNamespaceScoping, Quota, RateLimits, Scoping,
 };
@@ -25,6 +23,7 @@ use url::Url;
 
 use crate::envelope::{Envelope, ItemType};
 use crate::metrics::{MetricOutcomes, MetricsLimiter};
+use crate::services::metrics::{Aggregator, MergeBuckets};
 use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::services::processor::{EncodeMetricMeta, EnvelopeProcessor};
 use crate::services::project::metrics::{apply_project_state, filter_namespaces};
@@ -1051,7 +1050,7 @@ impl Project {
 /// as top-level spans, thus if we limited a transaction, we want to count and emit negative
 /// outcomes for each of the spans nested inside that transaction.
 fn sync_spans_to_enforcement(envelope: &ManagedEnvelope, enforcement: &mut Enforcement) {
-    if !enforcement.event_active() {
+    if !enforcement.is_event_active() {
         return;
     }
 
@@ -1387,7 +1386,7 @@ mod tests {
         let Aggregator::MergeBuckets(merge_buckets) = value else {
             panic!();
         };
-        assert_eq!(merge_buckets.buckets().len(), 1);
+        assert_eq!(merge_buckets.buckets.len(), 1);
         assert!(metric_stats_rx.blocking_recv().is_none());
     }
 

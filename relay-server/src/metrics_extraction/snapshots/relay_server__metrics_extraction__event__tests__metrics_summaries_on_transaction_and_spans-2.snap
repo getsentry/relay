@@ -1,0 +1,29 @@
+---
+source: relay-server/src/metrics_extraction/event.rs
+expression: "&event.value().unwrap().spans.value().unwrap()[0].value().unwrap()._metrics_summary"
+---
+MetricsSummary(
+    {
+        "d:custom/my_metric@millisecond": [
+            MetricSummary {
+                min: 3000.0,
+                max: 3000.0,
+                sum: 3000.0,
+                count: 1,
+                tags: {},
+            },
+        ],
+        "d:spans/duration@millisecond": [
+            MetricSummary {
+                min: 50.0,
+                max: 60.0,
+                sum: 100.0,
+                count: 2,
+                tags: {
+                    "app_start_type": "warm",
+                    "device.class": "1",
+                },
+            },
+        ],
+    },
+)

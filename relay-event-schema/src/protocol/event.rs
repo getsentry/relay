@@ -4,7 +4,9 @@ use std::str::FromStr;
 use relay_common::time;
 #[cfg(feature = "jsonschema")]
 use relay_jsonschema_derive::JsonSchema;
-use relay_protocol::{Annotated, Array, Empty, FromValue, Getter, IntoValue, Object, Val, Value};
+use relay_protocol::{
+    Annotated, Array, Empty, FromValue, Getter, GetterIter, IntoValue, Object, Val, Value,
+};
 #[cfg(feature = "jsonschema")]
 use schemars::{gen::SchemaGenerator, schema::Schema};
 use sentry_release_parser::Release as ParsedRelease;
@@ -509,6 +511,10 @@ pub struct Event {
     #[metastructure(omit_from_schema)]
     pub _metrics_summary: Annotated<MetricsSummary>,
 
+    /// Value of the `DynamicSamplingContext` for this event.
+    #[metastructure(omit_from_schema)]
+    pub _dsc: Annotated<Value>,
+
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(additional_properties, pii = "true")]
     pub other: Object<Value>,
@@ -653,6 +659,8 @@ impl Getter for Event {
             "platform" => self.platform.as_str().unwrap_or("other").into(),
 
             // Fields in top level structures (called "interfaces" in Sentry)
+            "logentry.formatted" => self.logentry.value()?.formatted.value()?.as_ref().into(),
+            "logentry.message" => self.logentry.value()?.message.value()?.as_ref().into(),
             "user.email" => or_none(&self.user.value()?.email)?.into(),
             "user.id" => or_none(&self.user.value()?.id)?.into(),
             "user.ip_address" => self.user.value()?.ip_address.as_str()?.into(),
@@ -803,6 +811,15 @@ impl Getter for Event {
                     return None;
                 }
             }
+        })
+    }
+
+    fn get_iter(&self, path: &str) -> Option<GetterIter<'_>> {
+        Some(match path.strip_prefix("event.")? {
+            "exception.values" => {
+                GetterIter::new_annotated(self.exceptions.value()?.values.value()?)
+            }
+            _ => return None,
         })
     }
 }
@@ -1112,6 +1129,11 @@ mod tests {
                 })]),
                 ..Default::default()
             }),
+            logentry: Annotated::new(LogEntry {
+                formatted: Annotated::new("formatted".to_string().into()),
+                message: Annotated::new("message".to_string().into()),
+                ..Default::default()
+            }),
             request: Annotated::new(Request {
                 headers: Annotated::new(Headers(PairList(vec![Annotated::new((
                     Annotated::new("user-agent".into()),
@@ -1254,6 +1276,23 @@ mod tests {
         assert_eq!(
             Some(Val::String("route")),
             event.get_value("event.transaction.source")
+        );
+
+        let mut exceptions = event.get_iter("event.exception.values").unwrap();
+        let exception = exceptions.next().unwrap();
+        assert_eq!(
+            Some(Val::String("canvas.contentDocument")),
+            exception.get_value("value")
+        );
+        assert!(exceptions.next().is_none());
+
+        assert_eq!(
+            Some(Val::String("formatted")),
+            event.get_value("event.logentry.formatted")
+        );
+        assert_eq!(
+            Some(Val::String("message")),
+            event.get_value("event.logentry.message")
         );
     }
 

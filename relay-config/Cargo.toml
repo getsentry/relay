@@ -32,3 +32,6 @@ serde_yaml = { workspace = true }
 thiserror = { workspace = true }
 url = { workspace = true }
 uuid = { workspace = true }
+
+[dev-dependencies]
+insta = { workspace = true }

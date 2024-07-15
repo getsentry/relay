@@ -40,3 +40,13 @@ pub struct MetricSummary {
     /// Tags of the metric.
     pub tags: Annotated<Object<String>>,
 }
+
+impl MetricSummary {
+    /// Merges another [`MetricSummary`] in this [`MetricsSummary`].
+    pub fn merge(&mut self, other: MetricSummary) {
+        self.min.merge(other.min, |l, r| *l = l.min(r));
+        self.max.merge(other.max, |l, r| *l = l.max(r));
+        self.sum.merge(other.sum, |l, r| *l += r);
+        self.count.merge(other.count, |l, r| *l += r);
+    }
+}

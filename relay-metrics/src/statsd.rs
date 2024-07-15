@@ -41,13 +41,6 @@ pub enum MetricCounters {
     ///  - `namespace`: The namespace of the metric.
     MergeMiss,
 
-    /// Incremented every time a bucket is dropped.
-    ///
-    /// This should only happen when a project state is invalid during graceful shutdown.
-    ///
-    /// This metric is tagged with:
-    ///  - `aggregator`: The name of the metrics aggregator (usually `"default"`).
-    BucketsDropped,
     /// Incremented every time the meta aggregator emitted an update that needs to be stored or
     /// sent upstream.
     MetaAggregatorUpdate,
@@ -63,7 +56,6 @@ impl CounterMetric for MetricCounters {
         match *self {
             Self::MergeHit => "metrics.buckets.merge.hit",
             Self::MergeMiss => "metrics.buckets.merge.miss",
-            Self::BucketsDropped => "metrics.buckets.dropped",
             Self::MetaAggregatorUpdate => "metrics.meta.agg.update",
             Self::MetaAggregatorItems => "metrics.meta.agg.items",
             #[cfg(feature = "redis")]
@@ -83,18 +75,12 @@ pub enum MetricTimers {
     /// This metric is tagged with:
     ///  - `aggregator`: The name of the metrics aggregator (usually `"default"`).
     BucketsScanDuration,
-    /// Timing in milliseconds for processing a message in the aggregator service.
-    ///
-    /// This metric is tagged with:
-    ///  - `message`: The type of message that was processed.
-    AggregatorServiceDuration,
 }
 
 impl TimerMetric for MetricTimers {
     fn name(&self) -> &'static str {
         match *self {
             Self::BucketsScanDuration => "metrics.buckets.scan_duration",
-            Self::AggregatorServiceDuration => "metrics.aggregator.message.duration",
         }
     }
 }
@@ -102,22 +88,6 @@ impl TimerMetric for MetricTimers {
 /// Histogram metrics for Relay Metrics.
 #[allow(clippy::enum_variant_names)]
 pub enum MetricHistograms {
-    /// The total number of metric buckets flushed in a cycle across all projects.
-    ///
-    /// This metric is tagged with:
-    ///  - `aggregator`: The name of the metrics aggregator (usually `"default"`).
-    BucketsFlushed,
-
-    /// The number of metric buckets flushed in a cycle for each project.
-    ///
-    /// Relay scans metric buckets in regular intervals and flushes expired buckets. This histogram
-    /// is logged for each project that is being flushed. The count of the histogram values is
-    /// equivalent to the number of projects being flushed.
-    ///
-    /// This metric is tagged with:
-    ///  - `aggregator`: The name of the metrics aggregator (usually `"default"`).
-    BucketsFlushedPerProject,
-
     /// The reporting delay at which a bucket arrives in Relay.
     ///
     /// A positive delay indicates the bucket arrives after its stated timestamp. Large delays
@@ -134,22 +104,13 @@ pub enum MetricHistograms {
     ///
     /// This is a temporary metric to better understand why we see so many invalid timestamp errors.
     InvalidBucketTimestamp,
-
-    /// The number of metric partitions flushed in a cycle.
-    ///
-    /// This metric is tagged with:
-    ///  - `aggregator`: The name of the metrics aggregator (usually `"default"`).
-    PartitionsFlushed,
 }
 
 impl HistogramMetric for MetricHistograms {
     fn name(&self) -> &'static str {
         match *self {
-            Self::BucketsFlushed => "metrics.buckets.flushed",
-            Self::BucketsFlushedPerProject => "metrics.buckets.flushed_per_project",
             Self::BucketsDelay => "metrics.buckets.delay",
             Self::InvalidBucketTimestamp => "metrics.buckets.invalid_timestamp",
-            Self::PartitionsFlushed => "metrics.partitions.flushed",
         }
     }
 }

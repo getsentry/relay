@@ -50,7 +50,7 @@ use tokio::sync::Semaphore;
 use {
     crate::metrics::MetricsLimiter,
     crate::services::store::{Store, StoreEnvelope},
-    crate::utils::{sample, EnvelopeLimiter, ItemAction},
+    crate::utils::{sample, Enforcement, EnvelopeLimiter, ItemAction},
     itertools::Itertools,
     relay_cardinality::{
         CardinalityLimit, CardinalityLimiter, CardinalityLimitsSplit, RedisSetLimiter,
@@ -83,8 +83,6 @@ use crate::services::upstream::{
     SendRequest, UpstreamRelay, UpstreamRequest, UpstreamRequestError,
 };
 use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
-#[cfg(feature = "processing")]
-use crate::utils::BufferGuard;
 use crate::utils::{
     self, InvalidProcessingGroupType, ManagedEnvelope, SamplingResult, TypedEnvelope,
 };
@@ -660,12 +658,12 @@ impl ProcessingExtractedMetrics {
     /// This is used to apply rate limits which have been enforced on sampled items of an envelope
     /// to also consistently apply to the metrics extracted from these items.
     #[cfg(feature = "processing")]
-    fn enforce_limits(&mut self, scoping: Scoping, limits: &RateLimits) {
-        for (category, namespace) in [
-            (DataCategory::Transaction, MetricNamespace::Transactions),
-            (DataCategory::Span, MetricNamespace::Spans),
+    fn apply_enforcement(&mut self, enforcement: &Enforcement) {
+        for (namespace, limit) in [
+            (MetricNamespace::Transactions, &enforcement.event),
+            (MetricNamespace::Spans, &enforcement.spans),
         ] {
-            if !limits.check(scoping.item(category)).is_empty() {
+            if limit.is_active() {
                 relay_log::trace!(
                     "dropping {namespace} metrics, due to enforced limit on envelope"
                 );
@@ -1093,8 +1091,6 @@ pub struct EnvelopeProcessorService {
 
 /// Contains the addresses of services that the processor publishes to.
 pub struct Addrs {
-    #[cfg(feature = "processing")]
-    pub envelope_processor: Addr<EnvelopeProcessor>,
     pub project_cache: Addr<ProjectCache>,
     pub outcome_aggregator: Addr<TrackOutcome>,
     pub upstream_relay: Addr<UpstreamRelay>,
@@ -1106,8 +1102,6 @@ pub struct Addrs {
 impl Default for Addrs {
     fn default() -> Self {
         Addrs {
-            #[cfg(feature = "processing")]
-            envelope_processor: Addr::dummy(),
             project_cache: Addr::dummy(),
             outcome_aggregator: Addr::dummy(),
             upstream_relay: Addr::dummy(),
@@ -1133,8 +1127,6 @@ struct InnerProcessor {
     #[cfg(feature = "processing")]
     cardinality_limiter: Option<CardinalityLimiter>,
     metric_outcomes: MetricOutcomes,
-    #[cfg(feature = "processing")]
-    buffer_guard: Arc<BufferGuard>,
 }
 
 impl EnvelopeProcessorService {
@@ -1146,7 +1138,6 @@ impl EnvelopeProcessorService {
         #[cfg(feature = "processing")] redis: Option<RedisPool>,
         addrs: Addrs,
         metric_outcomes: MetricOutcomes,
-        #[cfg(feature = "processing")] buffer_guard: Arc<BufferGuard>,
     ) -> Self {
         let geoip_lookup = config.geoip_path().and_then(|p| {
             match GeoIpLookup::open(p).context(ServiceError::GeoIp) {
@@ -1188,8 +1179,6 @@ impl EnvelopeProcessorService {
                 .map(CardinalityLimiter::new),
             metric_outcomes,
             config,
-            #[cfg(feature = "processing")]
-            buffer_guard,
         };
 
         Self {
@@ -1325,18 +1314,18 @@ impl EnvelopeProcessorService {
         let (enforcement, limits) = metric!(timer(RelayTimers::EventProcessingRateLimiting), {
             envelope_limiter.compute(state.managed_envelope.envelope_mut(), &scoping)?
         });
-        let event_active = enforcement.event_active();
+        let event_active = enforcement.is_event_active();
+
+        // Use the same rate limits as used for the envelope on the metrics.
+        // Those rate limits should not be checked for expiry or similar to ensure a consistent
+        // limiting of envelope items and metrics.
+        state.extracted_metrics.apply_enforcement(&enforcement);
         enforcement.apply_with_outcomes(&mut state.managed_envelope);
 
         if event_active {
             state.remove_event();
             debug_assert!(state.envelope().is_empty());
         }
-
-        // Use the same rate limits as used for the envelope on the metrics.
-        // Those rate limits should not be checked for expiry or similar to ensure a consistent
-        // limiting of envelope items and metrics.
-        state.extracted_metrics.enforce_limits(scoping, &limits);
 
         if !limits.is_empty() {
             self.inner
@@ -1358,7 +1347,7 @@ impl EnvelopeProcessorService {
         if state.event_metrics_extracted {
             return Ok(());
         }
-        let Some(event) = state.event.value() else {
+        let Some(event) = state.event.value_mut() else {
             return Ok(());
         };
 
@@ -1463,31 +1452,7 @@ impl EnvelopeProcessorService {
         &self,
         state: &mut ProcessEnvelopeState<G>,
     ) -> Result<(), ProcessingError> {
-        let attachment_type = state
-            .envelope()
-            .get_item_by(|item| item.attachment_type().is_some())
-            .and_then(|item| item.attachment_type())
-            .map(|ty| ty.to_string());
-        let event_type = state
-            .event
-            .value()
-            .and_then(|e| e.ty.value())
-            .map(|ty| ty.as_str())
-            .unwrap_or("none");
-
         if !state.has_event() {
-            metric!(
-                counter(RelayCounters::NormalizationDecision) += 1,
-                event_type = event_type,
-                attachment_type = attachment_type.as_deref().unwrap_or("none"),
-                origin = if state.envelope().meta().is_from_internal_relay() {
-                    "internal"
-                } else {
-                    "external"
-                },
-                decision = "no_event"
-            );
-
             // NOTE(iker): only processing relays create events from
             // attachments, so these events won't be normalized in
             // non-processing relays even if the config is set to run full
@@ -1499,39 +1464,12 @@ impl EnvelopeProcessorService {
             NormalizationLevel::Full => true,
             NormalizationLevel::Default => {
                 if self.inner.config.processing_enabled() && state.event_fully_normalized {
-                    metric!(
-                        counter(RelayCounters::NormalizationDecision) += 1,
-                        event_type = event_type,
-                        attachment_type = attachment_type.as_deref().unwrap_or("none"),
-                        origin = if state.envelope().meta().is_from_internal_relay() {
-                            "internal"
-                        } else {
-                            "external"
-                        },
-                        decision = "skip_normalized"
-                    );
                     return Ok(());
-                } else {
-                    self.inner.config.processing_enabled()
                 }
+
+                self.inner.config.processing_enabled()
             }
         };
-
-        metric!(
-            counter(RelayCounters::NormalizationDecision) += 1,
-            event_type = event_type,
-            attachment_type = attachment_type.as_deref().unwrap_or("none"),
-            origin = if state.envelope().meta().is_from_internal_relay() {
-                "internal"
-            } else {
-                "external"
-            },
-            decision = if full_normalization {
-                "full_normalization"
-            } else {
-                "limited_normalization"
-            }
-        );
 
         let request_meta = state.managed_envelope.envelope().meta();
         let client_ipaddr = request_meta.client_addr().map(IpAddr::from);
@@ -1761,6 +1699,7 @@ impl EnvelopeProcessorService {
         if_processing!(self.inner.config, {
             // Process profiles before extracting metrics, to make sure they are removed if they are invalid.
             let profile_id = profile::process(state, &self.inner.config);
+            profile::transfer_id(state, profile_id);
 
             // Always extract metrics in processing Relays for sampled items.
             self.extract_transaction_metrics(state, SamplingDecision::Keep, profile_id)?;
@@ -1890,13 +1829,7 @@ impl EnvelopeProcessorService {
         if_processing!(self.inner.config, {
             let global_config = self.inner.global_config.current();
 
-            span::process(
-                state,
-                self.inner.config.clone(),
-                &global_config,
-                &self.inner.addrs,
-                &self.inner.buffer_guard,
-            );
+            span::process(state, self.inner.config.clone(), &global_config);
 
             self.enforce_quotas(state)?;
         });
@@ -3500,6 +3433,78 @@ mod tests {
         );
     }
 
+    #[tokio::test]
+    #[cfg(feature = "processing")]
+    async fn test_materialize_dsc() {
+        let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
+            .parse()
+            .unwrap();
+        let request_meta = RequestMeta::new(dsn);
+        let mut envelope = Envelope::from_request(None, request_meta);
+
+        let dsc = r#"{
+            "trace_id": "00000000-0000-0000-0000-000000000000",
+            "public_key": "e12d836b15bb49d7bbf99e64295d995b",
+            "sample_rate": "0.2"
+        }"#;
+        envelope.set_dsc(serde_json::from_str(dsc).unwrap());
+
+        let mut item = Item::new(ItemType::Event);
+        item.set_payload(ContentType::Json, r#"{}"#);
+        envelope.add_item(item);
+
+        let (outcome_aggregator, test_store) = testutils::processor_services();
+        let managed_envelope = ManagedEnvelope::standalone(
+            envelope,
+            outcome_aggregator,
+            test_store,
+            ProcessingGroup::Error,
+        );
+
+        let process_message = ProcessEnvelope {
+            envelope: managed_envelope,
+            project_state: Arc::new(ProjectState::allowed()),
+            sampling_project_state: None,
+            reservoir_counters: ReservoirCounters::default(),
+        };
+
+        let config = Config::from_json_value(serde_json::json!({
+            "processing": {
+                "enabled": true,
+                "kafka_config": [],
+            }
+        }))
+        .unwrap();
+
+        let processor = create_test_processor(config);
+        let response = processor.process(process_message).unwrap();
+        let envelope = response.envelope.as_ref().unwrap().envelope();
+        let event = envelope
+            .get_item_by(|item| item.ty() == &ItemType::Event)
+            .unwrap();
+
+        let event = Annotated::<Event>::from_json_bytes(&event.payload()).unwrap();
+        insta::assert_debug_snapshot!(event.value().unwrap()._dsc, @r###"
+        Object(
+            {
+                "environment": ~,
+                "public_key": String(
+                    "e12d836b15bb49d7bbf99e64295d995b",
+                ),
+                "release": ~,
+                "replay_id": ~,
+                "sample_rate": String(
+                    "0.2",
+                ),
+                "trace_id": String(
+                    "00000000-0000-0000-0000-000000000000",
+                ),
+                "transaction": ~,
+            },
+        )
+        "###);
+    }
+
     fn capture_test_event(transaction_name: &str, source: TransactionSource) -> Vec<String> {
         let mut event = Annotated::<Event>::from_json(
             r#"
@@ -3510,10 +3515,10 @@ mod tests {
                 "start_timestamp": 946684800.0,
                 "contexts": {
                     "trace": {
-                    "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
-                    "span_id": "fa90fdead5f74053",
-                    "op": "http.server",
-                    "type": "trace"
+                        "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+                        "span_id": "fa90fdead5f74053",
+                        "op": "http.server",
+                        "type": "trace"
                     }
                 },
                 "transaction_info": {

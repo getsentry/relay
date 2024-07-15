@@ -554,7 +554,6 @@ def test_rate_limit_metric_bucket(
     )
 
     metric_bucket_limit = 5
-    buckets_sent = 10
 
     project_id = 42
     projectconfig = mini_sentry.add_full_project_config(project_id)
@@ -591,19 +590,19 @@ def test_rate_limit_metric_bucket(
             "width": bucket_interval,
         }
 
-    def send_buckets(buckets):
-        relay.send_metrics_buckets(project_id, buckets)
-        sleep(0.2)
+    relay.send_metrics_buckets(
+        project_id,
+        [
+            make_bucket("d:transactions/measurements.lcp@millisecond", "d", [1.0])
+            for _ in range(metric_bucket_limit * 2)
+        ],
+    )
 
-    for _ in range(buckets_sent):
-        bucket = make_bucket("d:transactions/measurements.lcp@millisecond", "d", [1.0])
-        send_buckets(
-            [bucket],
-        )
-    produced_buckets = [m for m, _ in metrics_consumer.get_metrics()]
-
-    assert metric_bucket_limit < buckets_sent
-    assert len(produced_buckets) == metric_bucket_limit
+    with pytest.raises(
+        AssertionError, match="MetricsConsumer: Expected 6 messages, only got 5"
+    ):
+        # We will fail if we get more buckets than metric_bucket_limit.
+        metrics_consumer.get_metrics(n=metric_bucket_limit + 1)
 
 
 @pytest.mark.parametrize("violating_bucket", [2.0, 3.0])

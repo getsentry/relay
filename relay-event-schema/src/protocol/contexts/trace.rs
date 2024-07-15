@@ -6,7 +6,7 @@ use relay_jsonschema_derive::JsonSchema;
 use relay_protocol::{Annotated, Empty, Error, FromValue, IntoValue, Object, Value};
 
 use crate::processor::ProcessValue;
-use crate::protocol::{OperationType, OriginType, SpanStatus, ThreadId};
+use crate::protocol::{OperationType, OriginType, SpanData, SpanStatus};
 
 /// A 32-character hex string as described in the W3C trace context spec.
 #[derive(Clone, Debug, Default, PartialEq, Empty, IntoValue, ProcessValue)]
@@ -137,140 +137,13 @@ pub struct TraceContext {
     /// This flag only applies to events with [`Error`] type that have an associated dynamic sampling context.
     pub sampled: Annotated<bool>,
 
-    /// Arbitrary additional data on a trace.
+    /// Data of the trace's root span.
     #[metastructure(pii = "maybe", skip_serialization = "empty")]
-    pub data: Annotated<Data>,
+    pub data: Annotated<SpanData>,
 
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(additional_properties, retain = "true", pii = "maybe")]
     pub other: Object<Value>,
-}
-
-/// The arbitrary data on the trace.
-#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
-#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
-pub struct Data {
-    /// The current route in the application.
-    ///
-    /// Set by React Native SDK.
-    #[metastructure(pii = "maybe", skip_serialization = "empty")]
-    pub route: Annotated<Route>,
-    /// The previous route in the application
-    ///
-    /// Set by React Native SDK.
-    #[metastructure(field = "previousRoute", pii = "maybe", skip_serialization = "empty")]
-    pub previous_route: Annotated<Route>,
-
-    /// The destination name (ie queue/topic) that a producer/consumer acts on.
-    ///
-    /// Set by backend SDKs with messaging integration.
-    #[metastructure(field = "messaging.destination.name")]
-    pub messaging_destination_name: Annotated<String>,
-
-    /// The id of the message in the messaging event.
-    ///
-    /// Set by backend SDKs with messaging integration.
-    #[metastructure(field = "messaging.message.id")]
-    pub messaging_message_id: Annotated<String>,
-
-    /// The time duration that a message waited in queue before being received.
-    ///
-    /// Set by backend SDKs with messaging integration.
-    #[metastructure(field = "messaging.message.receive.latency")]
-    pub messaging_message_receive_latency: Annotated<Value>,
-
-    /// The number of times a message was redelivered.
-    ///
-    /// Set by backend SDKs with messaging integration.
-    #[metastructure(field = "messaging.message.retry.count")]
-    pub messaging_message_retry_count: Annotated<Value>,
-
-    /// The size of the message body in bytes.
-    ///
-    /// Set by backend SDKs with messaging integration.
-    #[metastructure(field = "messaging.message.body.size")]
-    pub messaging_message_body_size: Annotated<Value>,
-
-    /// The ID of the thread from which the transaction originated from
-    #[metastructure(field = "thread.id")]
-    pub thread_id: Annotated<ThreadId>,
-
-    /// The name of the thread from which the transaction originated from
-    #[metastructure(field = "thread.name")]
-    pub thread_name: Annotated<String>,
-
-    /// Additional arbitrary fields for forwards compatibility.
-    #[metastructure(
-        additional_properties,
-        retain = "true",
-        pii = "maybe",
-        skip_serialization = "empty"
-    )]
-    pub other: Object<Value>,
-}
-
-/// The route in the application, set by React Native SDK.
-#[derive(Clone, Debug, Default, PartialEq, Empty, IntoValue, ProcessValue)]
-#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
-pub struct Route {
-    /// The name of the route.
-    #[metastructure(pii = "maybe", skip_serialization = "empty")]
-    name: Annotated<String>,
-    /// Parameters assigned to this route.
-    #[metastructure(
-        pii = "true",
-        skip_serialization = "empty",
-        max_depth = 5,
-        max_bytes = 2048
-    )]
-    params: Annotated<Object<Value>>,
-
-    /// Additional arbitrary fields for forwards compatibility.
-    #[metastructure(
-        additional_properties,
-        retain = "true",
-        pii = "maybe",
-        skip_serialization = "empty"
-    )]
-    pub other: Object<Value>,
-}
-
-impl FromValue for Route {
-    fn from_value(value: Annotated<Value>) -> Annotated<Self>
-    where
-        Self: Sized,
-    {
-        match value {
-            Annotated(Some(Value::String(name)), meta) => Annotated(
-                Some(Route {
-                    name: Annotated::new(name),
-                    ..Default::default()
-                }),
-                meta,
-            ),
-            Annotated(Some(Value::Object(mut values)), meta) => {
-                let mut route: Route = Default::default();
-                if let Some(Annotated(Some(Value::String(name)), _)) = values.remove("name") {
-                    route.name = Annotated::new(name);
-                }
-                if let Some(Annotated(Some(Value::Object(params)), _)) = values.remove("params") {
-                    route.params = Annotated::new(params);
-                }
-
-                if !values.is_empty() {
-                    route.other = values;
-                }
-
-                Annotated(Some(route), meta)
-            }
-            Annotated(None, meta) => Annotated(None, meta),
-            Annotated(Some(value), mut meta) => {
-                meta.add_error(Error::expected("route expected to be an object"));
-                meta.set_original_value(Some(value));
-                Annotated(None, meta)
-            }
-        }
-    }
 }
 
 impl super::DefaultContext for TraceContext {
@@ -307,7 +180,7 @@ impl super::DefaultContext for TraceContext {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::protocol::Context;
+    use crate::protocol::{Context, Route};
 
     #[test]
     fn test_trace_context_roundtrip() {
@@ -341,7 +214,7 @@ mod tests {
             exclusive_time: Annotated::new(0.0),
             client_sample_rate: Annotated::new(0.5),
             origin: Annotated::new("auto.http".to_owned()),
-            data: Annotated::new(Data {
+            data: Annotated::new(SpanData {
                 route: Annotated::new(Route {
                     name: Annotated::new("/users".into()),
                     params: Annotated::new({
@@ -407,7 +280,7 @@ mod tests {
         let context = Annotated::new(Context::Trace(Box::new(TraceContext {
             trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
             span_id: Annotated::new(SpanId("fa90fdead5f74052".into())),
-            data: Annotated::new(Data {
+            data: Annotated::new(SpanData {
                 route: Annotated::new(Route {
                     name: Annotated::new("HomeRoute".into()),
                     ..Default::default()

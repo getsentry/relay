@@ -101,18 +101,11 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
             .is_enabled = true;
     }
 
-    // Enable transaction metrics for span (score.total), but only if double-write to transactions
-    // is disabled.
-    if !project_config
-        .features
-        .has(Feature::ExtractTransactionFromSegmentSpan)
-    {
-        let span_metrics_tx = config
-            .global_groups
-            .entry(GroupKey::SpanMetricsTx)
-            .or_default();
-        span_metrics_tx.is_enabled = true;
-    }
+    let span_metrics_tx = config
+        .global_groups
+        .entry(GroupKey::SpanMetricsTx)
+        .or_default();
+    span_metrics_tx.is_enabled = true;
 
     config._span_metrics_extended = true;
     if config.version == 0 {

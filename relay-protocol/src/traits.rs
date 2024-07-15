@@ -125,6 +125,104 @@ pub trait IntoValue: Debug + Empty {
     }
 }
 
+/// A type-erased iterator over a collection of [`Getter`]s.
+///
+/// This type is usually returned from [`Getter::get_iter`].
+///
+/// # Example
+///
+/// ```
+/// use relay_protocol::{Getter, GetterIter, Val};
+///
+/// struct Nested {
+///     nested_value: String,
+/// }
+///
+/// impl Getter for Nested {
+///     fn get_value(&self, path: &str) -> Option<Val<'_>> {
+///         Some(match path {
+///             "nested_value" => self.nested_value.as_str().into(),
+///                _ => return None,
+///         })
+///     }
+/// }
+///
+/// struct Root {
+///     value_1: String,
+///     value_2: Vec<Nested>,
+/// }
+///
+/// impl Getter for Root {
+///     fn get_value(&self, path: &str) -> Option<Val<'_>> {
+///         Some(match path.strip_prefix("root.")? {
+///             "value_1" => self.value_1.as_str().into(),
+///             _ => {
+///                 return None;
+///             }
+///         })
+///     }
+///
+///     // `get_iter` should return a `GetterIter` that can be used for iterating on the
+///     // `Getter`(s).
+///     fn get_iter(&self, path: &str) -> Option<GetterIter<'_>> {
+///         Some(match path.strip_prefix("root.")? {
+///             "value_2" => GetterIter::new(self.value_2.iter()),
+///             _ => return None,
+///         })
+///     }
+/// }
+///
+/// // An example usage given an instance that implement `Getter`.
+/// fn matches<T>(instance: &T) -> bool
+///     where T: Getter + ?Sized
+/// {
+///     let Some(mut getter_iter) = instance.get_iter("root.value_2") else {
+///         return false;
+///     };
+///
+///     for getter in getter_iter {
+///         let nested_value = getter.get_value("nested_value");
+///     }
+///
+///     true
+/// }
+/// ```
+pub struct GetterIter<'a> {
+    iter: Box<dyn Iterator<Item = &'a dyn Getter> + 'a>,
+}
+
+impl<'a> GetterIter<'a> {
+    /// Creates a new [`GetterIter`] given an iterator of a type that implements [`Getter`].
+    pub fn new<I, T>(iterator: I) -> Self
+    where
+        I: Iterator<Item = &'a T> + 'a,
+        T: Getter + 'a,
+    {
+        Self {
+            iter: Box::new(iterator.map(|v| v as &dyn Getter)),
+        }
+    }
+
+    /// Creates a new [`GetterIter`] given a collection of
+    /// [`Annotated`]s whose type implement [`Getter`].
+    pub fn new_annotated<I, T>(iterator: I) -> Self
+    where
+        I: IntoIterator<Item = &'a Annotated<T>>,
+        I::IntoIter: 'a,
+        T: Getter + 'a,
+    {
+        Self::new(iterator.into_iter().filter_map(Annotated::value))
+    }
+}
+
+impl<'a> Iterator for GetterIter<'a> {
+    type Item = &'a dyn Getter;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.iter.next()
+    }
+}
+
 /// A type that supports field access by paths.
 ///
 /// This is the runtime version of [`get_value!`](crate::get_value!) and additionally supports
@@ -195,4 +293,11 @@ pub trait IntoValue: Debug + Empty {
 pub trait Getter {
     /// Returns the serialized value of a field pointed to by a `path`.
     fn get_value(&self, path: &str) -> Option<Val<'_>>;
+
+    /// Returns an iterator over the array pointed to by a `path`.
+    ///
+    /// If the path does not exist or is not an array, this returns `None`. Note that `get_value` may not return a value for paths that expose an iterator.
+    fn get_iter(&self, _path: &str) -> Option<GetterIter<'_>> {
+        None
+    }
 }

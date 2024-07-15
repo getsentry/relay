@@ -8,8 +8,7 @@ use anyhow::{Context, Result};
 use axum::extract::FromRequestParts;
 use axum::http::request::Parts;
 use relay_cogs::Cogs;
-use relay_config::Config;
-use relay_metrics::Aggregator;
+use relay_config::{Config, RedisConnection};
 use relay_redis::RedisPool;
 use relay_system::{channel, Addr, Service};
 use tokio::runtime::Runtime;
@@ -17,6 +16,7 @@ use tokio::runtime::Runtime;
 use crate::services::cogs::{CogsService, CogsServiceRecorder};
 use crate::services::global_config::{GlobalConfigManager, GlobalConfigService};
 use crate::services::health_check::{HealthCheck, HealthCheckService};
+use crate::services::metrics::{Aggregator, RouterService};
 use crate::services::outcome::{OutcomeProducer, OutcomeProducerService, TrackOutcome};
 use crate::services::outcome_aggregator::OutcomeAggregator;
 use crate::services::processor::{self, EnvelopeProcessor, EnvelopeProcessorService};
@@ -100,12 +100,17 @@ impl ServiceState {
         let upstream_relay = UpstreamRelayService::new(config.clone()).start();
         let test_store = TestStoreService::new(config.clone()).start();
 
-        let redis_pool = match config.redis() {
-            Some(redis_config) if config.processing_enabled() => {
-                Some(RedisPool::new(redis_config).context(ServiceError::Redis)?)
-            }
-            _ => None,
-        };
+        let redis_pool = config
+            .redis()
+            .filter(|_| config.processing_enabled())
+            .map(|redis| match redis {
+                (RedisConnection::Single(server), options) => RedisPool::single(server, options),
+                (RedisConnection::Cluster(servers), options) => {
+                    RedisPool::cluster(servers.iter().map(|s| s.as_str()), options)
+                }
+            })
+            .transpose()
+            .context(ServiceError::Redis)?;
 
         let buffer_guard = Arc::new(BufferGuard::new(config.envelope_buffer_size()));
 
@@ -129,7 +134,7 @@ impl ServiceState {
 
         let (project_cache, project_cache_rx) = channel(ProjectCacheService::name());
 
-        let aggregator = relay_metrics::RouterService::new(
+        let aggregator = RouterService::new(
             config.default_aggregator_config().clone(),
             config.secondary_aggregator_configs().clone(),
             Some(project_cache.clone().recipient()),
@@ -172,8 +177,6 @@ impl ServiceState {
             #[cfg(feature = "processing")]
             redis_pool.clone(),
             processor::Addrs {
-                #[cfg(feature = "processing")]
-                envelope_processor: processor.clone(),
                 project_cache: project_cache.clone(),
                 outcome_aggregator: outcome_aggregator.clone(),
                 upstream_relay: upstream_relay.clone(),
@@ -182,8 +185,6 @@ impl ServiceState {
                 store_forwarder: store.clone(),
             },
             metric_outcomes.clone(),
-            #[cfg(feature = "processing")]
-            buffer_guard.clone(),
         )
         .spawn_handler(processor_rx);
 
@@ -202,7 +203,7 @@ impl ServiceState {
             buffer_guard.clone(),
             project_cache_services,
             metric_outcomes,
-            redis_pool,
+            redis_pool.clone(),
         )
         .spawn_handler(project_cache_rx);
 
@@ -214,7 +215,13 @@ impl ServiceState {
         )
         .start();
 
-        RelayStats::new(config.clone(), upstream_relay.clone()).start();
+        RelayStats::new(
+            config.clone(),
+            upstream_relay.clone(),
+            #[cfg(feature = "processing")]
+            redis_pool,
+        )
+        .start();
 
         let relay_cache = RelayCacheService::new(config.clone(), upstream_relay.clone()).start();
 

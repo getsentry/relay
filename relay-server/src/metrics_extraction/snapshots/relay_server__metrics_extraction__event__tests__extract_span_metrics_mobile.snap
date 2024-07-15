@@ -132,6 +132,8 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 user_agent_original: ~,
                 url_full: ~,
                 client_address: ~,
+                route: ~,
+                previous_route: ~,
                 other: {},
             },
             sentry_tags: {
@@ -447,6 +449,8 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 user_agent_original: ~,
                 url_full: ~,
                 client_address: ~,
+                route: ~,
+                previous_route: ~,
                 other: {},
             },
             sentry_tags: {
@@ -548,6 +552,8 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 user_agent_original: ~,
                 url_full: ~,
                 client_address: ~,
+                route: ~,
+                previous_route: ~,
                 other: {},
             },
             sentry_tags: {
@@ -697,6 +703,8 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 user_agent_original: ~,
                 url_full: ~,
                 client_address: ~,
+                route: ~,
+                previous_route: ~,
                 other: {},
             },
             sentry_tags: {
@@ -798,6 +806,8 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 user_agent_original: ~,
                 url_full: ~,
                 client_address: ~,
+                route: ~,
+                previous_route: ~,
                 other: {},
             },
             sentry_tags: {
