@@ -14,6 +14,7 @@ mod sleep_handle;
 mod split_off;
 mod statsd;
 
+mod memory;
 #[cfg(feature = "processing")]
 mod native;
 mod serde;
