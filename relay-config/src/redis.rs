@@ -5,6 +5,8 @@ use serde::{Deserialize, Serialize};
 #[serde(default)]
 pub struct PartialRedisConfigOptions {
     /// Maximum number of connections managed by the pool.
+    ///
+    /// Defaults to 2x `limits.max_thread_count`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub max_connections: Option<u32>,
     /// Sets the connection timeout used by the pool, in seconds.
