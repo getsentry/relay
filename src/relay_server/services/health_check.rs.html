@@ -325,6 +325,15 @@
 <a href="#325" id="325">325</a>
 <a href="#326" id="326">326</a>
 <a href="#327" id="327">327</a>
+<a href="#328" id="328">328</a>
+<a href="#329" id="329">329</a>
+<a href="#330" id="330">330</a>
+<a href="#331" id="331">331</a>
+<a href="#332" id="332">332</a>
+<a href="#333" id="333">333</a>
+<a href="#334" id="334">334</a>
+<a href="#335" id="335">335</a>
+<a href="#336" id="336">336</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::sync::Arc;
 
 <span class="kw">use </span>relay_config::Config;
@@ -441,19 +450,24 @@
             .refresh_memory_specifics(MemoryRefreshKind::new().with_ram());
 
         <span class="comment">// Use the cgroup if available in case Relay is running in a container.
+        // TODO: once we measured the new rss metric, we will remove `rss` and just used cgroup.rss
+        //  `used`.
         </span><span class="kw">let </span>memory = <span class="kw">match </span><span class="self">self</span>.system.cgroup_limits() {
             <span class="prelude-val">Some</span>(cgroup) =&gt; Memory {
                 used: cgroup.total_memory.saturating_sub(cgroup.free_memory),
                 total: cgroup.total_memory,
+                rss: cgroup.rss,
             },
             <span class="prelude-val">None </span>=&gt; Memory {
                 used: <span class="self">self</span>.system.used_memory(),
                 total: <span class="self">self</span>.system.total_memory(),
+                rss: <span class="self">self</span>.system.used_memory(),
             },
         };
 
         <span class="macro">metric!</span>(gauge(RelayGauges::SystemMemoryUsed) = memory.used);
         <span class="macro">metric!</span>(gauge(RelayGauges::SystemMemoryTotal) = memory.total);
+        <span class="macro">metric!</span>(gauge(RelayGauges::SystemMemoryRss) = memory.rss);
 
         <span class="kw">if </span>memory.used_percent() &gt;= <span class="self">self</span>.config.health_max_memory_watermark_percent() {
             <span class="macro">relay_log::error!</span>(
@@ -581,6 +595,7 @@
 </span><span class="kw">struct </span>Memory {
     <span class="kw">pub </span>used: u64,
     <span class="kw">pub </span>total: u64,
+    <span class="kw">pub </span>rss: u64,
 }
 
 <span class="kw">impl </span>Memory {
@@ -630,6 +645,7 @@
         <span class="kw">let </span>memory = Memory {
             used: <span class="number">100</span>,
             total: <span class="number">0</span>,
+            rss: <span class="number">0</span>,
         };
         <span class="macro">assert_eq!</span>(memory.used_percent(), <span class="number">1.0</span>);
     }
@@ -639,6 +655,7 @@
         <span class="kw">let </span>memory = Memory {
             used: <span class="number">0</span>,
             total: <span class="number">100</span>,
+            rss: <span class="number">0</span>,
         };
         <span class="macro">assert_eq!</span>(memory.used_percent(), <span class="number">0.0</span>);
     }
@@ -648,6 +665,7 @@
         <span class="kw">let </span>memory = Memory {
             used: <span class="number">50</span>,
             total: <span class="number">100</span>,
+            rss: <span class="number">0</span>,
         };
         <span class="macro">assert_eq!</span>(memory.used_percent(), <span class="number">0.5</span>);
     }

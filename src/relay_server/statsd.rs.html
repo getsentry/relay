@@ -909,6 +909,9 @@
 <a href="#909" id="909">909</a>
 <a href="#910" id="910">910</a>
 <a href="#911" id="911">911</a>
+<a href="#912" id="912">912</a>
+<a href="#913" id="913">913</a>
+<a href="#914" id="914">914</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric, TimerMetric};
 <span class="attr">#[cfg(doc)]
 </span><span class="kw">use </span>tokio::runtime::RuntimeMetrics;
@@ -945,6 +948,8 @@
     ///
     /// Relay uses the same value for its memory health check.
     </span>SystemMemoryTotal,
+    <span class="doccomment">/// The currently used Resident Set Size (RSS).
+    </span>SystemMemoryRss,
     <span class="doccomment">/// The number of connections currently being managed by the Redis Pool.
     </span><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
     </span>RedisPoolConnections,
@@ -963,6 +968,7 @@
             RelayGauges::BufferPeriodicUnspool =&gt; <span class="string">"buffer.unspool.periodic"</span>,
             RelayGauges::SystemMemoryUsed =&gt; <span class="string">"health.system_memory.used"</span>,
             RelayGauges::SystemMemoryTotal =&gt; <span class="string">"health.system_memory.total"</span>,
+            RelayGauges::SystemMemoryRss =&gt; <span class="string">"health.system_memory.rss"</span>,
             <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
             </span>RelayGauges::RedisPoolConnections =&gt; <span class="string">"redis.pool.connections"</span>,
             <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
