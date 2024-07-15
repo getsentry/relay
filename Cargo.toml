@@ -163,6 +163,8 @@ symbolic-unreal = { version = "12.1.2", default-features = false }
 syn = "1.0.14"
 syn2 = { package = "syn", version = "2.0.11" }
 synstructure = "0.12.3"
+# This dependency was added through git since we are experimenting with a fork of sysinfo which adds additional
+# capabilities of reading cgroups memory stats. Such stats are used in Relay to correctly determine memory usage.
 sysinfo = { git = "https://github.com/getsentry/sysinfo.git", rev = "e2e5d530600f96bdd79652c856918da23e5dd938" }
 tempfile = "3.5.0"
 thiserror = "1.0.38"
