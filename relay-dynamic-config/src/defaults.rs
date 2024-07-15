@@ -912,23 +912,9 @@ pub fn hardcoded_span_metrics() -> Vec<(GroupKey, Vec<MetricSpec>, Vec<TagMappin
                         LazyGlob::new("d:spans/duration_light@millisecond"),
                         LazyGlob::new("d:spans/exclusive_time_light@millisecond"),
                     ],
-                    tags: vec![
-                        Tag::with_key("environment")
-                            .from_field("span.sentry_tags.environment")
-                            .when(is_cache.clone() | is_queue_op.clone()),
-                        Tag::with_key("span.category")
-                            .from_field("span.sentry_tags.category")
-                            .always(),
-                        Tag::with_key("span.description")
-                            .from_field("span.sentry_tags.description")
-                            .always(),
-                        Tag::with_key("span.group")
-                            .from_field("span.sentry_tags.group")
-                            .always(),
-                        Tag::with_key("span.op")
-                            .from_field("span.sentry_tags.op")
-                            .always(),
-                    ],
+                    tags: vec![Tag::with_key("environment")
+                        .from_field("span.sentry_tags.environment")
+                        .when(is_cache.clone() | is_queue_op.clone())],
                 },
             ],
         ),
