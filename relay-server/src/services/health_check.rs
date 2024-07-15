@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
-use relay_config::{Config, RelayMode};
-use relay_metrics::{AcceptsMetrics, Aggregator};
+use relay_config::Config;
 use relay_statsd::metric;
 use relay_system::{Addr, AsyncResponse, Controller, FromMessage, Interface, Sender, Service};
 use std::future::Future;
@@ -9,8 +8,9 @@ use sysinfo::{MemoryRefreshKind, System};
 use tokio::sync::watch;
 use tokio::time::{timeout, Instant};
 
+use crate::services::metrics::{AcceptsMetrics, Aggregator};
 use crate::services::project_cache::{ProjectCache, SpoolHealth};
-use crate::services::upstream::{IsAuthenticated, IsNetworkOutage, UpstreamRelay};
+use crate::services::upstream::{IsAuthenticated, UpstreamRelay};
 use crate::statsd::{RelayGauges, RelayTimers};
 
 /// Checks whether Relay is alive and healthy based on its variant.
@@ -114,19 +114,24 @@ impl HealthCheckService {
             .refresh_memory_specifics(MemoryRefreshKind::new().with_ram());
 
         // Use the cgroup if available in case Relay is running in a container.
+        // TODO: once we measured the new rss metric, we will remove `rss` and just used cgroup.rss
+        //  `used`.
         let memory = match self.system.cgroup_limits() {
             Some(cgroup) => Memory {
                 used: cgroup.total_memory.saturating_sub(cgroup.free_memory),
                 total: cgroup.total_memory,
+                rss: cgroup.rss,
             },
             None => Memory {
                 used: self.system.used_memory(),
                 total: self.system.total_memory(),
+                rss: self.system.used_memory(),
             },
         };
 
         metric!(gauge(RelayGauges::SystemMemoryUsed) = memory.used);
         metric!(gauge(RelayGauges::SystemMemoryTotal) = memory.total);
+        metric!(gauge(RelayGauges::SystemMemoryRss) = memory.rss);
 
         if memory.used_percent() >= self.config.health_max_memory_watermark_percent() {
             relay_log::error!(
@@ -178,18 +183,6 @@ impl HealthCheckService {
             .map_or(Status::Unhealthy, Status::from)
     }
 
-    async fn network_outage_probe(&self) -> Status {
-        // Internal metric that we need to be logged in recurring intervals. This is a form of
-        // health check, but it does not contribute to the status of this service.
-        if self.config.relay_mode() == RelayMode::Managed {
-            if let Ok(is_outage) = self.upstream_relay.send(IsNetworkOutage).await {
-                metric!(gauge(RelayGauges::NetworkOutage) = u64::from(is_outage));
-            }
-        }
-
-        Status::Healthy
-    }
-
     async fn probe(&self, name: &'static str, fut: impl Future<Output = Status>) -> Status {
         match timeout(self.config.health_probe_timeout(), fut).await {
             Err(_) => {
@@ -208,12 +201,11 @@ impl HealthCheckService {
         // System memory is sync and requires mutable access, but we still want to log errors.
         let sys_mem = self.system_memory_probe();
 
-        let (sys_mem, auth, agg, proj, _) = tokio::join!(
+        let (sys_mem, auth, agg, proj) = tokio::join!(
             self.probe("system memory", async { sys_mem }),
             self.probe("auth", self.auth_probe()),
             self.probe("aggregator", self.aggregator_probe()),
             self.probe("spool health", self.spool_health_probe()),
-            self.probe("network outage", self.network_outage_probe()),
         );
 
         Status::from_iter([sys_mem, auth, agg, proj])
@@ -267,6 +259,7 @@ impl Service for HealthCheckService {
 struct Memory {
     pub used: u64,
     pub total: u64,
+    pub rss: u64,
 }
 
 impl Memory {
@@ -316,6 +309,7 @@ mod tests {
         let memory = Memory {
             used: 100,
             total: 0,
+            rss: 0,
         };
         assert_eq!(memory.used_percent(), 1.0);
     }
@@ -325,6 +319,7 @@ mod tests {
         let memory = Memory {
             used: 0,
             total: 100,
+            rss: 0,
         };
         assert_eq!(memory.used_percent(), 0.0);
     }
@@ -334,6 +329,7 @@ mod tests {
         let memory = Memory {
             used: 50,
             total: 100,
+            rss: 0,
         };
         assert_eq!(memory.used_percent(), 0.5);
     }

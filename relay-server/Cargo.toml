@@ -112,9 +112,9 @@ symbolic-common = { workspace = true, optional = true, default-features = false 
 symbolic-unreal = { workspace = true, optional = true, default-features = false, features = [
     "serde",
 ] }
-sysinfo = { workspace = true, default-features = false }
+sysinfo = { workspace = true }
 thiserror = { workspace = true }
-tokio = { workspace = true, features = ["rt-multi-thread"] }
+tokio = { workspace = true, features = ["rt", "rt-multi-thread"] }
 tower = { workspace = true, default-features = false }
 tower-http = { workspace = true, default-features = false, features = [
     "catch-panic",

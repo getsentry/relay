@@ -1,4 +1,6 @@
 use relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric, TimerMetric};
+#[cfg(doc)]
+use tokio::runtime::RuntimeMetrics;
 
 /// Gauge metrics used by Relay
 pub enum RelayGauges {
@@ -32,6 +34,14 @@ pub enum RelayGauges {
     ///
     /// Relay uses the same value for its memory health check.
     SystemMemoryTotal,
+    /// The currently used Resident Set Size (RSS).
+    SystemMemoryRss,
+    /// The number of connections currently being managed by the Redis Pool.
+    #[cfg(feature = "processing")]
+    RedisPoolConnections,
+    /// The number of idle connections in the Redis Pool.
+    #[cfg(feature = "processing")]
+    RedisPoolIdleConnections,
 }
 
 impl GaugeMetric for RelayGauges {
@@ -44,6 +54,100 @@ impl GaugeMetric for RelayGauges {
             RelayGauges::BufferPeriodicUnspool => "buffer.unspool.periodic",
             RelayGauges::SystemMemoryUsed => "health.system_memory.used",
             RelayGauges::SystemMemoryTotal => "health.system_memory.total",
+            RelayGauges::SystemMemoryRss => "health.system_memory.rss",
+            #[cfg(feature = "processing")]
+            RelayGauges::RedisPoolConnections => "redis.pool.connections",
+            #[cfg(feature = "processing")]
+            RelayGauges::RedisPoolIdleConnections => "redis.pool.idle_connections",
+        }
+    }
+}
+
+/// Gauge metrics collected from the Tokio Runtime.
+pub enum TokioGauges {
+    /// Exposes [`RuntimeMetrics::active_tasks_count`].
+    ActiveTasksCount,
+    /// Exposes [`RuntimeMetrics::blocking_queue_depth`].
+    BlockingQueueDepth,
+    /// Exposes [`RuntimeMetrics::budget_forced_yield_count`].
+    BudgetForcedYieldCount,
+    /// Exposes [`RuntimeMetrics::num_blocking_threads`].
+    NumBlockingThreads,
+    /// Exposes [`RuntimeMetrics::num_idle_blocking_threads`].
+    NumIdleBlockingThreads,
+    /// Exposes [`RuntimeMetrics::num_workers`].
+    NumWorkers,
+    /// Exposes [`RuntimeMetrics::worker_local_queue_depth`].
+    ///
+    /// This metric is tagged with:
+    /// - `worker`: the worker id.
+    WorkerLocalQueueDepth,
+    /// Exposes [`RuntimeMetrics::worker_local_schedule_count`].
+    ///
+    /// This metric is tagged with:
+    /// - `worker`: the worker id.
+    WorkerLocalScheduleCount,
+    /// Exposes [`RuntimeMetrics::worker_mean_poll_time`].
+    ///
+    /// This metric is tagged with:
+    /// - `worker`: the worker id.
+    WorkerMeanPollTime,
+    /// Exposes [`RuntimeMetrics::worker_noop_count`].
+    ///
+    /// This metric is tagged with:
+    /// - `worker`: the worker id.
+    WorkerNoopCount,
+    /// Exposes [`RuntimeMetrics::worker_overflow_count`].
+    ///
+    /// This metric is tagged with:
+    /// - `worker`: the worker id.
+    WorkerOverflowCount,
+    /// Exposes [`RuntimeMetrics::worker_park_count`].
+    ///
+    /// This metric is tagged with:
+    /// - `worker`: the worker id.
+    WorkerParkCount,
+    /// Exposes [`RuntimeMetrics::worker_poll_count`].
+    ///
+    /// This metric is tagged with:
+    /// - `worker`: the worker id.
+    WorkerPollCount,
+    /// Exposes [`RuntimeMetrics::worker_steal_count`].
+    ///
+    /// This metric is tagged with:
+    /// - `worker`: the worker id.
+    WorkerStealCount,
+    /// Exposes [`RuntimeMetrics::worker_steal_operations`].
+    ///
+    /// This metric is tagged with:
+    /// - `worker`: the worker id.
+    WorkerStealOperations,
+    /// Exposes [`RuntimeMetrics::worker_total_busy_duration`].
+    ///
+    /// This metric is tagged with:
+    /// - `worker`: the worker id.
+    WorkerTotalBusyDuration,
+}
+
+impl GaugeMetric for TokioGauges {
+    fn name(&self) -> &'static str {
+        match self {
+            TokioGauges::ActiveTasksCount => "tokio.active_task_count",
+            TokioGauges::BlockingQueueDepth => "tokio.blocking_queue_depth",
+            TokioGauges::BudgetForcedYieldCount => "tokio.budget_forced_yield_count",
+            TokioGauges::NumBlockingThreads => "tokio.num_blocking_threads",
+            TokioGauges::NumIdleBlockingThreads => "tokio.num_idle_blocking_threads",
+            TokioGauges::NumWorkers => "tokio.num_workers",
+            TokioGauges::WorkerLocalQueueDepth => "tokio.worker_local_queue_depth",
+            TokioGauges::WorkerLocalScheduleCount => "tokio.worker_local_schedule_count",
+            TokioGauges::WorkerMeanPollTime => "tokio.worker_mean_poll_time",
+            TokioGauges::WorkerNoopCount => "tokio.worker_noop_count",
+            TokioGauges::WorkerOverflowCount => "tokio.worker_overflow_count",
+            TokioGauges::WorkerParkCount => "tokio.worker_park_count",
+            TokioGauges::WorkerPollCount => "tokio.worker_poll_count",
+            TokioGauges::WorkerStealCount => "tokio.worker_steal_count",
+            TokioGauges::WorkerStealOperations => "tokio.worker_steal_operations",
+            TokioGauges::WorkerTotalBusyDuration => "tokio.worker_total_busy_duration",
         }
     }
 }
@@ -167,29 +271,39 @@ pub enum RelayHistograms {
     ///   - `route`: The endpoint that was called on the upstream.
     ///   - `status-code`: The status code of the request when available, otherwise "-".
     UpstreamRetries,
-
     /// Size of envelopes sent over HTTP in bytes.
     UpstreamQueryBodySize,
-
     /// Size of queries (projectconfig queries, i.e. the request payload, not the response) sent by
     /// Relay over HTTP in bytes.
     UpstreamEnvelopeBodySize,
-
     /// Size of batched global metrics requests sent by Relay over HTTP in bytes.
     UpstreamMetricsBodySize,
-
     /// Distribution of flush buckets over partition keys.
     ///
     /// The distribution of buckets should be even.
     /// If it is not, this metric should expose it.
     PartitionKeys,
-
-    /// Measures how many transactions were created from segment spans in a single envelope.
-    #[cfg(feature = "processing")]
-    TransactionsFromSpansPerEnvelope,
-
     /// Measures how many splits were performed when sending out a partition.
     PartitionSplits,
+    /// The total number of metric buckets flushed in a cycle across all projects.
+    ///
+    /// This metric is tagged with:
+    ///  - `aggregator`: The name of the metrics aggregator (usually `"default"`).
+    BucketsFlushed,
+    /// The number of metric buckets flushed in a cycle for each project.
+    ///
+    /// Relay scans metric buckets in regular intervals and flushes expired buckets. This histogram
+    /// is logged for each project that is being flushed. The count of the histogram values is
+    /// equivalent to the number of projects being flushed.
+    ///
+    /// This metric is tagged with:
+    ///  - `aggregator`: The name of the metrics aggregator (usually `"default"`).
+    BucketsFlushedPerProject,
+    /// The number of metric partitions flushed in a cycle.
+    ///
+    /// This metric is tagged with:
+    ///  - `aggregator`: The name of the metrics aggregator (usually `"default"`).
+    PartitionsFlushed,
 }
 
 impl HistogramMetric for RelayHistograms {
@@ -223,11 +337,10 @@ impl HistogramMetric for RelayHistograms {
             RelayHistograms::UpstreamEnvelopeBodySize => "upstream.envelope.body_size",
             RelayHistograms::UpstreamMetricsBodySize => "upstream.metrics.body_size",
             RelayHistograms::PartitionKeys => "metrics.buckets.partition_keys",
-            #[cfg(feature = "processing")]
-            RelayHistograms::TransactionsFromSpansPerEnvelope => {
-                "transactions_from_spans_per_envelope"
-            }
             RelayHistograms::PartitionSplits => "partition_splits",
+            RelayHistograms::BucketsFlushed => "metrics.buckets.flushed",
+            RelayHistograms::BucketsFlushedPerProject => "metrics.buckets.flushed_per_project",
+            RelayHistograms::PartitionsFlushed => "metrics.partitions.flushed",
         }
     }
 }
@@ -404,6 +517,11 @@ pub enum RelayTimers {
     ///  - `count`: How many items matching the data category are contained in the batch.
     #[cfg(feature = "processing")]
     RateLimitBucketsDuration,
+    /// Timing in milliseconds for processing a message in the aggregator service.
+    ///
+    /// This metric is tagged with:
+    ///  - `message`: The type of message that was processed.
+    AggregatorServiceDuration,
 }
 
 impl TimerMetric for RelayTimers {
@@ -441,6 +559,7 @@ impl TimerMetric for RelayTimers {
             RelayTimers::HealthCheckDuration => "health.message.duration",
             #[cfg(feature = "processing")]
             RelayTimers::RateLimitBucketsDuration => "processor.rate_limit_buckets",
+            RelayTimers::AggregatorServiceDuration => "metrics.aggregator.message.duration",
         }
     }
 }
@@ -664,32 +783,24 @@ pub enum RelayCounters {
     /// This metric is tagged with:
     ///  - `success`: whether deserializing the global config succeeded.
     GlobalConfigFetched,
-    /// Counts how many transactions were created from segment spans.
-    #[cfg(feature = "processing")]
-    TransactionsFromSpans,
-    /// Counter for when the DSC is missing from an event that comes from an SDK that should support
-    /// it.
-    MissingDynamicSamplingContext,
     /// The number of attachments processed in the same envelope as a user_report_v2 event.
     FeedbackAttachments,
-    /// All COGS tracked values before aggregation.
-    ///
-    /// This metric is tagged with:
-    /// - `resource_id`: The COGS resource id.
-    /// - `app_feature`: The COGS app feature.
-    CogsRaw,
     /// All COGS tracked values.
     ///
     /// This metric is tagged with:
     /// - `resource_id`: The COGS resource id.
     /// - `app_feature`: The COGS app feature.
     CogsUsage,
-    /// The decision on whether normalization should run for an event.
+    /// The amount of times metrics of a project have been flushed without the project being
+    /// fetched/available.
+    ProjectStateFlushMetricsNoProject,
+    /// Incremented every time a bucket is dropped.
+    ///
+    /// This should only happen when a project state is invalid during graceful shutdown.
     ///
     /// This metric is tagged with:
-    /// - `decision`: the decision relay makes on the event.
-    /// - `attachment_type`: the type of the attachment in the envelope.
-    NormalizationDecision,
+    ///  - `aggregator`: The name of the metrics aggregator (usually `"default"`).
+    BucketsDropped,
 }
 
 impl CounterMetric for RelayCounters {
@@ -728,13 +839,10 @@ impl CounterMetric for RelayCounters {
             RelayCounters::MetricsTransactionNameExtracted => "metrics.transaction_name",
             RelayCounters::OpenTelemetryEvent => "event.opentelemetry",
             RelayCounters::GlobalConfigFetched => "global_config.fetch",
-            #[cfg(feature = "processing")]
-            RelayCounters::TransactionsFromSpans => "transactions_from_spans",
-            RelayCounters::MissingDynamicSamplingContext => "missing_dynamic_sampling_context",
             RelayCounters::FeedbackAttachments => "processing.feedback_attachments",
-            RelayCounters::CogsRaw => "cogs.raw",
             RelayCounters::CogsUsage => "cogs.usage",
-            RelayCounters::NormalizationDecision => "normalization.decision",
+            RelayCounters::ProjectStateFlushMetricsNoProject => "project_state.metrics.no_project",
+            RelayCounters::BucketsDropped => "metrics.buckets.dropped",
         }
     }
 }

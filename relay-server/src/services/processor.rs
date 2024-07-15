@@ -18,25 +18,28 @@ use relay_base_schema::project::{ProjectId, ProjectKey};
 use relay_cogs::{AppFeature, Cogs, FeatureWeights, ResourceId, Token};
 use relay_common::time::UnixTimestamp;
 use relay_config::{Config, HttpEncoding, NormalizationLevel, RelayMode};
-use relay_dynamic_config::{CombinedMetricExtractionConfig, ErrorBoundary, Feature};
+use relay_dynamic_config::{CombinedMetricExtractionConfig, ErrorBoundary, Feature, GlobalConfig};
 use relay_event_normalization::{
-    normalize_event, validate_event_timestamps, validate_transaction, ClockDriftProcessor,
-    CombinedMeasurementsConfig, EventValidationConfig, GeoIpLookup, MeasurementsConfig,
-    NormalizationConfig, RawUserAgentInfo, TransactionNameConfig, TransactionValidationConfig,
+    normalize_event, validate_event, ClockDriftProcessor, CombinedMeasurementsConfig,
+    EventValidationConfig, GeoIpLookup, MeasurementsConfig, NormalizationConfig, RawUserAgentInfo,
+    TransactionNameConfig,
 };
 use relay_event_schema::processor::ProcessingAction;
 use relay_event_schema::protocol::{
     ClientReport, Event, EventId, EventType, IpAddr, Metrics, NetworkReportError,
 };
 use relay_filter::FilterStatKey;
-use relay_metrics::aggregator::AggregatorConfig;
-use relay_metrics::{Bucket, BucketMetadata, BucketView, BucketsView, MetricMeta, MetricNamespace};
+use relay_metrics::{
+    Bucket, BucketMetadata, BucketValue, BucketView, BucketsView, FiniteF64, MetricMeta,
+    MetricNamespace,
+};
 use relay_pii::PiiConfigError;
 use relay_profiling::ProfileId;
 use relay_protocol::{Annotated, Value};
 use relay_quotas::{DataCategory, Scoping};
 use relay_sampling::config::RuleId;
 use relay_sampling::evaluation::{ReservoirCounters, ReservoirEvaluator, SamplingDecision};
+use relay_sampling::DynamicSamplingContext;
 use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, NoResponse, Service};
 use reqwest::header;
@@ -47,14 +50,14 @@ use tokio::sync::Semaphore;
 use {
     crate::metrics::MetricsLimiter,
     crate::services::store::{Store, StoreEnvelope},
-    crate::utils::{sample, EnvelopeLimiter, ItemAction},
+    crate::utils::{sample, Enforcement, EnvelopeLimiter, ItemAction},
     itertools::Itertools,
     relay_cardinality::{
         CardinalityLimit, CardinalityLimiter, CardinalityLimitsSplit, RedisSetLimiter,
         RedisSetLimiterOptions,
     },
-    relay_dynamic_config::{CardinalityLimiterMode, GlobalConfig, MetricExtractionGroups},
-    relay_metrics::{Aggregator, MergeBuckets, RedisMetricMetaStore},
+    relay_dynamic_config::{CardinalityLimiterMode, MetricExtractionGroups},
+    relay_metrics::RedisMetricMetaStore,
     relay_quotas::{Quota, RateLimitingError, RateLimits, RedisRateLimiter},
     relay_redis::RedisPool,
     std::iter::Chain,
@@ -80,8 +83,6 @@ use crate::services::upstream::{
     SendRequest, UpstreamRelay, UpstreamRequest, UpstreamRequestError,
 };
 use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
-#[cfg(feature = "processing")]
-use crate::utils::BufferGuard;
 use crate::utils::{
     self, InvalidProcessingGroupType, ManagedEnvelope, SamplingResult, TypedEnvelope,
 };
@@ -585,10 +586,35 @@ type ExtractedEvent = (Annotated<Event>, usize);
 ///
 /// The container enforces that the extracted metrics are correctly tagged
 /// with the dynamic sampling decision.
-#[derive(Default, Debug)]
-pub struct ProcessingExtractedMetrics(ExtractedMetrics);
+#[derive(Debug)]
+pub struct ProcessingExtractedMetrics {
+    metrics: ExtractedMetrics,
+    project: Arc<ProjectState>,
+    global: Arc<GlobalConfig>,
+    extrapolation_factor: Option<FiniteF64>,
+}
 
 impl ProcessingExtractedMetrics {
+    pub fn new(
+        project: Arc<ProjectState>,
+        global: Arc<GlobalConfig>,
+        dsc: Option<&DynamicSamplingContext>,
+    ) -> Self {
+        let factor = match dsc.and_then(|dsc| dsc.sample_rate) {
+            // no need for extrapolation if sample rate is 1.0, and a sample rate of `0` or lower is
+            // invalid, in which case we also skip.
+            Some(rate) if rate > 0.0 && rate < 1.0 => FiniteF64::new(1.0 / rate),
+            _ => None,
+        };
+
+        Self {
+            metrics: ExtractedMetrics::default(),
+            project,
+            global,
+            extrapolation_factor: factor,
+        }
+    }
+
     /// Extends the contained metrics with [`ExtractedMetrics`].
     pub fn extend(
         &mut self,
@@ -609,7 +635,8 @@ impl ProcessingExtractedMetrics {
             bucket.metadata.extracted_from_indexed =
                 sampling_decision == Some(SamplingDecision::Keep);
         }
-        self.0.project_metrics.extend(buckets);
+        self.extrapolate(&mut buckets);
+        self.metrics.project_metrics.extend(buckets);
     }
 
     /// Extends the contained sampling metrics.
@@ -622,12 +649,8 @@ impl ProcessingExtractedMetrics {
             bucket.metadata.extracted_from_indexed =
                 sampling_decision == Some(SamplingDecision::Keep);
         }
-        self.0.sampling_metrics.extend(buckets);
-    }
-
-    /// Returns `true` if any project metrics are extracted.
-    pub fn has_project_metrics(&self) -> bool {
-        !self.0.project_metrics.is_empty()
+        self.extrapolate(&mut buckets);
+        self.metrics.sampling_metrics.extend(buckets);
     }
 
     /// Applies rate limits to the contained metrics.
@@ -635,12 +658,12 @@ impl ProcessingExtractedMetrics {
     /// This is used to apply rate limits which have been enforced on sampled items of an envelope
     /// to also consistently apply to the metrics extracted from these items.
     #[cfg(feature = "processing")]
-    fn enforce_limits(&mut self, scoping: Scoping, limits: &RateLimits) {
-        for (category, namespace) in [
-            (DataCategory::Transaction, MetricNamespace::Transactions),
-            (DataCategory::Span, MetricNamespace::Spans),
+    fn apply_enforcement(&mut self, enforcement: &Enforcement) {
+        for (namespace, limit) in [
+            (MetricNamespace::Transactions, &enforcement.event),
+            (MetricNamespace::Spans, &enforcement.spans),
         ] {
-            if !limits.check(scoping.item(category)).is_empty() {
+            if limit.is_active() {
                 relay_log::trace!(
                     "dropping {namespace} metrics, due to enforced limit on envelope"
                 );
@@ -651,35 +674,84 @@ impl ProcessingExtractedMetrics {
 
     #[cfg(feature = "processing")]
     fn retain(&mut self, mut f: impl FnMut(&Bucket) -> bool) {
-        self.0.project_metrics.retain(&mut f);
-        self.0.sampling_metrics.retain(&mut f);
+        self.metrics.project_metrics.retain(&mut f);
+        self.metrics.sampling_metrics.retain(&mut f);
     }
 
-    fn send_metrics(self, envelope: &Envelope, project_cache: Addr<ProjectCache>) {
-        let project_key = envelope.meta().public_key();
+    fn extrapolate(&self, buckets: &mut [Bucket]) {
+        let Some(factor) = self.extrapolation_factor else {
+            return;
+        };
 
-        let ExtractedMetrics {
-            project_metrics,
+        let extrapolate = match self.project.config().metric_extraction {
+            ErrorBoundary::Ok(ref config) if !config.extrapolate.is_empty() => &config.extrapolate,
+            _ => return,
+        };
+
+        let duplication = (factor.to_f64().round() as usize)
+            .min(self.global.options.extrapolation_duplication_limit)
+            .max(1);
+
+        for bucket in buckets {
+            if !extrapolate.matches(&bucket.name) {
+                continue;
+            }
+
+            match bucket.value {
+                BucketValue::Counter(ref mut counter) => {
+                    *counter = counter.saturating_mul(factor);
+                }
+                BucketValue::Distribution(ref mut dist) => {
+                    // Duplicate values in the distribution to ensure that higher sample rates are
+                    // represented correctly in the final distribution sketch. This is inefficient
+                    // and there are two ways to optimize this:
+                    //  1. Store the sample rate or weight directly in the distribution structure.
+                    //     Then duplicate on the fly in the kafka producer.
+                    //  2. Change the schema to include sample rates or weights and then extrapolate
+                    //     in storage.
+                    *dist = std::mem::take(dist)
+                        .into_iter()
+                        .flat_map(|f| std::iter::repeat(f).take(duplication))
+                        .collect();
+                }
+                BucketValue::Set(_) => {
+                    // do nothing for sets
+                }
+                BucketValue::Gauge(ref mut gauge) => {
+                    gauge.sum = gauge.sum.saturating_mul(factor);
+                    gauge.count = FiniteF64::new(gauge.count as f64)
+                        .map(|f| f.saturating_mul(factor).to_f64() as u64)
+                        .unwrap_or(u64::MAX);
+                }
+            }
+        }
+    }
+}
+
+fn send_metrics(metrics: ExtractedMetrics, envelope: &Envelope, project_cache: Addr<ProjectCache>) {
+    let project_key = envelope.meta().public_key();
+
+    let ExtractedMetrics {
+        project_metrics,
+        sampling_metrics,
+    } = metrics;
+
+    if !project_metrics.is_empty() {
+        project_cache.send(AddMetricBuckets::internal(project_key, project_metrics));
+    }
+
+    if !sampling_metrics.is_empty() {
+        // If no sampling project state is available, we associate the sampling
+        // metrics with the current project.
+        //
+        // project_without_tracing         -> metrics goes to self
+        // dependent_project_with_tracing  -> metrics goes to root
+        // root_project_with_tracing       -> metrics goes to root == self
+        let sampling_project_key = utils::get_sampling_key(envelope).unwrap_or(project_key);
+        project_cache.send(AddMetricBuckets::internal(
+            sampling_project_key,
             sampling_metrics,
-        } = self.0;
-
-        if !project_metrics.is_empty() {
-            project_cache.send(AddMetricBuckets::internal(project_key, project_metrics));
-        }
-
-        if !sampling_metrics.is_empty() {
-            // If no sampling project state is available, we associate the sampling
-            // metrics with the current project.
-            //
-            // project_without_tracing         -> metrics goes to self
-            // dependent_project_with_tracing  -> metrics goes to root
-            // root_project_with_tracing       -> metrics goes to root == self
-            let sampling_project_key = utils::get_sampling_key(envelope).unwrap_or(project_key);
-            project_cache.send(AddMetricBuckets::internal(
-                sampling_project_key,
-                sampling_metrics,
-            ));
-        }
+        ));
     }
 }
 
@@ -793,7 +865,7 @@ impl<'a, Group> ProcessEnvelopeState<'a, Group> {
 #[derive(Debug)]
 struct ProcessingStateResult {
     managed_envelope: TypedEnvelope<Processed>,
-    extracted_metrics: ProcessingExtractedMetrics,
+    extracted_metrics: ExtractedMetrics,
 }
 
 /// Response of the [`ProcessEnvelope`] message.
@@ -914,13 +986,6 @@ pub struct SubmitClientReports {
     pub scoping: Scoping,
 }
 
-/// Applies rate limits to metrics buckets and forwards them to the [`Aggregator`].
-#[cfg(feature = "processing")]
-#[derive(Debug)]
-pub struct RateLimitBuckets {
-    pub bucket_limiter: MetricsLimiter,
-}
-
 /// CPU-intensive processing tasks for envelopes.
 #[derive(Debug)]
 pub enum EnvelopeProcessor {
@@ -932,8 +997,6 @@ pub enum EnvelopeProcessor {
     EncodeMetricMeta(Box<EncodeMetricMeta>),
     SubmitEnvelope(Box<SubmitEnvelope>),
     SubmitClientReports(Box<SubmitClientReports>),
-    #[cfg(feature = "processing")]
-    RateLimitBuckets(RateLimitBuckets),
 }
 
 impl EnvelopeProcessor {
@@ -948,8 +1011,6 @@ impl EnvelopeProcessor {
             EnvelopeProcessor::EncodeMetricMeta(_) => "EncodeMetricMeta",
             EnvelopeProcessor::SubmitEnvelope(_) => "SubmitEnvelope",
             EnvelopeProcessor::SubmitClientReports(_) => "SubmitClientReports",
-            #[cfg(feature = "processing")]
-            EnvelopeProcessor::RateLimitBuckets(_) => "RateLimitBuckets",
         }
     }
 }
@@ -1020,15 +1081,6 @@ impl FromMessage<SubmitClientReports> for EnvelopeProcessor {
     }
 }
 
-#[cfg(feature = "processing")]
-impl FromMessage<RateLimitBuckets> for EnvelopeProcessor {
-    type Response = NoResponse;
-
-    fn from_message(message: RateLimitBuckets, _: ()) -> Self {
-        Self::RateLimitBuckets(message)
-    }
-}
-
 /// Service implementing the [`EnvelopeProcessor`] interface.
 ///
 /// This service handles messages in a worker pool with configurable concurrency.
@@ -1039,12 +1091,8 @@ pub struct EnvelopeProcessorService {
 
 /// Contains the addresses of services that the processor publishes to.
 pub struct Addrs {
-    #[cfg(feature = "processing")]
-    pub envelope_processor: Addr<EnvelopeProcessor>,
     pub project_cache: Addr<ProjectCache>,
     pub outcome_aggregator: Addr<TrackOutcome>,
-    #[cfg(feature = "processing")]
-    pub aggregator: Addr<Aggregator>,
     pub upstream_relay: Addr<UpstreamRelay>,
     pub test_store: Addr<TestStore>,
     #[cfg(feature = "processing")]
@@ -1054,12 +1102,8 @@ pub struct Addrs {
 impl Default for Addrs {
     fn default() -> Self {
         Addrs {
-            #[cfg(feature = "processing")]
-            envelope_processor: Addr::dummy(),
             project_cache: Addr::dummy(),
             outcome_aggregator: Addr::dummy(),
-            #[cfg(feature = "processing")]
-            aggregator: Addr::dummy(),
             upstream_relay: Addr::dummy(),
             test_store: Addr::dummy(),
             #[cfg(feature = "processing")]
@@ -1083,8 +1127,6 @@ struct InnerProcessor {
     #[cfg(feature = "processing")]
     cardinality_limiter: Option<CardinalityLimiter>,
     metric_outcomes: MetricOutcomes,
-    #[cfg(feature = "processing")]
-    buffer_guard: Arc<BufferGuard>,
 }
 
 impl EnvelopeProcessorService {
@@ -1096,7 +1138,6 @@ impl EnvelopeProcessorService {
         #[cfg(feature = "processing")] redis: Option<RedisPool>,
         addrs: Addrs,
         metric_outcomes: MetricOutcomes,
-        #[cfg(feature = "processing")] buffer_guard: Arc<BufferGuard>,
     ) -> Self {
         let geoip_lookup = config.geoip_path().and_then(|p| {
             match GeoIpLookup::open(p).context(ServiceError::GeoIp) {
@@ -1138,8 +1179,6 @@ impl EnvelopeProcessorService {
                 .map(CardinalityLimiter::new),
             metric_outcomes,
             config,
-            #[cfg(feature = "processing")]
-            buffer_guard,
         };
 
         Self {
@@ -1178,6 +1217,7 @@ impl EnvelopeProcessorService {
     /// This applies defaults to the envelope and initializes empty rate limits.
     fn prepare_state<G>(
         &self,
+        global_config: Arc<GlobalConfig>,
         mut managed_envelope: TypedEnvelope<G>,
         project_id: ProjectId,
         project_state: Arc<ProjectState>,
@@ -1212,13 +1252,23 @@ impl EnvelopeProcessorService {
             reservoir.set_redis(org_id, redis_pool);
         }
 
+        let extracted_metrics = ProcessingExtractedMetrics::new(
+            project_state.clone(),
+            global_config,
+            // The processor sometimes computes a DSC just-in-time for dynamic sampling if it is not
+            // provided by the SDK so that trace rules can still match. Metric extraction won't see
+            // this generated DSC. However, metric extraction just needs the client sample rate,
+            // which is never affected by this. Hence, this operation is safe.
+            managed_envelope.envelope().dsc(),
+        );
+
         ProcessEnvelopeState {
             event: Annotated::empty(),
             event_metrics_extracted: false,
             spans_extracted: false,
             metrics: Metrics::default(),
             sample_rates: None,
-            extracted_metrics: Default::default(),
+            extracted_metrics,
             project_state,
             sampling_project_state,
             project_id,
@@ -1262,13 +1312,20 @@ impl EnvelopeProcessorService {
 
         let scoping = state.managed_envelope.scoping();
         let (enforcement, limits) = metric!(timer(RelayTimers::EventProcessingRateLimiting), {
-            envelope_limiter.enforce(state.managed_envelope.envelope_mut(), &scoping)?
+            envelope_limiter.compute(state.managed_envelope.envelope_mut(), &scoping)?
         });
+        let event_active = enforcement.is_event_active();
 
         // Use the same rate limits as used for the envelope on the metrics.
         // Those rate limits should not be checked for expiry or similar to ensure a consistent
         // limiting of envelope items and metrics.
-        state.extracted_metrics.enforce_limits(scoping, &limits);
+        state.extracted_metrics.apply_enforcement(&enforcement);
+        enforcement.apply_with_outcomes(&mut state.managed_envelope);
+
+        if event_active {
+            state.remove_event();
+            debug_assert!(state.envelope().is_empty());
+        }
 
         if !limits.is_empty() {
             self.inner
@@ -1276,17 +1333,6 @@ impl EnvelopeProcessorService {
                 .project_cache
                 .send(UpdateRateLimits::new(scoping.project_key, limits));
         }
-
-        if enforcement.event_active() {
-            state.remove_event();
-            debug_assert!(state.envelope().is_empty());
-        }
-
-        enforcement.track_outcomes(
-            state.envelope(),
-            &state.managed_envelope.scoping(),
-            self.inner.addrs.outcome_aggregator.clone(),
-        );
 
         Ok(())
     }
@@ -1301,7 +1347,7 @@ impl EnvelopeProcessorService {
         if state.event_metrics_extracted {
             return Ok(());
         }
-        let Some(event) = state.event.value() else {
+        let Some(event) = state.event.value_mut() else {
             return Ok(());
         };
 
@@ -1368,9 +1414,11 @@ impl EnvelopeProcessorService {
             self.inner
                 .config
                 .aggregator_config_for(MetricNamespace::Spans)
+                .aggregator
                 .max_tag_value_length,
             global.options.span_extraction_sample_rate,
         );
+
         state
             .extracted_metrics
             .extend_project_metrics(metrics, Some(sampling_decision));
@@ -1404,19 +1452,7 @@ impl EnvelopeProcessorService {
         &self,
         state: &mut ProcessEnvelopeState<G>,
     ) -> Result<(), ProcessingError> {
-        let attachment_type = state
-            .envelope()
-            .get_item_by(|item| item.attachment_type().is_some())
-            .and_then(|item| item.attachment_type())
-            .map(|ty| ty.to_string());
-
         if !state.has_event() {
-            metric!(
-                counter(RelayCounters::NormalizationDecision) += 1,
-                attachment_type = attachment_type.as_deref().unwrap_or("none"),
-                decision = "no_event"
-            );
-
             // NOTE(iker): only processing relays create events from
             // attachments, so these events won't be normalized in
             // non-processing relays even if the config is set to run full
@@ -1424,36 +1460,16 @@ impl EnvelopeProcessorService {
             return Ok(());
         }
 
-        let options = &self.inner.global_config.current().options;
-
         let full_normalization = match self.inner.config.normalization_level() {
             NormalizationLevel::Full => true,
             NormalizationLevel::Default => {
-                if self.inner.config.processing_enabled()
-                    && options.processing_disable_normalization
-                    && state.event_fully_normalized
-                {
-                    metric!(
-                        counter(RelayCounters::NormalizationDecision) += 1,
-                        attachment_type = attachment_type.as_deref().unwrap_or("none"),
-                        decision = "skip_normalized"
-                    );
+                if self.inner.config.processing_enabled() && state.event_fully_normalized {
                     return Ok(());
-                } else {
-                    self.inner.config.processing_enabled() || options.force_full_normalization
                 }
+
+                self.inner.config.processing_enabled()
             }
         };
-
-        metric!(
-            counter(RelayCounters::NormalizationDecision) += 1,
-            attachment_type = attachment_type.as_deref().unwrap_or("none"),
-            decision = if full_normalization {
-                "full_normalization"
-            } else {
-                "limited_normalization"
-            }
-        );
 
         let request_meta = state.managed_envelope.envelope().meta();
         let client_ipaddr = request_meta.client_addr().map(IpAddr::from);
@@ -1467,16 +1483,13 @@ impl EnvelopeProcessorService {
         let ai_model_costs = global_config.ai_model_costs.clone().ok();
 
         utils::log_transaction_name_metrics(&mut state.event, |event| {
-            let tx_validation_config = TransactionValidationConfig {
-                timestamp_range: Some(
-                    AggregatorConfig::from(transaction_aggregator_config).timestamp_range(),
-                ),
-                is_validated: false,
-            };
             let event_validation_config = EventValidationConfig {
                 received_at: Some(state.managed_envelope.received_at()),
                 max_secs_in_past: Some(self.inner.config.max_secs_in_past()),
                 max_secs_in_future: Some(self.inner.config.max_secs_in_future()),
+                transaction_timestamp_range: Some(
+                    transaction_aggregator_config.aggregator.timestamp_range(),
+                ),
                 is_validated: false,
             };
 
@@ -1509,6 +1522,7 @@ impl EnvelopeProcessorService {
                 },
                 max_name_and_unit_len: Some(
                     transaction_aggregator_config
+                        .aggregator
                         .max_name_length
                         .saturating_sub(MeasurementsConfig::MEASUREMENT_MRI_OVERHEAD),
                 ),
@@ -1531,6 +1545,7 @@ impl EnvelopeProcessorService {
                     .inner
                     .config
                     .aggregator_config_for(MetricNamespace::Spans)
+                    .aggregator
                     .max_tag_value_length,
                 is_renormalize: false,
                 remove_other: full_normalization,
@@ -1552,9 +1567,7 @@ impl EnvelopeProcessorService {
             };
 
             metric!(timer(RelayTimers::EventProcessingNormalization), {
-                validate_event_timestamps(event, &event_validation_config)
-                    .map_err(|_| ProcessingError::InvalidTransaction)?;
-                validate_transaction(event, &tx_validation_config)
+                validate_event(event, &event_validation_config)
                     .map_err(|_| ProcessingError::InvalidTransaction)?;
                 normalize_event(event, &normalization_config);
                 if full_normalization && event::has_unprintable_fields(event) {
@@ -1581,11 +1594,7 @@ impl EnvelopeProcessorService {
             unreal::expand(state, &self.inner.config)?;
         });
 
-        event::extract(
-            state,
-            &self.inner.config,
-            &self.inner.global_config.current(),
-        )?;
+        event::extract(state, &self.inner.config)?;
 
         if_processing!(self.inner.config, {
             unreal::process(state)?;
@@ -1630,11 +1639,7 @@ impl EnvelopeProcessorService {
     ) -> Result<(), ProcessingError> {
         let global_config = self.inner.global_config.current();
 
-        event::extract(
-            state,
-            &self.inner.config,
-            &self.inner.global_config.current(),
-        )?;
+        event::extract(state, &self.inner.config)?;
 
         let profile_id = profile::filter(state);
         profile::transfer_id(state, profile_id);
@@ -1661,15 +1666,16 @@ impl EnvelopeProcessorService {
         };
 
         if let Some(outcome) = sampling_result.into_dropped_outcome() {
+            let keep_profiles = dynamic_sampling::forward_unsampled_profiles(state, &global_config);
+            // Process profiles before dropping the transaction, if necessary.
+            // Before metric extraction to make sure the profile count is reflected correctly.
+            let profile_id = match keep_profiles {
+                true => profile::process(state, &self.inner.config),
+                false => profile_id,
+            };
+
             // Extract metrics here, we're about to drop the event/transaction.
             self.extract_transaction_metrics(state, SamplingDecision::Drop, profile_id)?;
-
-            let keep_profiles = dynamic_sampling::forward_unsampled_profiles(state, &global_config);
-
-            // Process profiles before dropping the transaction, if necessary.
-            if keep_profiles {
-                profile::process(state, &self.inner.config);
-            }
 
             dynamic_sampling::drop_unsampled_items(state, outcome, keep_profiles);
 
@@ -1691,10 +1697,12 @@ impl EnvelopeProcessorService {
         attachment::scrub(state);
 
         if_processing!(self.inner.config, {
+            // Process profiles before extracting metrics, to make sure they are removed if they are invalid.
+            let profile_id = profile::process(state, &self.inner.config);
+            profile::transfer_id(state, profile_id);
+
             // Always extract metrics in processing Relays for sampled items.
             self.extract_transaction_metrics(state, SamplingDecision::Keep, profile_id)?;
-
-            profile::process(state, &self.inner.config);
 
             if state
                 .project_state
@@ -1821,13 +1829,8 @@ impl EnvelopeProcessorService {
         if_processing!(self.inner.config, {
             let global_config = self.inner.global_config.current();
 
-            span::process(
-                state,
-                self.inner.config.clone(),
-                &global_config,
-                &self.inner.addrs,
-                &self.inner.buffer_guard,
-            );
+            span::process(state, self.inner.config.clone(), &global_config);
+
             self.enforce_quotas(state)?;
         });
         Ok(())
@@ -1858,6 +1861,7 @@ impl EnvelopeProcessorService {
             ($fn:ident) => {{
                 let managed_envelope = managed_envelope.try_into()?;
                 let mut state = self.prepare_state(
+                    self.inner.global_config.current(),
                     managed_envelope,
                     project_id,
                     project_state,
@@ -1867,7 +1871,7 @@ impl EnvelopeProcessorService {
                 match self.$fn(&mut state) {
                     Ok(()) => Ok(ProcessingStateResult {
                         managed_envelope: state.managed_envelope.into_processed(),
-                        extracted_metrics: state.extracted_metrics,
+                        extracted_metrics: state.extracted_metrics.metrics,
                     }),
                     Err(e) => {
                         if let Some(outcome) = e.to_outcome() {
@@ -1993,9 +1997,9 @@ impl EnvelopeProcessorService {
                         // requires recomputation of the context.
                         state.managed_envelope.update();
 
-                        let has_metrics = state.extracted_metrics.has_project_metrics();
-
-                        state.extracted_metrics.send_metrics(
+                        let has_metrics = !state.extracted_metrics.project_metrics.is_empty();
+                        send_metrics(
+                            state.extracted_metrics,
                             state.managed_envelope.envelope(),
                             self.inner.addrs.project_cache.clone(),
                         );
@@ -2302,13 +2306,69 @@ impl EnvelopeProcessorService {
         });
     }
 
-    /// Check and apply rate limits to metrics buckets.
     #[cfg(feature = "processing")]
-    fn handle_rate_limit_buckets(&self, message: RateLimitBuckets) {
-        use relay_quotas::RateLimits;
+    fn rate_limit_buckets(
+        &self,
+        scoping: Scoping,
+        project_state: &ProjectState,
+        mut buckets: Vec<Bucket>,
+    ) -> Vec<Bucket> {
+        let Some(rate_limiter) = self.inner.rate_limiter.as_ref() else {
+            return buckets;
+        };
 
+        let global_config = self.inner.global_config.current();
+        let namespaces = buckets
+            .iter()
+            .filter_map(|bucket| bucket.name.try_namespace())
+            .counts();
+
+        let quotas = CombinedQuotas::new(&global_config, project_state.get_quotas());
+
+        for (namespace, quantity) in namespaces {
+            let item_scoping = scoping.metric_bucket(namespace);
+
+            let limits = match rate_limiter.is_rate_limited(quotas, item_scoping, quantity, false) {
+                Ok(limits) => limits,
+                Err(err) => {
+                    relay_log::error!(
+                        error = &err as &dyn std::error::Error,
+                        "failed to check redis rate limits"
+                    );
+                    break;
+                }
+            };
+
+            if limits.is_limited() {
+                let rejected;
+                (buckets, rejected) = utils::split_off(buckets, |bucket| {
+                    bucket.name.try_namespace() == Some(namespace)
+                });
+
+                let reason_code = limits.longest().and_then(|limit| limit.reason_code.clone());
+                self.inner.metric_outcomes.track(
+                    scoping,
+                    &rejected,
+                    Outcome::RateLimited(reason_code),
+                );
+
+                self.inner.addrs.project_cache.send(UpdateRateLimits::new(
+                    item_scoping.scoping.project_key,
+                    limits,
+                ));
+            }
+        }
+
+        match MetricsLimiter::create(buckets, project_state.config.quotas.clone(), scoping) {
+            Err(buckets) => buckets,
+            Ok(bucket_limiter) => self.apply_other_rate_limits(bucket_limiter),
+        }
+    }
+
+    /// Check and apply rate limits to metrics buckets for transactions and spans.
+    #[cfg(feature = "processing")]
+    fn apply_other_rate_limits(&self, mut bucket_limiter: MetricsLimiter) -> Vec<Bucket> {
         relay_log::trace!("handle_rate_limit_buckets");
-        let RateLimitBuckets { mut bucket_limiter } = message;
 
         let scoping = *bucket_limiter.scoping();
 
@@ -2377,88 +2437,7 @@ impl EnvelopeProcessorService {
             }
         }
 
-        let project_key = bucket_limiter.scoping().project_key;
-        let buckets = bucket_limiter.into_buckets();
-
-        if !buckets.is_empty() {
-            self.inner
-                .addrs
-                .aggregator
-                .send(MergeBuckets::new(project_key, buckets));
-        }
-    }
-
-    #[cfg(feature = "processing")]
-    fn rate_limit_buckets_by_namespace(
-        &self,
-        scoping: Scoping,
-        buckets: Vec<Bucket>,
-        quotas: CombinedQuotas<'_>,
-    ) -> Vec<Bucket> {
-        let Some(rate_limiter) = self.inner.rate_limiter.as_ref() else {
-            return buckets;
-        };
-
-        let buckets_by_ns: HashMap<MetricNamespace, Vec<Bucket>> = buckets
-            .into_iter()
-            .filter_map(|bucket| Some((bucket.name.try_namespace()?, bucket)))
-            .into_group_map();
-
-        buckets_by_ns
-            .into_iter()
-            .flat_map(|(namespace, buckets)| {
-                let item_scoping = scoping.metric_bucket(namespace);
-                self.rate_limit_buckets(item_scoping, buckets, quotas, rate_limiter)
-            })
-            .collect()
-    }
-
-    /// Returns `true` if the batches should be rate limited.
-    #[cfg(feature = "processing")]
-    fn rate_limit_buckets(
-        &self,
-        item_scoping: relay_quotas::ItemScoping,
-        buckets: Vec<Bucket>,
-        quotas: CombinedQuotas<'_>,
-        rate_limiter: &RedisRateLimiter,
-    ) -> Vec<Bucket> {
-        let batch_size = self.inner.config.metrics_max_batch_size_bytes();
-        let quantity = BucketsView::from(&buckets)
-            .by_size(batch_size)
-            .flatten()
-            .count();
-
-        // Check with redis if the throughput limit has been exceeded, while also updating
-        // the count so that other relays will be updated too.
-        match rate_limiter.is_rate_limited(quotas, item_scoping, quantity, false) {
-            Ok(limits) if limits.is_limited() => {
-                relay_log::debug!("dropping {quantity} buckets due to throughput rate limit");
-
-                let reason_code = limits.longest().and_then(|limit| limit.reason_code.clone());
-
-                self.inner.metric_outcomes.track(
-                    *item_scoping.scoping,
-                    &buckets,
-                    Outcome::RateLimited(reason_code),
-                );
-
-                self.inner.addrs.project_cache.send(UpdateRateLimits::new(
-                    item_scoping.scoping.project_key,
-                    limits,
-                ));
-
-                Vec::new()
-            }
-            Ok(_) => buckets,
-            Err(e) => {
-                relay_log::error!(
-                    error = &e as &dyn std::error::Error,
-                    "failed to check redis rate limits"
-                );
-
-                buckets
-            }
-        }
+        bucket_limiter.into_buckets()
     }
 
     /// Cardinality limits the passed buckets and returns a filtered vector of only accepted buckets.
@@ -2542,16 +2521,13 @@ impl EnvelopeProcessorService {
         use crate::constants::DEFAULT_EVENT_RETENTION;
         use crate::services::store::StoreMetrics;
 
-        let global_config = self.inner.global_config.current();
-
         for (scoping, message) in message.scopes {
             let ProjectMetrics {
                 buckets,
                 project_state,
             } = message;
 
-            let quotas = CombinedQuotas::new(&global_config, project_state.get_quotas());
-            let buckets = self.rate_limit_buckets_by_namespace(scoping, buckets, quotas);
+            let buckets = self.rate_limit_buckets(scoping, &project_state, buckets);
 
             let limits = project_state.get_cardinality_limits();
             let buckets = self.cardinality_limit_buckets(scoping, limits, buckets);
@@ -2800,8 +2776,6 @@ impl EnvelopeProcessorService {
                 EnvelopeProcessor::EncodeMetricMeta(m) => self.handle_encode_metric_meta(*m),
                 EnvelopeProcessor::SubmitEnvelope(m) => self.handle_submit_envelope(*m),
                 EnvelopeProcessor::SubmitClientReports(m) => self.handle_submit_client_reports(*m),
-                #[cfg(feature = "processing")]
-                EnvelopeProcessor::RateLimitBuckets(m) => self.handle_rate_limit_buckets(m),
             }
         });
     }
@@ -2828,18 +2802,6 @@ impl EnvelopeProcessorService {
             EnvelopeProcessor::EncodeMetricMeta(_) => AppFeature::MetricMeta.into(),
             EnvelopeProcessor::SubmitEnvelope(v) => AppFeature::from(v.envelope.group()).into(),
             EnvelopeProcessor::SubmitClientReports(_) => AppFeature::ClientReports.into(),
-            #[cfg(feature = "processing")]
-            EnvelopeProcessor::RateLimitBuckets(v) => {
-                relay_metrics::cogs::ByCount(v.bucket_limiter.buckets().filter(|b| {
-                    // Only spans and transactions are actually rate limited at this point.
-                    // Other metrics do not cause costs.
-                    matches!(
-                        b.name.try_namespace(),
-                        Some(MetricNamespace::Spans | MetricNamespace::Transactions)
-                    )
-                }))
-                .into()
-            }
         }
     }
 }
@@ -3228,10 +3190,11 @@ mod tests {
 
     use relay_base_schema::metrics::{DurationUnit, MetricUnit};
     use relay_common::glob2::LazyGlob;
-    use relay_dynamic_config::ProjectConfig;
+    use relay_dynamic_config::{ExtrapolationConfig, MetricExtractionConfig, ProjectConfig};
     use relay_event_normalization::{RedactionRule, TransactionNameRule};
     use relay_event_schema::protocol::TransactionSource;
     use relay_pii::DataScrubbingConfig;
+    use serde::Deserialize;
     use similar_asserts::assert_eq;
 
     use crate::metrics_extraction::transactions::types::{
@@ -3470,6 +3433,78 @@ mod tests {
         );
     }
 
+    #[tokio::test]
+    #[cfg(feature = "processing")]
+    async fn test_materialize_dsc() {
+        let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
+            .parse()
+            .unwrap();
+        let request_meta = RequestMeta::new(dsn);
+        let mut envelope = Envelope::from_request(None, request_meta);
+
+        let dsc = r#"{
+            "trace_id": "00000000-0000-0000-0000-000000000000",
+            "public_key": "e12d836b15bb49d7bbf99e64295d995b",
+            "sample_rate": "0.2"
+        }"#;
+        envelope.set_dsc(serde_json::from_str(dsc).unwrap());
+
+        let mut item = Item::new(ItemType::Event);
+        item.set_payload(ContentType::Json, r#"{}"#);
+        envelope.add_item(item);
+
+        let (outcome_aggregator, test_store) = testutils::processor_services();
+        let managed_envelope = ManagedEnvelope::standalone(
+            envelope,
+            outcome_aggregator,
+            test_store,
+            ProcessingGroup::Error,
+        );
+
+        let process_message = ProcessEnvelope {
+            envelope: managed_envelope,
+            project_state: Arc::new(ProjectState::allowed()),
+            sampling_project_state: None,
+            reservoir_counters: ReservoirCounters::default(),
+        };
+
+        let config = Config::from_json_value(serde_json::json!({
+            "processing": {
+                "enabled": true,
+                "kafka_config": [],
+            }
+        }))
+        .unwrap();
+
+        let processor = create_test_processor(config);
+        let response = processor.process(process_message).unwrap();
+        let envelope = response.envelope.as_ref().unwrap().envelope();
+        let event = envelope
+            .get_item_by(|item| item.ty() == &ItemType::Event)
+            .unwrap();
+
+        let event = Annotated::<Event>::from_json_bytes(&event.payload()).unwrap();
+        insta::assert_debug_snapshot!(event.value().unwrap()._dsc, @r###"
+        Object(
+            {
+                "environment": ~,
+                "public_key": String(
+                    "e12d836b15bb49d7bbf99e64295d995b",
+                ),
+                "release": ~,
+                "replay_id": ~,
+                "sample_rate": String(
+                    "0.2",
+                ),
+                "trace_id": String(
+                    "00000000-0000-0000-0000-000000000000",
+                ),
+                "transaction": ~,
+            },
+        )
+        "###);
+    }
+
     fn capture_test_event(transaction_name: &str, source: TransactionSource) -> Vec<String> {
         let mut event = Annotated::<Event>::from_json(
             r#"
@@ -3480,10 +3515,10 @@ mod tests {
                 "start_timestamp": 946684800.0,
                 "contexts": {
                     "trace": {
-                    "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
-                    "span_id": "fa90fdead5f74053",
-                    "op": "http.server",
-                    "type": "trace"
+                        "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+                        "span_id": "fa90fdead5f74053",
+                        "op": "http.server",
+                        "type": "trace"
                     }
                 },
                 "transaction_info": {
@@ -3783,5 +3818,187 @@ mod tests {
             assert_eq!(buckets.len(), 1);
             assert_eq!(buckets[0].metadata.received_at, expected_received_at);
         }
+    }
+
+    #[test]
+    fn test_extrapolate() {
+        let mut project_state = ProjectState::allowed();
+        project_state.config.metric_extraction = ErrorBoundary::Ok(MetricExtractionConfig {
+            extrapolate: ExtrapolationConfig {
+                include: vec![LazyGlob::new("*")],
+                exclude: vec![],
+            },
+            ..Default::default()
+        });
+
+        let dsc = DynamicSamplingContext::deserialize(serde_json::json!({
+            "trace_id": "00000000-0000-0000-0000-000000000000",
+            "public_key": "abd0f232775f45feab79864e580d160b",
+            "sample_rate": "0.2",
+        }))
+        .unwrap();
+
+        let mut global_config = GlobalConfig::default();
+        global_config.options.extrapolation_duplication_limit = 3;
+
+        let mut extracted_metrics = ProcessingExtractedMetrics::new(
+            Arc::new(project_state),
+            Arc::new(global_config),
+            Some(&dsc),
+        );
+
+        let buckets = serde_json::from_value(serde_json::json!([
+          {
+            "timestamp": 1615889440,
+            "width": 10,
+            "name": "endpoint.response_time",
+            "type": "d",
+            "value": [
+              36.0,
+              49.0,
+              57.0,
+              68.0
+            ],
+            "tags": {
+              "route": "user_index"
+            }
+          },
+          {
+            "timestamp": 1615889440,
+            "width": 10,
+            "name": "endpoint.hits",
+            "type": "c",
+            "value": 4.0,
+            "tags": {
+              "route": "user_index"
+            }
+          },
+          {
+            "timestamp": 1615889440,
+            "width": 10,
+            "name": "endpoint.parallel_requests",
+            "type": "g",
+            "value": {
+              "last": 25.0,
+              "min": 17.0,
+              "max": 42.0,
+              "sum": 2210.0,
+              "count": 85
+            }
+          },
+          {
+            "timestamp": 1615889440,
+            "width": 10,
+            "name": "endpoint.users",
+            "type": "s",
+            "value": [
+              3182887624u32,
+              4267882815u32
+            ],
+            "tags": {
+              "route": "user_index"
+            }
+          }
+        ]))
+        .unwrap();
+
+        extracted_metrics.extend_project_metrics(buckets, None);
+
+        insta::assert_debug_snapshot!(extracted_metrics.metrics.project_metrics, @r###"
+        [
+            Bucket {
+                timestamp: UnixTimestamp(1615889440),
+                width: 10,
+                name: MetricName(
+                    "endpoint.response_time",
+                ),
+                value: Distribution(
+                    [
+                        36.0,
+                        36.0,
+                        36.0,
+                        49.0,
+                        49.0,
+                        49.0,
+                        57.0,
+                        57.0,
+                        57.0,
+                        68.0,
+                        68.0,
+                        68.0,
+                    ],
+                ),
+                tags: {
+                    "route": "user_index",
+                },
+                metadata: BucketMetadata {
+                    merges: 1,
+                    received_at: None,
+                    extracted_from_indexed: false,
+                },
+            },
+            Bucket {
+                timestamp: UnixTimestamp(1615889440),
+                width: 10,
+                name: MetricName(
+                    "endpoint.hits",
+                ),
+                value: Counter(
+                    20.0,
+                ),
+                tags: {
+                    "route": "user_index",
+                },
+                metadata: BucketMetadata {
+                    merges: 1,
+                    received_at: None,
+                    extracted_from_indexed: false,
+                },
+            },
+            Bucket {
+                timestamp: UnixTimestamp(1615889440),
+                width: 10,
+                name: MetricName(
+                    "endpoint.parallel_requests",
+                ),
+                value: Gauge(
+                    GaugeValue {
+                        last: 25.0,
+                        min: 17.0,
+                        max: 42.0,
+                        sum: 11050.0,
+                        count: 425,
+                    },
+                ),
+                tags: {},
+                metadata: BucketMetadata {
+                    merges: 1,
+                    received_at: None,
+                    extracted_from_indexed: false,
+                },
+            },
+            Bucket {
+                timestamp: UnixTimestamp(1615889440),
+                width: 10,
+                name: MetricName(
+                    "endpoint.users",
+                ),
+                value: Set(
+                    {
+                        3182887624,
+                        4267882815,
+                    },
+                ),
+                tags: {
+                    "route": "user_index",
+                },
+                metadata: BucketMetadata {
+                    merges: 1,
+                    received_at: None,
+                    extracted_from_indexed: false,
+                },
+            },
+        ]
+        "###);
     }
 }

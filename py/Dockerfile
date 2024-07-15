@@ -1,4 +1,4 @@
-FROM amd64/centos:7
+FROM almalinux:8
 
 # This must be lower case - used in the paths and packages names
 ARG TARGET
@@ -9,11 +9,7 @@ RUN yum -y update \
     perl-core openssl openssl-devel pkgconfig libatomic \
     && if [ "$(uname -m)" != ${TARGET} ]; then \
     yum install -y "binutils-${TARGET}-linux-gnu" "gcc-${TARGET}-linux-gnu" "gcc-c++-${TARGET}-linux-gnu" \
-    && if [ ${TARGET} == "aarch64" ]; then \
-    curl -L -s https://www.centos.org/keys/RPM-GPG-KEY-CentOS-7-aarch64 > /etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-7-aarch64 \
-    && cat /etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-7-aarch64 >> /etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-7 ; \
-    fi \
-    && dnf --forcearch "${TARGET}" --release 7 install -y gcc glibc glibc-devel --installroot "/usr/${TARGET}-linux-gnu/sys-root/" || true \
+    && dnf --forcearch "${TARGET}" --releasever=8 install -y gcc glibc glibc-devel --installroot "/usr/${TARGET}-linux-gnu/sys-root/" || true \
     && ln -s "/usr/${TARGET}-linux-gnu/sys-root/usr/lib64/libgcc_s.so.1" "/usr/${TARGET}-linux-gnu/sys-root/usr/lib64/libgcc_s.so"; \
     fi \
     && yum clean all \

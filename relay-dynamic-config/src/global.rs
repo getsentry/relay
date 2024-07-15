@@ -214,28 +214,18 @@ pub struct Options {
     )]
     pub span_extraction_sample_rate: Option<f32>,
 
-    /// If true, runs full normalization in non-processing Relays.
+    /// The maximum duplication factor used to extrapolate distribution metrics from sampled data.
     ///
-    /// Doesn't apply to processing Relays. Outdated relays with a stale
-    /// protocol/normalization receiving this flag will not forward unknown
-    /// fields. Disabling the flag solves this behavior.
+    /// This applies as long as Relay duplicates distribution values to extrapolate. The default is
+    /// `0`, which disables extrapolation of distributions completely. This option does not apply to
+    /// any other metric types.
     #[serde(
         default,
-        rename = "relay.force_full_normalization",
+        rename = "sentry-metrics.extrapolation.duplication-limit",
         deserialize_with = "default_on_error",
         skip_serializing_if = "is_default"
     )]
-    pub force_full_normalization: bool,
-
-    /// If true, disables normalization in processing Relays for events
-    /// normalized in a previous internal relay.
-    #[serde(
-        default,
-        rename = "relay.disable_normalization.processing",
-        deserialize_with = "default_on_error",
-        skip_serializing_if = "is_default"
-    )]
-    pub processing_disable_normalization: bool,
+    pub extrapolation_duplication_limit: usize,
 
     /// All other unknown options.
     #[serde(flatten)]

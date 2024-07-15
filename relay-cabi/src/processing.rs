@@ -14,9 +14,8 @@ use relay_cardinality::CardinalityLimit;
 use relay_common::glob::{glob_match_bytes, GlobOptions};
 use relay_dynamic_config::{normalize_json, GlobalConfig, ProjectConfig};
 use relay_event_normalization::{
-    normalize_event, validate_event_timestamps, validate_transaction, BreakdownsConfig,
-    ClientHints, EventValidationConfig, GeoIpLookup, NormalizationConfig, RawUserAgentInfo,
-    TransactionValidationConfig,
+    normalize_event, validate_event, BreakdownsConfig, ClientHints, EventValidationConfig,
+    GeoIpLookup, NormalizationConfig, RawUserAgentInfo,
 };
 use relay_event_schema::processor::{process_value, split_chunks, ProcessingState};
 use relay_event_schema::protocol::{Event, IpAddr, VALID_PLATFORMS};
@@ -237,15 +236,10 @@ pub unsafe extern "C" fn relay_store_normalizer_normalize_event(
         received_at: config.received_at,
         max_secs_in_past: config.max_secs_in_past,
         max_secs_in_future: config.max_secs_in_future,
+        transaction_timestamp_range: None, // only supported in relay
         is_validated: config.is_renormalize.unwrap_or(false),
     };
-    validate_event_timestamps(&mut event, &event_validation_config)?;
-
-    let tx_validation_config = TransactionValidationConfig {
-        timestamp_range: None, // only supported in relay
-        is_validated: config.is_renormalize.unwrap_or(false),
-    };
-    validate_transaction(&mut event, &tx_validation_config)?;
+    validate_event(&mut event, &event_validation_config)?;
 
     let is_renormalize = config.is_renormalize.unwrap_or(false);
 

@@ -307,6 +307,78 @@ impl NotCondition {
     }
 }
 
+/// Applies the ANY operation to an array field.
+///
+/// This condition matches if at least one of the elements of the array match with the
+/// `inner` condition.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct AnyCondition {
+    /// Path of the field that should match the value.
+    pub name: String,
+    /// Inner rule to match on each element.
+    pub inner: Box<RuleCondition>,
+}
+
+impl AnyCondition {
+    /// Creates a condition that matches any element in the array against the `inner` condition.
+    pub fn new(field: impl Into<String>, inner: RuleCondition) -> Self {
+        Self {
+            name: field.into(),
+            inner: Box::new(inner),
+        }
+    }
+
+    fn supported(&self) -> bool {
+        self.inner.supported()
+    }
+    fn matches<T>(&self, instance: &T) -> bool
+    where
+        T: Getter + ?Sized,
+    {
+        let Some(mut getter_iter) = instance.get_iter(self.name.as_str()) else {
+            return false;
+        };
+
+        getter_iter.any(|g| self.inner.matches(g))
+    }
+}
+
+/// Applies the ALL operation to an array field.
+///
+/// This condition matches if all the elements of the array match with the `inner` condition.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct AllCondition {
+    /// Path of the field that should match the value.
+    pub name: String,
+    /// Inner rule to match on each element.
+    pub inner: Box<RuleCondition>,
+}
+
+impl AllCondition {
+    /// Creates a condition that matches all the elements in the array against the `inner`
+    /// condition.
+    pub fn new(field: impl Into<String>, inner: RuleCondition) -> Self {
+        Self {
+            name: field.into(),
+            inner: Box::new(inner),
+        }
+    }
+
+    fn supported(&self) -> bool {
+        self.inner.supported()
+    }
+    fn matches<T>(&self, instance: &T) -> bool
+    where
+        T: Getter + ?Sized,
+    {
+        let Some(mut getter_iter) = instance.get_iter(self.name.as_str()) else {
+            return false;
+        };
+
+        getter_iter.all(|g| self.inner.matches(g))
+    }
+}
+
 /// A condition that can be evaluated on structured data.
 ///
 /// The basic conditions are [`eq`](Self::eq), [`glob`](Self::glob), and the comparison operators.
@@ -444,6 +516,33 @@ pub enum RuleCondition {
     /// let condition = !RuleCondition::eq("obj.status", "invalid");
     /// ```
     Not(NotCondition),
+
+    /// Loops over an array field and returns true if at least one element matches
+    /// the inner condition.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use relay_protocol::RuleCondition;
+    ///
+    /// let condition = RuleCondition::for_any("obj.exceptions",
+    ///     RuleCondition::eq("name", "NullPointerException")
+    /// );
+    /// ```
+    Any(AnyCondition),
+
+    /// Loops over an array field and returns true if all elements match the inner condition.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use relay_protocol::RuleCondition;
+    ///
+    /// let condition = RuleCondition::for_all("obj.exceptions",
+    ///     RuleCondition::eq("name", "NullPointerException")
+    /// );
+    /// ```
+    All(AllCondition),
 
     /// An unsupported condition for future compatibility.
     #[serde(other)]
@@ -638,6 +737,36 @@ impl RuleCondition {
         }
     }
 
+    /// Creates an [`AnyCondition`].
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use relay_protocol::RuleCondition;
+    ///
+    /// let condition = RuleCondition::for_any("obj.exceptions",
+    ///     RuleCondition::eq("name", "NullPointerException")
+    /// );
+    /// ```
+    pub fn for_any(field: impl Into<String>, inner: RuleCondition) -> Self {
+        Self::Any(AnyCondition::new(field, inner))
+    }
+
+    /// Creates an [`AllCondition`].
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use relay_protocol::RuleCondition;
+    ///
+    /// let condition = RuleCondition::for_all("obj.exceptions",
+    ///     RuleCondition::eq("name", "NullPointerException")
+    /// );
+    /// ```
+    pub fn for_all(field: impl Into<String>, inner: RuleCondition) -> Self {
+        Self::All(AllCondition::new(field, inner))
+    }
+
     /// Checks if Relay supports this condition (in other words if the condition had any unknown configuration
     /// which was serialized as "Unsupported" (because the configuration is either faulty or was created for a
     /// newer relay that supports some other condition types)
@@ -655,6 +784,8 @@ impl RuleCondition {
             RuleCondition::And(rules) => rules.supported(),
             RuleCondition::Or(rules) => rules.supported(),
             RuleCondition::Not(rule) => rule.supported(),
+            RuleCondition::Any(rule) => rule.supported(),
+            RuleCondition::All(rule) => rule.supported(),
         }
     }
 
@@ -673,6 +804,8 @@ impl RuleCondition {
             RuleCondition::And(conditions) => conditions.matches(value),
             RuleCondition::Or(conditions) => conditions.matches(value),
             RuleCondition::Not(condition) => condition.matches(value),
+            RuleCondition::Any(condition) => condition.matches(value),
+            RuleCondition::All(condition) => condition.matches(value),
             RuleCondition::Unsupported => false,
         }
     }
@@ -705,15 +838,31 @@ impl std::ops::Not for RuleCondition {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::GetterIter;
 
-    struct MockDSC {
+    #[derive(Debug)]
+    struct Exception {
+        name: String,
+    }
+
+    impl Getter for Exception {
+        fn get_value(&self, path: &str) -> Option<Val<'_>> {
+            Some(match path {
+                "name" => self.name.as_str().into(),
+                _ => return None,
+            })
+        }
+    }
+
+    struct Trace {
         transaction: String,
         release: String,
         environment: String,
         user_segment: String,
+        exceptions: Vec<Exception>,
     }
 
-    impl Getter for MockDSC {
+    impl Getter for Trace {
         fn get_value(&self, path: &str) -> Option<Val<'_>> {
             Some(match path.strip_prefix("trace.")? {
                 "transaction" => self.transaction.as_str().into(),
@@ -725,14 +874,29 @@ mod tests {
                 }
             })
         }
+
+        fn get_iter(&self, path: &str) -> Option<GetterIter<'_>> {
+            Some(match path.strip_prefix("trace.")? {
+                "exceptions" => GetterIter::new(self.exceptions.iter()),
+                _ => return None,
+            })
+        }
     }
 
-    fn mock_dsc() -> MockDSC {
-        MockDSC {
+    fn mock_trace() -> Trace {
+        Trace {
             transaction: "transaction1".to_string(),
             release: "1.1.1".to_string(),
             environment: "debug".to_string(),
             user_segment: "vip".to_string(),
+            exceptions: vec![
+                Exception {
+                    name: "NullPointerException".to_string(),
+                },
+                Exception {
+                    name: "NullUser".to_string(),
+                },
+            ],
         }
     }
 
@@ -780,76 +944,117 @@ mod tests {
                     "name": "field_6",
                     "value": ["3.*"]
                 }]
+            },
+            {
+                "op": "any",
+                "name": "obj.exceptions",
+                "inner": {
+                    "op": "glob",
+                    "name": "value",
+                    "value": ["*Exception"]
+                }
+            },
+            {
+                "op": "all",
+                "name": "obj.exceptions",
+                "inner": {
+                    "op": "glob",
+                    "name": "value",
+                    "value": ["*Exception"]
+                }
             }
         ]"#;
 
         let rules: Result<Vec<RuleCondition>, _> = serde_json::from_str(serialized_rules);
         assert!(rules.is_ok());
         let rules = rules.unwrap();
-        insta::assert_ron_snapshot!(rules, @r#"
-            [
-              EqCondition(
-                op: "eq",
-                name: "field_1",
-                value: [
-                  "UPPER",
-                  "lower",
-                ],
-                options: EqCondOptions(
-                  ignoreCase: true,
-                ),
-              ),
-              EqCondition(
-                op: "eq",
-                name: "field_2",
-                value: [
-                  "UPPER",
-                  "lower",
-                ],
-              ),
+        insta::assert_ron_snapshot!(rules, @r###"
+        [
+          EqCondition(
+            op: "eq",
+            name: "field_1",
+            value: [
+              "UPPER",
+              "lower",
+            ],
+            options: EqCondOptions(
+              ignoreCase: true,
+            ),
+          ),
+          EqCondition(
+            op: "eq",
+            name: "field_2",
+            value: [
+              "UPPER",
+              "lower",
+            ],
+          ),
+          GlobCondition(
+            op: "glob",
+            name: "field_3",
+            value: [
+              "1.2.*",
+              "2.*",
+            ],
+          ),
+          NotCondition(
+            op: "not",
+            inner: GlobCondition(
+              op: "glob",
+              name: "field_4",
+              value: [
+                "1.*",
+              ],
+            ),
+          ),
+          AndCondition(
+            op: "and",
+            inner: [
               GlobCondition(
                 op: "glob",
-                name: "field_3",
+                name: "field_5",
                 value: [
-                  "1.2.*",
                   "2.*",
                 ],
               ),
-              NotCondition(
-                op: "not",
-                inner: GlobCondition(
-                  op: "glob",
-                  name: "field_4",
-                  value: [
-                    "1.*",
-                  ],
-                ),
-              ),
-              AndCondition(
-                op: "and",
-                inner: [
-                  GlobCondition(
-                    op: "glob",
-                    name: "field_5",
-                    value: [
-                      "2.*",
-                    ],
-                  ),
+            ],
+          ),
+          OrCondition(
+            op: "or",
+            inner: [
+              GlobCondition(
+                op: "glob",
+                name: "field_6",
+                value: [
+                  "3.*",
                 ],
               ),
-              OrCondition(
-                op: "or",
-                inner: [
-                  GlobCondition(
-                    op: "glob",
-                    name: "field_6",
-                    value: [
-                      "3.*",
-                    ],
-                  ),
-                ],
-              ),
-            ]"#);
+            ],
+          ),
+          AnyCondition(
+            op: "any",
+            name: "obj.exceptions",
+            inner: GlobCondition(
+              op: "glob",
+              name: "value",
+              value: [
+                "*Exception",
+              ],
+            ),
+          ),
+          AllCondition(
+            op: "all",
+            name: "obj.exceptions",
+            inner: GlobCondition(
+              op: "glob",
+              name: "value",
+              value: [
+                "*Exception",
+              ],
+            ),
+          ),
+        ]
+        "###);
     }
 
     #[test]
@@ -939,11 +1144,11 @@ mod tests {
             ("string cmp", RuleCondition::gt("trace.transaction", "t")),
         ];
 
-        let dsc = mock_dsc();
+        let trace = mock_trace();
 
         for (rule_test_name, condition) in conditions.iter() {
             let failure_name = format!("Failed on test: '{rule_test_name}'!!!");
-            assert!(condition.matches(&dsc), "{failure_name}");
+            assert!(condition.matches(&trace), "{failure_name}");
         }
     }
 
@@ -982,11 +1187,11 @@ mod tests {
             ("never", false, RuleCondition::never()),
         ];
 
-        let dsc = mock_dsc();
+        let trace = mock_trace();
 
         for (rule_test_name, expected, condition) in conditions.iter() {
             let failure_name = format!("Failed on test: '{rule_test_name}'!!!");
-            assert!(condition.matches(&dsc) == *expected, "{failure_name}");
+            assert!(condition.matches(&trace) == *expected, "{failure_name}");
         }
     }
 
@@ -1025,11 +1230,11 @@ mod tests {
             ("all", true, RuleCondition::all()),
         ];
 
-        let dsc = mock_dsc();
+        let trace = mock_trace();
 
         for (rule_test_name, expected, condition) in conditions.iter() {
             let failure_name = format!("Failed on test: '{rule_test_name}'!!!");
-            assert!(condition.matches(&dsc) == *expected, "{failure_name}");
+            assert!(condition.matches(&trace) == *expected, "{failure_name}");
         }
     }
 
@@ -1048,11 +1253,11 @@ mod tests {
             ),
         ];
 
-        let dsc = mock_dsc();
+        let trace = mock_trace();
 
         for (rule_test_name, expected, condition) in conditions.iter() {
             let failure_name = format!("Failed on test: '{rule_test_name}'!!!");
-            assert!(condition.matches(&dsc) == *expected, "{failure_name}");
+            assert!(condition.matches(&trace) == *expected, "{failure_name}");
         }
     }
 
@@ -1086,11 +1291,55 @@ mod tests {
             ),
         ];
 
-        let dsc = mock_dsc();
+        let trace = mock_trace();
 
         for (rule_test_name, condition) in conditions.iter() {
             let failure_name = format!("Failed on test: '{rule_test_name}'!!!");
-            assert!(!condition.matches(&dsc), "{failure_name}");
+            assert!(!condition.matches(&trace), "{failure_name}");
         }
+    }
+
+    #[test]
+    fn test_any_condition_with_match() {
+        let condition = RuleCondition::for_any(
+            "trace.exceptions",
+            RuleCondition::glob("name", "*Exception"),
+        );
+
+        let trace = mock_trace();
+
+        assert!(condition.matches(&trace));
+    }
+
+    #[test]
+    fn test_any_condition_with_no_match() {
+        let condition =
+            RuleCondition::for_any("trace.exceptions", RuleCondition::glob("name", "Error"));
+
+        let trace = mock_trace();
+
+        assert!(!condition.matches(&trace));
+    }
+
+    #[test]
+    fn test_all_condition() {
+        let condition =
+            RuleCondition::for_all("trace.exceptions", RuleCondition::glob("name", "Null*"));
+
+        let trace = mock_trace();
+
+        assert!(condition.matches(&trace));
+    }
+
+    #[test]
+    fn test_all_condition_with_no_match() {
+        let condition = RuleCondition::for_all(
+            "trace.exceptions",
+            RuleCondition::glob("name", "*Exception"),
+        );
+
+        let trace = mock_trace();
+
+        assert!(!condition.matches(&trace));
     }
 }

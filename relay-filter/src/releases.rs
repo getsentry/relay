@@ -36,10 +36,11 @@ mod tests {
     }
 
     fn get_span_for_release(release: &str) -> Span {
-        let mut data = SpanData::default();
-        data.release = Annotated::from(LenientString::from(release.to_string()));
         Span {
-            data: Annotated::new(data),
+            data: Annotated::new(SpanData {
+                release: Annotated::from(LenientString::from(release.to_string())),
+                ..Default::default()
+            }),
             ..Default::default()
         }
     }

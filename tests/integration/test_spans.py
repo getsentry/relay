@@ -3,7 +3,10 @@ import json
 import uuid
 from collections import Counter
 from datetime import datetime, timedelta, timezone, UTC
-from .consts import TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION
+from .consts import (
+    TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION,
+    METRICS_EXTRACTION_MIN_SUPPORTED_VERSION,
+)
 
 import pytest
 from opentelemetry.proto.common.v1.common_pb2 import AnyValue, KeyValue
@@ -467,18 +470,14 @@ def make_otel_span(start, end):
     }
 
 
-@pytest.mark.parametrize("extract_transaction", [False, True])
 def test_span_ingestion(
     mini_sentry,
     relay_with_processing,
     spans_consumer,
     metrics_consumer,
-    transactions_consumer,
-    extract_transaction,
 ):
     spans_consumer = spans_consumer()
     metrics_consumer = metrics_consumer()
-    transactions_consumer = transactions_consumer()
 
     relay = relay_with_processing(
         options={
@@ -499,10 +498,6 @@ def test_span_ingestion(
     project_config["config"]["transactionMetrics"] = {
         "version": TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION
     }
-    if extract_transaction:
-        project_config["config"]["features"].append(
-            "projects:extract-transaction-from-segment-span"
-        )
 
     duration = timedelta(milliseconds=500)
     now = datetime.now(timezone.utc)
@@ -690,32 +685,6 @@ def test_span_ingestion(
 
     spans_consumer.assert_empty()
 
-    # If transaction extraction is enabled, expect transactions:
-    if extract_transaction:
-        expected_transactions = 3
-
-        transactions = [
-            transactions_consumer.get_event()[0] for _ in range(expected_transactions)
-        ]
-
-        assert len(transactions) == expected_transactions
-        assert sorted([transaction["event_id"] for transaction in transactions]) == [
-            "0000000000000000a342abb1214ca181",
-            "0000000000000000b0429c44b67a3eb1",
-            "0000000000000000d342abb1214ca182",
-        ]
-        for transaction in transactions:
-            # Not checking all individual fields here, most should be tested in convert.rs
-
-            # SDK gets taken from the header:
-            if sdk := transaction.get("sdk"):
-                assert sdk == {"name": "raven-node", "version": "2.6.3"}
-
-            # No errors during normalization:
-            assert not transaction.get("errors")
-
-    transactions_consumer.assert_empty()
-
     metrics = [metric for (metric, _headers) in metrics_consumer.get_metrics()]
     metrics.sort(key=lambda m: (m["name"], sorted(m["tags"].items()), m["timestamp"]))
     for metric in metrics:
@@ -899,24 +868,6 @@ def test_span_ingestion(
     ]
     assert [m for m in metrics if ":spans/" in m["name"]] == expected_span_metrics
 
-    transaction_duration_metrics = [
-        m for m in metrics if m["name"] == "d:transactions/duration@millisecond"
-    ]
-
-    if extract_transaction:
-        assert {
-            (m["name"], m["tags"]["transaction"]) for m in transaction_duration_metrics
-        } == {
-            ("d:transactions/duration@millisecond", "https://example.com/p/blah.js"),
-            ("d:transactions/duration@millisecond", "my 1st OTel span"),
-            ("d:transactions/duration@millisecond", "my 2nd OTel span"),
-        }
-        # Make sure we're not double-reporting:
-        for m in transaction_duration_metrics:
-            assert len(m["value"]) == 1
-    else:
-        assert len(transaction_duration_metrics) == 0
-
     # Regardless of whether transactions are extracted, score.total is only converted to a transaction metric once:
     score_total_metrics = [
         m
@@ -1074,61 +1025,6 @@ def test_span_extraction_with_metrics_summary(
     metrics_summary = metrics_summaries_consumer.get_metrics_summary()
 
     assert metrics_summary["mri"] == mri
-
-
-def test_extracted_transaction_gets_normalized(
-    mini_sentry, transactions_consumer, relay_with_processing, relay, relay_credentials
-):
-    """When normalization in processing relays has been disabled, an extracted
-    transaction still gets normalized.
-
-    This test was copied and adapted from test_store::test_relay_chain_normalization
-
-    """
-    project_id = 42
-    project_config = mini_sentry.add_full_project_config(project_id)
-    project_config["config"]["features"] = [
-        "organizations:standalone-span-ingestion",
-        "projects:extract-transaction-from-segment-span",
-        "projects:relay-otel-endpoint",
-    ]
-
-    transactions_consumer = transactions_consumer()
-
-    credentials = relay_credentials()
-    processing = relay_with_processing(
-        static_relays={
-            credentials["id"]: {
-                "public_key": credentials["public_key"],
-                "internal": True,
-            },
-        },
-        options={"processing": {"normalize": "disabled"}},
-    )
-    relay = relay(
-        processing,
-        credentials=credentials,
-        options={
-            "processing": {
-                "normalize": "full",
-            }
-        },
-    )
-
-    duration = timedelta(milliseconds=500)
-    end = datetime.now(timezone.utc) - timedelta(seconds=1)
-    start = end - duration
-    otel_payload = make_otel_span(start, end)
-
-    # Unset name to validate transaction normalization
-    del otel_payload["resourceSpans"][0]["scopeSpans"][0]["spans"][0]["name"]
-
-    relay.send_otel_span(project_id, json=otel_payload)
-
-    ingested, _ = transactions_consumer.get_event(timeout=10)
-
-    # "<unlabeled transaction>" was set by normalization:
-    assert ingested["transaction"] == "<unlabeled transaction>"
 
 
 def test_span_no_extraction_with_metrics_summary(
@@ -1717,27 +1613,19 @@ def test_rate_limit_spans_in_envelope(
     metrics_consumer.assert_empty()
 
 
-@pytest.mark.parametrize(
-    "category,raises_rate_limited",
-    [
-        ("transaction", True),
-        ("transaction", True),
-        ("transaction_indexed", False),
-    ],
-)
+@pytest.mark.parametrize("category", ["transaction", "transaction_indexed"])
 def test_rate_limit_is_consistent_between_transaction_and_spans(
     mini_sentry,
     relay_with_processing,
     transactions_consumer,
     spans_consumer,
+    metrics_consumer,
+    outcomes_consumer,
     category,
-    raises_rate_limited,
 ):
-    """Rate limits for indexed are enforced consistently after metrics extraction.
-
-    This test does not cover consistent enforcement of total spans.
     """
-    # TODO: add outcomes check when https://github.com/getsentry/relay/issues/3705 is done.
+    Rate limits are consistent between transactions and nested spans.
+    """
     relay = relay_with_processing(options=TEST_CONFIG)
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
@@ -1761,6 +1649,26 @@ def test_rate_limit_is_consistent_between_transaction_and_spans(
 
     transactions_consumer = transactions_consumer()
     spans_consumer = spans_consumer()
+    outcomes_consumer = outcomes_consumer()
+    metrics_consumer = metrics_consumer()
+
+    def usage_metrics():
+        metrics = metrics_consumer.get_metrics()
+        transaction_count = sum(
+            m[0]["value"]
+            for m in metrics
+            if m[0]["name"] == "c:transactions/usage@none"
+        )
+        span_count = sum(
+            m[0]["value"] for m in metrics if m[0]["name"] == "c:spans/usage@none"
+        )
+        return (transaction_count, span_count)
+
+    def summarize_outcomes():
+        counter = Counter()
+        for outcome in outcomes_consumer.get_outcomes(timeout=10):
+            counter[(outcome["category"], outcome["outcome"])] += outcome["quantity"]
+        return dict(counter)
 
     start = datetime.now(timezone.utc)
     end = start + timedelta(seconds=1)
@@ -1769,26 +1677,58 @@ def test_rate_limit_is_consistent_between_transaction_and_spans(
 
     # First batch passes
     relay.send_envelope(project_id, envelope)
+
     event, _ = transactions_consumer.get_event(timeout=10)
     assert event["transaction"] == "my_transaction"
     # We have one nested span and the transaction itself becomes a span
     spans = spans_consumer.get_spans(n=2, timeout=10)
     assert len(spans) == 2
+    assert summarize_outcomes() == {(16, 0): 2}  # SpanIndexed, Accepted
+    assert usage_metrics() == (1, 2)
 
+    # Second batch nothing passes
     relay.send_envelope(project_id, envelope)
+
     transactions_consumer.assert_empty()
     spans_consumer.assert_empty()
+    if category == "transaction":
+        assert summarize_outcomes() == {
+            (2, 2): 1,  # Transaction, Rate Limited
+            (9, 2): 1,  # TransactionIndexed, Rate Limited
+            (12, 2): 2,  # Span, Rate Limited
+            (16, 2): 2,  # SpanIndexed, Rate Limited
+        }
+        assert usage_metrics() == (0, 0)
+    elif category == "transaction_indexed":
+        assert summarize_outcomes() == {
+            (9, 2): 1,  # TransactionIndexed, Rate Limited
+            (16, 2): 2,  # SpanIndexed, Rate Limited
+        }
+        assert usage_metrics() == (1, 2)
 
+    # Third batch might raise 429 since it hits the fast path
     maybe_raises = (
         pytest.raises(HTTPError, match="429 Client Error")
-        if raises_rate_limited
+        if category == "transaction"
         else contextlib.nullcontext()
     )
     with maybe_raises:
         relay.send_envelope(project_id, envelope)
 
-    transactions_consumer.assert_empty()
-    spans_consumer.assert_empty()
+    if category == "transaction":
+        assert summarize_outcomes() == {
+            (2, 2): 1,  # Transaction, Rate Limited
+            (9, 2): 1,  # TransactionIndexed, Rate Limited
+            (12, 2): 2,  # Span, Rate Limited
+            (16, 2): 2,  # SpanIndexed, Rate Limited
+        }
+        assert usage_metrics() == (0, 0)
+    elif category == "transaction_indexed":
+        assert summarize_outcomes() == {
+            (9, 2): 1,  # TransactionIndexed, Rate Limited
+            (16, 2): 2,  # SpanIndexed, Rate Limited
+        }
+        assert usage_metrics() == (1, 2)
 
 
 @pytest.mark.parametrize(
@@ -2008,3 +1948,117 @@ def test_dynamic_sampling(
 
     spans_consumer.assert_empty()
     outcomes_consumer.assert_empty()
+
+
+def test_metrics_summary_with_extracted_spans(
+    mini_sentry,
+    relay_with_processing,
+    metrics_summaries_consumer,
+):
+    metrics_summaries_consumer = metrics_summaries_consumer()
+
+    relay = relay_with_processing()
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = [
+        "organizations:custom-metrics",
+        "projects:span-metrics-extraction",
+        "organizations:indexed-spans-extraction",
+    ]
+    project_config["config"]["transactionMetrics"] = {
+        "version": TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION,
+    }
+    project_config["config"]["metricExtraction"] = {
+        "version": METRICS_EXTRACTION_MIN_SUPPORTED_VERSION,
+        "metrics": [
+            {
+                "category": "span",
+                "mri": "d:custom/my_metric@millisecond",
+                "field": "span.duration",
+            }
+        ],
+    }
+
+    event = make_transaction({"event_id": "cbf6960622e14a45abc1f03b2055b186"})
+    end = datetime.now(timezone.utc) - timedelta(seconds=1)
+    duration = timedelta(milliseconds=500)
+    start = end - duration
+    event["spans"] = [
+        {
+            "description": "GET /api/0/organizations/?member=1",
+            "op": "http",
+            "origin": "manual",
+            "parent_span_id": "aaaaaaaaaaaaaaaa",
+            "span_id": "bbbbbbbbbbbbbbbb",
+            "start_timestamp": start.isoformat(),
+            "status": "success",
+            "timestamp": end.isoformat(),
+            "trace_id": "ff62a8b040f340bda5d830223def1d81",
+        },
+    ]
+
+    mri = "c:spans/some_metric@none"
+    metrics_summary = {
+        mri: [
+            {
+                "min": 1.0,
+                "max": 2.0,
+                "sum": 3.0,
+                "count": 4,
+                "tags": {
+                    "environment": "test",
+                },
+            },
+        ],
+    }
+    event["_metrics_summary"] = metrics_summary
+
+    relay.send_event(project_id, event)
+
+    metrics_summaries = metrics_summaries_consumer.get_metrics_summaries(
+        timeout=10.0, n=3
+    )
+    expected_mris = ["c:spans/some_metric@none", "d:custom/my_metric@millisecond"]
+    for metric_summary in metrics_summaries:
+        assert metric_summary["mri"] in expected_mris
+
+
+def test_metrics_summary_with_standalone_spans(
+    mini_sentry,
+    relay_with_processing,
+    metrics_summaries_consumer,
+):
+    metrics_summaries_consumer = metrics_summaries_consumer()
+
+    relay = relay_with_processing()
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = [
+        "projects:span-metrics-extraction",
+        "organizations:standalone-span-ingestion",
+    ]
+    project_config["config"]["metricExtraction"] = {
+        "version": METRICS_EXTRACTION_MIN_SUPPORTED_VERSION,
+        "metrics": [
+            {
+                "category": "span",
+                "mri": "d:custom/my_metric@millisecond",
+                "field": "span.duration",
+            }
+        ],
+    }
+
+    duration = timedelta(milliseconds=500)
+    now = datetime.now(timezone.utc)
+    end = now - timedelta(seconds=1)
+    start = end - duration
+
+    envelope = envelope_with_spans(start, end)
+    relay.send_envelope(project_id, envelope)
+
+    metrics_summaries = metrics_summaries_consumer.get_metrics_summaries(
+        timeout=10.0, n=4
+    )
+    expected_mris = ["c:spans/some_metric@none", "d:custom/my_metric@millisecond"]
+    for metric_summary in metrics_summaries:
+        assert metric_summary["mri"] in expected_mris

@@ -15,14 +15,16 @@ use relay_kafka::{
     TopicAssignments,
 };
 use relay_metrics::aggregator::{AggregatorConfig, FlushBatching};
-use relay_metrics::{AggregatorServiceConfig, MetricNamespace, ScopedAggregatorConfig};
-use relay_redis::RedisConfig;
+use relay_metrics::MetricNamespace;
+use relay_redis::RedisConfigOptions;
 use serde::de::{DeserializeOwned, Unexpected, Visitor};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use uuid::Uuid;
 
+use crate::aggregator::{AggregatorServiceConfig, ScopedAggregatorConfig};
 use crate::byte_size::ByteSize;
 use crate::upstream::UpstreamDescriptor;
+use crate::{RedisConfig, RedisConnection};
 
 const DEFAULT_NETWORK_OUTAGE_GRACE_PERIOD: u64 = 10;
 
@@ -494,6 +496,11 @@ struct Metrics {
     /// For example, a value of `0.3` means that only 30% of the emitted metrics will be sent.
     /// Defaults to `1.0` (100%).
     sample_rate: f32,
+    /// Interval for periodic metrics emitted from Relay.
+    ///
+    /// Setting it to `0` seconds disables the periodic metrics.
+    /// Defaults to 5 seconds.
+    periodic_secs: u64,
 }
 
 impl Default for Metrics {
@@ -504,6 +511,7 @@ impl Default for Metrics {
             default_tags: BTreeMap::new(),
             hostname_tag: None,
             sample_rate: 1.0,
+            periodic_secs: 5,
         }
     }
 }
@@ -1570,7 +1578,7 @@ impl Config {
         }
 
         if let Some(redis) = overrides.redis_url {
-            processing.redis = Some(RedisConfig::Single(redis))
+            processing.redis = Some(RedisConfig::single(redis))
         }
 
         if let Some(kafka_url) = overrides.kafka_url {
@@ -1940,6 +1948,16 @@ impl Config {
         Duration::from_secs(self.values.sentry_metrics.meta_locations_expiry)
     }
 
+    /// Returns the interval for periodic metrics emitted from Relay.
+    ///
+    /// `None` if periodic metrics are disabled.
+    pub fn metrics_periodic_interval(&self) -> Option<Duration> {
+        match self.values.metrics.periodic_secs {
+            0 => None,
+            secs => Some(Duration::from_secs(secs)),
+        }
+    }
+
     /// Returns the default timeout for all upstream HTTP requests.
     pub fn http_timeout(&self) -> Duration {
         Duration::from_secs(self.values.http.timeout.into())
@@ -2255,8 +2273,24 @@ impl Config {
     }
 
     /// Redis servers to connect to, for rate limiting.
-    pub fn redis(&self) -> Option<&RedisConfig> {
-        self.values.processing.redis.as_ref()
+    pub fn redis(&self) -> Option<(&RedisConnection, RedisConfigOptions)> {
+        let cpu_concurrency = self.cpu_concurrency();
+
+        let redis = self.values.processing.redis.as_ref()?;
+
+        let options = RedisConfigOptions {
+            max_connections: redis
+                .options
+                .max_connections
+                .unwrap_or(cpu_concurrency as u32 * 2),
+            connection_timeout: redis.options.connection_timeout,
+            max_lifetime: redis.options.max_lifetime,
+            idle_timeout: redis.options.idle_timeout,
+            read_timeout: redis.options.read_timeout,
+            write_timeout: redis.options.write_timeout,
+        };
+
+        Some((&redis.connection, options))
     }
 
     /// Chunk size of attachments in bytes.
@@ -2345,10 +2379,10 @@ impl Config {
             mut max_tag_value_length,
             mut max_project_key_bucket_bytes,
             ..
-        } = AggregatorConfig::from(self.default_aggregator_config());
+        } = self.default_aggregator_config().aggregator;
 
         for secondary_config in self.secondary_aggregator_configs() {
-            let agg = &secondary_config.config;
+            let agg = &secondary_config.config.aggregator;
 
             bucket_interval = bucket_interval.min(agg.bucket_interval);
             max_secs_in_past = max_secs_in_past.max(agg.max_secs_in_past);
@@ -2366,7 +2400,7 @@ impl Config {
             .map(|sc| &sc.config)
             .chain(std::iter::once(self.default_aggregator_config()))
         {
-            if agg.bucket_interval % bucket_interval != 0 {
+            if agg.aggregator.bucket_interval % bucket_interval != 0 {
                 relay_log::error!("buckets don't align");
             }
         }
@@ -2385,12 +2419,12 @@ impl Config {
         }
     }
 
-    /// Returns configuration for the default metrics [aggregator](relay_metrics::Aggregator).
+    /// Returns configuration for the default metrics aggregator.
     pub fn default_aggregator_config(&self) -> &AggregatorServiceConfig {
         &self.values.aggregator
     }
 
-    /// Returns configuration for non-default metrics [aggregators](relay_metrics::Aggregator).
+    /// Returns configuration for non-default metrics aggregator.
     pub fn secondary_aggregator_configs(&self) -> &Vec<ScopedAggregatorConfig> {
         &self.values.secondary_aggregators
     }

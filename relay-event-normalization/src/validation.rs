@@ -11,69 +11,140 @@ use relay_protocol::{Annotated, ErrorKind, Meta};
 
 use crate::{ClockDriftProcessor, TimestampProcessor};
 
-/// Configuration for [`validate_transaction`].
+/// Configuration for [`validate_event`].
 #[derive(Debug, Default)]
-pub struct TransactionValidationConfig {
+pub struct EventValidationConfig {
+    /// The time at which the event was received in this Relay.
+    ///
+    /// This timestamp is persisted into the event payload.
+    pub received_at: Option<DateTime<Utc>>,
+
+    /// The maximum amount of seconds an event can be dated in the past.
+    ///
+    /// If the event's timestamp is older, the received timestamp is assumed.
+    pub max_secs_in_past: Option<i64>,
+
+    /// The maximum amount of seconds an event can be predated into the future.
+    ///
+    /// If the event's timestamp lies further into the future, the received timestamp is assumed.
+    pub max_secs_in_future: Option<i64>,
+
     /// Timestamp range in which a transaction must end.
     ///
     /// Transactions that finish outside this range are invalid. The check is
     /// skipped if no range is provided.
-    pub timestamp_range: Option<Range<UnixTimestamp>>,
+    pub transaction_timestamp_range: Option<Range<UnixTimestamp>>,
 
     /// Controls whether the event has been validated before, in which case disables validation.
     ///
-    /// By default, `is_validated` is disabled and transaction validation is run.
+    /// By default, `is_validated` is disabled and event validation is run.
     ///
     /// Similar to `is_renormalize` for normalization, `sentry_relay` may configure this value.
     pub is_validated: bool,
 }
 
-/// Validates a transaction.
+/// Validates an event.
 ///
 /// Validation consists of performing multiple checks on the payload, based on
-/// the given configuration. Noop for non-transaction events.
+/// the given configuration.
 ///
-/// The returned [`ProcessingResult`] indicates whether the passed transaction
-/// is invalid and thus should be dropped.
-///
-/// Note: this function does not validate a transaction's timestamp values are
-/// up-to-date, [`validate_event_timestamps`] should be used for that.
-pub fn validate_transaction(
+/// The returned [`ProcessingResult`] indicates whether the passed event is
+/// invalid and thus should be dropped.
+pub fn validate_event(
     event: &mut Annotated<Event>,
-    config: &TransactionValidationConfig,
+    config: &EventValidationConfig,
 ) -> ProcessingResult {
     if config.is_validated {
         return Ok(());
     }
 
-    let Annotated(Some(ref mut event), ref _meta) = event else {
+    let Annotated(Some(ref mut event), ref mut meta) = event else {
         return Ok(());
     };
-    if event.ty.value() != Some(&EventType::Transaction) {
-        return Ok(());
+
+    // TimestampProcessor is required in validation, and requires normalizing
+    // timestamps before (especially clock drift changes).
+    normalize_timestamps(
+        event,
+        meta,
+        config.received_at,
+        config.max_secs_in_past,
+        config.max_secs_in_future,
+    );
+    TimestampProcessor.process_event(event, meta, ProcessingState::root())?;
+
+    if event.ty.value() == Some(&EventType::Transaction) {
+        validate_transaction_timestamps(event, config)?;
+        validate_trace_context(event)?;
+        // There are no timestamp range requirements for span timestamps.
+        // Transaction will be rejected only if either end or start timestamp is missing.
+        end_all_spans(event);
+        validate_spans(event, None)?;
     }
 
-    validate_transaction_timestamps(event, config)?;
-    validate_trace_context(event)?;
-    // There are no timestamp range requirements for span timestamps.
-    // Transaction will be rejected only if either end or start timestamp is missing.
-    end_all_spans(event);
-    validate_spans(event, None)?;
-
     Ok(())
+}
+
+/// Validates the timestamp range and sets a default value.
+fn normalize_timestamps(
+    event: &mut Event,
+    meta: &mut Meta,
+    received_at: Option<DateTime<Utc>>,
+    max_secs_in_past: Option<i64>,
+    max_secs_in_future: Option<i64>,
+) {
+    let received_at = received_at.unwrap_or_else(Utc::now);
+
+    let mut sent_at = None;
+    let mut error_kind = ErrorKind::ClockDrift;
+
+    let _ = processor::apply(&mut event.timestamp, |timestamp, _meta| {
+        if let Some(secs) = max_secs_in_future {
+            if *timestamp > received_at + Duration::seconds(secs) {
+                error_kind = ErrorKind::FutureTimestamp;
+                sent_at = Some(*timestamp);
+                return Ok(());
+            }
+        }
+
+        if let Some(secs) = max_secs_in_past {
+            if *timestamp < received_at - Duration::seconds(secs) {
+                error_kind = ErrorKind::PastTimestamp;
+                sent_at = Some(*timestamp);
+                return Ok(());
+            }
+        }
+
+        Ok(())
+    });
+
+    let _ = ClockDriftProcessor::new(sent_at.map(|ts| ts.into_inner()), received_at)
+        .error_kind(error_kind)
+        .process_event(event, meta, ProcessingState::root());
+
+    // Apply this after clock drift correction, otherwise we will malform it.
+    event.received = Annotated::new(received_at.into());
+
+    if event.timestamp.value().is_none() {
+        event.timestamp.set_value(Some(received_at.into()));
+    }
+
+    let _ = processor::apply(&mut event.time_spent, |time_spent, _| {
+        validate_bounded_integer_field(*time_spent)
+    });
 }
 
 /// Returns whether the transacion's start and end timestamps are both set and start <= end.
 fn validate_transaction_timestamps(
     transaction_event: &Event,
-    config: &TransactionValidationConfig,
+    config: &EventValidationConfig,
 ) -> ProcessingResult {
     match (
         transaction_event.start_timestamp.value(),
         transaction_event.timestamp.value(),
     ) {
         (Some(start), Some(end)) => {
-            validate_timestamps(start, end, config.timestamp_range.as_ref())?;
+            validate_timestamps(start, end, config.transaction_timestamp_range.as_ref())?;
             Ok(())
         }
         (_, None) => Err(ProcessingAction::InvalidTransaction(
@@ -231,122 +302,6 @@ pub fn validate_span(
     Ok(())
 }
 
-/// Configuration for [`validate_event_timestamps`].
-#[derive(Debug, Default)]
-pub struct EventValidationConfig {
-    /// The time at which the event was received in this Relay.
-    ///
-    /// This timestamp is persisted into the event payload.
-    pub received_at: Option<DateTime<Utc>>,
-
-    /// The maximum amount of seconds an event can be dated in the past.
-    ///
-    /// If the event's timestamp is older, the received timestamp is assumed.
-    pub max_secs_in_past: Option<i64>,
-
-    /// The maximum amount of seconds an event can be predated into the future.
-    ///
-    /// If the event's timestamp lies further into the future, the received timestamp is assumed.
-    pub max_secs_in_future: Option<i64>,
-
-    /// Controls whether the event has been validated before, in which case disables validation.
-    ///
-    /// By default, `is_validated` is disabled and event validation is run.
-    ///
-    /// Similar to `is_renormalize` for normalization, `sentry_relay` may configure this value.
-    pub is_validated: bool,
-}
-
-/// Validates the timestamp values of an event, after performing minimal timestamp normalization.
-///
-/// A minimal normalization is performed on an event's timestamps before
-/// checking for validity, like clock drift correction. This normalization
-/// depends on the given configuration.
-///
-/// Validation is checked individually on timestamps. For transaction events,
-/// [`validate_transaction`] should run after this method to perform additional
-/// transaction-specific checks.
-///
-/// The returned [`ProcessingResult`] indicates whether the event is invalid and
-/// thus should be dropped.
-///
-/// Normalization changes should not be performed during validation, unless
-/// strictly required. Consider adding placing the normalization in
-/// [`crate::event::normalize_event`].
-pub fn validate_event_timestamps(
-    event: &mut Annotated<Event>,
-    config: &EventValidationConfig,
-) -> ProcessingResult {
-    if config.is_validated {
-        return Ok(());
-    }
-
-    let Annotated(Some(ref mut event), ref mut meta) = event else {
-        return Ok(());
-    };
-
-    //  timestamp processor is required in validation, and requires the clockdrift changes
-    normalize_timestamps(
-        event,
-        meta,
-        config.received_at,
-        config.max_secs_in_past,
-        config.max_secs_in_future,
-    ); // Timestamps are core in the metrics extraction
-    TimestampProcessor.process_event(event, meta, ProcessingState::root())?;
-
-    Ok(())
-}
-
-/// Validates the timestamp range and sets a default value.
-fn normalize_timestamps(
-    event: &mut Event,
-    meta: &mut Meta,
-    received_at: Option<DateTime<Utc>>,
-    max_secs_in_past: Option<i64>,
-    max_secs_in_future: Option<i64>,
-) {
-    let received_at = received_at.unwrap_or_else(Utc::now);
-
-    let mut sent_at = None;
-    let mut error_kind = ErrorKind::ClockDrift;
-
-    let _ = processor::apply(&mut event.timestamp, |timestamp, _meta| {
-        if let Some(secs) = max_secs_in_future {
-            if *timestamp > received_at + Duration::seconds(secs) {
-                error_kind = ErrorKind::FutureTimestamp;
-                sent_at = Some(*timestamp);
-                return Ok(());
-            }
-        }
-
-        if let Some(secs) = max_secs_in_past {
-            if *timestamp < received_at - Duration::seconds(secs) {
-                error_kind = ErrorKind::PastTimestamp;
-                sent_at = Some(*timestamp);
-                return Ok(());
-            }
-        }
-
-        Ok(())
-    });
-
-    let _ = ClockDriftProcessor::new(sent_at.map(|ts| ts.into_inner()), received_at)
-        .error_kind(error_kind)
-        .process_event(event, meta, ProcessingState::root());
-
-    // Apply this after clock drift correction, otherwise we will malform it.
-    event.received = Annotated::new(received_at.into());
-
-    if event.timestamp.value().is_none() {
-        event.timestamp.set_value(Some(received_at.into()));
-    }
-
-    let _ = processor::apply(&mut event.time_spent, |time_spent, _| {
-        validate_bounded_integer_field(*time_spent)
-    });
-}
-
 /// Validate fields that go into a `sentry.models.BoundedIntegerField`.
 fn validate_bounded_integer_field(value: u64) -> ProcessingResult {
     if value < 2_147_483_647 {
@@ -396,18 +351,11 @@ mod tests {
     }
 
     #[test]
-    fn test_discards_when_missing_timestamp() {
-        let mut event = Annotated::new(Event {
-            ty: Annotated::new(EventType::Transaction),
-            ..Default::default()
-        });
-
-        assert_eq!(
-            validate_transaction(&mut event, &TransactionValidationConfig::default()),
-            Err(ProcessingAction::InvalidTransaction(
-                "timestamp hard-required for transaction events"
-            ))
-        );
+    fn test_timestamp_added_if_missing() {
+        let mut event = Annotated::new(Event::default());
+        assert!(get_value!(event.timestamp).is_none());
+        assert!(validate_event(&mut event, &EventValidationConfig::default()).is_ok());
+        assert!(get_value!(event.timestamp).is_some());
     }
 
     #[test]
@@ -415,11 +363,12 @@ mod tests {
         let mut event = new_test_event();
 
         assert!(matches!(
-            validate_transaction(
+            validate_event(
                 &mut event,
-                &TransactionValidationConfig {
-                    timestamp_range: Some(UnixTimestamp::now()..UnixTimestamp::now()),
-                    is_validated: false
+                &EventValidationConfig {
+                    transaction_timestamp_range: Some(UnixTimestamp::now()..UnixTimestamp::now()),
+                    is_validated: false,
+                    ..Default::default()
                 }
             ),
             Err(ProcessingAction::InvalidTransaction(
@@ -437,7 +386,7 @@ mod tests {
         });
 
         assert_eq!(
-            validate_transaction(&mut event, &TransactionValidationConfig::default()),
+            validate_event(&mut event, &EventValidationConfig::default()),
             Err(ProcessingAction::InvalidTransaction(
                 "start_timestamp hard-required for transaction events"
             ))
@@ -456,11 +405,12 @@ mod tests {
         });
 
         assert_eq!(
-            validate_transaction(
+            validate_event(
                 &mut event,
-                &TransactionValidationConfig {
-                    timestamp_range: None,
-                    is_validated: false
+                &EventValidationConfig {
+                    transaction_timestamp_range: None,
+                    is_validated: false,
+                    ..Default::default()
                 }
             ),
             Err(ProcessingAction::InvalidTransaction(
@@ -482,11 +432,12 @@ mod tests {
         });
 
         assert_eq!(
-            validate_transaction(
+            validate_event(
                 &mut event,
-                &TransactionValidationConfig {
-                    timestamp_range: None,
-                    is_validated: false
+                &EventValidationConfig {
+                    transaction_timestamp_range: None,
+                    is_validated: false,
+                    ..Default::default()
                 }
             ),
             Err(ProcessingAction::InvalidTransaction(
@@ -512,7 +463,7 @@ mod tests {
         });
 
         assert_eq!(
-            validate_transaction(&mut event, &TransactionValidationConfig::default()),
+            validate_event(&mut event, &EventValidationConfig::default()),
             Err(ProcessingAction::InvalidTransaction(
                 "missing valid trace context"
             ))
@@ -536,7 +487,7 @@ mod tests {
         });
 
         assert_eq!(
-            validate_transaction(&mut event, &TransactionValidationConfig::default()),
+            validate_event(&mut event, &EventValidationConfig::default()),
             Err(ProcessingAction::InvalidTransaction(
                 "trace context is missing trace_id"
             ))
@@ -563,7 +514,7 @@ mod tests {
         });
 
         assert_eq!(
-            validate_transaction(&mut event, &TransactionValidationConfig::default()),
+            validate_event(&mut event, &EventValidationConfig::default()),
             Err(ProcessingAction::InvalidTransaction(
                 "trace context is missing span_id"
             ))
@@ -593,7 +544,7 @@ mod tests {
         });
 
         assert_eq!(
-            validate_transaction(&mut event, &TransactionValidationConfig::default()),
+            validate_event(&mut event, &EventValidationConfig::default()),
             Err(ProcessingAction::InvalidTransaction(
                 "spans must be valid in transaction event"
             ))
@@ -628,7 +579,7 @@ mod tests {
         });
 
         assert_eq!(
-            validate_transaction(&mut event, &TransactionValidationConfig::default()),
+            validate_event(&mut event, &EventValidationConfig::default()),
             Err(ProcessingAction::InvalidTransaction(
                 "span is missing start_timestamp"
             ))
@@ -666,7 +617,7 @@ mod tests {
         });
 
         assert_eq!(
-            validate_transaction(&mut event, &TransactionValidationConfig::default()),
+            validate_event(&mut event, &EventValidationConfig::default()),
             Err(ProcessingAction::InvalidTransaction(
                 "span is missing trace_id"
             ))
@@ -705,7 +656,7 @@ mod tests {
         });
 
         assert_eq!(
-            validate_transaction(&mut event, &TransactionValidationConfig::default()),
+            validate_event(&mut event, &EventValidationConfig::default()),
             Err(ProcessingAction::InvalidTransaction(
                 "span is missing span_id"
             ))
@@ -720,7 +671,7 @@ mod tests {
   "timestamp": -1
 }"#;
         let mut transaction = Annotated::<Event>::from_json(json).unwrap();
-        let res = validate_event_timestamps(&mut transaction, &EventValidationConfig::default());
+        let res = validate_event(&mut transaction, &EventValidationConfig::default());
         assert_eq!(
             res.unwrap_err().to_string(),
             "invalid transaction event: timestamp is too stale"
@@ -736,6 +687,7 @@ mod tests {
             max_secs_in_past: Some(2),
             max_secs_in_future: Some(1),
             is_validated: false,
+            ..Default::default()
         };
 
         let json = r#"{
@@ -746,7 +698,7 @@ mod tests {
 }"#;
         let mut event = Annotated::<Event>::from_json(json).unwrap();
 
-        assert!(validate_event_timestamps(&mut event, &config).is_ok());
+        assert!(validate_event(&mut event, &config).is_ok());
     }
 
     /// Test that transactions are rejected as invalid when timestamp normalization isn't enough.
@@ -762,6 +714,7 @@ mod tests {
             max_secs_in_past: Some(2),
             max_secs_in_future: Some(1),
             is_validated: false,
+            ..Default::default()
         };
 
         let json = format!(
@@ -776,9 +729,7 @@ mod tests {
         let mut event = Annotated::<Event>::from_json(json.as_str()).unwrap();
 
         assert_eq!(
-            validate_event_timestamps(&mut event, &config)
-                .unwrap_err()
-                .to_string(),
+            validate_event(&mut event, &config).unwrap_err().to_string(),
             "invalid transaction event: timestamp is too stale"
         );
     }
@@ -809,7 +760,7 @@ mod tests {
 }"#;
         let mut event = Annotated::<Event>::from_json(json).unwrap();
 
-        assert!(validate_transaction(&mut event, &TransactionValidationConfig::default()).is_ok());
+        assert!(validate_event(&mut event, &EventValidationConfig::default()).is_ok());
 
         let event = get_value!(event!);
         let spans = &event.spans;
@@ -845,17 +796,18 @@ mod tests {
 }"#;
         let mut event = Annotated::<Event>::from_json(json).unwrap();
 
-        validate_event_timestamps(
+        validate_event(
             &mut event,
             &EventValidationConfig {
                 received_at: Some(Utc::now()),
                 max_secs_in_past: Some(2),
                 max_secs_in_future: Some(1),
                 is_validated: false,
+                ..Default::default()
             },
         )
         .unwrap();
-        validate_transaction(&mut event, &TransactionValidationConfig::default()).unwrap();
+        validate_event(&mut event, &EventValidationConfig::default()).unwrap();
 
         let event = get_value!(event!);
         let spans = &event.spans;
@@ -873,10 +825,10 @@ mod tests {
 }"#;
         let mut event = Annotated::<Event>::from_json(json).unwrap();
 
-        assert!(validate_transaction(&mut event, &TransactionValidationConfig::default()).is_err());
-        assert!(validate_transaction(
+        assert!(validate_event(&mut event, &EventValidationConfig::default()).is_err());
+        assert!(validate_event(
             &mut event,
-            &TransactionValidationConfig {
+            &EventValidationConfig {
                 is_validated: true,
                 ..Default::default()
             }
@@ -894,8 +846,8 @@ mod tests {
 }"#;
         let mut event = Annotated::<Event>::from_json(json).unwrap();
 
-        assert!(validate_event_timestamps(&mut event, &EventValidationConfig::default()).is_err());
-        assert!(validate_event_timestamps(
+        assert!(validate_event(&mut event, &EventValidationConfig::default()).is_err());
+        assert!(validate_event(
             &mut event,
             &EventValidationConfig {
                 is_validated: true,

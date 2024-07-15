@@ -30,6 +30,7 @@
 pub mod cogs;
 pub mod global_config;
 pub mod health_check;
+pub mod metrics;
 pub mod outcome;
 pub mod outcome_aggregator;
 pub mod processor;
@@ -40,6 +41,7 @@ pub mod project_upstream;
 pub mod relays;
 pub mod server;
 pub mod spooler;
+pub mod stats;
 pub mod test_store;
 pub mod upstream;
 

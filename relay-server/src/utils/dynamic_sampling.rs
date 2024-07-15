@@ -1,5 +1,4 @@
 //! Functionality for calculating if a trace should be processed or dropped.
-use std::collections::HashMap;
 use std::ops::ControlFlow;
 
 use chrono::Utc;
@@ -12,119 +11,6 @@ use relay_sampling::evaluation::{SamplingDecision, SamplingEvaluator, SamplingMa
 
 use crate::envelope::{Envelope, ItemType};
 use crate::services::outcome::Outcome;
-use crate::statsd::RelayCounters;
-use once_cell::sync::Lazy;
-use semver::{Version, VersionReq};
-
-// List of minimum SDK versions that support Performance at Scale (aka Dynamic Sampling).
-// The list is defined here:
-// https://docs.sentry.io/product/performance/performance-at-scale/getting-started
-static SUPPORTED_SDK_VERSIONS: Lazy<HashMap<&'static str, &'static str>> = Lazy::new(|| {
-    HashMap::from([
-        ("sentry-python", "1.7.2"),
-        ("sentry.python.tornado", "1.7.2"),
-        ("sentry.python.starlette", "1.7.2"),
-        ("sentry.python.flask", "1.7.2"),
-        ("sentry.python.fastapi", "1.7.2"),
-        ("sentry.python.falcon", "1.7.2"),
-        ("sentry.python.django", "1.7.2"),
-        ("sentry.python.bottle", "1.7.2"),
-        ("sentry.python.aws_lambda", "1.7.2"),
-        ("sentry.python.aiohttp", "1.7.2"),
-        ("sentry.python", "1.7.2"),
-        ("sentry-browser", "7.6.0"),
-        ("sentry.javascript.angular", "7.6.0"),
-        ("sentry.javascript.astro", "7.6.0"),
-        ("sentry.javascript.browser", "7.6.0"),
-        ("sentry.javascript.ember", "7.6.0"),
-        ("sentry.javascript.gatsby", "7.6.0"),
-        ("sentry.javascript.nextjs", "7.6.0"),
-        ("sentry.javascript.react", "7.6.0"),
-        ("sentry.javascript.remix", "7.6.0"),
-        ("sentry.javascript.serverless", "7.6.0"),
-        ("sentry.javascript.svelte", "7.6.0"),
-        ("sentry.javascript.vue", "7.6.0"),
-        ("sentry.javascript.node", "7.6.0"),
-        ("sentry.javascript.angular-ivy", "7.6.0"),
-        ("sentry.javascript.sveltekit", "7.6.0"),
-        ("sentry.javascript.bun", "7.70.0"),
-        ("sentry-cocoa", "7.23.0"),
-        ("sentry-objc", "7.23.0"),
-        ("sentry-swift", "7.23.0"),
-        ("sentry.cocoa", "7.18.0"),
-        ("sentry.swift", "7.23.0"),
-        ("SentrySwift", "7.23.0"),
-        ("sentry-android", "6.5.0"),
-        ("sentry.java.android.timber", "6.5.0"),
-        ("sentry.java.android", "6.5.0"),
-        ("sentry.native.android", "6.5.0"),
-        ("sentry-react-native", "4.3.0"),
-        ("sentry.cocoa.react-native", "4.3.0"),
-        ("sentry.java.android.react-native", "4.3.0"),
-        ("sentry.javascript.react-native", "4.3.0"),
-        ("sentry.native.android.react-native", "4.3.0"),
-        ("sentry.javascript.react-native.expo", "6.0.0"),
-        ("sentry.javascript.react.expo", "6.0.0"),
-        ("dart", "6.11.0"),
-        ("dart-sentry-client", "6.11.0"),
-        ("sentry.dart", "6.11.0"),
-        ("sentry.dart.logging", "6.11.0"),
-        ("sentry.cocoa.flutter", "6.11.0"),
-        ("sentry.dart.flutter", "6.11.0"),
-        ("sentry.java.android.flutter", "6.11.0"),
-        ("sentry.native.android.flutter", "6.11.0"),
-        ("sentry.dart.browser", "6.11.0"),
-        ("sentry-php", "3.9.0"),
-        ("sentry.php", "3.9.0"),
-        ("sentry-laravel", "3.0.0"),
-        ("sentry.php.laravel", "3.0.0"),
-        ("sentry-symfony", "4.4.0"),
-        ("sentry.php.symfony", "4.4.0"),
-        ("Symphony.SentryClient", "4.4.0"),
-        ("sentry-ruby", "5.5.0"),
-        ("sentry.ruby", "5.5.0"),
-        ("sentry.ruby.delayed_job", "5.5.0"),
-        ("sentry.ruby.rails", "5.5.0"),
-        ("sentry.ruby.resque", "5.5.0"),
-        ("sentry.ruby.sidekiq", "5.5.0"),
-        ("sentry-java", "6.5.0"),
-        ("sentry.java", "6.5.0"),
-        ("sentry.java.jul", "6.5.0"),
-        ("sentry.java.log4j2", "6.5.0"),
-        ("sentry.java.logback", "6.5.0"),
-        ("sentry.java.spring", "6.5.0"),
-        ("sentry.java.spring-boot", "6.5.0"),
-        ("sentry.java.spring-boot.jakarta", "6.5.0"),
-        ("sentry.java.spring.jakarta", "6.5.0"),
-        ("sentry.aspnetcore", "3.22.0"),
-        ("Sentry.AspNetCore", "3.22.0"),
-        ("sentry.dotnet", "3.22.0"),
-        ("sentry.dotnet.android", "3.22.0"),
-        ("sentry.dotnet.aspnet", "3.22.0"),
-        ("sentry.dotnet.aspnetcore", "3.22.0"),
-        ("sentry.dotnet.aspnetcore.grpc", "3.22.0"),
-        ("sentry.dotnet.atlasproper", "3.22.0"),
-        ("sentry.dotnet.cocoa", "3.22.0"),
-        ("sentry.dotnet.ef", "3.22.0"),
-        ("sentry.dotnet.extensions.logging", "3.22.0"),
-        ("sentry.dotnet.google-cloud-function", "3.22.0"),
-        ("sentry.dotnet.log4net", "3.22.0"),
-        ("sentry.dotnet.maui", "3.22.0"),
-        ("sentry.dotnet.nlog", "3.22.0"),
-        ("sentry.dotnet.serilog", "3.22.0"),
-        ("sentry.dotnet.xamarin", "3.22.0"),
-        ("sentry.dotnet.xamarin-forms", "3.22.0"),
-        ("Sentry.Extensions.Logging", "3.22.0"),
-        ("Sentry.NET", "3.22.0"),
-        ("Sentry.UWP", "3.22.0"),
-        ("SentryDotNet", "3.22.0"),
-        ("SentryDotNet.AspNetCore", "3.22.0"),
-        ("sentry.dotnet.unity", "0.24.0"),
-        ("sentry.cocoa.unity", "0.24.0"),
-        ("sentry.java.android.unity", "0.24.0"),
-        ("sentry.go", "0.16.0"),
-    ])
-});
 
 /// Represents the specification for sampling an incoming event.
 #[derive(Default, Clone, Debug, PartialEq)]
@@ -222,27 +108,6 @@ pub fn get_sampling_key(envelope: &Envelope) -> Option<ProjectKey> {
     envelope.dsc().map(|dsc| dsc.public_key)
 }
 
-/// Returns `Some` if the event should have the DSC, otherwise returns `None`.
-///
-/// This function is a temporary function which has been added mainly for debugging purposes. Our
-/// goal with this function is to validate how many times the DSC is not on an [`Event`] which
-/// should have it.
-fn should_have_dsc(event: &Event) -> Option<String> {
-    let client_sdk_info = event.client_sdk.value()?;
-
-    let (sdk_name, sdk_version) = (
-        client_sdk_info.name.value()?,
-        client_sdk_info.version.value()?,
-    );
-
-    let min_sdk_version = SUPPORTED_SDK_VERSIONS.get(sdk_name.as_str())?;
-
-    let req = VersionReq::parse(format!(">={}", min_sdk_version).as_str()).ok()?;
-    let version = Version::parse(sdk_version).ok()?;
-
-    req.matches(&version).then(|| sdk_name.clone())
-}
-
 /// Computes a dynamic sampling context from a transaction event.
 ///
 /// Returns `None` if the passed event is not a transaction event, or if it does not contain a
@@ -259,26 +124,6 @@ pub fn dsc_from_event(public_key: ProjectKey, event: &Event) -> Option<DynamicSa
     let trace = event.context::<TraceContext>()?;
     let trace_id = trace.trace_id.value()?.0.parse().ok()?;
     let user = event.user.value();
-
-    // When we arrive at this point, we know that a DSC can be built from the event, implying that
-    // the event doesn't have one. We want to track a metric when the event should have the DSC
-    // or not based on the SDK version.
-    let sdk_name = should_have_dsc(event);
-    match sdk_name {
-        Some(sdk_name) => {
-            relay_statsd::metric!(
-                counter(RelayCounters::MissingDynamicSamplingContext) += 1,
-                sdk_name = sdk_name.as_str(),
-                should_have_dsc = "true"
-            );
-        }
-        None => {
-            relay_statsd::metric!(
-                counter(RelayCounters::MissingDynamicSamplingContext) += 1,
-                should_have_dsc = "false"
-            );
-        }
-    }
 
     Some(DynamicSamplingContext {
         trace_id,
@@ -304,7 +149,7 @@ pub fn dsc_from_event(public_key: ProjectKey, event: &Event) -> Option<DynamicSa
 
 #[cfg(test)]
 mod tests {
-    use relay_event_schema::protocol::{ClientSdkInfo, EventId, LenientString};
+    use relay_event_schema::protocol::{EventId, LenientString};
     use relay_protocol::Annotated;
     use relay_protocol::RuleCondition;
     use relay_sampling::config::{RuleId, SamplingRule, SamplingValue};
@@ -489,30 +334,5 @@ mod tests {
 
         let result = is_trace_fully_sampled(&config, &dsc);
         assert!(result.is_none());
-    }
-
-    #[test]
-    fn test_track_missing_dsc_with_supported_sdk_version() {
-        let mut event = mocked_event(EventType::Transaction, "bar", "2.0");
-        event.client_sdk = Annotated::new(ClientSdkInfo {
-            name: Annotated::new("sentry.python.flask".to_string()),
-            version: Annotated::new("1.7.3".to_string()),
-            ..Default::default()
-        });
-
-        let sdk_name = should_have_dsc(&event).unwrap();
-        assert_eq!(sdk_name, "sentry.python.flask".to_string());
-    }
-
-    #[test]
-    fn test_track_missing_dsc_with_unsupported_sdk_version() {
-        let mut event = mocked_event(EventType::Transaction, "bar", "2.0");
-        event.client_sdk = Annotated::new(ClientSdkInfo {
-            name: Annotated::new("sentry.python.flask".to_string()),
-            version: Annotated::new("1.0.3".to_string()),
-            ..Default::default()
-        });
-
-        assert!(should_have_dsc(&event).is_none());
     }
 }

@@ -190,6 +190,15 @@ impl<T> Annotated<T> {
     {
         self.value_mut().get_or_insert_with(f)
     }
+
+    /// Merges the supplied [`Annotated`] in the left [`Annotated`].
+    pub fn merge(&mut self, other: Annotated<T>, block: impl FnOnce(&mut T, T)) {
+        match (self.value_mut(), other.into_value()) {
+            (Some(left), Some(right)) => block(left, right),
+            (None, Some(right)) => self.set_value(Some(right)),
+            _ => {}
+        }
+    }
 }
 
 impl<T> Annotated<T>
