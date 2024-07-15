@@ -311,6 +311,11 @@
 <a href="#311" id="311">311</a>
 <a href="#312" id="312">312</a>
 <a href="#313" id="313">313</a>
+<a href="#314" id="314">314</a>
+<a href="#315" id="315">315</a>
+<a href="#316" id="316">316</a>
+<a href="#317" id="317">317</a>
+<a href="#318" id="318">318</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::convert::Infallible;
 <span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::sync::Arc;
@@ -321,7 +326,7 @@
 <span class="kw">use </span>axum::extract::FromRequestParts;
 <span class="kw">use </span>axum::http::request::Parts;
 <span class="kw">use </span>relay_cogs::Cogs;
-<span class="kw">use </span>relay_config::Config;
+<span class="kw">use </span>relay_config::{Config, RedisConnection};
 <span class="kw">use </span>relay_redis::RedisPool;
 <span class="kw">use </span>relay_system::{channel, Addr, Service};
 <span class="kw">use </span>tokio::runtime::Runtime;
@@ -413,12 +418,17 @@
         <span class="kw">let </span>upstream_relay = UpstreamRelayService::new(config.clone()).start();
         <span class="kw">let </span>test_store = TestStoreService::new(config.clone()).start();
 
-        <span class="kw">let </span>redis_pool = <span class="kw">match </span>config.redis() {
-            <span class="prelude-val">Some</span>(redis_config) <span class="kw">if </span>config.processing_enabled() =&gt; {
-                <span class="prelude-val">Some</span>(RedisPool::new(redis_config).context(ServiceError::Redis)<span class="question-mark">?</span>)
-            }
-            <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
-        };
+        <span class="kw">let </span>redis_pool = config
+            .redis()
+            .filter(|<span class="kw">_</span>| config.processing_enabled())
+            .map(|redis| <span class="kw">match </span>redis {
+                (RedisConnection::Single(server), options) =&gt; RedisPool::single(server, options),
+                (RedisConnection::Cluster(servers), options) =&gt; {
+                    RedisPool::cluster(servers.iter().map(|s| s.as_str()), options)
+                }
+            })
+            .transpose()
+            .context(ServiceError::Redis)<span class="question-mark">?</span>;
 
         <span class="kw">let </span>buffer_guard = Arc::new(BufferGuard::new(config.envelope_buffer_size()));
 

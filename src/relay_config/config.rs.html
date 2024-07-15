@@ -2480,6 +2480,23 @@
 <a href="#2480" id="2480">2480</a>
 <a href="#2481" id="2481">2481</a>
 <a href="#2482" id="2482">2482</a>
+<a href="#2483" id="2483">2483</a>
+<a href="#2484" id="2484">2484</a>
+<a href="#2485" id="2485">2485</a>
+<a href="#2486" id="2486">2486</a>
+<a href="#2487" id="2487">2487</a>
+<a href="#2488" id="2488">2488</a>
+<a href="#2489" id="2489">2489</a>
+<a href="#2490" id="2490">2490</a>
+<a href="#2491" id="2491">2491</a>
+<a href="#2492" id="2492">2492</a>
+<a href="#2493" id="2493">2493</a>
+<a href="#2494" id="2494">2494</a>
+<a href="#2495" id="2495">2495</a>
+<a href="#2496" id="2496">2496</a>
+<a href="#2497" id="2497">2497</a>
+<a href="#2498" id="2498">2498</a>
+<a href="#2499" id="2499">2499</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::io::Write;
@@ -2498,7 +2515,7 @@
 };
 <span class="kw">use </span>relay_metrics::aggregator::{AggregatorConfig, FlushBatching};
 <span class="kw">use </span>relay_metrics::MetricNamespace;
-<span class="kw">use </span>relay_redis::RedisConfig;
+<span class="kw">use </span>relay_redis::RedisConfigOptions;
 <span class="kw">use </span>serde::de::{DeserializeOwned, Unexpected, Visitor};
 <span class="kw">use </span>serde::{Deserialize, Deserializer, Serialize, Serializer};
 <span class="kw">use </span>uuid::Uuid;
@@ -2506,6 +2523,7 @@
 <span class="kw">use </span><span class="kw">crate</span>::aggregator::{AggregatorServiceConfig, ScopedAggregatorConfig};
 <span class="kw">use </span><span class="kw">crate</span>::byte_size::ByteSize;
 <span class="kw">use </span><span class="kw">crate</span>::upstream::UpstreamDescriptor;
+<span class="kw">use crate</span>::{RedisConfig, RedisConnection};
 
 <span class="kw">const </span>DEFAULT_NETWORK_OUTAGE_GRACE_PERIOD: u64 = <span class="number">10</span>;
 
@@ -4059,7 +4077,7 @@
         }
 
         <span class="kw">if let </span><span class="prelude-val">Some</span>(redis) = overrides.redis_url {
-            processing.redis = <span class="prelude-val">Some</span>(RedisConfig::Single(redis))
+            processing.redis = <span class="prelude-val">Some</span>(RedisConfig::single(redis))
         }
 
         <span class="kw">if let </span><span class="prelude-val">Some</span>(kafka_url) = overrides.kafka_url {
@@ -4754,8 +4772,24 @@
     }
 
     <span class="doccomment">/// Redis servers to connect to, for rate limiting.
-    </span><span class="kw">pub fn </span>redis(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>RedisConfig&gt; {
-        <span class="self">self</span>.values.processing.redis.as_ref()
+    </span><span class="kw">pub fn </span>redis(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;(<span class="kw-2">&amp;</span>RedisConnection, RedisConfigOptions)&gt; {
+        <span class="kw">let </span>cpu_concurrency = <span class="self">self</span>.cpu_concurrency();
+
+        <span class="kw">let </span>redis = <span class="self">self</span>.values.processing.redis.as_ref()<span class="question-mark">?</span>;
+
+        <span class="kw">let </span>options = RedisConfigOptions {
+            max_connections: redis
+                .options
+                .max_connections
+                .unwrap_or(cpu_concurrency <span class="kw">as </span>u32 * <span class="number">2</span>),
+            connection_timeout: redis.options.connection_timeout,
+            max_lifetime: redis.options.max_lifetime,
+            idle_timeout: redis.options.idle_timeout,
+            read_timeout: redis.options.read_timeout,
+            write_timeout: redis.options.write_timeout,
+        };
+
+        <span class="prelude-val">Some</span>((<span class="kw-2">&amp;</span>redis.connection, options))
     }
 
     <span class="doccomment">/// Chunk size of attachments in bytes.

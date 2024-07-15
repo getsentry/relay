@@ -215,21 +215,6 @@
 <a href="#215" id="215">215</a>
 <a href="#216" id="216">216</a>
 <a href="#217" id="217">217</a>
-<a href="#218" id="218">218</a>
-<a href="#219" id="219">219</a>
-<a href="#220" id="220">220</a>
-<a href="#221" id="221">221</a>
-<a href="#222" id="222">222</a>
-<a href="#223" id="223">223</a>
-<a href="#224" id="224">224</a>
-<a href="#225" id="225">225</a>
-<a href="#226" id="226">226</a>
-<a href="#227" id="227">227</a>
-<a href="#228" id="228">228</a>
-<a href="#229" id="229">229</a>
-<a href="#230" id="230">230</a>
-<a href="#231" id="231">231</a>
-<a href="#232" id="232">232</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::time::Duration;
 
@@ -238,7 +223,7 @@
 <span class="kw">use </span>redis::ConnectionLike;
 <span class="kw">use </span>thiserror::Error;
 
-<span class="kw">use </span><span class="kw">crate</span>::config::{RedisConfig, RedisConfigOptions};
+<span class="kw">use </span><span class="kw">crate</span>::config::RedisConfigOptions;
 
 <span class="doccomment">/// An error returned from `RedisPool`.
 </span><span class="attr">#[derive(Debug, Error)]
@@ -376,26 +361,11 @@
 }
 
 <span class="kw">impl </span>RedisPool {
-    <span class="doccomment">/// Creates a `RedisPool` from configuration.
-    </span><span class="kw">pub fn </span>new(config: <span class="kw-2">&amp;</span>RedisConfig) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, RedisError&gt; {
-        <span class="kw">match </span>config {
-            RedisConfig::Cluster {
-                <span class="kw-2">ref </span>cluster_nodes,
-                options,
-            } =&gt; {
-                <span class="kw">let </span>servers = cluster_nodes.iter().map(String::as_str).collect();
-                <span class="self">Self</span>::cluster(servers, options.clone())
-            }
-            RedisConfig::Single(<span class="kw-2">ref </span>server) =&gt; <span class="self">Self</span>::single(server, RedisConfigOptions::default()),
-            RedisConfig::SingleWithOpts {
-                <span class="kw-2">ref </span>server,
-                options,
-            } =&gt; <span class="self">Self</span>::single(server, options.clone()),
-        }
-    }
-
     <span class="doccomment">/// Creates a `RedisPool` in cluster configuration.
-    </span><span class="kw">pub fn </span>cluster(servers: Vec&lt;<span class="kw-2">&amp;</span>str&gt;, opts: RedisConfigOptions) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, RedisError&gt; {
+    </span><span class="kw">pub fn </span>cluster&lt;<span class="lifetime">'a</span>&gt;(
+        servers: <span class="kw">impl </span>IntoIterator&lt;Item = <span class="kw-2">&amp;</span><span class="lifetime">'a </span>str&gt;,
+        opts: RedisConfigOptions,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, RedisError&gt; {
         <span class="kw">let </span>pool = Pool::builder()
             .max_size(opts.max_connections)
             .test_on_check_out(<span class="bool-val">false</span>)

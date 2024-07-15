@@ -15,6 +15,8 @@
 <a href="#15" id="15">15</a>
 <a href="#16" id="16">16</a>
 <a href="#17" id="17">17</a>
+<a href="#18" id="18">18</a>
+<a href="#19" id="19">19</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Configuration for the Relay CLI and server.
 </span><span class="attr">#![warn(missing_docs)]
 #![doc(
@@ -26,10 +28,12 @@
 </span><span class="kw">pub mod </span>aggregator;
 <span class="kw">mod </span>byte_size;
 <span class="kw">mod </span>config;
+<span class="kw">mod </span>redis;
 <span class="kw">mod </span>upstream;
 
 <span class="kw">pub use </span><span class="kw">crate</span>::aggregator::{AggregatorServiceConfig, ScopedAggregatorConfig};
 <span class="kw">pub use </span><span class="kw">crate</span>::byte_size::<span class="kw-2">*</span>;
 <span class="kw">pub use </span><span class="kw">crate</span>::config::<span class="kw-2">*</span>;
+<span class="kw">pub use </span><span class="kw">crate</span>::redis::<span class="kw-2">*</span>;
 <span class="kw">pub use </span><span class="kw">crate</span>::upstream::<span class="kw-2">*</span>;
 </code></pre></div></section></main></body></html>
