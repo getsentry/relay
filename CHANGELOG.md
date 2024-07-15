@@ -8,6 +8,7 @@
 - Fixes metrics dropped due to missing project state. ([#3553](https://github.com/getsentry/relay/issues/3553))
 - Incorrect span outcomes when generated from a indexed transaction quota. ([#3793](https://github.com/getsentry/relay/pull/3793))
 - Report outcomes for spans when transactions are rate limited. ([#3749](https://github.com/getsentry/relay/pull/3749))
+- Only transfer valid profile ids. ([#3809](https://github.com/getsentry/relay/pull/3809))
 
 **Internal**:
 
@@ -21,6 +22,8 @@
 - Add support for `all` and `any` `RuleCondition`(s). ([#3791](https://github.com/getsentry/relay/pull/3791))
 - Copy root span data from `contexts.trace.data` when converting transaction events into raw spans. ([#3790](https://github.com/getsentry/relay/pull/3790))
 - Remove experimental double-write from spans to transactions. ([#3801](https://github.com/getsentry/relay/pull/3801))
+- Add feature flag to disable replay-video events. ([#3803](https://github.com/getsentry/relay/pull/3803))
+- Write the envelope's Dynamic Sampling Context (DSC) into event payloads for debugging. ([#3811](https://github.com/getsentry/relay/pull/3811))
 
 ## 24.6.0
 

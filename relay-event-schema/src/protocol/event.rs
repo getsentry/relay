@@ -511,6 +511,10 @@ pub struct Event {
     #[metastructure(omit_from_schema)]
     pub _metrics_summary: Annotated<MetricsSummary>,
 
+    /// Value of the `DynamicSamplingContext` for this event.
+    #[metastructure(omit_from_schema)]
+    pub _dsc: Annotated<Value>,
+
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(additional_properties, pii = "true")]
     pub other: Object<Value>,

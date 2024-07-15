@@ -36,6 +36,12 @@ pub enum RelayGauges {
     SystemMemoryTotal,
     /// The currently used Resident Set Size (RSS).
     SystemMemoryRss,
+    /// The number of connections currently being managed by the Redis Pool.
+    #[cfg(feature = "processing")]
+    RedisPoolConnections,
+    /// The number of idle connections in the Redis Pool.
+    #[cfg(feature = "processing")]
+    RedisPoolIdleConnections,
 }
 
 impl GaugeMetric for RelayGauges {
@@ -49,6 +55,10 @@ impl GaugeMetric for RelayGauges {
             RelayGauges::SystemMemoryUsed => "health.system_memory.used",
             RelayGauges::SystemMemoryTotal => "health.system_memory.total",
             RelayGauges::SystemMemoryRss => "health.system_memory.rss",
+            #[cfg(feature = "processing")]
+            RelayGauges::RedisPoolConnections => "redis.pool.connections",
+            #[cfg(feature = "processing")]
+            RelayGauges::RedisPoolIdleConnections => "redis.pool.idle_connections",
         }
     }
 }
@@ -261,25 +271,39 @@ pub enum RelayHistograms {
     ///   - `route`: The endpoint that was called on the upstream.
     ///   - `status-code`: The status code of the request when available, otherwise "-".
     UpstreamRetries,
-
     /// Size of envelopes sent over HTTP in bytes.
     UpstreamQueryBodySize,
-
     /// Size of queries (projectconfig queries, i.e. the request payload, not the response) sent by
     /// Relay over HTTP in bytes.
     UpstreamEnvelopeBodySize,
-
     /// Size of batched global metrics requests sent by Relay over HTTP in bytes.
     UpstreamMetricsBodySize,
-
     /// Distribution of flush buckets over partition keys.
     ///
     /// The distribution of buckets should be even.
     /// If it is not, this metric should expose it.
     PartitionKeys,
-
     /// Measures how many splits were performed when sending out a partition.
     PartitionSplits,
+    /// The total number of metric buckets flushed in a cycle across all projects.
+    ///
+    /// This metric is tagged with:
+    ///  - `aggregator`: The name of the metrics aggregator (usually `"default"`).
+    BucketsFlushed,
+    /// The number of metric buckets flushed in a cycle for each project.
+    ///
+    /// Relay scans metric buckets in regular intervals and flushes expired buckets. This histogram
+    /// is logged for each project that is being flushed. The count of the histogram values is
+    /// equivalent to the number of projects being flushed.
+    ///
+    /// This metric is tagged with:
+    ///  - `aggregator`: The name of the metrics aggregator (usually `"default"`).
+    BucketsFlushedPerProject,
+    /// The number of metric partitions flushed in a cycle.
+    ///
+    /// This metric is tagged with:
+    ///  - `aggregator`: The name of the metrics aggregator (usually `"default"`).
+    PartitionsFlushed,
 }
 
 impl HistogramMetric for RelayHistograms {
@@ -314,6 +338,9 @@ impl HistogramMetric for RelayHistograms {
             RelayHistograms::UpstreamMetricsBodySize => "upstream.metrics.body_size",
             RelayHistograms::PartitionKeys => "metrics.buckets.partition_keys",
             RelayHistograms::PartitionSplits => "partition_splits",
+            RelayHistograms::BucketsFlushed => "metrics.buckets.flushed",
+            RelayHistograms::BucketsFlushedPerProject => "metrics.buckets.flushed_per_project",
+            RelayHistograms::PartitionsFlushed => "metrics.partitions.flushed",
         }
     }
 }
@@ -490,6 +517,11 @@ pub enum RelayTimers {
     ///  - `count`: How many items matching the data category are contained in the batch.
     #[cfg(feature = "processing")]
     RateLimitBucketsDuration,
+    /// Timing in milliseconds for processing a message in the aggregator service.
+    ///
+    /// This metric is tagged with:
+    ///  - `message`: The type of message that was processed.
+    AggregatorServiceDuration,
 }
 
 impl TimerMetric for RelayTimers {
@@ -527,6 +559,7 @@ impl TimerMetric for RelayTimers {
             RelayTimers::HealthCheckDuration => "health.message.duration",
             #[cfg(feature = "processing")]
             RelayTimers::RateLimitBucketsDuration => "processor.rate_limit_buckets",
+            RelayTimers::AggregatorServiceDuration => "metrics.aggregator.message.duration",
         }
     }
 }
@@ -761,6 +794,13 @@ pub enum RelayCounters {
     /// The amount of times metrics of a project have been flushed without the project being
     /// fetched/available.
     ProjectStateFlushMetricsNoProject,
+    /// Incremented every time a bucket is dropped.
+    ///
+    /// This should only happen when a project state is invalid during graceful shutdown.
+    ///
+    /// This metric is tagged with:
+    ///  - `aggregator`: The name of the metrics aggregator (usually `"default"`).
+    BucketsDropped,
 }
 
 impl CounterMetric for RelayCounters {
@@ -802,6 +842,7 @@ impl CounterMetric for RelayCounters {
             RelayCounters::FeedbackAttachments => "processing.feedback_attachments",
             RelayCounters::CogsUsage => "cogs.usage",
             RelayCounters::ProjectStateFlushMetricsNoProject => "project_state.metrics.no_project",
+            RelayCounters::BucketsDropped => "metrics.buckets.dropped",
         }
     }
 }

@@ -12,6 +12,7 @@ debug = false
 # In release, however, we do want full debug information to report
 # panic and error stack traces to Sentry.
 debug = true
+lto = "thin"
 
 [profile.release-cabi]
 inherits = "release"
