@@ -14,7 +14,7 @@ build = "build.rs"
 workspace = true
 
 [dependencies]
-chrono = { workspace = true }
+chrono = { workspace = true, features = ["clock"] }
 data-encoding = { workspace = true }
 ed25519-dalek = { workspace = true, features = ["rand_core"] }
 hmac = { workspace = true }

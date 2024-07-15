@@ -3653,6 +3653,7 @@ version = "24.6.0"
 dependencies = [
  "anyhow",
  "human-size",
+ "insta",
  "num_cpus",
  "relay-auth",
  "relay-common",
