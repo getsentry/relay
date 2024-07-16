@@ -6,7 +6,7 @@ pub use redis;
 use redis::ConnectionLike;
 use thiserror::Error;
 
-use crate::config::{RedisConfig, RedisConfigOptions};
+use crate::config::RedisConfigOptions;
 
 /// An error returned from `RedisPool`.
 #[derive(Debug, Error)]
@@ -144,26 +144,11 @@ pub struct RedisPool {
 }
 
 impl RedisPool {
-    /// Creates a `RedisPool` from configuration.
-    pub fn new(config: &RedisConfig) -> Result<Self, RedisError> {
-        match config {
-            RedisConfig::Cluster {
-                ref cluster_nodes,
-                options,
-            } => {
-                let servers = cluster_nodes.iter().map(String::as_str).collect();
-                Self::cluster(servers, options.clone())
-            }
-            RedisConfig::Single(ref server) => Self::single(server, RedisConfigOptions::default()),
-            RedisConfig::SingleWithOpts {
-                ref server,
-                options,
-            } => Self::single(server, options.clone()),
-        }
-    }
-
     /// Creates a `RedisPool` in cluster configuration.
-    pub fn cluster(servers: Vec<&str>, opts: RedisConfigOptions) -> Result<Self, RedisError> {
+    pub fn cluster<'a>(
+        servers: impl IntoIterator<Item = &'a str>,
+        opts: RedisConfigOptions,
+    ) -> Result<Self, RedisError> {
         let pool = Pool::builder()
             .max_size(opts.max_connections)
             .test_on_check_out(false)

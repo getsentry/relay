@@ -1699,6 +1699,7 @@ impl EnvelopeProcessorService {
         if_processing!(self.inner.config, {
             // Process profiles before extracting metrics, to make sure they are removed if they are invalid.
             let profile_id = profile::process(state, &self.inner.config);
+            profile::transfer_id(state, profile_id);
 
             // Always extract metrics in processing Relays for sampled items.
             self.extract_transaction_metrics(state, SamplingDecision::Keep, profile_id)?;
