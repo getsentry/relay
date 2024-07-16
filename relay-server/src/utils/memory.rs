@@ -84,7 +84,7 @@ impl MemoryStat {
             return None;
         }
 
-        let (Ok(mut data), Ok(mut system)) = (self.0.memory.write(), self.0.system.lock()) else {
+        let (Ok(mut memory), Ok(mut system)) = (self.0.memory.write(), self.0.system.lock()) else {
             return None;
         };
 
@@ -97,10 +97,10 @@ impl MemoryStat {
             return None;
         };
 
-        let new_data = Self::build_data(&mut system);
-        *data = new_data;
+        let updated_memory = Self::build_data(&mut system);
+        *memory = updated_memory;
 
-        Some(new_data)
+        Some(updated_memory)
     }
 }
 
