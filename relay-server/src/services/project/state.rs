@@ -71,7 +71,7 @@ impl ProjectFetchState {
         }
     }
 
-    /// Returns `true` if the contained state is invalid.
+    /// Returns `true` if the contained state is pending.
     pub fn is_pending(&self) -> bool {
         matches!(self.state, ProjectState::Pending)
     }
@@ -115,7 +115,7 @@ impl ProjectFetchState {
     }
 }
 
-/// The expiry status of a project state. Return value of [`ProjectState::check_expiry`].
+/// The expiry status of a project state. Return value of [`ProjectFetchState::check_expiry`].
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 enum Expiry {
     /// The project state is perfectly up to date.

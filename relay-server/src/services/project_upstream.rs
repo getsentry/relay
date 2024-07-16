@@ -44,7 +44,7 @@ pub struct GetProjectStates {
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GetProjectStatesResponse {
-    /// Map of [`ProjectKey`] to [`ProjectState`] that was fetched from the upstream.
+    /// Map of [`ProjectKey`] to [`ParsedProjectState`] that was fetched from the upstream.
     #[serde(default)]
     configs: HashMap<ProjectKey, ErrorBoundary<Option<ParsedProjectState>>>,
     /// The [`ProjectKey`]'s that couldn't be immediately retrieved from the upstream.
@@ -128,7 +128,7 @@ type ProjectStateChannels = HashMap<ProjectKey, ProjectStateChannel>;
 
 /// This is the [`UpstreamProjectSourceService`] interface.
 ///
-/// The service is responsible for fetching the [`ProjectState`] from the upstream.
+/// The service is responsible for fetching the [`ParsedProjectState`] from the upstream.
 /// Internally it maintains the buffer queue of the incoming requests, which got scheduled to fetch the
 /// state and takes care of the backoff in case there is a problem with the requests.
 #[derive(Debug)]
@@ -159,7 +159,7 @@ struct UpstreamResponse {
     response: Result<GetProjectStatesResponse, UpstreamRequestError>,
 }
 
-/// The service which handles the fetching of the [`ProjectState`] from upstream.
+/// The service which handles the fetching of the [`ParsedProjectState`] from upstream.
 #[derive(Debug)]
 pub struct UpstreamProjectSourceService {
     backoff: RetryBackoff,
