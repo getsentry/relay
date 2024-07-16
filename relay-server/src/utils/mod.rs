@@ -26,6 +26,7 @@ pub use self::buffer::*;
 pub use self::dynamic_sampling::*;
 pub use self::garbage::*;
 pub use self::managed_envelope::*;
+pub use self::memory::*;
 pub use self::multipart::*;
 #[cfg(feature = "processing")]
 pub use self::native::*;

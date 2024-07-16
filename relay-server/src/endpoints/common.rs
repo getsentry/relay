@@ -75,7 +75,7 @@ pub enum BadStoreRequest {
     InvalidEventId,
 
     #[error("failed to queue envelope")]
-    QueueFailed(#[from] BufferError),
+    QueueFailed,
 
     #[error(
         "envelope exceeded size limits for type '{0}' (https://develop.sentry.dev/sdk/envelopes/#size-limits)"
@@ -299,14 +299,18 @@ fn queue_envelope(
     // Split off the envelopes by item type.
     let envelopes = ProcessingGroup::split_envelope(*managed_envelope.take_envelope());
     for (group, envelope) in envelopes {
-        let envelope = buffer_guard
-            .enter(
-                envelope,
-                state.outcome_aggregator().clone(),
-                state.test_store().clone(),
-                group,
-            )
-            .map_err(BadStoreRequest::QueueFailed)?;
+        state.memory_stat().increment();
+        if !state.memory_stat().has_enough_memory() {
+            return Err(BadStoreRequest::QueueFailed);
+        }
+
+        let envelope = ManagedEnvelope::standalone(
+            envelope,
+            state.outcome_aggregator().clone(),
+            state.test_store().clone(),
+            group,
+        );
+
         state.project_cache().send(ValidateEnvelope::new(envelope));
     }
     // The entire envelope is taken for a split above, and it's empty at this point, we can just

@@ -26,7 +26,7 @@ use crate::services::relays::{RelayCache, RelayCacheService};
 use crate::services::store::StoreService;
 use crate::services::test_store::{TestStore, TestStoreService};
 use crate::services::upstream::{UpstreamRelay, UpstreamRelayService};
-use crate::utils::BufferGuard;
+use crate::utils::{BufferGuard, MemoryStat};
 
 /// Indicates the type of failure of the server.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, thiserror::Error)]
@@ -85,6 +85,7 @@ pub fn create_runtime(name: &str, threads: usize) -> Runtime {
 struct StateInner {
     config: Arc<Config>,
     buffer_guard: Arc<BufferGuard>,
+    memory_stat: MemoryStat,
     registry: Registry,
 }
 
@@ -108,6 +109,8 @@ impl ServiceState {
         };
 
         let buffer_guard = Arc::new(BufferGuard::new(config.envelope_buffer_size()));
+
+        let memory_stat = MemoryStat::new(config.clone());
 
         // Create an address for the `EnvelopeProcessor`, which can be injected into the
         // other services.
@@ -234,8 +237,9 @@ impl ServiceState {
         };
 
         let state = StateInner {
-            buffer_guard,
             config,
+            buffer_guard,
+            memory_stat,
             registry,
         };
 
@@ -255,6 +259,10 @@ impl ServiceState {
     /// buffer. See [`BufferGuard`] for more information.
     pub fn buffer_guard(&self) -> &BufferGuard {
         &self.inner.buffer_guard
+    }
+
+    pub fn memory_stat(&self) -> &MemoryStat {
+        &self.inner.memory_stat
     }
 
     /// Returns the address of the [`ProjectCache`] service.
