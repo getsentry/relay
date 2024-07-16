@@ -1,7 +1,8 @@
+use arc_swap::ArcSwap;
 use std::fmt;
 use std::fmt::Formatter;
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Arc, Mutex, RwLock};
+use std::sync::{Arc, Mutex};
 use std::time::Instant;
 use sysinfo::{MemoryRefreshKind, System};
 
@@ -25,7 +26,7 @@ impl Memory {
 }
 
 struct Inner {
-    memory: RwLock<Memory>,
+    memory: ArcSwap<Memory>,
     last_update: AtomicU64,
     reference_time: Instant,
     max_percent_threshold: f32,
@@ -40,7 +41,7 @@ impl MemoryStat {
         // sysinfo docs suggest to use a single instance of `System` across the program.
         let mut system = System::new();
         Self(Arc::new(Inner {
-            memory: RwLock::new(Self::build_data(&mut system)),
+            memory: ArcSwap::from(Arc::new(Self::build_data(&mut system))),
             last_update: AtomicU64::new(0),
             reference_time: Instant::now(),
             max_percent_threshold,
@@ -55,11 +56,7 @@ impl MemoryStat {
             return memory.used_percent() < self.0.max_percent_threshold;
         };
 
-        let Ok(memory_lock) = self.0.memory.read() else {
-            return false;
-        };
-
-        memory_lock.used_percent() < self.0.max_percent_threshold
+        self.0.memory.load().used_percent() < self.0.max_percent_threshold
     }
 
     fn build_data(system: &mut System) -> Memory {
@@ -84,7 +81,7 @@ impl MemoryStat {
             return None;
         }
 
-        let (Ok(mut memory), Ok(mut system)) = (self.0.memory.write(), self.0.system.lock()) else {
+        let Ok(mut system) = self.0.system.lock() else {
             return None;
         };
 
@@ -98,7 +95,7 @@ impl MemoryStat {
         };
 
         let updated_memory = Self::build_data(&mut system);
-        *memory = updated_memory;
+        self.0.memory.store(Arc::new(updated_memory));
 
         Some(updated_memory)
     }
