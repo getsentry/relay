@@ -2,9 +2,9 @@ use relay_config::Config;
 use std::fmt;
 use std::fmt::Formatter;
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, Mutex, RwLock};
 use std::time::Instant;
-use sysinfo::System;
+use sysinfo::{MemoryRefreshKind, System};
 
 /// Count after which the [`MemoryStat`] data will be refreshed.
 const UPDATE_TIME_THRESHOLD_SECONDS: f64 = 0.1;
@@ -34,7 +34,7 @@ pub struct MemoryStat {
     last_update: Arc<AtomicU64>,
     reference_time: Instant,
     config: Arc<Config>,
-    system: Arc<System>,
+    system: Arc<Mutex<System>>,
 }
 
 impl fmt::Debug for MemoryStat {
@@ -46,13 +46,13 @@ impl fmt::Debug for MemoryStat {
 impl MemoryStat {
     pub fn new(config: Arc<Config>) -> Self {
         // sysinfo docs suggest to use a single instance of `System` across the program.
-        let system = System::new();
+        let mut system = System::new();
         Self {
-            data: Arc::new(RwLock::new(Self::build_data(&system))),
+            data: Arc::new(RwLock::new(Self::build_data(&mut system))),
             last_update: Arc::new(AtomicU64::new(0)),
             reference_time: Instant::now(),
             config: config.clone(),
-            system: Arc::new(system),
+            system: Arc::new(Mutex::new(system)),
         }
     }
 
@@ -68,7 +68,8 @@ impl MemoryStat {
         data.used_percent() < self.config.health_max_memory_watermark_percent()
     }
 
-    fn build_data(system: &System) -> MemoryStatInner {
+    fn build_data(system: &mut System) -> MemoryStatInner {
+        system.refresh_memory_specifics(MemoryRefreshKind::new().with_ram());
         match system.cgroup_limits() {
             Some(cgroup) => MemoryStatInner {
                 used: cgroup.rss,
@@ -89,7 +90,7 @@ impl MemoryStat {
             return;
         }
 
-        let Ok(mut data) = self.data.write() else {
+        let (Ok(mut data), Ok(mut system)) = (self.data.write(), self.system.lock()) else {
             return;
         };
 
@@ -102,7 +103,7 @@ impl MemoryStat {
             return;
         };
 
-        *data = Self::build_data(&self.system);
+        *data = Self::build_data(&mut system);
     }
 }
 
