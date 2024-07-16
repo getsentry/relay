@@ -498,6 +498,8 @@
 <a href="#498" id="498">498</a>
 <a href="#499" id="499">499</a>
 <a href="#500" id="500">500</a>
+<a href="#501" id="501">501</a>
+<a href="#502" id="502">502</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Validation and normalization of [`Replay`] events.
 
 </span><span class="kw">use </span>std::net::IpAddr <span class="kw">as </span>StdIpAddr;
@@ -551,9 +553,13 @@
         .value()
         .ok_or_else(|| ReplayError::InvalidPayload(<span class="string">"missing segment_id"</span>.to_string()))<span class="question-mark">?</span>;
 
-    <span class="kw">if </span>segment_id &gt; u16::MAX <span class="kw">as </span>u64 {
+    <span class="comment">// Each segment is expected to be 5 seconds in length. We take the number of seconds in
+    // an hour and divide by five to get the max segment-id.
+    </span><span class="kw">const </span>MAX_SEGMENT_ID: u64 = <span class="number">60 </span>* <span class="number">60 </span>/ <span class="number">5</span>;
+
+    <span class="kw">if </span>segment_id &gt; MAX_SEGMENT_ID {
         <span class="kw">return </span><span class="prelude-val">Err</span>(ReplayError::InvalidPayload(
-            <span class="string">"segment_id exceeded u16 limit"</span>.to_string(),
+            <span class="string">"segment_id limit exceeded"</span>.to_string(),
         ));
     }
 
@@ -865,11 +871,10 @@
     }
 
     <span class="attr">#[test]
-    </span><span class="kw">fn </span>test_validate_u16_segment_id() {
-        <span class="comment">// Does not fit within a u16.
-        </span><span class="kw">let </span>replay_id =
+    </span><span class="kw">fn </span>test_validate_segment_id() {
+        <span class="kw">let </span>replay_id =
             Annotated::new(EventId(<span class="string">"52df9022835246eeb317dbd739ccd059"</span>.parse().unwrap()));
-        <span class="kw">let </span>segment_id: Annotated&lt;u64&gt; = Annotated::new(u16::MAX <span class="kw">as </span>u64 + <span class="number">1</span>);
+        <span class="kw">let </span>segment_id: Annotated&lt;u64&gt; = Annotated::new(<span class="number">721</span>);
         <span class="kw">let </span><span class="kw-2">mut </span>replay = Annotated::new(Replay {
             replay_id,
             segment_id,
@@ -877,10 +882,9 @@
         });
         <span class="macro">assert!</span>(validate(replay.value_mut().as_mut().unwrap()).is_err());
 
-        <span class="comment">// Fits within a u16.
-        </span><span class="kw">let </span>replay_id =
+        <span class="kw">let </span>replay_id =
             Annotated::new(EventId(<span class="string">"52df9022835246eeb317dbd739ccd059"</span>.parse().unwrap()));
-        <span class="kw">let </span>segment_id: Annotated&lt;u64&gt; = Annotated::new(u16::MAX <span class="kw">as </span>u64);
+        <span class="kw">let </span>segment_id: Annotated&lt;u64&gt; = Annotated::new(<span class="number">720</span>);
         <span class="kw">let </span><span class="kw-2">mut </span>replay = Annotated::new(Replay {
             replay_id,
             segment_id,
