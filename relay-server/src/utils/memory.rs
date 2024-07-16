@@ -6,7 +6,7 @@ use std::time::Instant;
 use sysinfo::{MemoryRefreshKind, System};
 
 /// Count after which the [`MemoryStat`] data will be refreshed.
-const UPDATE_TIME_THRESHOLD_SECONDS: f64 = 0.1;
+const UPDATE_TIME_THRESHOLD_MS: u64 = 100;
 
 #[derive(Clone, Copy)]
 struct Memory {
@@ -78,9 +78,9 @@ impl MemoryStat {
 
     fn try_update(&self) -> Option<Memory> {
         let last_update = self.0.last_update.load(Ordering::Relaxed);
-        let elapsed_time = self.0.reference_time.elapsed().as_secs_f64();
+        let elapsed_time = self.0.reference_time.elapsed().as_millis() as u64;
 
-        if elapsed_time - (last_update as f64) < UPDATE_TIME_THRESHOLD_SECONDS {
+        if elapsed_time - last_update < UPDATE_TIME_THRESHOLD_MS {
             return None;
         }
 
@@ -90,7 +90,7 @@ impl MemoryStat {
 
         let Ok(_) = self.0.last_update.compare_exchange_weak(
             last_update,
-            elapsed_time as u64,
+            elapsed_time,
             Ordering::Relaxed,
             Ordering::Relaxed,
         ) else {
