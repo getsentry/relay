@@ -376,10 +376,10 @@ impl UpstreamProjectSourceService {
                             self.state_channels.insert(key, channel);
                             continue;
                         }
-                        let state = dbg!(response
+                        let state = response
                             .configs
                             .remove(&key)
-                            .unwrap_or(ErrorBoundary::Ok(None)));
+                            .unwrap_or(ErrorBoundary::Ok(None));
                         let state = match state {
                             ErrorBoundary::Err(error) => {
                                 let error = &error as &dyn std::error::Error;

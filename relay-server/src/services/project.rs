@@ -450,18 +450,16 @@ impl Project {
         meta: MetricMeta,
         envelope_processor: Addr<EnvelopeProcessor>,
     ) {
-        let ProjectState::Enabled(state) = self.current_state() else {
-            relay_log::trace!("no valid state, unable to aggregate metric meta");
-            return;
-        };
-
         // Only track metadata if custom metrics are enabled, or we don't know yet whether they are
         // enabled.
-        if !state.has_feature(Feature::CustomMetrics) {
-            relay_log::trace!(
-                "metric meta feature flag not enabled for project {}",
-                self.project_key
-            );
+        let is_enabled = match self.current_state() {
+            ProjectState::Enabled(info) => info.has_feature(Feature::CustomMetrics),
+            ProjectState::Disabled => false,
+            ProjectState::Pending => true,
+        };
+
+        if !is_enabled {
+            relay_log::trace!("metric meta not enabled for project {}", self.project_key);
             return;
         }
 
@@ -832,7 +830,7 @@ impl Project {
 
         let envelope = if envelope.envelope().is_empty() {
             // Individual rate limits have already been issued above
-            envelope.reject(dbg!(Outcome::RateLimited(None)));
+            envelope.reject(Outcome::RateLimited(None));
             None
         } else {
             Some(envelope)
