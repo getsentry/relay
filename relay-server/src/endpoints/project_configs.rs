@@ -16,7 +16,7 @@ use crate::endpoints::forward;
 use crate::extractors::SignedJson;
 use crate::service::ServiceState;
 use crate::services::global_config::{self, StatusResponse};
-use crate::services::project::{LimitedParsedProjectState, ParsedProjectState, ProjectState};
+use crate::services::project::{LimitedProjectInfo, ParsedProjectState, ProjectInfo, ProjectState};
 use crate::services::project_cache::{GetCachedProjectState, GetProjectState};
 
 /// V2 version of this endpoint.
@@ -37,6 +37,15 @@ const ENDPOINT_V3: u16 = 3;
 struct VersionQuery {
     #[serde(default)]
     version: u16,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase", remote = "ParsedProjectState")]
+struct LimitedParsedProjectState {
+    disabled: bool,
+    #[serde(with = "LimitedProjectInfo")]
+    #[serde(flatten)]
+    info: ProjectInfo,
 }
 
 /// The type returned for each requested project config.
