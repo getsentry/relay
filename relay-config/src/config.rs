@@ -2283,7 +2283,7 @@ impl Config {
                 .options
                 .max_connections
                 .unwrap_or(cpu_concurrency as u32 * 2)
-                .min(24),
+                .min(crate::redis::DEFAULT_MIN_MAX_CONNECTIONS),
             connection_timeout: redis.options.connection_timeout,
             max_lifetime: redis.options.max_lifetime,
             idle_timeout: redis.options.idle_timeout,

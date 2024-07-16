@@ -1,5 +1,9 @@
 use serde::{Deserialize, Serialize};
 
+/// For small setups, `2 x limits.max_thread_count` does not leave enough headroom.
+/// In this case, we fall back to the old default.
+pub(crate) const DEFAULT_MIN_MAX_CONNECTIONS: u32 = 24;
+
 /// Additional configuration options for a redis client.
 #[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
 #[serde(default)]
