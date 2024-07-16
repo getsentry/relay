@@ -114,7 +114,7 @@ impl IntoResponse for BadStoreRequest {
 
                 (StatusCode::TOO_MANY_REQUESTS, headers, body).into_response()
             }
-            BadStoreRequest::ScheduleFailed | BadStoreRequest::QueueFailed(_) => {
+            BadStoreRequest::ScheduleFailed | BadStoreRequest::QueueFailed => {
                 // These errors indicate that something's wrong with our service system, most likely
                 // mailbox congestion or a faulty shutdown. Indicate an unavailable service to the
                 // client. It might retry event submission at a later time.
@@ -264,7 +264,6 @@ pub fn event_id_from_items(items: &Items) -> Result<Option<EventId>, BadStoreReq
 fn queue_envelope(
     state: &ServiceState,
     mut managed_envelope: ManagedEnvelope,
-    buffer_guard: &BufferGuard,
 ) -> Result<(), BadStoreRequest> {
     let envelope = managed_envelope.envelope_mut();
 
@@ -299,7 +298,6 @@ fn queue_envelope(
     // Split off the envelopes by item type.
     let envelopes = ProcessingGroup::split_envelope(*managed_envelope.take_envelope());
     for (group, envelope) in envelopes {
-        state.memory_stat().increment();
         if !state.memory_stat().has_enough_memory() {
             return Err(BadStoreRequest::QueueFailed);
         }
@@ -339,17 +337,18 @@ pub async fn handle_envelope(
         )
     }
 
-    let buffer_guard = state.buffer_guard();
-    let mut managed_envelope = buffer_guard
-        .enter(
-            envelope,
-            state.outcome_aggregator().clone(),
-            state.test_store().clone(),
-            // It's not clear at this point which group this envelope belongs to.
-            // The decission will be made while queueing in `queue_envelope` function.
-            ProcessingGroup::Ungrouped,
-        )
-        .map_err(BadStoreRequest::QueueFailed)?;
+    if !state.memory_stat().has_enough_memory() {
+        return Err(BadStoreRequest::QueueFailed);
+    }
+
+    let mut managed_envelope = ManagedEnvelope::standalone(
+        envelope,
+        state.outcome_aggregator().clone(),
+        state.test_store().clone(),
+        // It's not clear at this point which group this envelope belongs to.
+        // The decision will be made while queueing in `queue_envelope` function.
+        ProcessingGroup::Ungrouped,
+    );
 
     // If configured, remove unknown items at the very beginning. If the envelope is
     // empty, we fail the request with a special control flow error to skip checks and
@@ -381,7 +380,7 @@ pub async fn handle_envelope(
         return Err(BadStoreRequest::Overflow(offender));
     }
 
-    queue_envelope(state, managed_envelope, buffer_guard)?;
+    queue_envelope(state, managed_envelope)?;
 
     if checked.rate_limits.is_limited() {
         // Even if some envelope items have been queued, there might be active rate limits on
