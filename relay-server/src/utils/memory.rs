@@ -1,4 +1,6 @@
+use crate::statsd::RelayGauges;
 use arc_swap::ArcSwap;
+use relay_statsd::metric;
 use std::fmt;
 use std::fmt::Formatter;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -10,13 +12,13 @@ use sysinfo::{MemoryRefreshKind, System};
 const UPDATE_TIME_THRESHOLD_MS: u64 = 100;
 
 #[derive(Clone, Copy)]
-struct Memory {
+pub struct Memory {
     pub used: u64,
     pub total: u64,
 }
 
 impl Memory {
-    fn used_percent(&self) -> f32 {
+    pub fn used_percent(&self) -> f32 {
         if self.total == 0 {
             return 0.0;
         }
@@ -41,7 +43,7 @@ impl MemoryStat {
         // sysinfo docs suggest to use a single instance of `System` across the program.
         let mut system = System::new();
         Self(Arc::new(Inner {
-            memory: ArcSwap::from(Arc::new(Self::build_data(&mut system))),
+            memory: ArcSwap::from(Arc::new(Self::refresh_memory(&mut system))),
             last_update: AtomicU64::new(0),
             reference_time: Instant::now(),
             max_percent_threshold,
@@ -49,19 +51,18 @@ impl MemoryStat {
         }))
     }
 
-    pub fn has_enough_memory(&self) -> bool {
-        // If we succeeded in updating the memory readings, we just return a copy of the newly read
-        // limits to avoid acquiring the read lock in the subsequent code.
-        if let Some(memory) = self.try_update() {
-            return memory.used_percent() < self.0.max_percent_threshold;
-        };
-
-        self.0.memory.load().used_percent() < self.0.max_percent_threshold
+    pub fn memory(&self) -> Memory {
+        self.try_update();
+        **self.0.memory.load()
     }
 
-    fn build_data(system: &mut System) -> Memory {
+    pub fn has_enough_memory(&self) -> bool {
+        self.memory().used_percent() < self.0.max_percent_threshold
+    }
+
+    fn refresh_memory(system: &mut System) -> Memory {
         system.refresh_memory_specifics(MemoryRefreshKind::new().with_ram());
-        match system.cgroup_limits() {
+        let memory = match system.cgroup_limits() {
             Some(cgroup) => Memory {
                 used: cgroup.rss,
                 total: cgroup.total_memory,
@@ -70,19 +71,24 @@ impl MemoryStat {
                 used: system.used_memory(),
                 total: system.total_memory(),
             },
-        }
+        };
+
+        metric!(gauge(RelayGauges::SystemMemoryUsed) = memory.used);
+        metric!(gauge(RelayGauges::SystemMemoryTotal) = memory.total);
+
+        memory
     }
 
-    fn try_update(&self) -> Option<Memory> {
+    fn try_update(&self) {
         let last_update = self.0.last_update.load(Ordering::Relaxed);
         let elapsed_time = self.0.reference_time.elapsed().as_millis() as u64;
 
         if elapsed_time - last_update < UPDATE_TIME_THRESHOLD_MS {
-            return None;
+            return;
         }
 
         let Ok(mut system) = self.0.system.lock() else {
-            return None;
+            return;
         };
 
         let Ok(_) = self.0.last_update.compare_exchange_weak(
@@ -91,13 +97,11 @@ impl MemoryStat {
             Ordering::Relaxed,
             Ordering::Relaxed,
         ) else {
-            return None;
+            return;
         };
 
-        let updated_memory = Self::build_data(&mut system);
+        let updated_memory = Self::refresh_memory(&mut system);
         self.0.memory.store(Arc::new(updated_memory));
-
-        Some(updated_memory)
     }
 }
 
@@ -113,7 +117,7 @@ mod tests {
 
     #[test]
     fn test_has_enough_memory() {
-        let memory_stat = MemoryStat::new(0.95);
+        let memory_stat = MemoryStat::new(1.0);
         assert!(memory_stat.has_enough_memory());
     }
 

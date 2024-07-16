@@ -12,6 +12,7 @@ use crate::services::metrics::{AcceptsMetrics, Aggregator};
 use crate::services::project_cache::{ProjectCache, SpoolHealth};
 use crate::services::upstream::{IsAuthenticated, UpstreamRelay};
 use crate::statsd::{RelayGauges, RelayTimers};
+use crate::utils::MemoryStat;
 
 /// Checks whether Relay is alive and healthy based on its variant.
 #[derive(Clone, Copy, Debug, serde::Deserialize)]
@@ -87,7 +88,7 @@ pub struct HealthCheckService {
     aggregator: Addr<Aggregator>,
     upstream_relay: Addr<UpstreamRelay>,
     project_cache: Addr<ProjectCache>,
-    system: System,
+    memory_stat: MemoryStat,
 }
 
 impl HealthCheckService {
@@ -99,40 +100,19 @@ impl HealthCheckService {
         aggregator: Addr<Aggregator>,
         upstream_relay: Addr<UpstreamRelay>,
         project_cache: Addr<ProjectCache>,
+        memory_stat: MemoryStat,
     ) -> Self {
         Self {
-            system: System::new(),
             aggregator,
             upstream_relay,
             project_cache,
             config,
+            memory_stat,
         }
     }
 
     fn system_memory_probe(&mut self) -> Status {
-        self.system
-            .refresh_memory_specifics(MemoryRefreshKind::new().with_ram());
-
-        // Use the cgroup if available in case Relay is running in a container.
-        // TODO: once we measured the new rss metric, we will remove `rss` and just used cgroup.rss
-        //  `used`.
-        let memory = match self.system.cgroup_limits() {
-            Some(cgroup) => Memory {
-                used: cgroup.total_memory.saturating_sub(cgroup.free_memory),
-                total: cgroup.total_memory,
-                rss: cgroup.rss,
-            },
-            None => Memory {
-                used: self.system.used_memory(),
-                total: self.system.total_memory(),
-                rss: self.system.used_memory(),
-            },
-        };
-
-        metric!(gauge(RelayGauges::SystemMemoryUsed) = memory.used);
-        metric!(gauge(RelayGauges::SystemMemoryTotal) = memory.total);
-        metric!(gauge(RelayGauges::SystemMemoryRss) = memory.rss);
-
+        let memory = self.memory_stat.memory();
         if memory.used_percent() >= self.config.health_max_memory_watermark_percent() {
             relay_log::error!(
                 "Not enough memory, {} / {} ({:.2}% >= {:.2}%)",
@@ -251,21 +231,6 @@ impl Service for HealthCheckService {
                 });
             }
         });
-    }
-}
-
-/// A memory measurement.
-#[derive(Debug)]
-struct Memory {
-    pub used: u64,
-    pub total: u64,
-    pub rss: u64,
-}
-
-impl Memory {
-    /// Amount of used RAM in percent `0.0` to `1.0`.
-    pub fn used_percent(&self) -> f32 {
-        (self.used as f32 / self.total as f32).clamp(0.0, 1.0)
     }
 }
 

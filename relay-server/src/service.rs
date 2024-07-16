@@ -210,6 +210,7 @@ impl ServiceState {
             aggregator.clone(),
             upstream_relay.clone(),
             project_cache.clone(),
+            memory_stat.clone(),
         )
         .start();
 
