@@ -1711,7 +1711,7 @@ mod tests {
             None,
         );
 
-        assert_eq!(metrics.len(), 4);
+        assert_eq!(metrics.len(), 5);
 
         assert_eq!(&*metrics[0].name, "c:spans/usage@none");
 
@@ -1730,6 +1730,7 @@ mod tests {
         );
 
         assert_eq!(&*metrics[3].name, "d:spans/duration@millisecond");
+        assert_eq!(&*metrics[4].name, "d:spans/duration_light@millisecond");
     }
 
     #[test]

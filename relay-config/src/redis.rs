@@ -1,12 +1,16 @@
 use serde::{Deserialize, Serialize};
 
+/// For small setups, `2 x limits.max_thread_count` does not leave enough headroom.
+/// In this case, we fall back to the old default.
+pub(crate) const DEFAULT_MIN_MAX_CONNECTIONS: u32 = 24;
+
 /// Additional configuration options for a redis client.
 #[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
 #[serde(default)]
 pub struct PartialRedisConfigOptions {
     /// Maximum number of connections managed by the pool.
     ///
-    /// Defaults to 2x `limits.max_thread_count`.
+    /// Defaults to 2x `limits.max_thread_count` or a minimum of 24.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub max_connections: Option<u32>,
     /// Sets the connection timeout used by the pool, in seconds.
