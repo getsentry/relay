@@ -8,6 +8,7 @@ use sysinfo::{MemoryRefreshKind, System};
 /// Count after which the [`MemoryStat`] data will be refreshed.
 const UPDATE_TIME_THRESHOLD_SECONDS: f64 = 0.1;
 
+#[derive(Clone, Copy)]
 struct Memory {
     pub used: u64,
     pub total: u64,
@@ -24,7 +25,7 @@ impl Memory {
 }
 
 struct Inner {
-    data: RwLock<Memory>,
+    memory: RwLock<Memory>,
     last_update: AtomicU64,
     reference_time: Instant,
     max_percent_threshold: f32,
@@ -39,7 +40,7 @@ impl MemoryStat {
         // sysinfo docs suggest to use a single instance of `System` across the program.
         let mut system = System::new();
         Self(Arc::new(Inner {
-            data: RwLock::new(Self::build_data(&mut system)),
+            memory: RwLock::new(Self::build_data(&mut system)),
             last_update: AtomicU64::new(0),
             reference_time: Instant::now(),
             max_percent_threshold,
@@ -48,15 +49,17 @@ impl MemoryStat {
     }
 
     pub fn has_enough_memory(&self) -> bool {
-        self.try_update();
+        // If we succeeded in updating the memory readings, we just return a copy of the newly read
+        // limits to avoid acquiring the read lock in the subsequent code.
+        if let Some(memory) = self.try_update() {
+            return memory.used_percent() < self.0.max_percent_threshold;
+        };
 
-        // TODO: we could make an optimization that if we already updated the memory, we can avoid
-        //  acquiring a read lock and just evaluate the bottom expression on the newly added data.
-        let Ok(data) = self.0.data.read() else {
+        let Ok(memory_lock) = self.0.memory.read() else {
             return false;
         };
 
-        data.used_percent() < self.0.max_percent_threshold
+        memory_lock.used_percent() < self.0.max_percent_threshold
     }
 
     fn build_data(system: &mut System) -> Memory {
@@ -73,16 +76,16 @@ impl MemoryStat {
         }
     }
 
-    fn try_update(&self) {
+    fn try_update(&self) -> Option<Memory> {
         let last_update = self.0.last_update.load(Ordering::Relaxed);
         let elapsed_time = self.0.reference_time.elapsed().as_secs_f64();
 
         if elapsed_time - (last_update as f64) < UPDATE_TIME_THRESHOLD_SECONDS {
-            return;
+            return None;
         }
 
-        let (Ok(mut data), Ok(mut system)) = (self.0.data.write(), self.0.system.lock()) else {
-            return;
+        let (Ok(mut data), Ok(mut system)) = (self.0.memory.write(), self.0.system.lock()) else {
+            return None;
         };
 
         let Ok(_) = self.0.last_update.compare_exchange_weak(
@@ -91,10 +94,13 @@ impl MemoryStat {
             Ordering::Relaxed,
             Ordering::Relaxed,
         ) else {
-            return;
+            return None;
         };
 
-        *data = Self::build_data(&mut system);
+        let new_data = Self::build_data(&mut system);
+        *data = new_data;
+
+        Some(new_data)
     }
 }
 
