@@ -278,7 +278,15 @@
 <a href="#278" id="278">278</a>
 <a href="#279" id="279">279</a>
 <a href="#280" id="280">280</a>
+<a href="#281" id="281">281</a>
+<a href="#282" id="282">282</a>
+<a href="#283" id="283">283</a>
+<a href="#284" id="284">284</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>serde::{Deserialize, Serialize};
+
+<span class="doccomment">/// For small setups, `2 x limits.max_thread_count` does not leave enough headroom.
+/// In this case, we fall back to the old default.
+</span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">const </span>DEFAULT_MIN_MAX_CONNECTIONS: u32 = <span class="number">24</span>;
 
 <span class="doccomment">/// Additional configuration options for a redis client.
 </span><span class="attr">#[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
@@ -286,7 +294,7 @@
 </span><span class="kw">pub struct </span>PartialRedisConfigOptions {
     <span class="doccomment">/// Maximum number of connections managed by the pool.
     ///
-    /// Defaults to 2x `limits.max_thread_count`.
+    /// Defaults to 2x `limits.max_thread_count` or a minimum of 24.
     </span><span class="attr">#[serde(skip_serializing_if = <span class="string">"Option::is_none"</span>)]
     </span><span class="kw">pub </span>max_connections: <span class="prelude-ty">Option</span>&lt;u32&gt;,
     <span class="doccomment">/// Sets the connection timeout used by the pool, in seconds.
