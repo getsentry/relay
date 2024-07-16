@@ -3,7 +3,9 @@ use relay_base_schema::project::{ProjectId, ProjectKey};
 #[cfg(feature = "processing")]
 use relay_cardinality::CardinalityLimit;
 use relay_config::Config;
-use relay_dynamic_config::{ErrorBoundary, Feature, LimitedProjectConfig, ProjectConfig};
+#[cfg(feature = "processing")]
+use relay_dynamic_config::ErrorBoundary;
+use relay_dynamic_config::{Feature, LimitedProjectConfig, ProjectConfig};
 use relay_filter::matches_any_origin;
 use relay_quotas::{Quota, Scoping};
 use serde::{Deserialize, Serialize};
