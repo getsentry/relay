@@ -405,7 +405,7 @@ impl UpstreamProjectSourceService {
                             // Treat invalid as pending, try again:
                             // NOTE: We might want to implement a backoff here, because the
                             // chance that an invalid config will turn into a valid config
-                            // within `retry_delay` is low.
+                            // within `query_interval` is low.
                             channel.pending += 1;
                             self.state_channels.insert(key, channel);
                         } else {

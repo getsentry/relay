@@ -119,13 +119,6 @@ impl Project {
         self.reservoir_counters.clone()
     }
 
-    pub fn enabled_state(&self) -> Option<Arc<ProjectInfo>> {
-        match self.current_state() {
-            ProjectState::Enabled(info) => Some(info.clone()),
-            ProjectState::Disabled | ProjectState::Pending => None,
-        }
-    }
-
     fn current_state(&self) -> ProjectState {
         self.state.current_state(&self.config)
     }
@@ -508,12 +501,14 @@ impl Project {
     /// Returns `Some` if the project state has been fetched and contains a project identifier,
     /// otherwise `None`.
     pub fn scoping(&self) -> Option<Scoping> {
-        let state = self.enabled_state()?;
+        let ProjectState::Enabled(info) = self.current_state() else {
+            return None;
+        };
         Some(Scoping {
-            organization_id: state.organization_id.unwrap_or(0),
-            project_id: state.project_id?,
+            organization_id: info.organization_id.unwrap_or(0),
+            project_id: info.project_id?,
             project_key: self.project_key,
-            key_id: state
+            key_id: info
                 .get_public_key_config()
                 .and_then(|config| config.numeric_id),
         })

@@ -774,8 +774,6 @@ impl ProjectCacheBroker {
     ///
     /// The flushing of the buffered envelopes happens in `update_state`.
     fn handle_validate_envelope(&mut self, message: ValidateEnvelope) {
-        // TODO: check_envelope here?
-
         let ValidateEnvelope {
             envelope: mut managed_envelope,
         } = message;
@@ -791,7 +789,6 @@ impl ProjectCacheBroker {
             project.get_cached_state(project_cache.clone(), envelope.meta().no_cache());
         let reservoir_counters = project.reservoir_counters();
 
-        // TODO: make get_cached_state return a project state.
         let project_state = match project_state {
             ProjectState::Enabled(state) => Some(state),
             ProjectState::Disabled => {

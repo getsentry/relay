@@ -1238,6 +1238,7 @@ impl Envelope {
         self.dsc().map(|dsc| dsc.public_key)
     }
 
+    /// Returns the key to the queue on which an envelope is buffered.
     pub fn queue_key(&self) -> QueueKey {
         QueueKey {
             own_key: self.meta().public_key(),
