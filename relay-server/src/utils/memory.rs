@@ -14,10 +14,6 @@ struct Memory {
 }
 
 impl Memory {
-    fn new() -> Self {
-        Self { used: 0, total: 0 }
-    }
-
     fn used_percent(&self) -> f32 {
         if self.total == 0 {
             return 0.0;

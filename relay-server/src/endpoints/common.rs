@@ -14,9 +14,7 @@ use crate::services::outcome::{DiscardReason, Outcome};
 use crate::services::processor::{ProcessMetricMeta, ProcessMetrics, ProcessingGroup};
 use crate::services::project_cache::{CheckEnvelope, ValidateEnvelope};
 use crate::statsd::{RelayCounters, RelayHistograms};
-use crate::utils::{
-    self, ApiErrorResponse, BufferError, BufferGuard, FormDataIter, ManagedEnvelope, MultipartError,
-};
+use crate::utils::{self, ApiErrorResponse, FormDataIter, ManagedEnvelope, MultipartError};
 
 #[derive(Clone, Copy, Debug, thiserror::Error)]
 #[error("the service is overloaded")]
