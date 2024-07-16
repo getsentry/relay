@@ -19,10 +19,6 @@ pub struct Memory {
 
 impl Memory {
     pub fn used_percent(&self) -> f32 {
-        if self.total == 0 {
-            return 0.0;
-        }
-
         (self.used as f32 / self.total as f32).clamp(0.0, 1.0)
     }
 }
