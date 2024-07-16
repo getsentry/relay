@@ -757,7 +757,7 @@ impl ProjectCacheBroker {
         // do not pass `no_cache`. In case the project is rate limited, we do not want to force
         // a full reload. Fetching must not block the store request.
         project.prefetch(project_cache, false);
-        dbg!(project.check_envelope(context))
+        project.check_envelope(context)
     }
 
     /// Checks an incoming envelope and decides either process it immediately or buffer it.
