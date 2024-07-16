@@ -24,6 +24,7 @@
 - Remove experimental double-write from spans to transactions. ([#3801](https://github.com/getsentry/relay/pull/3801))
 - Add feature flag to disable replay-video events. ([#3803](https://github.com/getsentry/relay/pull/3803))
 - Write the envelope's Dynamic Sampling Context (DSC) into event payloads for debugging. ([#3811](https://github.com/getsentry/relay/pull/3811))
+- Decrease max allowed segment_id for replays to one hour. ([#3280](https://github.com/getsentry/relay/pull/3280))
 - Extract a duration light metric for spans without a transaction name tag. ([#3772](https://github.com/getsentry/relay/pull/3772))
 
 ## 24.6.0
