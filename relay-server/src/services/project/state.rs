@@ -8,11 +8,19 @@ pub use fetch_state::{ExpiryState, ProjectFetchState};
 pub use info::{LimitedProjectInfo, ProjectInfo};
 use serde::{Deserialize, Serialize};
 
-/// TODO: docs
+/// Representation of a project's current state.
 #[derive(Clone, Debug)]
 pub enum ProjectState {
+    /// A valid project that is not disabled.
     Enabled(Arc<ProjectInfo>),
+    /// A project that was marked as "gone" by the upstream. This variant does not expose
+    /// any other project information.
     Disabled,
+    /// A project to which one of the following conditions apply:
+    /// - The project has not yet been fetched.
+    /// - The upstream returned "pending" for this project (see [`crate::services::project_upstream`]).
+    /// - The upstream returned an unparsable project so we have to try again.
+    /// - The project has expired and must be treated as "has not been fetched".
     Pending,
 }
 

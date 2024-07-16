@@ -15,7 +15,9 @@ use crate::extractors::RequestMeta;
 use crate::services::outcome::DiscardReason;
 use crate::services::project::PublicKeyConfig;
 
-/// The project state is a cached server state of a project.
+/// Information about an enabled project.
+///
+/// Contains the project config plus metadata (organization_id, project_id, etc.).
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ProjectInfo {
