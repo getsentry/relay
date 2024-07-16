@@ -1,4 +1,3 @@
-use relay_config::Config;
 use std::fmt;
 use std::fmt::Formatter;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -9,12 +8,12 @@ use sysinfo::{MemoryRefreshKind, System};
 /// Count after which the [`MemoryStat`] data will be refreshed.
 const UPDATE_TIME_THRESHOLD_SECONDS: f64 = 0.1;
 
-struct MemoryStatInner {
+struct Memory {
     pub used: u64,
     pub total: u64,
 }
 
-impl MemoryStatInner {
+impl Memory {
     fn new() -> Self {
         Self { used: 0, total: 0 }
     }
@@ -28,32 +27,28 @@ impl MemoryStatInner {
     }
 }
 
-#[derive(Clone)]
-pub struct MemoryStat {
-    data: Arc<RwLock<MemoryStatInner>>,
-    last_update: Arc<AtomicU64>,
+struct Inner {
+    data: RwLock<Memory>,
+    last_update: AtomicU64,
     reference_time: Instant,
-    config: Arc<Config>,
-    system: Arc<Mutex<System>>,
+    max_percent_threshold: f32,
+    system: Mutex<System>,
 }
 
-impl fmt::Debug for MemoryStat {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "MemoryStat")
-    }
-}
+#[derive(Clone)]
+pub struct MemoryStat(Arc<Inner>);
 
 impl MemoryStat {
-    pub fn new(config: Arc<Config>) -> Self {
+    pub fn new(max_percent_threshold: f32) -> Self {
         // sysinfo docs suggest to use a single instance of `System` across the program.
         let mut system = System::new();
-        Self {
-            data: Arc::new(RwLock::new(Self::build_data(&mut system))),
-            last_update: Arc::new(AtomicU64::new(0)),
+        Self(Arc::new(Inner {
+            data: RwLock::new(Self::build_data(&mut system)),
+            last_update: AtomicU64::new(0),
             reference_time: Instant::now(),
-            config: config.clone(),
-            system: Arc::new(Mutex::new(system)),
-        }
+            max_percent_threshold,
+            system: Mutex::new(system),
+        }))
     }
 
     pub fn has_enough_memory(&self) -> bool {
@@ -61,21 +56,21 @@ impl MemoryStat {
 
         // TODO: we could make an optimization that if we already updated the memory, we can avoid
         //  acquiring a read lock and just evaluate the bottom expression on the newly added data.
-        let Ok(data) = self.data.read() else {
+        let Ok(data) = self.0.data.read() else {
             return false;
         };
 
-        data.used_percent() < self.config.health_max_memory_watermark_percent()
+        data.used_percent() < self.0.max_percent_threshold
     }
 
-    fn build_data(system: &mut System) -> MemoryStatInner {
+    fn build_data(system: &mut System) -> Memory {
         system.refresh_memory_specifics(MemoryRefreshKind::new().with_ram());
         match system.cgroup_limits() {
-            Some(cgroup) => MemoryStatInner {
+            Some(cgroup) => Memory {
                 used: cgroup.rss,
                 total: cgroup.total_memory,
             },
-            None => MemoryStatInner {
+            None => Memory {
                 used: system.used_memory(),
                 total: system.total_memory(),
             },
@@ -83,18 +78,18 @@ impl MemoryStat {
     }
 
     fn try_update(&self) {
-        let last_update = self.last_update.load(Ordering::Relaxed);
-        let elapsed_time = self.reference_time.elapsed().as_secs_f64();
+        let last_update = self.0.last_update.load(Ordering::Relaxed);
+        let elapsed_time = self.0.reference_time.elapsed().as_secs_f64();
 
         if elapsed_time - (last_update as f64) < UPDATE_TIME_THRESHOLD_SECONDS {
             return;
         }
 
-        let (Ok(mut data), Ok(mut system)) = (self.data.write(), self.system.lock()) else {
+        let (Ok(mut data), Ok(mut system)) = (self.0.data.write(), self.0.system.lock()) else {
             return;
         };
 
-        let Ok(_) = self.last_update.compare_exchange_weak(
+        let Ok(_) = self.0.last_update.compare_exchange_weak(
             last_update,
             elapsed_time as u64,
             Ordering::Relaxed,
@@ -107,35 +102,25 @@ impl MemoryStat {
     }
 }
 
+impl fmt::Debug for MemoryStat {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "MemoryStat")
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::utils::MemoryStat;
-    use relay_config::Config;
-    use std::sync::Arc;
 
     #[test]
     fn test_has_enough_memory() {
-        let config = Config::from_json_value(serde_json::json!({
-            "health": {
-                "max_memory_percent": 0.95
-            }
-        }))
-        .unwrap();
-
-        let memory_stat = MemoryStat::new(Arc::new(config));
+        let memory_stat = MemoryStat::new(0.95);
         assert!(memory_stat.has_enough_memory());
     }
 
     #[test]
     fn test_has_not_enough_memory() {
-        let config = Config::from_json_value(serde_json::json!({
-            "health": {
-                "max_memory_percent": 0.0
-            }
-        }))
-        .unwrap();
-
-        let memory_stat = MemoryStat::new(Arc::new(config));
+        let memory_stat = MemoryStat::new(0.0);
         assert!(!memory_stat.has_enough_memory());
     }
 }

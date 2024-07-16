@@ -110,7 +110,7 @@ impl ServiceState {
 
         let buffer_guard = Arc::new(BufferGuard::new(config.envelope_buffer_size()));
 
-        let memory_stat = MemoryStat::new(config.clone());
+        let memory_stat = MemoryStat::new(config.health_max_memory_watermark_percent());
 
         // Create an address for the `EnvelopeProcessor`, which can be injected into the
         // other services.
