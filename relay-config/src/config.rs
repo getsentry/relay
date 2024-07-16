@@ -2282,7 +2282,8 @@ impl Config {
             max_connections: redis
                 .options
                 .max_connections
-                .unwrap_or(cpu_concurrency as u32 * 2),
+                .unwrap_or(cpu_concurrency as u32 * 2)
+                .min(24),
             connection_timeout: redis.options.connection_timeout,
             max_lifetime: redis.options.max_lifetime,
             idle_timeout: redis.options.idle_timeout,
