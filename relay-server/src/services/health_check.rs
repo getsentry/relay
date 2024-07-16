@@ -1,17 +1,16 @@
 use std::sync::Arc;
 
 use relay_config::Config;
-use relay_statsd::metric;
 use relay_system::{Addr, AsyncResponse, Controller, FromMessage, Interface, Sender, Service};
 use std::future::Future;
-use sysinfo::{MemoryRefreshKind, System};
+use sysinfo::System;
 use tokio::sync::watch;
 use tokio::time::{timeout, Instant};
 
 use crate::services::metrics::{AcceptsMetrics, Aggregator};
 use crate::services::project_cache::{ProjectCache, SpoolHealth};
 use crate::services::upstream::{IsAuthenticated, UpstreamRelay};
-use crate::statsd::{RelayGauges, RelayTimers};
+use crate::statsd::RelayTimers;
 use crate::utils::MemoryStat;
 
 /// Checks whether Relay is alive and healthy based on its variant.
@@ -267,35 +266,5 @@ mod tests {
 
         let s = [].into_iter().collect();
         assert!(matches!(s, Status::Healthy));
-    }
-
-    #[test]
-    fn test_memory_used_percent_total_0() {
-        let memory = Memory {
-            used: 100,
-            total: 0,
-            rss: 0,
-        };
-        assert_eq!(memory.used_percent(), 1.0);
-    }
-
-    #[test]
-    fn test_memory_used_percent_zero() {
-        let memory = Memory {
-            used: 0,
-            total: 100,
-            rss: 0,
-        };
-        assert_eq!(memory.used_percent(), 0.0);
-    }
-
-    #[test]
-    fn test_memory_used_percent_half() {
-        let memory = Memory {
-            used: 50,
-            total: 100,
-            rss: 0,
-        };
-        assert_eq!(memory.used_percent(), 0.5);
     }
 }

@@ -113,7 +113,7 @@ impl fmt::Debug for MemoryStat {
 
 #[cfg(test)]
 mod tests {
-    use crate::utils::MemoryStat;
+    use crate::utils::{Memory, MemoryStat};
 
     #[test]
     fn test_has_enough_memory() {
@@ -125,5 +125,32 @@ mod tests {
     fn test_has_not_enough_memory() {
         let memory_stat = MemoryStat::new(0.0);
         assert!(!memory_stat.has_enough_memory());
+    }
+
+    #[test]
+    fn test_memory_used_percent_total_0() {
+        let memory = Memory {
+            used: 100,
+            total: 0,
+        };
+        assert_eq!(memory.used_percent(), 1.0);
+    }
+
+    #[test]
+    fn test_memory_used_percent_zero() {
+        let memory = Memory {
+            used: 0,
+            total: 100,
+        };
+        assert_eq!(memory.used_percent(), 0.0);
+    }
+
+    #[test]
+    fn test_memory_used_percent_half() {
+        let memory = Memory {
+            used: 50,
+            total: 100,
+        };
+        assert_eq!(memory.used_percent(), 0.5);
     }
 }
