@@ -2499,21 +2499,19 @@ impl EnvelopeProcessorService {
             return limits.into_source();
         }
 
-        let exceeded_limits = limits
-            .exceeded_limits()
-            .iter()
-            .map(|limit| limit.id.clone())
-            .collect();
-        let CardinalityLimitsSplit { accepted, rejected } = limits.into_split();
+        let CardinalityLimitsSplit {
+            accepted,
+            rejected,
+            exceeded_limits,
+        } = limits.into_split();
 
-        if !rejected.is_empty() {
+        for (bucket, exceeded) in rejected.into_iter().zip(exceeded_limits.into_iter()) {
             self.inner.metric_outcomes.track(
                 scoping,
-                &rejected,
-                Outcome::CardinalityLimited(exceeded_limits),
+                &[bucket],
+                Outcome::CardinalityLimited(exceeded),
             );
         }
-
         accepted
     }
 

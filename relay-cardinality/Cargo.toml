@@ -27,6 +27,7 @@ relay-log = { workspace = true }
 relay-redis = { workspace = true }
 relay-statsd = { workspace = true }
 serde = { workspace = true }
+smallvec = { workspace = true }
 thiserror = { workspace = true }
 
 [dev-dependencies]

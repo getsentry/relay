@@ -29,6 +29,8 @@ use relay_sampling::evaluation::MatchedRuleIds;
 use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, Interface, NoResponse, Service};
 use serde::{Deserialize, Serialize};
+#[cfg(feature = "processing")]
+use smallvec::SmallVec;
 
 #[cfg(feature = "processing")]
 use crate::service::ServiceError;
@@ -175,7 +177,7 @@ pub enum Outcome {
     /// Contains the [IDs](CardinalityLimit::id) of the [CardinalityLimits](CardinalityLimit)
     /// that were exceeded.
     #[cfg(feature = "processing")]
-    CardinalityLimited(BTreeSet<String>),
+    CardinalityLimited(SmallVec<[String; 4]>),
 
     /// The event has been discarded because of invalid data.
     Invalid(DiscardReason),

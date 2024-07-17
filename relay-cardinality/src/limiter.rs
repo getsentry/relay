@@ -2,11 +2,12 @@
 
 use std::collections::BTreeMap;
 
-use hashbrown::HashSet;
+use hashbrown::{HashMap, HashSet};
 use relay_base_schema::metrics::{MetricName, MetricNamespace, MetricType};
 use relay_base_schema::project::ProjectId;
 use relay_common::time::UnixTimestamp;
 use relay_statsd::metric;
+use smallvec::SmallVec;
 
 use crate::statsd::CardinalityLimiterTimers;
 use crate::{CardinalityLimit, Error, OrganizationId, Result};
@@ -199,7 +200,7 @@ impl<T: Limiter> CardinalityLimiter<T> {
 #[derive(Debug, Default)]
 struct DefaultReporter<'a> {
     exceeded_limits: HashSet<&'a CardinalityLimit>,
-    entries: HashSet<usize>,
+    entries: HashMap<usize, SmallVec<[String; 4]>>,
     reports: BTreeMap<&'a CardinalityLimit, Vec<CardinalityReport>>,
 }
 
@@ -208,7 +209,10 @@ impl<'a> Reporter<'a> for DefaultReporter<'a> {
     fn reject(&mut self, limit: &'a CardinalityLimit, entry_id: EntryId) {
         self.exceeded_limits.insert(limit);
         if !limit.passive {
-            self.entries.insert(entry_id.0);
+            self.entries
+                .entry(entry_id.0)
+                .or_default()
+                .push(limit.id.clone());
         }
     }
 
@@ -228,6 +232,8 @@ pub struct CardinalityLimitsSplit<T> {
     pub accepted: Vec<T>,
     /// The list of rejected elements of the source.
     pub rejected: Vec<T>,
+    /// The list of cardinality limits exceeded by each element of `rejected`.
+    pub exceeded_limits: Vec<SmallVec<[String; 4]>>,
 }
 
 impl<T> CardinalityLimitsSplit<T> {
@@ -240,6 +246,7 @@ impl<T> CardinalityLimitsSplit<T> {
         CardinalityLimitsSplit {
             accepted: Vec::with_capacity(accepted_capacity),
             rejected: Vec::with_capacity(rejected_capacity),
+            exceeded_limits: Vec::with_capacity(rejected_capacity),
         }
     }
 }
@@ -250,7 +257,7 @@ pub struct CardinalityLimits<'a, T> {
     /// The source.
     source: Vec<T>,
     /// List of rejected item indices pointing into `source`.
-    rejections: HashSet<usize>,
+    rejections: HashMap<usize, SmallVec<[String; 4]>>,
     /// All non-passive exceeded limits.
     exceeded_limits: HashSet<&'a CardinalityLimit>,
     /// Generated cardinality reports.
@@ -294,23 +301,18 @@ impl<'a, T> CardinalityLimits<'a, T> {
 
     /// Returns an iterator yielding only rejected items.
     pub fn rejected(&self) -> impl Iterator<Item = &T> {
-        self.rejections.iter().filter_map(|&i| self.source.get(i))
+        self.rejections.keys().filter_map(|&i| self.source.get(i))
     }
 
     /// Consumes the result and returns [`CardinalityLimitsSplit`] containing all accepted and rejected items.
-    pub fn into_split(self) -> CardinalityLimitsSplit<T> {
+    pub fn into_split(mut self) -> CardinalityLimitsSplit<T> {
         if self.rejections.is_empty() {
             return CardinalityLimitsSplit {
                 accepted: self.source,
                 rejected: Vec::new(),
-            };
-        } else if self.source.len() == self.rejections.len() {
-            return CardinalityLimitsSplit {
-                accepted: Vec::new(),
-                rejected: self.source,
+                exceeded_limits: Vec::new(),
             };
         }
-
         // TODO: we might want to optimize this method later, by reusing one of the arrays and
         // swap removing elements from it.
         let source_len = self.source.len();
@@ -318,8 +320,9 @@ impl<'a, T> CardinalityLimits<'a, T> {
         self.source.into_iter().enumerate().fold(
             CardinalityLimitsSplit::with_capacity(source_len - rejections_len, rejections_len),
             |mut split, (i, item)| {
-                if self.rejections.contains(&i) {
+                if let Some(exceeded) = self.rejections.remove(&i) {
                     split.rejected.push(item);
+                    split.exceeded_limits.push(exceeded);
                 } else {
                     split.accepted.push(item);
                 };
@@ -335,6 +338,8 @@ mod tests {
     use crate::{CardinalityScope, SlidingWindow};
 
     use super::*;
+
+    use smallvec::smallvec;
 
     #[derive(Debug, Clone, Hash, PartialEq, Eq)]
     struct Item {
@@ -398,7 +403,7 @@ mod tests {
 
         let limits = CardinalityLimits {
             source: vec!['a', 'b', 'c', 'd', 'e'],
-            rejections: HashSet::from([0, 1, 3]),
+            rejections: HashMap::from([(0, smallvec![]), (1, smallvec![]), (3, smallvec![])]),
             exceeded_limits: HashSet::new(),
             reports: BTreeMap::new(),
         };
@@ -409,7 +414,7 @@ mod tests {
 
         let limits = CardinalityLimits {
             source: vec!['a', 'b', 'c', 'd', 'e'],
-            rejections: HashSet::from([]),
+            rejections: HashMap::from([]),
             exceeded_limits: HashSet::new(),
             reports: BTreeMap::new(),
         };
@@ -420,7 +425,13 @@ mod tests {
 
         let limits = CardinalityLimits {
             source: vec!['a', 'b', 'c', 'd', 'e'],
-            rejections: HashSet::from([0, 1, 2, 3, 4]),
+            rejections: HashMap::from([
+                (0, smallvec![]),
+                (1, smallvec![]),
+                (2, smallvec![]),
+                (3, smallvec![]),
+                (4, smallvec![]),
+            ]),
             exceeded_limits: HashSet::new(),
             reports: BTreeMap::new(),
         };
