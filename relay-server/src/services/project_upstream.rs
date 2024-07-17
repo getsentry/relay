@@ -371,6 +371,7 @@ impl UpstreamProjectSourceService {
                             response.configs.len() as u64
                     );
                     for (key, mut channel) in channels_batch {
+                        let mut result = "ok";
                         if response.pending.contains(&key) {
                             channel.pending += 1;
                             self.state_channels.insert(key, channel);
@@ -382,6 +383,7 @@ impl UpstreamProjectSourceService {
                             .unwrap_or(ErrorBoundary::Ok(None));
                         let state = match state {
                             ErrorBoundary::Err(error) => {
+                                result = "invalid";
                                 let error = &error as &dyn std::error::Error;
                                 relay_log::error!(error, "error fetching project state {key}");
                                 ProjectFetchState::pending()
@@ -390,8 +392,6 @@ impl UpstreamProjectSourceService {
                             ErrorBoundary::Ok(Some(state)) => ProjectFetchState::new(state.into()),
                         };
 
-                        let invalid = state.is_pending();
-                        let result = if invalid { "invalid" } else { "ok" };
                         metric!(
                             histogram(RelayHistograms::ProjectStateAttempts) = channel.attempts,
                             result = result,
@@ -401,16 +401,7 @@ impl UpstreamProjectSourceService {
                             result = result,
                         );
 
-                        if invalid {
-                            // Treat invalid as pending, try again:
-                            // NOTE: We might want to implement a backoff here, because the
-                            // chance that an invalid config will turn into a valid config
-                            // within `query_interval` is low.
-                            channel.pending += 1;
-                            self.state_channels.insert(key, channel);
-                        } else {
-                            channel.send(state.sanitize());
-                        }
+                        channel.send(state.sanitize());
                     }
                 }
                 Err(err) => {
