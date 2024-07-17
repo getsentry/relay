@@ -4,7 +4,7 @@ use relay_statsd::metric;
 use std::fmt;
 use std::fmt::Formatter;
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Arc, LockResult, Mutex};
+use std::sync::{Arc, Mutex};
 use std::time::Instant;
 use sysinfo::{MemoryRefreshKind, System};
 
