@@ -3624,6 +3624,7 @@ dependencies = [
  "relay-statsd",
  "serde",
  "serde_json",
+ "smallvec",
  "thiserror",
  "uuid",
 ]
