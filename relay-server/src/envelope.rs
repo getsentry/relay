@@ -53,7 +53,6 @@ use smallvec::SmallVec;
 
 use crate::constants::DEFAULT_EVENT_RETENTION;
 use crate::extractors::{PartialMeta, RequestMeta};
-use crate::services::spooler::QueueKey;
 
 pub const CONTENT_TYPE: &str = "application/x-sentry-envelope";
 
@@ -1236,14 +1235,6 @@ impl Envelope {
             )
         })?;
         self.dsc().map(|dsc| dsc.public_key)
-    }
-
-    /// Returns the key to the queue on which an envelope is buffered.
-    pub fn queue_key(&self) -> QueueKey {
-        QueueKey {
-            own_key: self.meta().public_key(),
-            sampling_key: self.sampling_key().unwrap_or(self.meta().public_key()),
-        }
     }
 
     /// Sets the event id on the envelope.

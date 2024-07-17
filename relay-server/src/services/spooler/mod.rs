@@ -134,6 +134,14 @@ impl QueueKey {
         }
     }
 
+    pub fn from_envelope(envelope: &Envelope) -> Self {
+        let meta = envelope.meta();
+        Self {
+            own_key: meta.public_key(),
+            sampling_key: envelope.sampling_key().unwrap_or(meta.public_key()),
+        }
+    }
+
     pub fn unique_keys(&self) -> SmallVec<[ProjectKey; 2]> {
         let mut keys = smallvec![self.own_key];
         if self.sampling_key != self.own_key {

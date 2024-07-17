@@ -1557,6 +1557,6 @@ mod tests {
         buffer_svc.send(DequeueMany::new([key].into(), buffer_tx.clone()));
         let UnspooledEnvelope { managed_envelope } = buffer_rx.recv().await.unwrap();
 
-        assert_eq!(key, managed_envelope.envelope().queue_key());
+        assert_eq!(key, QueueKey::from_envelope(managed_envelope.envelope()));
     }
 }
