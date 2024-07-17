@@ -216,8 +216,8 @@ def test_store_proxy_config(mini_sentry, relay):
     assert event["logentry"] == {"formatted": "Hello, World!"}
 
 
-def test_store_buffer_size(mini_sentry, relay):
-    relay = relay(mini_sentry, {"cache": {"event_buffer_size": 0}})
+def test_store_with_low_memory(mini_sentry, relay):
+    relay = relay(mini_sentry, {"health": {"max_memory_percent": 0.0}})
     project_id = 42
     mini_sentry.add_basic_project_config(project_id)
 

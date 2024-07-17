@@ -4,7 +4,7 @@ use relay_statsd::metric;
 use std::fmt;
 use std::fmt::Formatter;
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, LockResult, Mutex};
 use std::time::Instant;
 use sysinfo::{MemoryRefreshKind, System};
 
@@ -83,10 +83,6 @@ impl MemoryStat {
             return;
         }
 
-        let Ok(mut system) = self.0.system.lock() else {
-            return;
-        };
-
         let Ok(_) = self.0.last_update.compare_exchange_weak(
             last_update,
             elapsed_time,
@@ -95,6 +91,12 @@ impl MemoryStat {
         ) else {
             return;
         };
+
+        let mut system = self
+            .0
+            .system
+            .lock()
+            .unwrap_or_else(|system| system.into_inner());
 
         let updated_memory = Self::refresh_memory(&mut system);
         self.0.memory.store(Arc::new(updated_memory));
