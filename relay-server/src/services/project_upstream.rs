@@ -85,6 +85,8 @@ struct ProjectStateChannel {
     attempts: u64,
     /// How often the request failed.
     errors: usize,
+    /// How often a "pending" response was received for this project state.
+    pending: usize,
 }
 
 impl ProjectStateChannel {
@@ -100,6 +102,7 @@ impl ProjectStateChannel {
             deadline: now + timeout,
             attempts: 0,
             errors: 0,
+            pending: 0,
         }
     }
 
@@ -234,7 +237,9 @@ impl UpstreamProjectSourceService {
                     );
                     relay_log::error!(
                         errors = channel.errors,
+                        pending = channel.pending,
                         tags.did_error = channel.errors > 0,
+                        tags.was_pending = channel.pending > 0,
                         tags.project_key = id.to_string(),
                         "error fetching project state {id}: deadline exceeded",
                     );
@@ -365,29 +370,28 @@ impl UpstreamProjectSourceService {
                         histogram(RelayHistograms::ProjectStateReceived) =
                             response.configs.len() as u64
                     );
-                    for (key, channel) in channels_batch {
-                        let mut result = "ok";
-                        let state = if response.pending.contains(&key) {
-                            ProjectFetchState::pending()
-                        } else {
-                            let entry = response
-                                .configs
-                                .remove(&key)
-                                .unwrap_or(ErrorBoundary::Ok(None));
-                            match entry {
-                                ErrorBoundary::Err(error) => {
-                                    let error = &error as &dyn std::error::Error;
-                                    result = "invalid";
-                                    relay_log::error!(error, "error fetching project state {key}");
-                                    ProjectFetchState::pending()
-                                }
-                                ErrorBoundary::Ok(None) => ProjectFetchState::disabled(),
-                                ErrorBoundary::Ok(Some(state)) => {
-                                    ProjectFetchState::new(state.into())
-                                }
+                    for (key, mut channel) in channels_batch {
+                        if response.pending.contains(&key) {
+                            channel.pending += 1;
+                            self.state_channels.insert(key, channel);
+                            continue;
+                        }
+                        let state = response
+                            .configs
+                            .remove(&key)
+                            .unwrap_or(ErrorBoundary::Ok(None));
+                        let state = match state {
+                            ErrorBoundary::Err(error) => {
+                                let error = &error as &dyn std::error::Error;
+                                relay_log::error!(error, "error fetching project state {key}");
+                                ProjectFetchState::pending()
                             }
+                            ErrorBoundary::Ok(None) => ProjectFetchState::disabled(),
+                            ErrorBoundary::Ok(Some(state)) => ProjectFetchState::new(state.into()),
                         };
 
+                        let invalid = state.is_pending();
+                        let result = if invalid { "invalid" } else { "ok" };
                         metric!(
                             histogram(RelayHistograms::ProjectStateAttempts) = channel.attempts,
                             result = result,
@@ -397,7 +401,16 @@ impl UpstreamProjectSourceService {
                             result = result,
                         );
 
-                        channel.send(state.sanitize());
+                        if invalid {
+                            // Treat invalid as pending, try again:
+                            // NOTE: We might want to implement a backoff here, because the
+                            // chance that an invalid config will turn into a valid config
+                            // within `query_interval` is low.
+                            channel.pending += 1;
+                            self.state_channels.insert(key, channel);
+                        } else {
+                            channel.send(state.sanitize());
+                        }
                     }
                 }
                 Err(err) => {

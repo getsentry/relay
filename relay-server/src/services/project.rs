@@ -459,7 +459,7 @@ impl Project {
             return;
         }
 
-        // If the state is pending, return back the taken channel and schedule state update.
+        // If the state is still invalid, return back the taken channel and schedule state update.
         if state.is_pending() {
             // Only overwrite if the old state is expired:
             let is_expired = matches!(self.state.expiry_state(&self.config), ExpiryState::Expired);
