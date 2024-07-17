@@ -174,8 +174,8 @@ pub enum Outcome {
 
     /// The event/metric has been cardinality limited.
     ///
-    /// Contains the [IDs](CardinalityLimit::id) of the [CardinalityLimits](CardinalityLimit)
-    /// that were exceeded.
+    /// Contains the [IDs](relay_cardinality::CardinalityLimit::id)
+    /// of the [CardinalityLimits](relay_cardinality::CardinalityLimit) that were exceeded.
     #[cfg(feature = "processing")]
     CardinalityLimited(SmallVec<[String; 4]>),
 
