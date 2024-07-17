@@ -697,7 +697,7 @@ fn sync_spans_to_enforcement(envelope: &ManagedEnvelope, enforcement: &mut Enfor
     }
 }
 
-/// Counts the nested spans inside the first transaction envelope item inside the [`Envelope`].
+/// Counts the nested spans inside the first transaction envelope item inside the [`Envelope`](crate::envelope::Envelope).
 fn count_nested_spans(envelope: &ManagedEnvelope) -> usize {
     #[derive(Debug, Deserialize)]
     struct PartialEvent {

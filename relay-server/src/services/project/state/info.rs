@@ -172,7 +172,7 @@ impl ProjectInfo {
     /// scoping.
     ///
     /// To get the own scoping of this ProjectKey without amending request information, use
-    /// [`Project::scoping`] instead.
+    /// [`Project::scoping`](crate::services::project::Project::scoping) instead.
     pub fn scope_request(&self, meta: &RequestMeta) -> Scoping {
         let mut scoping = meta.get_partial_scoping();
 

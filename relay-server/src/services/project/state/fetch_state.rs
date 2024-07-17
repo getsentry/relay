@@ -55,7 +55,7 @@ impl ProjectFetchState {
 
     /// Create a config that immediately counts as expired.
     ///
-    /// This is what [`super::Project`] initializes itself with.
+    /// This is what [`Project`](crate::services::project::Project) initializes itself with.
     pub fn expired() -> Self {
         Self {
             // Make sure the state immediately qualifies as expired:
