@@ -216,6 +216,30 @@ def test_store_proxy_config(mini_sentry, relay):
     assert event["logentry"] == {"formatted": "Hello, World!"}
 
 
+def test_store_with_low_memory(mini_sentry, relay):
+    relay = relay(
+        mini_sentry, {"health": {"max_memory_percent": 0.0}}, wait_health_check=False
+    )
+    project_id = 42
+    mini_sentry.add_basic_project_config(project_id)
+
+    try:
+        with pytest.raises(HTTPError):
+            relay.send_event(project_id, {"message": "pls ignore"})
+        pytest.raises(queue.Empty, lambda: mini_sentry.captured_events.get(timeout=1))
+
+        found_queue_error = False
+        for _, error in mini_sentry.test_failures:
+            assert isinstance(error, AssertionError)
+            if "failed to queue envelope" in str(error):
+                found_queue_error = True
+                break
+
+        assert found_queue_error
+    finally:
+        mini_sentry.test_failures.clear()
+
+
 def test_store_max_concurrent_requests(mini_sentry, relay):
     from threading import Semaphore
     from time import sleep
