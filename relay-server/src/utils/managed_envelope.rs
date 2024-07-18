@@ -164,7 +164,9 @@ pub struct ManagedEnvelope {
 }
 
 impl ManagedEnvelope {
-    /// Computes a managed envelope from the given envelope.
+    /// Computes a managed envelope from the given envelope and binds it to the processing queue.
+    ///
+    /// To provide additional scoping, use [`ManagedEnvelope::scope`].
     pub fn new(
         envelope: Box<Envelope>,
         outcome_aggregator: Addr<TrackOutcome>,

@@ -1302,10 +1302,6 @@ impl Drop for BufferService {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::services::project_cache::SpoolHealth;
-    use crate::testutils::empty_envelope;
-    use crate::utils::MemoryStat;
     use insta::assert_debug_snapshot;
     use rand::Rng;
     use relay_system::AsyncResponse;
@@ -1315,6 +1311,12 @@ mod tests {
     use std::sync::Mutex;
     use std::time::{Duration, Instant};
     use uuid::Uuid;
+
+    use crate::services::project_cache::SpoolHealth;
+    use crate::testutils::empty_envelope;
+    use crate::utils::MemoryStat;
+
+    use super::*;
 
     fn services() -> Services {
         let (project_cache, _) = mock_service("project_cache", (), |&mut (), _| {});
