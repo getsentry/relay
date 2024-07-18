@@ -790,11 +790,59 @@
 <a href="#790" id="790">790</a>
 <a href="#791" id="791">791</a>
 <a href="#792" id="792">792</a>
+<a href="#793" id="793">793</a>
+<a href="#794" id="794">794</a>
+<a href="#795" id="795">795</a>
+<a href="#796" id="796">796</a>
+<a href="#797" id="797">797</a>
+<a href="#798" id="798">798</a>
+<a href="#799" id="799">799</a>
+<a href="#800" id="800">800</a>
+<a href="#801" id="801">801</a>
+<a href="#802" id="802">802</a>
+<a href="#803" id="803">803</a>
+<a href="#804" id="804">804</a>
+<a href="#805" id="805">805</a>
+<a href="#806" id="806">806</a>
+<a href="#807" id="807">807</a>
+<a href="#808" id="808">808</a>
+<a href="#809" id="809">809</a>
+<a href="#810" id="810">810</a>
+<a href="#811" id="811">811</a>
+<a href="#812" id="812">812</a>
+<a href="#813" id="813">813</a>
+<a href="#814" id="814">814</a>
+<a href="#815" id="815">815</a>
+<a href="#816" id="816">816</a>
+<a href="#817" id="817">817</a>
+<a href="#818" id="818">818</a>
+<a href="#819" id="819">819</a>
+<a href="#820" id="820">820</a>
+<a href="#821" id="821">821</a>
+<a href="#822" id="822">822</a>
+<a href="#823" id="823">823</a>
+<a href="#824" id="824">824</a>
+<a href="#825" id="825">825</a>
+<a href="#826" id="826">826</a>
+<a href="#827" id="827">827</a>
+<a href="#828" id="828">828</a>
+<a href="#829" id="829">829</a>
+<a href="#830" id="830">830</a>
+<a href="#831" id="831">831</a>
+<a href="#832" id="832">832</a>
+<a href="#833" id="833">833</a>
+<a href="#834" id="834">834</a>
+<a href="#835" id="835">835</a>
+<a href="#836" id="836">836</a>
+<a href="#837" id="837">837</a>
+<a href="#838" id="838">838</a>
+<a href="#839" id="839">839</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Relay Cardinality Limiter
 
-</span><span class="kw">use </span>std::collections::BTreeMap;
+</span><span class="kw">use </span>std::cmp::Reverse;
+<span class="kw">use </span>std::collections::BTreeMap;
 
-<span class="kw">use </span>hashbrown::HashSet;
+<span class="kw">use </span>hashbrown::{HashMap, HashSet};
 <span class="kw">use </span>relay_base_schema::metrics::{MetricName, MetricNamespace, MetricType};
 <span class="kw">use </span>relay_base_schema::project::ProjectId;
 <span class="kw">use </span>relay_common::time::UnixTimestamp;
@@ -990,8 +1038,13 @@
 /// The result can be used directly by [`CardinalityLimits`].
 </span><span class="attr">#[derive(Debug, Default)]
 </span><span class="kw">struct </span>DefaultReporter&lt;<span class="lifetime">'a</span>&gt; {
-    exceeded_limits: HashSet&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>CardinalityLimit&gt;,
-    entries: HashSet&lt;usize&gt;,
+    <span class="doccomment">/// All limits that have been exceeded.
+    </span>exceeded_limits: HashSet&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>CardinalityLimit&gt;,
+    <span class="doccomment">/// A map from entries that have been rejected to the most
+    /// specific non-passive limit that they exceeded.
+    ///
+    /// "Specificity" is determined by scope and limit, in that order.
+    </span>entries: HashMap&lt;usize, <span class="kw-2">&amp;</span><span class="lifetime">'a </span>CardinalityLimit&gt;,
     reports: BTreeMap&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>CardinalityLimit, Vec&lt;CardinalityReport&gt;&gt;,
 }
 
@@ -1000,7 +1053,19 @@
     </span><span class="kw">fn </span>reject(<span class="kw-2">&amp;mut </span><span class="self">self</span>, limit: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>CardinalityLimit, entry_id: EntryId) {
         <span class="self">self</span>.exceeded_limits.insert(limit);
         <span class="kw">if </span>!limit.passive {
-            <span class="self">self</span>.entries.insert(entry_id.<span class="number">0</span>);
+            <span class="comment">// Write `limit` into the entry if it's more specific than the existing limit
+            // (or if there isn't one)
+            </span><span class="self">self</span>.entries
+                .entry(entry_id.<span class="number">0</span>)
+                .and_modify(|existing_limit| {
+                    <span class="comment">// Scopes are ordered by reverse specificity (org is the smallest), so we use `Reverse` here
+                    </span><span class="kw">if </span>(Reverse(limit.scope), limit.limit)
+                        &lt; (Reverse(existing_limit.scope), existing_limit.limit)
+                    {
+                        <span class="kw-2">*</span>existing_limit = limit;
+                    }
+                })
+                .or_insert(limit);
         }
     }
 
@@ -1015,20 +1080,18 @@
 
 <span class="doccomment">/// Split of the original source containing accepted and rejected source elements.
 </span><span class="attr">#[derive(Debug)]
-</span><span class="kw">pub struct </span>CardinalityLimitsSplit&lt;T&gt; {
+</span><span class="kw">pub struct </span>CardinalityLimitsSplit&lt;<span class="lifetime">'a</span>, T&gt; {
     <span class="doccomment">/// The list of accepted elements of the source.
     </span><span class="kw">pub </span>accepted: Vec&lt;T&gt;,
-    <span class="doccomment">/// The list of rejected elements of the source.
-    </span><span class="kw">pub </span>rejected: Vec&lt;T&gt;,
+    <span class="doccomment">/// The list of rejected elements of the source, together
+    /// with the most specific limit they exceeded.
+    </span><span class="kw">pub </span>rejected: Vec&lt;(T, <span class="kw-2">&amp;</span><span class="lifetime">'a </span>CardinalityLimit)&gt;,
 }
 
-<span class="kw">impl</span>&lt;T&gt; CardinalityLimitsSplit&lt;T&gt; {
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>, T&gt; CardinalityLimitsSplit&lt;<span class="lifetime">'a</span>, T&gt; {
     <span class="doccomment">/// Creates a new cardinality limits split with a given capacity for `accepted` and `rejected`
     /// elements.
-    </span><span class="kw">fn </span>with_capacity(
-        accepted_capacity: usize,
-        rejected_capacity: usize,
-    ) -&gt; CardinalityLimitsSplit&lt;T&gt; {
+    </span><span class="kw">fn </span>with_capacity(accepted_capacity: usize, rejected_capacity: usize) -&gt; <span class="self">Self </span>{
         CardinalityLimitsSplit {
             accepted: Vec::with_capacity(accepted_capacity),
             rejected: Vec::with_capacity(rejected_capacity),
@@ -1042,7 +1105,7 @@
     <span class="doccomment">/// The source.
     </span>source: Vec&lt;T&gt;,
     <span class="doccomment">/// List of rejected item indices pointing into `source`.
-    </span>rejections: HashSet&lt;usize&gt;,
+    </span>rejections: HashMap&lt;usize, <span class="kw-2">&amp;</span><span class="lifetime">'a </span>CardinalityLimit&gt;,
     <span class="doccomment">/// All non-passive exceeded limits.
     </span>exceeded_limits: HashSet&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>CardinalityLimit&gt;,
     <span class="doccomment">/// Generated cardinality reports.
@@ -1086,23 +1149,17 @@
 
     <span class="doccomment">/// Returns an iterator yielding only rejected items.
     </span><span class="kw">pub fn </span>rejected(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw">impl </span>Iterator&lt;Item = <span class="kw-2">&amp;</span>T&gt; {
-        <span class="self">self</span>.rejections.iter().filter_map(|<span class="kw-2">&amp;</span>i| <span class="self">self</span>.source.get(i))
+        <span class="self">self</span>.rejections.keys().filter_map(|<span class="kw-2">&amp;</span>i| <span class="self">self</span>.source.get(i))
     }
 
     <span class="doccomment">/// Consumes the result and returns [`CardinalityLimitsSplit`] containing all accepted and rejected items.
-    </span><span class="kw">pub fn </span>into_split(<span class="self">self</span>) -&gt; CardinalityLimitsSplit&lt;T&gt; {
+    </span><span class="kw">pub fn </span>into_split(<span class="kw-2">mut </span><span class="self">self</span>) -&gt; CardinalityLimitsSplit&lt;<span class="lifetime">'a</span>, T&gt; {
         <span class="kw">if </span><span class="self">self</span>.rejections.is_empty() {
             <span class="kw">return </span>CardinalityLimitsSplit {
                 accepted: <span class="self">self</span>.source,
                 rejected: Vec::new(),
             };
-        } <span class="kw">else if </span><span class="self">self</span>.source.len() == <span class="self">self</span>.rejections.len() {
-            <span class="kw">return </span>CardinalityLimitsSplit {
-                accepted: Vec::new(),
-                rejected: <span class="self">self</span>.source,
-            };
         }
-
         <span class="comment">// TODO: we might want to optimize this method later, by reusing one of the arrays and
         // swap removing elements from it.
         </span><span class="kw">let </span>source_len = <span class="self">self</span>.source.len();
@@ -1110,8 +1167,8 @@
         <span class="self">self</span>.source.into_iter().enumerate().fold(
             CardinalityLimitsSplit::with_capacity(source_len - rejections_len, rejections_len),
             |<span class="kw-2">mut </span>split, (i, item)| {
-                <span class="kw">if </span><span class="self">self</span>.rejections.contains(<span class="kw-2">&amp;</span>i) {
-                    split.rejected.push(item);
+                <span class="kw">if let </span><span class="prelude-val">Some</span>(exceeded) = <span class="self">self</span>.rejections.remove(<span class="kw-2">&amp;</span>i) {
+                    split.rejected.push((item, exceeded));
                 } <span class="kw">else </span>{
                     split.accepted.push(item);
                 };
@@ -1188,37 +1245,68 @@
             <span class="macro">assert_eq!</span>(value, expected_value)
         }
 
+        <span class="kw">let </span>limit = CardinalityLimit {
+            id: <span class="string">"dummy_limit"</span>.to_owned(),
+            passive: <span class="bool-val">false</span>,
+            report: <span class="bool-val">false</span>,
+            window: SlidingWindow {
+                window_seconds: <span class="number">0</span>,
+                granularity_seconds: <span class="number">0</span>,
+            },
+            limit: <span class="number">0</span>,
+            scope: CardinalityScope::Organization,
+            namespace: <span class="prelude-val">None</span>,
+        };
+
         <span class="kw">let </span>limits = CardinalityLimits {
             source: <span class="macro">vec!</span>[<span class="string">'a'</span>, <span class="string">'b'</span>, <span class="string">'c'</span>, <span class="string">'d'</span>, <span class="string">'e'</span>],
-            rejections: HashSet::from([<span class="number">0</span>, <span class="number">1</span>, <span class="number">3</span>]),
+            rejections: HashMap::from([(<span class="number">0</span>, <span class="kw-2">&amp;</span>limit), (<span class="number">1</span>, <span class="kw-2">&amp;</span>limit), (<span class="number">3</span>, <span class="kw-2">&amp;</span>limit)]),
             exceeded_limits: HashSet::new(),
             reports: BTreeMap::new(),
         };
         <span class="macro">assert!</span>(limits.has_rejections());
         <span class="kw">let </span>split = limits.into_split();
-        <span class="macro">assert_eq!</span>(split.rejected, <span class="macro">vec!</span>[<span class="string">'a'</span>, <span class="string">'b'</span>, <span class="string">'d'</span>]);
+        <span class="macro">assert_eq!</span>(
+            split.rejected,
+            <span class="macro">vec!</span>[(<span class="string">'a'</span>, <span class="kw-2">&amp;</span>limit), (<span class="string">'b'</span>, <span class="kw-2">&amp;</span>limit), (<span class="string">'d'</span>, <span class="kw-2">&amp;</span>limit)]
+        );
         <span class="macro">assert_eq!</span>(split.accepted, <span class="macro">vec!</span>[<span class="string">'c'</span>, <span class="string">'e'</span>]);
 
         <span class="kw">let </span>limits = CardinalityLimits {
             source: <span class="macro">vec!</span>[<span class="string">'a'</span>, <span class="string">'b'</span>, <span class="string">'c'</span>, <span class="string">'d'</span>, <span class="string">'e'</span>],
-            rejections: HashSet::from([]),
+            rejections: HashMap::from([]),
             exceeded_limits: HashSet::new(),
             reports: BTreeMap::new(),
         };
         <span class="macro">assert!</span>(!limits.has_rejections());
         <span class="kw">let </span>split = limits.into_split();
-        assert_eq(split.rejected, <span class="macro">vec!</span>[]);
+        <span class="macro">assert!</span>(split.rejected.is_empty());
         <span class="macro">assert_eq!</span>(split.accepted, <span class="macro">vec!</span>[<span class="string">'a'</span>, <span class="string">'b'</span>, <span class="string">'c'</span>, <span class="string">'d'</span>, <span class="string">'e'</span>]);
 
         <span class="kw">let </span>limits = CardinalityLimits {
             source: <span class="macro">vec!</span>[<span class="string">'a'</span>, <span class="string">'b'</span>, <span class="string">'c'</span>, <span class="string">'d'</span>, <span class="string">'e'</span>],
-            rejections: HashSet::from([<span class="number">0</span>, <span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>, <span class="number">4</span>]),
+            rejections: HashMap::from([
+                (<span class="number">0</span>, <span class="kw-2">&amp;</span>limit),
+                (<span class="number">1</span>, <span class="kw-2">&amp;</span>limit),
+                (<span class="number">2</span>, <span class="kw-2">&amp;</span>limit),
+                (<span class="number">3</span>, <span class="kw-2">&amp;</span>limit),
+                (<span class="number">4</span>, <span class="kw-2">&amp;</span>limit),
+            ]),
             exceeded_limits: HashSet::new(),
             reports: BTreeMap::new(),
         };
         <span class="macro">assert!</span>(limits.has_rejections());
         <span class="kw">let </span>split = limits.into_split();
-        <span class="macro">assert_eq!</span>(split.rejected, <span class="macro">vec!</span>[<span class="string">'a'</span>, <span class="string">'b'</span>, <span class="string">'c'</span>, <span class="string">'d'</span>, <span class="string">'e'</span>]);
+        <span class="macro">assert_eq!</span>(
+            split.rejected,
+            <span class="macro">vec!</span>[
+                (<span class="string">'a'</span>, <span class="kw-2">&amp;</span>limit),
+                (<span class="string">'b'</span>, <span class="kw-2">&amp;</span>limit),
+                (<span class="string">'c'</span>, <span class="kw-2">&amp;</span>limit),
+                (<span class="string">'d'</span>, <span class="kw-2">&amp;</span>limit),
+                (<span class="string">'e'</span>, <span class="kw-2">&amp;</span>limit)
+            ]
+        );
         assert_eq(split.accepted, <span class="macro">vec!</span>[]);
     }
 
@@ -1257,9 +1345,14 @@
             .check_cardinality_limits(build_scoping(), <span class="kw-2">&amp;</span>limits, items.clone())
             .unwrap();
 
+        <span class="kw">let </span>expected_items = items
+            .into_iter()
+            .zip(std::iter::repeat(<span class="kw-2">&amp;</span>limits[<span class="number">0</span>]))
+            .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
+
         <span class="macro">assert_eq!</span>(result.exceeded_limits(), <span class="kw-2">&amp;</span>HashSet::from([<span class="kw-2">&amp;</span>limits[<span class="number">0</span>]]));
         <span class="kw">let </span>split = result.into_split();
-        <span class="macro">assert_eq!</span>(split.rejected, items);
+        <span class="macro">assert_eq!</span>(split.rejected, expected_items);
         <span class="macro">assert!</span>(split.accepted.is_empty());
     }
 
@@ -1339,18 +1432,19 @@
             Item::new(<span class="number">5</span>, MetricNamespace::Transactions),
             Item::new(<span class="number">6</span>, MetricNamespace::Spans),
         ];
+        <span class="kw">let </span>limits = build_limits();
         <span class="kw">let </span>split = limiter
-            .check_cardinality_limits(build_scoping(), <span class="kw-2">&amp;</span>build_limits(), items)
+            .check_cardinality_limits(build_scoping(), <span class="kw-2">&amp;</span>limits, items)
             .unwrap()
             .into_split();
 
         <span class="macro">assert_eq!</span>(
             split.rejected,
             <span class="macro">vec!</span>[
-                Item::new(<span class="number">0</span>, MetricNamespace::Sessions),
-                Item::new(<span class="number">2</span>, MetricNamespace::Spans),
-                Item::new(<span class="number">4</span>, MetricNamespace::Custom),
-                Item::new(<span class="number">6</span>, MetricNamespace::Spans),
+                (Item::new(<span class="number">0</span>, MetricNamespace::Sessions), <span class="kw-2">&amp;</span>limits[<span class="number">0</span>]),
+                (Item::new(<span class="number">2</span>, MetricNamespace::Spans), <span class="kw-2">&amp;</span>limits[<span class="number">0</span>]),
+                (Item::new(<span class="number">4</span>, MetricNamespace::Custom), <span class="kw-2">&amp;</span>limits[<span class="number">0</span>]),
+                (Item::new(<span class="number">6</span>, MetricNamespace::Spans), <span class="kw-2">&amp;</span>limits[<span class="number">0</span>]),
             ]
         );
         <span class="macro">assert_eq!</span>(
@@ -1433,9 +1527,9 @@
         <span class="macro">assert_eq!</span>(
             split.rejected,
             <span class="macro">vec!</span>[
-                Item::new(<span class="number">0</span>, MetricNamespace::Custom),
-                Item::new(<span class="number">2</span>, MetricNamespace::Custom),
-                Item::new(<span class="number">4</span>, MetricNamespace::Custom),
+                (Item::new(<span class="number">0</span>, MetricNamespace::Custom), <span class="kw-2">&amp;</span>limits[<span class="number">0</span>]),
+                (Item::new(<span class="number">2</span>, MetricNamespace::Custom), <span class="kw-2">&amp;</span>limits[<span class="number">0</span>]),
+                (Item::new(<span class="number">4</span>, MetricNamespace::Custom), <span class="kw-2">&amp;</span>limits[<span class="number">0</span>]),
             ]
         );
         <span class="macro">assert_eq!</span>(

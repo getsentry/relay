@@ -1065,6 +1065,9 @@
 <a href="#1065" id="1065">1065</a>
 <a href="#1066" id="1066">1066</a>
 <a href="#1067" id="1067">1067</a>
+<a href="#1068" id="1068">1068</a>
+<a href="#1069" id="1069">1069</a>
+<a href="#1070" id="1070">1070</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module contains the service that tracks outcomes.
 //!
 //! Outcomes describe the final "fate" of an envelope item. As such, for every item exactly one
@@ -1238,8 +1241,11 @@
     </span>RateLimited(<span class="prelude-ty">Option</span>&lt;ReasonCode&gt;),
 
     <span class="doccomment">/// The event/metric has been cardinality limited.
+    ///
+    /// Contains the [ID](relay_cardinality::CardinalityLimit::id)
+    /// of the most specific [CardinalityLimit](relay_cardinality::CardinalityLimit) that was exceeded.
     </span><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-    </span>CardinalityLimited,
+    </span>CardinalityLimited(String),
 
     <span class="doccomment">/// The event has been discarded because of invalid data.
     </span>Invalid(DiscardReason),
@@ -1259,7 +1265,7 @@
             Outcome::Filtered(<span class="kw">_</span>) | Outcome::FilteredSampling(<span class="kw">_</span>) =&gt; OutcomeId::FILTERED,
             Outcome::RateLimited(<span class="kw">_</span>) =&gt; OutcomeId::RATE_LIMITED,
             <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-            </span>Outcome::CardinalityLimited =&gt; OutcomeId::CARDINALITY_LIMITED,
+            </span>Outcome::CardinalityLimited(<span class="kw">_</span>) =&gt; OutcomeId::CARDINALITY_LIMITED,
             Outcome::Invalid(<span class="kw">_</span>) =&gt; OutcomeId::INVALID,
             Outcome::Abuse =&gt; OutcomeId::ABUSE,
             Outcome::ClientDiscard(<span class="kw">_</span>) =&gt; OutcomeId::CLIENT_DISCARD,
@@ -1277,7 +1283,7 @@
                 code_opt.as_ref().map(|code| Cow::Borrowed(code.as_str()))
             }
             <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-            </span>Outcome::CardinalityLimited =&gt; <span class="prelude-val">None</span>,
+            </span>Outcome::CardinalityLimited(id) =&gt; <span class="prelude-val">Some</span>(Cow::Borrowed(id)),
             Outcome::ClientDiscard(<span class="kw-2">ref </span>discard_reason) =&gt; <span class="prelude-val">Some</span>(Cow::Borrowed(discard_reason)),
             Outcome::Abuse =&gt; <span class="prelude-val">None</span>,
             Outcome::Accepted =&gt; <span class="prelude-val">None</span>,
@@ -1309,7 +1315,7 @@
             Outcome::RateLimited(<span class="prelude-val">None</span>) =&gt; <span class="macro">write!</span>(f, <span class="string">"rate limited"</span>),
             Outcome::RateLimited(<span class="prelude-val">Some</span>(reason)) =&gt; <span class="macro">write!</span>(f, <span class="string">"rate limited with reason {reason}"</span>),
             <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-            </span>Outcome::CardinalityLimited =&gt; <span class="macro">write!</span>(f, <span class="string">"cardinality limited"</span>),
+            </span>Outcome::CardinalityLimited(id) =&gt; <span class="macro">write!</span>(f, <span class="string">"cardinality limited ({})"</span>, id),
             Outcome::Invalid(DiscardReason::Internal) =&gt; <span class="macro">write!</span>(f, <span class="string">"internal error"</span>),
             Outcome::Invalid(reason) =&gt; <span class="macro">write!</span>(f, <span class="string">"invalid data ({reason})"</span>),
             Outcome::Abuse =&gt; <span class="macro">write!</span>(f, <span class="string">"abuse limit reached"</span>),

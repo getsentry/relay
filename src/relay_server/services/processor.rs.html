@@ -4005,6 +4005,7 @@
 <a href="#4005" id="4005">4005</a>
 <a href="#4006" id="4006">4006</a>
 <a href="#4007" id="4007">4007</a>
+<a href="#4008" id="4008">4008</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
@@ -6508,12 +6509,13 @@
 
         <span class="kw">let </span>CardinalityLimitsSplit { accepted, rejected } = limits.into_split();
 
-        <span class="kw">if </span>!rejected.is_empty() {
-            <span class="self">self</span>.inner
-                .metric_outcomes
-                .track(scoping, <span class="kw-2">&amp;</span>rejected, Outcome::CardinalityLimited);
+        <span class="kw">for </span>(bucket, exceeded) <span class="kw">in </span>rejected {
+            <span class="self">self</span>.inner.metric_outcomes.track(
+                scoping,
+                <span class="kw-2">&amp;</span>[bucket],
+                Outcome::CardinalityLimited(exceeded.id.clone()),
+            );
         }
-
         accepted
     }
 
