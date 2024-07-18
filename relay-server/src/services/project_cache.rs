@@ -1291,7 +1291,7 @@ mod tests {
     use uuid::Uuid;
 
     use crate::services::processor::ProcessingGroup;
-    use crate::testutils::{empty_envelope, empty_envelope_with_dsn};
+    use crate::testutils::empty_envelope_with_dsn;
     use crate::utils::MemoryStat;
 
     use super::*;
