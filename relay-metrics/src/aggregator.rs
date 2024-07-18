@@ -1,7 +1,6 @@
 //! Core functionality of metrics aggregation.
 
-use std::collections::hash_map::Entry;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::BTreeMap;
 use std::error::Error;
 use std::hash::{Hash, Hasher};
 use std::time::Duration;
@@ -18,6 +17,8 @@ use crate::bucket::{Bucket, BucketValue};
 use crate::protocol::{self, MetricNamespace, MetricResourceIdentifier};
 use crate::statsd::{MetricCounters, MetricGauges, MetricHistograms, MetricSets, MetricTimers};
 use crate::{BucketMetadata, MetricName};
+
+use hashbrown::{hash_map::Entry, HashMap};
 
 /// Any error that may occur during aggregation.
 #[derive(Debug, Error, PartialEq)]
@@ -620,41 +621,33 @@ impl Aggregator {
             {
                 let bucket_interval = self.config.bucket_interval;
                 let cost_tracker = &mut self.cost_tracker;
-                self.buckets.retain(|key, entry| {
-                    if force || entry.elapsed() {
-                        // Take the value and leave a placeholder behind. It'll be removed right after.
-                        let value = mem::replace(&mut entry.value, BucketValue::counter(0.into()));
-                        let metadata = mem::take(&mut entry.metadata);
-                        cost_tracker.subtract_cost(key.project_key, key.cost());
-                        cost_tracker.subtract_cost(key.project_key, value.cost());
 
-                        let (bucket_count, item_count) = stats
-                            .entry((value.ty(), key.namespace()))
-                            .or_insert((0usize, 0usize));
-                        *bucket_count += 1;
-                        *item_count += value.len();
+                for (key, entry) in self.buckets.extract_if(|_, entry| force || entry.elapsed()) {
+                    cost_tracker.subtract_cost(key.project_key, key.cost());
+                    cost_tracker.subtract_cost(key.project_key, entry.value.cost());
 
-                        let bucket = Bucket {
-                            timestamp: key.timestamp,
-                            width: bucket_interval,
-                            name: key.metric_name.clone(),
-                            value,
-                            tags: key.tags.clone(),
-                            metadata,
-                        };
+                    let (bucket_count, item_count) = stats
+                        .entry((entry.value.ty(), key.namespace()))
+                        .or_insert((0usize, 0usize));
+                    *bucket_count += 1;
+                    *item_count += entry.value.len();
 
-                        partitions
-                            .entry(self.config.flush_partitions.map(|p| key.partition_key(p)))
-                            .or_insert_with(HashMap::new)
-                            .entry(key.project_key)
-                            .or_insert_with(Vec::new)
-                            .push(bucket);
+                    let bucket = Bucket {
+                        timestamp: key.timestamp,
+                        width: bucket_interval,
+                        name: key.metric_name.clone(),
+                        value: entry.value,
+                        tags: key.tags.clone(),
+                        metadata: entry.metadata,
+                    };
 
-                        false
-                    } else {
-                        true
-                    }
-                });
+                    partitions
+                        .entry(self.config.flush_partitions.map(|p| key.partition_key(p)))
+                        .or_insert_with(HashMap::new)
+                        .entry(key.project_key)
+                        .or_insert_with(Vec::new)
+                        .push(bucket);
+                }
             }
         );
 
