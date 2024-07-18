@@ -296,10 +296,6 @@ fn queue_envelope(
     // Split off the envelopes by item type.
     let envelopes = ProcessingGroup::split_envelope(*managed_envelope.take_envelope());
     for (group, envelope) in envelopes {
-        if !state.memory_stat().has_enough_memory() {
-            return Err(BadStoreRequest::QueueFailed);
-        }
-
         let envelope = ManagedEnvelope::standalone(
             envelope,
             state.outcome_aggregator().clone(),
@@ -335,9 +331,9 @@ pub async fn handle_envelope(
         )
     }
 
-    if !state.memory_stat().has_enough_memory() {
+    if !state.memory_stat_config().has_enough_memory() {
         return Err(BadStoreRequest::QueueFailed);
-    }
+    };
 
     let mut managed_envelope = ManagedEnvelope::standalone(
         envelope,

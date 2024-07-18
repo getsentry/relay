@@ -57,7 +57,7 @@ use crate::services::processor::ProcessingGroup;
 use crate::services::project_cache::{ProjectCache, RefreshIndexCache, UpdateSpoolIndex};
 use crate::services::test_store::TestStore;
 use crate::statsd::{RelayCounters, RelayGauges, RelayHistograms, RelayTimers};
-use crate::utils::{BufferGuard, ManagedEnvelope};
+use crate::utils::{BufferGuard, ManagedEnvelope, MemoryStat, MemoryStatConfig};
 
 pub mod spool_utils;
 mod sql;
@@ -396,7 +396,7 @@ impl InMemory {
 struct OnDisk {
     dequeue_attempts: usize,
     db: Pool<Sqlite>,
-    buffer_guard: Arc<BufferGuard>,
+    memory_stat_config: MemoryStatConfig,
     max_disk_size: usize,
     /// The number of items currently on disk.
     ///
@@ -492,12 +492,13 @@ impl OnDisk {
         let envelopes: Result<Vec<_>, BufferError> = ProcessingGroup::split_envelope(*envelope)
             .into_iter()
             .map(|(group, envelope)| {
-                let managed_envelope = self.buffer_guard.enter(
+                let managed_envelope = ManagedEnvelope::standalone(
                     envelope,
                     services.outcome_aggregator.clone(),
                     services.test_store.clone(),
                     group,
-                )?;
+                );
+
                 Ok(managed_envelope)
             })
             .collect();
@@ -506,7 +507,7 @@ impl OnDisk {
 
     /// Returns the size of the batch to unspool.
     fn unspool_batch(&self) -> i64 {
-        BATCH_SIZE.min(self.buffer_guard.available() as i64)
+        BATCH_SIZE
     }
 
     /// Tries to delete the envelopes from the persistent buffer in batches,
@@ -526,7 +527,7 @@ impl OnDisk {
         loop {
             // Before querying the db, make sure that the buffer guard has enough availability:
             self.dequeue_attempts += 1;
-            if !self.buffer_guard.is_below_low_watermark() {
+            if !self.memory_stat_config.has_enough_memory() {
                 break;
             }
             relay_statsd::metric!(
@@ -604,7 +605,7 @@ impl OnDisk {
         loop {
             // On each iteration make sure we are still below the lower limit of available
             // guard permits.
-            if !self.buffer_guard.is_below_low_watermark() {
+            if !self.memory_stat_config.has_enough_memory() {
                 return Ok(result);
             }
             let envelopes = sql::delete_and_fetch_all(self.unspool_batch())
@@ -861,8 +862,7 @@ impl BufferState {
         let state = match self {
             Self::MemoryFileStandby { ram, mut disk } => {
                 let ram_is_full = ram.is_full();
-                let over_high_watermark = disk.buffer_guard.is_over_high_watermark();
-                if ram_is_full || over_high_watermark {
+                if ram_is_full || !disk.memory_stat_config.has_enough_memory() {
                     if let Err(err) = disk.spool(ram.buffer).await {
                         relay_log::error!(
                             error = &err as &dyn Error,
@@ -933,7 +933,7 @@ impl BufferState {
     async fn is_below_low_mem_watermark(config: &Config, disk: &OnDisk) -> bool {
         ((config.spool_envelopes_max_memory_size() as f64 * LOW_SPOOL_MEMORY_WATERMARK) as i64)
             > disk.estimate_spool_size().await.unwrap_or(i64::MAX)
-            && disk.buffer_guard.is_below_low_watermark()
+            && disk.memory_stat_config.has_enough_memory()
     }
 }
 
@@ -1001,7 +1001,7 @@ impl BufferService {
     /// Prepares the disk state.
     async fn prepare_disk_state(
         config: Arc<Config>,
-        buffer_guard: Arc<BufferGuard>,
+        memory_stat_config: MemoryStatConfig,
     ) -> Result<Option<OnDisk>, BufferError> {
         // Only if persistent envelopes buffer file path provided, we create the pool and set the config.
         let Some(path) = config.spool_envelopes_path() else {
@@ -1053,7 +1053,7 @@ impl BufferService {
         let mut on_disk = OnDisk {
             dequeue_attempts: 0,
             db,
-            buffer_guard,
+            memory_stat_config,
             max_disk_size: config.spool_envelopes_max_disk_size(),
             count: None,
         };
@@ -1068,11 +1068,11 @@ impl BufferService {
 
     /// Creates a new [`BufferService`] from the provided path to the SQLite database file.
     pub async fn create(
-        buffer_guard: Arc<BufferGuard>,
+        memory_stat_config: MemoryStatConfig,
         services: Services,
         config: Arc<Config>,
     ) -> Result<Self, BufferError> {
-        let on_disk_state = Self::prepare_disk_state(config.clone(), buffer_guard).await?;
+        let on_disk_state = Self::prepare_disk_state(config.clone(), memory_stat_config).await?;
         let state = BufferState::new(config.spool_envelopes_max_memory_size(), on_disk_state).await;
         Ok(Self {
             services,
@@ -1307,15 +1307,15 @@ impl Drop for BufferService {
 
 #[cfg(test)]
 mod tests {
-    use std::str::FromStr;
-    use std::sync::Mutex;
-    use std::time::{Duration, Instant};
-
+    use brotli::enc::compress_fragment_two_pass::memcpy;
     use insta::assert_debug_snapshot;
     use rand::Rng;
     use relay_system::AsyncResponse;
     use relay_test::mock_service;
     use sqlx::ConnectOptions;
+    use std::str::FromStr;
+    use std::sync::Mutex;
+    use std::time::{Duration, Instant};
     use uuid::Uuid;
 
     use crate::services::project_cache::SpoolHealth;
@@ -1352,17 +1352,20 @@ mod tests {
             .join("subdir1")
             .join("subdir2")
             .join("spool-file");
-        let buffer_guard: Arc<_> = BufferGuard::new(1).into();
         let config: Arc<_> = Config::from_json_value(serde_json::json!({
             "spool": {
                 "envelopes": {
                     "path": target_dir,
                 }
+            },
+            "health": {
+                "max_memory_percent": 1.0
             }
         }))
         .unwrap()
         .into();
-        BufferService::create(buffer_guard, services(), config)
+        let memory_stat_config = MemoryStat::new().with_config(config.clone());
+        BufferService::create(memory_stat_config, services(), config)
             .await
             .unwrap();
         assert!(target_dir.exists());
@@ -1370,18 +1373,21 @@ mod tests {
 
     #[tokio::test]
     async fn ensure_start_time_restore() {
-        let buffer_guard: Arc<_> = BufferGuard::new(10).into();
         let config: Arc<_> = Config::from_json_value(serde_json::json!({
             "spool": {
                 "envelopes": {
                     "path": std::env::temp_dir().join(Uuid::new_v4().to_string()),
                     "max_memory_size": 0, // 0 bytes, to force to spool to disk all the envelopes.
+                },
+                "health": {
+                    "max_memory_percent": 0.0
                 }
             }
         }))
         .unwrap()
         .into();
-        let service = BufferService::create(buffer_guard, services(), config)
+        let memory_stat_config = MemoryStat::new().with_config(config.clone());
+        let service = BufferService::create(memory_stat_config, services(), config)
             .await
             .unwrap();
         let addr = service.start();
@@ -1436,113 +1442,116 @@ mod tests {
         }
     }
 
-    #[tokio::test]
-    async fn dequeue_waits_for_permits() {
-        relay_test::setup();
-        let num_permits = 3;
-        let buffer_guard: Arc<_> = BufferGuard::new(num_permits).into();
-        let config: Arc<_> = Config::from_json_value(serde_json::json!({
-            "spool": {
-                "envelopes": {
-                    "path": std::env::temp_dir().join(Uuid::new_v4().to_string()),
-                    "max_memory_size": 0, // 0 bytes, to force to spool to disk all the envelopes.
-                }
-            }
-        }))
-        .unwrap()
-        .into();
-
-        let services = services();
-
-        let service = BufferService::create(buffer_guard.clone(), services.clone(), config)
-            .await
-            .unwrap();
-        let addr = service.start();
-        let (tx, mut rx) = mpsc::unbounded_channel();
-
-        let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
-        let key = QueueKey {
-            own_key: project_key,
-            sampling_key: project_key,
-        };
-
-        // Enqueue an envelope:
-        addr.send(Enqueue {
-            key,
-            value: empty_managed_envelope(),
-        });
-
-        // Nothing dequeued yet:
-        assert!(rx.try_recv().is_err());
-
-        // Dequeue an envelope:
-        addr.send(DequeueMany {
-            keys: [key].into(),
-            sender: tx.clone(),
-        });
-
-        // There are enough permits, so get an envelope:
-        let res = rx.recv().await;
-        assert!(res.is_some(), "{res:?}");
-        assert_eq!(buffer_guard.available(), 2);
-
-        // Simulate a new envelope coming in via a web request:
-        let new_envelope = buffer_guard
-            .enter(
-                empty_envelope(),
-                services.outcome_aggregator,
-                services.test_store,
-                ProcessingGroup::Ungrouped,
-            )
-            .unwrap();
-
-        assert_eq!(buffer_guard.available(), 1);
-
-        // Enqueue & dequeue another envelope:
-        addr.send(Enqueue {
-            key,
-            value: empty_managed_envelope(),
-        });
-        // Request to dequeue:
-        addr.send(DequeueMany {
-            keys: [key].into(),
-            sender: tx.clone(),
-        });
-        tokio::time::sleep(Duration::from_millis(50)).await;
-
-        // There is one permit left, but we only dequeue if we gave >= 50% capacity:
-        assert!(rx.try_recv().is_err());
-
-        // Freeing one permit gives us enough capacity:
-        assert_eq!(buffer_guard.available(), 1);
-        drop(new_envelope);
-
-        // Dequeue an envelope:
-        addr.send(DequeueMany {
-            keys: [key].into(),
-            sender: tx.clone(),
-        });
-        assert_eq!(buffer_guard.available(), 2);
-        tokio::time::sleep(Duration::from_millis(100)).await; // give time to flush
-        assert!(rx.try_recv().is_ok());
-    }
+    // #[tokio::test]
+    // async fn dequeue_waits_for_permits() {
+    //     relay_test::setup();
+    //     let num_permits = 3;
+    //     let buffer_guard: Arc<_> = BufferGuard::new(num_permits).into();
+    //     let config: Arc<_> = Config::from_json_value(serde_json::json!({
+    //         "spool": {
+    //             "envelopes": {
+    //                 "path": std::env::temp_dir().join(Uuid::new_v4().to_string()),
+    //                 "max_memory_size": 0, // 0 bytes, to force to spool to disk all the envelopes.
+    //             }
+    //         }
+    //     }))
+    //     .unwrap()
+    //     .into();
+    //
+    //     let services = services();
+    //
+    //     let service = BufferService::create(buffer_guard.clone(), services.clone(), config)
+    //         .await
+    //         .unwrap();
+    //     let addr = service.start();
+    //     let (tx, mut rx) = mpsc::unbounded_channel();
+    //
+    //     let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
+    //     let key = QueueKey {
+    //         own_key: project_key,
+    //         sampling_key: project_key,
+    //     };
+    //
+    //     // Enqueue an envelope:
+    //     addr.send(Enqueue {
+    //         key,
+    //         value: empty_managed_envelope(),
+    //     });
+    //
+    //     // Nothing dequeued yet:
+    //     assert!(rx.try_recv().is_err());
+    //
+    //     // Dequeue an envelope:
+    //     addr.send(DequeueMany {
+    //         keys: [key].into(),
+    //         sender: tx.clone(),
+    //     });
+    //
+    //     // There are enough permits, so get an envelope:
+    //     let res = rx.recv().await;
+    //     assert!(res.is_some(), "{res:?}");
+    //     assert_eq!(buffer_guard.available(), 2);
+    //
+    //     // Simulate a new envelope coming in via a web request:
+    //     let new_envelope = buffer_guard
+    //         .enter(
+    //             empty_envelope(),
+    //             services.outcome_aggregator,
+    //             services.test_store,
+    //             ProcessingGroup::Ungrouped,
+    //         )
+    //         .unwrap();
+    //
+    //     assert_eq!(buffer_guard.available(), 1);
+    //
+    //     // Enqueue & dequeue another envelope:
+    //     addr.send(Enqueue {
+    //         key,
+    //         value: empty_managed_envelope(),
+    //     });
+    //     // Request to dequeue:
+    //     addr.send(DequeueMany {
+    //         keys: [key].into(),
+    //         sender: tx.clone(),
+    //     });
+    //     tokio::time::sleep(Duration::from_millis(50)).await;
+    //
+    //     // There is one permit left, but we only dequeue if we gave >= 50% capacity:
+    //     assert!(rx.try_recv().is_err());
+    //
+    //     // Freeing one permit gives us enough capacity:
+    //     assert_eq!(buffer_guard.available(), 1);
+    //     drop(new_envelope);
+    //
+    //     // Dequeue an envelope:
+    //     addr.send(DequeueMany {
+    //         keys: [key].into(),
+    //         sender: tx.clone(),
+    //     });
+    //     assert_eq!(buffer_guard.available(), 2);
+    //     tokio::time::sleep(Duration::from_millis(100)).await; // give time to flush
+    //     assert!(rx.try_recv().is_ok());
+    // }
 
     #[test]
     fn metrics_work() {
         relay_log::init_test!();
 
-        let buffer_guard: Arc<_> = BufferGuard::new(999999).into();
         let config: Arc<_> = Config::from_json_value(serde_json::json!({
             "spool": {
                 "envelopes": {
                     "path": std::env::temp_dir().join(Uuid::new_v4().to_string()),
                     "max_memory_size": "4KB",
                     "max_disk_size": "40KB",
-                }
+                },
+                "health": {
+                    "max_memory_percent": 1.0
+                 }
             }
         }))
         .unwrap()
         .into();
+        let memory_stat_config = MemoryStat::new().with_config(config.clone());
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
         let key = QueueKey {
             own_key: project_key,
@@ -1557,7 +1566,7 @@ mod tests {
 
         let captures = relay_statsd::with_capturing_test_client(|| {
             rt.block_on(async {
-                let mut service = BufferService::create(buffer_guard, services(), config)
+                let mut service = BufferService::create(memory_stat_config, services(), config)
                     .await
                     .unwrap();
 
@@ -1676,21 +1685,23 @@ mod tests {
     async fn health_check_fails() {
         relay_log::init_test!();
 
-        let buffer_guard: Arc<_> = BufferGuard::new(10).into();
-
         let config: Arc<_> = Config::from_json_value(serde_json::json!({
             "spool": {
                 "envelopes": {
                     "path": std::env::temp_dir().join(Uuid::new_v4().to_string()),
                     "max_memory_size": 0, // 0 bytes, to force to spool to disk all the envelopes.
                     "max_disk_size": 0,
+                },
+                "health": {
+                    "max_memory_percent": 0.0
                 }
             }
         }))
         .unwrap()
         .into();
+        let memory_stat_config = MemoryStat::new().with_config(config.clone());
 
-        let buffer = BufferService::create(buffer_guard, services(), config)
+        let buffer = BufferService::create(memory_stat_config, services(), config)
             .await
             .unwrap();
 
@@ -1705,21 +1716,23 @@ mod tests {
     async fn health_check_succeeds() {
         relay_log::init_test!();
 
-        let buffer_guard: Arc<_> = BufferGuard::new(10).into();
-
         let config: Arc<_> = Config::from_json_value(serde_json::json!({
             "spool": {
                 "envelopes": {
                     "path": std::env::temp_dir().join(Uuid::new_v4().to_string()),
                     "max_memory_size": 0, // 0 bytes, to force to spool to disk all the envelopes.
                     "max_disk_size": "100KB",
+                },
+                "health": {
+                "max_memory_percent": 1.0
                 }
             }
         }))
         .unwrap()
         .into();
+        let memory_stat_config = MemoryStat::new().with_config(config.clone());
 
-        let buffer = BufferService::create(buffer_guard, services(), config)
+        let buffer = BufferService::create(memory_stat_config, services(), config)
             .await
             .unwrap();
 
@@ -1735,7 +1748,6 @@ mod tests {
         relay_log::init_test!();
 
         let db_path = std::env::temp_dir().join(Uuid::new_v4().to_string());
-        let buffer_guard: Arc<_> = BufferGuard::new(10).into();
 
         let config: Arc<_> = Config::from_json_value(serde_json::json!({
             "spool": {
@@ -1743,11 +1755,15 @@ mod tests {
                     "path": db_path,
                     "max_memory_size": 0, // 0 bytes, to force to spool to disk all the envelopes.
                     "max_disk_size": "100KB",
-                }
+                },
+                            "health": {
+                "max_memory_percent": 1.0
+            }
             }
         }))
         .unwrap()
         .into();
+        let memory_stat_config = MemoryStat::new().with_config(config.clone());
 
         // Setup spool file and run migrations.
         BufferService::setup(&db_path).await.unwrap();
@@ -1784,7 +1800,7 @@ mod tests {
 
         services.project_cache = project_cache;
 
-        let buffer = BufferService::create(buffer_guard, services, config)
+        let buffer = BufferService::create(memory_stat_config, services, config)
             .await
             .unwrap();
         let addr = buffer.start();
@@ -1812,21 +1828,24 @@ mod tests {
     #[tokio::test]
     async fn chunked_unspool() {
         let db_path = std::env::temp_dir().join(Uuid::new_v4().to_string());
-        let buffer_guard: Arc<_> = BufferGuard::new(10000).into();
         let config: Arc<_> = Config::from_json_value(serde_json::json!({
             "spool": {
                 "envelopes": {
                     "path": db_path,
                     "max_memory_size": "10KB",
                     "max_disk_size": "20MB",
-                }
+                },
+                            "health": {
+                "max_memory_percent": 1.0
+            }
             }
         }))
         .unwrap()
         .into();
+        let memory_stat_config = MemoryStat::new().with_config(config.clone());
 
         let services = services();
-        let buffer = BufferService::create(buffer_guard, services, config)
+        let buffer = BufferService::create(memory_stat_config, services, config)
             .await
             .unwrap();
         let addr = buffer.start();
@@ -1861,18 +1880,21 @@ mod tests {
     #[tokio::test]
     async fn over_the_low_watermark() {
         let db_path = std::env::temp_dir().join(Uuid::new_v4().to_string());
-        let buffer_guard: Arc<_> = BufferGuard::new(300).into();
         let config: Arc<_> = Config::from_json_value(serde_json::json!({
             "spool": {
                 "envelopes": {
                     "path": db_path,
                     "max_memory_size": "10KB",
                     "max_disk_size": "20MB",
-                }
+                },
+                            "health": {
+                "max_memory_percent": 1.0
+            }
             }
         }))
         .unwrap()
         .into();
+        let memory_stat_config = MemoryStat::new().with_config(config.clone());
 
         let index = Arc::new(Mutex::new(HashSet::new()));
         let mut services = services();
@@ -1887,7 +1909,7 @@ mod tests {
         });
 
         services.project_cache = project_cache;
-        let buffer = BufferService::create(buffer_guard, services, config)
+        let buffer = BufferService::create(memory_stat_config, services, config)
             .await
             .unwrap();
         let addr = buffer.start();

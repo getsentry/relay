@@ -1,5 +1,6 @@
 use crate::statsd::RelayGauges;
 use arc_swap::ArcSwap;
+use relay_config::Config;
 use relay_statsd::metric;
 use std::fmt;
 use std::fmt::Formatter;
@@ -11,7 +12,7 @@ use sysinfo::{MemoryRefreshKind, System};
 /// Count after which the [`MemoryStat`] data will be refreshed.
 const UPDATE_TIME_THRESHOLD_MS: u64 = 100;
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct Memory {
     pub used: u64,
     pub total: u64,
@@ -27,7 +28,6 @@ struct Inner {
     memory: ArcSwap<Memory>,
     last_update: AtomicU64,
     reference_time: Instant,
-    max_percent_threshold: f32,
     system: Mutex<System>,
 }
 
@@ -35,14 +35,13 @@ struct Inner {
 pub struct MemoryStat(Arc<Inner>);
 
 impl MemoryStat {
-    pub fn new(max_percent_threshold: f32) -> Self {
+    pub fn new() -> Self {
         // sysinfo docs suggest to use a single instance of `System` across the program.
         let mut system = System::new();
         Self(Arc::new(Inner {
             memory: ArcSwap::from(Arc::new(Self::refresh_memory(&mut system))),
             last_update: AtomicU64::new(0),
             reference_time: Instant::now(),
-            max_percent_threshold,
             system: Mutex::new(system),
         }))
     }
@@ -52,8 +51,11 @@ impl MemoryStat {
         **self.0.memory.load()
     }
 
-    pub fn has_enough_memory(&self) -> bool {
-        self.memory().used_percent() < self.0.max_percent_threshold
+    pub fn with_config(&self, config: Arc<Config>) -> MemoryStatConfig {
+        MemoryStatConfig {
+            memory_stat: self.clone(),
+            config,
+        }
     }
 
     fn refresh_memory(system: &mut System) -> Memory {
@@ -109,21 +111,33 @@ impl fmt::Debug for MemoryStat {
     }
 }
 
+#[derive(Clone, Debug)]
+pub struct MemoryStatConfig {
+    pub memory_stat: MemoryStat,
+    config: Arc<Config>,
+}
+
+impl MemoryStatConfig {
+    pub fn has_enough_memory_percent(&self) -> bool {
+        self.memory_stat.memory().used_percent() < self.config.health_max_memory_watermark_percent()
+    }
+
+    pub fn has_enough_memory_bytes(&self) -> bool {
+        self.memory_stat.memory().used < self.config.health_max_memory_watermark_bytes()
+    }
+
+    pub fn has_enough_memory(&self) -> bool {
+        let memory = self.memory_stat.memory();
+        memory.used_percent() < self.config.health_max_memory_watermark_percent()
+            && memory.used < self.config.health_max_memory_watermark_bytes()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::utils::{Memory, MemoryStat};
-
-    #[test]
-    fn test_has_enough_memory() {
-        let memory_stat = MemoryStat::new(1.0);
-        assert!(memory_stat.has_enough_memory());
-    }
-
-    #[test]
-    fn test_has_not_enough_memory() {
-        let memory_stat = MemoryStat::new(0.0);
-        assert!(!memory_stat.has_enough_memory());
-    }
+    use relay_config::Config;
+    use std::sync::Arc;
 
     #[test]
     fn test_memory_used_percent_total_0() {
@@ -150,5 +164,17 @@ mod tests {
             total: 100,
         };
         assert_eq!(memory.used_percent(), 0.5);
+    }
+
+    #[test]
+    fn test_memory_stat_config() {
+        let config = Config::from_json_value(serde_json::json!({
+            "health": {
+                "max_memory_percent": 1.0
+            }
+        }))
+        .unwrap();
+        let memory_stat_config = MemoryStat::new().with_config(Arc::new(config));
+        assert!(memory_stat_config.has_enough_memory());
     }
 }

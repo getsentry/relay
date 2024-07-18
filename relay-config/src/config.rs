@@ -1349,7 +1349,7 @@ pub struct Health {
     pub refresh_interval_ms: u64,
     /// Maximum memory watermark in bytes.
     ///
-    /// By default there is no absolute limit set and the watermark
+    /// By default, there is no absolute limit set and the watermark
     /// is only controlled by setting [`Self::max_memory_percent`].
     pub max_memory_bytes: Option<ByteSize>,
     /// Maximum memory watermark as a percentage of maximum system memory.

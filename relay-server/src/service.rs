@@ -26,7 +26,7 @@ use crate::services::relays::{RelayCache, RelayCacheService};
 use crate::services::store::StoreService;
 use crate::services::test_store::{TestStore, TestStoreService};
 use crate::services::upstream::{UpstreamRelay, UpstreamRelayService};
-use crate::utils::{BufferGuard, MemoryStat};
+use crate::utils::{BufferGuard, MemoryStat, MemoryStatConfig};
 
 /// Indicates the type of failure of the server.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, thiserror::Error)]
@@ -84,8 +84,7 @@ pub fn create_runtime(name: &str, threads: usize) -> Runtime {
 #[derive(Debug)]
 struct StateInner {
     config: Arc<Config>,
-    buffer_guard: Arc<BufferGuard>,
-    memory_stat: MemoryStat,
+    memory_stat_config: MemoryStatConfig,
     registry: Registry,
 }
 
@@ -108,9 +107,9 @@ impl ServiceState {
             _ => None,
         };
 
-        let buffer_guard = Arc::new(BufferGuard::new(config.envelope_buffer_size()));
-
-        let memory_stat = MemoryStat::new(config.health_max_memory_watermark_percent());
+        // We create an instance of `MemoryStat` which can be supplied composed with any arbitrary
+        // configuration object down the line.
+        let memory_stat = MemoryStat::new();
 
         // Create an address for the `EnvelopeProcessor`, which can be injected into the
         // other services.
@@ -198,7 +197,7 @@ impl ServiceState {
         );
         ProjectCacheService::new(
             config.clone(),
-            buffer_guard.clone(),
+            memory_stat.with_config(config.clone()),
             project_cache_services,
             metric_outcomes,
             redis_pool.clone(),
@@ -207,10 +206,10 @@ impl ServiceState {
 
         let health_check = HealthCheckService::new(
             config.clone(),
+            memory_stat.with_config(config.clone()),
             aggregator.clone(),
             upstream_relay.clone(),
             project_cache.clone(),
-            memory_stat.clone(),
         )
         .start();
 
@@ -238,9 +237,8 @@ impl ServiceState {
         };
 
         let state = StateInner {
-            config,
-            buffer_guard,
-            memory_stat,
+            config: config.clone(),
+            memory_stat_config: memory_stat.with_config(config),
             registry,
         };
 
@@ -254,16 +252,11 @@ impl ServiceState {
         &self.inner.config
     }
 
-    /// Returns a reference to the guard of the envelope buffer.
-    ///
-    /// This can be used to enter new envelopes into the processing queue and reserve a slot in the
-    /// buffer. See [`BufferGuard`] for more information.
-    pub fn buffer_guard(&self) -> &BufferGuard {
-        &self.inner.buffer_guard
-    }
-
-    pub fn memory_stat(&self) -> &MemoryStat {
-        &self.inner.memory_stat
+    /// Returns a reference to the [`MemoryStatConfig`] which is a [`Config`] aware wrapper on the
+    /// [`MemoryStat`] which gives utility methods to determine whether memory usage is above
+    /// thresholds set in the [`Config`].
+    pub fn memory_stat_config(&self) -> &MemoryStatConfig {
+        &self.inner.memory_stat_config
     }
 
     /// Returns the address of the [`ProjectCache`] service.
