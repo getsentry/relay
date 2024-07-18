@@ -128,6 +128,7 @@ quote = "1.0.2"
 r2d2 = "0.8.10"
 rand = "0.8.5"
 rand_pcg = "0.3.1"
+rayon = "1.10"
 rdkafka = "0.29.0"
 rdkafka-sys = "4.3.0"
 # Git revision until https://github.com/redis-rs/redis-rs/pull/1097 (merged) and https://github.com/redis-rs/redis-rs/pull/1253 are released.
