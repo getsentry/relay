@@ -19,6 +19,7 @@ use relay_cogs::{AppFeature, Cogs, FeatureWeights, ResourceId, Token};
 use relay_common::time::UnixTimestamp;
 use relay_config::{Config, HttpEncoding, NormalizationLevel, RelayMode};
 use relay_dynamic_config::{CombinedMetricExtractionConfig, ErrorBoundary, Feature, GlobalConfig};
+use relay_event_normalization::span::description::ScrubMongoDescription;
 use relay_event_normalization::{
     normalize_event, validate_event, ClockDriftProcessor, CombinedMeasurementsConfig,
     EventValidationConfig, GeoIpLookup, MeasurementsConfig, NormalizationConfig, RawUserAgentInfo,
@@ -1626,6 +1627,14 @@ impl EnvelopeProcessorService {
                     .envelope()
                     .dsc()
                     .and_then(|ctx| ctx.replay_id),
+                scrub_mongo_description: if state
+                    .project_state
+                    .has_feature(Feature::ExtractMongoDBMetrics)
+                {
+                    ScrubMongoDescription::Enabled
+                } else {
+                    ScrubMongoDescription::Disabled
+                },
             };
 
             metric!(timer(RelayTimers::EventProcessingNormalization), {

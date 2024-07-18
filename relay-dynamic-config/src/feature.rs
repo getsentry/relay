@@ -103,6 +103,12 @@ pub enum Feature {
     #[serde(rename = "organizations:indexed-spans-extraction")]
     ExtractSpansFromEvent,
 
+    /// Enables metric extraction for MongoDB spans.
+    ///
+    /// Serialized as `organizations:performance-queries-mongodb-extraction`.
+    #[serde(rename = "organizations:performance-queries-mongodb-extraction")]
+    ExtractMongoDBMetrics,
+
     /// Deprecated, still forwarded for older downstream Relays.
     #[doc(hidden)]
     #[serde(rename = "organizations:transaction-name-mark-scrubbed-as-sanitized")]

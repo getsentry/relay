@@ -9,6 +9,7 @@ use relay_config::Config;
 use relay_dynamic_config::{
     CombinedMetricExtractionConfig, ErrorBoundary, Feature, GlobalConfig, ProjectConfig,
 };
+use relay_event_normalization::span::description::ScrubMongoDescription;
 use relay_event_normalization::{
     normalize_measurements, normalize_performance_score, normalize_user_agent_info_generic,
     span::tag_extraction, validate_span, CombinedMeasurementsConfig, MeasurementsConfig,
@@ -362,6 +363,16 @@ pub fn extract_from_event(
             .aggregator_config_for(MetricNamespace::Spans)
             .aggregator
             .max_tag_value_length,
+        if state
+            .project_state
+            .config
+            .features
+            .has(Feature::ExtractMongoDBMetrics)
+        {
+            ScrubMongoDescription::Enabled
+        } else {
+            ScrubMongoDescription::Disabled
+        },
     ) else {
         return;
     };
@@ -568,7 +579,19 @@ fn normalize(
 
     // Tag extraction:
     let is_mobile = false; // TODO: find a way to determine is_mobile from a standalone span.
-    let tags = tag_extraction::extract_tags(span, max_tag_value_size, None, None, is_mobile, None);
+    let tags = tag_extraction::extract_tags(
+        span,
+        max_tag_value_size,
+        None,
+        None,
+        is_mobile,
+        None,
+        if project_config.features.has(Feature::ExtractMongoDBMetrics) {
+            ScrubMongoDescription::Enabled
+        } else {
+            ScrubMongoDescription::Disabled
+        },
+    );
     span.sentry_tags = Annotated::new(
         tags.into_iter()
             .map(|(k, v)| (k.sentry_tag_key().to_owned(), Annotated::new(v)))

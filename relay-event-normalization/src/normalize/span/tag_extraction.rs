@@ -18,7 +18,7 @@ use sqlparser::ast::{ObjectName, Visitor};
 use url::Url;
 
 use crate::span::description::{
-    concatenate_host_and_port, scrub_domain_name, scrub_span_description,
+    concatenate_host_and_port, scrub_domain_name, scrub_span_description, ScrubMongoDescription,
 };
 use crate::utils::{
     extract_transaction_op, http_status_code_from_span, MAIN_THREAD_NAME, MOBILE_SDKS,
@@ -169,13 +169,22 @@ impl std::fmt::Display for RenderBlockingStatus {
 /// Wrapper for [`extract_span_tags`].
 ///
 /// Tags longer than `max_tag_value_size` bytes will be truncated.
-pub(crate) fn extract_span_tags_from_event(event: &mut Event, max_tag_value_size: usize) {
+pub(crate) fn extract_span_tags_from_event(
+    event: &mut Event,
+    max_tag_value_size: usize,
+    scrub_mongo_description: ScrubMongoDescription,
+) {
     // Temporarily take ownership to pass both an event reference and a mutable span reference to `extract_span_tags`.
     let mut spans = std::mem::take(&mut event.spans);
     let Some(spans_vec) = spans.value_mut() else {
         return;
     };
-    extract_span_tags(event, spans_vec.as_mut_slice(), max_tag_value_size);
+    extract_span_tags(
+        event,
+        spans_vec.as_mut_slice(),
+        max_tag_value_size,
+        scrub_mongo_description,
+    );
 
     event.spans = spans;
 }
@@ -183,7 +192,12 @@ pub(crate) fn extract_span_tags_from_event(event: &mut Event, max_tag_value_size
 /// Extracts tags and measurements from event and spans and materializes them into the spans.
 ///
 /// Tags longer than `max_tag_value_size` bytes will be truncated.
-pub fn extract_span_tags(event: &Event, spans: &mut [Annotated<Span>], max_tag_value_size: usize) {
+pub fn extract_span_tags(
+    event: &Event,
+    spans: &mut [Annotated<Span>],
+    max_tag_value_size: usize,
+    scrub_mongo_description: ScrubMongoDescription,
+) {
     // TODO: To prevent differences between metrics and payloads, we should not extract tags here
     // when they have already been extracted by a downstream relay.
     let shared_tags = extract_shared_tags(event);
@@ -200,7 +214,15 @@ pub fn extract_span_tags(event: &Event, spans: &mut [Annotated<Span>], max_tag_v
             continue;
         };
 
-        let tags = extract_tags(span, max_tag_value_size, ttid, ttfd, is_mobile, start_type);
+        let tags = extract_tags(
+            span,
+            max_tag_value_size,
+            ttid,
+            ttfd,
+            is_mobile,
+            start_type,
+            scrub_mongo_description.clone(),
+        );
 
         span.sentry_tags = Annotated::new(
             shared_tags
@@ -422,6 +444,7 @@ pub fn extract_tags(
     full_display: Option<Timestamp>,
     is_mobile: bool,
     start_type: Option<&str>,
+    scrub_mongo_description: ScrubMongoDescription,
 ) -> BTreeMap<SpanTagKey, String> {
     let mut span_tags: BTreeMap<SpanTagKey, String> = BTreeMap::new();
 
@@ -448,7 +471,8 @@ pub fn extract_tags(
             span_tags.insert(SpanTagKey::Category, category.to_owned());
         }
 
-        let (scrubbed_description, parsed_sql) = scrub_span_description(span);
+        let (scrubbed_description, parsed_sql) =
+            scrub_span_description(span, scrub_mongo_description);
 
         let action = match (category, span_op.as_str(), &scrubbed_description) {
             (Some("http"), _, _) => span
@@ -564,16 +588,10 @@ pub fn extract_tags(
                 .and_then(|value| value.as_str());
             match (db_system, db_collection_name) {
                 (Some("mongodb"), Some(name)) => Some(name.to_owned()),
-                _ => {
-                    relay_log::info!(
-                        "db_system: {:?}, db_collection_name: {:?}",
-                        db_system,
-                        db_collection_name
-                    );
-                    span.description
-                        .value()
-                        .and_then(|query| sql_tables_from_query(query, &parsed_sql))
-                }
+                _ => span
+                    .description
+                    .value()
+                    .and_then(|query| sql_tables_from_query(query, &parsed_sql)),
             }
         } else {
             None
@@ -1408,7 +1426,7 @@ LIMIT 1
             .into_value()
             .unwrap();
 
-        extract_span_tags_from_event(&mut event, 200);
+        extract_span_tags_from_event(&mut event, 200, ScrubMongoDescription::Disabled);
 
         let spans = event.spans.value().unwrap();
 
@@ -1470,7 +1488,7 @@ LIMIT 1
             .into_value()
             .unwrap();
 
-        extract_span_tags_from_event(&mut event, 200);
+        extract_span_tags_from_event(&mut event, 200, ScrubMongoDescription::Disabled);
 
         let span = &event.spans.value().unwrap()[0];
 
@@ -1588,7 +1606,7 @@ LIMIT 1
             .into_value()
             .unwrap();
 
-        extract_span_tags_from_event(&mut event, 200);
+        extract_span_tags_from_event(&mut event, 200, ScrubMongoDescription::Disabled);
 
         let span_1 = &event.spans.value().unwrap()[0];
         let span_2 = &event.spans.value().unwrap()[1];
@@ -1641,7 +1659,7 @@ LIMIT 1
             .into_value()
             .unwrap();
 
-        extract_span_tags_from_event(&mut event, 200);
+        extract_span_tags_from_event(&mut event, 200, ScrubMongoDescription::Disabled);
 
         let span = &event
             .spans
@@ -1749,7 +1767,7 @@ LIMIT 1
             .into_value()
             .unwrap();
 
-        extract_span_tags_from_event(&mut event, 200);
+        extract_span_tags_from_event(&mut event, 200, ScrubMongoDescription::Disabled);
 
         let span_1 = &event.spans.value().unwrap()[0];
         let span_2 = &event.spans.value().unwrap()[1];
@@ -1872,7 +1890,7 @@ LIMIT 1
             .into_value()
             .unwrap();
 
-        extract_span_tags_from_event(&mut event, 200);
+        extract_span_tags_from_event(&mut event, 200, ScrubMongoDescription::Disabled);
 
         let span_1 = &event.spans.value().unwrap()[0];
         let span_2 = &event.spans.value().unwrap()[1];
@@ -1980,7 +1998,7 @@ LIMIT 1
             .into_value()
             .unwrap();
 
-        extract_span_tags_from_event(&mut event, 200);
+        extract_span_tags_from_event(&mut event, 200, ScrubMongoDescription::Disabled);
 
         let span = &event.spans.value().unwrap()[0];
 
@@ -2037,7 +2055,7 @@ LIMIT 1
             .into_value()
             .unwrap();
 
-        extract_span_tags_from_event(&mut event, 200);
+        extract_span_tags_from_event(&mut event, 200, ScrubMongoDescription::Disabled);
 
         let span = &event.spans.value().unwrap()[0];
         let tags = span.value().unwrap().sentry_tags.value().unwrap();
@@ -2065,7 +2083,15 @@ LIMIT 1
             .unwrap()
             .into_value()
             .unwrap();
-        let tags = extract_tags(&span, 200, None, None, false, None);
+        let tags = extract_tags(
+            &span,
+            200,
+            None,
+            None,
+            false,
+            None,
+            ScrubMongoDescription::Disabled,
+        );
 
         assert_eq!(
             tags.get(&SpanTagKey::BrowserName),
@@ -2105,7 +2131,7 @@ LIMIT 1
             .into_value()
             .unwrap();
 
-        extract_span_tags_from_event(&mut event, 200);
+        extract_span_tags_from_event(&mut event, 200, ScrubMongoDescription::Disabled);
 
         let span = &event.spans.value().unwrap()[0];
         let tags = span.value().unwrap().sentry_tags.value().unwrap();
@@ -2136,7 +2162,15 @@ LIMIT 1
             .unwrap()
             .into_value()
             .unwrap();
-        let tags = extract_tags(&span, 200, None, None, false, None);
+        let tags = extract_tags(
+            &span,
+            200,
+            None,
+            None,
+            false,
+            None,
+            ScrubMongoDescription::Disabled,
+        );
 
         assert_eq!(
             tags.get(&SpanTagKey::MessagingDestinationName),
@@ -2261,7 +2295,7 @@ LIMIT 1
             .into_value()
             .unwrap();
 
-        extract_span_tags_from_event(&mut event, 200);
+        extract_span_tags_from_event(&mut event, 200, ScrubMongoDescription::Disabled);
 
         let span = &event.spans.value().unwrap()[0];
         let tags = span.value().unwrap().sentry_tags.value().unwrap();
@@ -2359,7 +2393,15 @@ LIMIT 1
             .unwrap();
         span.description.set_value(Some(description.into()));
 
-        extract_tags(&span, 200, None, None, false, None)
+        extract_tags(
+            &span,
+            200,
+            None,
+            None,
+            false,
+            None,
+            ScrubMongoDescription::Disabled,
+        )
     }
 
     #[test]

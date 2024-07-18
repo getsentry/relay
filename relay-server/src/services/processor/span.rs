@@ -1,6 +1,7 @@
 //! Processor code related to standalone spans.
 
 use relay_dynamic_config::Feature;
+use relay_event_normalization::span::description::ScrubMongoDescription;
 use relay_event_normalization::span::tag_extraction;
 use relay_event_schema::protocol::{Event, Span};
 use relay_protocol::Annotated;
@@ -30,10 +31,19 @@ pub fn filter(state: &mut ProcessEnvelopeState<SpanGroup>) {
 /// Creates a span from the transaction and applies tag extraction on it.
 ///
 /// Returns `None` when [`tag_extraction::extract_span_tags`] clears the span, which it shouldn't.
-pub fn extract_transaction_span(event: &Event, max_tag_value_size: usize) -> Option<Span> {
+pub fn extract_transaction_span(
+    event: &Event,
+    max_tag_value_size: usize,
+    scrub_mongo_description: ScrubMongoDescription,
+) -> Option<Span> {
     let mut spans = [Span::from(event).into()];
 
-    tag_extraction::extract_span_tags(event, &mut spans, max_tag_value_size);
+    tag_extraction::extract_span_tags(
+        event,
+        &mut spans,
+        max_tag_value_size,
+        scrub_mongo_description,
+    );
     tag_extraction::extract_segment_span_tags(event, &mut spans);
 
     spans.into_iter().next().and_then(Annotated::into_value)

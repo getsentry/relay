@@ -37,11 +37,18 @@ const MAX_EXTENSION_LENGTH: usize = 10;
 /// Domain names that are preserved during scrubbing
 const DOMAIN_ALLOW_LIST: &[&str] = &["localhost"];
 
+#[derive(PartialEq, Clone, Debug)]
+pub enum ScrubMongoDescription {
+    Disabled,
+    Enabled,
+}
+
 /// Attempts to replace identifiers in the span description with placeholders.
 ///
 /// Returns `None` if no scrubbing can be performed.
 pub(crate) fn scrub_span_description(
     span: &Span,
+    scrub_mongo_description: ScrubMongoDescription,
 ) -> (Option<String>, Option<Vec<sqlparser::ast::Statement>>) {
     let Some(description) = span.description.as_str() else {
         return (None, None);
@@ -62,7 +69,10 @@ pub(crate) fn scrub_span_description(
             ("http", _) => scrub_http(description),
             ("cache", _) | ("db", "redis") => scrub_redis_keys(description),
             ("db", _) if db_system == Some("redis") => scrub_redis_keys(description),
-            ("db", _) if db_system == Some("mongodb") => {
+            ("db", _)
+                if scrub_mongo_description == ScrubMongoDescription::Enabled
+                    && db_system == Some("mongodb") =>
+            {
                 let command = data
                     .and_then(|data| data.db_operation.value())
                     .and_then(|command| command.as_str());
@@ -706,7 +716,10 @@ mod tests {
                     .description
                     .set_value(Some($description_in.into()));
 
-                let scrubbed = scrub_span_description(span.value_mut().as_mut().unwrap());
+                let scrubbed = scrub_span_description(
+                    span.value_mut().as_mut().unwrap(),
+                    ScrubMongoDescription::Disabled,
+                );
 
                 if $expected == "" {
                     assert!(scrubbed.0.is_none());
@@ -1265,7 +1278,7 @@ mod tests {
 
         let mut span = Annotated::<Span>::from_json(json).unwrap();
         let span = span.value_mut().as_mut().unwrap();
-        let scrubbed = scrub_span_description(span);
+        let scrubbed = scrub_span_description(span, ScrubMongoDescription::Disabled);
         assert_eq!(scrubbed.0.as_deref(), Some("SELECT %s"));
     }
 
@@ -1278,7 +1291,10 @@ mod tests {
 
         let mut span = Annotated::<Span>::from_json(json).unwrap();
 
-        let scrubbed = scrub_span_description(span.value_mut().as_mut().unwrap());
+        let scrubbed = scrub_span_description(
+            span.value_mut().as_mut().unwrap(),
+            ScrubMongoDescription::Disabled,
+        );
 
         // When db.system is missing, no scrubbed description (i.e. no group) is set.
         assert!(scrubbed.0.is_none());
@@ -1296,7 +1312,10 @@ mod tests {
 
         let mut span = Annotated::<Span>::from_json(json).unwrap();
 
-        let scrubbed = scrub_span_description(span.value_mut().as_mut().unwrap());
+        let scrubbed = scrub_span_description(
+            span.value_mut().as_mut().unwrap(),
+            ScrubMongoDescription::Disabled,
+        );
 
         // Can be scrubbed with db system.
         assert_eq!(scrubbed.0.as_deref(), Some("SELECT a FROM b"));
@@ -1314,7 +1333,10 @@ mod tests {
 
         let mut span = Annotated::<Span>::from_json(json).unwrap();
 
-        let scrubbed = scrub_span_description(span.value_mut().as_mut().unwrap());
+        let scrubbed = scrub_span_description(
+            span.value_mut().as_mut().unwrap(),
+            ScrubMongoDescription::Disabled,
+        );
 
         // NOTE: this should return `DEL *`, but we cannot detect lowercase command names yet.
         assert_eq!(scrubbed.0.as_deref(), Some("*"));
@@ -1330,7 +1352,10 @@ mod tests {
 
         let mut span = Annotated::<Span>::from_json(json).unwrap();
 
-        let scrubbed = scrub_span_description(span.value_mut().as_mut().unwrap());
+        let scrubbed = scrub_span_description(
+            span.value_mut().as_mut().unwrap(),
+            ScrubMongoDescription::Disabled,
+        );
 
         assert_eq!(scrubbed.0.as_deref(), Some("INSERTED * 'UAEventData'"));
     }
@@ -1345,7 +1370,10 @@ mod tests {
 
         let mut span = Annotated::<Span>::from_json(json).unwrap();
 
-        let scrubbed = scrub_span_description(span.value_mut().as_mut().unwrap());
+        let scrubbed = scrub_span_description(
+            span.value_mut().as_mut().unwrap(),
+            ScrubMongoDescription::Disabled,
+        );
 
         assert_eq!(
             scrubbed.0.as_deref(),
@@ -1365,7 +1393,10 @@ mod tests {
 
         let mut span = Annotated::<Span>::from_json(json).unwrap();
 
-        let scrubbed = scrub_span_description(span.value_mut().as_mut().unwrap());
+        let scrubbed = scrub_span_description(
+            span.value_mut().as_mut().unwrap(),
+            ScrubMongoDescription::Disabled,
+        );
 
         // Can be scrubbed with db system.
         assert_eq!(scrubbed.0.as_deref(), Some("my-component-name"));
@@ -1385,12 +1416,37 @@ mod tests {
 
         let mut span = Annotated::<Span>::from_json(json).unwrap();
 
-        let scrubbed = scrub_span_description(span.value_mut().as_mut().unwrap());
+        let scrubbed = scrub_span_description(
+            span.value_mut().as_mut().unwrap(),
+            ScrubMongoDescription::Enabled,
+        );
 
         assert_eq!(
             scrubbed.0.as_deref(),
             Some(r#"{ "insert": "documents", "foo": "?" }"#)
         );
+    }
+
+    #[test]
+    fn mongodb_scrubbing_does_not_run_when_disabled() {
+        let json = r#"{
+            "description": "{\"foo\": \"bar\"}",
+            "op": "db",
+            "data": {
+                "db.system": "mongodb",
+                "db.collection.name": "documents",
+                "db.operation": "insert"
+            }
+        }"#;
+
+        let mut span = Annotated::<Span>::from_json(json).unwrap();
+
+        let scrubbed = scrub_span_description(
+            span.value_mut().as_mut().unwrap(),
+            ScrubMongoDescription::Disabled,
+        );
+
+        assert_eq!(scrubbed.0.as_deref(), None);
     }
 
     #[test]
@@ -1407,7 +1463,10 @@ mod tests {
 
         let mut span = Annotated::<Span>::from_json(json).unwrap();
 
-        let scrubbed = scrub_span_description(span.value_mut().as_mut().unwrap());
+        let scrubbed = scrub_span_description(
+            span.value_mut().as_mut().unwrap(),
+            ScrubMongoDescription::Enabled,
+        );
 
         assert_eq!(
             scrubbed.0.as_deref(),

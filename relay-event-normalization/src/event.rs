@@ -29,6 +29,7 @@ use uuid::Uuid;
 
 use crate::normalize::request;
 use crate::span::ai::normalize_ai_measurements;
+use crate::span::description::ScrubMongoDescription;
 use crate::span::tag_extraction::extract_span_tags_from_event;
 use crate::utils::{self, get_event_user_tag, MAX_DURATION_MOBILE_MS};
 use crate::{
@@ -154,6 +155,9 @@ pub struct NormalizationConfig<'a> {
     ///
     /// It is persisted into the event payload for correlation.
     pub replay_id: Option<Uuid>,
+
+    /// When `true`, extracts metrics from MongoDB spans.
+    pub scrub_mongo_description: ScrubMongoDescription,
 }
 
 impl<'a> Default for NormalizationConfig<'a> {
@@ -185,6 +189,7 @@ impl<'a> Default for NormalizationConfig<'a> {
             measurements: None,
             normalize_spans: true,
             replay_id: Default::default(),
+            scrub_mongo_description: ScrubMongoDescription::Disabled,
         }
     }
 }
@@ -317,7 +322,11 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) {
     }
 
     if config.enrich_spans {
-        extract_span_tags_from_event(event, config.max_tag_value_length);
+        extract_span_tags_from_event(
+            event,
+            config.max_tag_value_length,
+            config.scrub_mongo_description.clone(),
+        );
     }
 
     if let Some(context) = event.context_mut::<TraceContext>() {
