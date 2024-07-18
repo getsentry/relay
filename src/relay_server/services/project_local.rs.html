@@ -280,6 +280,7 @@
 <a href="#280" id="280">280</a>
 <a href="#281" id="281">281</a>
 <a href="#282" id="282">282</a>
+<a href="#283" id="283">283</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::HashMap;
 <span class="kw">use </span>std::ffi::OsStr;
 <span class="kw">use </span>std::path::Path;
@@ -291,20 +292,20 @@
 <span class="kw">use </span>tokio::sync::mpsc;
 <span class="kw">use </span>tokio::time::Instant;
 
-<span class="kw">use </span><span class="kw">crate</span>::services::project::{ParsedProjectState, ProjectState};
+<span class="kw">use </span><span class="kw">crate</span>::services::project::ProjectState;
 <span class="kw">use </span><span class="kw">crate</span>::services::project_cache::FetchOptionalProjectState;
 
 <span class="doccomment">/// Service interface of the local project source.
 </span><span class="attr">#[derive(Debug)]
-</span><span class="kw">pub struct </span>LocalProjectSource(FetchOptionalProjectState, Sender&lt;<span class="prelude-ty">Option</span>&lt;ProjectState&gt;&gt;);
+</span><span class="kw">pub struct </span>LocalProjectSource(FetchOptionalProjectState, Sender&lt;<span class="prelude-ty">Option</span>&lt;Arc&lt;ProjectState&gt;&gt;&gt;);
 
 <span class="kw">impl </span>Interface <span class="kw">for </span>LocalProjectSource {}
 
 <span class="kw">impl </span>FromMessage&lt;FetchOptionalProjectState&gt; <span class="kw">for </span>LocalProjectSource {
-    <span class="kw">type </span>Response = AsyncResponse&lt;<span class="prelude-ty">Option</span>&lt;ProjectState&gt;&gt;;
+    <span class="kw">type </span>Response = AsyncResponse&lt;<span class="prelude-ty">Option</span>&lt;Arc&lt;ProjectState&gt;&gt;&gt;;
     <span class="kw">fn </span>from_message(
         message: FetchOptionalProjectState,
-        sender: Sender&lt;<span class="prelude-ty">Option</span>&lt;ProjectState&gt;&gt;,
+        sender: Sender&lt;<span class="prelude-ty">Option</span>&lt;Arc&lt;ProjectState&gt;&gt;&gt;,
     ) -&gt; <span class="self">Self </span>{
         <span class="self">Self</span>(message, sender)
     }
@@ -314,7 +315,7 @@
 </span><span class="attr">#[derive(Debug)]
 </span><span class="kw">pub struct </span>LocalProjectSourceService {
     config: Arc&lt;Config&gt;,
-    local_states: HashMap&lt;ProjectKey, ProjectState&gt;,
+    local_states: HashMap&lt;ProjectKey, Arc&lt;ProjectState&gt;&gt;,
 }
 
 <span class="kw">impl </span>LocalProjectSourceService {
@@ -338,18 +339,15 @@
         .and_then(|stem| stem.parse().ok())
 }
 
-<span class="kw">fn </span>parse_file(
-    path: std::path::PathBuf,
-) -&gt; tokio::io::Result&lt;(std::path::PathBuf, ParsedProjectState)&gt; {
+<span class="kw">fn </span>parse_file(path: std::path::PathBuf) -&gt; tokio::io::Result&lt;(std::path::PathBuf, ProjectState)&gt; {
     <span class="kw">let </span>file = std::fs::File::open(<span class="kw-2">&amp;</span>path)<span class="question-mark">?</span>;
     <span class="kw">let </span>reader = std::io::BufReader::new(file);
-    <span class="kw">let </span>state = serde_json::from_reader(reader)<span class="question-mark">?</span>;
-    <span class="prelude-val">Ok</span>((path, state))
+    <span class="prelude-val">Ok</span>((path, serde_json::from_reader(reader)<span class="question-mark">?</span>))
 }
 
 <span class="kw">async fn </span>load_local_states(
     projects_path: <span class="kw-2">&amp;</span>Path,
-) -&gt; tokio::io::Result&lt;HashMap&lt;ProjectKey, ProjectState&gt;&gt; {
+) -&gt; tokio::io::Result&lt;HashMap&lt;ProjectKey, Arc&lt;ProjectState&gt;&gt;&gt; {
     <span class="kw">let </span><span class="kw-2">mut </span>states = HashMap::new();
 
     <span class="kw">let </span><span class="kw-2">mut </span>directory = <span class="kw">match </span>tokio::fs::read_dir(projects_path).<span class="kw">await </span>{
@@ -380,11 +378,12 @@
         }
 
         <span class="comment">// serde_json is not async, so spawn a blocking task here:
-        </span><span class="kw">let </span>(path, <span class="kw-2">mut </span>state) = tokio::task::spawn_blocking(<span class="kw">move </span>|| parse_file(path)).<span class="kw">await</span><span class="question-mark">??</span>;
+        </span><span class="kw">let </span>(path, state) = tokio::task::spawn_blocking(<span class="kw">move </span>|| parse_file(path)).<span class="kw">await</span><span class="question-mark">??</span>;
 
-        <span class="kw">if </span>state.info.project_id.is_none() {
+        <span class="kw">let </span><span class="kw-2">mut </span>sanitized = ProjectState::sanitize(state);
+        <span class="kw">if </span>sanitized.project_id.is_none() {
             <span class="kw">if let </span><span class="prelude-val">Some</span>(project_id) = get_project_id(<span class="kw-2">&amp;</span>path) {
-                state.info.project_id = <span class="prelude-val">Some</span>(project_id);
+                sanitized.project_id = <span class="prelude-val">Some</span>(project_id);
             } <span class="kw">else </span>{
                 <span class="macro">relay_log::warn!</span>(<span class="question-mark">?</span>path, <span class="string">"skipping file, filename is not a valid project id"</span>);
                 <span class="kw">continue</span>;
@@ -392,18 +391,17 @@
         }
 
         <span class="comment">// Keep a separate project state per key.
-        </span><span class="kw">let </span>keys = std::mem::take(<span class="kw-2">&amp;mut </span>state.info.public_keys);
+        </span><span class="kw">let </span>keys = std::mem::take(<span class="kw-2">&amp;mut </span>sanitized.public_keys);
         <span class="kw">for </span>key <span class="kw">in </span>keys {
-            <span class="kw">let </span><span class="kw-2">mut </span>state = state.clone();
-            state.info.public_keys = <span class="macro">smallvec::smallvec!</span>[key.clone()];
-            states.insert(key.public_key, ProjectState::from(state).sanitized());
+            sanitized.public_keys = <span class="macro">smallvec::smallvec!</span>[key.clone()];
+            states.insert(key.public_key, Arc::new(sanitized.clone()));
         }
     }
 
     <span class="prelude-val">Ok</span>(states)
 }
 
-<span class="kw">async fn </span>poll_local_states(path: <span class="kw-2">&amp;</span>Path, tx: <span class="kw-2">&amp;</span>mpsc::Sender&lt;HashMap&lt;ProjectKey, ProjectState&gt;&gt;) {
+<span class="kw">async fn </span>poll_local_states(path: <span class="kw-2">&amp;</span>Path, tx: <span class="kw-2">&amp;</span>mpsc::Sender&lt;HashMap&lt;ProjectKey, Arc&lt;ProjectState&gt;&gt;&gt;) {
     <span class="kw">let </span>states = load_local_states(path).<span class="kw">await</span>;
     <span class="kw">match </span>states {
         <span class="prelude-val">Ok</span>(states) =&gt; {
@@ -421,7 +419,7 @@
 
 <span class="kw">async fn </span>spawn_poll_local_states(
     config: <span class="kw-2">&amp;</span>Config,
-    tx: mpsc::Sender&lt;HashMap&lt;ProjectKey, ProjectState&gt;&gt;,
+    tx: mpsc::Sender&lt;HashMap&lt;ProjectKey, Arc&lt;ProjectState&gt;&gt;&gt;,
 ) {
     <span class="kw">let </span>project_path = config.project_configs_path();
     <span class="kw">let </span>period = config.local_cache_interval();
@@ -478,7 +476,7 @@
     <span class="kw">use </span>std::str::FromStr;
 
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
-    <span class="kw">use </span><span class="kw">crate</span>::services::project::{ProjectInfo, PublicKeyConfig};
+    <span class="kw">use </span><span class="kw">crate</span>::services::project::PublicKeyConfig;
 
     <span class="doccomment">/// Tests that we can follow the symlinks and read the project file properly.
     </span><span class="attr">#[tokio::test]
@@ -489,7 +487,7 @@
         <span class="kw">let </span>tmp_project_file = <span class="string">"111111.json"</span>;
         <span class="kw">let </span>project_key = ProjectKey::parse(<span class="string">"55f6b2d962564e99832a39890ee4573e"</span>).unwrap();
 
-        <span class="kw">let </span><span class="kw-2">mut </span>tmp_project_state = ProjectInfo::default();
+        <span class="kw">let </span><span class="kw-2">mut </span>tmp_project_state = ProjectState::allowed();
         tmp_project_state.public_keys.push(PublicKeyConfig {
             public_key: project_key,
             numeric_id: <span class="prelude-val">None</span>,
@@ -512,19 +510,23 @@
         </span>.unwrap();
 
         <span class="kw">let </span>extracted_project_state = load_local_states(temp2.path()).<span class="kw">await</span>.unwrap();
-        <span class="kw">let </span>project_info = extracted_project_state
-            .get(<span class="kw-2">&amp;</span>project_key)
-            .unwrap()
-            .enabled()
-            .unwrap();
 
         <span class="macro">assert_eq!</span>(
-            project_info.project_id,
+            extracted_project_state
+                .get(<span class="kw-2">&amp;</span>project_key)
+                .unwrap()
+                .project_id,
             <span class="prelude-val">Some</span>(ProjectId::from_str(<span class="string">"111111"</span>).unwrap())
         );
 
         <span class="macro">assert_eq!</span>(
-            project_info.public_keys.first().unwrap().public_key,
+            extracted_project_state
+                .get(<span class="kw-2">&amp;</span>project_key)
+                .unwrap()
+                .public_keys
+                .first()
+                .unwrap()
+                .public_key,
             project_key,
         )
     }
@@ -537,7 +539,7 @@
         <span class="kw">let </span>project_key1 = ProjectKey::parse(<span class="string">"55f6b2d962564e99832a39890ee4573e"</span>).unwrap();
         <span class="kw">let </span>project_key2 = ProjectKey::parse(<span class="string">"55bbb2d96256bb9983bb39890bb457bb"</span>).unwrap();
 
-        <span class="kw">let </span><span class="kw-2">mut </span>tmp_project_state = ProjectInfo::default();
+        <span class="kw">let </span><span class="kw-2">mut </span>tmp_project_state = ProjectState::allowed();
         tmp_project_state.public_keys.extend(<span class="macro">vec!</span>[
             PublicKeyConfig {
                 public_key: project_key1,

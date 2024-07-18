@@ -244,6 +244,7 @@
 <a href="#244" id="244">244</a>
 <a href="#245" id="245">245</a>
 <a href="#246" id="246">246</a>
+<a href="#247" id="247">247</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_dynamic_config::{ErrorBoundary, Feature, Metrics};
 <span class="kw">use </span>relay_filter::FilterStatKey;
 <span class="kw">use </span>relay_metrics::{Bucket, MetricNamespace};
@@ -251,7 +252,7 @@
 
 <span class="kw">use </span><span class="kw">crate</span>::metrics::MetricOutcomes;
 <span class="kw">use </span><span class="kw">crate</span>::services::outcome::Outcome;
-<span class="kw">use </span><span class="kw">crate</span>::services::project::ProjectInfo;
+<span class="kw">use </span><span class="kw">crate</span>::services::project::ProjectState;
 <span class="kw">use </span><span class="kw">crate</span>::services::project_cache::BucketSource;
 
 <span class="kw">pub fn </span>filter_namespaces(<span class="kw-2">mut </span>buckets: Vec&lt;Bucket&gt;, source: BucketSource) -&gt; Vec&lt;Bucket&gt; {
@@ -268,10 +269,10 @@
     buckets
 }
 
-<span class="kw">pub fn </span>apply_project_info(
+<span class="kw">pub fn </span>apply_project_state(
     <span class="kw-2">mut </span>buckets: Vec&lt;Bucket&gt;,
     metric_outcomes: <span class="kw-2">&amp;</span>MetricOutcomes,
-    project_info: <span class="kw-2">&amp;</span>ProjectInfo,
+    project_state: <span class="kw-2">&amp;</span>ProjectState,
     scoping: Scoping,
 ) -&gt; Vec&lt;Bucket&gt; {
     <span class="kw">let </span><span class="kw-2">mut </span>denied_buckets = Vec::new();
@@ -280,13 +281,13 @@
     buckets = buckets
         .into_iter()
         .filter_map(|<span class="kw-2">mut </span>bucket| {
-            <span class="kw">if </span>!is_metric_namespace_valid(project_info, bucket.name.namespace()) {
+            <span class="kw">if </span>!is_metric_namespace_valid(project_state, bucket.name.namespace()) {
                 <span class="macro">relay_log::trace!</span>(mri = <span class="kw-2">&amp;*</span>bucket.name, <span class="string">"dropping metric in disabled namespace"</span>);
                 disabled_namespace_buckets.push(bucket);
                 <span class="kw">return </span><span class="prelude-val">None</span>;
             };
 
-            <span class="kw">if let </span>ErrorBoundary::Ok(<span class="kw-2">ref </span>metric_config) = project_info.config.metrics {
+            <span class="kw">if let </span>ErrorBoundary::Ok(<span class="kw-2">ref </span>metric_config) = project_state.config.metrics {
                 <span class="kw">if </span>metric_config.denied_names.is_match(<span class="kw-2">&amp;*</span>bucket.name) {
                     <span class="macro">relay_log::trace!</span>(mri = <span class="kw-2">&amp;*</span>bucket.name, <span class="string">"dropping metrics due to block list"</span>);
                     denied_buckets.push(bucket);
@@ -319,7 +320,7 @@
     buckets
 }
 
-<span class="kw">fn </span>is_metric_namespace_valid(state: <span class="kw-2">&amp;</span>ProjectInfo, namespace: MetricNamespace) -&gt; bool {
+<span class="kw">fn </span>is_metric_namespace_valid(state: <span class="kw-2">&amp;</span>ProjectState, namespace: MetricNamespace) -&gt; bool {
     <span class="kw">match </span>namespace {
         MetricNamespace::Sessions =&gt; <span class="bool-val">true</span>,
         MetricNamespace::Transactions =&gt; <span class="bool-val">true</span>,
@@ -412,20 +413,21 @@
         <span class="kw">let </span>(metric_stats, <span class="kw-2">mut </span>metric_stats_rx) = MetricStats::test();
         <span class="kw">let </span>metric_outcomes = MetricOutcomes::new(metric_stats, outcome_aggregator);
 
-        <span class="kw">let </span>project_state = ProjectInfo {
-            config: serde_json::from_value(<span class="macro">serde_json::json!</span>({
+        <span class="kw">let </span>project_state = {
+            <span class="kw">let </span><span class="kw-2">mut </span>project_state = ProjectState::allowed();
+            project_state.config = serde_json::from_value(<span class="macro">serde_json::json!</span>({
                 <span class="string">"metrics"</span>: { <span class="string">"deniedNames"</span>: [<span class="string">"*cpu_time*"</span>] },
                 <span class="string">"features"</span>: [<span class="string">"organizations:custom-metrics"</span>]
             }))
-            .unwrap(),
-            ..Default::default()
+            .unwrap();
+            project_state
         };
 
         <span class="kw">let </span>b1 = create_custom_bucket_with_name(<span class="string">"cpu_time"</span>.into());
         <span class="kw">let </span>b2 = create_custom_bucket_with_name(<span class="string">"memory_usage"</span>.into());
         <span class="kw">let </span>buckets = <span class="macro">vec!</span>[b1.clone(), b2.clone()];
 
-        <span class="kw">let </span>buckets = apply_project_info(
+        <span class="kw">let </span>buckets = apply_project_state(
             buckets,
             <span class="kw-2">&amp;</span>metric_outcomes,
             <span class="kw-2">&amp;</span>project_state,
@@ -462,10 +464,10 @@
         <span class="kw">let </span>b2 = create_custom_bucket_with_name(<span class="string">"memory_usage"</span>.into());
         <span class="kw">let </span>buckets = <span class="macro">vec!</span>[b1.clone(), b2.clone()];
 
-        <span class="kw">let </span>buckets = apply_project_info(
+        <span class="kw">let </span>buckets = apply_project_state(
             buckets,
             <span class="kw-2">&amp;</span>metric_outcomes,
-            <span class="kw-2">&amp;</span>ProjectInfo::default(),
+            <span class="kw-2">&amp;</span>ProjectState::allowed(),
             Scoping {
                 organization_id: <span class="number">42</span>,
                 project_id: ProjectId::new(<span class="number">43</span>),

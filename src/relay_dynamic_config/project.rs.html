@@ -284,7 +284,7 @@
 
 <span class="kw">impl </span>ProjectConfig {
     <span class="doccomment">/// Validates fields in this project config and removes values that are partially invalid.
-    </span><span class="kw">pub fn </span>sanitized(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
+    </span><span class="kw">pub fn </span>sanitize(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
         <span class="self">self</span>.quotas.retain(Quota::is_valid);
 
         metrics::convert_conditional_tagging(<span class="self">self</span>);

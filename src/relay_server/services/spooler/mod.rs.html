@@ -1997,14 +1997,6 @@
 <a href="#1997" id="1997">1997</a>
 <a href="#1998" id="1998">1998</a>
 <a href="#1999" id="1999">1999</a>
-<a href="#2000" id="2000">2000</a>
-<a href="#2001" id="2001">2001</a>
-<a href="#2002" id="2002">2002</a>
-<a href="#2003" id="2003">2003</a>
-<a href="#2004" id="2004">2004</a>
-<a href="#2005" id="2005">2005</a>
-<a href="#2006" id="2006">2006</a>
-<a href="#2007" id="2007">2007</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module contains the [`BufferService`], which is responsible for spooling of the incoming
 //! envelopes, either to in-memory or to persistent storage.
 //!
@@ -2048,7 +2040,6 @@
 <span class="kw">use </span>relay_config::Config;
 <span class="kw">use </span>relay_statsd::metric;
 <span class="kw">use </span>relay_system::{Addr, Controller, FromMessage, Interface, Sender, Service};
-<span class="kw">use </span>smallvec::{smallvec, SmallVec};
 <span class="kw">use </span>sqlx::migrate::MigrateError;
 <span class="kw">use </span>sqlx::sqlite::{
     SqliteAutoVacuum, SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteRow,
@@ -2140,23 +2131,6 @@
             sampling_key,
         }
     }
-
-    <span class="kw">pub fn </span>from_envelope(envelope: <span class="kw-2">&amp;</span>Envelope) -&gt; <span class="self">Self </span>{
-        <span class="kw">let </span>meta = envelope.meta();
-        <span class="self">Self </span>{
-            own_key: meta.public_key(),
-            sampling_key: envelope.sampling_key().unwrap_or(meta.public_key()),
-        }
-    }
-
-    <span class="doccomment">/// Returns both keys, but omits duplicates.
-    </span><span class="kw">pub fn </span>unique_keys(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; SmallVec&lt;[ProjectKey; <span class="number">2</span>]&gt; {
-        <span class="kw">let </span><span class="kw-2">mut </span>keys = <span class="macro">smallvec!</span>[<span class="self">self</span>.own_key];
-        <span class="kw">if </span><span class="self">self</span>.sampling_key != <span class="self">self</span>.own_key {
-            keys.push(<span class="self">self</span>.sampling_key);
-        }
-        keys
-    }
 }
 
 <span class="doccomment">/// The envelope with its key sent to project cache for processing.
@@ -2164,6 +2138,7 @@
 /// It's sent in response to [`DequeueMany`] message from the [`ProjectCache`].
 </span><span class="attr">#[derive(Debug)]
 </span><span class="kw">pub struct </span>UnspooledEnvelope {
+    <span class="kw">pub </span>key: QueueKey,
     <span class="kw">pub </span>managed_envelope: ManagedEnvelope,
 }
 
@@ -2383,6 +2358,7 @@
                 sender
                     .send(UnspooledEnvelope {
                         managed_envelope: envelope,
+                        key,
                     })
                     .ok();
             }
@@ -2590,9 +2566,14 @@
                 };
 
                 <span class="kw">match </span><span class="self">self</span>.extract_envelope(envelope, services) {
-                    <span class="prelude-val">Ok</span>((_key, managed_envelopes)) =&gt; {
+                    <span class="prelude-val">Ok</span>((key, managed_envelopes)) =&gt; {
                         <span class="kw">for </span>managed_envelope <span class="kw">in </span>managed_envelopes {
-                            sender.send(UnspooledEnvelope { managed_envelope }).ok();
+                            sender
+                                .send(UnspooledEnvelope {
+                                    managed_envelope,
+                                    key,
+                                })
+                                .ok();
                         }
                     }
                     <span class="prelude-val">Err</span>(err) =&gt; <span class="macro">relay_log::error!</span>(
@@ -3437,7 +3418,10 @@
                 sender: tx.clone(),
             });
 
-            <span class="kw">let </span>UnspooledEnvelope { managed_envelope } = rx.recv().<span class="kw">await</span>.unwrap();
+            <span class="kw">let </span>UnspooledEnvelope {
+                key: <span class="kw">_</span>,
+                managed_envelope,
+            } = rx.recv().<span class="kw">await</span>.unwrap();
             <span class="kw">let </span>start_time_received = managed_envelope.envelope().meta().start_time();
 
             <span class="comment">// Check if the original start time elapsed to the same second as the restored one.

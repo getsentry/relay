@@ -1084,7 +1084,7 @@
     <span class="kw">use </span><span class="kw">crate</span>::services::processor::{
         ProcessEnvelope, ProcessingExtractedMetrics, ProcessingGroup, SpanGroup,
     };
-    <span class="kw">use </span><span class="kw">crate</span>::services::project::ProjectInfo;
+    <span class="kw">use </span><span class="kw">crate</span>::services::project::ProjectState;
     <span class="kw">use </span><span class="kw">crate</span>::testutils::{
         <span class="self">self</span>, create_test_processor, new_envelope, state_with_rule_and_condition,
     };
@@ -1118,7 +1118,7 @@
     <span class="doccomment">/// Always sets the processing item type to event.
     </span><span class="kw">fn </span>process_envelope_with_root_project_state(
         envelope: Box&lt;Envelope&gt;,
-        sampling_project_state: <span class="prelude-ty">Option</span>&lt;Arc&lt;ProjectInfo&gt;&gt;,
+        sampling_project_state: <span class="prelude-ty">Option</span>&lt;Arc&lt;ProjectState&gt;&gt;,
     ) -&gt; Envelope {
         <span class="kw">let </span>processor = create_test_processor(Default::default());
         <span class="kw">let </span>(outcome_aggregator, test_store) = testutils::processor_services();
@@ -1129,8 +1129,8 @@
 
         <span class="kw">let </span>message = ProcessEnvelope {
             envelope: ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store, group),
-            project_info: Arc::new(ProjectInfo::default()),
-            sampling_project_info: sampling_project_state,
+            project_state: Arc::new(ProjectState::allowed()),
+            sampling_project_state,
             reservoir_counters: ReservoirCounters::default(),
         };
 
@@ -1306,7 +1306,7 @@
         <span class="macro">assert_eq!</span>(sampling_result.decision(), SamplingDecision::Drop);
     }
 
-    <span class="kw">fn </span>project_state_with_single_rule(sample_rate: f64) -&gt; ProjectInfo {
+    <span class="kw">fn </span>project_state_with_single_rule(sample_rate: f64) -&gt; ProjectState {
         <span class="kw">let </span>sampling_config = SamplingConfig {
             rules: <span class="macro">vec!</span>[SamplingRule {
                 condition: RuleCondition::all(),
@@ -1319,7 +1319,7 @@
             ..SamplingConfig::new()
         };
 
-        <span class="kw">let </span><span class="kw-2">mut </span>sampling_project_state = ProjectInfo::default();
+        <span class="kw">let </span><span class="kw-2">mut </span>sampling_project_state = ProjectState::allowed();
         sampling_project_state.config.sampling = <span class="prelude-val">Some</span>(ErrorBoundary::Ok(sampling_config));
         sampling_project_state
     }
@@ -1523,13 +1523,13 @@
     <span class="kw">where
         </span>G: Sampling + TryFrom&lt;ProcessingGroup&gt;,
     {
-        <span class="kw">let </span>project_info = {
-            <span class="kw">let </span><span class="kw-2">mut </span>info = ProjectInfo::default();
-            info.config.transaction_metrics = <span class="prelude-val">Some</span>(ErrorBoundary::Ok(TransactionMetricsConfig {
+        <span class="kw">let </span>project_state = {
+            <span class="kw">let </span><span class="kw-2">mut </span>state = ProjectState::allowed();
+            state.config.transaction_metrics = <span class="prelude-val">Some</span>(ErrorBoundary::Ok(TransactionMetricsConfig {
                 version: <span class="number">1</span>,
                 ..Default::default()
             }));
-            Arc::new(info)
+            Arc::new(state)
         };
 
         <span class="kw">let </span>bytes = Bytes::from(
@@ -1543,13 +1543,13 @@
             metrics: Default::default(),
             sample_rates: Default::default(),
             extracted_metrics: ProcessingExtractedMetrics::new(
-                project_info.clone(),
+                project_state.clone(),
                 Arc::new(GlobalConfig::default()),
                 envelope.dsc(),
             ),
-            project_state: project_info,
+            project_state,
             sampling_project_state: {
-                <span class="kw">let </span><span class="kw-2">mut </span>state = ProjectInfo::default();
+                <span class="kw">let </span><span class="kw-2">mut </span>state = ProjectState::allowed();
                 state.config.metric_extraction =
                     ErrorBoundary::Ok(MetricExtractionConfig::default());
                 state.config.sampling = <span class="prelude-val">Some</span>(ErrorBoundary::Ok(SamplingConfig {

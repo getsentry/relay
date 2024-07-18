@@ -209,18 +209,6 @@
 <a href="#209" id="209">209</a>
 <a href="#210" id="210">210</a>
 <a href="#211" id="211">211</a>
-<a href="#212" id="212">212</a>
-<a href="#213" id="213">213</a>
-<a href="#214" id="214">214</a>
-<a href="#215" id="215">215</a>
-<a href="#216" id="216">216</a>
-<a href="#217" id="217">217</a>
-<a href="#218" id="218">218</a>
-<a href="#219" id="219">219</a>
-<a href="#220" id="220">220</a>
-<a href="#221" id="221">221</a>
-<a href="#222" id="222">222</a>
-<a href="#223" id="223">223</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::HashMap;
 <span class="kw">use </span>std::sync::Arc;
 
@@ -239,7 +227,7 @@
 <span class="kw">use </span><span class="kw">crate</span>::extractors::SignedJson;
 <span class="kw">use </span><span class="kw">crate</span>::service::ServiceState;
 <span class="kw">use </span><span class="kw">crate</span>::services::global_config::{<span class="self">self</span>, StatusResponse};
-<span class="kw">use </span><span class="kw">crate</span>::services::project::{LimitedParsedProjectState, ParsedProjectState, ProjectState};
+<span class="kw">use </span><span class="kw">crate</span>::services::project::{LimitedProjectState, ProjectState};
 <span class="kw">use </span><span class="kw">crate</span>::services::project_cache::{GetCachedProjectState, GetProjectState};
 
 <span class="doccomment">/// V2 version of this endpoint.
@@ -272,13 +260,13 @@
 </span><span class="attr">#[derive(Debug, Clone, Serialize)]
 #[serde(untagged)]
 </span><span class="kw">enum </span>ProjectStateWrapper {
-    Full(ParsedProjectState),
-    Limited(<span class="attr">#[serde(with = <span class="string">"LimitedParsedProjectState"</span>)] </span>ParsedProjectState),
+    Full(ProjectState),
+    Limited(<span class="attr">#[serde(with = <span class="string">"LimitedProjectState"</span>)] </span>ProjectState),
 }
 
 <span class="kw">impl </span>ProjectStateWrapper {
     <span class="doccomment">/// Create a wrapper which forces serialization into external or internal format
-    </span><span class="kw">pub fn </span>new(state: ParsedProjectState, full: bool) -&gt; <span class="self">Self </span>{
+    </span><span class="kw">pub fn </span>new(state: ProjectState, full: bool) -&gt; <span class="self">Self </span>{
         <span class="kw">if </span>full {
             <span class="self">Self</span>::Full(state)
         } <span class="kw">else </span>{
@@ -299,7 +287,7 @@
 </span><span class="attr">#[derive(Debug, Serialize)]
 #[serde(rename_all = <span class="string">"camelCase"</span>)]
 </span><span class="kw">struct </span>GetProjectStatesResponseWrapper {
-    configs: HashMap&lt;ProjectKey, ProjectStateWrapper&gt;,
+    configs: HashMap&lt;ProjectKey, <span class="prelude-ty">Option</span>&lt;ProjectStateWrapper&gt;&gt;,
     <span class="attr">#[serde(skip_serializing_if = <span class="string">"Vec::is_empty"</span>)]
     </span>pending: Vec&lt;ProjectKey&gt;,
     <span class="attr">#[serde(skip_serializing_if = <span class="string">"Option::is_none"</span>)]
@@ -346,7 +334,8 @@
             project_cache
                 .send(GetProjectState::new(project_key).no_cache(no_cache))
                 .<span class="kw">await
-        </span>};
+                </span>.map(<span class="prelude-val">Some</span>)
+        };
 
         (project_key, state_result)
     });
@@ -368,36 +357,23 @@
     <span class="kw">let </span><span class="kw-2">mut </span>pending = Vec::with_capacity(keys_len);
     <span class="kw">let </span><span class="kw-2">mut </span>configs = HashMap::with_capacity(keys_len);
     <span class="kw">for </span>(project_key, state_result) <span class="kw">in </span>future::join_all(futures).<span class="kw">await </span>{
-        <span class="kw">let </span>project_info = <span class="kw">match </span>state_result<span class="question-mark">? </span>{
-            ProjectState::Enabled(info) =&gt; info,
-            ProjectState::Disabled =&gt; {
-                <span class="comment">// Don't insert project config. Downstream Relay will consider it disabled.
-                </span><span class="kw">continue</span>;
-            }
-            ProjectState::Pending =&gt; {
-                pending.push(project_key);
-                <span class="kw">continue</span>;
-            }
+        <span class="kw">let </span><span class="prelude-val">Some</span>(project_state) = state_result<span class="question-mark">? </span><span class="kw">else </span>{
+            pending.push(project_key);
+            <span class="kw">continue</span>;
         };
 
         <span class="comment">// If public key is known (even if rate-limited, which is Some(false)), it has
         // access to the project config
         </span><span class="kw">let </span>has_access = relay.internal
-            || project_info
+            || project_state
                 .config
                 .trusted_relays
                 .contains(<span class="kw-2">&amp;</span>relay.public_key);
 
         <span class="kw">if </span>has_access {
             <span class="kw">let </span>full = relay.internal &amp;&amp; inner.full_config;
-            <span class="kw">let </span>wrapper = ProjectStateWrapper::new(
-                ParsedProjectState {
-                    disabled: <span class="bool-val">false</span>,
-                    info: project_info.as_ref().clone(),
-                },
-                full,
-            );
-            configs.insert(project_key, wrapper);
+            <span class="kw">let </span>wrapper = ProjectStateWrapper::new((<span class="kw-2">*</span>project_state).clone(), full);
+            configs.insert(project_key, <span class="prelude-val">Some</span>(wrapper));
         } <span class="kw">else </span>{
             <span class="macro">relay_log::debug!</span>(
                 relay = %relay.public_key,
