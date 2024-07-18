@@ -8,7 +8,7 @@ use anyhow::{Context, Result};
 use axum::extract::FromRequestParts;
 use axum::http::request::Parts;
 use relay_cogs::Cogs;
-use relay_config::Config;
+use relay_config::{Config, RedisConnection};
 use relay_redis::RedisPool;
 use relay_system::{channel, Addr, Service};
 use tokio::runtime::Runtime;
@@ -100,12 +100,17 @@ impl ServiceState {
         let upstream_relay = UpstreamRelayService::new(config.clone()).start();
         let test_store = TestStoreService::new(config.clone()).start();
 
-        let redis_pool = match config.redis() {
-            Some(redis_config) if config.processing_enabled() => {
-                Some(RedisPool::new(redis_config).context(ServiceError::Redis)?)
-            }
-            _ => None,
-        };
+        let redis_pool = config
+            .redis()
+            .filter(|_| config.processing_enabled())
+            .map(|redis| match redis {
+                (RedisConnection::Single(server), options) => RedisPool::single(server, options),
+                (RedisConnection::Cluster(servers), options) => {
+                    RedisPool::cluster(servers.iter().map(|s| s.as_str()), options)
+                }
+            })
+            .transpose()
+            .context(ServiceError::Redis)?;
 
         // We create an instance of `MemoryStat` which can be supplied composed with any arbitrary
         // configuration object down the line.

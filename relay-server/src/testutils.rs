@@ -12,20 +12,23 @@ use relay_sampling::{DynamicSamplingContext, SamplingConfig};
 use relay_system::Addr;
 use relay_test::mock_service;
 
+#[cfg(feature = "processing")]
+use {relay_config::RedisConnection, relay_redis::RedisPool};
+
 use crate::envelope::{Envelope, Item, ItemType};
 use crate::extractors::RequestMeta;
 use crate::metrics::{MetricOutcomes, MetricStats};
 use crate::services::global_config::GlobalConfigHandle;
 use crate::services::outcome::TrackOutcome;
 use crate::services::processor::{self, EnvelopeProcessorService};
-use crate::services::project::ProjectState;
+use crate::services::project::ProjectInfo;
 use crate::services::test_store::TestStore;
 
 pub fn state_with_rule_and_condition(
     sample_rate: Option<f64>,
     rule_type: RuleType,
     condition: RuleCondition,
-) -> ProjectState {
+) -> ProjectInfo {
     let rules = match sample_rate {
         Some(sample_rate) => vec![SamplingRule {
             condition,
@@ -38,7 +41,7 @@ pub fn state_with_rule_and_condition(
         None => Vec::new(),
     };
 
-    let mut state = ProjectState::allowed();
+    let mut state = ProjectInfo::default();
     state.config.sampling = Some(ErrorBoundary::Ok(SamplingConfig {
         rules,
         ..SamplingConfig::new()
@@ -122,7 +125,14 @@ pub fn create_test_processor(config: Config) -> EnvelopeProcessorService {
     let redis = config
         .redis()
         .filter(|_| config.processing_enabled())
-        .map(|redis_config| relay_redis::RedisPool::new(redis_config).unwrap());
+        .map(|redis| match redis {
+            (RedisConnection::Single(server), options) => {
+                RedisPool::single(server, options).unwrap()
+            }
+            (RedisConnection::Cluster(servers), options) => {
+                RedisPool::cluster(servers.iter().map(|s| s.as_str()), options).unwrap()
+            }
+        });
 
     let metric_outcomes = MetricOutcomes::new(MetricStats::test().0, outcome_aggregator.clone());
 
@@ -153,7 +163,14 @@ pub fn create_test_processor_with_addrs(
     let redis = config
         .redis()
         .filter(|_| config.processing_enabled())
-        .map(|redis_config| relay_redis::RedisPool::new(redis_config).unwrap());
+        .map(|redis| match redis {
+            (RedisConnection::Single(server), options) => {
+                RedisPool::single(server, options).unwrap()
+            }
+            (RedisConnection::Cluster(servers), options) => {
+                RedisPool::cluster(servers.iter().map(|s| s.as_str()), options).unwrap()
+            }
+        });
 
     let metric_outcomes =
         MetricOutcomes::new(MetricStats::test().0, addrs.outcome_aggregator.clone());

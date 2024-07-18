@@ -2,11 +2,7 @@ import contextlib
 import json
 import uuid
 from collections import Counter
-from datetime import datetime, timedelta, timezone, UTC
-from .consts import (
-    TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION,
-    METRICS_EXTRACTION_MIN_SUPPORTED_VERSION,
-)
+from datetime import UTC, datetime, timedelta, timezone
 
 import pytest
 from opentelemetry.proto.common.v1.common_pb2 import AnyValue, KeyValue
@@ -21,6 +17,10 @@ from sentry_relay.consts import DataCategory
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 
 from .asserts import time_after, time_within_delta
+from .consts import (
+    METRICS_EXTRACTION_MIN_SUPPORTED_VERSION,
+    TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION,
+)
 from .test_metrics import TEST_CONFIG
 from .test_store import make_transaction
 
@@ -773,6 +773,35 @@ def test_span_ingestion(
             "type": "d",
             "value": [1500.0, 1500.0],
             "received_at": time_after(now_timestamp),
+        },
+        {
+            "name": "d:spans/duration_light@millisecond",
+            "org_id": 1,
+            "project_id": 42,
+            "received_at": time_after(now_timestamp),
+            "retention_days": 90,
+            "tags": {
+                "file_extension": "js",
+                "span.category": "resource",
+                "span.description": "https://example.com/*/blah.js",
+                "span.domain": "example.com",
+                "span.group": "8a97a9e43588e2bd",
+                "span.op": "resource.script",
+            },
+            "timestamp": expected_timestamp + 1,
+            "type": "d",
+            "value": [1500.0],
+        },
+        {
+            "name": "d:spans/duration_light@millisecond",
+            "org_id": 1,
+            "project_id": 42,
+            "received_at": time_after(now_timestamp),
+            "retention_days": 90,
+            "tags": {"span.category": "db", "span.op": "db.query"},
+            "timestamp": expected_timestamp,
+            "type": "d",
+            "value": [500.0],
         },
         {
             "org_id": 1,
@@ -1551,7 +1580,7 @@ def test_rate_limit_consistent_extracted(
     }
     metrics = metrics_consumer.get_metrics(timeout=1)
     if category == "span":
-        expected_outcomes.update({(12, 2): 2}),  # Span, RateLimited
+        (expected_outcomes.update({(12, 2): 2}),)  # Span, RateLimited
         assert len(metrics) == 4
         assert all(m[0]["name"][2:14] == "transactions" for m in metrics), metrics
     else:
