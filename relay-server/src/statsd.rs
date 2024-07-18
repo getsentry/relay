@@ -164,9 +164,6 @@ pub enum RelayHistograms {
     /// This metric is computed by multiplying `page_count * page_size`.
     BufferDiskSize,
     /// Number of attempts needed to dequeue spooled envelopes from disk.
-    ///
-    /// As long as there are enough permits in the [`crate::utils::BufferGuard`], this number should
-    /// always be one.
     BufferDequeueAttempts,
     /// The number of batches emitted per partition.
     BatchesPerPartition,
