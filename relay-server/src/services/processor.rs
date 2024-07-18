@@ -84,7 +84,7 @@ use crate::services::upstream::{
 };
 use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
 use crate::utils::{
-    self, InvalidProcessingGroupType, ManagedEnvelope, SamplingResult, TypedEnvelope,
+    self, InvalidProcessingGroupType, ManagedEnvelope, SamplingResult, ThreadPool, TypedEnvelope,
 };
 use crate::{http, metrics};
 
@@ -1113,6 +1113,7 @@ impl Default for Addrs {
 }
 
 struct InnerProcessor {
+    pool: ThreadPool,
     config: Arc<Config>,
     global_config: GlobalConfigHandle,
     cogs: Cogs,
@@ -1132,6 +1133,7 @@ struct InnerProcessor {
 impl EnvelopeProcessorService {
     /// Creates a multi-threaded envelope processor.
     pub fn new(
+        pool: ThreadPool,
         config: Arc<Config>,
         global_config: GlobalConfigHandle,
         cogs: Cogs,
@@ -1150,6 +1152,7 @@ impl EnvelopeProcessorService {
         });
 
         let inner = InnerProcessor {
+            pool,
             global_config,
             cogs,
             #[cfg(feature = "processing")]
@@ -2811,18 +2814,9 @@ impl Service for EnvelopeProcessorService {
     type Interface = EnvelopeProcessor;
 
     fn spawn_handler(self, mut rx: relay_system::Receiver<Self::Interface>) {
-        // Adjust thread count for small cpu counts to not have too many idle cores
-        // and distribute workload better.
-        let thread_count = match self.inner.config.cpu_concurrency() {
-            conc @ 0..=2 => conc.max(1),
-            conc @ 3..=4 => conc - 1,
-            conc => conc - 2,
-        };
-        relay_log::info!("starting {thread_count} envelope processing workers");
+        let semaphore = Arc::new(Semaphore::new(self.inner.pool.current_num_threads()));
 
         tokio::spawn(async move {
-            let semaphore = Arc::new(Semaphore::new(thread_count));
-
             loop {
                 let next_msg = async {
                     let permit_result = semaphore.clone().acquire_owned().await;
@@ -2837,7 +2831,7 @@ impl Service for EnvelopeProcessorService {
 
                     (Some(message), Ok(permit)) = next_msg => {
                         let service = self.clone();
-                        tokio::task::spawn_blocking(move || {
+                        self.inner.pool.spawn(move || {
                             service.handle_message(message);
                             drop(permit);
                         });

@@ -13,6 +13,7 @@ mod sizes;
 mod sleep_handle;
 mod split_off;
 mod statsd;
+mod thread_pool;
 
 #[cfg(feature = "processing")]
 mod native;
@@ -38,5 +39,6 @@ pub use self::sizes::*;
 pub use self::sleep_handle::*;
 pub use self::split_off::*;
 pub use self::statsd::*;
+pub use self::thread_pool::*;
 #[cfg(feature = "processing")]
 pub use self::unreal::*;

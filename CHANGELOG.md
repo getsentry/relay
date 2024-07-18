@@ -2,9 +2,13 @@
 
 ## Unreleased
 
-**Features**
+**Features**:
 
 - "Cardinality limit" outcomes now report which limit was exceeded. ([#3825](https://github.com/getsentry/relay/pull/3825))
+
+**Internal**:
+
+- Use a dedicated thread pool for CPU intensive workloads. ([#3833](https://github.com/getsentry/relay/pull/3833))
 
 ## 24.7.0
 
