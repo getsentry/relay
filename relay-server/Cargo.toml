@@ -64,6 +64,7 @@ multer = { workspace = true }
 once_cell = { workspace = true }
 pin-project-lite = { workspace = true }
 rand = { workspace = true }
+rayon = { workspace = true }
 regex = { workspace = true }
 relay-auth = { workspace = true }
 relay-base-schema = { workspace = true }
