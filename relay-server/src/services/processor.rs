@@ -2502,9 +2502,11 @@ impl EnvelopeProcessorService {
         let CardinalityLimitsSplit { accepted, rejected } = limits.into_split();
 
         for (bucket, exceeded) in rejected {
-            self.inner
-                .metric_outcomes
-                .track(scoping, &[bucket], Outcome::from(exceeded));
+            self.inner.metric_outcomes.track(
+                scoping,
+                &[bucket],
+                Outcome::CardinalityLimited(exceeded.id.clone()),
+            );
         }
         accepted
     }

@@ -16,8 +16,6 @@ use std::{fmt, mem};
 use anyhow::Context;
 use chrono::{DateTime, SecondsFormat, Utc};
 use relay_base_schema::project::ProjectId;
-#[cfg(feature = "processing")]
-use relay_cardinality::CardinalityLimit;
 use relay_common::time::UnixTimestamp;
 use relay_config::{Config, EmitOutcomes};
 use relay_dynamic_config::Feature;
@@ -174,8 +172,8 @@ pub enum Outcome {
 
     /// The event/metric has been cardinality limited.
     ///
-    /// Contains the [ID](CardinalityLimit::id)
-    /// of the most specific [CardinalityLimit] that was exceeded.
+    /// Contains the [ID](relay_cardinality::CardinalityLimit::id)
+    /// of the most specific [CardinalityLimit](relay_cardinality::CardinalityLimit) that was exceeded.
     #[cfg(feature = "processing")]
     CardinalityLimited(String),
 
@@ -254,13 +252,6 @@ impl fmt::Display for Outcome {
             Outcome::ClientDiscard(reason) => write!(f, "discarded by client ({reason})"),
             Outcome::Accepted => write!(f, "accepted"),
         }
-    }
-}
-
-#[cfg(feature = "processing")]
-impl From<&'_ CardinalityLimit> for Outcome {
-    fn from(value: &CardinalityLimit) -> Self {
-        Self::CardinalityLimited(value.id.clone())
     }
 }
 
