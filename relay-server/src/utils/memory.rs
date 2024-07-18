@@ -238,5 +238,14 @@ mod tests {
         .unwrap();
         let memory_stat_config = MemoryStat::new().with_config(Arc::new(config));
         assert!(memory_stat_config.has_enough_memory());
+
+        let config = Config::from_json_value(serde_json::json!({
+            "health": {
+                "max_memory_percent": 0.0
+            }
+        }))
+        .unwrap();
+        let memory_stat_config = MemoryStat::new().with_config(Arc::new(config));
+        assert!(!memory_stat_config.has_enough_memory());
     }
 }
