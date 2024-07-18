@@ -1,18 +1,23 @@
 //! Routing logic for metrics. Metrics from different namespaces may be routed to different aggregators,
 //! with their own limits, bucket intervals, etc.
 
-use itertools::Itertools;
-use relay_config::{aggregator::Condition, AggregatorServiceConfig, ScopedAggregatorConfig};
+use futures::stream::FuturesUnordered;
+use futures::StreamExt;
+use relay_config::{AggregatorServiceConfig, ScopedAggregatorConfig};
+use relay_metrics::MetricNamespace;
 use relay_system::{Addr, NoResponse, Recipient, Service};
 
 use crate::services::metrics::{
     AcceptsMetrics, Aggregator, AggregatorService, FlushBuckets, MergeBuckets,
 };
+use crate::statsd::RelayTimers;
+use crate::utils;
 
 /// Service that routes metrics & metric buckets to the appropriate aggregator.
 ///
 /// Each aggregator gets its own configuration.
-/// Metrics are routed to the first aggregator which matches the configuration's [`Condition`].
+/// Metrics are routed to the first aggregator which matches the configuration's
+/// [`Condition`](relay_config::aggregator::Condition).
 /// If no condition matches, the metric/bucket is routed to the `default_aggregator`.
 pub struct RouterService {
     default_config: AggregatorServiceConfig,
@@ -49,7 +54,9 @@ impl Service for RouterService {
                 tokio::select! {
                     biased;
 
-                    Some(message) = rx.recv() => router.handle_message(message),
+                    Some(message) = rx.recv() => {
+                        router.handle_message(message)
+                    },
 
                     else => break,
                 }
@@ -62,7 +69,7 @@ impl Service for RouterService {
 /// Helper struct that holds the [`Addr`]s of started aggregators.
 struct StartedRouter {
     default: Addr<Aggregator>,
-    secondary: Vec<(Condition, Addr<Aggregator>)>,
+    secondary: Vec<(Addr<Aggregator>, Vec<MetricNamespace>)>,
 }
 
 impl StartedRouter {
@@ -79,6 +86,14 @@ impl StartedRouter {
                 let addr = AggregatorService::named(c.name, c.config, receiver.clone()).start();
                 (c.condition, addr)
             })
+            .map(|(cond, agg)| {
+                let namespaces: Vec<_> = MetricNamespace::all()
+                    .into_iter()
+                    .filter(|&namespace| cond.matches(Some(namespace)))
+                    .collect();
+
+                (agg, namespaces)
+            })
             .collect();
 
         Self {
@@ -87,84 +102,60 @@ impl StartedRouter {
         }
     }
 
-    fn handle_message(&mut self, msg: Aggregator) {
-        match msg {
-            Aggregator::AcceptsMetrics(_, sender) => {
-                let requests = self
-                    .secondary
-                    .iter()
-                    .map(|(_, agg)| agg.send(AcceptsMetrics))
-                    .chain(Some(self.default.send(AcceptsMetrics)))
-                    .collect::<Vec<_>>();
+    fn handle_message(&mut self, message: Aggregator) {
+        let ty = message.variant();
+        relay_statsd::metric!(
+            timer(RelayTimers::MetricRouterServiceDuration),
+            message = ty,
+            {
+                match message {
+                    Aggregator::AcceptsMetrics(_, sender) => {
+                        let mut requests = self
+                            .secondary
+                            .iter()
+                            .map(|(agg, _)| agg.send(AcceptsMetrics))
+                            .chain(Some(self.default.send(AcceptsMetrics)))
+                            .collect::<FuturesUnordered<_>>();
 
-                tokio::spawn(async {
-                    let mut accepts = true;
-                    for req in requests {
-                        accepts &= req.await.unwrap_or_default();
+                        tokio::spawn(async move {
+                            let mut accepts = true;
+                            while let Some(req) = requests.next().await {
+                                accepts &= req.unwrap_or_default();
+                            }
+                            sender.send(accepts);
+                        });
                     }
-                    sender.send(accepts);
-                });
+                    Aggregator::MergeBuckets(msg) => self.handle_merge_buckets(msg),
+                    #[cfg(test)]
+                    Aggregator::BucketCountInquiry(_, _sender) => (), // not supported
+                }
             }
-            Aggregator::MergeBuckets(msg) => self.handle_merge_buckets(msg),
-            #[cfg(test)]
-            Aggregator::BucketCountInquiry(_, _sender) => (), // not supported
-        }
+        )
     }
 
     fn handle_merge_buckets(&mut self, message: MergeBuckets) {
-        let metrics_by_namespace = message
-            .buckets
-            .into_iter()
-            .group_by(|bucket| bucket.name.try_namespace());
+        let MergeBuckets {
+            project_key,
+            mut buckets,
+        } = message;
 
-        for (namespace, group) in metrics_by_namespace.into_iter() {
-            let aggregator = self
-                .secondary
-                .iter()
-                .find_map(|(cond, addr)| cond.matches(namespace).then_some(addr))
-                .unwrap_or(&self.default);
+        for (aggregator, namespaces) in &self.secondary {
+            let matching;
+            (buckets, matching) = utils::split_off(buckets, |bucket| {
+                bucket
+                    .name
+                    .try_namespace()
+                    .map(|namespace| namespaces.contains(&namespace))
+                    .unwrap_or(false)
+            });
 
-            aggregator.send(MergeBuckets::new(message.project_key, group.collect()));
+            if !matching.is_empty() {
+                aggregator.send(MergeBuckets::new(project_key, matching));
+            }
         }
-    }
-}
 
-#[cfg(test)]
-mod tests {
-    use insta::assert_debug_snapshot;
-    use relay_metrics::MetricNamespace;
-    use serde_json::json;
-
-    use super::*;
-
-    #[test]
-    fn condition_roundtrip() {
-        let json = json!({"op": "eq", "field": "namespace", "value": "spans"});
-        assert_debug_snapshot!(
-            serde_json::from_value::<Condition>(json).unwrap(),
-            @r###"
-        Eq(
-            Namespace(
-                Spans,
-            ),
-        )
-        "###
-        );
-    }
-
-    #[test]
-    fn condition_multiple_namespaces() {
-        let json = json!({
-            "op": "or",
-            "inner": [
-                {"op": "eq", "field": "namespace", "value": "spans"},
-                {"op": "eq", "field": "namespace", "value": "custom"}
-            ]
-        });
-
-        let condition = serde_json::from_value::<Condition>(json).unwrap();
-        assert!(condition.matches(Some(MetricNamespace::Spans)));
-        assert!(condition.matches(Some(MetricNamespace::Custom)));
-        assert!(!condition.matches(Some(MetricNamespace::Transactions)));
+        if !buckets.is_empty() {
+            self.default.send(MergeBuckets::new(project_key, buckets));
+        }
     }
 }

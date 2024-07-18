@@ -35,7 +35,7 @@ pub enum Aggregator {
 
 impl Aggregator {
     /// Returns the name of the message variant.
-    fn variant(&self) -> &'static str {
+    pub fn variant(&self) -> &'static str {
         match self {
             Aggregator::AcceptsMetrics(_, _) => "AcceptsMetrics",
             Aggregator::MergeBuckets(_) => "MergeBuckets",

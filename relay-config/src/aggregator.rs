@@ -113,3 +113,43 @@ impl FieldCondition {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use insta::assert_debug_snapshot;
+    use relay_metrics::MetricNamespace;
+    use serde_json::json;
+
+    use super::*;
+
+    #[test]
+    fn condition_roundtrip() {
+        let json = json!({"op": "eq", "field": "namespace", "value": "spans"});
+        assert_debug_snapshot!(
+            serde_json::from_value::<Condition>(json).unwrap(),
+            @r###"
+        Eq(
+            Namespace(
+                Spans,
+            ),
+        )
+        "###
+        );
+    }
+
+    #[test]
+    fn condition_multiple_namespaces() {
+        let json = json!({
+            "op": "or",
+            "inner": [
+                {"op": "eq", "field": "namespace", "value": "spans"},
+                {"op": "eq", "field": "namespace", "value": "custom"}
+            ]
+        });
+
+        let condition = serde_json::from_value::<Condition>(json).unwrap();
+        assert!(condition.matches(Some(MetricNamespace::Spans)));
+        assert!(condition.matches(Some(MetricNamespace::Custom)));
+        assert!(!condition.matches(Some(MetricNamespace::Transactions)));
+    }
+}
