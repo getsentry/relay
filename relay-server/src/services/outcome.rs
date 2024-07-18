@@ -16,6 +16,8 @@ use std::{fmt, mem};
 use anyhow::Context;
 use chrono::{DateTime, SecondsFormat, Utc};
 use relay_base_schema::project::ProjectId;
+#[cfg(feature = "processing")]
+use relay_cardinality::CardinalityLimit;
 use relay_common::time::UnixTimestamp;
 use relay_config::{Config, EmitOutcomes};
 use relay_dynamic_config::Feature;
@@ -29,8 +31,6 @@ use relay_sampling::evaluation::MatchedRuleIds;
 use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, Interface, NoResponse, Service};
 use serde::{Deserialize, Serialize};
-#[cfg(feature = "processing")]
-use smallvec::SmallVec;
 
 #[cfg(feature = "processing")]
 use crate::service::ServiceError;
@@ -174,10 +174,11 @@ pub enum Outcome {
 
     /// The event/metric has been cardinality limited.
     ///
-    /// Contains the [IDs](relay_cardinality::CardinalityLimit::id)
-    /// of the [CardinalityLimits](relay_cardinality::CardinalityLimit) that were exceeded.
+    /// Contains the [ID](CardinalityLimit::id)
+    /// of the most specific [CardinalityLimit](CardinalityLimit)
+    /// that was exceeded.
     #[cfg(feature = "processing")]
-    CardinalityLimited(SmallVec<[String; 4]>),
+    CardinalityLimited(String),
 
     /// The event has been discarded because of invalid data.
     Invalid(DiscardReason),
@@ -215,21 +216,7 @@ impl Outcome {
                 code_opt.as_ref().map(|code| Cow::Borrowed(code.as_str()))
             }
             #[cfg(feature = "processing")]
-            Outcome::CardinalityLimited(ids) => {
-                use std::fmt::Write;
-                let mut buf = String::new();
-                let mut first = true;
-                let mut ids = ids.clone();
-                ids.sort_unstable();
-                for id in ids {
-                    if !first {
-                        write!(&mut buf, ",").unwrap();
-                    }
-                    first = false;
-                    write!(&mut buf, "{id}").unwrap();
-                }
-                Some(Cow::Owned(buf))
-            }
+            Outcome::CardinalityLimited(id) => Some(Cow::Borrowed(id)),
             Outcome::ClientDiscard(ref discard_reason) => Some(Cow::Borrowed(discard_reason)),
             Outcome::Abuse => None,
             Outcome::Accepted => None,
@@ -261,26 +248,20 @@ impl fmt::Display for Outcome {
             Outcome::RateLimited(None) => write!(f, "rate limited"),
             Outcome::RateLimited(Some(reason)) => write!(f, "rate limited with reason {reason}"),
             #[cfg(feature = "processing")]
-            Outcome::CardinalityLimited(ids) => {
-                write!(f, "cardinality limited (")?;
-                let mut ids = ids.clone();
-                ids.sort_unstable();
-                let mut first = true;
-                for id in ids {
-                    if !first {
-                        write!(f, ",")?;
-                    }
-                    first = false;
-                    write!(f, "{id}")?;
-                }
-                write!(f, ")")
-            }
+            Outcome::CardinalityLimited(id) => write!(f, "cardinality limited ({})", id),
             Outcome::Invalid(DiscardReason::Internal) => write!(f, "internal error"),
             Outcome::Invalid(reason) => write!(f, "invalid data ({reason})"),
             Outcome::Abuse => write!(f, "abuse limit reached"),
             Outcome::ClientDiscard(reason) => write!(f, "discarded by client ({reason})"),
             Outcome::Accepted => write!(f, "accepted"),
         }
+    }
+}
+
+#[cfg(feature = "processing")]
+impl From<&'_ CardinalityLimit> for Outcome {
+    fn from(value: &CardinalityLimit) -> Self {
+        Self::CardinalityLimited(value.id.clone())
     }
 }
 

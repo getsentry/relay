@@ -1,5 +1,6 @@
 //! Relay Cardinality Limiter
 
+use std::cmp::Reverse;
 use std::collections::BTreeMap;
 
 use hashbrown::{HashMap, HashSet};
@@ -7,7 +8,6 @@ use relay_base_schema::metrics::{MetricName, MetricNamespace, MetricType};
 use relay_base_schema::project::ProjectId;
 use relay_common::time::UnixTimestamp;
 use relay_statsd::metric;
-use smallvec::SmallVec;
 
 use crate::statsd::CardinalityLimiterTimers;
 use crate::{CardinalityLimit, Error, OrganizationId, Result};
@@ -199,8 +199,13 @@ impl<T: Limiter> CardinalityLimiter<T> {
 /// The result can be used directly by [`CardinalityLimits`].
 #[derive(Debug, Default)]
 struct DefaultReporter<'a> {
+    /// All limits that have been exceeded.
     exceeded_limits: HashSet<&'a CardinalityLimit>,
-    entries: HashMap<usize, SmallVec<[String; 4]>>,
+    /// A map from entries that have been rejected to the most
+    /// specific non-passive limit that they exceeded.
+    ///
+    /// "Specificity" is determined by scope and limit, in that order.
+    entries: HashMap<usize, &'a CardinalityLimit>,
     reports: BTreeMap<&'a CardinalityLimit, Vec<CardinalityReport>>,
 }
 
@@ -209,10 +214,20 @@ impl<'a> Reporter<'a> for DefaultReporter<'a> {
     fn reject(&mut self, limit: &'a CardinalityLimit, entry_id: EntryId) {
         self.exceeded_limits.insert(limit);
         if !limit.passive {
-            self.entries
-                .entry(entry_id.0)
-                .or_default()
-                .push(limit.id.clone());
+            match self.entries.entry(entry_id.0) {
+                hashbrown::hash_map::Entry::Occupied(entry) => {
+                    let existing_limit = entry.get();
+                    // Scopes are ordered by reverse specificity (org is the smallest), so we use `Reverse` here
+                    if (Reverse(limit.scope), limit.limit)
+                        < (Reverse(existing_limit.scope), existing_limit.limit)
+                    {
+                        entry.replace_entry(limit);
+                    }
+                }
+                hashbrown::hash_map::Entry::Vacant(entry) => {
+                    entry.insert(limit);
+                }
+            }
         }
     }
 
@@ -227,22 +242,19 @@ impl<'a> Reporter<'a> for DefaultReporter<'a> {
 
 /// Split of the original source containing accepted and rejected source elements.
 #[derive(Debug)]
-pub struct CardinalityLimitsSplit<T> {
+pub struct CardinalityLimitsSplit<'a, T> {
     /// The list of accepted elements of the source.
     pub accepted: Vec<T>,
     /// The list of rejected elements of the source.
     pub rejected: Vec<T>,
     /// The list of cardinality limits exceeded by each element of `rejected`.
-    pub exceeded_limits: Vec<SmallVec<[String; 4]>>,
+    pub exceeded_limits: Vec<&'a CardinalityLimit>,
 }
 
-impl<T> CardinalityLimitsSplit<T> {
+impl<'a, T> CardinalityLimitsSplit<'a, T> {
     /// Creates a new cardinality limits split with a given capacity for `accepted` and `rejected`
     /// elements.
-    fn with_capacity(
-        accepted_capacity: usize,
-        rejected_capacity: usize,
-    ) -> CardinalityLimitsSplit<T> {
+    fn with_capacity(accepted_capacity: usize, rejected_capacity: usize) -> Self {
         CardinalityLimitsSplit {
             accepted: Vec::with_capacity(accepted_capacity),
             rejected: Vec::with_capacity(rejected_capacity),
@@ -257,7 +269,7 @@ pub struct CardinalityLimits<'a, T> {
     /// The source.
     source: Vec<T>,
     /// List of rejected item indices pointing into `source`.
-    rejections: HashMap<usize, SmallVec<[String; 4]>>,
+    rejections: HashMap<usize, &'a CardinalityLimit>,
     /// All non-passive exceeded limits.
     exceeded_limits: HashSet<&'a CardinalityLimit>,
     /// Generated cardinality reports.
@@ -305,7 +317,7 @@ impl<'a, T> CardinalityLimits<'a, T> {
     }
 
     /// Consumes the result and returns [`CardinalityLimitsSplit`] containing all accepted and rejected items.
-    pub fn into_split(mut self) -> CardinalityLimitsSplit<T> {
+    pub fn into_split(mut self) -> CardinalityLimitsSplit<'a, T> {
         if self.rejections.is_empty() {
             return CardinalityLimitsSplit {
                 accepted: self.source,
@@ -338,8 +350,6 @@ mod tests {
     use crate::{CardinalityScope, SlidingWindow};
 
     use super::*;
-
-    use smallvec::smallvec;
 
     #[derive(Debug, Clone, Hash, PartialEq, Eq)]
     struct Item {
@@ -401,9 +411,22 @@ mod tests {
             assert_eq!(value, expected_value)
         }
 
+        let limit = CardinalityLimit {
+            id: "dummy_limit".to_owned(),
+            passive: false,
+            report: false,
+            window: SlidingWindow {
+                window_seconds: 0,
+                granularity_seconds: 0,
+            },
+            limit: 0,
+            scope: CardinalityScope::Organization,
+            namespace: None,
+        };
+
         let limits = CardinalityLimits {
             source: vec!['a', 'b', 'c', 'd', 'e'],
-            rejections: HashMap::from([(0, smallvec![]), (1, smallvec![]), (3, smallvec![])]),
+            rejections: HashMap::from([(0, &limit), (1, &limit), (3, &limit)]),
             exceeded_limits: HashSet::new(),
             reports: BTreeMap::new(),
         };
@@ -426,11 +449,11 @@ mod tests {
         let limits = CardinalityLimits {
             source: vec!['a', 'b', 'c', 'd', 'e'],
             rejections: HashMap::from([
-                (0, smallvec![]),
-                (1, smallvec![]),
-                (2, smallvec![]),
-                (3, smallvec![]),
-                (4, smallvec![]),
+                (0, &limit),
+                (1, &limit),
+                (2, &limit),
+                (3, &limit),
+                (4, &limit),
             ]),
             exceeded_limits: HashSet::new(),
             reports: BTreeMap::new(),
@@ -558,8 +581,9 @@ mod tests {
             Item::new(5, MetricNamespace::Transactions),
             Item::new(6, MetricNamespace::Spans),
         ];
+        let limits = build_limits();
         let split = limiter
-            .check_cardinality_limits(build_scoping(), &build_limits(), items)
+            .check_cardinality_limits(build_scoping(), &limits, items)
             .unwrap()
             .into_split();
 

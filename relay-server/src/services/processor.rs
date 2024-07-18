@@ -2506,11 +2506,9 @@ impl EnvelopeProcessorService {
         } = limits.into_split();
 
         for (bucket, exceeded) in rejected.into_iter().zip(exceeded_limits.into_iter()) {
-            self.inner.metric_outcomes.track(
-                scoping,
-                &[bucket],
-                Outcome::CardinalityLimited(exceeded),
-            );
+            self.inner
+                .metric_outcomes
+                .track(scoping, &[bucket], Outcome::from(exceeded));
         }
         accepted
     }
