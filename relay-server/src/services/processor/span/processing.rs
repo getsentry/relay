@@ -10,15 +10,16 @@ use relay_dynamic_config::{
     CombinedMetricExtractionConfig, ErrorBoundary, Feature, GlobalConfig, ProjectConfig,
 };
 use relay_event_normalization::{
-    normalize_measurements, normalize_performance_score, normalize_user_agent_info_generic,
-    span::tag_extraction, validate_span, CombinedMeasurementsConfig, MeasurementsConfig,
-    PerformanceScoreConfig, RawUserAgentInfo, TransactionsProcessor,
+    normalize_measurements, normalize_performance_score, span::tag_extraction, validate_span,
+    CombinedMeasurementsConfig, MeasurementsConfig, PerformanceScoreConfig, RawUserAgentInfo,
+    TransactionsProcessor,
 };
-use relay_event_normalization::{normalize_transaction_name, ModelCosts, TransactionNameRule};
+use relay_event_normalization::{
+    normalize_transaction_name, ClientHints, FromUserAgentInfo, ModelCosts, SchemaProcessor,
+    TimestampProcessor, TransactionNameRule, TrimmingProcessor,
+};
 use relay_event_schema::processor::{process_value, ProcessingState};
-use relay_event_schema::protocol::{
-    BrowserContext, Contexts, DeviceContext, Event, Span, SpanData,
-};
+use relay_event_schema::protocol::{BrowserContext, Span, SpanData};
 use relay_log::protocol::{Attachment, AttachmentType};
 use relay_metrics::{MetricNamespace, UnixTimestamp};
 use relay_pii::PiiProcessor;
@@ -334,14 +335,12 @@ struct NormalizeSpanConfig<'a> {
     /// Measurements with longer names are removed from the transaction event and replaced with a
     /// metadata entry.
     max_name_and_unit_len: usize,
-    /// TODO: docs
+    /// Transaction name normalization rules.
     tx_name_rules: &'a [TransactionNameRule],
-
-    /// Event-like contexts derived from the envelope.
-    ///
-    /// This can be used to populate e.g. client information if the span does not set it
-    /// itself.
-    default_contexts: Contexts,
+    /// The user agent parsed from the request.
+    user_agent: Option<String>,
+    /// Client hints parsed from the request.
+    client_hints: ClientHints<String>,
 }
 
 impl<'a> NormalizeSpanConfig<'a> {
@@ -371,21 +370,12 @@ impl<'a> NormalizeSpanConfig<'a> {
                 .saturating_sub(MeasurementsConfig::MEASUREMENT_MRI_OVERHEAD),
 
             tx_name_rules: &project_config.tx_name_rules,
-            default_contexts: {
-                let meta = managed_envelope.envelope().meta();
-                let mut contexts = Contexts::new();
-                let user_agent_info = RawUserAgentInfo {
-                    user_agent: meta.user_agent(),
-                    client_hints: meta.client_hints().as_deref(),
-                };
-
-                normalize_user_agent_info_generic(
-                    &mut contexts,
-                    &Annotated::new("".to_string()),
-                    &user_agent_info,
-                );
-                contexts
-            },
+            user_agent: managed_envelope
+                .envelope()
+                .meta()
+                .user_agent()
+                .map(String::from),
+            client_hints: managed_envelope.meta().client_hints().clone(),
         }
     }
 }
@@ -426,8 +416,6 @@ fn normalize(
     annotated_span: &mut Annotated<Span>,
     config: NormalizeSpanConfig,
 ) -> Result<(), ProcessingError> {
-    use relay_event_normalization::{SchemaProcessor, TimestampProcessor, TrimmingProcessor};
-
     let NormalizeSpanConfig {
         received_at,
         timestamp_range,
@@ -437,7 +425,8 @@ fn normalize(
         ai_model_costs,
         max_name_and_unit_len,
         tx_name_rules,
-        default_contexts,
+        user_agent,
+        client_hints,
     } = config;
 
     set_segment_attributes(annotated_span);
@@ -471,13 +460,7 @@ fn normalize(
         return Err(ProcessingError::NoEventPayload);
     };
 
-    if let Some(browser_name) = default_contexts
-        .get::<BrowserContext>()
-        .and_then(|v| v.name.value())
-    {
-        let data = span.data.value_mut().get_or_insert_with(SpanData::default);
-        data.browser_name = Annotated::new(browser_name.to_owned());
-    }
+    populate_ua_fields(span, user_agent.as_deref(), client_hints.as_deref());
 
     if let Annotated(Some(ref mut measurement_values), ref mut meta) = span.measurements {
         normalize_measurements(
@@ -524,6 +507,35 @@ fn normalize(
     )?;
 
     Ok(())
+}
+
+fn populate_ua_fields(
+    span: &mut Span,
+    request_user_agent: Option<&str>,
+    client_hints: ClientHints<&str>,
+) {
+    let data = span.data.value_mut().get_or_insert_with(SpanData::default);
+
+    // 1 - populate original user agent from request meta.
+    let mut user_agent = None;
+    if data.user_agent_original.value().is_none() {
+        if let Some(ua) = request_user_agent {
+            user_agent = Some(
+                data.user_agent_original
+                    .get_or_insert_with(|| ua.to_owned())
+                    .as_str(),
+            );
+        }
+    };
+
+    if data.browser_name.value().is_none() {
+        if let Some(context) = BrowserContext::from_hints_or_ua(&RawUserAgentInfo {
+            user_agent,
+            client_hints,
+        }) {
+            data.browser_name = context.name;
+        }
+    }
 }
 
 fn scrub(
@@ -626,6 +638,7 @@ mod tests {
     use relay_event_schema::protocol::{
         Context, ContextInner, SpanId, Timestamp, TraceContext, TraceId,
     };
+    use relay_event_schema::protocol::{Contexts, Event, Span};
     use relay_protocol::get_value;
     use relay_sampling::evaluation::{ReservoirCounters, ReservoirEvaluator};
     use relay_system::Addr;
