@@ -30,7 +30,7 @@ mod metrics;
 pub mod state;
 
 pub use state::{
-    LimitedProjectInfo, ParsedProjectState, ProjectFetchState, ProjectInfo, ProjectState,
+    LimitedParsedProjectState, ParsedProjectState, ProjectFetchState, ProjectInfo, ProjectState,
 };
 
 /// Sender type for messages that respond with project states.

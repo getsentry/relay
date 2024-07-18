@@ -40,14 +40,6 @@ impl ProjectState {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ParsedProjectState {
-    #[serde(default)]
-    pub disabled: bool,
-    #[serde(flatten)]
-    pub info: ProjectInfo,
-}
-
 impl From<ParsedProjectState> for ProjectState {
     fn from(value: ParsedProjectState) -> Self {
         let ParsedProjectState { disabled, info } = value;
@@ -56,4 +48,28 @@ impl From<ParsedProjectState> for ProjectState {
             false => ProjectState::Enabled(Arc::new(info)),
         }
     }
+}
+
+/// Project state as used in serialization / deserialization.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ParsedProjectState {
+    /// Whether the project state is disabled.
+    #[serde(default)]
+    pub disabled: bool,
+    /// Project info.
+    ///
+    /// This contains no information when `disabled` is `true`, except for
+    /// public keys in static project configs (see [`crate::services::project_local`]).
+    #[serde(flatten)]
+    pub info: ProjectInfo,
+}
+
+/// Limited project state for external Relays.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase", remote = "ParsedProjectState")]
+pub struct LimitedParsedProjectState {
+    pub disabled: bool,
+    #[serde(with = "LimitedProjectInfo")]
+    #[serde(flatten)]
+    pub info: ProjectInfo,
 }
