@@ -549,6 +549,13 @@
 <a href="#549" id="549">549</a>
 <a href="#550" id="550">550</a>
 <a href="#551" id="551">551</a>
+<a href="#552" id="552">552</a>
+<a href="#553" id="553">553</a>
+<a href="#554" id="554">554</a>
+<a href="#555" id="555">555</a>
+<a href="#556" id="556">556</a>
+<a href="#557" id="557">557</a>
+<a href="#558" id="558">558</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::hash_map::Entry;
 <span class="kw">use </span>std::collections::HashMap;
@@ -568,7 +575,7 @@
 <span class="kw">use </span>tokio::sync::mpsc;
 <span class="kw">use </span>tokio::time::Instant;
 
-<span class="kw">use </span><span class="kw">crate</span>::services::project::ProjectState;
+<span class="kw">use </span><span class="kw">crate</span>::services::project::{ParsedProjectState, ProjectFetchState};
 <span class="kw">use </span><span class="kw">crate</span>::services::project_cache::FetchProjectState;
 <span class="kw">use </span><span class="kw">crate</span>::services::upstream::{
     Method, RequestPriority, SendQuery, UpstreamQuery, UpstreamRelay, UpstreamRequestError,
@@ -595,9 +602,9 @@
 </span><span class="attr">#[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = <span class="string">"camelCase"</span>)]
 </span><span class="kw">pub struct </span>GetProjectStatesResponse {
-    <span class="doccomment">/// Map of [`ProjectKey`] to [`ProjectState`] that was fetched from the upstream.
+    <span class="doccomment">/// Map of [`ProjectKey`] to [`ParsedProjectState`] that was fetched from the upstream.
     </span><span class="attr">#[serde(default)]
-    </span>configs: HashMap&lt;ProjectKey, ErrorBoundary&lt;<span class="prelude-ty">Option</span>&lt;ProjectState&gt;&gt;&gt;,
+    </span>configs: HashMap&lt;ProjectKey, ErrorBoundary&lt;<span class="prelude-ty">Option</span>&lt;ParsedProjectState&gt;&gt;&gt;,
     <span class="doccomment">/// The [`ProjectKey`]'s that couldn't be immediately retrieved from the upstream.
     </span><span class="attr">#[serde(default)]
     </span>pending: Vec&lt;ProjectKey&gt;,
@@ -630,7 +637,7 @@
 <span class="doccomment">/// The wrapper struct for the incoming external requests which also keeps addition information.
 </span><span class="attr">#[derive(Debug)]
 </span><span class="kw">struct </span>ProjectStateChannel {
-    channel: BroadcastChannel&lt;Arc&lt;ProjectState&gt;&gt;,
+    channel: BroadcastChannel&lt;ProjectFetchState&gt;,
     deadline: Instant,
     no_cache: bool,
     attempts: u64,
@@ -642,7 +649,7 @@
 
 <span class="kw">impl </span>ProjectStateChannel {
     <span class="kw">pub fn </span>new(
-        sender: BroadcastSender&lt;Arc&lt;ProjectState&gt;&gt;,
+        sender: BroadcastSender&lt;ProjectFetchState&gt;,
         timeout: Duration,
         no_cache: bool,
     ) -&gt; <span class="self">Self </span>{
@@ -661,12 +668,12 @@
         <span class="self">self</span>.no_cache = <span class="bool-val">true</span>;
     }
 
-    <span class="kw">pub fn </span>attach(<span class="kw-2">&amp;mut </span><span class="self">self</span>, sender: BroadcastSender&lt;Arc&lt;ProjectState&gt;&gt;) {
+    <span class="kw">pub fn </span>attach(<span class="kw-2">&amp;mut </span><span class="self">self</span>, sender: BroadcastSender&lt;ProjectFetchState&gt;) {
         <span class="self">self</span>.channel.attach(sender)
     }
 
-    <span class="kw">pub fn </span>send(<span class="self">self</span>, state: ProjectState) {
-        <span class="self">self</span>.channel.send(Arc::new(state))
+    <span class="kw">pub fn </span>send(<span class="self">self</span>, state: ProjectFetchState) {
+        <span class="self">self</span>.channel.send(state)
     }
 
     <span class="kw">pub fn </span>expired(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
@@ -679,20 +686,20 @@
 
 <span class="doccomment">/// This is the [`UpstreamProjectSourceService`] interface.
 ///
-/// The service is responsible for fetching the [`ProjectState`] from the upstream.
+/// The service is responsible for fetching the [`ParsedProjectState`] from the upstream.
 /// Internally it maintains the buffer queue of the incoming requests, which got scheduled to fetch the
 /// state and takes care of the backoff in case there is a problem with the requests.
 </span><span class="attr">#[derive(Debug)]
-</span><span class="kw">pub struct </span>UpstreamProjectSource(FetchProjectState, BroadcastSender&lt;Arc&lt;ProjectState&gt;&gt;);
+</span><span class="kw">pub struct </span>UpstreamProjectSource(FetchProjectState, BroadcastSender&lt;ProjectFetchState&gt;);
 
 <span class="kw">impl </span>Interface <span class="kw">for </span>UpstreamProjectSource {}
 
 <span class="kw">impl </span>FromMessage&lt;FetchProjectState&gt; <span class="kw">for </span>UpstreamProjectSource {
-    <span class="kw">type </span>Response = BroadcastResponse&lt;Arc&lt;ProjectState&gt;&gt;;
+    <span class="kw">type </span>Response = BroadcastResponse&lt;ProjectFetchState&gt;;
 
     <span class="kw">fn </span>from_message(
         message: FetchProjectState,
-        sender: BroadcastSender&lt;Arc&lt;ProjectState&gt;&gt;,
+        sender: BroadcastSender&lt;ProjectFetchState&gt;,
     ) -&gt; <span class="self">Self </span>{
         <span class="self">Self</span>(message, sender)
     }
@@ -710,7 +717,7 @@
     response: <span class="prelude-ty">Result</span>&lt;GetProjectStatesResponse, UpstreamRequestError&gt;,
 }
 
-<span class="doccomment">/// The service which handles the fetching of the [`ProjectState`] from upstream.
+<span class="doccomment">/// The service which handles the fetching of the [`ParsedProjectState`] from upstream.
 </span><span class="attr">#[derive(Debug)]
 </span><span class="kw">pub struct </span>UpstreamProjectSourceService {
     backoff: RetryBackoff,
@@ -922,6 +929,7 @@
                             response.configs.len() <span class="kw">as </span>u64
                     );
                     <span class="kw">for </span>(key, <span class="kw-2">mut </span>channel) <span class="kw">in </span>channels_batch {
+                        <span class="kw">let </span><span class="kw-2">mut </span>result = <span class="string">"ok"</span>;
                         <span class="kw">if </span>response.pending.contains(<span class="kw-2">&amp;</span>key) {
                             channel.pending += <span class="number">1</span>;
                             <span class="self">self</span>.state_channels.insert(key, channel);
@@ -930,13 +938,18 @@
                         <span class="kw">let </span>state = response
                             .configs
                             .remove(<span class="kw-2">&amp;</span>key)
-                            .unwrap_or(ErrorBoundary::Ok(<span class="prelude-val">None</span>))
-                            .unwrap_or_else(|error| {
+                            .unwrap_or(ErrorBoundary::Ok(<span class="prelude-val">None</span>));
+                        <span class="kw">let </span>state = <span class="kw">match </span>state {
+                            ErrorBoundary::Err(error) =&gt; {
+                                result = <span class="string">"invalid"</span>;
+                                <span class="kw">let </span>error = <span class="kw-2">&amp;</span>error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>std::error::Error;
                                 <span class="macro">relay_log::error!</span>(error, <span class="string">"error fetching project state {key}"</span>);
-                                <span class="prelude-val">Some</span>(ProjectState::err())
-                            })
-                            .unwrap_or_else(ProjectState::missing);
-                        <span class="kw">let </span>result = <span class="kw">if </span>state.invalid() { <span class="string">"invalid" </span>} <span class="kw">else </span>{ <span class="string">"ok" </span>};
+                                ProjectFetchState::pending()
+                            }
+                            ErrorBoundary::Ok(<span class="prelude-val">None</span>) =&gt; ProjectFetchState::disabled(),
+                            ErrorBoundary::Ok(<span class="prelude-val">Some</span>(state)) =&gt; ProjectFetchState::new(state.into()),
+                        };
+
                         <span class="macro">metric!</span>(
                             histogram(RelayHistograms::ProjectStateAttempts) = channel.attempts,
                             result = result,
@@ -945,7 +958,8 @@
                             counter(RelayCounters::ProjectUpstreamCompleted) += <span class="number">1</span>,
                             result = result,
                         );
-                        channel.send(state.sanitize());
+
+                        channel.send(state.sanitized());
                     }
                 }
                 <span class="prelude-val">Err</span>(err) =&gt; {

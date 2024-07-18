@@ -915,7 +915,7 @@
     <span class="kw">use </span><span class="kw">crate</span>::extractors::RequestMeta;
     <span class="kw">use </span><span class="kw">crate</span>::services::outcome::RuleCategory;
     <span class="kw">use </span><span class="kw">crate</span>::services::processor::{ProcessEnvelope, ProcessingGroup};
-    <span class="kw">use </span><span class="kw">crate</span>::services::project::ProjectState;
+    <span class="kw">use </span><span class="kw">crate</span>::services::project::ProjectInfo;
     <span class="kw">use </span><span class="kw">crate</span>::testutils::{<span class="self">self</span>, create_test_processor};
     <span class="kw">use </span><span class="kw">crate</span>::utils::ManagedEnvelope;
 
@@ -965,8 +965,8 @@
         <span class="kw">let </span>envelope = ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store, group);
         <span class="kw">let </span>message = ProcessEnvelope {
             envelope,
-            project_state: Arc::new(ProjectState::allowed()),
-            sampling_project_state: <span class="prelude-val">None</span>,
+            project_info: Arc::new(ProjectInfo::default()),
+            sampling_project_info: <span class="prelude-val">None</span>,
             reservoir_counters: ReservoirCounters::default(),
         };
 
@@ -1019,8 +1019,8 @@
 
         <span class="kw">let </span>message = ProcessEnvelope {
             envelope,
-            project_state: Arc::new(ProjectState::allowed()),
-            sampling_project_state: <span class="prelude-val">None</span>,
+            project_info: Arc::new(ProjectInfo::default()),
+            sampling_project_info: <span class="prelude-val">None</span>,
             reservoir_counters: ReservoirCounters::default(),
         };
 
@@ -1081,8 +1081,8 @@
         <span class="kw">let </span>envelope = ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store, group);
         <span class="kw">let </span>message = ProcessEnvelope {
             envelope,
-            project_state: Arc::new(ProjectState::allowed()),
-            sampling_project_state: <span class="prelude-val">None</span>,
+            project_info: Arc::new(ProjectInfo::default()),
+            sampling_project_info: <span class="prelude-val">None</span>,
             reservoir_counters: ReservoirCounters::default(),
         };
 
@@ -1121,8 +1121,8 @@
         <span class="kw">let </span>envelope = ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store, group);
         <span class="kw">let </span>message = ProcessEnvelope {
             envelope,
-            project_state: Arc::new(ProjectState::allowed()),
-            sampling_project_state: <span class="prelude-val">None</span>,
+            project_info: Arc::new(ProjectInfo::default()),
+            sampling_project_info: <span class="prelude-val">None</span>,
             reservoir_counters: ReservoirCounters::default(),
         };
 
@@ -1169,8 +1169,8 @@
 
         <span class="kw">let </span>message = ProcessEnvelope {
             envelope,
-            project_state: Arc::new(ProjectState::allowed()),
-            sampling_project_state: <span class="prelude-val">None</span>,
+            project_info: Arc::new(ProjectInfo::default()),
+            sampling_project_info: <span class="prelude-val">None</span>,
             reservoir_counters: ReservoirCounters::default(),
         };
 

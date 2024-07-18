@@ -462,6 +462,8 @@
 <a href="#462" id="462">462</a>
 <a href="#463" id="463">463</a>
 <a href="#464" id="464">464</a>
+<a href="#465" id="465">465</a>
+<a href="#466" id="466">466</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Common facilities for ingesting events through store-like endpoints.
 
 </span><span class="kw">use </span>axum::http::{header, StatusCode};
@@ -761,9 +763,10 @@
     }
 
     <span class="comment">// Split off the envelopes by item type.
-    </span><span class="kw">let </span>envelopes = ProcessingGroup::split_envelope(<span class="kw-2">*</span>managed_envelope.take_envelope());
+    </span><span class="kw">let </span>scoping = managed_envelope.scoping();
+    <span class="kw">let </span>envelopes = ProcessingGroup::split_envelope(<span class="kw-2">*</span>managed_envelope.take_envelope());
     <span class="kw">for </span>(group, envelope) <span class="kw">in </span>envelopes {
-        <span class="kw">let </span>envelope = buffer_guard
+        <span class="kw">let </span><span class="kw-2">mut </span>envelope = buffer_guard
             .enter(
                 envelope,
                 state.outcome_aggregator().clone(),
@@ -771,6 +774,7 @@
                 group,
             )
             .map_err(BadStoreRequest::QueueFailed)<span class="question-mark">?</span>;
+        envelope.scope(scoping);
         state.project_cache().send(ValidateEnvelope::new(envelope));
     }
     <span class="comment">// The entire envelope is taken for a split above, and it's empty at this point, we can just

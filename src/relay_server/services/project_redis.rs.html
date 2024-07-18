@@ -98,6 +98,7 @@
 <a href="#98" id="98">98</a>
 <a href="#99" id="99">99</a>
 <a href="#100" id="100">100</a>
+<a href="#101" id="101">101</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::sync::Arc;
 
 <span class="kw">use </span>relay_base_schema::project::ProjectKey;
@@ -105,7 +106,7 @@
 <span class="kw">use </span>relay_redis::{RedisError, RedisPool};
 <span class="kw">use </span>relay_statsd::metric;
 
-<span class="kw">use </span><span class="kw">crate</span>::services::project::ProjectState;
+<span class="kw">use </span><span class="kw">crate</span>::services::project::{ParsedProjectState, ProjectState};
 <span class="kw">use </span><span class="kw">crate</span>::statsd::{RelayCounters, RelayHistograms, RelayTimers};
 
 <span class="attr">#[derive(Debug, Clone)]
@@ -123,7 +124,7 @@
     </span>Redis(<span class="attr">#[from] </span>RedisError),
 }
 
-<span class="kw">fn </span>parse_redis_response(raw_response: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;ProjectState, RedisProjectError&gt; {
+<span class="kw">fn </span>parse_redis_response(raw_response: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;ParsedProjectState, RedisProjectError&gt; {
     <span class="kw">let </span>decompression_result = <span class="macro">metric!</span>(timer(RelayTimers::ProjectStateDecompression), {
         zstd::decode_all(raw_response)
     });
@@ -152,7 +153,7 @@
         RedisProjectSource { config, redis }
     }
 
-    <span class="kw">pub fn </span>get_config(<span class="kw-2">&amp;</span><span class="self">self</span>, key: ProjectKey) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;ProjectState&gt;, RedisProjectError&gt; {
+    <span class="kw">pub fn </span>get_config(<span class="kw-2">&amp;</span><span class="self">self</span>, key: ProjectKey) -&gt; <span class="prelude-ty">Result</span>&lt;ProjectState, RedisProjectError&gt; {
         <span class="kw">let </span><span class="kw-2">mut </span>command = relay_redis::redis::cmd(<span class="string">"GET"</span>);
 
         <span class="kw">let </span>prefix = <span class="self">self</span>.config.projectconfig_cache_prefix();
@@ -165,15 +166,16 @@
         <span class="kw">let </span>response = <span class="kw">match </span>raw_response_opt {
             <span class="prelude-val">Some</span>(response) =&gt; {
                 <span class="macro">metric!</span>(counter(RelayCounters::ProjectStateRedis) += <span class="number">1</span>, hit = <span class="string">"true"</span>);
-                <span class="prelude-val">Some</span>(parse_redis_response(response.as_slice())<span class="question-mark">?</span>)
+                <span class="kw">let </span>parsed = parse_redis_response(response.as_slice())<span class="question-mark">?</span>;
+                ProjectState::from(parsed)
             }
             <span class="prelude-val">None </span>=&gt; {
                 <span class="macro">metric!</span>(
                     counter(RelayCounters::ProjectStateRedis) += <span class="number">1</span>,
                     hit = <span class="string">"false"
                 </span>);
-                <span class="prelude-val">None
-            </span>}
+                ProjectState::Pending
+            }
         };
 
         <span class="prelude-val">Ok</span>(response)
