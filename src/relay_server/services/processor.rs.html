@@ -3997,12 +3997,6 @@
 <a href="#3997" id="3997">3997</a>
 <a href="#3998" id="3998">3998</a>
 <a href="#3999" id="3999">3999</a>
-<a href="#4000" id="4000">4000</a>
-<a href="#4001" id="4001">4001</a>
-<a href="#4002" id="4002">4002</a>
-<a href="#4003" id="4003">4003</a>
-<a href="#4004" id="4004">4004</a>
-<a href="#4005" id="4005">4005</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
@@ -4089,7 +4083,7 @@
 };
 <span class="kw">use </span><span class="kw">crate</span>::statsd::{RelayCounters, RelayHistograms, RelayTimers};
 <span class="kw">use </span><span class="kw">crate</span>::utils::{
-    <span class="self">self</span>, InvalidProcessingGroupType, ManagedEnvelope, SamplingResult, TypedEnvelope,
+    <span class="self">self</span>, InvalidProcessingGroupType, ManagedEnvelope, SamplingResult, ThreadPool, TypedEnvelope,
 };
 <span class="kw">use crate</span>::{http, metrics};
 
@@ -5118,6 +5112,7 @@
 }
 
 <span class="kw">struct </span>InnerProcessor {
+    pool: ThreadPool,
     config: Arc&lt;Config&gt;,
     global_config: GlobalConfigHandle,
     cogs: Cogs,
@@ -5137,6 +5132,7 @@
 <span class="kw">impl </span>EnvelopeProcessorService {
     <span class="doccomment">/// Creates a multi-threaded envelope processor.
     </span><span class="kw">pub fn </span>new(
+        pool: ThreadPool,
         config: Arc&lt;Config&gt;,
         global_config: GlobalConfigHandle,
         cogs: Cogs,
@@ -5155,6 +5151,7 @@
         });
 
         <span class="kw">let </span>inner = InnerProcessor {
+            pool,
             global_config,
             cogs,
             <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
@@ -6816,18 +6813,9 @@
     <span class="kw">type </span>Interface = EnvelopeProcessor;
 
     <span class="kw">fn </span>spawn_handler(<span class="self">self</span>, <span class="kw-2">mut </span>rx: relay_system::Receiver&lt;<span class="self">Self</span>::Interface&gt;) {
-        <span class="comment">// Adjust thread count for small cpu counts to not have too many idle cores
-        // and distribute workload better.
-        </span><span class="kw">let </span>thread_count = <span class="kw">match </span><span class="self">self</span>.inner.config.cpu_concurrency() {
-            conc @ <span class="number">0</span>..=<span class="number">2 </span>=&gt; conc.max(<span class="number">1</span>),
-            conc @ <span class="number">3</span>..=<span class="number">4 </span>=&gt; conc - <span class="number">1</span>,
-            conc =&gt; conc - <span class="number">2</span>,
-        };
-        <span class="macro">relay_log::info!</span>(<span class="string">"starting {thread_count} envelope processing workers"</span>);
+        <span class="kw">let </span>semaphore = Arc::new(Semaphore::new(<span class="self">self</span>.inner.pool.current_num_threads()));
 
         tokio::spawn(<span class="kw">async move </span>{
-            <span class="kw">let </span>semaphore = Arc::new(Semaphore::new(thread_count));
-
             <span class="kw">loop </span>{
                 <span class="kw">let </span>next_msg = <span class="kw">async </span>{
                     <span class="kw">let </span>permit_result = semaphore.clone().acquire_owned().<span class="kw">await</span>;
@@ -6842,7 +6830,7 @@
 
                     (<span class="prelude-val">Some</span>(message), <span class="prelude-val">Ok</span>(permit)) = next_msg =&gt; {
                         <span class="kw">let </span>service = <span class="self">self</span>.clone();
-                        tokio::task::spawn_blocking(<span class="kw">move </span>|| {
+                        <span class="self">self</span>.inner.pool.spawn(<span class="kw">move </span>|| {
                             service.handle_message(message);
                             drop(permit);
                         });
