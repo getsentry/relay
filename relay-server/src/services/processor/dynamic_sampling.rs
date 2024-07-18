@@ -279,7 +279,7 @@ mod tests {
     use crate::services::processor::{
         ProcessEnvelope, ProcessingExtractedMetrics, ProcessingGroup, SpanGroup,
     };
-    use crate::services::project::ProjectInfo;
+    use crate::services::project::ProjectState;
     use crate::testutils::{
         self, create_test_processor, new_envelope, state_with_rule_and_condition,
     };
@@ -313,7 +313,7 @@ mod tests {
     /// Always sets the processing item type to event.
     fn process_envelope_with_root_project_state(
         envelope: Box<Envelope>,
-        sampling_project_state: Option<Arc<ProjectInfo>>,
+        sampling_project_state: Option<Arc<ProjectState>>,
     ) -> Envelope {
         let processor = create_test_processor(Default::default());
         let (outcome_aggregator, test_store) = testutils::processor_services();
@@ -324,8 +324,8 @@ mod tests {
 
         let message = ProcessEnvelope {
             envelope: ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store, group),
-            project_info: Arc::new(ProjectInfo::default()),
-            sampling_project_info: sampling_project_state,
+            project_state: Arc::new(ProjectState::allowed()),
+            sampling_project_state,
             reservoir_counters: ReservoirCounters::default(),
         };
 
@@ -501,7 +501,7 @@ mod tests {
         assert_eq!(sampling_result.decision(), SamplingDecision::Drop);
     }
 
-    fn project_state_with_single_rule(sample_rate: f64) -> ProjectInfo {
+    fn project_state_with_single_rule(sample_rate: f64) -> ProjectState {
         let sampling_config = SamplingConfig {
             rules: vec![SamplingRule {
                 condition: RuleCondition::all(),
@@ -514,7 +514,7 @@ mod tests {
             ..SamplingConfig::new()
         };
 
-        let mut sampling_project_state = ProjectInfo::default();
+        let mut sampling_project_state = ProjectState::allowed();
         sampling_project_state.config.sampling = Some(ErrorBoundary::Ok(sampling_config));
         sampling_project_state
     }
@@ -718,13 +718,13 @@ mod tests {
     where
         G: Sampling + TryFrom<ProcessingGroup>,
     {
-        let project_info = {
-            let mut info = ProjectInfo::default();
-            info.config.transaction_metrics = Some(ErrorBoundary::Ok(TransactionMetricsConfig {
+        let project_state = {
+            let mut state = ProjectState::allowed();
+            state.config.transaction_metrics = Some(ErrorBoundary::Ok(TransactionMetricsConfig {
                 version: 1,
                 ..Default::default()
             }));
-            Arc::new(info)
+            Arc::new(state)
         };
 
         let bytes = Bytes::from(
@@ -738,13 +738,13 @@ mod tests {
             metrics: Default::default(),
             sample_rates: Default::default(),
             extracted_metrics: ProcessingExtractedMetrics::new(
-                project_info.clone(),
+                project_state.clone(),
                 Arc::new(GlobalConfig::default()),
                 envelope.dsc(),
             ),
-            project_state: project_info,
+            project_state,
             sampling_project_state: {
-                let mut state = ProjectInfo::default();
+                let mut state = ProjectState::allowed();
                 state.config.metric_extraction =
                     ErrorBoundary::Ok(MetricExtractionConfig::default());
                 state.config.sampling = Some(ErrorBoundary::Ok(SamplingConfig {

@@ -5,7 +5,7 @@ use relay_quotas::Scoping;
 
 use crate::metrics::MetricOutcomes;
 use crate::services::outcome::Outcome;
-use crate::services::project::ProjectInfo;
+use crate::services::project::ProjectState;
 use crate::services::project_cache::BucketSource;
 
 pub fn filter_namespaces(mut buckets: Vec<Bucket>, source: BucketSource) -> Vec<Bucket> {
@@ -22,10 +22,10 @@ pub fn filter_namespaces(mut buckets: Vec<Bucket>, source: BucketSource) -> Vec<
     buckets
 }
 
-pub fn apply_project_info(
+pub fn apply_project_state(
     mut buckets: Vec<Bucket>,
     metric_outcomes: &MetricOutcomes,
-    project_info: &ProjectInfo,
+    project_state: &ProjectState,
     scoping: Scoping,
 ) -> Vec<Bucket> {
     let mut denied_buckets = Vec::new();
@@ -34,13 +34,13 @@ pub fn apply_project_info(
     buckets = buckets
         .into_iter()
         .filter_map(|mut bucket| {
-            if !is_metric_namespace_valid(project_info, bucket.name.namespace()) {
+            if !is_metric_namespace_valid(project_state, bucket.name.namespace()) {
                 relay_log::trace!(mri = &*bucket.name, "dropping metric in disabled namespace");
                 disabled_namespace_buckets.push(bucket);
                 return None;
             };
 
-            if let ErrorBoundary::Ok(ref metric_config) = project_info.config.metrics {
+            if let ErrorBoundary::Ok(ref metric_config) = project_state.config.metrics {
                 if metric_config.denied_names.is_match(&*bucket.name) {
                     relay_log::trace!(mri = &*bucket.name, "dropping metrics due to block list");
                     denied_buckets.push(bucket);
@@ -73,7 +73,7 @@ pub fn apply_project_info(
     buckets
 }
 
-fn is_metric_namespace_valid(state: &ProjectInfo, namespace: MetricNamespace) -> bool {
+fn is_metric_namespace_valid(state: &ProjectState, namespace: MetricNamespace) -> bool {
     match namespace {
         MetricNamespace::Sessions => true,
         MetricNamespace::Transactions => true,
@@ -166,20 +166,21 @@ mod tests {
         let (metric_stats, mut metric_stats_rx) = MetricStats::test();
         let metric_outcomes = MetricOutcomes::new(metric_stats, outcome_aggregator);
 
-        let project_state = ProjectInfo {
-            config: serde_json::from_value(serde_json::json!({
+        let project_state = {
+            let mut project_state = ProjectState::allowed();
+            project_state.config = serde_json::from_value(serde_json::json!({
                 "metrics": { "deniedNames": ["*cpu_time*"] },
                 "features": ["organizations:custom-metrics"]
             }))
-            .unwrap(),
-            ..Default::default()
+            .unwrap();
+            project_state
         };
 
         let b1 = create_custom_bucket_with_name("cpu_time".into());
         let b2 = create_custom_bucket_with_name("memory_usage".into());
         let buckets = vec![b1.clone(), b2.clone()];
 
-        let buckets = apply_project_info(
+        let buckets = apply_project_state(
             buckets,
             &metric_outcomes,
             &project_state,
@@ -216,10 +217,10 @@ mod tests {
         let b2 = create_custom_bucket_with_name("memory_usage".into());
         let buckets = vec![b1.clone(), b2.clone()];
 
-        let buckets = apply_project_info(
+        let buckets = apply_project_state(
             buckets,
             &metric_outcomes,
-            &ProjectInfo::default(),
+            &ProjectState::allowed(),
             Scoping {
                 organization_id: 42,
                 project_id: ProjectId::new(43),
