@@ -1452,7 +1452,7 @@ mod tests {
         let (outcome_aggregator, mut outcome_aggregator_rx) = Addr::custom();
         let (test_store, _) = Addr::custom();
 
-        let managed_envelope = ManagedEnvelope::standalone(
+        let managed_envelope = ManagedEnvelope::new(
             envelope,
             outcome_aggregator.clone(),
             test_store,

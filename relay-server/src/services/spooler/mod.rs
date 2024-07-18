@@ -57,7 +57,7 @@ use crate::services::processor::ProcessingGroup;
 use crate::services::project_cache::{ProjectCache, RefreshIndexCache, UpdateSpoolIndex};
 use crate::services::test_store::TestStore;
 use crate::statsd::{RelayCounters, RelayGauges, RelayHistograms, RelayTimers};
-use crate::utils::{BufferGuard, ManagedEnvelope, MemoryStat, MemoryStatConfig};
+use crate::utils::{ManagedEnvelope, MemoryStatConfig};
 
 pub mod spool_utils;
 mod sql;
@@ -78,7 +78,7 @@ const LOW_SPOOL_MEMORY_WATERMARK: f64 = 0.3;
 #[derive(Debug, thiserror::Error)]
 pub enum BufferError {
     #[error("failed to move envelope from disk to memory")]
-    CapacityExceeded(#[from] crate::utils::BufferError),
+    CapacityExceeded,
 
     #[error("failed to get the size of the buffer on the filesystem")]
     DatabaseFileError(#[from] std::io::Error),
@@ -492,7 +492,7 @@ impl OnDisk {
         let envelopes: Result<Vec<_>, BufferError> = ProcessingGroup::split_envelope(*envelope)
             .into_iter()
             .map(|(group, envelope)| {
-                let managed_envelope = ManagedEnvelope::standalone(
+                let managed_envelope = ManagedEnvelope::new(
                     envelope,
                     services.outcome_aggregator.clone(),
                     services.test_store.clone(),
@@ -1307,7 +1307,10 @@ impl Drop for BufferService {
 
 #[cfg(test)]
 mod tests {
-    use brotli::enc::compress_fragment_two_pass::memcpy;
+    use super::*;
+    use crate::services::project_cache::SpoolHealth;
+    use crate::testutils::empty_envelope;
+    use crate::utils::MemoryStat;
     use insta::assert_debug_snapshot;
     use rand::Rng;
     use relay_system::AsyncResponse;
@@ -1317,11 +1320,6 @@ mod tests {
     use std::sync::Mutex;
     use std::time::{Duration, Instant};
     use uuid::Uuid;
-
-    use crate::services::project_cache::SpoolHealth;
-    use crate::testutils::empty_envelope;
-
-    use super::*;
 
     fn services() -> Services {
         let (project_cache, _) = mock_service("project_cache", (), |&mut (), _| {});
@@ -1442,96 +1440,88 @@ mod tests {
         }
     }
 
-    // #[tokio::test]
-    // async fn dequeue_waits_for_permits() {
-    //     relay_test::setup();
-    //     let num_permits = 3;
-    //     let buffer_guard: Arc<_> = BufferGuard::new(num_permits).into();
-    //     let config: Arc<_> = Config::from_json_value(serde_json::json!({
-    //         "spool": {
-    //             "envelopes": {
-    //                 "path": std::env::temp_dir().join(Uuid::new_v4().to_string()),
-    //                 "max_memory_size": 0, // 0 bytes, to force to spool to disk all the envelopes.
-    //             }
-    //         }
-    //     }))
-    //     .unwrap()
-    //     .into();
-    //
-    //     let services = services();
-    //
-    //     let service = BufferService::create(buffer_guard.clone(), services.clone(), config)
-    //         .await
-    //         .unwrap();
-    //     let addr = service.start();
-    //     let (tx, mut rx) = mpsc::unbounded_channel();
-    //
-    //     let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
-    //     let key = QueueKey {
-    //         own_key: project_key,
-    //         sampling_key: project_key,
-    //     };
-    //
-    //     // Enqueue an envelope:
-    //     addr.send(Enqueue {
-    //         key,
-    //         value: empty_managed_envelope(),
-    //     });
-    //
-    //     // Nothing dequeued yet:
-    //     assert!(rx.try_recv().is_err());
-    //
-    //     // Dequeue an envelope:
-    //     addr.send(DequeueMany {
-    //         keys: [key].into(),
-    //         sender: tx.clone(),
-    //     });
-    //
-    //     // There are enough permits, so get an envelope:
-    //     let res = rx.recv().await;
-    //     assert!(res.is_some(), "{res:?}");
-    //     assert_eq!(buffer_guard.available(), 2);
-    //
-    //     // Simulate a new envelope coming in via a web request:
-    //     let new_envelope = buffer_guard
-    //         .enter(
-    //             empty_envelope(),
-    //             services.outcome_aggregator,
-    //             services.test_store,
-    //             ProcessingGroup::Ungrouped,
-    //         )
-    //         .unwrap();
-    //
-    //     assert_eq!(buffer_guard.available(), 1);
-    //
-    //     // Enqueue & dequeue another envelope:
-    //     addr.send(Enqueue {
-    //         key,
-    //         value: empty_managed_envelope(),
-    //     });
-    //     // Request to dequeue:
-    //     addr.send(DequeueMany {
-    //         keys: [key].into(),
-    //         sender: tx.clone(),
-    //     });
-    //     tokio::time::sleep(Duration::from_millis(50)).await;
-    //
-    //     // There is one permit left, but we only dequeue if we gave >= 50% capacity:
-    //     assert!(rx.try_recv().is_err());
-    //
-    //     // Freeing one permit gives us enough capacity:
-    //     assert_eq!(buffer_guard.available(), 1);
-    //     drop(new_envelope);
-    //
-    //     // Dequeue an envelope:
-    //     addr.send(DequeueMany {
-    //         keys: [key].into(),
-    //         sender: tx.clone(),
-    //     });
-    //     assert_eq!(buffer_guard.available(), 2);
-    //     tokio::time::sleep(Duration::from_millis(100)).await; // give time to flush
-    //     assert!(rx.try_recv().is_ok());
-    // }
+    #[tokio::test]
+    async fn dequeue_waits_for_permits() {
+        relay_test::setup();
+        let config: Arc<_> = Config::from_json_value(serde_json::json!({
+            "spool": {
+                "envelopes": {
+                    "path": std::env::temp_dir().join(Uuid::new_v4().to_string()),
+                    "max_memory_size": 0, // 0 bytes, to force to spool to disk all the envelopes.
+                }
+            }
+        }))
+        .unwrap()
+        .into();
+        let memory_stat_config = MemoryStat::new().with_config(config.clone());
+
+        let services = services();
+
+        let service = BufferService::create(memory_stat_config.clone(), services.clone(), config)
+            .await
+            .unwrap();
+        let addr = service.start();
+        let (tx, mut rx) = mpsc::unbounded_channel();
+
+        let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
+        let key = QueueKey {
+            own_key: project_key,
+            sampling_key: project_key,
+        };
+
+        // Enqueue an envelope:
+        addr.send(Enqueue {
+            key,
+            value: empty_managed_envelope(),
+        });
+
+        // Nothing dequeued yet:
+        assert!(rx.try_recv().is_err());
+
+        // Dequeue an envelope:
+        addr.send(DequeueMany {
+            keys: [key].into(),
+            sender: tx.clone(),
+        });
+
+        // There are enough permits, so get an envelope:
+        let res = rx.recv().await;
+        assert!(res.is_some(), "{res:?}");
+
+        // Simulate a new envelope coming in via a web request:
+        let new_envelope = ManagedEnvelope::new(
+            empty_envelope(),
+            services.outcome_aggregator,
+            services.test_store,
+            ProcessingGroup::Ungrouped,
+        );
+
+        // Enqueue & dequeue another envelope:
+        addr.send(Enqueue {
+            key,
+            value: empty_managed_envelope(),
+        });
+        // Request to dequeue:
+        addr.send(DequeueMany {
+            keys: [key].into(),
+            sender: tx.clone(),
+        });
+        tokio::time::sleep(Duration::from_millis(50)).await;
+
+        // There is one permit left, but we only dequeue if we gave >= 50% capacity:
+        assert!(rx.try_recv().is_err());
+
+        // Freeing one permit gives us enough capacity:
+        drop(new_envelope);
+
+        // Dequeue an envelope:
+        addr.send(DequeueMany {
+            keys: [key].into(),
+            sender: tx.clone(),
+        });
+        tokio::time::sleep(Duration::from_millis(100)).await; // give time to flush
+        assert!(rx.try_recv().is_ok());
+    }
 
     #[test]
     fn metrics_work() {
@@ -1887,9 +1877,9 @@ mod tests {
                     "max_memory_size": "10KB",
                     "max_disk_size": "20MB",
                 },
-                            "health": {
-                "max_memory_percent": 1.0
-            }
+                "health": {
+                    "max_memory_percent": 1.0
+                }
             }
         }))
         .unwrap()

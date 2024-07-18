@@ -111,6 +111,12 @@ impl fmt::Debug for MemoryStat {
     }
 }
 
+impl Default for MemoryStat {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct MemoryStatConfig {
     pub memory_stat: MemoryStat,

@@ -296,7 +296,7 @@ fn queue_envelope(
     // Split off the envelopes by item type.
     let envelopes = ProcessingGroup::split_envelope(*managed_envelope.take_envelope());
     for (group, envelope) in envelopes {
-        let envelope = ManagedEnvelope::standalone(
+        let envelope = ManagedEnvelope::new(
             envelope,
             state.outcome_aggregator().clone(),
             state.test_store().clone(),
@@ -335,7 +335,7 @@ pub async fn handle_envelope(
         return Err(BadStoreRequest::QueueFailed);
     };
 
-    let mut managed_envelope = ManagedEnvelope::standalone(
+    let mut managed_envelope = ManagedEnvelope::new(
         envelope,
         state.outcome_aggregator().clone(),
         state.test_store().clone(),

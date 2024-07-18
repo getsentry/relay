@@ -36,8 +36,7 @@ use crate::services::upstream::UpstreamRelay;
 
 use crate::statsd::{RelayCounters, RelayGauges, RelayHistograms, RelayTimers};
 use crate::utils::{
-    self, BufferGuard, GarbageDisposal, ManagedEnvelope, MemoryStatConfig, RetryBackoff,
-    SleepHandle,
+    self, GarbageDisposal, ManagedEnvelope, MemoryStatConfig, RetryBackoff, SleepHandle,
 };
 
 /// Requests a refresh of a project state from one of the available sources.
@@ -1291,10 +1290,10 @@ mod tests {
     use tokio::select;
     use uuid::Uuid;
 
+    use super::*;
     use crate::services::processor::ProcessingGroup;
     use crate::testutils::{empty_envelope, empty_envelope_with_dsn};
-
-    use super::*;
+    use crate::utils::MemoryStat;
 
     fn mocked_services() -> Services {
         let (aggregator, _) = mock_service("aggregator", (), |&mut (), _| {});
@@ -1318,7 +1317,6 @@ mod tests {
 
     async fn project_cache_broker_setup(
         services: Services,
-        memory_stat_config: MemoryStatConfig,
         state_tx: mpsc::UnboundedSender<UpdateProjectState>,
         buffer_tx: mpsc::UnboundedSender<UnspooledEnvelope>,
     ) -> (ProjectCacheBroker, Addr<Buffer>) {
@@ -1332,6 +1330,7 @@ mod tests {
         }))
         .unwrap()
         .into();
+        let memory_stat_config = MemoryStat::new().with_config(config.clone());
         let buffer_services = spooler::Services {
             outcome_aggregator: services.outcome_aggregator.clone(),
             project_cache: services.project_cache.clone(),
@@ -1382,223 +1381,203 @@ mod tests {
         )
     }
 
-    // #[tokio::test]
-    // async fn always_spools() {
-    //     relay_log::init_test!();
-    //
-    //     let num_permits = 5;
-    //     let buffer_guard: Arc<_> = BufferGuard::new(num_permits).into();
-    //     let services = mocked_services();
-    //     let (state_tx, _) = mpsc::unbounded_channel();
-    //     let (buffer_tx, mut buffer_rx) = mpsc::unbounded_channel();
-    //     let (mut broker, buffer_svc) =
-    //         project_cache_broker_setup(services.clone(), buffer_guard.clone(), state_tx, buffer_tx)
-    //             .await;
-    //
-    //     for _ in 0..8 {
-    //         let envelope = buffer_guard
-    //             .enter(
-    //                 empty_envelope(),
-    //                 services.outcome_aggregator.clone(),
-    //                 services.test_store.clone(),
-    //                 ProcessingGroup::Ungrouped,
-    //             )
-    //             .unwrap();
-    //         let message = ValidateEnvelope { envelope };
-    //
-    //         broker.handle_validate_envelope(message);
-    //         tokio::time::sleep(Duration::from_millis(200)).await;
-    //         // Nothing will be dequeued.
-    //         assert!(buffer_rx.try_recv().is_err())
-    //     }
-    //
-    //     // All the messages should have been spooled to disk.
-    //     assert_eq!(buffer_guard.available(), 5);
-    //     assert_eq!(broker.index.len(), 1);
-    //
-    //     let project_key = ProjectKey::parse("e12d836b15bb49d7bbf99e64295d995b").unwrap();
-    //     let key = QueueKey {
-    //         own_key: project_key,
-    //         sampling_key: project_key,
-    //     };
-    //     let (tx, mut rx) = mpsc::unbounded_channel();
-    //
-    //     // Check if we can also dequeue from the buffer directly.
-    //     buffer_svc.send(spooler::DequeueMany::new([key].into(), tx.clone()));
-    //     tokio::time::sleep(Duration::from_millis(100)).await;
-    //
-    //     // We should be able to unspool 5 envelopes since we have 5 permits.
-    //     let mut envelopes = vec![];
-    //     while let Ok(envelope) = rx.try_recv() {
-    //         envelopes.push(envelope)
-    //     }
-    //
-    //     // We can unspool only 5 envelopes.
-    //     assert_eq!(envelopes.len(), 5);
-    //
-    //     // Drop one, and get one permit back.
-    //     envelopes.pop().unwrap();
-    //     assert_eq!(buffer_guard.available(), 1);
-    //
-    //     // Till now we should have enqueued 5 envelopes and dequeued only 1, it means the index is
-    //     // still populated with same keys and values.
-    //     assert_eq!(broker.index.len(), 1);
-    //
-    //     // Check if we can also dequeue from the buffer directly.
-    //     buffer_svc.send(spooler::DequeueMany::new([key].into(), tx));
-    //     tokio::time::sleep(Duration::from_millis(100)).await;
-    //     // Cannot dequeue anymore, no more available permits.
-    //     assert!(rx.try_recv().is_err());
-    //
-    //     // The rest envelopes will be immediately spooled, since we at 80% buffer gueard usage.
-    //     for _ in 0..10 {
-    //         let envelope = ManagedEnvelope::untracked(
-    //             empty_envelope(),
-    //             services.outcome_aggregator.clone(),
-    //             services.test_store.clone(),
-    //         );
-    //         let message = ValidateEnvelope { envelope };
-    //
-    //         broker.handle_validate_envelope(message);
-    //         tokio::time::sleep(Duration::from_millis(100)).await;
-    //         // Nothing will be dequeued.
-    //         assert!(buffer_rx.try_recv().is_err())
-    //     }
-    // }
+    #[tokio::test]
+    async fn always_spools() {
+        relay_log::init_test!();
 
-    // #[tokio::test]
-    // async fn periodic_unspool() {
-    //     relay_log::init_test!();
-    //
-    //     let num_permits = 50;
-    //     let buffer_guard: Arc<_> = BufferGuard::new(num_permits).into();
-    //     let services = mocked_services();
-    //     let (state_tx, _) = mpsc::unbounded_channel();
-    //     let (buffer_tx, mut buffer_rx) = mpsc::unbounded_channel();
-    //     let (mut broker, _buffer_svc) =
-    //         project_cache_broker_setup(services.clone(), buffer_guard.clone(), state_tx, buffer_tx)
-    //             .await;
-    //
-    //     broker.global_config = GlobalConfigStatus::Ready;
-    //     let (tx_update, mut rx_update) = mpsc::unbounded_channel();
-    //     let (tx_assert, mut rx_assert) = mpsc::unbounded_channel();
-    //
-    //     let dsn1 = "111d836b15bb49d7bbf99e64295d995b";
-    //     let dsn2 = "eeed836b15bb49d7bbf99e64295d995b";
-    //
-    //     // Send and spool some envelopes.
-    //     for dsn in [dsn1, dsn2] {
-    //         let envelope = buffer_guard
-    //             .enter(
-    //                 empty_envelope_with_dsn(dsn),
-    //                 services.outcome_aggregator.clone(),
-    //                 services.test_store.clone(),
-    //                 ProcessingGroup::Ungrouped,
-    //             )
-    //             .unwrap();
-    //
-    //         let message = ValidateEnvelope { envelope };
-    //
-    //         broker.handle_validate_envelope(message);
-    //         tokio::time::sleep(Duration::from_millis(200)).await;
-    //         // Nothing will be dequeued.
-    //         assert!(buffer_rx.try_recv().is_err())
-    //     }
-    //
-    //     // Emulate the project cache service loop.
-    //     tokio::task::spawn(async move {
-    //         loop {
-    //             select! {
-    //
-    //                 Some(assert) = rx_assert.recv() => {
-    //                     assert_eq!(broker.index.len(), assert);
-    //                 },
-    //                 Some(update) = rx_update.recv() => broker.merge_state(update),
-    //                 () = &mut broker.buffer_unspool_handle => broker.handle_periodic_unspool(),
-    //             }
-    //         }
-    //     });
-    //
-    //     // Before updating any project states.
-    //     tx_assert.send(2).unwrap();
-    //
-    //     let update_dsn1_project_state = UpdateProjectState {
-    //         project_key: ProjectKey::parse(dsn1).unwrap(),
-    //         state: ProjectState::allowed().into(),
-    //         no_cache: false,
-    //     };
-    //
-    //     tx_update.send(update_dsn1_project_state).unwrap();
-    //     assert!(buffer_rx.recv().await.is_some());
-    //     // One of the project should be unspooled.
-    //     tx_assert.send(1).unwrap();
-    //
-    //     // Schedule some work...
-    //     tokio::time::sleep(Duration::from_secs(2)).await;
-    //
-    //     let update_dsn2_project_state = UpdateProjectState {
-    //         project_key: ProjectKey::parse(dsn2).unwrap(),
-    //         state: ProjectState::allowed().into(),
-    //         no_cache: false,
-    //     };
-    //
-    //     tx_update.send(update_dsn2_project_state).unwrap();
-    //     assert!(buffer_rx.recv().await.is_some());
-    //     // The last project should be unspooled.
-    //     tx_assert.send(0).unwrap();
-    //     // Make sure the last assert is tested.
-    //     tokio::time::sleep(Duration::from_millis(100)).await;
-    // }
+        let services = mocked_services();
+        let (state_tx, _) = mpsc::unbounded_channel();
+        let (buffer_tx, mut buffer_rx) = mpsc::unbounded_channel();
+        let (mut broker, buffer_svc) =
+            project_cache_broker_setup(services.clone(), state_tx, buffer_tx).await;
 
-    // #[tokio::test]
-    // async fn handle_processing_without_project() {
-    //     let num_permits = 50;
-    //     let buffer_guard: Arc<_> = BufferGuard::new(num_permits).into();
-    //     let services = mocked_services();
-    //     let (state_tx, _) = mpsc::unbounded_channel();
-    //     let (buffer_tx, mut buffer_rx) = mpsc::unbounded_channel();
-    //     let (mut broker, buffer_svc) = project_cache_broker_setup(
-    //         services.clone(),
-    //         buffer_guard.clone(),
-    //         state_tx,
-    //         buffer_tx.clone(),
-    //     )
-    //     .await;
-    //
-    //     let dsn = "111d836b15bb49d7bbf99e64295d995b";
-    //     let project_key = ProjectKey::parse(dsn).unwrap();
-    //     let key = QueueKey {
-    //         own_key: project_key,
-    //         sampling_key: project_key,
-    //     };
-    //     let envelope = buffer_guard
-    //         .enter(
-    //             empty_envelope_with_dsn(dsn),
-    //             services.outcome_aggregator.clone(),
-    //             services.test_store.clone(),
-    //             ProcessingGroup::Ungrouped,
-    //         )
-    //         .unwrap();
-    //
-    //     // Index and projects are empty.
-    //     assert!(broker.projects.is_empty());
-    //     assert!(broker.index.is_empty());
-    //
-    //     // Since there is no project we should not process anything but create a project and spool
-    //     // the envelope.
-    //     broker.handle_processing(key, envelope);
-    //
-    //     // Assert that we have a new project and also added an index.
-    //     assert!(broker.projects.get(&project_key).is_some());
-    //     assert!(broker.index.contains(&key));
-    //
-    //     // Check is we actually spooled anything.
-    //     buffer_svc.send(DequeueMany::new([key].into(), buffer_tx.clone()));
-    //     let UnspooledEnvelope {
-    //         key: unspooled_key,
-    //         managed_envelope: _,
-    //     } = buffer_rx.recv().await.unwrap();
-    //
-    //     assert_eq!(key, unspooled_key);
-    // }
+        for _ in 0..8 {
+            let envelope = ManagedEnvelope::new(
+                empty_envelope(),
+                services.outcome_aggregator.clone(),
+                services.test_store.clone(),
+                ProcessingGroup::Ungrouped,
+            );
+
+            let message = ValidateEnvelope { envelope };
+
+            broker.handle_validate_envelope(message);
+            tokio::time::sleep(Duration::from_millis(200)).await;
+            // Nothing will be dequeued.
+            assert!(buffer_rx.try_recv().is_err())
+        }
+
+        // All the messages should have been spooled to disk.
+        assert_eq!(broker.index.len(), 1);
+
+        let project_key = ProjectKey::parse("e12d836b15bb49d7bbf99e64295d995b").unwrap();
+        let key = QueueKey {
+            own_key: project_key,
+            sampling_key: project_key,
+        };
+        let (tx, mut rx) = mpsc::unbounded_channel();
+
+        // Check if we can also dequeue from the buffer directly.
+        buffer_svc.send(spooler::DequeueMany::new([key].into(), tx.clone()));
+        tokio::time::sleep(Duration::from_millis(100)).await;
+
+        // We should be able to unspool 5 envelopes since we have 5 permits.
+        let mut envelopes = vec![];
+        while let Ok(envelope) = rx.try_recv() {
+            envelopes.push(envelope)
+        }
+
+        // We can unspool only 5 envelopes.
+        assert_eq!(envelopes.len(), 5);
+
+        // Drop one.
+        envelopes.pop().unwrap();
+
+        // Till now we should have enqueued 5 envelopes and dequeued only 1, it means the index is
+        // still populated with same keys and values.
+        assert_eq!(broker.index.len(), 1);
+
+        // Check if we can also dequeue from the buffer directly.
+        buffer_svc.send(spooler::DequeueMany::new([key].into(), tx));
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        // Cannot dequeue anymore, no more available permits.
+        assert!(rx.try_recv().is_err());
+
+        // The rest envelopes will be immediately spooled, since we at 80% buffer gueard usage.
+        for _ in 0..10 {
+            let envelope = ManagedEnvelope::untracked(
+                empty_envelope(),
+                services.outcome_aggregator.clone(),
+                services.test_store.clone(),
+            );
+            let message = ValidateEnvelope { envelope };
+
+            broker.handle_validate_envelope(message);
+            tokio::time::sleep(Duration::from_millis(100)).await;
+            // Nothing will be dequeued.
+            assert!(buffer_rx.try_recv().is_err())
+        }
+    }
+
+    #[tokio::test]
+    async fn periodic_unspool() {
+        relay_log::init_test!();
+
+        let services = mocked_services();
+        let (state_tx, _) = mpsc::unbounded_channel();
+        let (buffer_tx, mut buffer_rx) = mpsc::unbounded_channel();
+        let (mut broker, _buffer_svc) =
+            project_cache_broker_setup(services.clone(), state_tx, buffer_tx).await;
+
+        broker.global_config = GlobalConfigStatus::Ready;
+        let (tx_update, mut rx_update) = mpsc::unbounded_channel();
+        let (tx_assert, mut rx_assert) = mpsc::unbounded_channel();
+
+        let dsn1 = "111d836b15bb49d7bbf99e64295d995b";
+        let dsn2 = "eeed836b15bb49d7bbf99e64295d995b";
+
+        // Send and spool some envelopes.
+        for dsn in [dsn1, dsn2] {
+            let envelope = ManagedEnvelope::new(
+                empty_envelope_with_dsn(dsn),
+                services.outcome_aggregator.clone(),
+                services.test_store.clone(),
+                ProcessingGroup::Ungrouped,
+            );
+
+            let message = ValidateEnvelope { envelope };
+
+            broker.handle_validate_envelope(message);
+            tokio::time::sleep(Duration::from_millis(200)).await;
+            // Nothing will be dequeued.
+            assert!(buffer_rx.try_recv().is_err())
+        }
+
+        // Emulate the project cache service loop.
+        tokio::task::spawn(async move {
+            loop {
+                select! {
+
+                    Some(assert) = rx_assert.recv() => {
+                        assert_eq!(broker.index.len(), assert);
+                    },
+                    Some(update) = rx_update.recv() => broker.merge_state(update),
+                    () = &mut broker.buffer_unspool_handle => broker.handle_periodic_unspool(),
+                }
+            }
+        });
+
+        // Before updating any project states.
+        tx_assert.send(2).unwrap();
+
+        let update_dsn1_project_state = UpdateProjectState {
+            project_key: ProjectKey::parse(dsn1).unwrap(),
+            state: ProjectState::allowed().into(),
+            no_cache: false,
+        };
+
+        tx_update.send(update_dsn1_project_state).unwrap();
+        assert!(buffer_rx.recv().await.is_some());
+        // One of the project should be unspooled.
+        tx_assert.send(1).unwrap();
+
+        // Schedule some work...
+        tokio::time::sleep(Duration::from_secs(2)).await;
+
+        let update_dsn2_project_state = UpdateProjectState {
+            project_key: ProjectKey::parse(dsn2).unwrap(),
+            state: ProjectState::allowed().into(),
+            no_cache: false,
+        };
+
+        tx_update.send(update_dsn2_project_state).unwrap();
+        assert!(buffer_rx.recv().await.is_some());
+        // The last project should be unspooled.
+        tx_assert.send(0).unwrap();
+        // Make sure the last assert is tested.
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+
+    #[tokio::test]
+    async fn handle_processing_without_project() {
+        let services = mocked_services();
+        let (state_tx, _) = mpsc::unbounded_channel();
+        let (buffer_tx, mut buffer_rx) = mpsc::unbounded_channel();
+        let (mut broker, buffer_svc) =
+            project_cache_broker_setup(services.clone(), state_tx, buffer_tx.clone()).await;
+
+        let dsn = "111d836b15bb49d7bbf99e64295d995b";
+        let project_key = ProjectKey::parse(dsn).unwrap();
+        let key = QueueKey {
+            own_key: project_key,
+            sampling_key: project_key,
+        };
+        let envelope = ManagedEnvelope::new(
+            empty_envelope_with_dsn(dsn),
+            services.outcome_aggregator.clone(),
+            services.test_store.clone(),
+            ProcessingGroup::Ungrouped,
+        );
+
+        // Index and projects are empty.
+        assert!(broker.projects.is_empty());
+        assert!(broker.index.is_empty());
+
+        // Since there is no project we should not process anything but create a project and spool
+        // the envelope.
+        broker.handle_processing(key, envelope);
+
+        // Assert that we have a new project and also added an index.
+        assert!(broker.projects.get(&project_key).is_some());
+        assert!(broker.index.contains(&key));
+
+        // Check is we actually spooled anything.
+        buffer_svc.send(DequeueMany::new([key].into(), buffer_tx.clone()));
+        let UnspooledEnvelope {
+            key: unspooled_key,
+            managed_envelope: _,
+        } = buffer_rx.recv().await.unwrap();
+
+        assert_eq!(key, unspooled_key);
+    }
 }

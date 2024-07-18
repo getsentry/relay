@@ -10,7 +10,7 @@ use crate::services::metrics::{AcceptsMetrics, Aggregator};
 use crate::services::project_cache::{ProjectCache, SpoolHealth};
 use crate::services::upstream::{IsAuthenticated, UpstreamRelay};
 use crate::statsd::RelayTimers;
-use crate::utils::{MemoryStat, MemoryStatConfig};
+use crate::utils::MemoryStatConfig;
 
 /// Checks whether Relay is alive and healthy based on its variant.
 #[derive(Clone, Copy, Debug, serde::Deserialize)]

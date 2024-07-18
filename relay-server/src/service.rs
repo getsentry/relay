@@ -26,7 +26,7 @@ use crate::services::relays::{RelayCache, RelayCacheService};
 use crate::services::store::StoreService;
 use crate::services::test_store::{TestStore, TestStoreService};
 use crate::services::upstream::{UpstreamRelay, UpstreamRelayService};
-use crate::utils::{BufferGuard, MemoryStat, MemoryStatConfig};
+use crate::utils::{MemoryStat, MemoryStatConfig};
 
 /// Indicates the type of failure of the server.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, thiserror::Error)]
