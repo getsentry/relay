@@ -322,8 +322,8 @@ impl QueuedBucket {
     }
 
     /// Returns `true` if the flush time has elapsed.
-    fn elapsed(&self) -> bool {
-        Instant::now() > self.flush_at
+    fn elapsed(&self, now: Instant) -> bool {
+        now > self.flush_at
     }
 
     /// Merges a bucket into the current queued bucket.
@@ -615,6 +615,8 @@ impl Aggregator {
         let mut partitions = HashMap::new();
         let mut stats = HashMap::new();
 
+        let now = Instant::now();
+
         relay_statsd::metric!(
             timer(MetricTimers::BucketsScanDuration),
             aggregator = &self.name,
@@ -622,7 +624,10 @@ impl Aggregator {
                 let bucket_interval = self.config.bucket_interval;
                 let cost_tracker = &mut self.cost_tracker;
 
-                for (key, entry) in self.buckets.extract_if(|_, entry| force || entry.elapsed()) {
+                for (key, entry) in self
+                    .buckets
+                    .extract_if(|_, entry| force || entry.elapsed(now))
+                {
                     cost_tracker.subtract_cost(key.project_key, key.cost());
                     cost_tracker.subtract_cost(key.project_key, entry.value.cost());
 
