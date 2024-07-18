@@ -214,20 +214,19 @@ impl<'a> Reporter<'a> for DefaultReporter<'a> {
     fn reject(&mut self, limit: &'a CardinalityLimit, entry_id: EntryId) {
         self.exceeded_limits.insert(limit);
         if !limit.passive {
-            match self.entries.entry(entry_id.0) {
-                hashbrown::hash_map::Entry::Occupied(entry) => {
-                    let existing_limit = entry.get();
+            // Write `limit` into the entry if it's more specific than the existing limit
+            // (or if there isn't one)
+            self.entries
+                .entry(entry_id.0)
+                .and_modify(|existing_limit| {
                     // Scopes are ordered by reverse specificity (org is the smallest), so we use `Reverse` here
                     if (Reverse(limit.scope), limit.limit)
                         < (Reverse(existing_limit.scope), existing_limit.limit)
                     {
-                        entry.replace_entry(limit);
+                        *existing_limit = limit;
                     }
-                }
-                hashbrown::hash_map::Entry::Vacant(entry) => {
-                    entry.insert(limit);
-                }
-            }
+                })
+                .or_insert(limit);
         }
     }
 
