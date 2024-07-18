@@ -245,10 +245,9 @@ impl<'a> Reporter<'a> for DefaultReporter<'a> {
 pub struct CardinalityLimitsSplit<'a, T> {
     /// The list of accepted elements of the source.
     pub accepted: Vec<T>,
-    /// The list of rejected elements of the source.
-    pub rejected: Vec<T>,
-    /// The list of cardinality limits exceeded by each element of `rejected`.
-    pub exceeded_limits: Vec<&'a CardinalityLimit>,
+    /// The list of rejected elements of the source, together
+    /// with the most specific limit they exceeded.
+    pub rejected: Vec<(T, &'a CardinalityLimit)>,
 }
 
 impl<'a, T> CardinalityLimitsSplit<'a, T> {
@@ -258,7 +257,6 @@ impl<'a, T> CardinalityLimitsSplit<'a, T> {
         CardinalityLimitsSplit {
             accepted: Vec::with_capacity(accepted_capacity),
             rejected: Vec::with_capacity(rejected_capacity),
-            exceeded_limits: Vec::with_capacity(rejected_capacity),
         }
     }
 }
@@ -322,7 +320,6 @@ impl<'a, T> CardinalityLimits<'a, T> {
             return CardinalityLimitsSplit {
                 accepted: self.source,
                 rejected: Vec::new(),
-                exceeded_limits: Vec::new(),
             };
         }
         // TODO: we might want to optimize this method later, by reusing one of the arrays and
@@ -333,8 +330,7 @@ impl<'a, T> CardinalityLimits<'a, T> {
             CardinalityLimitsSplit::with_capacity(source_len - rejections_len, rejections_len),
             |mut split, (i, item)| {
                 if let Some(exceeded) = self.rejections.remove(&i) {
-                    split.rejected.push(item);
-                    split.exceeded_limits.push(exceeded);
+                    split.rejected.push((item, exceeded));
                 } else {
                     split.accepted.push(item);
                 };
@@ -432,7 +428,10 @@ mod tests {
         };
         assert!(limits.has_rejections());
         let split = limits.into_split();
-        assert_eq!(split.rejected, vec!['a', 'b', 'd']);
+        assert_eq!(
+            split.rejected,
+            vec![('a', &limit), ('b', &limit), ('d', &limit)]
+        );
         assert_eq!(split.accepted, vec!['c', 'e']);
 
         let limits = CardinalityLimits {
@@ -443,7 +442,7 @@ mod tests {
         };
         assert!(!limits.has_rejections());
         let split = limits.into_split();
-        assert_eq(split.rejected, vec![]);
+        assert!(split.rejected.is_empty());
         assert_eq!(split.accepted, vec!['a', 'b', 'c', 'd', 'e']);
 
         let limits = CardinalityLimits {
@@ -460,7 +459,16 @@ mod tests {
         };
         assert!(limits.has_rejections());
         let split = limits.into_split();
-        assert_eq!(split.rejected, vec!['a', 'b', 'c', 'd', 'e']);
+        assert_eq!(
+            split.rejected,
+            vec![
+                ('a', &limit),
+                ('b', &limit),
+                ('c', &limit),
+                ('d', &limit),
+                ('e', &limit)
+            ]
+        );
         assert_eq(split.accepted, vec![]);
     }
 
@@ -499,9 +507,14 @@ mod tests {
             .check_cardinality_limits(build_scoping(), &limits, items.clone())
             .unwrap();
 
+        let expected_items = items
+            .into_iter()
+            .zip(std::iter::repeat(&limits[0]))
+            .collect::<Vec<_>>();
+
         assert_eq!(result.exceeded_limits(), &HashSet::from([&limits[0]]));
         let split = result.into_split();
-        assert_eq!(split.rejected, items);
+        assert_eq!(split.rejected, expected_items);
         assert!(split.accepted.is_empty());
     }
 
@@ -590,10 +603,10 @@ mod tests {
         assert_eq!(
             split.rejected,
             vec![
-                Item::new(0, MetricNamespace::Sessions),
-                Item::new(2, MetricNamespace::Spans),
-                Item::new(4, MetricNamespace::Custom),
-                Item::new(6, MetricNamespace::Spans),
+                (Item::new(0, MetricNamespace::Sessions), &limits[0]),
+                (Item::new(2, MetricNamespace::Spans), &limits[0]),
+                (Item::new(4, MetricNamespace::Custom), &limits[0]),
+                (Item::new(6, MetricNamespace::Spans), &limits[0]),
             ]
         );
         assert_eq!(
@@ -676,9 +689,9 @@ mod tests {
         assert_eq!(
             split.rejected,
             vec![
-                Item::new(0, MetricNamespace::Custom),
-                Item::new(2, MetricNamespace::Custom),
-                Item::new(4, MetricNamespace::Custom),
+                (Item::new(0, MetricNamespace::Custom), &limits[0]),
+                (Item::new(2, MetricNamespace::Custom), &limits[0]),
+                (Item::new(4, MetricNamespace::Custom), &limits[0]),
             ]
         );
         assert_eq!(

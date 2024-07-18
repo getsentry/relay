@@ -2499,13 +2499,9 @@ impl EnvelopeProcessorService {
             return limits.into_source();
         }
 
-        let CardinalityLimitsSplit {
-            accepted,
-            rejected,
-            exceeded_limits,
-        } = limits.into_split();
+        let CardinalityLimitsSplit { accepted, rejected } = limits.into_split();
 
-        for (bucket, exceeded) in rejected.into_iter().zip(exceeded_limits.into_iter()) {
+        for (bucket, exceeded) in rejected {
             self.inner
                 .metric_outcomes
                 .track(scoping, &[bucket], Outcome::from(exceeded));
