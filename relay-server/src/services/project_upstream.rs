@@ -17,7 +17,7 @@ use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc;
 use tokio::time::Instant;
 
-use crate::services::project::ProjectState;
+use crate::services::project::{ParsedProjectState, ProjectFetchState};
 use crate::services::project_cache::FetchProjectState;
 use crate::services::upstream::{
     Method, RequestPriority, SendQuery, UpstreamQuery, UpstreamRelay, UpstreamRequestError,
@@ -44,9 +44,9 @@ pub struct GetProjectStates {
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GetProjectStatesResponse {
-    /// Map of [`ProjectKey`] to [`ProjectState`] that was fetched from the upstream.
+    /// Map of [`ProjectKey`] to [`ParsedProjectState`] that was fetched from the upstream.
     #[serde(default)]
-    configs: HashMap<ProjectKey, ErrorBoundary<Option<ProjectState>>>,
+    configs: HashMap<ProjectKey, ErrorBoundary<Option<ParsedProjectState>>>,
     /// The [`ProjectKey`]'s that couldn't be immediately retrieved from the upstream.
     #[serde(default)]
     pending: Vec<ProjectKey>,
@@ -79,7 +79,7 @@ impl UpstreamQuery for GetProjectStates {
 /// The wrapper struct for the incoming external requests which also keeps addition information.
 #[derive(Debug)]
 struct ProjectStateChannel {
-    channel: BroadcastChannel<Arc<ProjectState>>,
+    channel: BroadcastChannel<ProjectFetchState>,
     deadline: Instant,
     no_cache: bool,
     attempts: u64,
@@ -91,7 +91,7 @@ struct ProjectStateChannel {
 
 impl ProjectStateChannel {
     pub fn new(
-        sender: BroadcastSender<Arc<ProjectState>>,
+        sender: BroadcastSender<ProjectFetchState>,
         timeout: Duration,
         no_cache: bool,
     ) -> Self {
@@ -110,12 +110,12 @@ impl ProjectStateChannel {
         self.no_cache = true;
     }
 
-    pub fn attach(&mut self, sender: BroadcastSender<Arc<ProjectState>>) {
+    pub fn attach(&mut self, sender: BroadcastSender<ProjectFetchState>) {
         self.channel.attach(sender)
     }
 
-    pub fn send(self, state: ProjectState) {
-        self.channel.send(Arc::new(state))
+    pub fn send(self, state: ProjectFetchState) {
+        self.channel.send(state)
     }
 
     pub fn expired(&self) -> bool {
@@ -128,20 +128,20 @@ type ProjectStateChannels = HashMap<ProjectKey, ProjectStateChannel>;
 
 /// This is the [`UpstreamProjectSourceService`] interface.
 ///
-/// The service is responsible for fetching the [`ProjectState`] from the upstream.
+/// The service is responsible for fetching the [`ParsedProjectState`] from the upstream.
 /// Internally it maintains the buffer queue of the incoming requests, which got scheduled to fetch the
 /// state and takes care of the backoff in case there is a problem with the requests.
 #[derive(Debug)]
-pub struct UpstreamProjectSource(FetchProjectState, BroadcastSender<Arc<ProjectState>>);
+pub struct UpstreamProjectSource(FetchProjectState, BroadcastSender<ProjectFetchState>);
 
 impl Interface for UpstreamProjectSource {}
 
 impl FromMessage<FetchProjectState> for UpstreamProjectSource {
-    type Response = BroadcastResponse<Arc<ProjectState>>;
+    type Response = BroadcastResponse<ProjectFetchState>;
 
     fn from_message(
         message: FetchProjectState,
-        sender: BroadcastSender<Arc<ProjectState>>,
+        sender: BroadcastSender<ProjectFetchState>,
     ) -> Self {
         Self(message, sender)
     }
@@ -159,7 +159,7 @@ struct UpstreamResponse {
     response: Result<GetProjectStatesResponse, UpstreamRequestError>,
 }
 
-/// The service which handles the fetching of the [`ProjectState`] from upstream.
+/// The service which handles the fetching of the [`ParsedProjectState`] from upstream.
 #[derive(Debug)]
 pub struct UpstreamProjectSourceService {
     backoff: RetryBackoff,
@@ -371,6 +371,7 @@ impl UpstreamProjectSourceService {
                             response.configs.len() as u64
                     );
                     for (key, mut channel) in channels_batch {
+                        let mut result = "ok";
                         if response.pending.contains(&key) {
                             channel.pending += 1;
                             self.state_channels.insert(key, channel);
@@ -379,13 +380,18 @@ impl UpstreamProjectSourceService {
                         let state = response
                             .configs
                             .remove(&key)
-                            .unwrap_or(ErrorBoundary::Ok(None))
-                            .unwrap_or_else(|error| {
+                            .unwrap_or(ErrorBoundary::Ok(None));
+                        let state = match state {
+                            ErrorBoundary::Err(error) => {
+                                result = "invalid";
+                                let error = &error as &dyn std::error::Error;
                                 relay_log::error!(error, "error fetching project state {key}");
-                                Some(ProjectState::err())
-                            })
-                            .unwrap_or_else(ProjectState::missing);
-                        let result = if state.invalid() { "invalid" } else { "ok" };
+                                ProjectFetchState::pending()
+                            }
+                            ErrorBoundary::Ok(None) => ProjectFetchState::disabled(),
+                            ErrorBoundary::Ok(Some(state)) => ProjectFetchState::new(state.into()),
+                        };
+
                         metric!(
                             histogram(RelayHistograms::ProjectStateAttempts) = channel.attempts,
                             result = result,
@@ -394,7 +400,8 @@ impl UpstreamProjectSourceService {
                             counter(RelayCounters::ProjectUpstreamCompleted) += 1,
                             result = result,
                         );
-                        channel.send(state.sanitize());
+
+                        channel.send(state.sanitized());
                     }
                 }
                 Err(err) => {
