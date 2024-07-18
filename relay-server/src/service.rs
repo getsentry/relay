@@ -26,7 +26,7 @@ use crate::services::relays::{RelayCache, RelayCacheService};
 use crate::services::store::StoreService;
 use crate::services::test_store::{TestStore, TestStoreService};
 use crate::services::upstream::{UpstreamRelay, UpstreamRelayService};
-use crate::utils::{MemoryStat, MemoryStatConfig};
+use crate::utils::{MemoryChecker, MemoryStat};
 
 /// Indicates the type of failure of the server.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, thiserror::Error)]
@@ -84,7 +84,7 @@ pub fn create_runtime(name: &str, threads: usize) -> Runtime {
 #[derive(Debug)]
 struct StateInner {
     config: Arc<Config>,
-    memory_stat_config: MemoryStatConfig,
+    memory_checker: MemoryChecker,
     registry: Registry,
 }
 
@@ -238,7 +238,7 @@ impl ServiceState {
 
         let state = StateInner {
             config: config.clone(),
-            memory_stat_config: memory_stat.with_config(config),
+            memory_checker: memory_stat.with_config(config),
             registry,
         };
 
@@ -252,11 +252,11 @@ impl ServiceState {
         &self.inner.config
     }
 
-    /// Returns a reference to the [`MemoryStatConfig`] which is a [`Config`] aware wrapper on the
+    /// Returns a reference to the [`MemoryChecker`] which is a [`Config`] aware wrapper on the
     /// [`MemoryStat`] which gives utility methods to determine whether memory usage is above
     /// thresholds set in the [`Config`].
-    pub fn memory_stat_config(&self) -> &MemoryStatConfig {
-        &self.inner.memory_stat_config
+    pub fn memory_checker(&self) -> &MemoryChecker {
+        &self.inner.memory_checker
     }
 
     /// Returns the address of the [`ProjectCache`] service.

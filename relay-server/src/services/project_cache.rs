@@ -36,7 +36,7 @@ use crate::services::upstream::UpstreamRelay;
 
 use crate::statsd::{RelayCounters, RelayGauges, RelayHistograms, RelayTimers};
 use crate::utils::{
-    self, GarbageDisposal, ManagedEnvelope, MemoryStatConfig, RetryBackoff, SleepHandle,
+    self, GarbageDisposal, ManagedEnvelope, MemoryChecker, RetryBackoff, SleepHandle,
 };
 
 /// Requests a refresh of a project state from one of the available sources.
@@ -555,7 +555,7 @@ impl Services {
 #[derive(Debug)]
 struct ProjectCacheBroker {
     config: Arc<Config>,
-    memory_stat_config: MemoryStatConfig,
+    memory_checker: MemoryChecker,
     services: Services,
     metric_outcomes: MetricOutcomes,
     // Need hashbrown because extract_if is not stable in std yet.
@@ -851,7 +851,7 @@ impl ProjectCacheBroker {
         // state or we do not need one.
         if project_state.is_some()
             && (sampling_state.is_some() || sampling_key.is_none())
-            && self.memory_stat_config.has_enough_memory()
+            && self.memory_checker.check_memory().is_below()
             && self.global_config.is_ready()
         {
             return self.handle_processing(key, context);
@@ -1096,7 +1096,7 @@ impl ProjectCacheBroker {
 #[derive(Debug)]
 pub struct ProjectCacheService {
     config: Arc<Config>,
-    memory_stat_config: MemoryStatConfig,
+    memory_checker: MemoryChecker,
     services: Services,
     metric_outcomes: MetricOutcomes,
     redis: Option<RedisPool>,
@@ -1106,14 +1106,14 @@ impl ProjectCacheService {
     /// Creates a new `ProjectCacheService`.
     pub fn new(
         config: Arc<Config>,
-        memory_stat_config: MemoryStatConfig,
+        memory_checker: MemoryChecker,
         services: Services,
         metric_outcomes: MetricOutcomes,
         redis: Option<RedisPool>,
     ) -> Self {
         Self {
             config,
-            memory_stat_config,
+            memory_checker,
             services,
             metric_outcomes,
             redis,
@@ -1127,7 +1127,7 @@ impl Service for ProjectCacheService {
     fn spawn_handler(self, mut rx: relay_system::Receiver<Self::Interface>) {
         let Self {
             config,
-            memory_stat_config,
+            memory_checker,
             services,
             metric_outcomes,
             redis,
@@ -1151,7 +1151,7 @@ impl Service for ProjectCacheService {
                 test_store,
             };
             let buffer = match BufferService::create(
-                memory_stat_config.clone(),
+                memory_checker.clone(),
                 buffer_services,
                 config.clone(),
             )
@@ -1192,7 +1192,7 @@ impl Service for ProjectCacheService {
             // fetches via the project source.
             let mut broker = ProjectCacheBroker {
                 config: config.clone(),
-                memory_stat_config,
+                memory_checker,
                 projects: hashbrown::HashMap::new(),
                 garbage_disposal: GarbageDisposal::new(),
                 source: ProjectSource::start(
@@ -1334,27 +1334,24 @@ mod tests {
         }))
         .unwrap()
         .into();
-        let memory_stat_config = MemoryStat::new().with_config(config.clone());
+        let memory_checker = MemoryStat::new().with_config(config.clone());
         let buffer_services = spooler::Services {
             outcome_aggregator: services.outcome_aggregator.clone(),
             project_cache: services.project_cache.clone(),
             test_store: services.test_store.clone(),
         };
-        let buffer = match BufferService::create(
-            memory_stat_config.clone(),
-            buffer_services,
-            config.clone(),
-        )
-        .await
-        {
-            Ok(buffer) => buffer.start(),
-            Err(err) => {
-                relay_log::error!(error = &err as &dyn Error, "failed to start buffer service");
-                // NOTE: The process will exit with error if the buffer file could not be
-                // opened or the migrations could not be run.
-                std::process::exit(1);
-            }
-        };
+        let buffer =
+            match BufferService::create(memory_checker.clone(), buffer_services, config.clone())
+                .await
+            {
+                Ok(buffer) => buffer.start(),
+                Err(err) => {
+                    relay_log::error!(error = &err as &dyn Error, "failed to start buffer service");
+                    // NOTE: The process will exit with error if the buffer file could not be
+                    // opened or the migrations could not be run.
+                    std::process::exit(1);
+                }
+            };
 
         let metric_stats = MetricStats::new(
             Arc::new(Config::default()),
@@ -1367,7 +1364,7 @@ mod tests {
         (
             ProjectCacheBroker {
                 config: config.clone(),
-                memory_stat_config,
+                memory_checker,
                 projects: hashbrown::HashMap::new(),
                 garbage_disposal: GarbageDisposal::new(),
                 source: ProjectSource::start(config, services.upstream_relay.clone(), None),

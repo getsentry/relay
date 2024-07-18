@@ -85,10 +85,10 @@ impl MemoryStat {
         **self.0.memory.load()
     }
 
-    /// Builds a [`MemoryStatConfig`] which holds a reference to the supplied [`Config`] and the
+    /// Builds a [`MemoryChecker`] which holds a reference to the supplied [`Config`] and the
     /// current [`MemoryStat`].
-    pub fn with_config(&self, config: Arc<Config>) -> MemoryStatConfig {
-        MemoryStatConfig {
+    pub fn with_config(&self, config: Arc<Config>) -> MemoryChecker {
+        MemoryChecker {
             memory_stat: self.clone(),
             config,
         }
@@ -155,6 +155,29 @@ impl Default for MemoryStat {
     }
 }
 
+/// Enum representing the two different states of a memory check.
+pub enum MemoryCheck {
+    /// The memory usage is below the specified thresholds.
+    Below(Memory),
+    /// The memory usage exceeds is below the specified thresholds.
+    Exceeded(Memory),
+}
+
+impl MemoryCheck {
+    /// Returns `true` if [`MemoryCheck`] is of variant [`MemoryCheck::Below`].
+    pub fn is_below(&self) -> bool {
+        match self {
+            Self::Below(_) => true,
+            Self::Exceeded(_) => false,
+        }
+    }
+
+    /// Returns `true` if [`MemoryCheck`] is of variant [`MemoryCheck::Exceeded`].
+    pub fn is_exceeded(&self) -> bool {
+        !self.is_below()
+    }
+}
+
 /// Struct that composes a [`Config`] and [`MemoryStat`] and provides utility methods to validate
 /// whether memory is within limits.
 ///
@@ -162,30 +185,45 @@ impl Default for MemoryStat {
 /// with memory readings. It's decoupled from [`MemoryStat`] because it's just a layer on top that
 /// decides how memory readings are interpreted.
 #[derive(Clone, Debug)]
-pub struct MemoryStatConfig {
+pub struct MemoryChecker {
     pub memory_stat: MemoryStat,
     config: Arc<Config>,
 }
 
-impl MemoryStatConfig {
-    /// Returns `true` if the used percentage of memory is below the specified threshold.
-    pub fn has_enough_memory_percent(&self) -> bool {
-        self.memory_stat.memory().used_percent() < self.config.health_max_memory_watermark_percent()
+impl MemoryChecker {
+    /// Checks the used percentage of memory is below the specified threshold.
+    pub fn check_memory_percent(&self) -> MemoryCheck {
+        let memory = self.memory_stat.memory();
+        if memory.used_percent() < self.config.health_max_memory_watermark_percent() {
+            return MemoryCheck::Below(memory);
+        }
+
+        MemoryCheck::Exceeded(memory)
     }
 
     /// Returns `true` if the used memory is below the specified threshold.
-    pub fn has_enough_memory_bytes(&self) -> bool {
-        self.memory_stat.memory().used < self.config.health_max_memory_watermark_bytes()
+    pub fn check_memory_bytes(&self) -> MemoryCheck {
+        let memory = self.memory_stat.memory();
+        if memory.used < self.config.health_max_memory_watermark_bytes() {
+            return MemoryCheck::Below(memory);
+        }
+
+        MemoryCheck::Exceeded(memory)
     }
 
     /// Returns `true` if the used memory is below both percentage and bytes thresholds.
     ///
     /// This is the function that should be mainly used for checking whether of not Relay has
     /// enough memory.
-    pub fn has_enough_memory(&self) -> bool {
+    pub fn check_memory(&self) -> MemoryCheck {
         let memory = self.memory_stat.memory();
-        memory.used_percent() < self.config.health_max_memory_watermark_percent()
+        if memory.used_percent() < self.config.health_max_memory_watermark_percent()
             && memory.used < self.config.health_max_memory_watermark_bytes()
+        {
+            return MemoryCheck::Below(memory);
+        }
+
+        MemoryCheck::Exceeded(memory)
     }
 }
 
@@ -234,15 +272,15 @@ mod tests {
     }
 
     #[test]
-    fn test_memory_stat_config() {
+    fn test_memory_checker() {
         let config = Config::from_json_value(serde_json::json!({
             "health": {
                 "max_memory_percent": 1.0
             }
         }))
         .unwrap();
-        let memory_stat_config = MemoryStat::new().with_config(Arc::new(config));
-        assert!(memory_stat_config.has_enough_memory());
+        let memory_checker = MemoryStat::new().with_config(Arc::new(config));
+        assert!(memory_checker.check_memory().is_below());
 
         let config = Config::from_json_value(serde_json::json!({
             "health": {
@@ -250,8 +288,8 @@ mod tests {
             }
         }))
         .unwrap();
-        let memory_stat_config = MemoryStat::new().with_config(Arc::new(config));
-        assert!(!memory_stat_config.has_enough_memory());
+        let memory_checker = MemoryStat::new().with_config(Arc::new(config));
+        assert!(memory_checker.check_memory().is_exceeded());
     }
 
     #[test]

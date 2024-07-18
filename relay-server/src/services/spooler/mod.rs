@@ -57,7 +57,7 @@ use crate::services::processor::ProcessingGroup;
 use crate::services::project_cache::{ProjectCache, RefreshIndexCache, UpdateSpoolIndex};
 use crate::services::test_store::TestStore;
 use crate::statsd::{RelayCounters, RelayGauges, RelayHistograms, RelayTimers};
-use crate::utils::{ManagedEnvelope, MemoryStatConfig};
+use crate::utils::{ManagedEnvelope, MemoryChecker};
 
 pub mod spool_utils;
 mod sql;
@@ -396,7 +396,7 @@ impl InMemory {
 struct OnDisk {
     dequeue_attempts: usize,
     db: Pool<Sqlite>,
-    memory_stat_config: MemoryStatConfig,
+    memory_checker: MemoryChecker,
     max_disk_size: usize,
     /// The number of items currently on disk.
     ///
@@ -527,7 +527,7 @@ impl OnDisk {
         loop {
             // Before querying the db, make sure that the buffer guard has enough availability:
             self.dequeue_attempts += 1;
-            if !self.memory_stat_config.has_enough_memory() {
+            if self.memory_checker.check_memory().is_exceeded() {
                 break;
             }
             relay_statsd::metric!(
@@ -605,7 +605,7 @@ impl OnDisk {
         loop {
             // On each iteration make sure we are still below the lower limit of available
             // guard permits.
-            if !self.memory_stat_config.has_enough_memory() {
+            if self.memory_checker.check_memory().is_exceeded() {
                 return Ok(result);
             }
             let envelopes = sql::delete_and_fetch_all(self.unspool_batch())
@@ -928,7 +928,7 @@ impl BufferState {
     async fn is_below_low_mem_watermark(config: &Config, disk: &OnDisk) -> bool {
         ((config.spool_envelopes_max_memory_size() as f64 * LOW_SPOOL_MEMORY_WATERMARK) as i64)
             > disk.estimate_spool_size().await.unwrap_or(i64::MAX)
-            && disk.memory_stat_config.has_enough_memory()
+            && disk.memory_checker.check_memory().is_below()
     }
 }
 
@@ -996,7 +996,7 @@ impl BufferService {
     /// Prepares the disk state.
     async fn prepare_disk_state(
         config: Arc<Config>,
-        memory_stat_config: MemoryStatConfig,
+        memory_checker: MemoryChecker,
     ) -> Result<Option<OnDisk>, BufferError> {
         // Only if persistent envelopes buffer file path provided, we create the pool and set the config.
         let Some(path) = config.spool_envelopes_path() else {
@@ -1048,7 +1048,7 @@ impl BufferService {
         let mut on_disk = OnDisk {
             dequeue_attempts: 0,
             db,
-            memory_stat_config,
+            memory_checker,
             max_disk_size: config.spool_envelopes_max_disk_size(),
             count: None,
         };
@@ -1063,11 +1063,11 @@ impl BufferService {
 
     /// Creates a new [`BufferService`] from the provided path to the SQLite database file.
     pub async fn create(
-        memory_stat_config: MemoryStatConfig,
+        memory_checker: MemoryChecker,
         services: Services,
         config: Arc<Config>,
     ) -> Result<Self, BufferError> {
-        let on_disk_state = Self::prepare_disk_state(config.clone(), memory_stat_config).await?;
+        let on_disk_state = Self::prepare_disk_state(config.clone(), memory_checker).await?;
         let state = BufferState::new(config.spool_envelopes_max_memory_size(), on_disk_state).await;
         Ok(Self {
             services,
@@ -1359,8 +1359,8 @@ mod tests {
         }))
         .unwrap()
         .into();
-        let memory_stat_config = MemoryStat::new().with_config(config.clone());
-        BufferService::create(memory_stat_config, services(), config)
+        let memory_checker = MemoryStat::new().with_config(config.clone());
+        BufferService::create(memory_checker, services(), config)
             .await
             .unwrap();
         assert!(target_dir.exists());
@@ -1381,8 +1381,8 @@ mod tests {
         }))
         .unwrap()
         .into();
-        let memory_stat_config = MemoryStat::new().with_config(config.clone());
-        let service = BufferService::create(memory_stat_config, services(), config)
+        let memory_checker = MemoryStat::new().with_config(config.clone());
+        let service = BufferService::create(memory_checker, services(), config)
             .await
             .unwrap();
         let addr = service.start();
@@ -1455,7 +1455,7 @@ mod tests {
         }))
         .unwrap()
         .into();
-        let memory_stat_config = MemoryStat::new().with_config(config.clone());
+        let memory_checker = MemoryStat::new().with_config(config.clone());
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
         let key = QueueKey {
             own_key: project_key,
@@ -1470,7 +1470,7 @@ mod tests {
 
         let captures = relay_statsd::with_capturing_test_client(|| {
             rt.block_on(async {
-                let mut service = BufferService::create(memory_stat_config, services(), config)
+                let mut service = BufferService::create(memory_checker, services(), config)
                     .await
                     .unwrap();
 
@@ -1603,9 +1603,9 @@ mod tests {
         }))
         .unwrap()
         .into();
-        let memory_stat_config = MemoryStat::new().with_config(config.clone());
+        let memory_checker = MemoryStat::new().with_config(config.clone());
 
-        let buffer = BufferService::create(memory_stat_config, services(), config)
+        let buffer = BufferService::create(memory_checker, services(), config)
             .await
             .unwrap();
 
@@ -1634,9 +1634,9 @@ mod tests {
         }))
         .unwrap()
         .into();
-        let memory_stat_config = MemoryStat::new().with_config(config.clone());
+        let memory_checker = MemoryStat::new().with_config(config.clone());
 
-        let buffer = BufferService::create(memory_stat_config, services(), config)
+        let buffer = BufferService::create(memory_checker, services(), config)
             .await
             .unwrap();
 
@@ -1667,7 +1667,7 @@ mod tests {
         }))
         .unwrap()
         .into();
-        let memory_stat_config = MemoryStat::new().with_config(config.clone());
+        let memory_checker = MemoryStat::new().with_config(config.clone());
 
         // Setup spool file and run migrations.
         BufferService::setup(&db_path).await.unwrap();
@@ -1704,7 +1704,7 @@ mod tests {
 
         services.project_cache = project_cache;
 
-        let buffer = BufferService::create(memory_stat_config, services, config)
+        let buffer = BufferService::create(memory_checker, services, config)
             .await
             .unwrap();
         let addr = buffer.start();
@@ -1746,10 +1746,10 @@ mod tests {
         }))
         .unwrap()
         .into();
-        let memory_stat_config = MemoryStat::new().with_config(config.clone());
+        let memory_checker = MemoryStat::new().with_config(config.clone());
 
         let services = services();
-        let buffer = BufferService::create(memory_stat_config, services, config)
+        let buffer = BufferService::create(memory_checker, services, config)
             .await
             .unwrap();
         let addr = buffer.start();

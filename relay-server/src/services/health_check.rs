@@ -10,7 +10,7 @@ use crate::services::metrics::{AcceptsMetrics, Aggregator};
 use crate::services::project_cache::{ProjectCache, SpoolHealth};
 use crate::services::upstream::{IsAuthenticated, UpstreamRelay};
 use crate::statsd::RelayTimers;
-use crate::utils::MemoryStatConfig;
+use crate::utils::{MemoryCheck, MemoryChecker};
 
 /// Checks whether Relay is alive and healthy based on its variant.
 #[derive(Clone, Copy, Debug, serde::Deserialize)]
@@ -83,7 +83,7 @@ impl StatusUpdate {
 #[derive(Debug)]
 pub struct HealthCheckService {
     config: Arc<Config>,
-    memory_stat_config: MemoryStatConfig,
+    memory_checker: MemoryChecker,
     aggregator: Addr<Aggregator>,
     upstream_relay: Addr<UpstreamRelay>,
     project_cache: Addr<ProjectCache>,
@@ -95,14 +95,14 @@ impl HealthCheckService {
     /// The service does not run. To run the service, use [`start`](Self::start).
     pub fn new(
         config: Arc<Config>,
-        memory_stat_config: MemoryStatConfig,
+        memory_checker: MemoryChecker,
         aggregator: Addr<Aggregator>,
         upstream_relay: Addr<UpstreamRelay>,
         project_cache: Addr<ProjectCache>,
     ) -> Self {
         Self {
             config,
-            memory_stat_config,
+            memory_checker,
             aggregator,
             upstream_relay,
             project_cache,
@@ -110,8 +110,7 @@ impl HealthCheckService {
     }
 
     fn system_memory_probe(&mut self) -> Status {
-        if !self.memory_stat_config.has_enough_memory_percent() {
-            let memory = self.memory_stat_config.memory_stat.memory();
+        if let MemoryCheck::Exceeded(memory) = self.memory_checker.check_memory_percent() {
             relay_log::error!(
                 "Not enough memory, {} / {} ({:.2}% >= {:.2}%)",
                 memory.used,
@@ -122,8 +121,7 @@ impl HealthCheckService {
             return Status::Unhealthy;
         }
 
-        if !self.memory_stat_config.has_enough_memory_bytes() {
-            let memory = self.memory_stat_config.memory_stat.memory();
+        if let MemoryCheck::Exceeded(memory) = self.memory_checker.check_memory_bytes() {
             relay_log::error!(
                 "Not enough memory, {} / {} ({} >= {})",
                 memory.used,

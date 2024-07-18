@@ -331,7 +331,7 @@ pub async fn handle_envelope(
         )
     }
 
-    if !state.memory_stat_config().has_enough_memory() {
+    if state.memory_checker().check_memory().is_exceeded() {
         return Err(BadStoreRequest::QueueFailed);
     };
 
