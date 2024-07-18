@@ -1581,12 +1581,9 @@
 <a href="#1581" id="1581">1581</a>
 <a href="#1582" id="1582">1582</a>
 <a href="#1583" id="1583">1583</a>
-<a href="#1584" id="1584">1584</a>
-<a href="#1585" id="1585">1585</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Core functionality of metrics aggregation.
 
-</span><span class="kw">use </span>std::collections::hash_map::Entry;
-<span class="kw">use </span>std::collections::{BTreeMap, HashMap};
+</span><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::hash::{Hash, Hasher};
 <span class="kw">use </span>std::time::Duration;
@@ -1603,6 +1600,8 @@
 <span class="kw">use </span><span class="kw">crate</span>::protocol::{<span class="self">self</span>, MetricNamespace, MetricResourceIdentifier};
 <span class="kw">use </span><span class="kw">crate</span>::statsd::{MetricCounters, MetricGauges, MetricHistograms, MetricSets, MetricTimers};
 <span class="kw">use crate</span>::{BucketMetadata, MetricName};
+
+<span class="kw">use </span>hashbrown::{hash_map::Entry, HashMap};
 
 <span class="doccomment">/// Any error that may occur during aggregation.
 </span><span class="attr">#[derive(Debug, Error, PartialEq)]
@@ -1906,8 +1905,8 @@
     }
 
     <span class="doccomment">/// Returns `true` if the flush time has elapsed.
-    </span><span class="kw">fn </span>elapsed(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
-        Instant::now() &gt; <span class="self">self</span>.flush_at
+    </span><span class="kw">fn </span>elapsed(<span class="kw-2">&amp;</span><span class="self">self</span>, now: Instant) -&gt; bool {
+        now &gt; <span class="self">self</span>.flush_at
     }
 
     <span class="doccomment">/// Merges a bucket into the current queued bucket.
@@ -2199,47 +2198,44 @@
         <span class="kw">let </span><span class="kw-2">mut </span>partitions = HashMap::new();
         <span class="kw">let </span><span class="kw-2">mut </span>stats = HashMap::new();
 
+        <span class="kw">let </span>now = Instant::now();
+
         <span class="macro">relay_statsd::metric!</span>(
             timer(MetricTimers::BucketsScanDuration),
             aggregator = <span class="kw-2">&amp;</span><span class="self">self</span>.name,
             {
                 <span class="kw">let </span>bucket_interval = <span class="self">self</span>.config.bucket_interval;
                 <span class="kw">let </span>cost_tracker = <span class="kw-2">&amp;mut </span><span class="self">self</span>.cost_tracker;
-                <span class="self">self</span>.buckets.retain(|key, entry| {
-                    <span class="kw">if </span>force || entry.elapsed() {
-                        <span class="comment">// Take the value and leave a placeholder behind. It'll be removed right after.
-                        </span><span class="kw">let </span>value = mem::replace(<span class="kw-2">&amp;mut </span>entry.value, BucketValue::counter(<span class="number">0</span>.into()));
-                        <span class="kw">let </span>metadata = mem::take(<span class="kw-2">&amp;mut </span>entry.metadata);
-                        cost_tracker.subtract_cost(key.project_key, key.cost());
-                        cost_tracker.subtract_cost(key.project_key, value.cost());
 
-                        <span class="kw">let </span>(bucket_count, item_count) = stats
-                            .entry((value.ty(), key.namespace()))
-                            .or_insert((<span class="number">0usize</span>, <span class="number">0usize</span>));
-                        <span class="kw-2">*</span>bucket_count += <span class="number">1</span>;
-                        <span class="kw-2">*</span>item_count += value.len();
+                <span class="kw">for </span>(key, entry) <span class="kw">in </span><span class="self">self
+                    </span>.buckets
+                    .extract_if(|<span class="kw">_</span>, entry| force || entry.elapsed(now))
+                {
+                    cost_tracker.subtract_cost(key.project_key, key.cost());
+                    cost_tracker.subtract_cost(key.project_key, entry.value.cost());
 
-                        <span class="kw">let </span>bucket = Bucket {
-                            timestamp: key.timestamp,
-                            width: bucket_interval,
-                            name: key.metric_name.clone(),
-                            value,
-                            tags: key.tags.clone(),
-                            metadata,
-                        };
+                    <span class="kw">let </span>(bucket_count, item_count) = stats
+                        .entry((entry.value.ty(), key.namespace()))
+                        .or_insert((<span class="number">0usize</span>, <span class="number">0usize</span>));
+                    <span class="kw-2">*</span>bucket_count += <span class="number">1</span>;
+                    <span class="kw-2">*</span>item_count += entry.value.len();
 
-                        partitions
-                            .entry(<span class="self">self</span>.config.flush_partitions.map(|p| key.partition_key(p)))
-                            .or_insert_with(HashMap::new)
-                            .entry(key.project_key)
-                            .or_insert_with(Vec::new)
-                            .push(bucket);
+                    <span class="kw">let </span>bucket = Bucket {
+                        timestamp: key.timestamp,
+                        width: bucket_interval,
+                        name: key.metric_name.clone(),
+                        value: entry.value,
+                        tags: key.tags.clone(),
+                        metadata: entry.metadata,
+                    };
 
-                        <span class="bool-val">false
-                    </span>} <span class="kw">else </span>{
-                        <span class="bool-val">true
-                    </span>}
-                });
+                    partitions
+                        .entry(<span class="self">self</span>.config.flush_partitions.map(|p| key.partition_key(p)))
+                        .or_insert_with(HashMap::new)
+                        .entry(key.project_key)
+                        .or_insert_with(Vec::new)
+                        .push(bucket);
+                }
             }
         );
 
