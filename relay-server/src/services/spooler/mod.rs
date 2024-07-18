@@ -861,8 +861,7 @@ impl BufferState {
         let mut reason = None;
         let state = match self {
             Self::MemoryFileStandby { ram, mut disk } => {
-                let ram_is_full = ram.is_full();
-                if ram_is_full || !disk.memory_stat_config.has_enough_memory() {
+                if ram.is_full() {
                     if let Err(err) = disk.spool(ram.buffer).await {
                         relay_log::error!(
                             error = &err as &dyn Error,
@@ -874,11 +873,7 @@ impl BufferState {
                         disk.count.unwrap_or_default()
                     );
 
-                    reason = Some(if ram_is_full {
-                        "ram_full"
-                    } else {
-                        "over_high_watermark"
-                    });
+                    reason = Some("ram_full");
                     Self::Disk(disk)
                 } else {
                     Self::MemoryFileStandby { ram, disk }

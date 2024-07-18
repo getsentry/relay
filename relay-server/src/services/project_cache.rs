@@ -1290,10 +1290,11 @@ mod tests {
     use tokio::select;
     use uuid::Uuid;
 
-    use super::*;
     use crate::services::processor::ProcessingGroup;
     use crate::testutils::{empty_envelope, empty_envelope_with_dsn};
     use crate::utils::MemoryStat;
+
+    use super::*;
 
     fn mocked_services() -> Services {
         let (aggregator, _) = mock_service("aggregator", (), |&mut (), _| {});
