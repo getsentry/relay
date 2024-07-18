@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Bug Fixes**:
+
+- Do not drop envelopes for unparsable project configs. ([#3770](https://github.com/getsentry/relay/pull/3770))
+
 **Features**
 
 - "Cardinality limit" outcomes now report which limit was exceeded. ([#3825](https://github.com/getsentry/relay/pull/3825))
