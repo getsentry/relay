@@ -175,8 +175,7 @@ pub enum Outcome {
     /// The event/metric has been cardinality limited.
     ///
     /// Contains the [ID](CardinalityLimit::id)
-    /// of the most specific [CardinalityLimit](CardinalityLimit)
-    /// that was exceeded.
+    /// of the most specific [CardinalityLimit] that was exceeded.
     #[cfg(feature = "processing")]
     CardinalityLimited(String),
 
