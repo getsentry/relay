@@ -16,7 +16,9 @@ use relay_event_normalization::{
 };
 use relay_event_normalization::{normalize_transaction_name, ModelCosts, TransactionNameRule};
 use relay_event_schema::processor::{process_value, ProcessingState};
-use relay_event_schema::protocol::{BrowserContext, Contexts, Event, Span, SpanData};
+use relay_event_schema::protocol::{
+    BrowserContext, Contexts, DeviceContext, Event, Span, SpanData,
+};
 use relay_log::protocol::{Attachment, AttachmentType};
 use relay_metrics::{MetricNamespace, UnixTimestamp};
 use relay_pii::PiiProcessor;
@@ -508,17 +510,10 @@ fn normalize(
             .collect(),
     );
 
-    let mut event = Event {
-        contexts: Annotated::new(default_contexts.clone()),
-        measurements: span.measurements.clone(),
-        spans: Annotated::from(vec![Annotated::new(span.clone())]),
-        ..Default::default()
-    };
-    normalize_performance_score(&mut event, performance_score);
+    normalize_performance_score(span, performance_score);
     if let Some(model_costs_config) = ai_model_costs {
         extract_ai_measurements(span, model_costs_config);
     }
-    span.measurements = event.measurements;
 
     tag_extraction::extract_measurements(span, is_mobile);
 

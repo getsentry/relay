@@ -17,12 +17,12 @@ use relay_event_schema::processor::{self, ProcessingAction, ProcessingState, Pro
 use relay_event_schema::protocol::{
     AsPair, ClientSdkInfo, Context, ContextInner, Contexts, DebugImage, DeviceClass, Event,
     EventId, EventType, Exception, Headers, IpAddr, Level, LogEntry, Measurement, Measurements,
-    MetricSummaryMapping, NelContext, PerformanceScoreContext, ReplayContext, Request, SpanStatus,
-    Tags, Timestamp, TraceContext, User, VALID_PLATFORMS,
+    MetricSummaryMapping, NelContext, PerformanceScoreContext, ReplayContext, Request, Span,
+    SpanStatus, Tags, Timestamp, TraceContext, User, VALID_PLATFORMS,
 };
 use relay_protocol::{
-    Annotated, Empty, Error, ErrorKind, FromValue, IntoValue, Meta, Object, Remark, RemarkType,
-    Value,
+    Annotated, Empty, Error, ErrorKind, FromValue, Getter, IntoValue, Meta, Object, Remark,
+    RemarkType, Value,
 };
 use smallvec::SmallVec;
 use uuid::Uuid;
@@ -297,7 +297,13 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) {
         config.measurements.clone(),
         config.max_name_and_unit_len,
     ); // Measurements are part of the metric extraction
-    normalize_performance_score(event, config.performance_score);
+    if let Some(version) = normalize_performance_score(event, config.performance_score) {
+        event
+            .contexts
+            .get_or_insert_with(Contexts::new)
+            .get_or_default::<PerformanceScoreContext>()
+            .score_profile_version = Annotated::new(version);
+    }
     normalize_ai_measurements(event, config.ai_model_costs);
     normalize_breakdowns(event, config.breakdowns_config); // Breakdowns are part of the metric extraction too
     normalize_default_attributes(event, meta, config);
@@ -852,23 +858,28 @@ pub fn normalize_measurements(
     }
 }
 
+pub trait MutMeasurements {
+    fn measurements(&mut self) -> &mut Annotated<Measurements>;
+}
+
 /// Computes performance score measurements for an event.
 ///
 /// This computes score from vital measurements, using config options to define how it is
 /// calculated.
 pub fn normalize_performance_score(
-    event: &mut Event,
+    event: &mut (impl Getter + MutMeasurements),
     performance_score: Option<&PerformanceScoreConfig>,
-) {
+) -> Option<String> {
+    let mut version = None;
     let Some(performance_score) = performance_score else {
-        return;
+        return version;
     };
     for profile in &performance_score.profiles {
         if let Some(condition) = &profile.condition {
             if !condition.matches(event) {
                 continue;
             }
-            if let Some(measurements) = event.measurements.value_mut() {
+            if let Some(measurements) = event.measurements().value_mut() {
                 let mut should_add_total = false;
                 if profile.score_components.iter().any(|c| {
                     !measurements.contains_key(c.measurement.as_str())
@@ -929,13 +940,7 @@ pub fn normalize_performance_score(
                     );
                 }
                 if should_add_total {
-                    if let Some(version) = &profile.version {
-                        event
-                            .contexts
-                            .get_or_insert_with(Contexts::new)
-                            .get_or_default::<PerformanceScoreContext>()
-                            .score_profile_version = version.clone().into();
-                    }
+                    version.clone_from(&profile.version);
                     measurements.insert(
                         "score.total".to_owned(),
                         Measurement {
@@ -945,9 +950,22 @@ pub fn normalize_performance_score(
                         .into(),
                     );
                 }
+                break; // Stop after the first matching profile.
             }
-            break; // Stop after the first matching profile.
         }
+    }
+    version
+}
+
+impl MutMeasurements for Event {
+    fn measurements(&mut self) -> &mut Annotated<Measurements> {
+        &mut self.measurements
+    }
+}
+
+impl MutMeasurements for Span {
+    fn measurements(&mut self) -> &mut Annotated<Measurements> {
+        &mut self.measurements
     }
 }
 
