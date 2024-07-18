@@ -269,8 +269,24 @@ def test_unparsable_project_config(buffer_config, mini_sentry, relay):
     packed, signature = SecretKey.parse(relay.secret_key).pack(body)
 
     # This request should return invalid project state and also send the error to Sentry.
-    data = request_config(relay, packed, signature, version="3").json()
-    assert data == {"configs": {}, "pending": [public_key]}
+    data = get_response(relay, packed, signature)
+    assert {
+        "configs": {
+            public_key: {
+                "projectId": None,
+                "lastChange": None,
+                "disabled": True,
+                "publicKeys": [],
+                "slug": None,
+                "config": {
+                    "allowedDomains": ["*"],
+                    "trustedRelays": [],
+                    "piiConfig": None,
+                },
+                "organizationId": None,
+            }
+        }
+    } == data
 
     def assert_clear_test_failures():
         try:

@@ -16,7 +16,7 @@ use crate::endpoints::forward;
 use crate::extractors::SignedJson;
 use crate::service::ServiceState;
 use crate::services::global_config::{self, StatusResponse};
-use crate::services::project::{LimitedParsedProjectState, ParsedProjectState, ProjectState};
+use crate::services::project::{LimitedProjectState, ProjectState};
 use crate::services::project_cache::{GetCachedProjectState, GetProjectState};
 
 /// V2 version of this endpoint.
@@ -49,13 +49,13 @@ struct VersionQuery {
 #[derive(Debug, Clone, Serialize)]
 #[serde(untagged)]
 enum ProjectStateWrapper {
-    Full(ParsedProjectState),
-    Limited(#[serde(with = "LimitedParsedProjectState")] ParsedProjectState),
+    Full(ProjectState),
+    Limited(#[serde(with = "LimitedProjectState")] ProjectState),
 }
 
 impl ProjectStateWrapper {
     /// Create a wrapper which forces serialization into external or internal format
-    pub fn new(state: ParsedProjectState, full: bool) -> Self {
+    pub fn new(state: ProjectState, full: bool) -> Self {
         if full {
             Self::Full(state)
         } else {
@@ -76,7 +76,7 @@ impl ProjectStateWrapper {
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct GetProjectStatesResponseWrapper {
-    configs: HashMap<ProjectKey, ProjectStateWrapper>,
+    configs: HashMap<ProjectKey, Option<ProjectStateWrapper>>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pending: Vec<ProjectKey>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -123,6 +123,7 @@ async fn inner(
             project_cache
                 .send(GetProjectState::new(project_key).no_cache(no_cache))
                 .await
+                .map(Some)
         };
 
         (project_key, state_result)
@@ -145,36 +146,23 @@ async fn inner(
     let mut pending = Vec::with_capacity(keys_len);
     let mut configs = HashMap::with_capacity(keys_len);
     for (project_key, state_result) in future::join_all(futures).await {
-        let project_info = match state_result? {
-            ProjectState::Enabled(info) => info,
-            ProjectState::Disabled => {
-                // Don't insert project config. Downstream Relay will consider it disabled.
-                continue;
-            }
-            ProjectState::Pending => {
-                pending.push(project_key);
-                continue;
-            }
+        let Some(project_state) = state_result? else {
+            pending.push(project_key);
+            continue;
         };
 
         // If public key is known (even if rate-limited, which is Some(false)), it has
         // access to the project config
         let has_access = relay.internal
-            || project_info
+            || project_state
                 .config
                 .trusted_relays
                 .contains(&relay.public_key);
 
         if has_access {
             let full = relay.internal && inner.full_config;
-            let wrapper = ProjectStateWrapper::new(
-                ParsedProjectState {
-                    disabled: false,
-                    info: project_info.as_ref().clone(),
-                },
-                full,
-            );
-            configs.insert(project_key, wrapper);
+            let wrapper = ProjectStateWrapper::new((*project_state).clone(), full);
+            configs.insert(project_key, Some(wrapper));
         } else {
             relay_log::debug!(
                 relay = %relay.public_key,
