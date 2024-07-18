@@ -62,3 +62,36 @@ impl ThreadPoolBuilder {
             .build()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_num_threads() {
+        let pool = ThreadPoolBuilder::new("s").num_threads(3).build().unwrap();
+        assert_eq!(pool.current_num_threads(), 3);
+    }
+
+    #[test]
+    fn test_runtime() {
+        let rt = tokio::runtime::Runtime::new().unwrap();
+
+        let pool = ThreadPoolBuilder::new("s")
+            .num_threads(1)
+            .runtime(rt.handle().clone())
+            .build()
+            .unwrap();
+
+        let has_runtime = pool.install(|| tokio::runtime::Handle::try_current().is_ok());
+        assert!(has_runtime);
+    }
+
+    #[test]
+    fn test_no_runtime() {
+        let pool = ThreadPoolBuilder::new("s").num_threads(1).build().unwrap();
+
+        let has_runtime = pool.install(|| tokio::runtime::Handle::try_current().is_ok());
+        assert!(!has_runtime);
+    }
+}
