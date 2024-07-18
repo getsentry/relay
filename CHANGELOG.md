@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Bug Fixes**:
+
+- Do not drop envelopes for unparsable project configs. ([#3770](https://github.com/getsentry/relay/pull/3770))
+
 ## 24.7.0
 
 **Bug Fixes**:
