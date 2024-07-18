@@ -218,8 +218,9 @@ impl Outcome {
             Outcome::CardinalityLimited(ids) => {
                 use std::fmt::Write;
                 let mut buf = String::new();
-                write!(&mut buf, "CardinalityLimited:").unwrap();
                 let mut first = true;
+                let mut ids = ids.clone();
+                ids.sort_unstable();
                 for id in ids {
                     if !first {
                         write!(&mut buf, ",").unwrap();
@@ -262,6 +263,8 @@ impl fmt::Display for Outcome {
             #[cfg(feature = "processing")]
             Outcome::CardinalityLimited(ids) => {
                 write!(f, "cardinality limited (")?;
+                let mut ids = ids.clone();
+                ids.sort_unstable();
                 let mut first = true;
                 for id in ids {
                     if !first {

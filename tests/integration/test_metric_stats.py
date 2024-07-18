@@ -196,7 +196,7 @@ def test_metric_stats_with_limit_surpassed(
         "mri.type": "d",
         "mri.namespace": "custom",
         "outcome.id": "6",
-        "outcome.reason": "CardinalityLimited:custom-limit",
+        "outcome.reason": "custom-limit",
     }
     assert metrics.volume["d:custom/baz@none"]["org_id"] == 0
     assert metrics.volume["d:custom/baz@none"]["project_id"] == project_id
@@ -206,7 +206,7 @@ def test_metric_stats_with_limit_surpassed(
         "mri.type": "d",
         "mri.namespace": "custom",
         "outcome.id": "6",
-        "outcome.reason": "CardinalityLimited:custom-limit",
+        "outcome.reason": "custom-limit",
     }
     assert metrics.volume["s:custom/bar@none"]["org_id"] == 0
     assert metrics.volume["s:custom/bar@none"]["project_id"] == project_id
@@ -216,7 +216,7 @@ def test_metric_stats_with_limit_surpassed(
         "mri.type": "s",
         "mri.namespace": "custom",
         "outcome.id": "6",
-        "outcome.reason": "CardinalityLimited:custom-limit",
+        "outcome.reason": "custom-limit",
     }
     assert len(metrics.volume) == 3
     assert len(metrics.cardinality) == 0
