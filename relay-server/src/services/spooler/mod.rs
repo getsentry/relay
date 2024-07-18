@@ -1370,7 +1370,7 @@ mod tests {
         }))
         .unwrap()
         .into();
-        let memory_checker = MemoryStat::new().with_config(config.clone());
+        let memory_checker = MemoryStat::new().init_checker(config.clone());
         BufferService::create(memory_checker, services(), config)
             .await
             .unwrap();
@@ -1392,7 +1392,7 @@ mod tests {
         }))
         .unwrap()
         .into();
-        let memory_checker = MemoryStat::new().with_config(config.clone());
+        let memory_checker = MemoryStat::new().init_checker(config.clone());
         let service = BufferService::create(memory_checker, services(), config)
             .await
             .unwrap();
@@ -1463,7 +1463,7 @@ mod tests {
         }))
         .unwrap()
         .into();
-        let memory_checker = MemoryStat::new().with_config(config.clone());
+        let memory_checker = MemoryStat::new().init_checker(config.clone());
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
         let key = QueueKey {
             own_key: project_key,
@@ -1611,7 +1611,7 @@ mod tests {
         }))
         .unwrap()
         .into();
-        let memory_checker = MemoryStat::new().with_config(config.clone());
+        let memory_checker = MemoryStat::new().init_checker(config.clone());
 
         let buffer = BufferService::create(memory_checker, services(), config)
             .await
@@ -1642,7 +1642,7 @@ mod tests {
         }))
         .unwrap()
         .into();
-        let memory_checker = MemoryStat::new().with_config(config.clone());
+        let memory_checker = MemoryStat::new().init_checker(config.clone());
 
         let buffer = BufferService::create(memory_checker, services(), config)
             .await
@@ -1675,7 +1675,7 @@ mod tests {
         }))
         .unwrap()
         .into();
-        let memory_checker = MemoryStat::new().with_config(config.clone());
+        let memory_checker = MemoryStat::new().init_checker(config.clone());
 
         // Setup spool file and run migrations.
         BufferService::setup(&db_path).await.unwrap();
@@ -1754,7 +1754,7 @@ mod tests {
         }))
         .unwrap()
         .into();
-        let memory_checker = MemoryStat::new().with_config(config.clone());
+        let memory_checker = MemoryStat::new().init_checker(config.clone());
 
         let services = services();
         let buffer = BufferService::create(memory_checker, services, config)

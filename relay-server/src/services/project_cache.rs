@@ -37,9 +37,7 @@ use crate::services::test_store::TestStore;
 use crate::services::upstream::UpstreamRelay;
 
 use crate::statsd::{RelayCounters, RelayGauges, RelayHistograms, RelayTimers};
-use crate::utils::{
-    self, GarbageDisposal, ManagedEnvelope, MemoryChecker, RetryBackoff, SleepHandle,
-};
+use crate::utils::{GarbageDisposal, ManagedEnvelope, MemoryChecker, RetryBackoff, SleepHandle};
 
 /// Requests a refresh of a project state from one of the available sources.
 ///
@@ -1297,7 +1295,7 @@ mod tests {
         }))
         .unwrap()
         .into();
-        let memory_checker = MemoryStat::new().with_config(config.clone());
+        let memory_checker = MemoryStat::new().init_checker(config.clone());
         let buffer_services = spooler::Services {
             outcome_aggregator: services.outcome_aggregator.clone(),
             project_cache: services.project_cache.clone(),

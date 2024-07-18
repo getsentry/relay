@@ -297,7 +297,7 @@ fn queue_envelope(
     let scoping = managed_envelope.scoping();
     let envelopes = ProcessingGroup::split_envelope(*managed_envelope.take_envelope());
     for (group, envelope) in envelopes {
-        let envelope = ManagedEnvelope::new(
+        let mut envelope = ManagedEnvelope::new(
             envelope,
             state.outcome_aggregator().clone(),
             state.test_store().clone(),

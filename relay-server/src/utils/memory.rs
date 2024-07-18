@@ -87,7 +87,7 @@ impl MemoryStat {
 
     /// Builds a [`MemoryChecker`] which holds a reference to the supplied [`Config`] and the
     /// current [`MemoryStat`].
-    pub fn with_config(&self, config: Arc<Config>) -> MemoryChecker {
+    pub fn init_checker(&self, config: Arc<Config>) -> MemoryChecker {
         MemoryChecker {
             memory_stat: self.clone(),
             config,
@@ -279,7 +279,7 @@ mod tests {
             }
         }))
         .unwrap();
-        let memory_checker = MemoryStat::new().with_config(Arc::new(config));
+        let memory_checker = MemoryStat::new().init_checker(Arc::new(config));
         assert!(memory_checker.check_memory().is_below());
 
         let config = Config::from_json_value(serde_json::json!({
@@ -288,7 +288,7 @@ mod tests {
             }
         }))
         .unwrap();
-        let memory_checker = MemoryStat::new().with_config(Arc::new(config));
+        let memory_checker = MemoryStat::new().init_checker(Arc::new(config));
         assert!(memory_checker.check_memory().is_exceeded());
     }
 

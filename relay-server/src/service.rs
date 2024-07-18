@@ -202,7 +202,7 @@ impl ServiceState {
         );
         ProjectCacheService::new(
             config.clone(),
-            memory_stat.with_config(config.clone()),
+            memory_stat.init_checker(config.clone()),
             project_cache_services,
             metric_outcomes,
             redis_pool.clone(),
@@ -211,7 +211,7 @@ impl ServiceState {
 
         let health_check = HealthCheckService::new(
             config.clone(),
-            memory_stat.with_config(config.clone()),
+            memory_stat.init_checker(config.clone()),
             aggregator.clone(),
             upstream_relay.clone(),
             project_cache.clone(),
@@ -243,7 +243,7 @@ impl ServiceState {
 
         let state = StateInner {
             config: config.clone(),
-            memory_checker: memory_stat.with_config(config),
+            memory_checker: memory_stat.init_checker(config),
             registry,
         };
 
