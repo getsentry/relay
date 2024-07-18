@@ -191,9 +191,14 @@ impl MemoryStatConfig {
 
 #[cfg(test)]
 mod tests {
-    use crate::utils::{Memory, MemoryStat};
     use relay_config::Config;
+    use std::sync::atomic::Ordering;
     use std::sync::Arc;
+    use std::thread::sleep;
+    use std::time::Duration;
+
+    use crate::utils::memory::UPDATE_TIME_THRESHOLD_MS;
+    use crate::utils::{Memory, MemoryStat};
 
     #[test]
     fn test_memory_used_percent_both_0() {
@@ -247,5 +252,18 @@ mod tests {
         .unwrap();
         let memory_stat_config = MemoryStat::new().with_config(Arc::new(config));
         assert!(!memory_stat_config.has_enough_memory());
+    }
+
+    #[test]
+    fn test_last_update_is_updated() {
+        let memory = MemoryStat::new();
+        let first_update = memory.0.last_update.load(Ordering::Relaxed);
+
+        sleep(Duration::from_millis(UPDATE_TIME_THRESHOLD_MS + 10));
+
+        memory.memory();
+        let second_update = memory.0.last_update.load(Ordering::Relaxed);
+
+        assert!(first_update <= second_update);
     }
 }
