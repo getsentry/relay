@@ -401,7 +401,7 @@ impl UpstreamProjectSourceService {
                             result = result,
                         );
 
-                        channel.send(state.sanitize());
+                        channel.send(state.sanitized());
                     }
                 }
                 Err(err) => {

@@ -114,7 +114,7 @@ async fn load_local_states(
         for key in keys {
             let mut state = state.clone();
             state.info.public_keys = smallvec::smallvec![key.clone()];
-            states.insert(key.public_key, ProjectState::from(state).sanitize());
+            states.insert(key.public_key, ProjectState::from(state).sanitized());
         }
     }
 
@@ -230,11 +230,11 @@ mod tests {
         .unwrap();
 
         let extracted_project_state = load_local_states(temp2.path()).await.unwrap();
-        let ProjectState::Enabled(project_info) =
-            extracted_project_state.get(&project_key).unwrap()
-        else {
-            panic!();
-        };
+        let project_info = extracted_project_state
+            .get(&project_key)
+            .unwrap()
+            .enabled()
+            .unwrap();
 
         assert_eq!(
             project_info.project_id,

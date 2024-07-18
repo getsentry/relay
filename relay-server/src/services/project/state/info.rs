@@ -221,8 +221,8 @@ impl ProjectInfo {
     }
 
     /// Validates data in this project state and removes values that are partially invalid.
-    pub fn sanitize(mut self) -> Self {
-        self.config.sanitize();
+    pub fn sanitized(mut self) -> Self {
+        self.config.sanitized();
         self
     }
 

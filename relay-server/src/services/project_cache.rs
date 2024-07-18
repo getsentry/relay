@@ -472,7 +472,7 @@ impl ProjectSource {
                     .map_err(|_| ())?;
 
             let state = match state_fetch_result {
-                Ok(state) => state.sanitize(),
+                Ok(state) => state.sanitized(),
                 Err(error) => {
                     relay_log::error!(
                         error = &error as &dyn Error,

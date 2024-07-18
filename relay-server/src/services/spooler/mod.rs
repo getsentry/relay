@@ -142,6 +142,7 @@ impl QueueKey {
         }
     }
 
+    /// Returns both keys, but omits duplicates.
     pub fn unique_keys(&self) -> SmallVec<[ProjectKey; 2]> {
         let mut keys = smallvec![self.own_key];
         if self.sampling_key != self.own_key {

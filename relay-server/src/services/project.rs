@@ -125,7 +125,7 @@ impl Project {
 
     /// If a reservoir rule is no longer in the sampling config, we will remove those counters.
     fn remove_expired_reservoir_rules(&self) {
-        let ProjectState::Enabled(state) = self.current_state() else {
+        let Some(state) = self.current_state().enabled() else {
             return;
         };
 
@@ -482,7 +482,7 @@ impl Project {
 
         // Flush all waiting recipients.
         relay_log::debug!("project state {} updated", self.project_key);
-        channel.inner.send(self.current_state());
+        channel.inner.send(self.state.current_state(&self.config));
 
         self.after_state_updated(envelope_processor);
     }
@@ -501,9 +501,7 @@ impl Project {
     /// Returns `Some` if the project state has been fetched and contains a project identifier,
     /// otherwise `None`.
     pub fn scoping(&self) -> Option<Scoping> {
-        let ProjectState::Enabled(info) = self.current_state() else {
-            return None;
-        };
+        let info = self.current_state().enabled()?;
         Some(Scoping {
             organization_id: info.organization_id.unwrap_or(0),
             project_id: info.project_id?,
@@ -532,8 +530,8 @@ impl Project {
         let state = match self.current_state() {
             ProjectState::Enabled(state) => Some(state.clone()),
             ProjectState::Disabled => {
-                // TODO(jjbayer): This function should not return an Error and reject the envelope.
-                // (rejection should be done by the caller).
+                // TODO(jjbayer): We should refactor this function to either return a Result or
+                // handle envelope rejections internally, but not both.
                 envelope.reject(Outcome::Invalid(DiscardReason::ProjectId));
                 return Err(DiscardReason::ProjectId);
             }

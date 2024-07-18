@@ -65,11 +65,11 @@ impl ProjectFetchState {
     }
 
     /// Sanitizes the contained project state. See [`ProjectState::sanitize`].
-    pub fn sanitize(self) -> Self {
+    pub fn sanitized(self) -> Self {
         let Self { last_fetch, state } = self;
         Self {
             last_fetch,
-            state: state.sanitize(),
+            state: state.sanitized(),
         }
     }
 
