@@ -14,7 +14,7 @@ use relay_event_normalization::{
     span::tag_extraction, validate_span, CombinedMeasurementsConfig, MeasurementsConfig,
     PerformanceScoreConfig, RawUserAgentInfo, TransactionsProcessor,
 };
-use relay_event_normalization::{normalize_transaction_name, ModelCosts};
+use relay_event_normalization::{normalize_transaction_name, ModelCosts, TransactionNameRule};
 use relay_event_schema::processor::{process_value, ProcessingState};
 use relay_event_schema::protocol::{BrowserContext, Contexts, Event, Span, SpanData};
 use relay_log::protocol::{Attachment, AttachmentType};
@@ -31,7 +31,7 @@ use crate::services::processor::span::extract_transaction_span;
 use crate::services::processor::{
     dynamic_sampling, ProcessEnvelopeState, ProcessingError, SpanGroup, TransactionGroup,
 };
-use crate::utils::{sample, ItemAction};
+use crate::utils::{sample, ItemAction, ManagedEnvelope};
 use relay_event_normalization::span::ai::extract_ai_measurements;
 use thiserror::Error;
 
@@ -54,27 +54,11 @@ pub fn process(
         ErrorBoundary::Ok(ref config) if config.is_enabled() => Some(config),
         _ => None,
     };
-    let ai_model_costs_config = global_config.ai_model_costs.clone().ok();
-    let normalize_span_config = get_normalize_span_config(
-        Arc::clone(&config),
-        state.managed_envelope.received_at(),
-        global_config.measurements.as_ref(),
-        state.project_state.config().measurements.as_ref(),
-        state.project_state.config().performance_score.as_ref(),
-        ai_model_costs_config.as_ref(),
-    );
-
-    let meta = state.managed_envelope.envelope().meta();
-    let mut contexts = Contexts::new();
-    let user_agent_info = RawUserAgentInfo {
-        user_agent: meta.user_agent(),
-        client_hints: meta.client_hints().as_deref(),
-    };
-
-    normalize_user_agent_info_generic(
-        &mut contexts,
-        &Annotated::new("".to_string()),
-        &user_agent_info,
+    let normalize_span_config = NormalizeSpanConfig::new(
+        &config,
+        global_config,
+        state.project_state.config(),
+        &state.managed_envelope,
     );
 
     let client_ip = state.managed_envelope.envelope().meta().client_addr();
@@ -101,14 +85,7 @@ pub fn process(
             _ => return ItemAction::Keep,
         };
 
-        set_segment_attributes(&mut annotated_span);
-
-        if let Err(e) = normalize(
-            &mut annotated_span,
-            normalize_span_config.clone(),
-            Annotated::new(contexts.clone()),
-            state.project_state.config(),
-        ) {
+        if let Err(e) = normalize(&mut annotated_span, normalize_span_config.clone()) {
             relay_log::debug!("failed to normalize span: {}", e);
             return ItemAction::Drop(Outcome::Invalid(DiscardReason::Internal));
         };
@@ -354,35 +331,60 @@ struct NormalizeSpanConfig<'a> {
     ///
     /// Measurements with longer names are removed from the transaction event and replaced with a
     /// metadata entry.
-    max_name_and_unit_len: Option<usize>,
+    max_name_and_unit_len: usize,
+    /// TODO: docs
+    tx_name_rules: &'a [TransactionNameRule],
+
+    /// Event-like contexts derived from the envelope.
+    ///
+    /// This can be used to populate e.g. client information if the span does not set it
+    /// itself.
+    default_contexts: Contexts,
 }
 
-fn get_normalize_span_config<'a>(
-    config: Arc<Config>,
-    received_at: DateTime<Utc>,
-    global_measurements_config: Option<&'a MeasurementsConfig>,
-    project_measurements_config: Option<&'a MeasurementsConfig>,
-    performance_score: Option<&'a PerformanceScoreConfig>,
-    ai_model_costs: Option<&'a ModelCosts>,
-) -> NormalizeSpanConfig<'a> {
-    let aggregator_config = config.aggregator_config_for(MetricNamespace::Spans);
-
-    NormalizeSpanConfig {
-        received_at,
-        timestamp_range: aggregator_config.aggregator.timestamp_range(),
-        max_tag_value_size: aggregator_config.aggregator.max_tag_value_length,
-        measurements: Some(CombinedMeasurementsConfig::new(
-            project_measurements_config,
-            global_measurements_config,
-        )),
-        max_name_and_unit_len: Some(
-            aggregator_config
+impl<'a> NormalizeSpanConfig<'a> {
+    fn new(
+        config: &'a Config,
+        global_config: &'a GlobalConfig,
+        project_config: &'a ProjectConfig,
+        managed_envelope: &ManagedEnvelope,
+    ) -> Self {
+        let aggregator_config = config.aggregator_config_for(MetricNamespace::Spans);
+        Self {
+            received_at: managed_envelope.received_at(),
+            timestamp_range: aggregator_config.aggregator.timestamp_range(),
+            max_tag_value_size: aggregator_config.aggregator.max_tag_value_length,
+            performance_score: project_config.performance_score.as_ref(),
+            measurements: Some(CombinedMeasurementsConfig::new(
+                project_config.measurements.as_ref(),
+                global_config.measurements.as_ref(),
+            )),
+            ai_model_costs: match &global_config.ai_model_costs {
+                ErrorBoundary::Err(_) => None,
+                ErrorBoundary::Ok(costs) => Some(costs),
+            },
+            max_name_and_unit_len: aggregator_config
                 .aggregator
                 .max_name_length
                 .saturating_sub(MeasurementsConfig::MEASUREMENT_MRI_OVERHEAD),
-        ),
-        performance_score,
-        ai_model_costs,
+
+            tx_name_rules: &project_config.tx_name_rules,
+            default_contexts: {
+                let meta = managed_envelope.envelope().meta();
+                let mut contexts = Contexts::new();
+                let user_agent_info = RawUserAgentInfo {
+                    user_agent: meta.user_agent(),
+                    client_hints: meta.client_hints().as_deref(),
+                };
+
+                normalize_user_agent_info_generic(
+                    &mut contexts,
+                    &Annotated::new("".to_string()),
+                    &user_agent_info,
+                );
+                contexts
+            },
+        }
     }
 }
 
@@ -421,8 +423,6 @@ fn set_segment_attributes(span: &mut Annotated<Span>) {
 fn normalize(
     annotated_span: &mut Annotated<Span>,
     config: NormalizeSpanConfig,
-    contexts: Annotated<Contexts>,
-    project_config: &ProjectConfig,
 ) -> Result<(), ProcessingError> {
     use relay_event_normalization::{SchemaProcessor, TimestampProcessor, TrimmingProcessor};
 
@@ -434,7 +434,11 @@ fn normalize(
         measurements,
         ai_model_costs,
         max_name_and_unit_len,
+        tx_name_rules,
+        default_contexts,
     } = config;
+
+    set_segment_attributes(annotated_span);
 
     // This follows the steps of `NormalizeProcessor::process_event`.
     // Ideally, `NormalizeProcessor` would execute these steps generically, i.e. also when calling
@@ -465,9 +469,8 @@ fn normalize(
         return Err(ProcessingError::NoEventPayload);
     };
 
-    if let Some(browser_name) = contexts
-        .value()
-        .and_then(|contexts| contexts.get::<BrowserContext>())
+    if let Some(browser_name) = default_contexts
+        .get::<BrowserContext>()
         .and_then(|v| v.name.value())
     {
         let data = span.data.value_mut().get_or_insert_with(SpanData::default);
@@ -479,7 +482,7 @@ fn normalize(
             measurement_values,
             meta,
             measurements,
-            max_name_and_unit_len,
+            Some(max_name_and_unit_len),
             span.start_timestamp.0,
             span.timestamp.0,
         );
@@ -493,7 +496,7 @@ fn normalize(
         .as_mut()
         .map(|data| &mut data.segment_name)
     {
-        normalize_transaction_name(transaction, &project_config.tx_name_rules);
+        normalize_transaction_name(transaction, tx_name_rules);
     }
 
     // Tag extraction:
@@ -506,7 +509,7 @@ fn normalize(
     );
 
     let mut event = Event {
-        contexts,
+        contexts: Annotated::new(default_contexts.clone()),
         measurements: span.measurements.clone(),
         spans: Annotated::from(vec![Annotated::new(span.clone())]),
         ..Default::default()
