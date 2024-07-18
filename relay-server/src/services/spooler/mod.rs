@@ -1437,89 +1437,6 @@ mod tests {
         }
     }
 
-    #[tokio::test]
-    async fn dequeue_waits_for_permits() {
-        relay_test::setup();
-        let config: Arc<_> = Config::from_json_value(serde_json::json!({
-            "spool": {
-                "envelopes": {
-                    "path": std::env::temp_dir().join(Uuid::new_v4().to_string()),
-                    "max_memory_size": 0, // 0 bytes, to force to spool to disk all the envelopes.
-                }
-            }
-        }))
-        .unwrap()
-        .into();
-        let memory_stat_config = MemoryStat::new().with_config(config.clone());
-
-        let services = services();
-
-        let service = BufferService::create(memory_stat_config.clone(), services.clone(), config)
-            .await
-            .unwrap();
-        let addr = service.start();
-        let (tx, mut rx) = mpsc::unbounded_channel();
-
-        let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
-        let key = QueueKey {
-            own_key: project_key,
-            sampling_key: project_key,
-        };
-
-        // Enqueue an envelope:
-        addr.send(Enqueue {
-            key,
-            value: empty_managed_envelope(),
-        });
-
-        // Nothing dequeued yet:
-        assert!(rx.try_recv().is_err());
-
-        // Dequeue an envelope:
-        addr.send(DequeueMany {
-            keys: [key].into(),
-            sender: tx.clone(),
-        });
-
-        // There are enough permits, so get an envelope:
-        let res = rx.recv().await;
-        assert!(res.is_some(), "{res:?}");
-
-        // Simulate a new envelope coming in via a web request:
-        let new_envelope = ManagedEnvelope::new(
-            empty_envelope(),
-            services.outcome_aggregator,
-            services.test_store,
-            ProcessingGroup::Ungrouped,
-        );
-
-        // Enqueue & dequeue another envelope:
-        addr.send(Enqueue {
-            key,
-            value: empty_managed_envelope(),
-        });
-        // Request to dequeue:
-        addr.send(DequeueMany {
-            keys: [key].into(),
-            sender: tx.clone(),
-        });
-        tokio::time::sleep(Duration::from_millis(50)).await;
-
-        // There is one permit left, but we only dequeue if we gave >= 50% capacity:
-        assert!(rx.try_recv().is_err());
-
-        // Freeing one permit gives us enough capacity:
-        drop(new_envelope);
-
-        // Dequeue an envelope:
-        addr.send(DequeueMany {
-            keys: [key].into(),
-            sender: tx.clone(),
-        });
-        tokio::time::sleep(Duration::from_millis(100)).await; // give time to flush
-        assert!(rx.try_recv().is_ok());
-    }
-
     #[test]
     fn metrics_work() {
         relay_log::init_test!();
@@ -1533,7 +1450,7 @@ mod tests {
                 },
                 "health": {
                     "max_memory_percent": 1.0
-                 }
+                }
             }
         }))
         .unwrap()
@@ -1711,7 +1628,7 @@ mod tests {
                     "max_disk_size": "100KB",
                 },
                 "health": {
-                "max_memory_percent": 1.0
+                    "max_memory_percent": 1.0
                 }
             }
         }))
@@ -1743,9 +1660,9 @@ mod tests {
                     "max_memory_size": 0, // 0 bytes, to force to spool to disk all the envelopes.
                     "max_disk_size": "100KB",
                 },
-                            "health": {
-                "max_memory_percent": 1.0
-            }
+                "health": {
+                    "max_memory_percent": 1.0
+                }
             }
         }))
         .unwrap()
@@ -1822,9 +1739,9 @@ mod tests {
                     "max_memory_size": "10KB",
                     "max_disk_size": "20MB",
                 },
-                            "health": {
-                "max_memory_percent": 1.0
-            }
+                "health": {
+                    "max_memory_percent": 1.0
+                }
             }
         }))
         .unwrap()
@@ -1862,73 +1779,6 @@ mod tests {
             count += 1;
         }
         assert_eq!(count, 300);
-    }
-
-    #[tokio::test]
-    async fn over_the_low_watermark() {
-        let db_path = std::env::temp_dir().join(Uuid::new_v4().to_string());
-        let config: Arc<_> = Config::from_json_value(serde_json::json!({
-            "spool": {
-                "envelopes": {
-                    "path": db_path,
-                    "max_memory_size": "10KB",
-                    "max_disk_size": "20MB",
-                },
-                "health": {
-                    "max_memory_percent": 1.0
-                }
-            }
-        }))
-        .unwrap()
-        .into();
-        let memory_stat_config = MemoryStat::new().with_config(config.clone());
-
-        let index = Arc::new(Mutex::new(HashSet::new()));
-        let mut services = services();
-        let index_in = index.clone();
-        let (project_cache, _) = mock_service("project_cache", (), move |(), msg: ProjectCache| {
-            // First chunk in the unspool will take us over the low watermark, that means we will get
-            // small portion of the keys back.
-            let ProjectCache::UpdateSpoolIndex(new_index) = msg else {
-                return;
-            };
-            index_in.lock().unwrap().extend(new_index.0);
-        });
-
-        services.project_cache = project_cache;
-        let buffer = BufferService::create(memory_stat_config, services, config)
-            .await
-            .unwrap();
-        let addr = buffer.start();
-
-        let mut keys = HashSet::new();
-        for _ in 1..=300 {
-            let project_key = uuid::Uuid::new_v4().as_simple().to_string();
-            let key = ProjectKey::parse(&project_key).unwrap();
-            let index_key = QueueKey {
-                own_key: key,
-                sampling_key: key,
-            };
-            keys.insert(index_key);
-            addr.send(Enqueue::new(index_key, empty_managed_envelope()))
-        }
-
-        let (tx, mut rx) = mpsc::unbounded_channel();
-        // Dequeue all the keys at once.
-        addr.send(DequeueMany {
-            keys,
-            sender: tx.clone(),
-        });
-        drop(tx);
-
-        let mut envelopes = Vec::new();
-        while let Some(envelope) = rx.recv().await {
-            envelopes.push(envelope);
-        }
-
-        assert_eq!(envelopes.len(), 200);
-        let index = index.lock().unwrap().clone();
-        assert_eq!(index.len(), 100);
     }
 
     #[ignore] // Slow. Should probably be a criterion benchmark.

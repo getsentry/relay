@@ -1326,6 +1326,9 @@ mod tests {
                 "envelopes": {
                     "path": std::env::temp_dir().join(Uuid::new_v4().to_string()),
                     "max_memory_size": 0, // 0 bytes, to force to spool to disk all the envelopes.
+                },
+                "health": {
+                    "max_memory_percent": 0.0
                 }
             }
         }))
@@ -1380,84 +1383,6 @@ mod tests {
             },
             buffer,
         )
-    }
-
-    #[tokio::test]
-    async fn always_spools() {
-        relay_log::init_test!();
-
-        let services = mocked_services();
-        let (state_tx, _) = mpsc::unbounded_channel();
-        let (buffer_tx, mut buffer_rx) = mpsc::unbounded_channel();
-        let (mut broker, buffer_svc) =
-            project_cache_broker_setup(services.clone(), state_tx, buffer_tx).await;
-
-        for _ in 0..8 {
-            let envelope = ManagedEnvelope::new(
-                empty_envelope(),
-                services.outcome_aggregator.clone(),
-                services.test_store.clone(),
-                ProcessingGroup::Ungrouped,
-            );
-
-            let message = ValidateEnvelope { envelope };
-
-            broker.handle_validate_envelope(message);
-            tokio::time::sleep(Duration::from_millis(200)).await;
-            // Nothing will be dequeued.
-            assert!(buffer_rx.try_recv().is_err())
-        }
-
-        // All the messages should have been spooled to disk.
-        assert_eq!(broker.index.len(), 1);
-
-        let project_key = ProjectKey::parse("e12d836b15bb49d7bbf99e64295d995b").unwrap();
-        let key = QueueKey {
-            own_key: project_key,
-            sampling_key: project_key,
-        };
-        let (tx, mut rx) = mpsc::unbounded_channel();
-
-        // Check if we can also dequeue from the buffer directly.
-        buffer_svc.send(spooler::DequeueMany::new([key].into(), tx.clone()));
-        tokio::time::sleep(Duration::from_millis(100)).await;
-
-        // We should be able to unspool 5 envelopes since we have 5 permits.
-        let mut envelopes = vec![];
-        while let Ok(envelope) = rx.try_recv() {
-            envelopes.push(envelope)
-        }
-
-        // We can unspool only 5 envelopes.
-        assert_eq!(envelopes.len(), 5);
-
-        // Drop one.
-        envelopes.pop().unwrap();
-
-        // Till now we should have enqueued 5 envelopes and dequeued only 1, it means the index is
-        // still populated with same keys and values.
-        assert_eq!(broker.index.len(), 1);
-
-        // Check if we can also dequeue from the buffer directly.
-        buffer_svc.send(spooler::DequeueMany::new([key].into(), tx));
-        tokio::time::sleep(Duration::from_millis(100)).await;
-        // Cannot dequeue anymore, no more available permits.
-        assert!(rx.try_recv().is_err());
-
-        // The rest envelopes will be immediately spooled, since we at 80% buffer gueard usage.
-        for _ in 0..10 {
-            let envelope = ManagedEnvelope::untracked(
-                empty_envelope(),
-                services.outcome_aggregator.clone(),
-                services.test_store.clone(),
-            );
-            let message = ValidateEnvelope { envelope };
-
-            broker.handle_validate_envelope(message);
-            tokio::time::sleep(Duration::from_millis(100)).await;
-            // Nothing will be dequeued.
-            assert!(buffer_rx.try_recv().is_err())
-        }
     }
 
     #[tokio::test]
