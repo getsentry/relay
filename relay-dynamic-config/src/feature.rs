@@ -107,7 +107,7 @@ pub enum Feature {
     ///
     /// Serialized as `organizations:performance-queries-mongodb-extraction`.
     #[serde(rename = "organizations:performance-queries-mongodb-extraction")]
-    ExtractMongoDBMetrics,
+    ScrubMongoDBDescriptions,
 
     /// Deprecated, still forwarded for older downstream Relays.
     #[doc(hidden)]

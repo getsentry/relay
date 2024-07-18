@@ -38,8 +38,11 @@ const MAX_EXTENSION_LENGTH: usize = 10;
 const DOMAIN_ALLOW_LIST: &[&str] = &["localhost"];
 
 #[derive(PartialEq, Clone, Debug)]
+/// Whether to scrub MongoDB span descriptions or not. See `Feature::ScrubMongoDBDescriptions`.
 pub enum ScrubMongoDescription {
+    /// Disable scrubbing of MongoDB span descriptions.
     Disabled,
+    /// Enable scrubbing of MongoDB span descriptions.
     Enabled,
 }
 

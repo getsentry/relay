@@ -1629,7 +1629,7 @@ impl EnvelopeProcessorService {
                     .and_then(|ctx| ctx.replay_id),
                 scrub_mongo_description: if state
                     .project_state
-                    .has_feature(Feature::ExtractMongoDBMetrics)
+                    .has_feature(Feature::ScrubMongoDBDescriptions)
                 {
                     ScrubMongoDescription::Enabled
                 } else {

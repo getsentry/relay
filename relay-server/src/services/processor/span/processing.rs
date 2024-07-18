@@ -367,7 +367,7 @@ pub fn extract_from_event(
             .project_state
             .config
             .features
-            .has(Feature::ExtractMongoDBMetrics)
+            .has(Feature::ScrubMongoDBDescriptions)
         {
             ScrubMongoDescription::Enabled
         } else {
@@ -586,7 +586,10 @@ fn normalize(
         None,
         is_mobile,
         None,
-        if project_config.features.has(Feature::ExtractMongoDBMetrics) {
+        if project_config
+            .features
+            .has(Feature::ScrubMongoDBDescriptions)
+        {
             ScrubMongoDescription::Enabled
         } else {
             ScrubMongoDescription::Disabled
