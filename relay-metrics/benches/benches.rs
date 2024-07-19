@@ -190,6 +190,7 @@ fn bench_insert_and_flush(c: &mut Criterion) {
                     },
                     |(mut aggregator, buckets)| {
                         for (project_key, bucket) in buckets {
+                            #[allow(clippy::unit_arg)]
                             black_box(aggregator.merge(project_key, bucket, None).unwrap());
                         }
                     },
