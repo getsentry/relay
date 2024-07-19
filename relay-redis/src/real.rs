@@ -208,6 +208,14 @@ impl RedisPool {
     }
 }
 
+#[derive(Debug, Clone, Default)]
+pub struct RedisPools {
+    pub project_config: Option<RedisPool>,
+    pub cardinality: Option<RedisPool>,
+    pub quotas: Option<RedisPool>,
+    pub misc: Option<RedisPool>,
+}
+
 /// Stats about how the [`RedisPool`] is performing.
 pub struct Stats {
     /// The number of connections currently being managed by the pool.

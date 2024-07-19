@@ -144,8 +144,8 @@ pub enum RedisConfigs {
 
 #[derive(Debug, Clone)]
 pub struct RedisPool<'a> {
-    connection: &'a RedisConnection,
-    options: RedisConfigOptions,
+    pub connection: &'a RedisConnection,
+    pub options: RedisConfigOptions,
 }
 
 impl<'a> RedisPool<'a> {
@@ -172,10 +172,10 @@ impl<'a> RedisPool<'a> {
 
 #[derive(Debug, Clone, Default)]
 pub struct RedisPools<'a> {
-    project_config: Option<RedisPool<'a>>,
-    cardinality: Option<RedisPool<'a>>,
-    quotas: Option<RedisPool<'a>>,
-    misc: Option<RedisPool<'a>>,
+    pub project_config: Option<RedisPool<'a>>,
+    pub cardinality: Option<RedisPool<'a>>,
+    pub quotas: Option<RedisPool<'a>>,
+    pub misc: Option<RedisPool<'a>>,
 }
 
 impl<'a> RedisPools<'a> {
