@@ -133,7 +133,7 @@ impl From<RedisConfigFromFile> for RedisConfig {
 #[derive(Clone, Debug, Deserialize, Serialize, Eq, PartialEq)]
 #[serde(untagged)]
 pub enum RedisConfigs {
-    Single(RedisConfig),
+    Unified(RedisConfig),
     Individual {
         project_config: Option<Box<RedisConfig>>,
         cardinality: Option<Box<RedisConfig>>,
@@ -181,7 +181,7 @@ pub struct RedisPools<'a> {
 impl<'a> RedisPools<'a> {
     pub fn from_configs(configs: &'a RedisConfigs, cpu_concurrency: usize) -> Self {
         match configs {
-            RedisConfigs::Single(cfg) => {
+            RedisConfigs::Unified(cfg) => {
                 let pool = RedisPool::from_config(&cfg, cpu_concurrency);
                 Self {
                     project_config: Some(pool.clone()),

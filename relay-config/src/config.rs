@@ -1585,7 +1585,7 @@ impl Config {
 
         // TODO: Should this be generalized to being able to override individual redis pool settings?
         if let Some(redis) = overrides.redis_url {
-            processing.redis = Some(RedisConfigs::Single(RedisConfig::single(redis)))
+            processing.redis = Some(RedisConfigs::Unified(RedisConfig::single(redis)))
         }
 
         if let Some(kafka_url) = overrides.kafka_url {
