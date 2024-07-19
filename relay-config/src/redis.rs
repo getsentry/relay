@@ -1,3 +1,4 @@
+use relay_redis::RedisConfigOptions;
 use serde::{Deserialize, Serialize};
 
 /// For small setups, `2 x limits.max_thread_count` does not leave enough headroom.
@@ -86,7 +87,8 @@ pub enum RedisConnection {
 }
 
 /// Configuration for connecting a redis client.
-#[derive(Clone, Debug, Serialize, Eq, PartialEq)]
+#[derive(Clone, Debug, Deserialize, Serialize, Eq, PartialEq)]
+#[serde(from = "RedisConfigFromFile")]
 pub struct RedisConfig {
     /// Redis connection info.
     #[serde(flatten)]
@@ -128,12 +130,93 @@ impl From<RedisConfigFromFile> for RedisConfig {
     }
 }
 
-impl<'de> Deserialize<'de> for RedisConfig {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        RedisConfigFromFile::deserialize(deserializer).map(Into::into)
+#[derive(Clone, Debug, Deserialize, Serialize, Eq, PartialEq)]
+#[serde(untagged)]
+pub enum RedisConfigs {
+    Single(RedisConfig),
+    Individual {
+        project_config: Option<Box<RedisConfig>>,
+        cardinality: Option<Box<RedisConfig>>,
+        quotas: Option<Box<RedisConfig>>,
+        misc: Option<Box<RedisConfig>>,
+    },
+}
+
+#[derive(Debug, Clone)]
+pub struct RedisPool<'a> {
+    connection: &'a RedisConnection,
+    options: RedisConfigOptions,
+}
+
+impl<'a> RedisPool<'a> {
+    fn from_config(config: &'a RedisConfig, cpu_concurrency: usize) -> Self {
+        let options = RedisConfigOptions {
+            max_connections: config
+                .options
+                .max_connections
+                .unwrap_or(cpu_concurrency as u32 * 2)
+                .min(crate::redis::DEFAULT_MIN_MAX_CONNECTIONS),
+            connection_timeout: config.options.connection_timeout,
+            max_lifetime: config.options.max_lifetime,
+            idle_timeout: config.options.idle_timeout,
+            read_timeout: config.options.read_timeout,
+            write_timeout: config.options.write_timeout,
+        };
+
+        Self {
+            connection: &config.connection,
+            options,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct RedisPools<'a> {
+    project_config: Option<RedisPool<'a>>,
+    cardinality: Option<RedisPool<'a>>,
+    quotas: Option<RedisPool<'a>>,
+    misc: Option<RedisPool<'a>>,
+}
+
+impl<'a> RedisPools<'a> {
+    pub fn from_configs(configs: &'a RedisConfigs, cpu_concurrency: usize) -> Self {
+        match configs {
+            RedisConfigs::Single(cfg) => {
+                let pool = RedisPool::from_config(&cfg, cpu_concurrency);
+                Self {
+                    project_config: Some(pool.clone()),
+                    cardinality: Some(pool.clone()),
+                    quotas: Some(pool.clone()),
+                    misc: Some(pool),
+                }
+            }
+            RedisConfigs::Individual {
+                project_config,
+                cardinality,
+                quotas,
+                misc,
+            } => {
+                let project_config = project_config
+                    .as_ref()
+                    .map(|cfg| RedisPool::from_config(cfg, cpu_concurrency));
+                let cardinality = cardinality
+                    .as_ref()
+                    .map(|cfg| RedisPool::from_config(cfg, cpu_concurrency));
+                let quotas = quotas
+                    .as_ref()
+                    .map(|cfg| RedisPool::from_config(cfg, cpu_concurrency));
+                let misc = misc
+                    .as_ref()
+                    .map(|cfg| RedisPool::from_config(cfg, cpu_concurrency));
+
+                Self {
+                    project_config,
+                    cardinality,
+                    quotas,
+                    misc,
+                }
+            }
+        }
     }
 }
 
