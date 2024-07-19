@@ -65,7 +65,7 @@ impl ThreadPoolBuilder {
     }
 }
 
-/// A [`WorkerGroup`] adds an async brackpressure mechanism to a [`ThreadPool`].
+/// A [`WorkerGroup`] adds an async backpressure mechanism to a [`ThreadPool`].
 pub struct WorkerGroup {
     pool: ThreadPool,
     semaphore: Arc<Semaphore>,
