@@ -90,7 +90,7 @@ pub fn create_runtime(name: &str, threads: usize) -> Runtime {
         // which leads to a massive resource waste.
         .max_blocking_threads(150)
         // As with the maximum amount of threads used by the runtime, we want
-        // to encourge the runtime to terminate blocking threads again.
+        // to encourage the runtime to terminate blocking threads again.
         .thread_keep_alive(Duration::from_secs(1))
         .enable_all()
         .build()
