@@ -188,7 +188,7 @@ pub struct MemoryChecker {
 }
 
 impl MemoryChecker {
-    /// Checks the used percentage of memory is below the specified threshold.
+    /// Checks if the used percentage of memory is below the specified threshold.
     pub fn check_memory_percent(&self) -> MemoryCheck {
         let memory = self.memory_stat.memory();
         if memory.used_percent() < self.config.health_max_memory_watermark_percent() {
