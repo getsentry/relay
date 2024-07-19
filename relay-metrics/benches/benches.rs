@@ -21,7 +21,6 @@ struct NumbersGenerator {
 
 impl NumbersGenerator {
     fn new(range: Range<usize>) -> Self {
-        println!("{:?} {:?}", range.start, range.end);
         Self {
             min: range.start,
             max: range.end,
@@ -164,6 +163,16 @@ fn bench_insert_and_flush(c: &mut Criterion) {
                 num_buckets: 100_000,
                 metric_ids_generator: NumbersGenerator::new(1..100),
                 project_keys_generator: NumbersGenerator::new(1..100),
+                timestamp_shifts_generator: NumbersGenerator::new(10..50),
+            },
+        ),
+        (
+            "a lot of metrics from a lot of projects with mix of backdated buckets and non",
+            BucketsGenerator {
+                percentage_backdated: 0.5,
+                num_buckets: 1_000_000,
+                metric_ids_generator: NumbersGenerator::new(1..1_000_000),
+                project_keys_generator: NumbersGenerator::new(1..1_000_000),
                 timestamp_shifts_generator: NumbersGenerator::new(10..50),
             },
         ),
