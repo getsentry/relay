@@ -939,7 +939,7 @@ impl BufferState {
     async fn is_below_low_mem_watermark(config: &Config, disk: &OnDisk) -> bool {
         ((config.spool_envelopes_max_memory_size() as f64 * LOW_SPOOL_MEMORY_WATERMARK) as i64)
             > disk.estimate_spool_size().await.unwrap_or(i64::MAX)
-            && disk.memory_checker.check_memory().is_below()
+            && disk.memory_checker.check_memory().has_capacity()
     }
 }
 
@@ -1370,7 +1370,7 @@ mod tests {
         }))
         .unwrap()
         .into();
-        let memory_checker = MemoryStat::new().init_checker(config.clone());
+        let memory_checker = MemoryChecker::new(MemoryStat::new(), config.clone());
         BufferService::create(memory_checker, services(), config)
             .await
             .unwrap();
@@ -1392,7 +1392,7 @@ mod tests {
         }))
         .unwrap()
         .into();
-        let memory_checker = MemoryStat::new().init_checker(config.clone());
+        let memory_checker = MemoryChecker::new(MemoryStat::new(), config.clone());
         let service = BufferService::create(memory_checker, services(), config)
             .await
             .unwrap();
@@ -1463,7 +1463,7 @@ mod tests {
         }))
         .unwrap()
         .into();
-        let memory_checker = MemoryStat::new().init_checker(config.clone());
+        let memory_checker = MemoryChecker::new(MemoryStat::new(), config.clone());
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
         let key = QueueKey {
             own_key: project_key,
@@ -1611,7 +1611,7 @@ mod tests {
         }))
         .unwrap()
         .into();
-        let memory_checker = MemoryStat::new().init_checker(config.clone());
+        let memory_checker = MemoryChecker::new(MemoryStat::new(), config.clone());
 
         let buffer = BufferService::create(memory_checker, services(), config)
             .await
@@ -1642,7 +1642,7 @@ mod tests {
         }))
         .unwrap()
         .into();
-        let memory_checker = MemoryStat::new().init_checker(config.clone());
+        let memory_checker = MemoryChecker::new(MemoryStat::new(), config.clone());
 
         let buffer = BufferService::create(memory_checker, services(), config)
             .await
@@ -1675,7 +1675,7 @@ mod tests {
         }))
         .unwrap()
         .into();
-        let memory_checker = MemoryStat::new().init_checker(config.clone());
+        let memory_checker = MemoryChecker::new(MemoryStat::new(), config.clone());
 
         // Setup spool file and run migrations.
         BufferService::setup(&db_path).await.unwrap();
@@ -1754,7 +1754,7 @@ mod tests {
         }))
         .unwrap()
         .into();
-        let memory_checker = MemoryStat::new().init_checker(config.clone());
+        let memory_checker = MemoryChecker::new(MemoryStat::new(), config.clone());
 
         let services = services();
         let buffer = BufferService::create(memory_checker, services, config)

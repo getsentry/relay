@@ -85,15 +85,6 @@ impl MemoryStat {
         **self.0.memory.load()
     }
 
-    /// Builds a [`MemoryChecker`] which holds a reference to the supplied [`Config`] and the
-    /// current [`MemoryStat`].
-    pub fn init_checker(&self, config: Arc<Config>) -> MemoryChecker {
-        MemoryChecker {
-            memory_stat: self.clone(),
-            config,
-        }
-    }
-
     /// Refreshes the memory readings.
     fn refresh_memory(system: &mut System) -> Memory {
         system.refresh_memory_specifics(MemoryRefreshKind::new().with_ram());
@@ -123,12 +114,17 @@ impl MemoryStat {
             return;
         }
 
-        if self.0.last_update.compare_exchange_weak(
-            last_update,
-            elapsed_time,
-            Ordering::Relaxed,
-            Ordering::Relaxed,
-        ).is_err() {
+        if self
+            .0
+            .last_update
+            .compare_exchange_weak(
+                last_update,
+                elapsed_time,
+                Ordering::Relaxed,
+                Ordering::Relaxed,
+            )
+            .is_err()
+        {
             return;
         }
 
@@ -158,20 +154,20 @@ impl Default for MemoryStat {
 /// Enum representing the two different states of a memory check.
 pub enum MemoryCheck {
     /// The memory usage is below the specified thresholds.
-    Below(Memory),
+    Ok(Memory),
     /// The memory usage exceeds the specified thresholds.
     Exceeded(Memory),
 }
 
 impl MemoryCheck {
-    /// Returns `true` if [`MemoryCheck`] is of variant [`MemoryCheck::Below`].
-    pub fn is_below(&self) -> bool {
-        matches!(self, Self::Below(_))
+    /// Returns `true` if [`MemoryCheck`] is of variant [`MemoryCheck::Ok`].
+    pub fn has_capacity(&self) -> bool {
+        matches!(self, Self::Ok(_))
     }
 
     /// Returns `true` if [`MemoryCheck`] is of variant [`MemoryCheck::Exceeded`].
     pub fn is_exceeded(&self) -> bool {
-        !self.is_below()
+        !self.has_capacity()
     }
 }
 
@@ -188,11 +184,19 @@ pub struct MemoryChecker {
 }
 
 impl MemoryChecker {
+    /// Create an instance of [`MemoryChecker`].
+    pub fn new(memory_stat: MemoryStat, config: Arc<Config>) -> Self {
+        Self {
+            memory_stat,
+            config: config.clone(),
+        }
+    }
+
     /// Checks if the used percentage of memory is below the specified threshold.
     pub fn check_memory_percent(&self) -> MemoryCheck {
         let memory = self.memory_stat.memory();
         if memory.used_percent() < self.config.health_max_memory_watermark_percent() {
-            return MemoryCheck::Below(memory);
+            return MemoryCheck::Ok(memory);
         }
 
         MemoryCheck::Exceeded(memory)
@@ -202,7 +206,7 @@ impl MemoryChecker {
     pub fn check_memory_bytes(&self) -> MemoryCheck {
         let memory = self.memory_stat.memory();
         if memory.used < self.config.health_max_memory_watermark_bytes() {
-            return MemoryCheck::Below(memory);
+            return MemoryCheck::Ok(memory);
         }
 
         MemoryCheck::Exceeded(memory)
@@ -217,7 +221,7 @@ impl MemoryChecker {
         if memory.used_percent() < self.config.health_max_memory_watermark_percent()
             && memory.used < self.config.health_max_memory_watermark_bytes()
         {
-            return MemoryCheck::Below(memory);
+            return MemoryCheck::Ok(memory);
         }
 
         MemoryCheck::Exceeded(memory)
@@ -233,7 +237,7 @@ mod tests {
     use std::time::Duration;
 
     use crate::utils::memory::UPDATE_TIME_THRESHOLD_MS;
-    use crate::utils::{Memory, MemoryStat};
+    use crate::utils::{Memory, MemoryChecker, MemoryStat};
 
     #[test]
     fn test_memory_used_percent_both_0() {
@@ -276,8 +280,8 @@ mod tests {
             }
         }))
         .unwrap();
-        let memory_checker = MemoryStat::new().init_checker(Arc::new(config));
-        assert!(memory_checker.check_memory().is_below());
+        let memory_checker = MemoryChecker::new(MemoryStat::new(), Arc::new(config));
+        assert!(memory_checker.check_memory().has_capacity());
 
         let config = Config::from_json_value(serde_json::json!({
             "health": {
@@ -285,7 +289,7 @@ mod tests {
             }
         }))
         .unwrap();
-        let memory_checker = MemoryStat::new().init_checker(Arc::new(config));
+        let memory_checker = MemoryChecker::new(MemoryStat::new(), Arc::new(config));
         assert!(memory_checker.check_memory().is_exceeded());
     }
 

@@ -821,7 +821,7 @@ impl ProjectCacheBroker {
         // state or we do not need one.
         if let Some(project_state) = project_state {
             if (sampling_state.is_some() || sampling_key.is_none())
-                && self.memory_checker.check_memory().is_below()
+                && self.memory_checker.check_memory().has_capacity()
                 && self.global_config.is_ready()
             {
                 self.services.envelope_processor.send(ProcessEnvelope {
@@ -1295,7 +1295,7 @@ mod tests {
         }))
         .unwrap()
         .into();
-        let memory_checker = MemoryStat::new().init_checker(config.clone());
+        let memory_checker = MemoryChecker::new(MemoryStat::new(), config.clone());
         let buffer_services = spooler::Services {
             outcome_aggregator: services.outcome_aggregator.clone(),
             project_cache: services.project_cache.clone(),
