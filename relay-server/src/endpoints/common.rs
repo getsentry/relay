@@ -333,6 +333,8 @@ pub async fn handle_envelope(
     }
 
     if state.memory_checker().check_memory().is_exceeded() {
+        // NOTE: Long-term, we should not reject the envelope here, but spool it to disk instead.
+        // This will be fixed with the new spool implementation.
         return Err(BadStoreRequest::QueueFailed);
     };
 
