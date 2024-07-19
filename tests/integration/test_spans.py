@@ -556,7 +556,12 @@ def test_span_ingestion(
 
     assert spans == [
         {
-            "data": {"browser.name": "Chrome"},
+            "data": {
+                "browser.name": "Chrome",
+                "user_agent.original": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/111.0.0.0 Safari/537.36",
+            },
             "description": "my 1st OTel span",
             "duration_ms": 500,
             "exclusive_time_ms": 500.0,
@@ -578,7 +583,12 @@ def test_span_ingestion(
             "trace_id": "89143b0763095bd9c9955e8175d1fb23",
         },
         {
-            "data": {"browser.name": "Chrome"},
+            "data": {
+                "browser.name": "Chrome",
+                "user_agent.original": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/111.0.0.0 Safari/537.36",
+            },
             "description": "https://example.com/p/blah.js",
             "duration_ms": 1500,
             "exclusive_time_ms": 345.0,
@@ -604,7 +614,12 @@ def test_span_ingestion(
             "trace_id": "ff62a8b040f340bda5d830223def1d81",
         },
         {
-            "data": {"browser.name": "Chrome"},
+            "data": {
+                "browser.name": "Chrome",
+                "user_agent.original": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/111.0.0.0 Safari/537.36",
+            },
             "description": r"test \" with \" escaped \" chars",
             "duration_ms": 1500,
             "exclusive_time_ms": 345.0,
@@ -621,7 +636,10 @@ def test_span_ingestion(
             "trace_id": "ff62a8b040f340bda5d830223def1d81",
         },
         {
-            "data": {"browser.name": "Python Requests"},
+            "data": {
+                "browser.name": "Python Requests",
+                "user_agent.original": "python-requests/2.32.2",
+            },
             "description": "my 2nd OTel span",
             "duration_ms": 500,
             "exclusive_time_ms": 500.0,
@@ -642,7 +660,12 @@ def test_span_ingestion(
             "trace_id": "89143b0763095bd9c9955e8175d1fb24",
         },
         {
-            "data": {"browser.name": "Chrome"},
+            "data": {
+                "browser.name": "Chrome",
+                "user_agent.original": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/111.0.0.0 Safari/537.36",
+            },
             "duration_ms": 1500,
             "exclusive_time_ms": 345.0,
             "is_segment": False,
@@ -661,7 +684,10 @@ def test_span_ingestion(
             "trace_id": "ff62a8b040f340bda5d830223def1d81",
         },
         {
-            "data": {"browser.name": "Python Requests"},
+            "data": {
+                "browser.name": "Python Requests",
+                "user_agent.original": "python-requests/2.32.2",
+            },
             "description": "my 3rd protobuf OTel span",
             "duration_ms": 500,
             "exclusive_time_ms": 500.0,
@@ -1374,7 +1400,10 @@ def test_span_ingestion_with_performance_scores(
 
     assert spans == [
         {
-            "data": {"browser.name": "Python Requests"},
+            "data": {
+                "browser.name": "Python Requests",
+                "user_agent.original": "python-requests/2.32.2",
+            },
             "duration_ms": 1500,
             "exclusive_time_ms": 345.0,
             "is_segment": False,
@@ -1415,6 +1444,7 @@ def test_span_ingestion_with_performance_scores(
                 "sentry.replay.id": "8477286c8e5148b386b71ade38374d58",
                 "sentry.segment.name": "/page/with/click/interaction/*/*",
                 "user": "admin@sentry.io",
+                "user_agent.original": "python-requests/2.32.2",
             },
             "duration_ms": 1500,
             "exclusive_time_ms": 345.0,
