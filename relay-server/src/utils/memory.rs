@@ -208,7 +208,7 @@ impl MemoryChecker {
         MemoryCheck::Exceeded(memory)
     }
 
-    /// Returns `true` if the used memory is below both percentage and bytes thresholds.
+    /// Checks if the used memory is below both percentage and bytes thresholds.
     ///
     /// This is the function that should be mainly used for checking whether of not Relay has
     /// enough memory.
