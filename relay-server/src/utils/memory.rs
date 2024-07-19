@@ -166,10 +166,7 @@ pub enum MemoryCheck {
 impl MemoryCheck {
     /// Returns `true` if [`MemoryCheck`] is of variant [`MemoryCheck::Below`].
     pub fn is_below(&self) -> bool {
-        match self {
-            Self::Below(_) => true,
-            Self::Exceeded(_) => false,
-        }
+        matches!(self, Self::Below(_))
     }
 
     /// Returns `true` if [`MemoryCheck`] is of variant [`MemoryCheck::Exceeded`].
