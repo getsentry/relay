@@ -336,9 +336,25 @@
 <a href="#336" id="336">336</a>
 <a href="#337" id="337">337</a>
 <a href="#338" id="338">338</a>
+<a href="#339" id="339">339</a>
+<a href="#340" id="340">340</a>
+<a href="#341" id="341">341</a>
+<a href="#342" id="342">342</a>
+<a href="#343" id="343">343</a>
+<a href="#344" id="344">344</a>
+<a href="#345" id="345">345</a>
+<a href="#346" id="346">346</a>
+<a href="#347" id="347">347</a>
+<a href="#348" id="348">348</a>
+<a href="#349" id="349">349</a>
+<a href="#350" id="350">350</a>
+<a href="#351" id="351">351</a>
+<a href="#352" id="352">352</a>
+<a href="#353" id="353">353</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::convert::Infallible;
 <span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::sync::Arc;
+<span class="kw">use </span>std::time::Duration;
 
 <span class="kw">use </span><span class="kw">crate</span>::metrics::{MetricOutcomes, MetricStats};
 <span class="kw">use </span><span class="kw">crate</span>::services::stats::RelayStats;
@@ -415,6 +431,20 @@
     tokio::runtime::Builder::new_multi_thread()
         .thread_name(name)
         .worker_threads(threads)
+        <span class="comment">// Relay uses `spawn_blocking` only for Redis connections within the project
+        // cache, those should never exceed 100 concurrent connections
+        // (limited by connection pool).
+        //
+        // Relay also does not use other blocking opertions from Tokio which require
+        // this pool, no usage of `tokio::fs` and `tokio::io::{Stdin, Stdout, Stderr}`.
+        //
+        // We limit the maximum amount of threads here, we've seen that Tokio
+        // expands this pool very very aggressively and basically never shrinks it
+        // which leads to a massive resource waste.
+        </span>.max_blocking_threads(<span class="number">150</span>)
+        <span class="comment">// As with the maximum amount of threads used by the runtime, we want
+        // to encourage the runtime to terminate blocking threads again.
+        </span>.thread_keep_alive(Duration::from_secs(<span class="number">1</span>))
         .enable_all()
         .build()
         .unwrap()
