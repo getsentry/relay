@@ -40,7 +40,6 @@ impl NumbersGenerator {
 }
 
 struct BucketsGenerator {
-    base_timestamp: UnixTimestamp,
     percentage_backdated: f32,
     num_buckets: usize,
     metric_ids_generator: NumbersGenerator,
@@ -48,7 +47,7 @@ struct BucketsGenerator {
     timestamp_shifts_generator: NumbersGenerator,
 }
 impl BucketsGenerator {
-    fn get_buckets(&self) -> Vec<(ProjectKey, Bucket)> {
+    fn get_buckets(&self, base_timestamp: UnixTimestamp) -> Vec<(ProjectKey, Bucket)> {
         let mut buckets = Vec::with_capacity(self.num_buckets);
 
         let backdated = ((self.num_buckets as f32 * self.percentage_backdated) as usize)
@@ -56,22 +55,26 @@ impl BucketsGenerator {
         let non_backdated = self.num_buckets - backdated;
 
         for _ in 0..backdated {
-            buckets.push(self.build_bucket(true));
+            buckets.push(self.build_bucket(base_timestamp, true));
         }
 
         for _ in 0..non_backdated {
-            buckets.push(self.build_bucket(false));
+            buckets.push(self.build_bucket(base_timestamp, false));
         }
 
         buckets
     }
 
-    fn build_bucket(&self, is_backdated: bool) -> (ProjectKey, Bucket) {
+    fn build_bucket(
+        &self,
+        base_timestamp: UnixTimestamp,
+        is_backdated: bool,
+    ) -> (ProjectKey, Bucket) {
         let time_shift = self.timestamp_shifts_generator.next();
         let timestamp = if is_backdated {
-            self.base_timestamp.as_secs() - (time_shift as u64)
+            base_timestamp.as_secs() - (time_shift as u64)
         } else {
-            self.base_timestamp.as_secs() + (time_shift as u64)
+            base_timestamp.as_secs() + (time_shift as u64)
         };
         let name = format!("c:transactions/foo_{}", self.metric_ids_generator.next());
         let bucket = Bucket {
@@ -125,7 +128,6 @@ fn bench_insert_and_flush(c: &mut Criterion) {
         (
             "multiple metrics of the same project",
             BucketsGenerator {
-                base_timestamp: UnixTimestamp::now(),
                 percentage_backdated: 0.5,
                 num_buckets: 100_000,
                 metric_ids_generator: NumbersGenerator::new(1, 100),
@@ -136,7 +138,6 @@ fn bench_insert_and_flush(c: &mut Criterion) {
         (
             "same metric on different projects",
             BucketsGenerator {
-                base_timestamp: UnixTimestamp::now(),
                 percentage_backdated: 0.5,
                 num_buckets: 100_000,
                 metric_ids_generator: NumbersGenerator::new(1, 1),
@@ -147,7 +148,6 @@ fn bench_insert_and_flush(c: &mut Criterion) {
         (
             "all backdated metrics",
             BucketsGenerator {
-                base_timestamp: UnixTimestamp::now(),
                 percentage_backdated: 1.0,
                 num_buckets: 100_000,
                 metric_ids_generator: NumbersGenerator::new(1, 100),
@@ -158,7 +158,6 @@ fn bench_insert_and_flush(c: &mut Criterion) {
         (
             "all non-backdated metrics",
             BucketsGenerator {
-                base_timestamp: UnixTimestamp::now(),
                 percentage_backdated: 0.0,
                 num_buckets: 100_000,
                 metric_ids_generator: NumbersGenerator::new(1, 100),
@@ -175,8 +174,9 @@ fn bench_insert_and_flush(c: &mut Criterion) {
             |b, input| {
                 b.iter_batched(
                     || {
+                        let timestamp = UnixTimestamp::now();
                         let aggregator: Aggregator = Aggregator::new(config.clone());
-                        (aggregator, input.get_buckets())
+                        (aggregator, input.get_buckets(timestamp))
                     },
                     |(mut aggregator, buckets)| {
                         for (project_key, bucket) in buckets {
@@ -194,8 +194,9 @@ fn bench_insert_and_flush(c: &mut Criterion) {
             |b, &input| {
                 b.iter_batched(
                     || {
+                        let timestamp = UnixTimestamp::now();
                         let mut aggregator: Aggregator = Aggregator::new(config.clone());
-                        for (project_key, bucket) in input.get_buckets() {
+                        for (project_key, bucket) in input.get_buckets(timestamp) {
                             aggregator.merge(project_key, bucket, None).unwrap();
                         }
                         aggregator
