@@ -159,7 +159,7 @@ impl Default for MemoryStat {
 pub enum MemoryCheck {
     /// The memory usage is below the specified thresholds.
     Below(Memory),
-    /// The memory usage exceeds is below the specified thresholds.
+    /// The memory usage exceeds the specified thresholds.
     Exceeded(Memory),
 }
 
