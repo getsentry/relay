@@ -123,14 +123,14 @@ impl MemoryStat {
             return;
         }
 
-        let Ok(_) = self.0.last_update.compare_exchange_weak(
+        if self.0.last_update.compare_exchange_weak(
             last_update,
             elapsed_time,
             Ordering::Relaxed,
             Ordering::Relaxed,
-        ) else {
+        ).is_err() {
             return;
-        };
+        }
 
         let mut system = self
             .0
