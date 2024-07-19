@@ -57,9 +57,13 @@
 <a href="#57" id="57">57</a>
 <a href="#58" id="58">58</a>
 <a href="#59" id="59">59</a>
+<a href="#60" id="60">60</a>
+<a href="#61" id="61">61</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>itertools::Either;
 
 <span class="doccomment">/// Splits off items from a vector matching a predicate.
+///
+/// Matching elements are returned in the second vector.
 </span><span class="kw">pub fn </span>split_off&lt;T&gt;(data: Vec&lt;T&gt;, <span class="kw-2">mut </span>f: <span class="kw">impl </span>FnMut(<span class="kw-2">&amp;</span>T) -&gt; bool) -&gt; (Vec&lt;T&gt;, Vec&lt;T&gt;) {
     split_off_map(data, |item| {
         <span class="kw">if </span>f(<span class="kw-2">&amp;</span>item) {
