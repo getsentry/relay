@@ -85,12 +85,13 @@ pub fn create_runtime(name: &str, threads: usize) -> Runtime {
         // Relay also does not use other blocking opertions from Tokio which require
         // this pool, no usage of `tokio::fs` and `tokio::io::{Stdin, Stdout, Stderr}`.
         //
-        // We limit the maximum amount of threads here, we've seen that Tokio
-        // expands this pool very very aggressively and basically never shrinks it
-        // which leads to a massive resource waste.
-        .max_blocking_threads(150)
-        // As with the maximum amount of threads used by the runtime, we want
-        // to encourage the runtime to terminate blocking threads again.
+        // Given we have a semaphore on Redis operations, we leverage on that
+        // to keep the blocking threads under control, and leave the runtime the
+        // decision on how many blocking threads to spawn (default max 512).
+        //
+        // We simply lower down the default (10s) keep alive timeout for blocking
+        // threads to encourage the runtime to not keep too many idle blocking threads
+        // around.
         .thread_keep_alive(Duration::from_secs(1))
         .enable_all()
         .build()
