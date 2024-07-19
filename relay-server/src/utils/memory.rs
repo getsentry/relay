@@ -198,7 +198,7 @@ impl MemoryChecker {
         MemoryCheck::Exceeded(memory)
     }
 
-    /// Returns `true` if the used memory is below the specified threshold.
+    /// Checks if the used memory (in bytes) is below the specified threshold.
     pub fn check_memory_bytes(&self) -> MemoryCheck {
         let memory = self.memory_stat.memory();
         if memory.used < self.config.health_max_memory_watermark_bytes() {
