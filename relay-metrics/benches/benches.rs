@@ -11,6 +11,7 @@ use relay_metrics::{
 use std::cell::RefCell;
 use std::collections::BTreeMap;
 use std::fmt;
+use std::ops::Range;
 
 struct NumbersGenerator {
     min: usize,
@@ -19,10 +20,11 @@ struct NumbersGenerator {
 }
 
 impl NumbersGenerator {
-    fn new(min: usize, max: usize) -> Self {
+    fn new(range: Range<usize>) -> Self {
+        println!("{:?} {:?}", range.start, range.end);
         Self {
-            min,
-            max,
+            min: range.start,
+            max: range.end,
             current_value: RefCell::new(0),
         }
     }
@@ -130,9 +132,9 @@ fn bench_insert_and_flush(c: &mut Criterion) {
             BucketsGenerator {
                 percentage_backdated: 0.5,
                 num_buckets: 100_000,
-                metric_ids_generator: NumbersGenerator::new(1, 100),
-                project_keys_generator: NumbersGenerator::new(1, 1),
-                timestamp_shifts_generator: NumbersGenerator::new(1, 10),
+                metric_ids_generator: NumbersGenerator::new(1..100),
+                project_keys_generator: NumbersGenerator::new(1..1),
+                timestamp_shifts_generator: NumbersGenerator::new(1..10),
             },
         ),
         (
@@ -140,9 +142,9 @@ fn bench_insert_and_flush(c: &mut Criterion) {
             BucketsGenerator {
                 percentage_backdated: 0.5,
                 num_buckets: 100_000,
-                metric_ids_generator: NumbersGenerator::new(1, 1),
-                project_keys_generator: NumbersGenerator::new(1, 100),
-                timestamp_shifts_generator: NumbersGenerator::new(1, 10),
+                metric_ids_generator: NumbersGenerator::new(1..1),
+                project_keys_generator: NumbersGenerator::new(1..100),
+                timestamp_shifts_generator: NumbersGenerator::new(1..10),
             },
         ),
         (
@@ -150,9 +152,9 @@ fn bench_insert_and_flush(c: &mut Criterion) {
             BucketsGenerator {
                 percentage_backdated: 1.0,
                 num_buckets: 100_000,
-                metric_ids_generator: NumbersGenerator::new(1, 100),
-                project_keys_generator: NumbersGenerator::new(1, 100),
-                timestamp_shifts_generator: NumbersGenerator::new(10, 50),
+                metric_ids_generator: NumbersGenerator::new(1..100),
+                project_keys_generator: NumbersGenerator::new(1..100),
+                timestamp_shifts_generator: NumbersGenerator::new(10..50),
             },
         ),
         (
@@ -160,9 +162,9 @@ fn bench_insert_and_flush(c: &mut Criterion) {
             BucketsGenerator {
                 percentage_backdated: 0.0,
                 num_buckets: 100_000,
-                metric_ids_generator: NumbersGenerator::new(1, 100),
-                project_keys_generator: NumbersGenerator::new(1, 100),
-                timestamp_shifts_generator: NumbersGenerator::new(10, 50),
+                metric_ids_generator: NumbersGenerator::new(1..100),
+                project_keys_generator: NumbersGenerator::new(1..100),
+                timestamp_shifts_generator: NumbersGenerator::new(10..50),
             },
         ),
     ];
@@ -213,5 +215,5 @@ fn bench_insert_and_flush(c: &mut Criterion) {
     }
 }
 
-criterion_group!(benches, bench_distribution, bench_insert_and_flush);
+criterion_group!(benches, bench_insert_and_flush, bench_distribution);
 criterion_main!(benches);
