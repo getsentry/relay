@@ -512,25 +512,22 @@ fn normalize(
 fn populate_ua_fields(
     span: &mut Span,
     request_user_agent: Option<&str>,
-    client_hints: ClientHints<&str>,
+    mut client_hints: ClientHints<&str>,
 ) {
     let data = span.data.value_mut().get_or_insert_with(SpanData::default);
 
-    // 1 - populate original user agent from request meta.
-    let mut user_agent = None;
-    if data.user_agent_original.value().is_none() {
-        if let Some(ua) = request_user_agent {
-            user_agent = Some(
-                data.user_agent_original
-                    .get_or_insert_with(|| ua.to_owned())
-                    .as_str(),
-            );
-        }
-    };
+    let user_agent = data.user_agent_original.value_mut();
+    if user_agent.is_none() {
+        *user_agent = request_user_agent.map(String::from);
+    } else {
+        // User agent in span payload should take precendence over request
+        // client hints.
+        client_hints = ClientHints::default();
+    }
 
     if data.browser_name.value().is_none() {
         if let Some(context) = BrowserContext::from_hints_or_ua(&RawUserAgentInfo {
-            user_agent,
+            user_agent: user_agent.as_deref(),
             client_hints,
         }) {
             data.browser_name = context.name;
@@ -863,5 +860,141 @@ mod tests {
         set_segment_attributes(&mut span);
         assert_eq!(get_value!(span.is_segment), None);
         assert_eq!(get_value!(span.segment_id), None);
+    }
+
+    #[test]
+    fn keep_browser_name() {
+        let mut span: Annotated<Span> = Annotated::from_json(
+            r#"{
+                "data": {
+                    "browser.name": "foo"
+                }
+            }"#,
+        )
+        .unwrap();
+        populate_ua_fields(
+            span.value_mut().as_mut().unwrap(),
+            None,
+            ClientHints::default(),
+        );
+        assert_eq!(get_value!(span.data.browser_name!), "foo");
+    }
+
+    #[test]
+    fn keep_browser_name_when_ua_present() {
+        let mut span: Annotated<Span> = Annotated::from_json(
+            r#"{
+                "data": {
+                    "browser.name": "foo",
+                    "user_agent.original": "Mozilla/5.0 (-; -; -) - Chrome/18.0.1025.133 Mobile Safari/535.19"
+                }
+            }"#,
+        )
+        .unwrap();
+        populate_ua_fields(
+            span.value_mut().as_mut().unwrap(),
+            None,
+            ClientHints::default(),
+        );
+        assert_eq!(get_value!(span.data.browser_name!), "foo");
+    }
+
+    #[test]
+    fn derive_browser_name() {
+        let mut span: Annotated<Span> = Annotated::from_json(
+            r#"{
+                "data": {
+                    "user_agent.original": "Mozilla/5.0 (-; -; -) - Chrome/18.0.1025.133 Mobile Safari/535.19"
+                }
+            }"#,
+        )
+        .unwrap();
+        populate_ua_fields(
+            span.value_mut().as_mut().unwrap(),
+            None,
+            ClientHints::default(),
+        );
+        assert_eq!(
+            get_value!(span.data.user_agent_original!),
+            "Mozilla/5.0 (-; -; -) - Chrome/18.0.1025.133 Mobile Safari/535.19"
+        );
+        assert_eq!(get_value!(span.data.browser_name!), "Chrome Mobile");
+    }
+
+    #[test]
+    fn keep_user_agent_when_meta_is_present() {
+        let mut span: Annotated<Span> = Annotated::from_json(
+            r#"{
+                "data": {
+                    "user_agent.original": "Mozilla/5.0 (-; -; -) - Chrome/18.0.1025.133 Mobile Safari/535.19"
+                }
+            }"#,
+        )
+        .unwrap();
+        populate_ua_fields(
+            span.value_mut().as_mut().unwrap(),
+            Some("Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.1; ONS Internet Explorer 6.1; .NET CLR 1.1.4322)"),
+            ClientHints::default(),
+        );
+        assert_eq!(
+            get_value!(span.data.user_agent_original!),
+            "Mozilla/5.0 (-; -; -) - Chrome/18.0.1025.133 Mobile Safari/535.19"
+        );
+        assert_eq!(get_value!(span.data.browser_name!), "Chrome Mobile");
+    }
+
+    #[test]
+    fn derive_user_agent() {
+        let mut span: Annotated<Span> = Annotated::from_json(r#"{}"#).unwrap();
+        populate_ua_fields(
+            span.value_mut().as_mut().unwrap(),
+            Some("Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.1; ONS Internet Explorer 6.1; .NET CLR 1.1.4322)"),
+            ClientHints::default(),
+        );
+        assert_eq!(
+            get_value!(span.data.user_agent_original!),
+            "Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.1; ONS Internet Explorer 6.1; .NET CLR 1.1.4322)"
+        );
+        assert_eq!(get_value!(span.data.browser_name!), "IE");
+    }
+
+    #[test]
+    fn keep_user_agent_when_client_hints_are_present() {
+        let mut span: Annotated<Span> = Annotated::from_json(
+            r#"{
+                "data": {
+                    "user_agent.original": "Mozilla/5.0 (-; -; -) - Chrome/18.0.1025.133 Mobile Safari/535.19"
+                }
+            }"#,
+        )
+        .unwrap();
+        populate_ua_fields(
+            span.value_mut().as_mut().unwrap(),
+            None,
+            ClientHints {
+                sec_ch_ua: Some(r#""Chromium";v="108", "Opera";v="94", "Not)A;Brand";v="99""#),
+                ..Default::default()
+            },
+        );
+        assert_eq!(
+            get_value!(span.data.user_agent_original!),
+            "Mozilla/5.0 (-; -; -) - Chrome/18.0.1025.133 Mobile Safari/535.19"
+        );
+        assert_eq!(get_value!(span.data.browser_name!), "Chrome Mobile");
+    }
+
+    #[test]
+    fn derive_client_hints() {
+        let mut span: Annotated<Span> = Annotated::from_json(r#"{}"#).unwrap();
+        populate_ua_fields(
+            span.value_mut().as_mut().unwrap(),
+            None,
+            ClientHints {
+                sec_ch_ua: Some(r#""Chromium";v="108", "Opera";v="94", "Not)A;Brand";v="99""#),
+                ..Default::default()
+            },
+        );
+        assert_eq!(get_value!(span.data.user_agent_original), None);
+        assert_eq!(get_value!(span.data.browser_name!), "Opera");
     }
 }
