@@ -74,7 +74,7 @@ pub struct WorkerGroup {
 impl WorkerGroup {
     /// Creates a new worker group from a thread pool.
     pub fn new(pool: ThreadPool) -> Self {
-        // Use `current_num_threads() * 2` to guarnatuee all threads have immediately a new item to work on.
+        // Use `current_num_threads() * 2` to guarantee all threads immediately have a new item to work on.
         let semaphore = Arc::new(Semaphore::new(pool.current_num_threads() * 2));
         Self { pool, semaphore }
     }
