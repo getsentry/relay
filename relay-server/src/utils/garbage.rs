@@ -58,6 +58,12 @@ impl<T: Send + 'static> GarbageDisposal<T> {
     }
 }
 
+impl<T: Send + 'static> Default for GarbageDisposal<T> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::sync::{Arc, Mutex};
