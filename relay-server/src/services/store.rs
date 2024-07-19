@@ -35,7 +35,7 @@ use crate::service::ServiceError;
 use crate::services::global_config::GlobalConfigHandle;
 use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::services::processor::Processed;
-use crate::statsd::RelayCounters;
+use crate::statsd::{RelayCounters, RelayTimers};
 use crate::utils::{is_rolled_out, FormDataIter, TypedEnvelope};
 
 /// Fallback name used for attachment items without a `filename` header.
@@ -101,6 +101,17 @@ pub enum Store {
     Cogs(StoreCogs),
 }
 
+impl Store {
+    /// Returns the name of the message variant.
+    fn variant(&self) -> &'static str {
+        match self {
+            Store::Envelope(_) => "envelope",
+            Store::Metrics(_) => "metrics",
+            Store::Cogs(_) => "cogs",
+        }
+    }
+}
+
 impl Interface for Store {}
 
 impl FromMessage<StoreEnvelope> for Store {
@@ -154,11 +165,14 @@ impl StoreService {
     }
 
     fn handle_message(&self, message: Store) {
-        match message {
-            Store::Envelope(message) => self.handle_store_envelope(message),
-            Store::Metrics(message) => self.handle_store_metrics(message),
-            Store::Cogs(message) => self.handle_store_cogs(message),
-        }
+        let ty = message.variant();
+        relay_statsd::metric!(timer(RelayTimers::StoreServiceDuration), message = ty, {
+            match message {
+                Store::Envelope(message) => self.handle_store_envelope(message),
+                Store::Metrics(message) => self.handle_store_metrics(message),
+                Store::Cogs(message) => self.handle_store_cogs(message),
+            }
+        })
     }
 
     fn handle_store_envelope(&self, message: StoreEnvelope) {

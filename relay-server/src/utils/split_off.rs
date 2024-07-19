@@ -1,6 +1,8 @@
 use itertools::Either;
 
 /// Splits off items from a vector matching a predicate.
+///
+/// Matching elements are returned in the second vector.
 pub fn split_off<T>(data: Vec<T>, mut f: impl FnMut(&T) -> bool) -> (Vec<T>, Vec<T>) {
     split_off_map(data, |item| {
         if f(&item) {

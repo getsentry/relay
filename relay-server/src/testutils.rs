@@ -21,14 +21,15 @@ use crate::metrics::{MetricOutcomes, MetricStats};
 use crate::services::global_config::GlobalConfigHandle;
 use crate::services::outcome::TrackOutcome;
 use crate::services::processor::{self, EnvelopeProcessorService};
-use crate::services::project::ProjectInfo;
+use crate::services::project::ProjectState;
 use crate::services::test_store::TestStore;
+use crate::utils::{ThreadPool, ThreadPoolBuilder};
 
 pub fn state_with_rule_and_condition(
     sample_rate: Option<f64>,
     rule_type: RuleType,
     condition: RuleCondition,
-) -> ProjectInfo {
+) -> ProjectState {
     let rules = match sample_rate {
         Some(sample_rate) => vec![SamplingRule {
             condition,
@@ -41,7 +42,7 @@ pub fn state_with_rule_and_condition(
         None => Vec::new(),
     };
 
-    let mut state = ProjectInfo::default();
+    let mut state = ProjectState::allowed();
     state.config.sampling = Some(ErrorBoundary::Ok(SamplingConfig {
         rules,
         ..SamplingConfig::new()
@@ -138,6 +139,7 @@ pub fn create_test_processor(config: Config) -> EnvelopeProcessorService {
 
     let config = Arc::new(config);
     EnvelopeProcessorService::new(
+        create_processor_pool(),
         Arc::clone(&config),
         GlobalConfigHandle::fixed(Default::default()),
         Cogs::noop(),
@@ -177,6 +179,7 @@ pub fn create_test_processor_with_addrs(
 
     let config = Arc::new(config);
     EnvelopeProcessorService::new(
+        create_processor_pool(),
         Arc::clone(&config),
         GlobalConfigHandle::fixed(Default::default()),
         Cogs::noop(),
@@ -191,4 +194,12 @@ pub fn processor_services() -> (Addr<TrackOutcome>, Addr<TestStore>) {
     let (outcome_aggregator, _) = mock_service("outcome_aggregator", (), |&mut (), _| {});
     let (test_store, _) = mock_service("test_store", (), |&mut (), _| {});
     (outcome_aggregator, test_store)
+}
+
+fn create_processor_pool() -> ThreadPool {
+    ThreadPoolBuilder::new("processor")
+        .num_threads(1)
+        .runtime(tokio::runtime::Handle::current())
+        .build()
+        .unwrap()
 }

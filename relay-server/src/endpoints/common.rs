@@ -294,16 +294,15 @@ fn queue_envelope(
     }
 
     // Split off the envelopes by item type.
-    let scoping = managed_envelope.scoping();
     let envelopes = ProcessingGroup::split_envelope(*managed_envelope.take_envelope());
     for (group, envelope) in envelopes {
-        let mut envelope = ManagedEnvelope::new(
+        let envelope = ManagedEnvelope::new(
             envelope,
             state.outcome_aggregator().clone(),
             state.test_store().clone(),
             group,
         );
-        envelope.scope(scoping);
+
         state.project_cache().send(ValidateEnvelope::new(envelope));
     }
     // The entire envelope is taken for a split above, and it's empty at this point, we can just

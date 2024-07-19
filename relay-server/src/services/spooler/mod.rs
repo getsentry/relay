@@ -41,7 +41,6 @@ use relay_base_schema::project::{ParseProjectKeyError, ProjectKey};
 use relay_config::Config;
 use relay_statsd::metric;
 use relay_system::{Addr, Controller, FromMessage, Interface, Sender, Service};
-use smallvec::{smallvec, SmallVec};
 use sqlx::migrate::MigrateError;
 use sqlx::sqlite::{
     SqliteAutoVacuum, SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteRow,
@@ -133,23 +132,6 @@ impl QueueKey {
             sampling_key,
         }
     }
-
-    pub fn from_envelope(envelope: &Envelope) -> Self {
-        let meta = envelope.meta();
-        Self {
-            own_key: meta.public_key(),
-            sampling_key: envelope.sampling_key().unwrap_or(meta.public_key()),
-        }
-    }
-
-    /// Returns both keys, but omits duplicates.
-    pub fn unique_keys(&self) -> SmallVec<[ProjectKey; 2]> {
-        let mut keys = smallvec![self.own_key];
-        if self.sampling_key != self.own_key {
-            keys.push(self.sampling_key);
-        }
-        keys
-    }
 }
 
 /// The envelope with its key sent to project cache for processing.
@@ -157,6 +139,7 @@ impl QueueKey {
 /// It's sent in response to [`DequeueMany`] message from the [`ProjectCache`].
 #[derive(Debug)]
 pub struct UnspooledEnvelope {
+    pub key: QueueKey,
     pub managed_envelope: ManagedEnvelope,
 }
 
@@ -376,6 +359,7 @@ impl InMemory {
                 sender
                     .send(UnspooledEnvelope {
                         managed_envelope: envelope,
+                        key,
                     })
                     .ok();
             }
@@ -584,9 +568,14 @@ impl OnDisk {
                 };
 
                 match self.extract_envelope(envelope, services) {
-                    Ok((_key, managed_envelopes)) => {
+                    Ok((key, managed_envelopes)) => {
                         for managed_envelope in managed_envelopes {
-                            sender.send(UnspooledEnvelope { managed_envelope }).ok();
+                            sender
+                                .send(UnspooledEnvelope {
+                                    managed_envelope,
+                                    key,
+                                })
+                                .ok();
                         }
                     }
                     Err(err) => relay_log::error!(
@@ -1431,7 +1420,10 @@ mod tests {
                 sender: tx.clone(),
             });
 
-            let UnspooledEnvelope { managed_envelope } = rx.recv().await.unwrap();
+            let UnspooledEnvelope {
+                key: _,
+                managed_envelope,
+            } = rx.recv().await.unwrap();
             let start_time_received = managed_envelope.envelope().meta().start_time();
 
             // Check if the original start time elapsed to the same second as the restored one.

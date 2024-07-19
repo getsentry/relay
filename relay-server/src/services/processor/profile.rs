@@ -157,7 +157,7 @@ mod tests {
     use crate::envelope::Envelope;
     use crate::extractors::RequestMeta;
     use crate::services::processor::{ProcessEnvelope, ProcessingGroup};
-    use crate::services::project::ProjectInfo;
+    use crate::services::project::ProjectState;
     use crate::testutils::create_test_processor;
     use crate::utils::ManagedEnvelope;
 
@@ -252,7 +252,7 @@ mod tests {
             item
         });
 
-        let mut project_state = ProjectInfo::default();
+        let mut project_state = ProjectState::allowed();
         project_state.config.features.0.insert(Feature::Profiling);
 
         let mut envelopes = ProcessingGroup::split_envelope(*envelope);
@@ -263,8 +263,8 @@ mod tests {
 
         let message = ProcessEnvelope {
             envelope,
-            project_info: Arc::new(project_state),
-            sampling_project_info: None,
+            project_state: Arc::new(project_state),
+            sampling_project_state: None,
             reservoir_counters: ReservoirCounters::default(),
         };
 
@@ -382,8 +382,8 @@ mod tests {
             item
         });
 
-        let mut project_info = ProjectInfo::default();
-        project_info.config.features.0.insert(Feature::Profiling);
+        let mut project_state = ProjectState::allowed();
+        project_state.config.features.0.insert(Feature::Profiling);
 
         let mut envelopes = ProcessingGroup::split_envelope(*envelope);
         assert_eq!(envelopes.len(), 1);
@@ -393,8 +393,8 @@ mod tests {
 
         let message = ProcessEnvelope {
             envelope,
-            project_info: Arc::new(project_info),
-            sampling_project_info: None,
+            project_state: Arc::new(project_state),
+            sampling_project_state: None,
             reservoir_counters: ReservoirCounters::default(),
         };
 
@@ -451,7 +451,7 @@ mod tests {
             item
         });
 
-        let mut project_state = ProjectInfo::default();
+        let mut project_state = ProjectState::allowed();
         project_state.config.features.0.insert(Feature::Profiling);
 
         let mut envelopes = ProcessingGroup::split_envelope(*envelope);
@@ -462,8 +462,8 @@ mod tests {
 
         let message = ProcessEnvelope {
             envelope,
-            project_info: Arc::new(project_state),
-            sampling_project_info: None,
+            project_state: Arc::new(project_state),
+            sampling_project_state: None,
             reservoir_counters: ReservoirCounters::default(),
         };
 
@@ -522,7 +522,7 @@ mod tests {
             item
         });
 
-        let mut project_state = ProjectInfo::default();
+        let mut project_state = ProjectState::allowed();
         project_state.config.features.0.insert(Feature::Profiling);
 
         let mut envelopes = ProcessingGroup::split_envelope(*envelope);
@@ -533,8 +533,8 @@ mod tests {
 
         let message = ProcessEnvelope {
             envelope,
-            project_info: Arc::new(project_state),
-            sampling_project_info: None,
+            project_state: Arc::new(project_state),
+            sampling_project_state: None,
             reservoir_counters: ReservoirCounters::default(),
         };
 

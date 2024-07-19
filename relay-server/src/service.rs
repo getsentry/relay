@@ -7,6 +7,7 @@ use crate::services::stats::RelayStats;
 use anyhow::{Context, Result};
 use axum::extract::FromRequestParts;
 use axum::http::request::Parts;
+use rayon::ThreadPool;
 use relay_cogs::Cogs;
 use relay_config::{Config, RedisConnection};
 use relay_redis::RedisPool;
@@ -79,6 +80,24 @@ pub fn create_runtime(name: &str, threads: usize) -> Runtime {
         .enable_all()
         .build()
         .unwrap()
+}
+
+fn create_processor_pool(config: &Config) -> Result<ThreadPool> {
+    // Adjust thread count for small cpu counts to not have too many idle cores
+    // and distribute workload better.
+    let thread_count = match config.cpu_concurrency() {
+        conc @ 0..=2 => conc.max(1),
+        conc @ 3..=4 => conc - 1,
+        conc => conc - 2,
+    };
+    relay_log::info!("starting {thread_count} envelope processing workers");
+
+    let pool = crate::utils::ThreadPoolBuilder::new("processor")
+        .num_threads(thread_count)
+        .runtime(tokio::runtime::Handle::current())
+        .build()?;
+
+    Ok(pool)
 }
 
 #[derive(Debug)]
@@ -173,6 +192,7 @@ impl ServiceState {
         let cogs = Cogs::new(CogsServiceRecorder::new(&config, cogs.start()));
 
         EnvelopeProcessorService::new(
+            create_processor_pool(&config)?,
             config.clone(),
             global_config_handle,
             cogs,

@@ -131,7 +131,7 @@ mod tests {
             metric_extraction: metric_extraction.map(ErrorBoundary::Ok).unwrap_or_default(),
             ..ProjectConfig::default()
         };
-        project.sanitized(); // enables metrics extraction rules
+        project.sanitize(); // enables metrics extraction rules
         let project = project.metric_extraction.ok().unwrap();
 
         OwnedConfig { global, project }
