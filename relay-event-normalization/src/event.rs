@@ -950,8 +950,8 @@ pub fn normalize_performance_score(
                         .into(),
                     );
                 }
-                break; // Stop after the first matching profile.
             }
+            break; // Stop after the first matching profile.
         }
     }
     version
