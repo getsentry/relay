@@ -9,9 +9,6 @@ use std::sync::{Arc, Mutex};
 use std::time::Instant;
 use sysinfo::{MemoryRefreshKind, System};
 
-/// Count after which the [`MemoryStat`] data will be refreshed.
-const UPDATE_TIME_THRESHOLD_MS: u64 = 100;
-
 /// The representation of the current memory state.
 #[derive(Clone, Copy, Debug)]
 pub struct Memory {
@@ -50,7 +47,7 @@ impl Memory {
 /// Because of how the implementation is designed, there is a very small chance that multiple
 /// threads are waiting on the lock that guards [`System`]. The only case in which there might be
 /// multiple threads waiting on the lock, is if a thread holds the lock for more than
-/// [`UPDATE_TIME_THRESHOLD_MS`] and a new thread comes and updates the `last_update` and tries
+/// `refresh_frequency_ms` and a new thread comes and updates the `last_update` and tries
 /// to acquire the lock to perform another memory reading. Since the reading of [`System`] is much
 /// faster than [`UPDATE_TIME_THRESHOLD_MS`] this should not happen in the real world.
 struct Inner {
@@ -58,6 +55,7 @@ struct Inner {
     last_update: AtomicU64,
     reference_time: Instant,
     system: Mutex<System>,
+    refresh_frequency_ms: u64,
 }
 
 /// Wrapper around [`Inner`] which hides the [`Arc`] and exposes utils method to make working with
@@ -68,7 +66,7 @@ pub struct MemoryStat(Arc<Inner>);
 impl MemoryStat {
     /// Creates an instance of [`MemoryStat`] and obtains the current memory readings from
     /// [`System`].
-    pub fn new() -> Self {
+    pub fn new(refresh_frequency_ms: u64) -> Self {
         // sysinfo docs suggest to use a single instance of `System` across the program.
         let mut system = System::new();
         Self(Arc::new(Inner {
@@ -76,6 +74,7 @@ impl MemoryStat {
             last_update: AtomicU64::new(0),
             reference_time: Instant::now(),
             system: Mutex::new(system),
+            refresh_frequency_ms,
         }))
     }
 
@@ -110,7 +109,7 @@ impl MemoryStat {
         let last_update = self.0.last_update.load(Ordering::Relaxed);
         let elapsed_time = self.0.reference_time.elapsed().as_millis() as u64;
 
-        if elapsed_time - last_update < UPDATE_TIME_THRESHOLD_MS {
+        if elapsed_time - last_update < self.0.refresh_frequency_ms {
             return;
         }
 
@@ -147,7 +146,7 @@ impl fmt::Debug for MemoryStat {
 
 impl Default for MemoryStat {
     fn default() -> Self {
-        Self::new()
+        Self::new(100)
     }
 }
 
@@ -236,7 +235,6 @@ mod tests {
     use std::thread::sleep;
     use std::time::Duration;
 
-    use crate::utils::memory::UPDATE_TIME_THRESHOLD_MS;
     use crate::utils::{Memory, MemoryChecker, MemoryStat};
 
     #[test]
@@ -280,7 +278,7 @@ mod tests {
             }
         }))
         .unwrap();
-        let memory_checker = MemoryChecker::new(MemoryStat::new(), Arc::new(config));
+        let memory_checker = MemoryChecker::new(MemoryStat::default(), Arc::new(config));
         assert!(memory_checker.check_memory().has_capacity());
 
         let config = Config::from_json_value(serde_json::json!({
@@ -289,16 +287,16 @@ mod tests {
             }
         }))
         .unwrap();
-        let memory_checker = MemoryChecker::new(MemoryStat::new(), Arc::new(config));
+        let memory_checker = MemoryChecker::new(MemoryStat::default(), Arc::new(config));
         assert!(memory_checker.check_memory().is_exceeded());
     }
 
     #[test]
     fn test_last_update_is_updated() {
-        let memory = MemoryStat::new();
+        let memory = MemoryStat::new(0);
         let first_update = memory.0.last_update.load(Ordering::Relaxed);
 
-        sleep(Duration::from_millis(UPDATE_TIME_THRESHOLD_MS + 10));
+        sleep(Duration::from_millis(1));
 
         memory.memory();
         let second_update = memory.0.last_update.load(Ordering::Relaxed);

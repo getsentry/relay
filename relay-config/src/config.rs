@@ -1364,6 +1364,12 @@ pub struct Health {
     ///
     /// Defaults to 900 milliseconds.
     pub probe_timeout_ms: u64,
+    /// The refresh frequency of memory stats which are used to poll memory
+    /// usage of Relay.
+    ///
+    /// The implementation of memory stats guarantees that the refresh will happen at
+    /// least every `x` ms since memory readings are lazy and are updated only if needed.
+    pub memory_stat_refresh_frequency_ms: u64,
 }
 
 impl Default for Health {
@@ -1373,6 +1379,7 @@ impl Default for Health {
             max_memory_bytes: None,
             max_memory_percent: 0.95,
             probe_timeout_ms: 900,
+            memory_stat_refresh_frequency_ms: 100,
         }
     }
 }
@@ -2344,6 +2351,11 @@ impl Config {
     /// Health check probe timeout.
     pub fn health_probe_timeout(&self) -> Duration {
         Duration::from_millis(self.values.health.probe_timeout_ms)
+    }
+
+    /// Refresh frequency for polling new memory stats.
+    pub fn memory_stat_refresh_frequency_ms(&self) -> u64 {
+        self.values.health.memory_stat_refresh_frequency_ms
     }
 
     /// Whether COGS measurements are enabled.

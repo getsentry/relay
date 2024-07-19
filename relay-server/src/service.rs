@@ -133,7 +133,7 @@ impl ServiceState {
 
         // We create an instance of `MemoryStat` which can be supplied composed with any arbitrary
         // configuration object down the line.
-        let memory_stat = MemoryStat::new();
+        let memory_stat = MemoryStat::new(config.memory_stat_refresh_frequency_ms());
 
         // Create an address for the `EnvelopeProcessor`, which can be injected into the
         // other services.

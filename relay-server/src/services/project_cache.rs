@@ -1334,7 +1334,7 @@ mod tests {
         }))
         .unwrap()
         .into();
-        let memory_checker = MemoryChecker::new(MemoryStat::new(), config.clone());
+        let memory_checker = MemoryChecker::new(MemoryStat::default(), config.clone());
         let buffer_services = spooler::Services {
             outcome_aggregator: services.outcome_aggregator.clone(),
             project_cache: services.project_cache.clone(),
