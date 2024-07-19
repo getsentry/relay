@@ -1,7 +1,8 @@
 use criterion::{black_box, criterion_group, criterion_main, BatchSize, BenchmarkId, Criterion};
 use rand::distributions::Uniform;
+use rand::rngs::SmallRng;
 use rand::Rng;
-use rand_pcg::Pcg32;
+use rand::SeedableRng;
 use relay_base_schema::project::ProjectKey;
 use relay_common::time::UnixTimestamp;
 use relay_metrics::{
@@ -16,7 +17,7 @@ use std::ops::Range;
 struct NumbersGenerator {
     min: usize,
     max: usize,
-    current_value: RefCell<usize>,
+    generator: RefCell<SmallRng>,
 }
 
 impl NumbersGenerator {
@@ -24,17 +25,15 @@ impl NumbersGenerator {
         Self {
             min: range.start,
             max: range.end,
-            current_value: RefCell::new(0),
+            generator: RefCell::new(SmallRng::seed_from_u64(
+                (range.start + range.end / 2) as u64,
+            )),
         }
     }
 
     fn next(&self) -> usize {
-        let seed = *self.current_value.borrow() as u128;
-        let mut generator = Pcg32::new((seed >> 64) as u64, seed as u64);
         let dist = Uniform::new(self.min, self.max + 1);
-        let value = generator.sample(dist);
-
-        *self.current_value.borrow_mut() += 1;
+        let value = self.generator.borrow_mut().sample(dist);
 
         value
     }
@@ -51,8 +50,8 @@ impl BucketsGenerator {
     fn get_buckets(&self, base_timestamp: UnixTimestamp) -> Vec<(ProjectKey, Bucket)> {
         let mut buckets = Vec::with_capacity(self.num_buckets);
 
-        let backdated = ((self.num_buckets as f32 * self.percentage_backdated) as usize)
-            .clamp(0, self.num_buckets);
+        let backdated =
+            ((self.num_buckets as f32 * self.percentage_backdated) as usize).min(self.num_buckets);
         let non_backdated = self.num_buckets - backdated;
 
         for _ in 0..backdated {
