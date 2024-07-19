@@ -1668,6 +1668,11 @@ def test_rate_limit_spans_in_envelope(
 
     assert summarize_outcomes() == {(12, 2): 4, (16, 2): 4}
 
+    # We emit transaction metrics from spans for legacy reasons. These are not rate limited.
+    # (could be a bug)
+    ((metric, _),) = metrics_consumer.get_metrics(n=1)
+    assert ":spans/" not in metric["name"]
+
     spans_consumer.assert_empty()
     metrics_consumer.assert_empty()
 

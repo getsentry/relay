@@ -461,6 +461,7 @@ fn normalize(
     };
 
     populate_ua_fields(span, user_agent.as_deref(), client_hints.as_deref());
+    dbg!(&span.data.value().unwrap().browser_name);
 
     if let Annotated(Some(ref mut measurement_values), ref mut meta) = span.measurements {
         normalize_measurements(
