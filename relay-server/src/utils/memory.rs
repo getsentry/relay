@@ -48,8 +48,7 @@ impl Memory {
 /// threads are waiting on the lock that guards [`System`]. The only case in which there might be
 /// multiple threads waiting on the lock, is if a thread holds the lock for more than
 /// `refresh_frequency_ms` and a new thread comes and updates the `last_update` and tries
-/// to acquire the lock to perform another memory reading. Since the reading of [`System`] is much
-/// faster than [`UPDATE_TIME_THRESHOLD_MS`] this should not happen in the real world.
+/// to acquire the lock to perform another memory reading.
 struct Inner {
     memory: ArcSwap<Memory>,
     last_update: AtomicU64,
@@ -104,7 +103,7 @@ impl MemoryStat {
         memory
     }
 
-    /// Updates the memory readings if at least [`UPDATE_TIME_THRESHOLD_MS`] has passed.
+    /// Updates the memory readings if at least `refresh_frequency_ms` has passed.
     fn try_update(&self) {
         let last_update = self.0.last_update.load(Ordering::Relaxed);
         let elapsed_time = self.0.reference_time.elapsed().as_millis() as u64;
