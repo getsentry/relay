@@ -135,9 +135,13 @@ impl From<RedisConfigFromFile> for RedisConfig {
 pub enum RedisConfigs {
     Unified(RedisConfig),
     Individual {
+        #[serde(skip_serializing_if = "Option::is_none")]
         project_config: Option<Box<RedisConfig>>,
+        #[serde(skip_serializing_if = "Option::is_none")]
         cardinality: Option<Box<RedisConfig>>,
+        #[serde(skip_serializing_if = "Option::is_none")]
         quotas: Option<Box<RedisConfig>>,
+        #[serde(skip_serializing_if = "Option::is_none")]
         misc: Option<Box<RedisConfig>>,
     },
 }
@@ -251,6 +255,75 @@ connection_timeout: 5
     }
 
     #[test]
+    fn test_redis_single_opts_unified() {
+        let yaml = r#"
+server: "redis://127.0.0.1:6379"
+max_connections: 42
+connection_timeout: 5
+"#;
+
+        let config: RedisConfigs = serde_yaml::from_str(yaml)
+            .expect("Parsed processing redis config: single with options");
+
+        assert_eq!(
+            config,
+            RedisConfigs::Unified(RedisConfig {
+                connection: RedisConnection::Single("redis://127.0.0.1:6379".to_owned()),
+                options: PartialRedisConfigOptions {
+                    max_connections: Some(42),
+                    connection_timeout: 5,
+                    ..Default::default()
+                }
+            })
+        );
+    }
+
+    #[test]
+    fn test_redis_individual() {
+        let yaml = r#"
+project_config: 
+    server: "redis://127.0.0.1:6379"
+    max_connections: 42
+    connection_timeout: 5
+quotas: 
+    cluster_nodes:
+        - "redis://127.0.0.1:6379"
+        - "redis://127.0.0.2:6379"
+    max_connections: 17
+    connection_timeout: 5
+"#;
+
+        let configs: RedisConfigs = serde_yaml::from_str(yaml)
+            .expect("Parsed processing redis configs: single with options");
+
+        let expected = RedisConfigs::Individual {
+            project_config: Some(Box::new(RedisConfig {
+                connection: RedisConnection::Single("redis://127.0.0.1:6379".to_owned()),
+                options: PartialRedisConfigOptions {
+                    max_connections: Some(42),
+                    connection_timeout: 5,
+                    ..Default::default()
+                },
+            })),
+            cardinality: None,
+            quotas: Some(Box::new(RedisConfig {
+                connection: RedisConnection::Cluster(vec![
+                    "redis://127.0.0.1:6379".to_owned(),
+                    "redis://127.0.0.2:6379".to_owned(),
+                ]),
+                options: PartialRedisConfigOptions {
+                    max_connections: Some(17),
+                    connection_timeout: 5,
+                    ..Default::default()
+                },
+            })),
+            misc: None,
+        };
+
+        assert_eq!(configs, expected,);
+    }
+
+    #[test]
     fn test_redis_single_serialize() {
         let config = RedisConfig {
             connection: RedisConnection::Single("redis://127.0.0.1:6379".to_owned()),
@@ -261,6 +334,28 @@ connection_timeout: 5
         };
 
         assert_json_snapshot!(config, @r###"
+        {
+          "server": "redis://127.0.0.1:6379",
+          "connection_timeout": 5,
+          "max_lifetime": 300,
+          "idle_timeout": 60,
+          "read_timeout": 3,
+          "write_timeout": 3
+        }
+        "###);
+    }
+
+    #[test]
+    fn test_redis_single_serialize_unified() {
+        let configs = RedisConfigs::Unified(RedisConfig {
+            connection: RedisConnection::Single("redis://127.0.0.1:6379".to_owned()),
+            options: PartialRedisConfigOptions {
+                connection_timeout: 5,
+                ..Default::default()
+            },
+        });
+
+        assert_json_snapshot!(configs, @r###"
         {
           "server": "redis://127.0.0.1:6379",
           "connection_timeout": 5,
@@ -338,6 +433,33 @@ read_timeout: 10
     }
 
     #[test]
+    fn test_redis_cluster_nodes_opts_unified() {
+        let yaml = r#"
+cluster_nodes:
+    - "redis://127.0.0.1:6379"
+    - "redis://127.0.0.2:6379"
+read_timeout: 10
+"#;
+
+        let config: RedisConfigs = serde_yaml::from_str(yaml)
+            .expect("Parsed processing redis config: single with options");
+
+        assert_eq!(
+            config,
+            RedisConfigs::Unified(RedisConfig {
+                connection: RedisConnection::Cluster(vec![
+                    "redis://127.0.0.1:6379".to_owned(),
+                    "redis://127.0.0.2:6379".to_owned()
+                ]),
+                options: PartialRedisConfigOptions {
+                    read_timeout: 10,
+                    ..Default::default()
+                },
+            })
+        );
+    }
+
+    #[test]
     fn test_redis_cluster_serialize() {
         let config = RedisConfig {
             connection: RedisConnection::Cluster(vec![
@@ -362,6 +484,87 @@ read_timeout: 10
           "read_timeout": 33,
           "write_timeout": 3
         }
+        "###);
+    }
+
+    #[test]
+    fn test_redis_cluster_serialize_unified() {
+        let configs = RedisConfigs::Unified(RedisConfig {
+            connection: RedisConnection::Cluster(vec![
+                "redis://127.0.0.1:6379".to_owned(),
+                "redis://127.0.0.2:6379".to_owned(),
+            ]),
+            options: PartialRedisConfigOptions {
+                read_timeout: 33,
+                ..Default::default()
+            },
+        });
+
+        assert_json_snapshot!(configs, @r###"
+        {
+          "cluster_nodes": [
+            "redis://127.0.0.1:6379",
+            "redis://127.0.0.2:6379"
+          ],
+          "connection_timeout": 5,
+          "max_lifetime": 300,
+          "idle_timeout": 60,
+          "read_timeout": 33,
+          "write_timeout": 3
+        }
+        "###);
+    }
+
+    #[test]
+    fn test_redis_serialize_individual() {
+        let configs = RedisConfigs::Individual {
+            project_config: Some(Box::new(RedisConfig {
+                connection: RedisConnection::Single("redis://127.0.0.1:6379".to_owned()),
+                options: PartialRedisConfigOptions {
+                    max_connections: Some(42),
+                    connection_timeout: 5,
+                    ..Default::default()
+                },
+            })),
+            cardinality: None,
+            quotas: Some(Box::new(RedisConfig {
+                connection: RedisConnection::Cluster(vec![
+                    "redis://127.0.0.1:6379".to_owned(),
+                    "redis://127.0.0.2:6379".to_owned(),
+                ]),
+                options: PartialRedisConfigOptions {
+                    max_connections: Some(17),
+                    connection_timeout: 5,
+                    ..Default::default()
+                },
+            })),
+            misc: None,
+        };
+
+        assert_json_snapshot!(configs, @r###"
+       {
+         "project_config": {
+           "server": "redis://127.0.0.1:6379",
+           "max_connections": 42,
+           "connection_timeout": 5,
+           "max_lifetime": 300,
+           "idle_timeout": 60,
+           "read_timeout": 3,
+           "write_timeout": 3
+         },
+         "quotas": {
+           "cluster_nodes": [
+             "redis://127.0.0.1:6379",
+             "redis://127.0.0.2:6379"
+           ],
+           "max_connections": 17,
+           "connection_timeout": 5,
+           "max_lifetime": 300,
+           "idle_timeout": 60,
+           "read_timeout": 3,
+           "write_timeout": 3
+         }
+       }
         "###);
     }
 }
