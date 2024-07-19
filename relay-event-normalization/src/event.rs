@@ -3333,35 +3333,40 @@ mod tests {
         }))
         .unwrap();
 
-        normalize_performance_score(&mut event, Some(&performance_score));
+        normalize(
+            &mut event,
+            &mut Meta::default(),
+            &NormalizationConfig {
+                performance_score: Some(&performance_score),
+                ..Default::default()
+            },
+        );
 
-        insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r###"
+        insta::assert_ron_snapshot!(SerializableAnnotated(&event.contexts), {}, @r###"
         {
-          "type": "transaction",
-          "timestamp": 1619420405.0,
-          "start_timestamp": 1619420400.0,
-          "contexts": {
-            "performance_score": {
-              "score_profile_version": "beta",
-              "type": "performancescore",
-            },
+          "performance_score": {
+            "score_profile_version": "beta",
+            "type": "performancescore",
           },
-          "measurements": {
-            "inp": {
-              "value": 120.0,
-            },
-            "score.inp": {
-              "value": 0.0,
-              "unit": "ratio",
-            },
-            "score.total": {
-              "value": 0.0,
-              "unit": "ratio",
-            },
-            "score.weight.inp": {
-              "value": 1.0,
-              "unit": "ratio",
-            },
+        }
+        "###);
+        insta::assert_ron_snapshot!(SerializableAnnotated(&event.measurements), {}, @r###"
+        {
+          "inp": {
+            "value": 120.0,
+            "unit": "millisecond",
+          },
+          "score.inp": {
+            "value": 0.0,
+            "unit": "ratio",
+          },
+          "score.total": {
+            "value": 0.0,
+            "unit": "ratio",
+          },
+          "score.weight.inp": {
+            "value": 1.0,
+            "unit": "ratio",
           },
         }
         "###);
