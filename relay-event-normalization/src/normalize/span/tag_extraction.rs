@@ -1441,7 +1441,7 @@ LIMIT 1
             .into_value()
             .unwrap();
 
-        extract_span_tags_from_event(&mut event, 200, None);
+        extract_span_tags_from_event(&mut event, 200, &[]);
 
         let spans = event.spans.value().unwrap();
 
@@ -1503,7 +1503,7 @@ LIMIT 1
             .into_value()
             .unwrap();
 
-        extract_span_tags_from_event(&mut event, 200);
+        extract_span_tags_from_event(&mut event, 200, &[]);
 
         let span = &event.spans.value().unwrap()[0];
 
@@ -1621,7 +1621,7 @@ LIMIT 1
             .into_value()
             .unwrap();
 
-        extract_span_tags_from_event(&mut event, 200);
+        extract_span_tags_from_event(&mut event, 200, &[]);
 
         let span_1 = &event.spans.value().unwrap()[0];
         let span_2 = &event.spans.value().unwrap()[1];
@@ -1674,7 +1674,7 @@ LIMIT 1
             .into_value()
             .unwrap();
 
-        extract_span_tags_from_event(&mut event, 200);
+        extract_span_tags_from_event(&mut event, 200, &[]);
 
         let span = &event
             .spans
@@ -1782,7 +1782,7 @@ LIMIT 1
             .into_value()
             .unwrap();
 
-        extract_span_tags_from_event(&mut event, 200);
+        extract_span_tags_from_event(&mut event, 200, &[]);
 
         let span_1 = &event.spans.value().unwrap()[0];
         let span_2 = &event.spans.value().unwrap()[1];
@@ -1905,7 +1905,7 @@ LIMIT 1
             .into_value()
             .unwrap();
 
-        extract_span_tags_from_event(&mut event, 200);
+        extract_span_tags_from_event(&mut event, 200, &[]);
 
         let span_1 = &event.spans.value().unwrap()[0];
         let span_2 = &event.spans.value().unwrap()[1];
@@ -2013,7 +2013,7 @@ LIMIT 1
             .into_value()
             .unwrap();
 
-        extract_span_tags_from_event(&mut event, 200);
+        extract_span_tags_from_event(&mut event, 200, &[]);
 
         let span = &event.spans.value().unwrap()[0];
 
@@ -2070,7 +2070,7 @@ LIMIT 1
             .into_value()
             .unwrap();
 
-        extract_span_tags_from_event(&mut event, 200);
+        extract_span_tags_from_event(&mut event, 200, &[]);
 
         let span = &event.spans.value().unwrap()[0];
         let tags = span.value().unwrap().sentry_tags.value().unwrap();
@@ -2098,7 +2098,7 @@ LIMIT 1
             .unwrap()
             .into_value()
             .unwrap();
-        let tags = extract_tags(&span, 200, None, None, false, None, None);
+        let tags = extract_tags(&span, 200, None, None, false, None, &[]);
 
         assert_eq!(
             tags.get(&SpanTagKey::BrowserName),
@@ -2138,7 +2138,7 @@ LIMIT 1
             .into_value()
             .unwrap();
 
-        extract_span_tags_from_event(&mut event, 200);
+        extract_span_tags_from_event(&mut event, 200, &[]);
 
         let span = &event.spans.value().unwrap()[0];
         let tags = span.value().unwrap().sentry_tags.value().unwrap();
@@ -2169,7 +2169,7 @@ LIMIT 1
             .unwrap()
             .into_value()
             .unwrap();
-        let tags = extract_tags(&span, 200, None, None, false, None, None);
+        let tags = extract_tags(&span, 200, None, None, false, None, &[]);
 
         assert_eq!(
             tags.get(&SpanTagKey::MessagingDestinationName),
@@ -2294,7 +2294,7 @@ LIMIT 1
             .into_value()
             .unwrap();
 
-        extract_span_tags_from_event(&mut event, 200);
+        extract_span_tags_from_event(&mut event, 200, &[]);
 
         let span = &event.spans.value().unwrap()[0];
         let tags = span.value().unwrap().sentry_tags.value().unwrap();
@@ -2392,7 +2392,7 @@ LIMIT 1
             .unwrap();
         span.description.set_value(Some(description.into()));
 
-        extract_tags(&span, 200, None, None, false, None, None)
+        extract_tags(&span, 200, None, None, false, None, &[])
     }
 
     #[test]
