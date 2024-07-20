@@ -12,6 +12,9 @@ use relay_sampling::{DynamicSamplingContext, SamplingConfig};
 use relay_system::Addr;
 use relay_test::mock_service;
 
+#[cfg(feature = "processing")]
+use {relay_config::RedisConnection, relay_redis::RedisPool};
+
 use crate::envelope::{Envelope, Item, ItemType};
 use crate::extractors::RequestMeta;
 use crate::metrics::{MetricOutcomes, MetricStats};
@@ -20,6 +23,7 @@ use crate::services::outcome::TrackOutcome;
 use crate::services::processor::{self, EnvelopeProcessorService};
 use crate::services::project::ProjectState;
 use crate::services::test_store::TestStore;
+use crate::utils::{ThreadPool, ThreadPoolBuilder};
 
 pub fn state_with_rule_and_condition(
     sample_rate: Option<f64>,
@@ -122,12 +126,20 @@ pub fn create_test_processor(config: Config) -> EnvelopeProcessorService {
     let redis = config
         .redis()
         .filter(|_| config.processing_enabled())
-        .map(|redis_config| relay_redis::RedisPool::new(redis_config).unwrap());
+        .map(|redis| match redis {
+            (RedisConnection::Single(server), options) => {
+                RedisPool::single(server, options).unwrap()
+            }
+            (RedisConnection::Cluster(servers), options) => {
+                RedisPool::cluster(servers.iter().map(|s| s.as_str()), options).unwrap()
+            }
+        });
 
     let metric_outcomes = MetricOutcomes::new(MetricStats::test().0, outcome_aggregator.clone());
 
     let config = Arc::new(config);
     EnvelopeProcessorService::new(
+        create_processor_pool(),
         Arc::clone(&config),
         GlobalConfigHandle::fixed(Default::default()),
         Cogs::noop(),
@@ -153,13 +165,21 @@ pub fn create_test_processor_with_addrs(
     let redis = config
         .redis()
         .filter(|_| config.processing_enabled())
-        .map(|redis_config| relay_redis::RedisPool::new(redis_config).unwrap());
+        .map(|redis| match redis {
+            (RedisConnection::Single(server), options) => {
+                RedisPool::single(server, options).unwrap()
+            }
+            (RedisConnection::Cluster(servers), options) => {
+                RedisPool::cluster(servers.iter().map(|s| s.as_str()), options).unwrap()
+            }
+        });
 
     let metric_outcomes =
         MetricOutcomes::new(MetricStats::test().0, addrs.outcome_aggregator.clone());
 
     let config = Arc::new(config);
     EnvelopeProcessorService::new(
+        create_processor_pool(),
         Arc::clone(&config),
         GlobalConfigHandle::fixed(Default::default()),
         Cogs::noop(),
@@ -174,4 +194,12 @@ pub fn processor_services() -> (Addr<TrackOutcome>, Addr<TestStore>) {
     let (outcome_aggregator, _) = mock_service("outcome_aggregator", (), |&mut (), _| {});
     let (test_store, _) = mock_service("test_store", (), |&mut (), _| {});
     (outcome_aggregator, test_store)
+}
+
+fn create_processor_pool() -> ThreadPool {
+    ThreadPoolBuilder::new("processor")
+        .num_threads(1)
+        .runtime(tokio::runtime::Handle::current())
+        .build()
+        .unwrap()
 }

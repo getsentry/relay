@@ -4,7 +4,7 @@ authors = ["Sentry <oss@sentry.io>"]
 description = "Endpoints and services for Relay"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "24.6.0"
+version = "24.7.0"
 edition = "2021"
 build = "build.rs"
 license-file = "../LICENSE.md"
@@ -64,6 +64,7 @@ multer = { workspace = true }
 once_cell = { workspace = true }
 pin-project-lite = { workspace = true }
 rand = { workspace = true }
+rayon = { workspace = true }
 regex = { workspace = true }
 relay-auth = { workspace = true }
 relay-base-schema = { workspace = true }
@@ -112,7 +113,7 @@ symbolic-common = { workspace = true, optional = true, default-features = false 
 symbolic-unreal = { workspace = true, optional = true, default-features = false, features = [
     "serde",
 ] }
-sysinfo = { workspace = true, default-features = false }
+sysinfo = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true, features = ["rt", "rt-multi-thread"] }
 tower = { workspace = true, default-features = false }

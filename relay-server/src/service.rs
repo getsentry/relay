@@ -1,14 +1,16 @@
 use std::convert::Infallible;
 use std::fmt;
 use std::sync::Arc;
+use std::time::Duration;
 
 use crate::metrics::{MetricOutcomes, MetricStats};
 use crate::services::stats::RelayStats;
 use anyhow::{Context, Result};
 use axum::extract::FromRequestParts;
 use axum::http::request::Parts;
+use rayon::ThreadPool;
 use relay_cogs::Cogs;
-use relay_config::Config;
+use relay_config::{Config, RedisConnection};
 use relay_redis::RedisPool;
 use relay_system::{channel, Addr, Service};
 use tokio::runtime::Runtime;
@@ -76,9 +78,41 @@ pub fn create_runtime(name: &str, threads: usize) -> Runtime {
     tokio::runtime::Builder::new_multi_thread()
         .thread_name(name)
         .worker_threads(threads)
+        // Relay uses `spawn_blocking` only for Redis connections within the project
+        // cache, those should never exceed 100 concurrent connections
+        // (limited by connection pool).
+        //
+        // Relay also does not use other blocking opertions from Tokio which require
+        // this pool, no usage of `tokio::fs` and `tokio::io::{Stdin, Stdout, Stderr}`.
+        //
+        // We limit the maximum amount of threads here, we've seen that Tokio
+        // expands this pool very very aggressively and basically never shrinks it
+        // which leads to a massive resource waste.
+        .max_blocking_threads(150)
+        // As with the maximum amount of threads used by the runtime, we want
+        // to encourage the runtime to terminate blocking threads again.
+        .thread_keep_alive(Duration::from_secs(1))
         .enable_all()
         .build()
         .unwrap()
+}
+
+fn create_processor_pool(config: &Config) -> Result<ThreadPool> {
+    // Adjust thread count for small cpu counts to not have too many idle cores
+    // and distribute workload better.
+    let thread_count = match config.cpu_concurrency() {
+        conc @ 0..=2 => conc.max(1),
+        conc @ 3..=4 => conc - 1,
+        conc => conc - 2,
+    };
+    relay_log::info!("starting {thread_count} envelope processing workers");
+
+    let pool = crate::utils::ThreadPoolBuilder::new("processor")
+        .num_threads(thread_count)
+        .runtime(tokio::runtime::Handle::current())
+        .build()?;
+
+    Ok(pool)
 }
 
 #[derive(Debug)]
@@ -100,12 +134,17 @@ impl ServiceState {
         let upstream_relay = UpstreamRelayService::new(config.clone()).start();
         let test_store = TestStoreService::new(config.clone()).start();
 
-        let redis_pool = match config.redis() {
-            Some(redis_config) if config.processing_enabled() => {
-                Some(RedisPool::new(redis_config).context(ServiceError::Redis)?)
-            }
-            _ => None,
-        };
+        let redis_pool = config
+            .redis()
+            .filter(|_| config.processing_enabled())
+            .map(|redis| match redis {
+                (RedisConnection::Single(server), options) => RedisPool::single(server, options),
+                (RedisConnection::Cluster(servers), options) => {
+                    RedisPool::cluster(servers.iter().map(|s| s.as_str()), options)
+                }
+            })
+            .transpose()
+            .context(ServiceError::Redis)?;
 
         let buffer_guard = Arc::new(BufferGuard::new(config.envelope_buffer_size()));
 
@@ -166,6 +205,7 @@ impl ServiceState {
         let cogs = Cogs::new(CogsServiceRecorder::new(&config, cogs.start()));
 
         EnvelopeProcessorService::new(
+            create_processor_pool(&config)?,
             config.clone(),
             global_config_handle,
             cogs,

@@ -34,6 +34,8 @@ pub enum RelayGauges {
     ///
     /// Relay uses the same value for its memory health check.
     SystemMemoryTotal,
+    /// The currently used Resident Set Size (RSS).
+    SystemMemoryRss,
     /// The number of connections currently being managed by the Redis Pool.
     #[cfg(feature = "processing")]
     RedisPoolConnections,
@@ -52,6 +54,7 @@ impl GaugeMetric for RelayGauges {
             RelayGauges::BufferPeriodicUnspool => "buffer.unspool.periodic",
             RelayGauges::SystemMemoryUsed => "health.system_memory.used",
             RelayGauges::SystemMemoryTotal => "health.system_memory.total",
+            RelayGauges::SystemMemoryRss => "health.system_memory.rss",
             #[cfg(feature = "processing")]
             RelayGauges::RedisPoolConnections => "redis.pool.connections",
             #[cfg(feature = "processing")]
@@ -519,6 +522,17 @@ pub enum RelayTimers {
     /// This metric is tagged with:
     ///  - `message`: The type of message that was processed.
     AggregatorServiceDuration,
+    /// Timing in milliseconds for processing a message in the metric router service.
+    ///
+    /// This metric is tagged with:
+    ///  - `message`: The type of message that was processed.
+    MetricRouterServiceDuration,
+    /// Timing in milliseconds for processing a message in the metric store service.
+    ///
+    /// This metric is tagged with:
+    ///  - `message`: The type of message that was processed.
+    #[cfg(feature = "processing")]
+    StoreServiceDuration,
 }
 
 impl TimerMetric for RelayTimers {
@@ -557,6 +571,9 @@ impl TimerMetric for RelayTimers {
             #[cfg(feature = "processing")]
             RelayTimers::RateLimitBucketsDuration => "processor.rate_limit_buckets",
             RelayTimers::AggregatorServiceDuration => "metrics.aggregator.message.duration",
+            RelayTimers::MetricRouterServiceDuration => "metrics.router.message.duration",
+            #[cfg(feature = "processing")]
+            RelayTimers::StoreServiceDuration => "store.message.duration",
         }
     }
 }

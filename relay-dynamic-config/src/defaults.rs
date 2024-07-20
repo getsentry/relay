@@ -188,6 +188,19 @@ pub fn hardcoded_span_metrics() -> Vec<(GroupKey, Vec<MetricSpec>, Vec<TagMappin
     // Metrics for addon modules are only extracted if the feature flag is enabled:
     let is_addon = is_ai.clone() | is_queue_op.clone() | is_cache.clone();
 
+    let common_duration_light_condition = Some(
+        // The `!is_addon` check might be redundant, but we want to make sure that
+        // `exclusive_time_light` is not extracted twice.
+        !is_addon.clone()
+            & (is_db.clone()
+                | is_resource.clone()
+                | is_mobile.clone()
+                | is_interaction.clone()
+                | is_http.clone())
+            & duration_condition.clone(),
+    );
+    let addons_duration_light_condition = Some(is_addon.clone() & duration_condition.clone());
+
     vec![
         (
             GroupKey::SpanMetricsCommon,
@@ -203,75 +216,21 @@ pub fn hardcoded_span_metrics() -> Vec<(GroupKey, Vec<MetricSpec>, Vec<TagMappin
                     category: DataCategory::Span,
                     mri: "d:spans/exclusive_time_light@millisecond".into(),
                     field: Some("span.exclusive_time".into()),
-                    condition: Some(
-                        // The `!is_addon` check might be redundant, but we want to make sure that
-                        // `exclusive_time_light` is not extracted twice.
-                        !is_addon.clone()
-                            & (is_db.clone()
-                                | is_resource.clone()
-                                | is_mobile.clone()
-                                | is_interaction.clone()
-                                | is_http.clone())
-                            & duration_condition.clone(),
-                    ),
-                    tags: vec![
-                        Tag::with_key("environment")
-                            .from_field("span.sentry_tags.environment")
-                            .when(
-                                is_db.clone()
-                                    | is_resource.clone()
-                                    | is_mobile.clone()
-                                    | is_http.clone(),
-                            ),
-                        Tag::with_key("transaction.op")
-                            .from_field("span.sentry_tags.transaction.op")
-                            .when(is_mobile.clone()),
-                        Tag::with_key("span.action")
-                            .from_field("span.sentry_tags.action")
-                            .when(is_db.clone()),
-                        Tag::with_key("span.category")
-                            .from_field("span.sentry_tags.category")
-                            .always(),
-                        Tag::with_key("span.description")
-                            .from_field("span.sentry_tags.description")
-                            .always(),
-                        Tag::with_key("span.domain")
-                            .from_field("span.sentry_tags.domain")
-                            .when(is_db.clone() | is_resource.clone() | is_http.clone()),
-                        Tag::with_key("span.group")
-                            .from_field("span.sentry_tags.group")
-                            .always(),
-                        Tag::with_key("span.op")
-                            .from_field("span.sentry_tags.op")
-                            .always(),
-                        // Mobile:
-                        Tag::with_key("device.class")
-                            .from_field("span.sentry_tags.device.class")
-                            .when(is_mobile.clone()),
-                        Tag::with_key("os.name") // TODO: might not be needed on both `exclusive_time` metrics
-                            .from_field("span.sentry_tags.os.name")
-                            .when(is_mobile.clone()),
-                        Tag::with_key("release")
-                            .from_field("span.sentry_tags.release")
-                            .when(is_mobile.clone()),
-                        // Resource module:
-                        Tag::with_key("file_extension")
-                            .from_field("span.sentry_tags.file_extension")
-                            .when(is_resource.clone()),
-                        Tag::with_key("resource.render_blocking_status")
-                            .from_field("span.sentry_tags.resource.render_blocking_status")
-                            .when(is_resource.clone()),
-                        // HTTP module:
-                        Tag::with_key("span.status_code")
-                            .from_field("span.sentry_tags.status_code")
-                            .when(is_http.clone()),
-                    ],
+                    condition: common_duration_light_condition.clone(),
+                    tags: vec![],
                 },
                 MetricSpec {
                     category: DataCategory::Span,
                     mri: "d:spans/duration@millisecond".into(),
                     field: Some("span.duration".into()),
                     condition: Some(!is_addon.clone()),
+                    tags: vec![],
+                },
+                MetricSpec {
+                    category: DataCategory::Span,
+                    mri: "d:spans/duration_light@millisecond".into(),
+                    field: Some("span.duration".into()),
+                    condition: common_duration_light_condition,
                     tags: vec![],
                 },
                 MetricSpec {
@@ -612,29 +571,30 @@ pub fn hardcoded_span_metrics() -> Vec<(GroupKey, Vec<MetricSpec>, Vec<TagMappin
                     ],
                 },
             ],
-            vec![TagMapping {
-                metrics: vec![
-                    LazyGlob::new("d:spans/duration@millisecond"),
-                    LazyGlob::new("d:spans/exclusive_time@millisecond"),
-                ],
-                tags: vec![
-                    // All modules:
-                    Tag::with_key("environment")
-                        .from_field("span.sentry_tags.environment")
-                        .always(),
-                    Tag::with_key("span.op")
-                        .from_field("span.sentry_tags.op")
-                        .always(),
-                    Tag::with_key("transaction")
-                        .from_field("span.sentry_tags.transaction")
-                        .always(),
-                    Tag::with_key("transaction.op")
-                        .from_field("span.sentry_tags.transaction.op")
-                        .always(),
-                    Tag::with_key("span.group")
-                        .from_field("span.sentry_tags.group")
-                        .when(
-                            (is_app_start.clone()
+            vec![
+                TagMapping {
+                    metrics: vec![
+                        LazyGlob::new("d:spans/duration@millisecond"),
+                        LazyGlob::new("d:spans/exclusive_time@millisecond"),
+                    ],
+                    tags: vec![
+                        // All modules:
+                        Tag::with_key("environment")
+                            .from_field("span.sentry_tags.environment")
+                            .always(),
+                        Tag::with_key("span.op")
+                            .from_field("span.sentry_tags.op")
+                            .always(),
+                        Tag::with_key("transaction")
+                            .from_field("span.sentry_tags.transaction")
+                            .always(),
+                        Tag::with_key("transaction.op")
+                            .from_field("span.sentry_tags.transaction.op")
+                            .always(),
+                        Tag::with_key("span.group")
+                            .from_field("span.sentry_tags.group")
+                            .when(
+                                (is_app_start.clone()
                                 | is_db.clone()
                                 | is_resource.clone()
                                 | is_mobile.clone()
@@ -642,11 +602,11 @@ pub fn hardcoded_span_metrics() -> Vec<(GroupKey, Vec<MetricSpec>, Vec<TagMappin
                                 | is_ai.clone() // guarded by is_addon
                                 | is_queue_op.clone())  // guarded by is_addon
                                 & duration_condition.clone(),
-                        ),
-                    Tag::with_key("span.category")
-                        .from_field("span.sentry_tags.category")
-                        .when(
-                            (is_db.clone()
+                            ),
+                        Tag::with_key("span.category")
+                            .from_field("span.sentry_tags.category")
+                            .when(
+                                (is_db.clone()
                                 | is_ai.clone()
                                 | is_resource.clone()
                                 | is_mobile.clone()
@@ -655,11 +615,11 @@ pub fn hardcoded_span_metrics() -> Vec<(GroupKey, Vec<MetricSpec>, Vec<TagMappin
                             | is_ai.clone() // guarded by is_addon
                                 | is_queue_op.clone())  // guarded by is_addon
                                 & duration_condition.clone(),
-                        ),
-                    Tag::with_key("span.description")
-                        .from_field("span.sentry_tags.description")
-                        .when(
-                            (is_app_start.clone()
+                            ),
+                        Tag::with_key("span.description")
+                            .from_field("span.sentry_tags.description")
+                            .when(
+                                (is_app_start.clone()
                                 | is_ai.clone()
                                 | is_db.clone()
                                 | is_resource.clone()
@@ -668,56 +628,117 @@ pub fn hardcoded_span_metrics() -> Vec<(GroupKey, Vec<MetricSpec>, Vec<TagMappin
                                 | is_queue_op.clone()| is_ai.clone() // guarded by is_addon
                                 | is_queue_op.clone())  // guarded by is_addon)
                                 & duration_condition.clone(),
-                        ),
-                    // Know modules:
-                    Tag::with_key("transaction.method")
-                        .from_field("span.sentry_tags.transaction.method")
-                        .when(is_db.clone() | is_mobile.clone() | is_http.clone()), // groups by method + txn, e.g. `GET /users`
-                    Tag::with_key("span.action")
-                        .from_field("span.sentry_tags.action")
-                        .when(is_db.clone()),
-                    Tag::with_key("span.domain")
-                        .from_field("span.sentry_tags.domain")
-                        .when(is_db.clone() | is_resource.clone() | is_http.clone()),
-                    // Mobile module:
-                    Tag::with_key("device.class")
-                        .from_field("span.sentry_tags.device.class")
-                        .when(is_mobile.clone()),
-                    Tag::with_key("os.name") // TODO: might not be needed on both `exclusive_time` metrics
-                        .from_field("span.sentry_tags.os.name")
-                        .when(
-                            is_mobile.clone() | (is_app_start.clone() & duration_condition.clone()),
-                        ),
-                    Tag::with_key("release")
-                        .from_field("span.sentry_tags.release")
-                        .when(
-                            is_mobile.clone() | (is_app_start.clone() & duration_condition.clone()),
-                        ),
-                    Tag::with_key("ttfd")
-                        .from_field("span.sentry_tags.ttfd")
-                        .when(is_mobile.clone()),
-                    Tag::with_key("ttid")
-                        .from_field("span.sentry_tags.ttid")
-                        .when(is_mobile.clone()),
-                    Tag::with_key("span.main_thread")
-                        .from_field("span.sentry_tags.main_thread")
-                        .when(is_mobile.clone()),
-                    Tag::with_key("app_start_type")
-                        .from_field("span.sentry_tags.app_start_type")
-                        .when(is_mobile.clone()),
-                    // Resource module:
-                    Tag::with_key("file_extension")
-                        .from_field("span.sentry_tags.file_extension")
-                        .when(is_resource.clone()),
-                    Tag::with_key("resource.render_blocking_status")
-                        .from_field("span.sentry_tags.resource.render_blocking_status")
-                        .when(is_resource.clone()),
-                    // HTTP module:
-                    Tag::with_key("span.status_code")
-                        .from_field("span.sentry_tags.status_code")
-                        .when(is_http.clone()),
-                ],
-            }],
+                            ),
+                        // Know modules:
+                        Tag::with_key("transaction.method")
+                            .from_field("span.sentry_tags.transaction.method")
+                            .when(is_db.clone() | is_mobile.clone() | is_http.clone()), // groups by method + txn, e.g. `GET /users`
+                        Tag::with_key("span.action")
+                            .from_field("span.sentry_tags.action")
+                            .when(is_db.clone()),
+                        Tag::with_key("span.domain")
+                            .from_field("span.sentry_tags.domain")
+                            .when(is_db.clone() | is_resource.clone() | is_http.clone()),
+                        // Mobile module:
+                        Tag::with_key("device.class")
+                            .from_field("span.sentry_tags.device.class")
+                            .when(is_mobile.clone()),
+                        Tag::with_key("os.name") // TODO: might not be needed on both `exclusive_time` metrics
+                            .from_field("span.sentry_tags.os.name")
+                            .when(
+                                is_mobile.clone()
+                                    | (is_app_start.clone() & duration_condition.clone()),
+                            ),
+                        Tag::with_key("release")
+                            .from_field("span.sentry_tags.release")
+                            .when(
+                                is_mobile.clone()
+                                    | (is_app_start.clone() & duration_condition.clone()),
+                            ),
+                        Tag::with_key("ttfd")
+                            .from_field("span.sentry_tags.ttfd")
+                            .when(is_mobile.clone()),
+                        Tag::with_key("ttid")
+                            .from_field("span.sentry_tags.ttid")
+                            .when(is_mobile.clone()),
+                        Tag::with_key("span.main_thread")
+                            .from_field("span.sentry_tags.main_thread")
+                            .when(is_mobile.clone()),
+                        Tag::with_key("app_start_type")
+                            .from_field("span.sentry_tags.app_start_type")
+                            .when(is_mobile.clone()),
+                        // Resource module:
+                        Tag::with_key("file_extension")
+                            .from_field("span.sentry_tags.file_extension")
+                            .when(is_resource.clone()),
+                        Tag::with_key("resource.render_blocking_status")
+                            .from_field("span.sentry_tags.resource.render_blocking_status")
+                            .when(is_resource.clone()),
+                        // HTTP module:
+                        Tag::with_key("span.status_code")
+                            .from_field("span.sentry_tags.status_code")
+                            .when(is_http.clone()),
+                    ],
+                },
+                TagMapping {
+                    metrics: vec![
+                        LazyGlob::new("d:spans/duration_light@millisecond"),
+                        LazyGlob::new("d:spans/exclusive_time_light@millisecond"),
+                    ],
+                    tags: vec![
+                        Tag::with_key("environment")
+                            .from_field("span.sentry_tags.environment")
+                            .when(
+                                is_db.clone()
+                                    | is_resource.clone()
+                                    | is_mobile.clone()
+                                    | is_http.clone(),
+                            ),
+                        Tag::with_key("transaction.op")
+                            .from_field("span.sentry_tags.transaction.op")
+                            .when(is_mobile.clone()),
+                        Tag::with_key("span.action")
+                            .from_field("span.sentry_tags.action")
+                            .when(is_db.clone()),
+                        Tag::with_key("span.category")
+                            .from_field("span.sentry_tags.category")
+                            .always(),
+                        Tag::with_key("span.description")
+                            .from_field("span.sentry_tags.description")
+                            .always(),
+                        Tag::with_key("span.domain")
+                            .from_field("span.sentry_tags.domain")
+                            .when(is_db.clone() | is_resource.clone() | is_http.clone()),
+                        Tag::with_key("span.group")
+                            .from_field("span.sentry_tags.group")
+                            .always(),
+                        Tag::with_key("span.op")
+                            .from_field("span.sentry_tags.op")
+                            .always(),
+                        // Mobile:
+                        Tag::with_key("device.class")
+                            .from_field("span.sentry_tags.device.class")
+                            .when(is_mobile.clone()),
+                        Tag::with_key("os.name") // TODO: might not be needed on both `exclusive_time` metrics
+                            .from_field("span.sentry_tags.os.name")
+                            .when(is_mobile.clone()),
+                        Tag::with_key("release")
+                            .from_field("span.sentry_tags.release")
+                            .when(is_mobile.clone()),
+                        // Resource module:
+                        Tag::with_key("file_extension")
+                            .from_field("span.sentry_tags.file_extension")
+                            .when(is_resource.clone()),
+                        Tag::with_key("resource.render_blocking_status")
+                            .from_field("span.sentry_tags.resource.render_blocking_status")
+                            .when(is_resource.clone()),
+                        // HTTP module:
+                        Tag::with_key("span.status_code")
+                            .from_field("span.sentry_tags.status_code")
+                            .when(is_http.clone()),
+                    ],
+                },
+            ],
         ),
         (
             GroupKey::SpanMetricsAddons,
@@ -734,30 +755,21 @@ pub fn hardcoded_span_metrics() -> Vec<(GroupKey, Vec<MetricSpec>, Vec<TagMappin
                     category: DataCategory::Span,
                     mri: "d:spans/exclusive_time_light@millisecond".into(),
                     field: Some("span.exclusive_time".into()),
-                    condition: Some(is_addon.clone() & duration_condition.clone()),
-                    tags: vec![
-                        Tag::with_key("environment")
-                            .from_field("span.sentry_tags.environment")
-                            .when(is_cache.clone() | is_queue_op.clone()),
-                        Tag::with_key("span.category")
-                            .from_field("span.sentry_tags.category")
-                            .always(),
-                        Tag::with_key("span.description")
-                            .from_field("span.sentry_tags.description")
-                            .always(),
-                        Tag::with_key("span.group")
-                            .from_field("span.sentry_tags.group")
-                            .always(),
-                        Tag::with_key("span.op")
-                            .from_field("span.sentry_tags.op")
-                            .always(),
-                    ],
+                    condition: addons_duration_light_condition.clone(),
+                    tags: vec![],
                 },
                 MetricSpec {
                     category: DataCategory::Span,
                     mri: "d:spans/duration@millisecond".into(),
                     field: Some("span.duration".into()),
                     condition: Some(is_addon),
+                    tags: vec![],
+                },
+                MetricSpec {
+                    category: DataCategory::Span,
+                    mri: "d:spans/duration_light@millisecond".into(),
+                    field: Some("span.duration".into()),
+                    condition: addons_duration_light_condition.clone(),
                     tags: vec![],
                 },
                 // cache module
@@ -877,8 +889,9 @@ pub fn hardcoded_span_metrics() -> Vec<(GroupKey, Vec<MetricSpec>, Vec<TagMappin
                 TagMapping {
                     metrics: vec![
                         LazyGlob::new("d:spans/duration@millisecond"),
-                        LazyGlob::new("d:spans/exclusive_time_light@millisecond"),
+                        LazyGlob::new("d:spans/duration_light@millisecond"),
                         LazyGlob::new("d:spans/exclusive_time@millisecond"),
+                        LazyGlob::new("d:spans/exclusive_time_light@millisecond"),
                     ],
                     tags: vec![
                         // cache module
@@ -895,10 +908,13 @@ pub fn hardcoded_span_metrics() -> Vec<(GroupKey, Vec<MetricSpec>, Vec<TagMappin
                     ],
                 },
                 TagMapping {
-                    metrics: vec![LazyGlob::new("d:spans/exclusive_time_light@millisecond")],
+                    metrics: vec![
+                        LazyGlob::new("d:spans/duration_light@millisecond"),
+                        LazyGlob::new("d:spans/exclusive_time_light@millisecond"),
+                    ],
                     tags: vec![Tag::with_key("environment")
                         .from_field("span.sentry_tags.environment")
-                        .when(is_cache.clone())],
+                        .when(is_cache.clone() | is_queue_op.clone())],
                 },
             ],
         ),
