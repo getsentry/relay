@@ -132,8 +132,7 @@ pub fn create_test_processor(config: Config) -> EnvelopeProcessorService {
         GlobalConfigHandle::fixed(Default::default()),
         Cogs::noop(),
         #[cfg(feature = "processing")]
-        // TODO: Figure out right pool
-        redis_pools.project_config,
+        redis_pools,
         processor::Addrs {
             outcome_aggregator,
             project_cache,
@@ -162,8 +161,7 @@ pub fn create_test_processor_with_addrs(
         GlobalConfigHandle::fixed(Default::default()),
         Cogs::noop(),
         #[cfg(feature = "processing")]
-        // TODO: Figure out right pool
-        redis_pools.project_config,
+        redis_pools,
         addrs,
         metric_outcomes,
     )

@@ -222,8 +222,7 @@ impl ServiceState {
             global_config_handle,
             cogs,
             #[cfg(feature = "processing")]
-            // TODO: Figure out right pool
-            redis_pools.project_config.clone(),
+            redis_pools.clone(),
             processor::Addrs {
                 project_cache: project_cache.clone(),
                 outcome_aggregator: outcome_aggregator.clone(),
@@ -251,7 +250,6 @@ impl ServiceState {
             MemoryChecker::new(memory_stat.clone(), config.clone()),
             project_cache_services,
             metric_outcomes,
-            // TODO: Figure out right pool
             redis_pools.project_config.clone(),
         )
         .spawn_handler(project_cache_rx);
@@ -269,8 +267,7 @@ impl ServiceState {
             config.clone(),
             upstream_relay.clone(),
             #[cfg(feature = "processing")]
-            // TODO: Figure out right pool
-            redis_pools.project_config.clone(),
+            redis_pools.clone(),
         )
         .start();
 
