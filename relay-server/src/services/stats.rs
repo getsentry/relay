@@ -17,14 +17,14 @@ pub struct RelayStats {
     config: Arc<Config>,
     upstream_relay: Addr<UpstreamRelay>,
     #[cfg(feature = "processing")]
-    redis_pools: RedisPools,
+    redis_pools: Option<RedisPools>,
 }
 
 impl RelayStats {
     pub fn new(
         config: Arc<Config>,
         upstream_relay: Addr<UpstreamRelay>,
-        #[cfg(feature = "processing")] redis_pools: RedisPools,
+        #[cfg(feature = "processing")] redis_pools: Option<RedisPools>,
     ) -> Self {
         Self {
             config,
@@ -118,19 +118,16 @@ impl RelayStats {
 
     #[cfg(feature = "processing")]
     async fn redis_pools(&self) {
-        if let Some(ref project_configs) = self.redis_pools.project_configs {
+        if let Some(RedisPools {
+            project_configs,
+            cardinality,
+            quotas,
+            misc,
+        }) = self.redis_pools.as_ref()
+        {
             Self::redis_pool(project_configs, "project_configs").await;
-        }
-
-        if let Some(ref cardinality) = self.redis_pools.cardinality {
             Self::redis_pool(cardinality, "cardinality").await;
-        }
-
-        if let Some(ref quotas) = self.redis_pools.quotas {
             Self::redis_pool(quotas, "quotas").await;
-        }
-
-        if let Some(ref misc) = self.redis_pools.misc {
             Self::redis_pool(misc, "misc").await;
         }
     }

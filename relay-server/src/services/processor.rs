@@ -1137,7 +1137,7 @@ impl EnvelopeProcessorService {
         config: Arc<Config>,
         global_config: GlobalConfigHandle,
         cogs: Cogs,
-        #[cfg(feature = "processing")] redis: RedisPools,
+        #[cfg(feature = "processing")] redis: Option<RedisPools>,
         addrs: Addrs,
         metric_outcomes: MetricOutcomes,
     ) -> Self {
@@ -1151,35 +1151,41 @@ impl EnvelopeProcessorService {
             }
         });
 
+        #[cfg(feature = "processing")]
+        let (cardinality, quotas, misc) = match redis {
+            Some(RedisPools {
+                cardinality,
+                quotas,
+                misc,
+                ..
+            }) => (Some(cardinality), Some(quotas), Some(misc)),
+            None => (None, None, None),
+        };
+
         let inner = InnerProcessor {
             workers: WorkerGroup::new(pool),
             global_config,
             cogs,
             #[cfg(feature = "processing")]
             // TODO: Tentatively using `quotas` for this
-            redis_pool: redis.quotas.clone(),
+            redis_pool: quotas.clone(),
             #[cfg(feature = "processing")]
-            rate_limiter: redis
-                .quotas
-                .clone()
-                .map(|pool| RedisRateLimiter::new(pool).max_limit(config.max_rate_limit())),
+            rate_limiter: quotas.map(|quotas| RedisRateLimiter::new(quotas).max_limit(config.max_rate_limit())),
             addrs,
             geoip_lookup,
             #[cfg(feature = "processing")]
-            metric_meta_store: redis.misc.clone().map(|pool| {
-                RedisMetricMetaStore::new(pool, config.metrics_meta_locations_expiry())
+            metric_meta_store: misc.map(|misc| {
+                RedisMetricMetaStore::new(misc, config.metrics_meta_locations_expiry())
             }),
             #[cfg(feature = "processing")]
-            cardinality_limiter: redis
-                .cardinality
-                .clone()
-                .map(|pool| {
+            cardinality_limiter: cardinality
+                .map(|cardinality| {
                     RedisSetLimiter::new(
                         RedisSetLimiterOptions {
                             cache_vacuum_interval: config
                                 .cardinality_limiter_cache_vacuum_interval(),
                         },
-                        pool,
+                        cardinality,
                     )
                 })
                 .map(CardinalityLimiter::new),
