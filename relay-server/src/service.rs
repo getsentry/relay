@@ -10,7 +10,8 @@ use axum::extract::FromRequestParts;
 use axum::http::request::Parts;
 use rayon::ThreadPool;
 use relay_cogs::Cogs;
-use relay_config::Config;
+use relay_config::{Config, RedisConnection, RedisPoolConfigs};
+use relay_redis::{RedisConfigOptions, RedisError, RedisPool, RedisPools};
 use relay_system::{channel, Addr, Service};
 use tokio::runtime::Runtime;
 
@@ -133,7 +134,12 @@ impl ServiceState {
         let upstream_relay = UpstreamRelayService::new(config.clone()).start();
         let test_store = TestStoreService::new(config.clone()).start();
 
-        let redis_pools = config.redis().context(ServiceError::Redis)?;
+        let redis_pools = config
+            .redis()
+            .filter(|_| config.processing_enabled())
+            .map(create_redis_pools)
+            .transpose()
+            .context(ServiceError::Redis)?;
 
         let buffer_guard = Arc::new(BufferGuard::new(config.envelope_buffer_size()));
 
@@ -227,7 +233,9 @@ impl ServiceState {
             buffer_guard.clone(),
             project_cache_services,
             metric_outcomes,
-            redis_pools.project_configs.clone(),
+            redis_pools
+                .as_ref()
+                .map(|pools| pools.project_configs.clone()),
         )
         .spawn_handler(project_cache_rx);
 
@@ -330,6 +338,32 @@ impl ServiceState {
     pub fn outcome_aggregator(&self) -> &Addr<TrackOutcome> {
         &self.inner.registry.outcome_aggregator
     }
+}
+
+fn create_redis_pool(
+    connection: &RedisConnection,
+    options: RedisConfigOptions,
+) -> Result<RedisPool, RedisError> {
+    match connection {
+        RedisConnection::Cluster(servers) => {
+            RedisPool::cluster(servers.iter().map(|s| s.as_str()), options)
+        }
+        RedisConnection::Single(server) => RedisPool::single(server, options),
+    }
+}
+
+pub fn create_redis_pools(configs: RedisPoolConfigs) -> Result<RedisPools, RedisError> {
+    let project_configs = create_redis_pool(configs.project_configs.0, configs.project_configs.1)?;
+    let cardinality = create_redis_pool(configs.cardinality.0, configs.cardinality.1)?;
+    let quotas = create_redis_pool(configs.quotas.0, configs.quotas.1)?;
+    let misc = create_redis_pool(configs.misc.0, configs.misc.1)?;
+
+    Ok(RedisPools {
+        project_configs,
+        cardinality,
+        quotas,
+        misc,
+    })
 }
 
 #[axum::async_trait]

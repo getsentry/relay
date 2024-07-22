@@ -16,7 +16,6 @@ use relay_kafka::{
 };
 use relay_metrics::aggregator::{AggregatorConfig, FlushBatching};
 use relay_metrics::MetricNamespace;
-use relay_redis::{RedisError, RedisPools};
 use serde::de::{DeserializeOwned, Unexpected, Visitor};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use uuid::Uuid;
@@ -24,7 +23,7 @@ use uuid::Uuid;
 use crate::aggregator::{AggregatorServiceConfig, ScopedAggregatorConfig};
 use crate::byte_size::ByteSize;
 use crate::upstream::UpstreamDescriptor;
-use crate::{create_redis_pools, RedisConfig, RedisConfigs};
+use crate::{create_redis_pools, RedisConfig, RedisConfigs, RedisPoolConfigs};
 
 const DEFAULT_NETWORK_OUTAGE_GRACE_PERIOD: u64 = 10;
 
@@ -2272,16 +2271,12 @@ impl Config {
         &self.values.processing.topics.unused
     }
 
-    /// Redis servers to connect to, for rate limiting.
-    pub fn redis(&self) -> Result<RedisPools, RedisError> {
-        if !self.processing_enabled() {
-            return Ok(RedisPools::default());
-        }
+    /// Redis servers to connect to for project configs, cardinality limits,
+    /// rate limiting, and metrics metadata.
+    pub fn redis(&self) -> Option<RedisPoolConfigs> {
+        let redis_configs = self.values.processing.redis.as_ref()?;
 
-        let Some(redis_configs) = self.values.processing.redis.as_ref() else {
-            return Ok(RedisPools::default());
-        };
-        create_redis_pools(redis_configs, self.cpu_concurrency())
+        Some(create_redis_pools(redis_configs, self.cpu_concurrency()))
     }
 
     /// Chunk size of attachments in bytes.
