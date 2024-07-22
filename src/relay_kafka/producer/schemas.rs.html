@@ -79,8 +79,13 @@
 <a href="#79" id="79">79</a>
 <a href="#80" id="80">80</a>
 <a href="#81" id="81">81</a>
+<a href="#82" id="82">82</a>
+<a href="#83" id="83">83</a>
+<a href="#84" id="84">84</a>
+<a href="#85" id="85">85</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::btree_map::Entry;
 <span class="kw">use </span>std::collections::BTreeMap;
+<span class="kw">use </span>std::sync::{Arc, Mutex};
 
 <span class="kw">use </span>sentry_kafka_schemas::{Schema <span class="kw">as </span>SentrySchema, SchemaError <span class="kw">as </span>SentrySchemaError};
 <span class="kw">use </span>thiserror::Error;
@@ -120,13 +125,13 @@
 </span><span class="attr">#[derive(Debug, Default)]
 </span><span class="kw">pub struct </span>Validator {
     <span class="doccomment">/// Caches the schema for given topics.
-    </span>schemas: BTreeMap&lt;KafkaTopic, <span class="prelude-ty">Option</span>&lt;SentrySchema&gt;&gt;,
+    </span>schemas: Mutex&lt;BTreeMap&lt;KafkaTopic, <span class="prelude-ty">Option</span>&lt;Arc&lt;SentrySchema&gt;&gt;&gt;&gt;,
 }
 
 <span class="kw">impl </span>Validator {
     <span class="doccomment">/// Validate a message for a given topic's schema.
     </span><span class="kw">pub fn </span>validate_message_schema(
-        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
         topic: KafkaTopic,
         message: <span class="kw-2">&amp;</span>[u8],
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), SchemaError&gt; {
@@ -140,8 +145,10 @@
             .map(drop)
     }
 
-    <span class="kw">fn </span>get_schema(<span class="kw-2">&amp;mut </span><span class="self">self</span>, topic: KafkaTopic) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>SentrySchema&gt;, SchemaError&gt; {
-        <span class="prelude-val">Ok</span>(<span class="kw">match </span><span class="self">self</span>.schemas.entry(topic) {
+    <span class="kw">fn </span>get_schema(<span class="kw-2">&amp;</span><span class="self">self</span>, topic: KafkaTopic) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;Arc&lt;SentrySchema&gt;&gt;, SchemaError&gt; {
+        <span class="kw">let </span><span class="kw-2">mut </span>schemas = <span class="self">self</span>.schemas.lock().unwrap_or_else(|e| e.into_inner());
+
+        <span class="prelude-val">Ok</span>(<span class="kw">match </span>schemas.entry(topic) {
             Entry::Vacant(entry) =&gt; entry.insert({
                 <span class="kw">let </span>default_assignments = TopicAssignments::default();
                 <span class="kw">let </span>logical_topic_name = <span class="kw">match </span>default_assignments.get(topic) {
@@ -150,14 +157,15 @@
                 };
 
                 <span class="kw">match </span>sentry_kafka_schemas::get_schema(logical_topic_name, <span class="prelude-val">None</span>) {
-                    <span class="prelude-val">Ok</span>(schema) =&gt; <span class="prelude-val">Some</span>(schema),
+                    <span class="prelude-val">Ok</span>(schema) =&gt; <span class="prelude-val">Some</span>(Arc::new(schema)),
                     <span class="prelude-val">Err</span>(SentrySchemaError::TopicNotFound) =&gt; <span class="prelude-val">None</span>,
                     <span class="prelude-val">Err</span>(err) =&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(SchemaError::SchemaCompiled(err)),
                 }
             }),
             Entry::Occupied(entry) =&gt; entry.into_mut(),
         }
-        .as_ref())
+        .as_ref()
+        .map(Arc::clone))
     }
 }
 </code></pre></div></section></main></body></html>

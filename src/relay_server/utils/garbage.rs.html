@@ -102,6 +102,12 @@
 <a href="#102" id="102">102</a>
 <a href="#103" id="103">103</a>
 <a href="#104" id="104">104</a>
+<a href="#105" id="105">105</a>
+<a href="#106" id="106">106</a>
+<a href="#107" id="107">107</a>
+<a href="#108" id="108">108</a>
+<a href="#109" id="109">109</a>
+<a href="#110" id="110">110</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::sync::atomic::{AtomicUsize, Ordering};
 <span class="kw">use </span>std::sync::{mpsc, Arc};
 <span class="kw">use </span>std::thread::JoinHandle;
@@ -159,6 +165,12 @@
     <span class="doccomment">/// Get current queue size.
     </span><span class="kw">pub fn </span>queue_size(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
         <span class="self">self</span>.queue_size.load(Ordering::Relaxed)
+    }
+}
+
+<span class="kw">impl</span>&lt;T: Send + <span class="lifetime">'static</span>&gt; Default <span class="kw">for </span>GarbageDisposal&lt;T&gt; {
+    <span class="kw">fn </span>default() -&gt; <span class="self">Self </span>{
+        <span class="self">Self</span>::new()
     }
 }
 

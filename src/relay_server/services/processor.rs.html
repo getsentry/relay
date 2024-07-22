@@ -3946,57 +3946,6 @@
 <a href="#3946" id="3946">3946</a>
 <a href="#3947" id="3947">3947</a>
 <a href="#3948" id="3948">3948</a>
-<a href="#3949" id="3949">3949</a>
-<a href="#3950" id="3950">3950</a>
-<a href="#3951" id="3951">3951</a>
-<a href="#3952" id="3952">3952</a>
-<a href="#3953" id="3953">3953</a>
-<a href="#3954" id="3954">3954</a>
-<a href="#3955" id="3955">3955</a>
-<a href="#3956" id="3956">3956</a>
-<a href="#3957" id="3957">3957</a>
-<a href="#3958" id="3958">3958</a>
-<a href="#3959" id="3959">3959</a>
-<a href="#3960" id="3960">3960</a>
-<a href="#3961" id="3961">3961</a>
-<a href="#3962" id="3962">3962</a>
-<a href="#3963" id="3963">3963</a>
-<a href="#3964" id="3964">3964</a>
-<a href="#3965" id="3965">3965</a>
-<a href="#3966" id="3966">3966</a>
-<a href="#3967" id="3967">3967</a>
-<a href="#3968" id="3968">3968</a>
-<a href="#3969" id="3969">3969</a>
-<a href="#3970" id="3970">3970</a>
-<a href="#3971" id="3971">3971</a>
-<a href="#3972" id="3972">3972</a>
-<a href="#3973" id="3973">3973</a>
-<a href="#3974" id="3974">3974</a>
-<a href="#3975" id="3975">3975</a>
-<a href="#3976" id="3976">3976</a>
-<a href="#3977" id="3977">3977</a>
-<a href="#3978" id="3978">3978</a>
-<a href="#3979" id="3979">3979</a>
-<a href="#3980" id="3980">3980</a>
-<a href="#3981" id="3981">3981</a>
-<a href="#3982" id="3982">3982</a>
-<a href="#3983" id="3983">3983</a>
-<a href="#3984" id="3984">3984</a>
-<a href="#3985" id="3985">3985</a>
-<a href="#3986" id="3986">3986</a>
-<a href="#3987" id="3987">3987</a>
-<a href="#3988" id="3988">3988</a>
-<a href="#3989" id="3989">3989</a>
-<a href="#3990" id="3990">3990</a>
-<a href="#3991" id="3991">3991</a>
-<a href="#3992" id="3992">3992</a>
-<a href="#3993" id="3993">3993</a>
-<a href="#3994" id="3994">3994</a>
-<a href="#3995" id="3995">3995</a>
-<a href="#3996" id="3996">3996</a>
-<a href="#3997" id="3997">3997</a>
-<a href="#3998" id="3998">3998</a>
-<a href="#3999" id="3999">3999</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
@@ -4043,7 +3992,6 @@
 <span class="kw">use </span>relay_system::{Addr, FromMessage, NoResponse, Service};
 <span class="kw">use </span>reqwest::header;
 <span class="kw">use </span>smallvec::{smallvec, SmallVec};
-<span class="kw">use </span>tokio::sync::Semaphore;
 
 <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
 </span><span class="kw">use </span>{
@@ -4084,6 +4032,7 @@
 <span class="kw">use </span><span class="kw">crate</span>::statsd::{RelayCounters, RelayHistograms, RelayTimers};
 <span class="kw">use </span><span class="kw">crate</span>::utils::{
     <span class="self">self</span>, InvalidProcessingGroupType, ManagedEnvelope, SamplingResult, ThreadPool, TypedEnvelope,
+    WorkerGroup,
 };
 <span class="kw">use crate</span>::{http, metrics};
 
@@ -5112,7 +5061,7 @@
 }
 
 <span class="kw">struct </span>InnerProcessor {
-    pool: ThreadPool,
+    workers: WorkerGroup,
     config: Arc&lt;Config&gt;,
     global_config: GlobalConfigHandle,
     cogs: Cogs,
@@ -5151,7 +5100,7 @@
         });
 
         <span class="kw">let </span>inner = InnerProcessor {
-            pool,
+            workers: WorkerGroup::new(pool),
             global_config,
             cogs,
             <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
@@ -6813,31 +6762,13 @@
     <span class="kw">type </span>Interface = EnvelopeProcessor;
 
     <span class="kw">fn </span>spawn_handler(<span class="self">self</span>, <span class="kw-2">mut </span>rx: relay_system::Receiver&lt;<span class="self">Self</span>::Interface&gt;) {
-        <span class="kw">let </span>semaphore = Arc::new(Semaphore::new(<span class="self">self</span>.inner.pool.current_num_threads()));
-
         tokio::spawn(<span class="kw">async move </span>{
-            <span class="kw">loop </span>{
-                <span class="kw">let </span>next_msg = <span class="kw">async </span>{
-                    <span class="kw">let </span>permit_result = semaphore.clone().acquire_owned().<span class="kw">await</span>;
-                    <span class="comment">// `permit_result` might get dropped when this future is cancelled while awaiting
-                    // `rx.recv()`. This is OK though: No envelope is received so the permit is not
-                    // required.
-                    </span>(rx.recv().<span class="kw">await</span>, permit_result)
-                };
-
-                <span class="macro">tokio::select!</span> {
-                   biased;
-
-                    (<span class="prelude-val">Some</span>(message), <span class="prelude-val">Ok</span>(permit)) = next_msg =&gt; {
-                        <span class="kw">let </span>service = <span class="self">self</span>.clone();
-                        <span class="self">self</span>.inner.pool.spawn(<span class="kw">move </span>|| {
-                            service.handle_message(message);
-                            drop(permit);
-                        });
-                    },
-
-                    <span class="kw">else </span>=&gt; <span class="kw">break
-                </span>}
+            <span class="kw">while let </span><span class="prelude-val">Some</span>(message) = rx.recv().<span class="kw">await </span>{
+                <span class="kw">let </span>service = <span class="self">self</span>.clone();
+                <span class="self">self</span>.inner
+                    .workers
+                    .spawn(<span class="kw">move </span>|| service.handle_message(message))
+                    .<span class="kw">await</span>;
             }
         });
     }
@@ -7599,39 +7530,6 @@
             "event.transaction_name_changes:1|c|#source_in:route,changes:none,source_out:route,is_404:false",
         ]
         "#</span>);
-    }
-
-    <span class="doccomment">/// This is a stand-in test to assert panicking behavior for spawn_blocking.
-    ///
-    /// [`EnvelopeProcessorService`] relies on tokio to restart the worker threads for blocking
-    /// tasks if there is a panic during processing. Tokio does not explicitly mention this behavior
-    /// in documentation, though the `spawn_blocking` contract suggests that this is intentional.
-    ///
-    /// This test should be moved if the worker pool is extracted into a utility.
-    </span><span class="attr">#[test]
-    </span><span class="kw">fn </span>test_processor_panics() {
-        <span class="kw">let </span>future = <span class="kw">async </span>{
-            <span class="kw">let </span>semaphore = Arc::new(Semaphore::new(<span class="number">1</span>));
-
-            <span class="comment">// loop multiple times to prove that the runtime creates new threads
-            </span><span class="kw">for _ in </span><span class="number">0</span>..<span class="number">3 </span>{
-                <span class="comment">// the previous permit should have been released during panic unwind
-                </span><span class="kw">let </span>permit = semaphore.clone().acquire_owned().<span class="kw">await</span>.unwrap();
-
-                <span class="kw">let </span>handle = tokio::task::spawn_blocking(<span class="kw">move </span>|| {
-                    <span class="kw">let </span>_permit = permit; <span class="comment">// drop(permit) after panic!() would warn as "unreachable"
-                    </span><span class="macro">panic!</span>(<span class="string">"ignored"</span>);
-                });
-
-                <span class="macro">assert!</span>(handle.<span class="kw">await</span>.is_err());
-            }
-        };
-
-        tokio::runtime::Builder::new_current_thread()
-            .max_blocking_threads(<span class="number">1</span>)
-            .build()
-            .unwrap()
-            .block_on(future);
     }
 
     <span class="doccomment">/// Confirms that the hardcoded value we use for the fixed length of the measurement MRI is

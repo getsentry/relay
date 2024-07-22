@@ -1635,6 +1635,14 @@
 <a href="#1635" id="1635">1635</a>
 <a href="#1636" id="1636">1636</a>
 <a href="#1637" id="1637">1637</a>
+<a href="#1638" id="1638">1638</a>
+<a href="#1639" id="1639">1639</a>
+<a href="#1640" id="1640">1640</a>
+<a href="#1641" id="1641">1641</a>
+<a href="#1642" id="1642">1642</a>
+<a href="#1643" id="1643">1643</a>
+<a href="#1644" id="1644">1644</a>
+<a href="#1645" id="1645">1645</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module contains the service that forwards events and attachments to the Sentry store.
 //! The service uses Kafka topics to forward data to Sentry
 
@@ -1673,7 +1681,7 @@
 <span class="kw">use </span><span class="kw">crate</span>::services::outcome::{DiscardReason, Outcome, TrackOutcome};
 <span class="kw">use </span><span class="kw">crate</span>::services::processor::Processed;
 <span class="kw">use </span><span class="kw">crate</span>::statsd::{RelayCounters, RelayTimers};
-<span class="kw">use </span><span class="kw">crate</span>::utils::{is_rolled_out, FormDataIter, TypedEnvelope};
+<span class="kw">use </span><span class="kw">crate</span>::utils::{is_rolled_out, FormDataIter, ThreadPool, TypedEnvelope, WorkerGroup};
 
 <span class="doccomment">/// Fallback name used for attachment items without a `filename` header.
 </span><span class="kw">const </span>UNNAMED_ATTACHMENT: <span class="kw-2">&amp;</span>str = <span class="string">"Unnamed Attachment"</span>;
@@ -1777,6 +1785,7 @@
 
 <span class="doccomment">/// Service implementing the [`Store`] interface.
 </span><span class="kw">pub struct </span>StoreService {
+    workers: WorkerGroup,
     config: Arc&lt;Config&gt;,
     global_config: GlobalConfigHandle,
     outcome_aggregator: Addr&lt;TrackOutcome&gt;,
@@ -1786,6 +1795,7 @@
 
 <span class="kw">impl </span>StoreService {
     <span class="kw">pub fn </span>create(
+        pool: ThreadPool,
         config: Arc&lt;Config&gt;,
         global_config: GlobalConfigHandle,
         outcome_aggregator: Addr&lt;TrackOutcome&gt;,
@@ -1793,6 +1803,7 @@
     ) -&gt; anyhow::Result&lt;<span class="self">Self</span>&gt; {
         <span class="kw">let </span>producer = Producer::create(<span class="kw-2">&amp;</span>config)<span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>(<span class="self">Self </span>{
+            workers: WorkerGroup::new(pool),
             config,
             global_config,
             outcome_aggregator,
@@ -2720,11 +2731,16 @@
     <span class="kw">type </span>Interface = Store;
 
     <span class="kw">fn </span>spawn_handler(<span class="self">self</span>, <span class="kw-2">mut </span>rx: relay_system::Receiver&lt;<span class="self">Self</span>::Interface&gt;) {
+        <span class="kw">let </span>this = Arc::new(<span class="self">self</span>);
+
         tokio::spawn(<span class="kw">async move </span>{
             <span class="macro">relay_log::info!</span>(<span class="string">"store forwarder started"</span>);
 
             <span class="kw">while let </span><span class="prelude-val">Some</span>(message) = rx.recv().<span class="kw">await </span>{
-                <span class="self">self</span>.handle_message(message);
+                <span class="kw">let </span>service = Arc::clone(<span class="kw-2">&amp;</span>this);
+                this.workers
+                    .spawn(<span class="kw">move </span>|| service.handle_message(message))
+                    .<span class="kw">await</span>;
             }
 
             <span class="macro">relay_log::info!</span>(<span class="string">"store forwarder stopped"</span>);

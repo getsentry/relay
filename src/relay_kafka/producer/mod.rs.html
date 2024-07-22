@@ -332,12 +332,73 @@
 <a href="#332" id="332">332</a>
 <a href="#333" id="333">333</a>
 <a href="#334" id="334">334</a>
+<a href="#335" id="335">335</a>
+<a href="#336" id="336">336</a>
+<a href="#337" id="337">337</a>
+<a href="#338" id="338">338</a>
+<a href="#339" id="339">339</a>
+<a href="#340" id="340">340</a>
+<a href="#341" id="341">341</a>
+<a href="#342" id="342">342</a>
+<a href="#343" id="343">343</a>
+<a href="#344" id="344">344</a>
+<a href="#345" id="345">345</a>
+<a href="#346" id="346">346</a>
+<a href="#347" id="347">347</a>
+<a href="#348" id="348">348</a>
+<a href="#349" id="349">349</a>
+<a href="#350" id="350">350</a>
+<a href="#351" id="351">351</a>
+<a href="#352" id="352">352</a>
+<a href="#353" id="353">353</a>
+<a href="#354" id="354">354</a>
+<a href="#355" id="355">355</a>
+<a href="#356" id="356">356</a>
+<a href="#357" id="357">357</a>
+<a href="#358" id="358">358</a>
+<a href="#359" id="359">359</a>
+<a href="#360" id="360">360</a>
+<a href="#361" id="361">361</a>
+<a href="#362" id="362">362</a>
+<a href="#363" id="363">363</a>
+<a href="#364" id="364">364</a>
+<a href="#365" id="365">365</a>
+<a href="#366" id="366">366</a>
+<a href="#367" id="367">367</a>
+<a href="#368" id="368">368</a>
+<a href="#369" id="369">369</a>
+<a href="#370" id="370">370</a>
+<a href="#371" id="371">371</a>
+<a href="#372" id="372">372</a>
+<a href="#373" id="373">373</a>
+<a href="#374" id="374">374</a>
+<a href="#375" id="375">375</a>
+<a href="#376" id="376">376</a>
+<a href="#377" id="377">377</a>
+<a href="#378" id="378">378</a>
+<a href="#379" id="379">379</a>
+<a href="#380" id="380">380</a>
+<a href="#381" id="381">381</a>
+<a href="#382" id="382">382</a>
+<a href="#383" id="383">383</a>
+<a href="#384" id="384">384</a>
+<a href="#385" id="385">385</a>
+<a href="#386" id="386">386</a>
+<a href="#387" id="387">387</a>
+<a href="#388" id="388">388</a>
+<a href="#389" id="389">389</a>
+<a href="#390" id="390">390</a>
+<a href="#391" id="391">391</a>
+<a href="#392" id="392">392</a>
+<a href="#393" id="393">393</a>
+<a href="#394" id="394">394</a>
+<a href="#395" id="395">395</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module contains the kafka producer related code.
 
 </span><span class="kw">use </span>std::borrow::Cow;
-<span class="kw">use </span>std::cell::Cell;
 <span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::fmt;
+<span class="kw">use </span>std::sync::atomic::{AtomicU64, Ordering};
 <span class="kw">use </span>std::sync::Arc;
 <span class="kw">use </span>std::time::{Duration, Instant};
 
@@ -356,7 +417,7 @@
 <span class="attr">#[cfg(feature = <span class="string">"schemas"</span>)]
 </span><span class="kw">mod </span>schemas;
 
-<span class="kw">const </span>REPORT_FREQUENCY: Duration = Duration::from_secs(<span class="number">1</span>);
+<span class="kw">const </span>REPORT_FREQUENCY_SECS: u64 = <span class="number">1</span>;
 <span class="kw">const </span>KAFKA_FETCH_METADATA_TIMEOUT: Duration = Duration::from_secs(<span class="number">30</span>);
 
 <span class="doccomment">/// Kafka producer errors.
@@ -421,20 +482,20 @@
 
 <span class="doccomment">/// Single kafka producer config with assigned topic.
 </span><span class="kw">struct </span>Producer {
-    <span class="doccomment">/// Time of the latest collection of stats.
-    </span>last_report: Cell&lt;Instant&gt;,
     <span class="doccomment">/// Kafka topic name.
     </span>topic_name: String,
     <span class="doccomment">/// Real kafka producer.
     </span>producer: Arc&lt;ThreadedProducer&gt;,
+    <span class="doccomment">/// Debouncer for metrics.
+    </span>metrics: Debounced,
 }
 
 <span class="kw">impl </span>Producer {
     <span class="kw">fn </span>new(topic_name: String, producer: Arc&lt;ThreadedProducer&gt;) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{
-            last_report: Cell::new(Instant::now()),
             topic_name,
             producer,
+            metrics: Debounced::new(REPORT_FREQUENCY_SECS),
         }
     }
 
@@ -458,10 +519,9 @@
 <span class="kw">impl </span>fmt::Debug <span class="kw">for </span>Producer {
     <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
         f.debug_struct(<span class="string">"Producer"</span>)
-            .field(<span class="string">"last_report"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.last_report)
             .field(<span class="string">"topic_name"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.topic_name)
             .field(<span class="string">"producer"</span>, <span class="kw-2">&amp;</span><span class="string">"&lt;ThreadedProducer&gt;"</span>)
-            .finish()
+            .finish_non_exhaustive()
     }
 }
 
@@ -470,7 +530,7 @@
 </span><span class="kw">pub struct </span>KafkaClient {
     producers: HashMap&lt;KafkaTopic, Producer&gt;,
     <span class="attr">#[cfg(feature = <span class="string">"schemas"</span>)]
-    </span>schema_validator: std::cell::RefCell&lt;schemas::Validator&gt;,
+    </span>schema_validator: schemas::Validator,
 }
 
 <span class="kw">impl </span>KafkaClient {
@@ -490,7 +550,6 @@
         <span class="kw">let </span>serialized = message.serialize()<span class="question-mark">?</span>;
         <span class="attr">#[cfg(feature = <span class="string">"schemas"</span>)]
         </span><span class="self">self</span>.schema_validator
-            .borrow_mut()
             .validate_message_schema(topic, <span class="kw-2">&amp;</span>serialized)
             .map_err(ClientError::SchemaValidationFailed)<span class="question-mark">?</span>;
         <span class="kw">let </span>key = message.key();
@@ -595,7 +654,7 @@
         KafkaClient {
             producers: <span class="self">self</span>.producers,
             <span class="attr">#[cfg(feature = <span class="string">"schemas"</span>)]
-            </span>schema_validator: schemas::Validator::default().into(),
+            </span>schema_validator: schemas::Validator::default(),
         }
     }
 }
@@ -638,14 +697,13 @@
             record = record.headers(kafka_headers);
         }
 
-        <span class="kw">if </span><span class="self">self</span>.last_report.get().elapsed() &gt; REPORT_FREQUENCY {
-            <span class="self">self</span>.last_report.replace(Instant::now());
+        <span class="self">self</span>.metrics.debounce(|| {
             <span class="macro">metric!</span>(
                 gauge(KafkaGauges::InFlightCount) = <span class="self">self</span>.producer.in_flight_count() <span class="kw">as </span>u64,
                 variant = variant,
                 topic = topic_name
             );
-        }
+        });
 
         <span class="self">self</span>.producer
             .send(record)
@@ -664,6 +722,70 @@
                 );
                 ClientError::SendFailed(error)
             })
+    }
+}
+
+<span class="kw">struct </span>Debounced {
+    <span class="doccomment">/// Time of last activation in seconds.
+    </span>last_activation: AtomicU64,
+    <span class="doccomment">/// Debounce interval in seconds.
+    </span>interval: u64,
+    <span class="doccomment">/// Relative instant used for measurements.
+    </span>instant: Instant,
+}
+
+<span class="kw">impl </span>Debounced {
+    <span class="kw">pub fn </span>new(interval: u64) -&gt; <span class="self">Self </span>{
+        <span class="self">Self </span>{
+            last_activation: AtomicU64::new(<span class="number">0</span>),
+            interval,
+            instant: Instant::now(),
+        }
+    }
+
+    <span class="kw">fn </span>debounce(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw">impl </span>FnOnce()) -&gt; bool {
+        <span class="comment">// Add interval to make sure it always triggers immediately.
+        </span><span class="kw">let </span>now = <span class="self">self</span>.instant.elapsed().as_secs() + <span class="self">self</span>.interval;
+
+        <span class="kw">let </span>prev = <span class="self">self</span>.last_activation.load(Ordering::Relaxed);
+        <span class="kw">if </span>now.saturating_sub(prev) &lt; <span class="self">self</span>.interval {
+            <span class="kw">return </span><span class="bool-val">false</span>;
+        }
+
+        <span class="kw">if </span><span class="self">self
+            </span>.last_activation
+            .compare_exchange(prev, now, Ordering::SeqCst, Ordering::Acquire)
+            .is_ok()
+        {
+            f();
+            <span class="kw">return </span><span class="bool-val">true</span>;
+        }
+
+        <span class="bool-val">false
+    </span>}
+}
+
+<span class="attr">#[cfg(test)]
+</span><span class="kw">mod </span>tests {
+    <span class="kw">use </span>std::thread;
+
+    <span class="kw">use super</span>::<span class="kw-2">*</span>;
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_debounce() {
+        <span class="kw">let </span>d = Debounced::new(<span class="number">1</span>);
+
+        <span class="macro">assert!</span>(d.debounce(|| {}));
+        <span class="kw">for _ in </span><span class="number">0</span>..<span class="number">10 </span>{
+            <span class="macro">assert!</span>(!d.debounce(|| {}));
+        }
+
+        thread::sleep(Duration::from_secs(<span class="number">1</span>));
+
+        <span class="macro">assert!</span>(d.debounce(|| {}));
+        <span class="kw">for _ in </span><span class="number">0</span>..<span class="number">10 </span>{
+            <span class="macro">assert!</span>(!d.debounce(|| {}));
+        }
     }
 }
 </code></pre></div></section></main></body></html>
