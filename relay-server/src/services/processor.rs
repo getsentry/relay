@@ -1157,8 +1157,8 @@ impl EnvelopeProcessorService {
             global_config,
             cogs,
             #[cfg(feature = "processing")]
-            // TODO: Tentatively using `misc` for this
-            redis_pool: redis.misc.clone(),
+            // TODO: Tentatively using `quotas` for this
+            redis_pool: redis.quotas.clone(),
             #[cfg(feature = "processing")]
             rate_limiter: redis
                 .quotas
