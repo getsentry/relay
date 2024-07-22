@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use relay_config::{Config, RelayMode};
 #[cfg(feature = "processing")]
-use relay_redis::RedisPool;
+use relay_redis::RedisPools;
 use relay_statsd::metric;
 use relay_system::{Addr, Service};
 use tokio::time::interval;
@@ -17,20 +17,20 @@ pub struct RelayStats {
     config: Arc<Config>,
     upstream_relay: Addr<UpstreamRelay>,
     #[cfg(feature = "processing")]
-    redis_pool: Option<RedisPool>,
+    redis_pools: RedisPools,
 }
 
 impl RelayStats {
     pub fn new(
         config: Arc<Config>,
         upstream_relay: Addr<UpstreamRelay>,
-        #[cfg(feature = "processing")] redis_pool: Option<RedisPool>,
+        #[cfg(feature = "processing")] redis_pools: RedisPools,
     ) -> Self {
         Self {
             config,
             upstream_relay,
             #[cfg(feature = "processing")]
-            redis_pool,
+            redis_pools,
         }
     }
 
@@ -101,17 +101,42 @@ impl RelayStats {
     }
 
     #[cfg(not(feature = "processing"))]
-    async fn redis_pool(&self) {}
+    async fn redis_pools(&self) {}
 
     #[cfg(feature = "processing")]
-    async fn redis_pool(&self) {
-        let Some(ref redis_pool) = self.redis_pool else {
-            return;
-        };
+    async fn redis_pools(&self) {
+        // TODO: How to report values for the different pools? Tag them?
+        if let Some(ref project_config) = self.redis_pools.project_config {
+            let state = project_config.stats();
+            metric!(gauge(RelayGauges::RedisPoolConnections) = u64::from(state.connections));
+            metric!(
+                gauge(RelayGauges::RedisPoolIdleConnections) = u64::from(state.idle_connections)
+            );
+        }
 
-        let state = redis_pool.stats();
-        metric!(gauge(RelayGauges::RedisPoolConnections) = u64::from(state.connections));
-        metric!(gauge(RelayGauges::RedisPoolIdleConnections) = u64::from(state.idle_connections));
+        if let Some(ref cardinality) = self.redis_pools.cardinality {
+            let state = cardinality.stats();
+            metric!(gauge(RelayGauges::RedisPoolConnections) = u64::from(state.connections));
+            metric!(
+                gauge(RelayGauges::RedisPoolIdleConnections) = u64::from(state.idle_connections)
+            );
+        }
+
+        if let Some(ref quotas) = self.redis_pools.quotas {
+            let state = quotas.stats();
+            metric!(gauge(RelayGauges::RedisPoolConnections) = u64::from(state.connections));
+            metric!(
+                gauge(RelayGauges::RedisPoolIdleConnections) = u64::from(state.idle_connections)
+            );
+        }
+
+        if let Some(ref misc) = self.redis_pools.misc {
+            let state = misc.stats();
+            metric!(gauge(RelayGauges::RedisPoolConnections) = u64::from(state.connections));
+            metric!(
+                gauge(RelayGauges::RedisPoolIdleConnections) = u64::from(state.idle_connections)
+            );
+        }
     }
 }
 
@@ -128,7 +153,7 @@ impl Service for RelayStats {
                 let _ = tokio::join!(
                     self.upstream_status(),
                     self.tokio_metrics(),
-                    self.redis_pool(),
+                    self.redis_pools(),
                 );
                 ticker.tick().await;
             }

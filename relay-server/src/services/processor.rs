@@ -37,6 +37,7 @@ use relay_pii::PiiConfigError;
 use relay_profiling::ProfileId;
 use relay_protocol::{Annotated, Value};
 use relay_quotas::{DataCategory, Scoping};
+use relay_redis::RedisPools;
 use relay_sampling::config::RuleId;
 use relay_sampling::evaluation::{ReservoirCounters, ReservoirEvaluator, SamplingDecision};
 use relay_sampling::DynamicSamplingContext;
@@ -1137,7 +1138,7 @@ impl EnvelopeProcessorService {
         config: Arc<Config>,
         global_config: GlobalConfigHandle,
         cogs: Cogs,
-        #[cfg(feature = "processing")] redis: Option<RedisPool>,
+        #[cfg(feature = "processing")] redis: RedisPools,
         addrs: Addrs,
         metric_outcomes: MetricOutcomes,
     ) -> Self {
@@ -1156,19 +1157,22 @@ impl EnvelopeProcessorService {
             global_config,
             cogs,
             #[cfg(feature = "processing")]
-            redis_pool: redis.clone(),
+            // TODO: Tentatively using `misc` for this
+            redis_pool: redis.misc.clone(),
             #[cfg(feature = "processing")]
             rate_limiter: redis
+                .quotas
                 .clone()
                 .map(|pool| RedisRateLimiter::new(pool).max_limit(config.max_rate_limit())),
             addrs,
             geoip_lookup,
             #[cfg(feature = "processing")]
-            metric_meta_store: redis.clone().map(|pool| {
+            metric_meta_store: redis.misc.clone().map(|pool| {
                 RedisMetricMetaStore::new(pool, config.metrics_meta_locations_expiry())
             }),
             #[cfg(feature = "processing")]
             cardinality_limiter: redis
+                .cardinality
                 .clone()
                 .map(|pool| {
                     RedisSetLimiter::new(
