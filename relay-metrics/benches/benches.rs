@@ -178,7 +178,9 @@ fn bench_insert_and_flush(c: &mut Criterion) {
     ];
 
     for (input_name, input) in &inputs {
-        c.bench_with_input(
+        let mut group = c.benchmark_group(*input_name);
+        group.throughput(criterion::Throughput::Elements(input.num_buckets as u64));
+        group.bench_with_input(
             BenchmarkId::new("bench_insert_metrics", input_name),
             &input,
             |b, input| {
@@ -191,7 +193,15 @@ fn bench_insert_and_flush(c: &mut Criterion) {
                     |(mut aggregator, buckets)| {
                         for (project_key, bucket) in buckets {
                             #[allow(clippy::unit_arg)]
-                            black_box(aggregator.merge(project_key, bucket, None).unwrap());
+                            black_box(
+                                aggregator
+                                    .merge(
+                                        black_box(project_key),
+                                        black_box(bucket),
+                                        black_box(None),
+                                    )
+                                    .unwrap(),
+                            );
                         }
                     },
                     BatchSize::SmallInput,
@@ -199,7 +209,7 @@ fn bench_insert_and_flush(c: &mut Criterion) {
             },
         );
 
-        c.bench_with_input(
+        group.bench_with_input(
             BenchmarkId::new("bench_flush_metrics", input_name),
             &input,
             |b, &input| {
@@ -215,7 +225,7 @@ fn bench_insert_and_flush(c: &mut Criterion) {
                     |mut aggregator| {
                         // XXX: Ideally we'd want to test the entire try_flush here, but spawning
                         // a service is too much work here.
-                        black_box(aggregator.pop_flush_buckets(false));
+                        black_box(aggregator.pop_flush_buckets(black_box(false)));
                     },
                     BatchSize::SmallInput,
                 )
