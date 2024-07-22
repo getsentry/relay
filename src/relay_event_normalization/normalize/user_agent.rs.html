@@ -1092,6 +1092,9 @@
 <a href="#1092" id="1092">1092</a>
 <a href="#1093" id="1093">1093</a>
 <a href="#1094" id="1094">1094</a>
+<a href="#1095" id="1095">1095</a>
+<a href="#1096" id="1096">1096</a>
+<a href="#1097" id="1097">1097</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Generate context data from user agent and client hints.
 //!
 //! This module is responsible for taking the user agent string parsing it and filling in
@@ -1381,12 +1384,15 @@
 }
 
 <span class="doccomment">/// Computes a [`Context`] from either a user agent string and client hints.
-</span><span class="kw">trait </span>FromUserAgentInfo: Sized {
-    <span class="kw">fn </span>parse_client_hints(client_hints: <span class="kw-2">&amp;</span>ClientHints&lt;<span class="kw-2">&amp;</span>str&gt;) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="self">Self</span>&gt;;
+</span><span class="kw">pub trait </span>FromUserAgentInfo: Sized {
+    <span class="doccomment">/// Tries to populate the context from client hints.
+    </span><span class="kw">fn </span>parse_client_hints(client_hints: <span class="kw-2">&amp;</span>ClientHints&lt;<span class="kw-2">&amp;</span>str&gt;) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="self">Self</span>&gt;;
 
-    <span class="kw">fn </span>parse_user_agent(user_agent: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="self">Self</span>&gt;;
+    <span class="doccomment">/// Tries to populate the context from a user agent header string.
+    </span><span class="kw">fn </span>parse_user_agent(user_agent: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="self">Self</span>&gt;;
 
-    <span class="kw">fn </span>from_hints_or_ua(raw_info: <span class="kw-2">&amp;</span>RawUserAgentInfo&lt;<span class="kw-2">&amp;</span>str&gt;) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="self">Self</span>&gt; {
+    <span class="doccomment">/// Tries to populate the context from client hints or a user agent header string.
+    </span><span class="kw">fn </span>from_hints_or_ua(raw_info: <span class="kw-2">&amp;</span>RawUserAgentInfo&lt;<span class="kw-2">&amp;</span>str&gt;) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="self">Self</span>&gt; {
         <span class="self">Self</span>::parse_client_hints(<span class="kw-2">&amp;</span>raw_info.client_hints)
             .or_else(|| raw_info.user_agent.and_then(<span class="self">Self</span>::parse_user_agent))
     }
@@ -1456,7 +1462,7 @@
 /// to be a browser and gets returned as such.
 ///
 /// Returns None if no browser field detected.
-</span><span class="kw">fn </span>browser_from_client_hints(s: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;(String, String)&gt; {
+</span><span class="kw">pub fn </span>browser_from_client_hints(s: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;(String, String)&gt; {
     <span class="kw">for </span>item <span class="kw">in </span>s.split(<span class="string">','</span>) {
         <span class="comment">// if it contains one of these then we can know it isn't a browser field. atm chromium
         // browsers are the only ones supporting client hints.

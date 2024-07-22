@@ -814,6 +814,7 @@
 <a href="#814" id="814">814</a>
 <a href="#815" id="815">815</a>
 <a href="#816" id="816">816</a>
+<a href="#817" id="817">817</a>
 </pre></div><pre class="rust"><code><span class="kw">mod </span>convert;
 
 <span class="attr">#[cfg(feature = <span class="string">"jsonschema"</span>)]
@@ -991,6 +992,7 @@
             <span class="string">"release" </span>=&gt; <span class="self">self</span>.data.value()<span class="question-mark">?</span>.release.as_str()<span class="question-mark">?</span>.into(),
             <span class="string">"environment" </span>=&gt; <span class="self">self</span>.data.value()<span class="question-mark">?</span>.environment.as_str()<span class="question-mark">?</span>.into(),
             <span class="string">"transaction" </span>=&gt; <span class="self">self</span>.data.value()<span class="question-mark">?</span>.segment_name.as_str()<span class="question-mark">?</span>.into(),
+            <span class="string">"contexts.browser.name" </span>=&gt; <span class="self">self</span>.data.value()<span class="question-mark">?</span>.browser_name.as_str()<span class="question-mark">?</span>.into(),
             <span class="comment">// TODO: we might want to add additional fields once they are added to the span.
             </span><span class="kw">_ </span>=&gt; <span class="kw">return </span><span class="prelude-val">None</span>,
         })

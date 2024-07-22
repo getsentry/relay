@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"fn":["normalize_user_agent","normalize_user_agent_info_generic"],"struct":["ClientHints","RawUserAgentInfo"]};
+window.SIDEBAR_ITEMS = {"fn":["browser_from_client_hints","normalize_user_agent","normalize_user_agent_info_generic"],"struct":["ClientHints","RawUserAgentInfo"],"trait":["FromUserAgentInfo"]};
