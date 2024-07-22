@@ -22,6 +22,7 @@ fnv = { workspace = true }
 hash32 = { workspace = true }
 hashbrown = { workspace = true }
 itertools = { workspace = true }
+priority-queue = { workspace = true }
 relay-base-schema = { workspace = true }
 relay-cardinality = { workspace = true }
 relay-cogs = { workspace = true }
