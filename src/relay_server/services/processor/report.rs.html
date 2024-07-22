@@ -962,7 +962,7 @@
         <span class="macro">assert_eq!</span>(envelopes.len(), <span class="number">1</span>);
         <span class="kw">let </span>(group, envelope) = envelopes.pop().unwrap();
 
-        <span class="kw">let </span>envelope = ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store, group);
+        <span class="kw">let </span>envelope = ManagedEnvelope::new(envelope, outcome_aggregator, test_store, group);
         <span class="kw">let </span>message = ProcessEnvelope {
             envelope,
             project_state: Arc::new(ProjectState::allowed()),
@@ -1015,7 +1015,7 @@
         <span class="kw">let </span><span class="kw-2">mut </span>envelopes = ProcessingGroup::split_envelope(<span class="kw-2">*</span>envelope);
         <span class="macro">assert_eq!</span>(envelopes.len(), <span class="number">1</span>);
         <span class="kw">let </span>(group, envelope) = envelopes.pop().unwrap();
-        <span class="kw">let </span>envelope = ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store, group);
+        <span class="kw">let </span>envelope = ManagedEnvelope::new(envelope, outcome_aggregator, test_store, group);
 
         <span class="kw">let </span>message = ProcessEnvelope {
             envelope,
@@ -1078,7 +1078,7 @@
         <span class="macro">assert_eq!</span>(envelopes.len(), <span class="number">1</span>);
 
         <span class="kw">let </span>(group, envelope) = envelopes.pop().unwrap();
-        <span class="kw">let </span>envelope = ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store, group);
+        <span class="kw">let </span>envelope = ManagedEnvelope::new(envelope, outcome_aggregator, test_store, group);
         <span class="kw">let </span>message = ProcessEnvelope {
             envelope,
             project_state: Arc::new(ProjectState::allowed()),
@@ -1118,7 +1118,7 @@
 
         <span class="kw">let </span>(group, envelope) = envelopes.pop().unwrap();
 
-        <span class="kw">let </span>envelope = ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store, group);
+        <span class="kw">let </span>envelope = ManagedEnvelope::new(envelope, outcome_aggregator, test_store, group);
         <span class="kw">let </span>message = ProcessEnvelope {
             envelope,
             project_state: Arc::new(ProjectState::allowed()),
@@ -1165,7 +1165,7 @@
         <span class="kw">let </span><span class="kw-2">mut </span>envelopes = ProcessingGroup::split_envelope(<span class="kw-2">*</span>envelope);
         <span class="macro">assert_eq!</span>(envelopes.len(), <span class="number">1</span>);
         <span class="kw">let </span>(group, envelope) = envelopes.pop().unwrap();
-        <span class="kw">let </span>envelope = ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store, group);
+        <span class="kw">let </span>envelope = ManagedEnvelope::new(envelope, outcome_aggregator, test_store, group);
 
         <span class="kw">let </span>message = ProcessEnvelope {
             envelope,

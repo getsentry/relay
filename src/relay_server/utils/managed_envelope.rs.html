@@ -571,43 +571,6 @@
 <a href="#571" id="571">571</a>
 <a href="#572" id="572">572</a>
 <a href="#573" id="573">573</a>
-<a href="#574" id="574">574</a>
-<a href="#575" id="575">575</a>
-<a href="#576" id="576">576</a>
-<a href="#577" id="577">577</a>
-<a href="#578" id="578">578</a>
-<a href="#579" id="579">579</a>
-<a href="#580" id="580">580</a>
-<a href="#581" id="581">581</a>
-<a href="#582" id="582">582</a>
-<a href="#583" id="583">583</a>
-<a href="#584" id="584">584</a>
-<a href="#585" id="585">585</a>
-<a href="#586" id="586">586</a>
-<a href="#587" id="587">587</a>
-<a href="#588" id="588">588</a>
-<a href="#589" id="589">589</a>
-<a href="#590" id="590">590</a>
-<a href="#591" id="591">591</a>
-<a href="#592" id="592">592</a>
-<a href="#593" id="593">593</a>
-<a href="#594" id="594">594</a>
-<a href="#595" id="595">595</a>
-<a href="#596" id="596">596</a>
-<a href="#597" id="597">597</a>
-<a href="#598" id="598">598</a>
-<a href="#599" id="599">599</a>
-<a href="#600" id="600">600</a>
-<a href="#601" id="601">601</a>
-<a href="#602" id="602">602</a>
-<a href="#603" id="603">603</a>
-<a href="#604" id="604">604</a>
-<a href="#605" id="605">605</a>
-<a href="#606" id="606">606</a>
-<a href="#607" id="607">607</a>
-<a href="#608" id="608">608</a>
-<a href="#609" id="609">609</a>
-<a href="#610" id="610">610</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Envelope context type and helpers to ensure outcomes.
 
 </span><span class="kw">use </span>std::fmt::{Debug, Display};
@@ -626,7 +589,7 @@
 <span class="kw">use </span><span class="kw">crate</span>::services::processor::{Processed, ProcessingGroup};
 <span class="kw">use </span><span class="kw">crate</span>::services::test_store::{Capture, TestStore};
 <span class="kw">use </span><span class="kw">crate</span>::statsd::{RelayCounters, RelayTimers};
-<span class="kw">use </span><span class="kw">crate</span>::utils::{EnvelopeSummary, SemaphorePermit};
+<span class="kw">use </span><span class="kw">crate</span>::utils::EnvelopeSummary;
 
 <span class="doccomment">/// Denotes the success of handling an envelope.
 </span><span class="attr">#[derive(Clone, Copy, Debug)]
@@ -672,7 +635,6 @@
 </span><span class="kw">struct </span>EnvelopeContext {
     summary: EnvelopeSummary,
     scoping: Scoping,
-    slot: <span class="prelude-ty">Option</span>&lt;SemaphorePermit&gt;,
     partition_key: <span class="prelude-ty">Option</span>&lt;u64&gt;,
     done: bool,
     group: ProcessingGroup,
@@ -775,10 +737,11 @@
 }
 
 <span class="kw">impl </span>ManagedEnvelope {
-    <span class="doccomment">/// Computes a managed envelope from the given envelope.
-    </span><span class="kw">fn </span>new_internal(
+    <span class="doccomment">/// Computes a managed envelope from the given envelope and binds it to the processing queue.
+    ///
+    /// To provide additional scoping, use [`ManagedEnvelope::scope`].
+    </span><span class="kw">pub fn </span>new(
         envelope: Box&lt;Envelope&gt;,
-        slot: <span class="prelude-ty">Option</span>&lt;SemaphorePermit&gt;,
         outcome_aggregator: Addr&lt;TrackOutcome&gt;,
         test_store: Addr&lt;TestStore&gt;,
         group: ProcessingGroup,
@@ -786,12 +749,12 @@
         <span class="kw">let </span>meta = <span class="kw-2">&amp;</span>envelope.meta();
         <span class="kw">let </span>summary = EnvelopeSummary::compute(envelope.as_ref());
         <span class="kw">let </span>scoping = meta.get_partial_scoping();
+
         <span class="self">Self </span>{
             envelope,
             context: EnvelopeContext {
                 summary,
                 scoping,
-                slot,
                 partition_key: <span class="prelude-val">None</span>,
                 done: <span class="bool-val">false</span>,
                 group,
@@ -807,44 +770,14 @@
         outcome_aggregator: Addr&lt;TrackOutcome&gt;,
         test_store: Addr&lt;TestStore&gt;,
     ) -&gt; <span class="self">Self </span>{
-        <span class="kw">let </span><span class="kw-2">mut </span>envelope = <span class="self">Self</span>::new_internal(
+        <span class="kw">let </span><span class="kw-2">mut </span>envelope = <span class="self">Self</span>::new(
             envelope,
-            <span class="prelude-val">None</span>,
             outcome_aggregator,
             test_store,
             ProcessingGroup::Ungrouped,
         );
         envelope.context.done = <span class="bool-val">true</span>;
         envelope
-    }
-
-    <span class="doccomment">/// Creates a new managed envelope like [`new`](Self::new) but without a queue permit.
-    ///
-    /// This is suitable for aggregated metrics. Metrics live outside the lifecycle of a normal
-    /// event. They are extracted, aggregated and regularily flushed, after the
-    /// source event has already been processed.
-    ///
-    /// The constructor is also suitable for unit testing internals of the processing pipeline.
-    </span><span class="kw">pub fn </span>standalone(
-        envelope: Box&lt;Envelope&gt;,
-        outcome_aggregator: Addr&lt;TrackOutcome&gt;,
-        test_store: Addr&lt;TestStore&gt;,
-        group: ProcessingGroup,
-    ) -&gt; <span class="self">Self </span>{
-        <span class="self">Self</span>::new_internal(envelope, <span class="prelude-val">None</span>, outcome_aggregator, test_store, group)
-    }
-
-    <span class="doccomment">/// Computes a managed envelope from the given envelope and binds it to the processing queue.
-    ///
-    /// To provide additional scoping, use [`ManagedEnvelope::scope`].
-    </span><span class="kw">pub fn </span>new(
-        envelope: Box&lt;Envelope&gt;,
-        slot: SemaphorePermit,
-        outcome_aggregator: Addr&lt;TrackOutcome&gt;,
-        test_store: Addr&lt;TestStore&gt;,
-        group: ProcessingGroup,
-    ) -&gt; <span class="self">Self </span>{
-        <span class="self">Self</span>::new_internal(envelope, <span class="prelude-val">Some</span>(slot), outcome_aggregator, test_store, group)
     }
 
     <span class="doccomment">/// Returns a reference to the contained [`Envelope`].
@@ -863,11 +796,7 @@
     }
 
     <span class="doccomment">/// Consumes itself returning the managed envelope.
-    ///
-    /// This also releases the slot with [`SemaphorePermit`] and sets the internal context
-    /// to done so there is no rejection issued once the [`ManagedEnvelope`] is consumed.
     </span><span class="kw">pub fn </span>into_envelope(<span class="kw-2">mut </span><span class="self">self</span>) -&gt; Box&lt;Envelope&gt; {
-        <span class="self">self</span>.context.slot.take();
         <span class="self">self</span>.context.done = <span class="bool-val">true</span>;
         Box::new(<span class="self">self</span>.envelope.take_items())
     }
@@ -1152,8 +1081,6 @@
 
     <span class="doccomment">/// Resets inner state to ensure there's no more logging.
     </span><span class="kw">fn </span>finish(<span class="kw-2">&amp;mut </span><span class="self">self</span>, counter: RelayCounters, handling: Handling) {
-        <span class="self">self</span>.context.slot.take();
-
         <span class="macro">relay_statsd::metric!</span>(counter(counter) += <span class="number">1</span>, handling = handling.as_str());
         <span class="macro">relay_statsd::metric!</span>(timer(RelayTimers::EnvelopeTotalTime) = <span class="self">self</span>.start_time().elapsed());
 
@@ -1186,9 +1113,8 @@
 
         <span class="kw">let </span>(test_store, <span class="kw">_</span>) = Addr::custom();
         <span class="kw">let </span>(outcome_aggregator, <span class="kw-2">mut </span>rx) = Addr::custom();
-        <span class="kw">let </span><span class="kw-2">mut </span>env = ManagedEnvelope::new_internal(
+        <span class="kw">let </span><span class="kw-2">mut </span>env = ManagedEnvelope::new(
             envelope,
-            <span class="prelude-val">None</span>,
             outcome_aggregator,
             test_store,
             ProcessingGroup::Ungrouped,

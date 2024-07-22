@@ -2425,7 +2425,7 @@
             <span class="kw">let </span>(outcome_aggregator, <span class="kw">_</span>) = Addr::custom();
             <span class="kw">let </span>(test_store, <span class="kw">_</span>) = Addr::custom();
 
-            ManagedEnvelope::standalone(
+            ManagedEnvelope::new(
                 envelope,
                 outcome_aggregator,
                 test_store,

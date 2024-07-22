@@ -370,6 +370,8 @@
 <a href="#370" id="370">370</a>
 <a href="#371" id="371">371</a>
 <a href="#372" id="372">372</a>
+<a href="#373" id="373">373</a>
+<a href="#374" id="374">374</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::convert::Infallible;
 <span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::sync::Arc;
@@ -400,7 +402,7 @@
 </span><span class="kw">use </span><span class="kw">crate</span>::services::store::StoreService;
 <span class="kw">use </span><span class="kw">crate</span>::services::test_store::{TestStore, TestStoreService};
 <span class="kw">use </span><span class="kw">crate</span>::services::upstream::{UpstreamRelay, UpstreamRelayService};
-<span class="kw">use </span><span class="kw">crate</span>::utils::BufferGuard;
+<span class="kw">use </span><span class="kw">crate</span>::utils::{MemoryChecker, MemoryStat};
 
 <span class="doccomment">/// Indicates the type of failure of the server.
 </span><span class="attr">#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, thiserror::Error)]
@@ -508,7 +510,7 @@
 <span class="attr">#[derive(Debug)]
 </span><span class="kw">struct </span>StateInner {
     config: Arc&lt;Config&gt;,
-    buffer_guard: Arc&lt;BufferGuard&gt;,
+    memory_checker: MemoryChecker,
     registry: Registry,
 }
 
@@ -536,7 +538,9 @@
             .transpose()
             .context(ServiceError::Redis)<span class="question-mark">?</span>;
 
-        <span class="kw">let </span>buffer_guard = Arc::new(BufferGuard::new(config.envelope_buffer_size()));
+        <span class="comment">// We create an instance of `MemoryStat` which can be supplied composed with any arbitrary
+        // configuration object down the line.
+        </span><span class="kw">let </span>memory_stat = MemoryStat::new(config.memory_stat_refresh_frequency_ms());
 
         <span class="comment">// Create an address for the `EnvelopeProcessor`, which can be injected into the
         // other services.
@@ -626,7 +630,7 @@
         );
         ProjectCacheService::new(
             config.clone(),
-            buffer_guard.clone(),
+            MemoryChecker::new(memory_stat.clone(), config.clone()),
             project_cache_services,
             metric_outcomes,
             redis_pool.clone(),
@@ -635,6 +639,7 @@
 
         <span class="kw">let </span>health_check = HealthCheckService::new(
             config.clone(),
+            MemoryChecker::new(memory_stat.clone(), config.clone()),
             aggregator.clone(),
             upstream_relay.clone(),
             project_cache.clone(),
@@ -665,8 +670,8 @@
         };
 
         <span class="kw">let </span>state = StateInner {
-            buffer_guard,
-            config,
+            config: config.clone(),
+            memory_checker: MemoryChecker::new(memory_stat, config),
             registry,
         };
 
@@ -680,12 +685,11 @@
         <span class="kw-2">&amp;</span><span class="self">self</span>.inner.config
     }
 
-    <span class="doccomment">/// Returns a reference to the guard of the envelope buffer.
-    ///
-    /// This can be used to enter new envelopes into the processing queue and reserve a slot in the
-    /// buffer. See [`BufferGuard`] for more information.
-    </span><span class="kw">pub fn </span>buffer_guard(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>BufferGuard {
-        <span class="kw-2">&amp;</span><span class="self">self</span>.inner.buffer_guard
+    <span class="doccomment">/// Returns a reference to the [`MemoryChecker`] which is a [`Config`] aware wrapper on the
+    /// [`MemoryStat`] which gives utility methods to determine whether memory usage is above
+    /// thresholds set in the [`Config`].
+    </span><span class="kw">pub fn </span>memory_checker(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>MemoryChecker {
+        <span class="kw-2">&amp;</span><span class="self">self</span>.inner.memory_checker
     }
 
     <span class="doccomment">/// Returns the address of the [`ProjectCache`] service.

@@ -563,7 +563,6 @@
 <a href="#563" id="563">563</a>
 <a href="#564" id="564">564</a>
 <a href="#565" id="565">565</a>
-<a href="#566" id="566">566</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Profiles related processor code.
 
 </span><span class="kw">use </span>relay_dynamic_config::Feature;
@@ -825,7 +824,7 @@
         <span class="macro">assert_eq!</span>(envelopes.len(), <span class="number">1</span>);
 
         <span class="kw">let </span>(group, envelope) = envelopes.pop().unwrap();
-        <span class="kw">let </span>envelope = ManagedEnvelope::standalone(envelope, Addr::dummy(), Addr::dummy(), group);
+        <span class="kw">let </span>envelope = ManagedEnvelope::new(envelope, Addr::dummy(), Addr::dummy(), group);
 
         <span class="kw">let </span>message = ProcessEnvelope {
             envelope,
@@ -955,7 +954,7 @@
         <span class="macro">assert_eq!</span>(envelopes.len(), <span class="number">1</span>);
 
         <span class="kw">let </span>(group, envelope) = envelopes.pop().unwrap();
-        <span class="kw">let </span>envelope = ManagedEnvelope::standalone(envelope, Addr::dummy(), Addr::dummy(), group);
+        <span class="kw">let </span>envelope = ManagedEnvelope::new(envelope, Addr::dummy(), Addr::dummy(), group);
 
         <span class="kw">let </span>message = ProcessEnvelope {
             envelope,
@@ -1024,8 +1023,7 @@
         <span class="macro">assert_eq!</span>(envelopes.len(), <span class="number">1</span>);
 
         <span class="kw">let </span>(group, envelope) = envelopes.pop().unwrap();
-        <span class="kw">let </span>envelope =
-            ManagedEnvelope::standalone(envelope.clone(), Addr::dummy(), Addr::dummy(), group);
+        <span class="kw">let </span>envelope = ManagedEnvelope::new(envelope.clone(), Addr::dummy(), Addr::dummy(), group);
 
         <span class="kw">let </span>message = ProcessEnvelope {
             envelope,
@@ -1096,7 +1094,7 @@
         <span class="macro">assert_eq!</span>(envelopes.len(), <span class="number">1</span>);
 
         <span class="kw">let </span>(group, envelope) = envelopes.pop().unwrap();
-        <span class="kw">let </span>envelope = ManagedEnvelope::standalone(envelope, Addr::dummy(), Addr::dummy(), group);
+        <span class="kw">let </span>envelope = ManagedEnvelope::new(envelope, Addr::dummy(), Addr::dummy(), group);
 
         <span class="kw">let </span>message = ProcessEnvelope {
             envelope,

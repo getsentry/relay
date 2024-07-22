@@ -461,7 +461,6 @@
 <a href="#461" id="461">461</a>
 <a href="#462" id="462">462</a>
 <a href="#463" id="463">463</a>
-<a href="#464" id="464">464</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Common facilities for ingesting events through store-like endpoints.
 
 </span><span class="kw">use </span>axum::http::{header, StatusCode};
@@ -478,9 +477,7 @@
 <span class="kw">use </span><span class="kw">crate</span>::services::processor::{ProcessMetricMeta, ProcessMetrics, ProcessingGroup};
 <span class="kw">use </span><span class="kw">crate</span>::services::project_cache::{CheckEnvelope, ValidateEnvelope};
 <span class="kw">use </span><span class="kw">crate</span>::statsd::{RelayCounters, RelayHistograms};
-<span class="kw">use </span><span class="kw">crate</span>::utils::{
-    <span class="self">self</span>, ApiErrorResponse, BufferError, BufferGuard, FormDataIter, ManagedEnvelope, MultipartError,
-};
+<span class="kw">use </span><span class="kw">crate</span>::utils::{<span class="self">self</span>, ApiErrorResponse, FormDataIter, ManagedEnvelope, MultipartError};
 
 <span class="attr">#[derive(Clone, Copy, Debug, thiserror::Error)]
 #[error(<span class="string">"the service is overloaded"</span>)]
@@ -539,7 +536,7 @@
     </span>InvalidEventId,
 
     <span class="attr">#[error(<span class="string">"failed to queue envelope"</span>)]
-    </span>QueueFailed(<span class="attr">#[from] </span>BufferError),
+    </span>QueueFailed,
 
     <span class="attr">#[error(
         <span class="string">"envelope exceeded size limits for type '{0}' (https://develop.sentry.dev/sdk/envelopes/#size-limits)"
@@ -578,7 +575,7 @@
 
                 (StatusCode::TOO_MANY_REQUESTS, headers, body).into_response()
             }
-            BadStoreRequest::ScheduleFailed | BadStoreRequest::QueueFailed(<span class="kw">_</span>) =&gt; {
+            BadStoreRequest::ScheduleFailed | BadStoreRequest::QueueFailed =&gt; {
                 <span class="comment">// These errors indicate that something's wrong with our service system, most likely
                 // mailbox congestion or a faulty shutdown. Indicate an unavailable service to the
                 // client. It might retry event submission at a later time.
@@ -728,7 +725,6 @@
 </span><span class="kw">fn </span>queue_envelope(
     state: <span class="kw-2">&amp;</span>ServiceState,
     <span class="kw-2">mut </span>managed_envelope: ManagedEnvelope,
-    buffer_guard: <span class="kw-2">&amp;</span>BufferGuard,
 ) -&gt; <span class="prelude-ty">Result</span>&lt;(), BadStoreRequest&gt; {
     <span class="kw">let </span>envelope = managed_envelope.envelope_mut();
 
@@ -763,14 +759,13 @@
     <span class="comment">// Split off the envelopes by item type.
     </span><span class="kw">let </span>envelopes = ProcessingGroup::split_envelope(<span class="kw-2">*</span>managed_envelope.take_envelope());
     <span class="kw">for </span>(group, envelope) <span class="kw">in </span>envelopes {
-        <span class="kw">let </span>envelope = buffer_guard
-            .enter(
-                envelope,
-                state.outcome_aggregator().clone(),
-                state.test_store().clone(),
-                group,
-            )
-            .map_err(BadStoreRequest::QueueFailed)<span class="question-mark">?</span>;
+        <span class="kw">let </span>envelope = ManagedEnvelope::new(
+            envelope,
+            state.outcome_aggregator().clone(),
+            state.test_store().clone(),
+            group,
+        );
+
         state.project_cache().send(ValidateEnvelope::new(envelope));
     }
     <span class="comment">// The entire envelope is taken for a split above, and it's empty at this point, we can just
@@ -799,17 +794,20 @@
         )
     }
 
-    <span class="kw">let </span>buffer_guard = state.buffer_guard();
-    <span class="kw">let </span><span class="kw-2">mut </span>managed_envelope = buffer_guard
-        .enter(
-            envelope,
-            state.outcome_aggregator().clone(),
-            state.test_store().clone(),
-            <span class="comment">// It's not clear at this point which group this envelope belongs to.
-            // The decission will be made while queueing in `queue_envelope` function.
-            </span>ProcessingGroup::Ungrouped,
-        )
-        .map_err(BadStoreRequest::QueueFailed)<span class="question-mark">?</span>;
+    <span class="kw">if </span>state.memory_checker().check_memory().is_exceeded() {
+        <span class="comment">// NOTE: Long-term, we should not reject the envelope here, but spool it to disk instead.
+        // This will be fixed with the new spool implementation.
+        </span><span class="kw">return </span><span class="prelude-val">Err</span>(BadStoreRequest::QueueFailed);
+    };
+
+    <span class="kw">let </span><span class="kw-2">mut </span>managed_envelope = ManagedEnvelope::new(
+        envelope,
+        state.outcome_aggregator().clone(),
+        state.test_store().clone(),
+        <span class="comment">// It's not clear at this point which group this envelope belongs to.
+        // The decision will be made while queueing in `queue_envelope` function.
+        </span>ProcessingGroup::Ungrouped,
+    );
 
     <span class="comment">// If configured, remove unknown items at the very beginning. If the envelope is
     // empty, we fail the request with a special control flow error to skip checks and
@@ -841,7 +839,7 @@
         <span class="kw">return </span><span class="prelude-val">Err</span>(BadStoreRequest::Overflow(offender));
     }
 
-    queue_envelope(state, managed_envelope, buffer_guard)<span class="question-mark">?</span>;
+    queue_envelope(state, managed_envelope)<span class="question-mark">?</span>;
 
     <span class="kw">if </span>checked.rate_limits.is_limited() {
         <span class="comment">// Even if some envelope items have been queued, there might be active rate limits on

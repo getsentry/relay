@@ -897,35 +897,6 @@
 <a href="#897" id="897">897</a>
 <a href="#898" id="898">898</a>
 <a href="#899" id="899">899</a>
-<a href="#900" id="900">900</a>
-<a href="#901" id="901">901</a>
-<a href="#902" id="902">902</a>
-<a href="#903" id="903">903</a>
-<a href="#904" id="904">904</a>
-<a href="#905" id="905">905</a>
-<a href="#906" id="906">906</a>
-<a href="#907" id="907">907</a>
-<a href="#908" id="908">908</a>
-<a href="#909" id="909">909</a>
-<a href="#910" id="910">910</a>
-<a href="#911" id="911">911</a>
-<a href="#912" id="912">912</a>
-<a href="#913" id="913">913</a>
-<a href="#914" id="914">914</a>
-<a href="#915" id="915">915</a>
-<a href="#916" id="916">916</a>
-<a href="#917" id="917">917</a>
-<a href="#918" id="918">918</a>
-<a href="#919" id="919">919</a>
-<a href="#920" id="920">920</a>
-<a href="#921" id="921">921</a>
-<a href="#922" id="922">922</a>
-<a href="#923" id="923">923</a>
-<a href="#924" id="924">924</a>
-<a href="#925" id="925">925</a>
-<a href="#926" id="926">926</a>
-<a href="#927" id="927">927</a>
-<a href="#928" id="928">928</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric, TimerMetric};
 <span class="attr">#[cfg(doc)]
 </span><span class="kw">use </span>tokio::runtime::RuntimeMetrics;
@@ -962,8 +933,6 @@
     ///
     /// Relay uses the same value for its memory health check.
     </span>SystemMemoryTotal,
-    <span class="doccomment">/// The currently used Resident Set Size (RSS).
-    </span>SystemMemoryRss,
     <span class="doccomment">/// The number of connections currently being managed by the Redis Pool.
     </span><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
     </span>RedisPoolConnections,
@@ -982,7 +951,6 @@
             RelayGauges::BufferPeriodicUnspool =&gt; <span class="string">"buffer.unspool.periodic"</span>,
             RelayGauges::SystemMemoryUsed =&gt; <span class="string">"health.system_memory.used"</span>,
             RelayGauges::SystemMemoryTotal =&gt; <span class="string">"health.system_memory.total"</span>,
-            RelayGauges::SystemMemoryRss =&gt; <span class="string">"health.system_memory.rss"</span>,
             <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
             </span>RelayGauges::RedisPoolConnections =&gt; <span class="string">"redis.pool.connections"</span>,
             <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
@@ -1082,27 +1050,6 @@
 
 <span class="doccomment">/// Histogram metrics used by Relay.
 </span><span class="kw">pub enum </span>RelayHistograms {
-    <span class="doccomment">/// The number of envelopes in the queue as a percentage of the maximum number of envelopes that
-    /// can be stored in the queue.
-    ///
-    /// The value ranges from `0` when the queue is empty to `1` when the queue is full and no
-    /// additional events can be added. The queue size can be configured using `event.queue_size`.
-    </span>EnvelopeQueueSizePct,
-    <span class="doccomment">/// The number of envelopes in the queue.
-    ///
-    /// The queue holds all envelopes that are being processed at a particular time in Relay:
-    ///
-    /// - When Relay receives a Request, it ensures the submitted data is wrapped in a single
-    ///   envelope.
-    /// - The envelope receives some preliminary processing to determine if it can be processed or
-    ///   if it must be rejected.
-    /// - Once this determination has been made, the HTTP request that created the envelope
-    ///   terminates and, if the request is to be further processed, the envelope enters a queue.
-    /// - After the envelope finishes processing and is sent upstream, the envelope is considered
-    ///   handled and it leaves the queue.
-    ///
-    /// The queue size can be configured with `cache.event_buffer_size`.
-    </span>EnvelopeQueueSize,
     <span class="doccomment">/// The number of bytes received by Relay for each individual envelope item type.
     ///
     /// Metric is tagged by the item type.
@@ -1116,9 +1063,6 @@
     /// This metric is computed by multiplying `page_count * page_size`.
     </span>BufferDiskSize,
     <span class="doccomment">/// Number of attempts needed to dequeue spooled envelopes from disk.
-    ///
-    /// As long as there are enough permits in the [`crate::utils::BufferGuard`], this number should
-    /// always be one.
     </span>BufferDequeueAttempts,
     <span class="doccomment">/// The number of batches emitted per partition.
     </span>BatchesPerPartition,
@@ -1237,8 +1181,6 @@
 <span class="kw">impl </span>HistogramMetric <span class="kw">for </span>RelayHistograms {
     <span class="kw">fn </span>name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
         <span class="kw">match </span><span class="self">self </span>{
-            RelayHistograms::EnvelopeQueueSizePct =&gt; <span class="string">"event.queue_size.pct"</span>,
-            RelayHistograms::EnvelopeQueueSize =&gt; <span class="string">"event.queue_size"</span>,
             RelayHistograms::EnvelopeItemSize =&gt; <span class="string">"event.item_size"</span>,
             RelayHistograms::EventSpans =&gt; <span class="string">"event.spans"</span>,
             RelayHistograms::BatchesPerPartition =&gt; <span class="string">"metrics.buckets.batches_per_partition"</span>,

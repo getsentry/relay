@@ -802,7 +802,6 @@
 <a href="#802" id="802">802</a>
 <a href="#803" id="803">803</a>
 <a href="#804" id="804">804</a>
-<a href="#805" id="805">805</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Dynamic sampling processor related code.
 
 </span><span class="kw">use </span>std::ops::ControlFlow;
@@ -1088,7 +1087,7 @@
     <span class="kw">use </span><span class="kw">crate</span>::testutils::{
         <span class="self">self</span>, create_test_processor, new_envelope, state_with_rule_and_condition,
     };
-    <span class="kw">use </span><span class="kw">crate</span>::utils::{ManagedEnvelope, Semaphore <span class="kw">as </span>TestSemaphore};
+    <span class="kw">use </span><span class="kw">crate</span>::utils::ManagedEnvelope;
 
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
 
@@ -1128,7 +1127,7 @@
         <span class="kw">let </span>(group, envelope) = envelopes.pop().unwrap();
 
         <span class="kw">let </span>message = ProcessEnvelope {
-            envelope: ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store, group),
+            envelope: ManagedEnvelope::new(envelope, outcome_aggregator, test_store, group),
             project_state: Arc::new(ProjectState::allowed()),
             sampling_project_state,
             reservoir_counters: ReservoirCounters::default(),
@@ -1276,7 +1275,6 @@
                 project_id: ProjectId::new(<span class="number">42</span>),
                 managed_envelope: ManagedEnvelope::new(
                     envelope,
-                    TestSemaphore::new(<span class="number">42</span>).try_acquire().unwrap(),
                     outcome_aggregator.clone(),
                     test_store.clone(),
                     ProcessingGroup::Transaction,
@@ -1579,7 +1577,7 @@
                 <span class="prelude-val">Some</span>(Arc::new(state))
             },
             project_id: ProjectId::new(<span class="number">1</span>),
-            managed_envelope: ManagedEnvelope::standalone(
+            managed_envelope: ManagedEnvelope::new(
                 envelope,
                 Addr::dummy(),
                 Addr::dummy(),

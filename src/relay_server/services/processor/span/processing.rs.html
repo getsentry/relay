@@ -1682,7 +1682,7 @@
             ..Default::default()
         };
 
-        <span class="kw">let </span>managed_envelope = ManagedEnvelope::standalone(
+        <span class="kw">let </span>managed_envelope = ManagedEnvelope::new(
             dummy_envelope,
             Addr::dummy(),
             Addr::dummy(),

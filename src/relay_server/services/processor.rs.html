@@ -6246,7 +6246,7 @@
             </span>envelope.add_item(item);
         }
 
-        <span class="kw">let </span>envelope = ManagedEnvelope::standalone(
+        <span class="kw">let </span>envelope = ManagedEnvelope::new(
             envelope,
             <span class="self">self</span>.inner.addrs.outcome_aggregator.clone(),
             <span class="self">self</span>.inner.addrs.test_store.clone(),
@@ -6541,7 +6541,7 @@
                 item.set_payload(ContentType::Json, serde_json::to_vec(<span class="kw-2">&amp;</span>buckets).unwrap());
                 envelope.add_item(item);
 
-                <span class="kw">let </span><span class="kw-2">mut </span>envelope = ManagedEnvelope::standalone(
+                <span class="kw">let </span><span class="kw-2">mut </span>envelope = ManagedEnvelope::new(
                     envelope,
                     <span class="self">self</span>.inner.addrs.outcome_aggregator.clone(),
                     <span class="self">self</span>.inner.addrs.test_store.clone(),
@@ -6677,7 +6677,7 @@
         <span class="kw">let </span><span class="kw-2">mut </span>envelope = Envelope::from_request(<span class="prelude-val">None</span>, RequestMeta::outbound(dsn));
         envelope.add_item(item);
 
-        <span class="kw">let </span>envelope = ManagedEnvelope::standalone(
+        <span class="kw">let </span>envelope = ManagedEnvelope::new(
             envelope,
             <span class="self">self</span>.inner.addrs.outcome_aggregator.clone(),
             <span class="self">self</span>.inner.addrs.test_store.clone(),
@@ -7322,7 +7322,7 @@
         <span class="macro">assert_eq!</span>(envelopes.len(), <span class="number">1</span>);
 
         <span class="kw">let </span>(group, envelope) = envelopes.pop().unwrap();
-        <span class="kw">let </span>envelope = ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store, group);
+        <span class="kw">let </span>envelope = ManagedEnvelope::new(envelope, outcome_aggregator, test_store, group);
 
         <span class="kw">let </span>message = ProcessEnvelope {
             envelope,
@@ -7379,7 +7379,7 @@
         envelope.add_item(item);
 
         <span class="kw">let </span>(outcome_aggregator, test_store) = testutils::processor_services();
-        <span class="kw">let </span>managed_envelope = ManagedEnvelope::standalone(
+        <span class="kw">let </span>managed_envelope = ManagedEnvelope::new(
             envelope,
             outcome_aggregator,
             test_store,

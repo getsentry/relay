@@ -2498,6 +2498,18 @@
 <a href="#2498" id="2498">2498</a>
 <a href="#2499" id="2499">2499</a>
 <a href="#2500" id="2500">2500</a>
+<a href="#2501" id="2501">2501</a>
+<a href="#2502" id="2502">2502</a>
+<a href="#2503" id="2503">2503</a>
+<a href="#2504" id="2504">2504</a>
+<a href="#2505" id="2505">2505</a>
+<a href="#2506" id="2506">2506</a>
+<a href="#2507" id="2507">2507</a>
+<a href="#2508" id="2508">2508</a>
+<a href="#2509" id="2509">2509</a>
+<a href="#2510" id="2510">2510</a>
+<a href="#2511" id="2511">2511</a>
+<a href="#2512" id="2512">2512</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::io::Write;
@@ -3850,7 +3862,7 @@
     </span><span class="kw">pub </span>refresh_interval_ms: u64,
     <span class="doccomment">/// Maximum memory watermark in bytes.
     ///
-    /// By default there is no absolute limit set and the watermark
+    /// By default, there is no absolute limit set and the watermark
     /// is only controlled by setting [`Self::max_memory_percent`].
     </span><span class="kw">pub </span>max_memory_bytes: <span class="prelude-ty">Option</span>&lt;ByteSize&gt;,
     <span class="doccomment">/// Maximum memory watermark as a percentage of maximum system memory.
@@ -3864,6 +3876,12 @@
     ///
     /// Defaults to 900 milliseconds.
     </span><span class="kw">pub </span>probe_timeout_ms: u64,
+    <span class="doccomment">/// The refresh frequency of memory stats which are used to poll memory
+    /// usage of Relay.
+    ///
+    /// The implementation of memory stats guarantees that the refresh will happen at
+    /// least every `x` ms since memory readings are lazy and are updated only if needed.
+    </span><span class="kw">pub </span>memory_stat_refresh_frequency_ms: u64,
 }
 
 <span class="kw">impl </span>Default <span class="kw">for </span>Health {
@@ -3873,6 +3891,7 @@
             max_memory_bytes: <span class="prelude-val">None</span>,
             max_memory_percent: <span class="number">0.95</span>,
             probe_timeout_ms: <span class="number">900</span>,
+            memory_stat_refresh_frequency_ms: <span class="number">100</span>,
         }
     }
 }
@@ -4844,6 +4863,11 @@
     <span class="doccomment">/// Health check probe timeout.
     </span><span class="kw">pub fn </span>health_probe_timeout(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Duration {
         Duration::from_millis(<span class="self">self</span>.values.health.probe_timeout_ms)
+    }
+
+    <span class="doccomment">/// Refresh frequency for polling new memory stats.
+    </span><span class="kw">pub fn </span>memory_stat_refresh_frequency_ms(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; u64 {
+        <span class="self">self</span>.values.health.memory_stat_refresh_frequency_ms
     }
 
     <span class="doccomment">/// Whether COGS measurements are enabled.

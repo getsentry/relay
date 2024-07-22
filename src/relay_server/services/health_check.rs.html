@@ -266,88 +266,19 @@
 <a href="#266" id="266">266</a>
 <a href="#267" id="267">267</a>
 <a href="#268" id="268">268</a>
-<a href="#269" id="269">269</a>
-<a href="#270" id="270">270</a>
-<a href="#271" id="271">271</a>
-<a href="#272" id="272">272</a>
-<a href="#273" id="273">273</a>
-<a href="#274" id="274">274</a>
-<a href="#275" id="275">275</a>
-<a href="#276" id="276">276</a>
-<a href="#277" id="277">277</a>
-<a href="#278" id="278">278</a>
-<a href="#279" id="279">279</a>
-<a href="#280" id="280">280</a>
-<a href="#281" id="281">281</a>
-<a href="#282" id="282">282</a>
-<a href="#283" id="283">283</a>
-<a href="#284" id="284">284</a>
-<a href="#285" id="285">285</a>
-<a href="#286" id="286">286</a>
-<a href="#287" id="287">287</a>
-<a href="#288" id="288">288</a>
-<a href="#289" id="289">289</a>
-<a href="#290" id="290">290</a>
-<a href="#291" id="291">291</a>
-<a href="#292" id="292">292</a>
-<a href="#293" id="293">293</a>
-<a href="#294" id="294">294</a>
-<a href="#295" id="295">295</a>
-<a href="#296" id="296">296</a>
-<a href="#297" id="297">297</a>
-<a href="#298" id="298">298</a>
-<a href="#299" id="299">299</a>
-<a href="#300" id="300">300</a>
-<a href="#301" id="301">301</a>
-<a href="#302" id="302">302</a>
-<a href="#303" id="303">303</a>
-<a href="#304" id="304">304</a>
-<a href="#305" id="305">305</a>
-<a href="#306" id="306">306</a>
-<a href="#307" id="307">307</a>
-<a href="#308" id="308">308</a>
-<a href="#309" id="309">309</a>
-<a href="#310" id="310">310</a>
-<a href="#311" id="311">311</a>
-<a href="#312" id="312">312</a>
-<a href="#313" id="313">313</a>
-<a href="#314" id="314">314</a>
-<a href="#315" id="315">315</a>
-<a href="#316" id="316">316</a>
-<a href="#317" id="317">317</a>
-<a href="#318" id="318">318</a>
-<a href="#319" id="319">319</a>
-<a href="#320" id="320">320</a>
-<a href="#321" id="321">321</a>
-<a href="#322" id="322">322</a>
-<a href="#323" id="323">323</a>
-<a href="#324" id="324">324</a>
-<a href="#325" id="325">325</a>
-<a href="#326" id="326">326</a>
-<a href="#327" id="327">327</a>
-<a href="#328" id="328">328</a>
-<a href="#329" id="329">329</a>
-<a href="#330" id="330">330</a>
-<a href="#331" id="331">331</a>
-<a href="#332" id="332">332</a>
-<a href="#333" id="333">333</a>
-<a href="#334" id="334">334</a>
-<a href="#335" id="335">335</a>
-<a href="#336" id="336">336</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::sync::Arc;
 
 <span class="kw">use </span>relay_config::Config;
-<span class="kw">use </span>relay_statsd::metric;
 <span class="kw">use </span>relay_system::{Addr, AsyncResponse, Controller, FromMessage, Interface, Sender, Service};
 <span class="kw">use </span>std::future::Future;
-<span class="kw">use </span>sysinfo::{MemoryRefreshKind, System};
 <span class="kw">use </span>tokio::sync::watch;
 <span class="kw">use </span>tokio::time::{timeout, Instant};
 
 <span class="kw">use </span><span class="kw">crate</span>::services::metrics::{AcceptsMetrics, Aggregator};
 <span class="kw">use </span><span class="kw">crate</span>::services::project_cache::{ProjectCache, SpoolHealth};
 <span class="kw">use </span><span class="kw">crate</span>::services::upstream::{IsAuthenticated, UpstreamRelay};
-<span class="kw">use </span><span class="kw">crate</span>::statsd::{RelayGauges, RelayTimers};
+<span class="kw">use </span><span class="kw">crate</span>::statsd::RelayTimers;
+<span class="kw">use </span><span class="kw">crate</span>::utils::{MemoryCheck, MemoryChecker};
 
 <span class="doccomment">/// Checks whether Relay is alive and healthy based on its variant.
 </span><span class="attr">#[derive(Clone, Copy, Debug, serde::Deserialize)]
@@ -420,10 +351,10 @@
 </span><span class="attr">#[derive(Debug)]
 </span><span class="kw">pub struct </span>HealthCheckService {
     config: Arc&lt;Config&gt;,
+    memory_checker: MemoryChecker,
     aggregator: Addr&lt;Aggregator&gt;,
     upstream_relay: Addr&lt;UpstreamRelay&gt;,
     project_cache: Addr&lt;ProjectCache&gt;,
-    system: System,
 }
 
 <span class="kw">impl </span>HealthCheckService {
@@ -432,44 +363,22 @@
     /// The service does not run. To run the service, use [`start`](Self::start).
     </span><span class="kw">pub fn </span>new(
         config: Arc&lt;Config&gt;,
+        memory_checker: MemoryChecker,
         aggregator: Addr&lt;Aggregator&gt;,
         upstream_relay: Addr&lt;UpstreamRelay&gt;,
         project_cache: Addr&lt;ProjectCache&gt;,
     ) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{
-            system: System::new(),
+            config,
+            memory_checker,
             aggregator,
             upstream_relay,
             project_cache,
-            config,
         }
     }
 
     <span class="kw">fn </span>system_memory_probe(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; Status {
-        <span class="self">self</span>.system
-            .refresh_memory_specifics(MemoryRefreshKind::new().with_ram());
-
-        <span class="comment">// Use the cgroup if available in case Relay is running in a container.
-        // TODO: once we measured the new rss metric, we will remove `rss` and just used cgroup.rss
-        //  `used`.
-        </span><span class="kw">let </span>memory = <span class="kw">match </span><span class="self">self</span>.system.cgroup_limits() {
-            <span class="prelude-val">Some</span>(cgroup) =&gt; Memory {
-                used: cgroup.total_memory.saturating_sub(cgroup.free_memory),
-                total: cgroup.total_memory,
-                rss: cgroup.rss,
-            },
-            <span class="prelude-val">None </span>=&gt; Memory {
-                used: <span class="self">self</span>.system.used_memory(),
-                total: <span class="self">self</span>.system.total_memory(),
-                rss: <span class="self">self</span>.system.used_memory(),
-            },
-        };
-
-        <span class="macro">metric!</span>(gauge(RelayGauges::SystemMemoryUsed) = memory.used);
-        <span class="macro">metric!</span>(gauge(RelayGauges::SystemMemoryTotal) = memory.total);
-        <span class="macro">metric!</span>(gauge(RelayGauges::SystemMemoryRss) = memory.rss);
-
-        <span class="kw">if </span>memory.used_percent() &gt;= <span class="self">self</span>.config.health_max_memory_watermark_percent() {
+        <span class="kw">if let </span>MemoryCheck::Exceeded(memory) = <span class="self">self</span>.memory_checker.check_memory_percent() {
             <span class="macro">relay_log::error!</span>(
                 <span class="string">"Not enough memory, {} / {} ({:.2}% &gt;= {:.2}%)"</span>,
                 memory.used,
@@ -480,7 +389,7 @@
             <span class="kw">return </span>Status::Unhealthy;
         }
 
-        <span class="kw">if </span>memory.used &gt; <span class="self">self</span>.config.health_max_memory_watermark_bytes() {
+        <span class="kw">if let </span>MemoryCheck::Exceeded(memory) = <span class="self">self</span>.memory_checker.check_memory_bytes() {
             <span class="macro">relay_log::error!</span>(
                 <span class="string">"Not enough memory, {} / {} ({} &gt;= {})"</span>,
                 memory.used,
@@ -590,21 +499,6 @@
     }
 }
 
-<span class="doccomment">/// A memory measurement.
-</span><span class="attr">#[derive(Debug)]
-</span><span class="kw">struct </span>Memory {
-    <span class="kw">pub </span>used: u64,
-    <span class="kw">pub </span>total: u64,
-    <span class="kw">pub </span>rss: u64,
-}
-
-<span class="kw">impl </span>Memory {
-    <span class="doccomment">/// Amount of used RAM in percent `0.0` to `1.0`.
-    </span><span class="kw">pub fn </span>used_percent(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; f32 {
-        (<span class="self">self</span>.used <span class="kw">as </span>f32 / <span class="self">self</span>.total <span class="kw">as </span>f32).clamp(<span class="number">0.0</span>, <span class="number">1.0</span>)
-    }
-}
-
 <span class="attr">#[cfg(test)]
 </span><span class="kw">mod </span>tests {
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
@@ -638,36 +532,6 @@
 
         <span class="kw">let </span>s = [].into_iter().collect();
         <span class="macro">assert!</span>(<span class="macro">matches!</span>(s, Status::Healthy));
-    }
-
-    <span class="attr">#[test]
-    </span><span class="kw">fn </span>test_memory_used_percent_total_0() {
-        <span class="kw">let </span>memory = Memory {
-            used: <span class="number">100</span>,
-            total: <span class="number">0</span>,
-            rss: <span class="number">0</span>,
-        };
-        <span class="macro">assert_eq!</span>(memory.used_percent(), <span class="number">1.0</span>);
-    }
-
-    <span class="attr">#[test]
-    </span><span class="kw">fn </span>test_memory_used_percent_zero() {
-        <span class="kw">let </span>memory = Memory {
-            used: <span class="number">0</span>,
-            total: <span class="number">100</span>,
-            rss: <span class="number">0</span>,
-        };
-        <span class="macro">assert_eq!</span>(memory.used_percent(), <span class="number">0.0</span>);
-    }
-
-    <span class="attr">#[test]
-    </span><span class="kw">fn </span>test_memory_used_percent_half() {
-        <span class="kw">let </span>memory = Memory {
-            used: <span class="number">50</span>,
-            total: <span class="number">100</span>,
-            rss: <span class="number">0</span>,
-        };
-        <span class="macro">assert_eq!</span>(memory.used_percent(), <span class="number">0.5</span>);
     }
 }
 </code></pre></div></section></main></body></html>
