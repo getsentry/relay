@@ -1576,7 +1576,6 @@ impl Config {
             }
         }
 
-        // TODO: Should this be generalized to being able to override individual redis pool settings?
         if let Some(redis) = overrides.redis_url {
             processing.redis = Some(RedisConfigs::Unified(RedisConfig::single(redis)))
         }
