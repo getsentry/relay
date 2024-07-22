@@ -181,7 +181,7 @@ fn create_redis_pool(
 pub(super) fn create_redis_pools(
     configs: &RedisConfigs,
     cpu_concurrency: usize,
-) -> Result<relay_redis::RedisPools, RedisError> {
+) -> Result<RedisPools, RedisError> {
     match configs {
         RedisConfigs::Unified(cfg) => {
             let pool = create_redis_pool(cfg, cpu_concurrency)?;
