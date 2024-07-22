@@ -210,7 +210,7 @@ impl RedisPool {
 
 #[derive(Debug, Clone, Default)]
 pub struct RedisPools {
-    pub project_config: Option<RedisPool>,
+    pub project_configs: Option<RedisPool>,
     pub cardinality: Option<RedisPool>,
     pub quotas: Option<RedisPool>,
     pub misc: Option<RedisPool>,

@@ -228,7 +228,7 @@ impl ServiceState {
             buffer_guard.clone(),
             project_cache_services,
             metric_outcomes,
-            redis_pools.project_config.clone(),
+            redis_pools.project_configs.clone(),
         )
         .spawn_handler(project_cache_rx);
 
@@ -350,8 +350,8 @@ pub fn create_redis_pools(config: &Config) -> Result<RedisPools, anyhow::Error> 
     } else {
         let pools = config.redis();
 
-        let project_config = pools
-            .project_config
+        let project_configs = pools
+            .project_configs
             .map(create_redis_pool)
             .transpose()
             .context(ServiceError::Redis)?;
@@ -375,7 +375,7 @@ pub fn create_redis_pools(config: &Config) -> Result<RedisPools, anyhow::Error> 
             .context(ServiceError::Redis)?;
 
         RedisPools {
-            project_config,
+            project_configs,
             cardinality,
             quotas,
             misc,

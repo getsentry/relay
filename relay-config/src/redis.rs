@@ -136,7 +136,7 @@ pub enum RedisConfigs {
     Unified(RedisConfig),
     Individual {
         #[serde(skip_serializing_if = "Option::is_none")]
-        project_config: Option<Box<RedisConfig>>,
+        project_configs: Option<Box<RedisConfig>>,
         #[serde(skip_serializing_if = "Option::is_none")]
         cardinality: Option<Box<RedisConfig>>,
         #[serde(skip_serializing_if = "Option::is_none")]
@@ -176,7 +176,7 @@ impl<'a> RedisPool<'a> {
 
 #[derive(Debug, Clone, Default)]
 pub struct RedisPools<'a> {
-    pub project_config: Option<RedisPool<'a>>,
+    pub project_configs: Option<RedisPool<'a>>,
     pub cardinality: Option<RedisPool<'a>>,
     pub quotas: Option<RedisPool<'a>>,
     pub misc: Option<RedisPool<'a>>,
@@ -188,19 +188,19 @@ impl<'a> RedisPools<'a> {
             RedisConfigs::Unified(cfg) => {
                 let pool = RedisPool::from_config(&cfg, cpu_concurrency);
                 Self {
-                    project_config: Some(pool.clone()),
+                    project_configs: Some(pool.clone()),
                     cardinality: Some(pool.clone()),
                     quotas: Some(pool.clone()),
                     misc: Some(pool),
                 }
             }
             RedisConfigs::Individual {
-                project_config,
+                project_configs,
                 cardinality,
                 quotas,
                 misc,
             } => {
-                let project_config = project_config
+                let project_configs = project_configs
                     .as_ref()
                     .map(|cfg| RedisPool::from_config(cfg, cpu_concurrency));
                 let cardinality = cardinality
@@ -214,7 +214,7 @@ impl<'a> RedisPools<'a> {
                     .map(|cfg| RedisPool::from_config(cfg, cpu_concurrency));
 
                 Self {
-                    project_config,
+                    project_configs,
                     cardinality,
                     quotas,
                     misc,
@@ -281,7 +281,7 @@ connection_timeout: 5
     #[test]
     fn test_redis_individual() {
         let yaml = r#"
-project_config: 
+project_configs: 
     server: "redis://127.0.0.1:6379"
     max_connections: 42
     connection_timeout: 5
@@ -297,7 +297,7 @@ quotas:
             .expect("Parsed processing redis configs: single with options");
 
         let expected = RedisConfigs::Individual {
-            project_config: Some(Box::new(RedisConfig {
+            project_configs: Some(Box::new(RedisConfig {
                 connection: RedisConnection::Single("redis://127.0.0.1:6379".to_owned()),
                 options: PartialRedisConfigOptions {
                     max_connections: Some(42),
@@ -518,7 +518,7 @@ read_timeout: 10
     #[test]
     fn test_redis_serialize_individual() {
         let configs = RedisConfigs::Individual {
-            project_config: Some(Box::new(RedisConfig {
+            project_configs: Some(Box::new(RedisConfig {
                 connection: RedisConnection::Single("redis://127.0.0.1:6379".to_owned()),
                 options: PartialRedisConfigOptions {
                     max_connections: Some(42),
@@ -543,7 +543,7 @@ read_timeout: 10
 
         assert_json_snapshot!(configs, @r###"
        {
-         "project_config": {
+         "project_configs": {
            "server": "redis://127.0.0.1:6379",
            "max_connections": 42,
            "connection_timeout": 5,

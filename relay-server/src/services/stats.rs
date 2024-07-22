@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use relay_config::{Config, RelayMode};
 #[cfg(feature = "processing")]
-use relay_redis::RedisPools;
+use relay_redis::{RedisPool, RedisPools};
 use relay_statsd::metric;
 use relay_system::{Addr, Service};
 use tokio::time::interval;
@@ -104,38 +104,34 @@ impl RelayStats {
     async fn redis_pools(&self) {}
 
     #[cfg(feature = "processing")]
+    async fn redis_pool(redis_pool: &RedisPool, name: &str) {
+        let state = redis_pool.stats();
+        metric!(
+            gauge(RelayGauges::RedisPoolConnections) = u64::from(state.connections),
+            pool = name
+        );
+        metric!(
+            gauge(RelayGauges::RedisPoolIdleConnections) = u64::from(state.idle_connections),
+            pool = name
+        );
+    }
+
+    #[cfg(feature = "processing")]
     async fn redis_pools(&self) {
-        // TODO: How to report values for the different pools? Tag them?
-        if let Some(ref project_config) = self.redis_pools.project_config {
-            let state = project_config.stats();
-            metric!(gauge(RelayGauges::RedisPoolConnections) = u64::from(state.connections));
-            metric!(
-                gauge(RelayGauges::RedisPoolIdleConnections) = u64::from(state.idle_connections)
-            );
+        if let Some(ref project_configs) = self.redis_pools.project_configs {
+            Self::redis_pool(project_configs, "project_configs").await;
         }
 
         if let Some(ref cardinality) = self.redis_pools.cardinality {
-            let state = cardinality.stats();
-            metric!(gauge(RelayGauges::RedisPoolConnections) = u64::from(state.connections));
-            metric!(
-                gauge(RelayGauges::RedisPoolIdleConnections) = u64::from(state.idle_connections)
-            );
+            Self::redis_pool(cardinality, "cardinality").await;
         }
 
         if let Some(ref quotas) = self.redis_pools.quotas {
-            let state = quotas.stats();
-            metric!(gauge(RelayGauges::RedisPoolConnections) = u64::from(state.connections));
-            metric!(
-                gauge(RelayGauges::RedisPoolIdleConnections) = u64::from(state.idle_connections)
-            );
+            Self::redis_pool(quotas, "quotas").await;
         }
 
         if let Some(ref misc) = self.redis_pools.misc {
-            let state = misc.stats();
-            metric!(gauge(RelayGauges::RedisPoolConnections) = u64::from(state.connections));
-            metric!(
-                gauge(RelayGauges::RedisPoolIdleConnections) = u64::from(state.idle_connections)
-            );
+            Self::redis_pool(misc, "misc").await;
         }
     }
 }
