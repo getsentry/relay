@@ -130,17 +130,24 @@ impl From<RedisConfigFromFile> for RedisConfig {
     }
 }
 
+/// Configurations for the various Redis pools used by Relay.
 #[derive(Clone, Debug, Deserialize, Serialize, Eq, PartialEq)]
 #[serde(untagged)]
 pub enum RedisConfigs {
+    /// All pools should be configured the same way.
     Unified(RedisConfig),
+    /// Individual configurations for each pool.
     Individual {
+        /// Configuration for the `project_configs` pool.
         #[serde(skip_serializing_if = "Option::is_none")]
         project_configs: Option<Box<RedisConfig>>,
+        /// Configuration for the `cardinality` pool.
         #[serde(skip_serializing_if = "Option::is_none")]
         cardinality: Option<Box<RedisConfig>>,
+        /// Configuration for the `quotas` pool.
         #[serde(skip_serializing_if = "Option::is_none")]
         quotas: Option<Box<RedisConfig>>,
+        /// Configuration for the `misc` pool.
         #[serde(skip_serializing_if = "Option::is_none")]
         misc: Option<Box<RedisConfig>>,
     },
