@@ -11,7 +11,7 @@
 
 - Use a dedicated thread pool for CPU intensive workloads. ([#3833](https://github.com/getsentry/relay/pull/3833))
 - Remove `BufferGuard` in favor of memory checks via `MemoryStat`. ([#3821](https://github.com/getsentry/relay/pull/3821))
-- Add video entry to DataCategory enum. ([#3847](https://github.com/getsentry/relay/pull/3847))
+- Add ReplayVideo entry to DataCategory. ([#3847](https://github.com/getsentry/relay/pull/3847))
 
 ## 24.7.0
 
