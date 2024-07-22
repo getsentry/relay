@@ -178,37 +178,41 @@ fn bench_insert_and_flush(c: &mut Criterion) {
     ];
 
     for (input_name, input) in &inputs {
+        {
+            let mut group = c.benchmark_group(*input_name);
+            group.throughput(criterion::Throughput::Elements(input.num_buckets as u64));
+            group.bench_with_input(
+                BenchmarkId::new("bench_insert_metrics", input_name),
+                &input,
+                |b, input| {
+                    b.iter_batched(
+                        || {
+                            let timestamp = UnixTimestamp::now();
+                            let aggregator: Aggregator = Aggregator::new(config.clone());
+                            (aggregator, input.get_buckets(timestamp))
+                        },
+                        |(mut aggregator, buckets)| {
+                            for (project_key, bucket) in buckets {
+                                #[allow(clippy::unit_arg)]
+                                black_box(
+                                    aggregator
+                                        .merge(
+                                            black_box(project_key),
+                                            black_box(bucket),
+                                            black_box(None),
+                                        )
+                                        .unwrap(),
+                                );
+                            }
+                        },
+                        BatchSize::SmallInput,
+                    )
+                },
+            );
+        }
+
         let mut group = c.benchmark_group(*input_name);
         group.throughput(criterion::Throughput::Elements(input.num_buckets as u64));
-        group.bench_with_input(
-            BenchmarkId::new("bench_insert_metrics", input_name),
-            &input,
-            |b, input| {
-                b.iter_batched(
-                    || {
-                        let timestamp = UnixTimestamp::now();
-                        let aggregator: Aggregator = Aggregator::new(config.clone());
-                        (aggregator, input.get_buckets(timestamp))
-                    },
-                    |(mut aggregator, buckets)| {
-                        for (project_key, bucket) in buckets {
-                            #[allow(clippy::unit_arg)]
-                            black_box(
-                                aggregator
-                                    .merge(
-                                        black_box(project_key),
-                                        black_box(bucket),
-                                        black_box(None),
-                                    )
-                                    .unwrap(),
-                            );
-                        }
-                    },
-                    BatchSize::SmallInput,
-                )
-            },
-        );
-
         group.bench_with_input(
             BenchmarkId::new("bench_flush_metrics", input_name),
             &input,
