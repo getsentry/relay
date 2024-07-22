@@ -200,7 +200,7 @@ impl CategoryUnit {
             DataCategory::Session => Some(Self::Batched),
             DataCategory::ProfileDuration => Some(Self::Milliseconds),
 
-            DataCategory::Unknown => None,
+            DataCategory::Unknown | DataCategory::ReplayVideo => None,
         }
     }
 }
