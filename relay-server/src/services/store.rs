@@ -36,7 +36,7 @@ use crate::services::global_config::GlobalConfigHandle;
 use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::services::processor::Processed;
 use crate::statsd::{RelayCounters, RelayTimers};
-use crate::utils::{is_rolled_out, FormDataIter, TypedEnvelope};
+use crate::utils::{is_rolled_out, FormDataIter, ThreadPool, TypedEnvelope, WorkerGroup};
 
 /// Fallback name used for attachment items without a `filename` header.
 const UNNAMED_ATTACHMENT: &str = "Unnamed Attachment";
@@ -140,6 +140,7 @@ impl FromMessage<StoreCogs> for Store {
 
 /// Service implementing the [`Store`] interface.
 pub struct StoreService {
+    workers: WorkerGroup,
     config: Arc<Config>,
     global_config: GlobalConfigHandle,
     outcome_aggregator: Addr<TrackOutcome>,
@@ -149,6 +150,7 @@ pub struct StoreService {
 
 impl StoreService {
     pub fn create(
+        pool: ThreadPool,
         config: Arc<Config>,
         global_config: GlobalConfigHandle,
         outcome_aggregator: Addr<TrackOutcome>,
@@ -156,6 +158,7 @@ impl StoreService {
     ) -> anyhow::Result<Self> {
         let producer = Producer::create(&config)?;
         Ok(Self {
+            workers: WorkerGroup::new(pool),
             config,
             global_config,
             outcome_aggregator,
@@ -1083,11 +1086,16 @@ impl Service for StoreService {
     type Interface = Store;
 
     fn spawn_handler(self, mut rx: relay_system::Receiver<Self::Interface>) {
+        let this = Arc::new(self);
+
         tokio::spawn(async move {
             relay_log::info!("store forwarder started");
 
             while let Some(message) = rx.recv().await {
-                self.handle_message(message);
+                let service = Arc::clone(&this);
+                this.workers
+                    .spawn(move || service.handle_message(message))
+                    .await;
             }
 
             relay_log::info!("store forwarder stopped");

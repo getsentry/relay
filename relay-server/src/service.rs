@@ -115,6 +115,24 @@ fn create_processor_pool(config: &Config) -> Result<ThreadPool> {
     Ok(pool)
 }
 
+#[cfg(feature = "processing")]
+fn create_store_pool(config: &Config) -> Result<ThreadPool> {
+    // Spawn a store worker for every 12 threads in the processor pool.
+    // This ratio was found emperically and may need adjustments in the future.
+    //
+    // Ideally in the future the store will be single threaded again, after we move
+    // all the heavy processing (de- and re-serialization) into the processor.
+    let thread_count = config.cpu_concurrency().div_ceil(12);
+    relay_log::info!("starting {thread_count} store workers");
+
+    let pool = crate::utils::ThreadPoolBuilder::new("store")
+        .num_threads(thread_count)
+        .runtime(tokio::runtime::Handle::current())
+        .build()?;
+
+    Ok(pool)
+}
+
 #[derive(Debug)]
 struct StateInner {
     config: Arc<Config>,
@@ -188,6 +206,7 @@ impl ServiceState {
             .processing_enabled()
             .then(|| {
                 StoreService::create(
+                    create_store_pool(&config)?,
                     config.clone(),
                     global_config_handle.clone(),
                     outcome_aggregator.clone(),

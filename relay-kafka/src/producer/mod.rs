@@ -1,9 +1,9 @@
 //! This module contains the kafka producer related code.
 
 use std::borrow::Cow;
-use std::cell::Cell;
 use std::collections::{BTreeMap, HashMap};
 use std::fmt;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -22,7 +22,7 @@ use utils::{Context, ThreadedProducer};
 #[cfg(feature = "schemas")]
 mod schemas;
 
-const REPORT_FREQUENCY: Duration = Duration::from_secs(1);
+const REPORT_FREQUENCY_SECS: u64 = 1;
 const KAFKA_FETCH_METADATA_TIMEOUT: Duration = Duration::from_secs(30);
 
 /// Kafka producer errors.
@@ -87,20 +87,20 @@ pub trait Message {
 
 /// Single kafka producer config with assigned topic.
 struct Producer {
-    /// Time of the latest collection of stats.
-    last_report: Cell<Instant>,
     /// Kafka topic name.
     topic_name: String,
     /// Real kafka producer.
     producer: Arc<ThreadedProducer>,
+    /// Debouncer for metrics.
+    metrics: Debounced,
 }
 
 impl Producer {
     fn new(topic_name: String, producer: Arc<ThreadedProducer>) -> Self {
         Self {
-            last_report: Cell::new(Instant::now()),
             topic_name,
             producer,
+            metrics: Debounced::new(REPORT_FREQUENCY_SECS),
         }
     }
 
@@ -124,10 +124,9 @@ impl Producer {
 impl fmt::Debug for Producer {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Producer")
-            .field("last_report", &self.last_report)
             .field("topic_name", &self.topic_name)
             .field("producer", &"<ThreadedProducer>")
-            .finish()
+            .finish_non_exhaustive()
     }
 }
 
@@ -136,7 +135,7 @@ impl fmt::Debug for Producer {
 pub struct KafkaClient {
     producers: HashMap<KafkaTopic, Producer>,
     #[cfg(feature = "schemas")]
-    schema_validator: std::cell::RefCell<schemas::Validator>,
+    schema_validator: schemas::Validator,
 }
 
 impl KafkaClient {
@@ -156,7 +155,6 @@ impl KafkaClient {
         let serialized = message.serialize()?;
         #[cfg(feature = "schemas")]
         self.schema_validator
-            .borrow_mut()
             .validate_message_schema(topic, &serialized)
             .map_err(ClientError::SchemaValidationFailed)?;
         let key = message.key();
@@ -261,7 +259,7 @@ impl KafkaClientBuilder {
         KafkaClient {
             producers: self.producers,
             #[cfg(feature = "schemas")]
-            schema_validator: schemas::Validator::default().into(),
+            schema_validator: schemas::Validator::default(),
         }
     }
 }
@@ -304,14 +302,13 @@ impl Producer {
             record = record.headers(kafka_headers);
         }
 
-        if self.last_report.get().elapsed() > REPORT_FREQUENCY {
-            self.last_report.replace(Instant::now());
+        self.metrics.debounce(|| {
             metric!(
                 gauge(KafkaGauges::InFlightCount) = self.producer.in_flight_count() as u64,
                 variant = variant,
                 topic = topic_name
             );
-        }
+        });
 
         self.producer
             .send(record)
@@ -330,5 +327,69 @@ impl Producer {
                 );
                 ClientError::SendFailed(error)
             })
+    }
+}
+
+struct Debounced {
+    /// Time of last activation in seconds.
+    last_activation: AtomicU64,
+    /// Debounce interval in seconds.
+    interval: u64,
+    /// Relative instant used for measurements.
+    instant: Instant,
+}
+
+impl Debounced {
+    pub fn new(interval: u64) -> Self {
+        Self {
+            last_activation: AtomicU64::new(0),
+            interval,
+            instant: Instant::now(),
+        }
+    }
+
+    fn debounce(&self, f: impl FnOnce()) -> bool {
+        // Add interval to make sure it always triggers immediately.
+        let now = self.instant.elapsed().as_secs() + self.interval;
+
+        let prev = self.last_activation.load(Ordering::Relaxed);
+        if now.saturating_sub(prev) < self.interval {
+            return false;
+        }
+
+        if self
+            .last_activation
+            .compare_exchange(prev, now, Ordering::SeqCst, Ordering::Acquire)
+            .is_ok()
+        {
+            f();
+            return true;
+        }
+
+        false
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::thread;
+
+    use super::*;
+
+    #[test]
+    fn test_debounce() {
+        let d = Debounced::new(1);
+
+        assert!(d.debounce(|| {}));
+        for _ in 0..10 {
+            assert!(!d.debounce(|| {}));
+        }
+
+        thread::sleep(Duration::from_secs(1));
+
+        assert!(d.debounce(|| {}));
+        for _ in 0..10 {
+            assert!(!d.debounce(|| {}));
+        }
     }
 }

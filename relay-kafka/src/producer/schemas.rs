@@ -1,5 +1,6 @@
 use std::collections::btree_map::Entry;
 use std::collections::BTreeMap;
+use std::sync::{Arc, Mutex};
 
 use sentry_kafka_schemas::{Schema as SentrySchema, SchemaError as SentrySchemaError};
 use thiserror::Error;
@@ -39,13 +40,13 @@ pub enum SchemaError {
 #[derive(Debug, Default)]
 pub struct Validator {
     /// Caches the schema for given topics.
-    schemas: BTreeMap<KafkaTopic, Option<SentrySchema>>,
+    schemas: Mutex<BTreeMap<KafkaTopic, Option<Arc<SentrySchema>>>>,
 }
 
 impl Validator {
     /// Validate a message for a given topic's schema.
     pub fn validate_message_schema(
-        &mut self,
+        &self,
         topic: KafkaTopic,
         message: &[u8],
     ) -> Result<(), SchemaError> {
@@ -59,8 +60,10 @@ impl Validator {
             .map(drop)
     }
 
-    fn get_schema(&mut self, topic: KafkaTopic) -> Result<Option<&SentrySchema>, SchemaError> {
-        Ok(match self.schemas.entry(topic) {
+    fn get_schema(&self, topic: KafkaTopic) -> Result<Option<Arc<SentrySchema>>, SchemaError> {
+        let mut schemas = self.schemas.lock().unwrap_or_else(|e| e.into_inner());
+
+        Ok(match schemas.entry(topic) {
             Entry::Vacant(entry) => entry.insert({
                 let default_assignments = TopicAssignments::default();
                 let logical_topic_name = match default_assignments.get(topic) {
@@ -69,13 +72,14 @@ impl Validator {
                 };
 
                 match sentry_kafka_schemas::get_schema(logical_topic_name, None) {
-                    Ok(schema) => Some(schema),
+                    Ok(schema) => Some(Arc::new(schema)),
                     Err(SentrySchemaError::TopicNotFound) => None,
                     Err(err) => return Err(SchemaError::SchemaCompiled(err)),
                 }
             }),
             Entry::Occupied(entry) => entry.into_mut(),
         }
-        .as_ref())
+        .as_ref()
+        .map(Arc::clone))
     }
 }
