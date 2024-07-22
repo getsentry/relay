@@ -522,6 +522,17 @@ pub enum RelayTimers {
     /// This metric is tagged with:
     ///  - `message`: The type of message that was processed.
     AggregatorServiceDuration,
+    /// Timing in milliseconds for processing a message in the metric router service.
+    ///
+    /// This metric is tagged with:
+    ///  - `message`: The type of message that was processed.
+    MetricRouterServiceDuration,
+    /// Timing in milliseconds for processing a message in the metric store service.
+    ///
+    /// This metric is tagged with:
+    ///  - `message`: The type of message that was processed.
+    #[cfg(feature = "processing")]
+    StoreServiceDuration,
 }
 
 impl TimerMetric for RelayTimers {
@@ -560,6 +571,9 @@ impl TimerMetric for RelayTimers {
             #[cfg(feature = "processing")]
             RelayTimers::RateLimitBucketsDuration => "processor.rate_limit_buckets",
             RelayTimers::AggregatorServiceDuration => "metrics.aggregator.message.duration",
+            RelayTimers::MetricRouterServiceDuration => "metrics.router.message.duration",
+            #[cfg(feature = "processing")]
+            RelayTimers::StoreServiceDuration => "store.message.duration",
         }
     }
 }
