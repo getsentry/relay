@@ -4044,6 +4044,7 @@ name = "relay-server"
 version = "24.7.0"
 dependencies = [
  "anyhow",
+ "arc-swap",
  "axum",
  "axum-extra",
  "axum-server",

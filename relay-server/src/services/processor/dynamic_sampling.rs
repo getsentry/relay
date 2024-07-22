@@ -283,7 +283,7 @@ mod tests {
     use crate::testutils::{
         self, create_test_processor, new_envelope, state_with_rule_and_condition,
     };
-    use crate::utils::{ManagedEnvelope, Semaphore as TestSemaphore};
+    use crate::utils::ManagedEnvelope;
 
     use super::*;
 
@@ -323,7 +323,7 @@ mod tests {
         let (group, envelope) = envelopes.pop().unwrap();
 
         let message = ProcessEnvelope {
-            envelope: ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store, group),
+            envelope: ManagedEnvelope::new(envelope, outcome_aggregator, test_store, group),
             project_state: Arc::new(ProjectState::allowed()),
             sampling_project_state,
             reservoir_counters: ReservoirCounters::default(),
@@ -471,7 +471,6 @@ mod tests {
                 project_id: ProjectId::new(42),
                 managed_envelope: ManagedEnvelope::new(
                     envelope,
-                    TestSemaphore::new(42).try_acquire().unwrap(),
                     outcome_aggregator.clone(),
                     test_store.clone(),
                     ProcessingGroup::Transaction,
@@ -774,7 +773,7 @@ mod tests {
                 Some(Arc::new(state))
             },
             project_id: ProjectId::new(1),
-            managed_envelope: ManagedEnvelope::standalone(
+            managed_envelope: ManagedEnvelope::new(
                 envelope,
                 Addr::dummy(),
                 Addr::dummy(),

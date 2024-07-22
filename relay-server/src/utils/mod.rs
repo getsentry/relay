@@ -1,5 +1,4 @@
 mod api;
-mod buffer;
 mod dynamic_sampling;
 mod garbage;
 mod managed_envelope;
@@ -8,13 +7,13 @@ mod param_parser;
 mod pick;
 mod rate_limits;
 mod retry;
-mod semaphore;
 mod sizes;
 mod sleep_handle;
 mod split_off;
 mod statsd;
 mod thread_pool;
 
+mod memory;
 #[cfg(feature = "processing")]
 mod native;
 mod serde;
@@ -22,10 +21,10 @@ mod serde;
 mod unreal;
 
 pub use self::api::*;
-pub use self::buffer::*;
 pub use self::dynamic_sampling::*;
 pub use self::garbage::*;
 pub use self::managed_envelope::*;
+pub use self::memory::*;
 pub use self::multipart::*;
 #[cfg(feature = "processing")]
 pub use self::native::*;
@@ -33,7 +32,6 @@ pub use self::param_parser::*;
 pub use self::pick::*;
 pub use self::rate_limits::*;
 pub use self::retry::*;
-pub use self::semaphore::*;
 pub use self::serde::*;
 pub use self::sizes::*;
 pub use self::sleep_handle::*;

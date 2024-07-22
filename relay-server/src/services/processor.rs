@@ -2298,7 +2298,7 @@ impl EnvelopeProcessorService {
             envelope.add_item(item);
         }
 
-        let envelope = ManagedEnvelope::standalone(
+        let envelope = ManagedEnvelope::new(
             envelope,
             self.inner.addrs.outcome_aggregator.clone(),
             self.inner.addrs.test_store.clone(),
@@ -2593,7 +2593,7 @@ impl EnvelopeProcessorService {
                 item.set_payload(ContentType::Json, serde_json::to_vec(&buckets).unwrap());
                 envelope.add_item(item);
 
-                let mut envelope = ManagedEnvelope::standalone(
+                let mut envelope = ManagedEnvelope::new(
                     envelope,
                     self.inner.addrs.outcome_aggregator.clone(),
                     self.inner.addrs.test_store.clone(),
@@ -2729,7 +2729,7 @@ impl EnvelopeProcessorService {
         let mut envelope = Envelope::from_request(None, RequestMeta::outbound(dsn));
         envelope.add_item(item);
 
-        let envelope = ManagedEnvelope::standalone(
+        let envelope = ManagedEnvelope::new(
             envelope,
             self.inner.addrs.outcome_aggregator.clone(),
             self.inner.addrs.test_store.clone(),
@@ -3374,7 +3374,7 @@ mod tests {
         assert_eq!(envelopes.len(), 1);
 
         let (group, envelope) = envelopes.pop().unwrap();
-        let envelope = ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store, group);
+        let envelope = ManagedEnvelope::new(envelope, outcome_aggregator, test_store, group);
 
         let message = ProcessEnvelope {
             envelope,
@@ -3431,7 +3431,7 @@ mod tests {
         envelope.add_item(item);
 
         let (outcome_aggregator, test_store) = testutils::processor_services();
-        let managed_envelope = ManagedEnvelope::standalone(
+        let managed_envelope = ManagedEnvelope::new(
             envelope,
             outcome_aggregator,
             test_store,

@@ -682,7 +682,7 @@ mod tests {
             ..Default::default()
         };
 
-        let managed_envelope = ManagedEnvelope::standalone(
+        let managed_envelope = ManagedEnvelope::new(
             dummy_envelope,
             Addr::dummy(),
             Addr::dummy(),

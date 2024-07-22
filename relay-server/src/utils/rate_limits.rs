@@ -961,7 +961,7 @@ mod tests {
             let (outcome_aggregator, _) = Addr::custom();
             let (test_store, _) = Addr::custom();
 
-            ManagedEnvelope::standalone(
+            ManagedEnvelope::new(
                 envelope,
                 outcome_aggregator,
                 test_store,
