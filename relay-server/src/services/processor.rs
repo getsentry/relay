@@ -37,7 +37,6 @@ use relay_pii::PiiConfigError;
 use relay_profiling::ProfileId;
 use relay_protocol::{Annotated, Value};
 use relay_quotas::{DataCategory, Scoping};
-use relay_redis::RedisPools;
 use relay_sampling::config::RuleId;
 use relay_sampling::evaluation::{ReservoirCounters, ReservoirEvaluator, SamplingDecision};
 use relay_sampling::DynamicSamplingContext;
@@ -59,7 +58,7 @@ use {
     relay_dynamic_config::{CardinalityLimiterMode, MetricExtractionGroups},
     relay_metrics::RedisMetricMetaStore,
     relay_quotas::{Quota, RateLimitingError, RateLimits, RedisRateLimiter},
-    relay_redis::RedisPool,
+    relay_redis::{RedisPool, RedisPools},
     std::iter::Chain,
     std::slice::Iter,
     symbolic_unreal::{Unreal4Error, Unreal4ErrorKind},
