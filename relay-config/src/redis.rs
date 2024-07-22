@@ -1,4 +1,4 @@
-use relay_redis::RedisConfigOptions;
+use relay_redis::{RedisConfigOptions, RedisError, RedisPool, RedisPools};
 use serde::{Deserialize, Serialize};
 
 /// For small setups, `2 x limits.max_thread_count` does not leave enough headroom.
@@ -146,80 +146,74 @@ pub enum RedisConfigs {
     },
 }
 
-#[derive(Debug, Clone)]
-pub struct RedisPool<'a> {
-    pub connection: &'a RedisConnection,
-    pub options: RedisConfigOptions,
-}
+fn create_redis_pool(
+    config: &RedisConfig,
+    cpu_concurrency: usize,
+) -> Result<RedisPool, RedisError> {
+    let options = RedisConfigOptions {
+        max_connections: config
+            .options
+            .max_connections
+            .unwrap_or(cpu_concurrency as u32 * 2)
+            .min(crate::redis::DEFAULT_MIN_MAX_CONNECTIONS),
+        connection_timeout: config.options.connection_timeout,
+        max_lifetime: config.options.max_lifetime,
+        idle_timeout: config.options.idle_timeout,
+        read_timeout: config.options.read_timeout,
+        write_timeout: config.options.write_timeout,
+    };
 
-impl<'a> RedisPool<'a> {
-    fn from_config(config: &'a RedisConfig, cpu_concurrency: usize) -> Self {
-        let options = RedisConfigOptions {
-            max_connections: config
-                .options
-                .max_connections
-                .unwrap_or(cpu_concurrency as u32 * 2)
-                .min(crate::redis::DEFAULT_MIN_MAX_CONNECTIONS),
-            connection_timeout: config.options.connection_timeout,
-            max_lifetime: config.options.max_lifetime,
-            idle_timeout: config.options.idle_timeout,
-            read_timeout: config.options.read_timeout,
-            write_timeout: config.options.write_timeout,
-        };
-
-        Self {
-            connection: &config.connection,
-            options,
+    match &config.connection {
+        RedisConnection::Single(server) => RedisPool::single(server, options),
+        RedisConnection::Cluster(servers) => {
+            RedisPool::cluster(servers.iter().map(|s| s.as_str()), options)
         }
     }
 }
 
-#[derive(Debug, Clone, Default)]
-pub struct RedisPools<'a> {
-    pub project_configs: Option<RedisPool<'a>>,
-    pub cardinality: Option<RedisPool<'a>>,
-    pub quotas: Option<RedisPool<'a>>,
-    pub misc: Option<RedisPool<'a>>,
-}
+pub(super) fn create_redis_pools(
+    configs: &RedisConfigs,
+    cpu_concurrency: usize,
+) -> Result<relay_redis::RedisPools, RedisError> {
+    match configs {
+        RedisConfigs::Unified(cfg) => {
+            let pool = create_redis_pool(cfg, cpu_concurrency)?;
+            Ok(RedisPools {
+                project_configs: Some(pool.clone()),
+                cardinality: Some(pool.clone()),
+                quotas: Some(pool.clone()),
+                misc: Some(pool),
+            })
+        }
+        RedisConfigs::Individual {
+            project_configs,
+            cardinality,
+            quotas,
+            misc,
+        } => {
+            let project_configs = project_configs
+                .as_ref()
+                .map(|cfg| create_redis_pool(cfg, cpu_concurrency))
+                .transpose()?;
+            let cardinality = cardinality
+                .as_ref()
+                .map(|cfg| create_redis_pool(cfg, cpu_concurrency))
+                .transpose()?;
+            let quotas = quotas
+                .as_ref()
+                .map(|cfg| create_redis_pool(cfg, cpu_concurrency))
+                .transpose()?;
+            let misc = misc
+                .as_ref()
+                .map(|cfg| create_redis_pool(cfg, cpu_concurrency))
+                .transpose()?;
 
-impl<'a> RedisPools<'a> {
-    pub fn from_configs(configs: &'a RedisConfigs, cpu_concurrency: usize) -> Self {
-        match configs {
-            RedisConfigs::Unified(cfg) => {
-                let pool = RedisPool::from_config(&cfg, cpu_concurrency);
-                Self {
-                    project_configs: Some(pool.clone()),
-                    cardinality: Some(pool.clone()),
-                    quotas: Some(pool.clone()),
-                    misc: Some(pool),
-                }
-            }
-            RedisConfigs::Individual {
+            Ok(RedisPools {
                 project_configs,
                 cardinality,
                 quotas,
                 misc,
-            } => {
-                let project_configs = project_configs
-                    .as_ref()
-                    .map(|cfg| RedisPool::from_config(cfg, cpu_concurrency));
-                let cardinality = cardinality
-                    .as_ref()
-                    .map(|cfg| RedisPool::from_config(cfg, cpu_concurrency));
-                let quotas = quotas
-                    .as_ref()
-                    .map(|cfg| RedisPool::from_config(cfg, cpu_concurrency));
-                let misc = misc
-                    .as_ref()
-                    .map(|cfg| RedisPool::from_config(cfg, cpu_concurrency));
-
-                Self {
-                    project_configs,
-                    cardinality,
-                    quotas,
-                    misc,
-                }
-            }
+            })
         }
     }
 }

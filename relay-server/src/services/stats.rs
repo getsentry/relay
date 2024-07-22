@@ -100,9 +100,6 @@ impl RelayStats {
         }
     }
 
-    #[cfg(not(feature = "processing"))]
-    async fn redis_pools(&self) {}
-
     #[cfg(feature = "processing")]
     async fn redis_pool(redis_pool: &RedisPool, name: &str) {
         let state = redis_pool.stats();
@@ -115,6 +112,9 @@ impl RelayStats {
             pool = name
         );
     }
+
+    #[cfg(not(feature = "processing"))]
+    async fn redis_pools(&self) {}
 
     #[cfg(feature = "processing")]
     async fn redis_pools(&self) {
