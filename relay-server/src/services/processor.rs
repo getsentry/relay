@@ -1118,7 +1118,7 @@ struct InnerProcessor {
     global_config: GlobalConfigHandle,
     cogs: Cogs,
     #[cfg(feature = "processing")]
-    redis_pool: Option<RedisPool>,
+    quotas_pool: Option<RedisPool>,
     addrs: Addrs,
     #[cfg(feature = "processing")]
     rate_limiter: Option<RedisRateLimiter>,
@@ -1167,8 +1167,7 @@ impl EnvelopeProcessorService {
             global_config,
             cogs,
             #[cfg(feature = "processing")]
-            // TODO: Tentatively using `quotas` for this
-            redis_pool: quotas.clone(),
+            quotas_pool: quotas.clone(),
             #[cfg(feature = "processing")]
             rate_limiter: quotas.map(|quotas| RedisRateLimiter::new(quotas).max_limit(config.max_rate_limit())),
             addrs,
@@ -1259,9 +1258,9 @@ impl EnvelopeProcessorService {
         #[allow(unused_mut)]
         let mut reservoir = ReservoirEvaluator::new(reservoir_counters);
         #[cfg(feature = "processing")]
-        if let Some(redis_pool) = self.inner.redis_pool.as_ref() {
+        if let Some(quotas_pool) = self.inner.quotas_pool.as_ref() {
             let org_id = managed_envelope.scoping().organization_id;
-            reservoir.set_redis(org_id, redis_pool);
+            reservoir.set_redis(org_id, quotas_pool);
         }
 
         let extracted_metrics = ProcessingExtractedMetrics::new(
