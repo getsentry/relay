@@ -372,6 +372,7 @@
 <a href="#372" id="372">372</a>
 <a href="#373" id="373">373</a>
 <a href="#374" id="374">374</a>
+<a href="#375" id="375">375</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::convert::Infallible;
 <span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::sync::Arc;
@@ -463,8 +464,9 @@
         // expands this pool very very aggressively and basically never shrinks it
         // which leads to a massive resource waste.
         </span>.max_blocking_threads(<span class="number">150</span>)
-        <span class="comment">// As with the maximum amount of threads used by the runtime, we want
-        // to encourage the runtime to terminate blocking threads again.
+        <span class="comment">// We also lower down the default (10s) keep alive timeout for blocking
+        // threads to encourage the runtime to not keep too many idle blocking threads
+        // around.
         </span>.thread_keep_alive(Duration::from_secs(<span class="number">1</span>))
         .enable_all()
         .build()

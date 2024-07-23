@@ -1504,6 +1504,18 @@
 <a href="#1504" id="1504">1504</a>
 <a href="#1505" id="1505">1505</a>
 <a href="#1506" id="1506">1506</a>
+<a href="#1507" id="1507">1507</a>
+<a href="#1508" id="1508">1508</a>
+<a href="#1509" id="1509">1509</a>
+<a href="#1510" id="1510">1510</a>
+<a href="#1511" id="1511">1511</a>
+<a href="#1512" id="1512">1512</a>
+<a href="#1513" id="1513">1513</a>
+<a href="#1514" id="1514">1514</a>
+<a href="#1515" id="1515">1515</a>
+<a href="#1516" id="1516">1516</a>
+<a href="#1517" id="1517">1517</a>
+<a href="#1518" id="1518">1518</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
 <span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::sync::Arc;
@@ -1520,6 +1532,8 @@
 <span class="kw">use </span>relay_statsd::metric;
 <span class="kw">use </span>relay_system::{Addr, FromMessage, Interface, Sender, Service};
 <span class="kw">use </span>tokio::sync::mpsc;
+<span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
+</span><span class="kw">use </span>tokio::sync::Semaphore;
 <span class="kw">use </span>tokio::time::Instant;
 
 <span class="kw">use </span><span class="kw">crate</span>::services::global_config::{<span class="self">self</span>, GlobalConfigManager, Subscribe};
@@ -1930,6 +1944,8 @@
     upstream_source: Addr&lt;UpstreamProjectSource&gt;,
     <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
     </span>redis_source: <span class="prelude-ty">Option</span>&lt;RedisProjectSource&gt;,
+    <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
+    </span>redis_semaphore: Arc&lt;Semaphore&gt;,
 }
 
 <span class="kw">impl </span>ProjectSource {
@@ -1944,6 +1960,8 @@
             UpstreamProjectSourceService::new(config.clone(), upstream_relay).start();
 
         <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
+        </span><span class="kw">let </span>redis_maxconns = config.redis().map(|(<span class="kw">_</span>, config)| config.max_connections);
+        <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
         </span><span class="kw">let </span>redis_source = _redis.map(|pool| RedisProjectSource::new(config.clone(), pool));
 
         <span class="self">Self </span>{
@@ -1952,6 +1970,10 @@
             upstream_source,
             <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
             </span>redis_source,
+            <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
+            </span>redis_semaphore: Arc::new(Semaphore::new(
+                redis_maxconns.unwrap_or(<span class="number">10</span>).try_into().unwrap(),
+            )),
         }
     }
 
@@ -1975,10 +1997,12 @@
 
         <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
         </span><span class="kw">if let </span><span class="prelude-val">Some</span>(redis_source) = <span class="self">self</span>.redis_source {
+            <span class="kw">let </span>redis_permit = <span class="self">self</span>.redis_semaphore.acquire().<span class="kw">await</span>.map_err(|<span class="kw">_</span>| ())<span class="question-mark">?</span>;
             <span class="kw">let </span>state_fetch_result =
                 tokio::task::spawn_blocking(<span class="kw">move </span>|| redis_source.get_config(project_key))
                     .<span class="kw">await
                     </span>.map_err(|<span class="kw">_</span>| ())<span class="question-mark">?</span>;
+            drop(redis_permit);
 
             <span class="kw">let </span>state_opt = <span class="kw">match </span>state_fetch_result {
                 <span class="prelude-val">Ok</span>(state) =&gt; state.map(ProjectState::sanitize).map(Arc::new),
