@@ -44,7 +44,6 @@ use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, NoResponse, Service};
 use reqwest::header;
 use smallvec::{smallvec, SmallVec};
-use tokio::sync::Semaphore;
 
 #[cfg(feature = "processing")]
 use {
@@ -85,6 +84,7 @@ use crate::services::upstream::{
 use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
 use crate::utils::{
     self, InvalidProcessingGroupType, ManagedEnvelope, SamplingResult, ThreadPool, TypedEnvelope,
+    WorkerGroup,
 };
 use crate::{http, metrics};
 
@@ -1113,7 +1113,7 @@ impl Default for Addrs {
 }
 
 struct InnerProcessor {
-    pool: ThreadPool,
+    workers: WorkerGroup,
     config: Arc<Config>,
     global_config: GlobalConfigHandle,
     cogs: Cogs,
@@ -1163,7 +1163,7 @@ impl EnvelopeProcessorService {
         };
 
         let inner = InnerProcessor {
-            pool,
+            workers: WorkerGroup::new(pool),
             global_config,
             cogs,
             #[cfg(feature = "processing")]
@@ -2306,7 +2306,7 @@ impl EnvelopeProcessorService {
             envelope.add_item(item);
         }
 
-        let envelope = ManagedEnvelope::standalone(
+        let envelope = ManagedEnvelope::new(
             envelope,
             self.inner.addrs.outcome_aggregator.clone(),
             self.inner.addrs.test_store.clone(),
@@ -2601,7 +2601,7 @@ impl EnvelopeProcessorService {
                 item.set_payload(ContentType::Json, serde_json::to_vec(&buckets).unwrap());
                 envelope.add_item(item);
 
-                let mut envelope = ManagedEnvelope::standalone(
+                let mut envelope = ManagedEnvelope::new(
                     envelope,
                     self.inner.addrs.outcome_aggregator.clone(),
                     self.inner.addrs.test_store.clone(),
@@ -2737,7 +2737,7 @@ impl EnvelopeProcessorService {
         let mut envelope = Envelope::from_request(None, RequestMeta::outbound(dsn));
         envelope.add_item(item);
 
-        let envelope = ManagedEnvelope::standalone(
+        let envelope = ManagedEnvelope::new(
             envelope,
             self.inner.addrs.outcome_aggregator.clone(),
             self.inner.addrs.test_store.clone(),
@@ -2822,31 +2822,13 @@ impl Service for EnvelopeProcessorService {
     type Interface = EnvelopeProcessor;
 
     fn spawn_handler(self, mut rx: relay_system::Receiver<Self::Interface>) {
-        let semaphore = Arc::new(Semaphore::new(self.inner.pool.current_num_threads()));
-
         tokio::spawn(async move {
-            loop {
-                let next_msg = async {
-                    let permit_result = semaphore.clone().acquire_owned().await;
-                    // `permit_result` might get dropped when this future is cancelled while awaiting
-                    // `rx.recv()`. This is OK though: No envelope is received so the permit is not
-                    // required.
-                    (rx.recv().await, permit_result)
-                };
-
-                tokio::select! {
-                   biased;
-
-                    (Some(message), Ok(permit)) = next_msg => {
-                        let service = self.clone();
-                        self.inner.pool.spawn(move || {
-                            service.handle_message(message);
-                            drop(permit);
-                        });
-                    },
-
-                    else => break
-                }
+            while let Some(message) = rx.recv().await {
+                let service = self.clone();
+                self.inner
+                    .workers
+                    .spawn(move || service.handle_message(message))
+                    .await;
             }
         });
     }
@@ -3400,7 +3382,7 @@ mod tests {
         assert_eq!(envelopes.len(), 1);
 
         let (group, envelope) = envelopes.pop().unwrap();
-        let envelope = ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store, group);
+        let envelope = ManagedEnvelope::new(envelope, outcome_aggregator, test_store, group);
 
         let message = ProcessEnvelope {
             envelope,
@@ -3457,7 +3439,7 @@ mod tests {
         envelope.add_item(item);
 
         let (outcome_aggregator, test_store) = testutils::processor_services();
-        let managed_envelope = ManagedEnvelope::standalone(
+        let managed_envelope = ManagedEnvelope::new(
             envelope,
             outcome_aggregator,
             test_store,
@@ -3608,39 +3590,6 @@ mod tests {
             "event.transaction_name_changes:1|c|#source_in:route,changes:none,source_out:route,is_404:false",
         ]
         "#);
-    }
-
-    /// This is a stand-in test to assert panicking behavior for spawn_blocking.
-    ///
-    /// [`EnvelopeProcessorService`] relies on tokio to restart the worker threads for blocking
-    /// tasks if there is a panic during processing. Tokio does not explicitly mention this behavior
-    /// in documentation, though the `spawn_blocking` contract suggests that this is intentional.
-    ///
-    /// This test should be moved if the worker pool is extracted into a utility.
-    #[test]
-    fn test_processor_panics() {
-        let future = async {
-            let semaphore = Arc::new(Semaphore::new(1));
-
-            // loop multiple times to prove that the runtime creates new threads
-            for _ in 0..3 {
-                // the previous permit should have been released during panic unwind
-                let permit = semaphore.clone().acquire_owned().await.unwrap();
-
-                let handle = tokio::task::spawn_blocking(move || {
-                    let _permit = permit; // drop(permit) after panic!() would warn as "unreachable"
-                    panic!("ignored");
-                });
-
-                assert!(handle.await.is_err());
-            }
-        };
-
-        tokio::runtime::Builder::new_current_thread()
-            .max_blocking_threads(1)
-            .build()
-            .unwrap()
-            .block_on(future);
     }
 
     /// Confirms that the hardcoded value we use for the fixed length of the measurement MRI is

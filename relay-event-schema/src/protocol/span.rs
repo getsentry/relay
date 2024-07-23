@@ -175,6 +175,7 @@ impl Getter for Span {
             "release" => self.data.value()?.release.as_str()?.into(),
             "environment" => self.data.value()?.environment.as_str()?.into(),
             "transaction" => self.data.value()?.segment_name.as_str()?.into(),
+            "contexts.browser.name" => self.data.value()?.browser_name.as_str()?.into(),
             // TODO: we might want to add additional fields once they are added to the span.
             _ => return None,
         })

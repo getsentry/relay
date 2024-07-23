@@ -10,13 +10,16 @@ use relay_dynamic_config::{
     CombinedMetricExtractionConfig, ErrorBoundary, Feature, GlobalConfig, ProjectConfig,
 };
 use relay_event_normalization::{
-    normalize_measurements, normalize_performance_score, normalize_user_agent_info_generic,
-    span::tag_extraction, validate_span, CombinedMeasurementsConfig, MeasurementsConfig,
-    PerformanceScoreConfig, RawUserAgentInfo, TransactionsProcessor,
+    normalize_measurements, normalize_performance_score, span::tag_extraction, validate_span,
+    CombinedMeasurementsConfig, MeasurementsConfig, PerformanceScoreConfig, RawUserAgentInfo,
+    TransactionsProcessor,
 };
-use relay_event_normalization::{normalize_transaction_name, ModelCosts};
+use relay_event_normalization::{
+    normalize_transaction_name, ClientHints, FromUserAgentInfo, ModelCosts, SchemaProcessor,
+    TimestampProcessor, TransactionNameRule, TrimmingProcessor,
+};
 use relay_event_schema::processor::{process_value, ProcessingState};
-use relay_event_schema::protocol::{BrowserContext, Contexts, Event, Span, SpanData};
+use relay_event_schema::protocol::{BrowserContext, Span, SpanData};
 use relay_log::protocol::{Attachment, AttachmentType};
 use relay_metrics::{MetricNamespace, UnixTimestamp};
 use relay_pii::PiiProcessor;
@@ -31,7 +34,7 @@ use crate::services::processor::span::extract_transaction_span;
 use crate::services::processor::{
     dynamic_sampling, ProcessEnvelopeState, ProcessingError, SpanGroup, TransactionGroup,
 };
-use crate::utils::{sample, ItemAction};
+use crate::utils::{sample, ItemAction, ManagedEnvelope};
 use relay_event_normalization::span::ai::extract_ai_measurements;
 use thiserror::Error;
 
@@ -54,27 +57,11 @@ pub fn process(
         ErrorBoundary::Ok(ref config) if config.is_enabled() => Some(config),
         _ => None,
     };
-    let ai_model_costs_config = global_config.ai_model_costs.clone().ok();
-    let normalize_span_config = get_normalize_span_config(
-        Arc::clone(&config),
-        state.managed_envelope.received_at(),
-        global_config.measurements.as_ref(),
-        state.project_state.config().measurements.as_ref(),
-        state.project_state.config().performance_score.as_ref(),
-        ai_model_costs_config.as_ref(),
-    );
-
-    let meta = state.managed_envelope.envelope().meta();
-    let mut contexts = Contexts::new();
-    let user_agent_info = RawUserAgentInfo {
-        user_agent: meta.user_agent(),
-        client_hints: meta.client_hints().as_deref(),
-    };
-
-    normalize_user_agent_info_generic(
-        &mut contexts,
-        &Annotated::new("".to_string()),
-        &user_agent_info,
+    let normalize_span_config = NormalizeSpanConfig::new(
+        &config,
+        global_config,
+        state.project_state.config(),
+        &state.managed_envelope,
     );
 
     let client_ip = state.managed_envelope.envelope().meta().client_addr();
@@ -101,14 +88,7 @@ pub fn process(
             _ => return ItemAction::Keep,
         };
 
-        set_segment_attributes(&mut annotated_span);
-
-        if let Err(e) = normalize(
-            &mut annotated_span,
-            normalize_span_config.clone(),
-            Annotated::new(contexts.clone()),
-            state.project_state.config(),
-        ) {
+        if let Err(e) = normalize(&mut annotated_span, normalize_span_config.clone()) {
             relay_log::debug!("failed to normalize span: {}", e);
             return ItemAction::Drop(Outcome::Invalid(DiscardReason::Internal));
         };
@@ -354,35 +334,49 @@ struct NormalizeSpanConfig<'a> {
     ///
     /// Measurements with longer names are removed from the transaction event and replaced with a
     /// metadata entry.
-    max_name_and_unit_len: Option<usize>,
+    max_name_and_unit_len: usize,
+    /// Transaction name normalization rules.
+    tx_name_rules: &'a [TransactionNameRule],
+    /// The user agent parsed from the request.
+    user_agent: Option<String>,
+    /// Client hints parsed from the request.
+    client_hints: ClientHints<String>,
 }
 
-fn get_normalize_span_config<'a>(
-    config: Arc<Config>,
-    received_at: DateTime<Utc>,
-    global_measurements_config: Option<&'a MeasurementsConfig>,
-    project_measurements_config: Option<&'a MeasurementsConfig>,
-    performance_score: Option<&'a PerformanceScoreConfig>,
-    ai_model_costs: Option<&'a ModelCosts>,
-) -> NormalizeSpanConfig<'a> {
-    let aggregator_config = config.aggregator_config_for(MetricNamespace::Spans);
-
-    NormalizeSpanConfig {
-        received_at,
-        timestamp_range: aggregator_config.aggregator.timestamp_range(),
-        max_tag_value_size: aggregator_config.aggregator.max_tag_value_length,
-        measurements: Some(CombinedMeasurementsConfig::new(
-            project_measurements_config,
-            global_measurements_config,
-        )),
-        max_name_and_unit_len: Some(
-            aggregator_config
+impl<'a> NormalizeSpanConfig<'a> {
+    fn new(
+        config: &'a Config,
+        global_config: &'a GlobalConfig,
+        project_config: &'a ProjectConfig,
+        managed_envelope: &ManagedEnvelope,
+    ) -> Self {
+        let aggregator_config = config.aggregator_config_for(MetricNamespace::Spans);
+        Self {
+            received_at: managed_envelope.received_at(),
+            timestamp_range: aggregator_config.aggregator.timestamp_range(),
+            max_tag_value_size: aggregator_config.aggregator.max_tag_value_length,
+            performance_score: project_config.performance_score.as_ref(),
+            measurements: Some(CombinedMeasurementsConfig::new(
+                project_config.measurements.as_ref(),
+                global_config.measurements.as_ref(),
+            )),
+            ai_model_costs: match &global_config.ai_model_costs {
+                ErrorBoundary::Err(_) => None,
+                ErrorBoundary::Ok(costs) => Some(costs),
+            },
+            max_name_and_unit_len: aggregator_config
                 .aggregator
                 .max_name_length
                 .saturating_sub(MeasurementsConfig::MEASUREMENT_MRI_OVERHEAD),
-        ),
-        performance_score,
-        ai_model_costs,
+
+            tx_name_rules: &project_config.tx_name_rules,
+            user_agent: managed_envelope
+                .envelope()
+                .meta()
+                .user_agent()
+                .map(String::from),
+            client_hints: managed_envelope.meta().client_hints().clone(),
+        }
     }
 }
 
@@ -421,11 +415,7 @@ fn set_segment_attributes(span: &mut Annotated<Span>) {
 fn normalize(
     annotated_span: &mut Annotated<Span>,
     config: NormalizeSpanConfig,
-    contexts: Annotated<Contexts>,
-    project_config: &ProjectConfig,
 ) -> Result<(), ProcessingError> {
-    use relay_event_normalization::{SchemaProcessor, TimestampProcessor, TrimmingProcessor};
-
     let NormalizeSpanConfig {
         received_at,
         timestamp_range,
@@ -434,7 +424,12 @@ fn normalize(
         measurements,
         ai_model_costs,
         max_name_and_unit_len,
+        tx_name_rules,
+        user_agent,
+        client_hints,
     } = config;
+
+    set_segment_attributes(annotated_span);
 
     // This follows the steps of `NormalizeProcessor::process_event`.
     // Ideally, `NormalizeProcessor` would execute these steps generically, i.e. also when calling
@@ -465,21 +460,14 @@ fn normalize(
         return Err(ProcessingError::NoEventPayload);
     };
 
-    if let Some(browser_name) = contexts
-        .value()
-        .and_then(|contexts| contexts.get::<BrowserContext>())
-        .and_then(|v| v.name.value())
-    {
-        let data = span.data.value_mut().get_or_insert_with(SpanData::default);
-        data.browser_name = Annotated::new(browser_name.to_owned());
-    }
+    populate_ua_fields(span, user_agent.as_deref(), client_hints.as_deref());
 
     if let Annotated(Some(ref mut measurement_values), ref mut meta) = span.measurements {
         normalize_measurements(
             measurement_values,
             meta,
             measurements,
-            max_name_and_unit_len,
+            Some(max_name_and_unit_len),
             span.start_timestamp.0,
             span.timestamp.0,
         );
@@ -493,7 +481,7 @@ fn normalize(
         .as_mut()
         .map(|data| &mut data.segment_name)
     {
-        normalize_transaction_name(transaction, &project_config.tx_name_rules);
+        normalize_transaction_name(transaction, tx_name_rules);
     }
 
     // Tag extraction:
@@ -505,17 +493,10 @@ fn normalize(
             .collect(),
     );
 
-    let mut event = Event {
-        contexts,
-        measurements: span.measurements.clone(),
-        spans: Annotated::from(vec![Annotated::new(span.clone())]),
-        ..Default::default()
-    };
-    normalize_performance_score(&mut event, performance_score);
+    normalize_performance_score(span, performance_score);
     if let Some(model_costs_config) = ai_model_costs {
         extract_ai_measurements(span, model_costs_config);
     }
-    span.measurements = event.measurements;
 
     tag_extraction::extract_measurements(span, is_mobile);
 
@@ -526,6 +507,32 @@ fn normalize(
     )?;
 
     Ok(())
+}
+
+fn populate_ua_fields(
+    span: &mut Span,
+    request_user_agent: Option<&str>,
+    mut client_hints: ClientHints<&str>,
+) {
+    let data = span.data.value_mut().get_or_insert_with(SpanData::default);
+
+    let user_agent = data.user_agent_original.value_mut();
+    if user_agent.is_none() {
+        *user_agent = request_user_agent.map(String::from);
+    } else {
+        // User agent in span payload should take precendence over request
+        // client hints.
+        client_hints = ClientHints::default();
+    }
+
+    if data.browser_name.value().is_none() {
+        if let Some(context) = BrowserContext::from_hints_or_ua(&RawUserAgentInfo {
+            user_agent: user_agent.as_deref(),
+            client_hints,
+        }) {
+            data.browser_name = context.name;
+        }
+    }
 }
 
 fn scrub(
@@ -628,6 +635,7 @@ mod tests {
     use relay_event_schema::protocol::{
         Context, ContextInner, SpanId, Timestamp, TraceContext, TraceId,
     };
+    use relay_event_schema::protocol::{Contexts, Event, Span};
     use relay_protocol::get_value;
     use relay_sampling::evaluation::{ReservoirCounters, ReservoirEvaluator};
     use relay_system::Addr;
@@ -674,7 +682,7 @@ mod tests {
             ..Default::default()
         };
 
-        let managed_envelope = ManagedEnvelope::standalone(
+        let managed_envelope = ManagedEnvelope::new(
             dummy_envelope,
             Addr::dummy(),
             Addr::dummy(),
@@ -852,5 +860,141 @@ mod tests {
         set_segment_attributes(&mut span);
         assert_eq!(get_value!(span.is_segment), None);
         assert_eq!(get_value!(span.segment_id), None);
+    }
+
+    #[test]
+    fn keep_browser_name() {
+        let mut span: Annotated<Span> = Annotated::from_json(
+            r#"{
+                "data": {
+                    "browser.name": "foo"
+                }
+            }"#,
+        )
+        .unwrap();
+        populate_ua_fields(
+            span.value_mut().as_mut().unwrap(),
+            None,
+            ClientHints::default(),
+        );
+        assert_eq!(get_value!(span.data.browser_name!), "foo");
+    }
+
+    #[test]
+    fn keep_browser_name_when_ua_present() {
+        let mut span: Annotated<Span> = Annotated::from_json(
+            r#"{
+                "data": {
+                    "browser.name": "foo",
+                    "user_agent.original": "Mozilla/5.0 (-; -; -) - Chrome/18.0.1025.133 Mobile Safari/535.19"
+                }
+            }"#,
+        )
+        .unwrap();
+        populate_ua_fields(
+            span.value_mut().as_mut().unwrap(),
+            None,
+            ClientHints::default(),
+        );
+        assert_eq!(get_value!(span.data.browser_name!), "foo");
+    }
+
+    #[test]
+    fn derive_browser_name() {
+        let mut span: Annotated<Span> = Annotated::from_json(
+            r#"{
+                "data": {
+                    "user_agent.original": "Mozilla/5.0 (-; -; -) - Chrome/18.0.1025.133 Mobile Safari/535.19"
+                }
+            }"#,
+        )
+        .unwrap();
+        populate_ua_fields(
+            span.value_mut().as_mut().unwrap(),
+            None,
+            ClientHints::default(),
+        );
+        assert_eq!(
+            get_value!(span.data.user_agent_original!),
+            "Mozilla/5.0 (-; -; -) - Chrome/18.0.1025.133 Mobile Safari/535.19"
+        );
+        assert_eq!(get_value!(span.data.browser_name!), "Chrome Mobile");
+    }
+
+    #[test]
+    fn keep_user_agent_when_meta_is_present() {
+        let mut span: Annotated<Span> = Annotated::from_json(
+            r#"{
+                "data": {
+                    "user_agent.original": "Mozilla/5.0 (-; -; -) - Chrome/18.0.1025.133 Mobile Safari/535.19"
+                }
+            }"#,
+        )
+        .unwrap();
+        populate_ua_fields(
+            span.value_mut().as_mut().unwrap(),
+            Some("Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.1; ONS Internet Explorer 6.1; .NET CLR 1.1.4322)"),
+            ClientHints::default(),
+        );
+        assert_eq!(
+            get_value!(span.data.user_agent_original!),
+            "Mozilla/5.0 (-; -; -) - Chrome/18.0.1025.133 Mobile Safari/535.19"
+        );
+        assert_eq!(get_value!(span.data.browser_name!), "Chrome Mobile");
+    }
+
+    #[test]
+    fn derive_user_agent() {
+        let mut span: Annotated<Span> = Annotated::from_json(r#"{}"#).unwrap();
+        populate_ua_fields(
+            span.value_mut().as_mut().unwrap(),
+            Some("Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.1; ONS Internet Explorer 6.1; .NET CLR 1.1.4322)"),
+            ClientHints::default(),
+        );
+        assert_eq!(
+            get_value!(span.data.user_agent_original!),
+            "Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.1; ONS Internet Explorer 6.1; .NET CLR 1.1.4322)"
+        );
+        assert_eq!(get_value!(span.data.browser_name!), "IE");
+    }
+
+    #[test]
+    fn keep_user_agent_when_client_hints_are_present() {
+        let mut span: Annotated<Span> = Annotated::from_json(
+            r#"{
+                "data": {
+                    "user_agent.original": "Mozilla/5.0 (-; -; -) - Chrome/18.0.1025.133 Mobile Safari/535.19"
+                }
+            }"#,
+        )
+        .unwrap();
+        populate_ua_fields(
+            span.value_mut().as_mut().unwrap(),
+            None,
+            ClientHints {
+                sec_ch_ua: Some(r#""Chromium";v="108", "Opera";v="94", "Not)A;Brand";v="99""#),
+                ..Default::default()
+            },
+        );
+        assert_eq!(
+            get_value!(span.data.user_agent_original!),
+            "Mozilla/5.0 (-; -; -) - Chrome/18.0.1025.133 Mobile Safari/535.19"
+        );
+        assert_eq!(get_value!(span.data.browser_name!), "Chrome Mobile");
+    }
+
+    #[test]
+    fn derive_client_hints() {
+        let mut span: Annotated<Span> = Annotated::from_json(r#"{}"#).unwrap();
+        populate_ua_fields(
+            span.value_mut().as_mut().unwrap(),
+            None,
+            ClientHints {
+                sec_ch_ua: Some(r#""Chromium";v="108", "Opera";v="94", "Not)A;Brand";v="99""#),
+                ..Default::default()
+            },
+        );
+        assert_eq!(get_value!(span.data.user_agent_original), None);
+        assert_eq!(get_value!(span.data.browser_name!), "Opera");
     }
 }

@@ -5,12 +5,14 @@
 **Features**:
 
 - "Cardinality limit" outcomes now report which limit was exceeded. ([#3825](https://github.com/getsentry/relay/pull/3825))
+- Derive span browser name from user agent. ([#3834](https://github.com/getsentry/relay/pull/3834))
 - Redis pools for `project_configs`, `cardinality`, `quotas`, and `misc` usecases
   can now be configured individually. ([#3843](https://github.com/getsentry/relay/pull/3843))
 
 **Internal**:
 
 - Use a dedicated thread pool for CPU intensive workloads. ([#3833](https://github.com/getsentry/relay/pull/3833))
+- Remove `BufferGuard` in favor of memory checks via `MemoryStat`. ([#3821](https://github.com/getsentry/relay/pull/3821))
 
 ## 24.7.0
 

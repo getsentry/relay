@@ -14,6 +14,8 @@ use relay_redis::RedisPool;
 use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, Interface, Sender, Service};
 use tokio::sync::mpsc;
+#[cfg(feature = "processing")]
+use tokio::sync::Semaphore;
 use tokio::time::Instant;
 
 use crate::services::global_config::{self, GlobalConfigManager, Subscribe};
@@ -36,7 +38,7 @@ use crate::services::upstream::UpstreamRelay;
 
 use crate::statsd::{RelayCounters, RelayGauges, RelayHistograms, RelayTimers};
 use crate::utils::{
-    self, BufferGuard, GarbageDisposal, ManagedEnvelope, RetryBackoff, SleepHandle,
+    self, GarbageDisposal, ManagedEnvelope, MemoryChecker, RetryBackoff, SleepHandle,
 };
 
 /// Requests a refresh of a project state from one of the available sources.
@@ -424,6 +426,8 @@ struct ProjectSource {
     upstream_source: Addr<UpstreamProjectSource>,
     #[cfg(feature = "processing")]
     redis_source: Option<RedisProjectSource>,
+    #[cfg(feature = "processing")]
+    redis_semaphore: Arc<Semaphore>,
 }
 
 impl ProjectSource {
@@ -438,6 +442,8 @@ impl ProjectSource {
             UpstreamProjectSourceService::new(config.clone(), upstream_relay).start();
 
         #[cfg(feature = "processing")]
+        let redis_maxconns = config.redis().map(|(_, config)| config.max_connections);
+        #[cfg(feature = "processing")]
         let redis_source = _redis.map(|pool| RedisProjectSource::new(config.clone(), pool));
 
         Self {
@@ -446,6 +452,10 @@ impl ProjectSource {
             upstream_source,
             #[cfg(feature = "processing")]
             redis_source,
+            #[cfg(feature = "processing")]
+            redis_semaphore: Arc::new(Semaphore::new(
+                redis_maxconns.unwrap_or(10).try_into().unwrap(),
+            )),
         }
     }
 
@@ -469,10 +479,12 @@ impl ProjectSource {
 
         #[cfg(feature = "processing")]
         if let Some(redis_source) = self.redis_source {
+            let redis_permit = self.redis_semaphore.acquire().await.map_err(|_| ())?;
             let state_fetch_result =
                 tokio::task::spawn_blocking(move || redis_source.get_config(project_key))
                     .await
                     .map_err(|_| ())?;
+            drop(redis_permit);
 
             let state_opt = match state_fetch_result {
                 Ok(state) => state.map(ProjectState::sanitize).map(Arc::new),
@@ -555,6 +567,7 @@ impl Services {
 #[derive(Debug)]
 struct ProjectCacheBroker {
     config: Arc<Config>,
+    memory_checker: MemoryChecker,
     services: Services,
     metric_outcomes: MetricOutcomes,
     // Need hashbrown because extract_if is not stable in std yet.
@@ -567,8 +580,6 @@ struct ProjectCacheBroker {
     state_tx: mpsc::UnboundedSender<UpdateProjectState>,
     /// Tx channel used by the [`BufferService`] to send back the requested dequeued elements.
     buffer_tx: mpsc::UnboundedSender<UnspooledEnvelope>,
-    /// Shared semaphore used to control how many envelopes are currently running through Relay.
-    buffer_guard: Arc<BufferGuard>,
     /// Index containing all the [`QueueKey`] that have been enqueued in the [`BufferService`].
     index: HashSet<QueueKey>,
     /// Handle to schedule periodic unspooling of buffered envelopes.
@@ -852,7 +863,7 @@ impl ProjectCacheBroker {
         // state or we do not need one.
         if project_state.is_some()
             && (sampling_state.is_some() || sampling_key.is_none())
-            && !self.buffer_guard.is_over_high_watermark()
+            && self.memory_checker.check_memory().has_capacity()
             && self.global_config.is_ready()
         {
             return self.handle_processing(key, context);
@@ -1096,8 +1107,8 @@ impl ProjectCacheBroker {
 /// Service implementing the [`ProjectCache`] interface.
 #[derive(Debug)]
 pub struct ProjectCacheService {
-    buffer_guard: Arc<BufferGuard>,
     config: Arc<Config>,
+    memory_checker: MemoryChecker,
     services: Services,
     metric_outcomes: MetricOutcomes,
     redis: Option<RedisPool>,
@@ -1107,14 +1118,14 @@ impl ProjectCacheService {
     /// Creates a new `ProjectCacheService`.
     pub fn new(
         config: Arc<Config>,
-        buffer_guard: Arc<BufferGuard>,
+        memory_checker: MemoryChecker,
         services: Services,
         metric_outcomes: MetricOutcomes,
         redis: Option<RedisPool>,
     ) -> Self {
         Self {
-            buffer_guard,
             config,
+            memory_checker,
             services,
             metric_outcomes,
             redis,
@@ -1127,8 +1138,8 @@ impl Service for ProjectCacheService {
 
     fn spawn_handler(self, mut rx: relay_system::Receiver<Self::Interface>) {
         let Self {
-            buffer_guard,
             config,
+            memory_checker,
             services,
             metric_outcomes,
             redis,
@@ -1151,21 +1162,21 @@ impl Service for ProjectCacheService {
                 project_cache,
                 test_store,
             };
-            let buffer =
-                match BufferService::create(buffer_guard.clone(), buffer_services, config.clone())
-                    .await
-                {
-                    Ok(buffer) => buffer.start(),
-                    Err(err) => {
-                        relay_log::error!(
-                            error = &err as &dyn Error,
-                            "failed to start buffer service",
-                        );
-                        // NOTE: The process will exit with error if the buffer file could not be
-                        // opened or the migrations could not be run.
-                        std::process::exit(1);
-                    }
-                };
+            let buffer = match BufferService::create(
+                memory_checker.clone(),
+                buffer_services,
+                config.clone(),
+            )
+            .await
+            {
+                Ok(buffer) => buffer.start(),
+                Err(err) => {
+                    relay_log::error!(error = &err as &dyn Error, "failed to start buffer service",);
+                    // NOTE: The process will exit with error if the buffer file could not be
+                    // opened or the migrations could not be run.
+                    std::process::exit(1);
+                }
+            };
 
             let Ok(mut subscription) = services.global_config.send(Subscribe).await else {
                 // TODO(iker): we accept this sub-optimal error handling. TBD
@@ -1193,6 +1204,7 @@ impl Service for ProjectCacheService {
             // fetches via the project source.
             let mut broker = ProjectCacheBroker {
                 config: config.clone(),
+                memory_checker,
                 projects: hashbrown::HashMap::new(),
                 garbage_disposal: GarbageDisposal::new(),
                 source: ProjectSource::start(
@@ -1203,7 +1215,6 @@ impl Service for ProjectCacheService {
                 services,
                 state_tx,
                 buffer_tx,
-                buffer_guard,
                 index: HashSet::new(),
                 buffer_unspool_handle: SleepHandle::idle(),
                 buffer_unspool_backoff: RetryBackoff::new(config.http_max_retry_interval()),
@@ -1292,7 +1303,8 @@ mod tests {
     use uuid::Uuid;
 
     use crate::services::processor::ProcessingGroup;
-    use crate::testutils::{empty_envelope, empty_envelope_with_dsn};
+    use crate::testutils::empty_envelope_with_dsn;
+    use crate::utils::MemoryStat;
 
     use super::*;
 
@@ -1318,7 +1330,6 @@ mod tests {
 
     async fn project_cache_broker_setup(
         services: Services,
-        buffer_guard: Arc<BufferGuard>,
         state_tx: mpsc::UnboundedSender<UpdateProjectState>,
         buffer_tx: mpsc::UnboundedSender<UnspooledEnvelope>,
     ) -> (ProjectCacheBroker, Addr<Buffer>) {
@@ -1327,31 +1338,32 @@ mod tests {
                 "envelopes": {
                     "path": std::env::temp_dir().join(Uuid::new_v4().to_string()),
                     "max_memory_size": 0, // 0 bytes, to force to spool to disk all the envelopes.
+                },
+                "health": {
+                    "max_memory_percent": 0.0
                 }
             }
         }))
         .unwrap()
         .into();
+        let memory_checker = MemoryChecker::new(MemoryStat::default(), config.clone());
         let buffer_services = spooler::Services {
             outcome_aggregator: services.outcome_aggregator.clone(),
             project_cache: services.project_cache.clone(),
             test_store: services.test_store.clone(),
         };
-        let buffer = match BufferService::create(
-            buffer_guard.clone(),
-            buffer_services,
-            config.clone(),
-        )
-        .await
-        {
-            Ok(buffer) => buffer.start(),
-            Err(err) => {
-                relay_log::error!(error = &err as &dyn Error, "failed to start buffer service");
-                // NOTE: The process will exit with error if the buffer file could not be
-                // opened or the migrations could not be run.
-                std::process::exit(1);
-            }
-        };
+        let buffer =
+            match BufferService::create(memory_checker.clone(), buffer_services, config.clone())
+                .await
+            {
+                Ok(buffer) => buffer.start(),
+                Err(err) => {
+                    relay_log::error!(error = &err as &dyn Error, "failed to start buffer service");
+                    // NOTE: The process will exit with error if the buffer file could not be
+                    // opened or the migrations could not be run.
+                    std::process::exit(1);
+                }
+            };
 
         let metric_stats = MetricStats::new(
             Arc::new(Config::default()),
@@ -1364,13 +1376,13 @@ mod tests {
         (
             ProjectCacheBroker {
                 config: config.clone(),
+                memory_checker,
                 projects: hashbrown::HashMap::new(),
                 garbage_disposal: GarbageDisposal::new(),
                 source: ProjectSource::start(config, services.upstream_relay.clone(), None),
                 services,
                 state_tx,
                 buffer_tx,
-                buffer_guard,
                 index: HashSet::new(),
                 buffer: buffer.clone(),
                 global_config: GlobalConfigStatus::Pending,
@@ -1383,101 +1395,14 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn always_spools() {
-        relay_log::init_test!();
-
-        let num_permits = 5;
-        let buffer_guard: Arc<_> = BufferGuard::new(num_permits).into();
-        let services = mocked_services();
-        let (state_tx, _) = mpsc::unbounded_channel();
-        let (buffer_tx, mut buffer_rx) = mpsc::unbounded_channel();
-        let (mut broker, buffer_svc) =
-            project_cache_broker_setup(services.clone(), buffer_guard.clone(), state_tx, buffer_tx)
-                .await;
-
-        for _ in 0..8 {
-            let envelope = buffer_guard
-                .enter(
-                    empty_envelope(),
-                    services.outcome_aggregator.clone(),
-                    services.test_store.clone(),
-                    ProcessingGroup::Ungrouped,
-                )
-                .unwrap();
-            let message = ValidateEnvelope { envelope };
-
-            broker.handle_validate_envelope(message);
-            tokio::time::sleep(Duration::from_millis(200)).await;
-            // Nothing will be dequeued.
-            assert!(buffer_rx.try_recv().is_err())
-        }
-
-        // All the messages should have been spooled to disk.
-        assert_eq!(buffer_guard.available(), 5);
-        assert_eq!(broker.index.len(), 1);
-
-        let project_key = ProjectKey::parse("e12d836b15bb49d7bbf99e64295d995b").unwrap();
-        let key = QueueKey {
-            own_key: project_key,
-            sampling_key: project_key,
-        };
-        let (tx, mut rx) = mpsc::unbounded_channel();
-
-        // Check if we can also dequeue from the buffer directly.
-        buffer_svc.send(spooler::DequeueMany::new([key].into(), tx.clone()));
-        tokio::time::sleep(Duration::from_millis(100)).await;
-
-        // We should be able to unspool 5 envelopes since we have 5 permits.
-        let mut envelopes = vec![];
-        while let Ok(envelope) = rx.try_recv() {
-            envelopes.push(envelope)
-        }
-
-        // We can unspool only 5 envelopes.
-        assert_eq!(envelopes.len(), 5);
-
-        // Drop one, and get one permit back.
-        envelopes.pop().unwrap();
-        assert_eq!(buffer_guard.available(), 1);
-
-        // Till now we should have enqueued 5 envelopes and dequeued only 1, it means the index is
-        // still populated with same keys and values.
-        assert_eq!(broker.index.len(), 1);
-
-        // Check if we can also dequeue from the buffer directly.
-        buffer_svc.send(spooler::DequeueMany::new([key].into(), tx));
-        tokio::time::sleep(Duration::from_millis(100)).await;
-        // Cannot dequeue anymore, no more available permits.
-        assert!(rx.try_recv().is_err());
-
-        // The rest envelopes will be immediately spooled, since we at 80% buffer gueard usage.
-        for _ in 0..10 {
-            let envelope = ManagedEnvelope::untracked(
-                empty_envelope(),
-                services.outcome_aggregator.clone(),
-                services.test_store.clone(),
-            );
-            let message = ValidateEnvelope { envelope };
-
-            broker.handle_validate_envelope(message);
-            tokio::time::sleep(Duration::from_millis(100)).await;
-            // Nothing will be dequeued.
-            assert!(buffer_rx.try_recv().is_err())
-        }
-    }
-
-    #[tokio::test]
     async fn periodic_unspool() {
         relay_log::init_test!();
 
-        let num_permits = 50;
-        let buffer_guard: Arc<_> = BufferGuard::new(num_permits).into();
         let services = mocked_services();
         let (state_tx, _) = mpsc::unbounded_channel();
         let (buffer_tx, mut buffer_rx) = mpsc::unbounded_channel();
         let (mut broker, _buffer_svc) =
-            project_cache_broker_setup(services.clone(), buffer_guard.clone(), state_tx, buffer_tx)
-                .await;
+            project_cache_broker_setup(services.clone(), state_tx, buffer_tx).await;
 
         broker.global_config = GlobalConfigStatus::Ready;
         let (tx_update, mut rx_update) = mpsc::unbounded_channel();
@@ -1488,14 +1413,12 @@ mod tests {
 
         // Send and spool some envelopes.
         for dsn in [dsn1, dsn2] {
-            let envelope = buffer_guard
-                .enter(
-                    empty_envelope_with_dsn(dsn),
-                    services.outcome_aggregator.clone(),
-                    services.test_store.clone(),
-                    ProcessingGroup::Ungrouped,
-                )
-                .unwrap();
+            let envelope = ManagedEnvelope::new(
+                empty_envelope_with_dsn(dsn),
+                services.outcome_aggregator.clone(),
+                services.test_store.clone(),
+                ProcessingGroup::Ungrouped,
+            );
 
             let message = ValidateEnvelope { envelope };
 
@@ -1552,18 +1475,11 @@ mod tests {
 
     #[tokio::test]
     async fn handle_processing_without_project() {
-        let num_permits = 50;
-        let buffer_guard: Arc<_> = BufferGuard::new(num_permits).into();
         let services = mocked_services();
         let (state_tx, _) = mpsc::unbounded_channel();
         let (buffer_tx, mut buffer_rx) = mpsc::unbounded_channel();
-        let (mut broker, buffer_svc) = project_cache_broker_setup(
-            services.clone(),
-            buffer_guard.clone(),
-            state_tx,
-            buffer_tx.clone(),
-        )
-        .await;
+        let (mut broker, buffer_svc) =
+            project_cache_broker_setup(services.clone(), state_tx, buffer_tx.clone()).await;
 
         let dsn = "111d836b15bb49d7bbf99e64295d995b";
         let project_key = ProjectKey::parse(dsn).unwrap();
@@ -1571,14 +1487,12 @@ mod tests {
             own_key: project_key,
             sampling_key: project_key,
         };
-        let envelope = buffer_guard
-            .enter(
-                empty_envelope_with_dsn(dsn),
-                services.outcome_aggregator.clone(),
-                services.test_store.clone(),
-                ProcessingGroup::Ungrouped,
-            )
-            .unwrap();
+        let envelope = ManagedEnvelope::new(
+            empty_envelope_with_dsn(dsn),
+            services.outcome_aggregator.clone(),
+            services.test_store.clone(),
+            ProcessingGroup::Ungrouped,
+        );
 
         // Index and projects are empty.
         assert!(broker.projects.is_empty());
