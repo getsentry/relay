@@ -100,9 +100,9 @@ impl<'a> From<&'a SetValue> for MetricsSummaryBucketValue {
     fn from(set: &'a SetValue) -> Self {
         // For sets, we limit to counting the number of occurrences.
         MetricsSummaryBucketValue {
-            min: None,
-            max: None,
-            sum: None,
+            min: Some(0.into()),
+            max: Some(0.into()),
+            sum: Some(0.into()),
             count: set.len() as u64,
         }
     }
@@ -342,18 +342,18 @@ mod tests {
             {
                 "s:custom/my_set@none": [
                     MetricSummary {
-                        min: ~,
-                        max: ~,
-                        sum: ~,
+                        min: 0.0,
+                        max: 0.0,
+                        sum: 0.0,
                         count: 2,
                         tags: {
                             "platform": "android",
                         },
                     },
                     MetricSummary {
-                        min: ~,
-                        max: ~,
-                        sum: ~,
+                        min: 0.0,
+                        max: 0.0,
+                        sum: 0.0,
                         count: 2,
                         tags: {
                             "platform": "ios",
@@ -458,9 +458,9 @@ mod tests {
                 ],
                 "s:custom/my_set@none": [
                     MetricSummary {
-                        min: ~,
-                        max: ~,
-                        sum: ~,
+                        min: 0.0,
+                        max: 0.0,
+                        sum: 0.0,
                         count: 4,
                         tags: {
                             "platform": "ios",
