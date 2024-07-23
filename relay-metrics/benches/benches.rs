@@ -179,7 +179,7 @@ fn bench_insert_and_flush(c: &mut Criterion) {
 
     for (input_name, input) in &inputs {
         {
-            let mut group = c.benchmark_group(*input_name);
+            let mut group = c.benchmark_group("insert");
             group.throughput(criterion::Throughput::Elements(input.num_buckets as u64));
             group.bench_with_input(
                 BenchmarkId::new("bench_insert_metrics", input_name),
@@ -211,8 +211,7 @@ fn bench_insert_and_flush(c: &mut Criterion) {
             );
         }
 
-        let mut group = c.benchmark_group(*input_name);
-        group.throughput(criterion::Throughput::Elements(input.num_buckets as u64));
+        let mut group = c.benchmark_group("flush");
         group.bench_with_input(
             BenchmarkId::new("bench_flush_metrics", input_name),
             &input,
