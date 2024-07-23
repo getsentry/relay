@@ -183,6 +183,7 @@ impl CategoryUnit {
             | DataCategory::Error
             | DataCategory::Transaction
             | DataCategory::Replay
+            | DataCategory::ReplayVideo
             | DataCategory::Security
             | DataCategory::Profile
             | DataCategory::ProfileIndexed
@@ -200,7 +201,7 @@ impl CategoryUnit {
             DataCategory::Session => Some(Self::Batched),
             DataCategory::ProfileDuration => Some(Self::Milliseconds),
 
-            DataCategory::Unknown | DataCategory::ReplayVideo => None,
+            DataCategory::Unknown => None,
         }
     }
 }
