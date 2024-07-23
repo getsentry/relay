@@ -1,0 +1,4 @@
+disallowed-methods = [
+    { path = "tokio::spawn", reason = "use `relay_system::spawn` instead" },
+]
+
