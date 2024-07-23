@@ -164,14 +164,13 @@ pub struct RedisPoolConfigs<'a> {
 
 pub(super) fn create_redis_pool(
     config: &RedisConfig,
-    cpu_concurrency: usize,
+    default_connections: usize,
 ) -> (&RedisConnection, RedisConfigOptions) {
     let options = RedisConfigOptions {
         max_connections: config
             .options
             .max_connections
-            .unwrap_or(cpu_concurrency as u32 * 2)
-            .min(crate::redis::DEFAULT_MIN_MAX_CONNECTIONS),
+            .unwrap_or(default_connections),
         connection_timeout: config.options.connection_timeout,
         max_lifetime: config.options.max_lifetime,
         idle_timeout: config.options.idle_timeout,
@@ -188,7 +187,9 @@ pub(super) fn create_redis_pools(
 ) -> RedisPoolConfigs {
     match configs {
         RedisConfigs::Unified(cfg) => {
-            let pool = create_redis_pool(cfg, cpu_concurrency);
+            let default_connections =
+                (cpu_concurrency * 2).min(crate::redis::DEFAULT_MIN_MAX_CONNECTIONS as usize);
+            let pool = create_redis_pool(cfg, default_connections);
             RedisPoolConfigs {
                 project_configs: pool.clone(),
                 cardinality: pool.clone(),
@@ -202,11 +203,13 @@ pub(super) fn create_redis_pools(
             quotas,
             misc,
         } => {
-            let project_configs = create_redis_pool(project_configs, cpu_concurrency);
+            let project_configs = create_redis_pool(
+                project_configs,
+                (cpu_concurrency * 2).min(crate::redis::DEFAULT_MIN_MAX_CONNECTIONS as usize),
+            );
             let cardinality = create_redis_pool(cardinality, cpu_concurrency);
             let quotas = create_redis_pool(quotas, cpu_concurrency);
             let misc = create_redis_pool(misc, cpu_concurrency);
-
             RedisPoolConfigs {
                 project_configs,
                 cardinality,
