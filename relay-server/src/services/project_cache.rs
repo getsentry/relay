@@ -760,6 +760,68 @@ impl ProjectCacheBroker {
         project.check_envelope(context)
     }
 
+    /// Handles the processing of the provided envelope.
+    fn handle_processing(&mut self, key: QueueKey, managed_envelope: ManagedEnvelope) {
+        let project_key = managed_envelope.envelope().meta().public_key();
+
+        let Some(project) = self.projects.get_mut(&project_key) else {
+            relay_log::error!(
+                tags.project_key = %project_key,
+                "project could not be found in the cache",
+            );
+
+            let mut project = Project::new(project_key, self.config.clone());
+            project.prefetch(self.services.project_cache.clone(), false);
+            self.projects.insert(project_key, project);
+            self.enqueue(key, managed_envelope);
+            return;
+        };
+
+        let project_cache = self.services.project_cache.clone();
+        let Some(project_info) = project
+            .get_cached_state(project_cache.clone(), false)
+            .enabled()
+        else {
+            // TODO: The caller should already send the valid project info with the message.
+            relay_log::error!(
+                tags.project_key = %project_key,
+                "project has no valid cached state",
+            );
+            return;
+        };
+
+        // The `Envelope` and `EnvelopeContext` will be dropped if the `Project::check_envelope()`
+        // function returns any error, which will also be ignored here.
+        // TODO(jjbayer): check_envelope also makes sure the envelope has proper scoping.
+        // If we don't call check_envelope in the same message handler as handle_processing,
+        // there is a chance that the project is not ready yet and events are published with
+        // `organization_id: 0`. We should eliminate this footgun by introducing a `ScopedEnvelope`
+        // type which guarantees that the envelope has complete scoping.
+        if let Ok(CheckedEnvelope {
+            envelope: Some(managed_envelope),
+            ..
+        }) = project.check_envelope(managed_envelope)
+        {
+            let reservoir_counters = project.reservoir_counters();
+
+            let sampling_project_info = managed_envelope
+                .envelope()
+                .sampling_key()
+                .and_then(|key| self.projects.get_mut(&key))
+                .and_then(|p| p.get_cached_state(project_cache, false).enabled())
+                .filter(|state| state.organization_id == project_info.organization_id);
+
+            let process = ProcessEnvelope {
+                envelope: managed_envelope,
+                project_info,
+                sampling_project_info,
+                reservoir_counters,
+            };
+
+            self.services.envelope_processor.send(process);
+        }
+    }
+
     /// Checks an incoming envelope and decides either process it immediately or buffer it.
     ///
     /// Few conditions are checked here:
@@ -787,7 +849,6 @@ impl ProjectCacheBroker {
 
         let project_state =
             project.get_cached_state(project_cache.clone(), envelope.meta().no_cache());
-        let reservoir_counters = project.reservoir_counters();
 
         let project_state = match project_state {
             ProjectState::Enabled(state) => Some(state),
@@ -822,27 +883,21 @@ impl ProjectCacheBroker {
             None
         };
 
+        let key = QueueKey::new(own_key, sampling_key.unwrap_or(own_key));
+
         // Trigger processing once we have a project state and we either have a sampling project
         // state or we do not need one.
-        if let Some(project_state) = project_state {
-            if (sampling_state.is_some() || !requires_sampling_state)
-                && !self.buffer_guard.is_over_high_watermark()
-                && self.global_config.is_ready()
-            {
-                relay_log::trace!("Sending envelope to processor");
-                self.services.envelope_processor.send(ProcessEnvelope {
-                    envelope: managed_envelope,
-                    project_info: project_state,
-                    sampling_project_info: sampling_state,
-                    reservoir_counters,
-                });
-
-                return;
-            }
+        if project_state.is_some()
+            && (sampling_state.is_some() || !requires_sampling_state)
+            && !self.buffer_guard.is_over_high_watermark()
+            && self.global_config.is_ready()
+        {
+            // TODO: Add ready project infos to the processing message.
+            relay_log::trace!("Sending envelope to processor");
+            return self.handle_processing(key, managed_envelope);
         }
 
         relay_log::trace!("Enqueueing envelope");
-        let key = QueueKey::new(own_key, sampling_key.unwrap_or(own_key));
         self.enqueue(key, managed_envelope);
     }
 
@@ -1196,16 +1251,10 @@ impl Service for ProjectCacheService {
                     }
                     // Buffer will not dequeue the envelopes from the spool if there is not enough
                     // permits in `BufferGuard` available. Currently this is 50%.
-                    Some(UnspooledEnvelope { managed_envelope }) = buffer_rx.recv() => {
-                        // Unspooled envelopes need to be checked, just like we do on the fast path.
-                        if let Ok(CheckedEnvelope { envelope: Some(envelope), rate_limits: _ }) = metric!(timer(RelayTimers::ProjectCacheTaskDuration), task = "handle_check_envelope", {
-                            broker.handle_check_envelope(CheckEnvelope::new(managed_envelope))
-                        }) {
-                            metric!(timer(RelayTimers::ProjectCacheTaskDuration), task = "handle_validate_envelope", {
-                            broker.handle_validate_envelope(ValidateEnvelope { envelope });
+                    Some(UnspooledEnvelope { managed_envelope, key }) = buffer_rx.recv() => {
+                        metric!(timer(RelayTimers::ProjectCacheTaskDuration), task = "handle_processing", {
+                            broker.handle_processing(key, managed_envelope)
                         })
-                        }
-
                     },
                     _ = ticker.tick() => {
                         metric!(timer(RelayTimers::ProjectCacheTaskDuration), task = "evict_project_caches", {
@@ -1555,7 +1604,7 @@ mod tests {
 
         // Since there is no project we should not process anything but create a project and spool
         // the envelope.
-        broker.handle_validate_envelope(ValidateEnvelope { envelope });
+        broker.handle_processing(key, envelope);
 
         // Assert that we have a new project and also added an index.
         assert!(broker.projects.get(&project_key).is_some());
@@ -1563,7 +1612,9 @@ mod tests {
 
         // Check is we actually spooled anything.
         buffer_svc.send(DequeueMany::new([key].into(), buffer_tx.clone()));
-        let UnspooledEnvelope { managed_envelope } = buffer_rx.recv().await.unwrap();
+        let UnspooledEnvelope {
+            managed_envelope, ..
+        } = buffer_rx.recv().await.unwrap();
 
         assert_eq!(key, QueueKey::from_envelope(managed_envelope.envelope()));
     }
