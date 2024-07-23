@@ -1660,6 +1660,29 @@
 <a href="#1660" id="1660">1660</a>
 <a href="#1661" id="1661">1661</a>
 <a href="#1662" id="1662">1662</a>
+<a href="#1663" id="1663">1663</a>
+<a href="#1664" id="1664">1664</a>
+<a href="#1665" id="1665">1665</a>
+<a href="#1666" id="1666">1666</a>
+<a href="#1667" id="1667">1667</a>
+<a href="#1668" id="1668">1668</a>
+<a href="#1669" id="1669">1669</a>
+<a href="#1670" id="1670">1670</a>
+<a href="#1671" id="1671">1671</a>
+<a href="#1672" id="1672">1672</a>
+<a href="#1673" id="1673">1673</a>
+<a href="#1674" id="1674">1674</a>
+<a href="#1675" id="1675">1675</a>
+<a href="#1676" id="1676">1676</a>
+<a href="#1677" id="1677">1677</a>
+<a href="#1678" id="1678">1678</a>
+<a href="#1679" id="1679">1679</a>
+<a href="#1680" id="1680">1680</a>
+<a href="#1681" id="1681">1681</a>
+<a href="#1682" id="1682">1682</a>
+<a href="#1683" id="1683">1683</a>
+<a href="#1684" id="1684">1684</a>
+<a href="#1685" id="1685">1685</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Core functionality of metrics aggregation.
 
 </span><span class="kw">use </span>std::collections::BTreeMap;
@@ -1669,6 +1692,7 @@
 <span class="kw">use </span>std::{fmt, mem};
 
 <span class="kw">use </span>fnv::FnvHasher;
+<span class="kw">use </span>priority_queue::PriorityQueue;
 <span class="kw">use </span>relay_base_schema::project::ProjectKey;
 <span class="kw">use </span>relay_common::time::UnixTimestamp;
 <span class="kw">use </span>serde::{Deserialize, Serialize};
@@ -1678,7 +1702,7 @@
 <span class="kw">use </span><span class="kw">crate</span>::bucket::{Bucket, BucketValue};
 <span class="kw">use </span><span class="kw">crate</span>::protocol::{<span class="self">self</span>, MetricNamespace, MetricResourceIdentifier};
 <span class="kw">use </span><span class="kw">crate</span>::statsd::{MetricCounters, MetricGauges, MetricHistograms, MetricSets, MetricTimers};
-<span class="kw">use crate</span>::{BucketMetadata, MetricName};
+<span class="kw">use crate</span>::{BucketMetadata, FiniteF64, MetricName};
 
 <span class="kw">use </span>hashbrown::{hash_map::Entry, HashMap};
 
@@ -2193,7 +2217,7 @@
 </span><span class="kw">pub struct </span>Aggregator {
     name: String,
     config: AggregatorConfig,
-    buckets: HashMap&lt;BucketKey, QueuedBucket&gt;,
+    buckets: PriorityQueue&lt;BucketKey, QueuedBucket&gt;,
     cost_tracker: CostTracker,
     reference_time: Instant,
 }
@@ -2209,7 +2233,7 @@
         <span class="self">Self </span>{
             name,
             config,
-            buckets: HashMap::new(),
+            buckets: Default::default(),
             cost_tracker: CostTracker::default(),
             reference_time: Instant::now(),
         }
@@ -2286,10 +2310,12 @@
                 <span class="kw">let </span>bucket_interval = <span class="self">self</span>.config.bucket_interval;
                 <span class="kw">let </span>cost_tracker = <span class="kw-2">&amp;mut </span><span class="self">self</span>.cost_tracker;
 
-                <span class="kw">for </span>(key, entry) <span class="kw">in </span><span class="self">self
-                    </span>.buckets
-                    .extract_if(|<span class="kw">_</span>, entry| force || entry.elapsed(now))
-                {
+                <span class="kw">while let </span><span class="prelude-val">Some</span>((<span class="kw">_</span>, entry)) = <span class="self">self</span>.buckets.peek() {
+                    <span class="kw">if </span>!entry.elapsed(now) &amp;&amp; !force {
+                        <span class="kw">break</span>;
+                    }
+
+                    <span class="kw">let </span>(key, entry) = <span class="self">self</span>.buckets.pop().expect(<span class="string">"pop after peek"</span>);
                     cost_tracker.subtract_cost(key.project_key, key.cost());
                     cost_tracker.subtract_cost(key.project_key, entry.value.cost());
 
@@ -2299,17 +2325,19 @@
                     <span class="kw-2">*</span>bucket_count += <span class="number">1</span>;
                     <span class="kw-2">*</span>item_count += entry.value.len();
 
+                    <span class="kw">let </span>partition = <span class="self">self</span>.config.flush_partitions.map(|p| key.partition_key(p));
+
                     <span class="kw">let </span>bucket = Bucket {
                         timestamp: key.timestamp,
                         width: bucket_interval,
-                        name: key.metric_name.clone(),
+                        name: key.metric_name,
                         value: entry.value,
-                        tags: key.tags.clone(),
+                        tags: key.tags,
                         metadata: entry.metadata,
                     };
 
                     partitions
-                        .entry(<span class="self">self</span>.config.flush_partitions.map(|p| key.partition_key(p)))
+                        .entry(partition)
                         .or_insert_with(HashMap::new)
                         .entry(key.project_key)
                         .or_insert_with(Vec::new)
@@ -2359,7 +2387,7 @@
     </span><span class="kw">pub fn </span>merge(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         project_key: ProjectKey,
-        bucket: Bucket,
+        <span class="kw-2">mut </span>bucket: Bucket,
         max_total_bucket_bytes: <span class="prelude-ty">Option</span>&lt;usize&gt;,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), AggregateMetricsError&gt; {
         <span class="kw">let </span>timestamp = <span class="self">self</span>.get_bucket_timestamp(bucket.timestamp, bucket.width)<span class="question-mark">?</span>;
@@ -2404,34 +2432,48 @@
             <span class="self">self</span>.config.max_project_key_bucket_bytes,
         )<span class="question-mark">?</span>;
 
-        <span class="kw">let </span>added_cost;
-        <span class="kw">match </span><span class="self">self</span>.buckets.entry(key) {
-            Entry::Occupied(<span class="kw-2">mut </span>entry) =&gt; {
-                <span class="macro">relay_statsd::metric!</span>(
-                    counter(MetricCounters::MergeHit) += <span class="number">1</span>,
-                    aggregator = <span class="kw-2">&amp;</span><span class="self">self</span>.name,
-                    namespace = entry.key().namespace().as_str(),
-                );
+        <span class="kw">let </span><span class="kw-2">mut </span>added_cost = <span class="number">0</span>;
 
-                added_cost = entry.get_mut().merge(bucket.value, bucket.metadata)<span class="question-mark">?</span>;
-            }
-            Entry::Vacant(entry) =&gt; {
-                <span class="macro">relay_statsd::metric!</span>(
-                    counter(MetricCounters::MergeMiss) += <span class="number">1</span>,
-                    aggregator = <span class="kw-2">&amp;</span><span class="self">self</span>.name,
-                    namespace = entry.key().namespace().as_str(),
-                );
-                <span class="macro">relay_statsd::metric!</span>(
-                    set(MetricSets::UniqueBucketsCreated) = entry.key().hash64() <span class="kw">as </span>i64, <span class="comment">// 2-complement
-                    </span>aggregator = <span class="kw-2">&amp;</span><span class="self">self</span>.name,
-                    namespace = entry.key().namespace().as_str(),
-                );
+        <span class="kw">let </span><span class="kw-2">mut </span>error = <span class="prelude-val">None</span>;
+        <span class="kw">let </span>updated = <span class="self">self</span>.buckets.change_priority_by(<span class="kw-2">&amp;</span>key, |value| {
+            <span class="macro">relay_statsd::metric!</span>(
+                counter(MetricCounters::MergeHit) += <span class="number">1</span>,
+                aggregator = <span class="kw-2">&amp;</span><span class="self">self</span>.name,
+                namespace = key.namespace().as_str(),
+            );
 
-                <span class="kw">let </span>flush_at = get_flush_time(<span class="kw-2">&amp;</span><span class="self">self</span>.config, <span class="self">self</span>.reference_time, entry.key());
-                <span class="kw">let </span>value = bucket.value;
-                added_cost = entry.key().cost() + value.cost();
-                entry.insert(QueuedBucket::new(flush_at, value, bucket.metadata));
+            <span class="kw">let </span>bv = std::mem::replace(
+                <span class="kw-2">&amp;mut </span>bucket.value,
+                BucketValue::Counter(FiniteF64::default()),
+            );
+            <span class="kw">match </span>value.merge(bv, bucket.metadata) {
+                <span class="prelude-val">Ok</span>(ac) =&gt; added_cost = ac,
+                <span class="prelude-val">Err</span>(err) =&gt; error = <span class="prelude-val">Some</span>(err),
             }
+        });
+
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(error) = error {
+            <span class="kw">return </span><span class="prelude-val">Err</span>(error.into());
+        }
+
+        <span class="kw">if </span>!updated {
+            <span class="macro">relay_statsd::metric!</span>(
+                counter(MetricCounters::MergeMiss) += <span class="number">1</span>,
+                aggregator = <span class="kw-2">&amp;</span><span class="self">self</span>.name,
+                namespace = key.namespace().as_str(),
+            );
+            <span class="macro">relay_statsd::metric!</span>(
+                set(MetricSets::UniqueBucketsCreated) = key.hash64() <span class="kw">as </span>i64, <span class="comment">// 2-complement
+                </span>aggregator = <span class="kw-2">&amp;</span><span class="self">self</span>.name,
+                namespace = key.namespace().as_str(),
+            );
+
+            <span class="kw">let </span>flush_at = get_flush_time(<span class="kw-2">&amp;</span><span class="self">self</span>.config, <span class="self">self</span>.reference_time, <span class="kw-2">&amp;</span>key);
+            <span class="kw">let </span>value = bucket.value;
+            added_cost = key.cost() + value.cost();
+
+            <span class="self">self</span>.buckets
+                .push(key, QueuedBucket::new(flush_at, value, bucket.metadata));
         }
 
         <span class="self">self</span>.cost_tracker.add_cost(project_key, added_cost);
@@ -3269,7 +3311,11 @@
             .merge(project_key, bucket3.clone(), <span class="prelude-val">None</span>)
             .unwrap();
 
-        <span class="kw">let </span>buckets_metadata: Vec&lt;<span class="kw">_</span>&gt; = aggregator.buckets.values().map(|v| <span class="kw-2">&amp;</span>v.metadata).collect();
+        <span class="kw">let </span>buckets_metadata: Vec&lt;<span class="kw">_</span>&gt; = aggregator
+            .buckets
+            .iter()
+            .map(|(<span class="kw">_</span>, v)| <span class="kw-2">&amp;</span>v.metadata)
+            .collect();
         <span class="macro">insta::assert_debug_snapshot!</span>(buckets_metadata, @<span class="string">r###"
         [
             BucketMetadata {
