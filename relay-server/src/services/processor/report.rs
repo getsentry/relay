@@ -315,7 +315,7 @@ mod tests {
         assert_eq!(envelopes.len(), 1);
         let (group, envelope) = envelopes.pop().unwrap();
 
-        let envelope = ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store, group);
+        let envelope = ManagedEnvelope::new(envelope, outcome_aggregator, test_store, group);
         let message = ProcessEnvelope {
             envelope,
             project_info: Arc::new(ProjectInfo::default()),
@@ -368,7 +368,7 @@ mod tests {
         let mut envelopes = ProcessingGroup::split_envelope(*envelope);
         assert_eq!(envelopes.len(), 1);
         let (group, envelope) = envelopes.pop().unwrap();
-        let envelope = ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store, group);
+        let envelope = ManagedEnvelope::new(envelope, outcome_aggregator, test_store, group);
 
         let message = ProcessEnvelope {
             envelope,
@@ -431,7 +431,7 @@ mod tests {
         assert_eq!(envelopes.len(), 1);
 
         let (group, envelope) = envelopes.pop().unwrap();
-        let envelope = ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store, group);
+        let envelope = ManagedEnvelope::new(envelope, outcome_aggregator, test_store, group);
         let message = ProcessEnvelope {
             envelope,
             project_info: Arc::new(ProjectInfo::default()),
@@ -471,7 +471,7 @@ mod tests {
 
         let (group, envelope) = envelopes.pop().unwrap();
 
-        let envelope = ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store, group);
+        let envelope = ManagedEnvelope::new(envelope, outcome_aggregator, test_store, group);
         let message = ProcessEnvelope {
             envelope,
             project_info: Arc::new(ProjectInfo::default()),
@@ -518,7 +518,7 @@ mod tests {
         let mut envelopes = ProcessingGroup::split_envelope(*envelope);
         assert_eq!(envelopes.len(), 1);
         let (group, envelope) = envelopes.pop().unwrap();
-        let envelope = ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store, group);
+        let envelope = ManagedEnvelope::new(envelope, outcome_aggregator, test_store, group);
 
         let message = ProcessEnvelope {
             envelope,

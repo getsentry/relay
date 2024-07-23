@@ -283,7 +283,7 @@ mod tests {
     use crate::testutils::{
         self, create_test_processor, new_envelope, state_with_rule_and_condition,
     };
-    use crate::utils::{ManagedEnvelope, Semaphore as TestSemaphore};
+    use crate::utils::ManagedEnvelope;
 
     use super::*;
 
@@ -313,7 +313,7 @@ mod tests {
     /// Always sets the processing item type to event.
     fn process_envelope_with_root_project_state(
         envelope: Box<Envelope>,
-        sampling_project_state: Option<Arc<ProjectInfo>>,
+        sampling_project_info: Option<Arc<ProjectInfo>>,
     ) -> Envelope {
         let processor = create_test_processor(Default::default());
         let (outcome_aggregator, test_store) = testutils::processor_services();
@@ -323,9 +323,9 @@ mod tests {
         let (group, envelope) = envelopes.pop().unwrap();
 
         let message = ProcessEnvelope {
-            envelope: ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store, group),
+            envelope: ManagedEnvelope::new(envelope, outcome_aggregator, test_store, group),
             project_info: Arc::new(ProjectInfo::default()),
-            sampling_project_info: sampling_project_state,
+            sampling_project_info,
             reservoir_counters: ReservoirCounters::default(),
         };
 
@@ -471,7 +471,6 @@ mod tests {
                 project_id: ProjectId::new(42),
                 managed_envelope: ManagedEnvelope::new(
                     envelope,
-                    TestSemaphore::new(42).try_acquire().unwrap(),
                     outcome_aggregator.clone(),
                     test_store.clone(),
                     ProcessingGroup::Transaction,
@@ -774,7 +773,7 @@ mod tests {
                 Some(Arc::new(state))
             },
             project_id: ProjectId::new(1),
-            managed_envelope: ManagedEnvelope::standalone(
+            managed_envelope: ManagedEnvelope::new(
                 envelope,
                 Addr::dummy(),
                 Addr::dummy(),

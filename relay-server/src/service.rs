@@ -28,7 +28,7 @@ use crate::services::relays::{RelayCache, RelayCacheService};
 use crate::services::store::StoreService;
 use crate::services::test_store::{TestStore, TestStoreService};
 use crate::services::upstream::{UpstreamRelay, UpstreamRelayService};
-use crate::utils::BufferGuard;
+use crate::utils::{MemoryChecker, MemoryStat};
 
 /// Indicates the type of failure of the server.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, thiserror::Error)]
@@ -89,8 +89,9 @@ pub fn create_runtime(name: &str, threads: usize) -> Runtime {
         // expands this pool very very aggressively and basically never shrinks it
         // which leads to a massive resource waste.
         .max_blocking_threads(150)
-        // As with the maximum amount of threads used by the runtime, we want
-        // to encourage the runtime to terminate blocking threads again.
+        // We also lower down the default (10s) keep alive timeout for blocking
+        // threads to encourage the runtime to not keep too many idle blocking threads
+        // around.
         .thread_keep_alive(Duration::from_secs(1))
         .enable_all()
         .build()
@@ -136,7 +137,7 @@ fn create_store_pool(config: &Config) -> Result<ThreadPool> {
 #[derive(Debug)]
 struct StateInner {
     config: Arc<Config>,
-    buffer_guard: Arc<BufferGuard>,
+    memory_checker: MemoryChecker,
     registry: Registry,
 }
 
@@ -164,7 +165,9 @@ impl ServiceState {
             .transpose()
             .context(ServiceError::Redis)?;
 
-        let buffer_guard = Arc::new(BufferGuard::new(config.envelope_buffer_size()));
+        // We create an instance of `MemoryStat` which can be supplied composed with any arbitrary
+        // configuration object down the line.
+        let memory_stat = MemoryStat::new(config.memory_stat_refresh_frequency_ms());
 
         // Create an address for the `EnvelopeProcessor`, which can be injected into the
         // other services.
@@ -254,7 +257,7 @@ impl ServiceState {
         );
         ProjectCacheService::new(
             config.clone(),
-            buffer_guard.clone(),
+            MemoryChecker::new(memory_stat.clone(), config.clone()),
             project_cache_services,
             metric_outcomes,
             redis_pool.clone(),
@@ -263,6 +266,7 @@ impl ServiceState {
 
         let health_check = HealthCheckService::new(
             config.clone(),
+            MemoryChecker::new(memory_stat.clone(), config.clone()),
             aggregator.clone(),
             upstream_relay.clone(),
             project_cache.clone(),
@@ -293,8 +297,8 @@ impl ServiceState {
         };
 
         let state = StateInner {
-            buffer_guard,
-            config,
+            config: config.clone(),
+            memory_checker: MemoryChecker::new(memory_stat, config),
             registry,
         };
 
@@ -308,12 +312,11 @@ impl ServiceState {
         &self.inner.config
     }
 
-    /// Returns a reference to the guard of the envelope buffer.
-    ///
-    /// This can be used to enter new envelopes into the processing queue and reserve a slot in the
-    /// buffer. See [`BufferGuard`] for more information.
-    pub fn buffer_guard(&self) -> &BufferGuard {
-        &self.inner.buffer_guard
+    /// Returns a reference to the [`MemoryChecker`] which is a [`Config`] aware wrapper on the
+    /// [`MemoryStat`] which gives utility methods to determine whether memory usage is above
+    /// thresholds set in the [`Config`].
+    pub fn memory_checker(&self) -> &MemoryChecker {
+        &self.inner.memory_checker
     }
 
     /// Returns the address of the [`ProjectCache`] service.

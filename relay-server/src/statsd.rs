@@ -34,8 +34,6 @@ pub enum RelayGauges {
     ///
     /// Relay uses the same value for its memory health check.
     SystemMemoryTotal,
-    /// The currently used Resident Set Size (RSS).
-    SystemMemoryRss,
     /// The number of connections currently being managed by the Redis Pool.
     #[cfg(feature = "processing")]
     RedisPoolConnections,
@@ -54,7 +52,6 @@ impl GaugeMetric for RelayGauges {
             RelayGauges::BufferPeriodicUnspool => "buffer.unspool.periodic",
             RelayGauges::SystemMemoryUsed => "health.system_memory.used",
             RelayGauges::SystemMemoryTotal => "health.system_memory.total",
-            RelayGauges::SystemMemoryRss => "health.system_memory.rss",
             #[cfg(feature = "processing")]
             RelayGauges::RedisPoolConnections => "redis.pool.connections",
             #[cfg(feature = "processing")]
@@ -154,27 +151,6 @@ impl GaugeMetric for TokioGauges {
 
 /// Histogram metrics used by Relay.
 pub enum RelayHistograms {
-    /// The number of envelopes in the queue as a percentage of the maximum number of envelopes that
-    /// can be stored in the queue.
-    ///
-    /// The value ranges from `0` when the queue is empty to `1` when the queue is full and no
-    /// additional events can be added. The queue size can be configured using `event.queue_size`.
-    EnvelopeQueueSizePct,
-    /// The number of envelopes in the queue.
-    ///
-    /// The queue holds all envelopes that are being processed at a particular time in Relay:
-    ///
-    /// - When Relay receives a Request, it ensures the submitted data is wrapped in a single
-    ///   envelope.
-    /// - The envelope receives some preliminary processing to determine if it can be processed or
-    ///   if it must be rejected.
-    /// - Once this determination has been made, the HTTP request that created the envelope
-    ///   terminates and, if the request is to be further processed, the envelope enters a queue.
-    /// - After the envelope finishes processing and is sent upstream, the envelope is considered
-    ///   handled and it leaves the queue.
-    ///
-    /// The queue size can be configured with `cache.event_buffer_size`.
-    EnvelopeQueueSize,
     /// The number of bytes received by Relay for each individual envelope item type.
     ///
     /// Metric is tagged by the item type.
@@ -188,9 +164,6 @@ pub enum RelayHistograms {
     /// This metric is computed by multiplying `page_count * page_size`.
     BufferDiskSize,
     /// Number of attempts needed to dequeue spooled envelopes from disk.
-    ///
-    /// As long as there are enough permits in the [`crate::utils::BufferGuard`], this number should
-    /// always be one.
     BufferDequeueAttempts,
     /// The number of batches emitted per partition.
     BatchesPerPartition,
@@ -309,8 +282,6 @@ pub enum RelayHistograms {
 impl HistogramMetric for RelayHistograms {
     fn name(&self) -> &'static str {
         match self {
-            RelayHistograms::EnvelopeQueueSizePct => "event.queue_size.pct",
-            RelayHistograms::EnvelopeQueueSize => "event.queue_size",
             RelayHistograms::EnvelopeItemSize => "event.item_size",
             RelayHistograms::EventSpans => "event.spans",
             RelayHistograms::BatchesPerPartition => "metrics.buckets.batches_per_partition",
