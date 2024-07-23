@@ -2283,7 +2283,10 @@ impl Config {
     pub fn redis(&self) -> Option<RedisPoolConfigs> {
         let redis_configs = self.values.processing.redis.as_ref()?;
 
-        Some(create_redis_pools(redis_configs, self.cpu_concurrency()))
+        Some(create_redis_pools(
+            redis_configs,
+            self.cpu_concurrency() as u32,
+        ))
     }
 
     /// Chunk size of attachments in bytes.

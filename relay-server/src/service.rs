@@ -363,8 +363,7 @@ impl ServiceState {
 }
 
 fn create_redis_pool(
-    (connection, options): (&RedisConnection,
-    RedisConfigOptions),
+    (connection, options): (&RedisConnection, RedisConfigOptions),
 ) -> Result<RedisPool, RedisError> {
     match connection {
         RedisConnection::Cluster(servers) => {

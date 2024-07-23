@@ -1169,7 +1169,8 @@ impl EnvelopeProcessorService {
             #[cfg(feature = "processing")]
             quotas_pool: quotas.clone(),
             #[cfg(feature = "processing")]
-            rate_limiter: quotas.map(|quotas| RedisRateLimiter::new(quotas).max_limit(config.max_rate_limit())),
+            rate_limiter: quotas
+                .map(|quotas| RedisRateLimiter::new(quotas).max_limit(config.max_rate_limit())),
             addrs,
             geoip_lookup,
             #[cfg(feature = "processing")]
