@@ -800,6 +800,7 @@ impl ProjectCacheBroker {
 
         // Also, fetch the project state for sampling key and make sure it's not invalid.
         let sampling_key = envelope.sampling_key();
+        let mut requires_sampling_state = sampling_key.is_some();
         let sampling_state = if let Some(sampling_key) = sampling_key {
             let state = self
                 .get_or_create_project(sampling_key)
@@ -809,6 +810,7 @@ impl ProjectCacheBroker {
                 ProjectState::Disabled => {
                     relay_log::trace!("Sampling state is disabled ({sampling_key})");
                     // We accept events even if its root project has been disabled.
+                    requires_sampling_state = false;
                     None
                 }
                 ProjectState::Pending => {
@@ -823,7 +825,7 @@ impl ProjectCacheBroker {
         // Trigger processing once we have a project state and we either have a sampling project
         // state or we do not need one.
         if let Some(project_state) = project_state {
-            if (sampling_state.is_some() || sampling_key.is_none())
+            if (sampling_state.is_some() || !requires_sampling_state)
                 && !self.buffer_guard.is_over_high_watermark()
                 && self.global_config.is_ready()
             {
