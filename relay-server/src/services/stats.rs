@@ -101,7 +101,7 @@ impl RelayStats {
     }
 
     #[cfg(feature = "processing")]
-    async fn redis_pool(redis_pool: &RedisPool, name: &str) {
+    fn redis_pool(redis_pool: &RedisPool, name: &str) {
         let state = redis_pool.stats();
         metric!(
             gauge(RelayGauges::RedisPoolConnections) = u64::from(state.connections),
@@ -125,10 +125,10 @@ impl RelayStats {
             misc,
         }) = self.redis_pools.as_ref()
         {
-            Self::redis_pool(project_configs, "project_configs").await;
-            Self::redis_pool(cardinality, "cardinality").await;
-            Self::redis_pool(quotas, "quotas").await;
-            Self::redis_pool(misc, "misc").await;
+            Self::redis_pool(project_configs, "project_configs");
+            Self::redis_pool(cardinality, "cardinality");
+            Self::redis_pool(quotas, "quotas");
+            Self::redis_pool(misc, "misc");
         }
     }
 }
