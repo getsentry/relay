@@ -5,6 +5,8 @@
 **Features**:
 
 - "Cardinality limit" outcomes now report which limit was exceeded. ([#3825](https://github.com/getsentry/relay/pull/3825))
+- Redis pools for `project_configs`, `cardinality`, `quotas`, and `misc` usecases
+  can now be configured individually. ([#3843](https://github.com/getsentry/relay/pull/3843))
 
 **Internal**:
 
