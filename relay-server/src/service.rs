@@ -341,8 +341,8 @@ impl ServiceState {
 }
 
 fn create_redis_pool(
-    connection: &RedisConnection,
-    options: RedisConfigOptions,
+    (connection, options): (&RedisConnection,
+    RedisConfigOptions),
 ) -> Result<RedisPool, RedisError> {
     match connection {
         RedisConnection::Cluster(servers) => {
@@ -353,10 +353,10 @@ fn create_redis_pool(
 }
 
 pub fn create_redis_pools(configs: RedisPoolConfigs) -> Result<RedisPools, RedisError> {
-    let project_configs = create_redis_pool(configs.project_configs.0, configs.project_configs.1)?;
-    let cardinality = create_redis_pool(configs.cardinality.0, configs.cardinality.1)?;
-    let quotas = create_redis_pool(configs.quotas.0, configs.quotas.1)?;
-    let misc = create_redis_pool(configs.misc.0, configs.misc.1)?;
+    let project_configs = create_redis_pool(configs.project_configs)?;
+    let cardinality = create_redis_pool(configs.cardinality)?;
+    let quotas = create_redis_pool(configs.quotas)?;
+    let misc = create_redis_pool(configs.misc)?;
 
     Ok(RedisPools {
         project_configs,
