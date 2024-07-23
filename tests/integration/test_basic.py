@@ -1,3 +1,4 @@
+import datetime
 import queue
 import os
 import gzip
@@ -234,3 +235,36 @@ def test_corp_response_header(mini_sentry, relay, cross_origin_resource_policy):
     assert (
         response.headers["cross-origin-resource-policy"] == cross_origin_resource_policy
     )
+
+
+def test_two_project_configs(mini_sentry, relay):
+    relay = relay(mini_sentry)
+    project_id = 42
+    mini_sentry.add_full_project_config(project_id)
+
+    now = datetime.datetime.now(datetime.UTC)
+    start_timestamp = (now - datetime.timedelta(minutes=1)).timestamp()
+    timestamp = now.timestamp()
+
+    relay.send_transaction(
+        project_id,
+        payload={
+            "type": "transaction",
+            "transaction": "foo",
+            "start_timestamp": start_timestamp,
+            "timestamp": timestamp,
+            "contexts": {
+                "trace": {
+                    "trace_id": "1234F60C11214EB38604F4AE0781BFB2",
+                    "span_id": "ABCDFDEAD5F74052",
+                    "type": "trace",
+                }
+            },
+        },
+        trace_info={
+            "public_key": "00000000000000000000000000000000",
+            "trace_id": "1234F60C11214EB38604F4AE0781BFB2",
+        },
+    )
+    event = mini_sentry.captured_events.get(timeout=1).get_transaction_event()
+    assert event["transaction"] == "foo"

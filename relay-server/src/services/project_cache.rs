@@ -807,16 +807,18 @@ impl ProjectCacheBroker {
             match state {
                 ProjectState::Enabled(state) => Some(state),
                 ProjectState::Disabled => {
+                    relay_log::trace!("Sampling state is disabled");
                     // We accept events even if its root project has been disabled.
                     None
                 }
-                ProjectState::Pending => None,
+                ProjectState::Pending => {
+                    relay_log::trace!("Sampling state is pending");
+                    None
+                }
             }
         } else {
             None
         };
-
-        let key = QueueKey::new(own_key, sampling_key.unwrap_or(own_key));
 
         // Trigger processing once we have a project state and we either have a sampling project
         // state or we do not need one.
@@ -825,6 +827,7 @@ impl ProjectCacheBroker {
                 && !self.buffer_guard.is_over_high_watermark()
                 && self.global_config.is_ready()
             {
+                relay_log::trace!("Sending envelope to processor");
                 self.services.envelope_processor.send(ProcessEnvelope {
                     envelope: managed_envelope,
                     project_info: project_state,
@@ -835,6 +838,9 @@ impl ProjectCacheBroker {
                 return;
             }
         }
+
+        relay_log::trace!("Enqueueing envelope");
+        let key = QueueKey::new(own_key, sampling_key.unwrap_or(own_key));
         self.enqueue(key, managed_envelope);
     }
 
