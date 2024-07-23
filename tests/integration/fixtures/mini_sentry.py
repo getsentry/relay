@@ -301,7 +301,6 @@ def mini_sentry(request):  # noqa
         ), "Relay sent us non-envelope data to store"
 
         envelope = Envelope.deserialize(data)
-        print("ENVELOPE", envelope)
         sentry.captured_events.put(envelope)
         return jsonify({"event_id": uuid.uuid4().hex})
 

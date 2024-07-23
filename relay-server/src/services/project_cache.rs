@@ -807,12 +807,12 @@ impl ProjectCacheBroker {
             match state {
                 ProjectState::Enabled(state) => Some(state),
                 ProjectState::Disabled => {
-                    relay_log::trace!("Sampling state is disabled");
+                    relay_log::trace!("Sampling state is disabled ({sampling_key})");
                     // We accept events even if its root project has been disabled.
                     None
                 }
                 ProjectState::Pending => {
-                    relay_log::trace!("Sampling state is pending");
+                    relay_log::trace!("Sampling state is pending ({sampling_key})");
                     None
                 }
             }

@@ -188,7 +188,6 @@ def test_pending_projects(mini_sentry, relay):
 
     assert response.ok
     data = response.json()
-    print(data)
     assert public_key in data["pending"]
     assert public_key not in data["configs"]
 
@@ -201,7 +200,6 @@ def test_pending_projects(mini_sentry, relay):
             break
     else:
         print("Relay did still not receive a project config from minisentry")
-    print(data)
     assert public_key in data["configs"]
     assert data.get("pending") is None
 

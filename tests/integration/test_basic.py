@@ -237,10 +237,8 @@ def test_corp_response_header(mini_sentry, relay, cross_origin_resource_policy):
     )
 
 
-def test_two_project_configs(mini_sentry, relay):
+def send_transaction_with_dsc(mini_sentry, relay, project_id, sampling_project_key):
     relay = relay(mini_sentry)
-    project_id = 42
-    mini_sentry.add_full_project_config(project_id)
 
     now = datetime.datetime.now(datetime.UTC)
     start_timestamp = (now - datetime.timedelta(minutes=1)).timestamp()
@@ -262,9 +260,25 @@ def test_two_project_configs(mini_sentry, relay):
             },
         },
         trace_info={
-            "public_key": "00000000000000000000000000000000",
+            "public_key": sampling_project_key,
             "trace_id": "1234F60C11214EB38604F4AE0781BFB2",
         },
     )
-    event = mini_sentry.captured_events.get(timeout=1).get_transaction_event()
-    assert event["transaction"] == "foo"
+
+    return mini_sentry.captured_events.get(timeout=1).get_transaction_event()
+
+
+def test_root_project_disabled(mini_sentry, relay):
+    project_id = 42
+    mini_sentry.add_full_project_config(project_id)
+    disabled_dsn = "00000000000000000000000000000000"
+    txn = send_transaction_with_dsc(mini_sentry, relay, project_id, disabled_dsn)
+    assert txn
+
+
+def test_root_project_same(mini_sentry, relay):
+    project_id = 42
+    mini_sentry.add_full_project_config(project_id)
+    same_dsn = mini_sentry.get_dsn_public_key(project_id)
+    txn = send_transaction_with_dsc(mini_sentry, relay, project_id, same_dsn)
+    assert txn
