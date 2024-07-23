@@ -1,8 +1,9 @@
 //! Core functionality of metrics aggregation.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BinaryHeap};
 use std::error::Error;
 use std::hash::{Hash, Hasher};
+use std::sync::Arc;
 use std::time::Duration;
 use std::{fmt, mem};
 
@@ -306,24 +307,14 @@ impl Default for AggregatorConfig {
 /// [`BinaryHeap`]: std::collections::BinaryHeap
 #[derive(Debug)]
 struct QueuedBucket {
-    flush_at: Instant,
     value: BucketValue,
     metadata: BucketMetadata,
 }
 
 impl QueuedBucket {
     /// Creates a new `QueuedBucket` with a given flush time.
-    fn new(flush_at: Instant, value: BucketValue, metadata: BucketMetadata) -> Self {
-        Self {
-            flush_at,
-            value,
-            metadata,
-        }
-    }
-
-    /// Returns `true` if the flush time has elapsed.
-    fn elapsed(&self, now: Instant) -> bool {
-        now > self.flush_at
+    fn new(value: BucketValue, metadata: BucketMetadata) -> Self {
+        Self { value, metadata }
     }
 
     /// Merges a bucket into the current queued bucket.
@@ -347,22 +338,39 @@ impl QueuedBucket {
     }
 }
 
-impl PartialEq for QueuedBucket {
+#[derive(Debug)]
+struct QueueKey {
+    flush_at: Instant,
+    key: Arc<BucketKey>,
+}
+
+impl QueueKey {
+    fn new(flush_at: Instant, key: Arc<BucketKey>) -> Self {
+        Self { flush_at, key }
+    }
+
+    /// Returns `true` if the flush time has elapsed.
+    fn elapsed(&self, now: Instant) -> bool {
+        now > self.flush_at
+    }
+}
+
+impl PartialEq for QueueKey {
     fn eq(&self, other: &Self) -> bool {
         self.flush_at.eq(&other.flush_at)
     }
 }
 
-impl Eq for QueuedBucket {}
+impl Eq for QueueKey {}
 
-impl PartialOrd for QueuedBucket {
+impl PartialOrd for QueueKey {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         // Comparing order is reversed to convert the max heap into a min heap
         Some(other.flush_at.cmp(&self.flush_at))
     }
 }
 
-impl Ord for QueuedBucket {
+impl Ord for QueueKey {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         // Comparing order is reversed to convert the max heap into a min heap
         other.flush_at.cmp(&self.flush_at)
@@ -531,7 +539,8 @@ fn get_flush_time(
 pub struct Aggregator {
     name: String,
     config: AggregatorConfig,
-    buckets: HashMap<BucketKey, QueuedBucket>,
+    buckets: HashMap<Arc<BucketKey>, QueuedBucket>,
+    queue: BinaryHeap<QueueKey>,
     cost_tracker: CostTracker,
     reference_time: Instant,
 }
@@ -548,6 +557,7 @@ impl Aggregator {
             name,
             config,
             buckets: HashMap::new(),
+            queue: BinaryHeap::new(),
             cost_tracker: CostTracker::default(),
             reference_time: Instant::now(),
         }
@@ -579,13 +589,17 @@ impl Aggregator {
 
         self.buckets
             .into_iter()
-            .map(|(key, entry)| Bucket {
-                timestamp: key.timestamp,
-                width: bucket_interval,
-                name: key.metric_name,
-                value: entry.value,
-                tags: key.tags,
-                metadata: entry.metadata,
+            .map(|(key, entry)| {
+                // Possible optimization with `Arc::get_mut` here.
+                let key = key.as_ref().clone();
+                Bucket {
+                    timestamp: key.timestamp,
+                    width: bucket_interval,
+                    name: key.metric_name,
+                    value: entry.value,
+                    tags: key.tags,
+                    metadata: entry.metadata,
+                }
             })
             .collect()
     }
@@ -624,10 +638,19 @@ impl Aggregator {
                 let bucket_interval = self.config.bucket_interval;
                 let cost_tracker = &mut self.cost_tracker;
 
-                for (key, entry) in self
-                    .buckets
-                    .extract_if(|_, entry| force || entry.elapsed(now))
-                {
+                while let Some(next) = self.queue.peek() {
+                    if !force && next.elapsed(now) {
+                        break;
+                    }
+
+                    let Some(next) = self.queue.pop() else {
+                        continue;
+                    };
+
+                    let Some((key, entry)) = self.buckets.remove_entry(&next.key) else {
+                        continue;
+                    };
+
                     cost_tracker.subtract_cost(key.project_key, key.cost());
                     cost_tracker.subtract_cost(key.project_key, entry.value.cost());
 
@@ -708,7 +731,7 @@ impl Aggregator {
             tags: bucket.tags,
             extracted_from_indexed: bucket.metadata.extracted_from_indexed,
         };
-        let key = validate_bucket_key(key, &self.config)?;
+        let key = Arc::new(validate_bucket_key(key, &self.config)?);
 
         // XXX: This is not a great implementation of cost enforcement.
         //
@@ -744,6 +767,7 @@ impl Aggregator {
 
         let added_cost;
         match self.buckets.entry(key) {
+            // TODO investigate entry ref
             Entry::Occupied(mut entry) => {
                 relay_statsd::metric!(
                     counter(MetricCounters::MergeHit) += 1,
@@ -768,7 +792,9 @@ impl Aggregator {
                 let flush_at = get_flush_time(&self.config, self.reference_time, entry.key());
                 let value = bucket.value;
                 added_cost = entry.key().cost() + value.cost();
-                entry.insert(QueuedBucket::new(flush_at, value, bucket.metadata));
+                self.queue
+                    .push(QueueKey::new(flush_at, Arc::clone(entry.key())));
+                entry.insert(QueuedBucket::new(value, bucket.metadata));
             }
         }
 
