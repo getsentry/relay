@@ -14,6 +14,8 @@ use relay_redis::RedisPool;
 use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, Interface, Sender, Service};
 use tokio::sync::mpsc;
+#[cfg(feature = "processing")]
+use tokio::sync::Semaphore;
 use tokio::time::Instant;
 
 use crate::services::global_config::{self, GlobalConfigManager, Subscribe};
@@ -424,6 +426,8 @@ struct ProjectSource {
     upstream_source: Addr<UpstreamProjectSource>,
     #[cfg(feature = "processing")]
     redis_source: Option<RedisProjectSource>,
+    #[cfg(feature = "processing")]
+    redis_semaphore: Arc<Semaphore>,
 }
 
 impl ProjectSource {
@@ -438,6 +442,8 @@ impl ProjectSource {
             UpstreamProjectSourceService::new(config.clone(), upstream_relay).start();
 
         #[cfg(feature = "processing")]
+        let redis_maxconns = config.redis().map(|(_, config)| config.max_connections);
+        #[cfg(feature = "processing")]
         let redis_source = _redis.map(|pool| RedisProjectSource::new(config.clone(), pool));
 
         Self {
@@ -446,6 +452,10 @@ impl ProjectSource {
             upstream_source,
             #[cfg(feature = "processing")]
             redis_source,
+            #[cfg(feature = "processing")]
+            redis_semaphore: Arc::new(Semaphore::new(
+                redis_maxconns.unwrap_or(10).try_into().unwrap(),
+            )),
         }
     }
 
@@ -469,10 +479,12 @@ impl ProjectSource {
 
         #[cfg(feature = "processing")]
         if let Some(redis_source) = self.redis_source {
+            let redis_permit = self.redis_semaphore.acquire().await.map_err(|_| ())?;
             let state_fetch_result =
                 tokio::task::spawn_blocking(move || redis_source.get_config(project_key))
                     .await
                     .map_err(|_| ())?;
+            drop(redis_permit);
 
             let state_opt = match state_fetch_result {
                 Ok(state) => state.map(ProjectState::sanitize).map(Arc::new),

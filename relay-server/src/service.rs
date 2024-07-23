@@ -89,8 +89,9 @@ pub fn create_runtime(name: &str, threads: usize) -> Runtime {
         // expands this pool very very aggressively and basically never shrinks it
         // which leads to a massive resource waste.
         .max_blocking_threads(150)
-        // As with the maximum amount of threads used by the runtime, we want
-        // to encourage the runtime to terminate blocking threads again.
+        // We also lower down the default (10s) keep alive timeout for blocking
+        // threads to encourage the runtime to not keep too many idle blocking threads
+        // around.
         .thread_keep_alive(Duration::from_secs(1))
         .enable_all()
         .build()
