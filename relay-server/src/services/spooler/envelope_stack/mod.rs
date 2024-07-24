@@ -3,9 +3,11 @@ use crate::envelope::Envelope;
 mod sqlite;
 
 pub trait EnvelopeStack {
-    async fn push(&mut self, envelope: Envelope);
+    type Error;
 
-    async fn peek(&self) -> Option<&Envelope>;
+    async fn push(&mut self, envelope: Box<Envelope>) -> Result<(), Self::Error>;
 
-    async fn pop(&mut self) -> Option<Envelope>;
+    async fn peek(&mut self) -> Result<&Box<Envelope>, Self::Error>;
+
+    async fn pop(&mut self) -> Result<Box<Envelope>, Self::Error>;
 }
