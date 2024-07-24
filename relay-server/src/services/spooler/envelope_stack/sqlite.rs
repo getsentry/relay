@@ -48,6 +48,7 @@ pub struct SQLiteEnvelopeStack {
 }
 
 impl SQLiteEnvelopeStack {
+    #[allow(dead_code)]
     pub fn new(
         db: Pool<Sqlite>,
         spool_threshold: usize,
@@ -269,6 +270,7 @@ mod tests {
         RequestMeta::new(dsn)
     }
 
+    #[allow(clippy::vec_box)]
     fn mock_envelopes(count: usize) -> Vec<Box<Envelope>> {
         let instant = Instant::now();
         (0..count)
