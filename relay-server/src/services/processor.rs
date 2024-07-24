@@ -58,7 +58,7 @@ use {
     relay_dynamic_config::{CardinalityLimiterMode, MetricExtractionGroups},
     relay_metrics::RedisMetricMetaStore,
     relay_quotas::{Quota, RateLimitingError, RateLimits, RedisRateLimiter},
-    relay_redis::RedisPool,
+    relay_redis::{RedisPool, RedisPools},
     std::iter::Chain,
     std::slice::Iter,
     symbolic_unreal::{Unreal4Error, Unreal4ErrorKind},
@@ -1118,7 +1118,7 @@ struct InnerProcessor {
     global_config: GlobalConfigHandle,
     cogs: Cogs,
     #[cfg(feature = "processing")]
-    redis_pool: Option<RedisPool>,
+    quotas_pool: Option<RedisPool>,
     addrs: Addrs,
     #[cfg(feature = "processing")]
     rate_limiter: Option<RedisRateLimiter>,
@@ -1137,7 +1137,7 @@ impl EnvelopeProcessorService {
         config: Arc<Config>,
         global_config: GlobalConfigHandle,
         cogs: Cogs,
-        #[cfg(feature = "processing")] redis: Option<RedisPool>,
+        #[cfg(feature = "processing")] redis: Option<RedisPools>,
         addrs: Addrs,
         metric_outcomes: MetricOutcomes,
     ) -> Self {
@@ -1151,32 +1151,41 @@ impl EnvelopeProcessorService {
             }
         });
 
+        #[cfg(feature = "processing")]
+        let (cardinality, quotas, misc) = match redis {
+            Some(RedisPools {
+                cardinality,
+                quotas,
+                misc,
+                ..
+            }) => (Some(cardinality), Some(quotas), Some(misc)),
+            None => (None, None, None),
+        };
+
         let inner = InnerProcessor {
             workers: WorkerGroup::new(pool),
             global_config,
             cogs,
             #[cfg(feature = "processing")]
-            redis_pool: redis.clone(),
+            quotas_pool: quotas.clone(),
             #[cfg(feature = "processing")]
-            rate_limiter: redis
-                .clone()
-                .map(|pool| RedisRateLimiter::new(pool).max_limit(config.max_rate_limit())),
+            rate_limiter: quotas
+                .map(|quotas| RedisRateLimiter::new(quotas).max_limit(config.max_rate_limit())),
             addrs,
             geoip_lookup,
             #[cfg(feature = "processing")]
-            metric_meta_store: redis.clone().map(|pool| {
-                RedisMetricMetaStore::new(pool, config.metrics_meta_locations_expiry())
+            metric_meta_store: misc.map(|misc| {
+                RedisMetricMetaStore::new(misc, config.metrics_meta_locations_expiry())
             }),
             #[cfg(feature = "processing")]
-            cardinality_limiter: redis
-                .clone()
-                .map(|pool| {
+            cardinality_limiter: cardinality
+                .map(|cardinality| {
                     RedisSetLimiter::new(
                         RedisSetLimiterOptions {
                             cache_vacuum_interval: config
                                 .cardinality_limiter_cache_vacuum_interval(),
                         },
-                        pool,
+                        cardinality,
                     )
                 })
                 .map(CardinalityLimiter::new),
@@ -1250,9 +1259,9 @@ impl EnvelopeProcessorService {
         #[allow(unused_mut)]
         let mut reservoir = ReservoirEvaluator::new(reservoir_counters);
         #[cfg(feature = "processing")]
-        if let Some(redis_pool) = self.inner.redis_pool.as_ref() {
+        if let Some(quotas_pool) = self.inner.quotas_pool.as_ref() {
             let org_id = managed_envelope.scoping().organization_id;
-            reservoir.set_redis(org_id, redis_pool);
+            reservoir.set_redis(org_id, quotas_pool);
         }
 
         let extracted_metrics = ProcessingExtractedMetrics::new(

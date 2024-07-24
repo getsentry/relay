@@ -10,8 +10,8 @@ use axum::extract::FromRequestParts;
 use axum::http::request::Parts;
 use rayon::ThreadPool;
 use relay_cogs::Cogs;
-use relay_config::{Config, RedisConnection};
-use relay_redis::RedisPool;
+use relay_config::{Config, RedisConnection, RedisPoolConfigs};
+use relay_redis::{RedisConfigOptions, RedisError, RedisPool, RedisPools};
 use relay_system::{channel, Addr, Service};
 use tokio::runtime::Runtime;
 
@@ -153,15 +153,10 @@ impl ServiceState {
         let upstream_relay = UpstreamRelayService::new(config.clone()).start();
         let test_store = TestStoreService::new(config.clone()).start();
 
-        let redis_pool = config
+        let redis_pools = config
             .redis()
             .filter(|_| config.processing_enabled())
-            .map(|redis| match redis {
-                (RedisConnection::Single(server), options) => RedisPool::single(server, options),
-                (RedisConnection::Cluster(servers), options) => {
-                    RedisPool::cluster(servers.iter().map(|s| s.as_str()), options)
-                }
-            })
+            .map(create_redis_pools)
             .transpose()
             .context(ServiceError::Redis)?;
 
@@ -232,7 +227,7 @@ impl ServiceState {
             global_config_handle,
             cogs,
             #[cfg(feature = "processing")]
-            redis_pool.clone(),
+            redis_pools.clone(),
             processor::Addrs {
                 project_cache: project_cache.clone(),
                 outcome_aggregator: outcome_aggregator.clone(),
@@ -260,7 +255,9 @@ impl ServiceState {
             MemoryChecker::new(memory_stat.clone(), config.clone()),
             project_cache_services,
             metric_outcomes,
-            redis_pool.clone(),
+            redis_pools
+                .as_ref()
+                .map(|pools| pools.project_configs.clone()),
         )
         .spawn_handler(project_cache_rx);
 
@@ -277,7 +274,7 @@ impl ServiceState {
             config.clone(),
             upstream_relay.clone(),
             #[cfg(feature = "processing")]
-            redis_pool,
+            redis_pools.clone(),
         )
         .start();
 
@@ -363,6 +360,31 @@ impl ServiceState {
     pub fn outcome_aggregator(&self) -> &Addr<TrackOutcome> {
         &self.inner.registry.outcome_aggregator
     }
+}
+
+fn create_redis_pool(
+    (connection, options): (&RedisConnection, RedisConfigOptions),
+) -> Result<RedisPool, RedisError> {
+    match connection {
+        RedisConnection::Cluster(servers) => {
+            RedisPool::cluster(servers.iter().map(|s| s.as_str()), options)
+        }
+        RedisConnection::Single(server) => RedisPool::single(server, options),
+    }
+}
+
+pub fn create_redis_pools(configs: RedisPoolConfigs) -> Result<RedisPools, RedisError> {
+    let project_configs = create_redis_pool(configs.project_configs)?;
+    let cardinality = create_redis_pool(configs.cardinality)?;
+    let quotas = create_redis_pool(configs.quotas)?;
+    let misc = create_redis_pool(configs.misc)?;
+
+    Ok(RedisPools {
+        project_configs,
+        cardinality,
+        quotas,
+        misc,
+    })
 }
 
 #[axum::async_trait]

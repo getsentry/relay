@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use relay_config::{Config, RelayMode};
 #[cfg(feature = "processing")]
-use relay_redis::RedisPool;
+use relay_redis::{RedisPool, RedisPools};
 use relay_statsd::metric;
 use relay_system::{Addr, Service};
 use tokio::time::interval;
@@ -17,20 +17,20 @@ pub struct RelayStats {
     config: Arc<Config>,
     upstream_relay: Addr<UpstreamRelay>,
     #[cfg(feature = "processing")]
-    redis_pool: Option<RedisPool>,
+    redis_pools: Option<RedisPools>,
 }
 
 impl RelayStats {
     pub fn new(
         config: Arc<Config>,
         upstream_relay: Addr<UpstreamRelay>,
-        #[cfg(feature = "processing")] redis_pool: Option<RedisPool>,
+        #[cfg(feature = "processing")] redis_pools: Option<RedisPools>,
     ) -> Self {
         Self {
             config,
             upstream_relay,
             #[cfg(feature = "processing")]
-            redis_pool,
+            redis_pools,
         }
     }
 
@@ -100,18 +100,36 @@ impl RelayStats {
         }
     }
 
+    #[cfg(feature = "processing")]
+    fn redis_pool(redis_pool: &RedisPool, name: &str) {
+        let state = redis_pool.stats();
+        metric!(
+            gauge(RelayGauges::RedisPoolConnections) = u64::from(state.connections),
+            pool = name
+        );
+        metric!(
+            gauge(RelayGauges::RedisPoolIdleConnections) = u64::from(state.idle_connections),
+            pool = name
+        );
+    }
+
     #[cfg(not(feature = "processing"))]
-    async fn redis_pool(&self) {}
+    async fn redis_pools(&self) {}
 
     #[cfg(feature = "processing")]
-    async fn redis_pool(&self) {
-        let Some(ref redis_pool) = self.redis_pool else {
-            return;
-        };
-
-        let state = redis_pool.stats();
-        metric!(gauge(RelayGauges::RedisPoolConnections) = u64::from(state.connections));
-        metric!(gauge(RelayGauges::RedisPoolIdleConnections) = u64::from(state.idle_connections));
+    async fn redis_pools(&self) {
+        if let Some(RedisPools {
+            project_configs,
+            cardinality,
+            quotas,
+            misc,
+        }) = self.redis_pools.as_ref()
+        {
+            Self::redis_pool(project_configs, "project_configs");
+            Self::redis_pool(cardinality, "cardinality");
+            Self::redis_pool(quotas, "quotas");
+            Self::redis_pool(misc, "misc");
+        }
     }
 }
 
@@ -128,7 +146,7 @@ impl Service for RelayStats {
                 let _ = tokio::join!(
                     self.upstream_status(),
                     self.tokio_metrics(),
-                    self.redis_pool(),
+                    self.redis_pools(),
                 );
                 ticker.tick().await;
             }
