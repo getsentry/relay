@@ -291,7 +291,9 @@ fn received_at(envelope: &Envelope) -> i64 {
 mod tests {
     use crate::envelope::{Envelope, Item, ItemType};
     use crate::extractors::RequestMeta;
-    use crate::services::spooler::envelope_stack::sqlite::SQLiteEnvelopeStack;
+    use crate::services::spooler::envelope_stack::sqlite::{
+        SQLiteEnvelopeStack, SQLiteEnvelopeStackError,
+    };
     use crate::services::spooler::envelope_stack::EnvelopeStack;
     use relay_base_schema::project::ProjectKey;
     use relay_event_schema::protocol::EventId;
@@ -387,7 +389,10 @@ mod tests {
         // We push 1 more envelope which results in spooling, which fails because of a database
         // problem.
         let envelope = mock_envelope(Instant::now());
-        assert!(stack.push(envelope).await.is_err());
+        assert!(matches!(
+            stack.push(envelope).await,
+            Err(SQLiteEnvelopeStackError::DatabaseError(_))
+        ));
 
         // Now one element should have been popped because the stack tried to spool it and the
         // previous, insertion failed, so we have only 2 elements in the stack, we can now add a
@@ -407,8 +412,28 @@ mod tests {
             ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap(),
         );
 
+        // We pop with an invalid db.
+        assert!(matches!(
+            stack.pop().await,
+            Err(SQLiteEnvelopeStackError::DatabaseError(_))
+        ));
+    }
+
+    #[tokio::test]
+    async fn test_pop_when_stack_is_empty() {
+        let db = setup_db(true).await;
+        let mut stack = SQLiteEnvelopeStack::new(
+            db,
+            3,
+            ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
+            ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap(),
+        );
+
         // We pop with no elements.
-        assert!(stack.pop().await.is_err());
+        assert!(matches!(
+            stack.pop().await,
+            Err(SQLiteEnvelopeStackError::Empty)
+        ));
     }
 
     #[tokio::test]
