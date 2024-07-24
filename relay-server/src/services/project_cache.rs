@@ -439,9 +439,7 @@ impl ProjectSource {
             UpstreamProjectSourceService::new(config.clone(), upstream_relay).start();
 
         #[cfg(feature = "processing")]
-        let redis_maxconns = config
-            .redis()
-            .map(|configs| configs.project_configs.1.max_connections);
+        let redis_maxconns = config.redis().map(|(_, config)| config.max_connections);
         #[cfg(feature = "processing")]
         let redis_source = _redis.map(|pool| RedisProjectSource::new(config.clone(), pool));
 

@@ -16,6 +16,7 @@ use relay_kafka::{
 };
 use relay_metrics::aggregator::{AggregatorConfig, FlushBatching};
 use relay_metrics::MetricNamespace;
+use relay_redis::RedisConfigOptions;
 use serde::de::{DeserializeOwned, Unexpected, Visitor};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use uuid::Uuid;
@@ -23,7 +24,7 @@ use uuid::Uuid;
 use crate::aggregator::{AggregatorServiceConfig, ScopedAggregatorConfig};
 use crate::byte_size::ByteSize;
 use crate::upstream::UpstreamDescriptor;
-use crate::{create_redis_pools, RedisConfig, RedisConfigs, RedisPoolConfigs};
+use crate::{RedisConfig, RedisConnection};
 
 const DEFAULT_NETWORK_OUTAGE_GRACE_PERIOD: u64 = 10;
 
@@ -1023,7 +1024,7 @@ pub struct Processing {
     pub kafka_validate_topics: bool,
     /// Redis hosts to connect to for storing state for rate limits.
     #[serde(default)]
-    pub redis: Option<RedisConfigs>,
+    pub redis: Option<RedisConfig>,
     /// Maximum chunk size of attachments for Kafka.
     #[serde(default = "default_chunk_size")]
     pub attachment_chunk_size: ByteSize,
@@ -1584,7 +1585,7 @@ impl Config {
         }
 
         if let Some(redis) = overrides.redis_url {
-            processing.redis = Some(RedisConfigs::Unified(RedisConfig::single(redis)))
+            processing.redis = Some(RedisConfig::single(redis))
         }
 
         if let Some(kafka_url) = overrides.kafka_url {
@@ -2278,15 +2279,26 @@ impl Config {
         &self.values.processing.topics.unused
     }
 
-    /// Redis servers to connect to for project configs, cardinality limits,
-    /// rate limiting, and metrics metadata.
-    pub fn redis(&self) -> Option<RedisPoolConfigs> {
-        let redis_configs = self.values.processing.redis.as_ref()?;
+    /// Redis servers to connect to, for rate limiting.
+    pub fn redis(&self) -> Option<(&RedisConnection, RedisConfigOptions)> {
+        let cpu_concurrency = self.cpu_concurrency();
 
-        Some(create_redis_pools(
-            redis_configs,
-            self.cpu_concurrency() as u32,
-        ))
+        let redis = self.values.processing.redis.as_ref()?;
+
+        let options = RedisConfigOptions {
+            max_connections: redis
+                .options
+                .max_connections
+                .unwrap_or(cpu_concurrency as u32 * 2)
+                .min(crate::redis::DEFAULT_MIN_MAX_CONNECTIONS),
+            connection_timeout: redis.options.connection_timeout,
+            max_lifetime: redis.options.max_lifetime,
+            idle_timeout: redis.options.idle_timeout,
+            read_timeout: redis.options.read_timeout,
+            write_timeout: redis.options.write_timeout,
+        };
+
+        Some((&redis.connection, options))
     }
 
     /// Chunk size of attachments in bytes.

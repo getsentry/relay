@@ -1,4 +1,3 @@
-use relay_redis::RedisConfigOptions;
 use serde::{Deserialize, Serialize};
 
 /// For small setups, `2 x limits.max_thread_count` does not leave enough headroom.
@@ -87,8 +86,7 @@ pub enum RedisConnection {
 }
 
 /// Configuration for connecting a redis client.
-#[derive(Clone, Debug, Deserialize, Serialize, Eq, PartialEq)]
-#[serde(from = "RedisConfigFromFile")]
+#[derive(Clone, Debug, Serialize, Eq, PartialEq)]
 pub struct RedisConfig {
     /// Redis connection info.
     #[serde(flatten)]
@@ -130,92 +128,12 @@ impl From<RedisConfigFromFile> for RedisConfig {
     }
 }
 
-/// Configurations for the various Redis pools used by Relay.
-#[derive(Clone, Debug, Deserialize, Serialize, Eq, PartialEq)]
-#[serde(untagged)]
-pub enum RedisConfigs {
-    /// All pools should be configured the same way.
-    Unified(RedisConfig),
-    /// Individual configurations for each pool.
-    Individual {
-        /// Configuration for the `project_configs` pool.
-        project_configs: Box<RedisConfig>,
-        /// Configuration for the `cardinality` pool.
-        cardinality: Box<RedisConfig>,
-        /// Configuration for the `quotas` pool.
-        quotas: Box<RedisConfig>,
-        /// Configuration for the `misc` pool.
-        misc: Box<RedisConfig>,
-    },
-}
-
-/// Helper struct bundling connections and options for the various Redis pools.
-#[derive(Clone, Debug)]
-pub struct RedisPoolConfigs<'a> {
-    /// Configuration for the `project_configs` pool.
-    pub project_configs: (&'a RedisConnection, RedisConfigOptions),
-    /// Configuration for the `cardinality` pool.
-    pub cardinality: (&'a RedisConnection, RedisConfigOptions),
-    /// Configuration for the `quotas` pool.
-    pub quotas: (&'a RedisConnection, RedisConfigOptions),
-    /// Configuration for the `misc` pool.
-    pub misc: (&'a RedisConnection, RedisConfigOptions),
-}
-
-pub(super) fn create_redis_pool(
-    config: &RedisConfig,
-    default_connections: u32,
-) -> (&RedisConnection, RedisConfigOptions) {
-    let options = RedisConfigOptions {
-        max_connections: config
-            .options
-            .max_connections
-            .unwrap_or(default_connections),
-        connection_timeout: config.options.connection_timeout,
-        max_lifetime: config.options.max_lifetime,
-        idle_timeout: config.options.idle_timeout,
-        read_timeout: config.options.read_timeout,
-        write_timeout: config.options.write_timeout,
-    };
-
-    (&config.connection, options)
-}
-
-pub(super) fn create_redis_pools(configs: &RedisConfigs, cpu_concurrency: u32) -> RedisPoolConfigs {
-    // Default `max_connections` for the `project_configs` pool.
-    // In a unified config, this is used for all pools.
-    let project_configs_default_connections = std::cmp::max(
-        cpu_concurrency * 2,
-        crate::redis::DEFAULT_MIN_MAX_CONNECTIONS,
-    );
-    match configs {
-        RedisConfigs::Unified(cfg) => {
-            let pool = create_redis_pool(cfg, project_configs_default_connections);
-            RedisPoolConfigs {
-                project_configs: pool.clone(),
-                cardinality: pool.clone(),
-                quotas: pool.clone(),
-                misc: pool,
-            }
-        }
-        RedisConfigs::Individual {
-            project_configs,
-            cardinality,
-            quotas,
-            misc,
-        } => {
-            let project_configs =
-                create_redis_pool(project_configs, project_configs_default_connections);
-            let cardinality = create_redis_pool(cardinality, cpu_concurrency);
-            let quotas = create_redis_pool(quotas, cpu_concurrency);
-            let misc = create_redis_pool(misc, cpu_concurrency);
-            RedisPoolConfigs {
-                project_configs,
-                cardinality,
-                quotas,
-                misc,
-            }
-        }
+impl<'de> Deserialize<'de> for RedisConfig {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        RedisConfigFromFile::deserialize(deserializer).map(Into::into)
     }
 }
 
@@ -250,90 +168,6 @@ connection_timeout: 5
     }
 
     #[test]
-    fn test_redis_single_opts_unified() {
-        let yaml = r#"
-server: "redis://127.0.0.1:6379"
-max_connections: 42
-connection_timeout: 5
-"#;
-
-        let config: RedisConfigs = serde_yaml::from_str(yaml)
-            .expect("Parsed processing redis config: single with options");
-
-        assert_eq!(
-            config,
-            RedisConfigs::Unified(RedisConfig {
-                connection: RedisConnection::Single("redis://127.0.0.1:6379".to_owned()),
-                options: PartialRedisConfigOptions {
-                    max_connections: Some(42),
-                    connection_timeout: 5,
-                    ..Default::default()
-                }
-            })
-        );
-    }
-
-    #[test]
-    fn test_redis_individual() {
-        let yaml = r#"
-project_configs:
-    server: "redis://127.0.0.1:6379"
-    max_connections: 42
-    connection_timeout: 5
-cardinality:
-    server: "redis://127.0.0.1:6379"
-quotas: 
-    cluster_nodes:
-        - "redis://127.0.0.1:6379"
-        - "redis://127.0.0.2:6379"
-    max_connections: 17
-    connection_timeout: 5
-misc:
-    cluster_nodes:
-        - "redis://127.0.0.1:6379"
-        - "redis://127.0.0.2:6379"
-"#;
-
-        let configs: RedisConfigs = serde_yaml::from_str(yaml)
-            .expect("Parsed processing redis configs: single with options");
-
-        let expected = RedisConfigs::Individual {
-            project_configs: Box::new(RedisConfig {
-                connection: RedisConnection::Single("redis://127.0.0.1:6379".to_owned()),
-                options: PartialRedisConfigOptions {
-                    max_connections: Some(42),
-                    connection_timeout: 5,
-                    ..Default::default()
-                },
-            }),
-            cardinality: Box::new(RedisConfig {
-                connection: RedisConnection::Single("redis://127.0.0.1:6379".to_owned()),
-                options: Default::default(),
-            }),
-            quotas: Box::new(RedisConfig {
-                connection: RedisConnection::Cluster(vec![
-                    "redis://127.0.0.1:6379".to_owned(),
-                    "redis://127.0.0.2:6379".to_owned(),
-                ]),
-                options: PartialRedisConfigOptions {
-                    max_connections: Some(17),
-                    connection_timeout: 5,
-                    ..Default::default()
-                },
-            }),
-            misc: Box::new(RedisConfig {
-                connection: RedisConnection::Cluster(vec![
-                    "redis://127.0.0.1:6379".to_owned(),
-                    "redis://127.0.0.2:6379".to_owned(),
-                ]),
-                options: Default::default(),
-            }),
-        };
-
-        assert_eq!(configs, expected);
-    }
-
-    #[test]
     fn test_redis_single_serialize() {
         let config = RedisConfig {
             connection: RedisConnection::Single("redis://127.0.0.1:6379".to_owned()),
@@ -344,28 +178,6 @@ misc:
         };
 
         assert_json_snapshot!(config, @r###"
-        {
-          "server": "redis://127.0.0.1:6379",
-          "connection_timeout": 5,
-          "max_lifetime": 300,
-          "idle_timeout": 60,
-          "read_timeout": 3,
-          "write_timeout": 3
-        }
-        "###);
-    }
-
-    #[test]
-    fn test_redis_single_serialize_unified() {
-        let configs = RedisConfigs::Unified(RedisConfig {
-            connection: RedisConnection::Single("redis://127.0.0.1:6379".to_owned()),
-            options: PartialRedisConfigOptions {
-                connection_timeout: 5,
-                ..Default::default()
-            },
-        });
-
-        assert_json_snapshot!(configs, @r###"
         {
           "server": "redis://127.0.0.1:6379",
           "connection_timeout": 5,
@@ -443,33 +255,6 @@ read_timeout: 10
     }
 
     #[test]
-    fn test_redis_cluster_nodes_opts_unified() {
-        let yaml = r#"
-cluster_nodes:
-    - "redis://127.0.0.1:6379"
-    - "redis://127.0.0.2:6379"
-read_timeout: 10
-"#;
-
-        let config: RedisConfigs = serde_yaml::from_str(yaml)
-            .expect("Parsed processing redis config: single with options");
-
-        assert_eq!(
-            config,
-            RedisConfigs::Unified(RedisConfig {
-                connection: RedisConnection::Cluster(vec![
-                    "redis://127.0.0.1:6379".to_owned(),
-                    "redis://127.0.0.2:6379".to_owned()
-                ]),
-                options: PartialRedisConfigOptions {
-                    read_timeout: 10,
-                    ..Default::default()
-                },
-            })
-        );
-    }
-
-    #[test]
     fn test_redis_cluster_serialize() {
         let config = RedisConfig {
             connection: RedisConnection::Cluster(vec![
@@ -494,115 +279,6 @@ read_timeout: 10
           "read_timeout": 33,
           "write_timeout": 3
         }
-        "###);
-    }
-
-    #[test]
-    fn test_redis_cluster_serialize_unified() {
-        let configs = RedisConfigs::Unified(RedisConfig {
-            connection: RedisConnection::Cluster(vec![
-                "redis://127.0.0.1:6379".to_owned(),
-                "redis://127.0.0.2:6379".to_owned(),
-            ]),
-            options: PartialRedisConfigOptions {
-                read_timeout: 33,
-                ..Default::default()
-            },
-        });
-
-        assert_json_snapshot!(configs, @r###"
-        {
-          "cluster_nodes": [
-            "redis://127.0.0.1:6379",
-            "redis://127.0.0.2:6379"
-          ],
-          "connection_timeout": 5,
-          "max_lifetime": 300,
-          "idle_timeout": 60,
-          "read_timeout": 33,
-          "write_timeout": 3
-        }
-        "###);
-    }
-
-    #[test]
-    fn test_redis_serialize_individual() {
-        let configs = RedisConfigs::Individual {
-            project_configs: Box::new(RedisConfig {
-                connection: RedisConnection::Single("redis://127.0.0.1:6379".to_owned()),
-                options: PartialRedisConfigOptions {
-                    max_connections: Some(42),
-                    connection_timeout: 5,
-                    ..Default::default()
-                },
-            }),
-            cardinality: Box::new(RedisConfig {
-                connection: RedisConnection::Single("redis://127.0.0.1:6379".to_owned()),
-                options: Default::default(),
-            }),
-            quotas: Box::new(RedisConfig {
-                connection: RedisConnection::Cluster(vec![
-                    "redis://127.0.0.1:6379".to_owned(),
-                    "redis://127.0.0.2:6379".to_owned(),
-                ]),
-                options: PartialRedisConfigOptions {
-                    max_connections: Some(17),
-                    connection_timeout: 5,
-                    ..Default::default()
-                },
-            }),
-            misc: Box::new(RedisConfig {
-                connection: RedisConnection::Cluster(vec![
-                    "redis://127.0.0.1:6379".to_owned(),
-                    "redis://127.0.0.2:6379".to_owned(),
-                ]),
-                options: Default::default(),
-            }),
-        };
-
-        assert_json_snapshot!(configs, @r###"
-       {
-         "project_configs": {
-           "server": "redis://127.0.0.1:6379",
-           "max_connections": 42,
-           "connection_timeout": 5,
-           "max_lifetime": 300,
-           "idle_timeout": 60,
-           "read_timeout": 3,
-           "write_timeout": 3
-         },
-         "cardinality": {
-           "server": "redis://127.0.0.1:6379",
-           "connection_timeout": 5,
-           "max_lifetime": 300,
-           "idle_timeout": 60,
-           "read_timeout": 3,
-           "write_timeout": 3
-         },
-         "quotas": {
-           "cluster_nodes": [
-             "redis://127.0.0.1:6379",
-             "redis://127.0.0.2:6379"
-           ],
-           "max_connections": 17,
-           "connection_timeout": 5,
-           "max_lifetime": 300,
-           "idle_timeout": 60,
-           "read_timeout": 3,
-           "write_timeout": 3
-         },
-         "misc": {
-           "cluster_nodes": [
-             "redis://127.0.0.1:6379",
-             "redis://127.0.0.2:6379"
-           ],
-           "connection_timeout": 5,
-           "max_lifetime": 300,
-           "idle_timeout": 60,
-           "read_timeout": 3,
-           "write_timeout": 3
-         }
-       }
         "###);
     }
 }
