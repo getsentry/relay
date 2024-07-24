@@ -128,6 +128,10 @@ impl SQLiteEnvelopeStack {
                 "failed to spool envelopes to disk",
             );
 
+            // When early return here, we are acknowledging that the elements that we popped from
+            // the buffer are lost. We are doing this on purposes, since if we were to have a
+            // database corruption during runtime, and we were to put the values back into the buffer
+            // we will end up with an infinite cycle.
             return Err(SQLiteEnvelopeStackError::DatabaseError(err));
         }
 
