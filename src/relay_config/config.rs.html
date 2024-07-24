@@ -2498,6 +2498,18 @@
 <a href="#2498" id="2498">2498</a>
 <a href="#2499" id="2499">2499</a>
 <a href="#2500" id="2500">2500</a>
+<a href="#2501" id="2501">2501</a>
+<a href="#2502" id="2502">2502</a>
+<a href="#2503" id="2503">2503</a>
+<a href="#2504" id="2504">2504</a>
+<a href="#2505" id="2505">2505</a>
+<a href="#2506" id="2506">2506</a>
+<a href="#2507" id="2507">2507</a>
+<a href="#2508" id="2508">2508</a>
+<a href="#2509" id="2509">2509</a>
+<a href="#2510" id="2510">2510</a>
+<a href="#2511" id="2511">2511</a>
+<a href="#2512" id="2512">2512</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::io::Write;
@@ -2516,6 +2528,7 @@
 };
 <span class="kw">use </span>relay_metrics::aggregator::{AggregatorConfig, FlushBatching};
 <span class="kw">use </span>relay_metrics::MetricNamespace;
+<span class="kw">use </span>relay_redis::RedisConfigOptions;
 <span class="kw">use </span>serde::de::{DeserializeOwned, Unexpected, Visitor};
 <span class="kw">use </span>serde::{Deserialize, Deserializer, Serialize, Serializer};
 <span class="kw">use </span>uuid::Uuid;
@@ -2523,7 +2536,7 @@
 <span class="kw">use </span><span class="kw">crate</span>::aggregator::{AggregatorServiceConfig, ScopedAggregatorConfig};
 <span class="kw">use </span><span class="kw">crate</span>::byte_size::ByteSize;
 <span class="kw">use </span><span class="kw">crate</span>::upstream::UpstreamDescriptor;
-<span class="kw">use crate</span>::{create_redis_pools, RedisConfig, RedisConfigs, RedisPoolConfigs};
+<span class="kw">use crate</span>::{RedisConfig, RedisConnection};
 
 <span class="kw">const </span>DEFAULT_NETWORK_OUTAGE_GRACE_PERIOD: u64 = <span class="number">10</span>;
 
@@ -3523,7 +3536,7 @@
     </span><span class="kw">pub </span>kafka_validate_topics: bool,
     <span class="doccomment">/// Redis hosts to connect to for storing state for rate limits.
     </span><span class="attr">#[serde(default)]
-    </span><span class="kw">pub </span>redis: <span class="prelude-ty">Option</span>&lt;RedisConfigs&gt;,
+    </span><span class="kw">pub </span>redis: <span class="prelude-ty">Option</span>&lt;RedisConfig&gt;,
     <span class="doccomment">/// Maximum chunk size of attachments for Kafka.
     </span><span class="attr">#[serde(default = <span class="string">"default_chunk_size"</span>)]
     </span><span class="kw">pub </span>attachment_chunk_size: ByteSize,
@@ -4084,7 +4097,7 @@
         }
 
         <span class="kw">if let </span><span class="prelude-val">Some</span>(redis) = overrides.redis_url {
-            processing.redis = <span class="prelude-val">Some</span>(RedisConfigs::Unified(RedisConfig::single(redis)))
+            processing.redis = <span class="prelude-val">Some</span>(RedisConfig::single(redis))
         }
 
         <span class="kw">if let </span><span class="prelude-val">Some</span>(kafka_url) = overrides.kafka_url {
@@ -4778,15 +4791,26 @@
         <span class="kw-2">&amp;</span><span class="self">self</span>.values.processing.topics.unused
     }
 
-    <span class="doccomment">/// Redis servers to connect to for project configs, cardinality limits,
-    /// rate limiting, and metrics metadata.
-    </span><span class="kw">pub fn </span>redis(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;RedisPoolConfigs&gt; {
-        <span class="kw">let </span>redis_configs = <span class="self">self</span>.values.processing.redis.as_ref()<span class="question-mark">?</span>;
+    <span class="doccomment">/// Redis servers to connect to, for rate limiting.
+    </span><span class="kw">pub fn </span>redis(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;(<span class="kw-2">&amp;</span>RedisConnection, RedisConfigOptions)&gt; {
+        <span class="kw">let </span>cpu_concurrency = <span class="self">self</span>.cpu_concurrency();
 
-        <span class="prelude-val">Some</span>(create_redis_pools(
-            redis_configs,
-            <span class="self">self</span>.cpu_concurrency() <span class="kw">as </span>u32,
-        ))
+        <span class="kw">let </span>redis = <span class="self">self</span>.values.processing.redis.as_ref()<span class="question-mark">?</span>;
+
+        <span class="kw">let </span>options = RedisConfigOptions {
+            max_connections: redis
+                .options
+                .max_connections
+                .unwrap_or(cpu_concurrency <span class="kw">as </span>u32 * <span class="number">2</span>)
+                .min(<span class="kw">crate</span>::redis::DEFAULT_MIN_MAX_CONNECTIONS),
+            connection_timeout: redis.options.connection_timeout,
+            max_lifetime: redis.options.max_lifetime,
+            idle_timeout: redis.options.idle_timeout,
+            read_timeout: redis.options.read_timeout,
+            write_timeout: redis.options.write_timeout,
+        };
+
+        <span class="prelude-val">Some</span>((<span class="kw-2">&amp;</span>redis.connection, options))
     }
 
     <span class="doccomment">/// Chunk size of attachments in bytes.
