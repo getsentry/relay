@@ -7,7 +7,7 @@ use sqlx::query::Query;
 use sqlx::sqlite::{SqliteArguments, SqliteRow};
 use sqlx::{Pool, QueryBuilder, Row, Sqlite};
 use std::cmp::Ordering;
-use std::collections::{BinaryHeap, VecDeque};
+use std::collections::VecDeque;
 use std::error::Error;
 use std::pin::pin;
 
@@ -152,10 +152,10 @@ impl SQLiteEnvelopeStack {
             return Ok(());
         }
 
-        // We use a priority map to order envelopes that are deleted from the database.
+        // We use a sorted vector to order envelopes that are deleted from the database.
         // Unfortunately we have to do this because SQLite `DELETE` with `RETURNING` doesn't
         // return deleted rows in a specific order.
-        let mut ordered_envelopes = BinaryHeap::with_capacity(self.disk_batch_size());
+        let mut ordered_envelopes = Vec::with_capacity(self.disk_batch_size());
         while let Some(envelope) = envelopes.as_mut().next().await {
             let envelope = match envelope {
                 Ok(envelope) => envelope,
@@ -183,12 +183,11 @@ impl SQLiteEnvelopeStack {
                 }
             }
         }
-
-        for envelope in ordered_envelopes.into_sorted_vec() {
-            // We push in the back of the buffer, since we still want to give priority to
-            // incoming envelopes that have a more recent timestamp.
-            self.buffer.push_back(envelope.0)
-        }
+        ordered_envelopes.sort();
+        let mut ordered_envelopes = ordered_envelopes.into_iter().map(|o| o.0).collect();
+        // We push in the back of the buffer, since we still want to give priority to
+        // incoming envelopes that have a more recent timestamp.
+        self.buffer.append(&mut ordered_envelopes);
 
         Ok(())
     }
@@ -537,4 +536,64 @@ mod tests {
         }
         assert!(stack.buffer.is_empty());
     }
+
+    // #[tokio::test]
+    // async fn benchmark_insert_and_pop_100k_envelopes() {
+    //     let db = setup_db(true).await;
+    //     let mut stack = SQLiteEnvelopeStack::new(
+    //         db,
+    //         1000, // Set a reasonable spool threshold
+    //         ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
+    //         ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap(),
+    //     );
+    //
+    //     let start_time = Instant::now();
+    //
+    //     // Insert 100,000 envelopes
+    //     for _ in 0..100_000 {
+    //         let envelope = mock_envelope(Instant::now());
+    //         stack.push(envelope).await.unwrap();
+    //     }
+    //
+    //     let insert_duration = start_time.elapsed();
+    //     println!("Time to insert 100,000 envelopes: {:?}", insert_duration);
+    //
+    //     let start_time = Instant::now();
+    //
+    //     // Pop 100,000 envelopes
+    //     for _ in 0..100_000 {
+    //         stack.pop().await.unwrap();
+    //     }
+    //
+    //     let pop_duration = start_time.elapsed();
+    //     println!("Time to pop 100,000 envelopes: {:?}", pop_duration);
+    //
+    //     println!("Total time: {:?}", insert_duration + pop_duration);
+    // }
+    //
+    // #[tokio::test]
+    // async fn benchmark_mixed_operations() {
+    //     let db = setup_db(true).await;
+    //     let mut stack = SQLiteEnvelopeStack::new(
+    //         db,
+    //         1000, // Set a reasonable spool threshold
+    //         ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
+    //         ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap(),
+    //     );
+    //
+    //     let start_time = Instant::now();
+    //
+    //     for i in 0..100_000 {
+    //         if i % 2 == 0 {
+    //             let envelope = mock_envelope(Instant::now());
+    //             stack.push(envelope).await.unwrap();
+    //         } else if let Ok(envelope) = stack.pop().await {
+    //             // Do something with the envelope to prevent optimization
+    //             assert!(envelope.event_id().is_some());
+    //         }
+    //     }
+    //
+    //     let duration = start_time.elapsed();
+    //     println!("Time for 100,000 mixed operations: {:?}", duration);
+    // }
 }
