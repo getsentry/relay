@@ -151,15 +151,20 @@ pub enum RedisConfigs {
 
 /// Helper struct bundling connections and options for the various Redis pools.
 #[derive(Clone, Debug)]
-pub struct RedisPoolConfigs<'a> {
-    /// Configuration for the `project_configs` pool.
-    pub project_configs: (&'a RedisConnection, RedisConfigOptions),
-    /// Configuration for the `cardinality` pool.
-    pub cardinality: (&'a RedisConnection, RedisConfigOptions),
-    /// Configuration for the `quotas` pool.
-    pub quotas: (&'a RedisConnection, RedisConfigOptions),
-    /// Configuration for the `misc` pool.
-    pub misc: (&'a RedisConnection, RedisConfigOptions),
+pub enum RedisPoolConfigs<'a> {
+    /// Use one pool for everything.
+    Unified((&'a RedisConnection, RedisConfigOptions)),
+    /// Use an individual pool for each use case.
+    Individual {
+        /// Configuration for the `project_configs` pool.
+        project_configs: (&'a RedisConnection, RedisConfigOptions),
+        /// Configuration for the `cardinality` pool.
+        cardinality: (&'a RedisConnection, RedisConfigOptions),
+        /// Configuration for the `quotas` pool.
+        quotas: (&'a RedisConnection, RedisConfigOptions),
+        /// Configuration for the `misc` pool.
+        misc: (&'a RedisConnection, RedisConfigOptions),
+    },
 }
 
 pub(super) fn create_redis_pool(
@@ -191,12 +196,7 @@ pub(super) fn create_redis_pools(configs: &RedisConfigs, cpu_concurrency: u32) -
     match configs {
         RedisConfigs::Unified(cfg) => {
             let pool = create_redis_pool(cfg, project_configs_default_connections);
-            RedisPoolConfigs {
-                project_configs: pool.clone(),
-                cardinality: pool.clone(),
-                quotas: pool.clone(),
-                misc: pool,
-            }
+            RedisPoolConfigs::Unified(pool)
         }
         RedisConfigs::Individual {
             project_configs,
@@ -209,7 +209,7 @@ pub(super) fn create_redis_pools(configs: &RedisConfigs, cpu_concurrency: u32) -
             let cardinality = create_redis_pool(cardinality, cpu_concurrency);
             let quotas = create_redis_pool(quotas, cpu_concurrency);
             let misc = create_redis_pool(misc, cpu_concurrency);
-            RedisPoolConfigs {
+            RedisPoolConfigs::Individual {
                 project_configs,
                 cardinality,
                 quotas,

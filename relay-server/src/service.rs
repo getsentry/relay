@@ -373,18 +373,42 @@ fn create_redis_pool(
     }
 }
 
+/// Creates Redis pools from the given `configs`.
+///
+/// If `configs` is [`Unified`](RedisPoolConfigs::Unified), one pool is created and then cloned
+/// for each use case, meaning that all use cases really use the same pool. If it is
+/// [`Individual`](RedisPoolConfigs::Individual), an actual separate pool is created for each
+/// use case.
 pub fn create_redis_pools(configs: RedisPoolConfigs) -> Result<RedisPools, RedisError> {
-    let project_configs = create_redis_pool(configs.project_configs)?;
-    let cardinality = create_redis_pool(configs.cardinality)?;
-    let quotas = create_redis_pool(configs.quotas)?;
-    let misc = create_redis_pool(configs.misc)?;
+    match configs {
+        RedisPoolConfigs::Unified(pool) => {
+            let pool = create_redis_pool(pool)?;
+            Ok(RedisPools {
+                project_configs: pool.clone(),
+                cardinality: pool.clone(),
+                quotas: pool.clone(),
+                misc: pool,
+            })
+        }
+        RedisPoolConfigs::Individual {
+            project_configs,
+            cardinality,
+            quotas,
+            misc,
+        } => {
+            let project_configs = create_redis_pool(project_configs)?;
+            let cardinality = create_redis_pool(cardinality)?;
+            let quotas = create_redis_pool(quotas)?;
+            let misc = create_redis_pool(misc)?;
 
-    Ok(RedisPools {
-        project_configs,
-        cardinality,
-        quotas,
-        misc,
-    })
+            Ok(RedisPools {
+                project_configs,
+                cardinality,
+                quotas,
+                misc,
+            })
+        }
+    }
 }
 
 #[axum::async_trait]
