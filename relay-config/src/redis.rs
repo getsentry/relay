@@ -182,11 +182,15 @@ pub(super) fn create_redis_pool(
 }
 
 pub(super) fn create_redis_pools(configs: &RedisConfigs, cpu_concurrency: u32) -> RedisPoolConfigs {
+    // Default `max_connections` for the `project_configs` pool.
+    // In a unified config, this is used for all pools.
+    let project_configs_default_connections = std::cmp::max(
+        cpu_concurrency * 2,
+        crate::redis::DEFAULT_MIN_MAX_CONNECTIONS,
+    );
     match configs {
         RedisConfigs::Unified(cfg) => {
-            let default_connections =
-                (cpu_concurrency * 2).min(crate::redis::DEFAULT_MIN_MAX_CONNECTIONS);
-            let pool = create_redis_pool(cfg, default_connections);
+            let pool = create_redis_pool(cfg, project_configs_default_connections);
             RedisPoolConfigs {
                 project_configs: pool.clone(),
                 cardinality: pool.clone(),
@@ -200,10 +204,8 @@ pub(super) fn create_redis_pools(configs: &RedisConfigs, cpu_concurrency: u32) -
             quotas,
             misc,
         } => {
-            let project_configs = create_redis_pool(
-                project_configs,
-                (cpu_concurrency * 2).min(crate::redis::DEFAULT_MIN_MAX_CONNECTIONS),
-            );
+            let project_configs =
+                create_redis_pool(project_configs, project_configs_default_connections);
             let cardinality = create_redis_pool(cardinality, cpu_concurrency);
             let quotas = create_redis_pool(quotas, cpu_concurrency);
             let misc = create_redis_pool(misc, cpu_concurrency);
