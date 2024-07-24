@@ -289,7 +289,7 @@ struct InsertEnvelope {
     encoded_envelope: Vec<u8>,
 }
 
-/// Builds a query that inserts many [`Envelope`](s) in the database.
+/// Builds a query that inserts many [`Envelope`]s in the database.
 fn build_insert_many_envelopes<'a>(
     envelopes: impl Iterator<Item = InsertEnvelope>,
 ) -> QueryBuilder<'a, Sqlite> {
