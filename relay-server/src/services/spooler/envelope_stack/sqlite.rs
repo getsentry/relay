@@ -282,6 +282,8 @@ impl EnvelopeStack for SQLiteEnvelopeStack {
     }
 }
 
+/// Struct which contains all the rows that have to be inserted in the database when storing an
+/// [`Envelope`].
 struct InsertEnvelope {
     received_at: i64,
     own_key: ProjectKey,
