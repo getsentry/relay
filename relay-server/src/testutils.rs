@@ -15,6 +15,7 @@ use relay_test::mock_service;
 use crate::envelope::{Envelope, Item, ItemType};
 use crate::extractors::RequestMeta;
 use crate::metrics::{MetricOutcomes, MetricStats};
+#[cfg(feature = "processing")]
 use crate::service::create_redis_pools;
 use crate::services::global_config::GlobalConfigHandle;
 use crate::services::outcome::TrackOutcome;
