@@ -10,6 +10,7 @@ use crate::statsd::{SystemCounters, SystemTimers};
 ///
 /// This is in instrumented spawn variant of Tokio's [`tokio::spawn`].
 #[track_caller]
+#[allow(clippy::disallowed_methods)]
 pub fn spawn<F>(future: F) -> JoinHandle<F::Output>
 where
     F: Future + Send + 'static,

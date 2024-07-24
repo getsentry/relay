@@ -657,7 +657,7 @@ impl HttpOutcomeProducer {
 
         let upstream_relay = self.upstream_relay.clone();
 
-        tokio::spawn(async move {
+        relay_system::spawn(async move {
             match upstream_relay.send(SendQuery(request)).await {
                 Ok(_) => relay_log::trace!("outcome batch sent"),
                 Err(error) => {
@@ -683,7 +683,7 @@ impl Service for HttpOutcomeProducer {
     type Interface = TrackRawOutcome;
 
     fn spawn_handler(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
-        tokio::spawn(async move {
+        relay_system::spawn(async move {
             loop {
                 tokio::select! {
                     // Prioritize flush over receiving messages to prevent starving.
@@ -776,7 +776,7 @@ impl Service for ClientReportOutcomeProducer {
     type Interface = TrackOutcome;
 
     fn spawn_handler(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
-        tokio::spawn(async move {
+        relay_system::spawn(async move {
             loop {
                 tokio::select! {
                     // Prioritize flush over receiving messages to prevent starving.
@@ -1037,7 +1037,7 @@ impl Service for OutcomeProducerService {
     fn spawn_handler(self, mut rx: relay_system::Receiver<Self::Interface>) {
         let Self { config, inner } = self;
 
-        tokio::spawn(async move {
+        relay_system::spawn(async move {
             let broker = inner.start();
 
             relay_log::info!("OutcomeProducer started.");
