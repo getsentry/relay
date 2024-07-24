@@ -3955,6 +3955,9 @@
 <a href="#3955" id="3955">3955</a>
 <a href="#3956" id="3956">3956</a>
 <a href="#3957" id="3957">3957</a>
+<a href="#3958" id="3958">3958</a>
+<a href="#3959" id="3959">3959</a>
+<a href="#3960" id="3960">3960</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
@@ -4030,7 +4033,7 @@
 <span class="kw">use </span><span class="kw">crate</span>::services::global_config::GlobalConfigHandle;
 <span class="kw">use </span><span class="kw">crate</span>::services::outcome::{DiscardReason, Outcome, TrackOutcome};
 <span class="kw">use </span><span class="kw">crate</span>::services::processor::event::FiltersStatus;
-<span class="kw">use </span><span class="kw">crate</span>::services::project::ProjectState;
+<span class="kw">use </span><span class="kw">crate</span>::services::project::ProjectInfo;
 <span class="kw">use </span><span class="kw">crate</span>::services::project_cache::{
     AddMetricBuckets, AddMetricMeta, BucketSource, ProjectCache, UpdateRateLimits,
 };
@@ -4126,7 +4129,7 @@
 <span class="doccomment">/// A trait for processing groups that can be dynamically sampled.
 </span><span class="kw">pub trait </span>Sampling {
     <span class="doccomment">/// Whether dynamic sampling should run under the given project's conditions.
-    </span><span class="kw">fn </span>supports_sampling(project_state: <span class="kw-2">&amp;</span>ProjectState) -&gt; bool;
+    </span><span class="kw">fn </span>supports_sampling(project_state: <span class="kw-2">&amp;</span>ProjectInfo) -&gt; bool;
 
     <span class="doccomment">/// Whether reservoir sampling applies to this processing group (a.k.a. data type).
     </span><span class="kw">fn </span>supports_reservoir_sampling() -&gt; bool;
@@ -4136,7 +4139,7 @@
 <span class="kw">impl </span>EventProcessing <span class="kw">for </span>TransactionGroup {}
 
 <span class="kw">impl </span>Sampling <span class="kw">for </span>TransactionGroup {
-    <span class="kw">fn </span>supports_sampling(project_state: <span class="kw-2">&amp;</span>ProjectState) -&gt; bool {
+    <span class="kw">fn </span>supports_sampling(project_state: <span class="kw-2">&amp;</span>ProjectInfo) -&gt; bool {
         <span class="comment">// For transactions, we require transaction metrics to be enabled before sampling.
         </span><span class="macro">matches!</span>(<span class="kw-2">&amp;</span>project_state.config.transaction_metrics, <span class="prelude-val">Some</span>(ErrorBoundary::Ok(c)) <span class="kw">if </span>c.is_enabled())
     }
@@ -4157,7 +4160,7 @@
 <span class="macro">processing_group!</span>(SpanGroup, Span);
 
 <span class="kw">impl </span>Sampling <span class="kw">for </span>SpanGroup {
-    <span class="kw">fn </span>supports_sampling(project_state: <span class="kw-2">&amp;</span>ProjectState) -&gt; bool {
+    <span class="kw">fn </span>supports_sampling(project_state: <span class="kw-2">&amp;</span>ProjectInfo) -&gt; bool {
         <span class="comment">// If no metrics could be extracted, do not sample anything.
         </span><span class="macro">matches!</span>(<span class="kw-2">&amp;</span>project_state.config().metric_extraction, ErrorBoundary::Ok(c) <span class="kw">if </span>c.is_supported())
     }
@@ -4546,14 +4549,14 @@
 </span><span class="attr">#[derive(Debug)]
 </span><span class="kw">pub struct </span>ProcessingExtractedMetrics {
     metrics: ExtractedMetrics,
-    project: Arc&lt;ProjectState&gt;,
+    project: Arc&lt;ProjectInfo&gt;,
     global: Arc&lt;GlobalConfig&gt;,
     extrapolation_factor: <span class="prelude-ty">Option</span>&lt;FiniteF64&gt;,
 }
 
 <span class="kw">impl </span>ProcessingExtractedMetrics {
     <span class="kw">pub fn </span>new(
-        project: Arc&lt;ProjectState&gt;,
+        project: Arc&lt;ProjectInfo&gt;,
         global: Arc&lt;GlobalConfig&gt;,
         dsc: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>DynamicSamplingContext&gt;,
     ) -&gt; <span class="self">Self </span>{
@@ -4704,7 +4707,7 @@
         // project_without_tracing         -&gt; metrics goes to self
         // dependent_project_with_tracing  -&gt; metrics goes to root
         // root_project_with_tracing       -&gt; metrics goes to root == self
-        </span><span class="kw">let </span>sampling_project_key = utils::get_sampling_key(envelope).unwrap_or(project_key);
+        </span><span class="kw">let </span>sampling_project_key = envelope.sampling_key().unwrap_or(project_key);
         project_cache.send(AddMetricBuckets::internal(
             sampling_project_key,
             sampling_metrics,
@@ -4749,11 +4752,11 @@
     </span>extracted_metrics: ProcessingExtractedMetrics,
 
     <span class="doccomment">/// The state of the project that this envelope belongs to.
-    </span>project_state: Arc&lt;ProjectState&gt;,
+    </span>project_state: Arc&lt;ProjectInfo&gt;,
 
     <span class="doccomment">/// The state of the project that initiated the current trace.
     /// This is the config used for trace-based dynamic sampling.
-    </span>sampling_project_state: <span class="prelude-ty">Option</span>&lt;Arc&lt;ProjectState&gt;&gt;,
+    </span>sampling_project_state: <span class="prelude-ty">Option</span>&lt;Arc&lt;ProjectInfo&gt;&gt;,
 
     <span class="doccomment">/// The id of the project that this envelope is ingested into.
     ///
@@ -4848,8 +4851,8 @@
 </span><span class="attr">#[derive(Debug)]
 </span><span class="kw">pub struct </span>ProcessEnvelope {
     <span class="kw">pub </span>envelope: ManagedEnvelope,
-    <span class="kw">pub </span>project_state: Arc&lt;ProjectState&gt;,
-    <span class="kw">pub </span>sampling_project_state: <span class="prelude-ty">Option</span>&lt;Arc&lt;ProjectState&gt;&gt;,
+    <span class="kw">pub </span>project_info: Arc&lt;ProjectInfo&gt;,
+    <span class="kw">pub </span>sampling_project_info: <span class="prelude-ty">Option</span>&lt;Arc&lt;ProjectInfo&gt;&gt;,
     <span class="kw">pub </span>reservoir_counters: ReservoirCounters,
 }
 
@@ -4905,8 +4908,8 @@
 </span><span class="kw">pub struct </span>ProjectMetrics {
     <span class="doccomment">/// The metric buckets to encode.
     </span><span class="kw">pub </span>buckets: Vec&lt;Bucket&gt;,
-    <span class="doccomment">/// Project state for extracting quotas.
-    </span><span class="kw">pub </span>project_state: Arc&lt;ProjectState&gt;,
+    <span class="doccomment">/// Project info for extracting quotas.
+    </span><span class="kw">pub </span>project_info: Arc&lt;ProjectInfo&gt;,
 }
 
 <span class="doccomment">/// Encodes metrics into an envelope ready to be sent upstream.
@@ -5189,8 +5192,8 @@
         global_config: Arc&lt;GlobalConfig&gt;,
         <span class="kw-2">mut </span>managed_envelope: TypedEnvelope&lt;G&gt;,
         project_id: ProjectId,
-        project_state: Arc&lt;ProjectState&gt;,
-        sampling_project_state: <span class="prelude-ty">Option</span>&lt;Arc&lt;ProjectState&gt;&gt;,
+        project_state: Arc&lt;ProjectInfo&gt;,
+        sampling_project_state: <span class="prelude-ty">Option</span>&lt;Arc&lt;ProjectInfo&gt;&gt;,
         reservoir_counters: Arc&lt;Mutex&lt;BTreeMap&lt;RuleId, i64&gt;&gt;&gt;,
     ) -&gt; ProcessEnvelopeState&lt;G&gt; {
         <span class="kw">let </span>envelope = managed_envelope.envelope_mut();
@@ -5809,8 +5812,8 @@
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         <span class="kw-2">mut </span>managed_envelope: ManagedEnvelope,
         project_id: ProjectId,
-        project_state: Arc&lt;ProjectState&gt;,
-        sampling_project_state: <span class="prelude-ty">Option</span>&lt;Arc&lt;ProjectState&gt;&gt;,
+        project_state: Arc&lt;ProjectInfo&gt;,
+        sampling_project_state: <span class="prelude-ty">Option</span>&lt;Arc&lt;ProjectInfo&gt;&gt;,
         reservoir_counters: Arc&lt;Mutex&lt;BTreeMap&lt;RuleId, i64&gt;&gt;&gt;,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;ProcessingStateResult, ProcessingError&gt; {
         <span class="comment">// Get the group from the managed envelope context, and if it's not set, try to guess it
@@ -5909,8 +5912,8 @@
     ) -&gt; <span class="prelude-ty">Result</span>&lt;ProcessEnvelopeResponse, ProcessingError&gt; {
         <span class="kw">let </span>ProcessEnvelope {
             envelope: <span class="kw-2">mut </span>managed_envelope,
-            project_state,
-            sampling_project_state,
+            project_info,
+            sampling_project_info,
             reservoir_counters,
         } = message;
 
@@ -5920,7 +5923,7 @@
         //
         // Neither ID can be available in proxy mode on the /store/ endpoint. This is not supported,
         // since we cannot process an envelope without project ID, so drop it.
-        </span><span class="kw">let </span>project_id = <span class="kw">match </span>project_state
+        </span><span class="kw">let </span>project_id = <span class="kw">match </span>project_info
             .project_id
             .or_else(|| managed_envelope.envelope().meta().project_id())
         {
@@ -5957,8 +5960,8 @@
                 <span class="kw">match </span><span class="self">self</span>.process_envelope(
                     managed_envelope,
                     project_id,
-                    project_state,
-                    sampling_project_state,
+                    project_info,
+                    sampling_project_info,
                     reservoir_counters,
                 ) {
                     <span class="prelude-val">Ok</span>(<span class="kw-2">mut </span>state) =&gt; {
@@ -6279,7 +6282,7 @@
     </span><span class="kw">fn </span>rate_limit_buckets(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         scoping: Scoping,
-        project_state: <span class="kw-2">&amp;</span>ProjectState,
+        project_state: <span class="kw-2">&amp;</span>ProjectInfo,
         <span class="kw-2">mut </span>buckets: Vec&lt;Bucket&gt;,
     ) -&gt; Vec&lt;Bucket&gt; {
         <span class="kw">let </span><span class="prelude-val">Some</span>(rate_limiter) = <span class="self">self</span>.inner.rate_limiter.as_ref() <span class="kw">else </span>{
@@ -6494,19 +6497,19 @@
         <span class="kw">for </span>(scoping, message) <span class="kw">in </span>message.scopes {
             <span class="kw">let </span>ProjectMetrics {
                 buckets,
-                project_state,
+                project_info,
             } = message;
 
-            <span class="kw">let </span>buckets = <span class="self">self</span>.rate_limit_buckets(scoping, <span class="kw-2">&amp;</span>project_state, buckets);
+            <span class="kw">let </span>buckets = <span class="self">self</span>.rate_limit_buckets(scoping, <span class="kw-2">&amp;</span>project_info, buckets);
 
-            <span class="kw">let </span>limits = project_state.get_cardinality_limits();
+            <span class="kw">let </span>limits = project_info.get_cardinality_limits();
             <span class="kw">let </span>buckets = <span class="self">self</span>.cardinality_limit_buckets(scoping, limits, buckets);
 
             <span class="kw">if </span>buckets.is_empty() {
                 <span class="kw">continue</span>;
             }
 
-            <span class="kw">let </span>retention = project_state
+            <span class="kw">let </span>retention = project_info
                 .config
                 .event_retention
                 .unwrap_or(DEFAULT_EVENT_RETENTION);
@@ -7197,7 +7200,7 @@
         <span class="kw">let </span>not_ratelimited_org = <span class="number">2</span>;
 
         <span class="kw">let </span>message = {
-            <span class="kw">let </span>project_state = {
+            <span class="kw">let </span>project_info = {
                 <span class="kw">let </span>quota = Quota {
                     id: <span class="prelude-val">Some</span>(<span class="string">"testing"</span>.into()),
                     categories: <span class="macro">vec!</span>[DataCategory::MetricBucket].into(),
@@ -7212,9 +7215,10 @@
                 <span class="kw">let </span><span class="kw-2">mut </span>config = ProjectConfig::default();
                 config.quotas.push(quota);
 
-                <span class="kw">let </span><span class="kw-2">mut </span>project_state = ProjectState::allowed();
-                project_state.config = config;
-                Arc::new(project_state)
+                Arc::new(ProjectInfo {
+                    config,
+                    ..Default::default()
+                })
             };
 
             <span class="kw">let </span>project_metrics = ProjectMetrics {
@@ -7226,7 +7230,7 @@
                     width: <span class="number">10</span>,
                     metadata: BucketMetadata::default(),
                 }],
-                project_state,
+                project_info,
             };
 
             <span class="kw">let </span>scoping_by_org_id = |org_id: u64| Scoping {
@@ -7333,8 +7337,10 @@
             ..Default::default()
         };
 
-        <span class="kw">let </span><span class="kw-2">mut </span>project_state = ProjectState::allowed();
-        project_state.config = config;
+        <span class="kw">let </span>project_info = ProjectInfo {
+            config,
+            ..Default::default()
+        };
 
         <span class="kw">let </span><span class="kw-2">mut </span>envelopes = ProcessingGroup::split_envelope(<span class="kw-2">*</span>envelope);
         <span class="macro">assert_eq!</span>(envelopes.len(), <span class="number">1</span>);
@@ -7344,8 +7350,8 @@
 
         <span class="kw">let </span>message = ProcessEnvelope {
             envelope,
-            project_state: Arc::new(project_state),
-            sampling_project_state: <span class="prelude-val">None</span>,
+            project_info: Arc::new(project_info),
+            sampling_project_info: <span class="prelude-val">None</span>,
             reservoir_counters: ReservoirCounters::default(),
         };
 
@@ -7406,8 +7412,8 @@
 
         <span class="kw">let </span>process_message = ProcessEnvelope {
             envelope: managed_envelope,
-            project_state: Arc::new(ProjectState::allowed()),
-            sampling_project_state: <span class="prelude-val">None</span>,
+            project_info: Arc::new(ProjectInfo::default()),
+            sampling_project_info: <span class="prelude-val">None</span>,
             reservoir_counters: ReservoirCounters::default(),
         };
 
@@ -7732,8 +7738,8 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_extrapolate() {
-        <span class="kw">let </span><span class="kw-2">mut </span>project_state = ProjectState::allowed();
-        project_state.config.metric_extraction = ErrorBoundary::Ok(MetricExtractionConfig {
+        <span class="kw">let </span><span class="kw-2">mut </span>project_info = ProjectInfo::default();
+        project_info.config.metric_extraction = ErrorBoundary::Ok(MetricExtractionConfig {
             extrapolate: ExtrapolationConfig {
                 include: <span class="macro">vec!</span>[LazyGlob::new(<span class="string">"*"</span>)],
                 exclude: <span class="macro">vec!</span>[],
@@ -7752,7 +7758,7 @@
         global_config.options.extrapolation_duplication_limit = <span class="number">3</span>;
 
         <span class="kw">let </span><span class="kw-2">mut </span>extracted_metrics = ProcessingExtractedMetrics::new(
-            Arc::new(project_state),
+            Arc::new(project_info),
             Arc::new(global_config),
             <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>dsc),
         );

@@ -1518,6 +1518,26 @@
 <a href="#1518" id="1518">1518</a>
 <a href="#1519" id="1519">1519</a>
 <a href="#1520" id="1520">1520</a>
+<a href="#1521" id="1521">1521</a>
+<a href="#1522" id="1522">1522</a>
+<a href="#1523" id="1523">1523</a>
+<a href="#1524" id="1524">1524</a>
+<a href="#1525" id="1525">1525</a>
+<a href="#1526" id="1526">1526</a>
+<a href="#1527" id="1527">1527</a>
+<a href="#1528" id="1528">1528</a>
+<a href="#1529" id="1529">1529</a>
+<a href="#1530" id="1530">1530</a>
+<a href="#1531" id="1531">1531</a>
+<a href="#1532" id="1532">1532</a>
+<a href="#1533" id="1533">1533</a>
+<a href="#1534" id="1534">1534</a>
+<a href="#1535" id="1535">1535</a>
+<a href="#1536" id="1536">1536</a>
+<a href="#1537" id="1537">1537</a>
+<a href="#1538" id="1538">1538</a>
+<a href="#1539" id="1539">1539</a>
+<a href="#1540" id="1540">1540</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
 <span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::sync::Arc;
@@ -1540,11 +1560,13 @@
 
 <span class="kw">use </span><span class="kw">crate</span>::services::global_config::{<span class="self">self</span>, GlobalConfigManager, Subscribe};
 <span class="kw">use </span><span class="kw">crate</span>::services::metrics::{Aggregator, FlushBuckets};
-<span class="kw">use </span><span class="kw">crate</span>::services::outcome::{DiscardReason, TrackOutcome};
+<span class="kw">use </span><span class="kw">crate</span>::services::outcome::{DiscardReason, Outcome, TrackOutcome};
 <span class="kw">use </span><span class="kw">crate</span>::services::processor::{
     EncodeMetrics, EnvelopeProcessor, ProcessEnvelope, ProjectMetrics,
 };
-<span class="kw">use </span><span class="kw">crate</span>::services::project::{CheckedBuckets, Project, ProjectSender, ProjectState};
+<span class="kw">use </span><span class="kw">crate</span>::services::project::{
+    CheckedBuckets, Project, ProjectFetchState, ProjectSender, ProjectState,
+};
 <span class="kw">use </span><span class="kw">crate</span>::services::project_local::{LocalProjectSource, LocalProjectSourceService};
 <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
 </span><span class="kw">use </span><span class="kw">crate</span>::services::project_redis::RedisProjectSource;
@@ -1557,9 +1579,7 @@
 <span class="kw">use </span><span class="kw">crate</span>::services::upstream::UpstreamRelay;
 
 <span class="kw">use </span><span class="kw">crate</span>::statsd::{RelayCounters, RelayGauges, RelayHistograms, RelayTimers};
-<span class="kw">use </span><span class="kw">crate</span>::utils::{
-    <span class="self">self</span>, GarbageDisposal, ManagedEnvelope, MemoryChecker, RetryBackoff, SleepHandle,
-};
+<span class="kw">use </span><span class="kw">crate</span>::utils::{GarbageDisposal, ManagedEnvelope, MemoryChecker, RetryBackoff, SleepHandle};
 
 <span class="doccomment">/// Requests a refresh of a project state from one of the available sources.
 ///
@@ -1798,7 +1818,7 @@
 </span><span class="kw">pub enum </span>ProjectCache {
     RequestUpdate(RequestUpdate),
     Get(GetProjectState, ProjectSender),
-    GetCached(GetCachedProjectState, Sender&lt;<span class="prelude-ty">Option</span>&lt;Arc&lt;ProjectState&gt;&gt;&gt;),
+    GetCached(GetCachedProjectState, Sender&lt;ProjectState&gt;),
     CheckEnvelope(
         CheckEnvelope,
         Sender&lt;<span class="prelude-ty">Result</span>&lt;CheckedEnvelope, DiscardReason&gt;&gt;,
@@ -1859,7 +1879,7 @@
 }
 
 <span class="kw">impl </span>FromMessage&lt;GetProjectState&gt; <span class="kw">for </span>ProjectCache {
-    <span class="kw">type </span>Response = relay_system::BroadcastResponse&lt;Arc&lt;ProjectState&gt;&gt;;
+    <span class="kw">type </span>Response = relay_system::BroadcastResponse&lt;ProjectState&gt;;
 
     <span class="kw">fn </span>from_message(message: GetProjectState, sender: ProjectSender) -&gt; <span class="self">Self </span>{
         <span class="self">Self</span>::Get(message, sender)
@@ -1867,12 +1887,9 @@
 }
 
 <span class="kw">impl </span>FromMessage&lt;GetCachedProjectState&gt; <span class="kw">for </span>ProjectCache {
-    <span class="kw">type </span>Response = relay_system::AsyncResponse&lt;<span class="prelude-ty">Option</span>&lt;Arc&lt;ProjectState&gt;&gt;&gt;;
+    <span class="kw">type </span>Response = relay_system::AsyncResponse&lt;ProjectState&gt;;
 
-    <span class="kw">fn </span>from_message(
-        message: GetCachedProjectState,
-        sender: Sender&lt;<span class="prelude-ty">Option</span>&lt;Arc&lt;ProjectState&gt;&gt;&gt;,
-    ) -&gt; <span class="self">Self </span>{
+    <span class="kw">fn </span>from_message(message: GetCachedProjectState, sender: Sender&lt;ProjectState&gt;) -&gt; <span class="self">Self </span>{
         <span class="self">Self</span>::GetCached(message, sender)
     }
 }
@@ -1981,7 +1998,7 @@
         }
     }
 
-    <span class="kw">async fn </span>fetch(<span class="self">self</span>, project_key: ProjectKey, no_cache: bool) -&gt; <span class="prelude-ty">Result</span>&lt;Arc&lt;ProjectState&gt;, ()&gt; {
+    <span class="kw">async fn </span>fetch(<span class="self">self</span>, project_key: ProjectKey, no_cache: bool) -&gt; <span class="prelude-ty">Result</span>&lt;ProjectFetchState, ()&gt; {
         <span class="kw">let </span>state_opt = <span class="self">self
             </span>.local_source
             .send(FetchOptionalProjectState { project_key })
@@ -1989,13 +2006,13 @@
             </span>.map_err(|<span class="kw">_</span>| ())<span class="question-mark">?</span>;
 
         <span class="kw">if let </span><span class="prelude-val">Some</span>(state) = state_opt {
-            <span class="kw">return </span><span class="prelude-val">Ok</span>(state);
+            <span class="kw">return </span><span class="prelude-val">Ok</span>(ProjectFetchState::new(state));
         }
 
         <span class="kw">match </span><span class="self">self</span>.config.relay_mode() {
-            RelayMode::Proxy =&gt; <span class="kw">return </span><span class="prelude-val">Ok</span>(Arc::new(ProjectState::allowed())),
-            RelayMode::Static =&gt; <span class="kw">return </span><span class="prelude-val">Ok</span>(Arc::new(ProjectState::missing())),
-            RelayMode::Capture =&gt; <span class="kw">return </span><span class="prelude-val">Ok</span>(Arc::new(ProjectState::allowed())),
+            RelayMode::Proxy =&gt; <span class="kw">return </span><span class="prelude-val">Ok</span>(ProjectFetchState::allowed()),
+            RelayMode::Static =&gt; <span class="kw">return </span><span class="prelude-val">Ok</span>(ProjectFetchState::disabled()),
+            RelayMode::Capture =&gt; <span class="kw">return </span><span class="prelude-val">Ok</span>(ProjectFetchState::allowed()),
             RelayMode::Managed =&gt; (), <span class="comment">// Proceed with loading the config from redis or upstream
         </span>}
 
@@ -2008,19 +2025,19 @@
                     </span>.map_err(|<span class="kw">_</span>| ())<span class="question-mark">?</span>;
             drop(redis_permit);
 
-            <span class="kw">let </span>state_opt = <span class="kw">match </span>state_fetch_result {
-                <span class="prelude-val">Ok</span>(state) =&gt; state.map(ProjectState::sanitize).map(Arc::new),
+            <span class="kw">let </span>state = <span class="kw">match </span>state_fetch_result {
+                <span class="prelude-val">Ok</span>(state) =&gt; state.sanitized(),
                 <span class="prelude-val">Err</span>(error) =&gt; {
                     <span class="macro">relay_log::error!</span>(
                         error = <span class="kw-2">&amp;</span>error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error,
                         <span class="string">"failed to fetch project from Redis"</span>,
                     );
-                    <span class="prelude-val">None
-                </span>}
+                    ProjectState::Pending
+                }
             };
 
-            <span class="kw">if let </span><span class="prelude-val">Some</span>(state) = state_opt {
-                <span class="kw">return </span><span class="prelude-val">Ok</span>(state);
+            <span class="kw">if </span>!<span class="macro">matches!</span>(state, ProjectState::Pending) {
+                <span class="kw">return </span><span class="prelude-val">Ok</span>(ProjectFetchState::new(state));
             }
         };
 
@@ -2040,7 +2057,7 @@
     </span>project_key: ProjectKey,
 
     <span class="doccomment">/// New project state information.
-    </span>state: Arc&lt;ProjectState&gt;,
+    </span>state: ProjectFetchState,
 
     <span class="doccomment">/// If true, all caches should be skipped and a fresh state should be computed.
     </span>no_cache: bool,
@@ -2254,7 +2271,7 @@
             <span class="kw">let </span>state = source
                 .fetch(project_key, no_cache)
                 .<span class="kw">await
-                </span>.unwrap_or_else(|()| Arc::new(ProjectState::err()));
+                </span>.unwrap_or_else(|()| ProjectFetchState::disabled());
 
             <span class="kw">let </span>message = UpdateProjectState {
                 project_key,
@@ -2275,7 +2292,7 @@
         );
     }
 
-    <span class="kw">fn </span>handle_get_cached(<span class="kw-2">&amp;mut </span><span class="self">self</span>, message: GetCachedProjectState) -&gt; <span class="prelude-ty">Option</span>&lt;Arc&lt;ProjectState&gt;&gt; {
+    <span class="kw">fn </span>handle_get_cached(<span class="kw-2">&amp;mut </span><span class="self">self</span>, message: GetCachedProjectState) -&gt; ProjectState {
         <span class="kw">let </span>project_cache = <span class="self">self</span>.services.project_cache.clone();
         <span class="self">self</span>.get_or_create_project(message.project_key)
             .get_cached_state(project_cache, <span class="bool-val">false</span>)
@@ -2297,7 +2314,7 @@
     }
 
     <span class="doccomment">/// Handles the processing of the provided envelope.
-    </span><span class="kw">fn </span>handle_processing(<span class="kw-2">&amp;mut </span><span class="self">self</span>, key: QueueKey, managed_envelope: ManagedEnvelope) {
+    </span><span class="kw">fn </span>handle_processing(<span class="kw-2">&amp;mut </span><span class="self">self</span>, key: QueueKey, <span class="kw-2">mut </span>managed_envelope: ManagedEnvelope) {
         <span class="kw">let </span>project_key = managed_envelope.envelope().meta().public_key();
 
         <span class="kw">let </span><span class="prelude-val">Some</span>(project) = <span class="self">self</span>.projects.get_mut(<span class="kw-2">&amp;</span>project_key) <span class="kw">else </span>{
@@ -2313,16 +2330,29 @@
             <span class="kw">return</span>;
         };
 
-        <span class="kw">let </span><span class="prelude-val">Some</span>(own_project_state) = project.valid_state().filter(|s| !s.invalid()) <span class="kw">else </span>{
-            <span class="macro">relay_log::error!</span>(
-                tags.project_key = %project_key,
-                <span class="string">"project has no valid cached state"</span>,
-            );
-            <span class="kw">return</span>;
+        <span class="kw">let </span>project_cache = <span class="self">self</span>.services.project_cache.clone();
+        <span class="kw">let </span>project_info = <span class="kw">match </span>project.get_cached_state(project_cache.clone(), <span class="bool-val">false</span>) {
+            ProjectState::Enabled(info) =&gt; info,
+            ProjectState::Disabled =&gt; {
+                managed_envelope.reject(Outcome::Invalid(DiscardReason::ProjectId));
+                <span class="kw">return</span>;
+            }
+            ProjectState::Pending =&gt; {
+                <span class="macro">relay_log::error!</span>(
+                    tags.project_key = %project_key,
+                    <span class="string">"project has no valid cached state"</span>,
+                );
+                <span class="kw">return</span>;
+            }
         };
 
         <span class="comment">// The `Envelope` and `EnvelopeContext` will be dropped if the `Project::check_envelope()`
         // function returns any error, which will also be ignored here.
+        // TODO(jjbayer): check_envelope also makes sure the envelope has proper scoping.
+        // If we don't call check_envelope in the same message handler as handle_processing,
+        // there is a chance that the project is not ready yet and events are published with
+        // `organization_id: 0`. We should eliminate this footgun by introducing a `ScopedEnvelope`
+        // type which guarantees that the envelope has complete scoping.
         </span><span class="kw">if let </span><span class="prelude-val">Ok</span>(CheckedEnvelope {
             envelope: <span class="prelude-val">Some</span>(managed_envelope),
             ..
@@ -2330,15 +2360,17 @@
         {
             <span class="kw">let </span>reservoir_counters = project.reservoir_counters();
 
-            <span class="kw">let </span>sampling_project_state = utils::get_sampling_key(managed_envelope.envelope())
-                .and_then(|key| <span class="self">self</span>.projects.get(<span class="kw-2">&amp;</span>key))
-                .and_then(|p| p.valid_state())
-                .filter(|state| state.organization_id == own_project_state.organization_id);
+            <span class="kw">let </span>sampling_project_info = managed_envelope
+                .envelope()
+                .sampling_key()
+                .and_then(|key| <span class="self">self</span>.projects.get_mut(<span class="kw-2">&amp;</span>key))
+                .and_then(|p| p.get_cached_state(project_cache, <span class="bool-val">false</span>).enabled())
+                .filter(|state| state.organization_id == project_info.organization_id);
 
             <span class="kw">let </span>process = ProcessEnvelope {
                 envelope: managed_envelope,
-                project_state: own_project_state,
-                sampling_project_state,
+                project_info,
+                sampling_project_info,
                 reservoir_counters,
             };
 
@@ -2360,38 +2392,69 @@
     ///
     /// The flushing of the buffered envelopes happens in `update_state`.
     </span><span class="kw">fn </span>handle_validate_envelope(<span class="kw-2">&amp;mut </span><span class="self">self</span>, message: ValidateEnvelope) {
-        <span class="kw">let </span>ValidateEnvelope { envelope: context } = message;
+        <span class="kw">let </span>ValidateEnvelope {
+            envelope: <span class="kw-2">mut </span>managed_envelope,
+        } = message;
+
         <span class="kw">let </span>project_cache = <span class="self">self</span>.services.project_cache.clone();
-        <span class="kw">let </span>envelope = context.envelope();
+        <span class="kw">let </span>envelope = managed_envelope.envelope();
 
         <span class="comment">// Fetch the project state for our key and make sure it's not invalid.
         </span><span class="kw">let </span>own_key = envelope.meta().public_key();
-        <span class="kw">let </span>project_state = <span class="self">self
-            </span>.get_or_create_project(own_key)
-            .get_cached_state(project_cache.clone(), envelope.meta().no_cache())
-            .filter(|st| !st.invalid());
+        <span class="kw">let </span>project = <span class="self">self</span>.get_or_create_project(own_key);
+
+        <span class="kw">let </span>project_state =
+            project.get_cached_state(project_cache.clone(), envelope.meta().no_cache());
+
+        <span class="kw">let </span>project_state = <span class="kw">match </span>project_state {
+            ProjectState::Enabled(state) =&gt; <span class="prelude-val">Some</span>(state),
+            ProjectState::Disabled =&gt; {
+                managed_envelope.reject(Outcome::Invalid(DiscardReason::ProjectId));
+                <span class="kw">return</span>;
+            }
+            ProjectState::Pending =&gt; <span class="prelude-val">None</span>,
+        };
 
         <span class="comment">// Also, fetch the project state for sampling key and make sure it's not invalid.
-        </span><span class="kw">let </span>sampling_key = utils::get_sampling_key(envelope);
-        <span class="kw">let </span>sampling_state = sampling_key.and_then(|key| {
-            <span class="self">self</span>.get_or_create_project(key)
-                .get_cached_state(project_cache, envelope.meta().no_cache())
-                .filter(|st| !st.invalid())
-        });
+        </span><span class="kw">let </span>sampling_key = envelope.sampling_key();
+        <span class="kw">let </span><span class="kw-2">mut </span>requires_sampling_state = sampling_key.is_some();
+        <span class="kw">let </span>sampling_state = <span class="kw">if let </span><span class="prelude-val">Some</span>(sampling_key) = sampling_key {
+            <span class="kw">let </span>state = <span class="self">self
+                </span>.get_or_create_project(sampling_key)
+                .get_cached_state(project_cache, envelope.meta().no_cache());
+            <span class="kw">match </span>state {
+                ProjectState::Enabled(state) =&gt; <span class="prelude-val">Some</span>(state),
+                ProjectState::Disabled =&gt; {
+                    <span class="macro">relay_log::trace!</span>(<span class="string">"Sampling state is disabled ({sampling_key})"</span>);
+                    <span class="comment">// We accept events even if its root project has been disabled.
+                    </span>requires_sampling_state = <span class="bool-val">false</span>;
+                    <span class="prelude-val">None
+                </span>}
+                ProjectState::Pending =&gt; {
+                    <span class="macro">relay_log::trace!</span>(<span class="string">"Sampling state is pending ({sampling_key})"</span>);
+                    <span class="prelude-val">None
+                </span>}
+            }
+        } <span class="kw">else </span>{
+            <span class="prelude-val">None
+        </span>};
 
         <span class="kw">let </span>key = QueueKey::new(own_key, sampling_key.unwrap_or(own_key));
 
         <span class="comment">// Trigger processing once we have a project state and we either have a sampling project
         // state or we do not need one.
         </span><span class="kw">if </span>project_state.is_some()
-            &amp;&amp; (sampling_state.is_some() || sampling_key.is_none())
+            &amp;&amp; (sampling_state.is_some() || !requires_sampling_state)
             &amp;&amp; <span class="self">self</span>.memory_checker.check_memory().has_capacity()
             &amp;&amp; <span class="self">self</span>.global_config.is_ready()
         {
-            <span class="kw">return </span><span class="self">self</span>.handle_processing(key, context);
+            <span class="comment">// TODO: Add ready project infos to the processing message.
+            </span><span class="macro">relay_log::trace!</span>(<span class="string">"Sending envelope to processor"</span>);
+            <span class="kw">return </span><span class="self">self</span>.handle_processing(key, managed_envelope);
         }
 
-        <span class="self">self</span>.enqueue(key, context);
+        <span class="macro">relay_log::trace!</span>(<span class="string">"Enqueueing envelope"</span>);
+        <span class="self">self</span>.enqueue(key, managed_envelope);
     }
 
     <span class="kw">fn </span>handle_rate_limits(<span class="kw-2">&amp;mut </span><span class="self">self</span>, message: UpdateRateLimits) {
@@ -2442,12 +2505,12 @@
                 }
                 CheckedBuckets::Checked {
                     scoping,
-                    project_state,
+                    project_info,
                     buckets,
                 } =&gt; scoped_buckets
                     .entry(scoping)
                     .or_insert(ProjectMetrics {
-                        project_state,
+                        project_info,
                         buckets: Vec::new(),
                     })
                     .buckets
@@ -2504,40 +2567,18 @@
 
     <span class="doccomment">/// Returns `true` if the project state valid for the [`QueueKey`].
     ///
-    /// Which includes the own key and the samplig key for the project.
-    /// Note: this function will trigger [`ProjectState`] refresh if it's already expired or not
-    /// valid.
-    </span><span class="kw">fn </span>is_state_valid(<span class="kw-2">&amp;mut </span><span class="self">self</span>, key: <span class="kw-2">&amp;</span>QueueKey) -&gt; bool {
-        <span class="kw">let </span>QueueKey {
-            own_key,
-            sampling_key,
-        } = key;
-
-        <span class="kw">let </span>is_own_state_valid = <span class="self">self</span>.projects.get_mut(own_key).map_or(<span class="bool-val">false</span>, |project| {
-            <span class="comment">// Returns `Some` if the project is cached otherwise None and also triggers refresh
-            // in background.
-            </span>project
-                .get_cached_state(<span class="self">self</span>.services.project_cache.clone(), <span class="bool-val">false</span>)
-                <span class="comment">// Makes sure that the state also is valid.
-                </span>.map_or(<span class="bool-val">false</span>, |state| !state.invalid())
-        });
-
-        <span class="kw">let </span>is_sampling_state_valid = <span class="kw">if </span>own_key != sampling_key {
-            <span class="self">self</span>.projects
-                .get_mut(sampling_key)
-                .map_or(<span class="bool-val">false</span>, |project| {
-                    <span class="comment">// Returns `Some` if the project is cached otherwise None and also triggers refresh
-                    // in background.
-                    </span>project
-                        .get_cached_state(<span class="self">self</span>.services.project_cache.clone(), <span class="bool-val">false</span>)
-                        <span class="comment">// Makes sure that the state also is valid.
-                        </span>.map_or(<span class="bool-val">false</span>, |state| !state.invalid())
-                })
-        } <span class="kw">else </span>{
-            is_own_state_valid
-        };
-
-        is_own_state_valid &amp;&amp; is_sampling_state_valid
+    /// Which includes the own key and the sampling key for the project.
+    /// Note: this function will trigger [`ProjectState`] refresh if it's already expired.
+    </span><span class="kw">fn </span>is_state_cached(<span class="kw-2">&amp;mut </span><span class="self">self</span>, key: <span class="kw-2">&amp;</span>QueueKey) -&gt; bool {
+        key.unique_keys().iter().all(|key| {
+            <span class="self">self</span>.projects.get_mut(key).is_some_and(|project| {
+                <span class="comment">// Returns `Some` if the project is cached otherwise None and also triggers refresh
+                // in background.
+                </span>!project
+                    .get_cached_state(<span class="self">self</span>.services.project_cache.clone(), <span class="bool-val">false</span>)
+                    .is_pending()
+            })
+        })
     }
 
     <span class="doccomment">/// Iterates the buffer index and tries to unspool the envelopes for projects with a valid
@@ -2570,7 +2611,7 @@
 
         <span class="kw">let </span><span class="kw-2">mut </span>index = std::mem::take(<span class="kw-2">&amp;mut </span><span class="self">self</span>.index);
         <span class="kw">let </span>keys = index
-            .extract_if(|key| <span class="self">self</span>.is_state_valid(key))
+            .extract_if(|key| <span class="self">self</span>.is_state_cached(key))
             .take(BATCH_KEY_COUNT)
             .collect::&lt;HashSet&lt;<span class="kw">_</span>&gt;&gt;();
         <span class="kw">let </span>num_keys = keys.len();
@@ -2766,7 +2807,7 @@
                     }
                     <span class="comment">// Buffer will not dequeue the envelopes from the spool if there is not enough
                     // permits in `BufferGuard` available. Currently this is 50%.
-                    </span><span class="prelude-val">Some</span>(UnspooledEnvelope{managed_envelope, key}) = buffer_rx.recv() =&gt; {
+                    </span><span class="prelude-val">Some</span>(UnspooledEnvelope { managed_envelope, key }) = buffer_rx.recv() =&gt; {
                         <span class="macro">metric!</span>(timer(RelayTimers::ProjectCacheTaskDuration), task = <span class="string">"handle_processing"</span>, {
                             broker.handle_processing(key, managed_envelope)
                         })
@@ -2969,7 +3010,7 @@
 
         <span class="kw">let </span>update_dsn1_project_state = UpdateProjectState {
             project_key: ProjectKey::parse(dsn1).unwrap(),
-            state: ProjectState::allowed().into(),
+            state: ProjectFetchState::allowed(),
             no_cache: <span class="bool-val">false</span>,
         };
 
@@ -2983,7 +3024,7 @@
 
         <span class="kw">let </span>update_dsn2_project_state = UpdateProjectState {
             project_key: ProjectKey::parse(dsn2).unwrap(),
-            state: ProjectState::allowed().into(),
+            state: ProjectFetchState::allowed(),
             no_cache: <span class="bool-val">false</span>,
         };
 
@@ -3031,11 +3072,10 @@
         <span class="comment">// Check is we actually spooled anything.
         </span>buffer_svc.send(DequeueMany::new([key].into(), buffer_tx.clone()));
         <span class="kw">let </span>UnspooledEnvelope {
-            key: unspooled_key,
-            managed_envelope: <span class="kw">_</span>,
+            managed_envelope, ..
         } = buffer_rx.recv().<span class="kw">await</span>.unwrap();
 
-        <span class="macro">assert_eq!</span>(key, unspooled_key);
+        <span class="macro">assert_eq!</span>(key, QueueKey::from_envelope(managed_envelope.envelope()));
     }
 }
 </code></pre></div></section></main></body></html>

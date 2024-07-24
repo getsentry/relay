@@ -1856,6 +1856,24 @@
 <a href="#1856" id="1856">1856</a>
 <a href="#1857" id="1857">1857</a>
 <a href="#1858" id="1858">1858</a>
+<a href="#1859" id="1859">1859</a>
+<a href="#1860" id="1860">1860</a>
+<a href="#1861" id="1861">1861</a>
+<a href="#1862" id="1862">1862</a>
+<a href="#1863" id="1863">1863</a>
+<a href="#1864" id="1864">1864</a>
+<a href="#1865" id="1865">1865</a>
+<a href="#1866" id="1866">1866</a>
+<a href="#1867" id="1867">1867</a>
+<a href="#1868" id="1868">1868</a>
+<a href="#1869" id="1869">1869</a>
+<a href="#1870" id="1870">1870</a>
+<a href="#1871" id="1871">1871</a>
+<a href="#1872" id="1872">1872</a>
+<a href="#1873" id="1873">1873</a>
+<a href="#1874" id="1874">1874</a>
+<a href="#1875" id="1875">1875</a>
+<a href="#1876" id="1876">1876</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module contains the [`BufferService`], which is responsible for spooling of the incoming
 //! envelopes, either to in-memory or to persistent storage.
 //!
@@ -1899,6 +1917,7 @@
 <span class="kw">use </span>relay_config::Config;
 <span class="kw">use </span>relay_statsd::metric;
 <span class="kw">use </span>relay_system::{Addr, Controller, FromMessage, Interface, Sender, Service};
+<span class="kw">use </span>smallvec::{smallvec, SmallVec};
 <span class="kw">use </span>sqlx::migrate::MigrateError;
 <span class="kw">use </span>sqlx::sqlite::{
     SqliteAutoVacuum, SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteRow,
@@ -1989,6 +2008,23 @@
             own_key,
             sampling_key,
         }
+    }
+
+    <span class="kw">pub fn </span>from_envelope(envelope: <span class="kw-2">&amp;</span>Envelope) -&gt; <span class="self">Self </span>{
+        <span class="kw">let </span>meta = envelope.meta();
+        <span class="self">Self </span>{
+            own_key: meta.public_key(),
+            sampling_key: envelope.sampling_key().unwrap_or(meta.public_key()),
+        }
+    }
+
+    <span class="doccomment">/// Returns both keys, but omits duplicates.
+    </span><span class="kw">pub fn </span>unique_keys(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; SmallVec&lt;[ProjectKey; <span class="number">2</span>]&gt; {
+        <span class="kw">let </span><span class="kw-2">mut </span>keys = <span class="macro">smallvec!</span>[<span class="self">self</span>.own_key];
+        <span class="kw">if </span><span class="self">self</span>.sampling_key != <span class="self">self</span>.own_key {
+            keys.push(<span class="self">self</span>.sampling_key);
+        }
+        keys
     }
 }
 
@@ -2216,8 +2252,8 @@
                 <span class="self">self</span>.envelope_count = <span class="self">self</span>.envelope_count.saturating_sub(<span class="number">1</span>);
                 sender
                     .send(UnspooledEnvelope {
-                        managed_envelope: envelope,
                         key,
+                        managed_envelope: envelope,
                     })
                     .ok();
             }
@@ -2430,8 +2466,8 @@
                         <span class="kw">for </span>managed_envelope <span class="kw">in </span>managed_envelopes {
                             sender
                                 .send(UnspooledEnvelope {
-                                    managed_envelope,
                                     key,
+                                    managed_envelope,
                                 })
                                 .ok();
                         }

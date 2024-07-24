@@ -722,7 +722,7 @@
     <span class="kw">use </span><span class="kw">crate</span>::envelope::Envelope;
     <span class="kw">use </span><span class="kw">crate</span>::extractors::RequestMeta;
     <span class="kw">use </span><span class="kw">crate</span>::services::processor::{ProcessEnvelope, ProcessingGroup};
-    <span class="kw">use </span><span class="kw">crate</span>::services::project::ProjectState;
+    <span class="kw">use </span><span class="kw">crate</span>::services::project::ProjectInfo;
     <span class="kw">use </span><span class="kw">crate</span>::testutils::create_test_processor;
     <span class="kw">use </span><span class="kw">crate</span>::utils::ManagedEnvelope;
 
@@ -817,7 +817,7 @@
             item
         });
 
-        <span class="kw">let </span><span class="kw-2">mut </span>project_state = ProjectState::allowed();
+        <span class="kw">let </span><span class="kw-2">mut </span>project_state = ProjectInfo::default();
         project_state.config.features.<span class="number">0</span>.insert(Feature::Profiling);
 
         <span class="kw">let </span><span class="kw-2">mut </span>envelopes = ProcessingGroup::split_envelope(<span class="kw-2">*</span>envelope);
@@ -828,8 +828,8 @@
 
         <span class="kw">let </span>message = ProcessEnvelope {
             envelope,
-            project_state: Arc::new(project_state),
-            sampling_project_state: <span class="prelude-val">None</span>,
+            project_info: Arc::new(project_state),
+            sampling_project_info: <span class="prelude-val">None</span>,
             reservoir_counters: ReservoirCounters::default(),
         };
 
@@ -947,8 +947,8 @@
             item
         });
 
-        <span class="kw">let </span><span class="kw-2">mut </span>project_state = ProjectState::allowed();
-        project_state.config.features.<span class="number">0</span>.insert(Feature::Profiling);
+        <span class="kw">let </span><span class="kw-2">mut </span>project_info = ProjectInfo::default();
+        project_info.config.features.<span class="number">0</span>.insert(Feature::Profiling);
 
         <span class="kw">let </span><span class="kw-2">mut </span>envelopes = ProcessingGroup::split_envelope(<span class="kw-2">*</span>envelope);
         <span class="macro">assert_eq!</span>(envelopes.len(), <span class="number">1</span>);
@@ -958,8 +958,8 @@
 
         <span class="kw">let </span>message = ProcessEnvelope {
             envelope,
-            project_state: Arc::new(project_state),
-            sampling_project_state: <span class="prelude-val">None</span>,
+            project_info: Arc::new(project_info),
+            sampling_project_info: <span class="prelude-val">None</span>,
             reservoir_counters: ReservoirCounters::default(),
         };
 
@@ -1016,7 +1016,7 @@
             item
         });
 
-        <span class="kw">let </span><span class="kw-2">mut </span>project_state = ProjectState::allowed();
+        <span class="kw">let </span><span class="kw-2">mut </span>project_state = ProjectInfo::default();
         project_state.config.features.<span class="number">0</span>.insert(Feature::Profiling);
 
         <span class="kw">let </span><span class="kw-2">mut </span>envelopes = ProcessingGroup::split_envelope(<span class="kw-2">*</span>envelope);
@@ -1027,8 +1027,8 @@
 
         <span class="kw">let </span>message = ProcessEnvelope {
             envelope,
-            project_state: Arc::new(project_state),
-            sampling_project_state: <span class="prelude-val">None</span>,
+            project_info: Arc::new(project_state),
+            sampling_project_info: <span class="prelude-val">None</span>,
             reservoir_counters: ReservoirCounters::default(),
         };
 
@@ -1087,7 +1087,7 @@
             item
         });
 
-        <span class="kw">let </span><span class="kw-2">mut </span>project_state = ProjectState::allowed();
+        <span class="kw">let </span><span class="kw-2">mut </span>project_state = ProjectInfo::default();
         project_state.config.features.<span class="number">0</span>.insert(Feature::Profiling);
 
         <span class="kw">let </span><span class="kw-2">mut </span>envelopes = ProcessingGroup::split_envelope(<span class="kw-2">*</span>envelope);
@@ -1098,8 +1098,8 @@
 
         <span class="kw">let </span>message = ProcessEnvelope {
             envelope,
-            project_state: Arc::new(project_state),
-            sampling_project_state: <span class="prelude-val">None</span>,
+            project_info: Arc::new(project_state),
+            sampling_project_info: <span class="prelude-val">None</span>,
             reservoir_counters: ReservoirCounters::default(),
         };
 
