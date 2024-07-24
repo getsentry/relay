@@ -772,7 +772,7 @@ impl ProjectCacheBroker {
     }
 
     /// Handles the processing of the provided envelope.
-    fn handle_processing(&mut self, key: QueueKey, managed_envelope: ManagedEnvelope) {
+    fn handle_processing(&mut self, key: QueueKey, mut managed_envelope: ManagedEnvelope) {
         let project_key = managed_envelope.envelope().meta().public_key();
 
         let Some(project) = self.projects.get_mut(&project_key) else {
@@ -789,16 +789,19 @@ impl ProjectCacheBroker {
         };
 
         let project_cache = self.services.project_cache.clone();
-        let Some(project_info) = project
-            .get_cached_state(project_cache.clone(), false)
-            .enabled()
-        else {
-            // TODO: The caller should already send the valid project info with the message.
-            relay_log::error!(
-                tags.project_key = %project_key,
-                "project has no valid cached state",
-            );
-            return;
+        let project_info = match project.get_cached_state(project_cache.clone(), false) {
+            ProjectState::Enabled(info) => info,
+            ProjectState::Disabled => {
+                managed_envelope.reject(Outcome::Invalid(DiscardReason::ProjectId));
+                return;
+            }
+            ProjectState::Pending => {
+                relay_log::error!(
+                    tags.project_key = %project_key,
+                    "project has no valid cached state",
+                );
+                return;
+            }
         };
 
         // The `Envelope` and `EnvelopeContext` will be dropped if the `Project::check_envelope()`
