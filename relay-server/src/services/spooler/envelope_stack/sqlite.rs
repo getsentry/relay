@@ -11,6 +11,7 @@ use std::collections::VecDeque;
 use std::error::Error;
 use std::pin::pin;
 
+/// New Type used to define ordering on a `Box<Envelope>` based on the `start_time` field.
 struct OrderedEnvelope(Box<Envelope>);
 
 impl Eq for OrderedEnvelope {}
@@ -33,15 +34,22 @@ impl Ord for OrderedEnvelope {
     }
 }
 
+/// An error returned when doing an operation on [`SQLiteEnvelopeStack`].
 #[derive(Debug, thiserror::Error)]
 pub enum SQLiteEnvelopeStackError {
+    /// The stack is empty.
     #[error("the stack is empty")]
     Empty,
 
+    /// The database encountered an unexpected error.
     #[error("a database error occurred")]
     DatabaseError(#[from] sqlx::Error),
 }
 
+/// An [`EnvelopeStack`] that is implemented on an SQLite database.
+///
+/// For efficiency reasons, the implementation has an in-memory buffer that is periodically spooled
+/// to disk in a batched way.
 pub struct SQLiteEnvelopeStack {
     db: Pool<Sqlite>,
     spool_threshold: usize,
@@ -51,6 +59,7 @@ pub struct SQLiteEnvelopeStack {
 }
 
 impl SQLiteEnvelopeStack {
+    /// Creates a new empty [`SQLiteEnvelopeStack`].
     #[allow(dead_code)]
     pub fn new(
         db: Pool<Sqlite>,
@@ -67,6 +76,8 @@ impl SQLiteEnvelopeStack {
         }
     }
 
+    /// Create a new [`SQLiteEnvelopeStack`] and prefills it with data from disk, up to a fixed
+    /// number of elements.
     #[allow(dead_code)]
     pub async fn prepare(
         db: Pool<Sqlite>,
@@ -75,23 +86,32 @@ impl SQLiteEnvelopeStack {
         sampling_key: ProjectKey,
     ) -> Result<(), SQLiteEnvelopeStackError> {
         let mut stack = Self::new(db, spool_threshold, own_key, sampling_key);
-        stack.load_from_disk().await?;
+        stack.unspool_from_disk().await?;
 
         Ok(())
     }
 
+    /// Threshold above which the [`SQLiteEnvelopeStack`] will spool data from the `buffer` to disk.
     fn above_spool_threshold(&self) -> bool {
         self.buffer.len() + 1 > self.spool_threshold
     }
 
+    /// Threshold below which the [`SQLiteEnvelopeStack`] will unspool data from disk to the
+    /// `buffer`.
     fn below_unspool_threshold(&self) -> bool {
         self.buffer.is_empty()
     }
 
+    /// The size of batches of data written and read from disk.
     fn disk_batch_size(&self) -> usize {
         self.spool_threshold / 2
     }
 
+    /// Spools to disk up to `disk_batch_size` envelopes from the `buffer`.
+    ///
+    /// In case there is a failure while writing envelopes, all the envelopes that were enqueued
+    /// to be written to disk are lost. The explanation for this behavior can be found in the body
+    /// of the method.
     async fn spool_to_disk(&mut self) -> Result<(), SQLiteEnvelopeStackError> {
         if self.disk_batch_size() == 0 {
             return Ok(());
@@ -138,7 +158,14 @@ impl SQLiteEnvelopeStack {
         Ok(())
     }
 
-    async fn load_from_disk(&mut self) -> Result<(), SQLiteEnvelopeStackError> {
+    /// Unspools from disk up to `disk_batch_size` envelopes and appends them to the `buffer`.
+    ///
+    /// In case a single deletion fails, the affected envelope will not be unspooled and unspooling
+    /// will continue with the remaining envelopes.
+    ///
+    /// In case an envelope fails deserialization due to malformed data in the database, the affected
+    /// envelope will not be unspooled and unspooling will continue with the remaining envelopes.
+    async fn unspool_from_disk(&mut self) -> Result<(), SQLiteEnvelopeStackError> {
         let envelopes = build_delete_and_fetch_many_envelopes(
             self.own_key,
             self.sampling_key,
@@ -156,6 +183,7 @@ impl SQLiteEnvelopeStack {
         // Unfortunately we have to do this because SQLite `DELETE` with `RETURNING` doesn't
         // return deleted rows in a specific order.
         let mut ordered_envelopes = Vec::with_capacity(self.disk_batch_size());
+        let mut db_error = None;
         while let Some(envelope) = envelopes.as_mut().next().await {
             let envelope = match envelope {
                 Ok(envelope) => envelope,
@@ -164,10 +192,9 @@ impl SQLiteEnvelopeStack {
                         error = &err as &dyn Error,
                         "failed to unspool the envelopes from the disk",
                     );
+                    db_error = Some(err);
 
-                    // We early return under the assumption that the stream, if it contains an
-                    // error, it means that the query failed.
-                    return Err(SQLiteEnvelopeStackError::DatabaseError(err));
+                    continue;
                 }
             };
 
@@ -183,15 +210,26 @@ impl SQLiteEnvelopeStack {
                 }
             }
         }
+        // If there was a database error and no envelopes have been returned, we assume that we are
+        // in a critical state, so we return an error.
+        if let Some(db_error) = db_error {
+            if ordered_envelopes.is_empty() {
+                return Err(SQLiteEnvelopeStackError::DatabaseError(db_error));
+            }
+        };
+
+        // We sort envelopes by `received_at`.
         ordered_envelopes.sort();
-        let mut ordered_envelopes = ordered_envelopes.into_iter().map(|o| o.0).collect();
+
         // We push in the back of the buffer, since we still want to give priority to
         // incoming envelopes that have a more recent timestamp.
-        self.buffer.append(&mut ordered_envelopes);
+        self.buffer
+            .append(&mut ordered_envelopes.into_iter().map(|o| o.0).collect());
 
         Ok(())
     }
 
+    /// Deserializes an [`Envelope`] from a database row.
     fn extract_envelope(&self, row: SqliteRow) -> Result<Box<Envelope>, SQLiteEnvelopeStackError> {
         let envelope_row: Vec<u8> = row
             .try_get("envelope")
@@ -216,6 +254,7 @@ impl EnvelopeStack for SQLiteEnvelopeStack {
 
     async fn push(&mut self, envelope: Box<Envelope>) -> Result<(), Self::Error> {
         if self.above_spool_threshold() {
+            // TODO: investigate how to do spooling/unspooling on a background thread.
             self.spool_to_disk().await?;
         }
 
@@ -226,7 +265,8 @@ impl EnvelopeStack for SQLiteEnvelopeStack {
 
     async fn peek(&mut self) -> Result<&Box<Envelope>, Self::Error> {
         if self.below_unspool_threshold() {
-            self.load_from_disk().await?
+            // TODO: investigate how to do spooling/unspooling on a background thread.
+            self.unspool_from_disk().await?
         }
 
         self.buffer.front().ok_or(Self::Error::Empty)
@@ -234,7 +274,8 @@ impl EnvelopeStack for SQLiteEnvelopeStack {
 
     async fn pop(&mut self) -> Result<Box<Envelope>, Self::Error> {
         if self.below_unspool_threshold() {
-            self.load_from_disk().await?
+            // TODO: investigate how to do spooling/unspooling on a background thread.
+            self.unspool_from_disk().await?
         }
 
         self.buffer.pop_front().ok_or(Self::Error::Empty)
@@ -248,6 +289,7 @@ struct InsertEnvelope {
     encoded_envelope: Vec<u8>,
 }
 
+/// Builds a query that inserts many [`Envelope`](s) in the database.
 fn build_insert_many_envelopes<'a>(
     envelopes: impl Iterator<Item = InsertEnvelope>,
 ) -> QueryBuilder<'a, Sqlite> {
@@ -264,6 +306,7 @@ fn build_insert_many_envelopes<'a>(
     builder
 }
 
+/// Builds a query that deletes many [`Envelope`] from the database.
 pub fn build_delete_and_fetch_many_envelopes<'a>(
     own_key: ProjectKey,
     project_key: ProjectKey,
@@ -282,6 +325,9 @@ pub fn build_delete_and_fetch_many_envelopes<'a>(
     .bind(batch_size)
 }
 
+/// Computes the `received_at` timestamps of an [`Envelope`] based on the `start_time` header.
+///
+/// This method has been copied from the `ManagedEnvelope.received_at()` method.
 fn received_at(envelope: &Envelope) -> i64 {
     relay_common::time::instant_to_date_time(envelope.meta().start_time()).timestamp_millis()
 }
@@ -536,64 +582,4 @@ mod tests {
         }
         assert!(stack.buffer.is_empty());
     }
-
-    // #[tokio::test]
-    // async fn benchmark_insert_and_pop_100k_envelopes() {
-    //     let db = setup_db(true).await;
-    //     let mut stack = SQLiteEnvelopeStack::new(
-    //         db,
-    //         1000, // Set a reasonable spool threshold
-    //         ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
-    //         ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap(),
-    //     );
-    //
-    //     let start_time = Instant::now();
-    //
-    //     // Insert 100,000 envelopes
-    //     for _ in 0..100_000 {
-    //         let envelope = mock_envelope(Instant::now());
-    //         stack.push(envelope).await.unwrap();
-    //     }
-    //
-    //     let insert_duration = start_time.elapsed();
-    //     println!("Time to insert 100,000 envelopes: {:?}", insert_duration);
-    //
-    //     let start_time = Instant::now();
-    //
-    //     // Pop 100,000 envelopes
-    //     for _ in 0..100_000 {
-    //         stack.pop().await.unwrap();
-    //     }
-    //
-    //     let pop_duration = start_time.elapsed();
-    //     println!("Time to pop 100,000 envelopes: {:?}", pop_duration);
-    //
-    //     println!("Total time: {:?}", insert_duration + pop_duration);
-    // }
-    //
-    // #[tokio::test]
-    // async fn benchmark_mixed_operations() {
-    //     let db = setup_db(true).await;
-    //     let mut stack = SQLiteEnvelopeStack::new(
-    //         db,
-    //         1000, // Set a reasonable spool threshold
-    //         ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
-    //         ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap(),
-    //     );
-    //
-    //     let start_time = Instant::now();
-    //
-    //     for i in 0..100_000 {
-    //         if i % 2 == 0 {
-    //             let envelope = mock_envelope(Instant::now());
-    //             stack.push(envelope).await.unwrap();
-    //         } else if let Ok(envelope) = stack.pop().await {
-    //             // Do something with the envelope to prevent optimization
-    //             assert!(envelope.event_id().is_some());
-    //         }
-    //     }
-    //
-    //     let duration = start_time.elapsed();
-    //     println!("Time for 100,000 mixed operations: {:?}", duration);
-    // }
 }
