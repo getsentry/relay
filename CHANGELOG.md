@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Bug Fixes**:
+
+- Allow metrics summaries with only `count` (for sets). ([#3864](https://github.com/getsentry/relay/pull/3864))
+
 ## 24.7.1
 
 **Bug Fixes**:
