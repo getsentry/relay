@@ -2285,12 +2285,20 @@ impl Config {
 
         let redis = self.values.processing.redis.as_ref()?;
 
+        let max_connections = redis
+            .options
+            .max_connections
+            .unwrap_or(cpu_concurrency as u32 * 2)
+            .max(crate::redis::DEFAULT_MIN_MAX_CONNECTIONS);
+
+        let min_idle = redis
+            .options
+            .min_idle
+            .unwrap_or_else(|| max_connections.div_ceil(crate::redis::DEFAULT_MIN_IDLE_RATIO));
+
         let options = RedisConfigOptions {
-            max_connections: redis
-                .options
-                .max_connections
-                .unwrap_or(cpu_concurrency as u32 * 2)
-                .min(crate::redis::DEFAULT_MIN_MAX_CONNECTIONS),
+            max_connections,
+            min_idle: Some(min_idle),
             connection_timeout: redis.options.connection_timeout,
             max_lifetime: redis.options.max_lifetime,
             idle_timeout: redis.options.idle_timeout,
