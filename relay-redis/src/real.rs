@@ -151,6 +151,7 @@ impl RedisPool {
     ) -> Result<Self, RedisError> {
         let pool = Pool::builder()
             .max_size(opts.max_connections)
+            .min_idle(opts.min_idle)
             .test_on_check_out(false)
             .max_lifetime(Some(Duration::from_secs(opts.max_lifetime)))
             .idle_timeout(Some(Duration::from_secs(opts.idle_timeout)))
@@ -166,6 +167,7 @@ impl RedisPool {
     pub fn single(server: &str, opts: RedisConfigOptions) -> Result<Self, RedisError> {
         let pool = Pool::builder()
             .max_size(opts.max_connections)
+            .min_idle(opts.min_idle)
             .test_on_check_out(false)
             .max_lifetime(Some(Duration::from_secs(opts.max_lifetime)))
             .idle_timeout(Some(Duration::from_secs(opts.idle_timeout)))
