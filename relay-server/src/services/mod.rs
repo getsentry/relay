@@ -27,6 +27,7 @@
 //! Controller::run(|| Server::start())
 //!     .expect("failed to start relay");
 //! ```
+mod buffer;
 pub mod cogs;
 pub mod global_config;
 pub mod health_check;
