@@ -301,7 +301,7 @@ impl GlobalConfigService {
     /// This function checks two levels of results:
     /// 1. Whether the request to the upstream was successful.
     /// 2. If the request was successful, it then checks whether the returned
-    /// global config is valid and contains the expected data.
+    ///    global config is valid and contains the expected data.
     fn handle_result(&mut self, result: UpstreamQueryResult) {
         match result {
             Ok(Ok(response)) => {

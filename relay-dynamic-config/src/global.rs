@@ -19,7 +19,6 @@ use crate::{defaults, ErrorBoundary, MetricExtractionGroup, MetricExtractionGrou
 /// [`ProjectConfig`](crate::ProjectConfig)s small.
 #[derive(Default, Clone, Debug, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
-#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct GlobalConfig {
     /// Configuration for measurements normalization.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -106,7 +105,6 @@ fn is_err_or_empty(filters_config: &ErrorBoundary<GenericFiltersConfig>) -> bool
 /// All options passed down from Sentry to Relay.
 #[derive(Default, Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(default)]
-#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct Options {
     /// List of platform names for which we allow using unsampled profiles for the purpose
     /// of improving profile (function) metrics
@@ -235,7 +233,6 @@ pub struct Options {
 /// Kill switch for controlling the cardinality limiter.
 #[derive(Default, Clone, Copy, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
-#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub enum CardinalityLimiterMode {
     /// Cardinality limiter is enabled.
     #[default]
@@ -251,7 +248,6 @@ pub enum CardinalityLimiterMode {
 
 /// Configuration container to control [`BucketEncoding`] per namespace.
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq)]
-#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 #[serde(default)]
 pub struct BucketEncodings {
     transactions: BucketEncoding,
