@@ -259,7 +259,7 @@ pub fn event_id_from_items(items: &Items) -> Result<Option<EventId>, BadStoreReq
 ///
 /// Queueing can fail if the queue exceeds `envelope_buffer_size`. In this case, `Err` is
 /// returned and the envelope is not queued.
-fn queue_envelope(
+async fn queue_envelope(
     state: &ServiceState,
     mut managed_envelope: ManagedEnvelope,
 ) -> Result<(), BadStoreRequest> {
@@ -306,7 +306,14 @@ fn queue_envelope(
         envelope.scope(scoping);
 
         // TODO(jjbayer): schedule prefetch on project state here.
-        state.enqueue(envelope);
+        if state.config().spool_v2() {
+            relay_log::trace!("Pushing envelope to V2 buffer");
+            // TODO(jjbayer): What do we lose by dropping the rest of the managed envelope?
+            // How does the old spooler handle this?
+            state.envelope_buffer().push(envelope.into_envelope()).await;
+        } else {
+            state.project_cache().send(ValidateEnvelope::new(envelope));
+        }
     }
     // The entire envelope is taken for a split above, and it's empty at this point, we can just
     // accept it without additional checks.
@@ -380,7 +387,7 @@ pub async fn handle_envelope(
         return Err(BadStoreRequest::Overflow(offender));
     }
 
-    queue_envelope(state, managed_envelope)?;
+    queue_envelope(state, managed_envelope).await?;
 
     if checked.rate_limits.is_limited() {
         // Even if some envelope items have been queued, there might be active rate limits on

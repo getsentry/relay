@@ -11,7 +11,7 @@ pub trait EnvelopeStack: Send {
 }
 
 #[derive(Debug)]
-pub struct InMemoryEnvelopeStack(Vec<Box<Envelope>>);
+pub struct InMemoryEnvelopeStack(#[allow(clippy::vec_box)] Vec<Box<Envelope>>);
 
 impl EnvelopeStack for InMemoryEnvelopeStack {
     fn new(envelope: Box<Envelope>) -> Self {

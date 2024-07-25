@@ -1,10 +1,11 @@
 use std::cmp::Ordering;
 use std::collections::BTreeSet;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::time::Instant;
 
 use relay_base_schema::project::ProjectKey;
 use relay_config::Config;
+use tokio::sync::Mutex;
 
 use crate::envelope::Envelope;
 use crate::services::buffer::envelopestack::{EnvelopeStack, InMemoryEnvelopeStack};
@@ -17,7 +18,7 @@ pub trait EnvelopeBuffer: std::fmt::Debug + Send {
 }
 
 // TODO: docs
-pub fn create_envelope_buffer(config: &Config) -> Arc<Mutex<dyn EnvelopeBuffer>> {
+pub fn create(config: &Config) -> Arc<Mutex<dyn EnvelopeBuffer>> {
     // TODO: create a DiskMemoryStack
     Arc::new(Mutex::new(
         PriorityEnvelopeBuffer::<InMemoryEnvelopeStack>::new(),

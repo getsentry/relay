@@ -5,6 +5,7 @@ use std::time::Duration;
 
 use crate::extractors::RequestMeta;
 use crate::metrics::MetricOutcomes;
+use crate::services::buffer::EnvelopeBuffer;
 use hashbrown::HashSet;
 use relay_base_schema::project::ProjectKey;
 use relay_config::{Config, RelayMode};

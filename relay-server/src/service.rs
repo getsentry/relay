@@ -1,10 +1,10 @@
 use std::convert::Infallible;
 use std::fmt;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::time::Duration;
 
 use crate::metrics::{MetricOutcomes, MetricStats};
-use crate::services::buffer::{create_envelope_buffer, EnvelopeBuffer};
+use crate::services::buffer::EnvelopeBuffer;
 use crate::services::stats::RelayStats;
 use anyhow::{Context, Result};
 use axum::extract::FromRequestParts;
@@ -141,7 +141,7 @@ fn create_store_pool(config: &Config) -> Result<ThreadPool> {
 struct StateInner {
     config: Arc<Config>,
     memory_checker: MemoryChecker,
-    envelope_buffer: Arc<Mutex<dyn EnvelopeBuffer>>,
+    envelope_buffer: EnvelopeBuffer,
     registry: Registry,
 }
 
@@ -300,24 +300,13 @@ impl ServiceState {
         let state = StateInner {
             config: config.clone(),
             memory_checker: MemoryChecker::new(memory_stat, config.clone()),
-            envelope_buffer: create_envelope_buffer(&config),
+            envelope_buffer: EnvelopeBuffer::from_config(&config),
             registry,
         };
 
         Ok(ServiceState {
             inner: Arc::new(state),
         })
-    }
-
-    pub fn enqueue(&self, mut envelope: ManagedEnvelope) {
-        if self.config().spool_v2() {
-            // TODO(jjbayer): What do we lose by dropping the rest of the managed envelope?
-            // How does the old spooler handle this?
-            let mut guard = self.inner.envelope_buffer.lock().expect("poisoned lock");
-            guard.push(envelope.take_envelope());
-        } else {
-            self.project_cache().send(ValidateEnvelope::new(envelope));
-        }
     }
 
     /// Returns a reference to the Relay configuration.
@@ -330,6 +319,10 @@ impl ServiceState {
     /// thresholds set in the [`Config`].
     pub fn memory_checker(&self) -> &MemoryChecker {
         &self.inner.memory_checker
+    }
+
+    pub fn envelope_buffer(&self) -> &EnvelopeBuffer {
+        &self.inner.envelope_buffer
     }
 
     /// Returns the address of the [`ProjectCache`] service.
