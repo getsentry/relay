@@ -9,6 +9,7 @@ use crate::services::buffer::envelopestack::EnvelopeStack;
 
 pub trait EnvelopeBuffer {
     fn push(&mut self, envelope: Box<Envelope>);
+    fn peek(&mut self) -> Option<&Envelope>;
     fn pop(&mut self) -> Option<Box<Envelope>>;
     fn mark_ready(&mut self, project: &ProjectKey, is_ready: bool);
 }
@@ -35,6 +36,16 @@ struct PriorityEnvelopeBuffer<S: EnvelopeStack> {
     stacks: priority_queue::PriorityQueue<QueueItem<StackKey, S>, Priority>,
 }
 
+impl<S: EnvelopeStack> PriorityEnvelopeBuffer<S> {
+    fn new() -> Self {
+        Self {
+            own_keys: Default::default(),
+            sampling_keys: Default::default(),
+            stacks: Default::default(),
+        }
+    }
+}
+
 impl<S: EnvelopeStack> EnvelopeBuffer for PriorityEnvelopeBuffer<S> {
     fn push(&mut self, envelope: Box<Envelope>) {
         let received_at = envelope.meta().start_time();
@@ -52,7 +63,7 @@ impl<S: EnvelopeStack> EnvelopeBuffer for PriorityEnvelopeBuffer<S> {
             self.own_keys
                 .entry(stack_key.own_key)
                 .or_default()
-                .insert(stack_key.clone());
+                .insert(stack_key);
             self.sampling_keys
                 .entry(stack_key.sampling_key)
                 .or_default()
@@ -61,6 +72,17 @@ impl<S: EnvelopeStack> EnvelopeBuffer for PriorityEnvelopeBuffer<S> {
         self.stacks.change_priority_by(&stack_key, |prio| {
             prio.received_at = received_at;
         });
+    }
+
+    fn peek(&mut self) -> Option<&Envelope> {
+        let (
+            QueueItem {
+                key: _,
+                value: stack,
+            },
+            _,
+        ) = self.stacks.peek_mut()?;
+        stack.peek()
     }
 
     fn pop(&mut self) -> Option<Box<Envelope>> {
@@ -182,5 +204,97 @@ impl Ord for Priority {
             // ready and did not receive envelopes recently can be evicted.
             (false, false) => self.received_at.cmp(&other.received_at).reverse(),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::str::FromStr;
+
+    use relay_common::Dsn;
+
+    use crate::extractors::RequestMeta;
+    use crate::services::buffer::envelopestack::InMemoryEnvelopeStack;
+
+    use super::*;
+
+    fn new_envelope(project_key: ProjectKey, sampling_key: Option<ProjectKey>) -> Box<Envelope> {
+        let envelope = Envelope::from_request(
+            None,
+            RequestMeta::new(Dsn::from_str(&format!("http://{project_key}@localhost/1")).unwrap()),
+        );
+        // TODO: sampling key
+        envelope
+    }
+
+    #[test]
+    fn insert_pop() {
+        let mut buffer = PriorityEnvelopeBuffer::<InMemoryEnvelopeStack>::new();
+
+        let project_key1 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
+        let project_key2 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
+        let project_key3 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fef").unwrap();
+
+        assert!(buffer.pop().is_none());
+        assert!(buffer.peek().is_none());
+
+        buffer.push(new_envelope(project_key1, None));
+        assert_eq!(buffer.peek().unwrap().meta().public_key(), project_key1);
+
+        buffer.push(new_envelope(project_key2, None));
+        // Both projects are not ready, so project 1 is on top (has the oldest envelopes):
+        assert_eq!(buffer.peek().unwrap().meta().public_key(), project_key1);
+
+        buffer.push(new_envelope(project_key3, None));
+        // All projects are not ready, so project 1 is on top (has the oldest envelopes):
+        assert_eq!(buffer.peek().unwrap().meta().public_key(), project_key1);
+
+        // After marking a project ready, it goes to the top:
+        buffer.mark_ready(&project_key3, true);
+        assert_eq!(buffer.peek().unwrap().meta().public_key(), project_key3);
+        assert_eq!(buffer.pop().unwrap().meta().public_key(), project_key3);
+
+        // After popping, project 1 is on top again:
+        assert_eq!(buffer.peek().unwrap().meta().public_key(), project_key1);
+
+        // Mark project 1 as ready (still on top):
+        buffer.mark_ready(&project_key1, true);
+        assert_eq!(buffer.peek().unwrap().meta().public_key(), project_key1);
+
+        // Mark project 2 as ready as well (now on top because most recent):
+        buffer.mark_ready(&project_key2, true);
+        assert_eq!(buffer.peek().unwrap().meta().public_key(), project_key2);
+        assert_eq!(buffer.pop().unwrap().meta().public_key(), project_key2);
+
+        // Pop last element:
+        assert_eq!(buffer.pop().unwrap().meta().public_key(), project_key1);
+        assert!(buffer.pop().is_none());
+        assert!(buffer.peek().is_none());
+    }
+
+    #[test]
+    fn project_internal_order() {
+        let mut buffer = PriorityEnvelopeBuffer::<InMemoryEnvelopeStack>::new();
+
+        let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
+
+        let envelope1 = new_envelope(project_key, None);
+        let instant1 = envelope1.meta().start_time();
+        let envelope2 = new_envelope(project_key, None);
+        let instant2 = envelope2.meta().start_time();
+
+        assert!(instant2 > instant1);
+
+        buffer.push(envelope1);
+        buffer.push(envelope2);
+
+        assert_eq!(buffer.pop().unwrap().meta().start_time(), instant2);
+        assert_eq!(buffer.pop().unwrap().meta().start_time(), instant1);
+        assert!(buffer.pop().is_none());
+    }
+
+    #[test]
+    fn sampling_projects() {
+        todo!()
     }
 }

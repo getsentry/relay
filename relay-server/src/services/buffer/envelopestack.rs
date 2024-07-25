@@ -9,3 +9,23 @@ pub trait EnvelopeStack {
 
     fn peek(&self) -> Option<&Envelope>;
 }
+
+pub struct InMemoryEnvelopeStack(Vec<Box<Envelope>>);
+
+impl EnvelopeStack for InMemoryEnvelopeStack {
+    fn new(envelope: Box<Envelope>) -> Self {
+        Self(vec![envelope])
+    }
+
+    fn push(&mut self, envelope: Box<Envelope>) {
+        self.0.push(envelope)
+    }
+
+    fn pop(&mut self) -> Option<Box<Envelope>> {
+        self.0.pop()
+    }
+
+    fn peek(&self) -> Option<&Envelope> {
+        self.0.last().map(Box::as_ref)
+    }
+}
