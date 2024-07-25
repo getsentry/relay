@@ -37,6 +37,7 @@ pub struct SQLiteEnvelopeStack {
     #[allow(clippy::vec_box)]
     batches_buffer: VecDeque<Vec<Box<Envelope>>>,
     batches_buffer_size: usize,
+    check_disk: bool,
 }
 
 impl SQLiteEnvelopeStack {
@@ -59,6 +60,7 @@ impl SQLiteEnvelopeStack {
             sampling_key,
             batches_buffer: VecDeque::with_capacity(max_batches),
             batches_buffer_size: 0,
+            check_disk: true,
         }
     }
 
@@ -124,6 +126,9 @@ impl SQLiteEnvelopeStack {
             return Err(SQLiteEnvelopeStackError::DatabaseError(err));
         }
 
+        // If we successfully spooled to disk, we know that data should be there.
+        self.check_disk = true;
+
         Ok(())
     }
 
@@ -179,12 +184,17 @@ impl SQLiteEnvelopeStack {
                 }
             }
         }
-        // If there was a database error and no envelopes have been returned, we assume that we are
-        // in a critical state, so we return an error.
+
         if extracted_envelopes.is_empty() {
+            // If there was a database error and no envelopes have been returned, we assume that we are
+            // in a critical state, so we return an error.
             if let Some(db_error) = db_error {
                 return Err(SQLiteEnvelopeStackError::DatabaseError(db_error));
             }
+
+            // In case no envelopes were unspool, we will mark the disk as empty until another round
+            // of spooling takes place.
+            self.check_disk = false;
 
             return Ok(());
         }
@@ -224,7 +234,7 @@ impl EnvelopeStack for SQLiteEnvelopeStack {
     type Error = SQLiteEnvelopeStackError;
 
     async fn push(&mut self, envelope: Box<Envelope>) -> Result<(), Self::Error> {
-        if self.above_spool_threshold() {
+        if self.above_spool_threshold() && self.check_disk {
             // TODO: investigate how to do spooling/unspooling on a background thread.
             self.spool_to_disk().await?;
         }
@@ -249,7 +259,7 @@ impl EnvelopeStack for SQLiteEnvelopeStack {
     }
 
     async fn peek(&mut self) -> Result<&Box<Envelope>, Self::Error> {
-        if self.below_unspool_threshold() {
+        if self.below_unspool_threshold() && self.check_disk {
             // TODO: investigate how to do spooling/unspooling on a background thread.
             self.unspool_from_disk().await?
         }
@@ -261,7 +271,7 @@ impl EnvelopeStack for SQLiteEnvelopeStack {
     }
 
     async fn pop(&mut self) -> Result<Box<Envelope>, Self::Error> {
-        if self.below_unspool_threshold() {
+        if self.below_unspool_threshold() && self.check_disk {
             // TODO: investigate how to do spooling/unspooling on a background thread.
             self.unspool_from_disk().await?
         }
