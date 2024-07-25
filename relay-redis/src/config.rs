@@ -5,6 +5,10 @@ use serde::{Deserialize, Serialize};
 pub struct RedisConfigOptions {
     /// Maximum number of connections managed by the pool.
     pub max_connections: u32,
+    /// Minimum amount of idle connections kept alive in the pool.
+    ///
+    /// If not set it will default to [`Self::max_connections`].
+    pub min_idle: Option<u32>,
     /// Sets the connection timeout used by the pool, in seconds.
     ///
     /// Calls to `Pool::get` will wait this long for a connection to become available before returning an error.
@@ -23,6 +27,7 @@ impl Default for RedisConfigOptions {
     fn default() -> Self {
         Self {
             max_connections: 24,
+            min_idle: None,
             connection_timeout: 5,
             max_lifetime: 300,
             idle_timeout: 60,
