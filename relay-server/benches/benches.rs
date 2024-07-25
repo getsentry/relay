@@ -58,7 +58,7 @@ fn benchmark_sqlite_envelope_stack(c: &mut Criterion) {
     let mut group = c.benchmark_group("sqlite_envelope_stack");
     group.measurement_time(Duration::from_secs(60));
 
-    let disk_batch_size = 10;
+    let disk_batch_size = 1000;
     for size in [1_000, 10_000, 100_000].iter() {
         group.throughput(Throughput::Elements(*size as u64));
 
