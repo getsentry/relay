@@ -212,18 +212,35 @@ mod tests {
     use std::str::FromStr;
 
     use relay_common::Dsn;
+    use relay_sampling::DynamicSamplingContext;
+    use uuid::Uuid;
 
+    use crate::envelope::{Item, ItemType};
     use crate::extractors::RequestMeta;
     use crate::services::buffer::envelopestack::InMemoryEnvelopeStack;
 
     use super::*;
 
     fn new_envelope(project_key: ProjectKey, sampling_key: Option<ProjectKey>) -> Box<Envelope> {
-        let envelope = Envelope::from_request(
+        let mut envelope = Envelope::from_request(
             None,
             RequestMeta::new(Dsn::from_str(&format!("http://{project_key}@localhost/1")).unwrap()),
         );
-        // TODO: sampling key
+        if let Some(sampling_key) = sampling_key {
+            envelope.set_dsc(DynamicSamplingContext {
+                public_key: sampling_key,
+                trace_id: Uuid::new_v4(),
+                release: None,
+                user: Default::default(),
+                replay_id: None,
+                environment: None,
+                transaction: None,
+                sample_rate: None,
+                sampled: None,
+                other: Default::default(),
+            });
+            envelope.add_item(Item::new(ItemType::Transaction));
+        }
         envelope
     }
 
@@ -295,6 +312,47 @@ mod tests {
 
     #[test]
     fn sampling_projects() {
-        todo!()
+        let mut buffer = PriorityEnvelopeBuffer::<InMemoryEnvelopeStack>::new();
+
+        let project_key1 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
+        let project_key2 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fef").unwrap();
+
+        let envelope1 = new_envelope(project_key1, None);
+        let instant1 = envelope1.meta().start_time();
+        buffer.push(envelope1);
+
+        let envelope2 = new_envelope(project_key2, None);
+        let instant2 = envelope2.meta().start_time();
+        buffer.push(envelope2);
+
+        let envelope3 = new_envelope(project_key1, Some(project_key2));
+        let instant3 = envelope3.meta().start_time();
+        buffer.push(envelope3);
+
+        // Nothing is ready, instant1 is on top:
+        assert_eq!(buffer.peek().unwrap().meta().start_time(), instant1);
+
+        // Mark project 2 ready, gets on top:
+        buffer.mark_ready(&project_key2, true);
+        assert_eq!(buffer.peek().unwrap().meta().start_time(), instant2);
+
+        // Revert
+        buffer.mark_ready(&project_key2, false);
+        assert_eq!(buffer.peek().unwrap().meta().start_time(), instant1);
+
+        // Project 1 ready:
+        buffer.mark_ready(&project_key1, true);
+        assert_eq!(buffer.peek().unwrap().meta().start_time(), instant1);
+
+        // when both projects are ready, event no 3 ends up on top:
+        buffer.mark_ready(&project_key2, true);
+        assert_eq!(buffer.pop().unwrap().meta().start_time(), instant3);
+        assert_eq!(buffer.peek().unwrap().meta().start_time(), instant2);
+
+        buffer.mark_ready(&project_key2, false);
+        assert_eq!(buffer.pop().unwrap().meta().start_time(), instant1);
+        assert_eq!(buffer.pop().unwrap().meta().start_time(), instant2);
+
+        assert!(buffer.pop().is_none());
     }
 }
