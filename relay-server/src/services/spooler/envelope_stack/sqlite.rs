@@ -124,6 +124,7 @@ impl SQLiteEnvelopeStack {
             encoded_envelope: e.to_vec().unwrap(),
         });
 
+        // TODO: check how we can do this in a background tokio task in a non-blocking way.
         if let Err(err) = build_insert_many_envelopes(insert_envelopes)
             .build()
             .execute(&self.db)
@@ -263,7 +264,6 @@ impl EnvelopeStack for SQLiteEnvelopeStack {
         }
 
         if self.above_spool_threshold() {
-            // TODO: investigate how to do spooling/unspooling on a background thread.
             self.spool_to_disk().await?;
         }
 
@@ -288,7 +288,6 @@ impl EnvelopeStack for SQLiteEnvelopeStack {
 
     async fn peek(&mut self) -> Result<&Box<Envelope>, Self::Error> {
         if self.below_unspool_threshold() && self.check_disk {
-            // TODO: investigate how to do spooling/unspooling on a background thread.
             self.unspool_from_disk().await?
         }
 
@@ -300,7 +299,6 @@ impl EnvelopeStack for SQLiteEnvelopeStack {
 
     async fn pop(&mut self) -> Result<Box<Envelope>, Self::Error> {
         if self.below_unspool_threshold() && self.check_disk {
-            // TODO: investigate how to do spooling/unspooling on a background thread.
             self.unspool_from_disk().await?
         }
 

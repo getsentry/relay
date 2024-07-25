@@ -1,16 +1,27 @@
 use crate::envelope::Envelope;
+use std::future::Future;
 
-mod sqlite;
+pub mod sqlite;
 
+/// A stack-like data structure that holds [`Envelope`]s.
 pub trait EnvelopeStack {
+    /// The error type that is returned when an error is encountered during reading or writing the
+    /// [`EnvelopeStack`].
     type Error;
 
+    /// Pushes an [`Envelope`] on top of the stack.
     #[allow(dead_code)]
-    async fn push(&mut self, envelope: Box<Envelope>) -> Result<(), Self::Error>;
+    fn push(&mut self, envelope: Box<Envelope>) -> impl Future<Output = Result<(), Self::Error>>;
 
+    /// Peeks the [`Envelope`] on top of the stack.
+    ///
+    /// If the stack is empty, an error is returned.
     #[allow(dead_code)]
-    async fn peek(&mut self) -> Result<&Box<Envelope>, Self::Error>;
+    fn peek(&mut self) -> impl Future<Output = Result<&Box<Envelope>, Self::Error>>;
 
+    /// Pops the [`Envelope`] on top of the stack.
+    ///
+    /// If the stack is empty, an error is returned.
     #[allow(dead_code)]
-    async fn pop(&mut self) -> Result<Box<Envelope>, Self::Error>;
+    fn pop(&mut self) -> impl Future<Output = Result<Box<Envelope>, Self::Error>>;
 }
