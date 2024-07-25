@@ -1,6 +1,7 @@
 use crate::envelope::Envelope;
 use crate::extractors::StartTime;
 use crate::services::spooler::envelope_stack::EnvelopeStack;
+use crate::utils::get_sampling_key;
 use futures::StreamExt;
 use relay_base_schema::project::ProjectKey;
 use sqlx::query::Query;
@@ -22,6 +23,10 @@ pub enum SQLiteEnvelopeStackError {
     /// The database encountered an unexpected error.
     #[error("a database error occurred")]
     DatabaseError(#[from] sqlx::Error),
+
+    /// The envelope has the project keys that are not matching the ones of the stack.
+    #[error("the envelope doesn't have matching project keys with the stack")]
+    MismatchedEnvelope,
 }
 
 /// An [`EnvelopeStack`] that is implemented on an SQLite database.
@@ -29,14 +34,24 @@ pub enum SQLiteEnvelopeStackError {
 /// For efficiency reasons, the implementation has an in-memory buffer that is periodically spooled
 /// to disk in a batched way.
 pub struct SQLiteEnvelopeStack {
+    /// Shared SQLite database pool which will be used to read and write from disk.
     db: Pool<Sqlite>,
+    /// Threshold defining the maximum number of envelopes in the `batches_buffer` before spooling
+    /// to disk will take place.
     spool_threshold: NonZeroUsize,
+    /// Size of a batch of envelopes that is written to disk.
     batch_size: NonZeroUsize,
+    /// The project key of the project to which all the envelopes belong.
     own_key: ProjectKey,
+    /// The project key of the root project of the trace to which all the envelopes belong.
     sampling_key: ProjectKey,
+    /// In-memory stack containing all the batches of envelopes that are read and written to disk.
     #[allow(clippy::vec_box)]
     batches_buffer: VecDeque<Vec<Box<Envelope>>>,
+    /// The total number of envelopes inside the `batches_buffer`.
     batches_buffer_size: usize,
+    /// Boolean representing whether calls to `push()` and `peek()` check disk in case not enough
+    /// elements are available in the `batches_buffer`.
     check_disk: bool,
 }
 
@@ -228,13 +243,26 @@ impl SQLiteEnvelopeStack {
 
         Ok(envelope)
     }
+
+    /// Validates that the incoming [`Envelope`] has the same project keys at the
+    /// [`SQLiteEnvelopeStack`].
+    fn validate_envelope(&self, envelope: &Envelope) -> bool {
+        let own_key = envelope.meta().public_key();
+        let sampling_key = get_sampling_key(envelope).unwrap_or(own_key);
+
+        self.own_key == own_key && self.sampling_key == sampling_key
+    }
 }
 
 impl EnvelopeStack for SQLiteEnvelopeStack {
     type Error = SQLiteEnvelopeStackError;
 
     async fn push(&mut self, envelope: Box<Envelope>) -> Result<(), Self::Error> {
-        if self.above_spool_threshold() && self.check_disk {
+        if !self.validate_envelope(&envelope) {
+            return Err(Self::Error::MismatchedEnvelope);
+        }
+
+        if self.above_spool_threshold() {
             // TODO: investigate how to do spooling/unspooling on a background thread.
             self.spool_to_disk().await?;
         }
@@ -360,15 +388,17 @@ mod tests {
     use crate::services::spooler::envelope_stack::EnvelopeStack;
     use relay_base_schema::project::ProjectKey;
     use relay_event_schema::protocol::EventId;
+    use relay_sampling::DynamicSamplingContext;
     use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions};
     use sqlx::{Pool, Sqlite};
+    use std::collections::BTreeMap;
     use std::path::Path;
     use std::time::{Duration, Instant};
     use tokio::fs::DirBuilder;
     use uuid::Uuid;
 
     fn request_meta() -> RequestMeta {
-        let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
+        let dsn = "https://a94ae32be2584e0bbd7a4cbb95971fee:@sentry.io/42"
             .parse()
             .unwrap();
 
@@ -378,11 +408,24 @@ mod tests {
     fn mock_envelope(instant: Instant) -> Box<Envelope> {
         let event_id = EventId::new();
         let mut envelope = Envelope::from_request(Some(event_id), request_meta());
+
+        let dsc = DynamicSamplingContext {
+            trace_id: Uuid::new_v4(),
+            public_key: ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap(),
+            release: Some("1.1.1".to_string()),
+            user: Default::default(),
+            replay_id: None,
+            environment: None,
+            transaction: Some("transaction1".into()),
+            sample_rate: None,
+            sampled: Some(true),
+            other: BTreeMap::new(),
+        };
+
+        envelope.set_dsc(dsc);
         envelope.set_start_time(instant);
 
-        let mut item = Item::new(ItemType::Attachment);
-        item.set_filename("item");
-        envelope.add_item(item);
+        envelope.add_item(Item::new(ItemType::Transaction));
 
         envelope
     }
@@ -430,6 +473,24 @@ mod tests {
                 .await
                 .unwrap();
         }
+    }
+
+    #[tokio::test]
+    async fn test_push_with_mismatching_project_keys() {
+        let db = setup_db(false).await;
+        let mut stack = SQLiteEnvelopeStack::new(
+            db,
+            2,
+            2,
+            ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
+            ProjectKey::parse("c25ae32be2584e0bbd7a4cbb95971fe1").unwrap(),
+        );
+
+        let envelope = mock_envelope(Instant::now());
+        assert!(matches!(
+            stack.push(envelope).await,
+            Err(SQLiteEnvelopeStackError::MismatchedEnvelope)
+        ));
     }
 
     #[tokio::test]
