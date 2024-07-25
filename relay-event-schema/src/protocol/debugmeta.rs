@@ -337,7 +337,7 @@ pub struct NativeDebugImage {
     /// Unique debug identifier of the image.
     ///
     /// - `elf`: Debug identifier of the dynamic library or executable. If a code identifier is available, the debug identifier is the little-endian UUID representation of the first 16-bytes of that
-    /// identifier. Spaces are inserted for readability, note the byte order of the first fields:
+    ///   identifier. Spaces are inserted for readability, note the byte order of the first fields:
     ///
     ///   ```text
     ///   code id:  f1c3bcc0 2798 65fe 3058 404b2831d9e6 4135386c
@@ -371,7 +371,7 @@ pub struct NativeDebugImage {
     /// The optional checksum of the debug companion file.
     ///
     /// - `pe_dotnet`: This is the hash algorithm and hex-formatted checksum of the associated PDB file.
-    ///  This should have the format `$algorithm:$hash`, for example `SHA256:aabbccddeeff...`.
+    ///   This should have the format `$algorithm:$hash`, for example `SHA256:aabbccddeeff...`.
     ///
     ///   See: <https://github.com/dotnet/runtime/blob/main/docs/design/specs/PE-COFF.md#pdb-checksum-debug-directory-entry-type-19>
     pub debug_checksum: Annotated<String>,

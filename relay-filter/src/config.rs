@@ -272,19 +272,19 @@ impl GenericFilterConfig {
 /// configs yielding the filters according to the principles below:
 ///
 /// - Filters from project configs are evaluated before filters from global
-/// configs.
+///   configs.
 /// - No duplicates: once a filter is evaluated (yielded or skipped), no filter
-/// with the same id is evaluated again.
+///   with the same id is evaluated again.
 /// - Filters in project configs override filters from global configs, but the
-/// opposite is never the case.
+///   opposite is never the case.
 /// - A filter in the project config can be a flag, where only `is_enabled` is
-/// defined and `condition` is not. In that case:
+///   defined and `condition` is not. In that case:
 ///   - If `is_enabled` is true, the filter with a matching ID from global
-///   configs is yielded without evaluating its `is_enabled`. Unless the filter
-///   in the global config also has an empty condition, in which case the filter
-///   is not yielded.
+///     configs is yielded without evaluating its `is_enabled`. Unless the filter
+///     in the global config also has an empty condition, in which case the filter
+///     is not yielded.
 ///   - If `is_enabled` is false, no filters with the same IDs are returned,
-///   including matching filters from global configs.
+///     including matching filters from global configs.
 ///
 /// # Examples
 ///
