@@ -31,6 +31,11 @@
 <a href="#31" id="31">31</a>
 <a href="#32" id="32">32</a>
 <a href="#33" id="33">33</a>
+<a href="#34" id="34">34</a>
+<a href="#35" id="35">35</a>
+<a href="#36" id="36">36</a>
+<a href="#37" id="37">37</a>
+<a href="#38" id="38">38</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>serde::{Deserialize, Serialize};
 
 <span class="doccomment">/// Additional configuration options for a redis client.
@@ -38,6 +43,10 @@
 </span><span class="kw">pub struct </span>RedisConfigOptions {
     <span class="doccomment">/// Maximum number of connections managed by the pool.
     </span><span class="kw">pub </span>max_connections: u32,
+    <span class="doccomment">/// Minimum amount of idle connections kept alive in the pool.
+    ///
+    /// If not set it will default to [`Self::max_connections`].
+    </span><span class="kw">pub </span>min_idle: <span class="prelude-ty">Option</span>&lt;u32&gt;,
     <span class="doccomment">/// Sets the connection timeout used by the pool, in seconds.
     ///
     /// Calls to `Pool::get` will wait this long for a connection to become available before returning an error.
@@ -56,6 +65,7 @@
     <span class="kw">fn </span>default() -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{
             max_connections: <span class="number">24</span>,
+            min_idle: <span class="prelude-val">None</span>,
             connection_timeout: <span class="number">5</span>,
             max_lifetime: <span class="number">300</span>,
             idle_timeout: <span class="number">60</span>,

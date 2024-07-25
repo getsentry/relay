@@ -282,11 +282,31 @@
 <a href="#282" id="282">282</a>
 <a href="#283" id="283">283</a>
 <a href="#284" id="284">284</a>
+<a href="#285" id="285">285</a>
+<a href="#286" id="286">286</a>
+<a href="#287" id="287">287</a>
+<a href="#288" id="288">288</a>
+<a href="#289" id="289">289</a>
+<a href="#290" id="290">290</a>
+<a href="#291" id="291">291</a>
+<a href="#292" id="292">292</a>
+<a href="#293" id="293">293</a>
+<a href="#294" id="294">294</a>
+<a href="#295" id="295">295</a>
+<a href="#296" id="296">296</a>
+<a href="#297" id="297">297</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>serde::{Deserialize, Serialize};
 
 <span class="doccomment">/// For small setups, `2 x limits.max_thread_count` does not leave enough headroom.
 /// In this case, we fall back to the old default.
 </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">const </span>DEFAULT_MIN_MAX_CONNECTIONS: u32 = <span class="number">24</span>;
+
+<span class="doccomment">/// By default the `min_idle` count of the Redis pool is set to the calculated
+/// amount of max connections divided by this value and rounded up.
+///
+/// To express this value as a percentage of max connections,
+/// use this formula: `100 / DEFAULT_MIN_IDLE_RATIO`.
+</span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">const </span>DEFAULT_MIN_IDLE_RATIO: u32 = <span class="number">5</span>;
 
 <span class="doccomment">/// Additional configuration options for a redis client.
 </span><span class="attr">#[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
@@ -297,6 +317,11 @@
     /// Defaults to 2x `limits.max_thread_count` or a minimum of 24.
     </span><span class="attr">#[serde(skip_serializing_if = <span class="string">"Option::is_none"</span>)]
     </span><span class="kw">pub </span>max_connections: <span class="prelude-ty">Option</span>&lt;u32&gt;,
+    <span class="doccomment">/// Minimum amount of idle connections kept alive in the pool.
+    ///
+    /// If not set it will default to 20% of [`Self::max_connections`].
+    </span><span class="attr">#[serde(skip_serializing_if = <span class="string">"Option::is_none"</span>)]
+    </span><span class="kw">pub </span>min_idle: <span class="prelude-ty">Option</span>&lt;u32&gt;,
     <span class="doccomment">/// Sets the connection timeout used by the pool, in seconds.
     ///
     /// Calls to `Pool::get` will wait this long for a connection to become available before returning an error.
@@ -315,6 +340,7 @@
     <span class="kw">fn </span>default() -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{
             max_connections: <span class="prelude-val">None</span>,
+            min_idle: <span class="prelude-val">None</span>,
             connection_timeout: <span class="number">5</span>,
             max_lifetime: <span class="number">300</span>,
             idle_timeout: <span class="number">60</span>,

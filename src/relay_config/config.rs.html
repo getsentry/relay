@@ -2510,6 +2510,14 @@
 <a href="#2510" id="2510">2510</a>
 <a href="#2511" id="2511">2511</a>
 <a href="#2512" id="2512">2512</a>
+<a href="#2513" id="2513">2513</a>
+<a href="#2514" id="2514">2514</a>
+<a href="#2515" id="2515">2515</a>
+<a href="#2516" id="2516">2516</a>
+<a href="#2517" id="2517">2517</a>
+<a href="#2518" id="2518">2518</a>
+<a href="#2519" id="2519">2519</a>
+<a href="#2520" id="2520">2520</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::io::Write;
@@ -4797,12 +4805,20 @@
 
         <span class="kw">let </span>redis = <span class="self">self</span>.values.processing.redis.as_ref()<span class="question-mark">?</span>;
 
+        <span class="kw">let </span>max_connections = redis
+            .options
+            .max_connections
+            .unwrap_or(cpu_concurrency <span class="kw">as </span>u32 * <span class="number">2</span>)
+            .max(<span class="kw">crate</span>::redis::DEFAULT_MIN_MAX_CONNECTIONS);
+
+        <span class="kw">let </span>min_idle = redis
+            .options
+            .min_idle
+            .unwrap_or_else(|| max_connections.div_ceil(<span class="kw">crate</span>::redis::DEFAULT_MIN_IDLE_RATIO));
+
         <span class="kw">let </span>options = RedisConfigOptions {
-            max_connections: redis
-                .options
-                .max_connections
-                .unwrap_or(cpu_concurrency <span class="kw">as </span>u32 * <span class="number">2</span>)
-                .min(<span class="kw">crate</span>::redis::DEFAULT_MIN_MAX_CONNECTIONS),
+            max_connections,
+            min_idle: <span class="prelude-val">Some</span>(min_idle),
             connection_timeout: redis.options.connection_timeout,
             max_lifetime: redis.options.max_lifetime,
             idle_timeout: redis.options.idle_timeout,

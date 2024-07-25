@@ -215,6 +215,8 @@
 <a href="#215" id="215">215</a>
 <a href="#216" id="216">216</a>
 <a href="#217" id="217">217</a>
+<a href="#218" id="218">218</a>
+<a href="#219" id="219">219</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::time::Duration;
 
@@ -368,6 +370,7 @@
     ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, RedisError&gt; {
         <span class="kw">let </span>pool = Pool::builder()
             .max_size(opts.max_connections)
+            .min_idle(opts.min_idle)
             .test_on_check_out(<span class="bool-val">false</span>)
             .max_lifetime(<span class="prelude-val">Some</span>(Duration::from_secs(opts.max_lifetime)))
             .idle_timeout(<span class="prelude-val">Some</span>(Duration::from_secs(opts.idle_timeout)))
@@ -383,6 +386,7 @@
     </span><span class="kw">pub fn </span>single(server: <span class="kw-2">&amp;</span>str, opts: RedisConfigOptions) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, RedisError&gt; {
         <span class="kw">let </span>pool = Pool::builder()
             .max_size(opts.max_connections)
+            .min_idle(opts.min_idle)
             .test_on_check_out(<span class="bool-val">false</span>)
             .max_lifetime(<span class="prelude-val">Some</span>(Duration::from_secs(opts.max_lifetime)))
             .idle_timeout(<span class="prelude-val">Some</span>(Duration::from_secs(opts.idle_timeout)))
