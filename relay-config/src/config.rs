@@ -867,6 +867,19 @@ pub struct EnvelopeSpool {
     /// The interval in milliseconds to trigger unspool.
     #[serde(default = "spool_envelopes_unspool_interval")]
     unspool_interval: u64,
+
+    /// Version of the spooler
+    version: EnvelopeSpoolVersion,
+}
+
+// TODO(docs)
+#[derive(Debug, Default, Deserialize, Serialize)]
+pub enum EnvelopeSpoolVersion {
+    #[default]
+    #[serde(rename = "1")]
+    V1,
+    #[serde(rename = "2")]
+    V2,
 }
 
 impl Default for EnvelopeSpool {
@@ -878,6 +891,7 @@ impl Default for EnvelopeSpool {
             max_disk_size: spool_envelopes_max_disk_size(),
             max_memory_size: spool_envelopes_max_memory_size(),
             unspool_interval: spool_envelopes_unspool_interval(), // 100ms
+            version: EnvelopeSpoolVersion::V2,
         }
     }
 }
@@ -2074,6 +2088,13 @@ impl Config {
     /// The maximum size of the memory buffer, in bytes.
     pub fn spool_envelopes_max_memory_size(&self) -> usize {
         self.values.spool.envelopes.max_memory_size.as_bytes()
+    }
+
+    pub fn spool_v2(&self) -> bool {
+        matches!(
+            self.values.spool.envelopes.version,
+            EnvelopeSpoolVersion::V2
+        )
     }
 
     /// Returns the maximum size of an event payload in bytes.

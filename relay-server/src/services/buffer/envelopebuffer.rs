@@ -1,17 +1,27 @@
 use std::cmp::Ordering;
 use std::collections::BTreeSet;
+use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
 use relay_base_schema::project::ProjectKey;
+use relay_config::Config;
 
 use crate::envelope::Envelope;
-use crate::services::buffer::envelopestack::EnvelopeStack;
+use crate::services::buffer::envelopestack::{EnvelopeStack, InMemoryEnvelopeStack};
 
-pub trait EnvelopeBuffer {
+pub trait EnvelopeBuffer: std::fmt::Debug + Send {
     fn push(&mut self, envelope: Box<Envelope>);
     fn peek(&mut self) -> Option<&Envelope>;
     fn pop(&mut self) -> Option<Box<Envelope>>;
     fn mark_ready(&mut self, project: &ProjectKey, is_ready: bool);
+}
+
+// TODO: docs
+pub fn create_envelope_buffer(config: &Config) -> Arc<Mutex<dyn EnvelopeBuffer>> {
+    // TODO: create a DiskMemoryStack
+    Arc::new(Mutex::new(
+        PriorityEnvelopeBuffer::<InMemoryEnvelopeStack>::new(),
+    ))
 }
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
@@ -30,6 +40,7 @@ impl StackKey {
     }
 }
 
+#[derive(Debug)]
 struct PriorityEnvelopeBuffer<S: EnvelopeStack> {
     own_keys: hashbrown::HashMap<ProjectKey, BTreeSet<StackKey>>,
     sampling_keys: hashbrown::HashMap<ProjectKey, BTreeSet<StackKey>>,
@@ -46,28 +57,55 @@ impl<S: EnvelopeStack> PriorityEnvelopeBuffer<S> {
     }
 }
 
-impl<S: EnvelopeStack> EnvelopeBuffer for PriorityEnvelopeBuffer<S> {
+impl<S: EnvelopeStack> PriorityEnvelopeBuffer<S> {
+    fn push_stack(&mut self, envelope: Box<Envelope>) {
+        let received_at = envelope.meta().start_time();
+        let stack_key = StackKey::from_envelope(&envelope);
+        self.stacks.push(
+            QueueItem {
+                key: stack_key,
+                value: S::new(envelope),
+            },
+            Priority::new(received_at),
+        );
+        self.own_keys
+            .entry(stack_key.own_key)
+            .or_default()
+            .insert(stack_key);
+        self.sampling_keys
+            .entry(stack_key.sampling_key)
+            .or_default()
+            .insert(stack_key);
+    }
+
+    fn pop_stack(&mut self, stack_key: StackKey) {
+        self.own_keys
+            .get_mut(&stack_key.own_key)
+            .expect("own_keys")
+            .remove(&stack_key);
+        self.sampling_keys
+            .get_mut(&stack_key.sampling_key)
+            .expect("sampling_keys")
+            .remove(&stack_key);
+        self.stacks.remove(&stack_key);
+    }
+}
+
+impl<S: EnvelopeStack + std::fmt::Debug> EnvelopeBuffer for PriorityEnvelopeBuffer<S> {
     fn push(&mut self, envelope: Box<Envelope>) {
         let received_at = envelope.meta().start_time();
         let stack_key = StackKey::from_envelope(&envelope);
-        if let Some(qi) = self.stacks.get_mut(&stack_key) {
-            qi.0.value.push(envelope);
+        if let Some((
+            QueueItem {
+                key: _,
+                value: stack,
+            },
+            _,
+        )) = self.stacks.get_mut(&stack_key)
+        {
+            stack.push(envelope);
         } else {
-            self.stacks.push(
-                QueueItem {
-                    key: stack_key,
-                    value: S::new(envelope),
-                },
-                Priority::new(received_at),
-            );
-            self.own_keys
-                .entry(stack_key.own_key)
-                .or_default()
-                .insert(stack_key);
-            self.sampling_keys
-                .entry(stack_key.sampling_key)
-                .or_default()
-                .insert(stack_key);
+            self.push_stack(envelope);
         }
         self.stacks.change_priority_by(&stack_key, |prio| {
             prio.received_at = received_at;
@@ -96,15 +134,7 @@ impl<S: EnvelopeStack> EnvelopeBuffer for PriorityEnvelopeBuffer<S> {
             .map(|next_envelope| next_envelope.meta().start_time());
         match next_received_at {
             None => {
-                self.own_keys
-                    .get_mut(&stack_key.own_key)
-                    .expect("own_keys")
-                    .remove(&stack_key);
-                self.sampling_keys
-                    .get_mut(&stack_key.sampling_key)
-                    .expect("sampling_keys")
-                    .remove(&stack_key);
-                self.stacks.remove(&stack_key);
+                self.pop_stack(stack_key);
             }
             Some(next_received_at) => {
                 self.stacks.change_priority_by(&stack_key, |prio| {
@@ -133,6 +163,7 @@ impl<S: EnvelopeStack> EnvelopeBuffer for PriorityEnvelopeBuffer<S> {
     }
 }
 
+#[derive(Debug)]
 struct QueueItem<K, V> {
     key: K,
     value: V,
@@ -158,6 +189,7 @@ impl<K: PartialEq, V> PartialEq for QueueItem<K, V> {
 
 impl<K: PartialEq, V> Eq for QueueItem<K, V> {}
 
+#[derive(Debug)]
 struct Priority {
     own_ready: bool,
     sampling_ready: bool,

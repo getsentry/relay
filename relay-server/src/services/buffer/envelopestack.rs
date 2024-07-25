@@ -1,6 +1,6 @@
 use crate::envelope::Envelope;
 
-pub trait EnvelopeStack {
+pub trait EnvelopeStack: Send {
     fn new(envelope: Box<Envelope>) -> Self;
 
     fn push(&mut self, envelope: Box<Envelope>);
@@ -10,6 +10,7 @@ pub trait EnvelopeStack {
     fn peek(&self) -> Option<&Envelope>;
 }
 
+#[derive(Debug)]
 pub struct InMemoryEnvelopeStack(Vec<Box<Envelope>>);
 
 impl EnvelopeStack for InMemoryEnvelopeStack {

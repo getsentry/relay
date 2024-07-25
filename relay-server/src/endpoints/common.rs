@@ -305,7 +305,8 @@ fn queue_envelope(
         );
         envelope.scope(scoping);
 
-        state.project_cache().send(ValidateEnvelope::new(envelope));
+        // TODO(jjbayer): schedule prefetch on project state here.
+        state.enqueue(envelope);
     }
     // The entire envelope is taken for a split above, and it's empty at this point, we can just
     // accept it without additional checks.
@@ -333,6 +334,7 @@ pub async fn handle_envelope(
         )
     }
 
+    // TODO(jjbayer): Move this check to spool impl
     if state.memory_checker().check_memory().is_exceeded() {
         // NOTE: Long-term, we should not reject the envelope here, but spool it to disk instead.
         // This will be fixed with the new spool implementation.
