@@ -240,6 +240,7 @@ impl ServiceState {
                 test_store: test_store.clone(),
                 #[cfg(feature = "processing")]
                 store_forwarder: store.clone(),
+                aggregator: aggregator.clone(),
             },
             metric_outcomes.clone(),
         )
@@ -259,7 +260,6 @@ impl ServiceState {
             config.clone(),
             MemoryChecker::new(memory_stat.clone(), config.clone()),
             project_cache_services,
-            metric_outcomes,
             redis_pool.clone(),
         )
         .spawn_handler(project_cache_rx);
