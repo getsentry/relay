@@ -6,33 +6,11 @@ use relay_base_schema::project::ProjectKey;
 use sqlx::query::Query;
 use sqlx::sqlite::{SqliteArguments, SqliteRow};
 use sqlx::{Pool, QueryBuilder, Row, Sqlite};
-use std::cmp::Ordering;
 use std::collections::VecDeque;
 use std::error::Error;
+use std::fmt::Debug;
+use std::num::NonZeroUsize;
 use std::pin::pin;
-
-/// New Type used to define ordering on a `Box<Envelope>` based on the `start_time` field.
-struct OrderedEnvelope(Box<Envelope>);
-
-impl Eq for OrderedEnvelope {}
-
-impl PartialEq<Self> for OrderedEnvelope {
-    fn eq(&self, other: &Self) -> bool {
-        matches!(self.cmp(other), Ordering::Equal)
-    }
-}
-
-impl PartialOrd<Self> for OrderedEnvelope {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl Ord for OrderedEnvelope {
-    fn cmp(&self, other: &Self) -> Ordering {
-        received_at(&other.0).cmp(&received_at(&self.0))
-    }
-}
 
 /// An error returned when doing an operation on [`SQLiteEnvelopeStack`].
 #[derive(Debug, thiserror::Error)]
@@ -52,10 +30,13 @@ pub enum SQLiteEnvelopeStackError {
 /// to disk in a batched way.
 pub struct SQLiteEnvelopeStack {
     db: Pool<Sqlite>,
-    spool_threshold: usize,
+    spool_threshold: NonZeroUsize,
+    disk_batch_size: NonZeroUsize,
     own_key: ProjectKey,
     sampling_key: ProjectKey,
-    buffer: VecDeque<Box<Envelope>>,
+    #[allow(clippy::vec_box)]
+    batches_buffer: VecDeque<Vec<Box<Envelope>>>,
+    batches_buffer_size: usize,
 }
 
 impl SQLiteEnvelopeStack {
@@ -69,10 +50,14 @@ impl SQLiteEnvelopeStack {
     ) -> Self {
         Self {
             db,
-            spool_threshold,
+            spool_threshold: NonZeroUsize::new(spool_threshold)
+                .expect("the spool threshold must be > 0"),
+            disk_batch_size: NonZeroUsize::new(spool_threshold.div_ceil(2))
+                .expect("the disk batch size must be > 0"),
             own_key,
             sampling_key,
-            buffer: VecDeque::with_capacity(spool_threshold),
+            batches_buffer: VecDeque::with_capacity(spool_threshold),
+            batches_buffer_size: 0,
         }
     }
 
@@ -93,18 +78,13 @@ impl SQLiteEnvelopeStack {
 
     /// Threshold above which the [`SQLiteEnvelopeStack`] will spool data from the `buffer` to disk.
     fn above_spool_threshold(&self) -> bool {
-        self.buffer.len() + 1 > self.spool_threshold
+        self.batches_buffer_size >= self.spool_threshold.get()
     }
 
     /// Threshold below which the [`SQLiteEnvelopeStack`] will unspool data from disk to the
     /// `buffer`.
     fn below_unspool_threshold(&self) -> bool {
-        self.buffer.is_empty()
-    }
-
-    /// The size of batches of data written and read from disk.
-    fn disk_batch_size(&self) -> usize {
-        self.spool_threshold / 2
+        self.batches_buffer_size == 0
     }
 
     /// Spools to disk up to `disk_batch_size` envelopes from the `buffer`.
@@ -113,23 +93,10 @@ impl SQLiteEnvelopeStack {
     /// to be written to disk are lost. The explanation for this behavior can be found in the body
     /// of the method.
     async fn spool_to_disk(&mut self) -> Result<(), SQLiteEnvelopeStackError> {
-        if self.disk_batch_size() == 0 {
+        let Some(envelopes) = self.batches_buffer.pop_back() else {
             return Ok(());
-        }
-
-        // TODO: we can make a custom iterator to consume back elements until threshold to avoid
-        //  allocating a vector.
-        let mut envelopes = Vec::with_capacity(self.disk_batch_size());
-        for _ in 0..self.disk_batch_size() {
-            let Some(value) = self.buffer.pop_back() else {
-                break;
-            };
-
-            envelopes.push(value);
-        }
-        if envelopes.is_empty() {
-            return Ok(());
-        }
+        };
+        self.batches_buffer_size -= envelopes.len();
 
         let insert_envelopes = envelopes.iter().map(|e| InsertEnvelope {
             received_at: received_at(e),
@@ -169,7 +136,7 @@ impl SQLiteEnvelopeStack {
         let envelopes = build_delete_and_fetch_many_envelopes(
             self.own_key,
             self.sampling_key,
-            self.disk_batch_size() as i64,
+            self.disk_batch_size.get() as i64,
         )
         .fetch(&self.db)
         .peekable();
@@ -182,7 +149,7 @@ impl SQLiteEnvelopeStack {
         // We use a sorted vector to order envelopes that are deleted from the database.
         // Unfortunately we have to do this because SQLite `DELETE` with `RETURNING` doesn't
         // return deleted rows in a specific order.
-        let mut ordered_envelopes = Vec::with_capacity(self.disk_batch_size());
+        let mut extracted_envelopes = Vec::with_capacity(self.disk_batch_size.get());
         let mut db_error = None;
         while let Some(envelope) = envelopes.as_mut().next().await {
             let envelope = match envelope {
@@ -200,7 +167,7 @@ impl SQLiteEnvelopeStack {
 
             match self.extract_envelope(envelope) {
                 Ok(envelope) => {
-                    ordered_envelopes.push(OrderedEnvelope(envelope));
+                    extracted_envelopes.push(envelope);
                 }
                 Err(err) => {
                     relay_log::error!(
@@ -212,19 +179,21 @@ impl SQLiteEnvelopeStack {
         }
         // If there was a database error and no envelopes have been returned, we assume that we are
         // in a critical state, so we return an error.
-        if let Some(db_error) = db_error {
-            if ordered_envelopes.is_empty() {
+        if extracted_envelopes.is_empty() {
+            if let Some(db_error) = db_error {
                 return Err(SQLiteEnvelopeStackError::DatabaseError(db_error));
             }
-        };
+
+            return Ok(());
+        }
 
         // We sort envelopes by `received_at`.
-        ordered_envelopes.sort();
+        extracted_envelopes.sort_by_key(|a| received_at(a));
 
         // We push in the back of the buffer, since we still want to give priority to
         // incoming envelopes that have a more recent timestamp.
-        self.buffer
-            .append(&mut ordered_envelopes.into_iter().map(|o| o.0).collect());
+        self.batches_buffer_size += extracted_envelopes.len();
+        self.batches_buffer.push_back(extracted_envelopes);
 
         Ok(())
     }
@@ -258,7 +227,19 @@ impl EnvelopeStack for SQLiteEnvelopeStack {
             self.spool_to_disk().await?;
         }
 
-        self.buffer.push_front(envelope);
+        // We need to check if the topmost batch has space, if not we have to create a new batch and
+        // push it in front.
+        if self.batches_buffer.front().map_or(true, |last_batch| {
+            last_batch.len() >= self.disk_batch_size.get()
+        }) {
+            self.batches_buffer
+                .push_front(Vec::with_capacity(self.disk_batch_size.get()));
+        }
+
+        if let Some(batch) = self.batches_buffer.front_mut() {
+            batch.push(envelope);
+            self.batches_buffer_size += 1;
+        }
 
         Ok(())
     }
@@ -269,7 +250,10 @@ impl EnvelopeStack for SQLiteEnvelopeStack {
             self.unspool_from_disk().await?
         }
 
-        self.buffer.front().ok_or(Self::Error::Empty)
+        self.batches_buffer
+            .front()
+            .and_then(|last_batch| last_batch.last())
+            .ok_or(Self::Error::Empty)
     }
 
     async fn pop(&mut self) -> Result<Box<Envelope>, Self::Error> {
@@ -278,7 +262,25 @@ impl EnvelopeStack for SQLiteEnvelopeStack {
             self.unspool_from_disk().await?
         }
 
-        self.buffer.pop_front().ok_or(Self::Error::Empty)
+        let result = self
+            .batches_buffer
+            .front_mut()
+            .and_then(|last_batch| {
+                self.batches_buffer_size -= 1;
+                last_batch.pop()
+            })
+            .ok_or(Self::Error::Empty);
+
+        // Since we might leave a batch without elements, we want to pop it from the buffer.
+        if self
+            .batches_buffer
+            .front()
+            .map_or(false, |last_batch| last_batch.is_empty())
+        {
+            self.batches_buffer.pop_front();
+        }
+
+        result
     }
 }
 
@@ -441,12 +443,24 @@ mod tests {
             Err(SQLiteEnvelopeStackError::DatabaseError(_))
         ));
 
-        // Now one element should have been popped because the stack tried to spool it and the
-        // previous, insertion failed, so we have only 2 elements in the stack, we can now add a
-        // new one and we will succeed.
+        // The stack now contains the last of the 3 elements that were added. If we add a new one
+        // we will end up with 2.
         let envelope = mock_envelope(Instant::now());
-        assert!(stack.push(envelope).await.is_ok());
-        assert_eq!(stack.buffer.len(), 3);
+        assert!(stack.push(envelope.clone()).await.is_ok());
+        assert_eq!(stack.batches_buffer_size, 2);
+
+        // We pop the remaining elements, expecting the last added envelope to be on top.
+        let popped_envelope_1 = stack.pop().await.unwrap();
+        let popped_envelope_2 = stack.pop().await.unwrap();
+        assert_eq!(
+            popped_envelope_1.event_id().unwrap(),
+            envelope.event_id().unwrap()
+        );
+        assert_eq!(
+            popped_envelope_2.event_id().unwrap(),
+            envelopes.clone()[2].event_id().unwrap()
+        );
+        assert_eq!(stack.batches_buffer_size, 0);
     }
 
     #[tokio::test]
@@ -499,7 +513,7 @@ mod tests {
         for envelope in envelopes.clone() {
             assert!(stack.push(envelope).await.is_ok());
         }
-        assert_eq!(stack.buffer.len(), 5);
+        assert_eq!(stack.batches_buffer_size, 5);
 
         // We peek the top element.
         let peeked_envelope = stack.peek().await.unwrap();
@@ -534,7 +548,7 @@ mod tests {
         for envelope in envelopes.clone() {
             assert!(stack.push(envelope).await.is_ok());
         }
-        assert_eq!(stack.buffer.len(), 10);
+        assert_eq!(stack.batches_buffer_size, 10);
 
         // We peek the top element.
         let peeked_envelope = stack.peek().await.unwrap();
@@ -552,7 +566,7 @@ mod tests {
                 envelope.event_id().unwrap()
             );
         }
-        assert!(stack.buffer.is_empty());
+        assert_eq!(stack.batches_buffer_size, 0);
 
         // We peek the top element, which since the buffer is empty should result in a disk load.
         let peeked_envelope = stack.peek().await.unwrap();
@@ -582,6 +596,6 @@ mod tests {
                 envelope.event_id().unwrap()
             );
         }
-        assert!(stack.buffer.is_empty());
+        assert_eq!(stack.batches_buffer_size, 0);
     }
 }
