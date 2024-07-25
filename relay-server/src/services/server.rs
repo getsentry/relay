@@ -135,7 +135,7 @@ impl Service for HttpServer {
                 relay_log::info!("spawning http server");
                 relay_log::info!("  listening on http://{}/", config.listen_addr());
                 relay_statsd::metric!(counter(RelayCounters::ServerStarting) += 1);
-                relay_system::spawn(server.serve(app));
+                relay_system::spawn!(server.serve(app));
             }
             Err(err) => {
                 relay_log::error!("Failed to start the HTTP server: {err}");
@@ -143,7 +143,7 @@ impl Service for HttpServer {
             }
         }
 
-        relay_system::spawn(async move {
+        relay_system::spawn!(async move {
             let Shutdown { timeout } = Controller::shutdown_handle().notified().await;
             relay_log::info!("Shutting down HTTP server");
 

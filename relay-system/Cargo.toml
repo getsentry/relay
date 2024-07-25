@@ -20,5 +20,6 @@ relay-statsd = { workspace = true }
 tokio = { workspace = true, features = ["rt", "signal", "macros", "sync", "time"] }
 
 [dev-dependencies]
+insta = { workspace = true }
 relay-statsd = { workspace = true, features = ["test"] }
 tokio = { workspace = true, features = ["test-util"] }

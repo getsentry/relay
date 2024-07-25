@@ -123,7 +123,7 @@ impl Service for RelayStats {
             return;
         };
 
-        relay_system::spawn(async move {
+        relay_system::spawn!(async move {
             loop {
                 let _ = tokio::join!(
                     self.upstream_status(),
