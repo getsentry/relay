@@ -195,8 +195,8 @@ impl<'a> RawUserAgentInfo<&'a str> {
 /// The client hint variable names mirror the name of the "SEC-CH" headers.
 ///
 /// See <https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers#user_agent_client_hints>
-#[derive(Clone, Debug, Default, serde::Deserialize, serde::Serialize, PartialEq)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[derive(Clone, Debug, Default, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct ClientHints<S>
 where
     S: Default + AsRef<str>,
