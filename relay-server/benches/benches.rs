@@ -159,24 +159,33 @@ fn benchmark_sqlite_envelope_stack(c: &mut Criterion) {
                                 reset_db(db.clone()).await;
                             });
 
-                            SQLiteEnvelopeStack::new(
+                            let stack = SQLiteEnvelopeStack::new(
                                 db.clone(),
                                 disk_batch_size,
                                 2,
                                 ProjectKey::parse("e12d836b15bb49d7bbf99e64295d995b").unwrap(),
                                 ProjectKey::parse("e12d836b15bb49d7bbf99e64295d995b").unwrap(),
-                            )
+                            );
+
+                            // Pre-generate envelopes
+                            let envelopes: Vec<Box<Envelope>> =
+                                (0..size).map(|_| mock_envelope(envelope_size)).collect();
+
+                            (stack, envelopes)
                         },
-                        |mut stack| {
+                        |(mut stack, envelopes)| {
                             runtime.block_on(async {
+                                let mut envelope_iter = envelopes.into_iter();
                                 for _ in 0..size {
                                     if rand::random::<bool>() {
-                                        let envelope = mock_envelope(envelope_size);
-                                        stack.push(envelope).await.unwrap();
+                                        if let Some(envelope) = envelope_iter.next() {
+                                            stack.push(envelope).await.unwrap();
+                                        }
                                     } else if stack.pop().await.is_err() {
                                         // If pop fails (empty stack), push instead
-                                        let envelope = mock_envelope(envelope_size);
-                                        stack.push(envelope).await.unwrap();
+                                        if let Some(envelope) = envelope_iter.next() {
+                                            stack.push(envelope).await.unwrap();
+                                        }
                                     }
                                 }
                             });
