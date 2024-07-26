@@ -214,7 +214,7 @@ impl SQLiteEnvelopeStack {
         // We push in the back of the buffer, since we still want to give priority to
         // incoming envelopes that have a more recent timestamp.
         self.batches_buffer_size += extracted_envelopes.len();
-        self.batches_buffer.push_back(extracted_envelopes);
+        self.batches_buffer.push_front(extracted_envelopes);
 
         Ok(())
     }
@@ -262,14 +262,14 @@ impl EnvelopeStack for SQLiteEnvelopeStack {
         // push it in front.
         if let Some(last_batch) = self
             .batches_buffer
-            .front_mut()
+            .back_mut()
             .filter(|last_batch| last_batch.len() < self.batch_size.get())
         {
             last_batch.push(envelope);
         } else {
             let mut new_batch = Vec::with_capacity(self.batch_size.get());
             new_batch.push(envelope);
-            self.batches_buffer.push_front(new_batch);
+            self.batches_buffer.push_back(new_batch);
         }
 
         self.batches_buffer_size += 1;
@@ -283,7 +283,7 @@ impl EnvelopeStack for SQLiteEnvelopeStack {
         }
 
         self.batches_buffer
-            .front()
+            .back()
             .and_then(|last_batch| last_batch.last())
             .ok_or(Self::Error::Empty)
     }
@@ -295,7 +295,7 @@ impl EnvelopeStack for SQLiteEnvelopeStack {
 
         let result = self
             .batches_buffer
-            .front_mut()
+            .back_mut()
             .and_then(|last_batch| {
                 self.batches_buffer_size -= 1;
                 last_batch.pop()
@@ -305,10 +305,10 @@ impl EnvelopeStack for SQLiteEnvelopeStack {
         // Since we might leave a batch without elements, we want to pop it from the buffer.
         if self
             .batches_buffer
-            .front()
+            .back()
             .map_or(false, |last_batch| last_batch.is_empty())
         {
-            self.batches_buffer.pop_front();
+            self.batches_buffer.pop_back();
         }
 
         result
