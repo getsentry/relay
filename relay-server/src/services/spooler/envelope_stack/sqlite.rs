@@ -74,20 +74,6 @@ impl SQLiteEnvelopeStack {
         }
     }
 
-    /// Create a new [`SQLiteEnvelopeStack`] and prefills it with data from disk, up to a fixed
-    /// number of elements.
-    #[allow(dead_code)]
-    pub async fn prepare(
-        db: Pool<Sqlite>,
-        disk_batch_size: usize,
-        max_batches: usize,
-        own_key: ProjectKey,
-        sampling_key: ProjectKey,
-    ) -> Result<(), SQLiteEnvelopeStackError> {
-        let mut stack = Self::new(db, disk_batch_size, max_batches, own_key, sampling_key);
-        stack.unspool_from_disk().await
-    }
-
     /// Threshold above which the [`SQLiteEnvelopeStack`] will spool data from the `buffer` to disk.
     fn above_spool_threshold(&self) -> bool {
         self.batches_buffer_size >= self.spool_threshold.get()
@@ -105,7 +91,7 @@ impl SQLiteEnvelopeStack {
     /// to be written to disk are lost. The explanation for this behavior can be found in the body
     /// of the method.
     async fn spool_to_disk(&mut self) -> Result<(), SQLiteEnvelopeStackError> {
-        let Some(envelopes) = self.batches_buffer.pop_back() else {
+        let Some(envelopes) = self.batches_buffer.pop_front() else {
             return Ok(());
         };
         self.batches_buffer_size -= envelopes.len();
