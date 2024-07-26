@@ -51,11 +51,11 @@ impl EnvelopeBuffer {
 pub struct Peek<'a>(MutexGuard<'a, dyn envelopebuffer::EnvelopeBuffer>);
 
 impl Peek<'_> {
-    pub fn get(&mut self) -> Option<&Envelope> {
+    pub fn get(&mut self) -> Option<(&Envelope, bool)> {
         self.0.peek()
     }
 
-    pub fn remove(&mut self) -> Option<Box<Envelope>> {
+    pub fn remove(&mut self) -> Option<(Box<Envelope>, bool)> {
         self.0.pop()
     }
 }
