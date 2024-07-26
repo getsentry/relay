@@ -1,29 +1,12 @@
 use std::cmp::Ordering;
 use std::collections::BTreeSet;
-use std::sync::Arc;
 use std::time::Instant;
 
 use relay_base_schema::project::ProjectKey;
-use relay_config::Config;
-use tokio::sync::Mutex;
 
 use crate::envelope::Envelope;
-use crate::services::buffer::envelopestack::{EnvelopeStack, InMemoryEnvelopeStack};
-
-pub trait EnvelopeBuffer: std::fmt::Debug + Send {
-    fn push(&mut self, envelope: Box<Envelope>);
-    fn peek(&mut self) -> Option<&Envelope>;
-    fn pop(&mut self) -> Option<Box<Envelope>>;
-    fn mark_ready(&mut self, project: &ProjectKey, is_ready: bool);
-}
-
-// TODO: docs
-pub fn create(config: &Config) -> Arc<Mutex<dyn EnvelopeBuffer>> {
-    // TODO: create a DiskMemoryStack
-    Arc::new(Mutex::new(
-        PriorityEnvelopeBuffer::<InMemoryEnvelopeStack>::new(),
-    ))
-}
+use crate::services::buffer::envelopebuffer::EnvelopeBuffer;
+use crate::services::buffer::envelopestack::EnvelopeStack;
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 struct StackKey {
@@ -42,14 +25,14 @@ impl StackKey {
 }
 
 #[derive(Debug)]
-struct PriorityEnvelopeBuffer<S: EnvelopeStack> {
+pub struct PriorityEnvelopeBuffer<S: EnvelopeStack> {
     own_keys: hashbrown::HashMap<ProjectKey, BTreeSet<StackKey>>,
     sampling_keys: hashbrown::HashMap<ProjectKey, BTreeSet<StackKey>>,
     stacks: priority_queue::PriorityQueue<QueueItem<StackKey, S>, Priority>,
 }
 
 impl<S: EnvelopeStack> PriorityEnvelopeBuffer<S> {
-    fn new() -> Self {
+    pub fn new() -> Self {
         Self {
             own_keys: Default::default(),
             sampling_keys: Default::default(),

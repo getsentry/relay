@@ -873,12 +873,16 @@ pub struct EnvelopeSpool {
     version: EnvelopeSpoolVersion,
 }
 
-// TODO(docs)
+/// Version of the envelope buffering mechanism.
 #[derive(Debug, Default, Deserialize, Serialize)]
 pub enum EnvelopeSpoolVersion {
+    /// Use the spooler service, which only buffers envelopes for unloaded projects and
+    /// switches between an in-memory mode and a disk mode on-demand.
     #[default]
     #[serde(rename = "1")]
     V1,
+    /// Use the envelope buffer, through which all envelopes pass before getting unspooled.
+    /// Can be either disk based or memory based.
     #[serde(rename = "2")]
     V2,
 }
@@ -2091,6 +2095,7 @@ impl Config {
         self.values.spool.envelopes.max_memory_size.as_bytes()
     }
 
+    /// Returns `true` if version 2 of the spooling mechanism is used.
     pub fn spool_v2(&self) -> bool {
         matches!(
             self.values.spool.envelopes.version,
