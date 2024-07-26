@@ -1086,6 +1086,7 @@ impl EnvelopeHeaders<PartialMeta> {
     }
 }
 
+#[doc(hidden)]
 #[derive(Clone, Debug)]
 pub struct Envelope {
     headers: EnvelopeHeaders,

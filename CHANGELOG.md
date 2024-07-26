@@ -6,6 +6,10 @@
 
 - Allow metrics summaries with only `count` (for sets). ([#3864](https://github.com/getsentry/relay/pull/3864))
 
+**Internal**:
+
+- Add `EnvelopeStack` and `SQLiteEnvelopeStack` to manage envelopes on disk. ([#3855](https://github.com/getsentry/relay/pull/3855))
+
 ## 24.7.1
 
 **Bug Fixes**:

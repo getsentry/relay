@@ -60,6 +60,7 @@ use crate::services::test_store::TestStore;
 use crate::statsd::{RelayCounters, RelayGauges, RelayHistograms, RelayTimers};
 use crate::utils::{ManagedEnvelope, MemoryChecker};
 
+pub mod envelope_stack;
 pub mod spool_utils;
 mod sql;
 
