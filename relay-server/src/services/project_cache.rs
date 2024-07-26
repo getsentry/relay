@@ -149,7 +149,7 @@ impl CheckEnvelope {
 /// next stage:
 ///
 ///  - If the envelope needs dynamic sampling, and the project state is not cached or out of the
-///  date, the envelopes is spooled and we continue when the state is fetched.
+///    date, the envelopes is spooled and we continue when the state is fetched.
 ///  - Otherwise, the envelope is directly submitted to the [`EnvelopeProcessor`].
 ///
 /// [`EnvelopeProcessor`]: crate::services::processor::EnvelopeProcessor
@@ -440,9 +440,7 @@ impl ProjectSource {
             UpstreamProjectSourceService::new(config.clone(), upstream_relay).start();
 
         #[cfg(feature = "processing")]
-        let redis_maxconns = config
-            .redis()
-            .map(|configs| configs.project_configs.1.max_connections);
+        let redis_maxconns = config.redis().map(|(_, config)| config.max_connections);
         #[cfg(feature = "processing")]
         let redis_source = _redis.map(|pool| RedisProjectSource::new(config.clone(), pool));
 
@@ -843,9 +841,9 @@ impl ProjectCacheBroker {
     ///
     /// Few conditions are checked here:
     /// - If there is no dynamic sampling key and the project is already cached, we do straight to
-    /// processing otherwise buffer the envelopes.
+    ///   processing otherwise buffer the envelopes.
     /// - If the dynamic sampling key is provided and if the root and sampling projects
-    /// are cached - process the envelope, buffer otherwise.
+    ///   are cached - process the envelope, buffer otherwise.
     ///
     /// This means if the caches are hot we always process all the incoming envelopes without any
     /// delay. But in case the project state cannot be fetched, we keep buffering till the state

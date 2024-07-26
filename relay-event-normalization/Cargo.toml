@@ -48,3 +48,4 @@ similar-asserts = { workspace = true }
 [features]
 default = ["mmap"]
 mmap = ["maxminddb/mmap"]
+serde = []

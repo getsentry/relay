@@ -151,6 +151,7 @@ impl RedisPool {
     ) -> Result<Self, RedisError> {
         let pool = Pool::builder()
             .max_size(opts.max_connections)
+            .min_idle(opts.min_idle)
             .test_on_check_out(false)
             .max_lifetime(Some(Duration::from_secs(opts.max_lifetime)))
             .idle_timeout(Some(Duration::from_secs(opts.idle_timeout)))
@@ -166,6 +167,7 @@ impl RedisPool {
     pub fn single(server: &str, opts: RedisConfigOptions) -> Result<Self, RedisError> {
         let pool = Pool::builder()
             .max_size(opts.max_connections)
+            .min_idle(opts.min_idle)
             .test_on_check_out(false)
             .max_lifetime(Some(Duration::from_secs(opts.max_lifetime)))
             .idle_timeout(Some(Duration::from_secs(opts.idle_timeout)))
@@ -206,19 +208,6 @@ impl RedisPool {
             idle_connections: s.idle_connections,
         }
     }
-}
-
-/// The various [`RedisPool`]s used within Relay.
-#[derive(Debug, Clone)]
-pub struct RedisPools {
-    /// The pool used for project configurations
-    pub project_configs: RedisPool,
-    /// The pool used for cardinality limits.
-    pub cardinality: RedisPool,
-    /// The pool used for rate limiting/quotas.
-    pub quotas: RedisPool,
-    /// The pool used for metrics metadata.
-    pub misc: RedisPool,
 }
 
 /// Stats about how the [`RedisPool`] is performing.

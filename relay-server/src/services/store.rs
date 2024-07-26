@@ -1021,11 +1021,6 @@ impl StoreService {
                     continue;
                 }
 
-                // If none of the values are there, the summary is invalid.
-                if max.is_none() && min.is_none() && sum.is_none() {
-                    continue;
-                }
-
                 let tags = tags
                     .iter_mut()
                     .filter_map(|(k, v)| Some((k.as_str(), v.as_deref()?)))
