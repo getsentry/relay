@@ -90,7 +90,7 @@ pub struct ProjectConfig {
 
 impl ProjectConfig {
     /// Validates fields in this project config and removes values that are partially invalid.
-    pub fn sanitize(&mut self) {
+    pub fn sanitized(&mut self) {
         self.quotas.retain(Quota::is_valid);
 
         metrics::convert_conditional_tagging(self);

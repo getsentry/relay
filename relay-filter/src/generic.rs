@@ -67,12 +67,12 @@ pub(crate) fn should_filter<F: Getter>(
 /// If filters are compatible, an iterator over all filters is returned. This
 /// iterator yields filters according to the principles below:
 /// - Filters from project configs are evaluated before filters from global
-/// configs.
+///   configs.
 /// - No duplicates: once a filter is evaluated (yielded or skipped), no filter
-/// with the same id is evaluated again.
+///   with the same id is evaluated again.
 /// - If a filter with the same id exists in projects and global configs, both
-/// are merged and the filter is yielded. Values from the filter in the project
-/// config are prioritized.
+///   are merged and the filter is yielded. Values from the filter in the project
+///   config are prioritized.
 fn merge_generic_filters<'a>(
     project: &'a GenericFiltersConfig,
     global: Option<&'a GenericFiltersConfig>,

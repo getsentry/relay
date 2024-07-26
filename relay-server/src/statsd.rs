@@ -683,9 +683,9 @@ pub enum RelayCounters {
     ///  - `has_parent` (only for event_type span): `false` if the span is the root of a trace.
     ///  - `platform` (only for event_type span): The platform from which the span was spent.
     ///  - `metric_type` (only for event_type metric): The metric type, counter, distribution,
-    ///  gauge or set.
+    ///    gauge or set.
     ///  - `metric_encoding` (only for event_type metric): The encoding used for distribution and
-    ///  set metrics.
+    ///    set metrics.
     ///
     /// The message types can be:
     ///

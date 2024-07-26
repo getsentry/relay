@@ -9,7 +9,6 @@ use relay_sampling::config::{RuleType, SamplingConfig};
 use relay_sampling::dsc::{DynamicSamplingContext, TraceUserContext};
 use relay_sampling::evaluation::{SamplingDecision, SamplingEvaluator, SamplingMatch};
 
-use crate::envelope::{Envelope, ItemType};
 use crate::services::outcome::Outcome;
 
 /// Represents the specification for sampling an incoming event.
@@ -88,24 +87,6 @@ pub fn is_trace_fully_sampled(
 
     let evaluation = evaluator.match_rules(dsc.trace_id, dsc, rules);
     Some(SamplingResult::from(evaluation).decision().is_keep())
-}
-
-/// Returns the project key defined in the `trace` header of the envelope.
-///
-/// This function returns `None` if:
-///  - there is no [`DynamicSamplingContext`] in the envelope headers.
-///  - there are no transactions or events in the envelope, since in this case sampling by trace is redundant.
-pub fn get_sampling_key(envelope: &Envelope) -> Option<ProjectKey> {
-    // If the envelope item is not of type transaction or event, we will not return a sampling key
-    // because it doesn't make sense to load the root project state if we don't perform trace
-    // sampling.
-    envelope.get_item_by(|item| {
-        matches!(
-            item.ty(),
-            ItemType::Transaction | ItemType::Event | ItemType::Span
-        )
-    })?;
-    envelope.dsc().map(|dsc| dsc.public_key)
 }
 
 /// Computes a dynamic sampling context from a transaction event.

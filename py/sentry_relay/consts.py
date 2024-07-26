@@ -29,6 +29,7 @@ class DataCategory(IntEnum):
     PROFILE_DURATION = 17
     PROFILE_CHUNK = 18
     METRIC_SECOND = 19
+    REPLAY_VIDEO = 20
     UNKNOWN = -1
     # end generated
 

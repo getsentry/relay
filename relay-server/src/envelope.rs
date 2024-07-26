@@ -30,6 +30,7 @@
 //!
 //! ```
 
+use relay_base_schema::project::ProjectKey;
 use std::borrow::Borrow;
 use std::collections::BTreeMap;
 use std::fmt;
@@ -1217,6 +1218,24 @@ impl Envelope {
     /// When the event has been sent, according to the SDK.
     pub fn sent_at(&self) -> Option<DateTime<Utc>> {
         self.headers.sent_at
+    }
+
+    /// Returns the project key defined in the `trace` header of the envelope.
+    ///
+    /// This function returns `None` if:
+    ///  - there is no [`DynamicSamplingContext`] in the envelope headers.
+    ///  - there are no transactions or events in the envelope, since in this case sampling by trace is redundant.
+    pub fn sampling_key(&self) -> Option<ProjectKey> {
+        // If the envelope item is not of type transaction or event, we will not return a sampling key
+        // because it doesn't make sense to load the root project state if we don't perform trace
+        // sampling.
+        self.get_item_by(|item| {
+            matches!(
+                item.ty(),
+                ItemType::Transaction | ItemType::Event | ItemType::Span
+            )
+        })?;
+        self.dsc().map(|dsc| dsc.public_key)
     }
 
     /// Sets the event id on the envelope.

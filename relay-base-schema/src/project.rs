@@ -1,9 +1,9 @@
 //! Contains [`ProjectKey`] and [`ProjectId`] types and necessary traits implementations.
 //!
 //! - [`ProjectId`] is the unique identifier of a Sentry project. Currently, it is just a wrapper
-//! over `u64` and should be considered as implementations details, as it can change in the future.
+//!   over `u64` and should be considered as implementations details, as it can change in the future.
 //! - [`ProjectKey`] is a byte array (`[u8; 32]`) and represents a DSN to identify and authenticate
-//! a project at Sentry.
+//!   a project at Sentry.
 
 use std::error::Error;
 use std::fmt;

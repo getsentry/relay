@@ -55,7 +55,6 @@ class SentryLike:
         in order not to crash sloppily written tests (maybe we should crash and fix the tests).
         """
         public_keys = self.get_dsn_public_key_configs(project_id)
-
         if public_keys is None:
             return self.default_dsn_public_key
 
