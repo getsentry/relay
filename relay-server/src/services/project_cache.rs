@@ -5,6 +5,7 @@ use std::time::Duration;
 
 use crate::extractors::RequestMeta;
 use crate::metrics::MetricOutcomes;
+use crate::services::buffer::{EnvelopeBuffer, Peek};
 use hashbrown::HashSet;
 use relay_base_schema::project::ProjectKey;
 use relay_config::{Config, RelayMode};
@@ -22,7 +23,7 @@ use crate::services::global_config::{self, GlobalConfigManager, Subscribe};
 use crate::services::metrics::{Aggregator, FlushBuckets};
 use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::services::processor::{
-    EncodeMetrics, EnvelopeProcessor, ProcessEnvelope, ProjectMetrics, Sampling,
+    EncodeMetrics, EnvelopeProcessor, ProcessEnvelope, ProcessingGroup, ProjectMetrics, Sampling,
 };
 use crate::services::project::{
     CheckedBuckets, Project, ProjectFetchState, ProjectSender, ProjectState,
@@ -40,6 +41,8 @@ use crate::services::upstream::UpstreamRelay;
 
 use crate::statsd::{RelayCounters, RelayGauges, RelayHistograms, RelayTimers};
 use crate::utils::{GarbageDisposal, ManagedEnvelope, MemoryChecker, RetryBackoff, SleepHandle};
+
+const MAX_ENVELOPE_AGE: std::time::Duration = std::time::Duration::from_secs(24 * 60 * 60);
 
 /// Requests a refresh of a project state from one of the available sources.
 ///
@@ -763,18 +766,18 @@ impl ProjectCacheBroker {
         let CheckEnvelope { envelope: context } = message;
         let project_cache = self.services.project_cache.clone();
         let project_key = context.envelope().meta().public_key();
+        if let Some(sampling_key) = context.envelope().sampling_key() {
+            if sampling_key != project_key {
+                let sampling_project = self.get_or_create_project(sampling_key);
+                sampling_project.prefetch(project_cache.clone(), false);
+            }
+        }
         let project = self.get_or_create_project(project_key);
 
         // Preload the project cache so that it arrives a little earlier in processing. However,
         // do not pass `no_cache`. In case the project is rate limited, we do not want to force
         // a full reload. Fetching must not block the store request.
-        project.prefetch(project_cache.clone(), false);
-        if let Some(sampling_key) = context.envelope().sampling_key() {
-            if sampling_key != project_key {
-                let sampling_project = self.get_or_create_project(sampling_key);
-                sampling_project.prefetch(project_cache, false);
-            }
-        }
+        project.prefetch(project_cache, false);
 
         project.check_envelope(context)
     }
@@ -1018,6 +1021,98 @@ impl ProjectCacheBroker {
         }
     }
 
+    fn peek_at_envelope(&self, mut peek: Peek<'_>) {
+        relay_log::trace!("Peeking into the envelope buffer");
+        let Some((envelope, should_be_ready)) = peek.get() else {
+            return;
+        };
+
+        relay_log::trace!("Found an envelope");
+
+        // TODO: make envelope age configurable.
+        if envelope.meta().start_time().elapsed() > MAX_ENVELOPE_AGE {
+            let envelope = ManagedEnvelope::new(
+                peek.remove(),
+                self.services.outcome_aggregator,
+                self.services.test_store,
+                ProcessingGroup::Ungrouped,
+            );
+            envelope.reject(Outcome::Invalid(DiscardReason::Expired));
+            // TODO: metrics in all branches.
+            return;
+        }
+        let project_key = envelope.meta().public_key();
+        let project = &mut self.get_or_create_project(project_key);
+        let reservoir_counters = project.reservoir_counters();
+
+        let project_state = project.get_cached_state(self.services.project_cache.clone(), false);
+
+        let project_info = match project_state {
+            ProjectState::Enabled(info) => {
+                peek.mark_ready(project_key, true);
+                info
+            }
+            ProjectState::Disabled => {
+                let envelope = ManagedEnvelope::new(
+                    peek.remove(),
+                    self.services.outcome_aggregator,
+                    self.services.test_store,
+                    ProcessingGroup::Ungrouped,
+                );
+                envelope.reject(Outcome::Invalid(DiscardReason::ProjectId));
+                return;
+            }
+            ProjectState::Pending => {
+                peek.mark_ready(project_key, false);
+                return;
+            }
+        };
+
+        let sampling_project_info = match envelope.sampling_key().map(|sampling_key| {
+            (
+                sampling_key,
+                self.get_or_create_project(sampling_key)
+                    .get_cached_state(self.services.project_cache.clone(), false),
+            )
+        }) {
+            Some((sampling_key, ProjectState::Enabled(info))) => {
+                peek.mark_ready(sampling_key, true);
+                Some(info)
+            }
+            Some((_, ProjectState::Disabled)) => {
+                // Accept envelope even if its sampling state is disabled:
+                None
+            }
+            Some((sampling_key, ProjectState::Pending)) => {
+                peek.mark_ready(sampling_key, false);
+                return;
+            }
+            None => None,
+        };
+
+        let managed_envelope = ManagedEnvelope::new(
+            peek.remove(),
+            self.services.outcome_aggregator,
+            self.services.test_store,
+            ProcessingGroup::Ungrouped, // TODO: ungrouped correct?
+        );
+
+        let Ok(CheckedEnvelope {
+            envelope: Some(managed_envelope),
+            ..
+        }) = project.check_envelope(managed_envelope)
+        else {
+            return; // Outcomes are emitted by check_envelope
+        };
+
+        self.services.envelope_processor.send(ProcessEnvelope {
+            envelope: managed_envelope,
+            project_info,
+            sampling_project_info,
+            reservoir_counters,
+        });
+    }
+
     /// Returns backoff timeout for an unspool attempt.
     fn next_unspool_attempt(&mut self) -> Duration {
         self.config.spool_envelopes_unspool_interval() + self.buffer_unspool_backoff.next_backoff()
@@ -1138,6 +1233,7 @@ impl ProjectCacheBroker {
 pub struct ProjectCacheService {
     config: Arc<Config>,
     memory_checker: MemoryChecker,
+    envelope_buffer: EnvelopeBuffer,
     services: Services,
     metric_outcomes: MetricOutcomes,
     redis: Option<RedisPool>,
@@ -1148,6 +1244,7 @@ impl ProjectCacheService {
     pub fn new(
         config: Arc<Config>,
         memory_checker: MemoryChecker,
+        envelope_buffer: EnvelopeBuffer,
         services: Services,
         metric_outcomes: MetricOutcomes,
         redis: Option<RedisPool>,
@@ -1155,6 +1252,7 @@ impl ProjectCacheService {
         Self {
             config,
             memory_checker,
+            envelope_buffer,
             services,
             metric_outcomes,
             redis,
@@ -1169,6 +1267,7 @@ impl Service for ProjectCacheService {
         let Self {
             config,
             memory_checker,
+            envelope_buffer,
             services,
             metric_outcomes,
             redis,
@@ -1291,6 +1390,11 @@ impl Service for ProjectCacheService {
                     Some(message) = rx.recv() => {
                         metric!(timer(RelayTimers::ProjectCacheTaskDuration), task = "handle_message", {
                             broker.handle_message(message)
+                        })
+                    }
+                    peek = envelope_buffer.peek() => {
+                        metric!(timer(RelayTimers::ProjectCacheTaskDuration), task = "peek_at_envelope", {
+                            broker.peek_at_envelope(peek)
                         })
                     }
                     else => break,

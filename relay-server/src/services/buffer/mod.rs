@@ -55,7 +55,7 @@ impl Peek<'_> {
         self.0.peek()
     }
 
-    pub fn remove(&mut self) -> Option<(Box<Envelope>, bool)> {
+    pub fn remove(mut self) -> Option<(Box<Envelope>, bool)> {
         self.0.pop()
     }
 }

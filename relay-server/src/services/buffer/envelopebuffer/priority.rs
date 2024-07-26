@@ -6,7 +6,7 @@ use relay_base_schema::project::ProjectKey;
 
 use crate::envelope::Envelope;
 use crate::services::buffer::envelopebuffer::{priority, EnvelopeBuffer};
-use crate::services::buffer::envelopestack::EnvelopeStack;
+use crate::services::buffer::envelopestack::{EnvelopeStack, InMemoryEnvelopeStack};
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 struct StackKey {

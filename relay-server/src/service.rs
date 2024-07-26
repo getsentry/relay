@@ -260,6 +260,7 @@ impl ServiceState {
         ProjectCacheService::new(
             config.clone(),
             MemoryChecker::new(memory_stat.clone(), config.clone()),
+            EnvelopeBuffer::from_config(&config),
             project_cache_services,
             metric_outcomes,
             redis_pool.clone(),
