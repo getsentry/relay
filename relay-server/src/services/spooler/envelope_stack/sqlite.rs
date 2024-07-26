@@ -1,7 +1,6 @@
 use crate::envelope::Envelope;
 use crate::extractors::StartTime;
 use crate::services::spooler::envelope_stack::EnvelopeStack;
-use crate::utils::get_sampling_key;
 use futures::StreamExt;
 use relay_base_schema::project::ProjectKey;
 use sqlx::query::Query;
@@ -243,7 +242,7 @@ impl SQLiteEnvelopeStack {
     /// [`SQLiteEnvelopeStack`].
     fn validate_envelope(&self, envelope: &Envelope) -> bool {
         let own_key = envelope.meta().public_key();
-        let sampling_key = get_sampling_key(envelope).unwrap_or(own_key);
+        let sampling_key = envelope.sampling_key().unwrap_or(own_key);
 
         self.own_key == own_key && self.sampling_key == sampling_key
     }
