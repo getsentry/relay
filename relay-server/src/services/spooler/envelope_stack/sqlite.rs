@@ -45,7 +45,7 @@ pub struct SQLiteEnvelopeStack {
     own_key: ProjectKey,
     /// The project key of the root project of the trace to which all the envelopes belong.
     sampling_key: ProjectKey,
-    /// In-memory stack containing all the batches of envelopes that are read and written to disk.
+    /// In-memory stack containing all the batches of envelopes that either have not been written to disk yet, or have been read from disk recently.
     #[allow(clippy::vec_box)]
     batches_buffer: VecDeque<Vec<Box<Envelope>>>,
     /// The total number of envelopes inside the `batches_buffer`.
