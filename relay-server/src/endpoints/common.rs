@@ -305,11 +305,10 @@ async fn queue_envelope(
         );
         envelope.scope(scoping);
 
-        // TODO(jjbayer): schedule prefetch on project state here.
         if state.config().spool_v2() {
+            // NOTE: This assumes that a `prefetch` has already been scheduled for both the
+            // envelope's projects. See `handle_check_envelope`.
             relay_log::trace!("Pushing envelope to V2 buffer");
-            // TODO(jjbayer): What do we lose by dropping the rest of the managed envelope?
-            // How does the old spooler handle this?
             state.envelope_buffer().push(envelope.into_envelope()).await;
         } else {
             state.project_cache().send(ValidateEnvelope::new(envelope));

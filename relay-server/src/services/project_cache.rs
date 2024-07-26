@@ -22,7 +22,7 @@ use crate::services::global_config::{self, GlobalConfigManager, Subscribe};
 use crate::services::metrics::{Aggregator, FlushBuckets};
 use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::services::processor::{
-    EncodeMetrics, EnvelopeProcessor, ProcessEnvelope, ProjectMetrics,
+    EncodeMetrics, EnvelopeProcessor, ProcessEnvelope, ProjectMetrics, Sampling,
 };
 use crate::services::project::{
     CheckedBuckets, Project, ProjectFetchState, ProjectSender, ProjectState,
@@ -762,12 +762,20 @@ impl ProjectCacheBroker {
     ) -> Result<CheckedEnvelope, DiscardReason> {
         let CheckEnvelope { envelope: context } = message;
         let project_cache = self.services.project_cache.clone();
-        let project = self.get_or_create_project(context.envelope().meta().public_key());
+        let project_key = context.envelope().meta().public_key();
+        let project = self.get_or_create_project(project_key);
 
         // Preload the project cache so that it arrives a little earlier in processing. However,
         // do not pass `no_cache`. In case the project is rate limited, we do not want to force
         // a full reload. Fetching must not block the store request.
-        project.prefetch(project_cache, false);
+        project.prefetch(project_cache.clone(), false);
+        if let Some(sampling_key) = context.envelope().sampling_key() {
+            if sampling_key != project_key {
+                let sampling_project = self.get_or_create_project(sampling_key);
+                sampling_project.prefetch(project_cache, false);
+            }
+        }
+
         project.check_envelope(context)
     }
 
