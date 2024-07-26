@@ -1014,9 +1014,11 @@ impl ProjectCacheBroker {
         spool_v1.index.extend(message.0);
     }
 
-    fn handle_spool_health(&mut self, sender: Sender<bool>) {
-        let spool_v1 = self.spool_v1.as_mut().expect("no V1 spool configured");
-        spool_v1.buffer.send(spooler::Health(sender))
+    fn handle_spool_health(&self, sender: Sender<bool>) {
+        match &self.spool_v1 {
+            Some(spool_v1) => spool_v1.buffer.send(spooler::Health(sender)),
+            None => sender.send(true), // TODO
+        }
     }
 
     fn handle_refresh_index_cache(&mut self, message: RefreshIndexCache) {
@@ -1444,6 +1446,7 @@ impl Service for ProjectCacheService {
     }
 }
 
+/// Temporary helper function while V1 spool eixsts.
 async fn peek_buffer(buffer: &Option<EnvelopeBuffer>) -> Option<Peek> {
     match buffer {
         Some(buffer) => buffer.peek().await,

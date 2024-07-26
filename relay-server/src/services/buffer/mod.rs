@@ -46,11 +46,6 @@ impl EnvelopeBuffer {
 
         Some(Peek(guard))
     }
-
-    // pub async fn mark_ready(&self, project: &ProjectKey, is_ready: bool) {
-    //     let mut guard = self.0.lock().await;
-    //     guard.mark_ready(project, is_ready)
-    // }
 }
 
 pub struct Peek<'a>(MutexGuard<'a, dyn envelopebuffer::EnvelopeBuffer>);
