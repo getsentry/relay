@@ -23,7 +23,7 @@ use crate::services::global_config::{self, GlobalConfigManager, Subscribe};
 use crate::services::metrics::{Aggregator, FlushBuckets};
 use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::services::processor::{
-    EncodeMetrics, EnvelopeProcessor, ProcessEnvelope, ProcessingGroup, ProjectMetrics, Sampling,
+    EncodeMetrics, EnvelopeProcessor, ProcessEnvelope, ProcessingGroup, ProjectMetrics,
 };
 use crate::services::project::{
     CheckedBuckets, Project, ProjectFetchState, ProjectSender, ProjectState,
@@ -1021,62 +1021,59 @@ impl ProjectCacheBroker {
         }
     }
 
-    fn peek_at_envelope(&self, mut peek: Peek<'_>) {
-        relay_log::trace!("Peeking into the envelope buffer");
-        let Some((envelope, should_be_ready)) = peek.get() else {
-            return;
-        };
-
-        relay_log::trace!("Found an envelope");
-
+    fn peek_at_envelope(&mut self, mut peek: Peek<'_>) {
+        let envelope = peek.get();
         // TODO: make envelope age configurable.
         if envelope.meta().start_time().elapsed() > MAX_ENVELOPE_AGE {
-            let envelope = ManagedEnvelope::new(
+            let mut managed_envelope = ManagedEnvelope::new(
                 peek.remove(),
-                self.services.outcome_aggregator,
-                self.services.test_store,
+                self.services.outcome_aggregator.clone(),
+                self.services.test_store.clone(),
                 ProcessingGroup::Ungrouped,
             );
-            envelope.reject(Outcome::Invalid(DiscardReason::Expired));
+            managed_envelope.reject(Outcome::Invalid(DiscardReason::Timestamp));
             // TODO: metrics in all branches.
             return;
         }
+        let sampling_key = envelope.sampling_key();
+        let project_cache = self.services.project_cache.clone();
+
         let project_key = envelope.meta().public_key();
         let project = &mut self.get_or_create_project(project_key);
         let reservoir_counters = project.reservoir_counters();
 
-        let project_state = project.get_cached_state(self.services.project_cache.clone(), false);
+        let project_state = project.get_cached_state(project_cache.clone(), false);
 
         let project_info = match project_state {
             ProjectState::Enabled(info) => {
-                peek.mark_ready(project_key, true);
+                peek.mark_ready(&project_key, true);
                 info
             }
             ProjectState::Disabled => {
-                let envelope = ManagedEnvelope::new(
+                let mut managed_envelope = ManagedEnvelope::new(
                     peek.remove(),
-                    self.services.outcome_aggregator,
-                    self.services.test_store,
+                    self.services.outcome_aggregator.clone(),
+                    self.services.test_store.clone(),
                     ProcessingGroup::Ungrouped,
                 );
-                envelope.reject(Outcome::Invalid(DiscardReason::ProjectId));
+                managed_envelope.reject(Outcome::Invalid(DiscardReason::ProjectId));
                 return;
             }
             ProjectState::Pending => {
-                peek.mark_ready(project_key, false);
+                peek.mark_ready(&project_key, false);
                 return;
             }
         };
 
-        let sampling_project_info = match envelope.sampling_key().map(|sampling_key| {
+        let sampling_project_info = match sampling_key.map(|sampling_key| {
             (
                 sampling_key,
                 self.get_or_create_project(sampling_key)
-                    .get_cached_state(self.services.project_cache.clone(), false),
+                    .get_cached_state(project_cache, false),
             )
         }) {
             Some((sampling_key, ProjectState::Enabled(info))) => {
-                peek.mark_ready(sampling_key, true);
+                peek.mark_ready(&sampling_key, true);
                 Some(info)
             }
             Some((_, ProjectState::Disabled)) => {
@@ -1084,7 +1081,7 @@ impl ProjectCacheBroker {
                 None
             }
             Some((sampling_key, ProjectState::Pending)) => {
-                peek.mark_ready(sampling_key, false);
+                peek.mark_ready(&sampling_key, false);
                 return;
             }
             None => None,
@@ -1092,11 +1089,12 @@ impl ProjectCacheBroker {
 
         let managed_envelope = ManagedEnvelope::new(
             peek.remove(),
-            self.services.outcome_aggregator,
-            self.services.test_store,
+            self.services.outcome_aggregator.clone(),
+            self.services.test_store.clone(),
             ProcessingGroup::Ungrouped, // TODO: ungrouped correct?
         );
 
+        let project = &mut self.get_or_create_project(project_key);
         let Ok(CheckedEnvelope {
             envelope: Some(managed_envelope),
             ..
@@ -1393,9 +1391,14 @@ impl Service for ProjectCacheService {
                         })
                     }
                     peek = envelope_buffer.peek() => {
-                        metric!(timer(RelayTimers::ProjectCacheTaskDuration), task = "peek_at_envelope", {
+                        relay_log::trace!("Peeking at envelope");
+                        if let Some(peek) = peek {
+                            relay_log::trace!("Found an envelope");
+                            metric!(timer(RelayTimers::ProjectCacheTaskDuration), task = "peek_at_envelope", {
                             broker.peek_at_envelope(peek)
                         })
+                    }
+
                     }
                     else => break,
                 }

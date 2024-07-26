@@ -12,8 +12,8 @@ mod priority;
 
 pub trait EnvelopeBuffer: std::fmt::Debug + Send {
     fn push(&mut self, envelope: Box<Envelope>);
-    fn peek(&mut self) -> Option<(&Envelope, bool)>;
-    fn pop(&mut self) -> Option<(Box<Envelope>, bool)>;
+    fn peek(&mut self) -> Option<&Envelope>;
+    fn pop(&mut self) -> Option<Box<Envelope>>;
     fn mark_ready(&mut self, project: &ProjectKey, is_ready: bool);
 }
 

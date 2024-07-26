@@ -38,24 +38,35 @@ impl EnvelopeBuffer {
         guard.push(envelope);
     }
 
-    pub async fn peek(&self) -> Peek {
-        Peek(self.0.lock().await)
+    pub async fn peek(&self) -> Option<Peek> {
+        let mut guard = self.0.lock().await;
+        guard.peek()?;
+
+        Some(Peek(guard))
     }
 
-    pub async fn mark_ready(&self, project: &ProjectKey, is_ready: bool) {
-        let mut guard = self.0.lock().await;
-        guard.mark_ready(project, is_ready)
-    }
+    // pub async fn mark_ready(&self, project: &ProjectKey, is_ready: bool) {
+    //     let mut guard = self.0.lock().await;
+    //     guard.mark_ready(project, is_ready)
+    // }
 }
 
 pub struct Peek<'a>(MutexGuard<'a, dyn envelopebuffer::EnvelopeBuffer>);
 
 impl Peek<'_> {
-    pub fn get(&mut self) -> Option<(&Envelope, bool)> {
-        self.0.peek()
+    pub fn get(&mut self) -> &Envelope {
+        self.0
+            .peek()
+            .expect("element disappeared while holding lock")
     }
 
-    pub fn remove(mut self) -> Option<(Box<Envelope>, bool)> {
-        self.0.pop()
+    pub fn remove(mut self) -> Box<Envelope> {
+        self.0
+            .pop()
+            .expect("element disappeared while holding lock")
+    }
+
+    pub fn mark_ready(&mut self, project_key: &ProjectKey, ready: bool) {
+        self.0.mark_ready(project_key, ready);
     }
 }
