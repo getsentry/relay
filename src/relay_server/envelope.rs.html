@@ -2151,6 +2151,7 @@
 <a href="#2151" id="2151">2151</a>
 <a href="#2152" id="2152">2152</a>
 <a href="#2153" id="2153">2153</a>
+<a href="#2154" id="2154">2154</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Implementation of event envelopes.
 //!
 //! Envelopes are containers for payloads related to Sentry events. Similar to multipart form data
@@ -3239,7 +3240,8 @@
     }
 }
 
-<span class="attr">#[derive(Clone, Debug)]
+<span class="attr">#[doc(hidden)]
+#[derive(Clone, Debug)]
 </span><span class="kw">pub struct </span>Envelope {
     headers: EnvelopeHeaders,
     items: Items,

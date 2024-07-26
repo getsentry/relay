@@ -1874,6 +1874,7 @@
 <a href="#1874" id="1874">1874</a>
 <a href="#1875" id="1875">1875</a>
 <a href="#1876" id="1876">1876</a>
+<a href="#1877" id="1877">1877</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module contains the [`BufferService`], which is responsible for spooling of the incoming
 //! envelopes, either to in-memory or to persistent storage.
 //!
@@ -1936,6 +1937,7 @@
 <span class="kw">use </span><span class="kw">crate</span>::statsd::{RelayCounters, RelayGauges, RelayHistograms, RelayTimers};
 <span class="kw">use </span><span class="kw">crate</span>::utils::{ManagedEnvelope, MemoryChecker};
 
+<span class="kw">pub mod </span>envelope_stack;
 <span class="kw">pub mod </span>spool_utils;
 <span class="kw">mod </span>sql;
 

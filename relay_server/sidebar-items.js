@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"fn":["run"],"mod":["spool_utils"]};
+window.SIDEBAR_ITEMS = {"fn":["run"],"mod":["spool_utils"],"struct":["SQLiteEnvelopeStack"],"trait":["EnvelopeStack"]};
