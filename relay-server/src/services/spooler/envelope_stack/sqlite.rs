@@ -23,10 +23,6 @@ pub enum SQLiteEnvelopeStackError {
     /// The database encountered an unexpected error.
     #[error("a database error occurred")]
     DatabaseError(#[from] sqlx::Error),
-
-    /// The envelope has the project keys that are not matching the ones of the stack.
-    #[error("the envelope doesn't have matching project keys with the stack")]
-    MismatchedEnvelope,
 }
 
 /// An [`EnvelopeStack`] that is implemented on an SQLite database.
@@ -90,9 +86,7 @@ impl SQLiteEnvelopeStack {
         sampling_key: ProjectKey,
     ) -> Result<(), SQLiteEnvelopeStackError> {
         let mut stack = Self::new(db, disk_batch_size, max_batches, own_key, sampling_key);
-        stack.unspool_from_disk().await?;
-
-        Ok(())
+        stack.unspool_from_disk().await
     }
 
     /// Threshold above which the [`SQLiteEnvelopeStack`] will spool data from the `buffer` to disk.
@@ -259,9 +253,7 @@ impl EnvelopeStack for SQLiteEnvelopeStack {
     type Error = SQLiteEnvelopeStackError;
 
     async fn push(&mut self, envelope: Box<Envelope>) -> Result<(), Self::Error> {
-        if !self.validate_envelope(&envelope) {
-            return Err(Self::Error::MismatchedEnvelope);
-        }
+        debug_assert!(self.validate_envelope(&envelope));
 
         if self.above_spool_threshold() {
             self.spool_to_disk().await?;
@@ -269,19 +261,19 @@ impl EnvelopeStack for SQLiteEnvelopeStack {
 
         // We need to check if the topmost batch has space, if not we have to create a new batch and
         // push it in front.
-        if self
+        if let Some(last_batch) = self
             .batches_buffer
-            .front()
-            .map_or(true, |last_batch| last_batch.len() >= self.batch_size.get())
+            .front_mut()
+            .filter(|last_batch| last_batch.len() < self.batch_size.get())
         {
-            self.batches_buffer
-                .push_front(Vec::with_capacity(self.batch_size.get()));
+            last_batch.push(envelope);
+        } else {
+            let mut new_batch = Vec::with_capacity(self.batch_size.get());
+            new_batch.push(envelope);
+            self.batches_buffer.push_front(new_batch);
         }
 
-        if let Some(batch) = self.batches_buffer.front_mut() {
-            batch.push(envelope);
-            self.batches_buffer_size += 1;
-        }
+        self.batches_buffer_size += 1;
 
         Ok(())
     }
@@ -474,6 +466,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[should_panic]
     async fn test_push_with_mismatching_project_keys() {
         let db = setup_db(false).await;
         let mut stack = SQLiteEnvelopeStack::new(
@@ -485,10 +478,7 @@ mod tests {
         );
 
         let envelope = mock_envelope(Instant::now());
-        assert!(matches!(
-            stack.push(envelope).await,
-            Err(SQLiteEnvelopeStackError::MismatchedEnvelope)
-        ));
+        let _ = stack.push(envelope).await;
     }
 
     #[tokio::test]
