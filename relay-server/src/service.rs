@@ -139,7 +139,7 @@ fn create_store_pool(config: &Config) -> Result<ThreadPool> {
 struct StateInner {
     config: Arc<Config>,
     memory_checker: MemoryChecker,
-    envelope_buffer: EnvelopeBuffer,
+    envelope_buffer: Option<EnvelopeBuffer>,
     registry: Registry,
 }
 
@@ -323,8 +323,8 @@ impl ServiceState {
         &self.inner.memory_checker
     }
 
-    pub fn envelope_buffer(&self) -> &EnvelopeBuffer {
-        &self.inner.envelope_buffer
+    pub fn envelope_buffer(&self) -> Option<&EnvelopeBuffer> {
+        self.inner.envelope_buffer.as_ref()
     }
 
     /// Returns the address of the [`ProjectCache`] service.

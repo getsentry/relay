@@ -868,8 +868,8 @@ pub struct EnvelopeSpool {
     /// The interval in milliseconds to trigger unspool.
     #[serde(default = "spool_envelopes_unspool_interval")]
     unspool_interval: u64,
-
     /// Version of the spooler
+    #[serde(default = "EnvelopeSpoolVersion::default")]
     version: EnvelopeSpoolVersion,
 }
 

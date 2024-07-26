@@ -28,9 +28,11 @@ pub struct EnvelopeBuffer(
 );
 
 impl EnvelopeBuffer {
-    pub fn from_config(config: &Config) -> Self {
+    pub fn from_config(config: &Config) -> Option<Self> {
         // TODO: create a DiskMemoryStack if db config is given.
-        Self(envelopebuffer::create(config))
+        config
+            .spool_v2()
+            .then(|| Self(envelopebuffer::create(config)))
     }
 
     pub async fn push(&self, envelope: Box<Envelope>) {

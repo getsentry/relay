@@ -305,13 +305,16 @@ async fn queue_envelope(
         );
         envelope.scope(scoping);
 
-        if state.config().spool_v2() {
-            // NOTE: This assumes that a `prefetch` has already been scheduled for both the
-            // envelope's projects. See `handle_check_envelope`.
-            relay_log::trace!("Pushing envelope to V2 buffer");
-            state.envelope_buffer().push(envelope.into_envelope()).await;
-        } else {
-            state.project_cache().send(ValidateEnvelope::new(envelope));
+        match state.envelope_buffer() {
+            Some(buffer) => {
+                // NOTE: This assumes that a `prefetch` has already been scheduled for both the
+                // envelope's projects. See `handle_check_envelope`.
+                relay_log::trace!("Pushing envelope to V2 buffer");
+                buffer.push(envelope.into_envelope()).await;
+            }
+            None => {
+                state.project_cache().send(ValidateEnvelope::new(envelope));
+            }
         }
     }
     // The entire envelope is taken for a split above, and it's empty at this point, we can just

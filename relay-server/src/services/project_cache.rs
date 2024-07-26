@@ -1133,13 +1133,15 @@ impl ProjectCacheBroker {
     }
 
     fn schedule_unspool(&mut self) {
-        if self.spool_v1.is_some() {
+        if self.spool_v1.is_none() {
             return;
         }
 
-        // Set the time for the next attempt.
-        let wait = self.next_unspool_attempt();
-        self.spool_v1_unspool_handle.set(wait);
+        if self.spool_v1_unspool_handle.is_idle() {
+            // Set the time for the next attempt.
+            let wait = self.next_unspool_attempt();
+            self.spool_v1_unspool_handle.set(wait);
+        }
     }
 
     /// Returns `true` if the project state valid for the [`QueueKey`].
@@ -1164,6 +1166,7 @@ impl ProjectCacheBroker {
     /// This makes sure we always moving the unspool forward, even if we do not fetch the project
     /// states updates, but still can process data based on the existing cache.
     fn handle_periodic_unspool(&mut self) {
+        relay_log::trace!("handle_periodic_unspool");
         let (num_keys, reason) = self.handle_periodic_unspool_inner();
         relay_statsd::metric!(
             gauge(RelayGauges::BufferPeriodicUnspool) = num_keys as u64,
@@ -1251,7 +1254,7 @@ impl ProjectCacheBroker {
 pub struct ProjectCacheService {
     config: Arc<Config>,
     memory_checker: MemoryChecker,
-    envelope_buffer: EnvelopeBuffer,
+    envelope_buffer: Option<EnvelopeBuffer>,
     services: Services,
     metric_outcomes: MetricOutcomes,
     redis: Option<RedisPool>,
@@ -1262,7 +1265,7 @@ impl ProjectCacheService {
     pub fn new(
         config: Arc<Config>,
         memory_checker: MemoryChecker,
-        envelope_buffer: EnvelopeBuffer,
+        envelope_buffer: Option<EnvelopeBuffer>,
         services: Services,
         metric_outcomes: MetricOutcomes,
         redis: Option<RedisPool>,
@@ -1422,7 +1425,7 @@ impl Service for ProjectCacheService {
                             broker.handle_message(message)
                         })
                     }
-                    peek = envelope_buffer.peek() => {
+                    peek = peek_buffer(&envelope_buffer) => {
                         relay_log::trace!("Peeking at envelope");
                         if let Some(peek) = peek {
                             relay_log::trace!("Found an envelope");
@@ -1438,6 +1441,13 @@ impl Service for ProjectCacheService {
 
             relay_log::info!("project cache stopped");
         });
+    }
+}
+
+async fn peek_buffer(buffer: &Option<EnvelopeBuffer>) -> Option<Peek> {
+    match buffer {
+        Some(buffer) => buffer.peek().await,
+        None => std::future::pending().await,
     }
 }
 
