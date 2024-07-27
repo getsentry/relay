@@ -568,6 +568,8 @@ impl Services {
 struct ProjectCacheBroker {
     config: Arc<Config>,
     memory_checker: MemoryChecker,
+    // TODO: Make non-optional when spool_v1 is removed.
+    envelope_buffer: Option<EnvelopeBuffer>,
     services: Services,
     metric_outcomes: MetricOutcomes,
     // Need hashbrown because extract_if is not stable in std yet.
@@ -719,6 +721,11 @@ impl ProjectCacheBroker {
 
         // Try to schedule unspool if it's not scheduled yet.
         self.schedule_unspool();
+
+        // TODO: write test that shows envelope can overtake when project becomes ready.
+        if let Some(buffer) = self.envelope_buffer.clone() {
+            tokio::spawn(async move { buffer.mark_ready(&project_key, true).await });
+        }
     }
 
     fn handle_request_update(&mut self, message: RequestUpdate) {
@@ -1371,6 +1378,7 @@ impl Service for ProjectCacheService {
             let mut broker = ProjectCacheBroker {
                 config: config.clone(),
                 memory_checker,
+                envelope_buffer: envelope_buffer.clone(),
                 projects: hashbrown::HashMap::new(),
                 garbage_disposal: GarbageDisposal::new(),
                 source: ProjectSource::start(
@@ -1524,6 +1532,7 @@ mod tests {
         .unwrap()
         .into();
         let memory_checker = MemoryChecker::new(MemoryStat::default(), config.clone());
+        let envelope_buffer = EnvelopeBuffer::from_config(&config);
         let buffer_services = spooler::Services {
             outcome_aggregator: services.outcome_aggregator.clone(),
             project_cache: services.project_cache.clone(),
@@ -1554,6 +1563,7 @@ mod tests {
             ProjectCacheBroker {
                 config: config.clone(),
                 memory_checker,
+                envelope_buffer,
                 projects: hashbrown::HashMap::new(),
                 garbage_disposal: GarbageDisposal::new(),
                 source: ProjectSource::start(config, services.upstream_relay.clone(), None),

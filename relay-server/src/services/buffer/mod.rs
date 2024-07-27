@@ -11,7 +11,7 @@ mod envelopebuffer;
 mod envelopestack;
 
 /// Wrapper for the EnvelopeBuffer implementation.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct EnvelopeBuffer {
     /// TODO: Reconsider synchronization mechanism.
     /// We can either
@@ -25,15 +25,15 @@ pub struct EnvelopeBuffer {
     /// > [...] when you do want shared access to an IO resource, it is often better to spawn a task to manage the IO resource,
     /// > and to use message passing to communicate with that task.
     backend: Arc<tokio::sync::Mutex<dyn envelopebuffer::EnvelopeBuffer>>,
-    notify: tokio::sync::Notify,
+    notify: Arc<tokio::sync::Notify>,
 }
 
 impl EnvelopeBuffer {
     pub fn from_config(config: &Config) -> Option<Self> {
-        // TODO: create a DiskMemoryStack if db config is given.
+        // TODO: create a disk-based backend if db config is given (loads stacks from db).
         config.spool_v2().then(|| Self {
             backend: envelopebuffer::create(config),
-            notify: tokio::sync::Notify::new(),
+            notify: Arc::new(tokio::sync::Notify::new()),
         })
     }
 
@@ -57,6 +57,11 @@ impl EnvelopeBuffer {
             }
         }
     }
+
+    pub async fn mark_ready(&self, project_key: &ProjectKey, ready: bool) {
+        let mut guard = self.backend.lock().await;
+        guard.mark_ready(project_key, ready)
+    }
 }
 
 pub struct Peek<'a>(MutexGuard<'a, dyn envelopebuffer::EnvelopeBuffer>);
@@ -74,6 +79,10 @@ impl Peek<'_> {
             .expect("element disappeared while holding lock")
     }
 
+    /// Sync version of [`EnvelopeBuffer::mark_ready`].
+    ///
+    /// Since [`Peek`] already has exclusive access to the buffer, it can mark projects as ready
+    /// without awaiting the lock.
     pub fn mark_ready(&mut self, project_key: &ProjectKey, ready: bool) {
         self.0.mark_ready(project_key, ready);
     }
