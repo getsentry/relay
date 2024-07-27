@@ -288,9 +288,9 @@ pub fn scrub_ipv6(ip: Ipv6Addr) -> &'static str {
 /// ```
 /// use relay_event_normalization::span::description::scrub_domain_name;
 ///
-/// assert_eq!(scrub_domain_name("my.domain.com", None), "*.domain.com");
-/// assert_eq!(scrub_domain_name("data.bbc.co.uk", None), "*.bbc.co.uk");
-/// assert_eq!(scrub_domain_name("hello world", None), "hello world");
+/// assert_eq!(scrub_domain_name("my.domain.com"), "*.domain.com");
+/// assert_eq!(scrub_domain_name("data.bbc.co.uk"), "*.bbc.co.uk");
+/// assert_eq!(scrub_domain_name("hello world"), "hello world");
 /// ```
 pub fn scrub_domain_name(domain: &str) -> Cow<'_, str> {
     if DOMAIN_ALLOW_LIST.contains(&domain) {
