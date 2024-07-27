@@ -16,7 +16,7 @@ use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::services::processor::{Processed, ProcessingGroup};
 use crate::services::test_store::{Capture, TestStore};
 use crate::statsd::{RelayCounters, RelayTimers};
-use crate::utils::{EnvelopeSummary, SemaphorePermit};
+use crate::utils::EnvelopeSummary;
 
 /// Denotes the success of handling an envelope.
 #[derive(Clone, Copy, Debug)]
@@ -62,7 +62,6 @@ pub enum ItemAction {
 struct EnvelopeContext {
     summary: EnvelopeSummary,
     scoping: Scoping,
-    slot: Option<SemaphorePermit>,
     partition_key: Option<u64>,
     done: bool,
     group: ProcessingGroup,
@@ -165,10 +164,11 @@ pub struct ManagedEnvelope {
 }
 
 impl ManagedEnvelope {
-    /// Computes a managed envelope from the given envelope.
-    fn new_internal(
+    /// Computes a managed envelope from the given envelope and binds it to the processing queue.
+    ///
+    /// To provide additional scoping, use [`ManagedEnvelope::scope`].
+    pub fn new(
         envelope: Box<Envelope>,
-        slot: Option<SemaphorePermit>,
         outcome_aggregator: Addr<TrackOutcome>,
         test_store: Addr<TestStore>,
         group: ProcessingGroup,
@@ -176,12 +176,12 @@ impl ManagedEnvelope {
         let meta = &envelope.meta();
         let summary = EnvelopeSummary::compute(envelope.as_ref());
         let scoping = meta.get_partial_scoping();
+
         Self {
             envelope,
             context: EnvelopeContext {
                 summary,
                 scoping,
-                slot,
                 partition_key: None,
                 done: false,
                 group,
@@ -197,44 +197,14 @@ impl ManagedEnvelope {
         outcome_aggregator: Addr<TrackOutcome>,
         test_store: Addr<TestStore>,
     ) -> Self {
-        let mut envelope = Self::new_internal(
+        let mut envelope = Self::new(
             envelope,
-            None,
             outcome_aggregator,
             test_store,
             ProcessingGroup::Ungrouped,
         );
         envelope.context.done = true;
         envelope
-    }
-
-    /// Creates a new managed envelope like [`new`](Self::new) but without a queue permit.
-    ///
-    /// This is suitable for aggregated metrics. Metrics live outside the lifecycle of a normal
-    /// event. They are extracted, aggregated and regularily flushed, after the
-    /// source event has already been processed.
-    ///
-    /// The constructor is also suitable for unit testing internals of the processing pipeline.
-    pub fn standalone(
-        envelope: Box<Envelope>,
-        outcome_aggregator: Addr<TrackOutcome>,
-        test_store: Addr<TestStore>,
-        group: ProcessingGroup,
-    ) -> Self {
-        Self::new_internal(envelope, None, outcome_aggregator, test_store, group)
-    }
-
-    /// Computes a managed envelope from the given envelope and binds it to the processing queue.
-    ///
-    /// To provide additional scoping, use [`ManagedEnvelope::scope`].
-    pub fn new(
-        envelope: Box<Envelope>,
-        slot: SemaphorePermit,
-        outcome_aggregator: Addr<TrackOutcome>,
-        test_store: Addr<TestStore>,
-        group: ProcessingGroup,
-    ) -> Self {
-        Self::new_internal(envelope, Some(slot), outcome_aggregator, test_store, group)
     }
 
     /// Returns a reference to the contained [`Envelope`].
@@ -253,11 +223,7 @@ impl ManagedEnvelope {
     }
 
     /// Consumes itself returning the managed envelope.
-    ///
-    /// This also releases the slot with [`SemaphorePermit`] and sets the internal context
-    /// to done so there is no rejection issued once the [`ManagedEnvelope`] is consumed.
     pub fn into_envelope(mut self) -> Box<Envelope> {
-        self.context.slot.take();
         self.context.done = true;
         Box::new(self.envelope.take_items())
     }
@@ -542,8 +508,6 @@ impl ManagedEnvelope {
 
     /// Resets inner state to ensure there's no more logging.
     fn finish(&mut self, counter: RelayCounters, handling: Handling) {
-        self.context.slot.take();
-
         relay_statsd::metric!(counter(counter) += 1, handling = handling.as_str());
         relay_statsd::metric!(timer(RelayTimers::EnvelopeTotalTime) = self.start_time().elapsed());
 
@@ -576,9 +540,8 @@ mod tests {
 
         let (test_store, _) = Addr::custom();
         let (outcome_aggregator, mut rx) = Addr::custom();
-        let mut env = ManagedEnvelope::new_internal(
+        let mut env = ManagedEnvelope::new(
             envelope,
-            None,
             outcome_aggregator,
             test_store,
             ProcessingGroup::Ungrouped,

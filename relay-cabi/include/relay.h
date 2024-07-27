@@ -129,6 +129,12 @@ enum RelayDataCategory {
    */
   RELAY_DATA_CATEGORY_METRIC_SECOND = 19,
   /**
+   * Replay Video
+   *
+   * This is the data category for Session Replays produced via a video recording.
+   */
+  RELAY_DATA_CATEGORY_REPLAY_VIDEO = 20,
+  /**
    * Any other data category not known by this Relay.
    */
   RELAY_DATA_CATEGORY_UNKNOWN = -1,
@@ -652,15 +658,11 @@ struct RelayStr relay_validate_sampling_configuration(const struct RelayStr *val
 
 /**
  * Normalize a project config.
- *
- * If `strict` is true, checks for unknown fields in the input.
  */
 struct RelayStr relay_normalize_project_config(const struct RelayStr *value);
 
 /**
- * Validate cardinality limit config.
- *
- * If `strict` is true, checks for unknown fields in the input.
+ * Normalize a cardinality limit config.
  */
 struct RelayStr normalize_cardinality_limit_config(const struct RelayStr *value);
 

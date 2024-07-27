@@ -84,6 +84,10 @@ pub enum DataCategory {
     /// and metric cardinality. Defined here so as not to clash with future
     /// categories.
     MetricSecond = 19,
+    /// Replay Video
+    ///
+    /// This is the data category for Session Replays produced via a video recording.
+    ReplayVideo = 20,
     //
     // IMPORTANT: After adding a new entry to DataCategory, go to the `relay-cabi` subfolder and run
     // `make header` to regenerate the C-binding. This allows using the data category from Python.
@@ -119,6 +123,7 @@ impl DataCategory {
             "profile_duration" => Self::ProfileDuration,
             "profile_chunk" => Self::ProfileChunk,
             "metric_second" => Self::MetricSecond,
+            "replay_video" => Self::MetricSecond,
             _ => Self::Unknown,
         }
     }
@@ -147,6 +152,7 @@ impl DataCategory {
             Self::ProfileDuration => "profile_duration",
             Self::ProfileChunk => "profile_chunk",
             Self::MetricSecond => "metric_second",
+            Self::ReplayVideo => "replay_video",
             Self::Unknown => "unknown",
         }
     }

@@ -279,11 +279,11 @@ mod tests {
     use crate::services::processor::{
         ProcessEnvelope, ProcessingExtractedMetrics, ProcessingGroup, SpanGroup,
     };
-    use crate::services::project::ProjectState;
+    use crate::services::project::ProjectInfo;
     use crate::testutils::{
         self, create_test_processor, new_envelope, state_with_rule_and_condition,
     };
-    use crate::utils::{ManagedEnvelope, Semaphore as TestSemaphore};
+    use crate::utils::ManagedEnvelope;
 
     use super::*;
 
@@ -313,7 +313,7 @@ mod tests {
     /// Always sets the processing item type to event.
     fn process_envelope_with_root_project_state(
         envelope: Box<Envelope>,
-        sampling_project_state: Option<Arc<ProjectState>>,
+        sampling_project_info: Option<Arc<ProjectInfo>>,
     ) -> Envelope {
         let processor = create_test_processor(Default::default());
         let (outcome_aggregator, test_store) = testutils::processor_services();
@@ -323,9 +323,9 @@ mod tests {
         let (group, envelope) = envelopes.pop().unwrap();
 
         let message = ProcessEnvelope {
-            envelope: ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store, group),
-            project_state: Arc::new(ProjectState::allowed()),
-            sampling_project_state,
+            envelope: ManagedEnvelope::new(envelope, outcome_aggregator, test_store, group),
+            project_info: Arc::new(ProjectInfo::default()),
+            sampling_project_info,
             reservoir_counters: ReservoirCounters::default(),
         };
 
@@ -471,7 +471,6 @@ mod tests {
                 project_id: ProjectId::new(42),
                 managed_envelope: ManagedEnvelope::new(
                     envelope,
-                    TestSemaphore::new(42).try_acquire().unwrap(),
                     outcome_aggregator.clone(),
                     test_store.clone(),
                     ProcessingGroup::Transaction,
@@ -501,7 +500,7 @@ mod tests {
         assert_eq!(sampling_result.decision(), SamplingDecision::Drop);
     }
 
-    fn project_state_with_single_rule(sample_rate: f64) -> ProjectState {
+    fn project_state_with_single_rule(sample_rate: f64) -> ProjectInfo {
         let sampling_config = SamplingConfig {
             rules: vec![SamplingRule {
                 condition: RuleCondition::all(),
@@ -514,7 +513,7 @@ mod tests {
             ..SamplingConfig::new()
         };
 
-        let mut sampling_project_state = ProjectState::allowed();
+        let mut sampling_project_state = ProjectInfo::default();
         sampling_project_state.config.sampling = Some(ErrorBoundary::Ok(sampling_config));
         sampling_project_state
     }
@@ -718,13 +717,13 @@ mod tests {
     where
         G: Sampling + TryFrom<ProcessingGroup>,
     {
-        let project_state = {
-            let mut state = ProjectState::allowed();
-            state.config.transaction_metrics = Some(ErrorBoundary::Ok(TransactionMetricsConfig {
+        let project_info = {
+            let mut info = ProjectInfo::default();
+            info.config.transaction_metrics = Some(ErrorBoundary::Ok(TransactionMetricsConfig {
                 version: 1,
                 ..Default::default()
             }));
-            Arc::new(state)
+            Arc::new(info)
         };
 
         let bytes = Bytes::from(
@@ -738,13 +737,13 @@ mod tests {
             metrics: Default::default(),
             sample_rates: Default::default(),
             extracted_metrics: ProcessingExtractedMetrics::new(
-                project_state.clone(),
+                project_info.clone(),
                 Arc::new(GlobalConfig::default()),
                 envelope.dsc(),
             ),
-            project_state,
+            project_state: project_info,
             sampling_project_state: {
-                let mut state = ProjectState::allowed();
+                let mut state = ProjectInfo::default();
                 state.config.metric_extraction =
                     ErrorBoundary::Ok(MetricExtractionConfig::default());
                 state.config.sampling = Some(ErrorBoundary::Ok(SamplingConfig {
@@ -774,7 +773,7 @@ mod tests {
                 Some(Arc::new(state))
             },
             project_id: ProjectId::new(1),
-            managed_envelope: ManagedEnvelope::standalone(
+            managed_envelope: ManagedEnvelope::new(
                 envelope,
                 Addr::dummy(),
                 Addr::dummy(),

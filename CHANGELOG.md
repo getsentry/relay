@@ -2,13 +2,30 @@
 
 ## Unreleased
 
+**Bug Fixes**:
+
+- Allow metrics summaries with only `count` (for sets). ([#3864](https://github.com/getsentry/relay/pull/3864))
+
+**Internal**:
+
+- Add `EnvelopeStack` and `SQLiteEnvelopeStack` to manage envelopes on disk. ([#3855](https://github.com/getsentry/relay/pull/3855))
+
+## 24.7.1
+
+**Bug Fixes**:
+
+- Do not drop envelopes for unparsable project configs. ([#3770](https://github.com/getsentry/relay/pull/3770))
+
 **Features**:
 
 - "Cardinality limit" outcomes now report which limit was exceeded. ([#3825](https://github.com/getsentry/relay/pull/3825))
+- Derive span browser name from user agent. ([#3834](https://github.com/getsentry/relay/pull/3834))
 
 **Internal**:
 
 - Use a dedicated thread pool for CPU intensive workloads. ([#3833](https://github.com/getsentry/relay/pull/3833))
+- Remove `BufferGuard` in favor of memory checks via `MemoryStat`. ([#3821](https://github.com/getsentry/relay/pull/3821))
+- Add ReplayVideo entry to DataCategory. ([#3847](https://github.com/getsentry/relay/pull/3847))
 
 ## 24.7.0
 

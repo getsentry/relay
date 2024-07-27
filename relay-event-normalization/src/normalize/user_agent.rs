@@ -196,7 +196,6 @@ impl<'a> RawUserAgentInfo<&'a str> {
 ///
 /// See <https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers#user_agent_client_hints>
 #[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ClientHints<S>
 where
     S: Default + AsRef<str>,
@@ -287,11 +286,14 @@ impl ClientHints<String> {
 }
 
 /// Computes a [`Context`] from either a user agent string and client hints.
-trait FromUserAgentInfo: Sized {
+pub trait FromUserAgentInfo: Sized {
+    /// Tries to populate the context from client hints.
     fn parse_client_hints(client_hints: &ClientHints<&str>) -> Option<Self>;
 
+    /// Tries to populate the context from a user agent header string.
     fn parse_user_agent(user_agent: &str) -> Option<Self>;
 
+    /// Tries to populate the context from client hints or a user agent header string.
     fn from_hints_or_ua(raw_info: &RawUserAgentInfo<&str>) -> Option<Self> {
         Self::parse_client_hints(&raw_info.client_hints)
             .or_else(|| raw_info.user_agent.and_then(Self::parse_user_agent))
@@ -362,7 +364,7 @@ impl FromUserAgentInfo for BrowserContext {
 /// to be a browser and gets returned as such.
 ///
 /// Returns None if no browser field detected.
-fn browser_from_client_hints(s: &str) -> Option<(String, String)> {
+pub fn browser_from_client_hints(s: &str) -> Option<(String, String)> {
     for item in s.split(',') {
         // if it contains one of these then we can know it isn't a browser field. atm chromium
         // browsers are the only ones supporting client hints.

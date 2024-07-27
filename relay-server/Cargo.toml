@@ -4,7 +4,7 @@ authors = ["Sentry <oss@sentry.io>"]
 description = "Endpoints and services for Relay"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "24.7.0"
+version = "24.7.1"
 edition = "2021"
 build = "build.rs"
 license-file = "../LICENSE.md"
@@ -46,6 +46,7 @@ axum = { workspace = true, features = [
     "tracing",
 ] }
 axum-server = { workspace = true }
+arc-swap = { workspace = true }
 backoff = { workspace = true }
 brotli = { workspace = true }
 bytes = { workspace = true, features = ["serde"] }
@@ -136,6 +137,7 @@ axum-extra = { workspace = true, features = ["protobuf"] }
 semver = { workspace = true }
 
 [dev-dependencies]
+criterion = { workspace = true }
 tokio = { workspace = true, features = ['test-util'] }
 insta = { workspace = true }
 relay-event-schema = { workspace = true, features = ["jsonschema"] }
@@ -143,3 +145,7 @@ relay-protocol = { workspace = true, features = ["test"] }
 relay-test = { workspace = true }
 similar-asserts = { workspace = true }
 tempfile = { workspace = true }
+
+[[bench]]
+name = "benches"
+harness = false

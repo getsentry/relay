@@ -7,6 +7,7 @@ use std::time::Duration;
 use std::{fmt, mem};
 
 use fnv::FnvHasher;
+use priority_queue::PriorityQueue;
 use relay_base_schema::project::ProjectKey;
 use relay_common::time::UnixTimestamp;
 use serde::{Deserialize, Serialize};
@@ -16,7 +17,7 @@ use tokio::time::Instant;
 use crate::bucket::{Bucket, BucketValue};
 use crate::protocol::{self, MetricNamespace, MetricResourceIdentifier};
 use crate::statsd::{MetricCounters, MetricGauges, MetricHistograms, MetricSets, MetricTimers};
-use crate::{BucketMetadata, MetricName};
+use crate::{BucketMetadata, FiniteF64, MetricName};
 
 use hashbrown::{hash_map::Entry, HashMap};
 
@@ -531,7 +532,7 @@ fn get_flush_time(
 pub struct Aggregator {
     name: String,
     config: AggregatorConfig,
-    buckets: HashMap<BucketKey, QueuedBucket>,
+    buckets: PriorityQueue<BucketKey, QueuedBucket>,
     cost_tracker: CostTracker,
     reference_time: Instant,
 }
@@ -547,7 +548,7 @@ impl Aggregator {
         Self {
             name,
             config,
-            buckets: HashMap::new(),
+            buckets: Default::default(),
             cost_tracker: CostTracker::default(),
             reference_time: Instant::now(),
         }
@@ -624,10 +625,12 @@ impl Aggregator {
                 let bucket_interval = self.config.bucket_interval;
                 let cost_tracker = &mut self.cost_tracker;
 
-                for (key, entry) in self
-                    .buckets
-                    .extract_if(|_, entry| force || entry.elapsed(now))
-                {
+                while let Some((_, entry)) = self.buckets.peek() {
+                    if !entry.elapsed(now) && !force {
+                        break;
+                    }
+
+                    let (key, entry) = self.buckets.pop().expect("pop after peek");
                     cost_tracker.subtract_cost(key.project_key, key.cost());
                     cost_tracker.subtract_cost(key.project_key, entry.value.cost());
 
@@ -637,17 +640,19 @@ impl Aggregator {
                     *bucket_count += 1;
                     *item_count += entry.value.len();
 
+                    let partition = self.config.flush_partitions.map(|p| key.partition_key(p));
+
                     let bucket = Bucket {
                         timestamp: key.timestamp,
                         width: bucket_interval,
-                        name: key.metric_name.clone(),
+                        name: key.metric_name,
                         value: entry.value,
-                        tags: key.tags.clone(),
+                        tags: key.tags,
                         metadata: entry.metadata,
                     };
 
                     partitions
-                        .entry(self.config.flush_partitions.map(|p| key.partition_key(p)))
+                        .entry(partition)
                         .or_insert_with(HashMap::new)
                         .entry(key.project_key)
                         .or_insert_with(Vec::new)
@@ -697,7 +702,7 @@ impl Aggregator {
     pub fn merge(
         &mut self,
         project_key: ProjectKey,
-        bucket: Bucket,
+        mut bucket: Bucket,
         max_total_bucket_bytes: Option<usize>,
     ) -> Result<(), AggregateMetricsError> {
         let timestamp = self.get_bucket_timestamp(bucket.timestamp, bucket.width)?;
@@ -742,34 +747,48 @@ impl Aggregator {
             self.config.max_project_key_bucket_bytes,
         )?;
 
-        let added_cost;
-        match self.buckets.entry(key) {
-            Entry::Occupied(mut entry) => {
-                relay_statsd::metric!(
-                    counter(MetricCounters::MergeHit) += 1,
-                    aggregator = &self.name,
-                    namespace = entry.key().namespace().as_str(),
-                );
+        let mut added_cost = 0;
 
-                added_cost = entry.get_mut().merge(bucket.value, bucket.metadata)?;
-            }
-            Entry::Vacant(entry) => {
-                relay_statsd::metric!(
-                    counter(MetricCounters::MergeMiss) += 1,
-                    aggregator = &self.name,
-                    namespace = entry.key().namespace().as_str(),
-                );
-                relay_statsd::metric!(
-                    set(MetricSets::UniqueBucketsCreated) = entry.key().hash64() as i64, // 2-complement
-                    aggregator = &self.name,
-                    namespace = entry.key().namespace().as_str(),
-                );
+        let mut error = None;
+        let updated = self.buckets.change_priority_by(&key, |value| {
+            relay_statsd::metric!(
+                counter(MetricCounters::MergeHit) += 1,
+                aggregator = &self.name,
+                namespace = key.namespace().as_str(),
+            );
 
-                let flush_at = get_flush_time(&self.config, self.reference_time, entry.key());
-                let value = bucket.value;
-                added_cost = entry.key().cost() + value.cost();
-                entry.insert(QueuedBucket::new(flush_at, value, bucket.metadata));
+            let bv = std::mem::replace(
+                &mut bucket.value,
+                BucketValue::Counter(FiniteF64::default()),
+            );
+            match value.merge(bv, bucket.metadata) {
+                Ok(ac) => added_cost = ac,
+                Err(err) => error = Some(err),
             }
+        });
+
+        if let Some(error) = error {
+            return Err(error.into());
+        }
+
+        if !updated {
+            relay_statsd::metric!(
+                counter(MetricCounters::MergeMiss) += 1,
+                aggregator = &self.name,
+                namespace = key.namespace().as_str(),
+            );
+            relay_statsd::metric!(
+                set(MetricSets::UniqueBucketsCreated) = key.hash64() as i64, // 2-complement
+                aggregator = &self.name,
+                namespace = key.namespace().as_str(),
+            );
+
+            let flush_at = get_flush_time(&self.config, self.reference_time, &key);
+            let value = bucket.value;
+            added_cost = key.cost() + value.cost();
+
+            self.buckets
+                .push(key, QueuedBucket::new(flush_at, value, bucket.metadata));
         }
 
         self.cost_tracker.add_cost(project_key, added_cost);
@@ -897,6 +916,7 @@ fn validate_metric_tags(mut key: BucketKey, aggregator_config: &AggregatorConfig
 
 #[cfg(test)]
 mod tests {
+    use insta::assert_debug_snapshot;
     use similar_asserts::assert_eq;
 
     use super::*;
@@ -1249,6 +1269,84 @@ mod tests {
         assert_eq!(aggregator.cost_tracker.total_cost, 0);
     }
 
+    #[tokio::test]
+    async fn test_aggregator_flush() {
+        // Make sure that the right cost is added / subtracted
+        let mut aggregator: Aggregator = Aggregator::new(AggregatorConfig {
+            bucket_interval: 10,
+            ..test_config()
+        });
+        let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
+
+        let now = UnixTimestamp::now();
+        tokio::time::pause();
+
+        for i in 0..3u32 {
+            for (name, offset) in [("foo", 30), ("bar", 15)] {
+                let timestamp = now + Duration::from_secs(60 * u64::from(i) + offset);
+                let bucket = Bucket {
+                    timestamp,
+                    width: 0,
+                    name: format!("c:transactions/{name}_{i}@none").into(),
+                    value: BucketValue::counter(i.into()),
+                    tags: BTreeMap::new(),
+                    metadata: BucketMetadata::new(timestamp),
+                };
+
+                aggregator.merge(project_key, bucket, None).unwrap();
+            }
+        }
+
+        let mut flush_buckets = || {
+            let mut result = Vec::new();
+            for (partition, v) in aggregator.pop_flush_buckets(false) {
+                assert!(partition.is_none());
+                for (pk, buckets) in v {
+                    assert_eq!(pk, project_key);
+                    for bucket in buckets {
+                        result.push(bucket.name.to_string());
+                    }
+                }
+            }
+            result.sort();
+            result
+        };
+
+        assert!(flush_buckets().is_empty());
+
+        tokio::time::advance(Duration::from_secs(60)).await;
+        assert_debug_snapshot!(flush_buckets(), @r###"
+        [
+            "c:transactions/bar_0@none",
+            "c:transactions/foo_0@none",
+        ]
+        "###);
+        assert!(flush_buckets().is_empty());
+
+        tokio::time::advance(Duration::from_secs(60)).await;
+        assert_debug_snapshot!(flush_buckets(), @r###"
+        [
+            "c:transactions/bar_1@none",
+            "c:transactions/foo_1@none",
+        ]
+        "###);
+        assert!(flush_buckets().is_empty());
+
+        tokio::time::advance(Duration::from_secs(60)).await;
+        assert_debug_snapshot!(flush_buckets(), @r###"
+        [
+            "c:transactions/bar_2@none",
+            "c:transactions/foo_2@none",
+        ]
+        "###);
+        assert!(flush_buckets().is_empty());
+
+        tokio::time::advance(Duration::from_secs(3600)).await;
+        assert!(flush_buckets().is_empty());
+
+        assert!(aggregator.into_buckets().is_empty());
+    }
+
     #[test]
     fn test_get_bucket_timestamp_overflow() {
         let config = AggregatorConfig {
@@ -1528,7 +1626,11 @@ mod tests {
             .merge(project_key, bucket3.clone(), None)
             .unwrap();
 
-        let buckets_metadata: Vec<_> = aggregator.buckets.values().map(|v| &v.metadata).collect();
+        let buckets_metadata: Vec<_> = aggregator
+            .buckets
+            .iter()
+            .map(|(_, v)| &v.metadata)
+            .collect();
         insta::assert_debug_snapshot!(buckets_metadata, @r###"
         [
             BucketMetadata {

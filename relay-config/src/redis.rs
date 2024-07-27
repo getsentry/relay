@@ -4,6 +4,13 @@ use serde::{Deserialize, Serialize};
 /// In this case, we fall back to the old default.
 pub(crate) const DEFAULT_MIN_MAX_CONNECTIONS: u32 = 24;
 
+/// By default the `min_idle` count of the Redis pool is set to the calculated
+/// amount of max connections divided by this value and rounded up.
+///
+/// To express this value as a percentage of max connections,
+/// use this formula: `100 / DEFAULT_MIN_IDLE_RATIO`.
+pub(crate) const DEFAULT_MIN_IDLE_RATIO: u32 = 5;
+
 /// Additional configuration options for a redis client.
 #[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
 #[serde(default)]
@@ -13,6 +20,11 @@ pub struct PartialRedisConfigOptions {
     /// Defaults to 2x `limits.max_thread_count` or a minimum of 24.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub max_connections: Option<u32>,
+    /// Minimum amount of idle connections kept alive in the pool.
+    ///
+    /// If not set it will default to 20% of [`Self::max_connections`].
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub min_idle: Option<u32>,
     /// Sets the connection timeout used by the pool, in seconds.
     ///
     /// Calls to `Pool::get` will wait this long for a connection to become available before returning an error.
@@ -31,6 +43,7 @@ impl Default for PartialRedisConfigOptions {
     fn default() -> Self {
         Self {
             max_connections: None,
+            min_idle: None,
             connection_timeout: 5,
             max_lifetime: 300,
             idle_timeout: 60,

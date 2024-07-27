@@ -14,9 +14,7 @@ use crate::services::outcome::{DiscardReason, Outcome};
 use crate::services::processor::{ProcessMetricMeta, ProcessMetrics, ProcessingGroup};
 use crate::services::project_cache::{CheckEnvelope, ValidateEnvelope};
 use crate::statsd::{RelayCounters, RelayHistograms};
-use crate::utils::{
-    self, ApiErrorResponse, BufferError, BufferGuard, FormDataIter, ManagedEnvelope, MultipartError,
-};
+use crate::utils::{self, ApiErrorResponse, FormDataIter, ManagedEnvelope, MultipartError};
 
 #[derive(Clone, Copy, Debug, thiserror::Error)]
 #[error("the service is overloaded")]
@@ -75,7 +73,7 @@ pub enum BadStoreRequest {
     InvalidEventId,
 
     #[error("failed to queue envelope")]
-    QueueFailed(#[from] BufferError),
+    QueueFailed,
 
     #[error(
         "envelope exceeded size limits for type '{0}' (https://develop.sentry.dev/sdk/envelopes/#size-limits)"
@@ -114,7 +112,7 @@ impl IntoResponse for BadStoreRequest {
 
                 (StatusCode::TOO_MANY_REQUESTS, headers, body).into_response()
             }
-            BadStoreRequest::ScheduleFailed | BadStoreRequest::QueueFailed(_) => {
+            BadStoreRequest::ScheduleFailed | BadStoreRequest::QueueFailed => {
                 // These errors indicate that something's wrong with our service system, most likely
                 // mailbox congestion or a faulty shutdown. Indicate an unavailable service to the
                 // client. It might retry event submission at a later time.
@@ -264,7 +262,6 @@ pub fn event_id_from_items(items: &Items) -> Result<Option<EventId>, BadStoreReq
 fn queue_envelope(
     state: &ServiceState,
     mut managed_envelope: ManagedEnvelope,
-    buffer_guard: &BufferGuard,
 ) -> Result<(), BadStoreRequest> {
     let envelope = managed_envelope.envelope_mut();
 
@@ -297,16 +294,17 @@ fn queue_envelope(
     }
 
     // Split off the envelopes by item type.
+    let scoping = managed_envelope.scoping();
     let envelopes = ProcessingGroup::split_envelope(*managed_envelope.take_envelope());
     for (group, envelope) in envelopes {
-        let envelope = buffer_guard
-            .enter(
-                envelope,
-                state.outcome_aggregator().clone(),
-                state.test_store().clone(),
-                group,
-            )
-            .map_err(BadStoreRequest::QueueFailed)?;
+        let mut envelope = ManagedEnvelope::new(
+            envelope,
+            state.outcome_aggregator().clone(),
+            state.test_store().clone(),
+            group,
+        );
+        envelope.scope(scoping);
+
         state.project_cache().send(ValidateEnvelope::new(envelope));
     }
     // The entire envelope is taken for a split above, and it's empty at this point, we can just
@@ -335,17 +333,20 @@ pub async fn handle_envelope(
         )
     }
 
-    let buffer_guard = state.buffer_guard();
-    let mut managed_envelope = buffer_guard
-        .enter(
-            envelope,
-            state.outcome_aggregator().clone(),
-            state.test_store().clone(),
-            // It's not clear at this point which group this envelope belongs to.
-            // The decission will be made while queueing in `queue_envelope` function.
-            ProcessingGroup::Ungrouped,
-        )
-        .map_err(BadStoreRequest::QueueFailed)?;
+    if state.memory_checker().check_memory().is_exceeded() {
+        // NOTE: Long-term, we should not reject the envelope here, but spool it to disk instead.
+        // This will be fixed with the new spool implementation.
+        return Err(BadStoreRequest::QueueFailed);
+    };
+
+    let mut managed_envelope = ManagedEnvelope::new(
+        envelope,
+        state.outcome_aggregator().clone(),
+        state.test_store().clone(),
+        // It's not clear at this point which group this envelope belongs to.
+        // The decision will be made while queueing in `queue_envelope` function.
+        ProcessingGroup::Ungrouped,
+    );
 
     // If configured, remove unknown items at the very beginning. If the envelope is
     // empty, we fail the request with a special control flow error to skip checks and
@@ -377,7 +378,7 @@ pub async fn handle_envelope(
         return Err(BadStoreRequest::Overflow(offender));
     }
 
-    queue_envelope(state, managed_envelope, buffer_guard)?;
+    queue_envelope(state, managed_envelope)?;
 
     if checked.rate_limits.is_limited() {
         // Even if some envelope items have been queued, there might be active rate limits on

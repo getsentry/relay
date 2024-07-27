@@ -183,6 +183,7 @@ impl CategoryUnit {
             | DataCategory::Error
             | DataCategory::Transaction
             | DataCategory::Replay
+            | DataCategory::ReplayVideo
             | DataCategory::Security
             | DataCategory::Profile
             | DataCategory::ProfileIndexed

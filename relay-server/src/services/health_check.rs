@@ -1,17 +1,16 @@
 use std::sync::Arc;
 
 use relay_config::Config;
-use relay_statsd::metric;
 use relay_system::{Addr, AsyncResponse, Controller, FromMessage, Interface, Sender, Service};
 use std::future::Future;
-use sysinfo::{MemoryRefreshKind, System};
 use tokio::sync::watch;
 use tokio::time::{timeout, Instant};
 
 use crate::services::metrics::{AcceptsMetrics, Aggregator};
 use crate::services::project_cache::{ProjectCache, SpoolHealth};
 use crate::services::upstream::{IsAuthenticated, UpstreamRelay};
-use crate::statsd::{RelayGauges, RelayTimers};
+use crate::statsd::RelayTimers;
+use crate::utils::{MemoryCheck, MemoryChecker};
 
 /// Checks whether Relay is alive and healthy based on its variant.
 #[derive(Clone, Copy, Debug, serde::Deserialize)]
@@ -84,10 +83,10 @@ impl StatusUpdate {
 #[derive(Debug)]
 pub struct HealthCheckService {
     config: Arc<Config>,
+    memory_checker: MemoryChecker,
     aggregator: Addr<Aggregator>,
     upstream_relay: Addr<UpstreamRelay>,
     project_cache: Addr<ProjectCache>,
-    system: System,
 }
 
 impl HealthCheckService {
@@ -96,44 +95,22 @@ impl HealthCheckService {
     /// The service does not run. To run the service, use [`start`](Self::start).
     pub fn new(
         config: Arc<Config>,
+        memory_checker: MemoryChecker,
         aggregator: Addr<Aggregator>,
         upstream_relay: Addr<UpstreamRelay>,
         project_cache: Addr<ProjectCache>,
     ) -> Self {
         Self {
-            system: System::new(),
+            config,
+            memory_checker,
             aggregator,
             upstream_relay,
             project_cache,
-            config,
         }
     }
 
     fn system_memory_probe(&mut self) -> Status {
-        self.system
-            .refresh_memory_specifics(MemoryRefreshKind::new().with_ram());
-
-        // Use the cgroup if available in case Relay is running in a container.
-        // TODO: once we measured the new rss metric, we will remove `rss` and just used cgroup.rss
-        //  `used`.
-        let memory = match self.system.cgroup_limits() {
-            Some(cgroup) => Memory {
-                used: cgroup.total_memory.saturating_sub(cgroup.free_memory),
-                total: cgroup.total_memory,
-                rss: cgroup.rss,
-            },
-            None => Memory {
-                used: self.system.used_memory(),
-                total: self.system.total_memory(),
-                rss: self.system.used_memory(),
-            },
-        };
-
-        metric!(gauge(RelayGauges::SystemMemoryUsed) = memory.used);
-        metric!(gauge(RelayGauges::SystemMemoryTotal) = memory.total);
-        metric!(gauge(RelayGauges::SystemMemoryRss) = memory.rss);
-
-        if memory.used_percent() >= self.config.health_max_memory_watermark_percent() {
+        if let MemoryCheck::Exceeded(memory) = self.memory_checker.check_memory_percent() {
             relay_log::error!(
                 "Not enough memory, {} / {} ({:.2}% >= {:.2}%)",
                 memory.used,
@@ -144,7 +121,7 @@ impl HealthCheckService {
             return Status::Unhealthy;
         }
 
-        if memory.used > self.config.health_max_memory_watermark_bytes() {
+        if let MemoryCheck::Exceeded(memory) = self.memory_checker.check_memory_bytes() {
             relay_log::error!(
                 "Not enough memory, {} / {} ({} >= {})",
                 memory.used,
@@ -254,21 +231,6 @@ impl Service for HealthCheckService {
     }
 }
 
-/// A memory measurement.
-#[derive(Debug)]
-struct Memory {
-    pub used: u64,
-    pub total: u64,
-    pub rss: u64,
-}
-
-impl Memory {
-    /// Amount of used RAM in percent `0.0` to `1.0`.
-    pub fn used_percent(&self) -> f32 {
-        (self.used as f32 / self.total as f32).clamp(0.0, 1.0)
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -302,35 +264,5 @@ mod tests {
 
         let s = [].into_iter().collect();
         assert!(matches!(s, Status::Healthy));
-    }
-
-    #[test]
-    fn test_memory_used_percent_total_0() {
-        let memory = Memory {
-            used: 100,
-            total: 0,
-            rss: 0,
-        };
-        assert_eq!(memory.used_percent(), 1.0);
-    }
-
-    #[test]
-    fn test_memory_used_percent_zero() {
-        let memory = Memory {
-            used: 0,
-            total: 100,
-            rss: 0,
-        };
-        assert_eq!(memory.used_percent(), 0.0);
-    }
-
-    #[test]
-    fn test_memory_used_percent_half() {
-        let memory = Memory {
-            used: 50,
-            total: 100,
-            rss: 0,
-        };
-        assert_eq!(memory.used_percent(), 0.5);
     }
 }
