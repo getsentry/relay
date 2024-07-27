@@ -1429,13 +1429,9 @@ impl Service for ProjectCacheService {
                     }
                     peek = peek_buffer(&envelope_buffer) => {
                         relay_log::trace!("Peeking at envelope");
-                        if let Some(peek) = peek {
-                            relay_log::trace!("Found an envelope");
-                            metric!(timer(RelayTimers::ProjectCacheTaskDuration), task = "peek_at_envelope", {
-                            broker.peek_at_envelope(peek)
+                        metric!(timer(RelayTimers::ProjectCacheTaskDuration), task = "peek_at_envelope", {
+                            broker.peek_at_envelope(peek);
                         })
-                    }
-
                     }
                     else => break,
                 }
@@ -1447,7 +1443,7 @@ impl Service for ProjectCacheService {
 }
 
 /// Temporary helper function while V1 spool eixsts.
-async fn peek_buffer(buffer: &Option<EnvelopeBuffer>) -> Option<Peek> {
+async fn peek_buffer(buffer: &Option<EnvelopeBuffer>) -> Peek {
     match buffer {
         Some(buffer) => buffer.peek().await,
         None => std::future::pending().await,

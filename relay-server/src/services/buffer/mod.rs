@@ -12,7 +12,7 @@ mod envelopestack;
 
 /// Wrapper for the EnvelopeBuffer implementation.
 #[derive(Debug)]
-pub struct EnvelopeBuffer(
+pub struct EnvelopeBuffer {
     /// TODO: Reconsider synchronization mechanism.
     /// We can either
     /// - keep the interface sync and use a std Mutex. In this case, we create a queue of threads.
@@ -24,27 +24,38 @@ pub struct EnvelopeBuffer(
     /// >  The primary use case for the async mutex is to provide shared mutable access to IO resources such as a database connection.
     /// > [...] when you do want shared access to an IO resource, it is often better to spawn a task to manage the IO resource,
     /// > and to use message passing to communicate with that task.
-    Arc<tokio::sync::Mutex<dyn envelopebuffer::EnvelopeBuffer>>,
-);
+    backend: Arc<tokio::sync::Mutex<dyn envelopebuffer::EnvelopeBuffer>>,
+    notify: tokio::sync::Notify,
+}
 
 impl EnvelopeBuffer {
     pub fn from_config(config: &Config) -> Option<Self> {
         // TODO: create a DiskMemoryStack if db config is given.
-        config
-            .spool_v2()
-            .then(|| Self(envelopebuffer::create(config)))
+        config.spool_v2().then(|| Self {
+            backend: envelopebuffer::create(config),
+            notify: tokio::sync::Notify::new(),
+        })
     }
 
     pub async fn push(&self, envelope: Box<Envelope>) {
-        let mut guard = self.0.lock().await;
+        let mut guard = self.backend.lock().await;
         guard.push(envelope);
+        relay_log::trace!("Notifying");
+        self.notify.notify_waiters();
     }
 
-    pub async fn peek(&self) -> Option<Peek> {
-        let mut guard = self.0.lock().await;
-        guard.peek()?;
-
-        Some(Peek(guard))
+    pub async fn peek(&self) -> Peek {
+        relay_log::trace!("Calling peek");
+        loop {
+            let mut guard = self.backend.lock().await;
+            if guard.peek().is_none() {
+                drop(guard);
+                relay_log::trace!("No envelope found, awaiting");
+                self.notify.notified().await;
+            } else {
+                return Peek(guard);
+            }
+        }
     }
 }
 
