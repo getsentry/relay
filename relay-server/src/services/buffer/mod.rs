@@ -53,10 +53,14 @@ impl EnvelopeBuffer {
                 let mut guard = self.backend.lock().await;
                 if self.changed.load(Ordering::Relaxed) && guard.peek().is_some() {
                     self.changed.store(false, Ordering::Relaxed);
-                    return Peek(guard);
+                    return Peek {
+                        guard,
+                        changed: &self.changed,
+                        notify: &self.notify,
+                    };
                 }
             }
-            relay_log::trace!("No envelope found, awaiting");
+            relay_log::trace!("Awaiting");
             self.notify.notified().await;
         }
     }
@@ -74,17 +78,22 @@ impl EnvelopeBuffer {
     }
 }
 
-pub struct Peek<'a>(MutexGuard<'a, dyn envelopebuffer::EnvelopeBuffer>);
+pub struct Peek<'a> {
+    guard: MutexGuard<'a, dyn envelopebuffer::EnvelopeBuffer>,
+    notify: &'a tokio::sync::Notify,
+    changed: &'a AtomicBool,
+}
 
 impl Peek<'_> {
     pub fn get(&mut self) -> &Envelope {
-        self.0
+        self.guard
             .peek()
             .expect("element disappeared while holding lock")
     }
 
     pub fn remove(mut self) -> Box<Envelope> {
-        self.0
+        self.notify();
+        self.guard
             .pop()
             .expect("element disappeared while holding lock")
     }
@@ -94,7 +103,14 @@ impl Peek<'_> {
     /// Since [`Peek`] already has exclusive access to the buffer, it can mark projects as ready
     /// without awaiting the lock.
     pub fn mark_ready(&mut self, project_key: &ProjectKey, ready: bool) {
-        self.0.mark_ready(project_key, ready);
+        self.notify();
+        self.guard.mark_ready(project_key, ready);
+    }
+
+    fn notify(&self) {
+        relay_log::trace!("Notifying");
+        self.changed.store(true, Ordering::Relaxed);
+        self.notify.notify_waiters();
     }
 }
 
