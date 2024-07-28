@@ -1059,13 +1059,11 @@ impl ProjectCacheBroker {
             return;
         }
         let sampling_key = envelope.sampling_key();
-        let project_cache = self.services.project_cache.clone();
+        let services = self.services.clone();
 
         let project_key = envelope.meta().public_key();
-        let project = &mut self.get_or_create_project(project_key);
-        let reservoir_counters = project.reservoir_counters();
-
-        let project_state = project.get_cached_state(project_cache.clone(), false);
+        let project = self.get_or_create_project(project_key);
+        let project_state = project.get_cached_state(services.project_cache.clone(), false);
 
         let project_info = match project_state {
             ProjectState::Enabled(info) => {
@@ -1092,7 +1090,7 @@ impl ProjectCacheBroker {
             (
                 sampling_key,
                 self.get_or_create_project(sampling_key)
-                    .get_cached_state(project_cache, false),
+                    .get_cached_state(services.project_cache, false),
             )
         }) {
             Some((sampling_key, ProjectState::Enabled(info))) => {
@@ -1110,28 +1108,32 @@ impl ProjectCacheBroker {
             None => None,
         };
 
-        let managed_envelope = ManagedEnvelope::new(
-            peek.remove(),
-            self.services.outcome_aggregator.clone(),
-            self.services.test_store.clone(),
-            ProcessingGroup::Ungrouped, // TODO: ungrouped correct?
-        );
+        let project = self.get_or_create_project(project_key);
 
-        let project = &mut self.get_or_create_project(project_key);
-        let Ok(CheckedEnvelope {
-            envelope: Some(managed_envelope),
-            ..
-        }) = project.check_envelope(managed_envelope)
-        else {
-            return; // Outcomes are emitted by check_envelope
-        };
+        for (group, envelope) in ProcessingGroup::split_envelope(*peek.remove()) {
+            let managed_envelope = ManagedEnvelope::new(
+                envelope,
+                services.outcome_aggregator.clone(),
+                services.test_store.clone(),
+                group,
+            );
 
-        self.services.envelope_processor.send(ProcessEnvelope {
-            envelope: managed_envelope,
-            project_info,
-            sampling_project_info,
-            reservoir_counters,
-        });
+            let Ok(CheckedEnvelope {
+                envelope: Some(managed_envelope),
+                ..
+            }) = project.check_envelope(managed_envelope)
+            else {
+                continue; // Outcomes are emitted by check_envelope
+            };
+
+            let reservoir_counters = project.reservoir_counters();
+            services.envelope_processor.send(ProcessEnvelope {
+                envelope: managed_envelope,
+                project_info: project_info.clone(),
+                sampling_project_info: sampling_project_info.clone(),
+                reservoir_counters,
+            });
+        }
     }
 
     /// Returns backoff timeout for an unspool attempt.
