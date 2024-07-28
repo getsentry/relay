@@ -87,3 +87,111 @@ impl Peek<'_> {
         self.0.mark_ready(project_key, ready);
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::str::FromStr;
+    use std::sync::atomic::AtomicUsize;
+    use std::sync::atomic::Ordering;
+    use std::time::Duration;
+
+    use relay_common::Dsn;
+
+    use crate::extractors::RequestMeta;
+
+    use super::*;
+
+    #[tokio::test]
+    async fn no_busy_loop_when_empty() {
+        let buffer = new_buffer();
+        let call_count = Arc::new(AtomicUsize::new(0));
+
+        tokio::time::pause();
+
+        let cloned_buffer = buffer.clone();
+        let cloned_call_count = call_count.clone();
+        tokio::spawn(async move {
+            cloned_buffer.peek().await.remove();
+            cloned_call_count.fetch_add(1, Ordering::Relaxed);
+            cloned_buffer.peek().await.remove();
+            cloned_call_count.fetch_add(1, Ordering::Relaxed);
+        });
+
+        // Initial state: no calls
+        assert_eq!(call_count.load(Ordering::Relaxed), 0);
+        tokio::time::advance(Duration::from_nanos(1)).await;
+        assert_eq!(call_count.load(Ordering::Relaxed), 0);
+
+        // State after push: one call
+        buffer.push(new_envelope()).await;
+        tokio::time::advance(Duration::from_nanos(1)).await;
+        assert_eq!(call_count.load(Ordering::Relaxed), 1);
+        tokio::time::advance(Duration::from_nanos(1)).await;
+        assert_eq!(call_count.load(Ordering::Relaxed), 1);
+
+        // State after second push: two calls
+        buffer.push(new_envelope()).await;
+        tokio::time::advance(Duration::from_nanos(1)).await;
+        assert_eq!(call_count.load(Ordering::Relaxed), 2);
+        tokio::time::advance(Duration::from_nanos(1)).await;
+        assert_eq!(call_count.load(Ordering::Relaxed), 2);
+    }
+
+    #[tokio::test]
+    async fn no_busy_loop_when_unchanged() {
+        let buffer = new_buffer();
+        let call_count = Arc::new(AtomicUsize::new(0));
+
+        tokio::time::pause();
+
+        let cloned_buffer = buffer.clone();
+        let cloned_call_count = call_count.clone();
+        tokio::spawn(async move {
+            cloned_buffer.peek().await;
+            cloned_call_count.fetch_add(1, Ordering::Relaxed);
+            cloned_buffer.peek().await;
+            cloned_call_count.fetch_add(1, Ordering::Relaxed);
+        });
+
+        buffer.push(new_envelope()).await;
+
+        // Initial state: no calls
+        assert_eq!(call_count.load(Ordering::Relaxed), 0);
+
+        // After first advance: got one call
+        tokio::time::advance(Duration::from_nanos(1)).await;
+        assert_eq!(call_count.load(Ordering::Relaxed), 1);
+
+        // After second advance: still only one call (no change)
+        tokio::time::advance(Duration::from_nanos(1)).await;
+        assert_eq!(call_count.load(Ordering::Relaxed), 1);
+
+        // State after second push: two calls
+        buffer.push(new_envelope()).await;
+        tokio::time::advance(Duration::from_nanos(1)).await;
+        assert_eq!(call_count.load(Ordering::Relaxed), 2);
+    }
+
+    fn new_buffer() -> EnvelopeBuffer {
+        EnvelopeBuffer::from_config(
+            &Config::from_json_value(serde_json::json!({
+                "spool": {
+                    "envelopes": {
+                        "version": "2"
+                    }
+                }
+            }))
+            .unwrap(),
+        )
+        .unwrap()
+    }
+
+    fn new_envelope() -> Box<Envelope> {
+        Envelope::from_request(
+            None,
+            RequestMeta::new(
+                Dsn::from_str("http://a94ae32be2584e0bbd7a4cbb95971fed@localhost/1").unwrap(),
+            ),
+        )
+    }
+}
