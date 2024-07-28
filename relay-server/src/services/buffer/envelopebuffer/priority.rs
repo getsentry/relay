@@ -8,34 +8,23 @@ use crate::envelope::Envelope;
 use crate::services::buffer::envelopebuffer::EnvelopeBuffer;
 use crate::services::buffer::envelopestack::EnvelopeStack;
 
-#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
-struct StackKey {
-    own_key: ProjectKey,
-    sampling_key: ProjectKey,
-}
-
-impl StackKey {
-    fn from_envelope(envelope: &Envelope) -> Self {
-        let own_key = envelope.meta().public_key();
-        Self {
-            own_key,
-            sampling_key: envelope.sampling_key().unwrap_or(own_key),
-        }
-    }
-}
-
+/// An envelope buffer that holds an individual stack for each project/sampling project combination.
+///
+/// Envelope stacks are organized in a priority queue, and are reprioritized every time an envelope
+/// is pushed, popped, or when a project becomes ready.
 #[derive(Debug)]
 pub struct PriorityEnvelopeBuffer<S: EnvelopeStack> {
-    own_keys: hashbrown::HashMap<ProjectKey, BTreeSet<StackKey>>,
-    sampling_keys: hashbrown::HashMap<ProjectKey, BTreeSet<StackKey>>,
+    /// The central priority queue.
     priority_queue: priority_queue::PriorityQueue<QueueItem<StackKey, S>, Priority>,
+    /// A lookup table to find all stacks involving a project.
+    stacks_by_project: hashbrown::HashMap<ProjectKey, BTreeSet<StackKey>>,
 }
 
 impl<S: EnvelopeStack> PriorityEnvelopeBuffer<S> {
+    /// Creates an empty buffer.
     pub fn new() -> Self {
         Self {
-            own_keys: Default::default(),
-            sampling_keys: Default::default(),
+            stacks_by_project: Default::default(),
             priority_queue: Default::default(),
         }
     }
@@ -43,7 +32,6 @@ impl<S: EnvelopeStack> PriorityEnvelopeBuffer<S> {
 
 impl<S: EnvelopeStack> PriorityEnvelopeBuffer<S> {
     fn push_stack(&mut self, envelope: Box<Envelope>) {
-        relay_log::trace!("PriorityEnvelopeBuffer: push_stack");
         let received_at = envelope.meta().start_time();
         let stack_key = StackKey::from_envelope(&envelope);
         let previous_entry = self.priority_queue.push(
@@ -54,33 +42,27 @@ impl<S: EnvelopeStack> PriorityEnvelopeBuffer<S> {
             Priority::new(received_at),
         );
         debug_assert!(previous_entry.is_none());
-        self.own_keys
-            .entry(stack_key.own_key)
-            .or_default()
-            .insert(stack_key);
-        self.sampling_keys
-            .entry(stack_key.sampling_key)
-            .or_default()
-            .insert(stack_key);
+        for project_key in stack_key.iter() {
+            self.stacks_by_project
+                .entry(project_key)
+                .or_default()
+                .insert(stack_key);
+        }
     }
 
     fn pop_stack(&mut self, stack_key: StackKey) {
-        relay_log::trace!("PriorityEnvelopeBuffer: pop_stack");
-        self.own_keys
-            .get_mut(&stack_key.own_key)
-            .expect("own_keys")
-            .remove(&stack_key);
-        self.sampling_keys
-            .get_mut(&stack_key.sampling_key)
-            .expect("sampling_keys")
-            .remove(&stack_key);
+        for project_key in stack_key.iter() {
+            self.stacks_by_project
+                .get_mut(&project_key)
+                .expect("project_key is missing from lookup")
+                .remove(&stack_key);
+        }
         self.priority_queue.remove(&stack_key);
     }
 }
 
 impl<S: EnvelopeStack + std::fmt::Debug> EnvelopeBuffer for PriorityEnvelopeBuffer<S> {
     fn push(&mut self, envelope: Box<Envelope>) {
-        relay_log::trace!("PriorityEnvelopeBuffer: push");
         let received_at = envelope.meta().start_time();
         let stack_key = StackKey::from_envelope(&envelope);
         if let Some((
@@ -91,10 +73,8 @@ impl<S: EnvelopeStack + std::fmt::Debug> EnvelopeBuffer for PriorityEnvelopeBuff
             _,
         )) = self.priority_queue.get_mut(&stack_key)
         {
-            relay_log::trace!("PriorityEnvelopeBuffer: pushing to existing stack");
             stack.push(envelope);
         } else {
-            relay_log::trace!("PriorityEnvelopeBuffer: pushing new stack with one element");
             self.push_stack(envelope);
         }
         self.priority_queue.change_priority_by(&stack_key, |prio| {
@@ -103,7 +83,6 @@ impl<S: EnvelopeStack + std::fmt::Debug> EnvelopeBuffer for PriorityEnvelopeBuff
     }
 
     fn peek(&mut self) -> Option<&Envelope> {
-        relay_log::trace!("PriorityEnvelopeBuffer: peek");
         let (
             QueueItem {
                 key: _,
@@ -115,7 +94,6 @@ impl<S: EnvelopeStack + std::fmt::Debug> EnvelopeBuffer for PriorityEnvelopeBuff
     }
 
     fn pop(&mut self) -> Option<Box<Envelope>> {
-        relay_log::trace!("PriorityEnvelopeBuffer: pop");
         let (QueueItem { key, value: stack }, _) = self.priority_queue.peek_mut()?;
         let stack_key = *key;
         let envelope = stack.pop().expect("found an empty stack");
@@ -137,29 +115,50 @@ impl<S: EnvelopeStack + std::fmt::Debug> EnvelopeBuffer for PriorityEnvelopeBuff
     }
 
     fn mark_ready(&mut self, project: &ProjectKey, is_ready: bool) -> bool {
-        relay_log::trace!("PriorityEnvelopeBuffer: mark_ready");
         let mut changed = false;
-        if let Some(stack_keys) = self.own_keys.get(project) {
+        if let Some(stack_keys) = self.stacks_by_project.get(project) {
             for stack_key in stack_keys {
                 self.priority_queue.change_priority_by(stack_key, |stack| {
-                    if is_ready != stack.own_ready {
-                        stack.own_ready = is_ready;
-                        changed = true;
+                    let mut found = false;
+                    for (subkey, readiness) in [
+                        (stack_key.0, &mut stack.readiness.0),
+                        (stack_key.1, &mut stack.readiness.1),
+                    ] {
+                        if &subkey == project {
+                            found = true;
+                            if *readiness != is_ready {
+                                changed = true;
+                                *readiness = is_ready;
+                            }
+                        }
                     }
-                });
-            }
-        }
-        if let Some(stack_keys) = self.sampling_keys.get(project) {
-            for stack_key in stack_keys {
-                self.priority_queue.change_priority_by(stack_key, |stack| {
-                    if is_ready != stack.sampling_ready {
-                        stack.sampling_ready = is_ready;
-                        changed = true;
-                    }
+                    debug_assert!(found);
                 });
             }
         }
         changed
+    }
+}
+
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
+struct StackKey(ProjectKey, ProjectKey);
+
+impl StackKey {
+    fn new(mut key1: ProjectKey, mut key2: ProjectKey) -> Self {
+        if key2 < key1 {
+            std::mem::swap(&mut key1, &mut key2);
+        }
+        Self(key1, key2)
+    }
+
+    fn from_envelope(envelope: &Envelope) -> Self {
+        let own_key = envelope.meta().public_key();
+        let sampling_key = envelope.sampling_key().unwrap_or(own_key);
+        StackKey::new(own_key, sampling_key)
+    }
+
+    fn iter(&self) -> impl Iterator<Item = ProjectKey> {
+        std::iter::once(self.0).chain((self.0 != self.1).then_some(self.1))
     }
 }
 
@@ -191,22 +190,14 @@ impl<K: PartialEq, V> Eq for QueueItem<K, V> {}
 
 #[derive(Debug)]
 struct Priority {
-    own_ready: bool,
-    sampling_ready: bool,
+    readiness: Readiness,
     received_at: Instant,
-}
-
-impl Priority {
-    fn ready(&self) -> bool {
-        self.own_ready && self.sampling_ready
-    }
 }
 
 impl Priority {
     fn new(received_at: Instant) -> Self {
         Self {
-            own_ready: false,
-            sampling_ready: false,
+            readiness: Readiness::new(),
             received_at,
         }
     }
@@ -214,7 +205,7 @@ impl Priority {
 
 impl PartialEq for Priority {
     fn eq(&self, other: &Self) -> bool {
-        self.ready() == other.ready() && self.received_at == other.received_at
+        self.readiness.ready() == other.readiness.ready() && self.received_at == other.received_at
     }
 }
 
@@ -228,7 +219,7 @@ impl Eq for Priority {}
 
 impl Ord for Priority {
     fn cmp(&self, other: &Self) -> Ordering {
-        match (self.ready(), other.ready()) {
+        match (self.readiness.ready(), other.readiness.ready()) {
             (true, true) => self.received_at.cmp(&other.received_at),
             (true, false) => Ordering::Greater,
             (false, true) => Ordering::Less,
@@ -236,6 +227,19 @@ impl Ord for Priority {
             // ready and did not receive envelopes recently can be evicted.
             (false, false) => self.received_at.cmp(&other.received_at).reverse(),
         }
+    }
+}
+
+#[derive(Debug)]
+struct Readiness(bool, bool);
+
+impl Readiness {
+    fn new() -> Self {
+        Self(false, false)
+    }
+
+    fn ready(&self) -> bool {
+        self.0 && self.1
     }
 }
 

@@ -1,4 +1,4 @@
-#![deny(missing_docs)]
+//! Types for buffering envelopes.
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
@@ -11,7 +11,9 @@ use crate::envelope::Envelope;
 mod envelopebuffer;
 mod envelopestack;
 
-/// Wrapper for the EnvelopeBuffer implementation.
+/// Async envelope buffering interface.
+///
+/// Access to the buffer is synchronized by a tokio lock.
 #[derive(Debug, Clone)]
 pub struct EnvelopeBuffer {
     /// TODO: Reconsider synchronization mechanism.
@@ -31,6 +33,10 @@ pub struct EnvelopeBuffer {
 }
 
 impl EnvelopeBuffer {
+    /// Creates a memory or disk based [`EnvelopeBuffer`], depending on the given config.
+    ///
+    /// NOTE: until the V1 spooler implementation is removed, this function returns `None`
+    /// if V2 spooling is not configured.
     pub fn from_config(config: &Config) -> Option<Self> {
         // TODO: create a disk-based backend if db config is given (loads stacks from db).
         config.spool_v2().then(|| Self {
@@ -40,15 +46,18 @@ impl EnvelopeBuffer {
         })
     }
 
+    /// Adds an envelope to the buffer and wakes any waiting consumers.
     pub async fn push(&self, envelope: Box<Envelope>) {
-        relay_log::trace!("Calling push");
         let mut guard = self.backend.lock().await;
         guard.push(envelope);
         self.notify();
     }
 
+    /// Returns a reference to the next-in-line envelope.
+    ///
+    /// If the buffer is empty or has not changed since the last peek, this function will sleep
+    /// until something changes in the buffer.
     pub async fn peek(&self) -> Peek {
-        relay_log::trace!("Calling peek");
         loop {
             {
                 let mut guard = self.backend.lock().await;
@@ -61,11 +70,13 @@ impl EnvelopeBuffer {
                     };
                 }
             }
-            relay_log::trace!("Awaiting");
             self.notify.notified().await;
         }
     }
 
+    /// Marks a project as ready or not ready.
+    ///
+    /// The buffer reprioritizes its envelopes based on this information.
     pub async fn mark_ready(&self, project_key: &ProjectKey, ready: bool) {
         let mut guard = self.backend.lock().await;
         let changed = guard.mark_ready(project_key, ready);
@@ -75,12 +86,14 @@ impl EnvelopeBuffer {
     }
 
     fn notify(&self) {
-        relay_log::trace!("Notifying");
         self.changed.store(true, Ordering::Relaxed);
         self.notify.notify_waiters();
     }
 }
 
+/// A view onto the next envelope in the buffer.
+///
+/// Objects of this type can only exist if the buffer is not empty.
 pub struct Peek<'a> {
     guard: MutexGuard<'a, dyn envelopebuffer::EnvelopeBuffer>,
     notify: &'a tokio::sync::Notify,
@@ -88,15 +101,17 @@ pub struct Peek<'a> {
 }
 
 impl Peek<'_> {
+    /// Returns a reference to the next envelope.
     pub fn get(&mut self) -> &Envelope {
-        relay_log::trace!("Getting reference to peeked element");
         self.guard
             .peek()
             .expect("element disappeared while holding lock")
     }
 
+    /// Pops the next envelope from the buffer.
+    ///
+    /// This functions consumes the [`Peek`].
     pub fn remove(mut self) -> Box<Envelope> {
-        relay_log::trace!("Popping peeked element");
         self.notify();
         self.guard
             .pop()
@@ -115,7 +130,6 @@ impl Peek<'_> {
     }
 
     fn notify(&self) {
-        relay_log::trace!("Notifying");
         self.changed.store(true, Ordering::Relaxed);
         self.notify.notify_waiters();
     }
