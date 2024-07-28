@@ -1,4 +1,5 @@
 #![deny(missing_docs)]
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 use relay_base_schema::project::ProjectKey;
@@ -26,6 +27,7 @@ pub struct EnvelopeBuffer {
     /// > and to use message passing to communicate with that task.
     backend: Arc<tokio::sync::Mutex<dyn envelopebuffer::EnvelopeBuffer>>,
     notify: Arc<tokio::sync::Notify>,
+    changed: Arc<AtomicBool>,
 }
 
 impl EnvelopeBuffer {
@@ -34,33 +36,41 @@ impl EnvelopeBuffer {
         config.spool_v2().then(|| Self {
             backend: envelopebuffer::create(config),
             notify: Arc::new(tokio::sync::Notify::new()),
+            changed: Arc::new(AtomicBool::new(true)),
         })
     }
 
     pub async fn push(&self, envelope: Box<Envelope>) {
         let mut guard = self.backend.lock().await;
         guard.push(envelope);
-        relay_log::trace!("Notifying");
-        self.notify.notify_waiters();
+        self.notify();
     }
 
     pub async fn peek(&self) -> Peek {
         relay_log::trace!("Calling peek");
         loop {
-            let mut guard = self.backend.lock().await;
-            if guard.peek().is_none() {
-                drop(guard);
-                relay_log::trace!("No envelope found, awaiting");
-                self.notify.notified().await;
-            } else {
-                return Peek(guard);
+            {
+                let mut guard = self.backend.lock().await;
+                if self.changed.load(Ordering::Relaxed) && guard.peek().is_some() {
+                    self.changed.store(false, Ordering::Relaxed);
+                    return Peek(guard);
+                }
             }
+            relay_log::trace!("No envelope found, awaiting");
+            self.notify.notified().await;
         }
     }
 
     pub async fn mark_ready(&self, project_key: &ProjectKey, ready: bool) {
         let mut guard = self.backend.lock().await;
-        guard.mark_ready(project_key, ready)
+        guard.mark_ready(project_key, ready);
+        self.notify();
+    }
+
+    fn notify(&self) {
+        relay_log::trace!("Notifying");
+        self.changed.store(true, Ordering::Relaxed);
+        self.notify.notify_waiters();
     }
 }
 
@@ -111,10 +121,10 @@ mod tests {
         let cloned_buffer = buffer.clone();
         let cloned_call_count = call_count.clone();
         tokio::spawn(async move {
-            cloned_buffer.peek().await.remove();
-            cloned_call_count.fetch_add(1, Ordering::Relaxed);
-            cloned_buffer.peek().await.remove();
-            cloned_call_count.fetch_add(1, Ordering::Relaxed);
+            loop {
+                cloned_buffer.peek().await.remove();
+                cloned_call_count.fetch_add(1, Ordering::Relaxed);
+            }
         });
 
         // Initial state: no calls
@@ -147,10 +157,10 @@ mod tests {
         let cloned_buffer = buffer.clone();
         let cloned_call_count = call_count.clone();
         tokio::spawn(async move {
-            cloned_buffer.peek().await;
-            cloned_call_count.fetch_add(1, Ordering::Relaxed);
-            cloned_buffer.peek().await;
-            cloned_call_count.fetch_add(1, Ordering::Relaxed);
+            loop {
+                cloned_buffer.peek().await;
+                cloned_call_count.fetch_add(1, Ordering::Relaxed);
+            }
         });
 
         buffer.push(new_envelope()).await;
