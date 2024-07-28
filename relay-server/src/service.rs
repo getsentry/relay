@@ -257,10 +257,11 @@ impl ServiceState {
             upstream_relay.clone(),
             global_config.clone(),
         );
+        let envelope_buffer = EnvelopeBuffer::from_config(&config);
         ProjectCacheService::new(
             config.clone(),
             MemoryChecker::new(memory_stat.clone(), config.clone()),
-            EnvelopeBuffer::from_config(&config),
+            envelope_buffer.clone(),
             project_cache_services,
             metric_outcomes,
             redis_pool.clone(),
@@ -302,7 +303,7 @@ impl ServiceState {
         let state = StateInner {
             config: config.clone(),
             memory_checker: MemoryChecker::new(memory_stat, config.clone()),
-            envelope_buffer: EnvelopeBuffer::from_config(&config),
+            envelope_buffer,
             registry,
         };
 

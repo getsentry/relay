@@ -28,7 +28,7 @@ impl StackKey {
 pub struct PriorityEnvelopeBuffer<S: EnvelopeStack> {
     own_keys: hashbrown::HashMap<ProjectKey, BTreeSet<StackKey>>,
     sampling_keys: hashbrown::HashMap<ProjectKey, BTreeSet<StackKey>>,
-    stacks: priority_queue::PriorityQueue<QueueItem<StackKey, S>, Priority>,
+    priority_queue: priority_queue::PriorityQueue<QueueItem<StackKey, S>, Priority>,
 }
 
 impl<S: EnvelopeStack> PriorityEnvelopeBuffer<S> {
@@ -36,22 +36,24 @@ impl<S: EnvelopeStack> PriorityEnvelopeBuffer<S> {
         Self {
             own_keys: Default::default(),
             sampling_keys: Default::default(),
-            stacks: Default::default(),
+            priority_queue: Default::default(),
         }
     }
 }
 
 impl<S: EnvelopeStack> PriorityEnvelopeBuffer<S> {
     fn push_stack(&mut self, envelope: Box<Envelope>) {
+        relay_log::trace!("PriorityEnvelopeBuffer: push_stack");
         let received_at = envelope.meta().start_time();
         let stack_key = StackKey::from_envelope(&envelope);
-        self.stacks.push(
+        let previous_entry = self.priority_queue.push(
             QueueItem {
                 key: stack_key,
                 value: S::new(envelope),
             },
             Priority::new(received_at),
         );
+        debug_assert!(previous_entry.is_none());
         self.own_keys
             .entry(stack_key.own_key)
             .or_default()
@@ -63,6 +65,7 @@ impl<S: EnvelopeStack> PriorityEnvelopeBuffer<S> {
     }
 
     fn pop_stack(&mut self, stack_key: StackKey) {
+        relay_log::trace!("PriorityEnvelopeBuffer: pop_stack");
         self.own_keys
             .get_mut(&stack_key.own_key)
             .expect("own_keys")
@@ -71,12 +74,13 @@ impl<S: EnvelopeStack> PriorityEnvelopeBuffer<S> {
             .get_mut(&stack_key.sampling_key)
             .expect("sampling_keys")
             .remove(&stack_key);
-        self.stacks.remove(&stack_key);
+        self.priority_queue.remove(&stack_key);
     }
 }
 
 impl<S: EnvelopeStack + std::fmt::Debug> EnvelopeBuffer for PriorityEnvelopeBuffer<S> {
     fn push(&mut self, envelope: Box<Envelope>) {
+        relay_log::trace!("PriorityEnvelopeBuffer: push");
         let received_at = envelope.meta().start_time();
         let stack_key = StackKey::from_envelope(&envelope);
         if let Some((
@@ -85,30 +89,34 @@ impl<S: EnvelopeStack + std::fmt::Debug> EnvelopeBuffer for PriorityEnvelopeBuff
                 value: stack,
             },
             _,
-        )) = self.stacks.get_mut(&stack_key)
+        )) = self.priority_queue.get_mut(&stack_key)
         {
+            relay_log::trace!("PriorityEnvelopeBuffer: pushing to existing stack");
             stack.push(envelope);
         } else {
+            relay_log::trace!("PriorityEnvelopeBuffer: pushing new stack with one element");
             self.push_stack(envelope);
         }
-        self.stacks.change_priority_by(&stack_key, |prio| {
+        self.priority_queue.change_priority_by(&stack_key, |prio| {
             prio.received_at = received_at;
         });
     }
 
     fn peek(&mut self) -> Option<&Envelope> {
+        relay_log::trace!("PriorityEnvelopeBuffer: peek");
         let (
             QueueItem {
                 key: _,
                 value: stack,
             },
             _,
-        ) = self.stacks.peek_mut()?;
+        ) = self.priority_queue.peek_mut()?;
         stack.peek()
     }
 
     fn pop(&mut self) -> Option<Box<Envelope>> {
-        let (QueueItem { key, value: stack }, _) = self.stacks.peek_mut()?;
+        relay_log::trace!("PriorityEnvelopeBuffer: pop");
+        let (QueueItem { key, value: stack }, _) = self.priority_queue.peek_mut()?;
         let stack_key = *key;
         let envelope = stack.pop().expect("found an empty stack");
 
@@ -120,7 +128,7 @@ impl<S: EnvelopeStack + std::fmt::Debug> EnvelopeBuffer for PriorityEnvelopeBuff
                 self.pop_stack(stack_key);
             }
             Some(next_received_at) => {
-                self.stacks.change_priority_by(&stack_key, |prio| {
+                self.priority_queue.change_priority_by(&stack_key, |prio| {
                     prio.received_at = next_received_at;
                 });
             }
@@ -129,16 +137,17 @@ impl<S: EnvelopeStack + std::fmt::Debug> EnvelopeBuffer for PriorityEnvelopeBuff
     }
 
     fn mark_ready(&mut self, project: &ProjectKey, is_ready: bool) {
+        relay_log::trace!("PriorityEnvelopeBuffer: mark_ready");
         if let Some(stack_keys) = self.own_keys.get(project) {
             for stack_key in stack_keys {
-                self.stacks.change_priority_by(stack_key, |stack| {
+                self.priority_queue.change_priority_by(stack_key, |stack| {
                     stack.own_ready = is_ready;
                 });
             }
         }
         if let Some(stack_keys) = self.sampling_keys.get(project) {
             for stack_key in stack_keys {
-                self.stacks.change_priority_by(stack_key, |stack| {
+                self.priority_queue.change_priority_by(stack_key, |stack| {
                     stack.sampling_ready = is_ready;
                 });
             }

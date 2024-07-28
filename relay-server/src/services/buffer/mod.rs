@@ -41,6 +41,7 @@ impl EnvelopeBuffer {
     }
 
     pub async fn push(&self, envelope: Box<Envelope>) {
+        relay_log::trace!("Calling push");
         let mut guard = self.backend.lock().await;
         guard.push(envelope);
         self.notify();
@@ -86,12 +87,14 @@ pub struct Peek<'a> {
 
 impl Peek<'_> {
     pub fn get(&mut self) -> &Envelope {
+        relay_log::trace!("Getting reference to peeked element");
         self.guard
             .peek()
             .expect("element disappeared while holding lock")
     }
 
     pub fn remove(mut self) -> Box<Envelope> {
+        relay_log::trace!("Popping peeked element");
         self.notify();
         self.guard
             .pop()

@@ -313,6 +313,7 @@ async fn queue_envelope(
                 buffer.push(envelope.into_envelope()).await;
             }
             None => {
+                relay_log::trace!("Sending envelope to project cache for V1 buffer");
                 state.project_cache().send(ValidateEnvelope::new(envelope));
             }
         }
