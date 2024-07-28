@@ -14,7 +14,7 @@ pub trait EnvelopeBuffer: std::fmt::Debug + Send {
     fn push(&mut self, envelope: Box<Envelope>);
     fn peek(&mut self) -> Option<&Envelope>;
     fn pop(&mut self) -> Option<Box<Envelope>>;
-    fn mark_ready(&mut self, project: &ProjectKey, is_ready: bool);
+    fn mark_ready(&mut self, project: &ProjectKey, is_ready: bool) -> bool;
 }
 
 pub fn create(config: &Config) -> Arc<Mutex<dyn EnvelopeBuffer>> {

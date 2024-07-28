@@ -136,22 +136,30 @@ impl<S: EnvelopeStack + std::fmt::Debug> EnvelopeBuffer for PriorityEnvelopeBuff
         Some(envelope)
     }
 
-    fn mark_ready(&mut self, project: &ProjectKey, is_ready: bool) {
+    fn mark_ready(&mut self, project: &ProjectKey, is_ready: bool) -> bool {
         relay_log::trace!("PriorityEnvelopeBuffer: mark_ready");
+        let mut changed = false;
         if let Some(stack_keys) = self.own_keys.get(project) {
             for stack_key in stack_keys {
                 self.priority_queue.change_priority_by(stack_key, |stack| {
-                    stack.own_ready = is_ready;
+                    if is_ready != stack.own_ready {
+                        stack.own_ready = is_ready;
+                        changed = true;
+                    }
                 });
             }
         }
         if let Some(stack_keys) = self.sampling_keys.get(project) {
             for stack_key in stack_keys {
                 self.priority_queue.change_priority_by(stack_key, |stack| {
-                    stack.sampling_ready = is_ready;
+                    if is_ready != stack.sampling_ready {
+                        stack.sampling_ready = is_ready;
+                        changed = true;
+                    }
                 });
             }
         }
+        changed
     }
 }
 

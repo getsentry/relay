@@ -68,8 +68,10 @@ impl EnvelopeBuffer {
 
     pub async fn mark_ready(&self, project_key: &ProjectKey, ready: bool) {
         let mut guard = self.backend.lock().await;
-        guard.mark_ready(project_key, ready);
-        self.notify();
+        let changed = guard.mark_ready(project_key, ready);
+        if changed {
+            self.notify();
+        }
     }
 
     fn notify(&self) {
@@ -106,8 +108,10 @@ impl Peek<'_> {
     /// Since [`Peek`] already has exclusive access to the buffer, it can mark projects as ready
     /// without awaiting the lock.
     pub fn mark_ready(&mut self, project_key: &ProjectKey, ready: bool) {
-        self.notify();
-        self.guard.mark_ready(project_key, ready);
+        let changed = self.guard.mark_ready(project_key, ready);
+        if changed {
+            self.notify();
+        }
     }
 
     fn notify(&self) {
