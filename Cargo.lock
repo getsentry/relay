@@ -4085,6 +4085,7 @@ dependencies = [
  "brotli",
  "bytes",
  "chrono",
+ "criterion",
  "data-encoding",
  "flate2",
  "fnv",
