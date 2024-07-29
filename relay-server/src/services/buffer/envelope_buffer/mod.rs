@@ -16,21 +16,23 @@ use crate::services::buffer::stack_provider::memory::MemoryStackProvider;
 use crate::SqliteEnvelopeStack;
 
 /// Creates a memory or disk based [`EnvelopesBuffer`], depending on the given config.
-pub fn create(_config: &Config) -> Arc<Mutex<InnerEnvelopeBuffer<MemoryEnvelopeStack>>> {
-    Arc::new(Mutex::new(InnerEnvelopeBuffer::<MemoryEnvelopeStack>::new()))
+pub fn create(_config: &Config) -> Arc<Mutex<EnvelopesBuffer>> {
+    Arc::new(Mutex::new(EnvelopesBuffer::InMemory(
+        InnerEnvelopesBuffer::<MemoryEnvelopeStack>::new(),
+    )))
 }
 
 #[derive(Debug)]
 pub enum EnvelopesBuffer {
-    InMemory(InnerEnvelopeBuffer<MemoryEnvelopeStack>),
-    Sqlite(InnerEnvelopeBuffer<SqliteEnvelopeStack>),
+    InMemory(InnerEnvelopesBuffer<MemoryEnvelopeStack>),
+    Sqlite(InnerEnvelopesBuffer<SqliteEnvelopeStack>),
 }
 
 impl EnvelopesBuffer {
     pub fn from_config(config: &Config) -> Self {
         match config.spool_envelopes_path() {
-            Some(path) => Self::Sqlite(InnerEnvelopeBuffer::<SqliteEnvelopeStack>::new(path)),
-            None => Self::InMemory(InnerEnvelopeBuffer::<MemoryEnvelopeStack>::new()),
+            Some(path) => Self::Sqlite(InnerEnvelopesBuffer::<SqliteEnvelopeStack>::new(path)),
+            None => Self::InMemory(InnerEnvelopesBuffer::<MemoryEnvelopeStack>::new()),
         }
     }
 
@@ -42,7 +44,7 @@ impl EnvelopesBuffer {
 /// Envelope stacks are organized in a priority queue, and are reprioritized every time an envelope
 /// is pushed, popped, or when a project becomes ready.
 #[derive(Debug)]
-struct InnerEnvelopeBuffer<S: EnvelopeStack> {
+struct InnerEnvelopesBuffer<S: EnvelopeStack> {
     /// The central priority queue.
     priority_queue: priority_queue::PriorityQueue<QueueItem<StackKey, S>, Priority>,
     /// A lookup table to find all stacks involving a project.
@@ -50,7 +52,7 @@ struct InnerEnvelopeBuffer<S: EnvelopeStack> {
     stack_provider: S::Provider,
 }
 
-impl InnerEnvelopeBuffer<MemoryEnvelopeStack> {
+impl InnerEnvelopesBuffer<MemoryEnvelopeStack> {
     /// Creates an empty buffer.
     pub fn new() -> Self {
         Self {
@@ -60,7 +62,7 @@ impl InnerEnvelopeBuffer<MemoryEnvelopeStack> {
         }
     }
 }
-impl InnerEnvelopeBuffer<SqliteEnvelopeStack> {
+impl InnerEnvelopesBuffer<SqliteEnvelopeStack> {
     /// Creates an empty buffer.
     pub fn new(config: Arc<Config>) -> Self {
         Self {
@@ -71,7 +73,7 @@ impl InnerEnvelopeBuffer<SqliteEnvelopeStack> {
     }
 }
 
-impl<S: EnvelopeStack> InnerEnvelopeBuffer<S> {
+impl<S: EnvelopeStack> InnerEnvelopesBuffer<S> {
     fn push_stack(&mut self, envelope: Box<Envelope>) {
         let received_at = envelope.meta().start_time();
         let stack_key = StackKey::from_envelope(&envelope);
@@ -324,7 +326,7 @@ mod tests {
 
     #[tokio::test]
     async fn insert_pop() {
-        let mut buffer = InnerEnvelopeBuffer::<MemoryEnvelopeStack>::new();
+        let mut buffer = InnerEnvelopesBuffer::<MemoryEnvelopeStack>::new();
 
         let project_key1 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
         let project_key2 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
@@ -399,7 +401,7 @@ mod tests {
 
     #[tokio::test]
     async fn project_internal_order() {
-        let mut buffer = InnerEnvelopeBuffer::<MemoryEnvelopeStack>::new();
+        let mut buffer = InnerEnvelopesBuffer::<MemoryEnvelopeStack>::new();
 
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
 
@@ -420,7 +422,7 @@ mod tests {
 
     #[tokio::test]
     async fn sampling_projects() {
-        let mut buffer = InnerEnvelopeBuffer::<MemoryEnvelopeStack>::new();
+        let mut buffer = InnerEnvelopesBuffer::<MemoryEnvelopeStack>::new();
 
         let project_key1 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
         let project_key2 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fef").unwrap();
