@@ -21,6 +21,8 @@ use relay_config::Config;
 use crate::envelope::Envelope;
 use crate::extractors::StartTime;
 use crate::services::buffer::envelope_stack::{EnvelopeStack, StackProvider};
+use crate::services::buffer::envelope_store::sqlite::SqliteEnvelopeStore;
+use crate::services::buffer::stack_provider::memory::MemoryStackProvider;
 use crate::services::buffer::stack_provider::sqlite::SqliteStackProvider;
 
 /// An error returned when doing an operation on [`SQLiteEnvelopeStack`].
@@ -41,7 +43,7 @@ pub enum SqliteEnvelopeStackError {
 /// to disk in a batched way.
 pub struct SqliteEnvelopeStack {
     /// Shared SQLite database pool which will be used to read and write from disk.
-    db: Pool<Sqlite>,
+    envelope_store: SqliteEnvelopeStore,
     /// Threshold defining the maximum number of envelopes in the `batches_buffer` before spooling
     /// to disk will take place.
     spool_threshold: NonZeroUsize,
@@ -65,14 +67,14 @@ impl SqliteEnvelopeStack {
     /// Creates a new empty [`SQLiteEnvelopeStack`].
     #[allow(dead_code)]
     pub fn new(
-        db: Pool<Sqlite>,
+        envelope_store: SqliteEnvelopeStore,
         disk_batch_size: usize,
         max_batches: usize,
         own_key: ProjectKey,
         sampling_key: ProjectKey,
     ) -> Self {
         Self {
-            db,
+            envelope_store,
             spool_threshold: NonZeroUsize::new(disk_batch_size * max_batches)
                 .expect("the spool threshold must be > 0"),
             batch_size: NonZeroUsize::new(disk_batch_size)
@@ -247,6 +249,8 @@ impl SqliteEnvelopeStack {
 
 impl EnvelopeStack for SqliteEnvelopeStack {
     type Error = SqliteEnvelopeStackError;
+
+    type Provider = SqliteStackProvider;
 
     #[allow(unused)]
     fn new(envelope: Box<Envelope>) -> Self {

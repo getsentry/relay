@@ -1,16 +1,16 @@
 use std::convert::Infallible;
 
-use crate::services::buffer::envelope_stack::StackProvider;
+use super::EnvelopeStack;
+use crate::services::buffer::stack_provider::memory::MemoryStackProvider;
 use crate::Envelope;
 
-use super::EnvelopeStack;
-
 #[derive(Debug)]
-pub struct InMemoryEnvelopeStack(#[allow(clippy::vec_box)] Vec<Box<Envelope>>);
+pub struct MemoryEnvelopeStack(#[allow(clippy::vec_box)] Vec<Box<Envelope>>);
 
-impl EnvelopeStack for InMemoryEnvelopeStack {
+impl EnvelopeStack for MemoryEnvelopeStack {
     type Error = Infallible;
-    type Provider = DummyProvider;
+
+    type Provider = MemoryStackProvider;
 
     fn new(envelope: Box<Envelope>) -> Self {
         Self(vec![envelope])
@@ -21,22 +21,11 @@ impl EnvelopeStack for InMemoryEnvelopeStack {
         Ok(())
     }
 
-    async fn pop(&mut self) -> Result<Option<Box<Envelope>>, Self::Error> {
-        Ok(self.0.pop())
-    }
-
     async fn peek(&mut self) -> Result<Option<&Envelope>, Self::Error> {
         Ok(self.0.last().map(Box::as_ref))
     }
-}
 
-pub struct DummyProvider; // TODO: needs pub?
-
-impl StackProvider for DummyProvider {
-    type Stack = InMemoryEnvelopeStack;
-
-    // TODO: create empty stack instead
-    fn create_stack(&self, envelope: Box<Envelope>) -> Self::Stack {
-        InMemoryEnvelopeStack::new(envelope)
+    async fn pop(&mut self) -> Result<Option<Box<Envelope>>, Self::Error> {
+        Ok(self.0.pop())
     }
 }

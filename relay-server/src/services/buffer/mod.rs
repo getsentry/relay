@@ -11,10 +11,11 @@ use relay_config::Config;
 
 use crate::envelope::Envelope;
 use crate::services::buffer::envelope_buffer::priority::PriorityEnvelopeBuffer;
-use crate::services::buffer::envelope_stack::memory::InMemoryEnvelopeStack;
+use crate::services::buffer::envelope_stack::memory::MemoryEnvelopeStack;
 
 mod envelope_buffer;
 mod envelope_stack;
+mod envelope_store;
 mod stack_provider;
 
 /// Async envelope buffering interface.
@@ -33,7 +34,7 @@ pub struct EnvelopeBuffer {
     /// >  The primary use case for the async mutex is to provide shared mutable access to IO resources such as a database connection.
     /// > [...] when you do want shared access to an IO resource, it is often better to spawn a task to manage the IO resource,
     /// > and to use message passing to communicate with that task.
-    backend: Arc<tokio::sync::Mutex<PriorityEnvelopeBuffer<InMemoryEnvelopeStack>>>,
+    backend: Arc<tokio::sync::Mutex<PriorityEnvelopeBuffer<MemoryEnvelopeStack>>>,
     notify: Arc<tokio::sync::Notify>,
     changed: Arc<AtomicBool>,
 }
@@ -101,7 +102,7 @@ impl EnvelopeBuffer {
 ///
 /// Objects of this type can only exist if the buffer is not empty.
 pub struct Peek<'a> {
-    guard: MutexGuard<'a, PriorityEnvelopeBuffer<InMemoryEnvelopeStack>>,
+    guard: MutexGuard<'a, PriorityEnvelopeBuffer<MemoryEnvelopeStack>>,
     notify: &'a tokio::sync::Notify,
     changed: &'a AtomicBool,
 }

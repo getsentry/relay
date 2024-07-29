@@ -11,6 +11,8 @@ pub trait EnvelopeStack: Send {
     /// [`EnvelopeStack`].
     type Error: std::fmt::Debug;
 
+    type Provider: StackProvider;
+
     /// Creates a new stack with the given element.
     fn new(envelope: Box<Envelope>) -> Self;
 
@@ -30,6 +32,6 @@ pub trait EnvelopeStack: Send {
 
 pub trait StackProvider {
     type Stack: EnvelopeStack;
-    
+
     fn create_stack(&self, envelope: Box<Envelope>) -> Self::Stack;
 }

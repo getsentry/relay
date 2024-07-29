@@ -1,6 +1,5 @@
 use std::cmp::Ordering;
 use std::collections::BTreeSet;
-use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -10,20 +9,19 @@ use relay_base_schema::project::ProjectKey;
 use relay_config::Config;
 
 use crate::envelope::Envelope;
-use crate::services::buffer::envelope_stack::memory::{DummyProvider, InMemoryEnvelopeStack};
+use crate::services::buffer::envelope_stack::memory::MemoryEnvelopeStack;
 use crate::services::buffer::envelope_stack::sqlite::SqliteStackProvider;
 use crate::services::buffer::envelope_stack::EnvelopeStack;
+use crate::services::buffer::stack_provider::memory::MemoryStackProvider;
 use crate::SqliteEnvelopeStack;
 
 /// Creates a memory or disk based [`EnvelopeBuffer`], depending on the given config.
-pub fn create(config: &Config) -> Arc<Mutex<InnerEnvelopeBuffer<InMemoryEnvelopeStack>>> {
-    Arc::new(Mutex::new(
-        InnerEnvelopeBuffer::<InMemoryEnvelopeStack>::new(),
-    ))
+pub fn create(config: &Config) -> Arc<Mutex<InnerEnvelopeBuffer<MemoryEnvelopeStack>>> {
+    Arc::new(Mutex::new(InnerEnvelopeBuffer::<MemoryEnvelopeStack>::new()))
 }
 
 pub enum EnvelopeBuffer {
-    InMemory(InnerEnvelopeBuffer<InMemoryEnvelopeStack>),
+    InMemory(InnerEnvelopeBuffer<MemoryEnvelopeStack>),
     Sqlite(InnerEnvelopeBuffer<SqliteEnvelopeStack>),
 }
 
@@ -31,7 +29,7 @@ impl EnvelopeBuffer {
     pub fn from_config(config: &Config) -> Self {
         match config.spool_envelopes_path() {
             Some(path) => Self::Sqlite(InnerEnvelopeBuffer::<SqliteEnvelopeStack>::new(path)),
-            None => Self::InMemory(InnerEnvelopeBuffer::<InMemoryEnvelopeStack>::new()),
+            None => Self::InMemory(InnerEnvelopeBuffer::<MemoryEnvelopeStack>::new()),
         }
     }
 
@@ -51,27 +49,23 @@ struct InnerEnvelopeBuffer<S: EnvelopeStack> {
     stack_provider: S::Provider,
 }
 
-impl InnerEnvelopeBuffer<InMemoryEnvelopeStack> {
+impl InnerEnvelopeBuffer<MemoryEnvelopeStack> {
     /// Creates an empty buffer.
     pub fn new() -> Self {
         Self {
             stacks_by_project: Default::default(),
             priority_queue: Default::default(),
-            stack_provider: DummyProvider,
+            stack_provider: MemoryStackProvider,
         }
     }
 }
 impl InnerEnvelopeBuffer<SqliteEnvelopeStack> {
     /// Creates an empty buffer.
-    pub fn new(path: PathBuf) -> Self {
-        // TODO: Populate state from db.
+    pub fn new(config: Arc<Config>) -> Self {
         Self {
             stacks_by_project: Default::default(),
             priority_queue: Default::default(),
-            stack_provider: SqliteStackProvider::new(
-                path, 100, // TODO: put in config
-                2,   // TODO: put in config
-            ),
+            stack_provider: SqliteStackProvider::new(config),
         }
     }
 }
@@ -300,7 +294,7 @@ mod tests {
 
     use crate::envelope::{Item, ItemType};
     use crate::extractors::RequestMeta;
-    use crate::services::buffer::envelope_stack::memory::InMemoryEnvelopeStack;
+    use crate::services::buffer::envelope_stack::memory::MemoryEnvelopeStack;
 
     use super::*;
 
@@ -329,7 +323,7 @@ mod tests {
 
     #[tokio::test]
     async fn insert_pop() {
-        let mut buffer = InnerEnvelopeBuffer::<InMemoryEnvelopeStack>::new();
+        let mut buffer = InnerEnvelopeBuffer::<MemoryEnvelopeStack>::new();
 
         let project_key1 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
         let project_key2 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
@@ -404,7 +398,7 @@ mod tests {
 
     #[tokio::test]
     async fn project_internal_order() {
-        let mut buffer = InnerEnvelopeBuffer::<InMemoryEnvelopeStack>::new();
+        let mut buffer = InnerEnvelopeBuffer::<MemoryEnvelopeStack>::new();
 
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
 
@@ -425,7 +419,7 @@ mod tests {
 
     #[tokio::test]
     async fn sampling_projects() {
-        let mut buffer = InnerEnvelopeBuffer::<InMemoryEnvelopeStack>::new();
+        let mut buffer = InnerEnvelopeBuffer::<MemoryEnvelopeStack>::new();
 
         let project_key1 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
         let project_key2 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fef").unwrap();
