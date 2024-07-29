@@ -17,7 +17,7 @@ pub trait EnvelopeStack {
     ///
     /// If the stack is empty, an error is returned.
     #[allow(dead_code)]
-    fn peek(&mut self) -> impl Future<Output = Result<Option<&Box<Envelope>>, Self::Error>>;
+    fn peek(&mut self) -> impl Future<Output = Result<Option<&Envelope>, Self::Error>>;
 
     /// Pops the [`Envelope`] on top of the stack.
     ///

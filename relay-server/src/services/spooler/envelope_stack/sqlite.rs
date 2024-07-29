@@ -290,7 +290,7 @@ impl EnvelopeStack for SQLiteEnvelopeStack {
         self.batches_buffer_size += 1;
     }
 
-    async fn peek(&mut self) -> Result<Option<&Box<Envelope>>, Self::Error> {
+    async fn peek(&mut self) -> Result<Option<&Envelope>, Self::Error> {
         self.try_wait_spooling().await?;
 
         if self.below_unspool_threshold() && self.check_disk {
@@ -300,7 +300,8 @@ impl EnvelopeStack for SQLiteEnvelopeStack {
         let last = self
             .batches_buffer
             .back()
-            .and_then(|last_batch| last_batch.last());
+            .and_then(|last_batch| last_batch.last())
+            .map(|last_batch| last_batch.as_ref());
 
         Ok(last)
     }
