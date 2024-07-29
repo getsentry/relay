@@ -99,11 +99,9 @@ fn benchmark_sqlite_envelope_stack(c: &mut Criterion) {
                             (stack, envelopes)
                         },
                         |(mut stack, envelopes)| {
-                            runtime.block_on(async {
-                                for envelope in envelopes {
-                                    stack.push(envelope).await.unwrap();
-                                }
-                            });
+                            for envelope in envelopes {
+                                stack.push(envelope).unwrap();
+                            }
                         },
                     );
                 },
@@ -130,7 +128,7 @@ fn benchmark_sqlite_envelope_stack(c: &mut Criterion) {
                                 // Pre-fill the stack
                                 for _ in 0..size {
                                     let envelope = mock_envelope(envelope_size);
-                                    stack.push(envelope).await.unwrap();
+                                    stack.push(envelope).unwrap();
                                 }
 
                                 stack
@@ -179,12 +177,12 @@ fn benchmark_sqlite_envelope_stack(c: &mut Criterion) {
                                 for _ in 0..size {
                                     if rand::random::<bool>() {
                                         if let Some(envelope) = envelope_iter.next() {
-                                            stack.push(envelope).await.unwrap();
+                                            stack.push(envelope).unwrap();
                                         }
                                     } else if stack.pop().await.is_err() {
                                         // If pop fails (empty stack), push instead
                                         if let Some(envelope) = envelope_iter.next() {
-                                            stack.push(envelope).await.unwrap();
+                                            stack.push(envelope).unwrap();
                                         }
                                     }
                                 }

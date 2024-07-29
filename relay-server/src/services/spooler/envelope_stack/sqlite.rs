@@ -127,18 +127,17 @@ impl SQLiteEnvelopeStack {
         // the new size.
         self.batches_buffer_size -= envelopes.len();
 
-        let insert_envelopes = envelopes
-            .iter()
-            .map(|e| InsertEnvelope {
-                received_at: received_at(e),
-                own_key: self.own_key,
-                sampling_key: self.sampling_key,
-                encoded_envelope: e.to_vec().unwrap(),
-            })
-            .collect();
         let db = self.db.clone();
-
+        let own_key = self.own_key;
+        let sampling_key = self.sampling_key;
         let spooling_handle = tokio::spawn(async move {
+            let insert_envelopes = envelopes.iter().map(|e| InsertEnvelope {
+                received_at: received_at(e),
+                own_key,
+                sampling_key,
+                encoded_envelope: e.to_vec().unwrap(),
+            });
+
             // When spawning this task, we are acknowledging that the elements that we popped from
             // the buffer are lost in case of error during insertion.
             //
@@ -152,6 +151,9 @@ impl SQLiteEnvelopeStack {
             {
                 relay_log::error!(
                     error = &err as &dyn Error,
+                    own_key = own_key.to_string(),
+                    sampling_key = sampling_key.to_string(),
+                    number_of_envelopes = envelopes.len(),
                     "failed to spool envelopes to disk",
                 );
             }
@@ -301,11 +303,11 @@ impl EnvelopeStack for SQLiteEnvelopeStack {
     }
 
     async fn peek(&mut self) -> Result<&Box<Envelope>, Self::Error> {
+        self.try_wait_spooling().await?;
+
         if self.below_unspool_threshold() && self.check_disk {
             self.unspool_from_disk().await?
         }
-
-        self.try_wait_spooling().await?;
 
         self.batches_buffer
             .back()
@@ -314,11 +316,11 @@ impl EnvelopeStack for SQLiteEnvelopeStack {
     }
 
     async fn pop(&mut self) -> Result<Box<Envelope>, Self::Error> {
+        self.try_wait_spooling().await?;
+
         if self.below_unspool_threshold() && self.check_disk {
             self.unspool_from_disk().await?
         }
-
-        self.try_wait_spooling().await?;
 
         let result = self
             .batches_buffer
@@ -352,7 +354,9 @@ struct InsertEnvelope {
 }
 
 /// Builds a query that inserts many [`Envelope`]s in the database.
-fn build_insert_many_envelopes<'a>(envelopes: Vec<InsertEnvelope>) -> QueryBuilder<'a, Sqlite> {
+fn build_insert_many_envelopes<'a>(
+    envelopes: impl Iterator<Item = InsertEnvelope>,
+) -> QueryBuilder<'a, Sqlite> {
     let mut builder: QueryBuilder<Sqlite> =
         QueryBuilder::new("INSERT INTO envelopes (received_at, own_key, sampling_key, envelope) ");
 
@@ -696,5 +700,44 @@ mod tests {
             );
         }
         assert_eq!(stack.batches_buffer_size, 0);
+    }
+
+    #[tokio::test]
+    async fn test_spooling_handle_is_set() {
+        let db = setup_db(true).await;
+        let mut stack = SQLiteEnvelopeStack::new(
+            db,
+            1,
+            1,
+            ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
+            ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap(),
+        );
+
+        // We push 1 envelope.
+        let envelope_1 = mock_envelope(Instant::now());
+        assert!(stack.push(envelope_1.clone()).is_ok());
+        assert!(stack.spooling_handle.is_none());
+        assert_eq!(stack.batches_buffer_size, 1);
+
+        // We push the 2nd envelope which will cause async spooling.
+        let envelope_2 = mock_envelope(Instant::now());
+        assert!(stack.push(envelope_2.clone()).is_ok());
+        assert!(stack.spooling_handle.is_some());
+        assert_eq!(stack.batches_buffer_size, 1);
+
+        // We pop the in-memory element which doesn't need to wait on the async spooling.
+        let popped_envelope = stack.pop().await.unwrap();
+        assert_eq!(
+            popped_envelope.event_id().unwrap(),
+            envelope_2.event_id().unwrap()
+        );
+
+        // Now the stack is empty, and we want to wait for the async spooling to finish if it didn't
+        // already.
+        let popped_envelope = stack.pop().await.unwrap();
+        assert_eq!(
+            popped_envelope.event_id().unwrap(),
+            envelope_1.event_id().unwrap()
+        );
     }
 }
