@@ -1,16 +1,20 @@
+use crate::extractors::StartTime;
+use crate::services::buffer::envelope_stack::sqlite::SqliteEnvelopeStackError;
 use crate::services::buffer::envelope_store::EnvelopeStore;
 use crate::Envelope;
 use relay_base_schema::project::ProjectKey;
 use relay_config::Config;
+use sqlx::migrate::MigrateError;
 use sqlx::query::Query;
 use sqlx::sqlite::{
     SqliteArguments, SqliteAutoVacuum, SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions,
-    SqliteSynchronous,
+    SqliteRow, SqliteSynchronous,
 };
 use sqlx::{Pool, QueryBuilder, Sqlite};
-use std::future::Future;
+use std::error::Error;
 use std::iter;
 use std::path::Path;
+use std::pin::pin;
 use std::sync::Arc;
 use tokio::fs::DirBuilder;
 
@@ -44,8 +48,14 @@ pub enum SqliteEnvelopeStoreError {
     #[error("failed to create the spool file: {0}")]
     FileSetupError(std::io::Error),
 
+    #[error("an error occurred while spooling envelopes: {0}")]
+    SpoolingError(sqlx::Error),
+
     #[error("no file path for the spool was provided")]
     NoFilePath,
+
+    #[error("error during the migration of the database: {0}")]
+    MigrationError(MigrateError),
 }
 
 #[derive(Clone)]
@@ -130,7 +140,11 @@ impl SqliteEnvelopeStore {
             .await
             .map_err(SqliteEnvelopeStoreError::SqlxSetupFailed)?;
 
-        sqlx::migrate!("../migrations").run(&db).await?;
+        sqlx::migrate!("../migrations")
+            .run(&db)
+            .await
+            .map_err(SqliteEnvelopeStoreError::MigrationError)?;
+
         Ok(())
     }
 
@@ -139,6 +153,7 @@ impl SqliteEnvelopeStore {
         let Some(parent) = path.parent() else {
             return Ok(());
         };
+
         if !parent.as_os_str().is_empty() && !parent.exists() {
             relay_log::debug!("creating directory for spooling file: {}", parent.display());
             DirBuilder::new()
@@ -147,34 +162,119 @@ impl SqliteEnvelopeStore {
                 .await
                 .map_err(SqliteEnvelopeStoreError::FileSetupError)?;
         }
+
         Ok(())
     }
 }
 
 impl EnvelopeStore for SqliteEnvelopeStore {
     type Envelope = InsertEnvelope;
+
     type Error = SqliteEnvelopeStoreError;
 
     async fn insert_many(
         &mut self,
         envelopes: impl Iterator<Item = Self::Envelope>,
     ) -> Result<(), Self::Error> {
-        todo!()
+        if let Err(err) = build_insert_many_envelopes(envelopes)
+            .build()
+            .execute(&self.db)
+            .await
+        {
+            relay_log::error!(
+                error = &err as &dyn Error,
+                "failed to spool envelopes to disk",
+            );
+
+            return Err(SqliteEnvelopeStoreError::SpoolingError(err));
+        }
+
+        Ok(())
     }
 
-    async fn delete_many(&mut self) -> Result<Vec<Envelope>, Self::Error> {
-        todo!()
+    async fn delete_many(
+        &mut self,
+        own_key: ProjectKey,
+        sampling_key: ProjectKey,
+        limit: i64,
+    ) -> Result<Vec<Box<Envelope>>, Self::Error> {
+        let envelopes = build_delete_and_fetch_many_envelopes(own_key, sampling_key, limit)
+            .fetch(&self.db)
+            .peekable();
+
+        let mut envelopes = pin!(envelopes);
+        if envelopes.as_mut().peek().await.is_none() {
+            return Ok(vec![]);
+        }
+
+        // We use a sorted vector to order envelopes that are deleted from the database.
+        // Unfortunately we have to do this because SQLite `DELETE` with `RETURNING` doesn't
+        // return deleted rows in a specific order.
+        let mut extracted_envelopes = Vec::with_capacity(limit as usize);
+        let mut db_error = None;
+        while let Some(envelope) = envelopes.as_mut().next().await {
+            let envelope = match envelope {
+                Ok(envelope) => envelope,
+                Err(err) => {
+                    relay_log::error!(
+                        error = &err as &dyn Error,
+                        "failed to unspool the envelopes from the disk",
+                    );
+                    db_error = Some(err);
+
+                    continue;
+                }
+            };
+
+            match extract_envelope(envelope) {
+                Ok(envelope) => {
+                    extracted_envelopes.push(envelope);
+                }
+                Err(err) => {
+                    relay_log::error!(
+                        error = &err as &dyn Error,
+                        "failed to extract the envelope unspooled from disk",
+                    )
+                }
+            }
+        }
+
+        // We sort envelopes by `received_at`.
+        extracted_envelopes.sort_by_key(|a| a.received_at());
+
+        Ok(extracted_envelopes)
     }
 
     async fn project_keys_pairs(
         &self,
     ) -> Result<impl Iterator<Item = (String, String)>, Self::Error> {
-        iter::empty()
+        // TODO: implement.
+        Ok(iter::empty())
     }
 
     async fn used_size(&self) -> Result<i64, Self::Error> {
-        todo!()
+        // TODO: implement.
+        Ok(10)
     }
+}
+
+/// Deserializes an [`Envelope`] from a database row.
+fn extract_envelope(row: SqliteRow) -> Result<Box<Envelope>, SqliteEnvelopeStackError> {
+    let envelope_row: Vec<u8> = row
+        .try_get("envelope")
+        .map_err(|_| SqliteEnvelopeStackError::Empty)?;
+    let envelope_bytes = bytes::Bytes::from(envelope_row);
+    let mut envelope =
+        Envelope::parse_bytes(envelope_bytes).map_err(|_| SqliteEnvelopeStackError::Empty)?;
+
+    let received_at: i64 = row
+        .try_get("received_at")
+        .map_err(|_| SqliteEnvelopeStackError::Empty)?;
+    let start_time = StartTime::from_timestamp_millis(received_at as u64);
+
+    envelope.set_start_time(start_time.into_inner());
+
+    Ok(envelope)
 }
 
 /// Builds a query that inserts many [`Envelope`]s in the database.

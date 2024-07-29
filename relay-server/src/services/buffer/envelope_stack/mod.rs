@@ -13,9 +13,6 @@ pub trait EnvelopeStack: Send {
 
     type Provider: StackProvider;
 
-    /// Creates a new stack with the given element.
-    fn new(envelope: Box<Envelope>) -> Self;
-
     /// Pushes an [`Envelope`] on top of the stack.
     fn push(&mut self, envelope: Box<Envelope>) -> impl Future<Output = Result<(), Self::Error>>;
 

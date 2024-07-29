@@ -22,6 +22,7 @@ use crate::envelope::Envelope;
 use crate::extractors::StartTime;
 use crate::services::buffer::envelope_stack::{EnvelopeStack, StackProvider};
 use crate::services::buffer::envelope_store::sqlite::SqliteEnvelopeStore;
+use crate::services::buffer::envelope_store::EnvelopeStore;
 use crate::services::buffer::stack_provider::memory::MemoryStackProvider;
 use crate::services::buffer::stack_provider::sqlite::SqliteStackProvider;
 
@@ -64,8 +65,8 @@ pub struct SqliteEnvelopeStack {
 }
 
 impl SqliteEnvelopeStack {
+    // TODO: implement method for initializing the stack given disk contents.
     /// Creates a new empty [`SQLiteEnvelopeStack`].
-    #[allow(dead_code)]
     pub fn new(
         envelope_store: SqliteEnvelopeStore,
         disk_batch_size: usize,
@@ -109,30 +110,14 @@ impl SqliteEnvelopeStack {
         };
         self.batches_buffer_size -= envelopes.len();
 
-        let insert_envelopes = envelopes.iter().map(|e| InsertEnvelope {
-            received_at: received_at(e),
-            own_key: self.own_key,
-            sampling_key: self.sampling_key,
-            encoded_envelope: e.to_vec().unwrap(),
-        });
+        let envelopes = envelopes.iter().map(|e| e.as_ref().into());
 
-        // TODO: check how we can do this in a background tokio task in a non-blocking way.
-        if let Err(err) = build_insert_many_envelopes(insert_envelopes)
-            .build()
-            .execute(&self.db)
-            .await
-        {
-            relay_log::error!(
-                error = &err as &dyn Error,
-                "failed to spool envelopes to disk",
-            );
-
-            // When early return here, we are acknowledging that the elements that we popped from
-            // the buffer are lost. We are doing this on purposes, since if we were to have a
-            // database corruption during runtime, and we were to put the values back into the buffer
-            // we will end up with an infinite cycle.
-            return Err(SqliteEnvelopeStackError::DatabaseError(err));
-        }
+        // When early return here, we are acknowledging that the elements that we popped from
+        // the buffer are lost. We are doing this on purposes, since if we were to have a
+        // database corruption during runtime, and we were to put the values back into the buffer
+        // we will end up with an infinite cycle.
+        // TODO: handle error.
+        self.envelope_store.insert_many(envelopes).await.unwrap();
 
         // If we successfully spooled to disk, we know that data should be there.
         self.check_disk = true;
@@ -148,93 +133,37 @@ impl SqliteEnvelopeStack {
     /// In case an envelope fails deserialization due to malformed data in the database, the affected
     /// envelope will not be unspooled and unspooling will continue with the remaining envelopes.
     async fn unspool_from_disk(&mut self) -> Result<(), SqliteEnvelopeStackError> {
-        let envelopes = build_delete_and_fetch_many_envelopes(
-            self.own_key,
-            self.sampling_key,
-            self.batch_size.get() as i64,
-        )
-        .fetch(&self.db)
-        .peekable();
+        // TODO: handle error.
+        let envelopes = self
+            .envelope_store
+            .delete_many(
+                self.own_key,
+                self.sampling_key,
+                self.batch_size.get() as i64,
+            )
+            .await
+            .unwrap();
 
-        let mut envelopes = pin!(envelopes);
-        if envelopes.as_mut().peek().await.is_none() {
-            return Ok(());
-        }
-
-        // We use a sorted vector to order envelopes that are deleted from the database.
-        // Unfortunately we have to do this because SQLite `DELETE` with `RETURNING` doesn't
-        // return deleted rows in a specific order.
-        let mut extracted_envelopes = Vec::with_capacity(self.batch_size.get());
-        let mut db_error = None;
-        while let Some(envelope) = envelopes.as_mut().next().await {
-            let envelope = match envelope {
-                Ok(envelope) => envelope,
-                Err(err) => {
-                    relay_log::error!(
-                        error = &err as &dyn Error,
-                        "failed to unspool the envelopes from the disk",
-                    );
-                    db_error = Some(err);
-
-                    continue;
-                }
-            };
-
-            match self.extract_envelope(envelope) {
-                Ok(envelope) => {
-                    extracted_envelopes.push(envelope);
-                }
-                Err(err) => {
-                    relay_log::error!(
-                        error = &err as &dyn Error,
-                        "failed to extract the envelope unspooled from disk",
-                    )
-                }
-            }
-        }
-
-        if extracted_envelopes.is_empty() {
+        if envelopes.is_empty() {
             // If there was a database error and no envelopes have been returned, we assume that we are
             // in a critical state, so we return an error.
-            if let Some(db_error) = db_error {
-                return Err(SqliteEnvelopeStackError::DatabaseError(db_error));
-            }
+            // if let Some(db_error) = db_error {
+            //     return Err(SqliteEnvelopeStackError::DatabaseError(db_error));
+            // }
 
-            // In case no envelopes were unspool, we will mark the disk as empty until another round
-            // of spooling takes place.
+            // In case no envelopes were unspooled, we will mark the disk as empty until another
+            // round of spooling takes place.
             self.check_disk = false;
 
             return Ok(());
         }
 
-        // We sort envelopes by `received_at`.
-        extracted_envelopes.sort_by_key(|a| received_at(a));
-
         // We push in the back of the buffer, since we still want to give priority to
         // incoming envelopes that have a more recent timestamp.
-        self.batches_buffer_size += extracted_envelopes.len();
-        self.batches_buffer.push_front(extracted_envelopes);
+        self.batches_buffer_size += envelopes.len();
+        self.batches_buffer.push_front(envelopes);
 
         Ok(())
-    }
-
-    /// Deserializes an [`Envelope`] from a database row.
-    fn extract_envelope(&self, row: SqliteRow) -> Result<Box<Envelope>, SqliteEnvelopeStackError> {
-        let envelope_row: Vec<u8> = row
-            .try_get("envelope")
-            .map_err(|_| SqliteEnvelopeStackError::Empty)?;
-        let envelope_bytes = bytes::Bytes::from(envelope_row);
-        let mut envelope =
-            Envelope::parse_bytes(envelope_bytes).map_err(|_| SqliteEnvelopeStackError::Empty)?;
-
-        let received_at: i64 = row
-            .try_get("received_at")
-            .map_err(|_| SqliteEnvelopeStackError::Empty)?;
-        let start_time = StartTime::from_timestamp_millis(received_at as u64);
-
-        envelope.set_start_time(start_time.into_inner());
-
-        Ok(envelope)
     }
 
     /// Validates that the incoming [`Envelope`] has the same project keys at the
@@ -251,11 +180,6 @@ impl EnvelopeStack for SqliteEnvelopeStack {
     type Error = SqliteEnvelopeStackError;
 
     type Provider = SqliteStackProvider;
-
-    #[allow(unused)]
-    fn new(envelope: Box<Envelope>) -> Self {
-        todo!() // TODO: pass a `StackManager` into `new`.
-    }
 
     async fn push(&mut self, envelope: Box<Envelope>) -> Result<(), Self::Error> {
         debug_assert!(self.validate_envelope(&envelope));
@@ -348,7 +272,7 @@ fn build_insert_many_envelopes<'a>(
 pub fn build_delete_and_fetch_many_envelopes<'a>(
     own_key: ProjectKey,
     project_key: ProjectKey,
-    batch_size: i64,
+    limit: i64,
 ) -> Query<'a, Sqlite, SqliteArguments<'a>> {
     sqlx::query(
         "DELETE FROM
@@ -360,7 +284,7 @@ pub fn build_delete_and_fetch_many_envelopes<'a>(
     )
     .bind(own_key.to_string())
     .bind(project_key.to_string())
-    .bind(batch_size)
+    .bind(limit)
 }
 
 /// Computes the `received_at` timestamps of an [`Envelope`] based on the `start_time` header.

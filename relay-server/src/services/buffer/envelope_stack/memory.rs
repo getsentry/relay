@@ -7,14 +7,16 @@ use crate::Envelope;
 #[derive(Debug)]
 pub struct MemoryEnvelopeStack(#[allow(clippy::vec_box)] Vec<Box<Envelope>>);
 
+impl MemoryEnvelopeStack {
+    fn new(envelope: Box<Envelope>) -> Self {
+        Self(vec![envelope])
+    }
+}
+
 impl EnvelopeStack for MemoryEnvelopeStack {
     type Error = Infallible;
 
     type Provider = MemoryStackProvider;
-
-    fn new(envelope: Box<Envelope>) -> Self {
-        Self(vec![envelope])
-    }
 
     async fn push(&mut self, envelope: Box<Envelope>) -> Result<(), Self::Error> {
         self.0.push(envelope);

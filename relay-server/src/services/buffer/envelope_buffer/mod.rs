@@ -16,7 +16,7 @@ use crate::services::buffer::stack_provider::memory::MemoryStackProvider;
 use crate::SqliteEnvelopeStack;
 
 /// Creates a memory or disk based [`EnvelopeBuffer`], depending on the given config.
-pub fn create(config: &Config) -> Arc<Mutex<InnerEnvelopeBuffer<MemoryEnvelopeStack>>> {
+pub fn create(_config: Arc<Config>) -> Arc<Mutex<InnerEnvelopeBuffer<MemoryEnvelopeStack>>> {
     Arc::new(Mutex::new(InnerEnvelopeBuffer::<MemoryEnvelopeStack>::new()))
 }
 

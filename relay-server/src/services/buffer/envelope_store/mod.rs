@@ -1,6 +1,7 @@
 pub mod sqlite;
 
 use crate::Envelope;
+use relay_base_schema::project::ProjectKey;
 use std::future::Future;
 
 pub trait EnvelopeStore {
@@ -13,7 +14,12 @@ pub trait EnvelopeStore {
         envelopes: impl Iterator<Item = Self::Envelope>,
     ) -> impl Future<Output = Result<(), Self::Error>>;
 
-    fn delete_many(&mut self) -> impl Future<Output = Result<Vec<Envelope>, Self::Error>>;
+    fn delete_many(
+        &mut self,
+        own_key: ProjectKey,
+        sampling_key: ProjectKey,
+        limit: i64,
+    ) -> impl Future<Output = Result<Vec<Box<Envelope>>, Self::Error>>;
 
     fn project_keys_pairs(
         &self,
