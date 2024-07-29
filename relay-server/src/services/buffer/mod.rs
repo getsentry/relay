@@ -2,19 +2,20 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
-use relay_base_schema::project::ProjectKey;
-use relay_config::Config;
 use tokio::sync::MutexGuard;
 
+pub use envelope_stack::sqlite::SqliteEnvelopeStack;
+pub use envelope_stack::EnvelopeStack;
+use relay_base_schema::project::ProjectKey;
+use relay_config::Config;
+
 use crate::envelope::Envelope;
-use crate::services::buffer::envelopebuffer::priority::PriorityEnvelopeBuffer;
-use crate::services::buffer::envelopestack::memory::InMemoryEnvelopeStack;
+use crate::services::buffer::envelope_buffer::priority::PriorityEnvelopeBuffer;
+use crate::services::buffer::envelope_stack::memory::InMemoryEnvelopeStack;
 
-mod envelopebuffer;
-mod envelopestack;
-
-pub use envelopestack::sqlite::SqliteEnvelopeStack;
-pub use envelopestack::EnvelopeStack;
+mod envelope_buffer;
+mod envelope_stack;
+mod stack_provider;
 
 /// Async envelope buffering interface.
 ///
@@ -45,7 +46,7 @@ impl EnvelopeBuffer {
     pub fn from_config(config: &Config) -> Option<Self> {
         // TODO: create a disk-based backend if db config is given (loads stacks from db).
         config.spool_v2().then(|| Self {
-            backend: envelopebuffer::create(config),
+            backend: envelope_buffer::create(config),
             notify: Arc::new(tokio::sync::Notify::new()),
             changed: Arc::new(AtomicBool::new(true)),
         })

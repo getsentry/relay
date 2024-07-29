@@ -1,6 +1,6 @@
 use std::convert::Infallible;
 
-use crate::services::buffer::envelopestack::StackProvider;
+use crate::services::buffer::envelope_stack::StackProvider;
 use crate::Envelope;
 
 use super::EnvelopeStack;

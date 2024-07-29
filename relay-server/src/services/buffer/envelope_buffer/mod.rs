@@ -1,11 +1,18 @@
+use std::cmp::Ordering;
+use std::collections::BTreeSet;
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::time::Instant;
 
-use relay_config::Config;
 use tokio::sync::Mutex;
 
-use crate::services::buffer::envelopestack::memory::{DummyProvider, InMemoryEnvelopeStack};
-use crate::services::buffer::envelopestack::sqlite::SqliteStackProvider;
+use relay_base_schema::project::ProjectKey;
+use relay_config::Config;
+
+use crate::envelope::Envelope;
+use crate::services::buffer::envelope_stack::memory::{DummyProvider, InMemoryEnvelopeStack};
+use crate::services::buffer::envelope_stack::sqlite::SqliteStackProvider;
+use crate::services::buffer::envelope_stack::EnvelopeStack;
 use crate::SqliteEnvelopeStack;
 
 /// Creates a memory or disk based [`EnvelopeBuffer`], depending on the given config.
@@ -14,15 +21,6 @@ pub fn create(config: &Config) -> Arc<Mutex<InnerEnvelopeBuffer<InMemoryEnvelope
         InnerEnvelopeBuffer::<InMemoryEnvelopeStack>::new(),
     ))
 }
-
-use std::cmp::Ordering;
-use std::collections::BTreeSet;
-use std::time::Instant;
-
-use relay_base_schema::project::ProjectKey;
-
-use crate::envelope::Envelope;
-use crate::services::buffer::envelopestack::EnvelopeStack;
 
 pub enum EnvelopeBuffer {
     InMemory(InnerEnvelopeBuffer<InMemoryEnvelopeStack>),
@@ -295,13 +293,14 @@ impl Readiness {
 mod tests {
     use std::str::FromStr;
 
+    use uuid::Uuid;
+
     use relay_common::Dsn;
     use relay_sampling::DynamicSamplingContext;
-    use uuid::Uuid;
 
     use crate::envelope::{Item, ItemType};
     use crate::extractors::RequestMeta;
-    use crate::services::buffer::envelopestack::memory::InMemoryEnvelopeStack;
+    use crate::services::buffer::envelope_stack::memory::InMemoryEnvelopeStack;
 
     use super::*;
 

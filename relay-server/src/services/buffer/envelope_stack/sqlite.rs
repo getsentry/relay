@@ -1,15 +1,3 @@
-use crate::envelope::Envelope;
-use crate::extractors::StartTime;
-use crate::services::buffer::envelopestack::{EnvelopeStack, StackProvider};
-use futures::StreamExt;
-use relay_base_schema::project::ProjectKey;
-use relay_config::Config;
-use sqlx::query::Query;
-use sqlx::sqlite::{
-    SqliteArguments, SqliteAutoVacuum, SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions,
-    SqliteRow, SqliteSynchronous,
-};
-use sqlx::{Pool, QueryBuilder, Row, Sqlite};
 use std::collections::VecDeque;
 use std::error::Error;
 use std::fmt::Debug;
@@ -17,7 +5,23 @@ use std::num::NonZeroUsize;
 use std::path::{Path, PathBuf};
 use std::pin::pin;
 use std::sync::Arc;
+
+use futures::StreamExt;
+use sqlx::query::Query;
+use sqlx::sqlite::{
+    SqliteArguments, SqliteAutoVacuum, SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions,
+    SqliteRow, SqliteSynchronous,
+};
+use sqlx::{Pool, QueryBuilder, Row, Sqlite};
 use tokio::fs::DirBuilder;
+
+use relay_base_schema::project::ProjectKey;
+use relay_config::Config;
+
+use crate::envelope::Envelope;
+use crate::extractors::StartTime;
+use crate::services::buffer::envelope_stack::{EnvelopeStack, StackProvider};
+use crate::services::buffer::stack_provider::sqlite::SqliteStackProvider;
 
 /// An error returned when doing an operation on [`SQLiteEnvelopeStack`].
 #[derive(Debug, thiserror::Error)]
@@ -243,7 +247,6 @@ impl SqliteEnvelopeStack {
 
 impl EnvelopeStack for SqliteEnvelopeStack {
     type Error = SqliteEnvelopeStackError;
-    type Provider = SqliteStackProvider;
 
     #[allow(unused)]
     fn new(envelope: Box<Envelope>) -> Self {
@@ -311,121 +314,6 @@ impl EnvelopeStack for SqliteEnvelopeStack {
     }
 }
 
-enum BufferError {}
-
-pub struct SqliteStackProvider {
-    db: Pool<Sqlite>,
-    disk_batch_size: usize,
-    max_batches: usize,
-}
-
-impl SqliteStackProvider {
-    /// Creates a new [`BufferService`] from the provided path to the SQLite database file.
-    pub async fn create(config: Arc<Config>) -> Result<Self, BufferError> {
-        // TODO: error handling
-        let db = Self::prepare_disk_state(config.clone()).await?;
-        Ok(Self {
-            db,
-            disk_batch_size: 100, // TODO: put in config
-            max_batches: 2,       // TODO: put in config
-        })
-    }
-
-    /// Set up the database and return the current number of envelopes.
-    ///
-    /// The directories and spool file will be created if they don't already
-    /// exist.
-    async fn setup(path: &Path) -> Result<(), BufferError> {
-        Self::create_spool_directory(path).await?;
-
-        let options = SqliteConnectOptions::new()
-            .filename(path)
-            .journal_mode(SqliteJournalMode::Wal)
-            .create_if_missing(true);
-
-        let db = SqlitePoolOptions::new()
-            .connect_with(options)
-            .await
-            .map_err(BufferError::SqlxSetupFailed)?;
-
-        sqlx::migrate!("../migrations").run(&db).await?;
-        Ok(())
-    }
-
-    /// Creates the directories for the spool file.
-    async fn create_spool_directory(path: &Path) -> Result<(), BufferError> {
-        let Some(parent) = path.parent() else {
-            return Ok(());
-        };
-        if !parent.as_os_str().is_empty() && !parent.exists() {
-            relay_log::debug!("creating directory for spooling file: {}", parent.display());
-            DirBuilder::new()
-                .recursive(true)
-                .create(&parent)
-                .await
-                .map_err(BufferError::FileSetupError)?;
-        }
-        Ok(())
-    }
-
-    /// Prepares the disk state.
-    async fn prepare_disk_state(config: Arc<Config>) -> Result<Pool<Sqlite>, BufferError> {
-        let Some(path) = config.spool_envelopes_path() else {
-            return BufferError::MissingPath;
-        };
-
-        let options = SqliteConnectOptions::new()
-            .filename(&path)
-            // The WAL journaling mode uses a write-ahead log instead of a rollback journal to implement transactions.
-            // The WAL journaling mode is persistent; after being set it stays in effect
-            // across multiple database connections and after closing and reopening the database.
-            //
-            // 1. WAL is significantly faster in most scenarios.
-            // 2. WAL provides more concurrency as readers do not block writers and a writer does not block readers. Reading and writing can proceed concurrently.
-            // 3. Disk I/O operations tends to be more sequential using WAL.
-            // 4. WAL uses many fewer fsync() operations and is thus less vulnerable to problems on systems where the fsync() system call is broken.
-            .journal_mode(SqliteJournalMode::Wal)
-            // WAL mode is safe from corruption with synchronous=NORMAL.
-            // When synchronous is NORMAL, the SQLite database engine will still sync at the most critical moments, but less often than in FULL mode.
-            // Which guarantees good balance between safety and speed.
-            .synchronous(SqliteSynchronous::Normal)
-            // The freelist pages are moved to the end of the database file and the database file is truncated to remove the freelist pages at every
-            // transaction commit. Note, however, that auto-vacuum only truncates the freelist pages from the file.
-            // Auto-vacuum does not defragment the database nor repack individual database pages the way that the VACUUM command does.
-            //
-            // This will helps us to keep the file size under some control.
-            .auto_vacuum(SqliteAutoVacuum::Full)
-            // If shared-cache mode is enabled and a thread establishes multiple
-            // connections to the same database, the connections share a single data and schema cache.
-            // This can significantly reduce the quantity of memory and IO required by the system.
-            .shared_cache(true);
-
-        SqlitePoolOptions::new()
-            .max_connections(config.spool_envelopes_max_connections())
-            .min_connections(config.spool_envelopes_min_connections())
-            .connect_with(options)
-            .await
-            .map_err(BufferError::SqlxSetupFailed)
-
-        // TODO: populate priority queue from disk.
-    }
-}
-
-impl StackProvider for SqliteStackProvider {
-    type Stack = SqliteEnvelopeStack;
-
-    fn create_stack(&self, envelope: Box<Envelope>) -> Self::Stack {
-        let own_key = envelope.meta().public_key();
-        SqliteEnvelopeStack::new(
-            self.db.clone(),
-            self.disk_batch_size,
-            self.max_batches,
-            own_key,
-            envelope.sampling_key().unwrap_or(own_key),
-        )
-    }
-}
-
 /// Struct which contains all the rows that have to be inserted in the database when storing an
 /// [`Envelope`].
 struct InsertEnvelope {
@@ -480,20 +368,23 @@ fn received_at(envelope: &Envelope) -> i64 {
 
 #[cfg(test)]
 mod tests {
-    use relay_base_schema::project::ProjectKey;
-    use relay_event_schema::protocol::EventId;
-    use relay_sampling::DynamicSamplingContext;
-    use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions};
-    use sqlx::{Pool, Sqlite};
     use std::collections::BTreeMap;
     use std::path::Path;
     use std::time::{Duration, Instant};
+
+    use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions};
+    use sqlx::{Pool, Sqlite};
     use tokio::fs::DirBuilder;
     use uuid::Uuid;
 
-    use super::*;
+    use relay_base_schema::project::ProjectKey;
+    use relay_event_schema::protocol::EventId;
+    use relay_sampling::DynamicSamplingContext;
+
     use crate::envelope::{Envelope, Item, ItemType};
     use crate::extractors::RequestMeta;
+
+    use super::*;
 
     fn request_meta() -> RequestMeta {
         let dsn = "https://a94ae32be2584e0bbd7a4cbb95971fee:@sentry.io/42"

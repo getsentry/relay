@@ -1,5 +1,6 @@
-use crate::envelope::Envelope;
 use std::future::Future;
+
+use crate::envelope::Envelope;
 
 pub mod memory;
 pub mod sqlite;
@@ -9,8 +10,6 @@ pub trait EnvelopeStack: Send {
     /// The error type that is returned when an error is encountered during reading or writing the
     /// [`EnvelopeStack`].
     type Error: std::fmt::Debug;
-
-    type Provider: StackProvider;
 
     /// Creates a new stack with the given element.
     fn new(envelope: Box<Envelope>) -> Self;
@@ -31,5 +30,6 @@ pub trait EnvelopeStack: Send {
 
 pub trait StackProvider {
     type Stack: EnvelopeStack;
+    
     fn create_stack(&self, envelope: Box<Envelope>) -> Self::Stack;
 }
