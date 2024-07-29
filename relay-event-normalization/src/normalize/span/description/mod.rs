@@ -225,7 +225,7 @@ fn scrub_file(description: &str) -> Option<String> {
 ///
 /// assert_eq!(scrub_host(Host::Domain("foo.bar.baz"), &[]), "*.bar.baz");
 /// assert_eq!(scrub_host(Host::Ipv4(Ipv4Addr::LOCALHOST), &[]), "127.0.0.1");
-/// assert_eq!(scrub_host(Host::Ipv4(Ipv4Addr::new(8, 8, 8, 8)), &[String::from("8.8.8.8")]), "8.8.8.8");
+/// assert_eq!(scrub_host(Host::Ipv4(Ipv4Addr::new(8, 8, 8, 8)), &[Host::parse("8.8.8.8").unwrap()]), "8.8.8.8");
 /// ```
 pub fn scrub_host<'a>(host: Host<&'a str>, allow_list: &'a [Host]) -> Cow<'a, str> {
     if allow_list.iter().any(|allowed_host| &host == allowed_host) {
