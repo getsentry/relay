@@ -26,6 +26,7 @@ use relay_pii::PiiProcessor;
 use relay_protocol::{Annotated, Empty};
 use relay_quotas::DataCategory;
 use relay_spans::{otel_to_sentry_span, otel_trace::Span as OtelSpan};
+use url::Host;
 
 use crate::envelope::{ContentType, Item, ItemType};
 use crate::metrics_extraction::metrics_summary;
@@ -342,6 +343,8 @@ struct NormalizeSpanConfig<'a> {
     user_agent: Option<String>,
     /// Client hints parsed from the request.
     client_hints: ClientHints<String>,
+    /// Hosts that are not replaced by "*" in HTTP span grouping.
+    allowed_hosts: &'a [Host],
 }
 
 impl<'a> NormalizeSpanConfig<'a> {
@@ -352,6 +355,7 @@ impl<'a> NormalizeSpanConfig<'a> {
         managed_envelope: &ManagedEnvelope,
     ) -> Self {
         let aggregator_config = config.aggregator_config_for(MetricNamespace::Spans);
+
         Self {
             received_at: managed_envelope.received_at(),
             timestamp_range: aggregator_config.aggregator.timestamp_range(),
@@ -377,6 +381,7 @@ impl<'a> NormalizeSpanConfig<'a> {
                 .user_agent()
                 .map(String::from),
             client_hints: managed_envelope.meta().client_hints().clone(),
+            allowed_hosts: global_config.options.http_span_allowed_hosts.as_slice(),
         }
     }
 }
@@ -428,6 +433,7 @@ fn normalize(
         tx_name_rules,
         user_agent,
         client_hints,
+        allowed_hosts,
     } = config;
 
     set_segment_attributes(annotated_span);
@@ -487,8 +493,15 @@ fn normalize(
 
     // Tag extraction:
     let is_mobile = false; // TODO: find a way to determine is_mobile from a standalone span.
-    let tags =
-        tag_extraction::extract_tags(span, max_tag_value_size, None, None, is_mobile, None, &[]);
+    let tags = tag_extraction::extract_tags(
+        span,
+        max_tag_value_size,
+        None,
+        None,
+        is_mobile,
+        None,
+        allowed_hosts,
+    );
     span.sentry_tags = Annotated::new(
         tags.into_iter()
             .map(|(k, v)| (k.sentry_tag_key().to_owned(), Annotated::new(v)))

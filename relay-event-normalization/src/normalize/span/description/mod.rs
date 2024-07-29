@@ -38,7 +38,7 @@ const DOMAIN_ALLOW_LIST: &[&str] = &["localhost"];
 /// Returns `None` if no scrubbing can be performed.
 pub(crate) fn scrub_span_description(
     span: &Span,
-    span_allowed_hosts: &[String],
+    span_allowed_hosts: &[Host],
 ) -> (Option<String>, Option<Vec<sqlparser::ast::Statement>>) {
     let Some(description) = span.description.as_str() else {
         return (None, None);
@@ -167,7 +167,7 @@ fn scrub_supabase(string: &str) -> Option<String> {
     Some(DB_SUPABASE_REGEX.replace_all(string, "{%s}").into())
 }
 
-fn scrub_http(string: &str, allow_list: &[String]) -> Option<String> {
+fn scrub_http(string: &str, allow_list: &[Host]) -> Option<String> {
     let (method, url) = string.split_once(' ')?;
     if !HTTP_METHOD_EXTRACTOR_REGEX.is_match(method) {
         return None;
@@ -227,8 +227,8 @@ fn scrub_file(description: &str) -> Option<String> {
 /// assert_eq!(scrub_host(Host::Ipv4(Ipv4Addr::LOCALHOST), &[]), "127.0.0.1");
 /// assert_eq!(scrub_host(Host::Ipv4(Ipv4Addr::new(8, 8, 8, 8)), &[String::from("8.8.8.8")]), "8.8.8.8");
 /// ```
-pub fn scrub_host<'a>(host: Host<&'a str>, allow_list: &'a [String]) -> Cow<'a, str> {
-    if allow_list.contains(&host.to_string()) {
+pub fn scrub_host<'a>(host: Host<&'a str>, allow_list: &'a [Host]) -> Cow<'a, str> {
+    if allow_list.iter().any(|allowed_host| &host == allowed_host) {
         return host.to_string().into();
     }
 

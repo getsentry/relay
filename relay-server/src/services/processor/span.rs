@@ -4,6 +4,7 @@ use relay_dynamic_config::Feature;
 use relay_event_normalization::span::tag_extraction;
 use relay_event_schema::protocol::{Event, Span};
 use relay_protocol::Annotated;
+use url::Host;
 
 use crate::services::processor::SpanGroup;
 use crate::{services::processor::ProcessEnvelopeState, utils::ItemAction};
@@ -33,7 +34,7 @@ pub fn filter(state: &mut ProcessEnvelopeState<SpanGroup>) {
 pub fn extract_transaction_span(
     event: &Event,
     max_tag_value_size: usize,
-    span_allowed_hosts: &[String],
+    span_allowed_hosts: &[Host],
 ) -> Option<Span> {
     let mut spans = [Span::from(event).into()];
 
