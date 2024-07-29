@@ -9,6 +9,7 @@
 **Internal**:
 
 - Add `EnvelopeStack` and `SQLiteEnvelopeStack` to manage envelopes on disk. ([#3855](https://github.com/getsentry/relay/pull/3855))
+- Make spooling in the `SQLiteEnvelopeStack` async. ([#3868](https://github.com/getsentry/relay/pull/3868))
 
 ## 24.7.1
 
