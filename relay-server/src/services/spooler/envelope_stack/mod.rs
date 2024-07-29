@@ -11,17 +11,17 @@ pub trait EnvelopeStack {
 
     /// Pushes an [`Envelope`] on top of the stack.
     #[allow(dead_code)]
-    fn push(&mut self, envelope: Box<Envelope>) -> Result<(), Self::Error>;
+    fn push(&mut self, envelope: Box<Envelope>);
 
     /// Peeks the [`Envelope`] on top of the stack.
     ///
     /// If the stack is empty, an error is returned.
     #[allow(dead_code)]
-    fn peek(&mut self) -> impl Future<Output = Result<&Box<Envelope>, Self::Error>>;
+    fn peek(&mut self) -> impl Future<Output = Result<Option<&Box<Envelope>>, Self::Error>>;
 
     /// Pops the [`Envelope`] on top of the stack.
     ///
     /// If the stack is empty, an error is returned.
     #[allow(dead_code)]
-    fn pop(&mut self) -> impl Future<Output = Result<Box<Envelope>, Self::Error>>;
+    fn pop(&mut self) -> impl Future<Output = Result<Option<Box<Envelope>>, Self::Error>>;
 }
