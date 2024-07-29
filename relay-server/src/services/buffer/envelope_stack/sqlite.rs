@@ -38,6 +38,7 @@ pub enum SqliteEnvelopeStackError {
     DatabaseError(#[from] sqlx::Error),
 }
 
+#[derive(Debug)]
 /// An [`EnvelopeStack`] that is implemented on an SQLite database.
 ///
 /// For efficiency reasons, the implementation has an in-memory buffer that is periodically spooled
@@ -396,8 +397,9 @@ mod tests {
     #[should_panic]
     async fn test_push_with_mismatching_project_keys() {
         let db = setup_db(false).await;
+        let envelope_store = SqliteEnvelopeStore::new(db, 0);
         let mut stack = SqliteEnvelopeStack::new(
-            db,
+            envelope_store,
             2,
             2,
             ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
@@ -411,8 +413,9 @@ mod tests {
     #[tokio::test]
     async fn test_push_when_db_is_not_valid() {
         let db = setup_db(false).await;
+        let envelope_store = SqliteEnvelopeStore::new(db, 0);
         let mut stack = SqliteEnvelopeStack::new(
-            db,
+            envelope_store,
             2,
             2,
             ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
@@ -462,8 +465,9 @@ mod tests {
     #[tokio::test]
     async fn test_pop_when_db_is_not_valid() {
         let db = setup_db(false).await;
+        let envelope_store = SqliteEnvelopeStore::new(db, 0);
         let mut stack = SqliteEnvelopeStack::new(
-            db,
+            envelope_store,
             2,
             2,
             ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
@@ -480,8 +484,9 @@ mod tests {
     #[tokio::test]
     async fn test_pop_when_stack_is_empty() {
         let db = setup_db(true).await;
+        let envelope_store = SqliteEnvelopeStore::new(db, 0);
         let mut stack = SqliteEnvelopeStack::new(
-            db,
+            envelope_store,
             2,
             2,
             ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
@@ -498,8 +503,9 @@ mod tests {
     #[tokio::test]
     async fn test_push_below_threshold_and_pop() {
         let db = setup_db(true).await;
+        let envelope_store = SqliteEnvelopeStore::new(db, 0);
         let mut stack = SqliteEnvelopeStack::new(
-            db,
+            envelope_store,
             5,
             2,
             ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
@@ -534,8 +540,9 @@ mod tests {
     #[tokio::test]
     async fn test_push_above_threshold_and_pop() {
         let db = setup_db(true).await;
+        let envelope_store = SqliteEnvelopeStore::new(db, 0);
         let mut stack = SqliteEnvelopeStack::new(
-            db,
+            envelope_store,
             5,
             2,
             ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),

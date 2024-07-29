@@ -15,17 +15,18 @@ use crate::services::buffer::envelope_stack::EnvelopeStack;
 use crate::services::buffer::stack_provider::memory::MemoryStackProvider;
 use crate::SqliteEnvelopeStack;
 
-/// Creates a memory or disk based [`EnvelopeBuffer`], depending on the given config.
-pub fn create(_config: Arc<Config>) -> Arc<Mutex<InnerEnvelopeBuffer<MemoryEnvelopeStack>>> {
+/// Creates a memory or disk based [`EnvelopesBuffer`], depending on the given config.
+pub fn create(_config: &Config) -> Arc<Mutex<InnerEnvelopeBuffer<MemoryEnvelopeStack>>> {
     Arc::new(Mutex::new(InnerEnvelopeBuffer::<MemoryEnvelopeStack>::new()))
 }
 
-pub enum EnvelopeBuffer {
+#[derive(Debug)]
+pub enum EnvelopesBuffer {
     InMemory(InnerEnvelopeBuffer<MemoryEnvelopeStack>),
     Sqlite(InnerEnvelopeBuffer<SqliteEnvelopeStack>),
 }
 
-impl EnvelopeBuffer {
+impl EnvelopesBuffer {
     pub fn from_config(config: &Config) -> Self {
         match config.spool_envelopes_path() {
             Some(path) => Self::Sqlite(InnerEnvelopeBuffer::<SqliteEnvelopeStack>::new(path)),

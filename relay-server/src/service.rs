@@ -4,7 +4,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use crate::metrics::{MetricOutcomes, MetricStats};
-use crate::services::buffer::EnvelopeBuffer;
+use crate::services::buffer::EnvelopesBufferManager;
 use crate::services::stats::RelayStats;
 use anyhow::{Context, Result};
 use axum::extract::FromRequestParts;
@@ -139,7 +139,7 @@ fn create_store_pool(config: &Config) -> Result<ThreadPool> {
 struct StateInner {
     config: Arc<Config>,
     memory_checker: MemoryChecker,
-    envelope_buffer: Option<EnvelopeBuffer>,
+    envelope_buffer: Option<EnvelopesBufferManager>,
     registry: Registry,
 }
 
@@ -257,7 +257,7 @@ impl ServiceState {
             upstream_relay.clone(),
             global_config.clone(),
         );
-        let envelope_buffer = EnvelopeBuffer::from_config(&config);
+        let envelope_buffer = EnvelopesBufferManager::from_config(&config);
         ProjectCacheService::new(
             config.clone(),
             MemoryChecker::new(memory_stat.clone(), config.clone()),
@@ -324,7 +324,7 @@ impl ServiceState {
         &self.inner.memory_checker
     }
 
-    pub fn envelope_buffer(&self) -> Option<&EnvelopeBuffer> {
+    pub fn envelope_buffer(&self) -> Option<&EnvelopesBufferManager> {
         self.inner.envelope_buffer.as_ref()
     }
 

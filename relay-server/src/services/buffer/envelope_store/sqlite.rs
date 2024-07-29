@@ -58,13 +58,17 @@ pub enum SqliteEnvelopeStoreError {
     MigrationError(MigrateError),
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct SqliteEnvelopeStore {
     db: Pool<Sqlite>,
     max_disk_size: usize,
 }
 
 impl SqliteEnvelopeStore {
+    pub fn new(db: Pool<Sqlite>, max_disk_size: usize) -> Self {
+        Self { db, max_disk_size }
+    }
+
     /// Prepares the [`SqliteEnvelopeStore`] by running all the necessary migrations and preparing
     /// the folders where data will be stored.
     pub async fn prepare(

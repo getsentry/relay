@@ -10,8 +10,7 @@ use relay_base_schema::project::ProjectKey;
 use relay_config::Config;
 
 use crate::envelope::Envelope;
-use crate::services::buffer::envelope_buffer::priority::PriorityEnvelopeBuffer;
-use crate::services::buffer::envelope_stack::memory::MemoryEnvelopeStack;
+use crate::services::buffer::envelope_buffer::EnvelopesBuffer;
 
 mod envelope_buffer;
 mod envelope_stack;
@@ -22,7 +21,7 @@ mod stack_provider;
 ///
 /// Access to the buffer is synchronized by a tokio lock.
 #[derive(Debug, Clone)]
-pub struct EnvelopeBuffer {
+pub struct EnvelopesBufferManager {
     /// TODO: Reconsider synchronization mechanism.
     /// We can either
     /// - keep the interface sync and use a std Mutex. In this case, we create a queue of threads.
@@ -34,13 +33,13 @@ pub struct EnvelopeBuffer {
     /// >  The primary use case for the async mutex is to provide shared mutable access to IO resources such as a database connection.
     /// > [...] when you do want shared access to an IO resource, it is often better to spawn a task to manage the IO resource,
     /// > and to use message passing to communicate with that task.
-    backend: Arc<tokio::sync::Mutex<PriorityEnvelopeBuffer<MemoryEnvelopeStack>>>,
+    backend: Arc<tokio::sync::Mutex<EnvelopesBuffer>>,
     notify: Arc<tokio::sync::Notify>,
     changed: Arc<AtomicBool>,
 }
 
-impl EnvelopeBuffer {
-    /// Creates a memory or disk based [`EnvelopeBuffer`], depending on the given config.
+impl EnvelopesBufferManager {
+    /// Creates a memory or disk based [`EnvelopesBufferManager`], depending on the given config.
     ///
     /// NOTE: until the V1 spooler implementation is removed, this function returns `None`
     /// if V2 spooling is not configured.
@@ -102,7 +101,7 @@ impl EnvelopeBuffer {
 ///
 /// Objects of this type can only exist if the buffer is not empty.
 pub struct Peek<'a> {
-    guard: MutexGuard<'a, PriorityEnvelopeBuffer<MemoryEnvelopeStack>>,
+    guard: MutexGuard<'a, EnvelopesBuffer>,
     notify: &'a tokio::sync::Notify,
     changed: &'a AtomicBool,
 }
@@ -127,7 +126,7 @@ impl Peek<'_> {
             .expect("element disappeared while holding lock")
     }
 
-    /// Sync version of [`EnvelopeBuffer::mark_ready`].
+    /// Sync version of [`EnvelopesBufferManager::mark_ready`].
     ///
     /// Since [`Peek`] already has exclusive access to the buffer, it can mark projects as ready
     /// without awaiting the lock.
@@ -228,8 +227,8 @@ mod tests {
         assert_eq!(call_count.load(Ordering::Relaxed), 2);
     }
 
-    fn new_buffer() -> EnvelopeBuffer {
-        EnvelopeBuffer::from_config(
+    fn new_buffer() -> EnvelopesBufferManager {
+        EnvelopesBufferManager::from_config(
             &Config::from_json_value(serde_json::json!({
                 "spool": {
                     "envelopes": {
