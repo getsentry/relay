@@ -7,6 +7,8 @@ use relay_config::Config;
 use tokio::sync::MutexGuard;
 
 use crate::envelope::Envelope;
+use crate::services::buffer::envelopebuffer::priority::PriorityEnvelopeBuffer;
+use crate::services::buffer::envelopestack::memory::InMemoryEnvelopeStack;
 
 mod envelopebuffer;
 mod envelopestack;
@@ -27,7 +29,7 @@ pub struct EnvelopeBuffer {
     /// >  The primary use case for the async mutex is to provide shared mutable access to IO resources such as a database connection.
     /// > [...] when you do want shared access to an IO resource, it is often better to spawn a task to manage the IO resource,
     /// > and to use message passing to communicate with that task.
-    backend: Arc<tokio::sync::Mutex<dyn envelopebuffer::EnvelopeBuffer>>,
+    backend: Arc<tokio::sync::Mutex<PriorityEnvelopeBuffer<InMemoryEnvelopeStack>>>,
     notify: Arc<tokio::sync::Notify>,
     changed: Arc<AtomicBool>,
 }
@@ -49,7 +51,7 @@ impl EnvelopeBuffer {
     /// Adds an envelope to the buffer and wakes any waiting consumers.
     pub async fn push(&self, envelope: Box<Envelope>) {
         let mut guard = self.backend.lock().await;
-        guard.push(envelope);
+        guard.push(envelope).await;
         self.notify();
     }
 
@@ -61,7 +63,7 @@ impl EnvelopeBuffer {
         loop {
             {
                 let mut guard = self.backend.lock().await;
-                if self.changed.load(Ordering::Relaxed) && guard.peek().is_some() {
+                if self.changed.load(Ordering::Relaxed) && guard.peek().await.is_some() {
                     self.changed.store(false, Ordering::Relaxed);
                     return Peek {
                         guard,
@@ -95,26 +97,28 @@ impl EnvelopeBuffer {
 ///
 /// Objects of this type can only exist if the buffer is not empty.
 pub struct Peek<'a> {
-    guard: MutexGuard<'a, dyn envelopebuffer::EnvelopeBuffer>,
+    guard: MutexGuard<'a, PriorityEnvelopeBuffer<InMemoryEnvelopeStack>>,
     notify: &'a tokio::sync::Notify,
     changed: &'a AtomicBool,
 }
 
 impl Peek<'_> {
     /// Returns a reference to the next envelope.
-    pub fn get(&mut self) -> &Envelope {
+    pub async fn get(&mut self) -> &Envelope {
         self.guard
             .peek()
+            .await
             .expect("element disappeared while holding lock")
     }
 
     /// Pops the next envelope from the buffer.
     ///
     /// This functions consumes the [`Peek`].
-    pub fn remove(mut self) -> Box<Envelope> {
+    pub async fn remove(mut self) -> Box<Envelope> {
         self.notify();
         self.guard
             .pop()
+            .await
             .expect("element disappeared while holding lock")
     }
 
@@ -159,7 +163,7 @@ mod tests {
         let cloned_call_count = call_count.clone();
         tokio::spawn(async move {
             loop {
-                cloned_buffer.peek().await.remove();
+                cloned_buffer.peek().await.remove().await;
                 cloned_call_count.fetch_add(1, Ordering::Relaxed);
             }
         });

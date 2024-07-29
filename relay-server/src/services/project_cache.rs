@@ -1044,12 +1044,12 @@ impl ProjectCacheBroker {
         }
     }
 
-    fn peek_at_envelope(&mut self, mut peek: Peek<'_>) {
-        let envelope = peek.get();
+    async fn peek_at_envelope(&mut self, mut peek: Peek<'_>) {
+        let envelope = peek.get().await;
         // TODO: make envelope age configurable.
         if envelope.meta().start_time().elapsed() > MAX_ENVELOPE_AGE {
             let mut managed_envelope = ManagedEnvelope::new(
-                peek.remove(),
+                peek.remove().await,
                 self.services.outcome_aggregator.clone(),
                 self.services.test_store.clone(),
                 ProcessingGroup::Ungrouped,
@@ -1072,7 +1072,7 @@ impl ProjectCacheBroker {
             }
             ProjectState::Disabled => {
                 let mut managed_envelope = ManagedEnvelope::new(
-                    peek.remove(),
+                    peek.remove().await,
                     self.services.outcome_aggregator.clone(),
                     self.services.test_store.clone(),
                     ProcessingGroup::Ungrouped,
@@ -1110,7 +1110,7 @@ impl ProjectCacheBroker {
 
         let project = self.get_or_create_project(project_key);
 
-        for (group, envelope) in ProcessingGroup::split_envelope(*peek.remove()) {
+        for (group, envelope) in ProcessingGroup::split_envelope(*peek.remove().await) {
             let managed_envelope = ManagedEnvelope::new(
                 envelope,
                 services.outcome_aggregator.clone(),
@@ -1440,7 +1440,7 @@ impl Service for ProjectCacheService {
                     peek = peek_buffer(&envelope_buffer) => {
                         relay_log::trace!("Peeking at envelope");
                         metric!(timer(RelayTimers::ProjectCacheTaskDuration), task = "peek_at_envelope", {
-                            broker.peek_at_envelope(peek);
+                            broker.peek_at_envelope(peek).await; // TODO: make sync again?
                         })
                     }
                     else => break,

@@ -1,6 +1,6 @@
 use crate::envelope::Envelope;
 use crate::extractors::StartTime;
-use crate::services::spooler::envelope_stack::EnvelopeStack;
+use crate::services::buffer::envelopestack::EnvelopeStack;
 use futures::StreamExt;
 use relay_base_schema::project::ProjectKey;
 use sqlx::query::Query;
@@ -237,6 +237,10 @@ impl SQLiteEnvelopeStack {
 impl EnvelopeStack for SQLiteEnvelopeStack {
     type Error = SQLiteEnvelopeStackError;
 
+    fn new(envelope: Box<Envelope>) -> Self {
+        todo!()
+    }
+
     async fn push(&mut self, envelope: Box<Envelope>) -> Result<(), Self::Error> {
         debug_assert!(self.validate_envelope(&envelope));
 
@@ -263,30 +267,27 @@ impl EnvelopeStack for SQLiteEnvelopeStack {
         Ok(())
     }
 
-    async fn peek(&mut self) -> Result<&Box<Envelope>, Self::Error> {
+    async fn peek(&mut self) -> Result<Option<&Envelope>, Self::Error> {
         if self.below_unspool_threshold() && self.check_disk {
             self.unspool_from_disk().await?
         }
 
-        self.batches_buffer
+        Ok(self
+            .batches_buffer
             .back()
             .and_then(|last_batch| last_batch.last())
-            .ok_or(Self::Error::Empty)
+            .map(|boxed| boxed.as_ref()))
     }
 
-    async fn pop(&mut self) -> Result<Box<Envelope>, Self::Error> {
+    async fn pop(&mut self) -> Result<Option<Box<Envelope>>, Self::Error> {
         if self.below_unspool_threshold() && self.check_disk {
             self.unspool_from_disk().await?
         }
 
-        let result = self
-            .batches_buffer
-            .back_mut()
-            .and_then(|last_batch| {
-                self.batches_buffer_size -= 1;
-                last_batch.pop()
-            })
-            .ok_or(Self::Error::Empty);
+        let result = self.batches_buffer.back_mut().and_then(|last_batch| {
+            self.batches_buffer_size -= 1;
+            last_batch.pop()
+        });
 
         // Since we might leave a batch without elements, we want to pop it from the buffer.
         if self
@@ -297,7 +298,7 @@ impl EnvelopeStack for SQLiteEnvelopeStack {
             self.batches_buffer.pop_back();
         }
 
-        result
+        Ok(result)
     }
 }
 
@@ -336,7 +337,7 @@ pub fn build_delete_and_fetch_many_envelopes<'a>(
     sqlx::query(
         "DELETE FROM
             envelopes
-         WHERE id IN (SELECT id FROM envelopes WHERE own_key = ? AND sampling_key = ? 
+         WHERE id IN (SELECT id FROM envelopes WHERE own_key = ? AND sampling_key = ?
             ORDER BY received_at DESC LIMIT ?)
          RETURNING
             received_at, own_key, sampling_key, envelope",
@@ -355,12 +356,6 @@ fn received_at(envelope: &Envelope) -> i64 {
 
 #[cfg(test)]
 mod tests {
-    use crate::envelope::{Envelope, Item, ItemType};
-    use crate::extractors::RequestMeta;
-    use crate::services::spooler::envelope_stack::sqlite::{
-        SQLiteEnvelopeStack, SQLiteEnvelopeStackError,
-    };
-    use crate::services::spooler::envelope_stack::EnvelopeStack;
     use relay_base_schema::project::ProjectKey;
     use relay_event_schema::protocol::EventId;
     use relay_sampling::DynamicSamplingContext;
@@ -371,6 +366,10 @@ mod tests {
     use std::time::{Duration, Instant};
     use tokio::fs::DirBuilder;
     use uuid::Uuid;
+
+    use super::*;
+    use crate::envelope::{Envelope, Item, ItemType};
+    use crate::extractors::RequestMeta;
 
     fn request_meta() -> RequestMeta {
         let dsn = "https://a94ae32be2584e0bbd7a4cbb95971fee:@sentry.io/42"
@@ -499,9 +498,9 @@ mod tests {
         assert_eq!(stack.batches_buffer_size, 3);
 
         // We pop the remaining elements, expecting the last added envelope to be on top.
-        let popped_envelope_1 = stack.pop().await.unwrap();
-        let popped_envelope_2 = stack.pop().await.unwrap();
-        let popped_envelope_3 = stack.pop().await.unwrap();
+        let popped_envelope_1 = stack.pop().await.unwrap().unwrap();
+        let popped_envelope_2 = stack.pop().await.unwrap().unwrap();
+        let popped_envelope_3 = stack.pop().await.unwrap().unwrap();
         assert_eq!(
             popped_envelope_1.event_id().unwrap(),
             envelope.event_id().unwrap()
@@ -573,7 +572,7 @@ mod tests {
         assert_eq!(stack.batches_buffer_size, 5);
 
         // We peek the top element.
-        let peeked_envelope = stack.peek().await.unwrap();
+        let peeked_envelope = stack.peek().await.unwrap().unwrap();
         assert_eq!(
             peeked_envelope.event_id().unwrap(),
             envelopes.clone()[4].event_id().unwrap()
@@ -581,7 +580,7 @@ mod tests {
 
         // We pop 5 envelopes.
         for envelope in envelopes.iter().rev() {
-            let popped_envelope = stack.pop().await.unwrap();
+            let popped_envelope = stack.pop().await.unwrap().unwrap();
             assert_eq!(
                 popped_envelope.event_id().unwrap(),
                 envelope.event_id().unwrap()
@@ -609,7 +608,7 @@ mod tests {
         assert_eq!(stack.batches_buffer_size, 10);
 
         // We peek the top element.
-        let peeked_envelope = stack.peek().await.unwrap();
+        let peeked_envelope = stack.peek().await.unwrap().unwrap();
         assert_eq!(
             peeked_envelope.event_id().unwrap(),
             envelopes.clone()[14].event_id().unwrap()
@@ -618,7 +617,7 @@ mod tests {
         // We pop 10 envelopes, and we expect that the last 10 are in memory, since the first 5
         // should have been spooled to disk.
         for envelope in envelopes[5..15].iter().rev() {
-            let popped_envelope = stack.pop().await.unwrap();
+            let popped_envelope = stack.pop().await.unwrap().unwrap();
             assert_eq!(
                 popped_envelope.event_id().unwrap(),
                 envelope.event_id().unwrap()
@@ -627,7 +626,7 @@ mod tests {
         assert_eq!(stack.batches_buffer_size, 0);
 
         // We peek the top element, which since the buffer is empty should result in a disk load.
-        let peeked_envelope = stack.peek().await.unwrap();
+        let peeked_envelope = stack.peek().await.unwrap().unwrap();
         assert_eq!(
             peeked_envelope.event_id().unwrap(),
             envelopes.clone()[4].event_id().unwrap()
@@ -639,7 +638,7 @@ mod tests {
         assert!(stack.push(envelope.clone()).await.is_ok());
 
         // We pop and expect the newly inserted element.
-        let popped_envelope = stack.pop().await.unwrap();
+        let popped_envelope = stack.pop().await.unwrap().unwrap();
         assert_eq!(
             popped_envelope.event_id().unwrap(),
             envelope.event_id().unwrap()
@@ -648,7 +647,7 @@ mod tests {
         // We pop 5 envelopes, which should not result in a disk load since `peek()` already should
         // have caused it.
         for envelope in envelopes[0..5].iter().rev() {
-            let popped_envelope = stack.pop().await.unwrap();
+            let popped_envelope = stack.pop().await.unwrap().unwrap();
             assert_eq!(
                 popped_envelope.event_id().unwrap(),
                 envelope.event_id().unwrap()
