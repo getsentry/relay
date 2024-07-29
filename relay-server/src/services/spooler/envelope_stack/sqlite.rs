@@ -496,7 +496,8 @@ mod tests {
         );
 
         let envelope = mock_envelope(Instant::now());
-        let _ = stack.push(envelope);
+        stack.push(envelope);
+        assert_eq!(stack.batches_buffer_size, 0);
     }
 
     #[tokio::test]
