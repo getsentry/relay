@@ -123,6 +123,8 @@ where
             TagSource::Literal(value) => Some(value.to_owned()),
             TagSource::Field(field) => match instance.get_value(field) {
                 Some(Val::String(s)) => Some(s.to_owned()),
+                Some(Val::Bool(true)) => Some("True".to_string()),
+                Some(Val::Bool(false)) => Some("False".to_string()),
                 _ => None,
             },
             TagSource::Unknown => None,
