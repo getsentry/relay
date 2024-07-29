@@ -530,6 +530,62 @@ mod tests {
     }
 
     #[test]
+    fn extract_tag_bool() {
+        let event_json = json!({
+            "type": "transaction",
+            "start_timestamp": 1597976300.0,
+            "timestamp": 1597976302.0,
+            "extra": {
+                "flag": true,
+            }
+        });
+        let event = Event::from_value(event_json.into());
+
+        let config_json = json!({
+            "version": 1,
+            "metrics": [
+                {
+                    "category": "transaction",
+                    "mri": "c:transactions/counter@none",
+                    "tags": [
+                        {"key": "flag", "field": "event.extra.flag"},
+                    ]
+                }
+            ]
+        });
+        let config = serde_json::from_value(config_json).unwrap();
+
+        let metrics = extract_metrics(
+            event.value().unwrap(),
+            CombinedMetricExtractionConfig::from(&config),
+        );
+        insta::assert_debug_snapshot!(metrics, @r###"
+        [
+            Bucket {
+                timestamp: UnixTimestamp(1597976302),
+                width: 0,
+                name: MetricName(
+                    "c:transactions/counter@none",
+                ),
+                value: Counter(
+                    1.0,
+                ),
+                tags: {
+                    "flag": "True",
+                },
+                metadata: BucketMetadata {
+                    merges: 1,
+                    received_at: Some(
+                        UnixTimestamp(0),
+                    ),
+                    extracted_from_indexed: false,
+                },
+            },
+        ]
+        "###);
+    }
+
+    #[test]
     fn skip_nonfinite_float() {
         let event_json = json!({
             "type": "transaction",
