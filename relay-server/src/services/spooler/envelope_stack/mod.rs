@@ -11,7 +11,7 @@ pub trait EnvelopeStack {
 
     /// Pushes an [`Envelope`] on top of the stack.
     #[allow(dead_code)]
-    fn push(&mut self, envelope: Box<Envelope>) -> impl Future<Output = Result<(), Self::Error>>;
+    fn push(&mut self, envelope: Box<Envelope>) -> Result<(), Self::Error>;
 
     /// Peeks the [`Envelope`] on top of the stack.
     ///
