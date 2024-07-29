@@ -10,6 +10,8 @@ pub trait EnvelopeStack: Send {
     /// [`EnvelopeStack`].
     type Error: std::fmt::Debug;
 
+    type Provider: StackProvider;
+
     /// Creates a new stack with the given element.
     fn new(envelope: Box<Envelope>) -> Self;
 
@@ -25,4 +27,9 @@ pub trait EnvelopeStack: Send {
     ///
     /// If the stack is empty, an error is returned.
     fn pop(&mut self) -> impl Future<Output = Result<Option<Box<Envelope>>, Self::Error>>;
+}
+
+pub trait StackProvider {
+    type Stack: EnvelopeStack;
+    fn create_stack(&self, envelope: Box<Envelope>) -> Self::Stack;
 }

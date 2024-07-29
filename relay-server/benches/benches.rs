@@ -8,7 +8,7 @@ use tempfile::TempDir;
 use tokio::runtime::Runtime;
 
 use relay_base_schema::project::ProjectKey;
-use relay_server::{Envelope, EnvelopeStack, SQLiteEnvelopeStack};
+use relay_server::{Envelope, EnvelopeStack, SqliteEnvelopeStack};
 
 fn setup_db(path: &PathBuf) -> Pool<Sqlite> {
     let options = SqliteConnectOptions::new()
@@ -83,7 +83,7 @@ fn benchmark_sqlite_envelope_stack(c: &mut Criterion) {
                                 reset_db(db.clone()).await;
                             });
 
-                            let stack = SQLiteEnvelopeStack::new(
+                            let stack = SqliteEnvelopeStack::new(
                                 db.clone(),
                                 disk_batch_size,
                                 2,
@@ -119,7 +119,7 @@ fn benchmark_sqlite_envelope_stack(c: &mut Criterion) {
                             runtime.block_on(async {
                                 reset_db(db.clone()).await;
 
-                                let mut stack = SQLiteEnvelopeStack::new(
+                                let mut stack = SqliteEnvelopeStack::new(
                                     db.clone(),
                                     disk_batch_size,
                                     2,
@@ -159,7 +159,7 @@ fn benchmark_sqlite_envelope_stack(c: &mut Criterion) {
                                 reset_db(db.clone()).await;
                             });
 
-                            let stack = SQLiteEnvelopeStack::new(
+                            let stack = SqliteEnvelopeStack::new(
                                 db.clone(),
                                 disk_batch_size,
                                 2,

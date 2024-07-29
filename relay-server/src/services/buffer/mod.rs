@@ -13,6 +13,9 @@ use crate::services::buffer::envelopestack::memory::InMemoryEnvelopeStack;
 mod envelopebuffer;
 mod envelopestack;
 
+pub use envelopestack::sqlite::SqliteEnvelopeStack;
+pub use envelopestack::EnvelopeStack;
+
 /// Async envelope buffering interface.
 ///
 /// Access to the buffer is synchronized by a tokio lock.

@@ -1,20 +1,27 @@
 use crate::envelope::Envelope;
 use crate::extractors::StartTime;
-use crate::services::buffer::envelopestack::EnvelopeStack;
+use crate::services::buffer::envelopestack::{EnvelopeStack, StackProvider};
 use futures::StreamExt;
 use relay_base_schema::project::ProjectKey;
+use relay_config::Config;
 use sqlx::query::Query;
-use sqlx::sqlite::{SqliteArguments, SqliteRow};
+use sqlx::sqlite::{
+    SqliteArguments, SqliteAutoVacuum, SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions,
+    SqliteRow, SqliteSynchronous,
+};
 use sqlx::{Pool, QueryBuilder, Row, Sqlite};
 use std::collections::VecDeque;
 use std::error::Error;
 use std::fmt::Debug;
 use std::num::NonZeroUsize;
+use std::path::{Path, PathBuf};
 use std::pin::pin;
+use std::sync::Arc;
+use tokio::fs::DirBuilder;
 
 /// An error returned when doing an operation on [`SQLiteEnvelopeStack`].
 #[derive(Debug, thiserror::Error)]
-pub enum SQLiteEnvelopeStackError {
+pub enum SqliteEnvelopeStackError {
     /// The stack is empty.
     #[error("the stack is empty")]
     Empty,
@@ -28,7 +35,7 @@ pub enum SQLiteEnvelopeStackError {
 ///
 /// For efficiency reasons, the implementation has an in-memory buffer that is periodically spooled
 /// to disk in a batched way.
-pub struct SQLiteEnvelopeStack {
+pub struct SqliteEnvelopeStack {
     /// Shared SQLite database pool which will be used to read and write from disk.
     db: Pool<Sqlite>,
     /// Threshold defining the maximum number of envelopes in the `batches_buffer` before spooling
@@ -50,7 +57,7 @@ pub struct SQLiteEnvelopeStack {
     check_disk: bool,
 }
 
-impl SQLiteEnvelopeStack {
+impl SqliteEnvelopeStack {
     /// Creates a new empty [`SQLiteEnvelopeStack`].
     #[allow(dead_code)]
     pub fn new(
@@ -90,7 +97,7 @@ impl SQLiteEnvelopeStack {
     /// In case there is a failure while writing envelopes, all the envelopes that were enqueued
     /// to be written to disk are lost. The explanation for this behavior can be found in the body
     /// of the method.
-    async fn spool_to_disk(&mut self) -> Result<(), SQLiteEnvelopeStackError> {
+    async fn spool_to_disk(&mut self) -> Result<(), SqliteEnvelopeStackError> {
         let Some(envelopes) = self.batches_buffer.pop_front() else {
             return Ok(());
         };
@@ -118,7 +125,7 @@ impl SQLiteEnvelopeStack {
             // the buffer are lost. We are doing this on purposes, since if we were to have a
             // database corruption during runtime, and we were to put the values back into the buffer
             // we will end up with an infinite cycle.
-            return Err(SQLiteEnvelopeStackError::DatabaseError(err));
+            return Err(SqliteEnvelopeStackError::DatabaseError(err));
         }
 
         // If we successfully spooled to disk, we know that data should be there.
@@ -134,7 +141,7 @@ impl SQLiteEnvelopeStack {
     ///
     /// In case an envelope fails deserialization due to malformed data in the database, the affected
     /// envelope will not be unspooled and unspooling will continue with the remaining envelopes.
-    async fn unspool_from_disk(&mut self) -> Result<(), SQLiteEnvelopeStackError> {
+    async fn unspool_from_disk(&mut self) -> Result<(), SqliteEnvelopeStackError> {
         let envelopes = build_delete_and_fetch_many_envelopes(
             self.own_key,
             self.sampling_key,
@@ -184,7 +191,7 @@ impl SQLiteEnvelopeStack {
             // If there was a database error and no envelopes have been returned, we assume that we are
             // in a critical state, so we return an error.
             if let Some(db_error) = db_error {
-                return Err(SQLiteEnvelopeStackError::DatabaseError(db_error));
+                return Err(SqliteEnvelopeStackError::DatabaseError(db_error));
             }
 
             // In case no envelopes were unspool, we will mark the disk as empty until another round
@@ -206,17 +213,17 @@ impl SQLiteEnvelopeStack {
     }
 
     /// Deserializes an [`Envelope`] from a database row.
-    fn extract_envelope(&self, row: SqliteRow) -> Result<Box<Envelope>, SQLiteEnvelopeStackError> {
+    fn extract_envelope(&self, row: SqliteRow) -> Result<Box<Envelope>, SqliteEnvelopeStackError> {
         let envelope_row: Vec<u8> = row
             .try_get("envelope")
-            .map_err(|_| SQLiteEnvelopeStackError::Empty)?;
+            .map_err(|_| SqliteEnvelopeStackError::Empty)?;
         let envelope_bytes = bytes::Bytes::from(envelope_row);
         let mut envelope =
-            Envelope::parse_bytes(envelope_bytes).map_err(|_| SQLiteEnvelopeStackError::Empty)?;
+            Envelope::parse_bytes(envelope_bytes).map_err(|_| SqliteEnvelopeStackError::Empty)?;
 
         let received_at: i64 = row
             .try_get("received_at")
-            .map_err(|_| SQLiteEnvelopeStackError::Empty)?;
+            .map_err(|_| SqliteEnvelopeStackError::Empty)?;
         let start_time = StartTime::from_timestamp_millis(received_at as u64);
 
         envelope.set_start_time(start_time.into_inner());
@@ -234,11 +241,13 @@ impl SQLiteEnvelopeStack {
     }
 }
 
-impl EnvelopeStack for SQLiteEnvelopeStack {
-    type Error = SQLiteEnvelopeStackError;
+impl EnvelopeStack for SqliteEnvelopeStack {
+    type Error = SqliteEnvelopeStackError;
+    type Provider = SqliteStackProvider;
 
+    #[allow(unused)]
     fn new(envelope: Box<Envelope>) -> Self {
-        todo!()
+        todo!() // TODO: pass a `StackManager` into `new`.
     }
 
     async fn push(&mut self, envelope: Box<Envelope>) -> Result<(), Self::Error> {
@@ -299,6 +308,121 @@ impl EnvelopeStack for SQLiteEnvelopeStack {
         }
 
         Ok(result)
+    }
+}
+
+enum BufferError {}
+
+pub struct SqliteStackProvider {
+    db: Pool<Sqlite>,
+    disk_batch_size: usize,
+    max_batches: usize,
+}
+
+impl SqliteStackProvider {
+    /// Creates a new [`BufferService`] from the provided path to the SQLite database file.
+    pub async fn create(config: Arc<Config>) -> Result<Self, BufferError> {
+        // TODO: error handling
+        let db = Self::prepare_disk_state(config.clone()).await?;
+        Ok(Self {
+            db,
+            disk_batch_size: 100, // TODO: put in config
+            max_batches: 2,       // TODO: put in config
+        })
+    }
+
+    /// Set up the database and return the current number of envelopes.
+    ///
+    /// The directories and spool file will be created if they don't already
+    /// exist.
+    async fn setup(path: &Path) -> Result<(), BufferError> {
+        Self::create_spool_directory(path).await?;
+
+        let options = SqliteConnectOptions::new()
+            .filename(path)
+            .journal_mode(SqliteJournalMode::Wal)
+            .create_if_missing(true);
+
+        let db = SqlitePoolOptions::new()
+            .connect_with(options)
+            .await
+            .map_err(BufferError::SqlxSetupFailed)?;
+
+        sqlx::migrate!("../migrations").run(&db).await?;
+        Ok(())
+    }
+
+    /// Creates the directories for the spool file.
+    async fn create_spool_directory(path: &Path) -> Result<(), BufferError> {
+        let Some(parent) = path.parent() else {
+            return Ok(());
+        };
+        if !parent.as_os_str().is_empty() && !parent.exists() {
+            relay_log::debug!("creating directory for spooling file: {}", parent.display());
+            DirBuilder::new()
+                .recursive(true)
+                .create(&parent)
+                .await
+                .map_err(BufferError::FileSetupError)?;
+        }
+        Ok(())
+    }
+
+    /// Prepares the disk state.
+    async fn prepare_disk_state(config: Arc<Config>) -> Result<Pool<Sqlite>, BufferError> {
+        let Some(path) = config.spool_envelopes_path() else {
+            return BufferError::MissingPath;
+        };
+
+        let options = SqliteConnectOptions::new()
+            .filename(&path)
+            // The WAL journaling mode uses a write-ahead log instead of a rollback journal to implement transactions.
+            // The WAL journaling mode is persistent; after being set it stays in effect
+            // across multiple database connections and after closing and reopening the database.
+            //
+            // 1. WAL is significantly faster in most scenarios.
+            // 2. WAL provides more concurrency as readers do not block writers and a writer does not block readers. Reading and writing can proceed concurrently.
+            // 3. Disk I/O operations tends to be more sequential using WAL.
+            // 4. WAL uses many fewer fsync() operations and is thus less vulnerable to problems on systems where the fsync() system call is broken.
+            .journal_mode(SqliteJournalMode::Wal)
+            // WAL mode is safe from corruption with synchronous=NORMAL.
+            // When synchronous is NORMAL, the SQLite database engine will still sync at the most critical moments, but less often than in FULL mode.
+            // Which guarantees good balance between safety and speed.
+            .synchronous(SqliteSynchronous::Normal)
+            // The freelist pages are moved to the end of the database file and the database file is truncated to remove the freelist pages at every
+            // transaction commit. Note, however, that auto-vacuum only truncates the freelist pages from the file.
+            // Auto-vacuum does not defragment the database nor repack individual database pages the way that the VACUUM command does.
+            //
+            // This will helps us to keep the file size under some control.
+            .auto_vacuum(SqliteAutoVacuum::Full)
+            // If shared-cache mode is enabled and a thread establishes multiple
+            // connections to the same database, the connections share a single data and schema cache.
+            // This can significantly reduce the quantity of memory and IO required by the system.
+            .shared_cache(true);
+
+        SqlitePoolOptions::new()
+            .max_connections(config.spool_envelopes_max_connections())
+            .min_connections(config.spool_envelopes_min_connections())
+            .connect_with(options)
+            .await
+            .map_err(BufferError::SqlxSetupFailed)
+
+        // TODO: populate priority queue from disk.
+    }
+}
+
+impl StackProvider for SqliteStackProvider {
+    type Stack = SqliteEnvelopeStack;
+
+    fn create_stack(&self, envelope: Box<Envelope>) -> Self::Stack {
+        let own_key = envelope.meta().public_key();
+        SqliteEnvelopeStack::new(
+            self.db.clone(),
+            self.disk_batch_size,
+            self.max_batches,
+            own_key,
+            envelope.sampling_key().unwrap_or(own_key),
+        )
     }
 }
 
@@ -453,7 +577,7 @@ mod tests {
     #[should_panic]
     async fn test_push_with_mismatching_project_keys() {
         let db = setup_db(false).await;
-        let mut stack = SQLiteEnvelopeStack::new(
+        let mut stack = SqliteEnvelopeStack::new(
             db,
             2,
             2,
@@ -468,7 +592,7 @@ mod tests {
     #[tokio::test]
     async fn test_push_when_db_is_not_valid() {
         let db = setup_db(false).await;
-        let mut stack = SQLiteEnvelopeStack::new(
+        let mut stack = SqliteEnvelopeStack::new(
             db,
             2,
             2,
@@ -488,7 +612,7 @@ mod tests {
         let envelope = mock_envelope(Instant::now());
         assert!(matches!(
             stack.push(envelope).await,
-            Err(SQLiteEnvelopeStackError::DatabaseError(_))
+            Err(SqliteEnvelopeStackError::DatabaseError(_))
         ));
 
         // The stack now contains the last of the 3 elements that were added. If we add a new one
@@ -519,7 +643,7 @@ mod tests {
     #[tokio::test]
     async fn test_pop_when_db_is_not_valid() {
         let db = setup_db(false).await;
-        let mut stack = SQLiteEnvelopeStack::new(
+        let mut stack = SqliteEnvelopeStack::new(
             db,
             2,
             2,
@@ -530,14 +654,14 @@ mod tests {
         // We pop with an invalid db.
         assert!(matches!(
             stack.pop().await,
-            Err(SQLiteEnvelopeStackError::DatabaseError(_))
+            Err(SqliteEnvelopeStackError::DatabaseError(_))
         ));
     }
 
     #[tokio::test]
     async fn test_pop_when_stack_is_empty() {
         let db = setup_db(true).await;
-        let mut stack = SQLiteEnvelopeStack::new(
+        let mut stack = SqliteEnvelopeStack::new(
             db,
             2,
             2,
@@ -548,14 +672,14 @@ mod tests {
         // We pop with no elements.
         assert!(matches!(
             stack.pop().await,
-            Err(SQLiteEnvelopeStackError::Empty)
+            Err(SqliteEnvelopeStackError::Empty)
         ));
     }
 
     #[tokio::test]
     async fn test_push_below_threshold_and_pop() {
         let db = setup_db(true).await;
-        let mut stack = SQLiteEnvelopeStack::new(
+        let mut stack = SqliteEnvelopeStack::new(
             db,
             5,
             2,
@@ -591,7 +715,7 @@ mod tests {
     #[tokio::test]
     async fn test_push_above_threshold_and_pop() {
         let db = setup_db(true).await;
-        let mut stack = SQLiteEnvelopeStack::new(
+        let mut stack = SqliteEnvelopeStack::new(
             db,
             5,
             2,
