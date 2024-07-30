@@ -313,14 +313,7 @@ fn queue_envelope(
 
                 // TODO: Sync-check whether the buffer has capacity.
                 // Otherwise return `QueueFailed`.
-                tokio::spawn(async move {
-                    if let Err(e) = buffer.push(envelope.into_envelope()).await {
-                        relay_log::error!(
-                            error = &e as &dyn std::error::Error,
-                            "failed to push envelope"
-                        );
-                    }
-                });
+                buffer.defer_push(envelope);
             }
             None => {
                 relay_log::trace!("Sending envelope to project cache for V1 buffer");

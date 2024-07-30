@@ -6,8 +6,6 @@ import uuid
 import pytest
 import time
 from collections import namedtuple
-import tempfile
-import os
 
 from sentry_relay.auth import PublicKey, SecretKey, generate_key_pair
 

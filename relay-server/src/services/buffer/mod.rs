@@ -1,6 +1,7 @@
 //! Types for buffering envelopes.
 
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::Arc;
 
 use relay_base_schema::project::ProjectKey;
 use relay_config::Config;
@@ -8,6 +9,7 @@ use tokio::sync::MutexGuard;
 
 use crate::envelope::Envelope;
 use crate::services::buffer::envelope_buffer::PolymorphicEnvelopeBuffer;
+use crate::utils::ManagedEnvelope;
 
 pub use envelope_buffer::EnvelopeBufferError;
 pub use envelope_stack::sqlite::SqliteEnvelopeStack; // pub for benchmarks
@@ -39,6 +41,7 @@ pub struct GuardedEnvelopeBuffer {
     backend: tokio::sync::Mutex<PolymorphicEnvelopeBuffer>,
     notify: tokio::sync::Notify,
     changed: AtomicBool,
+    inflight_push_count: AtomicUsize,
 }
 
 impl GuardedEnvelopeBuffer {
@@ -52,18 +55,28 @@ impl GuardedEnvelopeBuffer {
                 backend: tokio::sync::Mutex::new(PolymorphicEnvelopeBuffer::from_config(config)),
                 notify: tokio::sync::Notify::new(),
                 changed: AtomicBool::new(true),
+                inflight_push_count: AtomicUsize::new(0),
             })
         } else {
             None
         }
     }
 
-    /// Adds an envelope to the buffer and wakes any waiting consumers.
-    pub async fn push(&self, envelope: Box<Envelope>) -> Result<(), EnvelopeBufferError> {
-        let mut guard = self.backend.lock().await;
-        guard.push(envelope).await?;
-        self.notify();
-        Ok(())
+    /// Schedules a task to push an envelope to the buffer.
+    ///
+    /// Once the envelope is pushed, waiters will be notified.
+    pub fn defer_push(self: Arc<Self>, envelope: ManagedEnvelope) {
+        self.inflight_push_count.fetch_add(1, Ordering::Relaxed);
+        let this = self.clone();
+        tokio::spawn(async move {
+            if let Err(e) = this.push(envelope.into_envelope()).await {
+                relay_log::error!(
+                    error = &e as &dyn std::error::Error,
+                    "failed to push envelope"
+                );
+            }
+            this.inflight_push_count.fetch_sub(1, Ordering::Relaxed);
+        });
     }
 
     /// Returns a reference to the next-in-line envelope.
@@ -108,6 +121,14 @@ impl GuardedEnvelopeBuffer {
         if changed {
             self.notify();
         }
+    }
+
+    /// Adds an envelope to the buffer and wakes any waiting consumers.
+    async fn push(&self, envelope: Box<Envelope>) -> Result<(), EnvelopeBufferError> {
+        let mut guard = self.backend.lock().await;
+        guard.push(envelope).await?;
+        self.notify();
+        Ok(())
     }
 
     fn notify(&self) {

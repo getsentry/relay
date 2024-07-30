@@ -225,7 +225,7 @@ impl ManagedEnvelope {
     /// Consumes itself returning the managed envelope.
     pub fn into_envelope(mut self) -> Box<Envelope> {
         self.context.done = true;
-        Box::new(self.envelope.take_items())
+        self.take_envelope()
     }
 
     /// Converts current managed envelope into processed envelope.
