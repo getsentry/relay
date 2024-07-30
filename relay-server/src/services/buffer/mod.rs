@@ -17,6 +17,8 @@ mod sqlite_envelope_store;
 mod stack_provider;
 mod testutils;
 
+pub use envelope_buffer::EnvelopeBufferError;
+
 /// Async envelope buffering interface.
 ///
 /// Access to the buffer is synchronized by a tokio lock.
@@ -56,10 +58,11 @@ impl GuardedEnvelopeBuffer {
     }
 
     /// Adds an envelope to the buffer and wakes any waiting consumers.
-    pub async fn push(&self, envelope: Box<Envelope>) {
+    pub async fn push(&self, envelope: Box<Envelope>) -> Result<(), EnvelopeBufferError> {
         let mut guard = self.backend.lock().await;
-        guard.push(envelope).await;
+        guard.push(envelope).await?;
         self.notify();
+        Ok(())
     }
 
     /// Returns a reference to the next-in-line envelope.
@@ -70,12 +73,24 @@ impl GuardedEnvelopeBuffer {
         loop {
             {
                 let mut guard = self.backend.lock().await;
-                if self.changed.load(Ordering::Relaxed) && guard.peek().await.is_some() {
-                    self.changed.store(false, Ordering::Relaxed);
-                    return Peek {
-                        guard,
-                        changed: &self.changed,
-                        notify: &self.notify,
+                if self.changed.load(Ordering::Relaxed) {
+                    match guard.peek().await {
+                        Ok(envelope) => {
+                            if envelope.is_some() {
+                                self.changed.store(false, Ordering::Relaxed);
+                                return Peek {
+                                    guard,
+                                    changed: &self.changed,
+                                    notify: &self.notify,
+                                };
+                            }
+                        }
+                        Err(error) => {
+                            relay_log::error!(
+                                error = &error as &dyn std::error::Error,
+                                "failed to peek envelope"
+                            );
+                        }
                     };
                 }
             }
@@ -111,22 +126,24 @@ pub struct Peek<'a> {
 
 impl Peek<'_> {
     /// Returns a reference to the next envelope.
-    pub async fn get(&mut self) -> &Envelope {
-        self.guard
+    pub async fn get(&mut self) -> Result<&Envelope, EnvelopeBufferError> {
+        Ok(self
+            .guard
             .peek()
-            .await
-            .expect("element disappeared while holding lock")
+            .await?
+            .expect("element disappeared while holding lock"))
     }
 
     /// Pops the next envelope from the buffer.
     ///
     /// This functions consumes the [`Peek`].
-    pub async fn remove(mut self) -> Box<Envelope> {
+    pub async fn remove(mut self) -> Result<Box<Envelope>, EnvelopeBufferError> {
         self.notify();
-        self.guard
+        Ok(self
+            .guard
             .pop()
-            .await
-            .expect("element disappeared while holding lock")
+            .await?
+            .expect("element disappeared while holding lock"))
     }
 
     /// Sync version of [`EnvelopesBufferManager::mark_ready`].
@@ -171,7 +188,7 @@ mod tests {
         let cloned_call_count = call_count.clone();
         tokio::spawn(async move {
             loop {
-                cloned_buffer.peek().await.remove().await;
+                cloned_buffer.peek().await.remove().await.unwrap();
                 cloned_call_count.fetch_add(1, Ordering::Relaxed);
             }
         });
@@ -182,14 +199,14 @@ mod tests {
         assert_eq!(call_count.load(Ordering::Relaxed), 0);
 
         // State after push: one call
-        buffer.push(new_envelope()).await;
+        buffer.push(new_envelope()).await.unwrap();
         tokio::time::advance(Duration::from_nanos(1)).await;
         assert_eq!(call_count.load(Ordering::Relaxed), 1);
         tokio::time::advance(Duration::from_nanos(1)).await;
         assert_eq!(call_count.load(Ordering::Relaxed), 1);
 
         // State after second push: two calls
-        buffer.push(new_envelope()).await;
+        buffer.push(new_envelope()).await.unwrap();
         tokio::time::advance(Duration::from_nanos(1)).await;
         assert_eq!(call_count.load(Ordering::Relaxed), 2);
         tokio::time::advance(Duration::from_nanos(1)).await;
@@ -212,7 +229,7 @@ mod tests {
             }
         });
 
-        buffer.push(new_envelope()).await;
+        buffer.push(new_envelope()).await.unwrap();
 
         // Initial state: no calls
         assert_eq!(call_count.load(Ordering::Relaxed), 0);
@@ -226,7 +243,7 @@ mod tests {
         assert_eq!(call_count.load(Ordering::Relaxed), 1);
 
         // State after second push: two calls
-        buffer.push(new_envelope()).await;
+        buffer.push(new_envelope()).await.unwrap();
         tokio::time::advance(Duration::from_nanos(1)).await;
         assert_eq!(call_count.load(Ordering::Relaxed), 2);
     }

@@ -312,7 +312,12 @@ fn queue_envelope(
                 relay_log::trace!("Pushing envelope to V2 buffer");
                 // buffer.check_space_available()?;
                 tokio::spawn(async move {
-                    buffer.push(envelope.into_envelope()).await;
+                    if let Err(e) = buffer.push(envelope.into_envelope()).await {
+                        relay_log::error!(
+                            error = &e as &dyn std::error::Error,
+                            "failed to push envelope"
+                        );
+                    }
                 });
             }
             None => {

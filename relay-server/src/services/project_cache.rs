@@ -5,7 +5,7 @@ use std::time::Duration;
 
 use crate::extractors::RequestMeta;
 use crate::metrics::MetricOutcomes;
-use crate::services::buffer::{GuardedEnvelopeBuffer, Peek};
+use crate::services::buffer::{EnvelopeBufferError, GuardedEnvelopeBuffer, Peek};
 use hashbrown::HashSet;
 use relay_base_schema::project::ProjectKey;
 use relay_config::{Config, RelayMode};
@@ -1044,19 +1044,19 @@ impl ProjectCacheBroker {
         }
     }
 
-    async fn peek_at_envelope(&mut self, mut peek: Peek<'_>) {
-        let envelope = peek.get().await;
+    async fn peek_at_envelope(&mut self, mut peek: Peek<'_>) -> Result<(), EnvelopeBufferError> {
+        let envelope = peek.get().await?;
         // TODO: make envelope age configurable.
         if envelope.meta().start_time().elapsed() > MAX_ENVELOPE_AGE {
             let mut managed_envelope = ManagedEnvelope::new(
-                peek.remove().await,
+                peek.remove().await?,
                 self.services.outcome_aggregator.clone(),
                 self.services.test_store.clone(),
                 ProcessingGroup::Ungrouped,
             );
             managed_envelope.reject(Outcome::Invalid(DiscardReason::Timestamp));
             // TODO: metrics in all branches.
-            return;
+            return Ok(());
         }
         let sampling_key = envelope.sampling_key();
         let services = self.services.clone();
@@ -1072,17 +1072,17 @@ impl ProjectCacheBroker {
             }
             ProjectState::Disabled => {
                 let mut managed_envelope = ManagedEnvelope::new(
-                    peek.remove().await,
+                    peek.remove().await?,
                     self.services.outcome_aggregator.clone(),
                     self.services.test_store.clone(),
                     ProcessingGroup::Ungrouped,
                 );
                 managed_envelope.reject(Outcome::Invalid(DiscardReason::ProjectId));
-                return;
+                return Ok(());
             }
             ProjectState::Pending => {
                 peek.mark_ready(&project_key, false);
-                return;
+                return Ok(());
             }
         };
 
@@ -1103,14 +1103,14 @@ impl ProjectCacheBroker {
             }
             Some((sampling_key, ProjectState::Pending)) => {
                 peek.mark_ready(&sampling_key, false);
-                return;
+                return Ok(());
             }
             None => None,
         };
 
         let project = self.get_or_create_project(project_key);
 
-        for (group, envelope) in ProcessingGroup::split_envelope(*peek.remove().await) {
+        for (group, envelope) in ProcessingGroup::split_envelope(*peek.remove().await?) {
             let managed_envelope = ManagedEnvelope::new(
                 envelope,
                 services.outcome_aggregator.clone(),
@@ -1134,6 +1134,8 @@ impl ProjectCacheBroker {
                 reservoir_counters,
             });
         }
+
+        Ok(())
     }
 
     /// Returns backoff timeout for an unspool attempt.
@@ -1439,7 +1441,9 @@ impl Service for ProjectCacheService {
                     }
                     peek = peek_buffer(&envelope_buffer) => {
                         metric!(timer(RelayTimers::ProjectCacheTaskDuration), task = "peek_at_envelope", {
-                            broker.peek_at_envelope(peek).await; // TODO: make sync again?
+                            if let Err(e) = broker.peek_at_envelope(peek).await {
+                                relay_log::error!(error = &e as &dyn std::error::Error, "Failed to peek envelope");
+                            }
                         })
                     }
                     else => break,

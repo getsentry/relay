@@ -1,12 +1,15 @@
 use std::cmp::Ordering;
 use std::collections::BTreeSet;
+use std::convert::Infallible;
 use std::time::Instant;
 
 use relay_base_schema::project::ProjectKey;
 use relay_config::Config;
 
 use crate::envelope::Envelope;
+use crate::services::buffer::envelope_stack::sqlite::SqliteEnvelopeStackError;
 use crate::services::buffer::envelope_stack::{EnvelopeStack, StackProvider};
+use crate::services::buffer::sqlite_envelope_store::SqliteEnvelopeStoreError;
 use crate::services::buffer::stack_provider::memory::MemoryStackProvider;
 use crate::services::buffer::stack_provider::sqlite::SqliteStackProvider;
 
@@ -35,21 +38,21 @@ impl PolymorphicEnvelopeBuffer {
         Self::InMemory(EnvelopeBuffer::<MemoryStackProvider>::new())
     }
 
-    pub async fn push(&mut self, envelope: Box<Envelope>) {
+    pub async fn push(&mut self, envelope: Box<Envelope>) -> Result<(), EnvelopeBufferError> {
         match self {
             Self::Sqlite(buffer) => buffer.push(envelope).await,
             Self::InMemory(buffer) => buffer.push(envelope).await,
         }
     }
 
-    pub async fn peek(&mut self) -> Option<&Envelope> {
+    pub async fn peek(&mut self) -> Result<Option<&Envelope>, EnvelopeBufferError> {
         match self {
             Self::Sqlite(buffer) => buffer.peek().await,
             Self::InMemory(buffer) => buffer.peek().await,
         }
     }
 
-    pub async fn pop(&mut self) -> Option<Box<Envelope>> {
+    pub async fn pop(&mut self) -> Result<Option<Box<Envelope>>, EnvelopeBufferError> {
         match self {
             Self::Sqlite(buffer) => buffer.pop().await,
             Self::InMemory(buffer) => buffer.pop().await,
@@ -62,6 +65,15 @@ impl PolymorphicEnvelopeBuffer {
             Self::InMemory(buffer) => buffer.mark_ready(project, is_ready),
         }
     }
+}
+
+/// Error that occurs while interacting with the envelope buffer.
+#[derive(Debug, thiserror::Error)]
+pub enum EnvelopeBufferError {
+    #[error("sqlite")]
+    Sqlite(#[from] SqliteEnvelopeStackError),
+    #[error("impossible")]
+    Impossible(#[from] Infallible),
 }
 
 /// An envelope buffer that holds an individual stack for each project/sampling project combination.
@@ -93,17 +105,20 @@ impl EnvelopeBuffer<MemoryStackProvider> {
 }
 impl EnvelopeBuffer<SqliteStackProvider> {
     /// Creates an empty buffer.
-    pub async fn new(config: &Config) -> Self {
-        Self {
+    pub async fn new(config: &Config) -> Result<Self, SqliteEnvelopeStoreError> {
+        Ok(Self {
             stacks_by_project: Default::default(),
             priority_queue: Default::default(),
             // TODO: handle error.
-            stack_provider: SqliteStackProvider::new(config).await.unwrap(),
-        }
+            stack_provider: SqliteStackProvider::new(config).await?,
+        })
     }
 }
 
-impl<P: StackProvider> EnvelopeBuffer<P> {
+impl<P: StackProvider> EnvelopeBuffer<P>
+where
+    EnvelopeBufferError: std::convert::From<<P::Stack as EnvelopeStack>::Error>,
+{
     fn push_stack(&mut self, envelope: Box<Envelope>) {
         let received_at = envelope.meta().start_time();
         let stack_key = StackKey::from_envelope(&envelope);
@@ -133,7 +148,7 @@ impl<P: StackProvider> EnvelopeBuffer<P> {
         self.priority_queue.remove(&stack_key);
     }
 
-    pub async fn push(&mut self, envelope: Box<Envelope>) {
+    pub async fn push(&mut self, envelope: Box<Envelope>) -> Result<(), EnvelopeBufferError> {
         let received_at = envelope.meta().start_time();
         let stack_key = StackKey::from_envelope(&envelope);
         if let Some((
@@ -144,35 +159,42 @@ impl<P: StackProvider> EnvelopeBuffer<P> {
             _,
         )) = self.priority_queue.get_mut(&stack_key)
         {
-            stack.push(envelope).await.unwrap(); // TODO: handle errors
+            stack.push(envelope).await?;
         } else {
             self.push_stack(envelope);
         }
         self.priority_queue.change_priority_by(&stack_key, |prio| {
             prio.received_at = received_at;
         });
+
+        Ok(())
     }
 
-    pub async fn peek(&mut self) -> Option<&Envelope> {
-        let (
+    pub async fn peek(&mut self) -> Result<Option<&Envelope>, EnvelopeBufferError> {
+        let Some((
             QueueItem {
                 key: _,
                 value: stack,
             },
             _,
-        ) = self.priority_queue.peek_mut()?;
-        stack.peek().await.unwrap() // TODO: handle errors
+        )) = self.priority_queue.peek_mut()
+        else {
+            return Ok(None);
+        };
+
+        Ok(stack.peek().await?)
     }
 
-    pub async fn pop(&mut self) -> Option<Box<Envelope>> {
-        let (QueueItem { key, value: stack }, _) = self.priority_queue.peek_mut()?;
+    pub async fn pop(&mut self) -> Result<Option<Box<Envelope>>, EnvelopeBufferError> {
+        let Some((QueueItem { key, value: stack }, _)) = self.priority_queue.peek_mut() else {
+            return Ok(None);
+        };
         let stack_key = *key;
         let envelope = stack.pop().await.unwrap().expect("found an empty stack");
 
         let next_received_at = stack
             .peek()
-            .await
-            .unwrap() // TODO: handle error
+            .await?
             .map(|next_envelope| next_envelope.meta().start_time());
         match next_received_at {
             None => {
@@ -184,7 +206,7 @@ impl<P: StackProvider> EnvelopeBuffer<P> {
                 });
             }
         }
-        Some(envelope)
+        Ok(Some(envelope))
     }
 
     pub fn mark_ready(&mut self, project: &ProjectKey, is_ready: bool) -> bool {
@@ -361,71 +383,71 @@ mod tests {
         let project_key2 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
         let project_key3 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fef").unwrap();
 
-        assert!(buffer.pop().await.is_none());
-        assert!(buffer.peek().await.is_none());
+        assert!(buffer.pop().await.unwrap().is_none());
+        assert!(buffer.peek().await.unwrap().is_none());
 
-        buffer.push(new_envelope(project_key1, None)).await;
+        buffer.push(new_envelope(project_key1, None)).await.unwrap();
         assert_eq!(
-            buffer.peek().await.unwrap().meta().public_key(),
+            buffer.peek().await.unwrap().unwrap().meta().public_key(),
             project_key1
         );
 
-        buffer.push(new_envelope(project_key2, None)).await;
+        buffer.push(new_envelope(project_key2, None)).await.unwrap();
         // Both projects are not ready, so project 1 is on top (has the oldest envelopes):
         assert_eq!(
-            buffer.peek().await.unwrap().meta().public_key(),
+            buffer.peek().await.unwrap().unwrap().meta().public_key(),
             project_key1
         );
 
-        buffer.push(new_envelope(project_key3, None)).await;
+        buffer.push(new_envelope(project_key3, None)).await.unwrap();
         // All projects are not ready, so project 1 is on top (has the oldest envelopes):
         assert_eq!(
-            buffer.peek().await.unwrap().meta().public_key(),
+            buffer.peek().await.unwrap().unwrap().meta().public_key(),
             project_key1
         );
 
         // After marking a project ready, it goes to the top:
         buffer.mark_ready(&project_key3, true);
         assert_eq!(
-            buffer.peek().await.unwrap().meta().public_key(),
+            buffer.peek().await.unwrap().unwrap().meta().public_key(),
             project_key3
         );
         assert_eq!(
-            buffer.pop().await.unwrap().meta().public_key(),
+            buffer.pop().await.unwrap().unwrap().meta().public_key(),
             project_key3
         );
 
         // After popping, project 1 is on top again:
         assert_eq!(
-            buffer.peek().await.unwrap().meta().public_key(),
+            buffer.peek().await.unwrap().unwrap().meta().public_key(),
             project_key1
         );
 
         // Mark project 1 as ready (still on top):
         buffer.mark_ready(&project_key1, true);
         assert_eq!(
-            buffer.peek().await.unwrap().meta().public_key(),
+            buffer.peek().await.unwrap().unwrap().meta().public_key(),
             project_key1
         );
 
         // Mark project 2 as ready as well (now on top because most recent):
         buffer.mark_ready(&project_key2, true);
         assert_eq!(
-            buffer.peek().await.unwrap().meta().public_key(),
+            buffer.peek().await.unwrap().unwrap().meta().public_key(),
             project_key2
         );
         assert_eq!(
-            buffer.pop().await.unwrap().meta().public_key(),
+            buffer.pop().await.unwrap().unwrap().meta().public_key(),
             project_key2
         );
 
         // Pop last element:
         assert_eq!(
-            buffer.pop().await.unwrap().meta().public_key(),
+            buffer.pop().await.unwrap().unwrap().meta().public_key(),
             project_key1
         );
-        assert!(buffer.pop().await.is_none());
-        assert!(buffer.peek().await.is_none());
+        assert!(buffer.pop().await.unwrap().is_none());
+        assert!(buffer.peek().await.unwrap().is_none());
     }
 
     #[tokio::test]
@@ -441,12 +463,18 @@ mod tests {
 
         assert!(instant2 > instant1);
 
-        buffer.push(envelope1).await;
-        buffer.push(envelope2).await;
+        buffer.push(envelope1).await.unwrap();
+        buffer.push(envelope2).await.unwrap();
 
-        assert_eq!(buffer.pop().await.unwrap().meta().start_time(), instant2);
-        assert_eq!(buffer.pop().await.unwrap().meta().start_time(), instant1);
-        assert!(buffer.pop().await.is_none());
+        assert_eq!(
+            buffer.pop().await.unwrap().unwrap().meta().start_time(),
+            instant2
+        );
+        assert_eq!(
+            buffer.pop().await.unwrap().unwrap().meta().start_time(),
+            instant1
+        );
+        assert!(buffer.pop().await.unwrap().is_none());
     }
 
     #[tokio::test]
@@ -458,40 +486,64 @@ mod tests {
 
         let envelope1 = new_envelope(project_key1, None);
         let instant1 = envelope1.meta().start_time();
-        buffer.push(envelope1).await;
+        buffer.push(envelope1).await.unwrap();
 
         let envelope2 = new_envelope(project_key2, None);
         let instant2 = envelope2.meta().start_time();
-        buffer.push(envelope2).await;
+        buffer.push(envelope2).await.unwrap();
 
         let envelope3 = new_envelope(project_key1, Some(project_key2));
         let instant3 = envelope3.meta().start_time();
-        buffer.push(envelope3).await;
+        buffer.push(envelope3).await.unwrap();
 
         // Nothing is ready, instant1 is on top:
-        assert_eq!(buffer.peek().await.unwrap().meta().start_time(), instant1);
+        assert_eq!(
+            buffer.peek().await.unwrap().unwrap().meta().start_time(),
+            instant1
+        );
 
         // Mark project 2 ready, gets on top:
         buffer.mark_ready(&project_key2, true);
-        assert_eq!(buffer.peek().await.unwrap().meta().start_time(), instant2);
+        assert_eq!(
+            buffer.peek().await.unwrap().unwrap().meta().start_time(),
+            instant2
+        );
 
         // Revert
         buffer.mark_ready(&project_key2, false);
-        assert_eq!(buffer.peek().await.unwrap().meta().start_time(), instant1);
+        assert_eq!(
+            buffer.peek().await.unwrap().unwrap().meta().start_time(),
+            instant1
+        );
 
         // Project 1 ready:
         buffer.mark_ready(&project_key1, true);
-        assert_eq!(buffer.peek().await.unwrap().meta().start_time(), instant1);
+        assert_eq!(
+            buffer.peek().await.unwrap().unwrap().meta().start_time(),
+            instant1
+        );
 
         // when both projects are ready, event no 3 ends up on top:
         buffer.mark_ready(&project_key2, true);
-        assert_eq!(buffer.pop().await.unwrap().meta().start_time(), instant3);
-        assert_eq!(buffer.peek().await.unwrap().meta().start_time(), instant2);
+        assert_eq!(
+            buffer.pop().await.unwrap().unwrap().meta().start_time(),
+            instant3
+        );
+        assert_eq!(
+            buffer.peek().await.unwrap().unwrap().meta().start_time(),
+            instant2
+        );
 
         buffer.mark_ready(&project_key2, false);
-        assert_eq!(buffer.pop().await.unwrap().meta().start_time(), instant1);
-        assert_eq!(buffer.pop().await.unwrap().meta().start_time(), instant2);
+        assert_eq!(
+            buffer.pop().await.unwrap().unwrap().meta().start_time(),
+            instant1
+        );
+        assert_eq!(
+            buffer.pop().await.unwrap().unwrap().meta().start_time(),
+            instant2
+        );
 
-        assert!(buffer.pop().await.is_none());
+        assert!(buffer.pop().await.unwrap().is_none());
     }
 }
