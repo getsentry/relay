@@ -46,7 +46,6 @@ pub struct SqliteEnvelopeStack {
 }
 
 impl SqliteEnvelopeStack {
-    // TODO: implement method for initializing the stack given disk contents.
     /// Creates a new empty [`SQLiteEnvelopeStack`].
     pub fn new(
         envelope_store: SqliteEnvelopeStore,
@@ -91,12 +90,13 @@ impl SqliteEnvelopeStack {
         };
         self.batches_buffer_size -= envelopes.len();
 
+        // We convert envelopes into a format which simplifies insertion in the store.
         let envelopes = envelopes.iter().map(|e| e.as_ref().into());
 
         // When early return here, we are acknowledging that the elements that we popped from
-        // the buffer are lost. We are doing this on purposes, since if we were to have a
-        // database corruption during runtime, and we were to put the values back into the buffer
-        // we will end up with an infinite cycle.
+        // the buffer are lost in case of failure. We are doing this on purposes, since if we were
+        // to have a database corruption during runtime, and we were to put the values back into
+        // the buffer we will end up with an infinite cycle.
         self.envelope_store
             .insert_many(envelopes)
             .await
@@ -224,22 +224,18 @@ impl EnvelopeStack for SqliteEnvelopeStack {
 #[cfg(test)]
 mod tests {
     use std::collections::BTreeMap;
-    use std::path::Path;
     use std::time::{Duration, Instant};
 
-    use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions};
-    use sqlx::{Pool, Sqlite};
-    use tokio::fs::DirBuilder;
     use uuid::Uuid;
 
     use relay_base_schema::project::ProjectKey;
     use relay_event_schema::protocol::EventId;
     use relay_sampling::DynamicSamplingContext;
 
+    use super::*;
     use crate::envelope::{Envelope, Item, ItemType};
     use crate::extractors::RequestMeta;
-
-    use super::*;
+    use crate::services::buffer::testutils::setup_db;
 
     fn request_meta() -> RequestMeta {
         let dsn = "https://a94ae32be2584e0bbd7a4cbb95971fee:@sentry.io/42"
@@ -280,43 +276,6 @@ mod tests {
         (0..count)
             .map(|i| mock_envelope(instant - Duration::from_secs((count - i) as u64)))
             .collect()
-    }
-
-    async fn setup_db(run_migrations: bool) -> Pool<Sqlite> {
-        let path = std::env::temp_dir().join(Uuid::new_v4().to_string());
-
-        create_spool_directory(&path).await;
-
-        let options = SqliteConnectOptions::new()
-            .filename(&path)
-            .journal_mode(SqliteJournalMode::Wal)
-            .create_if_missing(true);
-
-        let db = SqlitePoolOptions::new()
-            .connect_with(options)
-            .await
-            .unwrap();
-
-        if run_migrations {
-            sqlx::migrate!("../migrations").run(&db).await.unwrap();
-        }
-
-        db
-    }
-
-    async fn create_spool_directory(path: &Path) {
-        let Some(parent) = path.parent() else {
-            return;
-        };
-
-        if !parent.as_os_str().is_empty() && !parent.exists() {
-            relay_log::debug!("creating directory for spooling file: {}", parent.display());
-            DirBuilder::new()
-                .recursive(true)
-                .create(&parent)
-                .await
-                .unwrap();
-        }
     }
 
     #[tokio::test]

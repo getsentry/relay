@@ -1,5 +1,4 @@
 use std::error::Error;
-use std::iter;
 use std::path::Path;
 use std::pin::pin;
 
@@ -13,7 +12,7 @@ use sqlx::sqlite::{
 use sqlx::{Pool, QueryBuilder, Row, Sqlite};
 use tokio::fs::DirBuilder;
 
-use relay_base_schema::project::ProjectKey;
+use relay_base_schema::project::{ParseProjectKeyError, ProjectKey};
 use relay_config::Config;
 
 use crate::extractors::StartTime;
@@ -49,11 +48,11 @@ pub enum SqliteEnvelopeStoreError {
     #[error("failed to create the spool file: {0}")]
     FileSetupError(std::io::Error),
 
-    #[error("an error occurred while spooling envelopes: {0}")]
-    SpoolingError(sqlx::Error),
+    #[error("an error occurred while writing to disk: {0}")]
+    WriteError(sqlx::Error),
 
-    #[error("an error occurred while unspooling envelopes: {0}")]
-    UnspoolingError(sqlx::Error),
+    #[error("an error occurred while reading from disk: {0}")]
+    FetchError(sqlx::Error),
 
     #[error("no file path for the spool was provided")]
     NoFilePath,
@@ -63,6 +62,12 @@ pub enum SqliteEnvelopeStoreError {
 
     #[error("error while extracting the envelope from the database")]
     EnvelopeExtractionError,
+
+    #[error("error while extracting the project key from the database")]
+    ProjectKeyExtractionError(#[from] ParseProjectKeyError),
+
+    #[error("failed to get database file size: {0}")]
+    FileSizeReadFailed(sqlx::Error),
 }
 
 #[derive(Debug, Clone)]
@@ -112,7 +117,7 @@ impl SqliteEnvelopeStore {
             // transaction commit. Note, however, that auto-vacuum only truncates the freelist pages from the file.
             // Auto-vacuum does not defragment the database nor repack individual database pages the way that the VACUUM command does.
             //
-            // This will helps us to keep the file size under some control.
+            // This will help us to keep the file size under some control.
             .auto_vacuum(SqliteAutoVacuum::Full)
             // If shared-cache mode is enabled and a thread establishes multiple
             // connections to the same database, the connections share a single data and schema cache.
@@ -176,10 +181,10 @@ impl SqliteEnvelopeStore {
     }
 
     pub async fn insert_many(
-        &mut self,
-        envelopes: impl Iterator<Item = InsertEnvelope>,
+        &self,
+        envelopes: impl IntoIterator<Item = InsertEnvelope>,
     ) -> Result<(), SqliteEnvelopeStoreError> {
-        if let Err(err) = build_insert_many_envelopes(envelopes)
+        if let Err(err) = build_insert_many_envelopes(envelopes.into_iter())
             .build()
             .execute(&self.db)
             .await
@@ -189,14 +194,14 @@ impl SqliteEnvelopeStore {
                 "failed to spool envelopes to disk",
             );
 
-            return Err(SqliteEnvelopeStoreError::SpoolingError(err));
+            return Err(SqliteEnvelopeStoreError::WriteError(err));
         }
 
         Ok(())
     }
 
     pub async fn delete_many(
-        &mut self,
+        &self,
         own_key: ProjectKey,
         sampling_key: ProjectKey,
         limit: i64,
@@ -244,7 +249,7 @@ impl SqliteEnvelopeStore {
         // fine with just logging the failure and not failing completely.
         if extracted_envelopes.is_empty() {
             if let Some(db_error) = db_error {
-                return Err(SqliteEnvelopeStoreError::UnspoolingError(db_error));
+                return Err(SqliteEnvelopeStoreError::FetchError(db_error));
             }
         }
 
@@ -256,16 +261,29 @@ impl SqliteEnvelopeStore {
         Ok(extracted_envelopes)
     }
 
-    pub async fn project_keys_pairs(
+    pub async fn project_key_pairs(
         &self,
-    ) -> Result<impl Iterator<Item = (String, String)>, SqliteEnvelopeStoreError> {
-        // TODO: implement.
-        Ok(iter::empty())
+    ) -> Result<Vec<(ProjectKey, ProjectKey)>, SqliteEnvelopeStoreError> {
+        let project_key_pairs = build_get_project_key_pairs()
+            .fetch_all(&self.db)
+            .await
+            .map_err(SqliteEnvelopeStoreError::FetchError)?;
+
+        let project_key_pairs = project_key_pairs
+            .into_iter()
+            // Collect only keys we can extract.
+            .filter_map(|project_key_pair| extract_project_key_pair(project_key_pair).ok())
+            .collect();
+
+        Ok(project_key_pairs)
     }
 
     pub async fn used_size(&self) -> Result<i64, SqliteEnvelopeStoreError> {
-        // TODO: implement.
-        Ok(10)
+        build_estimate_size()
+            .fetch_one(&self.db)
+            .await
+            .and_then(|r| r.try_get(0))
+            .map_err(SqliteEnvelopeStoreError::FileSizeReadFailed)
     }
 }
 
@@ -273,19 +291,46 @@ impl SqliteEnvelopeStore {
 fn extract_envelope(row: SqliteRow) -> Result<Box<Envelope>, SqliteEnvelopeStoreError> {
     let envelope_row: Vec<u8> = row
         .try_get("envelope")
-        .map_err(SqliteEnvelopeStoreError::UnspoolingError)?;
+        .map_err(SqliteEnvelopeStoreError::FetchError)?;
     let envelope_bytes = bytes::Bytes::from(envelope_row);
     let mut envelope = Envelope::parse_bytes(envelope_bytes)
         .map_err(|_| SqliteEnvelopeStoreError::EnvelopeExtractionError)?;
 
     let received_at: i64 = row
         .try_get("received_at")
-        .map_err(SqliteEnvelopeStoreError::UnspoolingError)?;
+        .map_err(SqliteEnvelopeStoreError::FetchError)?;
     let start_time = StartTime::from_timestamp_millis(received_at as u64);
 
     envelope.set_start_time(start_time.into_inner());
 
     Ok(envelope)
+}
+
+/// Deserializes a pair of [`ProjectKey`] from the database.
+fn extract_project_key_pair(
+    row: SqliteRow,
+) -> Result<(ProjectKey, ProjectKey), SqliteEnvelopeStoreError> {
+    let own_key = row
+        .try_get("own_key")
+        .map_err(SqliteEnvelopeStoreError::FetchError)
+        .and_then(|key| {
+            ProjectKey::parse(key).map_err(SqliteEnvelopeStoreError::ProjectKeyExtractionError)
+        });
+    let sampling_key = row
+        .try_get("sampling_key")
+        .map_err(SqliteEnvelopeStoreError::FetchError)
+        .and_then(|key| {
+            ProjectKey::parse(key).map_err(SqliteEnvelopeStoreError::ProjectKeyExtractionError)
+        });
+
+    match (own_key, sampling_key) {
+        (Ok(own_key), Ok(sampling_key)) => Ok((own_key, sampling_key)),
+        // Report the first found error.
+        (Err(err), _) | (_, Err(err)) => {
+            relay_log::error!("Failed to extract a queue key from the spool record: {err}");
+            Err(err)
+        }
+    }
 }
 
 /// Builds a query that inserts many [`Envelope`]s in the database.
@@ -327,13 +372,122 @@ pub fn build_delete_and_fetch_many_envelopes<'a>(
 /// Creates a query which fetches the number of used database pages multiplied by the page size.
 ///
 /// This info used to estimate the current allocated database size.
-pub fn estimate_size<'a>() -> Query<'a, Sqlite, SqliteArguments<'a>> {
+pub fn build_estimate_size<'a>() -> Query<'a, Sqlite, SqliteArguments<'a>> {
     sqlx::query(
         r#"SELECT (page_count - freelist_count) * page_size as size FROM pragma_page_count(), pragma_freelist_count(), pragma_page_size();"#,
     )
 }
 
 /// Returns the query to select all the unique combinations of own and sampling keys.
-pub fn get_keys<'a>() -> Query<'a, Sqlite, SqliteArguments<'a>> {
+pub fn build_get_project_key_pairs<'a>() -> Query<'a, Sqlite, SqliteArguments<'a>> {
     sqlx::query("SELECT DISTINCT own_key, sampling_key FROM envelopes;")
+}
+
+#[cfg(test)]
+mod tests {
+
+    use hashbrown::HashSet;
+    use std::collections::BTreeMap;
+    use std::time::{Duration, Instant};
+    use uuid::Uuid;
+
+    use relay_base_schema::project::ProjectKey;
+    use relay_event_schema::protocol::EventId;
+    use relay_sampling::DynamicSamplingContext;
+
+    use super::*;
+    use crate::envelope::{Envelope, Item, ItemType};
+    use crate::extractors::RequestMeta;
+    use crate::services::buffer::testutils::setup_db;
+
+    fn request_meta() -> RequestMeta {
+        let dsn = "https://a94ae32be2584e0bbd7a4cbb95971fee:@sentry.io/42"
+            .parse()
+            .unwrap();
+
+        RequestMeta::new(dsn)
+    }
+
+    fn mock_envelope(instant: Instant) -> Box<Envelope> {
+        let event_id = EventId::new();
+        let mut envelope = Envelope::from_request(Some(event_id), request_meta());
+
+        let dsc = DynamicSamplingContext {
+            trace_id: Uuid::new_v4(),
+            public_key: ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap(),
+            release: Some("1.1.1".to_string()),
+            user: Default::default(),
+            replay_id: None,
+            environment: None,
+            transaction: Some("transaction1".into()),
+            sample_rate: None,
+            sampled: Some(true),
+            other: BTreeMap::new(),
+        };
+
+        envelope.set_dsc(dsc);
+        envelope.set_start_time(instant);
+
+        envelope.add_item(Item::new(ItemType::Transaction));
+
+        envelope
+    }
+
+    #[allow(clippy::vec_box)]
+    fn mock_envelopes(count: usize) -> Vec<Box<Envelope>> {
+        let instant = Instant::now();
+        (0..count)
+            .map(|i| mock_envelope(instant - Duration::from_secs((count - i) as u64)))
+            .collect()
+    }
+
+    #[tokio::test]
+    async fn test_insert_and_delete_envelopes() {
+        let db = setup_db(true).await;
+        let envelope_store = SqliteEnvelopeStore::new(db, 0);
+
+        let own_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
+        let sampling_key = ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap();
+
+        // We insert 10 envelopes.
+        let envelopes = mock_envelopes(10);
+        let envelope_ids: HashSet<EventId> =
+            envelopes.iter().filter_map(|e| e.event_id()).collect();
+        assert!(envelope_store
+            .insert_many(envelopes.iter().map(|e| e.as_ref().into()))
+            .await
+            .is_ok());
+
+        // We check that if we load more than the limit, we still get back at most 10.
+        let extracted_envelopes = envelope_store
+            .delete_many(own_key, sampling_key, 15)
+            .await
+            .unwrap();
+        assert_eq!(envelopes.len(), 10);
+        for envelope in extracted_envelopes {
+            assert!(envelope_ids.contains(&envelope.event_id().unwrap()));
+        }
+    }
+
+    #[tokio::test]
+    async fn test_insert_and_get_project_keys_pairs() {
+        let db = setup_db(true).await;
+        let envelope_store = SqliteEnvelopeStore::new(db, 0);
+
+        let own_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
+        let sampling_key = ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap();
+
+        // We insert 10 envelopes.
+        let envelopes = mock_envelopes(2);
+        assert!(envelope_store
+            .insert_many(envelopes.iter().map(|e| e.as_ref().into()))
+            .await
+            .is_ok());
+
+        // We check that we get back only one pair of project keys, since all envelopes have the
+        // same pair.
+        let project_key_pairs = envelope_store.project_key_pairs().await.unwrap();
+        assert_eq!(project_key_pairs.len(), 1);
+        assert_eq!(project_key_pairs[0], (own_key, sampling_key));
+    }
 }

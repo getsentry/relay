@@ -16,6 +16,7 @@ mod envelope_buffer;
 mod envelope_stack;
 mod sqlite_envelope_store;
 mod stack_provider;
+mod testutils;
 
 /// Async envelope buffering interface.
 ///
