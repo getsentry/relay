@@ -13,7 +13,6 @@ use crate::services::buffer::sqlite_envelope_store::{
 /// An error returned when doing an operation on [`SQLiteEnvelopeStack`].
 #[derive(Debug, thiserror::Error)]
 pub enum SqliteEnvelopeStackError {
-    /// The envelope store encountered an error.
     #[error("an error occurred in the envelope store: {0}")]
     EnvelopeStoreError(#[from] SqliteEnvelopeStoreError),
 }

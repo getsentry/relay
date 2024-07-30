@@ -19,6 +19,7 @@ use relay_config::Config;
 use crate::extractors::StartTime;
 use crate::Envelope;
 
+/// Struct that contains all the fields of an [`Envelope`] that are mapped to the database columns.
 pub struct InsertEnvelope {
     received_at: i64,
     own_key: ProjectKey,
@@ -49,22 +50,22 @@ pub enum SqliteEnvelopeStoreError {
     #[error("failed to create the spool file: {0}")]
     FileSetupError(std::io::Error),
 
-    #[error("an error occurred while writing to disk: {0}")]
+    #[error("failed to write to disk: {0}")]
     WriteError(sqlx::Error),
 
-    #[error("an error occurred while reading from disk: {0}")]
+    #[error("failed to read from disk: {0}")]
     FetchError(sqlx::Error),
 
     #[error("no file path for the spool was provided")]
     NoFilePath,
 
-    #[error("error during the migration of the database: {0}")]
+    #[error("failed to migrate the database: {0}")]
     MigrationError(MigrateError),
 
-    #[error("error while extracting the envelope from the database")]
+    #[error("failed to extract the envelope from the database")]
     EnvelopeExtractionError,
 
-    #[error("error while extracting the project key from the database")]
+    #[error("failed to extract a project key from the database")]
     ProjectKeyExtractionError(#[from] ParseProjectKeyError),
 
     #[error("failed to get database file size: {0}")]

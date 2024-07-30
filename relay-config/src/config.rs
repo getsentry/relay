@@ -842,6 +842,16 @@ fn spool_envelopes_unspool_interval() -> u64 {
     100
 }
 
+/// Default batch size for the stack.
+fn spool_envelopes_stack_disk_batch_size() -> usize {
+    1000
+}
+
+/// Default maximum number of batches for the stack.
+fn spool_envelopes_stack_max_batches() -> usize {
+    2
+}
+
 /// Persistent buffering configuration for incoming envelopes.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct EnvelopeSpool {
@@ -868,7 +878,12 @@ pub struct EnvelopeSpool {
     /// The interval in milliseconds to trigger unspool.
     #[serde(default = "spool_envelopes_unspool_interval")]
     unspool_interval: u64,
-    /// Version of the spooler
+    /// Number of elements of the envelope stack that are flushed to disk.
+    stack_disk_batch_size: usize,
+    /// Number of batches of size `stack_disk_batch_size` that need to be accumulated before
+    /// flushing one batch to disk.
+    stack_max_batches: usize,
+    /// Version of the spooler.
     #[serde(default = "EnvelopeSpoolVersion::default")]
     version: EnvelopeSpoolVersion,
 }
@@ -896,6 +911,8 @@ impl Default for EnvelopeSpool {
             max_disk_size: spool_envelopes_max_disk_size(),
             max_memory_size: spool_envelopes_max_memory_size(),
             unspool_interval: spool_envelopes_unspool_interval(), // 100ms
+            stack_disk_batch_size: spool_envelopes_stack_disk_batch_size(),
+            stack_max_batches: spool_envelopes_stack_max_batches(),
             version: EnvelopeSpoolVersion::V2,
         }
     }
@@ -2093,6 +2110,18 @@ impl Config {
     /// The maximum size of the memory buffer, in bytes.
     pub fn spool_envelopes_max_memory_size(&self) -> usize {
         self.values.spool.envelopes.max_memory_size.as_bytes()
+    }
+
+    /// Number of batches of size `stack_disk_batch_size` that need to be accumulated before
+    /// flushing one batch to disk.
+    pub fn spool_envelopes_stack_disk_batch_size(&self) -> usize {
+        self.values.spool.envelopes.stack_disk_batch_size
+    }
+
+    /// Number of batches of size `stack_disk_batch_size` that need to be accumulated before
+    /// flushing one batch to disk.
+    pub fn spool_envelopes_stack_max_batches(&self) -> usize {
+        self.values.spool.envelopes.stack_max_batches
     }
 
     /// Returns `true` if version 2 of the spooling mechanism is used.

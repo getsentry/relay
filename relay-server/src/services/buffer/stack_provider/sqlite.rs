@@ -19,8 +19,8 @@ impl SqliteStackProvider {
         let envelope_store = SqliteEnvelopeStore::prepare(config).await?;
         Ok(Self {
             envelope_store,
-            disk_batch_size: 100, // TODO: put in config
-            max_batches: 2,       // TODO: put in config
+            disk_batch_size: config.spool_envelopes_stack_disk_batch_size(),
+            max_batches: config.spool_envelopes_stack_max_batches(),
         })
     }
 }
