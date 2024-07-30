@@ -1723,7 +1723,9 @@ LIMIT 1
                 },
                 "client_sample_rate": Measurement {
                     value: 0.1,
-                    unit: None,
+                    unit: Fraction(
+                        Ratio,
+                    ),
                 },
             },
         )
