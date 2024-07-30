@@ -183,7 +183,7 @@ mod tests {
             &Config::from_json_value(serde_json::json!({
                 "spool": {
                     "envelopes": {
-                        "version": "expermental"
+                        "version": "experimental"
                     }
                 }
             }))
