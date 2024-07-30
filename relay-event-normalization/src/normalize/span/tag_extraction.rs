@@ -9,7 +9,10 @@ use std::ops::ControlFlow;
 use once_cell::sync::Lazy;
 use regex::Regex;
 use relay_base_schema::metrics::{DurationUnit, InformationUnit, MetricUnit};
-use relay_event_schema::protocol::{AppContext, BrowserContext, Event, Measurement, Measurements, OsContext, ProfileContext, Span, Timestamp, TraceContext};
+use relay_event_schema::protocol::{
+    AppContext, BrowserContext, Event, Measurement, Measurements, OsContext, ProfileContext, Span,
+    Timestamp, TraceContext,
+};
 use relay_protocol::{Annotated, Empty, Value};
 use sqlparser::ast::Visit;
 use sqlparser::ast::{ObjectName, Visitor};
@@ -218,12 +221,12 @@ pub fn extract_span_tags(event: &Event, spans: &mut [Annotated<Span>], max_tag_v
 
         if !shared_measurements.is_empty() {
             match span.measurements.value_mut() {
-                Some(left) => {
-                    shared_measurements.iter().for_each(|(key, val)| {
-                        left.insert(key.clone(), val.clone());
-                    })
-                }
-                None => span.measurements.set_value(Some(shared_measurements.clone()))
+                Some(left) => shared_measurements.iter().for_each(|(key, val)| {
+                    left.insert(key.clone(), val.clone());
+                }),
+                None => span
+                    .measurements
+                    .set_value(Some(shared_measurements.clone())),
             }
         }
 
@@ -809,18 +812,20 @@ fn extract_shared_measurements(event: &Event) -> Measurements {
     if let Some(trace_context) = event.context::<TraceContext>() {
         if let Some(client_sample_rate) = trace_context.client_sample_rate.value() {
             if *client_sample_rate > 0. {
-                measurements
-                    .insert("client_sample_rate".into(), Measurement{
+                measurements.insert(
+                    "client_sample_rate".into(),
+                    Measurement {
                         value: (*client_sample_rate).into(),
                         unit: MetricUnit::None.into(),
-                    }.into());
+                    }
+                    .into(),
+                );
             }
         }
     }
 
     measurements
 }
-
 
 /// Copies specific numeric values from span data to span measurements.
 pub fn extract_measurements(span: &mut Span, is_mobile: bool) {
