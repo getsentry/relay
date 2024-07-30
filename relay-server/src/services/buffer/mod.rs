@@ -1,16 +1,15 @@
 //! Types for buffering envelopes.
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
 
 use tokio::sync::MutexGuard;
 
-pub use envelope_stack::sqlite::SqliteEnvelopeStack;
-pub use envelope_stack::EnvelopeStack;
+pub use envelope_stack::sqlite::SqliteEnvelopeStack; // pub for benchmarks
+pub use envelope_stack::EnvelopeStack; // pub for benchmarks
 use relay_base_schema::project::ProjectKey;
 use relay_config::Config;
 
 use crate::envelope::Envelope;
-use crate::services::buffer::envelope_buffer::EnvelopesBuffer;
+use crate::services::buffer::envelope_buffer::PolymorphicEnvelopeBuffer;
 
 mod envelope_buffer;
 mod envelope_stack;
@@ -21,11 +20,11 @@ mod testutils;
 /// Async envelope buffering interface.
 ///
 /// Access to the buffer is synchronized by a tokio lock.
-#[derive(Debug, Clone)]
-pub struct EnvelopesBufferManager {
+#[derive(Debug)]
+pub struct GuardedEnvelopeBuffer {
     /// TODO: Reconsider synchronization mechanism.
     /// We can either
-    /// - keep the interface sync and use a std Mutex. In this case, we create a queue of threads.
+    /// - make the interface sync and use a std Mutex. In this case, we create a queue of threads.
     /// - use an async interface with a tokio mutex. In this case, we create a queue of futures.
     /// - use message passing (service or channel). In this case, we create a queue of messages.
     ///
@@ -34,23 +33,26 @@ pub struct EnvelopesBufferManager {
     /// >  The primary use case for the async mutex is to provide shared mutable access to IO resources such as a database connection.
     /// > [...] when you do want shared access to an IO resource, it is often better to spawn a task to manage the IO resource,
     /// > and to use message passing to communicate with that task.
-    backend: Arc<tokio::sync::Mutex<EnvelopesBuffer>>,
-    notify: Arc<tokio::sync::Notify>,
-    changed: Arc<AtomicBool>,
+    backend: tokio::sync::Mutex<PolymorphicEnvelopeBuffer>,
+    notify: tokio::sync::Notify,
+    changed: AtomicBool,
 }
 
-impl EnvelopesBufferManager {
+impl GuardedEnvelopeBuffer {
     /// Creates a memory or disk based [`EnvelopesBufferManager`], depending on the given config.
     ///
     /// NOTE: until the V1 spooler implementation is removed, this function returns `None`
     /// if V2 spooling is not configured.
     pub fn from_config(config: &Config) -> Option<Self> {
-        // TODO: create a disk-based backend if db config is given (loads stacks from db).
-        config.spool_v2().then(|| Self {
-            backend: envelope_buffer::create(config),
-            notify: Arc::new(tokio::sync::Notify::new()),
-            changed: Arc::new(AtomicBool::new(true)),
-        })
+        if config.spool_v2() {
+            Some(Self {
+                backend: tokio::sync::Mutex::new(PolymorphicEnvelopeBuffer::from_config(config)),
+                notify: tokio::sync::Notify::new(),
+                changed: AtomicBool::new(true),
+            })
+        } else {
+            None
+        }
     }
 
     /// Adds an envelope to the buffer and wakes any waiting consumers.
@@ -102,7 +104,7 @@ impl EnvelopesBufferManager {
 ///
 /// Objects of this type can only exist if the buffer is not empty.
 pub struct Peek<'a> {
-    guard: MutexGuard<'a, EnvelopesBuffer>,
+    guard: MutexGuard<'a, PolymorphicEnvelopeBuffer>,
     notify: &'a tokio::sync::Notify,
     changed: &'a AtomicBool,
 }
@@ -149,6 +151,7 @@ mod tests {
     use std::str::FromStr;
     use std::sync::atomic::AtomicUsize;
     use std::sync::atomic::Ordering;
+    use std::sync::Arc;
     use std::time::Duration;
 
     use relay_common::Dsn;
@@ -228,18 +231,19 @@ mod tests {
         assert_eq!(call_count.load(Ordering::Relaxed), 2);
     }
 
-    fn new_buffer() -> EnvelopesBufferManager {
-        EnvelopesBufferManager::from_config(
+    fn new_buffer() -> Arc<GuardedEnvelopeBuffer> {
+        GuardedEnvelopeBuffer::from_config(
             &Config::from_json_value(serde_json::json!({
                 "spool": {
                     "envelopes": {
-                        "version": "2"
+                        "version": "expermental"
                     }
                 }
             }))
             .unwrap(),
         )
         .unwrap()
+        .into()
     }
 
     fn new_envelope() -> Box<Envelope> {

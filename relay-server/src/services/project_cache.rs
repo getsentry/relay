@@ -5,7 +5,7 @@ use std::time::Duration;
 
 use crate::extractors::RequestMeta;
 use crate::metrics::MetricOutcomes;
-use crate::services::buffer::{EnvelopesBufferManager, Peek};
+use crate::services::buffer::{GuardedEnvelopeBuffer, Peek};
 use hashbrown::HashSet;
 use relay_base_schema::project::ProjectKey;
 use relay_config::{Config, RelayMode};
@@ -569,7 +569,7 @@ struct ProjectCacheBroker {
     config: Arc<Config>,
     memory_checker: MemoryChecker,
     // TODO: Make non-optional when spool_v1 is removed.
-    envelope_buffer: Option<EnvelopesBufferManager>,
+    envelope_buffer: Option<Arc<GuardedEnvelopeBuffer>>,
     services: Services,
     metric_outcomes: MetricOutcomes,
     // Need hashbrown because extract_if is not stable in std yet.
@@ -1265,7 +1265,7 @@ impl ProjectCacheBroker {
 pub struct ProjectCacheService {
     config: Arc<Config>,
     memory_checker: MemoryChecker,
-    envelope_buffer: Option<EnvelopesBufferManager>,
+    envelope_buffer: Option<Arc<GuardedEnvelopeBuffer>>,
     services: Services,
     metric_outcomes: MetricOutcomes,
     redis: Option<RedisPool>,
@@ -1276,7 +1276,7 @@ impl ProjectCacheService {
     pub fn new(
         config: Arc<Config>,
         memory_checker: MemoryChecker,
-        envelope_buffer: Option<EnvelopesBufferManager>,
+        envelope_buffer: Option<Arc<GuardedEnvelopeBuffer>>,
         services: Services,
         metric_outcomes: MetricOutcomes,
         redis: Option<RedisPool>,
@@ -1438,7 +1438,6 @@ impl Service for ProjectCacheService {
                         })
                     }
                     peek = peek_buffer(&envelope_buffer) => {
-                        relay_log::trace!("Peeking at envelope");
                         metric!(timer(RelayTimers::ProjectCacheTaskDuration), task = "peek_at_envelope", {
                             broker.peek_at_envelope(peek).await; // TODO: make sync again?
                         })
@@ -1453,7 +1452,7 @@ impl Service for ProjectCacheService {
 }
 
 /// Temporary helper function while V1 spool eixsts.
-async fn peek_buffer(buffer: &Option<EnvelopesBufferManager>) -> Peek {
+async fn peek_buffer(buffer: &Option<Arc<GuardedEnvelopeBuffer>>) -> Peek {
     match buffer {
         Some(buffer) => buffer.peek().await,
         None => std::future::pending().await,
@@ -1534,7 +1533,7 @@ mod tests {
         .unwrap()
         .into();
         let memory_checker = MemoryChecker::new(MemoryStat::default(), config.clone());
-        let envelope_buffer = EnvelopesBufferManager::from_config(&config);
+        let envelope_buffer = GuardedEnvelopeBuffer::from_config(&config).map(Arc::new);
         let buffer_services = spooler::Services {
             outcome_aggregator: services.outcome_aggregator.clone(),
             project_cache: services.project_cache.clone(),

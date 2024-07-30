@@ -196,11 +196,13 @@ impl EnvelopeStack for SqliteEnvelopeStack {
 
     async fn pop(&mut self) -> Result<Option<Box<Envelope>>, Self::Error> {
         if self.below_unspool_threshold() && self.check_disk {
+            relay_log::trace!("Unspool from disk");
             self.unspool_from_disk().await?
         }
 
         let result = self.batches_buffer.back_mut().and_then(|last_batch| {
             self.batches_buffer_size -= 1;
+            relay_log::trace!("Popping from memory");
             last_batch.pop()
         });
         if result.is_none() {

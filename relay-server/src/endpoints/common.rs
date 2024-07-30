@@ -259,7 +259,7 @@ pub fn event_id_from_items(items: &Items) -> Result<Option<EventId>, BadStoreReq
 ///
 /// Queueing can fail if the queue exceeds `envelope_buffer_size`. In this case, `Err` is
 /// returned and the envelope is not queued.
-async fn queue_envelope(
+fn queue_envelope(
     state: &ServiceState,
     mut managed_envelope: ManagedEnvelope,
 ) -> Result<(), BadStoreRequest> {
@@ -310,7 +310,10 @@ async fn queue_envelope(
                 // NOTE: This assumes that a `prefetch` has already been scheduled for both the
                 // envelope's projects. See `handle_check_envelope`.
                 relay_log::trace!("Pushing envelope to V2 buffer");
-                buffer.push(envelope.into_envelope()).await;
+                // buffer.check_space_available()?;
+                tokio::spawn(async move {
+                    buffer.push(envelope.into_envelope()).await;
+                });
             }
             None => {
                 relay_log::trace!("Sending envelope to project cache for V1 buffer");
@@ -390,7 +393,7 @@ pub async fn handle_envelope(
         return Err(BadStoreRequest::Overflow(offender));
     }
 
-    queue_envelope(state, managed_envelope).await?;
+    queue_envelope(state, managed_envelope)?;
 
     if checked.rate_limits.is_limited() {
         // Even if some envelope items have been queued, there might be active rate limits on

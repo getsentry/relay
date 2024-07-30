@@ -254,7 +254,11 @@ def test_unparsable_project_config(buffer_config, mini_sentry, relay):
         dbfile = os.path.join(temp, "buffer.db")
         # set the buffer to something low to force the spooling
         relay_config["spool"] = {
-            "envelopes": {"path": dbfile, "max_memory_size": 1000, "version": "2"}
+            "envelopes": {
+                "path": dbfile,
+                "max_memory_size": 1000,
+                "version": "experimental",
+            }
         }
 
     relay = relay(mini_sentry, relay_config)

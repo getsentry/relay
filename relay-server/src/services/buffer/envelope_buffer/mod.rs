@@ -1,9 +1,6 @@
 use std::cmp::Ordering;
 use std::collections::BTreeSet;
-use std::sync::Arc;
 use std::time::Instant;
-
-use tokio::sync::Mutex;
 
 use relay_base_schema::project::ProjectKey;
 use relay_config::Config;
@@ -13,25 +10,29 @@ use crate::services::buffer::envelope_stack::{EnvelopeStack, StackProvider};
 use crate::services::buffer::stack_provider::memory::MemoryStackProvider;
 use crate::services::buffer::stack_provider::sqlite::SqliteStackProvider;
 
-/// Creates a memory or disk based [`EnvelopesBuffer`], depending on the given config.
-pub fn create(_config: &Config) -> Arc<Mutex<EnvelopesBuffer>> {
-    Arc::new(Mutex::new(EnvelopesBuffer::InMemory(
-        InnerEnvelopesBuffer::<MemoryStackProvider>::new(),
-    )))
-}
-
+/// Polymorphic envelope buffering interface.
+///
+/// The underlying buffer can either be disk-based or memory-based,
+/// depending on the given configuration.
+///
+/// NOTE: This is implemented as an enum because a trait object with async methods would not be
+/// object safe.
 #[derive(Debug)]
-pub enum EnvelopesBuffer {
-    InMemory(InnerEnvelopesBuffer<MemoryStackProvider>),
-    Sqlite(InnerEnvelopesBuffer<SqliteStackProvider>),
+#[allow(private_interfaces)]
+pub enum PolymorphicEnvelopeBuffer {
+    InMemory(EnvelopeBuffer<MemoryStackProvider>),
+    #[allow(dead_code)]
+    Sqlite(EnvelopeBuffer<SqliteStackProvider>),
 }
 
-impl EnvelopesBuffer {
-    pub async fn from_config(config: &Config) -> Self {
-        match config.spool_envelopes_path() {
-            Some(_) => Self::Sqlite(InnerEnvelopesBuffer::<SqliteStackProvider>::new(config).await),
-            None => Self::InMemory(InnerEnvelopesBuffer::<MemoryStackProvider>::new()),
+impl PolymorphicEnvelopeBuffer {
+    /// Creates either a memory-based or a disk-based envelope buffer,
+    /// depending on the given configuration.
+    pub fn from_config(config: &Config) -> Self {
+        if config.spool_envelopes_path().is_some() {
+            panic!("Disk backend not yet supported for spool V2");
         }
+        Self::InMemory(EnvelopeBuffer::<MemoryStackProvider>::new())
     }
 
     pub async fn push(&mut self, envelope: Box<Envelope>) {
@@ -68,15 +69,19 @@ impl EnvelopesBuffer {
 /// Envelope stacks are organized in a priority queue, and are reprioritized every time an envelope
 /// is pushed, popped, or when a project becomes ready.
 #[derive(Debug)]
-struct InnerEnvelopesBuffer<P: StackProvider> {
+struct EnvelopeBuffer<P: StackProvider> {
     /// The central priority queue.
     priority_queue: priority_queue::PriorityQueue<QueueItem<StackKey, P::Stack>, Priority>,
     /// A lookup table to find all stacks involving a project.
     stacks_by_project: hashbrown::HashMap<ProjectKey, BTreeSet<StackKey>>,
+    /// A helper to create new stacks.
+    ///
+    /// This indirection is needed because different stack implementations might need different
+    /// initialization (e.g. a database connection).
     stack_provider: P,
 }
 
-impl InnerEnvelopesBuffer<MemoryStackProvider> {
+impl EnvelopeBuffer<MemoryStackProvider> {
     /// Creates an empty buffer.
     pub fn new() -> Self {
         Self {
@@ -86,7 +91,7 @@ impl InnerEnvelopesBuffer<MemoryStackProvider> {
         }
     }
 }
-impl InnerEnvelopesBuffer<SqliteStackProvider> {
+impl EnvelopeBuffer<SqliteStackProvider> {
     /// Creates an empty buffer.
     pub async fn new(config: &Config) -> Self {
         Self {
@@ -98,7 +103,7 @@ impl InnerEnvelopesBuffer<SqliteStackProvider> {
     }
 }
 
-impl<P: StackProvider> InnerEnvelopesBuffer<P> {
+impl<P: StackProvider> EnvelopeBuffer<P> {
     fn push_stack(&mut self, envelope: Box<Envelope>) {
         let received_at = envelope.meta().start_time();
         let stack_key = StackKey::from_envelope(&envelope);
@@ -350,7 +355,7 @@ mod tests {
 
     #[tokio::test]
     async fn insert_pop() {
-        let mut buffer = InnerEnvelopesBuffer::<MemoryStackProvider>::new();
+        let mut buffer = EnvelopeBuffer::<MemoryStackProvider>::new();
 
         let project_key1 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
         let project_key2 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
@@ -425,7 +430,7 @@ mod tests {
 
     #[tokio::test]
     async fn project_internal_order() {
-        let mut buffer = InnerEnvelopesBuffer::<MemoryStackProvider>::new();
+        let mut buffer = EnvelopeBuffer::<MemoryStackProvider>::new();
 
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
 
@@ -446,7 +451,7 @@ mod tests {
 
     #[tokio::test]
     async fn sampling_projects() {
-        let mut buffer = InnerEnvelopesBuffer::<MemoryStackProvider>::new();
+        let mut buffer = EnvelopeBuffer::<MemoryStackProvider>::new();
 
         let project_key1 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
         let project_key2 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fef").unwrap();
