@@ -8,7 +8,7 @@ use std::ops::ControlFlow;
 
 use once_cell::sync::Lazy;
 use regex::Regex;
-use relay_base_schema::metrics::{DurationUnit, InformationUnit, MetricUnit};
+use relay_base_schema::metrics::{DurationUnit, FractionUnit, InformationUnit, MetricUnit};
 use relay_event_schema::protocol::{
     AppContext, BrowserContext, Event, Measurement, Measurements, OsContext, ProfileContext, Span,
     Timestamp, TraceContext,
@@ -816,7 +816,7 @@ fn extract_shared_measurements(event: &Event) -> Measurements {
                     "client_sample_rate".into(),
                     Measurement {
                         value: (*client_sample_rate).into(),
-                        unit: MetricUnit::None.into(),
+                        unit: MetricUnit::Fraction(FractionUnit::Ratio).into(),
                     }
                     .into(),
                 );
