@@ -1,7 +1,4 @@
 use chrono::{DateTime, Utc};
-use serde::{Deserialize, Serialize};
-use smallvec::SmallVec;
-use url::Url;
 
 use relay_base_schema::project::{ProjectId, ProjectKey};
 #[cfg(feature = "processing")]
@@ -12,6 +9,9 @@ use relay_dynamic_config::ErrorBoundary;
 use relay_dynamic_config::{Feature, LimitedProjectConfig, ProjectConfig};
 use relay_filter::matches_any_origin;
 use relay_quotas::{Quota, Scoping};
+use serde::{Deserialize, Serialize};
+use smallvec::SmallVec;
+use url::Url;
 
 use crate::envelope::Envelope;
 use crate::extractors::RequestMeta;

@@ -1,7 +1,6 @@
 use std::time::Duration;
 
 use hashbrown::HashMap;
-
 use relay_base_schema::project::ProjectKey;
 use relay_config::AggregatorServiceConfig;
 use relay_metrics::{aggregator, Bucket};

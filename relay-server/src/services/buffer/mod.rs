@@ -1,3 +1,5 @@
+//! Types for buffering envelopes.
+
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use relay_base_schema::project::ProjectKey;
@@ -40,7 +42,7 @@ pub struct GuardedEnvelopeBuffer {
 }
 
 impl GuardedEnvelopeBuffer {
-    /// Creates a memory or disk based [`EnvelopesBufferManager`], depending on the given config.
+    /// Creates a memory or disk based [`GuardedEnvelopeBuffer`], depending on the given config.
     ///
     /// NOTE: until the V1 spooler implementation is removed, this function returns `None`
     /// if V2 spooling is not configured.
@@ -145,7 +147,7 @@ impl Peek<'_> {
             .expect("element disappeared while holding lock"))
     }
 
-    /// Sync version of [`EnvelopesBufferManager::mark_ready`].
+    /// Sync version of [`GuardedEnvelopeBuffer::mark_ready`].
     ///
     /// Since [`Peek`] already has exclusive access to the buffer, it can mark projects as ready
     /// without awaiting the lock.
@@ -175,6 +177,30 @@ mod tests {
     use crate::extractors::RequestMeta;
 
     use super::*;
+
+    fn new_buffer() -> Arc<GuardedEnvelopeBuffer> {
+        GuardedEnvelopeBuffer::from_config(
+            &Config::from_json_value(serde_json::json!({
+                "spool": {
+                    "envelopes": {
+                        "version": "expermental"
+                    }
+                }
+            }))
+            .unwrap(),
+        )
+        .unwrap()
+        .into()
+    }
+
+    fn new_envelope() -> Box<Envelope> {
+        Envelope::from_request(
+            None,
+            RequestMeta::new(
+                Dsn::from_str("http://a94ae32be2584e0bbd7a4cbb95971fed@localhost/1").unwrap(),
+            ),
+        )
+    }
 
     #[tokio::test]
     async fn no_busy_loop_when_empty() {
@@ -245,29 +271,5 @@ mod tests {
         buffer.push(new_envelope()).await.unwrap();
         tokio::time::advance(Duration::from_nanos(1)).await;
         assert_eq!(call_count.load(Ordering::Relaxed), 2);
-    }
-
-    fn new_buffer() -> Arc<GuardedEnvelopeBuffer> {
-        GuardedEnvelopeBuffer::from_config(
-            &Config::from_json_value(serde_json::json!({
-                "spool": {
-                    "envelopes": {
-                        "version": "expermental"
-                    }
-                }
-            }))
-            .unwrap(),
-        )
-        .unwrap()
-        .into()
-    }
-
-    fn new_envelope() -> Box<Envelope> {
-        Envelope::from_request(
-            None,
-            RequestMeta::new(
-                Dsn::from_str("http://a94ae32be2584e0bbd7a4cbb95971fed@localhost/1").unwrap(),
-            ),
-        )
     }
 }

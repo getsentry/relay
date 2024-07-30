@@ -11,7 +11,7 @@ use crate::services::buffer::sqlite_envelope_store::{
 };
 use crate::statsd::RelayCounters;
 
-/// An error returned when doing an operation on [`SQLiteEnvelopeStack`].
+/// An error returned when doing an operation on [`SqliteEnvelopeStack`].
 #[derive(Debug, thiserror::Error)]
 pub enum SqliteEnvelopeStackError {
     #[error("an error occurred in the envelope store: {0}")]
@@ -68,12 +68,12 @@ impl SqliteEnvelopeStack {
         }
     }
 
-    /// Threshold above which the [`SQLiteEnvelopeStack`] will spool data from the `buffer` to disk.
+    /// Threshold above which the [`SqliteEnvelopeStack`] will spool data from the `buffer` to disk.
     fn above_spool_threshold(&self) -> bool {
         self.batches_buffer_size >= self.spool_threshold.get()
     }
 
-    /// Threshold below which the [`SQLiteEnvelopeStack`] will unspool data from disk to the
+    /// Threshold below which the [`SqliteEnvelopeStack`] will unspool data from disk to the
     /// `buffer`.
     fn below_unspool_threshold(&self) -> bool {
         self.batches_buffer_size == 0
@@ -148,7 +148,7 @@ impl SqliteEnvelopeStack {
     }
 
     /// Validates that the incoming [`Envelope`] has the same project keys at the
-    /// [`SQLiteEnvelopeStack`].
+    /// [`SqliteEnvelopeStack`].
     fn validate_envelope(&self, envelope: &Envelope) -> bool {
         let own_key = envelope.meta().public_key();
         let sampling_key = envelope.sampling_key().unwrap_or(own_key);
