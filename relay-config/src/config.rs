@@ -844,7 +844,7 @@ fn spool_envelopes_unspool_interval() -> u64 {
 
 /// Default batch size for the stack.
 fn spool_envelopes_stack_disk_batch_size() -> usize {
-    1000
+    200
 }
 
 /// Default maximum number of batches for the stack.

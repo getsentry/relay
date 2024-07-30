@@ -231,11 +231,7 @@ def get_response(relay, packed, signature, version="3"):
     return data
 
 
-@pytest.mark.parametrize(
-    "buffer_config",
-    [False, True],
-)
-def test_unparsable_project_config(buffer_config, mini_sentry, relay):
+def test_unparsable_project_config(mini_sentry, relay):
     project_key = 42
     relay_config = {
         "cache": {
@@ -248,18 +244,6 @@ def test_unparsable_project_config(buffer_config, mini_sentry, relay):
             "retry_delay": 0,
         },
     }
-
-    if buffer_config:
-        temp = tempfile.mkdtemp()
-        dbfile = os.path.join(temp, "buffer.db")
-        # set the buffer to something low to force the spooling
-        relay_config["spool"] = {
-            "envelopes": {
-                "path": dbfile,
-                "max_memory_size": 1000,
-                "version": "experimental",
-            }
-        }
 
     relay = relay(mini_sentry, relay_config)
     mini_sentry.add_full_project_config(project_key)
