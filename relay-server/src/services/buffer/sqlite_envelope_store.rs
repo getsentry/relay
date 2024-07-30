@@ -38,7 +38,12 @@ impl<'a> TryFrom<&'a Envelope> for InsertEnvelope {
         let encoded_envelope = match value.to_vec() {
             Ok(encoded_envelope) => encoded_envelope,
             Err(err) => {
-                relay_log::error!(error = &err as &dyn Error, "failed to serialize envelope",);
+                relay_log::error!(
+                    error = &err as &dyn Error,
+                    own_key = own_key.to_string(),
+                    sampling_key = sampling_key.to_string(),
+                    "failed to serialize envelope",
+                );
 
                 return Err(err);
             }
