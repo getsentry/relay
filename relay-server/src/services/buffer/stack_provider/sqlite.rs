@@ -1,7 +1,7 @@
 use relay_config::Config;
 
 use crate::services::buffer::envelope_stack::StackProvider;
-use crate::services::buffer::envelope_store::sqlite::{
+use crate::services::buffer::sqlite_envelope_store::{
     SqliteEnvelopeStore, SqliteEnvelopeStoreError,
 };
 use crate::{Envelope, SqliteEnvelopeStack};

@@ -36,7 +36,33 @@ impl EnvelopesBuffer {
         }
     }
 
-    // TODO: add push, pop, peek
+    pub async fn push(&mut self, envelope: Box<Envelope>) {
+        match self {
+            Self::Sqlite(buffer) => buffer.push(envelope).await,
+            Self::InMemory(buffer) => buffer.push(envelope).await,
+        }
+    }
+
+    pub async fn peek(&mut self) -> Option<&Envelope> {
+        match self {
+            Self::Sqlite(buffer) => buffer.peek().await,
+            Self::InMemory(buffer) => buffer.peek().await,
+        }
+    }
+
+    pub async fn pop(&mut self) -> Option<Box<Envelope>> {
+        match self {
+            Self::Sqlite(buffer) => buffer.pop().await,
+            Self::InMemory(buffer) => buffer.pop().await,
+        }
+    }
+
+    pub fn mark_ready(&mut self, project: &ProjectKey, is_ready: bool) -> bool {
+        match self {
+            Self::Sqlite(buffer) => buffer.mark_ready(project, is_ready),
+            Self::InMemory(buffer) => buffer.mark_ready(project, is_ready),
+        }
+    }
 }
 
 /// An envelope buffer that holds an individual stack for each project/sampling project combination.

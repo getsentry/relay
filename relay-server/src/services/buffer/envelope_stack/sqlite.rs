@@ -5,9 +5,8 @@ use std::num::NonZeroUsize;
 use std::path::Path;
 
 use futures::StreamExt;
-use sqlx::query::Query;
-use sqlx::sqlite::{SqliteArguments, SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions};
-use sqlx::{Pool, QueryBuilder, Row, Sqlite};
+use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions};
+use sqlx::{Pool, Row, Sqlite};
 use tokio::fs::DirBuilder;
 
 use relay_base_schema::project::ProjectKey;
@@ -232,58 +231,6 @@ impl EnvelopeStack for SqliteEnvelopeStack {
 
         Ok(result)
     }
-}
-
-/// Struct which contains all the rows that have to be inserted in the database when storing an
-/// [`Envelope`].
-struct InsertEnvelope {
-    received_at: i64,
-    own_key: ProjectKey,
-    sampling_key: ProjectKey,
-    encoded_envelope: Vec<u8>,
-}
-
-/// Builds a query that inserts many [`Envelope`]s in the database.
-fn build_insert_many_envelopes<'a>(
-    envelopes: impl Iterator<Item = InsertEnvelope>,
-) -> QueryBuilder<'a, Sqlite> {
-    let mut builder: QueryBuilder<Sqlite> =
-        QueryBuilder::new("INSERT INTO envelopes (received_at, own_key, sampling_key, envelope) ");
-
-    builder.push_values(envelopes, |mut b, envelope| {
-        b.push_bind(envelope.received_at)
-            .push_bind(envelope.own_key.to_string())
-            .push_bind(envelope.sampling_key.to_string())
-            .push_bind(envelope.encoded_envelope);
-    });
-
-    builder
-}
-
-/// Builds a query that deletes many [`Envelope`] from the database.
-pub fn build_delete_and_fetch_many_envelopes<'a>(
-    own_key: ProjectKey,
-    project_key: ProjectKey,
-    limit: i64,
-) -> Query<'a, Sqlite, SqliteArguments<'a>> {
-    sqlx::query(
-        "DELETE FROM
-            envelopes
-         WHERE id IN (SELECT id FROM envelopes WHERE own_key = ? AND sampling_key = ?
-            ORDER BY received_at DESC LIMIT ?)
-         RETURNING
-            received_at, own_key, sampling_key, envelope",
-    )
-    .bind(own_key.to_string())
-    .bind(project_key.to_string())
-    .bind(limit)
-}
-
-/// Computes the `received_at` timestamps of an [`Envelope`] based on the `start_time` header.
-///
-/// This method has been copied from the `ManagedEnvelope.received_at()` method.
-fn received_at(envelope: &Envelope) -> i64 {
-    relay_common::time::instant_to_date_time(envelope.meta().start_time()).timestamp_millis()
 }
 
 #[cfg(test)]

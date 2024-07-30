@@ -2,15 +2,15 @@ use std::error::Error;
 use std::iter;
 use std::path::Path;
 use std::pin::pin;
-use std::sync::Arc;
 
+use futures::stream::StreamExt;
 use sqlx::migrate::MigrateError;
 use sqlx::query::Query;
 use sqlx::sqlite::{
     SqliteArguments, SqliteAutoVacuum, SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions,
     SqliteRow, SqliteSynchronous,
 };
-use sqlx::{Pool, QueryBuilder, Sqlite};
+use sqlx::{Pool, QueryBuilder, Row, Sqlite};
 use tokio::fs::DirBuilder;
 
 use relay_base_schema::project::ProjectKey;
@@ -18,7 +18,6 @@ use relay_config::Config;
 
 use crate::extractors::StartTime;
 use crate::services::buffer::envelope_stack::sqlite::SqliteEnvelopeStackError;
-use crate::services::buffer::envelope_store::EnvelopeStore;
 use crate::Envelope;
 
 struct InsertEnvelope {
@@ -171,10 +170,10 @@ impl SqliteEnvelopeStore {
         Ok(())
     }
 
-    async fn insert_many(
+    pub async fn insert_many(
         &mut self,
         envelopes: impl Iterator<Item = InsertEnvelope>,
-    ) -> Result<(), Self::Error> {
+    ) -> Result<(), SqliteEnvelopeStoreError> {
         if let Err(err) = build_insert_many_envelopes(envelopes)
             .build()
             .execute(&self.db)
@@ -191,7 +190,7 @@ impl SqliteEnvelopeStore {
         Ok(())
     }
 
-    async fn delete_many(
+    pub async fn delete_many(
         &mut self,
         own_key: ProjectKey,
         sampling_key: ProjectKey,
@@ -206,11 +205,7 @@ impl SqliteEnvelopeStore {
             return Ok(vec![]);
         }
 
-        // We use a sorted vector to order envelopes that are deleted from the database.
-        // Unfortunately we have to do this because SQLite `DELETE` with `RETURNING` doesn't
-        // return deleted rows in a specific order.
         let mut extracted_envelopes = Vec::with_capacity(limit as usize);
-        let mut db_error = None;
         while let Some(envelope) = envelopes.as_mut().next().await {
             let envelope = match envelope {
                 Ok(envelope) => envelope,
@@ -219,8 +214,6 @@ impl SqliteEnvelopeStore {
                         error = &err as &dyn Error,
                         "failed to unspool the envelopes from the disk",
                     );
-                    db_error = Some(err);
-
                     continue;
                 }
             };
@@ -239,19 +232,21 @@ impl SqliteEnvelopeStore {
         }
 
         // We sort envelopes by `received_at`.
+        // Unfortunately we have to do this because SQLite `DELETE` with `RETURNING` doesn't
+        // return deleted rows in a specific order.
         extracted_envelopes.sort_by_key(|a| a.received_at());
 
         Ok(extracted_envelopes)
     }
 
-    async fn project_keys_pairs(
+    pub async fn project_keys_pairs(
         &self,
     ) -> Result<impl Iterator<Item = (String, String)>, SqliteEnvelopeStoreError> {
         // TODO: implement.
         Ok(iter::empty())
     }
 
-    async fn used_size(&self) -> Result<i64, SqliteEnvelopeStoreError> {
+    pub async fn used_size(&self) -> Result<i64, SqliteEnvelopeStoreError> {
         // TODO: implement.
         Ok(10)
     }
