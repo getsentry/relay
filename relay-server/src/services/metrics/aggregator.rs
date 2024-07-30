@@ -1,15 +1,16 @@
-use hashbrown::HashMap;
 use std::time::Duration;
+
+use hashbrown::HashMap;
 
 use relay_base_schema::project::ProjectKey;
 use relay_config::AggregatorServiceConfig;
+use relay_metrics::{aggregator, Bucket};
 use relay_system::{
     AsyncResponse, Controller, FromMessage, Interface, NoResponse, Recipient, Sender, Service,
     Shutdown,
 };
 
 use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
-use relay_metrics::{aggregator, Bucket};
 
 /// Aggregator for metric buckets.
 ///

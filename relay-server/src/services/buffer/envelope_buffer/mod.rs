@@ -10,9 +10,9 @@ use relay_config::Config;
 
 use crate::envelope::Envelope;
 use crate::services::buffer::envelope_stack::memory::MemoryEnvelopeStack;
-use crate::services::buffer::envelope_stack::sqlite::SqliteStackProvider;
-use crate::services::buffer::envelope_stack::EnvelopeStack;
+use crate::services::buffer::envelope_stack::{EnvelopeStack, StackProvider};
 use crate::services::buffer::stack_provider::memory::MemoryStackProvider;
+use crate::services::buffer::stack_provider::sqlite::SqliteStackProvider;
 use crate::SqliteEnvelopeStack;
 
 /// Creates a memory or disk based [`EnvelopesBuffer`], depending on the given config.
@@ -29,9 +29,9 @@ pub enum EnvelopesBuffer {
 }
 
 impl EnvelopesBuffer {
-    pub fn from_config(config: &Config) -> Self {
+    pub async fn from_config(config: &Config) -> Self {
         match config.spool_envelopes_path() {
-            Some(path) => Self::Sqlite(InnerEnvelopesBuffer::<SqliteEnvelopeStack>::new(path)),
+            Some(_) => Self::Sqlite(InnerEnvelopesBuffer::<SqliteEnvelopeStack>::new(config).await),
             None => Self::InMemory(InnerEnvelopesBuffer::<MemoryEnvelopeStack>::new()),
         }
     }
@@ -64,11 +64,12 @@ impl InnerEnvelopesBuffer<MemoryEnvelopeStack> {
 }
 impl InnerEnvelopesBuffer<SqliteEnvelopeStack> {
     /// Creates an empty buffer.
-    pub fn new(config: Arc<Config>) -> Self {
+    pub async fn new(config: &Config) -> Self {
         Self {
             stacks_by_project: Default::default(),
             priority_queue: Default::default(),
-            stack_provider: SqliteStackProvider::new(config),
+            // TODO: handle error.
+            stack_provider: SqliteStackProvider::new(config).await.unwrap(),
         }
     }
 }
@@ -80,7 +81,7 @@ impl<S: EnvelopeStack> InnerEnvelopesBuffer<S> {
         let previous_entry = self.priority_queue.push(
             QueueItem {
                 key: stack_key,
-                value: S::new(envelope),
+                value: self.stack_provider.create_stack(envelope),
             },
             Priority::new(received_at),
         );

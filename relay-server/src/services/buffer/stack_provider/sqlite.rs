@@ -1,11 +1,12 @@
+use relay_config::Config;
+
 use crate::services::buffer::envelope_stack::StackProvider;
 use crate::services::buffer::envelope_store::sqlite::{
     SqliteEnvelopeStore, SqliteEnvelopeStoreError,
 };
-use crate::{Envelope, EnvelopeStack, SqliteEnvelopeStack};
-use relay_config::Config;
-use std::sync::Arc;
+use crate::{Envelope, SqliteEnvelopeStack};
 
+#[derive(Debug)]
 pub struct SqliteStackProvider {
     envelope_store: SqliteEnvelopeStore,
     disk_batch_size: usize,
@@ -14,7 +15,7 @@ pub struct SqliteStackProvider {
 
 impl SqliteStackProvider {
     /// Creates a new [`SqliteStackProvider`] from the provided path to the SQLite database file.
-    pub async fn new(config: Arc<Config>) -> Result<Self, SqliteEnvelopeStoreError> {
+    pub async fn new(config: &Config) -> Result<Self, SqliteEnvelopeStoreError> {
         // TODO: error handling
         let envelope_store = SqliteEnvelopeStore::prepare(config).await?;
         Ok(Self {

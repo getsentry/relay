@@ -1,7 +1,8 @@
 use crate::services::buffer::envelope_stack::memory::MemoryEnvelopeStack;
 use crate::services::buffer::envelope_stack::StackProvider;
-use crate::{Envelope, EnvelopeStack};
+use crate::Envelope;
 
+#[derive(Debug)]
 pub struct MemoryStackProvider;
 
 impl StackProvider for MemoryStackProvider {

@@ -14,7 +14,7 @@ use crate::services::buffer::envelope_buffer::EnvelopesBuffer;
 
 mod envelope_buffer;
 mod envelope_stack;
-mod envelope_store;
+mod sqlite_envelope_store;
 mod stack_provider;
 
 /// Async envelope buffering interface.

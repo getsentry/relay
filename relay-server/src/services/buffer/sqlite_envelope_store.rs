@@ -1,9 +1,9 @@
-use crate::extractors::StartTime;
-use crate::services::buffer::envelope_stack::sqlite::SqliteEnvelopeStackError;
-use crate::services::buffer::envelope_store::EnvelopeStore;
-use crate::Envelope;
-use relay_base_schema::project::ProjectKey;
-use relay_config::Config;
+use std::error::Error;
+use std::iter;
+use std::path::Path;
+use std::pin::pin;
+use std::sync::Arc;
+
 use sqlx::migrate::MigrateError;
 use sqlx::query::Query;
 use sqlx::sqlite::{
@@ -11,12 +11,15 @@ use sqlx::sqlite::{
     SqliteRow, SqliteSynchronous,
 };
 use sqlx::{Pool, QueryBuilder, Sqlite};
-use std::error::Error;
-use std::iter;
-use std::path::Path;
-use std::pin::pin;
-use std::sync::Arc;
 use tokio::fs::DirBuilder;
+
+use relay_base_schema::project::ProjectKey;
+use relay_config::Config;
+
+use crate::extractors::StartTime;
+use crate::services::buffer::envelope_stack::sqlite::SqliteEnvelopeStackError;
+use crate::services::buffer::envelope_store::EnvelopeStore;
+use crate::Envelope;
 
 struct InsertEnvelope {
     received_at: i64,
@@ -71,9 +74,7 @@ impl SqliteEnvelopeStore {
 
     /// Prepares the [`SqliteEnvelopeStore`] by running all the necessary migrations and preparing
     /// the folders where data will be stored.
-    pub async fn prepare(
-        config: Arc<Config>,
-    ) -> Result<SqliteEnvelopeStore, SqliteEnvelopeStoreError> {
+    pub async fn prepare(config: &Config) -> Result<SqliteEnvelopeStore, SqliteEnvelopeStoreError> {
         // If no path is provided, we can't do disk spooling.
         let Some(path) = config.spool_envelopes_path() else {
             return Err(SqliteEnvelopeStoreError::NoFilePath);
@@ -169,16 +170,10 @@ impl SqliteEnvelopeStore {
 
         Ok(())
     }
-}
-
-impl EnvelopeStore for SqliteEnvelopeStore {
-    type Envelope = InsertEnvelope;
-
-    type Error = SqliteEnvelopeStoreError;
 
     async fn insert_many(
         &mut self,
-        envelopes: impl Iterator<Item = Self::Envelope>,
+        envelopes: impl Iterator<Item = InsertEnvelope>,
     ) -> Result<(), Self::Error> {
         if let Err(err) = build_insert_many_envelopes(envelopes)
             .build()
@@ -201,7 +196,7 @@ impl EnvelopeStore for SqliteEnvelopeStore {
         own_key: ProjectKey,
         sampling_key: ProjectKey,
         limit: i64,
-    ) -> Result<Vec<Box<Envelope>>, Self::Error> {
+    ) -> Result<Vec<Box<Envelope>>, SqliteEnvelopeStoreError> {
         let envelopes = build_delete_and_fetch_many_envelopes(own_key, sampling_key, limit)
             .fetch(&self.db)
             .peekable();
@@ -251,12 +246,12 @@ impl EnvelopeStore for SqliteEnvelopeStore {
 
     async fn project_keys_pairs(
         &self,
-    ) -> Result<impl Iterator<Item = (String, String)>, Self::Error> {
+    ) -> Result<impl Iterator<Item = (String, String)>, SqliteEnvelopeStoreError> {
         // TODO: implement.
         Ok(iter::empty())
     }
 
-    async fn used_size(&self) -> Result<i64, Self::Error> {
+    async fn used_size(&self) -> Result<i64, SqliteEnvelopeStoreError> {
         // TODO: implement.
         Ok(10)
     }

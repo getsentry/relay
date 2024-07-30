@@ -1,14 +1,15 @@
 use std::convert::Infallible;
 
-use super::EnvelopeStack;
 use crate::services::buffer::stack_provider::memory::MemoryStackProvider;
 use crate::Envelope;
+
+use super::EnvelopeStack;
 
 #[derive(Debug)]
 pub struct MemoryEnvelopeStack(#[allow(clippy::vec_box)] Vec<Box<Envelope>>);
 
 impl MemoryEnvelopeStack {
-    fn new(envelope: Box<Envelope>) -> Self {
+    pub fn new(envelope: Box<Envelope>) -> Self {
         Self(vec![envelope])
     }
 }

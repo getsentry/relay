@@ -3,6 +3,7 @@
 
 use futures::stream::FuturesUnordered;
 use futures::StreamExt;
+
 use relay_config::{AggregatorServiceConfig, ScopedAggregatorConfig};
 use relay_metrics::MetricNamespace;
 use relay_system::{Addr, NoResponse, Recipient, Service};

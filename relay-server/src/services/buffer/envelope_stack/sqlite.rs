@@ -2,28 +2,19 @@ use std::collections::VecDeque;
 use std::error::Error;
 use std::fmt::Debug;
 use std::num::NonZeroUsize;
-use std::path::{Path, PathBuf};
-use std::pin::pin;
-use std::sync::Arc;
+use std::path::Path;
 
 use futures::StreamExt;
 use sqlx::query::Query;
-use sqlx::sqlite::{
-    SqliteArguments, SqliteAutoVacuum, SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions,
-    SqliteRow, SqliteSynchronous,
-};
+use sqlx::sqlite::{SqliteArguments, SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions};
 use sqlx::{Pool, QueryBuilder, Row, Sqlite};
 use tokio::fs::DirBuilder;
 
 use relay_base_schema::project::ProjectKey;
-use relay_config::Config;
 
 use crate::envelope::Envelope;
-use crate::extractors::StartTime;
 use crate::services::buffer::envelope_stack::{EnvelopeStack, StackProvider};
-use crate::services::buffer::envelope_store::sqlite::SqliteEnvelopeStore;
-use crate::services::buffer::envelope_store::EnvelopeStore;
-use crate::services::buffer::stack_provider::memory::MemoryStackProvider;
+use crate::services::buffer::sqlite_envelope_store::SqliteEnvelopeStore;
 use crate::services::buffer::stack_provider::sqlite::SqliteStackProvider;
 
 /// An error returned when doing an operation on [`SQLiteEnvelopeStack`].
