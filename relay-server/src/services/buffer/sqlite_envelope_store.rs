@@ -16,6 +16,7 @@ use tokio::fs::DirBuilder;
 use relay_base_schema::project::{ParseProjectKeyError, ProjectKey};
 use relay_config::Config;
 
+use crate::envelope::EnvelopeError;
 use crate::extractors::StartTime;
 use crate::Envelope;
 
@@ -27,17 +28,28 @@ pub struct InsertEnvelope {
     encoded_envelope: Vec<u8>,
 }
 
-impl<'a> From<&'a Envelope> for InsertEnvelope {
-    fn from(value: &'a Envelope) -> Self {
+impl<'a> TryFrom<&'a Envelope> for InsertEnvelope {
+    type Error = EnvelopeError;
+
+    fn try_from(value: &'a Envelope) -> Result<Self, Self::Error> {
         let own_key = value.meta().public_key();
         let sampling_key = value.sampling_key().unwrap_or(own_key);
 
-        InsertEnvelope {
+        let encoded_envelope = match value.to_vec() {
+            Ok(encoded_envelope) => encoded_envelope,
+            Err(err) => {
+                relay_log::error!(error = &err as &dyn Error, "failed to serialize envelope",);
+
+                return Err(err);
+            }
+        };
+
+        Ok(InsertEnvelope {
             received_at: value.received_at().timestamp_millis(),
             own_key,
             sampling_key,
-            encoded_envelope: value.to_vec().unwrap(),
-        }
+            encoded_envelope,
+        })
     }
 }
 
@@ -454,7 +466,7 @@ mod tests {
         let envelope_ids: HashSet<EventId> =
             envelopes.iter().filter_map(|e| e.event_id()).collect();
         assert!(envelope_store
-            .insert_many(envelopes.iter().map(|e| e.as_ref().into()))
+            .insert_many(envelopes.iter().map(|e| e.as_ref().try_into().unwrap()))
             .await
             .is_ok());
 
@@ -480,7 +492,7 @@ mod tests {
         // We insert 10 envelopes.
         let envelopes = mock_envelopes(2);
         assert!(envelope_store
-            .insert_many(envelopes.iter().map(|e| e.as_ref().into()))
+            .insert_many(envelopes.iter().map(|e| e.as_ref().try_into().unwrap()))
             .await
             .is_ok());
 
