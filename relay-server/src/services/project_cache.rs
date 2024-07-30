@@ -42,8 +42,6 @@ use crate::services::upstream::UpstreamRelay;
 use crate::statsd::{RelayCounters, RelayGauges, RelayHistograms, RelayTimers};
 use crate::utils::{GarbageDisposal, ManagedEnvelope, MemoryChecker, RetryBackoff, SleepHandle};
 
-const MAX_ENVELOPE_AGE: std::time::Duration = std::time::Duration::from_secs(24 * 60 * 60);
-
 /// Requests a refresh of a project state from one of the available sources.
 ///
 /// The project state is resolved in the following precedence:
@@ -1046,8 +1044,7 @@ impl ProjectCacheBroker {
 
     async fn peek_at_envelope(&mut self, mut peek: Peek<'_>) -> Result<(), EnvelopeBufferError> {
         let envelope = peek.get().await?;
-        // TODO: make envelope age configurable.
-        if envelope.meta().start_time().elapsed() > MAX_ENVELOPE_AGE {
+        if envelope.meta().start_time().elapsed() > self.config.spool_envelopes_max_age() {
             let mut managed_envelope = ManagedEnvelope::new(
                 peek.remove().await?,
                 self.services.outcome_aggregator.clone(),
@@ -1065,6 +1062,7 @@ impl ProjectCacheBroker {
         let project = self.get_or_create_project(project_key);
         let project_state = project.get_cached_state(services.project_cache.clone(), false);
 
+        // Check if project config is enabled.
         let project_info = match project_state {
             ProjectState::Enabled(info) => {
                 peek.mark_ready(&project_key, true);
@@ -1086,6 +1084,7 @@ impl ProjectCacheBroker {
             }
         };
 
+        // Check if sampling config is enabled.
         let sampling_project_info = match sampling_key.map(|sampling_key| {
             (
                 sampling_key,
@@ -1110,6 +1109,7 @@ impl ProjectCacheBroker {
 
         let project = self.get_or_create_project(project_key);
 
+        // Reassign processing groups and proceed to processing.
         for (group, envelope) in ProcessingGroup::split_envelope(*peek.remove().await?) {
             let managed_envelope = ManagedEnvelope::new(
                 envelope,

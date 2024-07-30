@@ -310,7 +310,9 @@ fn queue_envelope(
                 // NOTE: This assumes that a `prefetch` has already been scheduled for both the
                 // envelope's projects. See `handle_check_envelope`.
                 relay_log::trace!("Pushing envelope to V2 buffer");
-                // buffer.check_space_available()?;
+
+                // TODO: Sync-check whether the buffer has capacity.
+                // Otherwise return `QueueFailed`.
                 tokio::spawn(async move {
                     if let Err(e) = buffer.push(envelope.into_envelope()).await {
                         relay_log::error!(

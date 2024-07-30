@@ -14,6 +14,8 @@ use crate::services::buffer::stack_provider::memory::MemoryStackProvider;
 use crate::services::buffer::stack_provider::sqlite::SqliteStackProvider;
 use crate::statsd::RelayCounters;
 
+use stack_key::StackKey;
+
 /// Polymorphic envelope buffering interface.
 ///
 /// The underlying buffer can either be disk-based or memory-based,
@@ -39,6 +41,7 @@ impl PolymorphicEnvelopeBuffer {
         Self::InMemory(EnvelopeBuffer::<MemoryStackProvider>::new())
     }
 
+    /// Adds an envelope to the buffer.
     pub async fn push(&mut self, envelope: Box<Envelope>) -> Result<(), EnvelopeBufferError> {
         match self {
             Self::Sqlite(buffer) => buffer.push(envelope).await,
@@ -48,6 +51,7 @@ impl PolymorphicEnvelopeBuffer {
         Ok(())
     }
 
+    /// Returns a reference to the next-in-line envelope.
     pub async fn peek(&mut self) -> Result<Option<&Envelope>, EnvelopeBufferError> {
         match self {
             Self::Sqlite(buffer) => buffer.peek().await,
@@ -55,6 +59,7 @@ impl PolymorphicEnvelopeBuffer {
         }
     }
 
+    /// Pops the next-in-line envelope.
     pub async fn pop(&mut self) -> Result<Option<Box<Envelope>>, EnvelopeBufferError> {
         let envelope = match self {
             Self::Sqlite(buffer) => buffer.pop().await,
@@ -64,6 +69,9 @@ impl PolymorphicEnvelopeBuffer {
         Ok(envelope)
     }
 
+    /// Marks a project as ready or not ready.
+    ///
+    /// The buffer reprioritizes its envelopes based on this information.
     pub fn mark_ready(&mut self, project: &ProjectKey, is_ready: bool) -> bool {
         match self {
             Self::Sqlite(buffer) => buffer.mark_ready(project, is_ready),
@@ -124,35 +132,6 @@ impl<P: StackProvider> EnvelopeBuffer<P>
 where
     EnvelopeBufferError: std::convert::From<<P::Stack as EnvelopeStack>::Error>,
 {
-    fn push_stack(&mut self, envelope: Box<Envelope>) {
-        let received_at = envelope.meta().start_time();
-        let stack_key = StackKey::from_envelope(&envelope);
-        let previous_entry = self.priority_queue.push(
-            QueueItem {
-                key: stack_key,
-                value: self.stack_provider.create_stack(envelope),
-            },
-            Priority::new(received_at),
-        );
-        debug_assert!(previous_entry.is_none());
-        for project_key in stack_key.iter() {
-            self.stacks_by_project
-                .entry(project_key)
-                .or_default()
-                .insert(stack_key);
-        }
-    }
-
-    fn pop_stack(&mut self, stack_key: StackKey) {
-        for project_key in stack_key.iter() {
-            self.stacks_by_project
-                .get_mut(&project_key)
-                .expect("project_key is missing from lookup")
-                .remove(&stack_key);
-        }
-        self.priority_queue.remove(&stack_key);
-    }
-
     pub async fn push(&mut self, envelope: Box<Envelope>) -> Result<(), EnvelopeBufferError> {
         let received_at = envelope.meta().start_time();
         let stack_key = StackKey::from_envelope(&envelope);
@@ -221,10 +200,10 @@ where
                 self.priority_queue.change_priority_by(stack_key, |stack| {
                     let mut found = false;
                     for (subkey, readiness) in [
-                        (stack_key.0, &mut stack.readiness.0),
-                        (stack_key.1, &mut stack.readiness.1),
+                        (stack_key.lesser(), &mut stack.readiness.0),
+                        (stack_key.greater(), &mut stack.readiness.1),
                     ] {
-                        if &subkey == project {
+                        if subkey == project {
                             found = true;
                             if *readiness != is_ready {
                                 changed = true;
@@ -238,27 +217,72 @@ where
         }
         changed
     }
+
+    fn push_stack(&mut self, envelope: Box<Envelope>) {
+        let received_at = envelope.meta().start_time();
+        let stack_key = StackKey::from_envelope(&envelope);
+        let previous_entry = self.priority_queue.push(
+            QueueItem {
+                key: stack_key,
+                value: self.stack_provider.create_stack(envelope),
+            },
+            Priority::new(received_at),
+        );
+        debug_assert!(previous_entry.is_none());
+        for project_key in stack_key.iter() {
+            self.stacks_by_project
+                .entry(project_key)
+                .or_default()
+                .insert(stack_key);
+        }
+    }
+
+    fn pop_stack(&mut self, stack_key: StackKey) {
+        for project_key in stack_key.iter() {
+            self.stacks_by_project
+                .get_mut(&project_key)
+                .expect("project_key is missing from lookup")
+                .remove(&stack_key);
+        }
+        self.priority_queue.remove(&stack_key);
+    }
 }
 
-#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
-struct StackKey(ProjectKey, ProjectKey);
+mod stack_key {
+    use super::*;
+    /// Sorted stack key.
+    ///
+    /// Contains a pair of project keys. The lower key is always the first
+    /// element in the pair, such that `(k1, k2)` and `(k2, k1)` map to the same
+    /// stack key.
+    #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
+    pub struct StackKey(ProjectKey, ProjectKey);
 
-impl StackKey {
-    fn new(mut key1: ProjectKey, mut key2: ProjectKey) -> Self {
-        if key2 < key1 {
-            std::mem::swap(&mut key1, &mut key2);
+    impl StackKey {
+        pub fn from_envelope(envelope: &Envelope) -> Self {
+            let own_key = envelope.meta().public_key();
+            let sampling_key = envelope.sampling_key().unwrap_or(own_key);
+            Self::new(own_key, sampling_key)
         }
-        Self(key1, key2)
-    }
 
-    fn from_envelope(envelope: &Envelope) -> Self {
-        let own_key = envelope.meta().public_key();
-        let sampling_key = envelope.sampling_key().unwrap_or(own_key);
-        StackKey::new(own_key, sampling_key)
-    }
+        pub fn lesser(&self) -> &ProjectKey {
+            &self.0
+        }
 
-    fn iter(&self) -> impl Iterator<Item = ProjectKey> {
-        std::iter::once(self.0).chain((self.0 != self.1).then_some(self.1))
+        pub fn greater(&self) -> &ProjectKey {
+            &self.1
+        }
+
+        pub fn iter(&self) -> impl Iterator<Item = ProjectKey> {
+            std::iter::once(self.0).chain((self.0 != self.1).then_some(self.1))
+        }
+
+        fn new(mut key1: ProjectKey, mut key2: ProjectKey) -> Self {
+            if key2 < key1 {
+                std::mem::swap(&mut key1, &mut key2);
+            }
+            Self(key1, key2)
+        }
     }
 }
 

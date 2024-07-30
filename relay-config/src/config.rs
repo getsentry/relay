@@ -852,6 +852,10 @@ fn spool_envelopes_stack_max_batches() -> usize {
     2
 }
 
+fn spool_envelopes_max_envelope_delay_secs() -> u64 {
+    24 * 60 * 60
+}
+
 /// Persistent buffering configuration for incoming envelopes.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct EnvelopeSpool {
@@ -879,10 +883,18 @@ pub struct EnvelopeSpool {
     #[serde(default = "spool_envelopes_unspool_interval")]
     unspool_interval: u64,
     /// Number of elements of the envelope stack that are flushed to disk.
-    stack_disk_batch_size: usize,
-    /// Number of batches of size `stack_disk_batch_size` that need to be accumulated before
+    #[serde(default = "spool_envelopes_stack_disk_batch_size")]
+    disk_batch_size: usize,
+    /// Number of batches of size [`Self::disk_batch_size`] that need to be accumulated before
     /// flushing one batch to disk.
-    stack_max_batches: usize,
+    #[serde(default = "spool_envelopes_stack_max_batches")]
+    max_batches: usize,
+    /// Maximum time between receiving the envelope and processing it.
+    ///
+    /// When envelopes spend too much time in the buffer (e.g. because their project cannot be loaded),
+    /// they are dropped. Defaults to 24h.
+    #[serde(default = "spool_envelopes_max_envelope_delay_secs")]
+    max_envelope_delay_secs: u64,
     /// Version of the spooler.
     #[serde(default = "EnvelopeSpoolVersion::default")]
     version: EnvelopeSpoolVersion,
@@ -901,7 +913,7 @@ pub enum EnvelopeSpoolVersion {
     /// Use the envelope buffer, through which all envelopes pass before getting unspooled.
     /// Can be either disk based or memory based.
     ///
-    /// This mode has not been fully stress-tested, do not use in production environments.
+    /// This mode has not yet been stress-tested, do not use in production environments.
     #[serde(rename = "experimental")]
     V2,
 }
@@ -915,8 +927,9 @@ impl Default for EnvelopeSpool {
             max_disk_size: spool_envelopes_max_disk_size(),
             max_memory_size: spool_envelopes_max_memory_size(),
             unspool_interval: spool_envelopes_unspool_interval(), // 100ms
-            stack_disk_batch_size: spool_envelopes_stack_disk_batch_size(),
-            stack_max_batches: spool_envelopes_stack_max_batches(),
+            disk_batch_size: spool_envelopes_stack_disk_batch_size(),
+            max_batches: spool_envelopes_stack_max_batches(),
+            max_envelope_delay_secs: spool_envelopes_max_envelope_delay_secs(),
             version: EnvelopeSpoolVersion::V2,
         }
     }
@@ -2119,13 +2132,13 @@ impl Config {
     /// Number of batches of size `stack_disk_batch_size` that need to be accumulated before
     /// flushing one batch to disk.
     pub fn spool_envelopes_stack_disk_batch_size(&self) -> usize {
-        self.values.spool.envelopes.stack_disk_batch_size
+        self.values.spool.envelopes.disk_batch_size
     }
 
     /// Number of batches of size `stack_disk_batch_size` that need to be accumulated before
     /// flushing one batch to disk.
     pub fn spool_envelopes_stack_max_batches(&self) -> usize {
-        self.values.spool.envelopes.stack_max_batches
+        self.values.spool.envelopes.max_batches
     }
 
     /// Returns `true` if version 2 of the spooling mechanism is used.
@@ -2134,6 +2147,11 @@ impl Config {
             self.values.spool.envelopes.version,
             EnvelopeSpoolVersion::V2
         )
+    }
+
+    /// Returns the time after which we drop envelopes as a [`Duration`] object.
+    pub fn spool_envelopes_max_age(&self) -> Duration {
+        Duration::from_secs(self.values.spool.envelopes.max_envelope_delay_secs)
     }
 
     /// Returns the maximum size of an event payload in bytes.
