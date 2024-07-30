@@ -12,6 +12,7 @@ use crate::services::buffer::envelope_stack::{EnvelopeStack, StackProvider};
 use crate::services::buffer::sqlite_envelope_store::SqliteEnvelopeStoreError;
 use crate::services::buffer::stack_provider::memory::MemoryStackProvider;
 use crate::services::buffer::stack_provider::sqlite::SqliteStackProvider;
+use crate::statsd::RelayCounters;
 
 /// Polymorphic envelope buffering interface.
 ///
@@ -42,7 +43,9 @@ impl PolymorphicEnvelopeBuffer {
         match self {
             Self::Sqlite(buffer) => buffer.push(envelope).await,
             Self::InMemory(buffer) => buffer.push(envelope).await,
-        }
+        }?;
+        relay_statsd::metric!(counter(RelayCounters::BufferEnvelopesWritten) += 1);
+        Ok(())
     }
 
     pub async fn peek(&mut self) -> Result<Option<&Envelope>, EnvelopeBufferError> {
@@ -53,10 +56,12 @@ impl PolymorphicEnvelopeBuffer {
     }
 
     pub async fn pop(&mut self) -> Result<Option<Box<Envelope>>, EnvelopeBufferError> {
-        match self {
+        let envelope = match self {
             Self::Sqlite(buffer) => buffer.pop().await,
             Self::InMemory(buffer) => buffer.pop().await,
-        }
+        }?;
+        relay_statsd::metric!(counter(RelayCounters::BufferEnvelopesRead) += 1);
+        Ok(envelope)
     }
 
     pub fn mark_ready(&mut self, project: &ProjectKey, is_ready: bool) -> bool {

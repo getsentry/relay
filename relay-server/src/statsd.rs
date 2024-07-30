@@ -576,13 +576,13 @@ pub enum RelayCounters {
     ///  - `handling`: Either `"success"` if the envelope was handled correctly, or `"failure"` if
     ///    there was an error or bug.
     EnvelopeRejected,
-    /// Number times the envelope buffer spools to disk.
-    BufferWrites,
-    /// Number times the envelope buffer reads back from disk.
-    BufferReads,
-    /// Number of _envelopes_ the envelope buffer spools to disk.
+    /// Number of times the envelope buffer spools to disk.
+    BufferWritesDisk,
+    /// Number of times the envelope buffer reads back from disk.
+    BufferReadsDisk,
+    /// Number of _envelopes_ the envelope buffer ingests.
     BufferEnvelopesWritten,
-    /// Number of _envelopes_ the envelope buffer reads back from disk.
+    /// Number of _envelopes_ the envelope buffer produces.
     BufferEnvelopesRead,
     /// Number of state changes in the envelope buffer.
     /// This metric is tagged with:
@@ -794,8 +794,8 @@ impl CounterMetric for RelayCounters {
             RelayCounters::EventCorrupted => "event.corrupted",
             RelayCounters::EnvelopeAccepted => "event.accepted",
             RelayCounters::EnvelopeRejected => "event.rejected",
-            RelayCounters::BufferWrites => "buffer.writes",
-            RelayCounters::BufferReads => "buffer.reads",
+            RelayCounters::BufferWritesDisk => "buffer.writes",
+            RelayCounters::BufferReadsDisk => "buffer.reads",
             RelayCounters::BufferEnvelopesWritten => "buffer.envelopes_written",
             RelayCounters::BufferEnvelopesRead => "buffer.envelopes_read",
             RelayCounters::BufferStateTransition => "buffer.state.transition",

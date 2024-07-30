@@ -9,6 +9,7 @@ use crate::services::buffer::envelope_stack::EnvelopeStack;
 use crate::services::buffer::sqlite_envelope_store::{
     SqliteEnvelopeStore, SqliteEnvelopeStoreError,
 };
+use crate::statsd::RelayCounters;
 
 /// An error returned when doing an operation on [`SQLiteEnvelopeStack`].
 #[derive(Debug, thiserror::Error)]
@@ -101,6 +102,8 @@ impl SqliteEnvelopeStack {
             .await
             .map_err(SqliteEnvelopeStackError::EnvelopeStoreError)?;
 
+        relay_statsd::metric!(counter(RelayCounters::BufferWritesDisk) += 1);
+
         // If we successfully spooled to disk, we know that data should be there.
         self.check_disk = true;
 
@@ -124,6 +127,8 @@ impl SqliteEnvelopeStack {
             )
             .await
             .map_err(SqliteEnvelopeStackError::EnvelopeStoreError)?;
+
+        relay_statsd::metric!(counter(RelayCounters::BufferReadsDisk) += 1);
 
         if envelopes.is_empty() {
             // In case no envelopes were unspooled, we will mark the disk as empty until another
