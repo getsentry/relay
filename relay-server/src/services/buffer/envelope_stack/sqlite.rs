@@ -1,18 +1,11 @@
 use std::collections::VecDeque;
-use std::error::Error;
 use std::fmt::Debug;
 use std::num::NonZeroUsize;
-use std::path::Path;
-
-use futures::StreamExt;
-use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions};
-use sqlx::{Pool, Row, Sqlite};
-use tokio::fs::DirBuilder;
 
 use relay_base_schema::project::ProjectKey;
 
 use crate::envelope::Envelope;
-use crate::services::buffer::envelope_stack::{EnvelopeStack, StackProvider};
+use crate::services::buffer::envelope_stack::EnvelopeStack;
 use crate::services::buffer::sqlite_envelope_store::SqliteEnvelopeStore;
 use crate::services::buffer::stack_provider::sqlite::SqliteStackProvider;
 

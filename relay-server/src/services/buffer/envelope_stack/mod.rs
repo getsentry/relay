@@ -6,7 +6,7 @@ pub mod memory;
 pub mod sqlite;
 
 /// A stack-like data structure that holds [`Envelope`]s.
-pub trait EnvelopeStack: Send {
+pub trait EnvelopeStack: Send + std::fmt::Debug {
     /// The error type that is returned when an error is encountered during reading or writing the
     /// [`EnvelopeStack`].
     type Error: std::fmt::Debug;
@@ -27,7 +27,7 @@ pub trait EnvelopeStack: Send {
     fn pop(&mut self) -> impl Future<Output = Result<Option<Box<Envelope>>, Self::Error>>;
 }
 
-pub trait StackProvider {
+pub trait StackProvider: std::fmt::Debug {
     type Stack: EnvelopeStack;
 
     fn create_stack(&self, envelope: Box<Envelope>) -> Self::Stack;

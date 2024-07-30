@@ -72,7 +72,10 @@ impl EnvelopesBuffer {
 #[derive(Debug)]
 struct InnerEnvelopesBuffer<S: EnvelopeStack> {
     /// The central priority queue.
-    priority_queue: priority_queue::PriorityQueue<QueueItem<StackKey, S>, Priority>,
+    priority_queue: priority_queue::PriorityQueue<
+        QueueItem<StackKey, <<S as EnvelopeStack>::Provider as StackProvider>::Stack>,
+        Priority,
+    >,
     /// A lookup table to find all stacks involving a project.
     stacks_by_project: hashbrown::HashMap<ProjectKey, BTreeSet<StackKey>>,
     stack_provider: S::Provider,

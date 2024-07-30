@@ -20,7 +20,7 @@ use crate::extractors::StartTime;
 use crate::services::buffer::envelope_stack::sqlite::SqliteEnvelopeStackError;
 use crate::Envelope;
 
-struct InsertEnvelope {
+pub struct InsertEnvelope {
     received_at: i64,
     own_key: ProjectKey,
     sampling_key: ProjectKey,
