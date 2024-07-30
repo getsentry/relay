@@ -7,7 +7,6 @@ use relay_base_schema::project::ProjectKey;
 use crate::envelope::Envelope;
 use crate::services::buffer::envelope_stack::EnvelopeStack;
 use crate::services::buffer::sqlite_envelope_store::SqliteEnvelopeStore;
-use crate::services::buffer::stack_provider::sqlite::SqliteStackProvider;
 
 /// An error returned when doing an operation on [`SQLiteEnvelopeStack`].
 #[derive(Debug, thiserror::Error)]
@@ -162,8 +161,6 @@ impl SqliteEnvelopeStack {
 
 impl EnvelopeStack for SqliteEnvelopeStack {
     type Error = SqliteEnvelopeStackError;
-
-    type Provider = SqliteStackProvider;
 
     async fn push(&mut self, envelope: Box<Envelope>) -> Result<(), Self::Error> {
         debug_assert!(self.validate_envelope(&envelope));

@@ -9,30 +9,28 @@ use relay_base_schema::project::ProjectKey;
 use relay_config::Config;
 
 use crate::envelope::Envelope;
-use crate::services::buffer::envelope_stack::memory::MemoryEnvelopeStack;
 use crate::services::buffer::envelope_stack::{EnvelopeStack, StackProvider};
 use crate::services::buffer::stack_provider::memory::MemoryStackProvider;
 use crate::services::buffer::stack_provider::sqlite::SqliteStackProvider;
-use crate::SqliteEnvelopeStack;
 
 /// Creates a memory or disk based [`EnvelopesBuffer`], depending on the given config.
 pub fn create(_config: &Config) -> Arc<Mutex<EnvelopesBuffer>> {
     Arc::new(Mutex::new(EnvelopesBuffer::InMemory(
-        InnerEnvelopesBuffer::<MemoryEnvelopeStack>::new(),
+        InnerEnvelopesBuffer::<MemoryStackProvider>::new(),
     )))
 }
 
 #[derive(Debug)]
 pub enum EnvelopesBuffer {
-    InMemory(InnerEnvelopesBuffer<MemoryEnvelopeStack>),
-    Sqlite(InnerEnvelopesBuffer<SqliteEnvelopeStack>),
+    InMemory(InnerEnvelopesBuffer<MemoryStackProvider>),
+    Sqlite(InnerEnvelopesBuffer<SqliteStackProvider>),
 }
 
 impl EnvelopesBuffer {
     pub async fn from_config(config: &Config) -> Self {
         match config.spool_envelopes_path() {
-            Some(_) => Self::Sqlite(InnerEnvelopesBuffer::<SqliteEnvelopeStack>::new(config).await),
-            None => Self::InMemory(InnerEnvelopesBuffer::<MemoryEnvelopeStack>::new()),
+            Some(_) => Self::Sqlite(InnerEnvelopesBuffer::<SqliteStackProvider>::new(config).await),
+            None => Self::InMemory(InnerEnvelopesBuffer::<MemoryStackProvider>::new()),
         }
     }
 
@@ -70,18 +68,15 @@ impl EnvelopesBuffer {
 /// Envelope stacks are organized in a priority queue, and are reprioritized every time an envelope
 /// is pushed, popped, or when a project becomes ready.
 #[derive(Debug)]
-struct InnerEnvelopesBuffer<S: EnvelopeStack> {
+struct InnerEnvelopesBuffer<P: StackProvider> {
     /// The central priority queue.
-    priority_queue: priority_queue::PriorityQueue<
-        QueueItem<StackKey, <<S as EnvelopeStack>::Provider as StackProvider>::Stack>,
-        Priority,
-    >,
+    priority_queue: priority_queue::PriorityQueue<QueueItem<StackKey, P::Stack>, Priority>,
     /// A lookup table to find all stacks involving a project.
     stacks_by_project: hashbrown::HashMap<ProjectKey, BTreeSet<StackKey>>,
-    stack_provider: S::Provider,
+    stack_provider: P,
 }
 
-impl InnerEnvelopesBuffer<MemoryEnvelopeStack> {
+impl InnerEnvelopesBuffer<MemoryStackProvider> {
     /// Creates an empty buffer.
     pub fn new() -> Self {
         Self {
@@ -91,7 +86,7 @@ impl InnerEnvelopesBuffer<MemoryEnvelopeStack> {
         }
     }
 }
-impl InnerEnvelopesBuffer<SqliteEnvelopeStack> {
+impl InnerEnvelopesBuffer<SqliteStackProvider> {
     /// Creates an empty buffer.
     pub async fn new(config: &Config) -> Self {
         Self {
@@ -103,7 +98,7 @@ impl InnerEnvelopesBuffer<SqliteEnvelopeStack> {
     }
 }
 
-impl<S: EnvelopeStack> InnerEnvelopesBuffer<S> {
+impl<P: StackProvider> InnerEnvelopesBuffer<P> {
     fn push_stack(&mut self, envelope: Box<Envelope>) {
         let received_at = envelope.meta().start_time();
         let stack_key = StackKey::from_envelope(&envelope);
@@ -327,7 +322,6 @@ mod tests {
 
     use crate::envelope::{Item, ItemType};
     use crate::extractors::RequestMeta;
-    use crate::services::buffer::envelope_stack::memory::MemoryEnvelopeStack;
 
     use super::*;
 
@@ -356,7 +350,7 @@ mod tests {
 
     #[tokio::test]
     async fn insert_pop() {
-        let mut buffer = InnerEnvelopesBuffer::<MemoryEnvelopeStack>::new();
+        let mut buffer = InnerEnvelopesBuffer::<MemoryStackProvider>::new();
 
         let project_key1 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
         let project_key2 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
@@ -431,7 +425,7 @@ mod tests {
 
     #[tokio::test]
     async fn project_internal_order() {
-        let mut buffer = InnerEnvelopesBuffer::<MemoryEnvelopeStack>::new();
+        let mut buffer = InnerEnvelopesBuffer::<MemoryStackProvider>::new();
 
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
 
@@ -452,7 +446,7 @@ mod tests {
 
     #[tokio::test]
     async fn sampling_projects() {
-        let mut buffer = InnerEnvelopesBuffer::<MemoryEnvelopeStack>::new();
+        let mut buffer = InnerEnvelopesBuffer::<MemoryStackProvider>::new();
 
         let project_key1 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
         let project_key2 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fef").unwrap();

@@ -11,8 +11,6 @@ pub trait EnvelopeStack: Send + std::fmt::Debug {
     /// [`EnvelopeStack`].
     type Error: std::fmt::Debug;
 
-    type Provider: StackProvider;
-
     /// Pushes an [`Envelope`] on top of the stack.
     fn push(&mut self, envelope: Box<Envelope>) -> impl Future<Output = Result<(), Self::Error>>;
 

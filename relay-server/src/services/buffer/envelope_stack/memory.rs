@@ -1,6 +1,5 @@
 use std::convert::Infallible;
 
-use crate::services::buffer::stack_provider::memory::MemoryStackProvider;
 use crate::Envelope;
 
 use super::EnvelopeStack;
@@ -16,8 +15,6 @@ impl MemoryEnvelopeStack {
 
 impl EnvelopeStack for MemoryEnvelopeStack {
     type Error = Infallible;
-
-    type Provider = MemoryStackProvider;
 
     async fn push(&mut self, envelope: Box<Envelope>) -> Result<(), Self::Error> {
         self.0.push(envelope);
