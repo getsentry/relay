@@ -1,6 +1,6 @@
 //! Types for buffering envelopes.
 
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 
 use relay_base_schema::project::ProjectKey;
@@ -39,9 +39,12 @@ pub struct GuardedEnvelopeBuffer {
     /// > [...] when you do want shared access to an IO resource, it is often better to spawn a task to manage the IO resource,
     /// > and to use message passing to communicate with that task.
     backend: tokio::sync::Mutex<PolymorphicEnvelopeBuffer>,
+    /// Used to notify callers of `peek()` of any changes in the buffer.
     notify: tokio::sync::Notify,
+    /// Used to notify callers of `peek()` of any changes in the buffer.
     changed: AtomicBool,
-    inflight_push_count: AtomicUsize,
+    /// Metric that counts how many push operations are waiting.
+    inflight_push_count: AtomicU64,
 }
 
 impl GuardedEnvelopeBuffer {
@@ -55,7 +58,7 @@ impl GuardedEnvelopeBuffer {
                 backend: tokio::sync::Mutex::new(PolymorphicEnvelopeBuffer::from_config(config)),
                 notify: tokio::sync::Notify::new(),
                 changed: AtomicBool::new(true),
-                inflight_push_count: AtomicUsize::new(0),
+                inflight_push_count: AtomicU64::new(0),
             })
         } else {
             None
@@ -77,6 +80,10 @@ impl GuardedEnvelopeBuffer {
             }
             this.inflight_push_count.fetch_sub(1, Ordering::Relaxed);
         });
+    }
+
+    pub fn inflight_push_count(&self) -> u64 {
+        self.inflight_push_count.load(Ordering::Relaxed)
     }
 
     /// Returns a reference to the next-in-line envelope.

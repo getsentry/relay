@@ -1312,6 +1312,7 @@ impl Service for ProjectCacheService {
 
         tokio::spawn(async move {
             let mut ticker = tokio::time::interval(config.cache_eviction_interval());
+            let mut report_ticker = tokio::time::interval(Duration::from_secs(1));
             relay_log::info!("project cache started");
 
             // Channel for async project state responses back into the project cache.
@@ -1445,6 +1446,11 @@ impl Service for ProjectCacheService {
                                 relay_log::error!(error = &e as &dyn std::error::Error, "Failed to peek envelope");
                             }
                         })
+                    }
+                    _ = report_ticker.tick() => {
+                        if let Some(envelope_buffer) = &envelope_buffer {
+                            relay_statsd::metric!(gauge(RelayGauges::BufferPushInFlight) = envelope_buffer.inflight_push_count());
+                        }
                     }
                     else => break,
                 }
