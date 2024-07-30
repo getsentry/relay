@@ -116,13 +116,14 @@ impl EnvelopeBuffer<MemoryStackProvider> {
         }
     }
 }
+
+#[allow(dead_code)]
 impl EnvelopeBuffer<SqliteStackProvider> {
     /// Creates an empty buffer.
     pub async fn new(config: &Config) -> Result<Self, SqliteEnvelopeStoreError> {
         Ok(Self {
             stacks_by_project: Default::default(),
             priority_queue: Default::default(),
-            // TODO: handle error.
             stack_provider: SqliteStackProvider::new(config).await?,
         })
     }

@@ -46,7 +46,7 @@ pub struct SqliteEnvelopeStack {
 }
 
 impl SqliteEnvelopeStack {
-    /// Creates a new empty [`SQLiteEnvelopeStack`].
+    /// Creates a new empty [`SqliteEnvelopeStack`].
     pub fn new(
         envelope_store: SqliteEnvelopeStore,
         disk_batch_size: usize,
@@ -242,7 +242,7 @@ mod tests {
     use super::*;
     use crate::envelope::{Envelope, Item, ItemType};
     use crate::extractors::RequestMeta;
-    use crate::services::buffer::testutils::setup_db;
+    use crate::services::buffer::testutils::utils::setup_db;
 
     fn request_meta() -> RequestMeta {
         let dsn = "https://a94ae32be2584e0bbd7a4cbb95971fee:@sentry.io/42"

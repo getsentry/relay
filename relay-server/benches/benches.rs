@@ -61,7 +61,7 @@ fn benchmark_sqlite_envelope_stack(c: &mut Criterion) {
     let temp_dir = TempDir::new().unwrap();
     let db_path = temp_dir.path().join("test.db");
     let db = setup_db(&db_path);
-    let envelope_store = SqliteEnvelopeStore::new(db);
+    let envelope_store = SqliteEnvelopeStore::new(db.clone());
 
     let runtime = Runtime::new().unwrap();
 

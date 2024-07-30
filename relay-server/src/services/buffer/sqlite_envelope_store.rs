@@ -88,6 +88,10 @@ pub enum SqliteEnvelopeStoreError {
     FileSizeReadFailed(sqlx::Error),
 }
 
+/// Struct that offers access to a SQLite-based store of [`Envelope`]s.
+///
+/// The goal of this struct is to hide away all the complexity of dealing with the database for
+/// reading and writing envelopes.
 #[derive(Debug, Clone)]
 pub struct SqliteEnvelopeStore {
     db: Pool<Sqlite>,
@@ -190,7 +194,7 @@ impl SqliteEnvelopeStore {
         Ok(())
     }
 
-    /// Inserts one or more [`InsertEnvelope`] into the database.
+    /// Inserts one or more envelopes into the database.
     pub async fn insert_many(
         &self,
         envelopes: impl IntoIterator<Item = InsertEnvelope>,
@@ -414,7 +418,7 @@ mod tests {
     use super::*;
     use crate::envelope::{Envelope, Item, ItemType};
     use crate::extractors::RequestMeta;
-    use crate::services::buffer::testutils::setup_db;
+    use crate::services::buffer::testutils::utils::setup_db;
 
     fn request_meta() -> RequestMeta {
         let dsn = "https://a94ae32be2584e0bbd7a4cbb95971fee:@sentry.io/42"

@@ -13,6 +13,7 @@ pub struct SqliteStackProvider {
     max_batches: usize,
 }
 
+#[warn(dead_code)]
 impl SqliteStackProvider {
     /// Creates a new [`SqliteStackProvider`] from the provided path to the SQLite database file.
     pub async fn new(config: &Config) -> Result<Self, SqliteEnvelopeStoreError> {
