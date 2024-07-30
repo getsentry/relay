@@ -25,7 +25,9 @@ use crate::statsd::RelayCounters;
 #[derive(Debug)]
 #[allow(private_interfaces)]
 pub enum PolymorphicEnvelopeBuffer {
+    /// An enveloper buffer that uses in-memory envelopes stacks.
     InMemory(EnvelopeBuffer<MemoryStackProvider>),
+    /// An enveloper buffer that uses sqlite envelopes stacks.
     #[allow(dead_code)]
     Sqlite(EnvelopeBuffer<SqliteStackProvider>),
 }

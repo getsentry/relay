@@ -8,13 +8,13 @@ use relay_config::Config;
 use tokio::sync::MutexGuard;
 
 use crate::envelope::Envelope;
-use crate::services::buffer::envelope_buffer::PolymorphicEnvelopeBuffer;
 use crate::utils::ManagedEnvelope;
 
 pub use envelope_buffer::EnvelopeBufferError;
+pub use envelope_buffer::PolymorphicEnvelopeBuffer;
 pub use envelope_stack::sqlite::SqliteEnvelopeStack; // pub for benchmarks
 pub use envelope_stack::EnvelopeStack; // pub for benchmarks
-pub use sqlite_envelope_store::SqliteEnvelopeStore; // pub for benchmarks
+pub use sqlite_envelope_store::SqliteEnvelopeStore; // pub for benchmarks // pub for benchmarks
 
 mod envelope_buffer;
 mod envelope_stack;
