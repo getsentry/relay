@@ -4,6 +4,8 @@ use std::pin::pin;
 
 use futures::stream::StreamExt;
 use hashbrown::HashSet;
+use relay_base_schema::project::{ParseProjectKeyError, ProjectKey};
+use relay_config::Config;
 use sqlx::migrate::MigrateError;
 use sqlx::query::Query;
 use sqlx::sqlite::{
@@ -12,9 +14,6 @@ use sqlx::sqlite::{
 };
 use sqlx::{Pool, QueryBuilder, Row, Sqlite};
 use tokio::fs::DirBuilder;
-
-use relay_base_schema::project::{ParseProjectKeyError, ProjectKey};
-use relay_config::Config;
 
 use crate::envelope::EnvelopeError;
 use crate::extractors::StartTime;

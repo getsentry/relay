@@ -5,6 +5,7 @@ use std::time::Instant;
 
 use relay_base_schema::project::ProjectKey;
 use relay_config::Config;
+use stack_key::StackKey;
 
 use crate::envelope::Envelope;
 use crate::services::buffer::envelope_stack::sqlite::SqliteEnvelopeStackError;
@@ -13,8 +14,6 @@ use crate::services::buffer::sqlite_envelope_store::SqliteEnvelopeStoreError;
 use crate::services::buffer::stack_provider::memory::MemoryStackProvider;
 use crate::services::buffer::stack_provider::sqlite::SqliteStackProvider;
 use crate::statsd::RelayCounters;
-
-use stack_key::StackKey;
 
 /// Polymorphic envelope buffering interface.
 ///
@@ -85,6 +84,7 @@ impl PolymorphicEnvelopeBuffer {
 pub enum EnvelopeBufferError {
     #[error("sqlite")]
     Sqlite(#[from] SqliteEnvelopeStackError),
+
     #[error("impossible")]
     Impossible(#[from] Infallible),
 }

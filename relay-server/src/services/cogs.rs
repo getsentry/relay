@@ -1,10 +1,9 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use sentry_usage_accountant::{Producer, UsageAccountant, UsageUnit};
-
 use relay_cogs::{CogsMeasurement, CogsRecorder, ResourceId};
 use relay_config::Config;
 use relay_system::{Addr, Controller, FromMessage, Interface, Service};
+use sentry_usage_accountant::{Producer, UsageAccountant, UsageUnit};
 
 #[cfg(feature = "processing")]
 use crate::services::store::{Store, StoreCogs};
