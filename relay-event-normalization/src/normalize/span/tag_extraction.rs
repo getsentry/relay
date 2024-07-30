@@ -220,7 +220,7 @@ pub fn extract_span_tags(event: &Event, spans: &mut [Annotated<Span>], max_tag_v
             match span.measurements.value_mut() {
                 Some(left) => {
                     shared_measurements.iter().for_each(|(key, val)| {
-                        left.insert(key.clone().into(), val.clone().into());
+                        left.insert(key.clone(), val.clone());
                     })
                 }
                 None => span.measurements.set_value(Some(shared_measurements.clone()))
@@ -1714,6 +1714,10 @@ LIMIT 1
                 },
                 "ai_total_tokens_used": Measurement {
                     value: 300.0,
+                    unit: None,
+                },
+                "client_sample_rate": Measurement {
+                    value: 0.1,
                     unit: None,
                 },
             },
