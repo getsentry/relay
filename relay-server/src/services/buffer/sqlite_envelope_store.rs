@@ -17,7 +17,6 @@ use relay_base_schema::project::ProjectKey;
 use relay_config::Config;
 
 use crate::extractors::StartTime;
-use crate::services::buffer::envelope_stack::sqlite::SqliteEnvelopeStackError;
 use crate::Envelope;
 
 pub struct InsertEnvelope {
@@ -53,11 +52,17 @@ pub enum SqliteEnvelopeStoreError {
     #[error("an error occurred while spooling envelopes: {0}")]
     SpoolingError(sqlx::Error),
 
+    #[error("an error occurred while unspooling envelopes: {0}")]
+    UnspoolingError(sqlx::Error),
+
     #[error("no file path for the spool was provided")]
     NoFilePath,
 
     #[error("error during the migration of the database: {0}")]
     MigrationError(MigrateError),
+
+    #[error("error while extracting the envelope from the database")]
+    EnvelopeExtractionError,
 }
 
 #[derive(Debug, Clone)]
@@ -206,6 +211,7 @@ impl SqliteEnvelopeStore {
         }
 
         let mut extracted_envelopes = Vec::with_capacity(limit as usize);
+        let mut db_error = None;
         while let Some(envelope) = envelopes.as_mut().next().await {
             let envelope = match envelope {
                 Ok(envelope) => envelope,
@@ -214,6 +220,8 @@ impl SqliteEnvelopeStore {
                         error = &err as &dyn Error,
                         "failed to unspool the envelopes from the disk",
                     );
+                    db_error = Some(err);
+
                     continue;
                 }
             };
@@ -228,6 +236,15 @@ impl SqliteEnvelopeStore {
                         "failed to extract the envelope unspooled from disk",
                     )
                 }
+            }
+        }
+
+        // If we have no envelopes and there was at least one error, we signal total failure to the
+        // caller. We do this under the assumption that if there are envelopes and failures, we are
+        // fine with just logging the failure and not failing completely.
+        if extracted_envelopes.is_empty() {
+            if let Some(db_error) = db_error {
+                return Err(SqliteEnvelopeStoreError::UnspoolingError(db_error));
             }
         }
 
@@ -253,17 +270,17 @@ impl SqliteEnvelopeStore {
 }
 
 /// Deserializes an [`Envelope`] from a database row.
-fn extract_envelope(row: SqliteRow) -> Result<Box<Envelope>, SqliteEnvelopeStackError> {
+fn extract_envelope(row: SqliteRow) -> Result<Box<Envelope>, SqliteEnvelopeStoreError> {
     let envelope_row: Vec<u8> = row
         .try_get("envelope")
-        .map_err(|_| SqliteEnvelopeStackError::Empty)?;
+        .map_err(SqliteEnvelopeStoreError::UnspoolingError)?;
     let envelope_bytes = bytes::Bytes::from(envelope_row);
-    let mut envelope =
-        Envelope::parse_bytes(envelope_bytes).map_err(|_| SqliteEnvelopeStackError::Empty)?;
+    let mut envelope = Envelope::parse_bytes(envelope_bytes)
+        .map_err(|_| SqliteEnvelopeStoreError::EnvelopeExtractionError)?;
 
     let received_at: i64 = row
         .try_get("received_at")
-        .map_err(|_| SqliteEnvelopeStackError::Empty)?;
+        .map_err(SqliteEnvelopeStoreError::UnspoolingError)?;
     let start_time = StartTime::from_timestamp_millis(received_at as u64);
 
     envelope.set_start_time(start_time.into_inner());

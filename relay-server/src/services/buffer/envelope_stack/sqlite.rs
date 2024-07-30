@@ -6,18 +6,16 @@ use relay_base_schema::project::ProjectKey;
 
 use crate::envelope::Envelope;
 use crate::services::buffer::envelope_stack::EnvelopeStack;
-use crate::services::buffer::sqlite_envelope_store::SqliteEnvelopeStore;
+use crate::services::buffer::sqlite_envelope_store::{
+    SqliteEnvelopeStore, SqliteEnvelopeStoreError,
+};
 
 /// An error returned when doing an operation on [`SQLiteEnvelopeStack`].
 #[derive(Debug, thiserror::Error)]
 pub enum SqliteEnvelopeStackError {
-    /// The stack is empty.
-    #[error("the stack is empty")]
-    Empty,
-
-    /// The database encountered an unexpected error.
-    #[error("a database error occurred")]
-    DatabaseError(#[from] sqlx::Error),
+    /// The envelope store encountered an error.
+    #[error("an error occurred in the envelope store: {0}")]
+    EnvelopeStoreError(#[from] SqliteEnvelopeStoreError),
 }
 
 #[derive(Debug)]
@@ -99,8 +97,10 @@ impl SqliteEnvelopeStack {
         // the buffer are lost. We are doing this on purposes, since if we were to have a
         // database corruption during runtime, and we were to put the values back into the buffer
         // we will end up with an infinite cycle.
-        // TODO: handle error.
-        self.envelope_store.insert_many(envelopes).await.unwrap();
+        self.envelope_store
+            .insert_many(envelopes)
+            .await
+            .map_err(SqliteEnvelopeStackError::EnvelopeStoreError)?;
 
         // If we successfully spooled to disk, we know that data should be there.
         self.check_disk = true;
@@ -116,7 +116,6 @@ impl SqliteEnvelopeStack {
     /// In case an envelope fails deserialization due to malformed data in the database, the affected
     /// envelope will not be unspooled and unspooling will continue with the remaining envelopes.
     async fn unspool_from_disk(&mut self) -> Result<(), SqliteEnvelopeStackError> {
-        // TODO: handle error.
         let envelopes = self
             .envelope_store
             .delete_many(
@@ -125,15 +124,9 @@ impl SqliteEnvelopeStack {
                 self.batch_size.get() as i64,
             )
             .await
-            .unwrap();
+            .map_err(SqliteEnvelopeStackError::EnvelopeStoreError)?;
 
         if envelopes.is_empty() {
-            // If there was a database error and no envelopes have been returned, we assume that we are
-            // in a critical state, so we return an error.
-            // if let Some(db_error) = db_error {
-            //     return Err(SqliteEnvelopeStackError::DatabaseError(db_error));
-            // }
-
             // In case no envelopes were unspooled, we will mark the disk as empty until another
             // round of spooling takes place.
             self.check_disk = false;
@@ -193,11 +186,13 @@ impl EnvelopeStack for SqliteEnvelopeStack {
             self.unspool_from_disk().await?
         }
 
-        Ok(self
+        let last = self
             .batches_buffer
             .back()
             .and_then(|last_batch| last_batch.last())
-            .map(|boxed| boxed.as_ref()))
+            .map(|last_batch| last_batch.as_ref());
+
+        Ok(last)
     }
 
     async fn pop(&mut self) -> Result<Option<Box<Envelope>>, Self::Error> {
@@ -209,6 +204,9 @@ impl EnvelopeStack for SqliteEnvelopeStack {
             self.batches_buffer_size -= 1;
             last_batch.pop()
         });
+        if result.is_none() {
+            return Ok(None);
+        }
 
         // Since we might leave a batch without elements, we want to pop it from the buffer.
         if self
@@ -362,7 +360,7 @@ mod tests {
         let envelope = mock_envelope(Instant::now());
         assert!(matches!(
             stack.push(envelope).await,
-            Err(SqliteEnvelopeStackError::DatabaseError(_))
+            Err(SqliteEnvelopeStackError::EnvelopeStoreError(_))
         ));
 
         // The stack now contains the last of the 3 elements that were added. If we add a new one
@@ -405,7 +403,7 @@ mod tests {
         // We pop with an invalid db.
         assert!(matches!(
             stack.pop().await,
-            Err(SqliteEnvelopeStackError::DatabaseError(_))
+            Err(SqliteEnvelopeStackError::EnvelopeStoreError(_))
         ));
     }
 
@@ -422,10 +420,8 @@ mod tests {
         );
 
         // We pop with no elements.
-        assert!(matches!(
-            stack.pop().await,
-            Err(SqliteEnvelopeStackError::Empty)
-        ));
+        // We pop with no elements.
+        assert!(stack.pop().await.unwrap().is_none());
     }
 
     #[tokio::test]
