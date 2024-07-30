@@ -1,23 +1,19 @@
-//! Types for buffering envelopes.
-use std::sync::atomic::{AtomicBool, Ordering};
-
-use tokio::sync::MutexGuard;
-
 pub use envelope_stack::sqlite::SqliteEnvelopeStack; // pub for benchmarks
 pub use envelope_stack::EnvelopeStack; // pub for benchmarks
-use relay_base_schema::project::ProjectKey;
-use relay_config::Config;
+pub use sqlite_envelope_store::SqliteEnvelopeStore; // pub for benchmarks
 
 use crate::envelope::Envelope;
 use crate::services::buffer::envelope_buffer::PolymorphicEnvelopeBuffer;
+use relay_base_schema::project::ProjectKey;
+use relay_config::Config;
+use std::sync::atomic::{AtomicBool, Ordering};
+use tokio::sync::MutexGuard;
 
 mod envelope_buffer;
 mod envelope_stack;
 mod sqlite_envelope_store;
 mod stack_provider;
 mod testutils;
-
-pub use envelope_buffer::EnvelopeBufferError;
 
 /// Async envelope buffering interface.
 ///

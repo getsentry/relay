@@ -8,7 +8,7 @@ use tempfile::TempDir;
 use tokio::runtime::Runtime;
 
 use relay_base_schema::project::ProjectKey;
-use relay_server::{Envelope, EnvelopeStack, SqliteEnvelopeStack};
+use relay_server::{Envelope, EnvelopeStack, SqliteEnvelopeStack, SqliteEnvelopeStore};
 
 fn setup_db(path: &PathBuf) -> Pool<Sqlite> {
     let options = SqliteConnectOptions::new()
@@ -61,6 +61,7 @@ fn benchmark_sqlite_envelope_stack(c: &mut Criterion) {
     let temp_dir = TempDir::new().unwrap();
     let db_path = temp_dir.path().join("test.db");
     let db = setup_db(&db_path);
+    let envelope_store = SqliteEnvelopeStore::new(db);
 
     let runtime = Runtime::new().unwrap();
 
@@ -84,7 +85,7 @@ fn benchmark_sqlite_envelope_stack(c: &mut Criterion) {
                             });
 
                             let stack = SqliteEnvelopeStack::new(
-                                db.clone(),
+                                envelope_store.clone(),
                                 disk_batch_size,
                                 2,
                                 ProjectKey::parse("e12d836b15bb49d7bbf99e64295d995b").unwrap(),
@@ -120,7 +121,7 @@ fn benchmark_sqlite_envelope_stack(c: &mut Criterion) {
                                 reset_db(db.clone()).await;
 
                                 let mut stack = SqliteEnvelopeStack::new(
-                                    db.clone(),
+                                    envelope_store.clone(),
                                     disk_batch_size,
                                     2,
                                     ProjectKey::parse("e12d836b15bb49d7bbf99e64295d995b").unwrap(),
@@ -160,7 +161,7 @@ fn benchmark_sqlite_envelope_stack(c: &mut Criterion) {
                             });
 
                             let stack = SqliteEnvelopeStack::new(
-                                db.clone(),
+                                envelope_store.clone(),
                                 disk_batch_size,
                                 2,
                                 ProjectKey::parse("e12d836b15bb49d7bbf99e64295d995b").unwrap(),
