@@ -4,7 +4,7 @@ use relay_config::Config;
 use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions};
 use sqlx::{Pool, Sqlite};
 use std::path::PathBuf;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use tempfile::TempDir;
 use tokio::runtime::Runtime;
 
@@ -63,7 +63,9 @@ fn mock_envelope_with_project_key(project_key: &ProjectKey, size: &str) -> Box<E
         payload
     ));
 
-    Envelope::parse_bytes(bytes).unwrap()
+    let mut envelope = Envelope::parse_bytes(bytes).unwrap();
+    envelope.set_start_time(Instant::now());
+    envelope
 }
 
 fn benchmark_sqlite_envelope_stack(c: &mut Criterion) {
@@ -216,8 +218,8 @@ fn benchmark_envelope_buffer(c: &mut Criterion) {
 
     let runtime = Runtime::new().unwrap();
 
-    let num_projects = 1000;
-    let envelopes_per_project = 100;
+    let num_projects = 100000;
+    let envelopes_per_project = 10;
 
     group.throughput(Throughput::Elements(
         num_projects * envelopes_per_project as u64,
@@ -233,7 +235,7 @@ fn benchmark_envelope_buffer(c: &mut Criterion) {
                 let mut envelopes = vec![];
                 for project_key in &project_keys {
                     for _ in 0..envelopes_per_project {
-                        envelopes.push(mock_envelope_with_project_key(project_key, "big"))
+                        envelopes.push(mock_envelope_with_project_key(project_key, "small"))
                     }
                 }
 
