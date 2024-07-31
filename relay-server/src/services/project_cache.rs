@@ -1085,6 +1085,7 @@ impl ProjectCacheBroker {
         };
 
         // Check if sampling config is enabled.
+        // TODO: .filter(|state| state.organization_id == project_info.organization_id);
         let sampling_project_info = match sampling_key.map(|sampling_key| {
             (
                 sampling_key,
@@ -1094,7 +1095,9 @@ impl ProjectCacheBroker {
         }) {
             Some((sampling_key, ProjectState::Enabled(info))) => {
                 peek.mark_ready(&sampling_key, true);
-                Some(info)
+                // Only set if it matches the organization ID. Otherwise treat as if there is
+                // no sampling project.
+                (info.organization_id == project_info.organization_id).then_some(info)
             }
             Some((_, ProjectState::Disabled)) => {
                 // Accept envelope even if its sampling state is disabled:
