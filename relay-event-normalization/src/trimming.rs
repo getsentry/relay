@@ -4,7 +4,7 @@ use relay_event_schema::processor::{
     self, Chunk, ProcessValue, ProcessingAction, ProcessingResult, ProcessingState, Processor,
     ValueType,
 };
-use relay_event_schema::protocol::{Frame, RawStacktrace, Replay};
+use relay_event_schema::protocol::{Frame, RawStacktrace, Replay, Span};
 use relay_protocol::{Annotated, Array, Empty, Meta, Object, RemarkType, Value};
 
 #[derive(Clone, Debug)]
@@ -18,6 +18,7 @@ struct SizeState {
 #[derive(Default)]
 pub struct TrimmingProcessor {
     size_state: Vec<SizeState>,
+    counting_mode: bool,
 }
 
 impl TrimmingProcessor {
@@ -53,6 +54,14 @@ impl TrimmingProcessor {
             .iter()
             .filter_map(|x| x.size_remaining)
             .min()
+    }
+
+    fn should_not_trim(&self, state: &ProcessingState<'_>) -> bool {
+        !state.attrs().trim && !state.attrs().fake_trim
+    }
+
+    fn should_trim(&self, state: &ProcessingState<'_>) -> bool {
+        state.attrs().trim && !state.attrs().fake_trim
     }
 }
 
@@ -132,13 +141,15 @@ impl Processor for TrimmingProcessor {
             trim_string(value, meta, max_chars, state.attrs().max_chars_allowance);
         }
 
-        if !state.attrs().trim {
+        if self.should_not_trim(state) {
             return Ok(());
         }
 
-        if let Some(size_state) = self.size_state.last() {
-            if let Some(size_remaining) = size_state.size_remaining {
-                trim_string(value, meta, size_remaining, 0);
+        if self.should_trim(state) {
+            if let Some(size_state) = self.size_state.last() {
+                if let Some(size_remaining) = size_state.size_remaining {
+                    trim_string(value, meta, size_remaining, 0);
+                }
             }
         }
 
@@ -154,7 +165,7 @@ impl Processor for TrimmingProcessor {
     where
         T: ProcessValue,
     {
-        if !state.attrs().trim {
+        if self.should_not_trim(state) {
             return Ok(());
         }
 
@@ -177,12 +188,14 @@ impl Processor for TrimmingProcessor {
                 processor::process_value(item, self, &item_state)?;
             }
 
-            if let Some(split_index) = split_index {
-                let _ = value.split_off(split_index);
-            }
+            if self.should_trim(state) {
+                if let Some(split_index) = split_index {
+                    let _ = value.split_off(split_index);
+                }
 
-            if value.len() != original_length {
-                meta.set_original_length(Some(original_length));
+                if value.len() != original_length {
+                    meta.set_original_length(Some(original_length));
+                }
             }
         } else {
             value.process_child_values(self, state)?;
@@ -200,7 +213,7 @@ impl Processor for TrimmingProcessor {
     where
         T: ProcessValue,
     {
-        if !state.attrs().trim {
+        if self.should_not_trim(state) {
             return Ok(());
         }
 
@@ -223,12 +236,14 @@ impl Processor for TrimmingProcessor {
                 processor::process_value(item, self, &item_state)?;
             }
 
-            if let Some(split_key) = split_key {
-                let _ = value.split_off(&split_key);
-            }
+            if self.should_trim(state) {
+                if let Some(split_key) = split_key {
+                    let _ = value.split_off(&split_key);
+                }
 
-            if value.len() != original_length {
-                meta.set_original_length(Some(original_length));
+                if value.len() != original_length {
+                    meta.set_original_length(Some(original_length));
+                }
             }
         } else {
             value.process_child_values(self, state)?;
@@ -243,7 +258,7 @@ impl Processor for TrimmingProcessor {
         _meta: &mut Meta,
         state: &ProcessingState<'_>,
     ) -> ProcessingResult {
-        if !state.attrs().trim {
+        if self.should_not_trim(state) {
             return Ok(());
         }
 
@@ -278,7 +293,7 @@ impl Processor for TrimmingProcessor {
         _meta: &mut Meta,
         state: &ProcessingState<'_>,
     ) -> ProcessingResult {
-        if !state.attrs().trim {
+        if self.should_not_trim(state) {
             return Ok(());
         }
 
@@ -944,8 +959,10 @@ mod tests {
 
     #[test]
     fn test_too_many_spans_trimmed() {
+        let long_platform = "a".repeat(1024 * 100);
+
         let span = Span {
-            platform: Annotated::new("a".repeat(1024 * 100)),
+            platform: Annotated::new(long_platform.clone()),
             ..Default::default()
         };
         let spans = std::iter::repeat_with(|| Annotated::new(span.clone()))
@@ -960,7 +977,17 @@ mod tests {
         let mut processor = TrimmingProcessor::new();
         processor::process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
-        assert_eq!(event.0.unwrap().spans.0.unwrap().len(), 8);
+        // We check that all the spans that were kept have no trimmed fields.
+        let trimmed_spans = event.clone().0.unwrap().spans.0.unwrap();
+        assert_eq!(trimmed_spans.len(), 8);
+        for trimmed_span in trimmed_spans {
+            let platform = trimmed_span.value().unwrap().platform.value().unwrap();
+            assert_eq!(long_platform, *platform);
+        }
+
+        // We check that the meta on spans is preserved signaling that we originally had 10
+        // elements.
+        assert_eq!(event.0.unwrap().spans.meta().original_length().unwrap(), 10);
     }
 
     #[test]

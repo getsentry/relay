@@ -130,6 +130,8 @@ pub struct FieldAttrs {
     pub retain: bool,
     /// Whether the trimming processor is allowed to shorten or drop this field.
     pub trim: bool,
+    /// Whether to run all the trimming logic but not trimming the content.
+    pub fake_trim: bool,
 }
 
 /// A set of characters allowed or denied for a (string) field.
@@ -170,6 +172,7 @@ impl FieldAttrs {
             pii: Pii::False,
             retain: false,
             trim: true,
+            fake_trim: false,
         }
     }
 
