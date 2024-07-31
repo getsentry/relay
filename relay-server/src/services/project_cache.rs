@@ -1045,8 +1045,9 @@ impl ProjectCacheBroker {
     async fn peek_at_envelope(&mut self, mut peek: Peek<'_>) -> Result<(), EnvelopeBufferError> {
         let envelope = peek.get().await?;
         if envelope.meta().start_time().elapsed() > self.config.spool_envelopes_max_age() {
+            let popped_envelope = peek.remove().await?;
             let mut managed_envelope = ManagedEnvelope::new(
-                peek.remove().await?,
+                popped_envelope,
                 self.services.outcome_aggregator.clone(),
                 self.services.test_store.clone(),
                 ProcessingGroup::Ungrouped,
@@ -1069,8 +1070,9 @@ impl ProjectCacheBroker {
                 info
             }
             ProjectState::Disabled => {
+                let popped_envelope = peek.remove().await?;
                 let mut managed_envelope = ManagedEnvelope::new(
-                    peek.remove().await?,
+                    popped_envelope,
                     self.services.outcome_aggregator.clone(),
                     self.services.test_store.clone(),
                     ProcessingGroup::Ungrouped,
@@ -1113,7 +1115,8 @@ impl ProjectCacheBroker {
         let project = self.get_or_create_project(project_key);
 
         // Reassign processing groups and proceed to processing.
-        for (group, envelope) in ProcessingGroup::split_envelope(*peek.remove().await?) {
+        let popped_envelope = peek.remove().await?;
+        for (group, envelope) in ProcessingGroup::split_envelope(*popped_envelope) {
             let managed_envelope = ManagedEnvelope::new(
                 envelope,
                 services.outcome_aggregator.clone(),
