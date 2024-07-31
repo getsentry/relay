@@ -30,6 +30,10 @@ pub enum RelayGauges {
     ///
     /// This corresponds to the number of corresponding tokio tasks currently scheduled or running.
     BufferPushInFlight,
+    /// The number of individual stacks in the priority queue.
+    ///
+    /// Per combination of `(own_key, sampling_key)`, a new stack is created.
+    BufferStackCount,
     /// The currently used memory by the entire system.
     ///
     /// Relay uses the same value for its memory health check.
@@ -55,6 +59,7 @@ impl GaugeMetric for RelayGauges {
             RelayGauges::BufferEnvelopesDiskCount => "buffer.envelopes_disk_count",
             RelayGauges::BufferPeriodicUnspool => "buffer.unspool.periodic",
             RelayGauges::BufferPushInFlight => "buffer.push_inflight",
+            RelayGauges::BufferStackCount => "buffer.stack_count",
             RelayGauges::SystemMemoryUsed => "health.system_memory.used",
             RelayGauges::SystemMemoryTotal => "health.system_memory.total",
             #[cfg(feature = "processing")]
