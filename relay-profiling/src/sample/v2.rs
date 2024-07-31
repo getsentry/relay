@@ -35,8 +35,16 @@ pub struct ProfileMetadata {
     pub platform: String,
     pub release: String,
 
+    pub client_sdk: ClientSdk,
+
     /// Hard-coded string containing "2" to indicate the format version.
     pub version: Version,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ClientSdk {
+    name: String,
+    version: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

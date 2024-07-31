@@ -5,6 +5,10 @@
   "timestamp": 1710805688.237,
   "release": "0.1 (199)",
   "platform": "cocoa",
+  "client_sdk": {
+    "name": "sentry-cocoa",
+    "version": "7.6.1"
+  },
   "profile": {
     "samples": [
       {
