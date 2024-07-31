@@ -4,7 +4,7 @@ use relay_event_schema::processor::{
     self, Chunk, ProcessValue, ProcessingAction, ProcessingResult, ProcessingState, Processor,
     ValueType,
 };
-use relay_event_schema::protocol::{Frame, RawStacktrace, Replay, Span};
+use relay_event_schema::protocol::{Frame, RawStacktrace, Replay};
 use relay_protocol::{Annotated, Array, Empty, Meta, Object, RemarkType, Value};
 
 #[derive(Clone, Debug)]
@@ -412,12 +412,11 @@ fn slim_frame_data(frames: &mut Array<Frame>, frame_allowance: usize) {
 mod tests {
     use std::iter::repeat;
 
-    use chrono::DateTime;
     use relay_event_schema::protocol::{
         Breadcrumb, Context, Contexts, Event, Exception, ExtraValue, Span, SpanId, TagEntry, Tags,
         Timestamp, TraceId, Values,
     };
-    use relay_protocol::{get_value, Map, Remark, SerializableAnnotated};
+    use relay_protocol::{Map, Remark, SerializableAnnotated};
     use similar_asserts::assert_eq;
 
     use crate::MaxChars;
@@ -963,94 +962,5 @@ mod tests {
         // We check that the meta on spans is preserved signaling that we originally had 10
         // elements.
         assert_eq!(event.0.unwrap().spans.meta().original_length().unwrap(), 10);
-    }
-
-    #[test]
-    fn test_untrimmable_fields() {
-        let original_description = "a".repeat(819163);
-        let original_trace_id = TraceId("b".repeat(48));
-        let mut event = Annotated::new(Event {
-            spans: Annotated::new(vec![
-                Span {
-                    description: original_description.clone().into(),
-                    ..Default::default()
-                }
-                .into(),
-                Span {
-                    trace_id: original_trace_id.clone().into(),
-                    ..Default::default()
-                }
-                .into(),
-            ]),
-            ..Default::default()
-        });
-
-        let mut processor = TrimmingProcessor::new();
-        processor::process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
-
-        assert_eq!(
-            get_value!(event.spans[0].description!),
-            &original_description
-        );
-        // Trace ID would be trimmed without `trim = "false"`
-        assert_eq!(get_value!(event.spans[1].trace_id!), &original_trace_id);
-    }
-
-    #[test]
-    fn test_untrimmable_fields_drop() {
-        let original_description = "a".repeat(819164);
-        let original_span_id = SpanId("b".repeat(48));
-        let original_trace_id = TraceId("c".repeat(48));
-        let original_segment_id = SpanId("d".repeat(48));
-        let original_op = "e".repeat(129);
-
-        let mut event = Annotated::new(Event {
-            spans: Annotated::new(vec![
-                Span {
-                    description: original_description.clone().into(),
-                    ..Default::default()
-                }
-                .into(),
-                Span {
-                    span_id: original_span_id.clone().into(),
-                    trace_id: original_trace_id.clone().into(),
-                    segment_id: original_segment_id.clone().into(),
-                    is_segment: false.into(),
-                    op: original_op.clone().into(),
-                    start_timestamp: Timestamp(
-                        DateTime::parse_from_rfc3339("1996-12-19T16:39:57Z")
-                            .unwrap()
-                            .into(),
-                    )
-                    .into(),
-                    timestamp: Timestamp(
-                        DateTime::parse_from_rfc3339("1996-12-19T16:39:58Z")
-                            .unwrap()
-                            .into(),
-                    )
-                    .into(),
-                    ..Default::default()
-                }
-                .into(),
-            ]),
-            ..Default::default()
-        });
-
-        let mut processor = TrimmingProcessor::new();
-        processor::process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
-
-        assert_eq!(
-            get_value!(event.spans[0].description!),
-            &original_description
-        );
-        // These fields would be dropped without `trim = "false"`
-        assert_eq!(get_value!(event.spans[1].span_id!), &original_span_id);
-        assert_eq!(get_value!(event.spans[1].trace_id!), &original_trace_id);
-        assert_eq!(get_value!(event.spans[1].segment_id!), &original_segment_id);
-        assert_eq!(get_value!(event.spans[1].is_segment!), &false);
-        // span.op is trimmed to its max_chars, but not dropped:
-        assert_eq!(get_value!(event.spans[1].op!).len(), 128);
-        assert!(get_value!(event.spans[1].start_timestamp).is_some());
-        assert!(get_value!(event.spans[1].timestamp).is_some());
     }
 }

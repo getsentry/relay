@@ -639,17 +639,6 @@ fn parse_field_attributes(
                                         panic!("Got non string literal for retain");
                                     }
                                 }
-                            } else if ident == "trim" {
-                                match name_value.lit {
-                                    Lit::Str(litstr) => match litstr.value().as_str() {
-                                        "true" => rv.trim = None,
-                                        "false" => rv.trim = Some(false),
-                                        other => panic!("Unknown value {other}"),
-                                    },
-                                    _ => {
-                                        panic!("Got non string literal for trim");
-                                    }
-                                }
                             } else if ident == "legacy_alias" || ident == "skip_serialization" {
                                 // Skip
                             } else {
