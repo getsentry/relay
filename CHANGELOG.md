@@ -9,7 +9,8 @@
 **Internal**:
 
 - Add `EnvelopeStack` and `SQLiteEnvelopeStack` to manage envelopes on disk. ([#3855](https://github.com/getsentry/relay/pull/3855))
-- Add `client_sample_rate` to spans, pulled from the trace context ([#3872](https://github.com/getsentry/relay/pull/3872)).
+- Add `client_sample_rate` to spans, pulled from the trace context. ([#3872](https://github.com/getsentry/relay/pull/3872))
+- Collect SDK information in profile chunks. ([#3882](https://github.com/getsentry/relay/pull/3882))
 
 
 ## 24.7.1
