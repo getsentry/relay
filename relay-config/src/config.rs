@@ -896,7 +896,7 @@ pub struct EnvelopeSpool {
     #[serde(default = "spool_envelopes_max_envelope_delay_secs")]
     max_envelope_delay_secs: u64,
     /// Version of the spooler.
-    #[serde(default = "EnvelopeSpoolVersion::default")]
+    #[serde(default)]
     version: EnvelopeSpoolVersion,
 }
 
