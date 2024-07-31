@@ -1,6 +1,6 @@
 //! Types for buffering envelopes.
 
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
 use relay_base_schema::project::ProjectKey;
@@ -38,11 +38,10 @@ pub struct GuardedEnvelopeBuffer {
     /// >  The primary use case for the async mutex is to provide shared mutable access to IO resources such as a database connection.
     /// > [...] when you do want shared access to an IO resource, it is often better to spawn a task to manage the IO resource,
     /// > and to use message passing to communicate with that task.
-    backend: tokio::sync::Mutex<PolymorphicEnvelopeBuffer>,
+    inner: tokio::sync::Mutex<Inner>,
     /// Used to notify callers of `peek()` of any changes in the buffer.
     notify: tokio::sync::Notify,
-    /// Used to notify callers of `peek()` of any changes in the buffer.
-    changed: AtomicBool,
+
     /// Metric that counts how many push operations are waiting.
     inflight_push_count: AtomicU64,
 }
@@ -55,9 +54,11 @@ impl GuardedEnvelopeBuffer {
     pub fn from_config(config: &Config) -> Option<Self> {
         if config.spool_v2() {
             Some(Self {
-                backend: tokio::sync::Mutex::new(PolymorphicEnvelopeBuffer::from_config(config)),
+                inner: tokio::sync::Mutex::new(Inner {
+                    backend: PolymorphicEnvelopeBuffer::from_config(config),
+                    changed: true,
+                }),
                 notify: tokio::sync::Notify::new(),
-                changed: AtomicBool::new(true),
                 inflight_push_count: AtomicU64::new(0),
             })
         } else {
@@ -92,29 +93,27 @@ impl GuardedEnvelopeBuffer {
     /// until something changes in the buffer.
     pub async fn peek(&self) -> Peek {
         loop {
-            {
-                let mut guard = self.backend.lock().await;
-                if self.changed.load(Ordering::Relaxed) {
-                    match guard.peek().await {
-                        Ok(envelope) => {
-                            if envelope.is_some() {
-                                self.changed.store(false, Ordering::Relaxed);
-                                return Peek {
-                                    guard,
-                                    changed: &self.changed,
-                                    notify: &self.notify,
-                                };
-                            }
+            let mut guard = self.inner.lock().await;
+            if guard.changed {
+                match guard.backend.peek().await {
+                    Ok(envelope) => {
+                        if envelope.is_some() {
+                            guard.changed = false;
+                            return Peek {
+                                guard,
+                                notify: &self.notify,
+                            };
                         }
-                        Err(error) => {
-                            relay_log::error!(
-                                error = &error as &dyn std::error::Error,
-                                "failed to peek envelope"
-                            );
-                        }
-                    };
-                }
+                    }
+                    Err(error) => {
+                        relay_log::error!(
+                            error = &error as &dyn std::error::Error,
+                            "failed to peek envelope"
+                        );
+                    }
+                };
             }
+            drop(guard); // release the lock
             self.notify.notified().await;
         }
     }
@@ -123,23 +122,23 @@ impl GuardedEnvelopeBuffer {
     ///
     /// The buffer reprioritizes its envelopes based on this information.
     pub async fn mark_ready(&self, project_key: &ProjectKey, ready: bool) {
-        let mut guard = self.backend.lock().await;
-        let changed = guard.mark_ready(project_key, ready);
+        let mut guard = self.inner.lock().await;
+        let changed = guard.backend.mark_ready(project_key, ready);
         if changed {
-            self.notify();
+            self.notify(&mut guard);
         }
     }
 
     /// Adds an envelope to the buffer and wakes any waiting consumers.
     async fn push(&self, envelope: Box<Envelope>) -> Result<(), EnvelopeBufferError> {
-        let mut guard = self.backend.lock().await;
-        guard.push(envelope).await?;
-        self.notify();
+        let mut guard = self.inner.lock().await;
+        guard.backend.push(envelope).await?;
+        self.notify(&mut guard);
         Ok(())
     }
 
-    fn notify(&self) {
-        self.changed.store(true, Ordering::Relaxed);
+    fn notify(&self, guard: &mut MutexGuard<Inner>) {
+        guard.changed = true;
         self.notify.notify_waiters();
     }
 }
@@ -148,9 +147,8 @@ impl GuardedEnvelopeBuffer {
 ///
 /// Objects of this type can only exist if the buffer is not empty.
 pub struct Peek<'a> {
-    guard: MutexGuard<'a, PolymorphicEnvelopeBuffer>,
+    guard: MutexGuard<'a, Inner>,
     notify: &'a tokio::sync::Notify,
-    changed: &'a AtomicBool,
 }
 
 impl Peek<'_> {
@@ -158,6 +156,7 @@ impl Peek<'_> {
     pub async fn get(&mut self) -> Result<&Envelope, EnvelopeBufferError> {
         Ok(self
             .guard
+            .backend
             .peek()
             .await?
             .expect("element disappeared while holding lock"))
@@ -170,6 +169,7 @@ impl Peek<'_> {
         self.notify();
         Ok(self
             .guard
+            .backend
             .pop()
             .await?
             .expect("element disappeared while holding lock"))
@@ -180,16 +180,23 @@ impl Peek<'_> {
     /// Since [`Peek`] already has exclusive access to the buffer, it can mark projects as ready
     /// without awaiting the lock.
     pub fn mark_ready(&mut self, project_key: &ProjectKey, ready: bool) {
-        let changed = self.guard.mark_ready(project_key, ready);
+        let changed = self.guard.backend.mark_ready(project_key, ready);
         if changed {
             self.notify();
         }
     }
 
-    fn notify(&self) {
-        self.changed.store(true, Ordering::Relaxed);
+    fn notify(&mut self) {
+        self.guard.changed = true;
         self.notify.notify_waiters();
     }
+}
+
+#[derive(Debug)]
+struct Inner {
+    backend: PolymorphicEnvelopeBuffer,
+    /// Used to notify callers of `peek()` of any changes in the buffer.
+    changed: bool,
 }
 
 #[cfg(test)]
