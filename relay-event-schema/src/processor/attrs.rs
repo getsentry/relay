@@ -128,7 +128,7 @@ pub struct FieldAttrs {
     pub pii: Pii,
     /// Whether additional properties should be retained during normalization.
     pub retain: bool,
-    /// Whether to run all the trimming logic but not trimming the content.
+    /// `true` if the field is allowed to be trimmed.
     pub trim: bool,
 }
 

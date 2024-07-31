@@ -416,7 +416,7 @@ mod tests {
     use relay_event_schema::protocol::{
         Breadcrumb, Context, Contexts, Event, Exception, ExtraValue, Span, TagEntry, Tags, Values,
     };
-    use relay_protocol::{Map, Remark, SerializableAnnotated};
+    use relay_protocol::{get_value, Map, Remark, SerializableAnnotated};
     use similar_asserts::assert_eq;
 
     use crate::MaxChars;
@@ -952,7 +952,7 @@ mod tests {
         processor::process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
         // We check that all the spans that were kept have no trimmed fields.
-        let trimmed_spans = event.clone().0.unwrap().spans.0.unwrap();
+        let trimmed_spans = get_value!(event.spans).unwrap();
         assert_eq!(trimmed_spans.len(), 8);
         for trimmed_span in trimmed_spans {
             let platform = trimmed_span.value().unwrap().platform.value().unwrap();
@@ -961,6 +961,14 @@ mod tests {
 
         // We check that the meta on spans is preserved signaling that we originally had 10
         // elements.
-        assert_eq!(event.0.unwrap().spans.meta().original_length().unwrap(), 10);
+        assert_eq!(
+            get_value!(event)
+                .unwrap()
+                .spans
+                .meta()
+                .original_length()
+                .unwrap(),
+            10
+        );
     }
 }

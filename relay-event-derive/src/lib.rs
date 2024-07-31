@@ -92,11 +92,7 @@ fn derive_process_value(mut s: synstructure::Structure<'_>) -> TokenStream {
         let mut body = TokenStream::new();
         for (index, bi) in variant.bindings().iter().enumerate() {
             let mut field_attrs = parse_field_attributes(index, bi.ast(), &mut is_tuple_struct);
-            // In case the type has the attribute `trim` set to false, we want to inject this
-            // information in the field attributes so that it can be read by the processor.
-            if let TrimmingMode::Disabled = type_attrs.trim {
-                field_attrs.trim = Some(type_attrs.trim);
-            }
+            field_attrs.trim = Some(matches!(type_attrs.trim, TrimmingMode::Enabled));
             let ident = &bi.binding;
             let field_attrs_name = Ident::new(&format!("FIELD_ATTRS_{index}"), Span::call_site());
             let field_name = field_attrs.field_name.clone();
@@ -178,7 +174,7 @@ fn derive_process_value(mut s: synstructure::Structure<'_>) -> TokenStream {
     // In case we have `trim` set on the type, we want to override this field attribute
     // manually.
     let field_attrs = FieldAttrs {
-        trim: Some(type_attrs.trim),
+        trim: Some(matches!(type_attrs.trim, TrimmingMode::Enabled)),
         ..Default::default()
     };
     let field_attrs_tokens = field_attrs.as_tokens(Some(quote!(parent_attrs)));
@@ -240,16 +236,6 @@ enum TrimmingMode {
     #[default]
     Enabled,
     Disabled,
-}
-
-impl ToTokens for TrimmingMode {
-    fn to_tokens(&self, tokens: &mut TokenStream) {
-        match self {
-            TrimmingMode::Enabled => quote!(true),
-            TrimmingMode::Disabled => quote!(false),
-        }
-        .to_tokens(tokens);
-    }
 }
 
 impl FromStr for TrimmingMode {
@@ -388,7 +374,7 @@ struct FieldAttrs {
     max_chars_allowance: Option<TokenStream>,
     max_depth: Option<TokenStream>,
     max_bytes: Option<TokenStream>,
-    trim: Option<TrimmingMode>,
+    trim: Option<bool>,
 }
 
 impl FieldAttrs {
