@@ -1059,14 +1059,14 @@ impl ProjectCacheBroker {
         let sampling_key = envelope.sampling_key();
         let services = self.services.clone();
 
-        let project_key = envelope.meta().public_key();
-        let project = self.get_or_create_project(project_key);
+        let own_key = envelope.meta().public_key();
+        let project = self.get_or_create_project(own_key);
         let project_state = project.get_cached_state(services.project_cache.clone(), false);
 
         // Check if project config is enabled.
         let project_info = match project_state {
             ProjectState::Enabled(info) => {
-                peek.mark_ready(&project_key, true);
+                peek.mark_ready(&own_key, true);
                 info
             }
             ProjectState::Disabled => {
@@ -1081,13 +1081,12 @@ impl ProjectCacheBroker {
                 return Ok(());
             }
             ProjectState::Pending => {
-                peek.mark_ready(&project_key, false);
+                peek.mark_ready(&own_key, false);
                 return Ok(());
             }
         };
 
         // Check if sampling config is enabled.
-        // TODO: .filter(|state| state.organization_id == project_info.organization_id);
         let sampling_project_info = match sampling_key.map(|sampling_key| {
             (
                 sampling_key,
@@ -1112,7 +1111,7 @@ impl ProjectCacheBroker {
             None => None,
         };
 
-        let project = self.get_or_create_project(project_key);
+        let project = self.get_or_create_project(own_key);
 
         // Reassign processing groups and proceed to processing.
         let popped_envelope = peek.remove().await?;
