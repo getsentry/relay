@@ -12,6 +12,7 @@
 
 use proc_macro2::{Span, TokenStream};
 use quote::{quote, ToTokens};
+use std::str::FromStr;
 use syn::{Ident, Lit, Meta, NestedMeta};
 use synstructure::decl_derive;
 
@@ -91,12 +92,11 @@ fn derive_process_value(mut s: synstructure::Structure<'_>) -> TokenStream {
         let mut body = TokenStream::new();
         for (index, bi) in variant.bindings().iter().enumerate() {
             let mut field_attrs = parse_field_attributes(index, bi.ast(), &mut is_tuple_struct);
-            // In case we have `simulate_trim` set on the type, we want to override this field attribute
-            // manually.
-            if type_attrs.simulate_trim {
-                field_attrs.simulate_trim = Some(true);
+            // In case the type has the attribute `trim` set to false, we want to inject this
+            // information in the field attributes so that it can be read by the processor.
+            if let TrimmingMode::Disabled = type_attrs.trim {
+                field_attrs.trim = Some(type_attrs.trim);
             }
-
             let ident = &bi.binding;
             let field_attrs_name = Ident::new(&format!("FIELD_ATTRS_{index}"), Span::call_site());
             let field_name = field_attrs.field_name.clone();
@@ -175,10 +175,10 @@ fn derive_process_value(mut s: synstructure::Structure<'_>) -> TokenStream {
         }
     });
 
-    // In case we have `simulate_trim` set on the type, we want to override this field attribute
+    // In case we have `trim` set on the type, we want to override this field attribute
     // manually.
     let field_attrs = FieldAttrs {
-        simulate_trim: Some(type_attrs.simulate_trim),
+        trim: Some(type_attrs.trim),
         ..Default::default()
     };
     let field_attrs_tokens = field_attrs.as_tokens(Some(quote!(parent_attrs)));
@@ -235,11 +235,42 @@ fn derive_process_value(mut s: synstructure::Structure<'_>) -> TokenStream {
     })
 }
 
+#[derive(Default, Copy, Clone)]
+enum TrimmingMode {
+    #[default]
+    Enabled,
+    Disabled,
+}
+
+impl ToTokens for TrimmingMode {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        match self {
+            TrimmingMode::Enabled => quote!(true),
+            TrimmingMode::Disabled => quote!(false),
+        }
+        .to_tokens(tokens);
+    }
+}
+
+impl FromStr for TrimmingMode {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let trimming_mode = match s {
+            "enabled" => TrimmingMode::Enabled,
+            "disabled" => TrimmingMode::Disabled,
+            _ => return Err(()),
+        };
+
+        Ok(trimming_mode)
+    }
+}
+
 #[derive(Default)]
 struct TypeAttrs {
     process_func: Option<String>,
     value_type: Vec<String>,
-    simulate_trim: bool,
+    trim: TrimmingMode,
 }
 
 impl TypeAttrs {
@@ -301,16 +332,16 @@ fn parse_type_attributes(s: &synstructure::Structure<'_>) -> TypeAttrs {
                                         panic!("Got non string literal for value_type");
                                     }
                                 }
-                            } else if ident == "simulate_trim" {
+                            } else if ident == "trim" {
                                 match name_value.lit {
                                     Lit::Str(litstr) => {
-                                        rv.simulate_trim = litstr
+                                        rv.trim = litstr
                                             .value()
                                             .parse()
-                                            .expect("Got non boolean value for simulate_trim")
+                                            .expect("Got invalid value for trim")
                                     }
                                     _ => {
-                                        panic!("Got non boolean value for simulate_trim");
+                                        panic!("Got invalid value for trim");
                                     }
                                 }
                             }
@@ -357,7 +388,7 @@ struct FieldAttrs {
     max_chars_allowance: Option<TokenStream>,
     max_depth: Option<TokenStream>,
     max_bytes: Option<TokenStream>,
-    simulate_trim: Option<bool>,
+    trim: Option<TrimmingMode>,
 }
 
 impl FieldAttrs {
@@ -401,12 +432,12 @@ impl FieldAttrs {
             quote!(crate::processor::Pii::False)
         };
 
-        let simulate_trim = if let Some(simulate_trim) = self.simulate_trim {
-            quote!(#simulate_trim)
+        let trim = if let Some(trim) = self.trim {
+            quote!(#trim)
         } else if let Some(ref parent_attrs) = inherit_from_field_attrs {
-            quote!(#parent_attrs.simulate_trim)
+            quote!(#parent_attrs.trim)
         } else {
-            quote!(false)
+            quote!(true)
         };
 
         let retain = self.retain;
@@ -464,7 +495,7 @@ impl FieldAttrs {
                 max_bytes: #max_bytes,
                 pii: #pii,
                 retain: #retain,
-                simulate_trim: #simulate_trim
+                trim: #trim
             }
         })
     }

@@ -12,11 +12,7 @@ use crate::protocol::{
 
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
-#[metastructure(
-    process_func = "process_span",
-    value_type = "Span",
-    simulate_trim = "true"
-)]
+#[metastructure(process_func = "process_span", value_type = "Span", trim = "disabled")]
 pub struct Span {
     /// Timestamp when the span was ended.
     #[metastructure(required = "true")]

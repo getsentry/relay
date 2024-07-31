@@ -56,7 +56,7 @@ impl TrimmingProcessor {
     }
 
     fn should_trim(&self, state: &ProcessingState<'_>) -> bool {
-        !state.attrs().simulate_trim
+        state.attrs().trim
     }
 }
 
@@ -88,6 +88,7 @@ impl Processor for TrimmingProcessor {
                 return Err(ProcessingAction::DeleteValueHard);
             }
         }
+
         Ok(())
     }
 
@@ -413,8 +414,7 @@ mod tests {
     use std::iter::repeat;
 
     use relay_event_schema::protocol::{
-        Breadcrumb, Context, Contexts, Event, Exception, ExtraValue, Span, SpanId, TagEntry, Tags,
-        Timestamp, TraceId, Values,
+        Breadcrumb, Context, Contexts, Event, Exception, ExtraValue, Span, TagEntry, Tags, Values,
     };
     use relay_protocol::{Map, Remark, SerializableAnnotated};
     use similar_asserts::assert_eq;

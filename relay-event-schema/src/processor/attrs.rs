@@ -129,7 +129,7 @@ pub struct FieldAttrs {
     /// Whether additional properties should be retained during normalization.
     pub retain: bool,
     /// Whether to run all the trimming logic but not trimming the content.
-    pub simulate_trim: bool,
+    pub trim: bool,
 }
 
 /// A set of characters allowed or denied for a (string) field.
@@ -169,7 +169,7 @@ impl FieldAttrs {
             max_bytes: None,
             pii: Pii::False,
             retain: false,
-            simulate_trim: false,
+            trim: true,
         }
     }
 
