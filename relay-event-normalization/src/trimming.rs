@@ -18,7 +18,6 @@ struct SizeState {
 #[derive(Default)]
 pub struct TrimmingProcessor {
     size_state: Vec<SizeState>,
-    counting_mode: bool,
 }
 
 impl TrimmingProcessor {
@@ -56,12 +55,8 @@ impl TrimmingProcessor {
             .min()
     }
 
-    fn should_not_trim(&self, state: &ProcessingState<'_>) -> bool {
-        !state.attrs().trim && !state.attrs().fake_trim
-    }
-
     fn should_trim(&self, state: &ProcessingState<'_>) -> bool {
-        state.attrs().trim && !state.attrs().fake_trim
+        !state.attrs().simulate_trim
     }
 }
 
@@ -83,7 +78,7 @@ impl Processor for TrimmingProcessor {
             });
         }
 
-        if state.attrs().trim {
+        if self.should_trim(state) {
             if self.remaining_size() == Some(0) {
                 // TODO: Create remarks (ensure they do not bloat event)
                 return Err(ProcessingAction::DeleteValueHard);
@@ -141,10 +136,6 @@ impl Processor for TrimmingProcessor {
             trim_string(value, meta, max_chars, state.attrs().max_chars_allowance);
         }
 
-        if self.should_not_trim(state) {
-            return Ok(());
-        }
-
         if self.should_trim(state) {
             if let Some(size_state) = self.size_state.last() {
                 if let Some(size_remaining) = size_state.size_remaining {
@@ -165,10 +156,6 @@ impl Processor for TrimmingProcessor {
     where
         T: ProcessValue,
     {
-        if self.should_not_trim(state) {
-            return Ok(());
-        }
-
         // If we need to check the bag size, then we go down a different path
         if !self.size_state.is_empty() {
             let original_length = value.len();
@@ -213,10 +200,6 @@ impl Processor for TrimmingProcessor {
     where
         T: ProcessValue,
     {
-        if self.should_not_trim(state) {
-            return Ok(());
-        }
-
         // If we need to check the bag size, then we go down a different path
         if !self.size_state.is_empty() {
             let original_length = value.len();
@@ -258,10 +241,6 @@ impl Processor for TrimmingProcessor {
         _meta: &mut Meta,
         state: &ProcessingState<'_>,
     ) -> ProcessingResult {
-        if self.should_not_trim(state) {
-            return Ok(());
-        }
-
         match value {
             Value::Array(_) | Value::Object(_) => {
                 if self.remaining_depth(state) == Some(1) {
@@ -293,10 +272,6 @@ impl Processor for TrimmingProcessor {
         _meta: &mut Meta,
         state: &ProcessingState<'_>,
     ) -> ProcessingResult {
-        if self.should_not_trim(state) {
-            return Ok(());
-        }
-
         processor::apply(&mut stacktrace.frames, |frames, meta| {
             enforce_frame_hard_limit(frames, meta, 250);
             Ok(())
@@ -1077,34 +1052,5 @@ mod tests {
         assert_eq!(get_value!(event.spans[1].op!).len(), 128);
         assert!(get_value!(event.spans[1].start_timestamp).is_some());
         assert!(get_value!(event.spans[1].timestamp).is_some());
-    }
-
-    #[test]
-    fn test_trim_false_contributes_to_budget() {
-        for span_id in ["short", "looooooooooooooooooooooooooong"] {
-            let original_span_id = SpanId(span_id.to_owned());
-            let original_description = "a".repeat(900000);
-
-            let mut event = Annotated::new(Event {
-                spans: Annotated::new(vec![Span {
-                    span_id: original_span_id.clone().into(),
-                    description: original_description.clone().into(),
-                    ..Default::default()
-                }
-                .into()]),
-                ..Default::default()
-            });
-
-            let mut processor = TrimmingProcessor::new();
-            processor::process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
-
-            assert_eq!(get_value!(event.spans[0].span_id!).as_ref(), span_id);
-
-            // The amount of trimming on the description depends on the length of the span id.
-            assert_eq!(
-                get_value!(event.spans[0].description!).len(),
-                1024 * 800 - 12 - span_id.len(),
-            );
-        }
     }
 }

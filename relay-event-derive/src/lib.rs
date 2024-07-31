@@ -91,10 +91,10 @@ fn derive_process_value(mut s: synstructure::Structure<'_>) -> TokenStream {
         let mut body = TokenStream::new();
         for (index, bi) in variant.bindings().iter().enumerate() {
             let mut field_attrs = parse_field_attributes(index, bi.ast(), &mut is_tuple_struct);
-            // In case we have `fake_trim` set on the type, we want to override this field attribute
+            // In case we have `simulate_trim` set on the type, we want to override this field attribute
             // manually.
-            if type_attrs.fake_trim {
-                field_attrs.fake_trim = Some(true);
+            if type_attrs.simulate_trim {
+                field_attrs.simulate_trim = Some(true);
             }
 
             let ident = &bi.binding;
@@ -175,10 +175,10 @@ fn derive_process_value(mut s: synstructure::Structure<'_>) -> TokenStream {
         }
     });
 
-    // In case we have `fake_trim` set on the type, we want to override this field attribute
+    // In case we have `simulate_trim` set on the type, we want to override this field attribute
     // manually.
     let field_attrs = FieldAttrs {
-        fake_trim: Some(type_attrs.fake_trim),
+        simulate_trim: Some(type_attrs.simulate_trim),
         ..Default::default()
     };
     let field_attrs_tokens = field_attrs.as_tokens(Some(quote!(parent_attrs)));
@@ -239,7 +239,7 @@ fn derive_process_value(mut s: synstructure::Structure<'_>) -> TokenStream {
 struct TypeAttrs {
     process_func: Option<String>,
     value_type: Vec<String>,
-    fake_trim: bool,
+    simulate_trim: bool,
 }
 
 impl TypeAttrs {
@@ -301,16 +301,16 @@ fn parse_type_attributes(s: &synstructure::Structure<'_>) -> TypeAttrs {
                                         panic!("Got non string literal for value_type");
                                     }
                                 }
-                            } else if ident == "fake_trim" {
+                            } else if ident == "simulate_trim" {
                                 match name_value.lit {
                                     Lit::Str(litstr) => {
-                                        rv.fake_trim = litstr
+                                        rv.simulate_trim = litstr
                                             .value()
                                             .parse()
-                                            .expect("Got non boolean value for fake_trim")
+                                            .expect("Got non boolean value for simulate_trim")
                                     }
                                     _ => {
-                                        panic!("Got non boolean value for fake_trim");
+                                        panic!("Got non boolean value for simulate_trim");
                                     }
                                 }
                             }
@@ -357,8 +357,7 @@ struct FieldAttrs {
     max_chars_allowance: Option<TokenStream>,
     max_depth: Option<TokenStream>,
     max_bytes: Option<TokenStream>,
-    trim: Option<bool>,
-    fake_trim: Option<bool>,
+    simulate_trim: Option<bool>,
 }
 
 impl FieldAttrs {
@@ -402,18 +401,10 @@ impl FieldAttrs {
             quote!(crate::processor::Pii::False)
         };
 
-        let trim = if let Some(trim) = self.trim {
-            quote!(#trim)
+        let simulate_trim = if let Some(simulate_trim) = self.simulate_trim {
+            quote!(#simulate_trim)
         } else if let Some(ref parent_attrs) = inherit_from_field_attrs {
-            quote!(#parent_attrs.trim)
-        } else {
-            quote!(true)
-        };
-
-        let fake_trim = if let Some(fake_trim) = self.fake_trim {
-            quote!(#fake_trim)
-        } else if let Some(ref parent_attrs) = inherit_from_field_attrs {
-            quote!(#parent_attrs.fake_trim)
+            quote!(#parent_attrs.simulate_trim)
         } else {
             quote!(false)
         };
@@ -473,8 +464,7 @@ impl FieldAttrs {
                 max_bytes: #max_bytes,
                 pii: #pii,
                 retain: #retain,
-                trim: #trim,
-                fake_trim: #fake_trim
+                simulate_trim: #simulate_trim
             }
         })
     }
