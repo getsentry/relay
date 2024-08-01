@@ -12,7 +12,7 @@ use crate::services::buffer::envelope_stack::{EnvelopeStack, StackProvider};
 use crate::services::buffer::sqlite_envelope_store::SqliteEnvelopeStoreError;
 use crate::services::buffer::stack_provider::memory::MemoryStackProvider;
 use crate::services::buffer::stack_provider::sqlite::SqliteStackProvider;
-use crate::statsd::RelayCounters;
+use crate::statsd::{RelayCounters, RelayGauges};
 
 /// Polymorphic envelope buffering interface.
 ///
@@ -134,6 +134,10 @@ impl<P: StackProvider> EnvelopeBuffer<P>
 where
     EnvelopeBufferError: std::convert::From<<P::Stack as EnvelopeStack>::Error>,
 {
+    /// Pushes an envelope to the appropriate envelope stack and reprioritizes the stack.
+    ///
+    /// If the envelope stack does not exist, a new stack is pushed to the priority queue.
+    /// The priority of the stack is updated with the envelope's received_at time.
     pub async fn push(&mut self, envelope: Box<Envelope>) -> Result<(), EnvelopeBufferError> {
         let received_at = envelope.meta().start_time();
         let stack_key = StackKey::from_envelope(&envelope);
@@ -156,6 +160,7 @@ where
         Ok(())
     }
 
+    /// Returns a reference to the next-in-line envelope, if one exists.
     pub async fn peek(&mut self) -> Result<Option<&Envelope>, EnvelopeBufferError> {
         let Some((
             QueueItem {
@@ -171,6 +176,10 @@ where
         Ok(stack.peek().await?)
     }
 
+    /// Returns the next-in-line envelope, if one exists.
+    ///
+    /// The priority of the envelope's stack is updated with the next envelope's received_at
+    /// time. If the stack is empty after popping, it is removed from the priority queue.
     pub async fn pop(&mut self) -> Result<Option<Box<Envelope>>, EnvelopeBufferError> {
         let Some((QueueItem { key, value: stack }, _)) = self.priority_queue.peek_mut() else {
             return Ok(None);
@@ -195,6 +204,7 @@ where
         Ok(Some(envelope))
     }
 
+    /// Reprioritizes all stacks that involve the given project key by setting it to "ready".
     pub fn mark_ready(&mut self, project: &ProjectKey, is_ready: bool) -> bool {
         let mut changed = false;
         if let Some(stack_keys) = self.stacks_by_project.get(project) {
@@ -240,6 +250,9 @@ where
                 .or_default()
                 .insert(stack_key);
         }
+        relay_statsd::metric!(
+            gauge(RelayGauges::BufferStackCount) = self.priority_queue.len() as u64
+        );
     }
 
     fn pop_stack(&mut self, stack_key: StackKey) {
@@ -250,6 +263,10 @@ where
                 .remove(&stack_key);
         }
         self.priority_queue.remove(&stack_key);
+        
+        relay_statsd::metric!(
+            gauge(RelayGauges::BufferStackCount) = self.priority_queue.len() as u64
+        );
     }
 }
 
