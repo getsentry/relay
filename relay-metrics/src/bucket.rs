@@ -760,6 +760,8 @@ pub struct BucketMetadata {
     /// received in the outermost internal Relay.
     pub received_at: Option<UnixTimestamp>,
 
+    pub sample_rate: Option<f64>,
+
     /// Is `true` if this metric was extracted from a sampled/indexed envelope item.
     ///
     /// The final dynamic sampling decision is always made in processing Relays.
@@ -781,6 +783,7 @@ impl BucketMetadata {
             merges: 1,
             received_at: Some(received_at),
             extracted_from_indexed: false,
+            sample_rate: None,
         }
     }
 
@@ -798,6 +801,10 @@ impl BucketMetadata {
             (left, right) => left.min(right),
         };
     }
+
+    pub fn set_sample_rate(&mut self, sample_rate: f64) {
+        self.sample_rate = Some(sample_rate.clamp(0.0, 1.0));
+    }
 }
 
 impl Default for BucketMetadata {
@@ -806,6 +813,7 @@ impl Default for BucketMetadata {
             merges: 1,
             received_at: None,
             extracted_from_indexed: false,
+            sample_rate: None,
         }
     }
 }
@@ -1482,6 +1490,7 @@ mod tests {
                 merges: 2,
                 received_at: None,
                 extracted_from_indexed: false,
+                sample_rate: None,
             }
         );
 
@@ -1493,6 +1502,7 @@ mod tests {
                 merges: 3,
                 received_at: Some(UnixTimestamp::from_secs(10)),
                 extracted_from_indexed: false,
+                sample_rate: None,
             }
         );
 
@@ -1504,6 +1514,7 @@ mod tests {
                 merges: 4,
                 received_at: Some(UnixTimestamp::from_secs(10)),
                 extracted_from_indexed: false,
+                sample_rate: None,
             }
         );
     }

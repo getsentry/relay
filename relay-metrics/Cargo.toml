@@ -37,6 +37,7 @@ smallvec = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true, features = ["time"] }
 unescaper = { workspace = true }
+ordered-float = { workspace = true }
 
 [dev-dependencies]
 criterion = { workspace = true }

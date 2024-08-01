@@ -2960,9 +2960,9 @@ dependencies = [
 
 [[package]]
 name = "ordered-float"
-version = "4.2.0"
+version = "4.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a76df7075c7d4d01fdcb46c912dd17fba5b60c78ea480b475f2b6ab6f666584e"
+checksum = "4a91171844676f8c7990ce64959210cd2eaef32c2612c50f9fae9f8aaa6065a6"
 dependencies = [
  "num-traits",
 ]
@@ -3902,6 +3902,7 @@ dependencies = [
  "hashbrown 0.14.3",
  "insta",
  "itertools",
+ "ordered-float",
  "priority-queue",
  "rand",
  "relay-base-schema",

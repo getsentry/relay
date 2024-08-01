@@ -7,6 +7,7 @@ use std::time::Duration;
 use std::{fmt, mem};
 
 use fnv::FnvHasher;
+use ordered_float::OrderedFloat;
 use priority_queue::PriorityQueue;
 use relay_base_schema::project::ProjectKey;
 use relay_common::time::UnixTimestamp;
@@ -67,6 +68,7 @@ struct BucketKey {
     metric_name: MetricName,
     tags: BTreeMap<String, String>,
     extracted_from_indexed: bool,
+    sample_rate: Option<OrderedFloat<f64>>,
 }
 
 impl BucketKey {
@@ -712,6 +714,7 @@ impl Aggregator {
             metric_name: bucket.name,
             tags: bucket.tags,
             extracted_from_indexed: bucket.metadata.extracted_from_indexed,
+            sample_rate: bucket.metadata.sample_rate.map(OrderedFloat),
         };
         let key = validate_bucket_key(key, &self.config)?;
 
@@ -1029,6 +1032,7 @@ mod tests {
                 ("answer".to_owned(), "42".to_owned()),
             ]),
             extracted_from_indexed: false,
+            sample_rate: None,
         };
         assert_eq!(
             bucket_key.cost(),
@@ -1213,6 +1217,7 @@ mod tests {
             metric_name: "c:transactions/foo@none".into(),
             tags: BTreeMap::new(),
             extracted_from_indexed: false,
+            sample_rate: None,
         };
         let fixed_cost = bucket_key.cost() + mem::size_of::<BucketValue>();
         for (metric_name, metric_value, expected_added_cost) in [
@@ -1448,6 +1453,7 @@ mod tests {
                 tags
             },
             extracted_from_indexed: false,
+            sample_rate: None,
         };
 
         let mut bucket_key = validate_bucket_key(bucket_key, &test_config()).unwrap();
@@ -1474,6 +1480,7 @@ mod tests {
             metric_name: "c:transactions/a_short_metric".into(),
             tags: BTreeMap::new(),
             extracted_from_indexed: false,
+            sample_rate: None,
         };
         assert!(validate_bucket_key(short_metric, &test_config()).is_ok());
 
@@ -1483,6 +1490,7 @@ mod tests {
             metric_name: "c:transactions/long_name_a_very_long_name_its_super_long_really_but_like_super_long_probably_the_longest_name_youve_seen_and_even_the_longest_name_ever_its_extremly_long_i_cant_tell_how_long_it_is_because_i_dont_have_that_many_fingers_thus_i_cant_count_the_many_characters_this_long_name_is".into(),
             tags: BTreeMap::new(),
             extracted_from_indexed: false,
+            sample_rate: None,
         };
         let validation = validate_bucket_key(long_metric, &test_config());
 
@@ -1499,6 +1507,7 @@ mod tests {
             metric_name: "c:transactions/a_short_metric_with_long_tag_key".into(),
             tags: BTreeMap::from([("i_run_out_of_creativity_so_here_we_go_Lorem_Ipsum_is_simply_dummy_text_of_the_printing_and_typesetting_industry_Lorem_Ipsum_has_been_the_industrys_standard_dummy_text_ever_since_the_1500s_when_an_unknown_printer_took_a_galley_of_type_and_scrambled_it_to_make_a_type_specimen_book".into(), "tag_value".into())]),
             extracted_from_indexed: false,
+            sample_rate: None,
         };
         let validation = validate_bucket_key(short_metric_long_tag_key, &test_config()).unwrap();
         assert_eq!(validation.tags.len(), 0);
@@ -1509,6 +1518,7 @@ mod tests {
             metric_name: "c:transactions/a_short_metric_with_long_tag_value".into(),
             tags: BTreeMap::from([("tag_key".into(), "i_run_out_of_creativity_so_here_we_go_Lorem_Ipsum_is_simply_dummy_text_of_the_printing_and_typesetting_industry_Lorem_Ipsum_has_been_the_industrys_standard_dummy_text_ever_since_the_1500s_when_an_unknown_printer_took_a_galley_of_type_and_scrambled_it_to_make_a_type_specimen_book".into())]),
             extracted_from_indexed: false,
+            sample_rate: None,
         };
         let validation = validate_bucket_key(short_metric_long_tag_value, &test_config()).unwrap();
         assert_eq!(validation.tags.len(), 0);
@@ -1527,6 +1537,7 @@ mod tests {
             metric_name: "c:transactions/a_short_metric".into(),
             tags: BTreeMap::from([("foo".into(), tag_value.clone())]),
             extracted_from_indexed: false,
+            sample_rate: None,
         };
         let validated_bucket = validate_metric_tags(short_metric, &test_config());
         assert_eq!(validated_bucket.tags["foo"], tag_value);
@@ -1665,6 +1676,7 @@ mod tests {
             metric_name: "c:transactions/foo".into(),
             tags: BTreeMap::new(),
             extracted_from_indexed: false,
+            sample_rate: None,
         };
 
         // Second bucket has a timestamp in this hour.
@@ -1675,6 +1687,7 @@ mod tests {
             metric_name: "c:transactions/foo".into(),
             tags: BTreeMap::new(),
             extracted_from_indexed: false,
+            sample_rate: None,
         };
 
         let flush_time_1 = get_flush_time(&config, reference_time, &bucket_key_1);
