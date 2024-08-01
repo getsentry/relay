@@ -263,7 +263,7 @@ where
                 .remove(&stack_key);
         }
         self.priority_queue.remove(&stack_key);
-        
+
         relay_statsd::metric!(
             gauge(RelayGauges::BufferStackCount) = self.priority_queue.len() as u64
         );
