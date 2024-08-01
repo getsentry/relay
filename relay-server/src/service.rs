@@ -11,8 +11,8 @@ use axum::extract::FromRequestParts;
 use axum::http::request::Parts;
 use rayon::ThreadPool;
 use relay_cogs::Cogs;
-use relay_config::{Config, RedisConnection};
-use relay_redis::RedisPool;
+use relay_config::{Config, RedisConnection, RedisPoolConfigs};
+use relay_redis::{RedisConfigOptions, RedisError, RedisPool, RedisPools};
 use relay_system::{channel, Addr, Service};
 use tokio::runtime::Runtime;
 
@@ -155,15 +155,10 @@ impl ServiceState {
         let upstream_relay = UpstreamRelayService::new(config.clone()).start();
         let test_store = TestStoreService::new(config.clone()).start();
 
-        let redis_pool = config
+        let redis_pools = config
             .redis()
             .filter(|_| config.processing_enabled())
-            .map(|redis| match redis {
-                (RedisConnection::Single(server), options) => RedisPool::single(server, options),
-                (RedisConnection::Cluster(servers), options) => {
-                    RedisPool::cluster(servers.iter().map(|s| s.as_str()), options)
-                }
-            })
+            .map(create_redis_pools)
             .transpose()
             .context(ServiceError::Redis)?;
 
@@ -234,7 +229,7 @@ impl ServiceState {
             global_config_handle,
             cogs,
             #[cfg(feature = "processing")]
-            redis_pool.clone(),
+            redis_pools.clone(),
             processor::Addrs {
                 project_cache: project_cache.clone(),
                 outcome_aggregator: outcome_aggregator.clone(),
@@ -242,6 +237,7 @@ impl ServiceState {
                 test_store: test_store.clone(),
                 #[cfg(feature = "processing")]
                 store_forwarder: store.clone(),
+                aggregator: aggregator.clone(),
             },
             metric_outcomes.clone(),
         )
@@ -263,8 +259,9 @@ impl ServiceState {
             MemoryChecker::new(memory_stat.clone(), config.clone()),
             envelope_buffer.clone(),
             project_cache_services,
-            metric_outcomes,
-            redis_pool.clone(),
+            redis_pools
+                .as_ref()
+                .map(|pools| pools.project_configs.clone()),
         )
         .spawn_handler(project_cache_rx);
 
@@ -281,7 +278,7 @@ impl ServiceState {
             config.clone(),
             upstream_relay.clone(),
             #[cfg(feature = "processing")]
-            redis_pool,
+            redis_pools.clone(),
         )
         .start();
 
@@ -374,6 +371,55 @@ impl ServiceState {
     /// Returns the address of the [`OutcomeProducer`] service.
     pub fn outcome_aggregator(&self) -> &Addr<TrackOutcome> {
         &self.inner.registry.outcome_aggregator
+    }
+}
+
+fn create_redis_pool(
+    (connection, options): (&RedisConnection, RedisConfigOptions),
+) -> Result<RedisPool, RedisError> {
+    match connection {
+        RedisConnection::Cluster(servers) => {
+            RedisPool::cluster(servers.iter().map(|s| s.as_str()), options)
+        }
+        RedisConnection::Single(server) => RedisPool::single(server, options),
+    }
+}
+
+/// Creates Redis pools from the given `configs`.
+///
+/// If `configs` is [`Unified`](RedisPoolConfigs::Unified), one pool is created and then cloned
+/// for each use case, meaning that all use cases really use the same pool. If it is
+/// [`Individual`](RedisPoolConfigs::Individual), an actual separate pool is created for each
+/// use case.
+pub fn create_redis_pools(configs: RedisPoolConfigs) -> Result<RedisPools, RedisError> {
+    match configs {
+        RedisPoolConfigs::Unified(pool) => {
+            let pool = create_redis_pool(pool)?;
+            Ok(RedisPools {
+                project_configs: pool.clone(),
+                cardinality: pool.clone(),
+                quotas: pool.clone(),
+                misc: pool,
+            })
+        }
+        RedisPoolConfigs::Individual {
+            project_configs,
+            cardinality,
+            quotas,
+            misc,
+        } => {
+            let project_configs = create_redis_pool(project_configs)?;
+            let cardinality = create_redis_pool(cardinality)?;
+            let quotas = create_redis_pool(quotas)?;
+            let misc = create_redis_pool(misc)?;
+
+            Ok(RedisPools {
+                project_configs,
+                cardinality,
+                quotas,
+                misc,
+            })
+        }
     }
 }
 

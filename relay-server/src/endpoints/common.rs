@@ -11,8 +11,8 @@ use serde::Deserialize;
 use crate::envelope::{AttachmentType, Envelope, EnvelopeError, Item, ItemType, Items};
 use crate::service::ServiceState;
 use crate::services::outcome::{DiscardReason, Outcome};
-use crate::services::processor::{ProcessMetricMeta, ProcessMetrics, ProcessingGroup};
-use crate::services::project_cache::{CheckEnvelope, ValidateEnvelope};
+use crate::services::processor::{MetricData, ProcessMetricMeta, ProcessingGroup};
+use crate::services::project_cache::{CheckEnvelope, ProcessMetrics, ValidateEnvelope};
 use crate::statsd::{RelayCounters, RelayHistograms};
 use crate::utils::{self, ApiErrorResponse, FormDataIter, ManagedEnvelope, MultipartError};
 
@@ -273,9 +273,9 @@ fn queue_envelope(
 
         if !metric_items.is_empty() {
             relay_log::trace!("sending metrics into processing queue");
-            state.processor().send(ProcessMetrics {
-                items: metric_items.into_vec(),
-                start_time: envelope.meta().start_time(),
+            state.project_cache().send(ProcessMetrics {
+                data: MetricData::Raw(metric_items.into_vec()),
+                start_time: envelope.meta().start_time().into(),
                 sent_at: envelope.sent_at(),
                 project_key: envelope.meta().public_key(),
                 source: envelope.meta().into(),

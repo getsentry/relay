@@ -8,6 +8,11 @@ use crate::services::outcome::Outcome;
 use crate::services::project::ProjectInfo;
 use crate::services::project_cache::BucketSource;
 
+/// Filters buckets based on their namespace.
+///
+/// This is a noop for most namespaces except:
+///  - [`MetricNamespace::Unsupported`]: Equal to invalid/unknown namespaces.
+///  - [`MetricNamespace::Stats`]: Metric stats are only allowed if the `source` is [`BucketSource::Internal`].
 pub fn filter_namespaces(mut buckets: Vec<Bucket>, source: BucketSource) -> Vec<Bucket> {
     buckets.retain(|bucket| match bucket.name.namespace() {
         MetricNamespace::Sessions => true,
@@ -111,6 +116,17 @@ mod tests {
 
     use super::*;
 
+    fn create_custom_bucket_with_name(name: String) -> Bucket {
+        Bucket {
+            name: format!("d:custom/{name}@byte").into(),
+            value: BucketValue::Counter(1.into()),
+            timestamp: UnixTimestamp::now(),
+            tags: Default::default(),
+            width: 10,
+            metadata: Default::default(),
+        }
+    }
+
     fn get_test_bucket(name: &str, tags: BTreeMap<String, String>) -> Bucket {
         let json = serde_json::json!({
             "timestamp": 1615889440,
@@ -149,24 +165,13 @@ mod tests {
         assert_eq!(bucket.tags.len(), 1);
     }
 
-    fn create_custom_bucket_with_name(name: String) -> Bucket {
-        Bucket {
-            name: format!("d:custom/{name}@byte").into(),
-            value: BucketValue::Counter(1.into()),
-            timestamp: UnixTimestamp::now(),
-            tags: Default::default(),
-            width: 10,
-            metadata: Default::default(),
-        }
-    }
-
     #[test]
-    fn test_apply_project_state() {
+    fn test_apply_project_info() {
         let (outcome_aggregator, _) = Addr::custom();
         let (metric_stats, mut metric_stats_rx) = MetricStats::test();
         let metric_outcomes = MetricOutcomes::new(metric_stats, outcome_aggregator);
 
-        let project_state = ProjectInfo {
+        let project_info = ProjectInfo {
             config: serde_json::from_value(serde_json::json!({
                 "metrics": { "deniedNames": ["*cpu_time*"] },
                 "features": ["organizations:custom-metrics"]
@@ -182,7 +187,7 @@ mod tests {
         let buckets = apply_project_info(
             buckets,
             &metric_outcomes,
-            &project_state,
+            &project_info,
             Scoping {
                 organization_id: 42,
                 project_id: ProjectId::new(43),
@@ -207,7 +212,7 @@ mod tests {
     }
 
     #[test]
-    fn test_apply_project_state_with_disabled_custom_namespace() {
+    fn test_apply_project_info_with_disabled_custom_namespace() {
         let (outcome_aggregator, _) = Addr::custom();
         let (metric_stats, mut metric_stats_rx) = MetricStats::test();
         let metric_outcomes = MetricOutcomes::new(metric_stats, outcome_aggregator);
