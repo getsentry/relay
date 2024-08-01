@@ -421,6 +421,8 @@ impl Project {
 
     /// Replaces the internal project state with a new one and triggers pending actions.
     ///
+    /// Returns the *old* project state if it was replaced.
+    ///
     /// This flushes pending envelopes from [`ValidateEnvelope`] and
     /// notifies all pending receivers from [`get_state`](Self::get_state).
     ///
@@ -434,7 +436,7 @@ impl Project {
         state: ProjectFetchState,
         envelope_processor: &Addr<EnvelopeProcessor>,
         no_cache: bool,
-    ) {
+    ) -> Option<ProjectFetchState> {
         // Initiate the backoff if the incoming state is invalid. Reset it otherwise.
         if state.is_pending() {
             self.next_fetch_attempt = Instant::now().checked_add(self.backoff.next_backoff());
@@ -445,23 +447,24 @@ impl Project {
 
         let Some(channel) = self.state_channel.take() else {
             relay_log::error!(tags.project_key = %self.project_key, "channel is missing for the state update");
-            return;
+            return None;
         };
 
         // If the channel has `no_cache` set but we are not a `no_cache` request, we have
         // been superseeded. Put it back and let the other request take precedence.
         if channel.no_cache && !no_cache {
             self.state_channel = Some(channel);
-            return;
+            return None;
         }
 
         // If the state is pending, return back the taken channel and schedule state update.
         if state.is_pending() {
             // Only overwrite if the old state is expired:
             let is_expired = matches!(self.state.expiry_state(&self.config), ExpiryState::Expired);
-            if is_expired {
-                self.state = state;
-            }
+            let old_state = match is_expired {
+                true => Some(std::mem::replace(&mut self.state, state)),
+                false => None,
+            };
 
             self.state_channel = Some(channel);
             let attempts = self.backoff.attempt() + 1;
@@ -471,16 +474,18 @@ impl Project {
             );
 
             project_cache.send(RequestUpdate::new(self.project_key, no_cache));
-            return;
+            return old_state;
         }
 
-        self.state = state;
+        let old_state = std::mem::replace(&mut self.state, state);
 
         // Flush all waiting recipients.
         relay_log::debug!("project state {} updated", self.project_key);
         channel.inner.send(self.state.current_state(&self.config));
 
         self.after_state_updated(envelope_processor);
+
+        Some(old_state)
     }
 
     /// Called after all state validations and after the project state is updated.

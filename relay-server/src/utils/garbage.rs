@@ -41,10 +41,13 @@ impl<T: Send + 'static> GarbageDisposal<T> {
     }
 
     /// Defers dropping an object by sending it to the background thread.
-    pub fn dispose(&self, object: T) {
+    pub fn dispose<U>(&self, object: U)
+    where
+        T: From<U>,
+    {
         self.queue_size.fetch_add(1, Ordering::Relaxed);
         self.tx
-            .send(object)
+            .send(T::from(object))
             .map_err(|e| {
                 relay_log::error!("failed to send object to garbage disposal thread, drop here");
                 drop(e.0);
@@ -97,7 +100,7 @@ mod tests {
             thread_ids: thread_ids.clone(),
         };
 
-        let (garbage, join_handle) = GarbageDisposal::new_joinable();
+        let (garbage, join_handle) = GarbageDisposal::<SomeStruct>::new_joinable();
         garbage.dispose(x2);
         drop(garbage); // breaks the while loop by dropping rx
         join_handle.join().ok(); // wait for thread to finish its work
