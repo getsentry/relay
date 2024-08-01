@@ -12,6 +12,7 @@
 
 use proc_macro2::{Span, TokenStream};
 use quote::{quote, ToTokens};
+use std::str::FromStr;
 use syn::{Ident, Lit, Meta, NestedMeta};
 use synstructure::decl_derive;
 
@@ -90,7 +91,8 @@ fn derive_process_value(mut s: synstructure::Structure<'_>) -> TokenStream {
 
         let mut body = TokenStream::new();
         for (index, bi) in variant.bindings().iter().enumerate() {
-            let field_attrs = parse_field_attributes(index, bi.ast(), &mut is_tuple_struct);
+            let mut field_attrs = parse_field_attributes(index, bi.ast(), &mut is_tuple_struct);
+            field_attrs.trim = Some(matches!(type_attrs.trim, TrimmingMode::Enabled));
             let ident = &bi.binding;
             let field_attrs_name = Ident::new(&format!("FIELD_ATTRS_{index}"), Span::call_site());
             let field_name = field_attrs.field_name.clone();
@@ -169,6 +171,14 @@ fn derive_process_value(mut s: synstructure::Structure<'_>) -> TokenStream {
         }
     });
 
+    // In case we have `trim` set on the type, we want to override this field attribute
+    // manually.
+    let field_attrs = FieldAttrs {
+        trim: Some(matches!(type_attrs.trim, TrimmingMode::Enabled)),
+        ..Default::default()
+    };
+    let field_attrs_tokens = field_attrs.as_tokens(Some(quote!(parent_attrs)));
+
     s.gen_impl(quote! {
         #[automatically_derived]
         gen impl crate::processor::ProcessValue for @Self {
@@ -187,6 +197,13 @@ fn derive_process_value(mut s: synstructure::Structure<'_>) -> TokenStream {
             where
                 P: crate::processor::Processor,
             {
+                let parent_attrs = __state.attrs();
+                let attrs = #field_attrs_tokens;
+
+                let __state = &__state.enter_nothing(
+                    Some(::std::borrow::Cow::Owned(attrs))
+                );
+
                 #process_func_call_tokens;
                 match *self {
                     #process_value_arms
@@ -214,10 +231,32 @@ fn derive_process_value(mut s: synstructure::Structure<'_>) -> TokenStream {
     })
 }
 
+#[derive(Default, Copy, Clone)]
+enum TrimmingMode {
+    #[default]
+    Enabled,
+    Disabled,
+}
+
+impl FromStr for TrimmingMode {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let trimming_mode = match s {
+            "enabled" => TrimmingMode::Enabled,
+            "disabled" => TrimmingMode::Disabled,
+            _ => return Err(()),
+        };
+
+        Ok(trimming_mode)
+    }
+}
+
 #[derive(Default)]
 struct TypeAttrs {
     process_func: Option<String>,
     value_type: Vec<String>,
+    trim: TrimmingMode,
 }
 
 impl TypeAttrs {
@@ -276,7 +315,19 @@ fn parse_type_attributes(s: &synstructure::Structure<'_>) -> TypeAttrs {
                                         rv.value_type.push(litstr.value());
                                     }
                                     _ => {
-                                        panic!("Got non string literal for value type");
+                                        panic!("Got non string literal for value_type");
+                                    }
+                                }
+                            } else if ident == "trim" {
+                                match name_value.lit {
+                                    Lit::Str(litstr) => {
+                                        rv.trim = litstr
+                                            .value()
+                                            .parse()
+                                            .expect("Got invalid value for trim")
+                                    }
+                                    _ => {
+                                        panic!("Got invalid value for trim");
                                     }
                                 }
                             }
@@ -430,7 +481,7 @@ impl FieldAttrs {
                 max_bytes: #max_bytes,
                 pii: #pii,
                 retain: #retain,
-                trim: #trim,
+                trim: #trim
             }
         })
     }
@@ -603,17 +654,6 @@ fn parse_field_attributes(
                                     },
                                     _ => {
                                         panic!("Got non string literal for retain");
-                                    }
-                                }
-                            } else if ident == "trim" {
-                                match name_value.lit {
-                                    Lit::Str(litstr) => match litstr.value().as_str() {
-                                        "true" => rv.trim = None,
-                                        "false" => rv.trim = Some(false),
-                                        other => panic!("Unknown value {other}"),
-                                    },
-                                    _ => {
-                                        panic!("Got non string literal for trim");
                                     }
                                 }
                             } else if ident == "legacy_alias" || ident == "skip_serialization" {
