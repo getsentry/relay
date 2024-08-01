@@ -579,11 +579,11 @@
 <span class="kw">mod </span>statsd;
 <span class="kw">mod </span>utils;
 
-<span class="kw">pub use </span><span class="self">self</span>::services::spooler::spool_utils;
-<span class="comment">// Public just for benchmarks.
-</span><span class="kw">pub use </span><span class="self">self</span>::envelope::Envelope;
-<span class="kw">pub use </span><span class="self">self</span>::services::spooler::envelope_stack::sqlite::SQLiteEnvelopeStack;
-<span class="kw">pub use </span><span class="self">self</span>::services::spooler::envelope_stack::EnvelopeStack;
+<span class="kw">pub use </span><span class="self">self</span>::envelope::Envelope; <span class="comment">// pub for benchmarks
+</span><span class="kw">pub use </span><span class="self">self</span>::services::buffer::{
+    EnvelopeStack, PolymorphicEnvelopeBuffer, SqliteEnvelopeStack, SqliteEnvelopeStore,
+}; <span class="comment">// pub for benchmarks
+</span><span class="kw">pub use </span><span class="self">self</span>::services::spooler::spool_utils;
 
 <span class="attr">#[cfg(test)]
 </span><span class="kw">mod </span>testutils;

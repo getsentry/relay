@@ -49,6 +49,7 @@
 <a href="#49" id="49">49</a>
 <a href="#50" id="50">50</a>
 <a href="#51" id="51">51</a>
+<a href="#52" id="52">52</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Defines all services of Relay.
 //!
 //! Services require a tokio to run, see [`relay_system`] and particularly
@@ -78,7 +79,8 @@
 //! Controller::run(|| Server::start())
 //!     .expect("failed to start relay");
 //! ```
-</span><span class="kw">pub mod </span>cogs;
+</span><span class="kw">pub mod </span>buffer;
+<span class="kw">pub mod </span>cogs;
 <span class="kw">pub mod </span>global_config;
 <span class="kw">pub mod </span>health_check;
 <span class="kw">pub mod </span>metrics;

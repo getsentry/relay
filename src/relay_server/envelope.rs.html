@@ -2152,6 +2152,13 @@
 <a href="#2152" id="2152">2152</a>
 <a href="#2153" id="2153">2153</a>
 <a href="#2154" id="2154">2154</a>
+<a href="#2155" id="2155">2155</a>
+<a href="#2156" id="2156">2156</a>
+<a href="#2157" id="2157">2157</a>
+<a href="#2158" id="2158">2158</a>
+<a href="#2159" id="2159">2159</a>
+<a href="#2160" id="2160">2160</a>
+<a href="#2161" id="2161">2161</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Implementation of event envelopes.
 //!
 //! Envelopes are containers for payloads related to Sentry events. Similar to multipart form data
@@ -3390,6 +3397,13 @@
             )
         })<span class="question-mark">?</span>;
         <span class="self">self</span>.dsc().map(|dsc| dsc.public_key)
+    }
+
+    <span class="doccomment">/// Returns the time at which the envelope was received at this Relay.
+    ///
+    /// This is the date time equivalent to [`start_time`](Self::start_time).
+    </span><span class="kw">pub fn </span>received_at(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; DateTime&lt;Utc&gt; {
+        relay_common::time::instant_to_date_time(<span class="self">self</span>.meta().start_time())
     }
 
     <span class="doccomment">/// Sets the event id on the envelope.

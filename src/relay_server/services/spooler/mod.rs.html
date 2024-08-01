@@ -1874,7 +1874,6 @@
 <a href="#1874" id="1874">1874</a>
 <a href="#1875" id="1875">1875</a>
 <a href="#1876" id="1876">1876</a>
-<a href="#1877" id="1877">1877</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module contains the [`BufferService`], which is responsible for spooling of the incoming
 //! envelopes, either to in-memory or to persistent storage.
 //!
@@ -1937,7 +1936,6 @@
 <span class="kw">use </span><span class="kw">crate</span>::statsd::{RelayCounters, RelayGauges, RelayHistograms, RelayTimers};
 <span class="kw">use </span><span class="kw">crate</span>::utils::{ManagedEnvelope, MemoryChecker};
 
-<span class="kw">pub mod </span>envelope_stack;
 <span class="kw">pub mod </span>spool_utils;
 <span class="kw">mod </span>sql;
 
@@ -2441,7 +2439,7 @@
                 .fetch(<span class="kw-2">&amp;</span><span class="self">self</span>.db)
                 .peekable();
             <span class="kw">let </span><span class="kw-2">mut </span>envelopes = <span class="macro">pin!</span>(envelopes);
-            <span class="macro">relay_statsd::metric!</span>(counter(RelayCounters::BufferReads) += <span class="number">1</span>);
+            <span class="macro">relay_statsd::metric!</span>(counter(RelayCounters::BufferReadsDisk) += <span class="number">1</span>);
 
             <span class="comment">// Stream is empty, we can break the loop, since we read everything by now.
             </span><span class="kw">if </span>envelopes.as_mut().peek().<span class="kw">await</span>.is_none() {
@@ -2508,7 +2506,7 @@
                 .fetch(<span class="kw-2">&amp;</span><span class="self">self</span>.db)
                 .peekable();
             <span class="kw">let </span><span class="kw-2">mut </span>envelopes = <span class="macro">pin!</span>(envelopes);
-            <span class="macro">relay_statsd::metric!</span>(counter(RelayCounters::BufferReads) += <span class="number">1</span>);
+            <span class="macro">relay_statsd::metric!</span>(counter(RelayCounters::BufferReadsDisk) += <span class="number">1</span>);
             <span class="comment">// Stream is empty, we can break the loop, since we read everything by now.
             </span><span class="kw">if </span>envelopes.as_mut().peek().<span class="kw">await</span>.is_none() {
                 <span class="kw">break</span>;
@@ -2632,7 +2630,7 @@
         </span>.map_err(BufferError::InsertFailed)<span class="question-mark">?</span>;
 
         <span class="self">self</span>.track_count(<span class="number">1</span>);
-        <span class="macro">relay_statsd::metric!</span>(counter(RelayCounters::BufferWrites) += <span class="number">1</span>);
+        <span class="macro">relay_statsd::metric!</span>(counter(RelayCounters::BufferWritesDisk) += <span class="number">1</span>);
         <span class="prelude-val">Ok</span>(())
     }
 

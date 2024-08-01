@@ -897,6 +897,16 @@
 <a href="#897" id="897">897</a>
 <a href="#898" id="898">898</a>
 <a href="#899" id="899">899</a>
+<a href="#900" id="900">900</a>
+<a href="#901" id="901">901</a>
+<a href="#902" id="902">902</a>
+<a href="#903" id="903">903</a>
+<a href="#904" id="904">904</a>
+<a href="#905" id="905">905</a>
+<a href="#906" id="906">906</a>
+<a href="#907" id="907">907</a>
+<a href="#908" id="908">908</a>
+<a href="#909" id="909">909</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric, TimerMetric};
 <span class="attr">#[cfg(doc)]
 </span><span class="kw">use </span>tokio::runtime::RuntimeMetrics;
@@ -925,6 +935,14 @@
     /// This metric is tagged with:
     /// - `reason`: Why keys are / are not unspooled.
     </span>BufferPeriodicUnspool,
+    <span class="doccomment">/// Number of envelopes currently waiting to be buffered.
+    ///
+    /// This corresponds to the number of corresponding tokio tasks currently scheduled or running.
+    </span>BufferPushInFlight,
+    <span class="doccomment">/// The number of individual stacks in the priority queue.
+    ///
+    /// Per combination of `(own_key, sampling_key)`, a new stack is created.
+    </span>BufferStackCount,
     <span class="doccomment">/// The currently used memory by the entire system.
     ///
     /// Relay uses the same value for its memory health check.
@@ -949,6 +967,8 @@
             RelayGauges::BufferEnvelopesMemoryCount =&gt; <span class="string">"buffer.envelopes_mem_count"</span>,
             RelayGauges::BufferEnvelopesDiskCount =&gt; <span class="string">"buffer.envelopes_disk_count"</span>,
             RelayGauges::BufferPeriodicUnspool =&gt; <span class="string">"buffer.unspool.periodic"</span>,
+            RelayGauges::BufferPushInFlight =&gt; <span class="string">"buffer.push_inflight"</span>,
+            RelayGauges::BufferStackCount =&gt; <span class="string">"buffer.stack_count"</span>,
             RelayGauges::SystemMemoryUsed =&gt; <span class="string">"health.system_memory.used"</span>,
             RelayGauges::SystemMemoryTotal =&gt; <span class="string">"health.system_memory.total"</span>,
             <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
@@ -1475,13 +1495,13 @@
     ///  - `handling`: Either `"success"` if the envelope was handled correctly, or `"failure"` if
     ///    there was an error or bug.
     </span>EnvelopeRejected,
-    <span class="doccomment">/// Number times the envelope buffer spools to disk.
-    </span>BufferWrites,
-    <span class="doccomment">/// Number times the envelope buffer reads back from disk.
-    </span>BufferReads,
-    <span class="doccomment">/// Number of _envelopes_ the envelope buffer spools to disk.
+    <span class="doccomment">/// Number of times the envelope buffer spools to disk.
+    </span>BufferWritesDisk,
+    <span class="doccomment">/// Number of times the envelope buffer reads back from disk.
+    </span>BufferReadsDisk,
+    <span class="doccomment">/// Number of _envelopes_ the envelope buffer ingests.
     </span>BufferEnvelopesWritten,
-    <span class="doccomment">/// Number of _envelopes_ the envelope buffer reads back from disk.
+    <span class="doccomment">/// Number of _envelopes_ the envelope buffer produces.
     </span>BufferEnvelopesRead,
     <span class="doccomment">/// Number of state changes in the envelope buffer.
     /// This metric is tagged with:
@@ -1693,8 +1713,8 @@
             RelayCounters::EventCorrupted =&gt; <span class="string">"event.corrupted"</span>,
             RelayCounters::EnvelopeAccepted =&gt; <span class="string">"event.accepted"</span>,
             RelayCounters::EnvelopeRejected =&gt; <span class="string">"event.rejected"</span>,
-            RelayCounters::BufferWrites =&gt; <span class="string">"buffer.writes"</span>,
-            RelayCounters::BufferReads =&gt; <span class="string">"buffer.reads"</span>,
+            RelayCounters::BufferWritesDisk =&gt; <span class="string">"buffer.writes"</span>,
+            RelayCounters::BufferReadsDisk =&gt; <span class="string">"buffer.reads"</span>,
             RelayCounters::BufferEnvelopesWritten =&gt; <span class="string">"buffer.envelopes_written"</span>,
             RelayCounters::BufferEnvelopesRead =&gt; <span class="string">"buffer.envelopes_read"</span>,
             RelayCounters::BufferStateTransition =&gt; <span class="string">"buffer.state.transition"</span>,

@@ -2518,6 +2518,83 @@
 <a href="#2518" id="2518">2518</a>
 <a href="#2519" id="2519">2519</a>
 <a href="#2520" id="2520">2520</a>
+<a href="#2521" id="2521">2521</a>
+<a href="#2522" id="2522">2522</a>
+<a href="#2523" id="2523">2523</a>
+<a href="#2524" id="2524">2524</a>
+<a href="#2525" id="2525">2525</a>
+<a href="#2526" id="2526">2526</a>
+<a href="#2527" id="2527">2527</a>
+<a href="#2528" id="2528">2528</a>
+<a href="#2529" id="2529">2529</a>
+<a href="#2530" id="2530">2530</a>
+<a href="#2531" id="2531">2531</a>
+<a href="#2532" id="2532">2532</a>
+<a href="#2533" id="2533">2533</a>
+<a href="#2534" id="2534">2534</a>
+<a href="#2535" id="2535">2535</a>
+<a href="#2536" id="2536">2536</a>
+<a href="#2537" id="2537">2537</a>
+<a href="#2538" id="2538">2538</a>
+<a href="#2539" id="2539">2539</a>
+<a href="#2540" id="2540">2540</a>
+<a href="#2541" id="2541">2541</a>
+<a href="#2542" id="2542">2542</a>
+<a href="#2543" id="2543">2543</a>
+<a href="#2544" id="2544">2544</a>
+<a href="#2545" id="2545">2545</a>
+<a href="#2546" id="2546">2546</a>
+<a href="#2547" id="2547">2547</a>
+<a href="#2548" id="2548">2548</a>
+<a href="#2549" id="2549">2549</a>
+<a href="#2550" id="2550">2550</a>
+<a href="#2551" id="2551">2551</a>
+<a href="#2552" id="2552">2552</a>
+<a href="#2553" id="2553">2553</a>
+<a href="#2554" id="2554">2554</a>
+<a href="#2555" id="2555">2555</a>
+<a href="#2556" id="2556">2556</a>
+<a href="#2557" id="2557">2557</a>
+<a href="#2558" id="2558">2558</a>
+<a href="#2559" id="2559">2559</a>
+<a href="#2560" id="2560">2560</a>
+<a href="#2561" id="2561">2561</a>
+<a href="#2562" id="2562">2562</a>
+<a href="#2563" id="2563">2563</a>
+<a href="#2564" id="2564">2564</a>
+<a href="#2565" id="2565">2565</a>
+<a href="#2566" id="2566">2566</a>
+<a href="#2567" id="2567">2567</a>
+<a href="#2568" id="2568">2568</a>
+<a href="#2569" id="2569">2569</a>
+<a href="#2570" id="2570">2570</a>
+<a href="#2571" id="2571">2571</a>
+<a href="#2572" id="2572">2572</a>
+<a href="#2573" id="2573">2573</a>
+<a href="#2574" id="2574">2574</a>
+<a href="#2575" id="2575">2575</a>
+<a href="#2576" id="2576">2576</a>
+<a href="#2577" id="2577">2577</a>
+<a href="#2578" id="2578">2578</a>
+<a href="#2579" id="2579">2579</a>
+<a href="#2580" id="2580">2580</a>
+<a href="#2581" id="2581">2581</a>
+<a href="#2582" id="2582">2582</a>
+<a href="#2583" id="2583">2583</a>
+<a href="#2584" id="2584">2584</a>
+<a href="#2585" id="2585">2585</a>
+<a href="#2586" id="2586">2586</a>
+<a href="#2587" id="2587">2587</a>
+<a href="#2588" id="2588">2588</a>
+<a href="#2589" id="2589">2589</a>
+<a href="#2590" id="2590">2590</a>
+<a href="#2591" id="2591">2591</a>
+<a href="#2592" id="2592">2592</a>
+<a href="#2593" id="2593">2593</a>
+<a href="#2594" id="2594">2594</a>
+<a href="#2595" id="2595">2595</a>
+<a href="#2596" id="2596">2596</a>
+<a href="#2597" id="2597">2597</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::io::Write;
@@ -3362,6 +3439,20 @@
     <span class="number">100
 </span>}
 
+<span class="doccomment">/// Default batch size for the stack.
+</span><span class="kw">fn </span>spool_envelopes_stack_disk_batch_size() -&gt; usize {
+    <span class="number">200
+</span>}
+
+<span class="doccomment">/// Default maximum number of batches for the stack.
+</span><span class="kw">fn </span>spool_envelopes_stack_max_batches() -&gt; usize {
+    <span class="number">2
+</span>}
+
+<span class="kw">fn </span>spool_envelopes_max_envelope_delay_secs() -&gt; u64 {
+    <span class="number">24 </span>* <span class="number">60 </span>* <span class="number">60
+</span>}
+
 <span class="doccomment">/// Persistent buffering configuration for incoming envelopes.
 </span><span class="attr">#[derive(Debug, Serialize, Deserialize)]
 </span><span class="kw">pub struct </span>EnvelopeSpool {
@@ -3388,6 +3479,40 @@
     <span class="doccomment">/// The interval in milliseconds to trigger unspool.
     </span><span class="attr">#[serde(default = <span class="string">"spool_envelopes_unspool_interval"</span>)]
     </span>unspool_interval: u64,
+    <span class="doccomment">/// Number of elements of the envelope stack that are flushed to disk.
+    </span><span class="attr">#[serde(default = <span class="string">"spool_envelopes_stack_disk_batch_size"</span>)]
+    </span>disk_batch_size: usize,
+    <span class="doccomment">/// Number of batches of size [`Self::disk_batch_size`] that need to be accumulated before
+    /// flushing one batch to disk.
+    </span><span class="attr">#[serde(default = <span class="string">"spool_envelopes_stack_max_batches"</span>)]
+    </span>max_batches: usize,
+    <span class="doccomment">/// Maximum time between receiving the envelope and processing it.
+    ///
+    /// When envelopes spend too much time in the buffer (e.g. because their project cannot be loaded),
+    /// they are dropped. Defaults to 24h.
+    </span><span class="attr">#[serde(default = <span class="string">"spool_envelopes_max_envelope_delay_secs"</span>)]
+    </span>max_envelope_delay_secs: u64,
+    <span class="doccomment">/// Version of the spooler.
+    </span><span class="attr">#[serde(default)]
+    </span>version: EnvelopeSpoolVersion,
+}
+
+<span class="doccomment">/// Version of the envelope buffering mechanism.
+</span><span class="attr">#[derive(Debug, Default, Deserialize, Serialize)]
+</span><span class="kw">pub enum </span>EnvelopeSpoolVersion {
+    <span class="doccomment">/// Use the spooler service, which only buffers envelopes for unloaded projects and
+    /// switches between an in-memory mode and a disk mode on-demand.
+    ///
+    /// This mode will be removed soon.
+    </span><span class="attr">#[default]
+    #[serde(rename = <span class="string">"1"</span>)]
+    </span>V1,
+    <span class="doccomment">/// Use the envelope buffer, through which all envelopes pass before getting unspooled.
+    /// Can be either disk based or memory based.
+    ///
+    /// This mode has not yet been stress-tested, do not use in production environments.
+    </span><span class="attr">#[serde(rename = <span class="string">"experimental"</span>)]
+    </span>V2,
 }
 
 <span class="kw">impl </span>Default <span class="kw">for </span>EnvelopeSpool {
@@ -3399,7 +3524,11 @@
             max_disk_size: spool_envelopes_max_disk_size(),
             max_memory_size: spool_envelopes_max_memory_size(),
             unspool_interval: spool_envelopes_unspool_interval(), <span class="comment">// 100ms
-        </span>}
+            </span>disk_batch_size: spool_envelopes_stack_disk_batch_size(),
+            max_batches: spool_envelopes_stack_max_batches(),
+            max_envelope_delay_secs: spool_envelopes_max_envelope_delay_secs(),
+            version: EnvelopeSpoolVersion::V2,
+        }
     }
 }
 
@@ -4595,6 +4724,31 @@
     <span class="doccomment">/// The maximum size of the memory buffer, in bytes.
     </span><span class="kw">pub fn </span>spool_envelopes_max_memory_size(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
         <span class="self">self</span>.values.spool.envelopes.max_memory_size.as_bytes()
+    }
+
+    <span class="doccomment">/// Number of batches of size `stack_disk_batch_size` that need to be accumulated before
+    /// flushing one batch to disk.
+    </span><span class="kw">pub fn </span>spool_envelopes_stack_disk_batch_size(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
+        <span class="self">self</span>.values.spool.envelopes.disk_batch_size
+    }
+
+    <span class="doccomment">/// Number of batches of size `stack_disk_batch_size` that need to be accumulated before
+    /// flushing one batch to disk.
+    </span><span class="kw">pub fn </span>spool_envelopes_stack_max_batches(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
+        <span class="self">self</span>.values.spool.envelopes.max_batches
+    }
+
+    <span class="doccomment">/// Returns `true` if version 2 of the spooling mechanism is used.
+    </span><span class="kw">pub fn </span>spool_v2(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="macro">matches!</span>(
+            <span class="self">self</span>.values.spool.envelopes.version,
+            EnvelopeSpoolVersion::V2
+        )
+    }
+
+    <span class="doccomment">/// Returns the time after which we drop envelopes as a [`Duration`] object.
+    </span><span class="kw">pub fn </span>spool_envelopes_max_age(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Duration {
+        Duration::from_secs(<span class="self">self</span>.values.spool.envelopes.max_envelope_delay_secs)
     }
 
     <span class="doccomment">/// Returns the maximum size of an event payload in bytes.

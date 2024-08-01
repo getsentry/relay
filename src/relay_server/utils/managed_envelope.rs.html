@@ -798,7 +798,7 @@
     <span class="doccomment">/// Consumes itself returning the managed envelope.
     </span><span class="kw">pub fn </span>into_envelope(<span class="kw-2">mut </span><span class="self">self</span>) -&gt; Box&lt;Envelope&gt; {
         <span class="self">self</span>.context.done = <span class="bool-val">true</span>;
-        Box::new(<span class="self">self</span>.envelope.take_items())
+        <span class="self">self</span>.take_envelope()
     }
 
     <span class="doccomment">/// Converts current managed envelope into processed envelope.
@@ -1076,7 +1076,7 @@
     ///
     /// This is the date time equivalent to [`start_time`](Self::start_time).
     </span><span class="kw">pub fn </span>received_at(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; DateTime&lt;Utc&gt; {
-        relay_common::time::instant_to_date_time(<span class="self">self</span>.envelope().meta().start_time())
+        <span class="self">self</span>.envelope.received_at()
     }
 
     <span class="doccomment">/// Resets inner state to ensure there's no more logging.

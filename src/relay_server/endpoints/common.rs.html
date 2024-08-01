@@ -463,6 +463,21 @@
 <a href="#463" id="463">463</a>
 <a href="#464" id="464">464</a>
 <a href="#465" id="465">465</a>
+<a href="#466" id="466">466</a>
+<a href="#467" id="467">467</a>
+<a href="#468" id="468">468</a>
+<a href="#469" id="469">469</a>
+<a href="#470" id="470">470</a>
+<a href="#471" id="471">471</a>
+<a href="#472" id="472">472</a>
+<a href="#473" id="473">473</a>
+<a href="#474" id="474">474</a>
+<a href="#475" id="475">475</a>
+<a href="#476" id="476">476</a>
+<a href="#477" id="477">477</a>
+<a href="#478" id="478">478</a>
+<a href="#479" id="479">479</a>
+<a href="#480" id="480">480</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Common facilities for ingesting events through store-like endpoints.
 
 </span><span class="kw">use </span>axum::http::{header, StatusCode};
@@ -770,7 +785,21 @@
         );
         envelope.scope(scoping);
 
-        state.project_cache().send(ValidateEnvelope::new(envelope));
+        <span class="kw">match </span>state.envelope_buffer() {
+            <span class="prelude-val">Some</span>(buffer) =&gt; {
+                <span class="comment">// NOTE: This assumes that a `prefetch` has already been scheduled for both the
+                // envelope's projects. See `handle_check_envelope`.
+                </span><span class="macro">relay_log::trace!</span>(<span class="string">"Pushing envelope to V2 buffer"</span>);
+
+                <span class="comment">// TODO: Sync-check whether the buffer has capacity.
+                // Otherwise return `QueueFailed`.
+                </span>buffer.defer_push(envelope);
+            }
+            <span class="prelude-val">None </span>=&gt; {
+                <span class="macro">relay_log::trace!</span>(<span class="string">"Sending envelope to project cache for V1 buffer"</span>);
+                state.project_cache().send(ValidateEnvelope::new(envelope));
+            }
+        }
     }
     <span class="comment">// The entire envelope is taken for a split above, and it's empty at this point, we can just
     // accept it without additional checks.
@@ -798,7 +827,8 @@
         )
     }
 
-    <span class="kw">if </span>state.memory_checker().check_memory().is_exceeded() {
+    <span class="comment">// TODO(jjbayer): Move this check to spool impl
+    </span><span class="kw">if </span>state.memory_checker().check_memory().is_exceeded() {
         <span class="comment">// NOTE: Long-term, we should not reject the envelope here, but spool it to disk instead.
         // This will be fixed with the new spool implementation.
         </span><span class="kw">return </span><span class="prelude-val">Err</span>(BadStoreRequest::QueueFailed);

@@ -88,15 +88,17 @@
 <a href="#88" id="88">88</a>
 <a href="#89" id="89">89</a>
 <a href="#90" id="90">90</a>
+<a href="#91" id="91">91</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Types that represent the current project state.
 </span><span class="kw">use </span>std::sync::Arc;
 
-<span class="kw">mod </span>fetch_state;
-<span class="kw">mod </span>info;
+<span class="kw">use </span>serde::{Deserialize, Serialize};
 
 <span class="kw">pub use </span>fetch_state::{ExpiryState, ProjectFetchState};
 <span class="kw">pub use </span>info::{LimitedProjectInfo, ProjectInfo};
-<span class="kw">use </span>serde::{Deserialize, Serialize};
+
+<span class="kw">mod </span>fetch_state;
+<span class="kw">mod </span>info;
 
 <span class="doccomment">/// Representation of a project's current state.
 </span><span class="attr">#[derive(Clone, Debug)]

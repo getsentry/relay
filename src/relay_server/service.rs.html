@@ -373,12 +373,25 @@
 <a href="#373" id="373">373</a>
 <a href="#374" id="374">374</a>
 <a href="#375" id="375">375</a>
+<a href="#376" id="376">376</a>
+<a href="#377" id="377">377</a>
+<a href="#378" id="378">378</a>
+<a href="#379" id="379">379</a>
+<a href="#380" id="380">380</a>
+<a href="#381" id="381">381</a>
+<a href="#382" id="382">382</a>
+<a href="#383" id="383">383</a>
+<a href="#384" id="384">384</a>
+<a href="#385" id="385">385</a>
+<a href="#386" id="386">386</a>
+<a href="#387" id="387">387</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::convert::Infallible;
 <span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::sync::Arc;
 <span class="kw">use </span>std::time::Duration;
 
 <span class="kw">use </span><span class="kw">crate</span>::metrics::{MetricOutcomes, MetricStats};
+<span class="kw">use </span><span class="kw">crate</span>::services::buffer::GuardedEnvelopeBuffer;
 <span class="kw">use </span><span class="kw">crate</span>::services::stats::RelayStats;
 <span class="kw">use </span>anyhow::{Context, <span class="prelude-ty">Result</span>};
 <span class="kw">use </span>axum::extract::FromRequestParts;
@@ -513,6 +526,7 @@
 </span><span class="kw">struct </span>StateInner {
     config: Arc&lt;Config&gt;,
     memory_checker: MemoryChecker,
+    envelope_buffer: <span class="prelude-ty">Option</span>&lt;Arc&lt;GuardedEnvelopeBuffer&gt;&gt;,
     registry: Registry,
 }
 
@@ -630,9 +644,11 @@
             upstream_relay.clone(),
             global_config.clone(),
         );
+        <span class="kw">let </span>envelope_buffer = GuardedEnvelopeBuffer::from_config(<span class="kw-2">&amp;</span>config).map(Arc::new);
         ProjectCacheService::new(
             config.clone(),
             MemoryChecker::new(memory_stat.clone(), config.clone()),
+            envelope_buffer.clone(),
             project_cache_services,
             metric_outcomes,
             redis_pool.clone(),
@@ -673,7 +689,8 @@
 
         <span class="kw">let </span>state = StateInner {
             config: config.clone(),
-            memory_checker: MemoryChecker::new(memory_stat, config),
+            memory_checker: MemoryChecker::new(memory_stat, config.clone()),
+            envelope_buffer,
             registry,
         };
 
@@ -692,6 +709,13 @@
     /// thresholds set in the [`Config`].
     </span><span class="kw">pub fn </span>memory_checker(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>MemoryChecker {
         <span class="kw-2">&amp;</span><span class="self">self</span>.inner.memory_checker
+    }
+
+    <span class="doccomment">/// Returns the V2 envelope buffer, if present.
+    ///
+    /// Clones the inner Arc.
+    </span><span class="kw">pub fn </span>envelope_buffer(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;Arc&lt;GuardedEnvelopeBuffer&gt;&gt; {
+        <span class="self">self</span>.inner.envelope_buffer.clone()
     }
 
     <span class="doccomment">/// Returns the address of the [`ProjectCache`] service.

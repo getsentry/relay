@@ -393,18 +393,18 @@
 <a href="#393" id="393">393</a>
 <a href="#394" id="394">394</a>
 <a href="#395" id="395">395</a>
-</pre></div><pre class="rust"><code><span class="kw">use </span>hashbrown::HashMap;
-<span class="kw">use </span>std::time::Duration;
+</pre></div><pre class="rust"><code><span class="kw">use </span>std::time::Duration;
 
+<span class="kw">use </span>hashbrown::HashMap;
 <span class="kw">use </span>relay_base_schema::project::ProjectKey;
 <span class="kw">use </span>relay_config::AggregatorServiceConfig;
+<span class="kw">use </span>relay_metrics::{aggregator, Bucket};
 <span class="kw">use </span>relay_system::{
     AsyncResponse, Controller, FromMessage, Interface, NoResponse, Recipient, Sender, Service,
     Shutdown,
 };
 
 <span class="kw">use </span><span class="kw">crate</span>::statsd::{RelayCounters, RelayHistograms, RelayTimers};
-<span class="kw">use </span>relay_metrics::{aggregator, Bucket};
 
 <span class="doccomment">/// Aggregator for metric buckets.
 ///
