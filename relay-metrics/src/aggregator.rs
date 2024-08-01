@@ -370,7 +370,7 @@ impl Ord for QueuedBucket {
     }
 }
 
-#[derive(Default, Debug)]
+#[derive(Default)]
 struct CostTracker {
     total_cost: usize,
     cost_per_project_key: HashMap<ProjectKey, usize>,
@@ -450,6 +450,20 @@ impl CostTracker {
                 );
             }
         }
+    }
+}
+
+impl fmt::Debug for CostTracker {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("CostTracker")
+            .field("total_cost", &self.total_cost)
+            // Convert HashMap to BTreeMap to guarantee order:
+            .field(
+                "cost_per_project_key",
+                &BTreeMap::from_iter(self.cost_per_project_key.iter()),
+            )
+            .field("cost_per_namespace", &self.cost_per_namespace)
+            .finish()
     }
 }
 
