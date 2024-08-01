@@ -217,6 +217,19 @@
 <a href="#217" id="217">217</a>
 <a href="#218" id="218">218</a>
 <a href="#219" id="219">219</a>
+<a href="#220" id="220">220</a>
+<a href="#221" id="221">221</a>
+<a href="#222" id="222">222</a>
+<a href="#223" id="223">223</a>
+<a href="#224" id="224">224</a>
+<a href="#225" id="225">225</a>
+<a href="#226" id="226">226</a>
+<a href="#227" id="227">227</a>
+<a href="#228" id="228">228</a>
+<a href="#229" id="229">229</a>
+<a href="#230" id="230">230</a>
+<a href="#231" id="231">231</a>
+<a href="#232" id="232">232</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::time::Duration;
 
@@ -427,6 +440,19 @@
             idle_connections: s.idle_connections,
         }
     }
+}
+
+<span class="doccomment">/// The various [`RedisPool`]s used within Relay.
+</span><span class="attr">#[derive(Debug, Clone)]
+</span><span class="kw">pub struct </span>RedisPools {
+    <span class="doccomment">/// The pool used for project configurations
+    </span><span class="kw">pub </span>project_configs: RedisPool,
+    <span class="doccomment">/// The pool used for cardinality limits.
+    </span><span class="kw">pub </span>cardinality: RedisPool,
+    <span class="doccomment">/// The pool used for rate limiting/quotas.
+    </span><span class="kw">pub </span>quotas: RedisPool,
+    <span class="doccomment">/// The pool used for metrics metadata.
+    </span><span class="kw">pub </span>misc: RedisPool,
 }
 
 <span class="doccomment">/// Stats about how the [`RedisPool`] is performing.

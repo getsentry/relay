@@ -385,6 +385,52 @@
 <a href="#385" id="385">385</a>
 <a href="#386" id="386">386</a>
 <a href="#387" id="387">387</a>
+<a href="#388" id="388">388</a>
+<a href="#389" id="389">389</a>
+<a href="#390" id="390">390</a>
+<a href="#391" id="391">391</a>
+<a href="#392" id="392">392</a>
+<a href="#393" id="393">393</a>
+<a href="#394" id="394">394</a>
+<a href="#395" id="395">395</a>
+<a href="#396" id="396">396</a>
+<a href="#397" id="397">397</a>
+<a href="#398" id="398">398</a>
+<a href="#399" id="399">399</a>
+<a href="#400" id="400">400</a>
+<a href="#401" id="401">401</a>
+<a href="#402" id="402">402</a>
+<a href="#403" id="403">403</a>
+<a href="#404" id="404">404</a>
+<a href="#405" id="405">405</a>
+<a href="#406" id="406">406</a>
+<a href="#407" id="407">407</a>
+<a href="#408" id="408">408</a>
+<a href="#409" id="409">409</a>
+<a href="#410" id="410">410</a>
+<a href="#411" id="411">411</a>
+<a href="#412" id="412">412</a>
+<a href="#413" id="413">413</a>
+<a href="#414" id="414">414</a>
+<a href="#415" id="415">415</a>
+<a href="#416" id="416">416</a>
+<a href="#417" id="417">417</a>
+<a href="#418" id="418">418</a>
+<a href="#419" id="419">419</a>
+<a href="#420" id="420">420</a>
+<a href="#421" id="421">421</a>
+<a href="#422" id="422">422</a>
+<a href="#423" id="423">423</a>
+<a href="#424" id="424">424</a>
+<a href="#425" id="425">425</a>
+<a href="#426" id="426">426</a>
+<a href="#427" id="427">427</a>
+<a href="#428" id="428">428</a>
+<a href="#429" id="429">429</a>
+<a href="#430" id="430">430</a>
+<a href="#431" id="431">431</a>
+<a href="#432" id="432">432</a>
+<a href="#433" id="433">433</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::convert::Infallible;
 <span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::sync::Arc;
@@ -398,8 +444,8 @@
 <span class="kw">use </span>axum::http::request::Parts;
 <span class="kw">use </span>rayon::ThreadPool;
 <span class="kw">use </span>relay_cogs::Cogs;
-<span class="kw">use </span>relay_config::{Config, RedisConnection};
-<span class="kw">use </span>relay_redis::RedisPool;
+<span class="kw">use </span>relay_config::{Config, RedisConnection, RedisPoolConfigs};
+<span class="kw">use </span>relay_redis::{RedisConfigOptions, RedisError, RedisPool, RedisPools};
 <span class="kw">use </span>relay_system::{channel, Addr, Service};
 <span class="kw">use </span>tokio::runtime::Runtime;
 
@@ -542,15 +588,10 @@
         <span class="kw">let </span>upstream_relay = UpstreamRelayService::new(config.clone()).start();
         <span class="kw">let </span>test_store = TestStoreService::new(config.clone()).start();
 
-        <span class="kw">let </span>redis_pool = config
+        <span class="kw">let </span>redis_pools = config
             .redis()
             .filter(|<span class="kw">_</span>| config.processing_enabled())
-            .map(|redis| <span class="kw">match </span>redis {
-                (RedisConnection::Single(server), options) =&gt; RedisPool::single(server, options),
-                (RedisConnection::Cluster(servers), options) =&gt; {
-                    RedisPool::cluster(servers.iter().map(|s| s.as_str()), options)
-                }
-            })
+            .map(create_redis_pools)
             .transpose()
             .context(ServiceError::Redis)<span class="question-mark">?</span>;
 
@@ -621,7 +662,7 @@
             global_config_handle,
             cogs,
             <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-            </span>redis_pool.clone(),
+            </span>redis_pools.clone(),
             processor::Addrs {
                 project_cache: project_cache.clone(),
                 outcome_aggregator: outcome_aggregator.clone(),
@@ -651,7 +692,9 @@
             MemoryChecker::new(memory_stat.clone(), config.clone()),
             envelope_buffer.clone(),
             project_cache_services,
-            redis_pool.clone(),
+            redis_pools
+                .as_ref()
+                .map(|pools| pools.project_configs.clone()),
         )
         .spawn_handler(project_cache_rx);
 
@@ -668,7 +711,7 @@
             config.clone(),
             upstream_relay.clone(),
             <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-            </span>redis_pool,
+            </span>redis_pools.clone(),
         )
         .start();
 
@@ -761,6 +804,55 @@
     <span class="doccomment">/// Returns the address of the [`OutcomeProducer`] service.
     </span><span class="kw">pub fn </span>outcome_aggregator(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>Addr&lt;TrackOutcome&gt; {
         <span class="kw-2">&amp;</span><span class="self">self</span>.inner.registry.outcome_aggregator
+    }
+}
+
+<span class="kw">fn </span>create_redis_pool(
+    (connection, options): (<span class="kw-2">&amp;</span>RedisConnection, RedisConfigOptions),
+) -&gt; <span class="prelude-ty">Result</span>&lt;RedisPool, RedisError&gt; {
+    <span class="kw">match </span>connection {
+        RedisConnection::Cluster(servers) =&gt; {
+            RedisPool::cluster(servers.iter().map(|s| s.as_str()), options)
+        }
+        RedisConnection::Single(server) =&gt; RedisPool::single(server, options),
+    }
+}
+
+<span class="doccomment">/// Creates Redis pools from the given `configs`.
+///
+/// If `configs` is [`Unified`](RedisPoolConfigs::Unified), one pool is created and then cloned
+/// for each use case, meaning that all use cases really use the same pool. If it is
+/// [`Individual`](RedisPoolConfigs::Individual), an actual separate pool is created for each
+/// use case.
+</span><span class="kw">pub fn </span>create_redis_pools(configs: RedisPoolConfigs) -&gt; <span class="prelude-ty">Result</span>&lt;RedisPools, RedisError&gt; {
+    <span class="kw">match </span>configs {
+        RedisPoolConfigs::Unified(pool) =&gt; {
+            <span class="kw">let </span>pool = create_redis_pool(pool)<span class="question-mark">?</span>;
+            <span class="prelude-val">Ok</span>(RedisPools {
+                project_configs: pool.clone(),
+                cardinality: pool.clone(),
+                quotas: pool.clone(),
+                misc: pool,
+            })
+        }
+        RedisPoolConfigs::Individual {
+            project_configs,
+            cardinality,
+            quotas,
+            misc,
+        } =&gt; {
+            <span class="kw">let </span>project_configs = create_redis_pool(project_configs)<span class="question-mark">?</span>;
+            <span class="kw">let </span>cardinality = create_redis_pool(cardinality)<span class="question-mark">?</span>;
+            <span class="kw">let </span>quotas = create_redis_pool(quotas)<span class="question-mark">?</span>;
+            <span class="kw">let </span>misc = create_redis_pool(misc)<span class="question-mark">?</span>;
+
+            <span class="prelude-val">Ok</span>(RedisPools {
+                project_configs,
+                cardinality,
+                quotas,
+                misc,
+            })
+        }
     }
 }
 

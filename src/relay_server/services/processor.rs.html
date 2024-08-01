@@ -4095,6 +4095,15 @@
 <a href="#4095" id="4095">4095</a>
 <a href="#4096" id="4096">4096</a>
 <a href="#4097" id="4097">4097</a>
+<a href="#4098" id="4098">4098</a>
+<a href="#4099" id="4099">4099</a>
+<a href="#4100" id="4100">4100</a>
+<a href="#4101" id="4101">4101</a>
+<a href="#4102" id="4102">4102</a>
+<a href="#4103" id="4103">4103</a>
+<a href="#4104" id="4104">4104</a>
+<a href="#4105" id="4105">4105</a>
+<a href="#4106" id="4106">4106</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeMap, BTreeSet, HashMap};
 <span class="kw">use </span>std::error::Error;
@@ -4154,7 +4163,7 @@
     relay_dynamic_config::{CardinalityLimiterMode, MetricExtractionGroups},
     relay_metrics::RedisMetricMetaStore,
     relay_quotas::{Quota, RateLimitingError, RedisRateLimiter},
-    relay_redis::RedisPool,
+    relay_redis::{RedisPool, RedisPools},
     std::iter::Chain,
     std::slice::Iter,
     symbolic_unreal::{Unreal4Error, Unreal4ErrorKind},
@@ -5294,7 +5303,7 @@
     global_config: GlobalConfigHandle,
     cogs: Cogs,
     <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-    </span>redis_pool: <span class="prelude-ty">Option</span>&lt;RedisPool&gt;,
+    </span>quotas_pool: <span class="prelude-ty">Option</span>&lt;RedisPool&gt;,
     addrs: Addrs,
     <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
     </span>rate_limiter: <span class="prelude-ty">Option</span>&lt;RedisRateLimiter&gt;,
@@ -5313,7 +5322,7 @@
         config: Arc&lt;Config&gt;,
         global_config: GlobalConfigHandle,
         cogs: Cogs,
-        <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)] </span>redis: <span class="prelude-ty">Option</span>&lt;RedisPool&gt;,
+        <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)] </span>redis: <span class="prelude-ty">Option</span>&lt;RedisPools&gt;,
         addrs: Addrs,
         metric_outcomes: MetricOutcomes,
     ) -&gt; <span class="self">Self </span>{
@@ -5327,32 +5336,41 @@
             }
         });
 
+        <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
+        </span><span class="kw">let </span>(cardinality, quotas, misc) = <span class="kw">match </span>redis {
+            <span class="prelude-val">Some</span>(RedisPools {
+                cardinality,
+                quotas,
+                misc,
+                ..
+            }) =&gt; (<span class="prelude-val">Some</span>(cardinality), <span class="prelude-val">Some</span>(quotas), <span class="prelude-val">Some</span>(misc)),
+            <span class="prelude-val">None </span>=&gt; (<span class="prelude-val">None</span>, <span class="prelude-val">None</span>, <span class="prelude-val">None</span>),
+        };
+
         <span class="kw">let </span>inner = InnerProcessor {
             workers: WorkerGroup::new(pool),
             global_config,
             cogs,
             <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-            </span>redis_pool: redis.clone(),
+            </span>quotas_pool: quotas.clone(),
             <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-            </span>rate_limiter: redis
-                .clone()
-                .map(|pool| RedisRateLimiter::new(pool).max_limit(config.max_rate_limit())),
+            </span>rate_limiter: quotas
+                .map(|quotas| RedisRateLimiter::new(quotas).max_limit(config.max_rate_limit())),
             addrs,
             geoip_lookup,
             <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-            </span>metric_meta_store: redis.clone().map(|pool| {
-                RedisMetricMetaStore::new(pool, config.metrics_meta_locations_expiry())
+            </span>metric_meta_store: misc.map(|misc| {
+                RedisMetricMetaStore::new(misc, config.metrics_meta_locations_expiry())
             }),
             <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-            </span>cardinality_limiter: redis
-                .clone()
-                .map(|pool| {
+            </span>cardinality_limiter: cardinality
+                .map(|cardinality| {
                     RedisSetLimiter::new(
                         RedisSetLimiterOptions {
                             cache_vacuum_interval: config
                                 .cardinality_limiter_cache_vacuum_interval(),
                         },
-                        pool,
+                        cardinality,
                     )
                 })
                 .map(CardinalityLimiter::new),
@@ -5426,9 +5444,9 @@
         <span class="attr">#[allow(unused_mut)]
         </span><span class="kw">let </span><span class="kw-2">mut </span>reservoir = ReservoirEvaluator::new(reservoir_counters);
         <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-        </span><span class="kw">if let </span><span class="prelude-val">Some</span>(redis_pool) = <span class="self">self</span>.inner.redis_pool.as_ref() {
+        </span><span class="kw">if let </span><span class="prelude-val">Some</span>(quotas_pool) = <span class="self">self</span>.inner.quotas_pool.as_ref() {
             <span class="kw">let </span>org_id = managed_envelope.scoping().organization_id;
-            reservoir.set_redis(org_id, redis_pool);
+            reservoir.set_redis(org_id, quotas_pool);
         }
 
         <span class="kw">let </span>extracted_metrics = ProcessingExtractedMetrics::new(
