@@ -69,6 +69,20 @@ impl ProjectInfo {
         self.public_keys.first()
     }
 
+    /// Creates `Scoping` for this project.
+    ///
+    /// Returns `Some` if the project contains a project identifier otherwise `None`.
+    pub fn scoping(&self, project_key: ProjectKey) -> Option<Scoping> {
+        Some(Scoping {
+            organization_id: self.organization_id.unwrap_or(0),
+            project_id: self.project_id?,
+            project_key,
+            key_id: self
+                .get_public_key_config()
+                .and_then(|config| config.numeric_id),
+        })
+    }
+
     /// Returns the project config.
     pub fn config(&self) -> &ProjectConfig {
         &self.config

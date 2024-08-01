@@ -1,5 +1,5 @@
 use std::borrow::Cow;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::error::Error;
 use std::fmt::{Debug, Display};
 use std::future::Future;
@@ -36,7 +36,7 @@ use relay_metrics::{
 use relay_pii::PiiConfigError;
 use relay_profiling::ProfileId;
 use relay_protocol::{Annotated, Value};
-use relay_quotas::{DataCategory, Scoping};
+use relay_quotas::{DataCategory, RateLimits, Scoping};
 use relay_sampling::config::RuleId;
 use relay_sampling::evaluation::{ReservoirCounters, ReservoirEvaluator, SamplingDecision};
 use relay_sampling::DynamicSamplingContext;
@@ -47,7 +47,6 @@ use smallvec::{smallvec, SmallVec};
 
 #[cfg(feature = "processing")]
 use {
-    crate::metrics::MetricsLimiter,
     crate::services::store::{Store, StoreEnvelope},
     crate::utils::{sample, Enforcement, EnvelopeLimiter, ItemAction},
     itertools::Itertools,
@@ -57,7 +56,7 @@ use {
     },
     relay_dynamic_config::{CardinalityLimiterMode, MetricExtractionGroups},
     relay_metrics::RedisMetricMetaStore,
-    relay_quotas::{Quota, RateLimitingError, RateLimits, RedisRateLimiter},
+    relay_quotas::{Quota, RateLimitingError, RedisRateLimiter},
     relay_redis::RedisPool,
     std::iter::Chain,
     std::slice::Iter,
@@ -66,16 +65,18 @@ use {
 
 use crate::envelope::{self, ContentType, Envelope, EnvelopeError, Item, ItemType};
 use crate::extractors::{PartialDsn, RequestMeta};
-use crate::metrics::{MetricOutcomes, MinimalTrackableBucket};
+use crate::http;
+use crate::metrics::{MetricOutcomes, MetricsLimiter, MinimalTrackableBucket};
 use crate::metrics_extraction::transactions::types::ExtractMetricsError;
 use crate::metrics_extraction::transactions::{ExtractedMetrics, TransactionExtractor};
 use crate::service::ServiceError;
 use crate::services::global_config::GlobalConfigHandle;
+use crate::services::metrics::{Aggregator, MergeBuckets};
 use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::services::processor::event::FiltersStatus;
-use crate::services::project::ProjectInfo;
+use crate::services::project::{ProjectInfo, ProjectState};
 use crate::services::project_cache::{
-    AddMetricBuckets, AddMetricMeta, BucketSource, ProjectCache, UpdateRateLimits,
+    AddMetricMeta, BucketSource, ProcessMetrics, ProjectCache, UpdateRateLimits,
 };
 use crate::services::test_store::{Capture, TestStore};
 use crate::services::upstream::{
@@ -86,11 +87,11 @@ use crate::utils::{
     self, InvalidProcessingGroupType, ManagedEnvelope, SamplingResult, ThreadPool, TypedEnvelope,
     WorkerGroup,
 };
-use crate::{http, metrics};
 
 mod attachment;
 mod dynamic_sampling;
 mod event;
+mod metrics;
 mod profile;
 mod profile_chunk;
 mod replay;
@@ -728,7 +729,7 @@ impl ProcessingExtractedMetrics {
     }
 }
 
-fn send_metrics(metrics: ExtractedMetrics, envelope: &Envelope, project_cache: Addr<ProjectCache>) {
+fn send_metrics(metrics: ExtractedMetrics, envelope: &Envelope, aggregator: &Addr<Aggregator>) {
     let project_key = envelope.meta().public_key();
 
     let ExtractedMetrics {
@@ -737,7 +738,10 @@ fn send_metrics(metrics: ExtractedMetrics, envelope: &Envelope, project_cache: A
     } = metrics;
 
     if !project_metrics.is_empty() {
-        project_cache.send(AddMetricBuckets::internal(project_key, project_metrics));
+        aggregator.send(MergeBuckets {
+            project_key,
+            buckets: project_metrics,
+        });
     }
 
     if !sampling_metrics.is_empty() {
@@ -748,10 +752,10 @@ fn send_metrics(metrics: ExtractedMetrics, envelope: &Envelope, project_cache: A
         // dependent_project_with_tracing  -> metrics goes to root
         // root_project_with_tracing       -> metrics goes to root == self
         let sampling_project_key = envelope.sampling_key().unwrap_or(project_key);
-        project_cache.send(AddMetricBuckets::internal(
-            sampling_project_key,
-            sampling_metrics,
-        ));
+        aggregator.send(MergeBuckets {
+            project_key: sampling_project_key,
+            buckets: sampling_metrics,
+        });
     }
 }
 
@@ -903,14 +907,23 @@ pub struct ProcessEnvelope {
 ///    ignored independently.
 ///  - For [`MetricBuckets`](ItemType::MetricBuckets), the entire list of buckets is parsed and
 ///    dropped together on parsing failure.
-///  - Other items will be ignored with an error message.
+///  - Other envelope items will be ignored with an error message.
 ///
 /// Additionally, processing applies clock drift correction using the system clock of this Relay, if
 /// the Envelope specifies the [`sent_at`](Envelope::sent_at) header.
 #[derive(Debug)]
-pub struct ProcessMetrics {
+pub struct ProcessProjectMetrics {
+    /// The project state the metrics belong to.
+    ///
+    /// The project state can be pending, in which case cached rate limits
+    /// and other project specific operations are skipped and executed once
+    /// the project state becomes available.
+    pub project_state: ProjectState,
+    /// Currently active cached rate limits for this project.
+    pub rate_limits: RateLimits,
+
     /// A list of metric items.
-    pub items: Vec<Item>,
+    pub data: MetricData,
     /// The target project.
     pub project_key: ProjectKey,
     /// Whether to keep or reset the metric metadata.
@@ -920,6 +933,68 @@ pub struct ProcessMetrics {
     /// The value of the Envelope's [`sent_at`](Envelope::sent_at) header for clock drift
     /// correction.
     pub sent_at: Option<DateTime<Utc>>,
+}
+
+/// Raw unparsed metric data.
+#[derive(Debug)]
+pub enum MetricData {
+    /// Raw data, unparsed envelope items.
+    Raw(Vec<Item>),
+    /// Already parsed buckets but unprocessed.
+    Parsed(Vec<Bucket>),
+}
+
+impl MetricData {
+    /// Consumes the metric data and parses the contained buckets.
+    ///
+    /// If the contained data is already parsed the buckets are returned unchanged.
+    /// Raw buckets are parsed and created with the passed `timestamp`.
+    fn into_buckets(self, timestamp: UnixTimestamp) -> Vec<Bucket> {
+        let items = match self {
+            Self::Parsed(buckets) => return buckets,
+            Self::Raw(items) => items,
+        };
+
+        let mut buckets = Vec::new();
+        for item in items {
+            let payload = item.payload();
+            if item.ty() == &ItemType::Statsd {
+                for bucket_result in Bucket::parse_all(&payload, timestamp) {
+                    match bucket_result {
+                        Ok(bucket) => buckets.push(bucket),
+                        Err(error) => relay_log::debug!(
+                            error = &error as &dyn Error,
+                            "failed to parse metric bucket from statsd format",
+                        ),
+                    }
+                }
+            } else if item.ty() == &ItemType::MetricBuckets {
+                match serde_json::from_slice::<Vec<Bucket>>(&payload) {
+                    Ok(parsed_buckets) => {
+                        // Re-use the allocation of `b` if possible.
+                        if buckets.is_empty() {
+                            buckets = parsed_buckets;
+                        } else {
+                            buckets.extend(parsed_buckets);
+                        }
+                    }
+                    Err(error) => {
+                        relay_log::debug!(
+                            error = &error as &dyn Error,
+                            "failed to parse metric bucket",
+                        );
+                        metric!(counter(RelayCounters::MetricBucketsParsingFailed) += 1);
+                    }
+                }
+            } else {
+                relay_log::error!(
+                    "invalid item of type {} passed to ProcessMetrics",
+                    item.ty()
+                );
+            }
+        }
+        buckets
+    }
 }
 
 #[derive(Debug)]
@@ -950,6 +1025,8 @@ pub struct ProjectMetrics {
     pub buckets: Vec<Bucket>,
     /// Project info for extracting quotas.
     pub project_info: Arc<ProjectInfo>,
+    /// Currently cached rate limits.
+    pub rate_limits: RateLimits,
 }
 
 /// Encodes metrics into an envelope ready to be sent upstream.
@@ -990,7 +1067,7 @@ pub struct SubmitClientReports {
 #[derive(Debug)]
 pub enum EnvelopeProcessor {
     ProcessEnvelope(Box<ProcessEnvelope>),
-    ProcessMetrics(Box<ProcessMetrics>),
+    ProcessProjectMetrics(Box<ProcessProjectMetrics>),
     ProcessBatchedMetrics(Box<ProcessBatchedMetrics>),
     ProcessMetricMeta(Box<ProcessMetricMeta>),
     EncodeMetrics(Box<EncodeMetrics>),
@@ -1004,7 +1081,7 @@ impl EnvelopeProcessor {
     pub fn variant(&self) -> &'static str {
         match self {
             EnvelopeProcessor::ProcessEnvelope(_) => "ProcessEnvelope",
-            EnvelopeProcessor::ProcessMetrics(_) => "ProcessMetrics",
+            EnvelopeProcessor::ProcessProjectMetrics(_) => "ProcessProjectMetrics",
             EnvelopeProcessor::ProcessBatchedMetrics(_) => "ProcessBatchedMetrics",
             EnvelopeProcessor::ProcessMetricMeta(_) => "ProcessMetricMeta",
             EnvelopeProcessor::EncodeMetrics(_) => "EncodeMetrics",
@@ -1025,11 +1102,11 @@ impl FromMessage<ProcessEnvelope> for EnvelopeProcessor {
     }
 }
 
-impl FromMessage<ProcessMetrics> for EnvelopeProcessor {
+impl FromMessage<ProcessProjectMetrics> for EnvelopeProcessor {
     type Response = NoResponse;
 
-    fn from_message(message: ProcessMetrics, _: ()) -> Self {
-        Self::ProcessMetrics(Box::new(message))
+    fn from_message(message: ProcessProjectMetrics, _: ()) -> Self {
+        Self::ProcessProjectMetrics(Box::new(message))
     }
 }
 
@@ -1097,6 +1174,7 @@ pub struct Addrs {
     pub test_store: Addr<TestStore>,
     #[cfg(feature = "processing")]
     pub store_forwarder: Option<Addr<Store>>,
+    pub aggregator: Addr<Aggregator>,
 }
 
 impl Default for Addrs {
@@ -1108,6 +1186,7 @@ impl Default for Addrs {
             test_store: Addr::dummy(),
             #[cfg(feature = "processing")]
             store_forwarder: None,
+            aggregator: Addr::dummy(),
         }
     }
 }
@@ -2004,7 +2083,7 @@ impl EnvelopeProcessorService {
                         send_metrics(
                             state.extracted_metrics,
                             state.managed_envelope.envelope(),
-                            self.inner.addrs.project_cache.clone(),
+                            &self.inner.addrs.aggregator,
                         );
 
                         let envelope_response = if state.managed_envelope.envelope().is_empty() {
@@ -2058,63 +2137,28 @@ impl EnvelopeProcessorService {
         }
     }
 
-    fn handle_process_metrics(&self, cogs: &mut Token, message: ProcessMetrics) {
-        let ProcessMetrics {
-            items,
+    fn handle_process_project_metrics(&self, cogs: &mut Token, message: ProcessProjectMetrics) {
+        let ProcessProjectMetrics {
+            project_state,
+            rate_limits,
+            data,
             project_key,
             start_time,
             sent_at,
             source,
         } = message;
 
-        let received = relay_common::time::instant_to_date_time(start_time);
         let received_timestamp = UnixTimestamp::from_instant(start_time);
 
-        let clock_drift_processor =
-            ClockDriftProcessor::new(sent_at, received).at_least(MINIMUM_CLOCK_DRIFT);
-
-        let mut buckets = Vec::new();
-        for item in items {
-            let payload = item.payload();
-            if item.ty() == &ItemType::Statsd {
-                for bucket_result in Bucket::parse_all(&payload, received_timestamp) {
-                    match bucket_result {
-                        Ok(bucket) => buckets.push(bucket),
-                        Err(error) => relay_log::debug!(
-                            error = &error as &dyn Error,
-                            "failed to parse metric bucket from statsd format",
-                        ),
-                    }
-                }
-            } else if item.ty() == &ItemType::MetricBuckets {
-                match serde_json::from_slice::<Vec<Bucket>>(&payload) {
-                    Ok(parsed_buckets) => {
-                        // Re-use the allocation of `b` if possible.
-                        if buckets.is_empty() {
-                            buckets = parsed_buckets;
-                        } else {
-                            buckets.extend(parsed_buckets);
-                        }
-                    }
-                    Err(error) => {
-                        relay_log::debug!(
-                            error = &error as &dyn Error,
-                            "failed to parse metric bucket",
-                        );
-                        metric!(counter(RelayCounters::MetricBucketsParsingFailed) += 1);
-                    }
-                }
-            } else {
-                relay_log::error!(
-                    "invalid item of type {} passed to ProcessMetrics",
-                    item.ty()
-                );
-            }
-        }
-
+        let mut buckets = data.into_buckets(received_timestamp);
         if buckets.is_empty() {
             return;
         };
+        cogs.update(relay_metrics::cogs::BySize(&buckets));
+
+        let received = relay_common::time::instant_to_date_time(start_time);
+        let clock_drift_processor =
+            ClockDriftProcessor::new(sent_at, received).at_least(MINIMUM_CLOCK_DRIFT);
 
         for bucket in &mut buckets {
             clock_drift_processor.process_timestamp(&mut bucket.timestamp);
@@ -2123,14 +2167,22 @@ impl EnvelopeProcessorService {
             }
         }
 
-        cogs.update(relay_metrics::cogs::BySize(&buckets));
+        let buckets = self::metrics::filter_namespaces(buckets, source);
 
-        relay_log::trace!("merging metric buckets into project cache");
-        self.inner.addrs.project_cache.send(AddMetricBuckets {
-            project_key,
-            buckets,
-            source,
-        });
+        // Best effort check to filter and rate limit buckets, if there is no project state
+        // available at the current time, we will check again after flushing.
+        let buckets = match project_state.enabled() {
+            Some(project_info) => {
+                self.check_buckets(project_key, &project_info, &rate_limits, buckets)
+            }
+            None => buckets,
+        };
+
+        relay_log::trace!("merging metric buckets into the aggregator");
+        self.inner
+            .addrs
+            .aggregator
+            .send(MergeBuckets::new(project_key, buckets));
     }
 
     fn handle_process_batched_metrics(&self, cogs: &mut Token, message: ProcessBatchedMetrics) {
@@ -2140,12 +2192,6 @@ impl EnvelopeProcessorService {
             start_time,
             sent_at,
         } = message;
-
-        let received = relay_common::time::instant_to_date_time(start_time);
-        let received_timestamp = UnixTimestamp::from_instant(start_time);
-
-        let clock_drift_processor =
-            ClockDriftProcessor::new(sent_at, received).at_least(MINIMUM_CLOCK_DRIFT);
 
         #[derive(serde::Deserialize)]
         struct Wrapper {
@@ -2165,25 +2211,15 @@ impl EnvelopeProcessorService {
         };
 
         let mut feature_weights = FeatureWeights::none();
-        for (project_key, mut buckets) in buckets {
-            if buckets.is_empty() {
-                continue;
-            }
-
-            for bucket in &mut buckets {
-                clock_drift_processor.process_timestamp(&mut bucket.timestamp);
-                if !matches!(source, BucketSource::Internal) {
-                    bucket.metadata = BucketMetadata::new(received_timestamp);
-                }
-            }
-
+        for (project_key, buckets) in buckets {
             feature_weights = feature_weights.merge(relay_metrics::cogs::BySize(&buckets).into());
 
-            relay_log::trace!("merging metric buckets into project cache");
-            self.inner.addrs.project_cache.send(AddMetricBuckets {
+            self.inner.addrs.project_cache.send(ProcessMetrics {
+                data: MetricData::Parsed(buckets),
                 project_key,
-                buckets,
                 source,
+                start_time: start_time.into(),
+                sent_at,
             });
         }
 
@@ -2307,6 +2343,69 @@ impl EnvelopeProcessorService {
         self.handle_submit_envelope(SubmitEnvelope {
             envelope: envelope.into_processed(),
         });
+    }
+
+    fn check_buckets(
+        &self,
+        project_key: ProjectKey,
+        project_info: &ProjectInfo,
+        rate_limits: &RateLimits,
+        buckets: Vec<Bucket>,
+    ) -> Vec<Bucket> {
+        let Some(scoping) = project_info.scoping(project_key) else {
+            relay_log::error!(
+                tags.project_key = project_key.as_str(),
+                "there is no scoping: dropping {} buckets",
+                buckets.len(),
+            );
+            return Vec::new();
+        };
+
+        let mut buckets = self::metrics::apply_project_info(
+            buckets,
+            &self.inner.metric_outcomes,
+            project_info,
+            scoping,
+        );
+
+        let namespaces: BTreeSet<MetricNamespace> = buckets
+            .iter()
+            .filter_map(|bucket| bucket.name.try_namespace())
+            .collect();
+
+        for namespace in namespaces {
+            let limits = rate_limits.check_with_quotas(
+                project_info.get_quotas(),
+                scoping.item(DataCategory::MetricBucket),
+            );
+
+            if limits.is_limited() {
+                let rejected;
+                (buckets, rejected) = utils::split_off(buckets, |bucket| {
+                    bucket.name.try_namespace() == Some(namespace)
+                });
+
+                let reason_code = limits.longest().and_then(|limit| limit.reason_code.clone());
+                self.inner.metric_outcomes.track(
+                    scoping,
+                    &rejected,
+                    Outcome::RateLimited(reason_code),
+                );
+            }
+        }
+
+        let quotas = project_info.config.quotas.clone();
+        match MetricsLimiter::create(buckets, quotas, scoping) {
+            Ok(mut bucket_limiter) => {
+                bucket_limiter.enforce_limits(
+                    rate_limits,
+                    &self.inner.metric_outcomes,
+                    &self.inner.addrs.outcome_aggregator,
+                );
+                bucket_limiter.into_buckets()
+            }
+            Err(buckets) => buckets,
+        }
     }
 
     #[cfg(feature = "processing")]
@@ -2529,6 +2628,7 @@ impl EnvelopeProcessorService {
             let ProjectMetrics {
                 buckets,
                 project_info,
+                rate_limits: _,
             } = message;
 
             let buckets = self.rate_limit_buckets(scoping, &project_info, buckets);
@@ -2589,7 +2689,7 @@ impl EnvelopeProcessorService {
                 let mut envelope = Envelope::from_request(None, RequestMeta::outbound(dsn.clone()));
 
                 let mut item = Item::new(ItemType::MetricBuckets);
-                item.set_source_quantities(metrics::extract_quantities(batch));
+                item.set_source_quantities(crate::metrics::extract_quantities(batch));
                 item.set_payload(ContentType::Json, serde_json::to_vec(&buckets).unwrap());
                 envelope.add_item(item);
 
@@ -2694,7 +2794,17 @@ impl EnvelopeProcessorService {
         self.send_global_partition(partition_key, &mut partition);
     }
 
-    fn handle_encode_metrics(&self, message: EncodeMetrics) {
+    fn handle_encode_metrics(&self, mut message: EncodeMetrics) {
+        for (scoping, pm) in message.scopes.iter_mut() {
+            let buckets = std::mem::take(&mut pm.buckets);
+            pm.buckets = self.check_buckets(
+                scoping.project_key,
+                &pm.project_info,
+                &pm.rate_limits,
+                buckets,
+            );
+        }
+
         #[cfg(feature = "processing")]
         if self.inner.config.processing_enabled() {
             if let Some(ref store_forwarder) = self.inner.addrs.store_forwarder {
@@ -2771,7 +2881,9 @@ impl EnvelopeProcessorService {
 
             match message {
                 EnvelopeProcessor::ProcessEnvelope(m) => self.handle_process_envelope(*m),
-                EnvelopeProcessor::ProcessMetrics(m) => self.handle_process_metrics(&mut cogs, *m),
+                EnvelopeProcessor::ProcessProjectMetrics(m) => {
+                    self.handle_process_project_metrics(&mut cogs, *m)
+                }
                 EnvelopeProcessor::ProcessBatchedMetrics(m) => {
                     self.handle_process_batched_metrics(&mut cogs, *m)
                 }
@@ -2787,7 +2899,7 @@ impl EnvelopeProcessorService {
     fn feature_weights(&self, message: &EnvelopeProcessor) -> FeatureWeights {
         match message {
             EnvelopeProcessor::ProcessEnvelope(v) => AppFeature::from(v.envelope.group()).into(),
-            EnvelopeProcessor::ProcessMetrics(_) => AppFeature::Unattributed.into(),
+            EnvelopeProcessor::ProcessProjectMetrics(_) => AppFeature::Unattributed.into(),
             EnvelopeProcessor::ProcessBatchedMetrics(_) => AppFeature::Unattributed.into(),
             EnvelopeProcessor::ProcessMetricMeta(_) => AppFeature::MetricMeta.into(),
             EnvelopeProcessor::EncodeMetrics(v) => v
@@ -3165,6 +3277,7 @@ impl<'a> IntoIterator for CombinedQuotas<'a> {
 mod tests {
     use std::env;
 
+    use insta::assert_debug_snapshot;
     use relay_base_schema::metrics::{DurationUnit, MetricUnit};
     use relay_common::glob2::LazyGlob;
     use relay_dynamic_config::{ExtrapolationConfig, MetricExtractionConfig, ProjectConfig};
@@ -3261,6 +3374,7 @@ mod tests {
                     width: 10,
                     metadata: BucketMetadata::default(),
                 }],
+                rate_limits: Default::default(),
                 project_info,
             };
 
@@ -3627,11 +3741,11 @@ mod tests {
         let start_time = Instant::now();
         let config = Config::default();
 
-        let (project_cache, mut project_cache_rx) = Addr::custom();
+        let (aggregator, mut aggregator_rx) = Addr::custom();
         let processor = create_test_processor_with_addrs(
             config,
             Addrs {
-                project_cache,
+                aggregator,
                 ..Default::default()
             },
         );
@@ -3648,17 +3762,19 @@ mod tests {
             ),
             (BucketSource::Internal, None),
         ] {
-            let message = ProcessMetrics {
-                items: vec![item.clone()],
+            let message = ProcessProjectMetrics {
+                data: MetricData::Raw(vec![item.clone()]),
+                project_state: ProjectState::Pending,
+                rate_limits: Default::default(),
                 project_key,
                 source,
                 start_time,
                 sent_at: Some(Utc::now()),
             };
-            processor.handle_process_metrics(&mut token, message);
+            processor.handle_process_project_metrics(&mut token, message);
 
-            let value = project_cache_rx.recv().await.unwrap();
-            let ProjectCache::AddMetricBuckets(merge_buckets) = value else {
+            let value = aggregator_rx.recv().await.unwrap();
+            let Aggregator::MergeBuckets(merge_buckets) = value else {
                 panic!()
             };
             let buckets = merge_buckets.buckets;
@@ -3668,7 +3784,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_process_batched_metrics_bucket_metadata() {
+    async fn test_process_batched_metrics() {
         let mut token = Cogs::noop().timed(ResourceId::Relay, AppFeature::Unattributed);
         let start_time = Instant::now();
         let config = Config::default();
@@ -3682,89 +3798,119 @@ mod tests {
             },
         );
 
-        let payload_no_metadata = r#"{
+        let payload = r#"{
     "buckets": {
-        "a94ae32be2584e0bbd7a4cbb95971fee": [
+        "11111111111111111111111111111111": [
             {
                 "timestamp": 1615889440,
                 "width": 0,
                 "name": "d:custom/endpoint.response_time@millisecond",
                 "type": "d",
                 "value": [
-                  36.0,
-                  49.0,
-                  57.0,
                   68.0
                 ],
                 "tags": {
                   "route": "user_index"
                 }
             }
-        ]
-    }
-}
-"#;
-
-        let payload_metadata = r#"{
-    "buckets": {
-        "a94ae32be2584e0bbd7a4cbb95971fee": [
+        ],
+        "22222222222222222222222222222222": [
             {
                 "timestamp": 1615889440,
                 "width": 0,
-                "name": "d:custom/endpoint.response_time@millisecond",
+                "name": "d:custom/endpoint.cache_rate@none",
                 "type": "d",
                 "value": [
-                  36.0,
-                  49.0,
-                  57.0,
-                  68.0
-                ],
-                "tags": {
-                  "route": "user_index"
-                },
-                "metadata": {
-                  "merges": 1,
-                  "received_at": 1615889440
-                }
+                  36.0
+                ]
             }
         ]
     }
 }
 "#;
-        for (source, payload, expected_received_at) in [
-            (
-                BucketSource::External,
-                payload_no_metadata,
-                Some(UnixTimestamp::from_instant(start_time)),
-            ),
-            (BucketSource::Internal, payload_no_metadata, None),
-            (
-                BucketSource::External,
-                payload_metadata,
-                Some(UnixTimestamp::from_instant(start_time)),
-            ),
-            (
-                BucketSource::Internal,
-                payload_metadata,
-                Some(UnixTimestamp::from_secs(1615889440)),
-            ),
-        ] {
-            let message = ProcessBatchedMetrics {
-                payload: Bytes::from(payload),
-                source,
-                start_time,
-                sent_at: Some(Utc::now()),
-            };
-            processor.handle_process_batched_metrics(&mut token, message);
+        let message = ProcessBatchedMetrics {
+            payload: Bytes::from(payload),
+            source: BucketSource::Internal,
+            start_time,
+            sent_at: Some(Utc::now()),
+        };
+        processor.handle_process_batched_metrics(&mut token, message);
 
-            let value = project_cache_rx.recv().await.unwrap();
-            let ProjectCache::AddMetricBuckets(merge_buckets) = value else {
-                panic!()
-            };
-            let buckets = merge_buckets.buckets;
-            assert_eq!(buckets.len(), 1);
-            assert_eq!(buckets[0].metadata.received_at, expected_received_at);
-        }
+        let value = project_cache_rx.recv().await.unwrap();
+        let ProjectCache::ProcessMetrics(pm1) = value else {
+            panic!()
+        };
+        let value = project_cache_rx.recv().await.unwrap();
+        let ProjectCache::ProcessMetrics(pm2) = value else {
+            panic!()
+        };
+
+        let mut messages = vec![pm1, pm2];
+        messages.sort_by_key(|pm| pm.project_key);
+
+        let actual = messages
+            .into_iter()
+            .map(|pm| (pm.project_key, pm.data, pm.source))
+            .collect::<Vec<_>>();
+
+        assert_debug_snapshot!(actual, @r###"
+        [
+            (
+                ProjectKey("11111111111111111111111111111111"),
+                Parsed(
+                    [
+                        Bucket {
+                            timestamp: UnixTimestamp(1615889440),
+                            width: 0,
+                            name: MetricName(
+                                "d:custom/endpoint.response_time@millisecond",
+                            ),
+                            value: Distribution(
+                                [
+                                    68.0,
+                                ],
+                            ),
+                            tags: {
+                                "route": "user_index",
+                            },
+                            metadata: BucketMetadata {
+                                merges: 1,
+                                received_at: None,
+                                extracted_from_indexed: false,
+                            },
+                        },
+                    ],
+                ),
+                Internal,
+            ),
+            (
+                ProjectKey("22222222222222222222222222222222"),
+                Parsed(
+                    [
+                        Bucket {
+                            timestamp: UnixTimestamp(1615889440),
+                            width: 0,
+                            name: MetricName(
+                                "d:custom/endpoint.cache_rate@none",
+                            ),
+                            value: Distribution(
+                                [
+                                    36.0,
+                                ],
+                            ),
+                            tags: {},
+                            metadata: BucketMetadata {
+                                merges: 1,
+                                received_at: None,
+                                extracted_from_indexed: false,
+                            },
+                        },
+                    ],
+                ),
+                Internal,
+            ),
+        ]
+        "###);
     }
 
     #[test]
