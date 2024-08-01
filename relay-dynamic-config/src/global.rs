@@ -225,6 +225,14 @@ pub struct Options {
     )]
     pub extrapolation_duplication_limit: usize,
 
+    #[serde(
+        default,
+        rename = "sentry-metrics.extrapolation.propagate-rates",
+        deserialize_with = "default_on_error",
+        skip_serializing_if = "is_default"
+    )]
+    pub extrapolation_propagate_rates: bool,
+
     /// All other unknown options.
     #[serde(flatten)]
     other: HashMap<String, Value>,
