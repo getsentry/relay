@@ -4,6 +4,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use crate::metrics::{MetricOutcomes, MetricStats};
+use crate::services::buffer::GuardedEnvelopeBuffer;
 use crate::services::stats::RelayStats;
 use anyhow::{Context, Result};
 use axum::extract::FromRequestParts;
@@ -138,6 +139,7 @@ fn create_store_pool(config: &Config) -> Result<ThreadPool> {
 struct StateInner {
     config: Arc<Config>,
     memory_checker: MemoryChecker,
+    envelope_buffer: Option<Arc<GuardedEnvelopeBuffer>>,
     registry: Registry,
 }
 
@@ -255,9 +257,11 @@ impl ServiceState {
             upstream_relay.clone(),
             global_config.clone(),
         );
+        let envelope_buffer = GuardedEnvelopeBuffer::from_config(&config).map(Arc::new);
         ProjectCacheService::new(
             config.clone(),
             MemoryChecker::new(memory_stat.clone(), config.clone()),
+            envelope_buffer.clone(),
             project_cache_services,
             metric_outcomes,
             redis_pool.clone(),
@@ -298,7 +302,8 @@ impl ServiceState {
 
         let state = StateInner {
             config: config.clone(),
-            memory_checker: MemoryChecker::new(memory_stat, config),
+            memory_checker: MemoryChecker::new(memory_stat, config.clone()),
+            envelope_buffer,
             registry,
         };
 
@@ -317,6 +322,13 @@ impl ServiceState {
     /// thresholds set in the [`Config`].
     pub fn memory_checker(&self) -> &MemoryChecker {
         &self.inner.memory_checker
+    }
+
+    /// Returns the V2 envelope buffer, if present.
+    ///
+    /// Clones the inner Arc.
+    pub fn envelope_buffer(&self) -> Option<Arc<GuardedEnvelopeBuffer>> {
+        self.inner.envelope_buffer.clone()
     }
 
     /// Returns the address of the [`ProjectCache`] service.

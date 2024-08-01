@@ -8,9 +8,8 @@
 
 **Internal**:
 
-- Add `EnvelopeStack` and `SQLiteEnvelopeStack` to manage envelopes on disk. ([#3855](https://github.com/getsentry/relay/pull/3855))
-- Add `client_sample_rate` to spans, pulled from the trace context ([#3872](https://github.com/getsentry/relay/pull/3872)).
-
+- Add experimental support for V2 envelope buffering. ([#3855](https://github.com/getsentry/relay/pull/3855), [#3863](https://github.com/getsentry/relay/pull/3863))
+- Add `client_sample_rate` to spans, pulled from the trace context. ([#3872](https://github.com/getsentry/relay/pull/3872))
 
 ## 24.7.1
 
