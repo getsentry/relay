@@ -1695,43 +1695,21 @@
 <a href="#1695" id="1695">1695</a>
 <a href="#1696" id="1696">1696</a>
 <a href="#1697" id="1697">1697</a>
-<a href="#1698" id="1698">1698</a>
-<a href="#1699" id="1699">1699</a>
-<a href="#1700" id="1700">1700</a>
-<a href="#1701" id="1701">1701</a>
-<a href="#1702" id="1702">1702</a>
-<a href="#1703" id="1703">1703</a>
-<a href="#1704" id="1704">1704</a>
-<a href="#1705" id="1705">1705</a>
-<a href="#1706" id="1706">1706</a>
-<a href="#1707" id="1707">1707</a>
-<a href="#1708" id="1708">1708</a>
-<a href="#1709" id="1709">1709</a>
-<a href="#1710" id="1710">1710</a>
-<a href="#1711" id="1711">1711</a>
-<a href="#1712" id="1712">1712</a>
-<a href="#1713" id="1713">1713</a>
-<a href="#1714" id="1714">1714</a>
-<a href="#1715" id="1715">1715</a>
-<a href="#1716" id="1716">1716</a>
-<a href="#1717" id="1717">1717</a>
-<a href="#1718" id="1718">1718</a>
-<a href="#1719" id="1719">1719</a>
-<a href="#1720" id="1720">1720</a>
-<a href="#1721" id="1721">1721</a>
-<a href="#1722" id="1722">1722</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
 <span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::sync::Arc;
 <span class="kw">use </span>std::time::Duration;
 
 <span class="kw">use </span><span class="kw">crate</span>::extractors::RequestMeta;
-<span class="kw">use </span><span class="kw">crate</span>::metrics::MetricOutcomes;
 <span class="kw">use </span><span class="kw">crate</span>::services::buffer::{EnvelopeBufferError, GuardedEnvelopeBuffer, Peek};
+<span class="kw">use </span><span class="kw">crate</span>::services::processor::{
+    EncodeMetrics, EnvelopeProcessor, MetricData, ProcessEnvelope, ProcessingGroup, ProjectMetrics,
+};
+<span class="kw">use </span>chrono::{DateTime, Utc};
 <span class="kw">use </span>hashbrown::HashSet;
 <span class="kw">use </span>relay_base_schema::project::ProjectKey;
 <span class="kw">use </span>relay_config::{Config, RelayMode};
-<span class="kw">use </span>relay_metrics::{Bucket, MetricMeta};
+<span class="kw">use </span>relay_metrics::MetricMeta;
 <span class="kw">use </span>relay_quotas::RateLimits;
 <span class="kw">use </span>relay_redis::RedisPool;
 <span class="kw">use </span>relay_statsd::metric;
@@ -1744,12 +1722,7 @@
 <span class="kw">use </span><span class="kw">crate</span>::services::global_config::{<span class="self">self</span>, GlobalConfigManager, Subscribe};
 <span class="kw">use </span><span class="kw">crate</span>::services::metrics::{Aggregator, FlushBuckets};
 <span class="kw">use </span><span class="kw">crate</span>::services::outcome::{DiscardReason, Outcome, TrackOutcome};
-<span class="kw">use </span><span class="kw">crate</span>::services::processor::{
-    EncodeMetrics, EnvelopeProcessor, ProcessEnvelope, ProcessingGroup, ProjectMetrics,
-};
-<span class="kw">use </span><span class="kw">crate</span>::services::project::{
-    CheckedBuckets, Project, ProjectFetchState, ProjectSender, ProjectState,
-};
+<span class="kw">use </span><span class="kw">crate</span>::services::project::{Project, ProjectFetchState, ProjectSender, ProjectState};
 <span class="kw">use </span><span class="kw">crate</span>::services::project_local::{LocalProjectSource, LocalProjectSourceService};
 <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
 </span><span class="kw">use </span><span class="kw">crate</span>::services::project_redis::RedisProjectSource;
@@ -1926,28 +1899,23 @@
     }
 }
 
-<span class="doccomment">/// Add metric buckets to the project.
+<span class="doccomment">/// Starts the processing flow for received metrics.
 ///
-/// Metric buckets added via the project are filtered and rate limited
-/// according to the project state.
-///
-/// Adding buckets directly to the aggregator bypasses all of these checks.
+/// Enriches the raw data with projcet information and forwards
+/// the metrics using [`ProcessProjectMetrics`](crate::services::processor::ProcessProjectMetrics).
 </span><span class="attr">#[derive(Debug)]
-</span><span class="kw">pub struct </span>AddMetricBuckets {
-    <span class="kw">pub </span>project_key: ProjectKey,
-    <span class="kw">pub </span>buckets: Vec&lt;Bucket&gt;,
-    <span class="kw">pub </span>source: BucketSource,
-}
-
-<span class="kw">impl </span>AddMetricBuckets {
-    <span class="doccomment">/// Convenience constructor which creates an internal [`AddMetricBuckets`] message.
-    </span><span class="kw">pub fn </span>internal(project_key: ProjectKey, buckets: Vec&lt;Bucket&gt;) -&gt; <span class="self">Self </span>{
-        <span class="self">Self </span>{
-            project_key,
-            buckets,
-            source: BucketSource::Internal,
-        }
-    }
+</span><span class="kw">pub struct </span>ProcessMetrics {
+    <span class="doccomment">/// A list of metric items.
+    </span><span class="kw">pub </span>data: MetricData,
+    <span class="doccomment">/// The target project.
+    </span><span class="kw">pub </span>project_key: ProjectKey,
+    <span class="doccomment">/// Whether to keep or reset the metric metadata.
+    </span><span class="kw">pub </span>source: BucketSource,
+    <span class="doccomment">/// The instant at which the request was received.
+    </span><span class="kw">pub </span>start_time: Instant,
+    <span class="doccomment">/// The value of the Envelope's [`sent_at`](crate::envelope::Envelope::sent_at)
+    /// header for clock drift correction.
+    </span><span class="kw">pub </span>sent_at: <span class="prelude-ty">Option</span>&lt;DateTime&lt;Utc&gt;&gt;,
 }
 
 <span class="doccomment">/// Add metric metadata to the aggregator.
@@ -1994,7 +1962,7 @@
 /// information.
 ///
 /// There are also higher-level operations, such as [`CheckEnvelope`] and [`ValidateEnvelope`] that
-/// inspect contents of envelopes for ingestion, as well as [`AddMetricBuckets`] to aggregate metrics
+/// inspect contents of envelopes for ingestion, as well as [`ProcessMetrics`] to aggregate metrics
 /// associated with a project.
 ///
 /// See the enumerated variants for a full list of available messages for this service.
@@ -2008,7 +1976,7 @@
     ),
     ValidateEnvelope(ValidateEnvelope),
     UpdateRateLimits(UpdateRateLimits),
-    AddMetricBuckets(AddMetricBuckets),
+    ProcessMetrics(ProcessMetrics),
     AddMetricMeta(AddMetricMeta),
     FlushBuckets(FlushBuckets),
     UpdateSpoolIndex(UpdateSpoolIndex),
@@ -2025,7 +1993,7 @@
             <span class="self">Self</span>::CheckEnvelope(<span class="kw">_</span>, <span class="kw">_</span>) =&gt; <span class="string">"CheckEnvelope"</span>,
             <span class="self">Self</span>::ValidateEnvelope(<span class="kw">_</span>) =&gt; <span class="string">"ValidateEnvelope"</span>,
             <span class="self">Self</span>::UpdateRateLimits(<span class="kw">_</span>) =&gt; <span class="string">"UpdateRateLimits"</span>,
-            <span class="self">Self</span>::AddMetricBuckets(<span class="kw">_</span>) =&gt; <span class="string">"AddMetricBuckets"</span>,
+            <span class="self">Self</span>::ProcessMetrics(<span class="kw">_</span>) =&gt; <span class="string">"ProcessMetrics"</span>,
             <span class="self">Self</span>::AddMetricMeta(<span class="kw">_</span>) =&gt; <span class="string">"AddMetricMeta"</span>,
             <span class="self">Self</span>::FlushBuckets(<span class="kw">_</span>) =&gt; <span class="string">"FlushBuckets"</span>,
             <span class="self">Self</span>::UpdateSpoolIndex(<span class="kw">_</span>) =&gt; <span class="string">"UpdateSpoolIndex"</span>,
@@ -2104,11 +2072,11 @@
     }
 }
 
-<span class="kw">impl </span>FromMessage&lt;AddMetricBuckets&gt; <span class="kw">for </span>ProjectCache {
+<span class="kw">impl </span>FromMessage&lt;ProcessMetrics&gt; <span class="kw">for </span>ProjectCache {
     <span class="kw">type </span>Response = relay_system::NoResponse;
 
-    <span class="kw">fn </span>from_message(message: AddMetricBuckets, <span class="kw">_</span>: ()) -&gt; <span class="self">Self </span>{
-        <span class="self">Self</span>::AddMetricBuckets(message)
+    <span class="kw">fn </span>from_message(message: ProcessMetrics, <span class="kw">_</span>: ()) -&gt; <span class="self">Self </span>{
+        <span class="self">Self</span>::ProcessMetrics(message)
     }
 }
 
@@ -2291,7 +2259,6 @@
     <span class="comment">// TODO: Make non-optional when spool_v1 is removed.
     </span>envelope_buffer: <span class="prelude-ty">Option</span>&lt;Arc&lt;GuardedEnvelopeBuffer&gt;&gt;,
     services: Services,
-    metric_outcomes: MetricOutcomes,
     <span class="comment">// Need hashbrown because extract_if is not stable in std yet.
     </span>projects: hashbrown::HashMap&lt;ProjectKey, Project&gt;,
     <span class="doccomment">/// Utility for disposing of expired project data in a background thread.
@@ -2669,21 +2636,15 @@
             .merge_rate_limits(message.rate_limits);
     }
 
-    <span class="kw">fn </span>handle_add_metric_buckets(<span class="kw-2">&amp;mut </span><span class="self">self</span>, message: AddMetricBuckets) {
+    <span class="kw">fn </span>handle_process_metrics(<span class="kw-2">&amp;mut </span><span class="self">self</span>, message: ProcessMetrics) {
         <span class="kw">let </span>project_cache = <span class="self">self</span>.services.project_cache.clone();
-        <span class="kw">let </span>aggregator = <span class="self">self</span>.services.aggregator.clone();
-        <span class="kw">let </span>metric_outcomes = <span class="self">self</span>.metric_outcomes.clone();
-        <span class="kw">let </span>outcome_aggregator = <span class="self">self</span>.services.outcome_aggregator.clone();
 
-        <span class="kw">let </span>project = <span class="self">self</span>.get_or_create_project(message.project_key);
-        project.prefetch(project_cache, <span class="bool-val">false</span>);
-        project.merge_buckets(
-            <span class="kw-2">&amp;</span>aggregator,
-            <span class="kw-2">&amp;</span>metric_outcomes,
-            <span class="kw-2">&amp;</span>outcome_aggregator,
-            message.buckets,
-            message.source,
-        );
+        <span class="kw">let </span>message = <span class="self">self
+            </span>.get_or_create_project(message.project_key)
+            .prefetch(project_cache, <span class="bool-val">false</span>)
+            .process_metrics(message);
+
+        <span class="self">self</span>.services.envelope_processor.send(message);
     }
 
     <span class="kw">fn </span>handle_add_metric_meta(<span class="kw-2">&amp;mut </span><span class="self">self</span>, message: AddMetricMeta) {
@@ -2694,8 +2655,6 @@
     }
 
     <span class="kw">fn </span>handle_flush_buckets(<span class="kw-2">&amp;mut </span><span class="self">self</span>, message: FlushBuckets) {
-        <span class="kw">let </span>metric_outcomes = <span class="self">self</span>.metric_outcomes.clone();
-        <span class="kw">let </span>outcome_aggregator = <span class="self">self</span>.services.outcome_aggregator.clone();
         <span class="kw">let </span>aggregator = <span class="self">self</span>.services.aggregator.clone();
         <span class="kw">let </span>project_cache = <span class="self">self</span>.services.project_cache.clone();
 
@@ -2703,26 +2662,36 @@
         <span class="kw">let </span><span class="kw-2">mut </span>scoped_buckets = BTreeMap::new();
         <span class="kw">for </span>(project_key, buckets) <span class="kw">in </span>message.buckets {
             <span class="kw">let </span>project = <span class="self">self</span>.get_or_create_project(project_key);
-            <span class="kw">match </span>project.check_buckets(<span class="kw-2">&amp;</span>metric_outcomes, <span class="kw-2">&amp;</span>outcome_aggregator, buckets) {
-                CheckedBuckets::NoProject(buckets) =&gt; {
-                    no_project += <span class="number">1</span>;
-                    <span class="comment">// Schedule an update for the project just in case.
-                    </span>project.prefetch(project_cache.clone(), <span class="bool-val">false</span>);
-                    project.return_buckets(<span class="kw-2">&amp;</span>aggregator, buckets);
-                }
-                CheckedBuckets::Checked {
-                    scoping,
-                    project_info,
-                    buckets,
-                } =&gt; scoped_buckets
-                    .entry(scoping)
-                    .or_insert(ProjectMetrics {
+
+            <span class="kw">let </span><span class="prelude-val">Some</span>(project_info) = project.current_state().enabled() <span class="kw">else </span>{
+                no_project += <span class="number">1</span>;
+                <span class="comment">// Schedule an update for the project just in case.
+                </span>project.prefetch(project_cache.clone(), <span class="bool-val">false</span>);
+                project.return_buckets(<span class="kw-2">&amp;</span>aggregator, buckets);
+                <span class="kw">continue</span>;
+            };
+
+            <span class="kw">let </span><span class="prelude-val">Some</span>(scoping) = project.scoping() <span class="kw">else </span>{
+                <span class="macro">relay_log::error!</span>(
+                    tags.project_key = project_key.as_str(),
+                    <span class="string">"there is no scoping: dropping {} buckets"</span>,
+                    buckets.len(),
+                );
+                <span class="kw">continue</span>;
+            };
+
+            <span class="kw">use </span>std::collections::btree_map::Entry::<span class="kw-2">*</span>;
+            <span class="kw">match </span>scoped_buckets.entry(scoping) {
+                Vacant(entry) =&gt; {
+                    entry.insert(ProjectMetrics {
                         project_info,
-                        buckets: Vec::new(),
-                    })
-                    .buckets
-                    .extend(buckets),
-                CheckedBuckets::Dropped =&gt; {}
+                        rate_limits: project.current_rate_limits().clone(),
+                        buckets,
+                    });
+                }
+                Occupied(entry) =&gt; {
+                    entry.into_mut().buckets.extend(buckets);
+                }
             }
         }
 
@@ -2973,9 +2942,7 @@
                         <span class="self">self</span>.handle_validate_envelope(message)
                     }
                     ProjectCache::UpdateRateLimits(message) =&gt; <span class="self">self</span>.handle_rate_limits(message),
-                    ProjectCache::AddMetricBuckets(message) =&gt; {
-                        <span class="self">self</span>.handle_add_metric_buckets(message)
-                    }
+                    ProjectCache::ProcessMetrics(message) =&gt; <span class="self">self</span>.handle_process_metrics(message),
                     ProjectCache::AddMetricMeta(message) =&gt; <span class="self">self</span>.handle_add_metric_meta(message),
                     ProjectCache::FlushBuckets(message) =&gt; <span class="self">self</span>.handle_flush_buckets(message),
                     ProjectCache::UpdateSpoolIndex(message) =&gt; <span class="self">self</span>.handle_buffer_index(message),
@@ -2996,7 +2963,6 @@
     memory_checker: MemoryChecker,
     envelope_buffer: <span class="prelude-ty">Option</span>&lt;Arc&lt;GuardedEnvelopeBuffer&gt;&gt;,
     services: Services,
-    metric_outcomes: MetricOutcomes,
     redis: <span class="prelude-ty">Option</span>&lt;RedisPool&gt;,
 }
 
@@ -3007,7 +2973,6 @@
         memory_checker: MemoryChecker,
         envelope_buffer: <span class="prelude-ty">Option</span>&lt;Arc&lt;GuardedEnvelopeBuffer&gt;&gt;,
         services: Services,
-        metric_outcomes: MetricOutcomes,
         redis: <span class="prelude-ty">Option</span>&lt;RedisPool&gt;,
     ) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{
@@ -3015,7 +2980,6 @@
             memory_checker,
             envelope_buffer,
             services,
-            metric_outcomes,
             redis,
         }
     }
@@ -3030,7 +2994,6 @@
             memory_checker,
             envelope_buffer,
             services,
-            metric_outcomes,
             redis,
         } = <span class="self">self</span>;
         <span class="kw">let </span>project_cache = services.project_cache.clone();
@@ -3123,7 +3086,6 @@
                 spool_v1_unspool_handle: SleepHandle::idle(),
                 spool_v1,
                 global_config,
-                metric_outcomes,
             };
 
             <span class="kw">loop </span>{
@@ -3218,9 +3180,6 @@
 
 <span class="attr">#[cfg(test)]
 </span><span class="kw">mod </span>tests {
-    <span class="kw">use </span><span class="kw">crate</span>::metrics::MetricStats;
-    <span class="kw">use </span><span class="kw">crate</span>::services::global_config::GlobalConfigHandle;
-    <span class="kw">use </span>relay_dynamic_config::GlobalConfig;
     <span class="kw">use </span>relay_test::mock_service;
     <span class="kw">use </span>tokio::select;
     <span class="kw">use </span>uuid::Uuid;
@@ -3289,14 +3248,6 @@
                 }
             };
 
-        <span class="kw">let </span>metric_stats = MetricStats::new(
-            Arc::new(Config::default()),
-            GlobalConfigHandle::fixed(GlobalConfig::default()),
-            Addr::custom().<span class="number">0</span>,
-        );
-        <span class="kw">let </span>metric_outcomes =
-            MetricOutcomes::new(metric_stats, services.outcome_aggregator.clone());
-
         (
             ProjectCacheBroker {
                 config: config.clone(),
@@ -3315,7 +3266,6 @@
                     buffer_unspool_backoff: RetryBackoff::new(Duration::from_millis(<span class="number">100</span>)),
                 }),
                 global_config: GlobalConfigStatus::Pending,
-                metric_outcomes,
             },
             buffer,
         )

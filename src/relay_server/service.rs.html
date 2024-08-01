@@ -629,6 +629,7 @@
                 test_store: test_store.clone(),
                 <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
                 </span>store_forwarder: store.clone(),
+                aggregator: aggregator.clone(),
             },
             metric_outcomes.clone(),
         )
@@ -650,7 +651,6 @@
             MemoryChecker::new(memory_stat.clone(), config.clone()),
             envelope_buffer.clone(),
             project_cache_services,
-            metric_outcomes,
             redis_pool.clone(),
         )
         .spawn_handler(project_cache_rx);

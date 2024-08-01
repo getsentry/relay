@@ -491,8 +491,8 @@
 <span class="kw">use </span><span class="kw">crate</span>::envelope::{AttachmentType, Envelope, EnvelopeError, Item, ItemType, Items};
 <span class="kw">use </span><span class="kw">crate</span>::service::ServiceState;
 <span class="kw">use </span><span class="kw">crate</span>::services::outcome::{DiscardReason, Outcome};
-<span class="kw">use </span><span class="kw">crate</span>::services::processor::{ProcessMetricMeta, ProcessMetrics, ProcessingGroup};
-<span class="kw">use </span><span class="kw">crate</span>::services::project_cache::{CheckEnvelope, ValidateEnvelope};
+<span class="kw">use </span><span class="kw">crate</span>::services::processor::{MetricData, ProcessMetricMeta, ProcessingGroup};
+<span class="kw">use </span><span class="kw">crate</span>::services::project_cache::{CheckEnvelope, ProcessMetrics, ValidateEnvelope};
 <span class="kw">use </span><span class="kw">crate</span>::statsd::{RelayCounters, RelayHistograms};
 <span class="kw">use </span><span class="kw">crate</span>::utils::{<span class="self">self</span>, ApiErrorResponse, FormDataIter, ManagedEnvelope, MultipartError};
 
@@ -753,9 +753,9 @@
 
         <span class="kw">if </span>!metric_items.is_empty() {
             <span class="macro">relay_log::trace!</span>(<span class="string">"sending metrics into processing queue"</span>);
-            state.processor().send(ProcessMetrics {
-                items: metric_items.into_vec(),
-                start_time: envelope.meta().start_time(),
+            state.project_cache().send(ProcessMetrics {
+                data: MetricData::Raw(metric_items.into_vec()),
+                start_time: envelope.meta().start_time().into(),
                 sent_at: envelope.sent_at(),
                 project_key: envelope.meta().public_key(),
                 source: envelope.meta().into(),

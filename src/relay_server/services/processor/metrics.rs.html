@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/services/project/metrics.rs`."><title>metrics.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-46f98efaafac5295.ttf.woff2,FiraSans-Regular-018c141bf0843ffd.woff2,FiraSans-Medium-8f9a781e4970d388.woff2,SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2,SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../../static.files/rustdoc-dd39b87e5fcfba68.css"><meta name="rustdoc-vars" data-root-path="../../../../" data-static-root-path="../../../../static.files/" data-current-crate="relay_server" data-themes="" data-resource-suffix="" data-rustdoc-version="1.80.0 (051478957 2024-07-21)" data-channel="1.80.0" data-search-js="search-d52510db62a78183.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../../../static.files/storage-118b08c4c78b968e.js"></script><script defer src="../../../../static.files/src-script-e66d777a5a92e9b2.js"></script><script defer src="../../../../src-files.js"></script><script defer src="../../../../static.files/main-20a3ad099b048cf2.js"></script><noscript><link rel="stylesheet" href="../../../../static.files/noscript-df360f571f6edeae.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer"></div><main><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/services/processor/metrics.rs`."><title>metrics.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-46f98efaafac5295.ttf.woff2,FiraSans-Regular-018c141bf0843ffd.woff2,FiraSans-Medium-8f9a781e4970d388.woff2,SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2,SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../../static.files/rustdoc-dd39b87e5fcfba68.css"><meta name="rustdoc-vars" data-root-path="../../../../" data-static-root-path="../../../../static.files/" data-current-crate="relay_server" data-themes="" data-resource-suffix="" data-rustdoc-version="1.80.0 (051478957 2024-07-21)" data-channel="1.80.0" data-search-js="search-d52510db62a78183.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../../../static.files/storage-118b08c4c78b968e.js"></script><script defer src="../../../../static.files/src-script-e66d777a5a92e9b2.js"></script><script defer src="../../../../src-files.js"></script><script defer src="../../../../static.files/main-20a3ad099b048cf2.js"></script><noscript><link rel="stylesheet" href="../../../../static.files/noscript-df360f571f6edeae.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer"></div><main><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -244,6 +244,11 @@
 <a href="#244" id="244">244</a>
 <a href="#245" id="245">245</a>
 <a href="#246" id="246">246</a>
+<a href="#247" id="247">247</a>
+<a href="#248" id="248">248</a>
+<a href="#249" id="249">249</a>
+<a href="#250" id="250">250</a>
+<a href="#251" id="251">251</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_dynamic_config::{ErrorBoundary, Feature, Metrics};
 <span class="kw">use </span>relay_filter::FilterStatKey;
 <span class="kw">use </span>relay_metrics::{Bucket, MetricNamespace};
@@ -254,7 +259,12 @@
 <span class="kw">use </span><span class="kw">crate</span>::services::project::ProjectInfo;
 <span class="kw">use </span><span class="kw">crate</span>::services::project_cache::BucketSource;
 
-<span class="kw">pub fn </span>filter_namespaces(<span class="kw-2">mut </span>buckets: Vec&lt;Bucket&gt;, source: BucketSource) -&gt; Vec&lt;Bucket&gt; {
+<span class="doccomment">/// Filters buckets based on their namespace.
+///
+/// This is a noop for most namespaces except:
+///  - [`MetricNamespace::Unsupported`]: Equal to invalid/unknown namespaces.
+///  - [`MetricNamespace::Stats`]: Metric stats are only allowed if the `source` is [`BucketSource::Internal`].
+</span><span class="kw">pub fn </span>filter_namespaces(<span class="kw-2">mut </span>buckets: Vec&lt;Bucket&gt;, source: BucketSource) -&gt; Vec&lt;Bucket&gt; {
     buckets.retain(|bucket| <span class="kw">match </span>bucket.name.namespace() {
         MetricNamespace::Sessions =&gt; <span class="bool-val">true</span>,
         MetricNamespace::Transactions =&gt; <span class="bool-val">true</span>,
@@ -357,6 +367,17 @@
 
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
 
+    <span class="kw">fn </span>create_custom_bucket_with_name(name: String) -&gt; Bucket {
+        Bucket {
+            name: <span class="macro">format!</span>(<span class="string">"d:custom/{name}@byte"</span>).into(),
+            value: BucketValue::Counter(<span class="number">1</span>.into()),
+            timestamp: UnixTimestamp::now(),
+            tags: Default::default(),
+            width: <span class="number">10</span>,
+            metadata: Default::default(),
+        }
+    }
+
     <span class="kw">fn </span>get_test_bucket(name: <span class="kw-2">&amp;</span>str, tags: BTreeMap&lt;String, String&gt;) -&gt; Bucket {
         <span class="kw">let </span>json = <span class="macro">serde_json::json!</span>({
             <span class="string">"timestamp"</span>: <span class="number">1615889440</span>,
@@ -395,24 +416,13 @@
         </span><span class="macro">assert_eq!</span>(bucket.tags.len(), <span class="number">1</span>);
     }
 
-    <span class="kw">fn </span>create_custom_bucket_with_name(name: String) -&gt; Bucket {
-        Bucket {
-            name: <span class="macro">format!</span>(<span class="string">"d:custom/{name}@byte"</span>).into(),
-            value: BucketValue::Counter(<span class="number">1</span>.into()),
-            timestamp: UnixTimestamp::now(),
-            tags: Default::default(),
-            width: <span class="number">10</span>,
-            metadata: Default::default(),
-        }
-    }
-
     <span class="attr">#[test]
-    </span><span class="kw">fn </span>test_apply_project_state() {
+    </span><span class="kw">fn </span>test_apply_project_info() {
         <span class="kw">let </span>(outcome_aggregator, <span class="kw">_</span>) = Addr::custom();
         <span class="kw">let </span>(metric_stats, <span class="kw-2">mut </span>metric_stats_rx) = MetricStats::test();
         <span class="kw">let </span>metric_outcomes = MetricOutcomes::new(metric_stats, outcome_aggregator);
 
-        <span class="kw">let </span>project_state = ProjectInfo {
+        <span class="kw">let </span>project_info = ProjectInfo {
             config: serde_json::from_value(<span class="macro">serde_json::json!</span>({
                 <span class="string">"metrics"</span>: { <span class="string">"deniedNames"</span>: [<span class="string">"*cpu_time*"</span>] },
                 <span class="string">"features"</span>: [<span class="string">"organizations:custom-metrics"</span>]
@@ -428,7 +438,7 @@
         <span class="kw">let </span>buckets = apply_project_info(
             buckets,
             <span class="kw-2">&amp;</span>metric_outcomes,
-            <span class="kw-2">&amp;</span>project_state,
+            <span class="kw-2">&amp;</span>project_info,
             Scoping {
                 organization_id: <span class="number">42</span>,
                 project_id: ProjectId::new(<span class="number">43</span>),
@@ -453,7 +463,7 @@
     }
 
     <span class="attr">#[test]
-    </span><span class="kw">fn </span>test_apply_project_state_with_disabled_custom_namespace() {
+    </span><span class="kw">fn </span>test_apply_project_info_with_disabled_custom_namespace() {
         <span class="kw">let </span>(outcome_aggregator, <span class="kw">_</span>) = Addr::custom();
         <span class="kw">let </span>(metric_stats, <span class="kw-2">mut </span>metric_stats_rx) = MetricStats::test();
         <span class="kw">let </span>metric_outcomes = MetricOutcomes::new(metric_stats, outcome_aggregator);
