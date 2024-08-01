@@ -1,14 +1,16 @@
 //! Types that represent the current project state.
 use std::sync::Arc;
 
+use serde::{Deserialize, Serialize};
+
+use relay_base_schema::project::ProjectKey;
+use relay_quotas::Scoping;
+
 mod fetch_state;
 mod info;
 
-pub use fetch_state::{ExpiryState, ProjectFetchState};
-pub use info::{LimitedProjectInfo, ProjectInfo};
-use relay_base_schema::project::ProjectKey;
-use relay_quotas::Scoping;
-use serde::{Deserialize, Serialize};
+pub use self::fetch_state::{ExpiryState, ProjectFetchState};
+pub use self::info::{LimitedProjectInfo, ProjectInfo};
 
 /// Representation of a project's current state.
 #[derive(Clone, Debug)]

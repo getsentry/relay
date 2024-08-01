@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.9.1
 
 - Add REPLAY_VIDEO entry to DataCategory. ([#3847](https://github.com/getsentry/relay/pull/3847))
 

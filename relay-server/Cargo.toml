@@ -64,6 +64,7 @@ minidump = { workspace = true, optional = true }
 multer = { workspace = true }
 once_cell = { workspace = true }
 pin-project-lite = { workspace = true }
+priority-queue = { workspace = true }
 rand = { workspace = true }
 rayon = { workspace = true }
 regex = { workspace = true }
@@ -137,6 +138,7 @@ axum-extra = { workspace = true, features = ["protobuf"] }
 semver = { workspace = true }
 
 [dev-dependencies]
+criterion = { workspace = true }
 tokio = { workspace = true, features = ['test-util'] }
 insta = { workspace = true }
 relay-event-schema = { workspace = true, features = ["jsonschema"] }
@@ -144,3 +146,7 @@ relay-protocol = { workspace = true, features = ["test"] }
 relay-test = { workspace = true }
 similar-asserts = { workspace = true }
 tempfile = { workspace = true }
+
+[[bench]]
+name = "benches"
+harness = false

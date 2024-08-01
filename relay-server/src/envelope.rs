@@ -1086,6 +1086,7 @@ impl EnvelopeHeaders<PartialMeta> {
     }
 }
 
+#[doc(hidden)]
 #[derive(Clone, Debug)]
 pub struct Envelope {
     headers: EnvelopeHeaders,
@@ -1235,6 +1236,13 @@ impl Envelope {
             )
         })?;
         self.dsc().map(|dsc| dsc.public_key)
+    }
+
+    /// Returns the time at which the envelope was received at this Relay.
+    ///
+    /// This is the date time equivalent to [`start_time`](Self::start_time).
+    pub fn received_at(&self) -> DateTime<Utc> {
+        relay_common::time::instant_to_date_time(self.meta().start_time())
     }
 
     /// Sets the event id on the envelope.

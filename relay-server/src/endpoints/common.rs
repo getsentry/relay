@@ -305,7 +305,21 @@ fn queue_envelope(
         );
         envelope.scope(scoping);
 
-        state.project_cache().send(ValidateEnvelope::new(envelope));
+        match state.envelope_buffer() {
+            Some(buffer) => {
+                // NOTE: This assumes that a `prefetch` has already been scheduled for both the
+                // envelope's projects. See `handle_check_envelope`.
+                relay_log::trace!("Pushing envelope to V2 buffer");
+
+                // TODO: Sync-check whether the buffer has capacity.
+                // Otherwise return `QueueFailed`.
+                buffer.defer_push(envelope);
+            }
+            None => {
+                relay_log::trace!("Sending envelope to project cache for V1 buffer");
+                state.project_cache().send(ValidateEnvelope::new(envelope));
+            }
+        }
     }
     // The entire envelope is taken for a split above, and it's empty at this point, we can just
     // accept it without additional checks.
@@ -333,6 +347,7 @@ pub async fn handle_envelope(
         )
     }
 
+    // TODO(jjbayer): Move this check to spool impl
     if state.memory_checker().check_memory().is_exceeded() {
         // NOTE: Long-term, we should not reject the envelope here, but spool it to disk instead.
         // This will be fixed with the new spool implementation.
