@@ -930,7 +930,7 @@ impl Default for EnvelopeSpool {
             disk_batch_size: spool_envelopes_stack_disk_batch_size(),
             max_batches: spool_envelopes_stack_max_batches(),
             max_envelope_delay_secs: spool_envelopes_max_envelope_delay_secs(),
-            version: EnvelopeSpoolVersion::V2,
+            version: EnvelopeSpoolVersion::default(),
         }
     }
 }
@@ -2593,5 +2593,17 @@ cache:
     #[test]
     fn test_emit_outcomes_invalid() {
         assert!(serde_json::from_str::<EmitOutcomes>("asdf").is_err());
+    }
+
+    #[test]
+    fn test_spool_defaults_to_v1() {
+        let config: ConfigValues = serde_json::from_str("{}").unwrap();
+        assert!(matches!(
+            config.spool.envelopes.version,
+            EnvelopeSpoolVersion::V1
+        ));
+
+        let config = Config::from_json_value(serde_json::json!({})).unwrap();
+        assert!(!config.spool_v2());
     }
 }
