@@ -26,6 +26,14 @@ pub enum RelayGauges {
     /// This metric is tagged with:
     /// - `reason`: Why keys are / are not unspooled.
     BufferPeriodicUnspool,
+    /// Number of envelopes currently waiting to be buffered.
+    ///
+    /// This corresponds to the number of corresponding tokio tasks currently scheduled or running.
+    BufferPushInFlight,
+    /// The number of individual stacks in the priority queue.
+    ///
+    /// Per combination of `(own_key, sampling_key)`, a new stack is created.
+    BufferStackCount,
     /// The currently used memory by the entire system.
     ///
     /// Relay uses the same value for its memory health check.
@@ -50,6 +58,8 @@ impl GaugeMetric for RelayGauges {
             RelayGauges::BufferEnvelopesMemoryCount => "buffer.envelopes_mem_count",
             RelayGauges::BufferEnvelopesDiskCount => "buffer.envelopes_disk_count",
             RelayGauges::BufferPeriodicUnspool => "buffer.unspool.periodic",
+            RelayGauges::BufferPushInFlight => "buffer.push_inflight",
+            RelayGauges::BufferStackCount => "buffer.stack_count",
             RelayGauges::SystemMemoryUsed => "health.system_memory.used",
             RelayGauges::SystemMemoryTotal => "health.system_memory.total",
             #[cfg(feature = "processing")]
@@ -576,13 +586,13 @@ pub enum RelayCounters {
     ///  - `handling`: Either `"success"` if the envelope was handled correctly, or `"failure"` if
     ///    there was an error or bug.
     EnvelopeRejected,
-    /// Number times the envelope buffer spools to disk.
-    BufferWrites,
-    /// Number times the envelope buffer reads back from disk.
-    BufferReads,
-    /// Number of _envelopes_ the envelope buffer spools to disk.
+    /// Number of times the envelope buffer spools to disk.
+    BufferWritesDisk,
+    /// Number of times the envelope buffer reads back from disk.
+    BufferReadsDisk,
+    /// Number of _envelopes_ the envelope buffer ingests.
     BufferEnvelopesWritten,
-    /// Number of _envelopes_ the envelope buffer reads back from disk.
+    /// Number of _envelopes_ the envelope buffer produces.
     BufferEnvelopesRead,
     /// Number of state changes in the envelope buffer.
     /// This metric is tagged with:
@@ -683,9 +693,9 @@ pub enum RelayCounters {
     ///  - `has_parent` (only for event_type span): `false` if the span is the root of a trace.
     ///  - `platform` (only for event_type span): The platform from which the span was spent.
     ///  - `metric_type` (only for event_type metric): The metric type, counter, distribution,
-    ///  gauge or set.
+    ///    gauge or set.
     ///  - `metric_encoding` (only for event_type metric): The encoding used for distribution and
-    ///  set metrics.
+    ///    set metrics.
     ///
     /// The message types can be:
     ///
@@ -794,8 +804,8 @@ impl CounterMetric for RelayCounters {
             RelayCounters::EventCorrupted => "event.corrupted",
             RelayCounters::EnvelopeAccepted => "event.accepted",
             RelayCounters::EnvelopeRejected => "event.rejected",
-            RelayCounters::BufferWrites => "buffer.writes",
-            RelayCounters::BufferReads => "buffer.reads",
+            RelayCounters::BufferWritesDisk => "buffer.writes",
+            RelayCounters::BufferReadsDisk => "buffer.reads",
             RelayCounters::BufferEnvelopesWritten => "buffer.envelopes_written",
             RelayCounters::BufferEnvelopesRead => "buffer.envelopes_read",
             RelayCounters::BufferStateTransition => "buffer.state.transition",

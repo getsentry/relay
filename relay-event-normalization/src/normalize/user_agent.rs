@@ -196,7 +196,6 @@ impl<'a> RawUserAgentInfo<&'a str> {
 ///
 /// See <https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers#user_agent_client_hints>
 #[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ClientHints<S>
 where
     S: Default + AsRef<str>,

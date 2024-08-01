@@ -148,7 +148,7 @@ pub async fn do_insert(
     while let Some(chunk) = envelopes.next().await {
         let result = build_insert(&mut query_builder, chunk).execute(db).await?;
         count += result.rows_affected();
-        relay_statsd::metric!(counter(RelayCounters::BufferWrites) += 1);
+        relay_statsd::metric!(counter(RelayCounters::BufferWritesDisk) += 1);
 
         // Reset the builder to initial state set by `QueryBuilder::new` function,
         // so it can be reused for another chunk.

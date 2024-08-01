@@ -225,7 +225,7 @@ impl ManagedEnvelope {
     /// Consumes itself returning the managed envelope.
     pub fn into_envelope(mut self) -> Box<Envelope> {
         self.context.done = true;
-        Box::new(self.envelope.take_items())
+        self.take_envelope()
     }
 
     /// Converts current managed envelope into processed envelope.
@@ -503,7 +503,7 @@ impl ManagedEnvelope {
     ///
     /// This is the date time equivalent to [`start_time`](Self::start_time).
     pub fn received_at(&self) -> DateTime<Utc> {
-        relay_common::time::instant_to_date_time(self.envelope().meta().start_time())
+        self.envelope.received_at()
     }
 
     /// Resets inner state to ensure there's no more logging.

@@ -1,12 +1,16 @@
 //! Types that represent the current project state.
 use std::sync::Arc;
 
+use serde::{Deserialize, Serialize};
+
+use relay_base_schema::project::ProjectKey;
+use relay_quotas::Scoping;
+
 mod fetch_state;
 mod info;
 
-pub use fetch_state::{ExpiryState, ProjectFetchState};
-pub use info::{LimitedProjectInfo, ProjectInfo};
-use serde::{Deserialize, Serialize};
+pub use self::fetch_state::{ExpiryState, ProjectFetchState};
+pub use self::info::{LimitedProjectInfo, ProjectInfo};
 
 /// Representation of a project's current state.
 #[derive(Clone, Debug)]
@@ -42,10 +46,21 @@ impl ProjectState {
     }
 
     /// Utility function that returns the project config if enabled.
-    pub fn enabled(&self) -> Option<Arc<ProjectInfo>> {
+    pub fn enabled(self) -> Option<Arc<ProjectInfo>> {
         match self {
-            ProjectState::Enabled(info) => Some(Arc::clone(info)),
+            ProjectState::Enabled(info) => Some(info),
             ProjectState::Disabled | ProjectState::Pending => None,
+        }
+    }
+
+    /// Creates `Scoping` for this project if the state is loaded.
+    ///
+    /// Returns `Some` if the project state has been fetched and contains a project identifier,
+    /// otherwise `None`.
+    pub fn scoping(&self, project_key: ProjectKey) -> Option<Scoping> {
+        match self {
+            Self::Enabled(info) => info.scoping(project_key),
+            _ => None,
         }
     }
 }

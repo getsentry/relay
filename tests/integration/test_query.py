@@ -124,7 +124,7 @@ def test_query_retry(failure_type, mini_sentry, relay):
         retry_count += 1
         print("RETRY", retry_count)
 
-        if retry_count < 2:
+        if retry_count < 3:
             if failure_type == "timeout":
                 time.sleep(50)  # ensure timeout
             elif failure_type == "socketerror":
