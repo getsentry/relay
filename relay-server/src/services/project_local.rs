@@ -233,6 +233,7 @@ mod tests {
         let project_info = extracted_project_state
             .get(&project_key)
             .unwrap()
+            .clone()
             .enabled()
             .unwrap();
 

@@ -29,3 +29,16 @@ impl RedisPool {
         Ok(Self)
     }
 }
+
+/// The various [`RedisPool`]s used within Relay.
+#[derive(Debug, Clone)]
+pub struct RedisPools {
+    /// The pool used for project configurations
+    pub project_configs: RedisPool,
+    /// The pool used for cardinality limits.
+    pub cardinality: RedisPool,
+    /// The pool used for rate limiting/quotas.
+    pub quotas: RedisPool,
+    /// The pool used for metrics metadata.
+    pub misc: RedisPool,
+}

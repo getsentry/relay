@@ -1,8 +1,9 @@
 use std::sync::Arc;
 
+use tokio::time::Instant;
+
 use relay_config::Config;
 use relay_dynamic_config::ProjectConfig;
-use tokio::time::Instant;
 
 use crate::services::project::state::info::ProjectInfo;
 use crate::services::project::ProjectState;

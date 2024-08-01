@@ -1,36 +1,31 @@
-use crate::envelope::Envelope;
-use crate::extractors::StartTime;
-use crate::services::spooler::envelope_stack::EnvelopeStack;
-use futures::StreamExt;
-use relay_base_schema::project::ProjectKey;
-use sqlx::query::Query;
-use sqlx::sqlite::{SqliteArguments, SqliteRow};
-use sqlx::{Pool, QueryBuilder, Row, Sqlite};
 use std::collections::VecDeque;
-use std::error::Error;
 use std::fmt::Debug;
 use std::num::NonZeroUsize;
-use std::pin::pin;
 
-/// An error returned when doing an operation on [`SQLiteEnvelopeStack`].
+use relay_base_schema::project::ProjectKey;
+
+use crate::envelope::Envelope;
+use crate::services::buffer::envelope_stack::EnvelopeStack;
+use crate::services::buffer::sqlite_envelope_store::{
+    SqliteEnvelopeStore, SqliteEnvelopeStoreError,
+};
+use crate::statsd::RelayCounters;
+
+/// An error returned when doing an operation on [`SqliteEnvelopeStack`].
 #[derive(Debug, thiserror::Error)]
-pub enum SQLiteEnvelopeStackError {
-    /// The stack is empty.
-    #[error("the stack is empty")]
-    Empty,
-
-    /// The database encountered an unexpected error.
-    #[error("a database error occurred")]
-    DatabaseError(#[from] sqlx::Error),
+pub enum SqliteEnvelopeStackError {
+    #[error("an error occurred in the envelope store: {0}")]
+    EnvelopeStoreError(#[from] SqliteEnvelopeStoreError),
 }
 
+#[derive(Debug)]
 /// An [`EnvelopeStack`] that is implemented on an SQLite database.
 ///
 /// For efficiency reasons, the implementation has an in-memory buffer that is periodically spooled
 /// to disk in a batched way.
-pub struct SQLiteEnvelopeStack {
+pub struct SqliteEnvelopeStack {
     /// Shared SQLite database pool which will be used to read and write from disk.
-    db: Pool<Sqlite>,
+    envelope_store: SqliteEnvelopeStore,
     /// Threshold defining the maximum number of envelopes in the `batches_buffer` before spooling
     /// to disk will take place.
     spool_threshold: NonZeroUsize,
@@ -50,18 +45,17 @@ pub struct SQLiteEnvelopeStack {
     check_disk: bool,
 }
 
-impl SQLiteEnvelopeStack {
-    /// Creates a new empty [`SQLiteEnvelopeStack`].
-    #[allow(dead_code)]
+impl SqliteEnvelopeStack {
+    /// Creates a new empty [`SqliteEnvelopeStack`].
     pub fn new(
-        db: Pool<Sqlite>,
+        envelope_store: SqliteEnvelopeStore,
         disk_batch_size: usize,
         max_batches: usize,
         own_key: ProjectKey,
         sampling_key: ProjectKey,
     ) -> Self {
         Self {
-            db,
+            envelope_store,
             spool_threshold: NonZeroUsize::new(disk_batch_size * max_batches)
                 .expect("the spool threshold must be > 0"),
             batch_size: NonZeroUsize::new(disk_batch_size)
@@ -74,12 +68,12 @@ impl SQLiteEnvelopeStack {
         }
     }
 
-    /// Threshold above which the [`SQLiteEnvelopeStack`] will spool data from the `buffer` to disk.
+    /// Threshold above which the [`SqliteEnvelopeStack`] will spool data from the `buffer` to disk.
     fn above_spool_threshold(&self) -> bool {
         self.batches_buffer_size >= self.spool_threshold.get()
     }
 
-    /// Threshold below which the [`SQLiteEnvelopeStack`] will unspool data from disk to the
+    /// Threshold below which the [`SqliteEnvelopeStack`] will unspool data from disk to the
     /// `buffer`.
     fn below_unspool_threshold(&self) -> bool {
         self.batches_buffer_size == 0
@@ -90,36 +84,26 @@ impl SQLiteEnvelopeStack {
     /// In case there is a failure while writing envelopes, all the envelopes that were enqueued
     /// to be written to disk are lost. The explanation for this behavior can be found in the body
     /// of the method.
-    async fn spool_to_disk(&mut self) -> Result<(), SQLiteEnvelopeStackError> {
+    async fn spool_to_disk(&mut self) -> Result<(), SqliteEnvelopeStackError> {
         let Some(envelopes) = self.batches_buffer.pop_front() else {
             return Ok(());
         };
         self.batches_buffer_size -= envelopes.len();
 
-        let insert_envelopes = envelopes.iter().map(|e| InsertEnvelope {
-            received_at: received_at(e),
-            own_key: self.own_key,
-            sampling_key: self.sampling_key,
-            encoded_envelope: e.to_vec().unwrap(),
-        });
+        // We convert envelopes into a format which simplifies insertion in the store. If an
+        // envelope can't be serialized, we will not insert it.
+        let envelopes = envelopes.iter().filter_map(|e| e.as_ref().try_into().ok());
 
-        // TODO: check how we can do this in a background tokio task in a non-blocking way.
-        if let Err(err) = build_insert_many_envelopes(insert_envelopes)
-            .build()
-            .execute(&self.db)
+        // When early return here, we are acknowledging that the elements that we popped from
+        // the buffer are lost in case of failure. We are doing this on purposes, since if we were
+        // to have a database corruption during runtime, and we were to put the values back into
+        // the buffer we will end up with an infinite cycle.
+        self.envelope_store
+            .insert_many(envelopes)
             .await
-        {
-            relay_log::error!(
-                error = &err as &dyn Error,
-                "failed to spool envelopes to disk",
-            );
+            .map_err(SqliteEnvelopeStackError::EnvelopeStoreError)?;
 
-            // When early return here, we are acknowledging that the elements that we popped from
-            // the buffer are lost. We are doing this on purposes, since if we were to have a
-            // database corruption during runtime, and we were to put the values back into the buffer
-            // we will end up with an infinite cycle.
-            return Err(SQLiteEnvelopeStackError::DatabaseError(err));
-        }
+        relay_statsd::metric!(counter(RelayCounters::BufferWritesDisk) += 1);
 
         // If we successfully spooled to disk, we know that data should be there.
         self.check_disk = true;
@@ -134,98 +118,37 @@ impl SQLiteEnvelopeStack {
     ///
     /// In case an envelope fails deserialization due to malformed data in the database, the affected
     /// envelope will not be unspooled and unspooling will continue with the remaining envelopes.
-    async fn unspool_from_disk(&mut self) -> Result<(), SQLiteEnvelopeStackError> {
-        let envelopes = build_delete_and_fetch_many_envelopes(
-            self.own_key,
-            self.sampling_key,
-            self.batch_size.get() as i64,
-        )
-        .fetch(&self.db)
-        .peekable();
+    async fn unspool_from_disk(&mut self) -> Result<(), SqliteEnvelopeStackError> {
+        let envelopes = self
+            .envelope_store
+            .delete_many(
+                self.own_key,
+                self.sampling_key,
+                self.batch_size.get() as i64,
+            )
+            .await
+            .map_err(SqliteEnvelopeStackError::EnvelopeStoreError)?;
 
-        let mut envelopes = pin!(envelopes);
-        if envelopes.as_mut().peek().await.is_none() {
-            return Ok(());
-        }
+        relay_statsd::metric!(counter(RelayCounters::BufferReadsDisk) += 1);
 
-        // We use a sorted vector to order envelopes that are deleted from the database.
-        // Unfortunately we have to do this because SQLite `DELETE` with `RETURNING` doesn't
-        // return deleted rows in a specific order.
-        let mut extracted_envelopes = Vec::with_capacity(self.batch_size.get());
-        let mut db_error = None;
-        while let Some(envelope) = envelopes.as_mut().next().await {
-            let envelope = match envelope {
-                Ok(envelope) => envelope,
-                Err(err) => {
-                    relay_log::error!(
-                        error = &err as &dyn Error,
-                        "failed to unspool the envelopes from the disk",
-                    );
-                    db_error = Some(err);
-
-                    continue;
-                }
-            };
-
-            match self.extract_envelope(envelope) {
-                Ok(envelope) => {
-                    extracted_envelopes.push(envelope);
-                }
-                Err(err) => {
-                    relay_log::error!(
-                        error = &err as &dyn Error,
-                        "failed to extract the envelope unspooled from disk",
-                    )
-                }
-            }
-        }
-
-        if extracted_envelopes.is_empty() {
-            // If there was a database error and no envelopes have been returned, we assume that we are
-            // in a critical state, so we return an error.
-            if let Some(db_error) = db_error {
-                return Err(SQLiteEnvelopeStackError::DatabaseError(db_error));
-            }
-
-            // In case no envelopes were unspool, we will mark the disk as empty until another round
-            // of spooling takes place.
+        if envelopes.is_empty() {
+            // In case no envelopes were unspooled, we will mark the disk as empty until another
+            // round of spooling takes place.
             self.check_disk = false;
 
             return Ok(());
         }
 
-        // We sort envelopes by `received_at`.
-        extracted_envelopes.sort_by_key(|a| received_at(a));
-
         // We push in the back of the buffer, since we still want to give priority to
         // incoming envelopes that have a more recent timestamp.
-        self.batches_buffer_size += extracted_envelopes.len();
-        self.batches_buffer.push_front(extracted_envelopes);
+        self.batches_buffer_size += envelopes.len();
+        self.batches_buffer.push_front(envelopes);
 
         Ok(())
     }
 
-    /// Deserializes an [`Envelope`] from a database row.
-    fn extract_envelope(&self, row: SqliteRow) -> Result<Box<Envelope>, SQLiteEnvelopeStackError> {
-        let envelope_row: Vec<u8> = row
-            .try_get("envelope")
-            .map_err(|_| SQLiteEnvelopeStackError::Empty)?;
-        let envelope_bytes = bytes::Bytes::from(envelope_row);
-        let mut envelope =
-            Envelope::parse_bytes(envelope_bytes).map_err(|_| SQLiteEnvelopeStackError::Empty)?;
-
-        let received_at: i64 = row
-            .try_get("received_at")
-            .map_err(|_| SQLiteEnvelopeStackError::Empty)?;
-        let start_time = StartTime::from_timestamp_millis(received_at as u64);
-
-        envelope.set_start_time(start_time.into_inner());
-
-        Ok(envelope)
-    }
-
     /// Validates that the incoming [`Envelope`] has the same project keys at the
-    /// [`SQLiteEnvelopeStack`].
+    /// [`SqliteEnvelopeStack`].
     fn validate_envelope(&self, envelope: &Envelope) -> bool {
         let own_key = envelope.meta().public_key();
         let sampling_key = envelope.sampling_key().unwrap_or(own_key);
@@ -234,8 +157,8 @@ impl SQLiteEnvelopeStack {
     }
 }
 
-impl EnvelopeStack for SQLiteEnvelopeStack {
-    type Error = SQLiteEnvelopeStackError;
+impl EnvelopeStack for SqliteEnvelopeStack {
+    type Error = SqliteEnvelopeStackError;
 
     async fn push(&mut self, envelope: Box<Envelope>) -> Result<(), Self::Error> {
         debug_assert!(self.validate_envelope(&envelope));
@@ -263,30 +186,34 @@ impl EnvelopeStack for SQLiteEnvelopeStack {
         Ok(())
     }
 
-    async fn peek(&mut self) -> Result<&Box<Envelope>, Self::Error> {
+    async fn peek(&mut self) -> Result<Option<&Envelope>, Self::Error> {
         if self.below_unspool_threshold() && self.check_disk {
             self.unspool_from_disk().await?
         }
 
-        self.batches_buffer
+        let last = self
+            .batches_buffer
             .back()
             .and_then(|last_batch| last_batch.last())
-            .ok_or(Self::Error::Empty)
+            .map(|last_batch| last_batch.as_ref());
+
+        Ok(last)
     }
 
-    async fn pop(&mut self) -> Result<Box<Envelope>, Self::Error> {
+    async fn pop(&mut self) -> Result<Option<Box<Envelope>>, Self::Error> {
         if self.below_unspool_threshold() && self.check_disk {
+            relay_log::trace!("Unspool from disk");
             self.unspool_from_disk().await?
         }
 
-        let result = self
-            .batches_buffer
-            .back_mut()
-            .and_then(|last_batch| {
-                self.batches_buffer_size -= 1;
-                last_batch.pop()
-            })
-            .ok_or(Self::Error::Empty);
+        let result = self.batches_buffer.back_mut().and_then(|last_batch| {
+            self.batches_buffer_size -= 1;
+            relay_log::trace!("Popping from memory");
+            last_batch.pop()
+        });
+        if result.is_none() {
+            return Ok(None);
+        }
 
         // Since we might leave a batch without elements, we want to pop it from the buffer.
         if self
@@ -297,80 +224,25 @@ impl EnvelopeStack for SQLiteEnvelopeStack {
             self.batches_buffer.pop_back();
         }
 
-        result
+        Ok(result)
     }
-}
-
-/// Struct which contains all the rows that have to be inserted in the database when storing an
-/// [`Envelope`].
-struct InsertEnvelope {
-    received_at: i64,
-    own_key: ProjectKey,
-    sampling_key: ProjectKey,
-    encoded_envelope: Vec<u8>,
-}
-
-/// Builds a query that inserts many [`Envelope`]s in the database.
-fn build_insert_many_envelopes<'a>(
-    envelopes: impl Iterator<Item = InsertEnvelope>,
-) -> QueryBuilder<'a, Sqlite> {
-    let mut builder: QueryBuilder<Sqlite> =
-        QueryBuilder::new("INSERT INTO envelopes (received_at, own_key, sampling_key, envelope) ");
-
-    builder.push_values(envelopes, |mut b, envelope| {
-        b.push_bind(envelope.received_at)
-            .push_bind(envelope.own_key.to_string())
-            .push_bind(envelope.sampling_key.to_string())
-            .push_bind(envelope.encoded_envelope);
-    });
-
-    builder
-}
-
-/// Builds a query that deletes many [`Envelope`] from the database.
-pub fn build_delete_and_fetch_many_envelopes<'a>(
-    own_key: ProjectKey,
-    project_key: ProjectKey,
-    batch_size: i64,
-) -> Query<'a, Sqlite, SqliteArguments<'a>> {
-    sqlx::query(
-        "DELETE FROM
-            envelopes
-         WHERE id IN (SELECT id FROM envelopes WHERE own_key = ? AND sampling_key = ? 
-            ORDER BY received_at DESC LIMIT ?)
-         RETURNING
-            received_at, own_key, sampling_key, envelope",
-    )
-    .bind(own_key.to_string())
-    .bind(project_key.to_string())
-    .bind(batch_size)
-}
-
-/// Computes the `received_at` timestamps of an [`Envelope`] based on the `start_time` header.
-///
-/// This method has been copied from the `ManagedEnvelope.received_at()` method.
-fn received_at(envelope: &Envelope) -> i64 {
-    relay_common::time::instant_to_date_time(envelope.meta().start_time()).timestamp_millis()
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::envelope::{Envelope, Item, ItemType};
-    use crate::extractors::RequestMeta;
-    use crate::services::spooler::envelope_stack::sqlite::{
-        SQLiteEnvelopeStack, SQLiteEnvelopeStackError,
-    };
-    use crate::services::spooler::envelope_stack::EnvelopeStack;
+    use std::collections::BTreeMap;
+    use std::time::{Duration, Instant};
+
+    use uuid::Uuid;
+
     use relay_base_schema::project::ProjectKey;
     use relay_event_schema::protocol::EventId;
     use relay_sampling::DynamicSamplingContext;
-    use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions};
-    use sqlx::{Pool, Sqlite};
-    use std::collections::BTreeMap;
-    use std::path::Path;
-    use std::time::{Duration, Instant};
-    use tokio::fs::DirBuilder;
-    use uuid::Uuid;
+
+    use super::*;
+    use crate::envelope::{Envelope, Item, ItemType};
+    use crate::extractors::RequestMeta;
+    use crate::services::buffer::testutils::utils::setup_db;
 
     fn request_meta() -> RequestMeta {
         let dsn = "https://a94ae32be2584e0bbd7a4cbb95971fee:@sentry.io/42"
@@ -413,49 +285,13 @@ mod tests {
             .collect()
     }
 
-    async fn setup_db(run_migrations: bool) -> Pool<Sqlite> {
-        let path = std::env::temp_dir().join(Uuid::new_v4().to_string());
-
-        create_spool_directory(&path).await;
-
-        let options = SqliteConnectOptions::new()
-            .filename(&path)
-            .journal_mode(SqliteJournalMode::Wal)
-            .create_if_missing(true);
-
-        let db = SqlitePoolOptions::new()
-            .connect_with(options)
-            .await
-            .unwrap();
-
-        if run_migrations {
-            sqlx::migrate!("../migrations").run(&db).await.unwrap();
-        }
-
-        db
-    }
-
-    async fn create_spool_directory(path: &Path) {
-        let Some(parent) = path.parent() else {
-            return;
-        };
-
-        if !parent.as_os_str().is_empty() && !parent.exists() {
-            relay_log::debug!("creating directory for spooling file: {}", parent.display());
-            DirBuilder::new()
-                .recursive(true)
-                .create(&parent)
-                .await
-                .unwrap();
-        }
-    }
-
     #[tokio::test]
     #[should_panic]
     async fn test_push_with_mismatching_project_keys() {
         let db = setup_db(false).await;
-        let mut stack = SQLiteEnvelopeStack::new(
-            db,
+        let envelope_store = SqliteEnvelopeStore::new(db);
+        let mut stack = SqliteEnvelopeStack::new(
+            envelope_store,
             2,
             2,
             ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
@@ -469,8 +305,9 @@ mod tests {
     #[tokio::test]
     async fn test_push_when_db_is_not_valid() {
         let db = setup_db(false).await;
-        let mut stack = SQLiteEnvelopeStack::new(
-            db,
+        let envelope_store = SqliteEnvelopeStore::new(db);
+        let mut stack = SqliteEnvelopeStack::new(
+            envelope_store,
             2,
             2,
             ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
@@ -489,7 +326,7 @@ mod tests {
         let envelope = mock_envelope(Instant::now());
         assert!(matches!(
             stack.push(envelope).await,
-            Err(SQLiteEnvelopeStackError::DatabaseError(_))
+            Err(SqliteEnvelopeStackError::EnvelopeStoreError(_))
         ));
 
         // The stack now contains the last of the 3 elements that were added. If we add a new one
@@ -499,9 +336,9 @@ mod tests {
         assert_eq!(stack.batches_buffer_size, 3);
 
         // We pop the remaining elements, expecting the last added envelope to be on top.
-        let popped_envelope_1 = stack.pop().await.unwrap();
-        let popped_envelope_2 = stack.pop().await.unwrap();
-        let popped_envelope_3 = stack.pop().await.unwrap();
+        let popped_envelope_1 = stack.pop().await.unwrap().unwrap();
+        let popped_envelope_2 = stack.pop().await.unwrap().unwrap();
+        let popped_envelope_3 = stack.pop().await.unwrap().unwrap();
         assert_eq!(
             popped_envelope_1.event_id().unwrap(),
             envelope.event_id().unwrap()
@@ -520,8 +357,9 @@ mod tests {
     #[tokio::test]
     async fn test_pop_when_db_is_not_valid() {
         let db = setup_db(false).await;
-        let mut stack = SQLiteEnvelopeStack::new(
-            db,
+        let envelope_store = SqliteEnvelopeStore::new(db);
+        let mut stack = SqliteEnvelopeStack::new(
+            envelope_store,
             2,
             2,
             ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
@@ -531,15 +369,16 @@ mod tests {
         // We pop with an invalid db.
         assert!(matches!(
             stack.pop().await,
-            Err(SQLiteEnvelopeStackError::DatabaseError(_))
+            Err(SqliteEnvelopeStackError::EnvelopeStoreError(_))
         ));
     }
 
     #[tokio::test]
     async fn test_pop_when_stack_is_empty() {
         let db = setup_db(true).await;
-        let mut stack = SQLiteEnvelopeStack::new(
-            db,
+        let envelope_store = SqliteEnvelopeStore::new(db);
+        let mut stack = SqliteEnvelopeStack::new(
+            envelope_store,
             2,
             2,
             ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
@@ -547,17 +386,16 @@ mod tests {
         );
 
         // We pop with no elements.
-        assert!(matches!(
-            stack.pop().await,
-            Err(SQLiteEnvelopeStackError::Empty)
-        ));
+        // We pop with no elements.
+        assert!(stack.pop().await.unwrap().is_none());
     }
 
     #[tokio::test]
     async fn test_push_below_threshold_and_pop() {
         let db = setup_db(true).await;
-        let mut stack = SQLiteEnvelopeStack::new(
-            db,
+        let envelope_store = SqliteEnvelopeStore::new(db);
+        let mut stack = SqliteEnvelopeStack::new(
+            envelope_store,
             5,
             2,
             ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
@@ -573,7 +411,7 @@ mod tests {
         assert_eq!(stack.batches_buffer_size, 5);
 
         // We peek the top element.
-        let peeked_envelope = stack.peek().await.unwrap();
+        let peeked_envelope = stack.peek().await.unwrap().unwrap();
         assert_eq!(
             peeked_envelope.event_id().unwrap(),
             envelopes.clone()[4].event_id().unwrap()
@@ -581,7 +419,7 @@ mod tests {
 
         // We pop 5 envelopes.
         for envelope in envelopes.iter().rev() {
-            let popped_envelope = stack.pop().await.unwrap();
+            let popped_envelope = stack.pop().await.unwrap().unwrap();
             assert_eq!(
                 popped_envelope.event_id().unwrap(),
                 envelope.event_id().unwrap()
@@ -592,8 +430,9 @@ mod tests {
     #[tokio::test]
     async fn test_push_above_threshold_and_pop() {
         let db = setup_db(true).await;
-        let mut stack = SQLiteEnvelopeStack::new(
-            db,
+        let envelope_store = SqliteEnvelopeStore::new(db);
+        let mut stack = SqliteEnvelopeStack::new(
+            envelope_store,
             5,
             2,
             ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
@@ -609,7 +448,7 @@ mod tests {
         assert_eq!(stack.batches_buffer_size, 10);
 
         // We peek the top element.
-        let peeked_envelope = stack.peek().await.unwrap();
+        let peeked_envelope = stack.peek().await.unwrap().unwrap();
         assert_eq!(
             peeked_envelope.event_id().unwrap(),
             envelopes.clone()[14].event_id().unwrap()
@@ -618,7 +457,7 @@ mod tests {
         // We pop 10 envelopes, and we expect that the last 10 are in memory, since the first 5
         // should have been spooled to disk.
         for envelope in envelopes[5..15].iter().rev() {
-            let popped_envelope = stack.pop().await.unwrap();
+            let popped_envelope = stack.pop().await.unwrap().unwrap();
             assert_eq!(
                 popped_envelope.event_id().unwrap(),
                 envelope.event_id().unwrap()
@@ -627,7 +466,7 @@ mod tests {
         assert_eq!(stack.batches_buffer_size, 0);
 
         // We peek the top element, which since the buffer is empty should result in a disk load.
-        let peeked_envelope = stack.peek().await.unwrap();
+        let peeked_envelope = stack.peek().await.unwrap().unwrap();
         assert_eq!(
             peeked_envelope.event_id().unwrap(),
             envelopes.clone()[4].event_id().unwrap()
@@ -639,7 +478,7 @@ mod tests {
         assert!(stack.push(envelope.clone()).await.is_ok());
 
         // We pop and expect the newly inserted element.
-        let popped_envelope = stack.pop().await.unwrap();
+        let popped_envelope = stack.pop().await.unwrap().unwrap();
         assert_eq!(
             popped_envelope.event_id().unwrap(),
             envelope.event_id().unwrap()
@@ -648,7 +487,7 @@ mod tests {
         // We pop 5 envelopes, which should not result in a disk load since `peek()` already should
         // have caused it.
         for envelope in envelopes[0..5].iter().rev() {
-            let popped_envelope = stack.pop().await.unwrap();
+            let popped_envelope = stack.pop().await.unwrap().unwrap();
             assert_eq!(
                 popped_envelope.event_id().unwrap(),
                 envelope.event_id().unwrap()

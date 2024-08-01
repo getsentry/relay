@@ -12,12 +12,11 @@ use relay_sampling::{DynamicSamplingContext, SamplingConfig};
 use relay_system::Addr;
 use relay_test::mock_service;
 
-#[cfg(feature = "processing")]
-use {relay_config::RedisConnection, relay_redis::RedisPool};
-
 use crate::envelope::{Envelope, Item, ItemType};
 use crate::extractors::RequestMeta;
 use crate::metrics::{MetricOutcomes, MetricStats};
+#[cfg(feature = "processing")]
+use crate::service::create_redis_pools;
 use crate::services::global_config::GlobalConfigHandle;
 use crate::services::outcome::TrackOutcome;
 use crate::services::processor::{self, EnvelopeProcessorService};
@@ -119,21 +118,12 @@ pub fn empty_envelope_with_dsn(dsn: &str) -> Box<Envelope> {
 pub fn create_test_processor(config: Config) -> EnvelopeProcessorService {
     let (outcome_aggregator, _) = mock_service("outcome_aggregator", (), |&mut (), _| {});
     let (project_cache, _) = mock_service("project_cache", (), |&mut (), _| {});
+    let (aggregator, _) = mock_service("aggregator", (), |&mut (), _| {});
     let (upstream_relay, _) = mock_service("upstream_relay", (), |&mut (), _| {});
     let (test_store, _) = mock_service("test_store", (), |&mut (), _| {});
 
     #[cfg(feature = "processing")]
-    let redis = config
-        .redis()
-        .filter(|_| config.processing_enabled())
-        .map(|redis| match redis {
-            (RedisConnection::Single(server), options) => {
-                RedisPool::single(server, options).unwrap()
-            }
-            (RedisConnection::Cluster(servers), options) => {
-                RedisPool::cluster(servers.iter().map(|s| s.as_str()), options).unwrap()
-            }
-        });
+    let redis_pools = config.redis().map(create_redis_pools).transpose().unwrap();
 
     let metric_outcomes = MetricOutcomes::new(MetricStats::test().0, outcome_aggregator.clone());
 
@@ -144,7 +134,7 @@ pub fn create_test_processor(config: Config) -> EnvelopeProcessorService {
         GlobalConfigHandle::fixed(Default::default()),
         Cogs::noop(),
         #[cfg(feature = "processing")]
-        redis,
+        redis_pools,
         processor::Addrs {
             outcome_aggregator,
             project_cache,
@@ -152,6 +142,7 @@ pub fn create_test_processor(config: Config) -> EnvelopeProcessorService {
             test_store,
             #[cfg(feature = "processing")]
             store_forwarder: None,
+            aggregator,
         },
         metric_outcomes,
     )
@@ -162,18 +153,7 @@ pub fn create_test_processor_with_addrs(
     addrs: processor::Addrs,
 ) -> EnvelopeProcessorService {
     #[cfg(feature = "processing")]
-    let redis = config
-        .redis()
-        .filter(|_| config.processing_enabled())
-        .map(|redis| match redis {
-            (RedisConnection::Single(server), options) => {
-                RedisPool::single(server, options).unwrap()
-            }
-            (RedisConnection::Cluster(servers), options) => {
-                RedisPool::cluster(servers.iter().map(|s| s.as_str()), options).unwrap()
-            }
-        });
-
+    let redis_pools = config.redis().map(create_redis_pools).transpose().unwrap();
     let metric_outcomes =
         MetricOutcomes::new(MetricStats::test().0, addrs.outcome_aggregator.clone());
 
@@ -184,7 +164,7 @@ pub fn create_test_processor_with_addrs(
         GlobalConfigHandle::fixed(Default::default()),
         Cogs::noop(),
         #[cfg(feature = "processing")]
-        redis,
+        redis_pools,
         addrs,
         metric_outcomes,
     )

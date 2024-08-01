@@ -4,11 +4,15 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use crate::extractors::RequestMeta;
-use crate::metrics::MetricOutcomes;
+use crate::services::buffer::{EnvelopeBufferError, GuardedEnvelopeBuffer, Peek};
+use crate::services::processor::{
+    EncodeMetrics, EnvelopeProcessor, MetricData, ProcessEnvelope, ProcessingGroup, ProjectMetrics,
+};
+use chrono::{DateTime, Utc};
 use hashbrown::HashSet;
 use relay_base_schema::project::ProjectKey;
 use relay_config::{Config, RelayMode};
-use relay_metrics::{Bucket, MetricMeta};
+use relay_metrics::MetricMeta;
 use relay_quotas::RateLimits;
 use relay_redis::RedisPool;
 use relay_statsd::metric;
@@ -21,12 +25,7 @@ use tokio::time::Instant;
 use crate::services::global_config::{self, GlobalConfigManager, Subscribe};
 use crate::services::metrics::{Aggregator, FlushBuckets};
 use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
-use crate::services::processor::{
-    EncodeMetrics, EnvelopeProcessor, ProcessEnvelope, ProjectMetrics,
-};
-use crate::services::project::{
-    CheckedBuckets, Project, ProjectFetchState, ProjectSender, ProjectState,
-};
+use crate::services::project::{Project, ProjectFetchState, ProjectSender, ProjectState};
 use crate::services::project_local::{LocalProjectSource, LocalProjectSourceService};
 #[cfg(feature = "processing")]
 use crate::services::project_redis::RedisProjectSource;
@@ -203,28 +202,23 @@ impl From<&RequestMeta> for BucketSource {
     }
 }
 
-/// Add metric buckets to the project.
+/// Starts the processing flow for received metrics.
 ///
-/// Metric buckets added via the project are filtered and rate limited
-/// according to the project state.
-///
-/// Adding buckets directly to the aggregator bypasses all of these checks.
+/// Enriches the raw data with projcet information and forwards
+/// the metrics using [`ProcessProjectMetrics`](crate::services::processor::ProcessProjectMetrics).
 #[derive(Debug)]
-pub struct AddMetricBuckets {
+pub struct ProcessMetrics {
+    /// A list of metric items.
+    pub data: MetricData,
+    /// The target project.
     pub project_key: ProjectKey,
-    pub buckets: Vec<Bucket>,
+    /// Whether to keep or reset the metric metadata.
     pub source: BucketSource,
-}
-
-impl AddMetricBuckets {
-    /// Convenience constructor which creates an internal [`AddMetricBuckets`] message.
-    pub fn internal(project_key: ProjectKey, buckets: Vec<Bucket>) -> Self {
-        Self {
-            project_key,
-            buckets,
-            source: BucketSource::Internal,
-        }
-    }
+    /// The instant at which the request was received.
+    pub start_time: Instant,
+    /// The value of the Envelope's [`sent_at`](crate::envelope::Envelope::sent_at)
+    /// header for clock drift correction.
+    pub sent_at: Option<DateTime<Utc>>,
 }
 
 /// Add metric metadata to the aggregator.
@@ -271,7 +265,7 @@ pub struct RefreshIndexCache(pub HashSet<QueueKey>);
 /// information.
 ///
 /// There are also higher-level operations, such as [`CheckEnvelope`] and [`ValidateEnvelope`] that
-/// inspect contents of envelopes for ingestion, as well as [`AddMetricBuckets`] to aggregate metrics
+/// inspect contents of envelopes for ingestion, as well as [`ProcessMetrics`] to aggregate metrics
 /// associated with a project.
 ///
 /// See the enumerated variants for a full list of available messages for this service.
@@ -285,7 +279,7 @@ pub enum ProjectCache {
     ),
     ValidateEnvelope(ValidateEnvelope),
     UpdateRateLimits(UpdateRateLimits),
-    AddMetricBuckets(AddMetricBuckets),
+    ProcessMetrics(ProcessMetrics),
     AddMetricMeta(AddMetricMeta),
     FlushBuckets(FlushBuckets),
     UpdateSpoolIndex(UpdateSpoolIndex),
@@ -302,7 +296,7 @@ impl ProjectCache {
             Self::CheckEnvelope(_, _) => "CheckEnvelope",
             Self::ValidateEnvelope(_) => "ValidateEnvelope",
             Self::UpdateRateLimits(_) => "UpdateRateLimits",
-            Self::AddMetricBuckets(_) => "AddMetricBuckets",
+            Self::ProcessMetrics(_) => "ProcessMetrics",
             Self::AddMetricMeta(_) => "AddMetricMeta",
             Self::FlushBuckets(_) => "FlushBuckets",
             Self::UpdateSpoolIndex(_) => "UpdateSpoolIndex",
@@ -381,11 +375,11 @@ impl FromMessage<UpdateRateLimits> for ProjectCache {
     }
 }
 
-impl FromMessage<AddMetricBuckets> for ProjectCache {
+impl FromMessage<ProcessMetrics> for ProjectCache {
     type Response = relay_system::NoResponse;
 
-    fn from_message(message: AddMetricBuckets, _: ()) -> Self {
-        Self::AddMetricBuckets(message)
+    fn from_message(message: ProcessMetrics, _: ()) -> Self {
+        Self::ProcessMetrics(message)
     }
 }
 
@@ -439,7 +433,16 @@ impl ProjectSource {
             UpstreamProjectSourceService::new(config.clone(), upstream_relay).start();
 
         #[cfg(feature = "processing")]
-        let redis_maxconns = config.redis().map(|(_, config)| config.max_connections);
+        let redis_maxconns = config.redis().map(|configs| {
+            let opts = match configs {
+                relay_config::RedisPoolConfigs::Unified((_, opts)) => opts,
+                relay_config::RedisPoolConfigs::Individual {
+                    project_configs: (_, opts),
+                    ..
+                } => opts,
+            };
+            opts.max_connections
+        });
         #[cfg(feature = "processing")]
         let redis_source = _redis.map(|pool| RedisProjectSource::new(config.clone(), pool));
 
@@ -565,8 +568,9 @@ impl Services {
 struct ProjectCacheBroker {
     config: Arc<Config>,
     memory_checker: MemoryChecker,
+    // TODO: Make non-optional when spool_v1 is removed.
+    envelope_buffer: Option<Arc<GuardedEnvelopeBuffer>>,
     services: Services,
-    metric_outcomes: MetricOutcomes,
     // Need hashbrown because extract_if is not stable in std yet.
     projects: hashbrown::HashMap<ProjectKey, Project>,
     /// Utility for disposing of expired project data in a background thread.
@@ -575,19 +579,25 @@ struct ProjectCacheBroker {
     source: ProjectSource,
     /// Tx channel used to send the updated project state whenever requested.
     state_tx: mpsc::UnboundedSender<UpdateProjectState>,
+
+    /// Handle to schedule periodic unspooling of buffered envelopes (spool V1).
+    spool_v1_unspool_handle: SleepHandle,
+    spool_v1: Option<SpoolV1>,
+    /// Status of the global configuration, used to determine readiness for processing.
+    global_config: GlobalConfigStatus,
+}
+
+#[derive(Debug)]
+struct SpoolV1 {
     /// Tx channel used by the [`BufferService`] to send back the requested dequeued elements.
     buffer_tx: mpsc::UnboundedSender<UnspooledEnvelope>,
     /// Index containing all the [`QueueKey`] that have been enqueued in the [`BufferService`].
     index: HashSet<QueueKey>,
-    /// Handle to schedule periodic unspooling of buffered envelopes.
-    buffer_unspool_handle: SleepHandle,
     /// Backoff strategy for retrying unspool attempts.
     buffer_unspool_backoff: RetryBackoff,
     /// Address of the [`BufferService`] used for enqueuing and dequeuing envelopes that can't be
     /// immediately processed.
     buffer: Addr<Buffer>,
-    /// Status of the global configuration, used to determine readiness for processing.
-    global_config: GlobalConfigStatus,
 }
 
 /// Describes the current status of the `GlobalConfig`.
@@ -614,18 +624,21 @@ impl ProjectCacheBroker {
     }
 
     /// Adds the value to the queue for the provided key.
-    pub fn enqueue(&mut self, key: QueueKey, value: ManagedEnvelope) {
-        self.index.insert(key);
-        self.buffer.send(Enqueue::new(key, value));
+    fn enqueue(&mut self, key: QueueKey, value: ManagedEnvelope) {
+        let spool_v1 = self.spool_v1.as_mut().expect("no V1 spool configured");
+        spool_v1.index.insert(key);
+        spool_v1.buffer.send(Enqueue::new(key, value));
     }
 
     /// Sends the message to the buffer service to dequeue the envelopes.
     ///
     /// All the found envelopes will be send back through the `buffer_tx` channel and directly
     /// forwarded to `handle_processing`.
-    pub fn dequeue(&self, keys: HashSet<QueueKey>) {
-        self.buffer
-            .send(DequeueMany::new(keys, self.buffer_tx.clone()))
+    fn dequeue(&self, keys: HashSet<QueueKey>) {
+        let spool_v1 = self.spool_v1.as_ref().expect("no V1 spool configured");
+        spool_v1
+            .buffer
+            .send(DequeueMany::new(keys, spool_v1.buffer_tx.clone()))
     }
 
     /// Evict projects that are over its expiry date.
@@ -645,13 +658,15 @@ impl ProjectCacheBroker {
         // Defer dropping the projects to a dedicated thread:
         let mut count = 0;
         for (project_key, project) in expired {
-            let keys = self
-                .index
-                .extract_if(|key| key.own_key == project_key || key.sampling_key == project_key)
-                .collect::<BTreeSet<_>>();
+            if let Some(spool_v1) = self.spool_v1.as_mut() {
+                let keys = spool_v1
+                    .index
+                    .extract_if(|key| key.own_key == project_key || key.sampling_key == project_key)
+                    .collect::<BTreeSet<_>>();
 
-            if !keys.is_empty() {
-                self.buffer.send(RemoveMany::new(project_key, keys))
+                if !keys.is_empty() {
+                    spool_v1.buffer.send(RemoveMany::new(project_key, keys))
+                }
             }
 
             self.garbage_disposal.dispose(project);
@@ -705,6 +720,11 @@ impl ProjectCacheBroker {
 
         // Try to schedule unspool if it's not scheduled yet.
         self.schedule_unspool();
+
+        // TODO: write test that shows envelope can overtake when project becomes ready.
+        if let Some(buffer) = self.envelope_buffer.clone() {
+            tokio::spawn(async move { buffer.mark_ready(&project_key, true).await });
+        }
     }
 
     fn handle_request_update(&mut self, message: RequestUpdate) {
@@ -762,12 +782,20 @@ impl ProjectCacheBroker {
     ) -> Result<CheckedEnvelope, DiscardReason> {
         let CheckEnvelope { envelope: context } = message;
         let project_cache = self.services.project_cache.clone();
-        let project = self.get_or_create_project(context.envelope().meta().public_key());
+        let project_key = context.envelope().meta().public_key();
+        if let Some(sampling_key) = context.envelope().sampling_key() {
+            if sampling_key != project_key {
+                let sampling_project = self.get_or_create_project(sampling_key);
+                sampling_project.prefetch(project_cache.clone(), false);
+            }
+        }
+        let project = self.get_or_create_project(project_key);
 
         // Preload the project cache so that it arrives a little earlier in processing. However,
         // do not pass `no_cache`. In case the project is rate limited, we do not want to force
         // a full reload. Fetching must not block the store request.
         project.prefetch(project_cache, false);
+
         project.check_envelope(context)
     }
 
@@ -920,21 +948,15 @@ impl ProjectCacheBroker {
             .merge_rate_limits(message.rate_limits);
     }
 
-    fn handle_add_metric_buckets(&mut self, message: AddMetricBuckets) {
+    fn handle_process_metrics(&mut self, message: ProcessMetrics) {
         let project_cache = self.services.project_cache.clone();
-        let aggregator = self.services.aggregator.clone();
-        let metric_outcomes = self.metric_outcomes.clone();
-        let outcome_aggregator = self.services.outcome_aggregator.clone();
 
-        let project = self.get_or_create_project(message.project_key);
-        project.prefetch(project_cache, false);
-        project.merge_buckets(
-            &aggregator,
-            &metric_outcomes,
-            &outcome_aggregator,
-            message.buckets,
-            message.source,
-        );
+        let message = self
+            .get_or_create_project(message.project_key)
+            .prefetch(project_cache, false)
+            .process_metrics(message);
+
+        self.services.envelope_processor.send(message);
     }
 
     fn handle_add_metric_meta(&mut self, message: AddMetricMeta) {
@@ -945,8 +967,6 @@ impl ProjectCacheBroker {
     }
 
     fn handle_flush_buckets(&mut self, message: FlushBuckets) {
-        let metric_outcomes = self.metric_outcomes.clone();
-        let outcome_aggregator = self.services.outcome_aggregator.clone();
         let aggregator = self.services.aggregator.clone();
         let project_cache = self.services.project_cache.clone();
 
@@ -954,26 +974,36 @@ impl ProjectCacheBroker {
         let mut scoped_buckets = BTreeMap::new();
         for (project_key, buckets) in message.buckets {
             let project = self.get_or_create_project(project_key);
-            match project.check_buckets(&metric_outcomes, &outcome_aggregator, buckets) {
-                CheckedBuckets::NoProject(buckets) => {
-                    no_project += 1;
-                    // Schedule an update for the project just in case.
-                    project.prefetch(project_cache.clone(), false);
-                    project.return_buckets(&aggregator, buckets);
-                }
-                CheckedBuckets::Checked {
-                    scoping,
-                    project_info,
-                    buckets,
-                } => scoped_buckets
-                    .entry(scoping)
-                    .or_insert(ProjectMetrics {
+
+            let Some(project_info) = project.current_state().enabled() else {
+                no_project += 1;
+                // Schedule an update for the project just in case.
+                project.prefetch(project_cache.clone(), false);
+                project.return_buckets(&aggregator, buckets);
+                continue;
+            };
+
+            let Some(scoping) = project.scoping() else {
+                relay_log::error!(
+                    tags.project_key = project_key.as_str(),
+                    "there is no scoping: dropping {} buckets",
+                    buckets.len(),
+                );
+                continue;
+            };
+
+            use std::collections::btree_map::Entry::*;
+            match scoped_buckets.entry(scoping) {
+                Vacant(entry) => {
+                    entry.insert(ProjectMetrics {
                         project_info,
-                        buckets: Vec::new(),
-                    })
-                    .buckets
-                    .extend(buckets),
-                CheckedBuckets::Dropped => {}
+                        rate_limits: project.current_rate_limits().clone(),
+                        buckets,
+                    });
+                }
+                Occupied(entry) => {
+                    entry.into_mut().buckets.extend(buckets);
+                }
             }
         }
 
@@ -988,11 +1018,15 @@ impl ProjectCacheBroker {
     }
 
     fn handle_buffer_index(&mut self, message: UpdateSpoolIndex) {
-        self.index.extend(message.0);
+        let spool_v1 = self.spool_v1.as_mut().expect("no V1 spool configured");
+        spool_v1.index.extend(message.0);
     }
 
-    fn handle_spool_health(&mut self, sender: Sender<bool>) {
-        self.buffer.send(spooler::Health(sender))
+    fn handle_spool_health(&self, sender: Sender<bool>) {
+        match &self.spool_v1 {
+            Some(spool_v1) => spool_v1.buffer.send(spooler::Health(sender)),
+            None => sender.send(true), // TODO
+        }
     }
 
     fn handle_refresh_index_cache(&mut self, message: RefreshIndexCache) {
@@ -1000,7 +1034,8 @@ impl ProjectCacheBroker {
         let project_cache = self.services.project_cache.clone();
 
         for key in index {
-            self.index.insert(key);
+            let spool_v1 = self.spool_v1.as_mut().expect("no V1 spool configured");
+            spool_v1.index.insert(key);
             self.get_or_create_project(key.own_key)
                 .prefetch(project_cache.clone(), false);
             if key.own_key != key.sampling_key {
@@ -1010,16 +1045,123 @@ impl ProjectCacheBroker {
         }
     }
 
+    async fn peek_at_envelope(&mut self, mut peek: Peek<'_>) -> Result<(), EnvelopeBufferError> {
+        let envelope = peek.get().await?;
+        if envelope.meta().start_time().elapsed() > self.config.spool_envelopes_max_age() {
+            let popped_envelope = peek.remove().await?;
+            let mut managed_envelope = ManagedEnvelope::new(
+                popped_envelope,
+                self.services.outcome_aggregator.clone(),
+                self.services.test_store.clone(),
+                ProcessingGroup::Ungrouped,
+            );
+            managed_envelope.reject(Outcome::Invalid(DiscardReason::Timestamp));
+            // TODO: metrics in all branches.
+            return Ok(());
+        }
+        let sampling_key = envelope.sampling_key();
+        let services = self.services.clone();
+
+        let own_key = envelope.meta().public_key();
+        let project = self.get_or_create_project(own_key);
+        let project_state = project.get_cached_state(services.project_cache.clone(), false);
+
+        // Check if project config is enabled.
+        let project_info = match project_state {
+            ProjectState::Enabled(info) => {
+                peek.mark_ready(&own_key, true);
+                info
+            }
+            ProjectState::Disabled => {
+                let popped_envelope = peek.remove().await?;
+                let mut managed_envelope = ManagedEnvelope::new(
+                    popped_envelope,
+                    self.services.outcome_aggregator.clone(),
+                    self.services.test_store.clone(),
+                    ProcessingGroup::Ungrouped,
+                );
+                managed_envelope.reject(Outcome::Invalid(DiscardReason::ProjectId));
+                return Ok(());
+            }
+            ProjectState::Pending => {
+                peek.mark_ready(&own_key, false);
+                return Ok(());
+            }
+        };
+
+        // Check if sampling config is enabled.
+        let sampling_project_info = match sampling_key.map(|sampling_key| {
+            (
+                sampling_key,
+                self.get_or_create_project(sampling_key)
+                    .get_cached_state(services.project_cache, false),
+            )
+        }) {
+            Some((sampling_key, ProjectState::Enabled(info))) => {
+                peek.mark_ready(&sampling_key, true);
+                // Only set if it matches the organization ID. Otherwise treat as if there is
+                // no sampling project.
+                (info.organization_id == project_info.organization_id).then_some(info)
+            }
+            Some((_, ProjectState::Disabled)) => {
+                // Accept envelope even if its sampling state is disabled:
+                None
+            }
+            Some((sampling_key, ProjectState::Pending)) => {
+                peek.mark_ready(&sampling_key, false);
+                return Ok(());
+            }
+            None => None,
+        };
+
+        let project = self.get_or_create_project(own_key);
+
+        // Reassign processing groups and proceed to processing.
+        let popped_envelope = peek.remove().await?;
+        for (group, envelope) in ProcessingGroup::split_envelope(*popped_envelope) {
+            let managed_envelope = ManagedEnvelope::new(
+                envelope,
+                services.outcome_aggregator.clone(),
+                services.test_store.clone(),
+                group,
+            );
+
+            let Ok(CheckedEnvelope {
+                envelope: Some(managed_envelope),
+                ..
+            }) = project.check_envelope(managed_envelope)
+            else {
+                continue; // Outcomes are emitted by check_envelope
+            };
+
+            let reservoir_counters = project.reservoir_counters();
+            services.envelope_processor.send(ProcessEnvelope {
+                envelope: managed_envelope,
+                project_info: project_info.clone(),
+                sampling_project_info: sampling_project_info.clone(),
+                reservoir_counters,
+            });
+        }
+
+        Ok(())
+    }
+
     /// Returns backoff timeout for an unspool attempt.
     fn next_unspool_attempt(&mut self) -> Duration {
-        self.config.spool_envelopes_unspool_interval() + self.buffer_unspool_backoff.next_backoff()
+        let spool_v1 = self.spool_v1.as_mut().expect("no V1 spool configured");
+        self.config.spool_envelopes_unspool_interval()
+            + spool_v1.buffer_unspool_backoff.next_backoff()
     }
 
     fn schedule_unspool(&mut self) {
-        if self.buffer_unspool_handle.is_idle() {
+        if self.spool_v1.is_none() {
+            return;
+        }
+
+        if self.spool_v1_unspool_handle.is_idle() {
             // Set the time for the next attempt.
             let wait = self.next_unspool_attempt();
-            self.buffer_unspool_handle.set(wait);
+            self.spool_v1_unspool_handle.set(wait);
         }
     }
 
@@ -1045,6 +1187,7 @@ impl ProjectCacheBroker {
     /// This makes sure we always moving the unspool forward, even if we do not fetch the project
     /// states updates, but still can process data based on the existing cache.
     fn handle_periodic_unspool(&mut self) {
+        relay_log::trace!("handle_periodic_unspool");
         let (num_keys, reason) = self.handle_periodic_unspool_inner();
         relay_statsd::metric!(
             gauge(RelayGauges::BufferPeriodicUnspool) = num_keys as u64,
@@ -1053,21 +1196,22 @@ impl ProjectCacheBroker {
     }
 
     fn handle_periodic_unspool_inner(&mut self) -> (usize, &str) {
-        self.buffer_unspool_handle.reset();
+        let spool_v1 = self.spool_v1.as_mut().expect("no V1 spool configured");
+        self.spool_v1_unspool_handle.reset();
 
         // If we don't yet have the global config, we will defer dequeuing until we do.
         if let GlobalConfigStatus::Pending = self.global_config {
-            self.buffer_unspool_backoff.reset();
+            spool_v1.buffer_unspool_backoff.reset();
             self.schedule_unspool();
             return (0, "no_global_config");
         }
         // If there is nothing spooled, schedule the next check a little bit later.
-        if self.index.is_empty() {
+        if spool_v1.index.is_empty() {
             self.schedule_unspool();
             return (0, "index_empty");
         }
 
-        let mut index = std::mem::take(&mut self.index);
+        let mut index = std::mem::take(&mut spool_v1.index);
         let keys = index
             .extract_if(|key| self.is_state_cached(key))
             .take(BATCH_KEY_COUNT)
@@ -1079,12 +1223,13 @@ impl ProjectCacheBroker {
         }
 
         // Return all the un-used items to the index.
+        let spool_v1 = self.spool_v1.as_mut().expect("no V1 spool configured");
         if !index.is_empty() {
-            self.index.extend(index);
+            spool_v1.index.extend(index);
         }
 
         // Schedule unspool once we are done.
-        self.buffer_unspool_backoff.reset();
+        spool_v1.buffer_unspool_backoff.reset();
         self.schedule_unspool();
 
         (num_keys, "found_keys")
@@ -1109,9 +1254,7 @@ impl ProjectCacheBroker {
                         self.handle_validate_envelope(message)
                     }
                     ProjectCache::UpdateRateLimits(message) => self.handle_rate_limits(message),
-                    ProjectCache::AddMetricBuckets(message) => {
-                        self.handle_add_metric_buckets(message)
-                    }
+                    ProjectCache::ProcessMetrics(message) => self.handle_process_metrics(message),
                     ProjectCache::AddMetricMeta(message) => self.handle_add_metric_meta(message),
                     ProjectCache::FlushBuckets(message) => self.handle_flush_buckets(message),
                     ProjectCache::UpdateSpoolIndex(message) => self.handle_buffer_index(message),
@@ -1130,8 +1273,8 @@ impl ProjectCacheBroker {
 pub struct ProjectCacheService {
     config: Arc<Config>,
     memory_checker: MemoryChecker,
+    envelope_buffer: Option<Arc<GuardedEnvelopeBuffer>>,
     services: Services,
-    metric_outcomes: MetricOutcomes,
     redis: Option<RedisPool>,
 }
 
@@ -1140,15 +1283,15 @@ impl ProjectCacheService {
     pub fn new(
         config: Arc<Config>,
         memory_checker: MemoryChecker,
+        envelope_buffer: Option<Arc<GuardedEnvelopeBuffer>>,
         services: Services,
-        metric_outcomes: MetricOutcomes,
         redis: Option<RedisPool>,
     ) -> Self {
         Self {
             config,
             memory_checker,
+            envelope_buffer,
             services,
-            metric_outcomes,
             redis,
         }
     }
@@ -1161,8 +1304,8 @@ impl Service for ProjectCacheService {
         let Self {
             config,
             memory_checker,
+            envelope_buffer,
             services,
-            metric_outcomes,
             redis,
         } = self;
         let project_cache = services.project_cache.clone();
@@ -1171,33 +1314,11 @@ impl Service for ProjectCacheService {
 
         tokio::spawn(async move {
             let mut ticker = tokio::time::interval(config.cache_eviction_interval());
+            let mut report_ticker = tokio::time::interval(Duration::from_secs(1));
             relay_log::info!("project cache started");
 
             // Channel for async project state responses back into the project cache.
             let (state_tx, mut state_rx) = mpsc::unbounded_channel();
-
-            // Channel for envelope buffering.
-            let (buffer_tx, mut buffer_rx) = mpsc::unbounded_channel();
-            let buffer_services = spooler::Services {
-                outcome_aggregator,
-                project_cache,
-                test_store,
-            };
-            let buffer = match BufferService::create(
-                memory_checker.clone(),
-                buffer_services,
-                config.clone(),
-            )
-            .await
-            {
-                Ok(buffer) => buffer.start(),
-                Err(err) => {
-                    relay_log::error!(error = &err as &dyn Error, "failed to start buffer service",);
-                    // NOTE: The process will exit with error if the buffer file could not be
-                    // opened or the migrations could not be run.
-                    std::process::exit(1);
-                }
-            };
 
             let Ok(mut subscription) = services.global_config.send(Subscribe).await else {
                 // TODO(iker): we accept this sub-optimal error handling. TBD
@@ -1218,14 +1339,53 @@ impl Service for ProjectCacheService {
                 }
             };
 
-            // Request the existing index from the spooler.
-            buffer.send(RestoreIndex);
+            let (buffer_tx, mut buffer_rx) = mpsc::unbounded_channel();
+            let spool_v1 = match config.spool_v2() {
+                true => None,
+                false => Some({
+                    // Channel for envelope buffering.
+                    let buffer_services = spooler::Services {
+                        outcome_aggregator,
+                        project_cache,
+                        test_store,
+                    };
+                    let buffer = match BufferService::create(
+                        memory_checker.clone(),
+                        buffer_services,
+                        config.clone(),
+                    )
+                    .await
+                    {
+                        Ok(buffer) => buffer.start(),
+                        Err(err) => {
+                            relay_log::error!(
+                                error = &err as &dyn Error,
+                                "failed to start buffer service",
+                            );
+                            // NOTE: The process will exit with error if the buffer file could not be
+                            // opened or the migrations could not be run.
+                            std::process::exit(1);
+                        }
+                    };
+
+                    // Request the existing index from the spooler.
+                    buffer.send(RestoreIndex);
+
+                    SpoolV1 {
+                        buffer_tx,
+                        index: HashSet::new(),
+                        buffer_unspool_backoff: RetryBackoff::new(config.http_max_retry_interval()),
+                        buffer,
+                    }
+                }),
+            };
 
             // Main broker that serializes public and internal messages, and triggers project state
             // fetches via the project source.
             let mut broker = ProjectCacheBroker {
                 config: config.clone(),
                 memory_checker,
+                envelope_buffer: envelope_buffer.clone(),
                 projects: hashbrown::HashMap::new(),
                 garbage_disposal: GarbageDisposal::new(),
                 source: ProjectSource::start(
@@ -1235,13 +1395,9 @@ impl Service for ProjectCacheService {
                 ),
                 services,
                 state_tx,
-                buffer_tx,
-                index: HashSet::new(),
-                buffer_unspool_handle: SleepHandle::idle(),
-                buffer_unspool_backoff: RetryBackoff::new(config.http_max_retry_interval()),
-                buffer,
+                spool_v1_unspool_handle: SleepHandle::idle(),
+                spool_v1,
                 global_config,
-                metric_outcomes,
             };
 
             loop {
@@ -1275,7 +1431,7 @@ impl Service for ProjectCacheService {
                             broker.evict_stale_project_caches()
                         })
                     }
-                    () = &mut broker.buffer_unspool_handle => {
+                    () = &mut broker.spool_v1_unspool_handle => {
                         metric!(timer(RelayTimers::ProjectCacheTaskDuration), task = "periodic_unspool", {
                             broker.handle_periodic_unspool()
                         })
@@ -1285,12 +1441,32 @@ impl Service for ProjectCacheService {
                             broker.handle_message(message)
                         })
                     }
+                    peek = peek_buffer(&envelope_buffer) => {
+                        metric!(timer(RelayTimers::ProjectCacheTaskDuration), task = "peek_at_envelope", {
+                            if let Err(e) = broker.peek_at_envelope(peek).await {
+                                relay_log::error!(error = &e as &dyn std::error::Error, "Failed to peek envelope");
+                            }
+                        })
+                    }
+                    _ = report_ticker.tick() => {
+                        if let Some(envelope_buffer) = &envelope_buffer {
+                            relay_statsd::metric!(gauge(RelayGauges::BufferPushInFlight) = envelope_buffer.inflight_push_count());
+                        }
+                    }
                     else => break,
                 }
             }
 
             relay_log::info!("project cache stopped");
         });
+    }
+}
+
+/// Temporary helper function while V1 spool eixsts.
+async fn peek_buffer(buffer: &Option<Arc<GuardedEnvelopeBuffer>>) -> Peek {
+    match buffer {
+        Some(buffer) => buffer.peek().await,
+        None => std::future::pending().await,
     }
 }
 
@@ -1316,9 +1492,6 @@ impl FetchOptionalProjectState {
 
 #[cfg(test)]
 mod tests {
-    use crate::metrics::MetricStats;
-    use crate::services::global_config::GlobalConfigHandle;
-    use relay_dynamic_config::GlobalConfig;
     use relay_test::mock_service;
     use tokio::select;
     use uuid::Uuid;
@@ -1368,6 +1541,7 @@ mod tests {
         .unwrap()
         .into();
         let memory_checker = MemoryChecker::new(MemoryStat::default(), config.clone());
+        let envelope_buffer = GuardedEnvelopeBuffer::from_config(&config).map(Arc::new);
         let buffer_services = spooler::Services {
             outcome_aggregator: services.outcome_aggregator.clone(),
             project_cache: services.project_cache.clone(),
@@ -1386,30 +1560,24 @@ mod tests {
                 }
             };
 
-        let metric_stats = MetricStats::new(
-            Arc::new(Config::default()),
-            GlobalConfigHandle::fixed(GlobalConfig::default()),
-            Addr::custom().0,
-        );
-        let metric_outcomes =
-            MetricOutcomes::new(metric_stats, services.outcome_aggregator.clone());
-
         (
             ProjectCacheBroker {
                 config: config.clone(),
                 memory_checker,
+                envelope_buffer,
                 projects: hashbrown::HashMap::new(),
                 garbage_disposal: GarbageDisposal::new(),
                 source: ProjectSource::start(config, services.upstream_relay.clone(), None),
                 services,
                 state_tx,
-                buffer_tx,
-                index: HashSet::new(),
-                buffer: buffer.clone(),
+                spool_v1_unspool_handle: SleepHandle::idle(),
+                spool_v1: Some(SpoolV1 {
+                    buffer_tx,
+                    index: HashSet::new(),
+                    buffer: buffer.clone(),
+                    buffer_unspool_backoff: RetryBackoff::new(Duration::from_millis(100)),
+                }),
                 global_config: GlobalConfigStatus::Pending,
-                buffer_unspool_handle: SleepHandle::idle(),
-                buffer_unspool_backoff: RetryBackoff::new(Duration::from_millis(100)),
-                metric_outcomes,
             },
             buffer,
         )
@@ -1455,10 +1623,10 @@ mod tests {
                 select! {
 
                     Some(assert) = rx_assert.recv() => {
-                        assert_eq!(broker.index.len(), assert);
+                        assert_eq!(broker.spool_v1.as_ref().unwrap().index.len(), assert);
                     },
                     Some(update) = rx_update.recv() => broker.merge_state(update),
-                    () = &mut broker.buffer_unspool_handle => broker.handle_periodic_unspool(),
+                    () = &mut broker.spool_v1_unspool_handle => broker.handle_periodic_unspool(),
                 }
             }
         });
@@ -1517,7 +1685,7 @@ mod tests {
 
         // Index and projects are empty.
         assert!(broker.projects.is_empty());
-        assert!(broker.index.is_empty());
+        assert!(broker.spool_v1.as_mut().unwrap().index.is_empty());
 
         // Since there is no project we should not process anything but create a project and spool
         // the envelope.
@@ -1525,7 +1693,7 @@ mod tests {
 
         // Assert that we have a new project and also added an index.
         assert!(broker.projects.get(&project_key).is_some());
-        assert!(broker.index.contains(&key));
+        assert!(broker.spool_v1.as_mut().unwrap().index.contains(&key));
 
         // Check is we actually spooled anything.
         buffer_svc.send(DequeueMany::new([key].into(), buffer_tx.clone()));

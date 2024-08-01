@@ -8,8 +8,8 @@
 
 **Internal**:
 
-- Add `EnvelopeStack` and `SQLiteEnvelopeStack` to manage envelopes on disk. ([#3855](https://github.com/getsentry/relay/pull/3855))
-- Add `client_sample_rate` to spans, pulled from the trace context ([#3872](https://github.com/getsentry/relay/pull/3872)).
+- Add experimental support for V2 envelope buffering. ([#3855](https://github.com/getsentry/relay/pull/3855), [#3863](https://github.com/getsentry/relay/pull/3863))
+- Add `client_sample_rate` to spans, pulled from the trace context. ([#3872](https://github.com/getsentry/relay/pull/3872))
 - Introduce `trim = "disabled"` type attribute to prevent trimming of spans. ([#3877](https://github.com/getsentry/relay/pull/3877))
 
 ## 24.7.1
@@ -22,6 +22,8 @@
 
 - "Cardinality limit" outcomes now report which limit was exceeded. ([#3825](https://github.com/getsentry/relay/pull/3825))
 - Derive span browser name from user agent. ([#3834](https://github.com/getsentry/relay/pull/3834))
+- Redis pools for `project_configs`, `cardinality`, `quotas`, and `misc` usecases
+  can now be configured individually. ([#3859](https://github.com/getsentry/relay/pull/3859))
 
 **Internal**:
 
