@@ -8,6 +8,11 @@ use crate::services::outcome::Outcome;
 use crate::services::project::ProjectInfo;
 use crate::services::project_cache::BucketSource;
 
+/// Filters buckets based on their namespace.
+///
+/// This is a noop for most namespaces except:
+///  - [`MetricNamespace::Unsupported`]: Equal to invalid/unknown namespaces.
+///  - [`MetricNamespace::Stats`]: Metric stats are only allowed if the `source` is [`BucketSource::Internal`].
 pub fn filter_namespaces(mut buckets: Vec<Bucket>, source: BucketSource) -> Vec<Bucket> {
     buckets.retain(|bucket| match bucket.name.namespace() {
         MetricNamespace::Sessions => true,

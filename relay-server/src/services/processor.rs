@@ -944,6 +944,59 @@ pub enum MetricData {
     Parsed(Vec<Bucket>),
 }
 
+impl MetricData {
+    /// Consumes the metric data and parses the contained buckets.
+    ///
+    /// If the contained data is already parsed the buckets are returned unchanged.
+    /// Raw buckets are parsed and created with the passed `timestamp`.
+    fn into_buckets(self, timestamp: UnixTimestamp) -> Vec<Bucket> {
+        let items = match self {
+            Self::Parsed(buckets) => return buckets,
+            Self::Raw(items) => items,
+        };
+
+        let mut buckets = Vec::new();
+        for item in items {
+            let payload = item.payload();
+            if item.ty() == &ItemType::Statsd {
+                for bucket_result in Bucket::parse_all(&payload, timestamp) {
+                    match bucket_result {
+                        Ok(bucket) => buckets.push(bucket),
+                        Err(error) => relay_log::debug!(
+                            error = &error as &dyn Error,
+                            "failed to parse metric bucket from statsd format",
+                        ),
+                    }
+                }
+            } else if item.ty() == &ItemType::MetricBuckets {
+                match serde_json::from_slice::<Vec<Bucket>>(&payload) {
+                    Ok(parsed_buckets) => {
+                        // Re-use the allocation of `b` if possible.
+                        if buckets.is_empty() {
+                            buckets = parsed_buckets;
+                        } else {
+                            buckets.extend(parsed_buckets);
+                        }
+                    }
+                    Err(error) => {
+                        relay_log::debug!(
+                            error = &error as &dyn Error,
+                            "failed to parse metric bucket",
+                        );
+                        metric!(counter(RelayCounters::MetricBucketsParsingFailed) += 1);
+                    }
+                }
+            } else {
+                relay_log::error!(
+                    "invalid item of type {} passed to ProcessMetrics",
+                    item.ty()
+                );
+            }
+        }
+        buckets
+    }
+}
+
 #[derive(Debug)]
 pub struct ProcessBatchedMetrics {
     /// Metrics payload in JSON format.
@@ -2095,59 +2148,15 @@ impl EnvelopeProcessorService {
             source,
         } = message;
 
-        let received = relay_common::time::instant_to_date_time(start_time);
         let received_timestamp = UnixTimestamp::from_instant(start_time);
 
-        let mut buckets = match data {
-            MetricData::Parsed(buckets) => buckets,
-            MetricData::Raw(items) => {
-                let mut buckets = Vec::new();
-                for item in items {
-                    let payload = item.payload();
-                    if item.ty() == &ItemType::Statsd {
-                        for bucket_result in Bucket::parse_all(&payload, received_timestamp) {
-                            match bucket_result {
-                                Ok(bucket) => buckets.push(bucket),
-                                Err(error) => relay_log::debug!(
-                                    error = &error as &dyn Error,
-                                    "failed to parse metric bucket from statsd format",
-                                ),
-                            }
-                        }
-                    } else if item.ty() == &ItemType::MetricBuckets {
-                        match serde_json::from_slice::<Vec<Bucket>>(&payload) {
-                            Ok(parsed_buckets) => {
-                                // Re-use the allocation of `b` if possible.
-                                if buckets.is_empty() {
-                                    buckets = parsed_buckets;
-                                } else {
-                                    buckets.extend(parsed_buckets);
-                                }
-                            }
-                            Err(error) => {
-                                relay_log::debug!(
-                                    error = &error as &dyn Error,
-                                    "failed to parse metric bucket",
-                                );
-                                metric!(counter(RelayCounters::MetricBucketsParsingFailed) += 1);
-                            }
-                        }
-                    } else {
-                        relay_log::error!(
-                            "invalid item of type {} passed to ProcessMetrics",
-                            item.ty()
-                        );
-                    }
-                }
-                buckets
-            }
-        };
-
+        let mut buckets = data.into_buckets(received_timestamp);
         if buckets.is_empty() {
             return;
         };
         cogs.update(relay_metrics::cogs::BySize(&buckets));
 
+        let received = relay_common::time::instant_to_date_time(start_time);
         let clock_drift_processor =
             ClockDriftProcessor::new(sent_at, received).at_least(MINIMUM_CLOCK_DRIFT);
 
