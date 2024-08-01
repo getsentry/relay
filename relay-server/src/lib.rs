@@ -266,11 +266,11 @@ mod services;
 mod statsd;
 mod utils;
 
+pub use self::envelope::Envelope; // pub for benchmarks
+pub use self::services::buffer::{
+    EnvelopeStack, PolymorphicEnvelopeBuffer, SqliteEnvelopeStack, SqliteEnvelopeStore,
+}; // pub for benchmarks
 pub use self::services::spooler::spool_utils;
-// Public just for benchmarks.
-pub use self::envelope::Envelope;
-pub use self::services::spooler::envelope_stack::sqlite::SQLiteEnvelopeStack;
-pub use self::services::spooler::envelope_stack::EnvelopeStack;
 
 #[cfg(test)]
 mod testutils;

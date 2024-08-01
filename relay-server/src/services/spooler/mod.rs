@@ -60,7 +60,6 @@ use crate::services::test_store::TestStore;
 use crate::statsd::{RelayCounters, RelayGauges, RelayHistograms, RelayTimers};
 use crate::utils::{ManagedEnvelope, MemoryChecker};
 
-pub mod envelope_stack;
 pub mod spool_utils;
 mod sql;
 
@@ -564,7 +563,7 @@ impl OnDisk {
                 .fetch(&self.db)
                 .peekable();
             let mut envelopes = pin!(envelopes);
-            relay_statsd::metric!(counter(RelayCounters::BufferReads) += 1);
+            relay_statsd::metric!(counter(RelayCounters::BufferReadsDisk) += 1);
 
             // Stream is empty, we can break the loop, since we read everything by now.
             if envelopes.as_mut().peek().await.is_none() {
@@ -631,7 +630,7 @@ impl OnDisk {
                 .fetch(&self.db)
                 .peekable();
             let mut envelopes = pin!(envelopes);
-            relay_statsd::metric!(counter(RelayCounters::BufferReads) += 1);
+            relay_statsd::metric!(counter(RelayCounters::BufferReadsDisk) += 1);
             // Stream is empty, we can break the loop, since we read everything by now.
             if envelopes.as_mut().peek().await.is_none() {
                 break;
@@ -755,7 +754,7 @@ impl OnDisk {
         .map_err(BufferError::InsertFailed)?;
 
         self.track_count(1);
-        relay_statsd::metric!(counter(RelayCounters::BufferWrites) += 1);
+        relay_statsd::metric!(counter(RelayCounters::BufferWritesDisk) += 1);
         Ok(())
     }
 
