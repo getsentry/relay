@@ -687,6 +687,46 @@
 <a href="#687" id="687">687</a>
 <a href="#688" id="688">688</a>
 <a href="#689" id="689">689</a>
+<a href="#690" id="690">690</a>
+<a href="#691" id="691">691</a>
+<a href="#692" id="692">692</a>
+<a href="#693" id="693">693</a>
+<a href="#694" id="694">694</a>
+<a href="#695" id="695">695</a>
+<a href="#696" id="696">696</a>
+<a href="#697" id="697">697</a>
+<a href="#698" id="698">698</a>
+<a href="#699" id="699">699</a>
+<a href="#700" id="700">700</a>
+<a href="#701" id="701">701</a>
+<a href="#702" id="702">702</a>
+<a href="#703" id="703">703</a>
+<a href="#704" id="704">704</a>
+<a href="#705" id="705">705</a>
+<a href="#706" id="706">706</a>
+<a href="#707" id="707">707</a>
+<a href="#708" id="708">708</a>
+<a href="#709" id="709">709</a>
+<a href="#710" id="710">710</a>
+<a href="#711" id="711">711</a>
+<a href="#712" id="712">712</a>
+<a href="#713" id="713">713</a>
+<a href="#714" id="714">714</a>
+<a href="#715" id="715">715</a>
+<a href="#716" id="716">716</a>
+<a href="#717" id="717">717</a>
+<a href="#718" id="718">718</a>
+<a href="#719" id="719">719</a>
+<a href="#720" id="720">720</a>
+<a href="#721" id="721">721</a>
+<a href="#722" id="722">722</a>
+<a href="#723" id="723">723</a>
+<a href="#724" id="724">724</a>
+<a href="#725" id="725">725</a>
+<a href="#726" id="726">726</a>
+<a href="#727" id="727">727</a>
+<a href="#728" id="728">728</a>
+<a href="#729" id="729">729</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Derive for visitor traits on the Event schema.
 //!
 //! This derive provides the `ProcessValue` trait. It must be used within the `relay-event-schema`
@@ -701,6 +741,7 @@
 
 </span><span class="kw">use </span>proc_macro2::{Span, TokenStream};
 <span class="kw">use </span>quote::{quote, ToTokens};
+<span class="kw">use </span>std::str::FromStr;
 <span class="kw">use </span>syn::{Ident, Lit, Meta, NestedMeta};
 <span class="kw">use </span>synstructure::decl_derive;
 
@@ -779,7 +820,8 @@
 
         <span class="kw">let </span><span class="kw-2">mut </span>body = TokenStream::new();
         <span class="kw">for </span>(index, bi) <span class="kw">in </span>variant.bindings().iter().enumerate() {
-            <span class="kw">let </span>field_attrs = parse_field_attributes(index, bi.ast(), <span class="kw-2">&amp;mut </span>is_tuple_struct);
+            <span class="kw">let </span><span class="kw-2">mut </span>field_attrs = parse_field_attributes(index, bi.ast(), <span class="kw-2">&amp;mut </span>is_tuple_struct);
+            field_attrs.trim = <span class="prelude-val">Some</span>(<span class="macro">matches!</span>(type_attrs.trim, TrimmingMode::Enabled));
             <span class="kw">let </span>ident = <span class="kw-2">&amp;</span>bi.binding;
             <span class="kw">let </span>field_attrs_name = Ident::new(<span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">"FIELD_ATTRS_{index}"</span>), Span::call_site());
             <span class="kw">let </span>field_name = field_attrs.field_name.clone();
@@ -858,6 +900,14 @@
         }
     });
 
+    <span class="comment">// In case we have `trim` set on the type, we want to override this field attribute
+    // manually.
+    </span><span class="kw">let </span>field_attrs = FieldAttrs {
+        trim: <span class="prelude-val">Some</span>(<span class="macro">matches!</span>(type_attrs.trim, TrimmingMode::Enabled)),
+        ..Default::default()
+    };
+    <span class="kw">let </span>field_attrs_tokens = field_attrs.as_tokens(<span class="prelude-val">Some</span>(<span class="macro">quote!</span>(parent_attrs)));
+
     s.gen_impl(<span class="macro">quote!</span> {
         <span class="attr">#[automatically_derived]
         </span>gen <span class="kw">impl </span><span class="kw">crate</span>::processor::ProcessValue <span class="kw">for </span>@<span class="self">Self </span>{
@@ -876,6 +926,13 @@
             <span class="kw">where
                 </span>P: <span class="kw">crate</span>::processor::Processor,
             {
+                <span class="kw">let </span>parent_attrs = __state.attrs();
+                <span class="kw">let </span>attrs = #field_attrs_tokens;
+
+                <span class="kw">let </span>__state = <span class="kw-2">&amp;</span>__state.enter_nothing(
+                    <span class="prelude-val">Some</span>(::std::borrow::Cow::Owned(attrs))
+                );
+
                 #process_func_call_tokens;
                 <span class="kw">match </span><span class="kw-2">*</span><span class="self">self </span>{
                     #process_value_arms
@@ -903,10 +960,32 @@
     })
 }
 
+<span class="attr">#[derive(Default, Copy, Clone)]
+</span><span class="kw">enum </span>TrimmingMode {
+    <span class="attr">#[default]
+    </span>Enabled,
+    Disabled,
+}
+
+<span class="kw">impl </span>FromStr <span class="kw">for </span>TrimmingMode {
+    <span class="kw">type </span><span class="prelude-val">Err </span>= ();
+
+    <span class="kw">fn </span>from_str(s: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, <span class="self">Self</span>::Err&gt; {
+        <span class="kw">let </span>trimming_mode = <span class="kw">match </span>s {
+            <span class="string">"enabled" </span>=&gt; TrimmingMode::Enabled,
+            <span class="string">"disabled" </span>=&gt; TrimmingMode::Disabled,
+            <span class="kw">_ </span>=&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(()),
+        };
+
+        <span class="prelude-val">Ok</span>(trimming_mode)
+    }
+}
+
 <span class="attr">#[derive(Default)]
 </span><span class="kw">struct </span>TypeAttrs {
     process_func: <span class="prelude-ty">Option</span>&lt;String&gt;,
     value_type: Vec&lt;String&gt;,
+    trim: TrimmingMode,
 }
 
 <span class="kw">impl </span>TypeAttrs {
@@ -965,7 +1044,19 @@
                                         rv.value_type.push(litstr.value());
                                     }
                                     <span class="kw">_ </span>=&gt; {
-                                        <span class="macro">panic!</span>(<span class="string">"Got non string literal for value type"</span>);
+                                        <span class="macro">panic!</span>(<span class="string">"Got non string literal for value_type"</span>);
+                                    }
+                                }
+                            } <span class="kw">else if </span>ident == <span class="string">"trim" </span>{
+                                <span class="kw">match </span>name_value.lit {
+                                    Lit::Str(litstr) =&gt; {
+                                        rv.trim = litstr
+                                            .value()
+                                            .parse()
+                                            .expect(<span class="string">"Got invalid value for trim"</span>)
+                                    }
+                                    <span class="kw">_ </span>=&gt; {
+                                        <span class="macro">panic!</span>(<span class="string">"Got invalid value for trim"</span>);
                                     }
                                 }
                             }
@@ -1119,7 +1210,7 @@
                 max_bytes: #max_bytes,
                 pii: #pii,
                 retain: #retain,
-                trim: #trim,
+                trim: #trim
             }
         })
     }
@@ -1292,17 +1383,6 @@
                                     },
                                     <span class="kw">_ </span>=&gt; {
                                         <span class="macro">panic!</span>(<span class="string">"Got non string literal for retain"</span>);
-                                    }
-                                }
-                            } <span class="kw">else if </span>ident == <span class="string">"trim" </span>{
-                                <span class="kw">match </span>name_value.lit {
-                                    Lit::Str(litstr) =&gt; <span class="kw">match </span>litstr.value().as_str() {
-                                        <span class="string">"true" </span>=&gt; rv.trim = <span class="prelude-val">None</span>,
-                                        <span class="string">"false" </span>=&gt; rv.trim = <span class="prelude-val">Some</span>(<span class="bool-val">false</span>),
-                                        other =&gt; <span class="macro">panic!</span>(<span class="string">"Unknown value {other}"</span>),
-                                    },
-                                    <span class="kw">_ </span>=&gt; {
-                                        <span class="macro">panic!</span>(<span class="string">"Got non string literal for trim"</span>);
                                     }
                                 }
                             } <span class="kw">else if </span>ident == <span class="string">"legacy_alias" </span>|| ident == <span class="string">"skip_serialization" </span>{
