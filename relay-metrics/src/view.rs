@@ -730,7 +730,7 @@ impl<'a> Serialize for SetView<'a> {
     }
 }
 
-/// Result of [`split_at`].
+/// Result of [`split`].
 enum SplitDecision {
     /// Bucket fits within the current budget.
     ///
