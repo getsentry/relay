@@ -3,7 +3,6 @@ use std::error::Error;
 use std::net::IpAddr;
 
 use bytes::Bytes;
-use relay_config::Config;
 use relay_dynamic_config::{Feature, GlobalConfig, ProjectConfig};
 use relay_event_normalization::replay::{self, ReplayError};
 use relay_event_normalization::RawUserAgentInfo;
@@ -23,11 +22,10 @@ use crate::statsd::RelayTimers;
 /// Removes replays if the feature flag is not enabled.
 pub fn process(
     state: &mut ProcessEnvelopeState<ReplayGroup>,
-    config: &Config,
     global_config: &GlobalConfig,
 ) -> Result<(), ProcessingError> {
     let project_state = &state.project_state;
-    let replays_disabled = state.feature_disabled_by_upstream(Feature::SessionReplay);
+    let replays_disabled = state.should_filter(Feature::SessionReplay);
     let scrubbing_enabled = project_state.has_feature(Feature::SessionReplayRecordingScrubbing);
     let replay_video_disabled = project_state.has_feature(Feature::SessionReplayVideoDisabled);
 
@@ -35,7 +33,7 @@ pub fn process(
     let client_addr = meta.client_addr();
     let event_id = state.envelope().event_id();
 
-    let limit = config.max_replay_uncompressed_size();
+    let limit = state.config.max_replay_uncompressed_size();
     let project_config = project_state.config();
     let datascrubbing_config = project_config
         .datascrubbing_settings

@@ -17,10 +17,9 @@ use crate::utils::ItemAction;
 ///
 /// Returns the profile id of the single remaining profile, if there is one.
 pub fn filter<G>(state: &mut ProcessEnvelopeState<G>) -> Option<ProfileId> {
-    let profiling_disabled = state.feature_disabled_by_upstream(Feature::Profiling);
+    let profiling_disabled = state.should_filter(Feature::Profiling);
     let has_transaction = state.event_type() == Some(EventType::Transaction);
-    let keep_unsampled_profiles =
-        !state.feature_disabled_by_upstream(Feature::IngestUnsampledProfiles);
+    let keep_unsampled_profiles = !state.should_filter(Feature::IngestUnsampledProfiles);
 
     let mut profile_id = None;
     state.managed_envelope.retain_items(|item| match item.ty() {
@@ -89,10 +88,7 @@ pub fn transfer_id(
 }
 
 /// Processes profiles and set the profile ID in the profile context on the transaction if successful.
-pub fn process(
-    state: &mut ProcessEnvelopeState<TransactionGroup>,
-    config: &Config,
-) -> Option<ProfileId> {
+pub fn process(state: &mut ProcessEnvelopeState<TransactionGroup>) -> Option<ProfileId> {
     let profiling_enabled = state.project_state.has_feature(Feature::Profiling);
     let mut profile_id = None;
 
@@ -108,7 +104,7 @@ pub fn process(
                 return ItemAction::DropSilently;
             };
 
-            match expand_profile(item, event, config) {
+            match expand_profile(item, event, &state.config) {
                 Ok(id) => {
                     profile_id = Some(id);
                     ItemAction::Keep

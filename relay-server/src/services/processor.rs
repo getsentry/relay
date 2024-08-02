@@ -867,11 +867,11 @@ impl<'a, Group> ProcessEnvelopeState<'a, Group> {
         self.event = Annotated::empty();
     }
 
-    /// Returns `true` for managed relays if a feature is disabled.
+    /// Function for on-off switches that filter specific item types (profiles, spans)
+    /// based on a feature flag.
     ///
-    /// Some envelope items are dropped based on a feature flag,
-    /// but we want to forward them in proxy mode.
-    fn feature_disabled_by_upstream(&self, feature: Feature) -> bool {
+    /// If the project config did not come from the upstream, we keep the items
+    fn should_filter(&self, feature: Feature) -> bool {
         match self.config.relay_mode() {
             RelayMode::Proxy | RelayMode::Static | RelayMode::Capture => false,
             RelayMode::Managed => !self.project_state.has_feature(feature),
@@ -1771,7 +1771,7 @@ impl EnvelopeProcessorService {
             matches!(filter_run, FiltersStatus::Ok) || self.inner.config.processing_enabled();
 
         let sampling_result = match run_dynamic_sampling {
-            true => dynamic_sampling::run(state, &self.inner.config),
+            true => dynamic_sampling::run(state),
             false => SamplingResult::Pending,
         };
 
@@ -1780,7 +1780,7 @@ impl EnvelopeProcessorService {
             // Process profiles before dropping the transaction, if necessary.
             // Before metric extraction to make sure the profile count is reflected correctly.
             let profile_id = match keep_profiles {
-                true => profile::process(state, &self.inner.config),
+                true => profile::process(state),
                 false => profile_id,
             };
 
@@ -1808,7 +1808,7 @@ impl EnvelopeProcessorService {
 
         if_processing!(self.inner.config, {
             // Process profiles before extracting metrics, to make sure they are removed if they are invalid.
-            let profile_id = profile::process(state, &self.inner.config);
+            let profile_id = profile::process(state);
             profile::transfer_id(state, profile_id);
 
             // Always extract metrics in processing Relays for sampled items.
@@ -1818,7 +1818,7 @@ impl EnvelopeProcessorService {
                 .project_state
                 .has_feature(Feature::ExtractSpansFromEvent)
             {
-                span::extract_from_event(state, &self.inner.config, &global_config);
+                span::extract_from_event(state, &global_config);
             }
 
             self.enforce_quotas(state)?;
@@ -1890,11 +1890,7 @@ impl EnvelopeProcessorService {
             self.enforce_quotas(state)?;
         });
 
-        report::process_client_reports(
-            state,
-            &self.inner.config,
-            self.inner.addrs.outcome_aggregator.clone(),
-        );
+        report::process_client_reports(state, self.inner.addrs.outcome_aggregator.clone());
 
         Ok(())
     }
@@ -1904,11 +1900,7 @@ impl EnvelopeProcessorService {
         &self,
         state: &mut ProcessEnvelopeState<ReplayGroup>,
     ) -> Result<(), ProcessingError> {
-        replay::process(
-            state,
-            &self.inner.config,
-            &self.inner.global_config.current(),
-        )?;
+        replay::process(state, &self.inner.global_config.current())?;
         if_processing!(self.inner.config, {
             self.enforce_quotas(state)?;
         });
@@ -1939,7 +1931,7 @@ impl EnvelopeProcessorService {
         if_processing!(self.inner.config, {
             let global_config = self.inner.global_config.current();
 
-            span::process(state, self.inner.config.clone(), &global_config);
+            span::process(state, &global_config);
 
             self.enforce_quotas(state)?;
         });

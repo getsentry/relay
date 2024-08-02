@@ -15,7 +15,7 @@ mod processing;
 pub use processing::*;
 
 pub fn filter(state: &mut ProcessEnvelopeState<SpanGroup>) {
-    let disabled = state.feature_disabled_by_upstream(Feature::StandaloneSpanIngestion);
+    let disabled = state.should_filter(Feature::StandaloneSpanIngestion);
     state.managed_envelope.retain_items(|item| {
         if item.is_span() && disabled {
             relay_log::debug!("dropping span because feature is disabled");
