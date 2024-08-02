@@ -17,17 +17,16 @@ use crate::utils::ItemAction;
 ///
 /// Returns the profile id of the single remaining profile, if there is one.
 pub fn filter<G>(state: &mut ProcessEnvelopeState<G>) -> Option<ProfileId> {
-    let profiling_enabled = state.project_state.has_feature(Feature::Profiling);
+    let profiling_disabled = state.feature_disabled_by_upstream(Feature::Profiling);
     let has_transaction = state.event_type() == Some(EventType::Transaction);
-    let keep_unsampled_profiles = state
-        .project_state
-        .has_feature(Feature::IngestUnsampledProfiles);
+    let keep_unsampled_profiles =
+        !state.feature_disabled_by_upstream(Feature::IngestUnsampledProfiles);
 
     let mut profile_id = None;
     state.managed_envelope.retain_items(|item| match item.ty() {
         // First profile found in the envelope, we'll keep it if metadata are valid.
         ItemType::Profile if profile_id.is_none() => {
-            if !profiling_enabled {
+            if profiling_disabled {
                 return ItemAction::DropSilently;
             }
 
