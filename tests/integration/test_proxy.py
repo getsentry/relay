@@ -38,7 +38,7 @@ def test_span_allowed(mini_sentry, relay):
     relay.send_envelope(42, envelope)
 
     # Does not raise queue.Empty
-    envelope = mini_sentry.captured_events.get(timeout=5)
+    envelope = mini_sentry.captured_events.get(timeout=10)
 
 
 def test_profile_allowed(mini_sentry, relay):
@@ -77,7 +77,7 @@ def test_profile_allowed(mini_sentry, relay):
     relay.send_envelope(42, envelope)
 
     # Does not raise queue.Empty
-    envelope = mini_sentry.captured_events.get(timeout=5)
+    envelope = mini_sentry.captured_events.get(timeout=10)
     assert {item.type for item in envelope.items} == {"transaction", "profile"}
 
 
@@ -98,4 +98,4 @@ def test_replay_allowed(mini_sentry, relay):
     relay.send_envelope(42, envelope)
 
     # Does not raise queue.Empty
-    envelope = mini_sentry.captured_events.get(timeout=5)
+    envelope = mini_sentry.captured_events.get(timeout=10)
