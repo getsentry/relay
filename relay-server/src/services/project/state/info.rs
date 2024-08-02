@@ -30,8 +30,9 @@ pub struct ProjectInfo {
     ///
     /// This might be `None` in some rare cases like where states
     /// are faked locally.
-    #[serde(default)]
     pub last_change: Option<DateTime<Utc>>,
+    /// The revision id of the project config.
+    pub rev: Option<String>,
     /// Indicates that the project is disabled.
     /// A container of known public keys in the project.
     ///
@@ -56,6 +57,7 @@ pub struct ProjectInfo {
 pub struct LimitedProjectInfo {
     pub project_id: Option<ProjectId>,
     pub last_change: Option<DateTime<Utc>>,
+    pub rev: Option<String>,
     pub public_keys: SmallVec<[PublicKeyConfig; 1]>,
     pub slug: Option<String>,
     #[serde(with = "LimitedProjectConfig")]

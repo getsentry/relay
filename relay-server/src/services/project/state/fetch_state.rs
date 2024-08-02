@@ -25,6 +25,14 @@ impl ProjectFetchState {
         }
     }
 
+    /// Refreshes the expiry of the fetch state.
+    pub fn refresh(old: ProjectFetchState) -> Self {
+        Self {
+            last_fetch: Some(Instant::now()),
+            state: old.state,
+        }
+    }
+
     /// Project state for an unknown but allowed project.
     ///
     /// This state is used for forwarding in Proxy mode.
@@ -32,6 +40,7 @@ impl ProjectFetchState {
         Self::enabled(ProjectInfo {
             project_id: None,
             last_change: None,
+            rev: None,
             public_keys: Default::default(),
             slug: None,
             config: ProjectConfig::default(),
@@ -117,6 +126,15 @@ impl ProjectFetchState {
             Expiry::Stale
         } else {
             Expiry::Updated
+        }
+    }
+
+    /// Returns the revision of the contained project state.
+    pub fn revision(&self) -> Option<&str> {
+        match &self.state {
+            ProjectState::Enabled(info) => info.rev.as_deref(),
+            ProjectState::Disabled => None,
+            ProjectState::Pending => None,
         }
     }
 }

@@ -52,19 +52,41 @@ impl RedisProjectSource {
         RedisProjectSource { config, redis }
     }
 
-    pub fn get_config(&self, key: ProjectKey) -> Result<ProjectState, RedisProjectError> {
-        let mut command = relay_redis::redis::cmd("GET");
+    pub fn get_config_if_changed(
+        &self,
+        key: ProjectKey,
+        revision: Option<&str>,
+    ) -> Result<Option<ProjectState>, RedisProjectError> {
+        let mut client = self.redis.client()?;
+        let mut connection = client.connection()?;
 
-        let prefix = self.config.projectconfig_cache_prefix();
-        command.arg(format!("{prefix}:{key}"));
+        // Only check for the revision if we were passed a revision.
+        if let Some(revision) = revision {
+            let current_revision: Option<String> = relay_redis::redis::cmd("GET")
+                .arg(self.get_redis_rev_key(key))
+                .query(&mut connection)
+                .map_err(RedisError::Redis)?;
 
-        let raw_response_opt: Option<Vec<u8>> = command
-            .query(&mut self.redis.client()?.connection()?)
+            if current_revision.as_deref() == Some(revision) {
+                metric!(
+                    counter(RelayCounters::ProjectStateRedis) += 1,
+                    hit = "revision",
+                );
+                return Ok(None);
+            }
+        }
+
+        let raw_response_opt: Option<Vec<u8>> = relay_redis::redis::cmd("GET")
+            .arg(self.get_redis_project_config_key(key))
+            .query(&mut connection)
             .map_err(RedisError::Redis)?;
 
         let response = match raw_response_opt {
             Some(response) => {
-                metric!(counter(RelayCounters::ProjectStateRedis) += 1, hit = "true");
+                metric!(
+                    counter(RelayCounters::ProjectStateRedis) += 1,
+                    hit = "project_config"
+                );
                 let parsed = parse_redis_response(response.as_slice())?;
                 ProjectState::from(parsed)
             }
@@ -77,7 +99,17 @@ impl RedisProjectSource {
             }
         };
 
-        Ok(response)
+        Ok(Some(response))
+    }
+
+    fn get_redis_project_config_key(&self, key: ProjectKey) -> String {
+        let prefix = self.config.projectconfig_cache_prefix();
+        format!("{prefix}:{key}")
+    }
+
+    fn get_redis_rev_key(&self, key: ProjectKey) -> String {
+        let prefix = self.config.projectconfig_cache_prefix();
+        format!("{prefix}:{key}.rev")
     }
 }
 
