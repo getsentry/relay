@@ -1683,6 +1683,52 @@
 <a href="#1683" id="1683">1683</a>
 <a href="#1684" id="1684">1684</a>
 <a href="#1685" id="1685">1685</a>
+<a href="#1686" id="1686">1686</a>
+<a href="#1687" id="1687">1687</a>
+<a href="#1688" id="1688">1688</a>
+<a href="#1689" id="1689">1689</a>
+<a href="#1690" id="1690">1690</a>
+<a href="#1691" id="1691">1691</a>
+<a href="#1692" id="1692">1692</a>
+<a href="#1693" id="1693">1693</a>
+<a href="#1694" id="1694">1694</a>
+<a href="#1695" id="1695">1695</a>
+<a href="#1696" id="1696">1696</a>
+<a href="#1697" id="1697">1697</a>
+<a href="#1698" id="1698">1698</a>
+<a href="#1699" id="1699">1699</a>
+<a href="#1700" id="1700">1700</a>
+<a href="#1701" id="1701">1701</a>
+<a href="#1702" id="1702">1702</a>
+<a href="#1703" id="1703">1703</a>
+<a href="#1704" id="1704">1704</a>
+<a href="#1705" id="1705">1705</a>
+<a href="#1706" id="1706">1706</a>
+<a href="#1707" id="1707">1707</a>
+<a href="#1708" id="1708">1708</a>
+<a href="#1709" id="1709">1709</a>
+<a href="#1710" id="1710">1710</a>
+<a href="#1711" id="1711">1711</a>
+<a href="#1712" id="1712">1712</a>
+<a href="#1713" id="1713">1713</a>
+<a href="#1714" id="1714">1714</a>
+<a href="#1715" id="1715">1715</a>
+<a href="#1716" id="1716">1716</a>
+<a href="#1717" id="1717">1717</a>
+<a href="#1718" id="1718">1718</a>
+<a href="#1719" id="1719">1719</a>
+<a href="#1720" id="1720">1720</a>
+<a href="#1721" id="1721">1721</a>
+<a href="#1722" id="1722">1722</a>
+<a href="#1723" id="1723">1723</a>
+<a href="#1724" id="1724">1724</a>
+<a href="#1725" id="1725">1725</a>
+<a href="#1726" id="1726">1726</a>
+<a href="#1727" id="1727">1727</a>
+<a href="#1728" id="1728">1728</a>
+<a href="#1729" id="1729">1729</a>
+<a href="#1730" id="1730">1730</a>
+<a href="#1731" id="1731">1731</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Core functionality of metrics aggregation.
 
 </span><span class="kw">use </span>std::collections::BTreeMap;
@@ -1704,7 +1750,7 @@
 <span class="kw">use </span><span class="kw">crate</span>::statsd::{MetricCounters, MetricGauges, MetricHistograms, MetricSets, MetricTimers};
 <span class="kw">use crate</span>::{BucketMetadata, FiniteF64, MetricName};
 
-<span class="kw">use </span>hashbrown::{hash_map::Entry, HashMap};
+<span class="kw">use </span>hashbrown::HashMap;
 
 <span class="doccomment">/// Any error that may occur during aggregation.
 </span><span class="attr">#[derive(Debug, Error, PartialEq)]
@@ -2059,6 +2105,7 @@
 </span><span class="kw">struct </span>CostTracker {
     total_cost: usize,
     cost_per_project_key: HashMap&lt;ProjectKey, usize&gt;,
+    cost_per_namespace: BTreeMap&lt;MetricNamespace, usize&gt;,
 }
 
 <span class="kw">impl </span>CostTracker {
@@ -2102,34 +2149,38 @@
         <span class="prelude-val">Ok</span>(())
     }
 
-    <span class="kw">fn </span>add_cost(<span class="kw-2">&amp;mut </span><span class="self">self</span>, project_key: ProjectKey, cost: usize) {
+    <span class="kw">fn </span>add_cost(<span class="kw-2">&amp;mut </span><span class="self">self</span>, namespace: MetricNamespace, project_key: ProjectKey, cost: usize) {
+        <span class="kw-2">*</span><span class="self">self</span>.cost_per_project_key.entry(project_key).or_insert(<span class="number">0</span>) += cost;
+        <span class="kw-2">*</span><span class="self">self</span>.cost_per_namespace.entry(namespace).or_insert(<span class="number">0</span>) += cost;
         <span class="self">self</span>.total_cost += cost;
-        <span class="kw">let </span>project_cost = <span class="self">self</span>.cost_per_project_key.entry(project_key).or_insert(<span class="number">0</span>);
-        <span class="kw-2">*</span>project_cost += cost;
     }
 
-    <span class="kw">fn </span>subtract_cost(<span class="kw-2">&amp;mut </span><span class="self">self</span>, project_key: ProjectKey, cost: usize) {
-        <span class="kw">match </span><span class="self">self</span>.cost_per_project_key.entry(project_key) {
-            Entry::Vacant(<span class="kw">_</span>) =&gt; {
-                <span class="macro">relay_log::error!</span>(<span class="string">"cost subtracted for an untracked project key"</span>);
-            }
-            Entry::Occupied(<span class="kw-2">mut </span>entry) =&gt; {
-                <span class="comment">// Handle per-project cost:
-                </span><span class="kw">let </span>project_cost = entry.get_mut();
-                <span class="kw">if </span>cost &gt; <span class="kw-2">*</span>project_cost {
-                    <span class="macro">relay_log::error!</span>(<span class="string">"underflow while subtracing project cost"</span>);
-                    <span class="self">self</span>.total_cost = <span class="self">self</span>.total_cost.saturating_sub(<span class="kw-2">*</span>project_cost);
-                    <span class="kw-2">*</span>project_cost = <span class="number">0</span>;
-                } <span class="kw">else </span>{
-                    <span class="kw-2">*</span>project_cost -= cost;
-                    <span class="self">self</span>.total_cost = <span class="self">self</span>.total_cost.saturating_sub(cost);
-                }
+    <span class="kw">fn </span>subtract_cost(<span class="kw-2">&amp;mut </span><span class="self">self</span>, namespace: MetricNamespace, project_key: ProjectKey, cost: usize) {
+        <span class="kw">let </span>project_cost = <span class="self">self</span>.cost_per_project_key.get_mut(<span class="kw-2">&amp;</span>project_key);
+        <span class="kw">let </span>namespace_cost = <span class="self">self</span>.cost_per_namespace.get_mut(<span class="kw-2">&amp;</span>namespace);
+        <span class="kw">match </span>(project_cost, namespace_cost) {
+            (<span class="prelude-val">Some</span>(project_cost), <span class="prelude-val">Some</span>(namespace_cost))
+                <span class="kw">if </span><span class="kw-2">*</span>project_cost &gt;= cost &amp;&amp; <span class="kw-2">*</span>namespace_cost &gt;= cost =&gt;
+            {
+                <span class="kw-2">*</span>project_cost -= cost;
                 <span class="kw">if </span><span class="kw-2">*</span>project_cost == <span class="number">0 </span>{
-                    <span class="comment">// Remove this project_key from the map
-                    </span>entry.remove();
+                    <span class="self">self</span>.cost_per_project_key.remove(<span class="kw-2">&amp;</span>project_key);
                 }
+                <span class="kw-2">*</span>namespace_cost -= cost;
+                <span class="kw">if </span><span class="kw-2">*</span>namespace_cost == <span class="number">0 </span>{
+                    <span class="self">self</span>.cost_per_namespace.remove(<span class="kw-2">&amp;</span>namespace);
+                }
+                <span class="self">self</span>.total_cost -= cost;
             }
-        };
+            <span class="kw">_ </span>=&gt; {
+                <span class="macro">relay_log::error!</span>(
+                    namespace = namespace.as_str(),
+                    project_key = project_key.to_string(),
+                    cost = cost.to_string(),
+                    <span class="string">"Cost mismatch"</span>,
+                );
+            }
+        }
     }
 }
 
@@ -2137,10 +2188,12 @@
     <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
         f.debug_struct(<span class="string">"CostTracker"</span>)
             .field(<span class="string">"total_cost"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.total_cost)
-            .field(
+            <span class="comment">// Convert HashMap to BTreeMap to guarantee order:
+            </span>.field(
                 <span class="string">"cost_per_project_key"</span>,
                 <span class="kw-2">&amp;</span>BTreeMap::from_iter(<span class="self">self</span>.cost_per_project_key.iter()),
             )
+            .field(<span class="string">"cost_per_namespace"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.cost_per_namespace)
             .finish()
     }
 }
@@ -2293,10 +2346,13 @@
 
         <span class="comment">// We only emit statsd metrics for the cost on flush (and not when merging the buckets),
         // assuming that this gives us more than enough data points.
-        </span><span class="macro">relay_statsd::metric!</span>(
-            gauge(MetricGauges::BucketsCost) = <span class="self">self</span>.cost_tracker.total_cost <span class="kw">as </span>u64,
-            aggregator = <span class="kw-2">&amp;</span><span class="self">self</span>.name,
-        );
+        </span><span class="kw">for </span>(namespace, cost) <span class="kw">in </span><span class="kw-2">&amp;</span><span class="self">self</span>.cost_tracker.cost_per_namespace {
+            <span class="macro">relay_statsd::metric!</span>(
+                gauge(MetricGauges::BucketsCost) = <span class="kw-2">*</span>cost <span class="kw">as </span>u64,
+                aggregator = <span class="kw-2">&amp;</span><span class="self">self</span>.name,
+                namespace = namespace.as_str()
+            );
+        }
 
         <span class="kw">let </span><span class="kw-2">mut </span>partitions = HashMap::new();
         <span class="kw">let </span><span class="kw-2">mut </span>stats = HashMap::new();
@@ -2316,8 +2372,12 @@
                     }
 
                     <span class="kw">let </span>(key, entry) = <span class="self">self</span>.buckets.pop().expect(<span class="string">"pop after peek"</span>);
-                    cost_tracker.subtract_cost(key.project_key, key.cost());
-                    cost_tracker.subtract_cost(key.project_key, entry.value.cost());
+                    cost_tracker.subtract_cost(key.namespace(), key.project_key, key.cost());
+                    cost_tracker.subtract_cost(
+                        key.namespace(),
+                        key.project_key,
+                        entry.value.cost(),
+                    );
 
                     <span class="kw">let </span>(bucket_count, item_count) = stats
                         .entry((entry.value.ty(), key.namespace()))
@@ -2399,6 +2459,7 @@
             extracted_from_indexed: bucket.metadata.extracted_from_indexed,
         };
         <span class="kw">let </span>key = validate_bucket_key(key, <span class="kw-2">&amp;</span><span class="self">self</span>.config)<span class="question-mark">?</span>;
+        <span class="kw">let </span>namespace = key.namespace();
 
         <span class="comment">// XXX: This is not a great implementation of cost enforcement.
         //
@@ -2476,7 +2537,8 @@
                 .push(key, QueuedBucket::new(flush_at, value, bucket.metadata));
         }
 
-        <span class="self">self</span>.cost_tracker.add_cost(project_key, added_cost);
+        <span class="self">self</span>.cost_tracker
+            .add_cost(namespace, project_key, added_cost);
 
         <span class="prelude-val">Ok</span>(())
     }
@@ -2809,6 +2871,7 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_cost_tracker() {
+        <span class="kw">let </span>namespace = MetricNamespace::Custom;
         <span class="kw">let </span>project_key1 = ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fed"</span>).unwrap();
         <span class="kw">let </span>project_key2 = ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap();
         <span class="kw">let </span>project_key3 = ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fef"</span>).unwrap();
@@ -2817,18 +2880,24 @@
         CostTracker {
             total_cost: 0,
             cost_per_project_key: {},
+            cost_per_namespace: {},
         }
         "#</span>);
-        cost_tracker.add_cost(project_key1, <span class="number">100</span>);
+        cost_tracker.add_cost(MetricNamespace::Custom, project_key1, <span class="number">50</span>);
+        cost_tracker.add_cost(MetricNamespace::Profiles, project_key1, <span class="number">50</span>);
         <span class="macro">insta::assert_debug_snapshot!</span>(cost_tracker, @<span class="string">r#"
         CostTracker {
             total_cost: 100,
             cost_per_project_key: {
                 ProjectKey("a94ae32be2584e0bbd7a4cbb95971fed"): 100,
             },
+            cost_per_namespace: {
+                Profiles: 50,
+                Custom: 50,
+            },
         }
         "#</span>);
-        cost_tracker.add_cost(project_key2, <span class="number">200</span>);
+        cost_tracker.add_cost(namespace, project_key2, <span class="number">200</span>);
         <span class="macro">insta::assert_debug_snapshot!</span>(cost_tracker, @<span class="string">r#"
         CostTracker {
             total_cost: 300,
@@ -2836,10 +2905,14 @@
                 ProjectKey("a94ae32be2584e0bbd7a4cbb95971fed"): 100,
                 ProjectKey("a94ae32be2584e0bbd7a4cbb95971fee"): 200,
             },
+            cost_per_namespace: {
+                Profiles: 50,
+                Custom: 250,
+            },
         }
         "#</span>);
-        <span class="comment">// Unknown project: Will log error, but not crash
-        </span>cost_tracker.subtract_cost(project_key3, <span class="number">666</span>);
+        <span class="comment">// Unknown project: bail
+        </span>cost_tracker.subtract_cost(namespace, project_key3, <span class="number">666</span>);
         <span class="macro">insta::assert_debug_snapshot!</span>(cost_tracker, @<span class="string">r#"
         CostTracker {
             total_cost: 300,
@@ -2847,32 +2920,51 @@
                 ProjectKey("a94ae32be2584e0bbd7a4cbb95971fed"): 100,
                 ProjectKey("a94ae32be2584e0bbd7a4cbb95971fee"): 200,
             },
-        }
-        "#</span>);
-        <span class="comment">// Subtract too much: Will log error, but not crash
-        </span>cost_tracker.subtract_cost(project_key1, <span class="number">666</span>);
-        <span class="macro">insta::assert_debug_snapshot!</span>(cost_tracker, @<span class="string">r#"
-        CostTracker {
-            total_cost: 200,
-            cost_per_project_key: {
-                ProjectKey("a94ae32be2584e0bbd7a4cbb95971fee"): 200,
+            cost_per_namespace: {
+                Profiles: 50,
+                Custom: 250,
             },
         }
         "#</span>);
-        cost_tracker.subtract_cost(project_key2, <span class="number">20</span>);
+        <span class="comment">// Subtract too much: bail
+        </span>cost_tracker.subtract_cost(namespace, project_key1, <span class="number">666</span>);
         <span class="macro">insta::assert_debug_snapshot!</span>(cost_tracker, @<span class="string">r#"
         CostTracker {
-            total_cost: 180,
+            total_cost: 300,
             cost_per_project_key: {
+                ProjectKey("a94ae32be2584e0bbd7a4cbb95971fed"): 100,
+                ProjectKey("a94ae32be2584e0bbd7a4cbb95971fee"): 200,
+            },
+            cost_per_namespace: {
+                Profiles: 50,
+                Custom: 250,
+            },
+        }
+        "#</span>);
+        cost_tracker.subtract_cost(namespace, project_key2, <span class="number">20</span>);
+        <span class="macro">insta::assert_debug_snapshot!</span>(cost_tracker, @<span class="string">r#"
+        CostTracker {
+            total_cost: 280,
+            cost_per_project_key: {
+                ProjectKey("a94ae32be2584e0bbd7a4cbb95971fed"): 100,
                 ProjectKey("a94ae32be2584e0bbd7a4cbb95971fee"): 180,
             },
+            cost_per_namespace: {
+                Profiles: 50,
+                Custom: 230,
+            },
         }
         "#</span>);
-        cost_tracker.subtract_cost(project_key2, <span class="number">180</span>);
+
+        <span class="comment">// Subtract all
+        </span>cost_tracker.subtract_cost(MetricNamespace::Profiles, project_key1, <span class="number">50</span>);
+        cost_tracker.subtract_cost(MetricNamespace::Custom, project_key1, <span class="number">50</span>);
+        cost_tracker.subtract_cost(MetricNamespace::Custom, project_key2, <span class="number">180</span>);
         <span class="macro">insta::assert_debug_snapshot!</span>(cost_tracker, @<span class="string">r#"
         CostTracker {
             total_cost: 0,
             cost_per_project_key: {},
+            cost_per_namespace: {},
         }
         "#</span>);
     }
