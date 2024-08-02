@@ -987,7 +987,7 @@ impl ProjectCacheBroker {
                     continue;
                 }
                 ProjectState::Disabled => {
-                    // Projcet loaded and disabled, discard the buckets.
+                    // Project loaded and disabled, discard the buckets.
                     //
                     // Ideally we log outcomes for the metrics here, but currently for metric
                     // outcomes we need a valid scoping, which we cannot construct for disabled
