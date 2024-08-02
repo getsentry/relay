@@ -7,6 +7,7 @@
 - Allow metrics summaries with only `count` (for sets). ([#3864](https://github.com/getsentry/relay/pull/3864))
 - Do not trim any span field. Remove entire span instead. ([#3890](https://github.com/getsentry/relay/pull/3890))
 - Do not drop replays, profiles and standalone spans in proxy Relays. ([#3888](https://github.com/getsentry/relay/pull/3888))
+- Prevent an endless loop that causes high request volume and backlogs when certain large metric buckets are ingested or extrected. ([#3893](https://github.com/getsentry/relay/pull/3893))
 
 **Internal**:
 
