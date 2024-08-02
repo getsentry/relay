@@ -59,7 +59,7 @@ pub fn ensure_dsc(state: &mut ProcessEnvelopeState<TransactionGroup>) {
 }
 
 /// Computes the sampling decision on the incoming event
-pub fn run<Group>(state: &mut ProcessEnvelopeState<Group>, config: &Config) -> SamplingResult
+pub fn run<Group>(state: &mut ProcessEnvelopeState<Group>) -> SamplingResult
 where
     Group: Sampling,
 {
@@ -81,7 +81,7 @@ where
     let reservoir = Group::supports_reservoir_sampling().then_some(&state.reservoir);
 
     compute_sampling_decision(
-        config.processing_enabled(),
+        state.config.processing_enabled(),
         reservoir,
         sampling_config,
         state.event.value(),
@@ -422,13 +422,15 @@ mod tests {
         relay_test::setup();
         let (outcome_aggregator, test_store) = testutils::processor_services();
 
-        let config = Config::from_json_value(serde_json::json!({
-            "processing": {
-                "enabled": true,
-                "kafka_config": [],
-            }
-        }))
-        .unwrap();
+        let config = Arc::new(
+            Config::from_json_value(serde_json::json!({
+                "processing": {
+                    "enabled": true,
+                    "kafka_config": [],
+                }
+            }))
+            .unwrap(),
+        );
 
         // Gets a ProcessEnvelopeState, either with or without the metrics_exracted flag toggled.
         let get_state = |version: Option<u16>| {
@@ -466,6 +468,7 @@ mod tests {
                     Arc::new(GlobalConfig::default()),
                     envelope.dsc(),
                 ),
+                config: config.clone(),
                 project_state,
                 sampling_project_state: None,
                 project_id: ProjectId::new(42),
@@ -486,17 +489,17 @@ mod tests {
 
         // None represents no TransactionMetricsConfig, DS will not be run
         let mut state = get_state(None);
-        let sampling_result = run(&mut state, &config);
+        let sampling_result = run(&mut state);
         assert_eq!(sampling_result.decision(), SamplingDecision::Keep);
 
         // Current version is 3, so it won't run DS if it's outdated
         let mut state = get_state(Some(2));
-        let sampling_result = run(&mut state, &config);
+        let sampling_result = run(&mut state);
         assert_eq!(sampling_result.decision(), SamplingDecision::Keep);
 
         // Dynamic sampling is run, as the transactionmetrics version is up to date.
         let mut state = get_state(Some(3));
-        let sampling_result = run(&mut state, &config);
+        let sampling_result = run(&mut state);
         assert_eq!(sampling_result.decision(), SamplingDecision::Drop);
     }
 
@@ -741,6 +744,7 @@ mod tests {
                 Arc::new(GlobalConfig::default()),
                 envelope.dsc(),
             ),
+            config: Arc::new(Config::default()),
             project_state: project_info,
             sampling_project_state: {
                 let mut state = ProjectInfo::default();
@@ -785,7 +789,7 @@ mod tests {
             event_fully_normalized: false,
         };
 
-        run(&mut state, &Config::default())
+        run(&mut state)
     }
 
     #[test]

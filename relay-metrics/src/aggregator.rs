@@ -19,7 +19,7 @@ use crate::protocol::{self, MetricNamespace, MetricResourceIdentifier};
 use crate::statsd::{MetricCounters, MetricGauges, MetricHistograms, MetricSets, MetricTimers};
 use crate::{BucketMetadata, FiniteF64, MetricName};
 
-use hashbrown::{hash_map::Entry, HashMap};
+use hashbrown::HashMap;
 
 /// Any error that may occur during aggregation.
 #[derive(Debug, Error, PartialEq)]
@@ -374,6 +374,7 @@ impl Ord for QueuedBucket {
 struct CostTracker {
     total_cost: usize,
     cost_per_project_key: HashMap<ProjectKey, usize>,
+    cost_per_namespace: BTreeMap<MetricNamespace, usize>,
 }
 
 impl CostTracker {
@@ -417,34 +418,38 @@ impl CostTracker {
         Ok(())
     }
 
-    fn add_cost(&mut self, project_key: ProjectKey, cost: usize) {
+    fn add_cost(&mut self, namespace: MetricNamespace, project_key: ProjectKey, cost: usize) {
+        *self.cost_per_project_key.entry(project_key).or_insert(0) += cost;
+        *self.cost_per_namespace.entry(namespace).or_insert(0) += cost;
         self.total_cost += cost;
-        let project_cost = self.cost_per_project_key.entry(project_key).or_insert(0);
-        *project_cost += cost;
     }
 
-    fn subtract_cost(&mut self, project_key: ProjectKey, cost: usize) {
-        match self.cost_per_project_key.entry(project_key) {
-            Entry::Vacant(_) => {
-                relay_log::error!("cost subtracted for an untracked project key");
-            }
-            Entry::Occupied(mut entry) => {
-                // Handle per-project cost:
-                let project_cost = entry.get_mut();
-                if cost > *project_cost {
-                    relay_log::error!("underflow while subtracing project cost");
-                    self.total_cost = self.total_cost.saturating_sub(*project_cost);
-                    *project_cost = 0;
-                } else {
-                    *project_cost -= cost;
-                    self.total_cost = self.total_cost.saturating_sub(cost);
-                }
+    fn subtract_cost(&mut self, namespace: MetricNamespace, project_key: ProjectKey, cost: usize) {
+        let project_cost = self.cost_per_project_key.get_mut(&project_key);
+        let namespace_cost = self.cost_per_namespace.get_mut(&namespace);
+        match (project_cost, namespace_cost) {
+            (Some(project_cost), Some(namespace_cost))
+                if *project_cost >= cost && *namespace_cost >= cost =>
+            {
+                *project_cost -= cost;
                 if *project_cost == 0 {
-                    // Remove this project_key from the map
-                    entry.remove();
+                    self.cost_per_project_key.remove(&project_key);
                 }
+                *namespace_cost -= cost;
+                if *namespace_cost == 0 {
+                    self.cost_per_namespace.remove(&namespace);
+                }
+                self.total_cost -= cost;
             }
-        };
+            _ => {
+                relay_log::error!(
+                    namespace = namespace.as_str(),
+                    project_key = project_key.to_string(),
+                    cost = cost.to_string(),
+                    "Cost mismatch",
+                );
+            }
+        }
     }
 }
 
@@ -452,10 +457,12 @@ impl fmt::Debug for CostTracker {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("CostTracker")
             .field("total_cost", &self.total_cost)
+            // Convert HashMap to BTreeMap to guarantee order:
             .field(
                 "cost_per_project_key",
                 &BTreeMap::from_iter(self.cost_per_project_key.iter()),
             )
+            .field("cost_per_namespace", &self.cost_per_namespace)
             .finish()
     }
 }
@@ -608,10 +615,13 @@ impl Aggregator {
 
         // We only emit statsd metrics for the cost on flush (and not when merging the buckets),
         // assuming that this gives us more than enough data points.
-        relay_statsd::metric!(
-            gauge(MetricGauges::BucketsCost) = self.cost_tracker.total_cost as u64,
-            aggregator = &self.name,
-        );
+        for (namespace, cost) in &self.cost_tracker.cost_per_namespace {
+            relay_statsd::metric!(
+                gauge(MetricGauges::BucketsCost) = *cost as u64,
+                aggregator = &self.name,
+                namespace = namespace.as_str()
+            );
+        }
 
         let mut partitions = HashMap::new();
         let mut stats = HashMap::new();
@@ -631,8 +641,12 @@ impl Aggregator {
                     }
 
                     let (key, entry) = self.buckets.pop().expect("pop after peek");
-                    cost_tracker.subtract_cost(key.project_key, key.cost());
-                    cost_tracker.subtract_cost(key.project_key, entry.value.cost());
+                    cost_tracker.subtract_cost(key.namespace(), key.project_key, key.cost());
+                    cost_tracker.subtract_cost(
+                        key.namespace(),
+                        key.project_key,
+                        entry.value.cost(),
+                    );
 
                     let (bucket_count, item_count) = stats
                         .entry((entry.value.ty(), key.namespace()))
@@ -714,6 +728,7 @@ impl Aggregator {
             extracted_from_indexed: bucket.metadata.extracted_from_indexed,
         };
         let key = validate_bucket_key(key, &self.config)?;
+        let namespace = key.namespace();
 
         // XXX: This is not a great implementation of cost enforcement.
         //
@@ -791,7 +806,8 @@ impl Aggregator {
                 .push(key, QueuedBucket::new(flush_at, value, bucket.metadata));
         }
 
-        self.cost_tracker.add_cost(project_key, added_cost);
+        self.cost_tracker
+            .add_cost(namespace, project_key, added_cost);
 
         Ok(())
     }
@@ -1124,6 +1140,7 @@ mod tests {
 
     #[test]
     fn test_cost_tracker() {
+        let namespace = MetricNamespace::Custom;
         let project_key1 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
         let project_key2 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
         let project_key3 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fef").unwrap();
@@ -1132,18 +1149,24 @@ mod tests {
         CostTracker {
             total_cost: 0,
             cost_per_project_key: {},
+            cost_per_namespace: {},
         }
         "#);
-        cost_tracker.add_cost(project_key1, 100);
+        cost_tracker.add_cost(MetricNamespace::Custom, project_key1, 50);
+        cost_tracker.add_cost(MetricNamespace::Profiles, project_key1, 50);
         insta::assert_debug_snapshot!(cost_tracker, @r#"
         CostTracker {
             total_cost: 100,
             cost_per_project_key: {
                 ProjectKey("a94ae32be2584e0bbd7a4cbb95971fed"): 100,
             },
+            cost_per_namespace: {
+                Profiles: 50,
+                Custom: 50,
+            },
         }
         "#);
-        cost_tracker.add_cost(project_key2, 200);
+        cost_tracker.add_cost(namespace, project_key2, 200);
         insta::assert_debug_snapshot!(cost_tracker, @r#"
         CostTracker {
             total_cost: 300,
@@ -1151,10 +1174,14 @@ mod tests {
                 ProjectKey("a94ae32be2584e0bbd7a4cbb95971fed"): 100,
                 ProjectKey("a94ae32be2584e0bbd7a4cbb95971fee"): 200,
             },
+            cost_per_namespace: {
+                Profiles: 50,
+                Custom: 250,
+            },
         }
         "#);
-        // Unknown project: Will log error, but not crash
-        cost_tracker.subtract_cost(project_key3, 666);
+        // Unknown project: bail
+        cost_tracker.subtract_cost(namespace, project_key3, 666);
         insta::assert_debug_snapshot!(cost_tracker, @r#"
         CostTracker {
             total_cost: 300,
@@ -1162,32 +1189,51 @@ mod tests {
                 ProjectKey("a94ae32be2584e0bbd7a4cbb95971fed"): 100,
                 ProjectKey("a94ae32be2584e0bbd7a4cbb95971fee"): 200,
             },
-        }
-        "#);
-        // Subtract too much: Will log error, but not crash
-        cost_tracker.subtract_cost(project_key1, 666);
-        insta::assert_debug_snapshot!(cost_tracker, @r#"
-        CostTracker {
-            total_cost: 200,
-            cost_per_project_key: {
-                ProjectKey("a94ae32be2584e0bbd7a4cbb95971fee"): 200,
+            cost_per_namespace: {
+                Profiles: 50,
+                Custom: 250,
             },
         }
         "#);
-        cost_tracker.subtract_cost(project_key2, 20);
+        // Subtract too much: bail
+        cost_tracker.subtract_cost(namespace, project_key1, 666);
         insta::assert_debug_snapshot!(cost_tracker, @r#"
         CostTracker {
-            total_cost: 180,
+            total_cost: 300,
             cost_per_project_key: {
+                ProjectKey("a94ae32be2584e0bbd7a4cbb95971fed"): 100,
+                ProjectKey("a94ae32be2584e0bbd7a4cbb95971fee"): 200,
+            },
+            cost_per_namespace: {
+                Profiles: 50,
+                Custom: 250,
+            },
+        }
+        "#);
+        cost_tracker.subtract_cost(namespace, project_key2, 20);
+        insta::assert_debug_snapshot!(cost_tracker, @r#"
+        CostTracker {
+            total_cost: 280,
+            cost_per_project_key: {
+                ProjectKey("a94ae32be2584e0bbd7a4cbb95971fed"): 100,
                 ProjectKey("a94ae32be2584e0bbd7a4cbb95971fee"): 180,
             },
+            cost_per_namespace: {
+                Profiles: 50,
+                Custom: 230,
+            },
         }
         "#);
-        cost_tracker.subtract_cost(project_key2, 180);
+
+        // Subtract all
+        cost_tracker.subtract_cost(MetricNamespace::Profiles, project_key1, 50);
+        cost_tracker.subtract_cost(MetricNamespace::Custom, project_key1, 50);
+        cost_tracker.subtract_cost(MetricNamespace::Custom, project_key2, 180);
         insta::assert_debug_snapshot!(cost_tracker, @r#"
         CostTracker {
             total_cost: 0,
             cost_per_project_key: {},
+            cost_per_namespace: {},
         }
         "#);
     }

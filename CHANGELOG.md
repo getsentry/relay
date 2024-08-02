@@ -5,6 +5,8 @@
 **Bug Fixes**:
 
 - Allow metrics summaries with only `count` (for sets). ([#3864](https://github.com/getsentry/relay/pull/3864))
+- Do not trim any span field. Remove entire span instead. ([#3890](https://github.com/getsentry/relay/pull/3890))
+- Do not drop replays, profiles and standalone spans in proxy Relays. ([#3888](https://github.com/getsentry/relay/pull/3888))
 
 **Internal**:
 
@@ -41,6 +43,9 @@
 - Incorrect span outcomes when generated from a indexed transaction quota. ([#3793](https://github.com/getsentry/relay/pull/3793))
 - Report outcomes for spans when transactions are rate limited. ([#3749](https://github.com/getsentry/relay/pull/3749))
 - Only transfer valid profile ids. ([#3809](https://github.com/getsentry/relay/pull/3809))
+
+**Features**:
+- Allow list for excluding certain host/IPs from scrubbing in spans. ([#3813](https://github.com/getsentry/relay/pull/3813))
 
 **Internal**:
 

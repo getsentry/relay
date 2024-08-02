@@ -25,6 +25,7 @@ use relay_protocol::{
     RemarkType, Value,
 };
 use smallvec::SmallVec;
+use url::Host;
 use uuid::Uuid;
 
 use crate::normalize::request;
@@ -154,6 +155,9 @@ pub struct NormalizationConfig<'a> {
     ///
     /// It is persisted into the event payload for correlation.
     pub replay_id: Option<Uuid>,
+
+    /// Controls list of hosts to be excluded from scrubbing
+    pub span_allowed_hosts: &'a [Host],
 }
 
 impl<'a> Default for NormalizationConfig<'a> {
@@ -185,6 +189,7 @@ impl<'a> Default for NormalizationConfig<'a> {
             measurements: None,
             normalize_spans: true,
             replay_id: Default::default(),
+            span_allowed_hosts: Default::default(),
         }
     }
 }
@@ -323,7 +328,11 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) {
     }
 
     if config.enrich_spans {
-        extract_span_tags_from_event(event, config.max_tag_value_length);
+        extract_span_tags_from_event(
+            event,
+            config.max_tag_value_length,
+            config.span_allowed_hosts,
+        );
     }
 
     if let Some(context) = event.context_mut::<TraceContext>() {

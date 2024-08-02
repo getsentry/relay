@@ -10,6 +10,7 @@ use relay_filter::GenericFiltersConfig;
 use relay_quotas::Quota;
 use serde::{de, Deserialize, Serialize};
 use serde_json::Value;
+use url::Host;
 
 use crate::{defaults, ErrorBoundary, MetricExtractionGroup, MetricExtractionGroups};
 
@@ -224,6 +225,16 @@ pub struct Options {
         skip_serializing_if = "is_default"
     )]
     pub extrapolation_duplication_limit: usize,
+
+    /// List of values on span description that are allowed to be sent to Sentry without being scrubbed.
+    ///
+    /// At this point, it doesn't accept IP addresses in CIDR format.. yet.
+    #[serde(
+        rename = "relay.span-normalization.allowed_hosts",
+        deserialize_with = "default_on_error",
+        skip_serializing_if = "Vec::is_empty"
+    )]
+    pub http_span_allowed_hosts: Vec<Host>,
 
     /// All other unknown options.
     #[serde(flatten)]

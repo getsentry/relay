@@ -1,7 +1,6 @@
 //! Contains the processing-only functionality.
 
 use std::error::Error;
-use std::sync::Arc;
 
 use chrono::{DateTime, Utc};
 use relay_base_schema::events::EventType;
@@ -26,6 +25,7 @@ use relay_pii::PiiProcessor;
 use relay_protocol::{Annotated, Empty};
 use relay_quotas::DataCategory;
 use relay_spans::{otel_to_sentry_span, otel_trace::Span as OtelSpan};
+use url::Host;
 
 use crate::envelope::{ContentType, Item, ItemType};
 use crate::metrics_extraction::metrics_summary;
@@ -42,23 +42,19 @@ use thiserror::Error;
 #[error(transparent)]
 struct ValidationError(#[from] anyhow::Error);
 
-pub fn process(
-    state: &mut ProcessEnvelopeState<SpanGroup>,
-    config: Arc<Config>,
-    global_config: &GlobalConfig,
-) {
+pub fn process(state: &mut ProcessEnvelopeState<SpanGroup>, global_config: &GlobalConfig) {
     use relay_event_normalization::RemoveOtherProcessor;
 
     // We only implement trace-based sampling rules for now, which can be computed
     // once for all spans in the envelope.
-    let sampling_result = dynamic_sampling::run(state, &config);
+    let sampling_result = dynamic_sampling::run(state);
 
     let span_metrics_extraction_config = match state.project_state.config.metric_extraction {
         ErrorBoundary::Ok(ref config) if config.is_enabled() => Some(config),
         _ => None,
     };
     let normalize_span_config = NormalizeSpanConfig::new(
-        &config,
+        &state.config,
         global_config,
         state.project_state.config(),
         &state.managed_envelope,
@@ -204,7 +200,6 @@ pub fn process(
 
 pub fn extract_from_event(
     state: &mut ProcessEnvelopeState<TransactionGroup>,
-    config: &Config,
     global_config: &GlobalConfig,
 ) {
     // Only extract spans from transactions (not errors).
@@ -268,10 +263,12 @@ pub fn extract_from_event(
 
     let Some(transaction_span) = extract_transaction_span(
         event,
-        config
+        state
+            .config
             .aggregator_config_for(MetricNamespace::Spans)
             .aggregator
             .max_tag_value_length,
+        &[],
     ) else {
         return;
     };
@@ -341,6 +338,8 @@ struct NormalizeSpanConfig<'a> {
     user_agent: Option<String>,
     /// Client hints parsed from the request.
     client_hints: ClientHints<String>,
+    /// Hosts that are not replaced by "*" in HTTP span grouping.
+    allowed_hosts: &'a [Host],
 }
 
 impl<'a> NormalizeSpanConfig<'a> {
@@ -351,6 +350,7 @@ impl<'a> NormalizeSpanConfig<'a> {
         managed_envelope: &ManagedEnvelope,
     ) -> Self {
         let aggregator_config = config.aggregator_config_for(MetricNamespace::Spans);
+
         Self {
             received_at: managed_envelope.received_at(),
             timestamp_range: aggregator_config.aggregator.timestamp_range(),
@@ -376,6 +376,7 @@ impl<'a> NormalizeSpanConfig<'a> {
                 .user_agent()
                 .map(String::from),
             client_hints: managed_envelope.meta().client_hints().clone(),
+            allowed_hosts: global_config.options.http_span_allowed_hosts.as_slice(),
         }
     }
 }
@@ -427,6 +428,7 @@ fn normalize(
         tx_name_rules,
         user_agent,
         client_hints,
+        allowed_hosts,
     } = config;
 
     set_segment_attributes(annotated_span);
@@ -486,7 +488,15 @@ fn normalize(
 
     // Tag extraction:
     let is_mobile = false; // TODO: find a way to determine is_mobile from a standalone span.
-    let tags = tag_extraction::extract_tags(span, max_tag_value_size, None, None, is_mobile, None);
+    let tags = tag_extraction::extract_tags(
+        span,
+        max_tag_value_size,
+        None,
+        None,
+        is_mobile,
+        None,
+        allowed_hosts,
+    );
     span.sentry_tags = Annotated::new(
         tags.into_iter()
             .map(|(k, v)| (k.sentry_tag_key().to_owned(), Annotated::new(v)))
@@ -629,6 +639,7 @@ fn validate(span: &mut Annotated<Span>) -> Result<(), ValidationError> {
 #[cfg(test)]
 mod tests {
     use std::collections::BTreeMap;
+    use std::sync::Arc;
 
     use bytes::Bytes;
     use relay_base_schema::project::ProjectId;
@@ -698,6 +709,7 @@ mod tests {
                 Arc::new(GlobalConfig::default()),
                 managed_envelope.envelope().dsc(),
             ),
+            config: Arc::new(Config::default()),
             project_state,
             sampling_project_state: None,
             project_id: ProjectId::new(42),
@@ -711,11 +723,10 @@ mod tests {
 
     #[test]
     fn extract_sampled_default() {
-        let config = Config::default();
         let global_config = GlobalConfig::default();
         assert!(global_config.options.span_extraction_sample_rate.is_none());
         let mut state = state();
-        extract_from_event(&mut state, &config, &global_config);
+        extract_from_event(&mut state, &global_config);
         assert!(
             state
                 .envelope()
@@ -728,11 +739,10 @@ mod tests {
 
     #[test]
     fn extract_sampled_explicit() {
-        let config = Config::default();
         let mut global_config = GlobalConfig::default();
         global_config.options.span_extraction_sample_rate = Some(1.0);
         let mut state = state();
-        extract_from_event(&mut state, &config, &global_config);
+        extract_from_event(&mut state, &global_config);
         assert!(
             state
                 .envelope()
@@ -745,11 +755,10 @@ mod tests {
 
     #[test]
     fn extract_sampled_dropped() {
-        let config = Config::default();
         let mut global_config = GlobalConfig::default();
         global_config.options.span_extraction_sample_rate = Some(0.0);
         let mut state = state();
-        extract_from_event(&mut state, &config, &global_config);
+        extract_from_event(&mut state, &global_config);
         assert!(
             !state
                 .envelope()

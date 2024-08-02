@@ -12,7 +12,7 @@ use chrono::{DateTime, Utc};
 use hashbrown::HashSet;
 use relay_base_schema::project::ProjectKey;
 use relay_config::{Config, RelayMode};
-use relay_metrics::MetricMeta;
+use relay_metrics::{Bucket, MetricMeta};
 use relay_quotas::RateLimits;
 use relay_redis::RedisPool;
 use relay_statsd::metric;
@@ -574,7 +574,7 @@ struct ProjectCacheBroker {
     // Need hashbrown because extract_if is not stable in std yet.
     projects: hashbrown::HashMap<ProjectKey, Project>,
     /// Utility for disposing of expired project data in a background thread.
-    garbage_disposal: GarbageDisposal<Project>,
+    garbage_disposal: GarbageDisposal<ProjectGarbage>,
     /// Source for fetching project states from the upstream or from disk.
     source: ProjectSource,
     /// Tx channel used to send the updated project state whenever requested.
@@ -711,12 +711,15 @@ impl ProjectCacheBroker {
         let project_cache = self.services.project_cache.clone();
         let envelope_processor = self.services.envelope_processor.clone();
 
-        self.get_or_create_project(project_key).update_state(
+        let old_state = self.get_or_create_project(project_key).update_state(
             &project_cache,
             state,
             &envelope_processor,
             no_cache,
         );
+        if let Some(old_state) = old_state {
+            self.garbage_disposal.dispose(old_state);
+        }
 
         // Try to schedule unspool if it's not scheduled yet.
         self.schedule_unspool();
@@ -975,12 +978,24 @@ impl ProjectCacheBroker {
         for (project_key, buckets) in message.buckets {
             let project = self.get_or_create_project(project_key);
 
-            let Some(project_info) = project.current_state().enabled() else {
-                no_project += 1;
-                // Schedule an update for the project just in case.
-                project.prefetch(project_cache.clone(), false);
-                project.return_buckets(&aggregator, buckets);
-                continue;
+            let project_info = match project.current_state() {
+                ProjectState::Pending => {
+                    no_project += 1;
+                    // Schedule an update for the project just in case.
+                    project.prefetch(project_cache.clone(), false);
+                    project.return_buckets(&aggregator, buckets);
+                    continue;
+                }
+                ProjectState::Disabled => {
+                    // Project loaded and disabled, discard the buckets.
+                    //
+                    // Ideally we log outcomes for the metrics here, but currently for metric
+                    // outcomes we need a valid scoping, which we cannot construct for disabled
+                    // projects.
+                    self.garbage_disposal.dispose(buckets);
+                    continue;
+                }
+                ProjectState::Enabled(project_info) => project_info,
             };
 
             let Some(scoping) = project.scoping() else {
@@ -1487,6 +1502,33 @@ pub struct FetchOptionalProjectState {
 impl FetchOptionalProjectState {
     pub fn project_key(&self) -> ProjectKey {
         self.project_key
+    }
+}
+
+/// Sum type for all objects which need to be discareded through the [`GarbageDisposal`].
+#[derive(Debug)]
+#[allow(dead_code)] // Fields are never read, only used for discarding/dropping data.
+enum ProjectGarbage {
+    Project(Project),
+    ProjectFetchState(ProjectFetchState),
+    Metrics(Vec<Bucket>),
+}
+
+impl From<Project> for ProjectGarbage {
+    fn from(value: Project) -> Self {
+        Self::Project(value)
+    }
+}
+
+impl From<ProjectFetchState> for ProjectGarbage {
+    fn from(value: ProjectFetchState) -> Self {
+        Self::ProjectFetchState(value)
+    }
+}
+
+impl From<Vec<Bucket>> for ProjectGarbage {
+    fn from(value: Vec<Bucket>) -> Self {
+        Self::Metrics(value)
     }
 }
 

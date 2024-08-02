@@ -2,7 +2,7 @@
     "type": "replay_event",
     "replay_id": "d2132d31b39445f1938d7e21b6bf0ec4",
     "replay_type": "session",
-    "event_id": "123",
+    "event_id": "a2132d31b39445f1938d7e21b6bf0ec4",
     "segment_id": 0,
     "timestamp": 1597977777.6189718,
     "replay_start_timestamp": 1597976392.6542819,
@@ -12,12 +12,12 @@
         "111-11-1111"
     ],
     "error_ids": [
-        "1",
-        "2"
+        "a2132d31b39445f1938d7e21b6bf1ec4",
+        "a2132d31b39445f1938d7e21b6bf2ec4"
     ],
     "trace_ids": [
-        "3",
-        "4"
+        "a2132d31b39445f1938d7e21b6bf3ec4",
+        "a2132d31b39445f1938d7e21b6bf4ec4"
     ],
     "dist": "1.12",
     "platform": "Python",

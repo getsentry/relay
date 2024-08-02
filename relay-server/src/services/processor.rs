@@ -798,6 +798,9 @@ struct ProcessEnvelopeState<'a, Group> {
     /// The state of the project that this envelope belongs to.
     project_state: Arc<ProjectInfo>,
 
+    /// The config of this Relay instance.
+    config: Arc<Config>,
+
     /// The state of the project that initiated the current trace.
     /// This is the config used for trace-based dynamic sampling.
     sampling_project_state: Option<Arc<ProjectInfo>>,
@@ -862,6 +865,17 @@ impl<'a, Group> ProcessEnvelopeState<'a, Group> {
     /// Removes the event payload from this processing state.
     fn remove_event(&mut self) {
         self.event = Annotated::empty();
+    }
+
+    /// Function for on-off switches that filter specific item types (profiles, spans)
+    /// based on a feature flag.
+    ///
+    /// If the project config did not come from the upstream, we keep the items
+    fn should_filter(&self, feature: Feature) -> bool {
+        match self.config.relay_mode() {
+            RelayMode::Proxy | RelayMode::Static | RelayMode::Capture => false,
+            RelayMode::Managed => !self.project_state.has_feature(feature),
+        }
     }
 }
 
@@ -1306,8 +1320,10 @@ impl EnvelopeProcessorService {
     /// Creates and initializes the processing state.
     ///
     /// This applies defaults to the envelope and initializes empty rate limits.
+    #[allow(clippy::too_many_arguments)]
     fn prepare_state<G>(
         &self,
+        config: Arc<Config>,
         global_config: Arc<GlobalConfig>,
         mut managed_envelope: TypedEnvelope<G>,
         project_id: ProjectId,
@@ -1361,6 +1377,7 @@ impl EnvelopeProcessorService {
             sample_rates: None,
             extracted_metrics,
             project_state,
+            config,
             sampling_project_state,
             project_id,
             managed_envelope,
@@ -1572,6 +1589,7 @@ impl EnvelopeProcessorService {
 
         let global_config = self.inner.global_config.current();
         let ai_model_costs = global_config.ai_model_costs.clone().ok();
+        let http_span_allowed_hosts = global_config.options.http_span_allowed_hosts.as_slice();
 
         utils::log_transaction_name_metrics(&mut state.event, |event| {
             let event_validation_config = EventValidationConfig {
@@ -1655,6 +1673,7 @@ impl EnvelopeProcessorService {
                     .envelope()
                     .dsc()
                     .and_then(|ctx| ctx.replay_id),
+                span_allowed_hosts: http_span_allowed_hosts,
             };
 
             metric!(timer(RelayTimers::EventProcessingNormalization), {
@@ -1752,7 +1771,7 @@ impl EnvelopeProcessorService {
             matches!(filter_run, FiltersStatus::Ok) || self.inner.config.processing_enabled();
 
         let sampling_result = match run_dynamic_sampling {
-            true => dynamic_sampling::run(state, &self.inner.config),
+            true => dynamic_sampling::run(state),
             false => SamplingResult::Pending,
         };
 
@@ -1761,7 +1780,7 @@ impl EnvelopeProcessorService {
             // Process profiles before dropping the transaction, if necessary.
             // Before metric extraction to make sure the profile count is reflected correctly.
             let profile_id = match keep_profiles {
-                true => profile::process(state, &self.inner.config),
+                true => profile::process(state),
                 false => profile_id,
             };
 
@@ -1789,7 +1808,7 @@ impl EnvelopeProcessorService {
 
         if_processing!(self.inner.config, {
             // Process profiles before extracting metrics, to make sure they are removed if they are invalid.
-            let profile_id = profile::process(state, &self.inner.config);
+            let profile_id = profile::process(state);
             profile::transfer_id(state, profile_id);
 
             // Always extract metrics in processing Relays for sampled items.
@@ -1799,7 +1818,7 @@ impl EnvelopeProcessorService {
                 .project_state
                 .has_feature(Feature::ExtractSpansFromEvent)
             {
-                span::extract_from_event(state, &self.inner.config, &global_config);
+                span::extract_from_event(state, &global_config);
             }
 
             self.enforce_quotas(state)?;
@@ -1871,11 +1890,7 @@ impl EnvelopeProcessorService {
             self.enforce_quotas(state)?;
         });
 
-        report::process_client_reports(
-            state,
-            &self.inner.config,
-            self.inner.addrs.outcome_aggregator.clone(),
-        );
+        report::process_client_reports(state, self.inner.addrs.outcome_aggregator.clone());
 
         Ok(())
     }
@@ -1885,11 +1900,7 @@ impl EnvelopeProcessorService {
         &self,
         state: &mut ProcessEnvelopeState<ReplayGroup>,
     ) -> Result<(), ProcessingError> {
-        replay::process(
-            state,
-            &self.inner.config,
-            &self.inner.global_config.current(),
-        )?;
+        replay::process(state, &self.inner.global_config.current())?;
         if_processing!(self.inner.config, {
             self.enforce_quotas(state)?;
         });
@@ -1920,7 +1931,7 @@ impl EnvelopeProcessorService {
         if_processing!(self.inner.config, {
             let global_config = self.inner.global_config.current();
 
-            span::process(state, self.inner.config.clone(), &global_config);
+            span::process(state, &global_config);
 
             self.enforce_quotas(state)?;
         });
@@ -1952,6 +1963,7 @@ impl EnvelopeProcessorService {
             ($fn:ident) => {{
                 let managed_envelope = managed_envelope.try_into()?;
                 let mut state = self.prepare_state(
+                    self.inner.config.clone(),
                     self.inner.global_config.current(),
                     managed_envelope,
                     project_id,
