@@ -1572,6 +1572,7 @@ impl EnvelopeProcessorService {
 
         let global_config = self.inner.global_config.current();
         let ai_model_costs = global_config.ai_model_costs.clone().ok();
+        let http_span_allowed_hosts = global_config.options.http_span_allowed_hosts.as_slice();
 
         utils::log_transaction_name_metrics(&mut state.event, |event| {
             let event_validation_config = EventValidationConfig {
@@ -1655,6 +1656,7 @@ impl EnvelopeProcessorService {
                     .envelope()
                     .dsc()
                     .and_then(|ctx| ctx.replay_id),
+                span_allowed_hosts: http_span_allowed_hosts,
             };
 
             metric!(timer(RelayTimers::EventProcessingNormalization), {

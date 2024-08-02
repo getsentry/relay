@@ -41,6 +41,9 @@
 - Report outcomes for spans when transactions are rate limited. ([#3749](https://github.com/getsentry/relay/pull/3749))
 - Only transfer valid profile ids. ([#3809](https://github.com/getsentry/relay/pull/3809))
 
+**Features**:
+- Allow list for excluding certain host/IPs from scrubbing in spans. ([#3813](https://github.com/getsentry/relay/pull/3813))
+
 **Internal**:
 
 - Aggregate metrics before rate limiting. ([#3746](https://github.com/getsentry/relay/pull/3746))
