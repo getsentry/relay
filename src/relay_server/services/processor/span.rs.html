@@ -38,12 +38,18 @@
 <a href="#38" id="38">38</a>
 <a href="#39" id="39">39</a>
 <a href="#40" id="40">40</a>
+<a href="#41" id="41">41</a>
+<a href="#42" id="42">42</a>
+<a href="#43" id="43">43</a>
+<a href="#44" id="44">44</a>
+<a href="#45" id="45">45</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Processor code related to standalone spans.
 
 </span><span class="kw">use </span>relay_dynamic_config::Feature;
 <span class="kw">use </span>relay_event_normalization::span::tag_extraction;
 <span class="kw">use </span>relay_event_schema::protocol::{Event, Span};
 <span class="kw">use </span>relay_protocol::Annotated;
+<span class="kw">use </span>url::Host;
 
 <span class="kw">use </span><span class="kw">crate</span>::services::processor::SpanGroup;
 <span class="kw">use crate</span>::{services::processor::ProcessEnvelopeState, utils::ItemAction};
@@ -70,10 +76,14 @@
 <span class="doccomment">/// Creates a span from the transaction and applies tag extraction on it.
 ///
 /// Returns `None` when [`tag_extraction::extract_span_tags`] clears the span, which it shouldn't.
-</span><span class="kw">pub fn </span>extract_transaction_span(event: <span class="kw-2">&amp;</span>Event, max_tag_value_size: usize) -&gt; <span class="prelude-ty">Option</span>&lt;Span&gt; {
+</span><span class="kw">pub fn </span>extract_transaction_span(
+    event: <span class="kw-2">&amp;</span>Event,
+    max_tag_value_size: usize,
+    span_allowed_hosts: <span class="kw-2">&amp;</span>[Host],
+) -&gt; <span class="prelude-ty">Option</span>&lt;Span&gt; {
     <span class="kw">let </span><span class="kw-2">mut </span>spans = [Span::from(event).into()];
 
-    tag_extraction::extract_span_tags(event, <span class="kw-2">&amp;mut </span>spans, max_tag_value_size);
+    tag_extraction::extract_span_tags(event, <span class="kw-2">&amp;mut </span>spans, max_tag_value_size, span_allowed_hosts);
     tag_extraction::extract_segment_span_tags(event, <span class="kw-2">&amp;mut </span>spans);
 
     spans.into_iter().next().and_then(Annotated::into_value)

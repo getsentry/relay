@@ -1934,7 +1934,7 @@
     output: <span class="kw-2">&amp;mut </span>Vec&lt;Bucket&gt;,
 ) {
     <span class="macro">relay_statsd::metric!</span>(timer(RelayTimers::EventProcessingSpanMetricsExtraction), {
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(transaction_span) = extract_transaction_span(event, max_tag_value_size) {
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(transaction_span) = extract_transaction_span(event, max_tag_value_size, <span class="kw-2">&amp;</span>[]) {
             <span class="kw">let </span>(metrics, metrics_summary) =
                 metrics_summary::extract_and_summarize_metrics(<span class="kw-2">&amp;</span>transaction_span, config);
             metrics_summary.apply_on(<span class="kw-2">&amp;mut </span>event._metrics_summary);

@@ -4104,6 +4104,8 @@
 <a href="#4104" id="4104">4104</a>
 <a href="#4105" id="4105">4105</a>
 <a href="#4106" id="4106">4106</a>
+<a href="#4107" id="4107">4107</a>
+<a href="#4108" id="4108">4108</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeMap, BTreeSet, HashMap};
 <span class="kw">use </span>std::error::Error;
@@ -5678,6 +5680,7 @@
 
         <span class="kw">let </span>global_config = <span class="self">self</span>.inner.global_config.current();
         <span class="kw">let </span>ai_model_costs = global_config.ai_model_costs.clone().ok();
+        <span class="kw">let </span>http_span_allowed_hosts = global_config.options.http_span_allowed_hosts.as_slice();
 
         utils::log_transaction_name_metrics(<span class="kw-2">&amp;mut </span>state.event, |event| {
             <span class="kw">let </span>event_validation_config = EventValidationConfig {
@@ -5761,6 +5764,7 @@
                     .envelope()
                     .dsc()
                     .and_then(|ctx| ctx.replay_id),
+                span_allowed_hosts: http_span_allowed_hosts,
             };
 
             <span class="macro">metric!</span>(timer(RelayTimers::EventProcessingNormalization), {

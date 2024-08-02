@@ -1227,6 +1227,12 @@
 <a href="#1227" id="1227">1227</a>
 <a href="#1228" id="1228">1228</a>
 <a href="#1229" id="1229">1229</a>
+<a href="#1230" id="1230">1230</a>
+<a href="#1231" id="1231">1231</a>
+<a href="#1232" id="1232">1232</a>
+<a href="#1233" id="1233">1233</a>
+<a href="#1234" id="1234">1234</a>
+<a href="#1235" id="1235">1235</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Span description scrubbing logic.
 </span><span class="kw">mod </span>resource;
 <span class="kw">mod </span>sql;
@@ -1267,6 +1273,7 @@
 /// Returns `None` if no scrubbing can be performed.
 </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>scrub_span_description(
     span: <span class="kw-2">&amp;</span>Span,
+    span_allowed_hosts: <span class="kw-2">&amp;</span>[Host],
 ) -&gt; (<span class="prelude-ty">Option</span>&lt;String&gt;, <span class="prelude-ty">Option</span>&lt;Vec&lt;sqlparser::ast::Statement&gt;&gt;) {
     <span class="kw">let </span><span class="prelude-val">Some</span>(description) = span.description.as_str() <span class="kw">else </span>{
         <span class="kw">return </span>(<span class="prelude-val">None</span>, <span class="prelude-val">None</span>);
@@ -1285,7 +1292,7 @@
         .as_str()
         .map(|op| op.split_once(<span class="string">'.'</span>).unwrap_or((op, <span class="string">""</span>)))
         .and_then(|(op, sub)| <span class="kw">match </span>(op, sub) {
-            (<span class="string">"http"</span>, <span class="kw">_</span>) =&gt; scrub_http(description),
+            (<span class="string">"http"</span>, <span class="kw">_</span>) =&gt; scrub_http(description, span_allowed_hosts),
             (<span class="string">"cache"</span>, <span class="kw">_</span>) | (<span class="string">"db"</span>, <span class="string">"redis"</span>) =&gt; scrub_redis_keys(description),
             (<span class="string">"db"</span>, <span class="kw">_</span>) <span class="kw">if </span>db_system == <span class="prelude-val">Some</span>(<span class="string">"redis"</span>) =&gt; scrub_redis_keys(description),
             (<span class="string">"db"</span>, sub) =&gt; {
@@ -1395,7 +1402,7 @@
     <span class="prelude-val">Some</span>(DB_SUPABASE_REGEX.replace_all(string, <span class="string">"{%s}"</span>).into())
 }
 
-<span class="kw">fn </span>scrub_http(string: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;String&gt; {
+<span class="kw">fn </span>scrub_http(string: <span class="kw-2">&amp;</span>str, allow_list: <span class="kw-2">&amp;</span>[Host]) -&gt; <span class="prelude-ty">Option</span>&lt;String&gt; {
     <span class="kw">let </span>(method, url) = string.split_once(<span class="string">' '</span>)<span class="question-mark">?</span>;
     <span class="kw">if </span>!HTTP_METHOD_EXTRACTOR_REGEX.is_match(method) {
         <span class="kw">return </span><span class="prelude-val">None</span>;
@@ -1408,7 +1415,7 @@
     <span class="kw">let </span>scrubbed = <span class="kw">match </span>Url::parse(url) {
         <span class="prelude-val">Ok</span>(url) =&gt; {
             <span class="kw">let </span>scheme = url.scheme();
-            <span class="kw">let </span>scrubbed_host = url.host().map(scrub_host);
+            <span class="kw">let </span>scrubbed_host = url.host().map(|host| scrub_host(host, allow_list));
             <span class="kw">let </span>domain = concatenate_host_and_port(scrubbed_host.as_deref(), url.port());
 
             <span class="macro">format!</span>(<span class="string">"{method} {scheme}://{domain}"</span>)
@@ -1451,10 +1458,15 @@
 /// use std::net::{Ipv4Addr, Ipv6Addr};
 /// use relay_event_normalization::span::description::scrub_host;
 ///
-/// assert_eq!(scrub_host(Host::Domain("foo.bar.baz")), "*.bar.baz");
-/// assert_eq!(scrub_host(Host::Ipv4(Ipv4Addr::LOCALHOST)), "127.0.0.1");
+/// assert_eq!(scrub_host(Host::Domain("foo.bar.baz"), &amp;[]), "*.bar.baz");
+/// assert_eq!(scrub_host(Host::Ipv4(Ipv4Addr::LOCALHOST), &amp;[]), "127.0.0.1");
+/// assert_eq!(scrub_host(Host::Ipv4(Ipv4Addr::new(8, 8, 8, 8)), &amp;[Host::parse("8.8.8.8").unwrap()]), "8.8.8.8");
 /// ```
-</span><span class="kw">pub fn </span>scrub_host(host: Host&lt;<span class="kw-2">&amp;</span>str&gt;) -&gt; Cow&lt;<span class="lifetime">'_</span>, str&gt; {
+</span><span class="kw">pub fn </span>scrub_host&lt;<span class="lifetime">'a</span>&gt;(host: Host&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>str&gt;, allow_list: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>[Host]) -&gt; Cow&lt;<span class="lifetime">'a</span>, str&gt; {
+    <span class="kw">if </span>allow_list.iter().any(|allowed_host| <span class="kw-2">&amp;</span>host == allowed_host) {
+        <span class="kw">return </span>host.to_string().into();
+    }
+
     <span class="kw">match </span>host {
         Host::Ipv4(ip) =&gt; Cow::Borrowed(scrub_ipv4(ip)),
         Host::Ipv6(ip) =&gt; Cow::Borrowed(scrub_ipv6(ip)),
@@ -1623,7 +1635,7 @@
             <span class="kw">return </span><span class="prelude-val">Some</span>(<span class="string">"browser-extension://*"</span>.to_owned());
         }
         scheme =&gt; {
-            <span class="kw">let </span>scrubbed_host = url.host().map(scrub_host);
+            <span class="kw">let </span>scrubbed_host = url.host().map(|host| scrub_host(host, <span class="kw-2">&amp;</span>[]));
             <span class="kw">let </span>domain = concatenate_host_and_port(scrubbed_host.as_deref(), url.port());
 
             <span class="kw">let </span>segment_count = url.path_segments().map(|s| s.count()).unwrap_or_default();
@@ -1791,7 +1803,7 @@
                     .description
                     .set_value(<span class="prelude-val">Some</span>(<span class="macro-nonterminal">$description_in</span>.into()));
 
-                <span class="kw">let </span>scrubbed = scrub_span_description(span.value_mut().as_mut().unwrap());
+                <span class="kw">let </span>scrubbed = scrub_span_description(span.value_mut().as_mut().unwrap(), <span class="kw-2">&amp;</span>[]);
 
                 <span class="kw">if </span><span class="macro-nonterminal">$expected </span>== <span class="string">"" </span>{
                     <span class="macro">assert!</span>(scrubbed.<span class="number">0</span>.is_none());
@@ -2350,7 +2362,7 @@
 
         <span class="kw">let </span><span class="kw-2">mut </span>span = Annotated::&lt;Span&gt;::from_json(json).unwrap();
         <span class="kw">let </span>span = span.value_mut().as_mut().unwrap();
-        <span class="kw">let </span>scrubbed = scrub_span_description(span);
+        <span class="kw">let </span>scrubbed = scrub_span_description(span, <span class="kw-2">&amp;</span>[]);
         <span class="macro">assert_eq!</span>(scrubbed.<span class="number">0</span>.as_deref(), <span class="prelude-val">Some</span>(<span class="string">"SELECT %s"</span>));
     }
 
@@ -2363,7 +2375,7 @@
 
         <span class="kw">let </span><span class="kw-2">mut </span>span = Annotated::&lt;Span&gt;::from_json(json).unwrap();
 
-        <span class="kw">let </span>scrubbed = scrub_span_description(span.value_mut().as_mut().unwrap());
+        <span class="kw">let </span>scrubbed = scrub_span_description(span.value_mut().as_mut().unwrap(), <span class="kw-2">&amp;</span>[]);
 
         <span class="comment">// When db.system is missing, no scrubbed description (i.e. no group) is set.
         </span><span class="macro">assert!</span>(scrubbed.<span class="number">0</span>.is_none());
@@ -2381,7 +2393,7 @@
 
         <span class="kw">let </span><span class="kw-2">mut </span>span = Annotated::&lt;Span&gt;::from_json(json).unwrap();
 
-        <span class="kw">let </span>scrubbed = scrub_span_description(span.value_mut().as_mut().unwrap());
+        <span class="kw">let </span>scrubbed = scrub_span_description(span.value_mut().as_mut().unwrap(), <span class="kw-2">&amp;</span>[]);
 
         <span class="comment">// Can be scrubbed with db system.
         </span><span class="macro">assert_eq!</span>(scrubbed.<span class="number">0</span>.as_deref(), <span class="prelude-val">Some</span>(<span class="string">"SELECT a FROM b"</span>));
@@ -2399,7 +2411,7 @@
 
         <span class="kw">let </span><span class="kw-2">mut </span>span = Annotated::&lt;Span&gt;::from_json(json).unwrap();
 
-        <span class="kw">let </span>scrubbed = scrub_span_description(span.value_mut().as_mut().unwrap());
+        <span class="kw">let </span>scrubbed = scrub_span_description(span.value_mut().as_mut().unwrap(), <span class="kw-2">&amp;</span>[]);
 
         <span class="comment">// NOTE: this should return `DEL *`, but we cannot detect lowercase command names yet.
         </span><span class="macro">assert_eq!</span>(scrubbed.<span class="number">0</span>.as_deref(), <span class="prelude-val">Some</span>(<span class="string">"*"</span>));
@@ -2415,7 +2427,7 @@
 
         <span class="kw">let </span><span class="kw-2">mut </span>span = Annotated::&lt;Span&gt;::from_json(json).unwrap();
 
-        <span class="kw">let </span>scrubbed = scrub_span_description(span.value_mut().as_mut().unwrap());
+        <span class="kw">let </span>scrubbed = scrub_span_description(span.value_mut().as_mut().unwrap(), <span class="kw-2">&amp;</span>[]);
 
         <span class="macro">assert_eq!</span>(scrubbed.<span class="number">0</span>.as_deref(), <span class="prelude-val">Some</span>(<span class="string">"INSERTED * 'UAEventData'"</span>));
     }
@@ -2430,7 +2442,7 @@
 
         <span class="kw">let </span><span class="kw-2">mut </span>span = Annotated::&lt;Span&gt;::from_json(json).unwrap();
 
-        <span class="kw">let </span>scrubbed = scrub_span_description(span.value_mut().as_mut().unwrap());
+        <span class="kw">let </span>scrubbed = scrub_span_description(span.value_mut().as_mut().unwrap(), <span class="kw-2">&amp;</span>[]);
 
         <span class="macro">assert_eq!</span>(
             scrubbed.<span class="number">0</span>.as_deref(),
@@ -2450,7 +2462,7 @@
 
         <span class="kw">let </span><span class="kw-2">mut </span>span = Annotated::&lt;Span&gt;::from_json(json).unwrap();
 
-        <span class="kw">let </span>scrubbed = scrub_span_description(span.value_mut().as_mut().unwrap());
+        <span class="kw">let </span>scrubbed = scrub_span_description(span.value_mut().as_mut().unwrap(), <span class="kw-2">&amp;</span>[]);
 
         <span class="comment">// Can be scrubbed with db system.
         </span><span class="macro">assert_eq!</span>(scrubbed.<span class="number">0</span>.as_deref(), <span class="prelude-val">Some</span>(<span class="string">"my-component-name"</span>));

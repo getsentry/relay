@@ -998,6 +998,21 @@
 <a href="#998" id="998">998</a>
 <a href="#999" id="999">999</a>
 <a href="#1000" id="1000">1000</a>
+<a href="#1001" id="1001">1001</a>
+<a href="#1002" id="1002">1002</a>
+<a href="#1003" id="1003">1003</a>
+<a href="#1004" id="1004">1004</a>
+<a href="#1005" id="1005">1005</a>
+<a href="#1006" id="1006">1006</a>
+<a href="#1007" id="1007">1007</a>
+<a href="#1008" id="1008">1008</a>
+<a href="#1009" id="1009">1009</a>
+<a href="#1010" id="1010">1010</a>
+<a href="#1011" id="1011">1011</a>
+<a href="#1012" id="1012">1012</a>
+<a href="#1013" id="1013">1013</a>
+<a href="#1014" id="1014">1014</a>
+<a href="#1015" id="1015">1015</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Contains the processing-only functionality.
 
 </span><span class="kw">use </span>std::error::Error;
@@ -1026,6 +1041,7 @@
 <span class="kw">use </span>relay_protocol::{Annotated, Empty};
 <span class="kw">use </span>relay_quotas::DataCategory;
 <span class="kw">use </span>relay_spans::{otel_to_sentry_span, otel_trace::Span <span class="kw">as </span>OtelSpan};
+<span class="kw">use </span>url::Host;
 
 <span class="kw">use </span><span class="kw">crate</span>::envelope::{ContentType, Item, ItemType};
 <span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::metrics_summary;
@@ -1272,6 +1288,7 @@
             .aggregator_config_for(MetricNamespace::Spans)
             .aggregator
             .max_tag_value_length,
+        <span class="kw-2">&amp;</span>[],
     ) <span class="kw">else </span>{
         <span class="kw">return</span>;
     };
@@ -1341,6 +1358,8 @@
     </span>user_agent: <span class="prelude-ty">Option</span>&lt;String&gt;,
     <span class="doccomment">/// Client hints parsed from the request.
     </span>client_hints: ClientHints&lt;String&gt;,
+    <span class="doccomment">/// Hosts that are not replaced by "*" in HTTP span grouping.
+    </span>allowed_hosts: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>[Host],
 }
 
 <span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; NormalizeSpanConfig&lt;<span class="lifetime">'a</span>&gt; {
@@ -1351,6 +1370,7 @@
         managed_envelope: <span class="kw-2">&amp;</span>ManagedEnvelope,
     ) -&gt; <span class="self">Self </span>{
         <span class="kw">let </span>aggregator_config = config.aggregator_config_for(MetricNamespace::Spans);
+
         <span class="self">Self </span>{
             received_at: managed_envelope.received_at(),
             timestamp_range: aggregator_config.aggregator.timestamp_range(),
@@ -1376,6 +1396,7 @@
                 .user_agent()
                 .map(String::from),
             client_hints: managed_envelope.meta().client_hints().clone(),
+            allowed_hosts: global_config.options.http_span_allowed_hosts.as_slice(),
         }
     }
 }
@@ -1427,6 +1448,7 @@
         tx_name_rules,
         user_agent,
         client_hints,
+        allowed_hosts,
     } = config;
 
     set_segment_attributes(annotated_span);
@@ -1486,7 +1508,15 @@
 
     <span class="comment">// Tag extraction:
     </span><span class="kw">let </span>is_mobile = <span class="bool-val">false</span>; <span class="comment">// TODO: find a way to determine is_mobile from a standalone span.
-    </span><span class="kw">let </span>tags = tag_extraction::extract_tags(span, max_tag_value_size, <span class="prelude-val">None</span>, <span class="prelude-val">None</span>, is_mobile, <span class="prelude-val">None</span>);
+    </span><span class="kw">let </span>tags = tag_extraction::extract_tags(
+        span,
+        max_tag_value_size,
+        <span class="prelude-val">None</span>,
+        <span class="prelude-val">None</span>,
+        is_mobile,
+        <span class="prelude-val">None</span>,
+        allowed_hosts,
+    );
     span.sentry_tags = Annotated::new(
         tags.into_iter()
             .map(|(k, v)| (k.sentry_tag_key().to_owned(), Annotated::new(v)))

@@ -4171,6 +4171,15 @@
 <a href="#4171" id="4171">4171</a>
 <a href="#4172" id="4172">4172</a>
 <a href="#4173" id="4173">4173</a>
+<a href="#4174" id="4174">4174</a>
+<a href="#4175" id="4175">4175</a>
+<a href="#4176" id="4176">4176</a>
+<a href="#4177" id="4177">4177</a>
+<a href="#4178" id="4178">4178</a>
+<a href="#4179" id="4179">4179</a>
+<a href="#4180" id="4180">4180</a>
+<a href="#4181" id="4181">4181</a>
+<a href="#4182" id="4182">4182</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Event normalization.
 //!
 //! This module provides a function to normalize events.
@@ -4198,6 +4207,7 @@
     RemarkType, Value,
 };
 <span class="kw">use </span>smallvec::SmallVec;
+<span class="kw">use </span>url::Host;
 <span class="kw">use </span>uuid::Uuid;
 
 <span class="kw">use </span><span class="kw">crate</span>::normalize::request;
@@ -4327,6 +4337,9 @@
     ///
     /// It is persisted into the event payload for correlation.
     </span><span class="kw">pub </span>replay_id: <span class="prelude-ty">Option</span>&lt;Uuid&gt;,
+
+    <span class="doccomment">/// Controls list of hosts to be excluded from scrubbing
+    </span><span class="kw">pub </span>span_allowed_hosts: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>[Host],
 }
 
 <span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; Default <span class="kw">for </span>NormalizationConfig&lt;<span class="lifetime">'a</span>&gt; {
@@ -4358,6 +4371,7 @@
             measurements: <span class="prelude-val">None</span>,
             normalize_spans: <span class="bool-val">true</span>,
             replay_id: Default::default(),
+            span_allowed_hosts: Default::default(),
         }
     }
 }
@@ -4496,7 +4510,11 @@
     }
 
     <span class="kw">if </span>config.enrich_spans {
-        extract_span_tags_from_event(event, config.max_tag_value_length);
+        extract_span_tags_from_event(
+            event,
+            config.max_tag_value_length,
+            config.span_allowed_hosts,
+        );
     }
 
     <span class="kw">if let </span><span class="prelude-val">Some</span>(context) = event.context_mut::&lt;TraceContext&gt;() {

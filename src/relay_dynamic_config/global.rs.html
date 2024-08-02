@@ -549,6 +549,17 @@
 <a href="#549" id="549">549</a>
 <a href="#550" id="550">550</a>
 <a href="#551" id="551">551</a>
+<a href="#552" id="552">552</a>
+<a href="#553" id="553">553</a>
+<a href="#554" id="554">554</a>
+<a href="#555" id="555">555</a>
+<a href="#556" id="556">556</a>
+<a href="#557" id="557">557</a>
+<a href="#558" id="558">558</a>
+<a href="#559" id="559">559</a>
+<a href="#560" id="560">560</a>
+<a href="#561" id="561">561</a>
+<a href="#562" id="562">562</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::btree_map::Entry;
 <span class="kw">use </span>std::collections::HashMap;
 <span class="kw">use </span>std::fs::File;
@@ -561,6 +572,7 @@
 <span class="kw">use </span>relay_quotas::Quota;
 <span class="kw">use </span>serde::{de, Deserialize, Serialize};
 <span class="kw">use </span>serde_json::Value;
+<span class="kw">use </span>url::Host;
 
 <span class="kw">use crate</span>::{defaults, ErrorBoundary, MetricExtractionGroup, MetricExtractionGroups};
 
@@ -775,6 +787,16 @@
         skip_serializing_if = <span class="string">"is_default"
     </span>)]
     </span><span class="kw">pub </span>extrapolation_duplication_limit: usize,
+
+    <span class="doccomment">/// List of values on span description that are allowed to be sent to Sentry without being scrubbed.
+    ///
+    /// At this point, it doesn't accept IP addresses in CIDR format.. yet.
+    </span><span class="attr">#[serde(
+        rename = <span class="string">"relay.span-normalization.allowed_hosts"</span>,
+        deserialize_with = <span class="string">"default_on_error"</span>,
+        skip_serializing_if = <span class="string">"Vec::is_empty"
+    </span>)]
+    </span><span class="kw">pub </span>http_span_allowed_hosts: Vec&lt;Host&gt;,
 
     <span class="doccomment">/// All other unknown options.
     </span><span class="attr">#[serde(flatten)]
