@@ -12,7 +12,7 @@ use chrono::{DateTime, Utc};
 use hashbrown::HashSet;
 use relay_base_schema::project::ProjectKey;
 use relay_config::{Config, RelayMode};
-use relay_metrics::MetricMeta;
+use relay_metrics::{Bucket, MetricMeta};
 use relay_quotas::RateLimits;
 use relay_redis::RedisPool;
 use relay_statsd::metric;
@@ -978,12 +978,24 @@ impl ProjectCacheBroker {
         for (project_key, buckets) in message.buckets {
             let project = self.get_or_create_project(project_key);
 
-            let Some(project_info) = project.current_state().enabled() else {
-                no_project += 1;
-                // Schedule an update for the project just in case.
-                project.prefetch(project_cache.clone(), false);
-                project.return_buckets(&aggregator, buckets);
-                continue;
+            let project_info = match project.current_state() {
+                ProjectState::Pending => {
+                    no_project += 1;
+                    // Schedule an update for the project just in case.
+                    project.prefetch(project_cache.clone(), false);
+                    project.return_buckets(&aggregator, buckets);
+                    continue;
+                }
+                ProjectState::Disabled => {
+                    // Project loaded and disabled, discard the buckets.
+                    //
+                    // Ideally we log outcomes for the metrics here, but currently for metric
+                    // outcomes we need a valid scoping, which we cannot construct for disabled
+                    // projects.
+                    self.garbage_disposal.dispose(buckets);
+                    continue;
+                }
+                ProjectState::Enabled(project_info) => project_info,
             };
 
             let Some(scoping) = project.scoping() else {
@@ -1499,6 +1511,7 @@ impl FetchOptionalProjectState {
 enum ProjectGarbage {
     Project(Project),
     ProjectFetchState(ProjectFetchState),
+    Metrics(Vec<Bucket>),
 }
 
 impl From<Project> for ProjectGarbage {
@@ -1510,6 +1523,12 @@ impl From<Project> for ProjectGarbage {
 impl From<ProjectFetchState> for ProjectGarbage {
     fn from(value: ProjectFetchState) -> Self {
         Self::ProjectFetchState(value)
+    }
+}
+
+impl From<Vec<Bucket>> for ProjectGarbage {
+    fn from(value: Vec<Bucket>) -> Self {
+        Self::Metrics(value)
     }
 }
 
