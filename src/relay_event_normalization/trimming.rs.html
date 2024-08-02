@@ -1056,31 +1056,6 @@
 <a href="#1056" id="1056">1056</a>
 <a href="#1057" id="1057">1057</a>
 <a href="#1058" id="1058">1058</a>
-<a href="#1059" id="1059">1059</a>
-<a href="#1060" id="1060">1060</a>
-<a href="#1061" id="1061">1061</a>
-<a href="#1062" id="1062">1062</a>
-<a href="#1063" id="1063">1063</a>
-<a href="#1064" id="1064">1064</a>
-<a href="#1065" id="1065">1065</a>
-<a href="#1066" id="1066">1066</a>
-<a href="#1067" id="1067">1067</a>
-<a href="#1068" id="1068">1068</a>
-<a href="#1069" id="1069">1069</a>
-<a href="#1070" id="1070">1070</a>
-<a href="#1071" id="1071">1071</a>
-<a href="#1072" id="1072">1072</a>
-<a href="#1073" id="1073">1073</a>
-<a href="#1074" id="1074">1074</a>
-<a href="#1075" id="1075">1075</a>
-<a href="#1076" id="1076">1076</a>
-<a href="#1077" id="1077">1077</a>
-<a href="#1078" id="1078">1078</a>
-<a href="#1079" id="1079">1079</a>
-<a href="#1080" id="1080">1080</a>
-<a href="#1081" id="1081">1081</a>
-<a href="#1082" id="1082">1082</a>
-<a href="#1083" id="1083">1083</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 
 <span class="kw">use </span>relay_event_schema::processor::{
@@ -2031,19 +2006,23 @@
             platform: Annotated::new(<span class="string">"a"</span>.repeat(<span class="number">1024 </span>* <span class="number">100</span>)),
             ..Default::default()
         };
-        <span class="kw">let </span>spans = std::iter::repeat_with(|| Annotated::new(span.clone()))
+        <span class="kw">let </span>spans: Vec&lt;<span class="kw">_</span>&gt; = std::iter::repeat_with(|| Annotated::new(span.clone()))
             .take(<span class="number">10</span>)
             .collect();
 
         <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::new(Event {
-            spans: Annotated::new(spans),
+            spans: Annotated::new(spans.clone()),
             ..Default::default()
         });
 
         <span class="kw">let </span><span class="kw-2">mut </span>processor = TrimmingProcessor::new();
         processor::process_value(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;mut </span>processor, ProcessingState::root()).unwrap();
 
-        <span class="macro">assert_eq!</span>(event.<span class="number">0</span>.unwrap().spans.<span class="number">0</span>.unwrap().len(), <span class="number">8</span>);
+        <span class="kw">let </span>trimmed_spans = event.<span class="number">0</span>.unwrap().spans.<span class="number">0</span>.unwrap();
+        <span class="macro">assert_eq!</span>(trimmed_spans.len(), <span class="number">8</span>);
+
+        <span class="comment">// The actual spans were not touched:
+        </span><span class="macro">assert_eq!</span>(trimmed_spans.as_slice(), <span class="kw-2">&amp;</span>spans[<span class="number">0</span>..<span class="number">8</span>]);
     }
 
     <span class="attr">#[test]
@@ -2133,35 +2112,6 @@
         </span><span class="macro">assert_eq!</span>(<span class="macro">get_value!</span>(event.spans[<span class="number">1</span>].<span class="macro">op!</span>).len(), <span class="number">128</span>);
         <span class="macro">assert!</span>(<span class="macro">get_value!</span>(event.spans[<span class="number">1</span>].start_timestamp).is_some());
         <span class="macro">assert!</span>(<span class="macro">get_value!</span>(event.spans[<span class="number">1</span>].timestamp).is_some());
-    }
-
-    <span class="attr">#[test]
-    </span><span class="kw">fn </span>test_trim_false_contributes_to_budget() {
-        <span class="kw">for </span>span_id <span class="kw">in </span>[<span class="string">"short"</span>, <span class="string">"looooooooooooooooooooooooooong"</span>] {
-            <span class="kw">let </span>original_span_id = SpanId(span_id.to_owned());
-            <span class="kw">let </span>original_description = <span class="string">"a"</span>.repeat(<span class="number">900000</span>);
-
-            <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::new(Event {
-                spans: Annotated::new(<span class="macro">vec!</span>[Span {
-                    span_id: original_span_id.clone().into(),
-                    description: original_description.clone().into(),
-                    ..Default::default()
-                }
-                .into()]),
-                ..Default::default()
-            });
-
-            <span class="kw">let </span><span class="kw-2">mut </span>processor = TrimmingProcessor::new();
-            processor::process_value(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;mut </span>processor, ProcessingState::root()).unwrap();
-
-            <span class="macro">assert_eq!</span>(<span class="macro">get_value!</span>(event.spans[<span class="number">0</span>].<span class="macro">span_id!</span>).as_ref(), span_id);
-
-            <span class="comment">// The amount of trimming on the description depends on the length of the span id.
-            </span><span class="macro">assert_eq!</span>(
-                <span class="macro">get_value!</span>(event.spans[<span class="number">0</span>].<span class="macro">description!</span>).len(),
-                <span class="number">1024 </span>* <span class="number">800 </span>- <span class="number">12 </span>- span_id.len(),
-            );
-        }
     }
 }
 </code></pre></div></section></main></body></html>
