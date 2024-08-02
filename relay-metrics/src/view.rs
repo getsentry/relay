@@ -307,7 +307,7 @@ where
                 return None;
             };
 
-            match split_at(
+            match split(
                 &bucket,
                 remaining_bytes,
                 self.max_size_bytes / BUCKET_SPLIT_FACTOR,
@@ -321,10 +321,10 @@ where
                     continue;
                 }
                 SplitDecision::MoveToNextBatch => break,
-                SplitDecision::Split(at) => {
+                SplitDecision::Split(n) => {
                     self.current = Index {
                         slice: self.current.slice,
-                        bucket: self.current.bucket + at,
+                        bucket: self.current.bucket + n,
                     };
                     break;
                 }
@@ -543,11 +543,12 @@ impl<'a> BucketView<'a> {
     /// footprint is estimated through the number of data points contained. See
     /// [`estimated_size`](Self::estimated_size) for more information.
     pub fn split(self, size: usize, max_size: Option<usize>) -> (Option<Self>, Option<Self>) {
-        match split_at(&self, size, max_size.unwrap_or(0) / BUCKET_SPLIT_FACTOR) {
+        match split(&self, size, max_size.unwrap_or(0) / BUCKET_SPLIT_FACTOR) {
             SplitDecision::BucketFits(_) => (Some(self), None),
             SplitDecision::MoveToNextBatch => (None, Some(self)),
-            SplitDecision::Split(at) => {
-                let Range { start, end } = self.range.clone();
+            SplitDecision::Split(n) => {
+                let Range { start, end } = self.range;
+                let at = start + n;
                 (self.clone().select(start..at), self.select(at..end))
             }
         }
@@ -744,15 +745,15 @@ enum SplitDecision {
 /// Calculates a split for this bucket if its estimated serialization size exceeds a threshold.
 ///
 /// There are three possible return values:
-///  - `BucketFits` if the bucket fits entirely into the size budget.
+///  - `BucketFits(size)` if the bucket fits entirely into the budget and consumes `size` bytes.
 ///  - `MoveToNextBatch` if the size budget cannot even hold the bucket name and tags. There is no
 ///    split, the entire bucket is moved.
-///  - `Split(at)` if the bucket fits partially, the bucket should be split `at`.
+///  - `Split(n)` if the bucket fits partially, the bucket should be split after `n` elements.
 ///
 /// This is an approximate function. The bucket is not actually serialized, but rather its
 /// footprint is estimated through the number of data points contained. See
 /// `estimate_size` for more information.
-fn split_at(bucket: &BucketView<'_>, max_size: usize, min_split_size: usize) -> SplitDecision {
+fn split(bucket: &BucketView<'_>, max_size: usize, min_split_size: usize) -> SplitDecision {
     // If there's enough space for the entire bucket, do not perform a split.
     let bucket_size = bucket.estimated_size();
     if max_size >= bucket_size {
@@ -1161,5 +1162,23 @@ mod tests {
         let partials = view.by_size(178).collect::<Vec<_>>();
 
         assert_json_snapshot!(partials);
+    }
+
+    #[test]
+    fn test_split_repeatedly() {
+        let bucket = Bucket::parse(b"b2:1:2:3:5:5|d", UnixTimestamp::from_secs(5000)).unwrap();
+        let view = BucketView::new(&bucket);
+
+        // construct this so that we can take 2 values per split and result in 3 parts.
+        let split_size = view.estimated_base_size() + 2 * AVG_VALUE_SIZE;
+
+        let (first, rest) = view.split(split_size, None);
+        let (second, rest) = rest.unwrap().split(split_size, None);
+        let (third, rest) = rest.unwrap().split(split_size, None);
+
+        assert_eq!(first.unwrap().range, 0..2);
+        assert_eq!(second.unwrap().range, 2..4);
+        assert_eq!(third.unwrap().range, 4..5);
+        assert!(rest.is_none());
     }
 }
