@@ -1704,6 +1704,29 @@
 <a href="#1704" id="1704">1704</a>
 <a href="#1705" id="1705">1705</a>
 <a href="#1706" id="1706">1706</a>
+<a href="#1707" id="1707">1707</a>
+<a href="#1708" id="1708">1708</a>
+<a href="#1709" id="1709">1709</a>
+<a href="#1710" id="1710">1710</a>
+<a href="#1711" id="1711">1711</a>
+<a href="#1712" id="1712">1712</a>
+<a href="#1713" id="1713">1713</a>
+<a href="#1714" id="1714">1714</a>
+<a href="#1715" id="1715">1715</a>
+<a href="#1716" id="1716">1716</a>
+<a href="#1717" id="1717">1717</a>
+<a href="#1718" id="1718">1718</a>
+<a href="#1719" id="1719">1719</a>
+<a href="#1720" id="1720">1720</a>
+<a href="#1721" id="1721">1721</a>
+<a href="#1722" id="1722">1722</a>
+<a href="#1723" id="1723">1723</a>
+<a href="#1724" id="1724">1724</a>
+<a href="#1725" id="1725">1725</a>
+<a href="#1726" id="1726">1726</a>
+<a href="#1727" id="1727">1727</a>
+<a href="#1728" id="1728">1728</a>
+<a href="#1729" id="1729">1729</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
 <span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::sync::Arc;
@@ -2280,7 +2303,7 @@
     <span class="comment">// Need hashbrown because extract_if is not stable in std yet.
     </span>projects: hashbrown::HashMap&lt;ProjectKey, Project&gt;,
     <span class="doccomment">/// Utility for disposing of expired project data in a background thread.
-    </span>garbage_disposal: GarbageDisposal&lt;Project&gt;,
+    </span>garbage_disposal: GarbageDisposal&lt;ProjectGarbage&gt;,
     <span class="doccomment">/// Source for fetching project states from the upstream or from disk.
     </span>source: ProjectSource,
     <span class="doccomment">/// Tx channel used to send the updated project state whenever requested.
@@ -2417,12 +2440,15 @@
         <span class="kw">let </span>project_cache = <span class="self">self</span>.services.project_cache.clone();
         <span class="kw">let </span>envelope_processor = <span class="self">self</span>.services.envelope_processor.clone();
 
-        <span class="self">self</span>.get_or_create_project(project_key).update_state(
+        <span class="kw">let </span>old_state = <span class="self">self</span>.get_or_create_project(project_key).update_state(
             <span class="kw-2">&amp;</span>project_cache,
             state,
             <span class="kw-2">&amp;</span>envelope_processor,
             no_cache,
         );
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(old_state) = old_state {
+            <span class="self">self</span>.garbage_disposal.dispose(old_state);
+        }
 
         <span class="comment">// Try to schedule unspool if it's not scheduled yet.
         </span><span class="self">self</span>.schedule_unspool();
@@ -3193,6 +3219,26 @@
 <span class="kw">impl </span>FetchOptionalProjectState {
     <span class="kw">pub fn </span>project_key(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; ProjectKey {
         <span class="self">self</span>.project_key
+    }
+}
+
+<span class="doccomment">/// Sum type for all objects which need to be discareded through the [`GarbageDisposal`].
+</span><span class="attr">#[derive(Debug)]
+#[allow(dead_code)] </span><span class="comment">// Fields are never read, only used for discarding/dropping data.
+</span><span class="kw">enum </span>ProjectGarbage {
+    Project(Project),
+    ProjectFetchState(ProjectFetchState),
+}
+
+<span class="kw">impl </span>From&lt;Project&gt; <span class="kw">for </span>ProjectGarbage {
+    <span class="kw">fn </span>from(value: Project) -&gt; <span class="self">Self </span>{
+        <span class="self">Self</span>::Project(value)
+    }
+}
+
+<span class="kw">impl </span>From&lt;ProjectFetchState&gt; <span class="kw">for </span>ProjectGarbage {
+    <span class="kw">fn </span>from(value: ProjectFetchState) -&gt; <span class="self">Self </span>{
+        <span class="self">Self</span>::ProjectFetchState(value)
     }
 }
 

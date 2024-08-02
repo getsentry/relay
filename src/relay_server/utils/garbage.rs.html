@@ -108,6 +108,9 @@
 <a href="#108" id="108">108</a>
 <a href="#109" id="109">109</a>
 <a href="#110" id="110">110</a>
+<a href="#111" id="111">111</a>
+<a href="#112" id="112">112</a>
+<a href="#113" id="113">113</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::sync::atomic::{AtomicUsize, Ordering};
 <span class="kw">use </span>std::sync::{mpsc, Arc};
 <span class="kw">use </span>std::thread::JoinHandle;
@@ -151,10 +154,13 @@
     }
 
     <span class="doccomment">/// Defers dropping an object by sending it to the background thread.
-    </span><span class="kw">pub fn </span>dispose(<span class="kw-2">&amp;</span><span class="self">self</span>, object: T) {
+    </span><span class="kw">pub fn </span>dispose&lt;U&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, object: U)
+    <span class="kw">where
+        </span>T: From&lt;U&gt;,
+    {
         <span class="self">self</span>.queue_size.fetch_add(<span class="number">1</span>, Ordering::Relaxed);
         <span class="self">self</span>.tx
-            .send(object)
+            .send(T::from(object))
             .map_err(|e| {
                 <span class="macro">relay_log::error!</span>(<span class="string">"failed to send object to garbage disposal thread, drop here"</span>);
                 drop(e.<span class="number">0</span>);
@@ -207,7 +213,7 @@
             thread_ids: thread_ids.clone(),
         };
 
-        <span class="kw">let </span>(garbage, join_handle) = GarbageDisposal::new_joinable();
+        <span class="kw">let </span>(garbage, join_handle) = GarbageDisposal::&lt;SomeStruct&gt;::new_joinable();
         garbage.dispose(x2);
         drop(garbage); <span class="comment">// breaks the while loop by dropping rx
         </span>join_handle.join().ok(); <span class="comment">// wait for thread to finish its work

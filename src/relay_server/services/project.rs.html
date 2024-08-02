@@ -840,6 +840,11 @@
 <a href="#840" id="840">840</a>
 <a href="#841" id="841">841</a>
 <a href="#842" id="842">842</a>
+<a href="#843" id="843">843</a>
+<a href="#844" id="844">844</a>
+<a href="#845" id="845">845</a>
+<a href="#846" id="846">846</a>
+<a href="#847" id="847">847</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::sync::Arc;
 <span class="kw">use </span>std::time::Duration;
 
@@ -1263,6 +1268,8 @@
 
     <span class="doccomment">/// Replaces the internal project state with a new one and triggers pending actions.
     ///
+    /// Returns the *old* project state if it was replaced.
+    ///
     /// This flushes pending envelopes from [`ValidateEnvelope`] and
     /// notifies all pending receivers from [`get_state`](Self::get_state).
     ///
@@ -1276,7 +1283,7 @@
         state: ProjectFetchState,
         envelope_processor: <span class="kw-2">&amp;</span>Addr&lt;EnvelopeProcessor&gt;,
         no_cache: bool,
-    ) {
+    ) -&gt; <span class="prelude-ty">Option</span>&lt;ProjectFetchState&gt; {
         <span class="comment">// Initiate the backoff if the incoming state is invalid. Reset it otherwise.
         </span><span class="kw">if </span>state.is_pending() {
             <span class="self">self</span>.next_fetch_attempt = Instant::now().checked_add(<span class="self">self</span>.backoff.next_backoff());
@@ -1287,23 +1294,24 @@
 
         <span class="kw">let </span><span class="prelude-val">Some</span>(channel) = <span class="self">self</span>.state_channel.take() <span class="kw">else </span>{
             <span class="macro">relay_log::error!</span>(tags.project_key = %<span class="self">self</span>.project_key, <span class="string">"channel is missing for the state update"</span>);
-            <span class="kw">return</span>;
+            <span class="kw">return </span><span class="prelude-val">None</span>;
         };
 
         <span class="comment">// If the channel has `no_cache` set but we are not a `no_cache` request, we have
         // been superseeded. Put it back and let the other request take precedence.
         </span><span class="kw">if </span>channel.no_cache &amp;&amp; !no_cache {
             <span class="self">self</span>.state_channel = <span class="prelude-val">Some</span>(channel);
-            <span class="kw">return</span>;
+            <span class="kw">return </span><span class="prelude-val">None</span>;
         }
 
         <span class="comment">// If the state is pending, return back the taken channel and schedule state update.
         </span><span class="kw">if </span>state.is_pending() {
             <span class="comment">// Only overwrite if the old state is expired:
             </span><span class="kw">let </span>is_expired = <span class="macro">matches!</span>(<span class="self">self</span>.state.expiry_state(<span class="kw-2">&amp;</span><span class="self">self</span>.config), ExpiryState::Expired);
-            <span class="kw">if </span>is_expired {
-                <span class="self">self</span>.state = state;
-            }
+            <span class="kw">let </span>old_state = <span class="kw">match </span>is_expired {
+                <span class="bool-val">true </span>=&gt; <span class="prelude-val">Some</span>(std::mem::replace(<span class="kw-2">&amp;mut </span><span class="self">self</span>.state, state)),
+                <span class="bool-val">false </span>=&gt; <span class="prelude-val">None</span>,
+            };
 
             <span class="self">self</span>.state_channel = <span class="prelude-val">Some</span>(channel);
             <span class="kw">let </span>attempts = <span class="self">self</span>.backoff.attempt() + <span class="number">1</span>;
@@ -1313,16 +1321,18 @@
             );
 
             project_cache.send(RequestUpdate::new(<span class="self">self</span>.project_key, no_cache));
-            <span class="kw">return</span>;
+            <span class="kw">return </span>old_state;
         }
 
-        <span class="self">self</span>.state = state;
+        <span class="kw">let </span>old_state = std::mem::replace(<span class="kw-2">&amp;mut </span><span class="self">self</span>.state, state);
 
         <span class="comment">// Flush all waiting recipients.
         </span><span class="macro">relay_log::debug!</span>(<span class="string">"project state {} updated"</span>, <span class="self">self</span>.project_key);
         channel.inner.send(<span class="self">self</span>.state.current_state(<span class="kw-2">&amp;</span><span class="self">self</span>.config));
 
         <span class="self">self</span>.after_state_updated(envelope_processor);
+
+        <span class="prelude-val">Some</span>(old_state)
     }
 
     <span class="doccomment">/// Called after all state validations and after the project state is updated.
