@@ -574,7 +574,7 @@ struct ProjectCacheBroker {
     // Need hashbrown because extract_if is not stable in std yet.
     projects: hashbrown::HashMap<ProjectKey, Project>,
     /// Utility for disposing of expired project data in a background thread.
-    garbage_disposal: GarbageDisposal<Project>,
+    garbage_disposal: GarbageDisposal<ProjectGarbage>,
     /// Source for fetching project states from the upstream or from disk.
     source: ProjectSource,
     /// Tx channel used to send the updated project state whenever requested.
@@ -711,12 +711,15 @@ impl ProjectCacheBroker {
         let project_cache = self.services.project_cache.clone();
         let envelope_processor = self.services.envelope_processor.clone();
 
-        self.get_or_create_project(project_key).update_state(
+        let old_state = self.get_or_create_project(project_key).update_state(
             &project_cache,
             state,
             &envelope_processor,
             no_cache,
         );
+        if let Some(old_state) = old_state {
+            self.garbage_disposal.dispose(old_state);
+        }
 
         // Try to schedule unspool if it's not scheduled yet.
         self.schedule_unspool();
@@ -1487,6 +1490,26 @@ pub struct FetchOptionalProjectState {
 impl FetchOptionalProjectState {
     pub fn project_key(&self) -> ProjectKey {
         self.project_key
+    }
+}
+
+/// Sum type for all objects which need to be discareded through the [`GarbageDisposal`].
+#[derive(Debug)]
+#[allow(dead_code)] // Fields are never read, only used for discarding/dropping data.
+enum ProjectGarbage {
+    Project(Project),
+    ProjectFetchState(ProjectFetchState),
+}
+
+impl From<Project> for ProjectGarbage {
+    fn from(value: Project) -> Self {
+        Self::Project(value)
+    }
+}
+
+impl From<ProjectFetchState> for ProjectGarbage {
+    fn from(value: ProjectFetchState) -> Self {
+        Self::ProjectFetchState(value)
     }
 }
 
