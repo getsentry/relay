@@ -558,11 +558,6 @@
 <a href="#558" id="558">558</a>
 <a href="#559" id="559">559</a>
 <a href="#560" id="560">560</a>
-<a href="#561" id="561">561</a>
-<a href="#562" id="562">562</a>
-<a href="#563" id="563">563</a>
-<a href="#564" id="564">564</a>
-<a href="#565" id="565">565</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Profiles related processor code.
 
 </span><span class="kw">use </span>relay_dynamic_config::Feature;
@@ -582,17 +577,15 @@
 ///
 /// Returns the profile id of the single remaining profile, if there is one.
 </span><span class="kw">pub fn </span>filter&lt;G&gt;(state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;G&gt;) -&gt; <span class="prelude-ty">Option</span>&lt;ProfileId&gt; {
-    <span class="kw">let </span>profiling_enabled = state.project_state.has_feature(Feature::Profiling);
+    <span class="kw">let </span>profiling_disabled = state.should_filter(Feature::Profiling);
     <span class="kw">let </span>has_transaction = state.event_type() == <span class="prelude-val">Some</span>(EventType::Transaction);
-    <span class="kw">let </span>keep_unsampled_profiles = state
-        .project_state
-        .has_feature(Feature::IngestUnsampledProfiles);
+    <span class="kw">let </span>keep_unsampled_profiles = !state.should_filter(Feature::IngestUnsampledProfiles);
 
     <span class="kw">let </span><span class="kw-2">mut </span>profile_id = <span class="prelude-val">None</span>;
     state.managed_envelope.retain_items(|item| <span class="kw">match </span>item.ty() {
         <span class="comment">// First profile found in the envelope, we'll keep it if metadata are valid.
         </span>ItemType::Profile <span class="kw">if </span>profile_id.is_none() =&gt; {
-            <span class="kw">if </span>!profiling_enabled {
+            <span class="kw">if </span>profiling_disabled {
                 <span class="kw">return </span>ItemAction::DropSilently;
             }
 
@@ -655,10 +648,7 @@
 }
 
 <span class="doccomment">/// Processes profiles and set the profile ID in the profile context on the transaction if successful.
-</span><span class="kw">pub fn </span>process(
-    state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;TransactionGroup&gt;,
-    config: <span class="kw-2">&amp;</span>Config,
-) -&gt; <span class="prelude-ty">Option</span>&lt;ProfileId&gt; {
+</span><span class="kw">pub fn </span>process(state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;TransactionGroup&gt;) -&gt; <span class="prelude-ty">Option</span>&lt;ProfileId&gt; {
     <span class="kw">let </span>profiling_enabled = state.project_state.has_feature(Feature::Profiling);
     <span class="kw">let </span><span class="kw-2">mut </span>profile_id = <span class="prelude-val">None</span>;
 
@@ -674,7 +664,7 @@
                 <span class="kw">return </span>ItemAction::DropSilently;
             };
 
-            <span class="kw">match </span>expand_profile(item, event, config) {
+            <span class="kw">match </span>expand_profile(item, event, <span class="kw-2">&amp;</span>state.config) {
                 <span class="prelude-val">Ok</span>(id) =&gt; {
                     profile_id = <span class="prelude-val">Some</span>(id);
                     ItemAction::Keep

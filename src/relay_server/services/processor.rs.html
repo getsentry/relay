@@ -4106,6 +4106,16 @@
 <a href="#4106" id="4106">4106</a>
 <a href="#4107" id="4107">4107</a>
 <a href="#4108" id="4108">4108</a>
+<a href="#4109" id="4109">4109</a>
+<a href="#4110" id="4110">4110</a>
+<a href="#4111" id="4111">4111</a>
+<a href="#4112" id="4112">4112</a>
+<a href="#4113" id="4113">4113</a>
+<a href="#4114" id="4114">4114</a>
+<a href="#4115" id="4115">4115</a>
+<a href="#4116" id="4116">4116</a>
+<a href="#4117" id="4117">4117</a>
+<a href="#4118" id="4118">4118</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeMap, BTreeSet, HashMap};
 <span class="kw">use </span>std::error::Error;
@@ -4906,6 +4916,9 @@
     <span class="doccomment">/// The state of the project that this envelope belongs to.
     </span>project_state: Arc&lt;ProjectInfo&gt;,
 
+    <span class="doccomment">/// The config of this Relay instance.
+    </span>config: Arc&lt;Config&gt;,
+
     <span class="doccomment">/// The state of the project that initiated the current trace.
     /// This is the config used for trace-based dynamic sampling.
     </span>sampling_project_state: <span class="prelude-ty">Option</span>&lt;Arc&lt;ProjectInfo&gt;&gt;,
@@ -4970,6 +4983,17 @@
     <span class="doccomment">/// Removes the event payload from this processing state.
     </span><span class="kw">fn </span>remove_event(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
         <span class="self">self</span>.event = Annotated::empty();
+    }
+
+    <span class="doccomment">/// Function for on-off switches that filter specific item types (profiles, spans)
+    /// based on a feature flag.
+    ///
+    /// If the project config did not come from the upstream, we keep the items
+    </span><span class="kw">fn </span>should_filter(<span class="kw-2">&amp;</span><span class="self">self</span>, feature: Feature) -&gt; bool {
+        <span class="kw">match </span><span class="self">self</span>.config.relay_mode() {
+            RelayMode::Proxy | RelayMode::Static | RelayMode::Capture =&gt; <span class="bool-val">false</span>,
+            RelayMode::Managed =&gt; !<span class="self">self</span>.project_state.has_feature(feature),
+        }
     }
 }
 
@@ -5414,8 +5438,10 @@
     <span class="doccomment">/// Creates and initializes the processing state.
     ///
     /// This applies defaults to the envelope and initializes empty rate limits.
+    </span><span class="attr">#[allow(clippy::too_many_arguments)]
     </span><span class="kw">fn </span>prepare_state&lt;G&gt;(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
+        config: Arc&lt;Config&gt;,
         global_config: Arc&lt;GlobalConfig&gt;,
         <span class="kw-2">mut </span>managed_envelope: TypedEnvelope&lt;G&gt;,
         project_id: ProjectId,
@@ -5469,6 +5495,7 @@
             sample_rates: <span class="prelude-val">None</span>,
             extracted_metrics,
             project_state,
+            config,
             sampling_project_state,
             project_id,
             managed_envelope,
@@ -5862,7 +5889,7 @@
             <span class="macro">matches!</span>(filter_run, FiltersStatus::Ok) || <span class="self">self</span>.inner.config.processing_enabled();
 
         <span class="kw">let </span>sampling_result = <span class="kw">match </span>run_dynamic_sampling {
-            <span class="bool-val">true </span>=&gt; dynamic_sampling::run(state, <span class="kw-2">&amp;</span><span class="self">self</span>.inner.config),
+            <span class="bool-val">true </span>=&gt; dynamic_sampling::run(state),
             <span class="bool-val">false </span>=&gt; SamplingResult::Pending,
         };
 
@@ -5871,7 +5898,7 @@
             <span class="comment">// Process profiles before dropping the transaction, if necessary.
             // Before metric extraction to make sure the profile count is reflected correctly.
             </span><span class="kw">let </span>profile_id = <span class="kw">match </span>keep_profiles {
-                <span class="bool-val">true </span>=&gt; profile::process(state, <span class="kw-2">&amp;</span><span class="self">self</span>.inner.config),
+                <span class="bool-val">true </span>=&gt; profile::process(state),
                 <span class="bool-val">false </span>=&gt; profile_id,
             };
 
@@ -5899,7 +5926,7 @@
 
         <span class="macro">if_processing!</span>(<span class="self">self</span>.inner.config, {
             <span class="comment">// Process profiles before extracting metrics, to make sure they are removed if they are invalid.
-            </span><span class="kw">let </span>profile_id = profile::process(state, <span class="kw-2">&amp;</span><span class="self">self</span>.inner.config);
+            </span><span class="kw">let </span>profile_id = profile::process(state);
             profile::transfer_id(state, profile_id);
 
             <span class="comment">// Always extract metrics in processing Relays for sampled items.
@@ -5909,7 +5936,7 @@
                 .project_state
                 .has_feature(Feature::ExtractSpansFromEvent)
             {
-                span::extract_from_event(state, <span class="kw-2">&amp;</span><span class="self">self</span>.inner.config, <span class="kw-2">&amp;</span>global_config);
+                span::extract_from_event(state, <span class="kw-2">&amp;</span>global_config);
             }
 
             <span class="self">self</span>.enforce_quotas(state)<span class="question-mark">?</span>;
@@ -5981,11 +6008,7 @@
             <span class="self">self</span>.enforce_quotas(state)<span class="question-mark">?</span>;
         });
 
-        report::process_client_reports(
-            state,
-            <span class="kw-2">&amp;</span><span class="self">self</span>.inner.config,
-            <span class="self">self</span>.inner.addrs.outcome_aggregator.clone(),
-        );
+        report::process_client_reports(state, <span class="self">self</span>.inner.addrs.outcome_aggregator.clone());
 
         <span class="prelude-val">Ok</span>(())
     }
@@ -5995,11 +6018,7 @@
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;ReplayGroup&gt;,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ProcessingError&gt; {
-        replay::process(
-            state,
-            <span class="kw-2">&amp;</span><span class="self">self</span>.inner.config,
-            <span class="kw-2">&amp;</span><span class="self">self</span>.inner.global_config.current(),
-        )<span class="question-mark">?</span>;
+        replay::process(state, <span class="kw-2">&amp;</span><span class="self">self</span>.inner.global_config.current())<span class="question-mark">?</span>;
         <span class="macro">if_processing!</span>(<span class="self">self</span>.inner.config, {
             <span class="self">self</span>.enforce_quotas(state)<span class="question-mark">?</span>;
         });
@@ -6030,7 +6049,7 @@
         <span class="macro">if_processing!</span>(<span class="self">self</span>.inner.config, {
             <span class="kw">let </span>global_config = <span class="self">self</span>.inner.global_config.current();
 
-            span::process(state, <span class="self">self</span>.inner.config.clone(), <span class="kw-2">&amp;</span>global_config);
+            span::process(state, <span class="kw-2">&amp;</span>global_config);
 
             <span class="self">self</span>.enforce_quotas(state)<span class="question-mark">?</span>;
         });
@@ -6062,6 +6081,7 @@
             (<span class="macro-nonterminal">$</span><span class="kw">fn</span>:<span class="macro-nonterminal">ident</span>) =&gt; {{
                 <span class="kw">let </span>managed_envelope = managed_envelope.try_into()<span class="question-mark">?</span>;
                 <span class="kw">let </span><span class="kw-2">mut </span>state = <span class="self">self</span>.prepare_state(
+                    <span class="self">self</span>.inner.config.clone(),
                     <span class="self">self</span>.inner.global_config.current(),
                     managed_envelope,
                     project_id,

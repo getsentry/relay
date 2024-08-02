@@ -652,7 +652,6 @@
 
 <span class="kw">use </span>chrono::{Duration <span class="kw">as </span>SignedDuration, Utc};
 <span class="kw">use </span>relay_common::time::UnixTimestamp;
-<span class="kw">use </span>relay_config::Config;
 <span class="kw">use </span>relay_event_normalization::ClockDriftProcessor;
 <span class="kw">use </span>relay_event_schema::protocol::{ClientReport, UserReport};
 <span class="kw">use </span>relay_filter::FilterStatKey;
@@ -688,12 +687,12 @@
 /// system.
 </span><span class="kw">pub fn </span>process_client_reports(
     state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;ClientReportGroup&gt;,
-    config: <span class="kw-2">&amp;</span>Config,
     outcome_aggregator: Addr&lt;TrackOutcome&gt;,
 ) {
     <span class="comment">// if client outcomes are disabled we leave the the client reports unprocessed
     // and pass them on.
-    </span><span class="kw">if </span>!config.emit_outcomes().any() || !config.emit_client_outcomes() {
+    </span><span class="kw">let </span>config = <span class="kw-2">&amp;</span>state.config;
+    <span class="kw">if </span>!config.emit_outcomes().any() || !config.emit_client_outcomes() {
         <span class="comment">// if a processing relay has client outcomes disabled we drop them.
         </span><span class="kw">if </span>config.processing_enabled() {
             state.managed_envelope.retain_items(|item| <span class="kw">match </span>item.ty() {
@@ -908,6 +907,7 @@
 
     <span class="kw">use </span>std::sync::Arc;
 
+    <span class="kw">use </span>relay_config::Config;
     <span class="kw">use </span>relay_event_schema::protocol::EventId;
     <span class="kw">use </span>relay_sampling::evaluation::ReservoirCounters;
 

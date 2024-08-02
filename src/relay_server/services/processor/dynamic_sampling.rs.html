@@ -802,6 +802,10 @@
 <a href="#802" id="802">802</a>
 <a href="#803" id="803">803</a>
 <a href="#804" id="804">804</a>
+<a href="#805" id="805">805</a>
+<a href="#806" id="806">806</a>
+<a href="#807" id="807">807</a>
+<a href="#808" id="808">808</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Dynamic sampling processor related code.
 
 </span><span class="kw">use </span>std::ops::ControlFlow;
@@ -863,7 +867,7 @@
 }
 
 <span class="doccomment">/// Computes the sampling decision on the incoming event
-</span><span class="kw">pub fn </span>run&lt;Group&gt;(state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;Group&gt;, config: <span class="kw-2">&amp;</span>Config) -&gt; SamplingResult
+</span><span class="kw">pub fn </span>run&lt;Group&gt;(state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;Group&gt;) -&gt; SamplingResult
 <span class="kw">where
     </span>Group: Sampling,
 {
@@ -885,7 +889,7 @@
     <span class="kw">let </span>reservoir = Group::supports_reservoir_sampling().then_some(<span class="kw-2">&amp;</span>state.reservoir);
 
     compute_sampling_decision(
-        config.processing_enabled(),
+        state.config.processing_enabled(),
         reservoir,
         sampling_config,
         state.event.value(),
@@ -1226,13 +1230,15 @@
         relay_test::setup();
         <span class="kw">let </span>(outcome_aggregator, test_store) = testutils::processor_services();
 
-        <span class="kw">let </span>config = Config::from_json_value(<span class="macro">serde_json::json!</span>({
-            <span class="string">"processing"</span>: {
-                <span class="string">"enabled"</span>: <span class="bool-val">true</span>,
-                <span class="string">"kafka_config"</span>: [],
-            }
-        }))
-        .unwrap();
+        <span class="kw">let </span>config = Arc::new(
+            Config::from_json_value(<span class="macro">serde_json::json!</span>({
+                <span class="string">"processing"</span>: {
+                    <span class="string">"enabled"</span>: <span class="bool-val">true</span>,
+                    <span class="string">"kafka_config"</span>: [],
+                }
+            }))
+            .unwrap(),
+        );
 
         <span class="comment">// Gets a ProcessEnvelopeState, either with or without the metrics_exracted flag toggled.
         </span><span class="kw">let </span>get_state = |version: <span class="prelude-ty">Option</span>&lt;u16&gt;| {
@@ -1270,6 +1276,7 @@
                     Arc::new(GlobalConfig::default()),
                     envelope.dsc(),
                 ),
+                config: config.clone(),
                 project_state,
                 sampling_project_state: <span class="prelude-val">None</span>,
                 project_id: ProjectId::new(<span class="number">42</span>),
@@ -1290,17 +1297,17 @@
 
         <span class="comment">// None represents no TransactionMetricsConfig, DS will not be run
         </span><span class="kw">let </span><span class="kw-2">mut </span>state = get_state(<span class="prelude-val">None</span>);
-        <span class="kw">let </span>sampling_result = run(<span class="kw-2">&amp;mut </span>state, <span class="kw-2">&amp;</span>config);
+        <span class="kw">let </span>sampling_result = run(<span class="kw-2">&amp;mut </span>state);
         <span class="macro">assert_eq!</span>(sampling_result.decision(), SamplingDecision::Keep);
 
         <span class="comment">// Current version is 3, so it won't run DS if it's outdated
         </span><span class="kw">let </span><span class="kw-2">mut </span>state = get_state(<span class="prelude-val">Some</span>(<span class="number">2</span>));
-        <span class="kw">let </span>sampling_result = run(<span class="kw-2">&amp;mut </span>state, <span class="kw-2">&amp;</span>config);
+        <span class="kw">let </span>sampling_result = run(<span class="kw-2">&amp;mut </span>state);
         <span class="macro">assert_eq!</span>(sampling_result.decision(), SamplingDecision::Keep);
 
         <span class="comment">// Dynamic sampling is run, as the transactionmetrics version is up to date.
         </span><span class="kw">let </span><span class="kw-2">mut </span>state = get_state(<span class="prelude-val">Some</span>(<span class="number">3</span>));
-        <span class="kw">let </span>sampling_result = run(<span class="kw-2">&amp;mut </span>state, <span class="kw-2">&amp;</span>config);
+        <span class="kw">let </span>sampling_result = run(<span class="kw-2">&amp;mut </span>state);
         <span class="macro">assert_eq!</span>(sampling_result.decision(), SamplingDecision::Drop);
     }
 
@@ -1545,6 +1552,7 @@
                 Arc::new(GlobalConfig::default()),
                 envelope.dsc(),
             ),
+            config: Arc::new(Config::default()),
             project_state: project_info,
             sampling_project_state: {
                 <span class="kw">let </span><span class="kw-2">mut </span>state = ProjectInfo::default();
@@ -1589,7 +1597,7 @@
             event_fully_normalized: <span class="bool-val">false</span>,
         };
 
-        run(<span class="kw-2">&amp;mut </span>state, <span class="kw-2">&amp;</span>Config::default())
+        run(<span class="kw-2">&amp;mut </span>state)
     }
 
     <span class="attr">#[test]

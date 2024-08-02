@@ -317,14 +317,11 @@
 <a href="#317" id="317">317</a>
 <a href="#318" id="318">318</a>
 <a href="#319" id="319">319</a>
-<a href="#320" id="320">320</a>
-<a href="#321" id="321">321</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Replay related processor code.
 </span><span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::net::IpAddr;
 
 <span class="kw">use </span>bytes::Bytes;
-<span class="kw">use </span>relay_config::Config;
 <span class="kw">use </span>relay_dynamic_config::{Feature, GlobalConfig, ProjectConfig};
 <span class="kw">use </span>relay_event_normalization::replay::{<span class="self">self</span>, ReplayError};
 <span class="kw">use </span>relay_event_normalization::RawUserAgentInfo;
@@ -344,11 +341,10 @@
 <span class="doccomment">/// Removes replays if the feature flag is not enabled.
 </span><span class="kw">pub fn </span>process(
     state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;ReplayGroup&gt;,
-    config: <span class="kw-2">&amp;</span>Config,
     global_config: <span class="kw-2">&amp;</span>GlobalConfig,
 ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ProcessingError&gt; {
     <span class="kw">let </span>project_state = <span class="kw-2">&amp;</span>state.project_state;
-    <span class="kw">let </span>replays_enabled = project_state.has_feature(Feature::SessionReplay);
+    <span class="kw">let </span>replays_disabled = state.should_filter(Feature::SessionReplay);
     <span class="kw">let </span>scrubbing_enabled = project_state.has_feature(Feature::SessionReplayRecordingScrubbing);
     <span class="kw">let </span>replay_video_disabled = project_state.has_feature(Feature::SessionReplayVideoDisabled);
 
@@ -356,7 +352,7 @@
     <span class="kw">let </span>client_addr = meta.client_addr();
     <span class="kw">let </span>event_id = state.envelope().event_id();
 
-    <span class="kw">let </span>limit = config.max_replay_uncompressed_size();
+    <span class="kw">let </span>limit = state.config.max_replay_uncompressed_size();
     <span class="kw">let </span>project_config = project_state.config();
     <span class="kw">let </span>datascrubbing_config = project_config
         .datascrubbing_settings
@@ -377,7 +373,7 @@
         project_state.has_feature(Feature::SessionReplayCombinedEnvelopeItems);
 
     <span class="comment">// If the replay feature is not enabled drop the items silenty.
-    </span><span class="kw">if </span>!replays_enabled {
+    </span><span class="kw">if </span>replays_disabled {
         state.managed_envelope.drop_items_silently();
         <span class="kw">return </span><span class="prelude-val">Ok</span>(());
     }
