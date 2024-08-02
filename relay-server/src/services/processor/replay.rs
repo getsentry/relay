@@ -27,7 +27,7 @@ pub fn process(
     global_config: &GlobalConfig,
 ) -> Result<(), ProcessingError> {
     let project_state = &state.project_state;
-    let replays_enabled = project_state.has_feature(Feature::SessionReplay);
+    let replays_disabled = state.feature_disabled_by_upstream(Feature::SessionReplay);
     let scrubbing_enabled = project_state.has_feature(Feature::SessionReplayRecordingScrubbing);
     let replay_video_disabled = project_state.has_feature(Feature::SessionReplayVideoDisabled);
 
@@ -56,7 +56,7 @@ pub fn process(
         project_state.has_feature(Feature::SessionReplayCombinedEnvelopeItems);
 
     // If the replay feature is not enabled drop the items silenty.
-    if !replays_enabled {
+    if replays_disabled {
         state.managed_envelope.drop_items_silently();
         return Ok(());
     }
