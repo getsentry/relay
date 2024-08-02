@@ -798,6 +798,9 @@ struct ProcessEnvelopeState<'a, Group> {
     /// The state of the project that this envelope belongs to.
     project_state: Arc<ProjectInfo>,
 
+    /// The config of this Relay instance.
+    config: Arc<Config>,
+
     /// The state of the project that initiated the current trace.
     /// This is the config used for trace-based dynamic sampling.
     sampling_project_state: Option<Arc<ProjectInfo>>,
@@ -862,6 +865,17 @@ impl<'a, Group> ProcessEnvelopeState<'a, Group> {
     /// Removes the event payload from this processing state.
     fn remove_event(&mut self) {
         self.event = Annotated::empty();
+    }
+
+    /// Returns `true` for managed relays if a feature is disabled.
+    ///
+    /// Some envelope items are dropped based on a feature flag,
+    /// but we want to forward them in proxy mode.
+    fn feature_disabled_by_upstream(&self, feature: Feature) -> bool {
+        match self.config.relay_mode() {
+            RelayMode::Proxy | RelayMode::Static | RelayMode::Capture => false,
+            RelayMode::Managed => self.project_state.has_feature(feature),
+        }
     }
 }
 
@@ -1308,6 +1322,7 @@ impl EnvelopeProcessorService {
     /// This applies defaults to the envelope and initializes empty rate limits.
     fn prepare_state<G>(
         &self,
+        config: Arc<Config>,
         global_config: Arc<GlobalConfig>,
         mut managed_envelope: TypedEnvelope<G>,
         project_id: ProjectId,
@@ -1361,6 +1376,7 @@ impl EnvelopeProcessorService {
             sample_rates: None,
             extracted_metrics,
             project_state,
+            config,
             sampling_project_state,
             project_id,
             managed_envelope,
@@ -1954,6 +1970,7 @@ impl EnvelopeProcessorService {
             ($fn:ident) => {{
                 let managed_envelope = managed_envelope.try_into()?;
                 let mut state = self.prepare_state(
+                    self.inner.config.clone(),
                     self.inner.global_config.current(),
                     managed_envelope,
                     project_id,

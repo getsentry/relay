@@ -466,6 +466,7 @@ mod tests {
                     Arc::new(GlobalConfig::default()),
                     envelope.dsc(),
                 ),
+                config: Arc::new(Config::default()),
                 project_state,
                 sampling_project_state: None,
                 project_id: ProjectId::new(42),
@@ -741,6 +742,7 @@ mod tests {
                 Arc::new(GlobalConfig::default()),
                 envelope.dsc(),
             ),
+            config: Arc::new(Config::default()),
             project_state: project_info,
             sampling_project_state: {
                 let mut state = ProjectInfo::default();
