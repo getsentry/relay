@@ -874,7 +874,7 @@ impl<'a, Group> ProcessEnvelopeState<'a, Group> {
     fn feature_disabled_by_upstream(&self, feature: Feature) -> bool {
         match self.config.relay_mode() {
             RelayMode::Proxy | RelayMode::Static | RelayMode::Capture => false,
-            RelayMode::Managed => self.project_state.has_feature(feature),
+            RelayMode::Managed => !self.project_state.has_feature(feature),
         }
     }
 }

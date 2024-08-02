@@ -5,6 +5,7 @@
 **Bug Fixes**:
 
 - Allow metrics summaries with only `count` (for sets). ([#3864](https://github.com/getsentry/relay/pull/3864))
+- Do not drop replays, profiles and standalone spans in proxy Relays. ([#3888](https://github.com/getsentry/relay/pull/3888))
 
 **Internal**:
 
