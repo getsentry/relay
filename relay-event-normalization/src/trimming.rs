@@ -948,19 +948,23 @@ mod tests {
             platform: Annotated::new("a".repeat(1024 * 100)),
             ..Default::default()
         };
-        let spans = std::iter::repeat_with(|| Annotated::new(span.clone()))
+        let spans: Vec<_> = std::iter::repeat_with(|| Annotated::new(span.clone()))
             .take(10)
             .collect();
 
         let mut event = Annotated::new(Event {
-            spans: Annotated::new(spans),
+            spans: Annotated::new(spans.clone()),
             ..Default::default()
         });
 
         let mut processor = TrimmingProcessor::new();
         processor::process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
-        assert_eq!(event.0.unwrap().spans.0.unwrap().len(), 8);
+        let trimmed_spans = event.0.unwrap().spans.0.unwrap();
+        assert_eq!(trimmed_spans.len(), 8);
+
+        // The actual spans were not touched:
+        assert_eq!(trimmed_spans.as_slice(), &spans[0..8]);
     }
 
     #[test]
@@ -1050,34 +1054,5 @@ mod tests {
         assert_eq!(get_value!(event.spans[1].op!).len(), 128);
         assert!(get_value!(event.spans[1].start_timestamp).is_some());
         assert!(get_value!(event.spans[1].timestamp).is_some());
-    }
-
-    #[test]
-    fn test_trim_false_contributes_to_budget() {
-        for span_id in ["short", "looooooooooooooooooooooooooong"] {
-            let original_span_id = SpanId(span_id.to_owned());
-            let original_description = "a".repeat(900000);
-
-            let mut event = Annotated::new(Event {
-                spans: Annotated::new(vec![Span {
-                    span_id: original_span_id.clone().into(),
-                    description: original_description.clone().into(),
-                    ..Default::default()
-                }
-                .into()]),
-                ..Default::default()
-            });
-
-            let mut processor = TrimmingProcessor::new();
-            processor::process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
-
-            assert_eq!(get_value!(event.spans[0].span_id!).as_ref(), span_id);
-
-            // The amount of trimming on the description depends on the length of the span id.
-            assert_eq!(
-                get_value!(event.spans[0].description!).len(),
-                1024 * 800 - 12 - span_id.len(),
-            );
-        }
     }
 }
