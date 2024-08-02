@@ -5,6 +5,7 @@
 **Bug Fixes**:
 
 - Allow metrics summaries with only `count` (for sets). ([#3864](https://github.com/getsentry/relay/pull/3864))
+- Do not trim any span field. Remove entire span instead. ([#3890](https://github.com/getsentry/relay/pull/3890))
 
 **Internal**:
 
