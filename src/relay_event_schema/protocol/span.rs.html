@@ -812,6 +812,9 @@
 <a href="#812" id="812">812</a>
 <a href="#813" id="813">813</a>
 <a href="#814" id="814">814</a>
+<a href="#815" id="815">815</a>
+<a href="#816" id="816">816</a>
+<a href="#817" id="817">817</a>
 </pre></div><pre class="rust"><code><span class="kw">mod </span>convert;
 
 <span class="attr">#[cfg(feature = <span class="string">"jsonschema"</span>)]
@@ -826,14 +829,14 @@
 
 <span class="attr">#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 #[cfg_attr(feature = <span class="string">"jsonschema"</span>, derive(JsonSchema))]
-#[metastructure(process_func = <span class="string">"process_span"</span>, value_type = <span class="string">"Span"</span>, trim = <span class="string">"disabled"</span>)]
+#[metastructure(process_func = <span class="string">"process_span"</span>, value_type = <span class="string">"Span"</span>)]
 </span><span class="kw">pub struct </span>Span {
     <span class="doccomment">/// Timestamp when the span was ended.
-    </span><span class="attr">#[metastructure(required = <span class="string">"true"</span>)]
+    </span><span class="attr">#[metastructure(required = <span class="string">"true"</span>, trim = <span class="string">"false"</span>)]
     </span><span class="kw">pub </span>timestamp: Annotated&lt;Timestamp&gt;,
 
     <span class="doccomment">/// Timestamp when the span started.
-    </span><span class="attr">#[metastructure(required = <span class="string">"true"</span>)]
+    </span><span class="attr">#[metastructure(required = <span class="string">"true"</span>, trim = <span class="string">"false"</span>)]
     </span><span class="kw">pub </span>start_timestamp: Annotated&lt;Timestamp&gt;,
 
     <span class="doccomment">/// The amount of time in milliseconds spent in this span,
@@ -841,27 +844,30 @@
     </span><span class="kw">pub </span>exclusive_time: Annotated&lt;f64&gt;,
 
     <span class="doccomment">/// Span type (see `OperationType` docs).
-    </span><span class="attr">#[metastructure(max_chars = <span class="number">128</span>)]
+    </span><span class="attr">#[metastructure(max_chars = <span class="number">128</span>, trim = <span class="string">"false"</span>)]
     </span><span class="kw">pub </span>op: Annotated&lt;OperationType&gt;,
 
     <span class="doccomment">/// The Span id.
-    </span><span class="attr">#[metastructure(required = <span class="string">"true"</span>)]
+    </span><span class="attr">#[metastructure(required = <span class="string">"true"</span>, trim = <span class="string">"false"</span>)]
     </span><span class="kw">pub </span>span_id: Annotated&lt;SpanId&gt;,
 
     <span class="doccomment">/// The ID of the span enclosing this span.
+    </span><span class="attr">#[metastructure(trim = <span class="string">"false"</span>)]
     </span><span class="kw">pub </span>parent_span_id: Annotated&lt;SpanId&gt;,
 
     <span class="doccomment">/// The ID of the trace the span belongs to.
-    </span><span class="attr">#[metastructure(required = <span class="string">"true"</span>)]
+    </span><span class="attr">#[metastructure(required = <span class="string">"true"</span>, trim = <span class="string">"false"</span>)]
     </span><span class="kw">pub </span>trace_id: Annotated&lt;TraceId&gt;,
 
     <span class="doccomment">/// A unique identifier for a segment within a trace (8 byte hexadecimal string).
     ///
     /// For spans embedded in transactions, the `segment_id` is the `span_id` of the containing
     /// transaction.
+    </span><span class="attr">#[metastructure(trim = <span class="string">"false"</span>)]
     </span><span class="kw">pub </span>segment_id: Annotated&lt;SpanId&gt;,
 
     <span class="doccomment">/// Whether or not the current span is the root of the segment.
+    </span><span class="attr">#[metastructure(trim = <span class="string">"false"</span>)]
     </span><span class="kw">pub </span>is_segment: Annotated&lt;bool&gt;,
 
     <span class="doccomment">/// The status of a span.
