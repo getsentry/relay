@@ -35,8 +35,17 @@ pub struct ProfileMetadata {
     pub platform: String,
     pub release: String,
 
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub client_sdk: Option<ClientSdk>,
+
     /// Hard-coded string containing "2" to indicate the format version.
     pub version: Version,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ClientSdk {
+    name: String,
+    version: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
