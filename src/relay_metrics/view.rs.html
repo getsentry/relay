@@ -1163,6 +1163,25 @@
 <a href="#1163" id="1163">1163</a>
 <a href="#1164" id="1164">1164</a>
 <a href="#1165" id="1165">1165</a>
+<a href="#1166" id="1166">1166</a>
+<a href="#1167" id="1167">1167</a>
+<a href="#1168" id="1168">1168</a>
+<a href="#1169" id="1169">1169</a>
+<a href="#1170" id="1170">1170</a>
+<a href="#1171" id="1171">1171</a>
+<a href="#1172" id="1172">1172</a>
+<a href="#1173" id="1173">1173</a>
+<a href="#1174" id="1174">1174</a>
+<a href="#1175" id="1175">1175</a>
+<a href="#1176" id="1176">1176</a>
+<a href="#1177" id="1177">1177</a>
+<a href="#1178" id="1178">1178</a>
+<a href="#1179" id="1179">1179</a>
+<a href="#1180" id="1180">1180</a>
+<a href="#1181" id="1181">1181</a>
+<a href="#1182" id="1182">1182</a>
+<a href="#1183" id="1183">1183</a>
+<a href="#1184" id="1184">1184</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_common::time::UnixTimestamp;
 <span class="kw">use </span>serde::ser::{SerializeMap, SerializeSeq};
 <span class="kw">use </span>serde::Serialize;
@@ -1472,7 +1491,7 @@
                 <span class="kw">return </span><span class="prelude-val">None</span>;
             };
 
-            <span class="kw">match </span>split_at(
+            <span class="kw">match </span>split(
                 <span class="kw-2">&amp;</span>bucket,
                 remaining_bytes,
                 <span class="self">self</span>.max_size_bytes / BUCKET_SPLIT_FACTOR,
@@ -1486,10 +1505,10 @@
                     <span class="kw">continue</span>;
                 }
                 SplitDecision::MoveToNextBatch =&gt; <span class="kw">break</span>,
-                SplitDecision::Split(at) =&gt; {
+                SplitDecision::Split(n) =&gt; {
                     <span class="self">self</span>.current = Index {
                         slice: <span class="self">self</span>.current.slice,
-                        bucket: <span class="self">self</span>.current.bucket + at,
+                        bucket: <span class="self">self</span>.current.bucket + n,
                     };
                     <span class="kw">break</span>;
                 }
@@ -1708,11 +1727,12 @@
     /// footprint is estimated through the number of data points contained. See
     /// [`estimated_size`](Self::estimated_size) for more information.
     </span><span class="kw">pub fn </span>split(<span class="self">self</span>, size: usize, max_size: <span class="prelude-ty">Option</span>&lt;usize&gt;) -&gt; (<span class="prelude-ty">Option</span>&lt;<span class="self">Self</span>&gt;, <span class="prelude-ty">Option</span>&lt;<span class="self">Self</span>&gt;) {
-        <span class="kw">match </span>split_at(<span class="kw-2">&amp;</span><span class="self">self</span>, size, max_size.unwrap_or(<span class="number">0</span>) / BUCKET_SPLIT_FACTOR) {
+        <span class="kw">match </span>split(<span class="kw-2">&amp;</span><span class="self">self</span>, size, max_size.unwrap_or(<span class="number">0</span>) / BUCKET_SPLIT_FACTOR) {
             SplitDecision::BucketFits(<span class="kw">_</span>) =&gt; (<span class="prelude-val">Some</span>(<span class="self">self</span>), <span class="prelude-val">None</span>),
             SplitDecision::MoveToNextBatch =&gt; (<span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(<span class="self">self</span>)),
-            SplitDecision::Split(at) =&gt; {
-                <span class="kw">let </span>Range { start, end } = <span class="self">self</span>.range.clone();
+            SplitDecision::Split(n) =&gt; {
+                <span class="kw">let </span>Range { start, end } = <span class="self">self</span>.range;
+                <span class="kw">let </span>at = start + n;
                 (<span class="self">self</span>.clone().select(start..at), <span class="self">self</span>.select(at..end))
             }
         }
@@ -1894,7 +1914,7 @@
     }
 }
 
-<span class="doccomment">/// Result of [`split_at`].
+<span class="doccomment">/// Result of [`split`].
 </span><span class="kw">enum </span>SplitDecision {
     <span class="doccomment">/// Bucket fits within the current budget.
     ///
@@ -1909,15 +1929,15 @@
 <span class="doccomment">/// Calculates a split for this bucket if its estimated serialization size exceeds a threshold.
 ///
 /// There are three possible return values:
-///  - `BucketFits` if the bucket fits entirely into the size budget.
+///  - `BucketFits(size)` if the bucket fits entirely into the budget and consumes `size` bytes.
 ///  - `MoveToNextBatch` if the size budget cannot even hold the bucket name and tags. There is no
 ///    split, the entire bucket is moved.
-///  - `Split(at)` if the bucket fits partially, the bucket should be split `at`.
+///  - `Split(n)` if the bucket fits partially, the bucket should be split after `n` elements.
 ///
 /// This is an approximate function. The bucket is not actually serialized, but rather its
 /// footprint is estimated through the number of data points contained. See
 /// `estimate_size` for more information.
-</span><span class="kw">fn </span>split_at(bucket: <span class="kw-2">&amp;</span>BucketView&lt;<span class="lifetime">'_</span>&gt;, max_size: usize, min_split_size: usize) -&gt; SplitDecision {
+</span><span class="kw">fn </span>split(bucket: <span class="kw-2">&amp;</span>BucketView&lt;<span class="lifetime">'_</span>&gt;, max_size: usize, min_split_size: usize) -&gt; SplitDecision {
     <span class="comment">// If there's enough space for the entire bucket, do not perform a split.
     </span><span class="kw">let </span>bucket_size = bucket.estimated_size();
     <span class="kw">if </span>max_size &gt;= bucket_size {
@@ -2326,6 +2346,24 @@
         </span><span class="kw">let </span>partials = view.by_size(<span class="number">178</span>).collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
 
         <span class="macro">assert_json_snapshot!</span>(partials);
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_split_repeatedly() {
+        <span class="kw">let </span>bucket = Bucket::parse(<span class="string">b"b2:1:2:3:5:5|d"</span>, UnixTimestamp::from_secs(<span class="number">5000</span>)).unwrap();
+        <span class="kw">let </span>view = BucketView::new(<span class="kw-2">&amp;</span>bucket);
+
+        <span class="comment">// construct this so that we can take 2 values per split and result in 3 parts.
+        </span><span class="kw">let </span>split_size = view.estimated_base_size() + <span class="number">2 </span>* AVG_VALUE_SIZE;
+
+        <span class="kw">let </span>(first, rest) = view.split(split_size, <span class="prelude-val">None</span>);
+        <span class="kw">let </span>(second, rest) = rest.unwrap().split(split_size, <span class="prelude-val">None</span>);
+        <span class="kw">let </span>(third, rest) = rest.unwrap().split(split_size, <span class="prelude-val">None</span>);
+
+        <span class="macro">assert_eq!</span>(first.unwrap().range, <span class="number">0</span>..<span class="number">2</span>);
+        <span class="macro">assert_eq!</span>(second.unwrap().range, <span class="number">2</span>..<span class="number">4</span>);
+        <span class="macro">assert_eq!</span>(third.unwrap().range, <span class="number">4</span>..<span class="number">5</span>);
+        <span class="macro">assert!</span>(rest.is_none());
     }
 }
 </code></pre></div></section></main></body></html>
