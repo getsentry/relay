@@ -1320,6 +1320,7 @@ impl EnvelopeProcessorService {
     /// Creates and initializes the processing state.
     ///
     /// This applies defaults to the envelope and initializes empty rate limits.
+    #[allow(clippy::too_many_arguments)]
     fn prepare_state<G>(
         &self,
         config: Arc<Config>,
