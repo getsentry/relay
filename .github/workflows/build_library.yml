@@ -37,7 +37,7 @@ jobs:
         env:
           TARGET: ${{ matrix.build-arch }}
 
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           name: ${{ github.sha }}
           path: py/dist/*
@@ -80,7 +80,7 @@ jobs:
           # consumed by cargo and setup.py to obtain the target dir
           CARGO_BUILD_TARGET: ${{ matrix.target }}
 
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           name: ${{ github.sha }}
           path: py/dist/*
@@ -102,7 +102,7 @@ jobs:
         run: python setup.py sdist --format=zip
         working-directory: py
 
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           name: ${{ github.sha }}
           path: py/dist/*
