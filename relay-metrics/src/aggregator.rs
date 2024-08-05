@@ -1,7 +1,6 @@
 //! Core functionality of metrics aggregation.
 
 use std::collections::BTreeMap;
-use std::error::Error;
 use std::hash::{Hash, Hasher};
 use std::time::Duration;
 use std::{fmt, mem};
@@ -23,20 +22,7 @@ use hashbrown::HashMap;
 
 /// Any error that may occur during aggregation.
 #[derive(Debug, Error, PartialEq)]
-#[error("failed to aggregate metrics: {kind}")]
-pub struct AggregateMetricsError {
-    kind: AggregateMetricsErrorKind,
-}
-
-impl From<AggregateMetricsErrorKind> for AggregateMetricsError {
-    fn from(kind: AggregateMetricsErrorKind) -> Self {
-        AggregateMetricsError { kind }
-    }
-}
-
-#[derive(Debug, Error, PartialEq)]
-#[allow(clippy::enum_variant_names)]
-enum AggregateMetricsErrorKind {
+pub enum AggregateMetricsError {
     /// A metric bucket had invalid characters in the metric name.
     #[error("found invalid characters: {0}")]
     InvalidCharacters(MetricName),
@@ -336,12 +322,12 @@ impl QueuedBucket {
         &mut self,
         value: BucketValue,
         metadata: BucketMetadata,
-    ) -> Result<usize, AggregateMetricsErrorKind> {
+    ) -> Result<usize, AggregateMetricsError> {
         let cost_before = self.value.cost();
 
         self.value
             .merge(value)
-            .map_err(|_| AggregateMetricsErrorKind::InvalidTypes)?;
+            .map_err(|_| AggregateMetricsError::InvalidTypes)?;
         self.metadata.merge(metadata);
 
         Ok(self.value.cost().saturating_sub(cost_before))
@@ -398,7 +384,7 @@ impl CostTracker {
             relay_log::configure_scope(|scope| {
                 scope.set_extra("bucket.project_key", project_key.as_str().to_owned().into());
             });
-            return Err(AggregateMetricsErrorKind::TotalLimitExceeded.into());
+            return Err(AggregateMetricsError::TotalLimitExceeded);
         }
 
         if let Some(max_project_cost) = max_project_cost {
@@ -411,7 +397,7 @@ impl CostTracker {
                 relay_log::configure_scope(|scope| {
                     scope.set_extra("bucket.project_key", project_key.as_str().to_owned().into());
                 });
-                return Err(AggregateMetricsErrorKind::ProjectLimitExceeded.into());
+                return Err(AggregateMetricsError::ProjectLimitExceeded);
             }
         }
 
@@ -704,7 +690,7 @@ impl Aggregator {
                 aggregator = &self.name,
             );
 
-            return Err(AggregateMetricsErrorKind::InvalidTimestamp(timestamp).into());
+            return Err(AggregateMetricsError::InvalidTimestamp(timestamp));
         }
 
         Ok(bucket_ts)
@@ -783,7 +769,7 @@ impl Aggregator {
         });
 
         if let Some(error) = error {
-            return Err(error.into());
+            return Err(error);
         }
 
         if !updated {
@@ -810,31 +796,6 @@ impl Aggregator {
             .add_cost(namespace, project_key, added_cost);
 
         Ok(())
-    }
-
-    /// Merges all given `buckets` into this aggregator.
-    ///
-    /// Buckets that do not exist yet will be created.
-    pub fn merge_all(
-        &mut self,
-        project_key: ProjectKey,
-        buckets: impl IntoIterator<Item = Bucket>,
-        max_total_bucket_bytes: Option<usize>,
-    ) {
-        for bucket in buckets.into_iter() {
-            if let Err(error) = self.merge(project_key, bucket, max_total_bucket_bytes) {
-                match &error.kind {
-                    // Ignore invalid timestamp errors.
-                    AggregateMetricsErrorKind::InvalidTimestamp(_) => {}
-                    _other => {
-                        relay_log::error!(
-                            tags.aggregator = self.name,
-                            bucket.error = &error as &dyn Error
-                        );
-                    }
-                }
-            }
-        }
     }
 }
 
@@ -874,7 +835,7 @@ fn validate_metric_name(
             aggregator_config.max_name_length,
             key.metric_name
         );
-        return Err(AggregateMetricsErrorKind::InvalidStringLength(key.metric_name).into());
+        return Err(AggregateMetricsError::InvalidStringLength(key.metric_name));
     }
 
     normalize_metric_name(&mut key)?;
@@ -887,16 +848,16 @@ fn normalize_metric_name(key: &mut BucketKey) -> Result<(), AggregateMetricsErro
         Ok(mri) => {
             if matches!(mri.namespace, MetricNamespace::Unsupported) {
                 relay_log::debug!("invalid metric namespace {:?}", &key.metric_name);
-                return Err(AggregateMetricsErrorKind::UnsupportedNamespace(mri.namespace).into());
+                return Err(AggregateMetricsError::UnsupportedNamespace(mri.namespace));
             }
 
             mri.to_string().into()
         }
         Err(_) => {
             relay_log::debug!("invalid metric name {:?}", &key.metric_name);
-            return Err(
-                AggregateMetricsErrorKind::InvalidCharacters(key.metric_name.clone()).into(),
-            );
+            return Err(AggregateMetricsError::InvalidCharacters(
+                key.metric_name.clone(),
+            ));
         }
     };
 
@@ -1406,9 +1367,8 @@ mod tests {
         assert!(matches!(
             aggregator
                 .get_bucket_timestamp(UnixTimestamp::from_secs(u64::MAX), 2)
-                .unwrap_err()
-                .kind,
-            AggregateMetricsErrorKind::InvalidTimestamp(_)
+                .unwrap_err(),
+            AggregateMetricsError::InvalidTimestamp(_)
         ));
     }
 
@@ -1534,9 +1494,7 @@ mod tests {
 
         assert!(matches!(
             validation.unwrap_err(),
-            AggregateMetricsError {
-                kind: AggregateMetricsErrorKind::InvalidStringLength(_)
-            }
+            AggregateMetricsError::InvalidStringLength(_),
         ));
 
         let short_metric_long_tag_key = BucketKey {
@@ -1598,11 +1556,8 @@ mod tests {
             .unwrap();
 
         assert_eq!(
-            aggregator
-                .merge(project_key, bucket, Some(1))
-                .unwrap_err()
-                .kind,
-            AggregateMetricsErrorKind::TotalLimitExceeded
+            aggregator.merge(project_key, bucket, Some(1)).unwrap_err(),
+            AggregateMetricsError::TotalLimitExceeded
         );
     }
 
@@ -1627,11 +1582,8 @@ mod tests {
 
         aggregator.merge(project_key, bucket.clone(), None).unwrap();
         assert_eq!(
-            aggregator
-                .merge(project_key, bucket, None)
-                .unwrap_err()
-                .kind,
-            AggregateMetricsErrorKind::ProjectLimitExceeded
+            aggregator.merge(project_key, bucket, None).unwrap_err(),
+            AggregateMetricsError::ProjectLimitExceeded
         );
     }
 

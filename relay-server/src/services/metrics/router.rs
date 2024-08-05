@@ -1,15 +1,13 @@
 //! Routing logic for metrics. Metrics from different namespaces may be routed to different aggregators,
 //! with their own limits, bucket intervals, etc.
 
-use futures::stream::FuturesUnordered;
-use futures::StreamExt;
-
+use relay_config::aggregator::Condition;
 use relay_config::{AggregatorServiceConfig, ScopedAggregatorConfig};
 use relay_metrics::MetricNamespace;
 use relay_system::{Addr, NoResponse, Recipient, Service};
 
 use crate::services::metrics::{
-    AcceptsMetrics, Aggregator, AggregatorService, FlushBuckets, MergeBuckets,
+    Aggregator, AggregatorHandle, AggregatorService, FlushBuckets, MergeBuckets,
 };
 use crate::statsd::RelayTimers;
 use crate::utils;
@@ -17,13 +15,11 @@ use crate::utils;
 /// Service that routes metrics & metric buckets to the appropriate aggregator.
 ///
 /// Each aggregator gets its own configuration.
-/// Metrics are routed to the first aggregator which matches the configuration's
-/// [`Condition`](relay_config::aggregator::Condition).
+/// Metrics are routed to the first aggregator which matches the configuration's [`Condition`].
 /// If no condition matches, the metric/bucket is routed to the `default_aggregator`.
 pub struct RouterService {
-    default_config: AggregatorServiceConfig,
-    secondary_configs: Vec<ScopedAggregatorConfig>,
-    receiver: Option<Recipient<FlushBuckets, NoResponse>>,
+    default: AggregatorService,
+    secondary: Vec<(AggregatorService, Condition)>,
 }
 
 impl RouterService {
@@ -33,11 +29,24 @@ impl RouterService {
         secondary_configs: Vec<ScopedAggregatorConfig>,
         receiver: Option<Recipient<FlushBuckets, NoResponse>>,
     ) -> Self {
-        Self {
-            default_config,
-            secondary_configs,
-            receiver,
+        let mut secondary = Vec::new();
+
+        for c in secondary_configs {
+            let service = AggregatorService::named(c.name, c.config, receiver.clone());
+            secondary.push((service, c.condition));
         }
+
+        let default = AggregatorService::new(default_config, receiver);
+        Self { default, secondary }
+    }
+
+    pub fn handle(&self) -> RouterHandle {
+        let mut handles = vec![self.default.handle()];
+        for (aggregator, _) in &self.secondary {
+            handles.push(aggregator.handle());
+        }
+
+        RouterHandle(handles)
     }
 }
 
@@ -75,30 +84,22 @@ struct StartedRouter {
 
 impl StartedRouter {
     fn start(router: RouterService) -> Self {
-        let RouterService {
-            default_config,
-            secondary_configs,
-            receiver,
-        } = router;
+        let RouterService { default, secondary } = router;
 
-        let secondary = secondary_configs
+        let secondary = secondary
             .into_iter()
-            .map(|c| {
-                let addr = AggregatorService::named(c.name, c.config, receiver.clone()).start();
-                (c.condition, addr)
-            })
-            .map(|(cond, agg)| {
+            .map(|(aggregator, condition)| {
                 let namespaces: Vec<_> = MetricNamespace::all()
                     .into_iter()
-                    .filter(|&namespace| cond.matches(Some(namespace)))
+                    .filter(|&namespace| condition.matches(Some(namespace)))
                     .collect();
 
-                (agg, namespaces)
+                (aggregator.start(), namespaces)
             })
             .collect();
 
         Self {
-            default: AggregatorService::new(default_config, receiver).start(),
+            default: default.start(),
             secondary,
         }
     }
@@ -110,22 +111,6 @@ impl StartedRouter {
             message = ty,
             {
                 match message {
-                    Aggregator::AcceptsMetrics(_, sender) => {
-                        let mut requests = self
-                            .secondary
-                            .iter()
-                            .map(|(agg, _)| agg.send(AcceptsMetrics))
-                            .chain(Some(self.default.send(AcceptsMetrics)))
-                            .collect::<FuturesUnordered<_>>();
-
-                        tokio::spawn(async move {
-                            let mut accepts = true;
-                            while let Some(req) = requests.next().await {
-                                accepts &= req.unwrap_or_default();
-                            }
-                            sender.send(accepts);
-                        });
-                    }
                     Aggregator::MergeBuckets(msg) => self.handle_merge_buckets(msg),
                     #[cfg(test)]
                     Aggregator::BucketCountInquiry(_, _sender) => (), // not supported
@@ -158,5 +143,16 @@ impl StartedRouter {
         if !buckets.is_empty() {
             self.default.send(MergeBuckets::new(project_key, buckets));
         }
+    }
+}
+
+/// Provides sync access to the state of the [`RouterService`].
+#[derive(Clone, Debug)]
+pub struct RouterHandle(Vec<AggregatorHandle>);
+
+impl RouterHandle {
+    /// Returns `true` if all the aggregators can still accept metrics.
+    pub fn can_accept_metrics(&self) -> bool {
+        self.0.iter().all(|ah| ah.can_accept_metrics())
     }
 }

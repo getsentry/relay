@@ -190,8 +190,9 @@ impl ServiceState {
             config.default_aggregator_config().clone(),
             config.secondary_aggregator_configs().clone(),
             Some(project_cache.clone().recipient()),
-        )
-        .start();
+        );
+        let aggregator_handle = aggregator.handle();
+        let aggregator = aggregator.start();
 
         let metric_stats = MetricStats::new(
             config.clone(),
@@ -268,7 +269,7 @@ impl ServiceState {
         let health_check = HealthCheckService::new(
             config.clone(),
             MemoryChecker::new(memory_stat.clone(), config.clone()),
-            aggregator.clone(),
+            aggregator_handle,
             upstream_relay.clone(),
             project_cache.clone(),
         )

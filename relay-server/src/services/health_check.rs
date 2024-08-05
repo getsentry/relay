@@ -6,7 +6,7 @@ use std::future::Future;
 use tokio::sync::watch;
 use tokio::time::{timeout, Instant};
 
-use crate::services::metrics::{AcceptsMetrics, Aggregator};
+use crate::services::metrics::RouterHandle;
 use crate::services::project_cache::{ProjectCache, SpoolHealth};
 use crate::services::upstream::{IsAuthenticated, UpstreamRelay};
 use crate::statsd::RelayTimers;
@@ -84,7 +84,7 @@ impl StatusUpdate {
 pub struct HealthCheckService {
     config: Arc<Config>,
     memory_checker: MemoryChecker,
-    aggregator: Addr<Aggregator>,
+    aggregator: RouterHandle,
     upstream_relay: Addr<UpstreamRelay>,
     project_cache: Addr<ProjectCache>,
 }
@@ -96,7 +96,7 @@ impl HealthCheckService {
     pub fn new(
         config: Arc<Config>,
         memory_checker: MemoryChecker,
-        aggregator: Addr<Aggregator>,
+        aggregator: RouterHandle,
         upstream_relay: Addr<UpstreamRelay>,
         project_cache: Addr<ProjectCache>,
     ) -> Self {
@@ -147,10 +147,7 @@ impl HealthCheckService {
     }
 
     async fn aggregator_probe(&self) -> Status {
-        self.aggregator
-            .send(AcceptsMetrics)
-            .await
-            .map_or(Status::Unhealthy, Status::from)
+        Status::from(self.aggregator.can_accept_metrics())
     }
 
     async fn spool_health_probe(&self) -> Status {
