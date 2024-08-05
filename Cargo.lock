@@ -4186,6 +4186,7 @@ name = "relay-system"
 version = "24.7.1"
 dependencies = [
  "futures",
+ "insta",
  "once_cell",
  "relay-log",
  "relay-statsd",

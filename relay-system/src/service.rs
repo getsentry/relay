@@ -932,7 +932,7 @@ pub fn channel<I: Interface>(name: &'static str) -> (Addr<I>, Receiver<I>) {
 ///     type Interface = MyMessage;
 ///
 ///     fn spawn_handler(self, mut rx: Receiver<Self::Interface>) {
-///         tokio::spawn(async move {
+///         relay_system::spawn!(async move {
 ///             while let Some(message) = rx.recv().await {
 ///                 // handle the message
 ///             }
@@ -1047,7 +1047,7 @@ mod tests {
         type Interface = MockMessage;
 
         fn spawn_handler(self, mut rx: Receiver<Self::Interface>) {
-            tokio::spawn(async move {
+            crate::spawn!(async move {
                 while rx.recv().await.is_some() {
                     tokio::time::sleep(BACKLOG_INTERVAL * 2).await;
                 }

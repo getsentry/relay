@@ -23,8 +23,10 @@
 #![allow(clippy::derive_partial_eq_without_eq)]
 
 mod controller;
+mod runtime;
 mod service;
 mod statsd;
 
 pub use self::controller::*;
+pub use self::runtime::*;
 pub use self::service::*;

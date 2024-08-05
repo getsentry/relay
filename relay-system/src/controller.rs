@@ -130,7 +130,7 @@ impl ShutdownHandle {
 ///     type Interface = ();
 ///
 ///     fn spawn_handler(self, mut rx: relay_system::Receiver<Self::Interface>) {
-///         tokio::spawn(async move {
+///         relay_system::spawn!(async move {
 ///             let mut shutdown = Controller::shutdown_handle();
 ///
 ///             loop {
@@ -166,8 +166,9 @@ pub struct Controller;
 
 impl Controller {
     /// Starts a controller that monitors shutdown signals.
+    #[track_caller]
     pub fn start(shutdown_timeout: Duration) {
-        tokio::spawn(monitor_shutdown(shutdown_timeout));
+        crate::spawn!(monitor_shutdown(shutdown_timeout));
     }
 
     /// Manually initiates the shutdown process of the system.

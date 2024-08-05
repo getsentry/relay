@@ -488,7 +488,7 @@ impl UpstreamProjectSourceService {
         let channels = self.prepare_batches();
         let upstream_relay = self.upstream_relay.clone();
 
-        tokio::spawn(async move {
+        relay_system::spawn!(async move {
             let responses = Self::fetch_states(config, upstream_relay, channels).await;
             // Send back all resolved responses and also unused channels.
             // These responses will be handled by `handle_responses` function.
@@ -539,7 +539,7 @@ impl Service for UpstreamProjectSourceService {
     type Interface = UpstreamProjectSource;
 
     fn spawn_handler(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
-        tokio::spawn(async move {
+        relay_system::spawn!(async move {
             relay_log::info!("project upstream cache started");
             loop {
                 tokio::select! {

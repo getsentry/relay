@@ -744,7 +744,7 @@ impl ProjectCacheBroker {
         let source = self.source.clone();
         let sender = self.state_tx.clone();
 
-        tokio::spawn(async move {
+        relay_system::spawn!(async move {
             // Wait on the new attempt time when set.
             if let Some(next_attempt) = next_attempt {
                 tokio::time::sleep_until(next_attempt).await;
@@ -1327,7 +1327,7 @@ impl Service for ProjectCacheService {
         let outcome_aggregator = services.outcome_aggregator.clone();
         let test_store = services.test_store.clone();
 
-        tokio::spawn(async move {
+        relay_system::spawn!(async move {
             let mut ticker = tokio::time::interval(config.cache_eviction_interval());
             let mut report_ticker = tokio::time::interval(Duration::from_secs(1));
             relay_log::info!("project cache started");
@@ -1660,7 +1660,7 @@ mod tests {
         }
 
         // Emulate the project cache service loop.
-        tokio::task::spawn(async move {
+        relay_system::spawn!(async move {
             loop {
                 select! {
 

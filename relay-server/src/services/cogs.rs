@@ -106,7 +106,7 @@ impl Service for CogsService {
     type Interface = CogsReport;
 
     fn spawn_handler(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
-        tokio::spawn(async move {
+        relay_system::spawn!(async move {
             let mut shutdown = Controller::shutdown_handle();
 
             loop {
