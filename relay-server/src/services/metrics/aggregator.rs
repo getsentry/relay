@@ -1,13 +1,13 @@
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use std::time::Duration;
 
 use hashbrown::HashMap;
 use relay_base_schema::project::ProjectKey;
 use relay_config::AggregatorServiceConfig;
+use relay_metrics::aggregator::AggregateMetricsError;
 use relay_metrics::{aggregator, Bucket};
-use relay_system::{
-    AsyncResponse, Controller, FromMessage, Interface, NoResponse, Recipient, Sender, Service,
-    Shutdown,
-};
+use relay_system::{Controller, FromMessage, Interface, NoResponse, Recipient, Service, Shutdown};
 
 use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
 
@@ -23,21 +23,18 @@ use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
 /// Receivers must implement a handler for the [`FlushBuckets`] message.
 #[derive(Debug)]
 pub enum Aggregator {
-    /// The health check message which makes sure that the service can accept the requests now.
-    AcceptsMetrics(AcceptsMetrics, Sender<bool>),
     /// Merge the buckets.
     MergeBuckets(MergeBuckets),
 
     /// Message is used only for tests to get the current number of buckets in `AggregatorService`.
     #[cfg(test)]
-    BucketCountInquiry(BucketCountInquiry, Sender<usize>),
+    BucketCountInquiry(BucketCountInquiry, relay_system::Sender<usize>),
 }
 
 impl Aggregator {
     /// Returns the name of the message variant.
     pub fn variant(&self) -> &'static str {
         match self {
-            Aggregator::AcceptsMetrics(_, _) => "AcceptsMetrics",
             Aggregator::MergeBuckets(_) => "MergeBuckets",
             #[cfg(test)]
             Aggregator::BucketCountInquiry(_, _) => "BucketCountInquiry",
@@ -46,13 +43,6 @@ impl Aggregator {
 }
 
 impl Interface for Aggregator {}
-
-impl FromMessage<AcceptsMetrics> for Aggregator {
-    type Response = AsyncResponse<bool>;
-    fn from_message(message: AcceptsMetrics, sender: Sender<bool>) -> Self {
-        Self::AcceptsMetrics(message, sender)
-    }
-}
 
 impl FromMessage<MergeBuckets> for Aggregator {
     type Response = NoResponse;
@@ -63,15 +53,11 @@ impl FromMessage<MergeBuckets> for Aggregator {
 
 #[cfg(test)]
 impl FromMessage<BucketCountInquiry> for Aggregator {
-    type Response = AsyncResponse<usize>;
-    fn from_message(message: BucketCountInquiry, sender: Sender<usize>) -> Self {
+    type Response = relay_system::AsyncResponse<usize>;
+    fn from_message(message: BucketCountInquiry, sender: relay_system::Sender<usize>) -> Self {
         Self::BucketCountInquiry(message, sender)
     }
 }
-
-/// Check whether the aggregator has not (yet) exceeded its total limits. Used for health checks.
-#[derive(Debug)]
-pub struct AcceptsMetrics;
 
 /// Used only for testing the `AggregatorService`.
 #[cfg(test)]
@@ -106,6 +92,7 @@ pub struct AggregatorService {
     receiver: Option<Recipient<FlushBuckets, NoResponse>>,
     max_total_bucket_bytes: Option<usize>,
     flush_interval_ms: u64,
+    can_accept_metrics: Arc<AtomicBool>,
 }
 
 impl AggregatorService {
@@ -126,21 +113,23 @@ impl AggregatorService {
         config: AggregatorServiceConfig,
         receiver: Option<Recipient<FlushBuckets, NoResponse>>,
     ) -> Self {
+        let aggregator = aggregator::Aggregator::named(name, config.aggregator);
         Self {
             receiver,
             state: AggregatorState::Running,
             max_total_bucket_bytes: config.max_total_bucket_bytes,
-            aggregator: aggregator::Aggregator::named(name, config.aggregator),
             flush_interval_ms: config.flush_interval_ms,
+            can_accept_metrics: Arc::new(AtomicBool::new(
+                !aggregator.totals_cost_exceeded(config.max_total_bucket_bytes),
+            )),
+            aggregator,
         }
     }
 
-    fn handle_accepts_metrics(&self, sender: Sender<bool>) {
-        let result = !self
-            .aggregator
-            .totals_cost_exceeded(self.max_total_bucket_bytes);
-
-        sender.send(result);
+    pub fn handle(&self) -> AggregatorHandle {
+        AggregatorHandle {
+            can_accept_metrics: Arc::clone(&self.can_accept_metrics),
+        }
     }
 
     /// Sends the [`FlushBuckets`] message to the receiver in the fire and forget fashion. It is up
@@ -151,6 +140,13 @@ impl AggregatorService {
     fn try_flush(&mut self) {
         let force_flush = matches!(&self.state, AggregatorState::ShuttingDown);
         let partitions = self.aggregator.pop_flush_buckets(force_flush);
+
+        self.can_accept_metrics.store(
+            !self
+                .aggregator
+                .totals_cost_exceeded(self.max_total_bucket_bytes),
+            Ordering::Relaxed,
+        );
 
         if partitions.is_empty() {
             return;
@@ -196,8 +192,41 @@ impl AggregatorService {
             project_key,
             buckets,
         } = msg;
-        self.aggregator
-            .merge_all(project_key, buckets, self.max_total_bucket_bytes);
+
+        for bucket in buckets.into_iter() {
+            match self
+                .aggregator
+                .merge(project_key, bucket, self.max_total_bucket_bytes)
+            {
+                // Ignore invalid timestamp errors.
+                Err(AggregateMetricsError::InvalidTimestamp(_)) => {}
+                Err(AggregateMetricsError::TotalLimitExceeded) => {
+                    relay_log::error!(
+                        tags.aggregator = self.aggregator.name(),
+                        "aggregator limit exceeded"
+                    );
+                    self.can_accept_metrics.store(false, Ordering::Relaxed);
+                    break;
+                }
+                Err(AggregateMetricsError::ProjectLimitExceeded) => {
+                    relay_log::error!(
+                        tags.aggregator = self.aggregator.name(),
+                        tags.project_key = project_key.as_str(),
+                        "project metrics limit exceeded for project {project_key}"
+                    );
+                    break;
+                }
+                Err(error) => {
+                    relay_log::error!(
+                        tags.aggregator = self.aggregator.name(),
+                        tags.project_key = project_key.as_str(),
+                        bucket.error = &error as &dyn std::error::Error,
+                        "failed to aggregate metric bucket"
+                    );
+                }
+                Ok(()) => {}
+            };
+        }
     }
 
     fn handle_message(&mut self, message: Aggregator) {
@@ -207,7 +236,6 @@ impl AggregatorService {
             message = ty,
             {
                 match message {
-                    Aggregator::AcceptsMetrics(_, sender) => self.handle_accepts_metrics(sender),
                     Aggregator::MergeBuckets(msg) => self.handle_merge_buckets(msg),
                     #[cfg(test)]
                     Aggregator::BucketCountInquiry(_, sender) => {
@@ -280,6 +308,19 @@ impl MergeBuckets {
             project_key,
             buckets,
         }
+    }
+}
+
+/// Provides sync access to the state of the [`AggregatorService`].
+#[derive(Debug, Clone)]
+pub struct AggregatorHandle {
+    can_accept_metrics: Arc<AtomicBool>,
+}
+
+impl AggregatorHandle {
+    /// Returns `true` if the aggregator can still accept metrics.
+    pub fn can_accept_metrics(&self) -> bool {
+        self.can_accept_metrics.load(Ordering::Relaxed)
     }
 }
 
