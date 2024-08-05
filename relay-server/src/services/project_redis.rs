@@ -67,6 +67,9 @@ impl RedisProjectSource {
                 .query(&mut connection)
                 .map_err(RedisError::Redis)?;
 
+            relay_log::trace!(
+                "Redis revision {current_revision:?}, requested revision {revision:?}"
+            );
             if current_revision.as_deref() == Some(revision) {
                 metric!(
                     counter(RelayCounters::ProjectStateRedis) += 1,
