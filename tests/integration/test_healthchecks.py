@@ -123,6 +123,29 @@ def test_readiness_depends_on_aggregator_being_full(mini_sentry, relay):
     assert response.status_code == 503
 
 
+def test_readiness_depends_on_aggregator_being_full_after_metrics(mini_sentry, relay):
+    relay = relay(
+        mini_sentry,
+        {"aggregator": {"max_total_bucket_bytes": 1}},
+    )
+
+    metrics_payload = f"transactions/foo:42|c\ntransactions/bar:17|c"
+    relay.send_metrics(42, metrics_payload)
+
+    for _ in range(100):
+        response = wait_get(relay, "/api/relay/healthcheck/ready/")
+        print(response, response.status_code)
+        if response.status_code == 503:
+            error = str(mini_sentry.test_failures.pop())
+            assert "Health check probe 'aggregator'" in error
+            error = str(mini_sentry.test_failures.pop())
+            assert "aggregator limit exceeded" in error
+            return
+        time.sleep(0.1)
+
+    assert False, "health check never failed"
+
+
 def test_readiness_disk_spool(mini_sentry, relay):
     try:
         temp = tempfile.mkdtemp()
