@@ -113,13 +113,16 @@ impl AggregatorService {
         config: AggregatorServiceConfig,
         receiver: Option<Recipient<FlushBuckets, NoResponse>>,
     ) -> Self {
+        let aggregator = aggregator::Aggregator::named(name, config.aggregator);
         Self {
             receiver,
             state: AggregatorState::Running,
             max_total_bucket_bytes: config.max_total_bucket_bytes,
-            aggregator: aggregator::Aggregator::named(name, config.aggregator),
             flush_interval_ms: config.flush_interval_ms,
-            can_accept_metrics: Arc::new(AtomicBool::new(true)),
+            can_accept_metrics: Arc::new(AtomicBool::new(
+                !aggregator.totals_cost_exceeded(config.max_total_bucket_bytes),
+            )),
+            aggregator,
         }
     }
 
