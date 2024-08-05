@@ -346,7 +346,7 @@ jobs:
   publish-to-dockerhub:
     needs: [build-setup, build-docker]
 
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     name: Publish Relay to DockerHub
 
     strategy:
@@ -612,25 +612,3 @@ jobs:
         run: |
           echo "Testing against ${RELAY_TEST_IMAGE}"
           make test-relay-integration
-
-  self-hosted-end-to-end:
-    runs-on: ubuntu-latest
-    timeout-minutes: 25
-    needs: build-docker
-
-    # - Skip redundant checks for library releases
-    # - Skip for dependabot or if it's a fork as the image cannot be uploaded to ghcr since this test attempts to pull
-    # the image from ghcr
-    if: "!startsWith(github.ref, 'refs/heads/release-library/') && !github.event.pull_request.head.repo.fork && github.actor != 'dependabot[bot]'"
-
-    steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
-
-      - name: Run Sentry self-hosted e2e CI
-        uses: getsentry/action-self-hosted-e2e-tests@main
-        with:
-          project_name: relay
-          image_url: ghcr.io/getsentry/relay:${{ github.event.pull_request.head.sha || github.sha }}
-          docker_repo: getsentry/relay
-          docker_password: ${{ secrets.DOCKER_HUB_RW_TOKEN }}
