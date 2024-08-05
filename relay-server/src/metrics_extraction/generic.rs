@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::collections::BTreeMap;
 
 use relay_common::time::UnixTimestamp;
@@ -166,7 +167,12 @@ fn read_metric_value(
         MetricType::Distribution => {
             BucketValue::distribution(finite(instance.get_value(field?)?.as_f64()?)?)
         }
-        MetricType::Set => BucketValue::set_from_str(instance.get_value(field?)?.as_str()?),
+        MetricType::Set => BucketValue::set_from_str(&match instance.get_value(field?)? {
+            Val::I64(num) => Cow::Owned(num.to_string()),
+            Val::U64(num) => Cow::Owned(num.to_string()),
+            Val::String(s) => Cow::Borrowed(s),
+            _ => return None,
+        }),
         MetricType::Gauge => BucketValue::gauge(finite(instance.get_value(field?)?.as_f64()?)?),
     })
 }
@@ -315,6 +321,59 @@ mod tests {
                 value: Set(
                     {
                         943162418,
+                    },
+                ),
+                tags: {},
+                metadata: BucketMetadata {
+                    merges: 1,
+                    received_at: Some(
+                        UnixTimestamp(0),
+                    ),
+                    extracted_from_indexed: false,
+                },
+            },
+        ]
+        "###);
+    }
+
+    #[test]
+    fn extract_set_numeric() {
+        let event_json = json!({
+            "type": "transaction",
+            "timestamp": 1597976302.0,
+            "user": {
+                "id": -4711,
+            },
+        });
+        let event = Event::from_value(event_json.into());
+
+        let config_json = json!({
+            "version": 1,
+            "metrics": [
+                {
+                    "category": "transaction",
+                    "mri": "s:transactions/users@none",
+                    "field": "event.user.id",
+                }
+            ]
+        });
+        let config = serde_json::from_value(config_json).unwrap();
+
+        let metrics = extract_metrics(
+            event.value().unwrap(),
+            CombinedMetricExtractionConfig::from(&config),
+        );
+        insta::assert_debug_snapshot!(metrics, @r###"
+        [
+            Bucket {
+                timestamp: UnixTimestamp(1597976302),
+                width: 0,
+                name: MetricName(
+                    "s:transactions/users@none",
+                ),
+                value: Set(
+                    {
+                        1893272827,
                     },
                 ),
                 tags: {},
