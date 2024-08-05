@@ -661,7 +661,67 @@
 <a href="#661" id="661">661</a>
 <a href="#662" id="662">662</a>
 <a href="#663" id="663">663</a>
-</pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
+<a href="#664" id="664">664</a>
+<a href="#665" id="665">665</a>
+<a href="#666" id="666">666</a>
+<a href="#667" id="667">667</a>
+<a href="#668" id="668">668</a>
+<a href="#669" id="669">669</a>
+<a href="#670" id="670">670</a>
+<a href="#671" id="671">671</a>
+<a href="#672" id="672">672</a>
+<a href="#673" id="673">673</a>
+<a href="#674" id="674">674</a>
+<a href="#675" id="675">675</a>
+<a href="#676" id="676">676</a>
+<a href="#677" id="677">677</a>
+<a href="#678" id="678">678</a>
+<a href="#679" id="679">679</a>
+<a href="#680" id="680">680</a>
+<a href="#681" id="681">681</a>
+<a href="#682" id="682">682</a>
+<a href="#683" id="683">683</a>
+<a href="#684" id="684">684</a>
+<a href="#685" id="685">685</a>
+<a href="#686" id="686">686</a>
+<a href="#687" id="687">687</a>
+<a href="#688" id="688">688</a>
+<a href="#689" id="689">689</a>
+<a href="#690" id="690">690</a>
+<a href="#691" id="691">691</a>
+<a href="#692" id="692">692</a>
+<a href="#693" id="693">693</a>
+<a href="#694" id="694">694</a>
+<a href="#695" id="695">695</a>
+<a href="#696" id="696">696</a>
+<a href="#697" id="697">697</a>
+<a href="#698" id="698">698</a>
+<a href="#699" id="699">699</a>
+<a href="#700" id="700">700</a>
+<a href="#701" id="701">701</a>
+<a href="#702" id="702">702</a>
+<a href="#703" id="703">703</a>
+<a href="#704" id="704">704</a>
+<a href="#705" id="705">705</a>
+<a href="#706" id="706">706</a>
+<a href="#707" id="707">707</a>
+<a href="#708" id="708">708</a>
+<a href="#709" id="709">709</a>
+<a href="#710" id="710">710</a>
+<a href="#711" id="711">711</a>
+<a href="#712" id="712">712</a>
+<a href="#713" id="713">713</a>
+<a href="#714" id="714">714</a>
+<a href="#715" id="715">715</a>
+<a href="#716" id="716">716</a>
+<a href="#717" id="717">717</a>
+<a href="#718" id="718">718</a>
+<a href="#719" id="719">719</a>
+<a href="#720" id="720">720</a>
+<a href="#721" id="721">721</a>
+<a href="#722" id="722">722</a>
+</pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
+<span class="kw">use </span>std::collections::BTreeMap;
 
 <span class="kw">use </span>relay_common::time::UnixTimestamp;
 <span class="kw">use </span>relay_dynamic_config::{CombinedMetricExtractionConfig, TagMapping, TagSource, TagSpec};
@@ -829,7 +889,12 @@
         MetricType::Distribution =&gt; {
             BucketValue::distribution(finite(instance.get_value(field<span class="question-mark">?</span>)<span class="question-mark">?</span>.as_f64()<span class="question-mark">?</span>)<span class="question-mark">?</span>)
         }
-        MetricType::Set =&gt; BucketValue::set_from_str(instance.get_value(field<span class="question-mark">?</span>)<span class="question-mark">?</span>.as_str()<span class="question-mark">?</span>),
+        MetricType::Set =&gt; BucketValue::set_from_str(<span class="kw-2">&amp;</span><span class="kw">match </span>instance.get_value(field<span class="question-mark">?</span>)<span class="question-mark">? </span>{
+            Val::I64(num) =&gt; Cow::Owned(num.to_string()),
+            Val::U64(num) =&gt; Cow::Owned(num.to_string()),
+            Val::String(s) =&gt; Cow::Borrowed(s),
+            <span class="kw">_ </span>=&gt; <span class="kw">return </span><span class="prelude-val">None</span>,
+        }),
         MetricType::Gauge =&gt; BucketValue::gauge(finite(instance.get_value(field<span class="question-mark">?</span>)<span class="question-mark">?</span>.as_f64()<span class="question-mark">?</span>)<span class="question-mark">?</span>),
     })
 }
@@ -978,6 +1043,59 @@
                 value: Set(
                     {
                         943162418,
+                    },
+                ),
+                tags: {},
+                metadata: BucketMetadata {
+                    merges: 1,
+                    received_at: Some(
+                        UnixTimestamp(0),
+                    ),
+                    extracted_from_indexed: false,
+                },
+            },
+        ]
+        "###</span>);
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>extract_set_numeric() {
+        <span class="kw">let </span>event_json = <span class="macro">json!</span>({
+            <span class="string">"type"</span>: <span class="string">"transaction"</span>,
+            <span class="string">"timestamp"</span>: <span class="number">1597976302.0</span>,
+            <span class="string">"user"</span>: {
+                <span class="string">"id"</span>: -<span class="number">4711</span>,
+            },
+        });
+        <span class="kw">let </span>event = Event::from_value(event_json.into());
+
+        <span class="kw">let </span>config_json = <span class="macro">json!</span>({
+            <span class="string">"version"</span>: <span class="number">1</span>,
+            <span class="string">"metrics"</span>: [
+                {
+                    <span class="string">"category"</span>: <span class="string">"transaction"</span>,
+                    <span class="string">"mri"</span>: <span class="string">"s:transactions/users@none"</span>,
+                    <span class="string">"field"</span>: <span class="string">"event.user.id"</span>,
+                }
+            ]
+        });
+        <span class="kw">let </span>config = serde_json::from_value(config_json).unwrap();
+
+        <span class="kw">let </span>metrics = extract_metrics(
+            event.value().unwrap(),
+            CombinedMetricExtractionConfig::from(<span class="kw-2">&amp;</span>config),
+        );
+        <span class="macro">insta::assert_debug_snapshot!</span>(metrics, @<span class="string">r###"
+        [
+            Bucket {
+                timestamp: UnixTimestamp(1597976302),
+                width: 0,
+                name: MetricName(
+                    "s:transactions/users@none",
+                ),
+                value: Set(
+                    {
+                        1893272827,
                     },
                 ),
                 tags: {},
