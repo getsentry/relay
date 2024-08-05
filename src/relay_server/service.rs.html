@@ -431,6 +431,7 @@
 <a href="#431" id="431">431</a>
 <a href="#432" id="432">432</a>
 <a href="#433" id="433">433</a>
+<a href="#434" id="434">434</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::convert::Infallible;
 <span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::sync::Arc;
@@ -623,8 +624,9 @@
             config.default_aggregator_config().clone(),
             config.secondary_aggregator_configs().clone(),
             <span class="prelude-val">Some</span>(project_cache.clone().recipient()),
-        )
-        .start();
+        );
+        <span class="kw">let </span>aggregator_handle = aggregator.handle();
+        <span class="kw">let </span>aggregator = aggregator.start();
 
         <span class="kw">let </span>metric_stats = MetricStats::new(
             config.clone(),
@@ -701,7 +703,7 @@
         <span class="kw">let </span>health_check = HealthCheckService::new(
             config.clone(),
             MemoryChecker::new(memory_stat.clone(), config.clone()),
-            aggregator.clone(),
+            aggregator_handle,
             upstream_relay.clone(),
             project_cache.clone(),
         )

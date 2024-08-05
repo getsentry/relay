@@ -393,16 +393,57 @@
 <a href="#393" id="393">393</a>
 <a href="#394" id="394">394</a>
 <a href="#395" id="395">395</a>
-</pre></div><pre class="rust"><code><span class="kw">use </span>std::time::Duration;
+<a href="#396" id="396">396</a>
+<a href="#397" id="397">397</a>
+<a href="#398" id="398">398</a>
+<a href="#399" id="399">399</a>
+<a href="#400" id="400">400</a>
+<a href="#401" id="401">401</a>
+<a href="#402" id="402">402</a>
+<a href="#403" id="403">403</a>
+<a href="#404" id="404">404</a>
+<a href="#405" id="405">405</a>
+<a href="#406" id="406">406</a>
+<a href="#407" id="407">407</a>
+<a href="#408" id="408">408</a>
+<a href="#409" id="409">409</a>
+<a href="#410" id="410">410</a>
+<a href="#411" id="411">411</a>
+<a href="#412" id="412">412</a>
+<a href="#413" id="413">413</a>
+<a href="#414" id="414">414</a>
+<a href="#415" id="415">415</a>
+<a href="#416" id="416">416</a>
+<a href="#417" id="417">417</a>
+<a href="#418" id="418">418</a>
+<a href="#419" id="419">419</a>
+<a href="#420" id="420">420</a>
+<a href="#421" id="421">421</a>
+<a href="#422" id="422">422</a>
+<a href="#423" id="423">423</a>
+<a href="#424" id="424">424</a>
+<a href="#425" id="425">425</a>
+<a href="#426" id="426">426</a>
+<a href="#427" id="427">427</a>
+<a href="#428" id="428">428</a>
+<a href="#429" id="429">429</a>
+<a href="#430" id="430">430</a>
+<a href="#431" id="431">431</a>
+<a href="#432" id="432">432</a>
+<a href="#433" id="433">433</a>
+<a href="#434" id="434">434</a>
+<a href="#435" id="435">435</a>
+<a href="#436" id="436">436</a>
+</pre></div><pre class="rust"><code><span class="kw">use </span>std::sync::atomic::{AtomicBool, Ordering};
+<span class="kw">use </span>std::sync::Arc;
+<span class="kw">use </span>std::time::Duration;
 
 <span class="kw">use </span>hashbrown::HashMap;
 <span class="kw">use </span>relay_base_schema::project::ProjectKey;
 <span class="kw">use </span>relay_config::AggregatorServiceConfig;
+<span class="kw">use </span>relay_metrics::aggregator::AggregateMetricsError;
 <span class="kw">use </span>relay_metrics::{aggregator, Bucket};
-<span class="kw">use </span>relay_system::{
-    AsyncResponse, Controller, FromMessage, Interface, NoResponse, Recipient, Sender, Service,
-    Shutdown,
-};
+<span class="kw">use </span>relay_system::{Controller, FromMessage, Interface, NoResponse, Recipient, Service, Shutdown};
 
 <span class="kw">use </span><span class="kw">crate</span>::statsd::{RelayCounters, RelayHistograms, RelayTimers};
 
@@ -418,21 +459,18 @@
 /// Receivers must implement a handler for the [`FlushBuckets`] message.
 </span><span class="attr">#[derive(Debug)]
 </span><span class="kw">pub enum </span>Aggregator {
-    <span class="doccomment">/// The health check message which makes sure that the service can accept the requests now.
-    </span>AcceptsMetrics(AcceptsMetrics, Sender&lt;bool&gt;),
     <span class="doccomment">/// Merge the buckets.
     </span>MergeBuckets(MergeBuckets),
 
     <span class="doccomment">/// Message is used only for tests to get the current number of buckets in `AggregatorService`.
     </span><span class="attr">#[cfg(test)]
-    </span>BucketCountInquiry(BucketCountInquiry, Sender&lt;usize&gt;),
+    </span>BucketCountInquiry(BucketCountInquiry, relay_system::Sender&lt;usize&gt;),
 }
 
 <span class="kw">impl </span>Aggregator {
     <span class="doccomment">/// Returns the name of the message variant.
     </span><span class="kw">pub fn </span>variant(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
         <span class="kw">match </span><span class="self">self </span>{
-            Aggregator::AcceptsMetrics(<span class="kw">_</span>, <span class="kw">_</span>) =&gt; <span class="string">"AcceptsMetrics"</span>,
             Aggregator::MergeBuckets(<span class="kw">_</span>) =&gt; <span class="string">"MergeBuckets"</span>,
             <span class="attr">#[cfg(test)]
             </span>Aggregator::BucketCountInquiry(<span class="kw">_</span>, <span class="kw">_</span>) =&gt; <span class="string">"BucketCountInquiry"</span>,
@@ -441,13 +479,6 @@
 }
 
 <span class="kw">impl </span>Interface <span class="kw">for </span>Aggregator {}
-
-<span class="kw">impl </span>FromMessage&lt;AcceptsMetrics&gt; <span class="kw">for </span>Aggregator {
-    <span class="kw">type </span>Response = AsyncResponse&lt;bool&gt;;
-    <span class="kw">fn </span>from_message(message: AcceptsMetrics, sender: Sender&lt;bool&gt;) -&gt; <span class="self">Self </span>{
-        <span class="self">Self</span>::AcceptsMetrics(message, sender)
-    }
-}
 
 <span class="kw">impl </span>FromMessage&lt;MergeBuckets&gt; <span class="kw">for </span>Aggregator {
     <span class="kw">type </span>Response = NoResponse;
@@ -458,15 +489,11 @@
 
 <span class="attr">#[cfg(test)]
 </span><span class="kw">impl </span>FromMessage&lt;BucketCountInquiry&gt; <span class="kw">for </span>Aggregator {
-    <span class="kw">type </span>Response = AsyncResponse&lt;usize&gt;;
-    <span class="kw">fn </span>from_message(message: BucketCountInquiry, sender: Sender&lt;usize&gt;) -&gt; <span class="self">Self </span>{
+    <span class="kw">type </span>Response = relay_system::AsyncResponse&lt;usize&gt;;
+    <span class="kw">fn </span>from_message(message: BucketCountInquiry, sender: relay_system::Sender&lt;usize&gt;) -&gt; <span class="self">Self </span>{
         <span class="self">Self</span>::BucketCountInquiry(message, sender)
     }
 }
-
-<span class="doccomment">/// Check whether the aggregator has not (yet) exceeded its total limits. Used for health checks.
-</span><span class="attr">#[derive(Debug)]
-</span><span class="kw">pub struct </span>AcceptsMetrics;
 
 <span class="doccomment">/// Used only for testing the `AggregatorService`.
 </span><span class="attr">#[cfg(test)]
@@ -501,6 +528,7 @@
     receiver: <span class="prelude-ty">Option</span>&lt;Recipient&lt;FlushBuckets, NoResponse&gt;&gt;,
     max_total_bucket_bytes: <span class="prelude-ty">Option</span>&lt;usize&gt;,
     flush_interval_ms: u64,
+    can_accept_metrics: Arc&lt;AtomicBool&gt;,
 }
 
 <span class="kw">impl </span>AggregatorService {
@@ -521,21 +549,23 @@
         config: AggregatorServiceConfig,
         receiver: <span class="prelude-ty">Option</span>&lt;Recipient&lt;FlushBuckets, NoResponse&gt;&gt;,
     ) -&gt; <span class="self">Self </span>{
+        <span class="kw">let </span>aggregator = aggregator::Aggregator::named(name, config.aggregator);
         <span class="self">Self </span>{
             receiver,
             state: AggregatorState::Running,
             max_total_bucket_bytes: config.max_total_bucket_bytes,
-            aggregator: aggregator::Aggregator::named(name, config.aggregator),
             flush_interval_ms: config.flush_interval_ms,
+            can_accept_metrics: Arc::new(AtomicBool::new(
+                !aggregator.totals_cost_exceeded(config.max_total_bucket_bytes),
+            )),
+            aggregator,
         }
     }
 
-    <span class="kw">fn </span>handle_accepts_metrics(<span class="kw-2">&amp;</span><span class="self">self</span>, sender: Sender&lt;bool&gt;) {
-        <span class="kw">let </span>result = !<span class="self">self
-            </span>.aggregator
-            .totals_cost_exceeded(<span class="self">self</span>.max_total_bucket_bytes);
-
-        sender.send(result);
+    <span class="kw">pub fn </span>handle(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; AggregatorHandle {
+        AggregatorHandle {
+            can_accept_metrics: Arc::clone(<span class="kw-2">&amp;</span><span class="self">self</span>.can_accept_metrics),
+        }
     }
 
     <span class="doccomment">/// Sends the [`FlushBuckets`] message to the receiver in the fire and forget fashion. It is up
@@ -546,6 +576,13 @@
     </span><span class="kw">fn </span>try_flush(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
         <span class="kw">let </span>force_flush = <span class="macro">matches!</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.state, AggregatorState::ShuttingDown);
         <span class="kw">let </span>partitions = <span class="self">self</span>.aggregator.pop_flush_buckets(force_flush);
+
+        <span class="self">self</span>.can_accept_metrics.store(
+            !<span class="self">self
+                </span>.aggregator
+                .totals_cost_exceeded(<span class="self">self</span>.max_total_bucket_bytes),
+            Ordering::Relaxed,
+        );
 
         <span class="kw">if </span>partitions.is_empty() {
             <span class="kw">return</span>;
@@ -591,8 +628,41 @@
             project_key,
             buckets,
         } = msg;
-        <span class="self">self</span>.aggregator
-            .merge_all(project_key, buckets, <span class="self">self</span>.max_total_bucket_bytes);
+
+        <span class="kw">for </span>bucket <span class="kw">in </span>buckets.into_iter() {
+            <span class="kw">match </span><span class="self">self
+                </span>.aggregator
+                .merge(project_key, bucket, <span class="self">self</span>.max_total_bucket_bytes)
+            {
+                <span class="comment">// Ignore invalid timestamp errors.
+                </span><span class="prelude-val">Err</span>(AggregateMetricsError::InvalidTimestamp(<span class="kw">_</span>)) =&gt; {}
+                <span class="prelude-val">Err</span>(AggregateMetricsError::TotalLimitExceeded) =&gt; {
+                    <span class="macro">relay_log::error!</span>(
+                        tags.aggregator = <span class="self">self</span>.aggregator.name(),
+                        <span class="string">"aggregator limit exceeded"
+                    </span>);
+                    <span class="self">self</span>.can_accept_metrics.store(<span class="bool-val">false</span>, Ordering::Relaxed);
+                    <span class="kw">break</span>;
+                }
+                <span class="prelude-val">Err</span>(AggregateMetricsError::ProjectLimitExceeded) =&gt; {
+                    <span class="macro">relay_log::error!</span>(
+                        tags.aggregator = <span class="self">self</span>.aggregator.name(),
+                        tags.project_key = project_key.as_str(),
+                        <span class="string">"project metrics limit exceeded for project {project_key}"
+                    </span>);
+                    <span class="kw">break</span>;
+                }
+                <span class="prelude-val">Err</span>(error) =&gt; {
+                    <span class="macro">relay_log::error!</span>(
+                        tags.aggregator = <span class="self">self</span>.aggregator.name(),
+                        tags.project_key = project_key.as_str(),
+                        bucket.error = <span class="kw-2">&amp;</span>error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>std::error::Error,
+                        <span class="string">"failed to aggregate metric bucket"
+                    </span>);
+                }
+                <span class="prelude-val">Ok</span>(()) =&gt; {}
+            };
+        }
     }
 
     <span class="kw">fn </span>handle_message(<span class="kw-2">&amp;mut </span><span class="self">self</span>, message: Aggregator) {
@@ -602,7 +672,6 @@
             message = ty,
             {
                 <span class="kw">match </span>message {
-                    Aggregator::AcceptsMetrics(<span class="kw">_</span>, sender) =&gt; <span class="self">self</span>.handle_accepts_metrics(sender),
                     Aggregator::MergeBuckets(msg) =&gt; <span class="self">self</span>.handle_merge_buckets(msg),
                     <span class="attr">#[cfg(test)]
                     </span>Aggregator::BucketCountInquiry(<span class="kw">_</span>, sender) =&gt; {
@@ -675,6 +744,19 @@
             project_key,
             buckets,
         }
+    }
+}
+
+<span class="doccomment">/// Provides sync access to the state of the [`AggregatorService`].
+</span><span class="attr">#[derive(Debug, Clone)]
+</span><span class="kw">pub struct </span>AggregatorHandle {
+    can_accept_metrics: Arc&lt;AtomicBool&gt;,
+}
+
+<span class="kw">impl </span>AggregatorHandle {
+    <span class="doccomment">/// Returns `true` if the aggregator can still accept metrics.
+    </span><span class="kw">pub fn </span>can_accept_metrics(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="self">self</span>.can_accept_metrics.load(Ordering::Relaxed)
     }
 }
 
