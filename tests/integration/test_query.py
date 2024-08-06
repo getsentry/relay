@@ -256,41 +256,5 @@ def test_processing_redis_query_compressed(
 
     relay.send_event(project_id)
 
-    event, _ = events_consumer.get_event()
-    assert event["logentry"] == {"formatted": "Hello, World!"}
-
-
-def test_processing_redis_query_with_revision(
-    mini_sentry,
-    redis_client,
-    relay_with_processing,
-    events_consumer,
-    outcomes_consumer,
-):
-    outcomes_consumer = outcomes_consumer()
-    events_consumer = events_consumer()
-
-    relay = relay_with_processing(
-        {"limits": {"query_timeout": 10}, "cache": {"project_expiry": 1}}
-    )
-    project_id = 42
-    cfg = mini_sentry.add_full_project_config(project_id)
-    cfg["rev"] = "123"
-
-    key = mini_sentry.get_dsn_public_key(project_id)
-    projectconfig_cache_prefix = relay.options["processing"][
-        "projectconfig_cache_prefix"
-    ]
-    redis_client.setex(f"{projectconfig_cache_prefix}:{key}", 3600, json.dumps(cfg))
-    redis_client.setex(f"{projectconfig_cache_prefix}:{key}.rev", 3600, cfg["rev"])
-
-    relay.send_event(project_id)
-    event, _ = events_consumer.get_event()
-    assert event["logentry"] == {"formatted": "Hello, World!"}
-
-    # 1 second timeout on the project cache, make sure it times out
-    time.sleep(2)
-
-    relay.send_event(project_id)
-    event, _ = events_consumer.get_event()
+    event, v = events_consumer.get_event()
     assert event["logentry"] == {"formatted": "Hello, World!"}

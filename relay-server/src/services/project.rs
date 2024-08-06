@@ -310,11 +310,7 @@ impl Project {
                 "project {} state requested {attempts} times",
                 self.project_key
             );
-            project_cache.send(RequestUpdate {
-                project_key: self.project_key,
-                no_cache,
-                cached_state: self.state.clone(),
-            });
+            project_cache.send(RequestUpdate::new(self.project_key, no_cache));
         }
 
         channel
@@ -477,11 +473,7 @@ impl Project {
                 self.project_key
             );
 
-            project_cache.send(RequestUpdate {
-                project_key: self.project_key,
-                no_cache,
-                cached_state: self.state.clone(),
-            });
+            project_cache.send(RequestUpdate::new(self.project_key, no_cache));
             return old_state;
         }
 

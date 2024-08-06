@@ -53,17 +53,6 @@ impl ProjectState {
         }
     }
 
-    /// Returns the revision of the contained project info.
-    ///
-    /// `None` if the revision is missing or not available.
-    pub fn revision(&self) -> Option<&str> {
-        match &self {
-            ProjectState::Enabled(info) => info.rev.as_deref(),
-            ProjectState::Disabled => None,
-            ProjectState::Pending => None,
-        }
-    }
-
     /// Creates `Scoping` for this project if the state is loaded.
     ///
     /// Returns `Some` if the project state has been fetched and contains a project identifier,

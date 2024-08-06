@@ -53,15 +53,19 @@ use crate::utils::{GarbageDisposal, ManagedEnvelope, MemoryChecker, RetryBackoff
 #[derive(Clone, Debug)]
 pub struct RequestUpdate {
     /// The public key to fetch the project by.
-    pub project_key: ProjectKey,
+    project_key: ProjectKey,
+
     /// If true, all caches should be skipped and a fresh state should be computed.
-    pub no_cache: bool,
-    /// Previously cached fetch state, if available.
-    ///
-    /// The upstream request will include the revision of the currently cached state,
-    /// if the upstream does not have a different revision, this cached
-    /// state is re-used and its expiry bumped.
-    pub cached_state: ProjectFetchState,
+    no_cache: bool,
+}
+
+impl RequestUpdate {
+    pub fn new(project_key: ProjectKey, no_cache: bool) -> Self {
+        Self {
+            project_key,
+            no_cache,
+        }
+    }
 }
 
 /// Returns the project state.
@@ -455,12 +459,7 @@ impl ProjectSource {
         }
     }
 
-    async fn fetch(
-        self,
-        project_key: ProjectKey,
-        no_cache: bool,
-        _cached_state: ProjectFetchState,
-    ) -> Result<ProjectFetchState, ()> {
+    async fn fetch(self, project_key: ProjectKey, no_cache: bool) -> Result<ProjectFetchState, ()> {
         let state_opt = self
             .local_source
             .send(FetchOptionalProjectState { project_key })
@@ -480,34 +479,27 @@ impl ProjectSource {
 
         #[cfg(feature = "processing")]
         if let Some(redis_source) = self.redis_source {
-            let revision = _cached_state.revision().map(String::from);
-
             let redis_permit = self.redis_semaphore.acquire().await.map_err(|_| ())?;
-            let state_fetch_result = tokio::task::spawn_blocking(move || {
-                redis_source.get_config_if_changed(project_key, revision.as_deref())
-            })
-            .await
-            .map_err(|_| ())?;
+            let state_fetch_result =
+                tokio::task::spawn_blocking(move || redis_source.get_config(project_key))
+                    .await
+                    .map_err(|_| ())?;
             drop(redis_permit);
 
-            match state_fetch_result {
-                // New state fetched from Redis, possibly pending.
-                Ok(Some(state)) => {
-                    let state = state.sanitized();
-                    if !state.is_pending() {
-                        return Ok(ProjectFetchState::new(state));
-                    }
-                }
-                // Redis reported that we're holding an up-to-date version of the state already,
-                // refresh the state and return the old cached state again.
-                Ok(None) => return Ok(ProjectFetchState::refresh(_cached_state)),
+            let state = match state_fetch_result {
+                Ok(state) => state.sanitized(),
                 Err(error) => {
                     relay_log::error!(
                         error = &error as &dyn Error,
                         "failed to fetch project from Redis",
                     );
+                    ProjectState::Pending
                 }
             };
+
+            if !matches!(state, ProjectState::Pending) {
+                return Ok(ProjectFetchState::new(state));
+            }
         };
 
         self.upstream_source
@@ -742,7 +734,6 @@ impl ProjectCacheBroker {
         let RequestUpdate {
             project_key,
             no_cache,
-            cached_state,
         } = message;
 
         // Bump the update time of the project in our hashmap to evade eviction.
@@ -759,14 +750,14 @@ impl ProjectCacheBroker {
                 tokio::time::sleep_until(next_attempt).await;
             }
             let state = source
-                .fetch(project_key, no_cache, cached_state)
+                .fetch(project_key, no_cache)
                 .await
                 .unwrap_or_else(|()| ProjectFetchState::disabled());
 
             let message = UpdateProjectState {
                 project_key,
-                no_cache,
                 state,
+                no_cache,
             };
 
             sender.send(message).ok();
