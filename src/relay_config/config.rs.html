@@ -2587,6 +2587,20 @@
 <a href="#2587" id="2587">2587</a>
 <a href="#2588" id="2588">2588</a>
 <a href="#2589" id="2589">2589</a>
+<a href="#2590" id="2590">2590</a>
+<a href="#2591" id="2591">2591</a>
+<a href="#2592" id="2592">2592</a>
+<a href="#2593" id="2593">2593</a>
+<a href="#2594" id="2594">2594</a>
+<a href="#2595" id="2595">2595</a>
+<a href="#2596" id="2596">2596</a>
+<a href="#2597" id="2597">2597</a>
+<a href="#2598" id="2598">2598</a>
+<a href="#2599" id="2599">2599</a>
+<a href="#2600" id="2600">2600</a>
+<a href="#2601" id="2601">2601</a>
+<a href="#2602" id="2602">2602</a>
+<a href="#2603" id="2603">2603</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::io::Write;
@@ -3203,6 +3217,14 @@
     ///
     /// By default keep-alive is set to a 5 seconds.
     </span>keepalive_timeout: u64,
+    <span class="doccomment">/// The TCP listen backlog.
+    ///
+    /// Configures the TCP listen backlog for the listening socket of Relay.
+    /// See [`man listen(2)`](https://man7.org/linux/man-pages/man2/listen.2.html)
+    /// for a more detailed description of the listen backlog.
+    ///
+    /// Defaults to `1024`, a value [google has been using for a long time](https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=19f92a030ca6d772ab44b22ee6a01378a8cb32d4).
+    </span><span class="kw">pub </span>tcp_listen_backlog: u32,
 }
 
 <span class="kw">impl </span>Default <span class="kw">for </span>Limits {
@@ -3232,6 +3254,7 @@
             query_timeout: <span class="number">30</span>,
             shutdown_timeout: <span class="number">10</span>,
             keepalive_timeout: <span class="number">5</span>,
+            tcp_listen_backlog: <span class="number">1024</span>,
         }
     }
 }
@@ -4873,6 +4896,11 @@
     /// By default keep alive is set to a 5 seconds.
     </span><span class="kw">pub fn </span>keepalive_timeout(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Duration {
         Duration::from_secs(<span class="self">self</span>.values.limits.keepalive_timeout)
+    }
+
+    <span class="doccomment">/// TCP listen backlog to configure on Relay's listening socket.
+    </span><span class="kw">pub fn </span>tcp_listen_backlog(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; u32 {
+        <span class="self">self</span>.values.limits.tcp_listen_backlog
     }
 
     <span class="doccomment">/// Returns the number of cores to use for thread pools.

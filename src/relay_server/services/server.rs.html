@@ -154,7 +154,21 @@
 <a href="#154" id="154">154</a>
 <a href="#155" id="155">155</a>
 <a href="#156" id="156">156</a>
-</pre></div><pre class="rust"><code><span class="kw">use </span>std::net::{SocketAddr, TcpListener};
+<a href="#157" id="157">157</a>
+<a href="#158" id="158">158</a>
+<a href="#159" id="159">159</a>
+<a href="#160" id="160">160</a>
+<a href="#161" id="161">161</a>
+<a href="#162" id="162">162</a>
+<a href="#163" id="163">163</a>
+<a href="#164" id="164">164</a>
+<a href="#165" id="165">165</a>
+<a href="#166" id="166">166</a>
+<a href="#167" id="167">167</a>
+<a href="#168" id="168">168</a>
+<a href="#169" id="169">169</a>
+</pre></div><pre class="rust"><code><span class="kw">use </span>std::io;
+<span class="kw">use </span>std::net::{SocketAddr, TcpListener};
 <span class="kw">use </span>std::sync::Arc;
 <span class="kw">use </span>std::time::Duration;
 
@@ -163,6 +177,7 @@
 <span class="kw">use </span>axum_server::{AddrIncomingConfig, Handle, HttpConfig};
 <span class="kw">use </span>relay_config::Config;
 <span class="kw">use </span>relay_system::{Controller, Service, Shutdown};
+<span class="kw">use </span>tokio::net::TcpSocket;
 <span class="kw">use </span>tower::ServiceBuilder;
 <span class="kw">use </span>tower_http::compression::predicate::SizeAbove;
 <span class="kw">use </span>tower_http::compression::{CompressionLayer, DefaultPredicate, Predicate};
@@ -280,7 +295,8 @@
             .build();
 
         <span class="kw">let </span>handle = Handle::new();
-        <span class="kw">match </span>TcpListener::bind(config.listen_addr()) {
+
+        <span class="kw">match </span>create_listener(config.listen_addr(), config.tcp_listen_backlog()) {
             <span class="prelude-val">Ok</span>(listener) =&gt; {
                 listener.set_nonblocking(<span class="bool-val">true</span>).ok();
                 <span class="kw">let </span>server = axum_server::from_tcp(listener)
@@ -309,5 +325,15 @@
             }
         });
     }
+}
+
+<span class="kw">fn </span>create_listener(addr: SocketAddr, backlog: u32) -&gt; io::Result&lt;TcpListener&gt; {
+    <span class="kw">let </span>socket = <span class="kw">match </span>addr {
+        SocketAddr::V4(<span class="kw">_</span>) =&gt; TcpSocket::new_v4(),
+        SocketAddr::V6(<span class="kw">_</span>) =&gt; TcpSocket::new_v6(),
+    }<span class="question-mark">?</span>;
+    socket.bind(addr)<span class="question-mark">?</span>;
+
+    socket.listen(backlog)<span class="question-mark">?</span>.into_std()
 }
 </code></pre></div></section></main></body></html>
