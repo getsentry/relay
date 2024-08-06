@@ -246,8 +246,6 @@
 <a href="#246" id="246">246</a>
 <a href="#247" id="247">247</a>
 <a href="#248" id="248">248</a>
-<a href="#249" id="249">249</a>
-<a href="#250" id="250">250</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>chrono::{DateTime, Utc};
 
 <span class="kw">use </span>relay_base_schema::project::{ProjectId, ProjectKey};
@@ -280,9 +278,8 @@
     ///
     /// This might be `None` in some rare cases like where states
     /// are faked locally.
+    </span><span class="attr">#[serde(default)]
     </span><span class="kw">pub </span>last_change: <span class="prelude-ty">Option</span>&lt;DateTime&lt;Utc&gt;&gt;,
-    <span class="doccomment">/// The revision id of the project config.
-    </span><span class="kw">pub </span>rev: <span class="prelude-ty">Option</span>&lt;String&gt;,
     <span class="doccomment">/// Indicates that the project is disabled.
     /// A container of known public keys in the project.
     ///
@@ -307,7 +304,6 @@
 </span><span class="kw">pub struct </span>LimitedProjectInfo {
     <span class="kw">pub </span>project_id: <span class="prelude-ty">Option</span>&lt;ProjectId&gt;,
     <span class="kw">pub </span>last_change: <span class="prelude-ty">Option</span>&lt;DateTime&lt;Utc&gt;&gt;,
-    <span class="kw">pub </span>rev: <span class="prelude-ty">Option</span>&lt;String&gt;,
     <span class="kw">pub </span>public_keys: SmallVec&lt;[PublicKeyConfig; <span class="number">1</span>]&gt;,
     <span class="kw">pub </span>slug: <span class="prelude-ty">Option</span>&lt;String&gt;,
     <span class="attr">#[serde(with = <span class="string">"LimitedProjectConfig"</span>)]

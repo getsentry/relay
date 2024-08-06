@@ -845,14 +845,6 @@
 <a href="#845" id="845">845</a>
 <a href="#846" id="846">846</a>
 <a href="#847" id="847">847</a>
-<a href="#848" id="848">848</a>
-<a href="#849" id="849">849</a>
-<a href="#850" id="850">850</a>
-<a href="#851" id="851">851</a>
-<a href="#852" id="852">852</a>
-<a href="#853" id="853">853</a>
-<a href="#854" id="854">854</a>
-<a href="#855" id="855">855</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::sync::Arc;
 <span class="kw">use </span>std::time::Duration;
 
@@ -1165,11 +1157,7 @@
                 <span class="string">"project {} state requested {attempts} times"</span>,
                 <span class="self">self</span>.project_key
             );
-            project_cache.send(RequestUpdate {
-                project_key: <span class="self">self</span>.project_key,
-                no_cache,
-                cached_state: <span class="self">self</span>.state.clone(),
-            });
+            project_cache.send(RequestUpdate::new(<span class="self">self</span>.project_key, no_cache));
         }
 
         channel
@@ -1332,11 +1320,7 @@
                 <span class="self">self</span>.project_key
             );
 
-            project_cache.send(RequestUpdate {
-                project_key: <span class="self">self</span>.project_key,
-                no_cache,
-                cached_state: <span class="self">self</span>.state.clone(),
-            });
+            project_cache.send(RequestUpdate::new(<span class="self">self</span>.project_key, no_cache));
             <span class="kw">return </span>old_state;
         }
 
