@@ -614,6 +614,14 @@ struct Limits {
     ///
     /// By default keep-alive is set to a 5 seconds.
     keepalive_timeout: u64,
+    /// The TCP listen backlog.
+    ///
+    /// Configures the TCP listen backlog for the listening socket of Relay.
+    /// See [`man listen(2)`](https://man7.org/linux/man-pages/man2/listen.2.html)
+    /// for a more detailed description of the listen backlog.
+    ///
+    /// Defaults to `1024`, a value [google has been using for a long time](https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=19f92a030ca6d772ab44b22ee6a01378a8cb32d4).
+    pub tcp_listen_backlog: u32,
 }
 
 impl Default for Limits {
@@ -643,6 +651,7 @@ impl Default for Limits {
             query_timeout: 30,
             shutdown_timeout: 10,
             keepalive_timeout: 5,
+            tcp_listen_backlog: 1024,
         }
     }
 }
@@ -2284,6 +2293,11 @@ impl Config {
     /// By default keep alive is set to a 5 seconds.
     pub fn keepalive_timeout(&self) -> Duration {
         Duration::from_secs(self.values.limits.keepalive_timeout)
+    }
+
+    /// TCP listen backlog to configure on Relay's listening socket.
+    pub fn tcp_listen_backlog(&self) -> u32 {
+        self.values.limits.tcp_listen_backlog
     }
 
     /// Returns the number of cores to use for thread pools.

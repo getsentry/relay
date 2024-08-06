@@ -1,3 +1,4 @@
+use std::io;
 use std::net::{SocketAddr, TcpListener};
 use std::sync::Arc;
 use std::time::Duration;
@@ -7,6 +8,7 @@ use axum::ServiceExt;
 use axum_server::{AddrIncomingConfig, Handle, HttpConfig};
 use relay_config::Config;
 use relay_system::{Controller, Service, Shutdown};
+use tokio::net::TcpSocket;
 use tower::ServiceBuilder;
 use tower_http::compression::predicate::SizeAbove;
 use tower_http::compression::{CompressionLayer, DefaultPredicate, Predicate};
@@ -124,7 +126,8 @@ impl Service for HttpServer {
             .build();
 
         let handle = Handle::new();
-        match TcpListener::bind(config.listen_addr()) {
+
+        match create_listener(config.listen_addr(), config.tcp_listen_backlog()) {
             Ok(listener) => {
                 listener.set_nonblocking(true).ok();
                 let server = axum_server::from_tcp(listener)
@@ -153,4 +156,14 @@ impl Service for HttpServer {
             }
         });
     }
+}
+
+fn create_listener(addr: SocketAddr, backlog: u32) -> io::Result<TcpListener> {
+    let socket = match addr {
+        SocketAddr::V4(_) => TcpSocket::new_v4(),
+        SocketAddr::V6(_) => TcpSocket::new_v6(),
+    }?;
+    socket.bind(addr)?;
+
+    socket.listen(backlog)?.into_std()
 }
