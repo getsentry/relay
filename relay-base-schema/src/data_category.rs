@@ -123,7 +123,7 @@ impl DataCategory {
             "profile_duration" => Self::ProfileDuration,
             "profile_chunk" => Self::ProfileChunk,
             "metric_second" => Self::MetricSecond,
-            "replay_video" => Self::MetricSecond,
+            "replay_video" => Self::ReplayVideo,
             _ => Self::Unknown,
         }
     }
