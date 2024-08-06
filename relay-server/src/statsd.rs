@@ -651,6 +651,8 @@ pub enum RelayCounters {
     ///  - `hit`: One of:
     ///     - `revision`: the cached version was validated to be up to date using its revision.
     ///     - `project_config`: the request was handled by the cache.
+    ///     - `project_config_revision`: the request was handled by the cache and the revision did
+    ///        not change.
     ///     - `false`: the request will be sent to the sentry endpoint.
     #[cfg(feature = "processing")]
     ProjectStateRedis,

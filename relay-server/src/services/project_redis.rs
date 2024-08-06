@@ -91,25 +91,36 @@ impl RedisProjectSource {
             .query(&mut connection)
             .map_err(RedisError::Redis)?;
 
-        let response = match raw_response_opt {
-            Some(response) => {
-                metric!(
-                    counter(RelayCounters::ProjectStateRedis) += 1,
-                    hit = "project_config"
-                );
-                let parsed = parse_redis_response(response.as_slice())?;
-                ProjectState::from(parsed)
-            }
-            None => {
-                metric!(
-                    counter(RelayCounters::ProjectStateRedis) += 1,
-                    hit = "false"
-                );
-                ProjectState::Pending
-            }
+        let Some(response) = raw_response_opt else {
+            metric!(
+                counter(RelayCounters::ProjectStateRedis) += 1,
+                hit = "false"
+            );
+            return Ok(Some(ProjectState::Pending));
         };
 
-        Ok(Some(response))
+        let response = ProjectState::from(parse_redis_response(response.as_slice())?);
+
+        // If we were passed a revision, check if we just loaded the same revision from Redis.
+        //
+        // We always want to keep the old revision alive if possible, since the already loaded
+        // version has already initialized caches.
+        //
+        // While this is theoretically possible this should always been handled using the above revision
+        // check using the additional Redis key.
+        if revision.is_some() && response.revision() == revision {
+            metric!(
+                counter(RelayCounters::ProjectStateRedis) += 1,
+                hit = "project_config_revision"
+            );
+            Ok(None)
+        } else {
+            metric!(
+                counter(RelayCounters::ProjectStateRedis) += 1,
+                hit = "project_config"
+            );
+            Ok(Some(response))
+        }
     }
 
     fn get_redis_project_config_key(&self, key: ProjectKey) -> String {
