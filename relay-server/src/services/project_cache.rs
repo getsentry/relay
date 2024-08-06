@@ -56,7 +56,7 @@ pub struct RequestUpdate {
     pub project_key: ProjectKey,
     /// If true, all caches should be skipped and a fresh state should be computed.
     pub no_cache: bool,
-    /// Previously cached fetch state, if availabled.
+    /// Previously cached fetch state, if available.
     ///
     /// The upstream request will include the revision of the currently cached state,
     /// if the upstream does not have a different revision, this cached
@@ -498,7 +498,7 @@ impl ProjectSource {
                         return Ok(ProjectFetchState::new(state));
                     }
                 }
-                // Redis reported that we're holding an up to date version of the state alread,
+                // Redis reported that we're holding an up-to-date version of the state already,
                 // refresh the state and return the old cached state again.
                 Ok(None) => return Ok(ProjectFetchState::refresh(_cached_state)),
                 Err(error) => {

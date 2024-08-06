@@ -130,12 +130,10 @@ impl ProjectFetchState {
     }
 
     /// Returns the revision of the contained project state.
+    ///
+    /// See: [`ProjectState::revision`].
     pub fn revision(&self) -> Option<&str> {
-        match &self.state {
-            ProjectState::Enabled(info) => info.rev.as_deref(),
-            ProjectState::Disabled => None,
-            ProjectState::Pending => None,
-        }
+        self.state.revision()
     }
 }
 

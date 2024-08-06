@@ -52,6 +52,13 @@ impl RedisProjectSource {
         RedisProjectSource { config, redis }
     }
 
+    /// Fetches a project config from Redis.
+    ///
+    /// Returns `None` if the the project config stored in Redis has the same `revision`.
+    /// Always returns a project state if the passed `revision` is `None`.
+    ///
+    /// The returned project state is [`ProjectState::Pending`] if the requested project config is not
+    /// stored in Redis.
     pub fn get_config_if_changed(
         &self,
         key: ProjectKey,

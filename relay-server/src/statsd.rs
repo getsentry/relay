@@ -649,7 +649,7 @@ pub enum RelayCounters {
     ///
     /// This metric is tagged with:
     ///  - `hit`: One of:
-    ///     - `revision`: the in cached version was validated with the revision.
+    ///     - `revision`: the cached version was validated to be up to date using its revision.
     ///     - `project_config`: the request was handled by the cache.
     ///     - `false`: the request will be sent to the sentry endpoint.
     #[cfg(feature = "processing")]
