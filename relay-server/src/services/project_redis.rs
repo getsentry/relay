@@ -52,85 +52,32 @@ impl RedisProjectSource {
         RedisProjectSource { config, redis }
     }
 
-    /// Fetches a project config from Redis.
-    ///
-    /// Returns `None` if the the project config stored in Redis has the same `revision`.
-    /// Always returns a project state if the passed `revision` is `None`.
-    ///
-    /// The returned project state is [`ProjectState::Pending`] if the requested project config is not
-    /// stored in Redis.
-    pub fn get_config_if_changed(
-        &self,
-        key: ProjectKey,
-        revision: Option<&str>,
-    ) -> Result<Option<ProjectState>, RedisProjectError> {
-        let mut client = self.redis.client()?;
-        let mut connection = client.connection()?;
+    pub fn get_config(&self, key: ProjectKey) -> Result<ProjectState, RedisProjectError> {
+        let mut command = relay_redis::redis::cmd("GET");
 
-        // Only check for the revision if we were passed a revision.
-        if let Some(revision) = revision {
-            let current_revision: Option<String> = relay_redis::redis::cmd("GET")
-                .arg(self.get_redis_rev_key(key))
-                .query(&mut connection)
-                .map_err(RedisError::Redis)?;
+        let prefix = self.config.projectconfig_cache_prefix();
+        command.arg(format!("{prefix}:{key}"));
 
-            relay_log::trace!(
-                "Redis revision {current_revision:?}, requested revision {revision:?}"
-            );
-            if current_revision.as_deref() == Some(revision) {
-                metric!(
-                    counter(RelayCounters::ProjectStateRedis) += 1,
-                    hit = "revision",
-                );
-                return Ok(None);
-            }
-        }
-
-        let raw_response_opt: Option<Vec<u8>> = relay_redis::redis::cmd("GET")
-            .arg(self.get_redis_project_config_key(key))
-            .query(&mut connection)
+        let raw_response_opt: Option<Vec<u8>> = command
+            .query(&mut self.redis.client()?.connection()?)
             .map_err(RedisError::Redis)?;
 
-        let Some(response) = raw_response_opt else {
-            metric!(
-                counter(RelayCounters::ProjectStateRedis) += 1,
-                hit = "false"
-            );
-            return Ok(Some(ProjectState::Pending));
+        let response = match raw_response_opt {
+            Some(response) => {
+                metric!(counter(RelayCounters::ProjectStateRedis) += 1, hit = "true");
+                let parsed = parse_redis_response(response.as_slice())?;
+                ProjectState::from(parsed)
+            }
+            None => {
+                metric!(
+                    counter(RelayCounters::ProjectStateRedis) += 1,
+                    hit = "false"
+                );
+                ProjectState::Pending
+            }
         };
 
-        let response = ProjectState::from(parse_redis_response(response.as_slice())?);
-
-        // If we were passed a revision, check if we just loaded the same revision from Redis.
-        //
-        // We always want to keep the old revision alive if possible, since the already loaded
-        // version has already initialized caches.
-        //
-        // While this is theoretically possible this should always been handled using the above revision
-        // check using the additional Redis key.
-        if revision.is_some() && response.revision() == revision {
-            metric!(
-                counter(RelayCounters::ProjectStateRedis) += 1,
-                hit = "project_config_revision"
-            );
-            Ok(None)
-        } else {
-            metric!(
-                counter(RelayCounters::ProjectStateRedis) += 1,
-                hit = "project_config"
-            );
-            Ok(Some(response))
-        }
-    }
-
-    fn get_redis_project_config_key(&self, key: ProjectKey) -> String {
-        let prefix = self.config.projectconfig_cache_prefix();
-        format!("{prefix}:{key}")
-    }
-
-    fn get_redis_rev_key(&self, key: ProjectKey) -> String {
-        let prefix = self.config.projectconfig_cache_prefix();
-        format!("{prefix}:{key}.rev")
+        Ok(response)
     }
 }
 

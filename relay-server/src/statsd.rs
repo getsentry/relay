@@ -647,13 +647,8 @@ pub enum RelayCounters {
     ProjectStateNoCache,
     /// Number of times a project state is requested from the central Redis cache.
     ///
-    /// This metric is tagged with:
-    ///  - `hit`: One of:
-    ///     - `revision`: the cached version was validated to be up to date using its revision.
-    ///     - `project_config`: the request was handled by the cache.
-    ///     - `project_config_revision`: the request was handled by the cache and the revision did
-    ///        not change.
-    ///     - `false`: the request will be sent to the sentry endpoint.
+    /// This has a tag `hit` with values `true` or `false`.  If false the request will be
+    /// sent to the sentry endpoint.
     #[cfg(feature = "processing")]
     ProjectStateRedis,
     /// Number of times a project is looked up from the cache.
