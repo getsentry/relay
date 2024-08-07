@@ -2470,6 +2470,7 @@ impl Config {
             mut max_tag_key_length,
             mut max_tag_value_length,
             mut max_project_key_bucket_bytes,
+            mut max_total_bucket_bytes,
             ..
         } = self.default_aggregator_config().aggregator;
 
@@ -2484,6 +2485,7 @@ impl Config {
             max_tag_value_length = max_tag_value_length.max(agg.max_tag_value_length);
             max_project_key_bucket_bytes =
                 max_project_key_bucket_bytes.max(agg.max_project_key_bucket_bytes);
+            max_total_bucket_bytes = max_total_bucket_bytes.max(agg.max_total_bucket_bytes);
         }
 
         for agg in self
@@ -2505,6 +2507,7 @@ impl Config {
             max_tag_key_length,
             max_tag_value_length,
             max_project_key_bucket_bytes,
+            max_total_bucket_bytes,
             initial_delay: 30,
             flush_partitions: None,
             flush_batching: FlushBatching::Project,

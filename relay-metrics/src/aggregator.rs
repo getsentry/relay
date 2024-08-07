@@ -182,11 +182,20 @@ pub struct AggregatorConfig {
 
     /// Maximum amount of bytes used for metrics aggregation per project key.
     ///
-    /// Similar measuring technique to `max_total_bucket_bytes`, but instead of a
+    /// Similar measuring technique to [`Self::max_total_bucket_bytes`], but instead of a
     /// global/process-wide limit, it is enforced per project key.
     ///
     /// Defaults to `None`, i.e. no limit.
     pub max_project_key_bucket_bytes: Option<usize>,
+
+    /// Maximum amount of bytes used for metrics aggregation.
+    ///
+    /// When aggregating metrics, Relay keeps track of how many bytes a metric takes in memory.
+    /// This is only an approximation and does not take into account things such as pre-allocation
+    /// in hashmaps.
+    ///
+    /// Defaults to `None`, i.e. no limit.
+    pub max_total_bucket_bytes: Option<usize>,
 
     /// The number of logical partitions that can receive flushed buckets.
     ///
@@ -279,6 +288,7 @@ impl Default for AggregatorConfig {
             max_tag_key_length: 200,
             max_tag_value_length: 200,
             max_project_key_bucket_bytes: None,
+            max_total_bucket_bytes: None,
             flush_batching: FlushBatching::default(),
             flush_partitions: None,
         }
@@ -458,12 +468,11 @@ impl fmt::Debug for CostTracker {
 /// All buckets are flushed after a grace period of `initial_delay`.
 fn get_flush_time(
     config: &AggregatorConfig,
+    now: UnixTimestamp,
     reference_time: Instant,
     bucket_key: &BucketKey,
 ) -> Instant {
     let initial_flush = bucket_key.timestamp + config.bucket_interval() + config.initial_delay();
-
-    let now = UnixTimestamp::now();
     let backdated = initial_flush <= now;
 
     let delay = now.as_secs() as i64 - bucket_key.timestamp.as_secs() as i64;
@@ -557,9 +566,10 @@ impl Aggregator {
         self.buckets.len()
     }
 
-    /// Returns `true` if the cost trackers value is larger than the given max cost.
-    pub fn totals_cost_exceeded(&self, max_total_cost: Option<usize>) -> bool {
-        self.cost_tracker.totals_cost_exceeded(max_total_cost)
+    /// Returns `true` if the cost trackers value is larger than the configured max cost.
+    pub fn totals_cost_exceeded(&self) -> bool {
+        self.cost_tracker
+            .totals_cost_exceeded(self.config.max_total_bucket_bytes)
     }
 
     /// Converts this aggregator into a vector of [`Bucket`].
@@ -678,13 +688,14 @@ impl Aggregator {
     /// Logs a statsd metric for invalid timestamps.
     fn get_bucket_timestamp(
         &self,
+        now: UnixTimestamp,
         timestamp: UnixTimestamp,
         bucket_width: u64,
     ) -> Result<UnixTimestamp, AggregateMetricsError> {
         let bucket_ts = self.config.get_bucket_timestamp(timestamp, bucket_width);
 
         if !self.config.timestamp_range().contains(&bucket_ts) {
-            let delta = (bucket_ts.as_secs() as i64) - (UnixTimestamp::now().as_secs() as i64);
+            let delta = (bucket_ts.as_secs() as i64) - (now.as_secs() as i64);
             relay_statsd::metric!(
                 histogram(MetricHistograms::InvalidBucketTimestamp) = delta as f64,
                 aggregator = &self.name,
@@ -696,16 +707,31 @@ impl Aggregator {
         Ok(bucket_ts)
     }
 
-    /// Merge a preaggregated bucket into this aggregator.
+    /// Merge a bucket into this aggregator.
     ///
-    /// If no bucket exists for the given bucket key, a new bucket will be created.
+    /// Like [`Self::merge_with_options`] with defaults.
     pub fn merge(
         &mut self,
         project_key: ProjectKey,
-        mut bucket: Bucket,
-        max_total_bucket_bytes: Option<usize>,
+        bucket: Bucket,
     ) -> Result<(), AggregateMetricsError> {
-        let timestamp = self.get_bucket_timestamp(bucket.timestamp, bucket.width)?;
+        self.merge_with_options(project_key, bucket, UnixTimestamp::now())
+    }
+
+    /// Merge a bucket into this aggregator.
+    ///
+    /// If no bucket exists for the given bucket key, a new bucket will be created.
+    ///
+    /// Arguments:
+    ///  - `now`: The current timestamp, when merging a large batch of buckets, the timestamp
+    ///    should be created outside of the loop.
+    pub fn merge_with_options(
+        &mut self,
+        project_key: ProjectKey,
+        mut bucket: Bucket,
+        now: UnixTimestamp,
+    ) -> Result<(), AggregateMetricsError> {
+        let timestamp = self.get_bucket_timestamp(now, bucket.timestamp, bucket.width)?;
         let key = BucketKey {
             project_key,
             timestamp,
@@ -744,7 +770,7 @@ impl Aggregator {
         // whether it is just a counter, etc.
         self.cost_tracker.check_limits_exceeded(
             project_key,
-            max_total_bucket_bytes,
+            self.config.max_total_bucket_bytes,
             self.config.max_project_key_bucket_bytes,
         )?;
 
@@ -784,7 +810,7 @@ impl Aggregator {
                 namespace = key.namespace().as_str(),
             );
 
-            let flush_at = get_flush_time(&self.config, self.reference_time, &key);
+            let flush_at = get_flush_time(&self.config, now, self.reference_time, &key);
             let value = bucket.value;
             added_cost = key.cost() + value.cost();
 
@@ -909,6 +935,7 @@ mod tests {
             max_tag_key_length: 200,
             max_tag_value_length: 200,
             max_project_key_bucket_bytes: None,
+            max_total_bucket_bytes: None,
             flush_batching: FlushBatching::default(),
             flush_partitions: None,
         }
@@ -936,8 +963,8 @@ mod tests {
 
         let mut bucket2 = bucket1.clone();
         bucket2.value = BucketValue::counter(43.into());
-        aggregator.merge(project_key, bucket1, None).unwrap();
-        aggregator.merge(project_key, bucket2, None).unwrap();
+        aggregator.merge(project_key, bucket1).unwrap();
+        aggregator.merge(project_key, bucket2).unwrap();
 
         let buckets: Vec<_> = aggregator
             .buckets
@@ -1031,9 +1058,10 @@ mod tests {
 
         let mut bucket3 = bucket1.clone();
         bucket3.timestamp = UnixTimestamp::from_secs(999994721);
-        aggregator.merge(project_key, bucket1, None).unwrap();
-        aggregator.merge(project_key, bucket2, None).unwrap();
-        aggregator.merge(project_key, bucket3, None).unwrap();
+
+        aggregator.merge(project_key, bucket1).unwrap();
+        aggregator.merge(project_key, bucket2).unwrap();
+        aggregator.merge(project_key, bucket3).unwrap();
 
         let mut buckets: Vec<_> = aggregator
             .buckets
@@ -1089,12 +1117,8 @@ mod tests {
         let mut aggregator: Aggregator = Aggregator::new(config);
 
         // It's OK to have same metric with different projects:
-        aggregator
-            .merge(project_key1, some_bucket(None), None)
-            .unwrap();
-        aggregator
-            .merge(project_key2, some_bucket(None), None)
-            .unwrap();
+        aggregator.merge(project_key1, some_bucket(None)).unwrap();
+        aggregator.merge(project_key2, some_bucket(None)).unwrap();
 
         assert_eq!(aggregator.buckets.len(), 2);
     }
@@ -1267,7 +1291,7 @@ mod tests {
             bucket.name = metric_name.into();
 
             let current_cost = aggregator.cost_tracker.total_cost;
-            aggregator.merge(project_key, bucket, None).unwrap();
+            aggregator.merge(project_key, bucket).unwrap();
             let total_cost = aggregator.cost_tracker.total_cost;
             assert_eq!(total_cost, current_cost + expected_added_cost);
         }
@@ -1300,7 +1324,7 @@ mod tests {
                     metadata: BucketMetadata::new(timestamp),
                 };
 
-                aggregator.merge(project_key, bucket, None).unwrap();
+                aggregator.merge(project_key, bucket).unwrap();
             }
         }
 
@@ -1366,7 +1390,7 @@ mod tests {
 
         assert!(matches!(
             aggregator
-                .get_bucket_timestamp(UnixTimestamp::from_secs(u64::MAX), 2)
+                .get_bucket_timestamp(UnixTimestamp::now(), UnixTimestamp::from_secs(u64::MAX), 2)
                 .unwrap_err(),
             AggregateMetricsError::InvalidTimestamp(_)
         ));
@@ -1548,15 +1572,16 @@ mod tests {
             metadata: BucketMetadata::new(timestamp),
         };
 
-        let mut aggregator: Aggregator = Aggregator::new(test_config());
+        let mut aggregator = Aggregator::new(AggregatorConfig {
+            max_total_bucket_bytes: Some(1),
+            ..test_config()
+        });
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
 
-        aggregator
-            .merge(project_key, bucket.clone(), Some(1))
-            .unwrap();
+        aggregator.merge(project_key, bucket.clone()).unwrap();
 
         assert_eq!(
-            aggregator.merge(project_key, bucket, Some(1)).unwrap_err(),
+            aggregator.merge(project_key, bucket).unwrap_err(),
             AggregateMetricsError::TotalLimitExceeded
         );
     }
@@ -1580,9 +1605,9 @@ mod tests {
         let mut aggregator: Aggregator = Aggregator::new(config);
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
 
-        aggregator.merge(project_key, bucket.clone(), None).unwrap();
+        aggregator.merge(project_key, bucket.clone()).unwrap();
         assert_eq!(
-            aggregator.merge(project_key, bucket, None).unwrap_err(),
+            aggregator.merge(project_key, bucket).unwrap_err(),
             AggregateMetricsError::ProjectLimitExceeded
         );
     }
@@ -1614,15 +1639,9 @@ mod tests {
             .metadata
             .merge(BucketMetadata::new(UnixTimestamp::from_secs(999999811)));
 
-        aggregator
-            .merge(project_key, bucket1.clone(), None)
-            .unwrap();
-        aggregator
-            .merge(project_key, bucket2.clone(), None)
-            .unwrap();
-        aggregator
-            .merge(project_key, bucket3.clone(), None)
-            .unwrap();
+        aggregator.merge(project_key, bucket1.clone()).unwrap();
+        aggregator.merge(project_key, bucket2.clone()).unwrap();
+        aggregator.merge(project_key, bucket3.clone()).unwrap();
 
         let buckets_metadata: Vec<_> = aggregator
             .buckets
@@ -1675,8 +1694,9 @@ mod tests {
             extracted_from_indexed: false,
         };
 
-        let flush_time_1 = get_flush_time(&config, reference_time, &bucket_key_1);
-        let flush_time_2 = get_flush_time(&config, reference_time, &bucket_key_2);
+        let now = UnixTimestamp::now();
+        let flush_time_1 = get_flush_time(&config, now, reference_time, &bucket_key_1);
+        let flush_time_2 = get_flush_time(&config, now, reference_time, &bucket_key_2);
 
         assert_eq!(flush_time_1, flush_time_2);
     }

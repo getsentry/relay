@@ -6,7 +6,7 @@ use hashbrown::HashMap;
 use relay_base_schema::project::ProjectKey;
 use relay_config::AggregatorServiceConfig;
 use relay_metrics::aggregator::AggregateMetricsError;
-use relay_metrics::{aggregator, Bucket};
+use relay_metrics::{aggregator, Bucket, UnixTimestamp};
 use relay_system::{Controller, FromMessage, Interface, NoResponse, Recipient, Service, Shutdown};
 
 use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
@@ -90,7 +90,6 @@ pub struct AggregatorService {
     aggregator: aggregator::Aggregator,
     state: AggregatorState,
     receiver: Option<Recipient<FlushBuckets, NoResponse>>,
-    max_total_bucket_bytes: Option<usize>,
     flush_interval_ms: u64,
     can_accept_metrics: Arc<AtomicBool>,
 }
@@ -117,11 +116,8 @@ impl AggregatorService {
         Self {
             receiver,
             state: AggregatorState::Running,
-            max_total_bucket_bytes: config.max_total_bucket_bytes,
             flush_interval_ms: config.flush_interval_ms,
-            can_accept_metrics: Arc::new(AtomicBool::new(
-                !aggregator.totals_cost_exceeded(config.max_total_bucket_bytes),
-            )),
+            can_accept_metrics: Arc::new(AtomicBool::new(!aggregator.totals_cost_exceeded())),
             aggregator,
         }
     }
@@ -141,12 +137,8 @@ impl AggregatorService {
         let force_flush = matches!(&self.state, AggregatorState::ShuttingDown);
         let partitions = self.aggregator.pop_flush_buckets(force_flush);
 
-        self.can_accept_metrics.store(
-            !self
-                .aggregator
-                .totals_cost_exceeded(self.max_total_bucket_bytes),
-            Ordering::Relaxed,
-        );
+        self.can_accept_metrics
+            .store(!self.aggregator.totals_cost_exceeded(), Ordering::Relaxed);
 
         if partitions.is_empty() {
             return;
@@ -193,11 +185,9 @@ impl AggregatorService {
             buckets,
         } = msg;
 
+        let now = UnixTimestamp::now();
         for bucket in buckets.into_iter() {
-            match self
-                .aggregator
-                .merge(project_key, bucket, self.max_total_bucket_bytes)
-            {
+            match self.aggregator.merge_with_options(project_key, bucket, now) {
                 // Ignore invalid timestamp errors.
                 Err(AggregateMetricsError::InvalidTimestamp(_)) => {}
                 Err(AggregateMetricsError::TotalLimitExceeded) => {
