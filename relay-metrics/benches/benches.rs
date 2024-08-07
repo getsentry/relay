@@ -196,11 +196,7 @@ fn bench_insert_and_flush(c: &mut Criterion) {
                                 #[allow(clippy::unit_arg)]
                                 black_box(
                                     aggregator
-                                        .merge(
-                                            black_box(project_key),
-                                            black_box(bucket),
-                                            black_box(None),
-                                        )
+                                        .merge(black_box(project_key), black_box(bucket))
                                         .unwrap(),
                                 );
                             }
@@ -221,7 +217,7 @@ fn bench_insert_and_flush(c: &mut Criterion) {
                         let timestamp = UnixTimestamp::now();
                         let mut aggregator: Aggregator = Aggregator::new(config.clone());
                         for (project_key, bucket) in input.get_buckets(timestamp) {
-                            aggregator.merge(project_key, bucket, None).unwrap();
+                            aggregator.merge(project_key, bucket).unwrap();
                         }
                         aggregator
                     },

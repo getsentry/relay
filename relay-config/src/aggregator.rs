@@ -12,15 +12,6 @@ pub struct AggregatorServiceConfig {
     #[serde(flatten)]
     pub aggregator: AggregatorConfig,
 
-    /// Maximum amount of bytes used for metrics aggregation.
-    ///
-    /// When aggregating metrics, Relay keeps track of how many bytes a metric takes in memory.
-    /// This is only an approximation and does not take into account things such as pre-allocation
-    /// in hashmaps.
-    ///
-    /// Defaults to `None`, i.e. no limit.
-    pub max_total_bucket_bytes: Option<usize>,
-
     /// The approximate maximum number of bytes submitted within one flush cycle.
     ///
     /// This controls how big flushed batches of buckets get, depending on the number of buckets,
@@ -40,7 +31,6 @@ impl Default for AggregatorServiceConfig {
     fn default() -> Self {
         Self {
             aggregator: AggregatorConfig::default(),
-            max_total_bucket_bytes: None,
             max_flush_bytes: 5_000_000, // 5 MB
             flush_interval_ms: 100,     // 100 milliseconds
         }
