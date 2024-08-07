@@ -12,7 +12,7 @@ pub use relay_common::time::UnixTimestamp;
 #[doc(inline)]
 pub use unescaper::Error as UnescapeError;
 
-use crate::FiniteF64;
+use crate::{Bucket, FiniteF64, MetricTags};
 
 /// Type used for Counter metric
 pub type CounterType = FiniteF64;
@@ -25,6 +25,72 @@ pub type SetType = u32;
 
 /// Type used for Gauge entries
 pub type GaugeType = FiniteF64;
+
+/// Error returned from [`normalize_bucket`].
+#[derive(Debug, thiserror::Error)]
+pub enum NormalizationError {
+    /// The metric name includes an invalid or unsupported metric namespace.
+    #[error("unsupported metric namespace")]
+    UnsupportedNamespace,
+    /// The metric name cannot be parsed and is invalid.
+    #[error("invalid metric name: {0:?}")]
+    InvalidMetricName(MetricName),
+}
+
+/// Normalizes a bucket.
+///
+/// The passed metric will have its name and tags normalized and tested for validity.
+/// Invalid characters in the metric name may be replaced,
+/// see [`relay_base_schema::metrics::try_normalize_metric_name`].
+///
+/// Invalid tags are removed and tag keys are normalized, for example control characters are
+/// removed from tag keys.
+pub fn normalize_bucket(bucket: &mut Bucket) -> Result<(), NormalizationError> {
+    normalize_metric_name(&mut bucket.name)?;
+    normalize_metric_tags(&mut bucket.tags);
+    Ok(())
+}
+
+/// Normalizes a metric name.
+///
+/// Normalization includes expanding valid metric names without a namespace to the default
+/// namespace.
+///
+/// Invalid metric names are rejected with [`Error`].
+fn normalize_metric_name(name: &mut MetricName) -> Result<(), NormalizationError> {
+    *name = match MetricResourceIdentifier::parse(name) {
+        Ok(mri) => {
+            if matches!(mri.namespace, MetricNamespace::Unsupported) {
+                return Err(NormalizationError::UnsupportedNamespace);
+            }
+
+            // We can improve this code part, by not always re-creating the name, if the name is
+            // already a valid MRI with namespace we can use the original name instead.
+            mri.to_string().into()
+        }
+        Err(_) => {
+            return Err(NormalizationError::InvalidMetricName(name.clone()));
+        }
+    };
+
+    Ok(())
+}
+
+/// Removes tags with invalid characters in the key, and validates tag values.
+///
+/// Tag values are validated with [`validate_tag_value`].
+fn normalize_metric_tags(tags: &mut MetricTags) {
+    tags.retain(|tag_key, tag_value| {
+        if !is_valid_tag_key(tag_key) {
+            relay_log::debug!("invalid metric tag key {tag_key:?}");
+            return false;
+        }
+
+        validate_tag_value(tag_value);
+
+        true
+    });
+}
 
 /// Validates a tag key.
 ///
