@@ -1618,89 +1618,6 @@
 <a href="#1618" id="1618">1618</a>
 <a href="#1619" id="1619">1619</a>
 <a href="#1620" id="1620">1620</a>
-<a href="#1621" id="1621">1621</a>
-<a href="#1622" id="1622">1622</a>
-<a href="#1623" id="1623">1623</a>
-<a href="#1624" id="1624">1624</a>
-<a href="#1625" id="1625">1625</a>
-<a href="#1626" id="1626">1626</a>
-<a href="#1627" id="1627">1627</a>
-<a href="#1628" id="1628">1628</a>
-<a href="#1629" id="1629">1629</a>
-<a href="#1630" id="1630">1630</a>
-<a href="#1631" id="1631">1631</a>
-<a href="#1632" id="1632">1632</a>
-<a href="#1633" id="1633">1633</a>
-<a href="#1634" id="1634">1634</a>
-<a href="#1635" id="1635">1635</a>
-<a href="#1636" id="1636">1636</a>
-<a href="#1637" id="1637">1637</a>
-<a href="#1638" id="1638">1638</a>
-<a href="#1639" id="1639">1639</a>
-<a href="#1640" id="1640">1640</a>
-<a href="#1641" id="1641">1641</a>
-<a href="#1642" id="1642">1642</a>
-<a href="#1643" id="1643">1643</a>
-<a href="#1644" id="1644">1644</a>
-<a href="#1645" id="1645">1645</a>
-<a href="#1646" id="1646">1646</a>
-<a href="#1647" id="1647">1647</a>
-<a href="#1648" id="1648">1648</a>
-<a href="#1649" id="1649">1649</a>
-<a href="#1650" id="1650">1650</a>
-<a href="#1651" id="1651">1651</a>
-<a href="#1652" id="1652">1652</a>
-<a href="#1653" id="1653">1653</a>
-<a href="#1654" id="1654">1654</a>
-<a href="#1655" id="1655">1655</a>
-<a href="#1656" id="1656">1656</a>
-<a href="#1657" id="1657">1657</a>
-<a href="#1658" id="1658">1658</a>
-<a href="#1659" id="1659">1659</a>
-<a href="#1660" id="1660">1660</a>
-<a href="#1661" id="1661">1661</a>
-<a href="#1662" id="1662">1662</a>
-<a href="#1663" id="1663">1663</a>
-<a href="#1664" id="1664">1664</a>
-<a href="#1665" id="1665">1665</a>
-<a href="#1666" id="1666">1666</a>
-<a href="#1667" id="1667">1667</a>
-<a href="#1668" id="1668">1668</a>
-<a href="#1669" id="1669">1669</a>
-<a href="#1670" id="1670">1670</a>
-<a href="#1671" id="1671">1671</a>
-<a href="#1672" id="1672">1672</a>
-<a href="#1673" id="1673">1673</a>
-<a href="#1674" id="1674">1674</a>
-<a href="#1675" id="1675">1675</a>
-<a href="#1676" id="1676">1676</a>
-<a href="#1677" id="1677">1677</a>
-<a href="#1678" id="1678">1678</a>
-<a href="#1679" id="1679">1679</a>
-<a href="#1680" id="1680">1680</a>
-<a href="#1681" id="1681">1681</a>
-<a href="#1682" id="1682">1682</a>
-<a href="#1683" id="1683">1683</a>
-<a href="#1684" id="1684">1684</a>
-<a href="#1685" id="1685">1685</a>
-<a href="#1686" id="1686">1686</a>
-<a href="#1687" id="1687">1687</a>
-<a href="#1688" id="1688">1688</a>
-<a href="#1689" id="1689">1689</a>
-<a href="#1690" id="1690">1690</a>
-<a href="#1691" id="1691">1691</a>
-<a href="#1692" id="1692">1692</a>
-<a href="#1693" id="1693">1693</a>
-<a href="#1694" id="1694">1694</a>
-<a href="#1695" id="1695">1695</a>
-<a href="#1696" id="1696">1696</a>
-<a href="#1697" id="1697">1697</a>
-<a href="#1698" id="1698">1698</a>
-<a href="#1699" id="1699">1699</a>
-<a href="#1700" id="1700">1700</a>
-<a href="#1701" id="1701">1701</a>
-<a href="#1702" id="1702">1702</a>
-<a href="#1703" id="1703">1703</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Core functionality of metrics aggregation.
 
 </span><span class="kw">use </span>std::collections::BTreeMap;
@@ -1717,21 +1634,14 @@
 <span class="kw">use </span>tokio::time::Instant;
 
 <span class="kw">use </span><span class="kw">crate</span>::bucket::{Bucket, BucketValue};
-<span class="kw">use </span><span class="kw">crate</span>::protocol::{<span class="self">self</span>, MetricNamespace, MetricResourceIdentifier};
 <span class="kw">use </span><span class="kw">crate</span>::statsd::{MetricCounters, MetricGauges, MetricHistograms, MetricSets, MetricTimers};
-<span class="kw">use crate</span>::{BucketMetadata, FiniteF64, MetricName};
+<span class="kw">use crate</span>::{BucketMetadata, FiniteF64, MetricName, MetricNamespace};
 
 <span class="kw">use </span>hashbrown::HashMap;
 
 <span class="doccomment">/// Any error that may occur during aggregation.
 </span><span class="attr">#[derive(Debug, Error, PartialEq)]
 </span><span class="kw">pub enum </span>AggregateMetricsError {
-    <span class="doccomment">/// A metric bucket had invalid characters in the metric name.
-    </span><span class="attr">#[error(<span class="string">"found invalid characters: {0}"</span>)]
-    </span>InvalidCharacters(MetricName),
-    <span class="doccomment">/// A metric bucket had an unknown namespace in the metric name.
-    </span><span class="attr">#[error(<span class="string">"found unsupported namespace: {0}"</span>)]
-    </span>UnsupportedNamespace(MetricNamespace),
     <span class="doccomment">/// A metric bucket's timestamp was out of the configured acceptable range.
     </span><span class="attr">#[error(<span class="string">"found invalid timestamp: {0}"</span>)]
     </span>InvalidTimestamp(UnixTimestamp),
@@ -2550,11 +2460,11 @@
     <span class="prelude-val">Ok</span>(key)
 }
 
-<span class="doccomment">/// Removes invalid characters from metric names.
+<span class="doccomment">/// Validates metric name against [`AggregatorConfig`].
 ///
 /// Returns `Err` if the metric must be dropped.
 </span><span class="kw">fn </span>validate_metric_name(
-    <span class="kw-2">mut </span>key: BucketKey,
+    key: BucketKey,
     aggregator_config: <span class="kw-2">&amp;</span>AggregatorConfig,
 ) -&gt; <span class="prelude-ty">Result</span>&lt;BucketKey, AggregateMetricsError&gt; {
     <span class="kw">let </span>metric_name_length = key.metric_name.len();
@@ -2567,35 +2477,12 @@
         <span class="kw">return </span><span class="prelude-val">Err</span>(AggregateMetricsError::InvalidStringLength(key.metric_name));
     }
 
-    normalize_metric_name(<span class="kw-2">&amp;mut </span>key)<span class="question-mark">?</span>;
-
     <span class="prelude-val">Ok</span>(key)
 }
 
-<span class="kw">fn </span>normalize_metric_name(key: <span class="kw-2">&amp;mut </span>BucketKey) -&gt; <span class="prelude-ty">Result</span>&lt;(), AggregateMetricsError&gt; {
-    key.metric_name = <span class="kw">match </span>MetricResourceIdentifier::parse(<span class="kw-2">&amp;</span>key.metric_name) {
-        <span class="prelude-val">Ok</span>(mri) =&gt; {
-            <span class="kw">if </span><span class="macro">matches!</span>(mri.namespace, MetricNamespace::Unsupported) {
-                <span class="macro">relay_log::debug!</span>(<span class="string">"invalid metric namespace {:?}"</span>, <span class="kw-2">&amp;</span>key.metric_name);
-                <span class="kw">return </span><span class="prelude-val">Err</span>(AggregateMetricsError::UnsupportedNamespace(mri.namespace));
-            }
-
-            mri.to_string().into()
-        }
-        <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; {
-            <span class="macro">relay_log::debug!</span>(<span class="string">"invalid metric name {:?}"</span>, <span class="kw-2">&amp;</span>key.metric_name);
-            <span class="kw">return </span><span class="prelude-val">Err</span>(AggregateMetricsError::InvalidCharacters(
-                key.metric_name.clone(),
-            ));
-        }
-    };
-
-    <span class="prelude-val">Ok</span>(())
-}
-
-<span class="doccomment">/// Removes tags with invalid characters in the key, and validates tag values.
+<span class="doccomment">/// Validates metric tags against [`AggregatorConfig`].
 ///
-/// Tag values are validated with `protocol::validate_tag_value`.
+/// Invalid tags are removed.
 </span><span class="kw">fn </span>validate_metric_tags(<span class="kw-2">mut </span>key: BucketKey, aggregator_config: <span class="kw-2">&amp;</span>AggregatorConfig) -&gt; BucketKey {
     key.tags.retain(|tag_key, tag_value| {
         <span class="kw">if </span>tag_key.len() &gt; aggregator_config.max_tag_key_length {
@@ -2607,16 +2494,8 @@
             <span class="kw">return </span><span class="bool-val">false</span>;
         }
 
-        <span class="kw">if </span>protocol::is_valid_tag_key(tag_key) {
-            <span class="bool-val">true
-        </span>} <span class="kw">else </span>{
-            <span class="macro">relay_log::debug!</span>(<span class="string">"invalid metric tag key {tag_key:?}"</span>);
-            <span class="bool-val">false
-        </span>}
-    });
-    <span class="kw">for </span>(<span class="kw">_</span>, tag_value) <span class="kw">in </span>key.tags.iter_mut() {
-        protocol::validate_tag_value(tag_value);
-    }
+        <span class="bool-val">true
+    </span>});
     key
 }
 
@@ -2649,7 +2528,7 @@
         Bucket {
             timestamp,
             width: <span class="number">0</span>,
-            name: <span class="string">"c:transactions/foo"</span>.into(),
+            name: <span class="string">"c:transactions/foo@none"</span>.into(),
             value: BucketValue::counter(<span class="number">42</span>.into()),
             tags: BTreeMap::new(),
             metadata: BucketMetadata::new(timestamp),
@@ -3152,52 +3031,7 @@
     }
 
     <span class="attr">#[test]
-    </span><span class="kw">fn </span>test_validate_bucket_key_chars() {
-        <span class="kw">let </span>project_key = ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap();
-
-        <span class="kw">let </span>bucket_key = BucketKey {
-            project_key,
-            timestamp: UnixTimestamp::now(),
-            metric_name: <span class="string">"c:transactions/hergus.bergus"</span>.into(),
-            tags: {
-                <span class="kw">let </span><span class="kw-2">mut </span>tags = BTreeMap::new();
-                <span class="comment">// There are some SDKs which mess up content encodings, and interpret the raw bytes
-                // of an UTF-16 string as UTF-8. Leading to ASCII
-                // strings getting null-bytes interleaved.
-                //
-                // Somehow those values end up as release tag in sessions, while in error events we
-                // haven't observed this malformed encoding. We believe it's slightly better to
-                // strip out NUL-bytes instead of dropping the tag such that those values line up
-                // again across sessions and events. Should that cause too high cardinality we'll
-                // have to drop tags.
-                //
-                // Note that releases are validated separately against much stricter character set,
-                // but the above idea should still apply to other tags.
-                </span>tags.insert(
-                    <span class="string">"is_it_garbage"</span>.to_owned(),
-                    <span class="string">"a\0b\0s\0o\0l\0u\0t\0e\0l\0y"</span>.to_owned(),
-                );
-                tags.insert(<span class="string">"another\0garbage"</span>.to_owned(), <span class="string">"bye"</span>.to_owned());
-                tags
-            },
-            extracted_from_indexed: <span class="bool-val">false</span>,
-        };
-
-        <span class="kw">let </span><span class="kw-2">mut </span>bucket_key = validate_bucket_key(bucket_key, <span class="kw-2">&amp;</span>test_config()).unwrap();
-
-        <span class="macro">assert_eq!</span>(bucket_key.tags.len(), <span class="number">1</span>);
-        <span class="macro">assert_eq!</span>(
-            bucket_key.tags.get(<span class="string">"is_it_garbage"</span>),
-            <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="string">"absolutely"</span>.to_owned())
-        );
-        <span class="macro">assert_eq!</span>(bucket_key.tags.get(<span class="string">"another\0garbage"</span>), <span class="prelude-val">None</span>);
-
-        bucket_key.metric_name = <span class="string">"hergus\0bergus"</span>.into();
-        validate_bucket_key(bucket_key, <span class="kw-2">&amp;</span>test_config()).unwrap_err();
-    }
-
-    <span class="attr">#[test]
-    </span><span class="kw">fn </span>test_validate_bucket_key_str_lens() {
+    </span><span class="kw">fn </span>test_validate_bucket_key_str_length() {
         relay_test::setup();
         <span class="kw">let </span>project_key = ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap();
 

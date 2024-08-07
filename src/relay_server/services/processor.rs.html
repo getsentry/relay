@@ -4116,6 +4116,16 @@
 <a href="#4116" id="4116">4116</a>
 <a href="#4117" id="4117">4117</a>
 <a href="#4118" id="4118">4118</a>
+<a href="#4119" id="4119">4119</a>
+<a href="#4120" id="4120">4120</a>
+<a href="#4121" id="4121">4121</a>
+<a href="#4122" id="4122">4122</a>
+<a href="#4123" id="4123">4123</a>
+<a href="#4124" id="4124">4124</a>
+<a href="#4125" id="4125">4125</a>
+<a href="#4126" id="4126">4126</a>
+<a href="#4127" id="4127">4127</a>
+<a href="#4128" id="4128">4128</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeMap, BTreeSet, HashMap};
 <span class="kw">use </span>std::error::Error;
@@ -6299,14 +6309,24 @@
         <span class="kw">let </span>clock_drift_processor =
             ClockDriftProcessor::new(sent_at, received).at_least(MINIMUM_CLOCK_DRIFT);
 
-        <span class="kw">for </span>bucket <span class="kw">in </span><span class="kw-2">&amp;mut </span>buckets {
+        buckets.retain_mut(|bucket| {
+            <span class="kw">if let </span><span class="prelude-val">Err</span>(error) = relay_metrics::normalize_bucket(bucket) {
+                <span class="macro">relay_log::debug!</span>(error = <span class="kw-2">&amp;</span>error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error, <span class="string">"dropping bucket {bucket:?}"</span>);
+                <span class="kw">return </span><span class="bool-val">false</span>;
+            }
+
+            <span class="kw">if </span>!<span class="self">self</span>::metrics::is_valid_namespace(bucket, source) {
+                <span class="kw">return </span><span class="bool-val">false</span>;
+            }
+
             clock_drift_processor.process_timestamp(<span class="kw-2">&amp;mut </span>bucket.timestamp);
+
             <span class="kw">if </span>!<span class="macro">matches!</span>(source, BucketSource::Internal) {
                 bucket.metadata = BucketMetadata::new(received_timestamp);
             }
-        }
 
-        <span class="kw">let </span>buckets = <span class="self">self</span>::metrics::filter_namespaces(buckets, source);
+            <span class="bool-val">true
+        </span>});
 
         <span class="comment">// Best effort check to filter and rate limit buckets, if there is no project state
         // available at the current time, we will check again after flushing.

@@ -1508,6 +1508,9 @@
 <a href="#1508" id="1508">1508</a>
 <a href="#1509" id="1509">1509</a>
 <a href="#1510" id="1510">1510</a>
+<a href="#1511" id="1511">1511</a>
+<a href="#1512" id="1512">1512</a>
+<a href="#1513" id="1513">1513</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
 <span class="kw">use </span>std::hash::Hash;
 <span class="kw">use </span>std::iter::FusedIterator;
@@ -1526,6 +1529,9 @@
 <span class="kw">use crate</span>::{FiniteF64, MetricNamespace, ParseMetricError};
 
 <span class="kw">const </span>VALUE_SEPARATOR: char = <span class="string">':'</span>;
+
+<span class="doccomment">/// Type of [`Bucket::tags`].
+</span><span class="kw">pub type </span>MetricTags = BTreeMap&lt;String, String&gt;;
 
 <span class="doccomment">/// A snapshot of values within a [`Bucket`].
 </span><span class="attr">#[derive(Clone, Copy, Debug, PartialEq, Deserialize, Serialize)]
@@ -1911,8 +1917,8 @@
 <span class="doccomment">/// Parses tags in the format `tag1,tag2:value`.
 ///
 /// Tag values are optional. For tags with missing values, an empty `""` value is assumed.
-</span><span class="kw">fn </span>parse_tags(string: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;BTreeMap&lt;String, String&gt;&gt; {
-    <span class="kw">let </span><span class="kw-2">mut </span>map = BTreeMap::new();
+</span><span class="kw">fn </span>parse_tags(string: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;MetricTags&gt; {
+    <span class="kw">let </span><span class="kw-2">mut </span>map = MetricTags::new();
 
     <span class="kw">for </span>pair <span class="kw">in </span>string.split(<span class="string">','</span>) {
         <span class="kw">let </span><span class="kw-2">mut </span>name_value = pair.splitn(<span class="number">2</span>, <span class="string">':'</span>);
@@ -2116,8 +2122,8 @@
     /// ```text
     /// endpoint.hits:1|c|#route:user_index,environment:production,release:1.4.0
     /// ```
-    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">"BTreeMap::is_empty"</span>)]
-    </span><span class="kw">pub </span>tags: BTreeMap&lt;String, String&gt;,
+    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">"MetricTags::is_empty"</span>)]
+    </span><span class="kw">pub </span>tags: MetricTags,
 
     <span class="doccomment">/// Relay internal metadata for a metric bucket.
     ///

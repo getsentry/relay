@@ -247,8 +247,6 @@
 <a href="#247" id="247">247</a>
 <a href="#248" id="248">248</a>
 <a href="#249" id="249">249</a>
-<a href="#250" id="250">250</a>
-<a href="#251" id="251">251</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_dynamic_config::{ErrorBoundary, Feature, Metrics};
 <span class="kw">use </span>relay_filter::FilterStatKey;
 <span class="kw">use </span>relay_metrics::{Bucket, MetricNamespace};
@@ -259,13 +257,13 @@
 <span class="kw">use </span><span class="kw">crate</span>::services::project::ProjectInfo;
 <span class="kw">use </span><span class="kw">crate</span>::services::project_cache::BucketSource;
 
-<span class="doccomment">/// Filters buckets based on their namespace.
+<span class="doccomment">/// Checks if the namespace of the passed bucket is valid.
 ///
-/// This is a noop for most namespaces except:
+/// This is returns `true` for most namespaces except:
 ///  - [`MetricNamespace::Unsupported`]: Equal to invalid/unknown namespaces.
 ///  - [`MetricNamespace::Stats`]: Metric stats are only allowed if the `source` is [`BucketSource::Internal`].
-</span><span class="kw">pub fn </span>filter_namespaces(<span class="kw-2">mut </span>buckets: Vec&lt;Bucket&gt;, source: BucketSource) -&gt; Vec&lt;Bucket&gt; {
-    buckets.retain(|bucket| <span class="kw">match </span>bucket.name.namespace() {
+</span><span class="kw">pub fn </span>is_valid_namespace(bucket: <span class="kw-2">&amp;</span>Bucket, source: BucketSource) -&gt; bool {
+    <span class="kw">match </span>bucket.name.namespace() {
         MetricNamespace::Sessions =&gt; <span class="bool-val">true</span>,
         MetricNamespace::Transactions =&gt; <span class="bool-val">true</span>,
         MetricNamespace::Spans =&gt; <span class="bool-val">true</span>,
@@ -273,9 +271,7 @@
         MetricNamespace::Custom =&gt; <span class="bool-val">true</span>,
         MetricNamespace::Stats =&gt; source == BucketSource::Internal,
         MetricNamespace::Unsupported =&gt; <span class="bool-val">false</span>,
-    });
-
-    buckets
+    }
 }
 
 <span class="kw">pub fn </span>apply_project_info(
