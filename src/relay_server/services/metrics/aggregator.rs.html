@@ -424,16 +424,6 @@
 <a href="#424" id="424">424</a>
 <a href="#425" id="425">425</a>
 <a href="#426" id="426">426</a>
-<a href="#427" id="427">427</a>
-<a href="#428" id="428">428</a>
-<a href="#429" id="429">429</a>
-<a href="#430" id="430">430</a>
-<a href="#431" id="431">431</a>
-<a href="#432" id="432">432</a>
-<a href="#433" id="433">433</a>
-<a href="#434" id="434">434</a>
-<a href="#435" id="435">435</a>
-<a href="#436" id="436">436</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::sync::atomic::{AtomicBool, Ordering};
 <span class="kw">use </span>std::sync::Arc;
 <span class="kw">use </span>std::time::Duration;
@@ -442,7 +432,7 @@
 <span class="kw">use </span>relay_base_schema::project::ProjectKey;
 <span class="kw">use </span>relay_config::AggregatorServiceConfig;
 <span class="kw">use </span>relay_metrics::aggregator::AggregateMetricsError;
-<span class="kw">use </span>relay_metrics::{aggregator, Bucket};
+<span class="kw">use </span>relay_metrics::{aggregator, Bucket, UnixTimestamp};
 <span class="kw">use </span>relay_system::{Controller, FromMessage, Interface, NoResponse, Recipient, Service, Shutdown};
 
 <span class="kw">use </span><span class="kw">crate</span>::statsd::{RelayCounters, RelayHistograms, RelayTimers};
@@ -526,7 +516,6 @@
     aggregator: aggregator::Aggregator,
     state: AggregatorState,
     receiver: <span class="prelude-ty">Option</span>&lt;Recipient&lt;FlushBuckets, NoResponse&gt;&gt;,
-    max_total_bucket_bytes: <span class="prelude-ty">Option</span>&lt;usize&gt;,
     flush_interval_ms: u64,
     can_accept_metrics: Arc&lt;AtomicBool&gt;,
 }
@@ -553,11 +542,8 @@
         <span class="self">Self </span>{
             receiver,
             state: AggregatorState::Running,
-            max_total_bucket_bytes: config.max_total_bucket_bytes,
             flush_interval_ms: config.flush_interval_ms,
-            can_accept_metrics: Arc::new(AtomicBool::new(
-                !aggregator.totals_cost_exceeded(config.max_total_bucket_bytes),
-            )),
+            can_accept_metrics: Arc::new(AtomicBool::new(!aggregator.totals_cost_exceeded())),
             aggregator,
         }
     }
@@ -577,12 +563,8 @@
         <span class="kw">let </span>force_flush = <span class="macro">matches!</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.state, AggregatorState::ShuttingDown);
         <span class="kw">let </span>partitions = <span class="self">self</span>.aggregator.pop_flush_buckets(force_flush);
 
-        <span class="self">self</span>.can_accept_metrics.store(
-            !<span class="self">self
-                </span>.aggregator
-                .totals_cost_exceeded(<span class="self">self</span>.max_total_bucket_bytes),
-            Ordering::Relaxed,
-        );
+        <span class="self">self</span>.can_accept_metrics
+            .store(!<span class="self">self</span>.aggregator.totals_cost_exceeded(), Ordering::Relaxed);
 
         <span class="kw">if </span>partitions.is_empty() {
             <span class="kw">return</span>;
@@ -629,11 +611,9 @@
             buckets,
         } = msg;
 
+        <span class="kw">let </span>now = UnixTimestamp::now();
         <span class="kw">for </span>bucket <span class="kw">in </span>buckets.into_iter() {
-            <span class="kw">match </span><span class="self">self
-                </span>.aggregator
-                .merge(project_key, bucket, <span class="self">self</span>.max_total_bucket_bytes)
-            {
+            <span class="kw">match </span><span class="self">self</span>.aggregator.merge_with_options(project_key, bucket, now) {
                 <span class="comment">// Ignore invalid timestamp errors.
                 </span><span class="prelude-val">Err</span>(AggregateMetricsError::InvalidTimestamp(<span class="kw">_</span>)) =&gt; {}
                 <span class="prelude-val">Err</span>(AggregateMetricsError::TotalLimitExceeded) =&gt; {

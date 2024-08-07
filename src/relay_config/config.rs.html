@@ -2601,6 +2601,9 @@
 <a href="#2601" id="2601">2601</a>
 <a href="#2602" id="2602">2602</a>
 <a href="#2603" id="2603">2603</a>
+<a href="#2604" id="2604">2604</a>
+<a href="#2605" id="2605">2605</a>
+<a href="#2606" id="2606">2606</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::io::Write;
@@ -5073,6 +5076,7 @@
             <span class="kw-2">mut </span>max_tag_key_length,
             <span class="kw-2">mut </span>max_tag_value_length,
             <span class="kw-2">mut </span>max_project_key_bucket_bytes,
+            <span class="kw-2">mut </span>max_total_bucket_bytes,
             ..
         } = <span class="self">self</span>.default_aggregator_config().aggregator;
 
@@ -5087,6 +5091,7 @@
             max_tag_value_length = max_tag_value_length.max(agg.max_tag_value_length);
             max_project_key_bucket_bytes =
                 max_project_key_bucket_bytes.max(agg.max_project_key_bucket_bytes);
+            max_total_bucket_bytes = max_total_bucket_bytes.max(agg.max_total_bucket_bytes);
         }
 
         <span class="kw">for </span>agg <span class="kw">in </span><span class="self">self
@@ -5108,6 +5113,7 @@
             max_tag_key_length,
             max_tag_value_length,
             max_project_key_bucket_bytes,
+            max_total_bucket_bytes,
             initial_delay: <span class="number">30</span>,
             flush_partitions: <span class="prelude-val">None</span>,
             flush_batching: FlushBatching::Project,

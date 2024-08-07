@@ -143,16 +143,6 @@
 <a href="#143" id="143">143</a>
 <a href="#144" id="144">144</a>
 <a href="#145" id="145">145</a>
-<a href="#146" id="146">146</a>
-<a href="#147" id="147">147</a>
-<a href="#148" id="148">148</a>
-<a href="#149" id="149">149</a>
-<a href="#150" id="150">150</a>
-<a href="#151" id="151">151</a>
-<a href="#152" id="152">152</a>
-<a href="#153" id="153">153</a>
-<a href="#154" id="154">154</a>
-<a href="#155" id="155">155</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Metrics aggregator configuration.
 
 </span><span class="kw">use </span>relay_metrics::aggregator::AggregatorConfig;
@@ -166,15 +156,6 @@
     <span class="doccomment">/// The config used by the internal aggregator.
     </span><span class="attr">#[serde(flatten)]
     </span><span class="kw">pub </span>aggregator: AggregatorConfig,
-
-    <span class="doccomment">/// Maximum amount of bytes used for metrics aggregation.
-    ///
-    /// When aggregating metrics, Relay keeps track of how many bytes a metric takes in memory.
-    /// This is only an approximation and does not take into account things such as pre-allocation
-    /// in hashmaps.
-    ///
-    /// Defaults to `None`, i.e. no limit.
-    </span><span class="kw">pub </span>max_total_bucket_bytes: <span class="prelude-ty">Option</span>&lt;usize&gt;,
 
     <span class="doccomment">/// The approximate maximum number of bytes submitted within one flush cycle.
     ///
@@ -195,7 +176,6 @@
     <span class="kw">fn </span>default() -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{
             aggregator: AggregatorConfig::default(),
-            max_total_bucket_bytes: <span class="prelude-val">None</span>,
             max_flush_bytes: <span class="number">5_000_000</span>, <span class="comment">// 5 MB
             </span>flush_interval_ms: <span class="number">100</span>,     <span class="comment">// 100 milliseconds
         </span>}
