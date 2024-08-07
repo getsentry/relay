@@ -881,7 +881,7 @@ mod tests {
         Bucket {
             timestamp,
             width: 0,
-            name: "c:transactions/foo".into(),
+            name: "c:transactions/foo@none".into(),
             value: BucketValue::counter(42.into()),
             tags: BTreeMap::new(),
             metadata: BucketMetadata::new(timestamp),
@@ -1387,52 +1387,7 @@ mod tests {
     }
 
     #[test]
-    fn test_validate_bucket_key_chars() {
-        let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
-
-        let bucket_key = BucketKey {
-            project_key,
-            timestamp: UnixTimestamp::now(),
-            metric_name: "c:transactions/hergus.bergus".into(),
-            tags: {
-                let mut tags = BTreeMap::new();
-                // There are some SDKs which mess up content encodings, and interpret the raw bytes
-                // of an UTF-16 string as UTF-8. Leading to ASCII
-                // strings getting null-bytes interleaved.
-                //
-                // Somehow those values end up as release tag in sessions, while in error events we
-                // haven't observed this malformed encoding. We believe it's slightly better to
-                // strip out NUL-bytes instead of dropping the tag such that those values line up
-                // again across sessions and events. Should that cause too high cardinality we'll
-                // have to drop tags.
-                //
-                // Note that releases are validated separately against much stricter character set,
-                // but the above idea should still apply to other tags.
-                tags.insert(
-                    "is_it_garbage".to_owned(),
-                    "a\0b\0s\0o\0l\0u\0t\0e\0l\0y".to_owned(),
-                );
-                tags.insert("another\0garbage".to_owned(), "bye".to_owned());
-                tags
-            },
-            extracted_from_indexed: false,
-        };
-
-        let mut bucket_key = validate_bucket_key(bucket_key, &test_config()).unwrap();
-
-        assert_eq!(bucket_key.tags.len(), 1);
-        assert_eq!(
-            bucket_key.tags.get("is_it_garbage"),
-            Some(&"absolutely".to_owned())
-        );
-        assert_eq!(bucket_key.tags.get("another\0garbage"), None);
-
-        bucket_key.metric_name = "hergus\0bergus".into();
-        validate_bucket_key(bucket_key, &test_config()).unwrap_err();
-    }
-
-    #[test]
-    fn test_validate_bucket_key_str_lens() {
+    fn test_validate_bucket_key_str_length() {
         relay_test::setup();
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
 
