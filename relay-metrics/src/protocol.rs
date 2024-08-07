@@ -78,7 +78,7 @@ fn normalize_metric_name(name: &mut MetricName) -> Result<(), NormalizationError
 
 /// Removes tags with invalid characters in the key, and validates tag values.
 ///
-/// Tag values are validated with [`validate_tag_value`].
+/// Tag values are validated with [`normalize_tag_value`].
 fn normalize_metric_tags(tags: &mut MetricTags) {
     tags.retain(|tag_key, tag_value| {
         if !is_valid_tag_key(tag_key) {
@@ -140,7 +140,7 @@ pub(crate) fn escape_tag_value(raw: &str) -> String {
 /// resolved.
 ///
 /// Control characters are stripped from the resulting string. This is equivalent to
-/// [`validate_tag_value`].
+/// [`normalize_tag_value`].
 pub(crate) fn unescape_tag_value(escaped: &str) -> Result<String, UnescapeError> {
     let mut unescaped = unescaper::unescape(escaped)?;
     normalize_tag_value(&mut unescaped);
