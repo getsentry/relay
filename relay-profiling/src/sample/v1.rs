@@ -12,6 +12,7 @@ use itertools::Itertools;
 use relay_event_schema::protocol::{EventId, SpanId};
 use serde::{Deserialize, Serialize};
 
+use crate::client_sdk::ClientSdk;
 use crate::error::ProfileError;
 use crate::measurements::Measurement;
 use crate::sample::{DebugMeta, Frame, ThreadMetadata, Version};
@@ -255,6 +256,9 @@ pub struct ProfileMetadata {
 
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     transaction_tags: BTreeMap<String, String>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub client_sdk: Option<ClientSdk>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -322,10 +326,13 @@ fn parse_profile(payload: &[u8]) -> Result<ProfilingEvent, ProfileError> {
 
 pub fn parse_sample_profile(
     payload: &[u8],
+    client_sdk: Option<ClientSdk>,
     transaction_metadata: BTreeMap<String, String>,
     transaction_tags: BTreeMap<String, String>,
 ) -> Result<Vec<u8>, ProfileError> {
     let mut profile = parse_profile(payload)?;
+
+    profile.metadata.client_sdk = client_sdk;
 
     if let Some(transaction_name) = transaction_metadata.get("transaction") {
         if let Some(ref mut transaction) = profile.metadata.transaction {
@@ -377,7 +384,7 @@ mod tests {
     #[test]
     fn test_expand() {
         let payload = include_bytes!("../../tests/fixtures/sample/v1/valid.json");
-        let profile = parse_sample_profile(payload, BTreeMap::new(), BTreeMap::new());
+        let profile = parse_sample_profile(payload, None, BTreeMap::new(), BTreeMap::new());
         assert!(profile.is_ok());
     }
 
@@ -410,6 +417,7 @@ mod tests {
                 dist: "9999".to_string(),
                 transaction_metadata: BTreeMap::new(),
                 transaction_tags: BTreeMap::new(),
+                client_sdk: None,
             },
             profile: SampleProfile {
                 queue_metadata: Some(HashMap::new()),
@@ -593,7 +601,7 @@ mod tests {
         ]);
 
         let payload = serde_json::to_vec(&profile).unwrap();
-        let data = parse_sample_profile(&payload[..], BTreeMap::new(), BTreeMap::new());
+        let data = parse_sample_profile(&payload[..], None, BTreeMap::new(), BTreeMap::new());
 
         assert!(data.is_err());
     }
@@ -873,7 +881,8 @@ mod tests {
         )]);
 
         let payload = include_bytes!("../../tests/fixtures/sample/v1/valid.json");
-        let profile_json = parse_sample_profile(payload, transaction_metadata, BTreeMap::new());
+        let profile_json =
+            parse_sample_profile(payload, None, transaction_metadata, BTreeMap::new());
         assert!(profile_json.is_ok());
 
         let payload = profile_json.unwrap();

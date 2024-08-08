@@ -16,6 +16,7 @@ use serde::{Deserialize, Serialize};
 use relay_event_schema::protocol::EventId;
 use relay_metrics::FiniteF64;
 
+use crate::client_sdk::ClientSdk;
 use crate::error::ProfileError;
 use crate::measurements::Measurement;
 use crate::sample::{DebugMeta, Frame, ThreadMetadata, Version};
@@ -40,12 +41,6 @@ pub struct ProfileMetadata {
 
     /// Hard-coded string containing "2" to indicate the format version.
     pub version: Version,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct ClientSdk {
-    name: String,
-    version: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
