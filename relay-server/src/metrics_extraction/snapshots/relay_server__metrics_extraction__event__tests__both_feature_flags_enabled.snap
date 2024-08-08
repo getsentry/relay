@@ -3476,6 +3476,7 @@ expression: metrics
             "span.op": "resource.script",
             "transaction": "gEt /api/:version/users/",
             "transaction.op": "myop",
+            "user.geo.geoscheme": "Western Europe",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -3504,6 +3505,7 @@ expression: metrics
             "span.domain": "domain",
             "span.group": "022f81fdf31228bf",
             "span.op": "resource.script",
+            "user.geo.geoscheme": "Western Europe",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -3534,6 +3536,7 @@ expression: metrics
             "span.op": "resource.script",
             "transaction": "gEt /api/:version/users/",
             "transaction.op": "myop",
+            "user.geo.geoscheme": "Western Europe",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -3562,6 +3565,7 @@ expression: metrics
             "span.domain": "domain",
             "span.group": "022f81fdf31228bf",
             "span.op": "resource.script",
+            "user.geo.geoscheme": "Western Europe",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -4213,6 +4217,7 @@ expression: metrics
             "span.op": "resource.css",
             "transaction": "gEt /api/:version/users/",
             "transaction.op": "myop",
+            "user.geo.geoscheme": "Western Europe",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -4242,6 +4247,7 @@ expression: metrics
             "span.domain": "*.domain.com",
             "span.group": "d744fa0716ef1142",
             "span.op": "resource.css",
+            "user.geo.geoscheme": "Western Europe",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -4273,6 +4279,7 @@ expression: metrics
             "span.op": "resource.css",
             "transaction": "gEt /api/:version/users/",
             "transaction.op": "myop",
+            "user.geo.geoscheme": "Western Europe",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -4302,6 +4309,7 @@ expression: metrics
             "span.domain": "*.domain.com",
             "span.group": "d744fa0716ef1142",
             "span.op": "resource.css",
+            "user.geo.geoscheme": "Western Europe",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -4436,6 +4444,7 @@ expression: metrics
             "span.op": "resource.script",
             "transaction": "gEt /api/:version/users/",
             "transaction.op": "myop",
+            "user.geo.geoscheme": "Western Europe",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -4465,6 +4474,7 @@ expression: metrics
             "span.domain": "*.example.com:5688",
             "span.group": "89bda2e660f6236c",
             "span.op": "resource.script",
+            "user.geo.geoscheme": "Western Europe",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -4496,6 +4506,7 @@ expression: metrics
             "span.op": "resource.script",
             "transaction": "gEt /api/:version/users/",
             "transaction.op": "myop",
+            "user.geo.geoscheme": "Western Europe",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -4525,6 +4536,7 @@ expression: metrics
             "span.domain": "*.example.com:5688",
             "span.group": "89bda2e660f6236c",
             "span.op": "resource.script",
+            "user.geo.geoscheme": "Western Europe",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -7866,6 +7878,7 @@ expression: metrics
             "span.op": "resource.script",
             "transaction": "gEt /api/:version/users/",
             "transaction.op": "myop",
+            "user.geo.geoscheme": "Western Europe",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -7893,6 +7906,7 @@ expression: metrics
             "span.domain": "*",
             "span.group": "3e92c536f98104b2",
             "span.op": "resource.script",
+            "user.geo.geoscheme": "Western Europe",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -7922,6 +7936,7 @@ expression: metrics
             "span.op": "resource.script",
             "transaction": "gEt /api/:version/users/",
             "transaction.op": "myop",
+            "user.geo.geoscheme": "Western Europe",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -7949,6 +7964,7 @@ expression: metrics
             "span.domain": "*",
             "span.group": "3e92c536f98104b2",
             "span.op": "resource.script",
+            "user.geo.geoscheme": "Western Europe",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -7997,6 +8013,7 @@ expression: metrics
             "span.op": "resource.script",
             "transaction": "gEt /api/:version/users/",
             "transaction.op": "myop",
+            "user.geo.geoscheme": "Western Europe",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -8025,6 +8042,7 @@ expression: metrics
             "span.domain": "domain",
             "span.group": "022f81fdf31228bf",
             "span.op": "resource.script",
+            "user.geo.geoscheme": "Western Europe",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -8055,6 +8073,7 @@ expression: metrics
             "span.op": "resource.script",
             "transaction": "gEt /api/:version/users/",
             "transaction.op": "myop",
+            "user.geo.geoscheme": "Western Europe",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -8083,6 +8102,7 @@ expression: metrics
             "span.domain": "domain",
             "span.group": "022f81fdf31228bf",
             "span.op": "resource.script",
+            "user.geo.geoscheme": "Western Europe",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -8132,6 +8152,7 @@ expression: metrics
             "span.op": "resource.css",
             "transaction": "gEt /api/:version/users/",
             "transaction.op": "myop",
+            "user.geo.geoscheme": "Western Europe",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -8161,6 +8182,7 @@ expression: metrics
             "span.domain": "*.domain.com",
             "span.group": "7f402250846262be",
             "span.op": "resource.css",
+            "user.geo.geoscheme": "Western Europe",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -8192,6 +8214,7 @@ expression: metrics
             "span.op": "resource.css",
             "transaction": "gEt /api/:version/users/",
             "transaction.op": "myop",
+            "user.geo.geoscheme": "Western Europe",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -8221,6 +8244,7 @@ expression: metrics
             "span.domain": "*.domain.com",
             "span.group": "7f402250846262be",
             "span.op": "resource.css",
+            "user.geo.geoscheme": "Western Europe",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -8352,6 +8376,7 @@ expression: metrics
             "span.op": "resource.script",
             "transaction": "gEt /api/:version/users/",
             "transaction.op": "myop",
+            "user.geo.geoscheme": "Western Europe",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -8378,6 +8403,7 @@ expression: metrics
             "span.description": "*/zero-length-*",
             "span.group": "c7d3c9d83f92123a",
             "span.op": "resource.script",
+            "user.geo.geoscheme": "Western Europe",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -8406,6 +8432,7 @@ expression: metrics
             "span.op": "resource.script",
             "transaction": "gEt /api/:version/users/",
             "transaction.op": "myop",
+            "user.geo.geoscheme": "Western Europe",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -8432,6 +8459,7 @@ expression: metrics
             "span.description": "*/zero-length-*",
             "span.group": "c7d3c9d83f92123a",
             "span.op": "resource.script",
+            "user.geo.geoscheme": "Western Europe",
         },
         metadata: BucketMetadata {
             merges: 1,
