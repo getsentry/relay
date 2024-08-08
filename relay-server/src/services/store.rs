@@ -664,13 +664,7 @@ impl StoreService {
     ) -> Result<(), StoreError> {
         // check rollout rate option (effectively a FF) to determine whether to produce to new infra
         let global_config = self.global_config.current();
-        let feedback_ingest_topic_rollout_rate =
-            global_config.options.feedback_ingest_topic_rollout_rate;
-        let topic = if is_rolled_out(organization_id, feedback_ingest_topic_rollout_rate) {
-            KafkaTopic::Feedback
-        } else {
-            KafkaTopic::Events
-        };
+        let topic = KafkaTopic::Feedback;
 
         let message = KafkaMessage::Event(EventKafkaMessage {
             project_id,
