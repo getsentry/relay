@@ -3,6 +3,7 @@ mod resource;
 mod sql;
 use once_cell::sync::Lazy;
 use psl;
+use serde_json::{Map, Value};
 #[cfg(test)]
 pub use sql::{scrub_queries, Mode};
 
@@ -33,12 +34,22 @@ const MAX_EXTENSION_LENGTH: usize = 10;
 /// Domain names that are preserved during scrubbing
 const DOMAIN_ALLOW_LIST: &[&str] = &["localhost"];
 
+#[derive(PartialEq, Clone, Debug)]
+/// Whether to scrub MongoDB span descriptions or not. See `Feature::ScrubMongoDBDescriptions`.
+pub enum ScrubMongoDescription {
+    /// Disable scrubbing of MongoDB span descriptions.
+    Disabled,
+    /// Enable scrubbing of MongoDB span descriptions.
+    Enabled,
+}
+
 /// Attempts to replace identifiers in the span description with placeholders.
 ///
 /// Returns `None` if no scrubbing can be performed.
 pub(crate) fn scrub_span_description(
     span: &Span,
     span_allowed_hosts: &[Host],
+    scrub_mongo_description: ScrubMongoDescription,
 ) -> (Option<String>, Option<Vec<sqlparser::ast::Statement>>) {
     let Some(description) = span.description.as_str() else {
         return (None, None);
@@ -60,6 +71,25 @@ pub(crate) fn scrub_span_description(
             ("http", _) => scrub_http(description, span_allowed_hosts),
             ("cache", _) | ("db", "redis") => scrub_redis_keys(description),
             ("db", _) if db_system == Some("redis") => scrub_redis_keys(description),
+            ("db", _)
+                if scrub_mongo_description == ScrubMongoDescription::Enabled
+                    && db_system == Some("mongodb") =>
+            {
+                let command = data
+                    .and_then(|data| data.db_operation.value())
+                    .and_then(|command| command.as_str());
+
+                let collection = data
+                    .and_then(|data| data.db_collection_name.value())
+                    .and_then(|collection| collection.as_str());
+
+                match (command, collection) {
+                    (Some(command), Some(collection)) => {
+                        scrub_mongodb_query(description, command, collection)
+                    }
+                    _ => None,
+                }
+            }
             ("db", sub) => {
                 if sub.contains("clickhouse")
                     || sub.contains("mongodb")
@@ -532,6 +562,43 @@ fn scrub_function(string: &str) -> Option<String> {
     Some(FUNCTION_NORMALIZER_REGEX.replace_all(string, "*").into())
 }
 
+fn scrub_mongodb_query(query: &str, command: &str, collection: &str) -> Option<String> {
+    let original: Value = match serde_json::from_str(query) {
+        Ok(v) => v,
+        Err(_) => return None,
+    };
+
+    let mut scrubbed_map: Map<String, Value> = Map::new();
+    original.as_object()?.iter().for_each(|(key, value)| {
+        scrubbed_map.insert(key.clone(), scrub_mongodb_leaf_nodes(value));
+    });
+
+    scrubbed_map.insert(command.to_owned(), Value::String(collection.to_owned()));
+
+    let scrubbed_query = Value::Object(scrubbed_map).to_string();
+    Some(scrubbed_query)
+}
+
+fn scrub_mongodb_leaf_nodes(value: &Value) -> Value {
+    match value {
+        Value::Object(map) => {
+            let mut scrubbed_map = Map::new();
+            map.iter().for_each(|(key, value)| {
+                scrubbed_map.insert(key.clone(), scrub_mongodb_leaf_nodes(value));
+            });
+            Value::Object(scrubbed_map.to_owned())
+        }
+        Value::Array(arr) => {
+            let mut scrubbed_arr = Vec::new();
+            arr.iter().for_each(|value| {
+                scrubbed_arr.push(scrub_mongodb_leaf_nodes(value));
+            });
+            Value::Array(scrubbed_arr.to_owned())
+        }
+        _ => Value::String("?".to_string()),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use relay_protocol::Annotated;
@@ -568,7 +635,11 @@ mod tests {
                     .description
                     .set_value(Some($description_in.into()));
 
-                let scrubbed = scrub_span_description(span.value_mut().as_mut().unwrap(), &[]);
+                let scrubbed = scrub_span_description(
+                    span.value_mut().as_mut().unwrap(),
+                    &[],
+                    ScrubMongoDescription::Disabled,
+                );
 
                 if $expected == "" {
                     assert!(scrubbed.0.is_none());
@@ -1127,7 +1198,7 @@ mod tests {
 
         let mut span = Annotated::<Span>::from_json(json).unwrap();
         let span = span.value_mut().as_mut().unwrap();
-        let scrubbed = scrub_span_description(span, &[]);
+        let scrubbed = scrub_span_description(span, &[], ScrubMongoDescription::Disabled);
         assert_eq!(scrubbed.0.as_deref(), Some("SELECT %s"));
     }
 
@@ -1140,7 +1211,11 @@ mod tests {
 
         let mut span = Annotated::<Span>::from_json(json).unwrap();
 
-        let scrubbed = scrub_span_description(span.value_mut().as_mut().unwrap(), &[]);
+        let scrubbed = scrub_span_description(
+            span.value_mut().as_mut().unwrap(),
+            &[],
+            ScrubMongoDescription::Disabled,
+        );
 
         // When db.system is missing, no scrubbed description (i.e. no group) is set.
         assert!(scrubbed.0.is_none());
@@ -1158,7 +1233,11 @@ mod tests {
 
         let mut span = Annotated::<Span>::from_json(json).unwrap();
 
-        let scrubbed = scrub_span_description(span.value_mut().as_mut().unwrap(), &[]);
+        let scrubbed = scrub_span_description(
+            span.value_mut().as_mut().unwrap(),
+            &[],
+            ScrubMongoDescription::Disabled,
+        );
 
         // Can be scrubbed with db system.
         assert_eq!(scrubbed.0.as_deref(), Some("SELECT a FROM b"));
@@ -1176,7 +1255,11 @@ mod tests {
 
         let mut span = Annotated::<Span>::from_json(json).unwrap();
 
-        let scrubbed = scrub_span_description(span.value_mut().as_mut().unwrap(), &[]);
+        let scrubbed = scrub_span_description(
+            span.value_mut().as_mut().unwrap(),
+            &[],
+            ScrubMongoDescription::Disabled,
+        );
 
         // NOTE: this should return `DEL *`, but we cannot detect lowercase command names yet.
         assert_eq!(scrubbed.0.as_deref(), Some("*"));
@@ -1192,7 +1275,11 @@ mod tests {
 
         let mut span = Annotated::<Span>::from_json(json).unwrap();
 
-        let scrubbed = scrub_span_description(span.value_mut().as_mut().unwrap(), &[]);
+        let scrubbed = scrub_span_description(
+            span.value_mut().as_mut().unwrap(),
+            &[],
+            ScrubMongoDescription::Disabled,
+        );
 
         assert_eq!(scrubbed.0.as_deref(), Some("INSERTED * 'UAEventData'"));
     }
@@ -1207,12 +1294,91 @@ mod tests {
 
         let mut span = Annotated::<Span>::from_json(json).unwrap();
 
-        let scrubbed = scrub_span_description(span.value_mut().as_mut().unwrap(), &[]);
+        let scrubbed = scrub_span_description(
+            span.value_mut().as_mut().unwrap(),
+            &[],
+            ScrubMongoDescription::Disabled,
+        );
 
         assert_eq!(
             scrubbed.0.as_deref(),
             Some("UPDATED * 'QueuedRequest', DELETED * 'QueuedRequest'")
         );
+    }
+
+    #[test]
+    fn mongodb_scrubbing_enabled() {
+        let json = r#"{
+            "description": "{\"find\": \"documents\", \"foo\": \"bar\"}",
+            "op": "db",
+            "data": {
+                "db.system": "mongodb",
+                "db.operation": "find",
+                "db.collection.name": "documents"
+            }
+        }"#;
+
+        let mut span = Annotated::<Span>::from_json(json).unwrap();
+
+        let scrubbed = scrub_span_description(
+            span.value_mut().as_mut().unwrap(),
+            &[],
+            ScrubMongoDescription::Enabled,
+        );
+
+        assert_eq!(
+            scrubbed.0.as_deref(),
+            Some("{\"find\":\"documents\",\"foo\":\"?\"}")
+        )
+    }
+
+    #[test]
+    fn mongodb_scrubbing_disabled() {
+        let json = r#"{
+            "description": "{\"find\": \"documents\", \"foo\": \"bar\"}",
+            "op": "db",
+            "data": {
+                "db.system": "mongodb",
+                "db.operation": "find",
+                "db.collection.name": "documents"
+            }
+        }"#;
+
+        let mut span = Annotated::<Span>::from_json(json).unwrap();
+
+        let scrubbed = scrub_span_description(
+            span.value_mut().as_mut().unwrap(),
+            &[],
+            ScrubMongoDescription::Disabled,
+        );
+
+        assert_eq!(scrubbed.0.as_deref(), None)
+    }
+
+    #[test]
+    fn mongodb_with_legacy_collection_property() {
+        let json = r#"{
+            "description": "{\"find\": \"documents\", \"foo\": \"bar\"}",
+            "op": "db",
+            "data": {
+                "db.system": "mongodb",
+                "db.operation": "find",
+                "db.mongodb.collection": "documents"
+            }
+        }"#;
+
+        let mut span = Annotated::<Span>::from_json(json).unwrap();
+
+        let scrubbed = scrub_span_description(
+            span.value_mut().as_mut().unwrap(),
+            &[],
+            ScrubMongoDescription::Enabled,
+        );
+
+        assert_eq!(
+            scrubbed.0.as_deref(),
+            Some("{\"find\":\"documents\",\"foo\":\"?\"}")
+        )
     }
 
     #[test]
@@ -1227,9 +1393,111 @@ mod tests {
 
         let mut span = Annotated::<Span>::from_json(json).unwrap();
 
-        let scrubbed = scrub_span_description(span.value_mut().as_mut().unwrap(), &[]);
+        let scrubbed = scrub_span_description(
+            span.value_mut().as_mut().unwrap(),
+            &[],
+            ScrubMongoDescription::Disabled,
+        );
 
         // Can be scrubbed with db system.
         assert_eq!(scrubbed.0.as_deref(), Some("my-component-name"));
     }
+
+    macro_rules! mongodb_scrubbing_test {
+        // Tests the scrubbed description for the given mongodb query.
+
+        // Same output and input means the input was already scrubbed.
+        // An empty output `""` means the input wasn't scrubbed and Relay didn't scrub it.
+        ($name:ident, $description_in:expr, $operation_in:literal, $collection_in:literal, $expected:literal) => {
+            #[test]
+            fn $name() {
+                let json = format!(
+                    r#"
+                    {{
+                        "description": "",
+                        "span_id": "bd2eb23da2beb459",
+                        "start_timestamp": 1597976393.4619668,
+                        "timestamp": 1597976393.4718769,
+                        "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                        "op": "db",
+                        "data": {{
+                            "db.system": "mongodb",
+                            "db.operation": {},
+                            "db.collection.name": {}
+                        }}
+                    }}
+                "#,
+                    if $operation_in == "" {
+                        "null".to_string()
+                    } else {
+                        format!("\"{}\"", $operation_in)
+                    },
+                    if $collection_in == "" {
+                        "null".to_string()
+                    } else {
+                        format!("\"{}\"", $collection_in)
+                    }
+                );
+
+                let mut span = Annotated::<Span>::from_json(&json).unwrap();
+                span.value_mut()
+                    .as_mut()
+                    .unwrap()
+                    .description
+                    .set_value(Some($description_in.into()));
+
+                let scrubbed = scrub_span_description(
+                    span.value_mut().as_mut().unwrap(),
+                    &[],
+                    ScrubMongoDescription::Enabled,
+                );
+
+                if $expected == "" {
+                    assert!(scrubbed.0.is_none());
+                } else {
+                    assert_eq!($expected, scrubbed.0.unwrap());
+                }
+            }
+        };
+    }
+
+    mongodb_scrubbing_test!(
+        mongodb_basic_query,
+        "{\"find\": \"documents\", \"showRecordId\": true}",
+        "find",
+        "documents",
+        "{\"find\":\"documents\",\"showRecordId\":\"?\"}"
+    );
+
+    mongodb_scrubbing_test!(
+        mongodb_query_with_document_param,
+        "{\"find\": \"documents\", \"filter\": {\"foo\": \"bar\"}}",
+        "find",
+        "documents",
+        "{\"filter\":{\"foo\":\"?\"},\"find\":\"documents\"}"
+    );
+
+    mongodb_scrubbing_test!(
+        mongodb_query_without_operation,
+        "{\"filter\": {\"foo\": \"bar\"}}",
+        "find",
+        "documents",
+        "{\"filter\":{\"foo\":\"?\"},\"find\":\"documents\"}"
+    );
+
+    mongodb_scrubbing_test!(
+        mongodb_without_collection_in_data,
+        "{\"find\": \"documents\", \"showRecordId\": true}",
+        "find",
+        "",
+        ""
+    );
+
+    mongodb_scrubbing_test!(
+        mongodb_without_operation_in_data,
+        "{\"find\": \"documents\", \"showRecordId\": true}",
+        "",
+        "documents",
+        ""
+    );
 }

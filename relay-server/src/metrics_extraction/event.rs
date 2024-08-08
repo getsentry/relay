@@ -1,5 +1,6 @@
 use relay_common::time::UnixTimestamp;
 use relay_dynamic_config::CombinedMetricExtractionConfig;
+use relay_event_normalization::span::description::ScrubMongoDescription;
 use relay_event_schema::protocol::{Event, Span};
 use relay_metrics::Bucket;
 use relay_quotas::DataCategory;
@@ -69,7 +70,12 @@ fn extract_span_metrics_for_event(
     output: &mut Vec<Bucket>,
 ) {
     relay_statsd::metric!(timer(RelayTimers::EventProcessingSpanMetricsExtraction), {
-        if let Some(transaction_span) = extract_transaction_span(event, max_tag_value_size, &[]) {
+        if let Some(transaction_span) = extract_transaction_span(
+            event,
+            max_tag_value_size,
+            &[],
+            ScrubMongoDescription::Disabled,
+        ) {
             let (metrics, metrics_summary) =
                 metrics_summary::extract_and_summarize_metrics(&transaction_span, config);
             metrics_summary.apply_on(&mut event._metrics_summary);

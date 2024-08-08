@@ -168,6 +168,7 @@ mod tests {
                 code_namespace: ~,
                 db_operation: ~,
                 db_system: ~,
+                db_collection_name: ~,
                 environment: "prod",
                 release: LenientString(
                     "myapp@1.0.0",
