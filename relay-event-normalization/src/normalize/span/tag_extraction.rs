@@ -85,7 +85,7 @@ pub enum SpanTagKey {
     ThreadName,
     ThreadId,
     ProfilerId,
-    CountryCode,
+    UserCountryCode,
 }
 
 impl SpanTagKey {
@@ -99,6 +99,7 @@ impl SpanTagKey {
             SpanTagKey::UserID => "user.id",
             SpanTagKey::UserUsername => "user.username",
             SpanTagKey::UserEmail => "user.email",
+            SpanTagKey::UserCountryCode => "user.geo.country_code",
             SpanTagKey::Environment => "environment",
             SpanTagKey::Transaction => "transaction",
             SpanTagKey::TransactionMethod => "transaction.method",
@@ -140,7 +141,6 @@ impl SpanTagKey {
             SpanTagKey::ThreadName => "thread.name",
             SpanTagKey::ThreadId => "thread.id",
             SpanTagKey::ProfilerId => "profiler_id",
-            SpanTagKey::CountryCode => "user.geo.country_code",
         }
     }
 }
@@ -310,10 +310,8 @@ fn extract_shared_tags(event: &Event) -> BTreeMap<SpanTagKey, String> {
         if let Some(user_email) = user.email.value() {
             tags.insert(SpanTagKey::UserEmail, user_email.clone());
         }
-        if let Some(geo) = user.geo.value() {
-            if let Some(country_code) = geo.country_code.value() {
-                tags.insert(SpanTagKey::CountryCode, country_code.to_owned());
-            }
+        if let Some(country_code) = user.geo.value().and_then(|geo| geo.country_code.value()) {
+            tags.insert(SpanTagKey::UserCountryCode, country_code.to_owned());
         }
     }
 
