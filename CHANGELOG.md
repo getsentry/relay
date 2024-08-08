@@ -18,6 +18,7 @@
 - Introduce `trim = "disabled"` type attribute to prevent trimming of spans. ([#3877](https://github.com/getsentry/relay/pull/3877))
 - Make the tcp listen backlog configurable and raise the default to 1024. ([#3899](https://github.com/getsentry/relay/pull/3899))
 - Extract `user.geo.country_code` into span indexed. ([#3911](https://github.com/getsentry/relay/pull/3911))
+- Extract `user.geo.subregion` into span metrics/indexed. ([#3914](https://github.com/getsentry/relay/pull/3914))
 
 ## 24.7.1
 
