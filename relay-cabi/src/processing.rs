@@ -13,6 +13,7 @@ use chrono::{DateTime, Utc};
 use relay_cardinality::CardinalityLimit;
 use relay_common::glob::{glob_match_bytes, GlobOptions};
 use relay_dynamic_config::{normalize_json, GlobalConfig, ProjectConfig};
+use relay_event_normalization::span::description::ScrubMongoDescription;
 use relay_event_normalization::{
     normalize_event, validate_event, BreakdownsConfig, ClientHints, EventValidationConfig,
     GeoIpLookup, NormalizationConfig, RawUserAgentInfo,
@@ -274,6 +275,7 @@ pub unsafe extern "C" fn relay_store_normalizer_normalize_event(
         normalize_spans: config.normalize_spans,
         replay_id: config.replay_id,
         span_allowed_hosts: &[], // only supported in relay
+        scrub_mongo_description: ScrubMongoDescription::Disabled, // only supported in relay
     };
     normalize_event(&mut event, &normalization_config);
 

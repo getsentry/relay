@@ -8,13 +8,7 @@ use crate::metrics::MetricSpec;
 use crate::{Feature, GroupKey, MetricExtractionConfig, ProjectConfig, Tag, TagMapping};
 
 /// A list of `span.op` patterns that indicate databases that should be skipped.
-const DISABLED_DATABASES: &[&str] = &[
-    "*clickhouse*",
-    "*compile*",
-    "*mongodb*",
-    "*redis*",
-    "db.orm",
-];
+const DISABLED_DATABASES: &[&str] = &["*clickhouse*", "*compile*", "*redis*", "db.orm"];
 
 /// A list of `span.op` patterns we want to enable for mobile.
 const MOBILE_OPS: &[&str] = &[
@@ -121,9 +115,9 @@ pub fn hardcoded_span_metrics() -> Vec<(GroupKey, Vec<MetricSpec>, Vec<TagMappin
     let is_ai = RuleCondition::glob("span.op", "ai.*");
 
     let is_db = RuleCondition::eq("span.sentry_tags.category", "db")
-        & !(RuleCondition::eq("span.system", "mongodb")
-            | RuleCondition::glob("span.op", DISABLED_DATABASES)
-            | RuleCondition::glob("span.description", MONGODB_QUERIES));
+        & !RuleCondition::glob("span.op", DISABLED_DATABASES)
+        & (RuleCondition::eq("span.system", "mongodb")
+            | !RuleCondition::glob("span.description", MONGODB_QUERIES));
     let is_resource = RuleCondition::glob("span.op", RESOURCE_SPAN_OPS);
 
     let is_cache = RuleCondition::glob("span.op", CACHE_SPAN_OPS);

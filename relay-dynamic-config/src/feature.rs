@@ -99,6 +99,13 @@ pub enum Feature {
     #[serde(rename = "organizations:indexed-spans-extraction")]
     ExtractSpansFromEvent,
 
+    /// Enables description scrubbing for MongoDB spans (and consequently, their presence in the
+    /// Queries module inside Sentry).
+    ///
+    /// Serialized as `organizations:performance-queries-mongodb-extraction`.
+    #[serde(rename = "organizations:performance-queries-mongodb-extraction")]
+    ScrubMongoDBDescriptions,
+
     /// Deprecated, still forwarded for older downstream Relays.
     #[doc(hidden)]
     #[serde(rename = "organizations:transaction-name-mark-scrubbed-as-sanitized")]
