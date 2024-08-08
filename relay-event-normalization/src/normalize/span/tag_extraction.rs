@@ -48,6 +48,7 @@ pub enum SpanTagKey {
     DeviceClass,
     // Mobile OS the transaction originated from.
     OsName,
+
     // Specific to spans
     Action,
     /// The group of the ancestral span with op ai.pipeline.*
