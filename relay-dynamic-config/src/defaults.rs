@@ -361,8 +361,8 @@ pub fn hardcoded_span_metrics() -> Vec<(GroupKey, Vec<MetricSpec>, Vec<TagMappin
                         Tag::with_key("browser.name")
                             .from_field("span.browser.name")
                             .always(), // already guarded by condition on metric
-                        Tag::with_key("user.geo.geoscheme")
-                            .from_field("span.sentry_tags.user.geo.geoscheme")
+                        Tag::with_key("user.geo.subregion")
+                            .from_field("span.sentry_tags.user.geo.subregion")
                             .always(), // already guarded by condition on metric
                     ],
                 },
@@ -387,8 +387,8 @@ pub fn hardcoded_span_metrics() -> Vec<(GroupKey, Vec<MetricSpec>, Vec<TagMappin
                         Tag::with_key("browser.name")
                             .from_field("span.sentry_tags.browser.name")
                             .always(), // already guarded by condition on metric
-                        Tag::with_key("user.geo.geoscheme")
-                            .from_field("span.sentry_tags.user.geo.geoscheme")
+                        Tag::with_key("user.geo.subregion")
+                            .from_field("span.sentry_tags.user.geo.subregion")
                             .always(), // already guarded by condition on metric
                     ],
                 },
@@ -413,8 +413,8 @@ pub fn hardcoded_span_metrics() -> Vec<(GroupKey, Vec<MetricSpec>, Vec<TagMappin
                         Tag::with_key("browser.name")
                             .from_field("span.sentry_tags.browser.name")
                             .always(), // already guarded by condition on metric
-                        Tag::with_key("user.geo.geoscheme")
-                            .from_field("span.sentry_tags.user.geo.geoscheme")
+                        Tag::with_key("user.geo.subregion")
+                            .from_field("span.sentry_tags.user.geo.subregion")
                             .always(), // already guarded by condition on metric
                     ],
                 },
@@ -439,8 +439,8 @@ pub fn hardcoded_span_metrics() -> Vec<(GroupKey, Vec<MetricSpec>, Vec<TagMappin
                         Tag::with_key("browser.name")
                             .from_field("span.sentry_tags.browser.name")
                             .always(), // already guarded by condition on metric
-                        Tag::with_key("user.geo.geoscheme")
-                            .from_field("span.sentry_tags.user.geo.geoscheme")
+                        Tag::with_key("user.geo.subregion")
+                            .from_field("span.sentry_tags.user.geo.subregion")
                             .always(), // already guarded by condition on metric
                     ],
                 },
@@ -644,8 +644,8 @@ pub fn hardcoded_span_metrics() -> Vec<(GroupKey, Vec<MetricSpec>, Vec<TagMappin
                                 & duration_condition.clone(),
                             ),
                         // Know modules:
-                        Tag::with_key("user.geo.geoscheme")
-                            .from_field("span.sentry_tags.user.geo.geoscheme")
+                        Tag::with_key("user.geo.subregion")
+                            .from_field("span.sentry_tags.user.geo.subregion")
                             .when(should_extract_geo.clone()),
                         Tag::with_key("transaction.method")
                             .from_field("span.sentry_tags.transaction.method")
@@ -732,8 +732,8 @@ pub fn hardcoded_span_metrics() -> Vec<(GroupKey, Vec<MetricSpec>, Vec<TagMappin
                         Tag::with_key("span.op")
                             .from_field("span.sentry_tags.op")
                             .always(),
-                        Tag::with_key("user.geo.geoscheme")
-                            .from_field("span.sentry_tags.user.geo.geoscheme")
+                        Tag::with_key("user.geo.subregion")
+                            .from_field("span.sentry_tags.user.geo.subregion")
                             .when(should_extract_geo.clone()),
                         // Mobile:
                         Tag::with_key("device.class")
@@ -968,8 +968,8 @@ pub fn hardcoded_span_metrics() -> Vec<(GroupKey, Vec<MetricSpec>, Vec<TagMappin
                     Tag::with_key("browser.name")
                         .from_field("span.browser.name")
                         .always(), // already guarded by condition on metric
-                    Tag::with_key("user.geo.geoscheme")
-                        .from_field("span.sentry_tags.user.geo.geoscheme")
+                    Tag::with_key("user.geo.subregion")
+                        .from_field("span.sentry_tags.user.geo.subregion")
                         .always(), // already guarded by condition on metric
                 ],
             }],
