@@ -48,7 +48,6 @@ pub enum SpanTagKey {
     DeviceClass,
     // Mobile OS the transaction originated from.
     OsName,
-
     // Specific to spans
     Action,
     /// The group of the ancestral span with op ai.pipeline.*
@@ -85,6 +84,7 @@ pub enum SpanTagKey {
     ThreadName,
     ThreadId,
     ProfilerId,
+    CountryCode,
 }
 
 impl SpanTagKey {
@@ -139,6 +139,7 @@ impl SpanTagKey {
             SpanTagKey::ThreadName => "thread.name",
             SpanTagKey::ThreadId => "thread.id",
             SpanTagKey::ProfilerId => "profiler_id",
+            SpanTagKey::CountryCode => "user.geo.country_code",
         }
     }
 }
@@ -307,6 +308,11 @@ fn extract_shared_tags(event: &Event) -> BTreeMap<SpanTagKey, String> {
         }
         if let Some(user_email) = user.email.value() {
             tags.insert(SpanTagKey::UserEmail, user_email.clone());
+        }
+        if let Some(geo) = user.geo.value() {
+            if let Some(country_code) = geo.country_code.value() {
+                tags.insert(SpanTagKey::CountryCode, country_code.to_owned());
+            }
         }
     }
 
@@ -2537,7 +2543,10 @@ LIMIT 1
                 "user": {
                     "id": "1",
                     "email": "admin@sentry.io",
-                    "username": "admin"
+                    "username": "admin",
+                    "geo": {
+                        "country_code": "US"
+                    }
                 },
                 "spans": [
                     {
@@ -2571,6 +2580,7 @@ LIMIT 1
             get_value!(span.sentry_tags["user.email"]!),
             "admin@sentry.io"
         );
+        assert_eq!(get_value!(span.sentry_tags["user.geo.country_code"]!), "US");
     }
 
     #[test]
