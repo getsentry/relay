@@ -17,6 +17,7 @@
 - Collect SDK information in profile chunks. ([#3882](https://github.com/getsentry/relay/pull/3882))
 - Introduce `trim = "disabled"` type attribute to prevent trimming of spans. ([#3877](https://github.com/getsentry/relay/pull/3877))
 - Make the tcp listen backlog configurable and raise the default to 1024. ([#3899](https://github.com/getsentry/relay/pull/3899))
+- Add experimental support for MongoDB query normalization. ([#3912](https://github.com/getsentry/relay/pull/3912))
 
 ## 24.7.1
 
@@ -48,6 +49,7 @@
 - Only transfer valid profile ids. ([#3809](https://github.com/getsentry/relay/pull/3809))
 
 **Features**:
+
 - Allow list for excluding certain host/IPs from scrubbing in spans. ([#3813](https://github.com/getsentry/relay/pull/3813))
 
 **Internal**:
