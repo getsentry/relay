@@ -664,7 +664,6 @@ impl StoreService {
     ) -> Result<(), StoreError> {
         // check rollout rate option (effectively a FF) to determine whether to produce to new infra
         let global_config = self.global_config.current();
-        let topic = KafkaTopic::Feedback;
 
         let message = KafkaMessage::Event(EventKafkaMessage {
             project_id,
@@ -674,7 +673,7 @@ impl StoreService {
             remote_addr,
             attachments: vec![],
         });
-        self.produce(topic, message)
+        self.produce(KafkaTopic::Feedback, message)
     }
 
     fn send_metric_message(
