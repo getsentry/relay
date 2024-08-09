@@ -954,6 +954,10 @@
 <a href="#954" id="954">954</a>
 <a href="#955" id="955">955</a>
 <a href="#956" id="956">956</a>
+<a href="#957" id="957">957</a>
+<a href="#958" id="958">958</a>
+<a href="#959" id="959">959</a>
+<a href="#960" id="960">960</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_base_schema::data_category::DataCategory;
 <span class="kw">use </span>relay_common::glob2::LazyGlob;
 <span class="kw">use </span>relay_event_normalization::utils::MAX_DURATION_MOBILE_MS;
@@ -1861,6 +1865,10 @@
                         Tag::with_key(<span class="string">"trace.status"</span>)
                             .from_field(<span class="string">"span.sentry_tags.trace.status"</span>)
                             .when(is_queue_op.clone()),
+                        <span class="comment">// database module
+                        </span>Tag::with_key(<span class="string">"span.system"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.system"</span>)
+                            .when(is_db.clone()),
                     ],
                 },
                 TagMapping {
