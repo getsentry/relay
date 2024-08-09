@@ -116,9 +116,7 @@ def test_feedback_event_with_processing(
     other_consumer.assert_empty()
 
 
-def test_feedback_events_without_processing(
-    mini_sentry, relay_chain
-):
+def test_feedback_events_without_processing(mini_sentry, relay_chain):
     project_id = 42
     mini_sentry.add_basic_project_config(
         project_id,
