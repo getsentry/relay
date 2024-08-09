@@ -153,7 +153,7 @@ mod tests {
             "user": {
                 "id": "user123",
                 "geo": {
-                    "country_code": "US"
+                    "country_code": "FR"
                 }
             },
             "tags": {
