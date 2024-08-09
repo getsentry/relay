@@ -4,8 +4,6 @@ use chrono::SecondsFormat;
 
 use relay_event_schema::protocol::{AppContext, AsPair, Event, SpanStatus, TraceContext};
 
-use crate::client_sdk::ClientSdk;
-
 pub fn extract_transaction_metadata(event: &Event) -> BTreeMap<String, String> {
     let mut tags = BTreeMap::new();
 
@@ -64,6 +62,15 @@ pub fn extract_transaction_metadata(event: &Event) -> BTreeMap<String, String> {
         }
     }
 
+    if let Some(client_sdk) = event.client_sdk.value() {
+        if let Some(sdk_name) = client_sdk.name.value() {
+            tags.insert("client_sdk.name".to_owned(), sdk_name.to_owned());
+        }
+        if let Some(sdk_version) = client_sdk.version.value() {
+            tags.insert("client_sdk.version".to_owned(), sdk_version.to_owned());
+        }
+    }
+
     tags
 }
 
@@ -100,19 +107,6 @@ fn extract_http_method(transaction: &Event) -> Option<String> {
     Some(method.clone())
 }
 
-pub fn extract_sdk_metadata(transaction: &Event) -> Option<ClientSdk> {
-    match transaction.client_sdk.value() {
-        Some(client_sdk) => match (client_sdk.name.value(), client_sdk.version.value()) {
-            (Some(name), Some(version)) => Some(ClientSdk {
-                name: name.to_owned(),
-                version: version.to_owned(),
-            }),
-            _ => None,
-        },
-        None => None,
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -140,14 +134,20 @@ mod tests {
                 },
                 "timestamp": "2011-05-02T17:41:36Z",
                 "start_timestamp": "2011-05-02T17:40:36Z",
+                "sdk": {
+                    "name": "sentry.python",
+                    "version": "2.10.7",
+                },
             })
             .into(),
         );
 
         let metadata = extract_transaction_metadata(&event.0.unwrap());
-        insta::assert_debug_snapshot!(metadata, @r#"
+        insta::assert_debug_snapshot!(metadata, @r###"
         {
             "app.identifier": "io.sentry.myexample",
+            "client_sdk.name": "sentry.python",
+            "client_sdk.version": "2.10.7",
             "dist": "mydist",
             "environment": "myenvironment",
             "http.method": "GET",
@@ -158,45 +158,6 @@ mod tests {
             "transaction.start": "2011-05-02T17:40:36.000000000+00:00",
             "transaction.status": "ok",
         }
-        "#);
-    }
-
-    #[test]
-    fn test_extract_sdk_metadata() {
-        let event = Event::from_value(
-            serde_json::json!({
-                "release": "myrelease",
-                "dist": "mydist",
-                "environment": "myenvironment",
-                "transaction": "mytransaction",
-                "contexts": {
-                    "app": {
-                        "app_identifier": "io.sentry.myexample",
-                    },
-                    "trace": {
-                        "status": "ok",
-                        "op": "myop",
-                    },
-                },
-                "request": {
-                    "method": "GET",
-                },
-                "timestamp": "2011-05-02T17:41:36Z",
-                "start_timestamp": "2011-05-02T17:40:36Z",
-                "sdk": {
-                    "name": "sentry.python",
-                    "version": "2.10.7",
-                },
-            })
-            .into(),
-        );
-        let sdk = extract_sdk_metadata(&event.0.unwrap());
-        assert_eq!(
-            sdk,
-            Some(ClientSdk {
-                name: "sentry.python".to_string(),
-                version: "2.10.7".to_string(),
-            })
-        );
+        "###);
     }
 }

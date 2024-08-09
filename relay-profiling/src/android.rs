@@ -207,13 +207,10 @@ fn parse_profile(payload: &[u8]) -> Result<AndroidProfilingEvent, ProfileError> 
 
 pub fn parse_android_profile(
     payload: &[u8],
-    client_sdk: Option<ClientSdk>,
     transaction_metadata: BTreeMap<String, String>,
     transaction_tags: BTreeMap<String, String>,
 ) -> Result<Vec<u8>, ProfileError> {
     let mut profile = parse_profile(payload)?;
-
-    profile.metadata.client_sdk = client_sdk;
 
     if let Some(transaction_name) = transaction_metadata.get("transaction") {
         transaction_name.clone_into(&mut profile.metadata.transaction_name);
@@ -244,6 +241,16 @@ pub fn parse_android_profile(
         }
     }
 
+    profile.metadata.client_sdk = match (
+        transaction_metadata.get("client_sdk.name"),
+        transaction_metadata.get("client_sdk.version"),
+    ) {
+        (Some(name), Some(version)) => Some(ClientSdk {
+            name: name.to_owned(),
+            version: version.to_owned(),
+        }),
+        _ => None,
+    };
     profile.metadata.transaction_metadata = transaction_metadata;
     profile.metadata.transaction_tags = transaction_tags;
 
@@ -260,13 +267,9 @@ mod tests {
         let profile = parse_profile(payload);
         assert!(profile.is_ok());
         let data = serde_json::to_vec(&profile.unwrap());
-        assert!(parse_android_profile(
-            &(data.unwrap())[..],
-            None,
-            BTreeMap::new(),
-            BTreeMap::new()
-        )
-        .is_ok());
+        assert!(
+            parse_android_profile(&(data.unwrap())[..], BTreeMap::new(), BTreeMap::new()).is_ok()
+        );
     }
 
     #[test]
@@ -275,26 +278,22 @@ mod tests {
         let profile = parse_profile(payload);
         assert!(profile.is_ok());
         let data = serde_json::to_vec(&profile.unwrap());
-        assert!(parse_android_profile(
-            &(data.unwrap())[..],
-            None,
-            BTreeMap::new(),
-            BTreeMap::new()
-        )
-        .is_ok());
+        assert!(
+            parse_android_profile(&(data.unwrap())[..], BTreeMap::new(), BTreeMap::new()).is_ok()
+        );
     }
 
     #[test]
     fn test_no_transaction() {
         let payload = include_bytes!("../tests/fixtures/android/no_transaction.json");
-        let data = parse_android_profile(payload, None, BTreeMap::new(), BTreeMap::new());
+        let data = parse_android_profile(payload, BTreeMap::new(), BTreeMap::new());
         assert!(data.is_err());
     }
 
     #[test]
     fn test_remove_invalid_events() {
         let payload = include_bytes!("../tests/fixtures/android/remove_invalid_events.json");
-        let data = parse_android_profile(payload, None, BTreeMap::new(), BTreeMap::new());
+        let data = parse_android_profile(payload, BTreeMap::new(), BTreeMap::new());
         assert!(data.is_err());
     }
 
@@ -330,8 +329,7 @@ mod tests {
         ]);
 
         let payload = include_bytes!("../tests/fixtures/android/valid.json");
-        let profile_json =
-            parse_android_profile(payload, None, transaction_metadata, BTreeMap::new());
+        let profile_json = parse_android_profile(payload, transaction_metadata, BTreeMap::new());
         assert!(profile_json.is_ok());
 
         let payload = profile_json.unwrap();

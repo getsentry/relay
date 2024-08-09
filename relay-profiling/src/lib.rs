@@ -47,9 +47,7 @@ use relay_event_schema::protocol::{Event, EventId};
 use serde::Deserialize;
 use serde_json::Deserializer;
 
-use crate::extract_from_transaction::{
-    extract_sdk_metadata, extract_transaction_metadata, extract_transaction_tags,
-};
+use crate::extract_from_transaction::{extract_transaction_metadata, extract_transaction_tags};
 
 pub use crate::error::ProfileError;
 pub use crate::outcomes::discard_reason;
@@ -157,23 +155,16 @@ pub fn expand_profile(payload: &[u8], event: &Event) -> Result<(ProfileId, Vec<u
             return Err(ProfileError::InvalidJson(err));
         }
     };
-    let client_sdk = extract_sdk_metadata(event);
     let transaction_metadata = extract_transaction_metadata(event);
     let transaction_tags = extract_transaction_tags(event);
     let processed_payload = match profile.version {
-        sample::Version::V1 => sample::v1::parse_sample_profile(
-            payload,
-            client_sdk,
-            transaction_metadata,
-            transaction_tags,
-        ),
+        sample::Version::V1 => {
+            sample::v1::parse_sample_profile(payload, transaction_metadata, transaction_tags)
+        }
         _ => match profile.platform.as_str() {
-            "android" => android::parse_android_profile(
-                payload,
-                client_sdk,
-                transaction_metadata,
-                transaction_tags,
-            ),
+            "android" => {
+                android::parse_android_profile(payload, transaction_metadata, transaction_tags)
+            }
             _ => return Err(ProfileError::PlatformNotSupported),
         },
     };

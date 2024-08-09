@@ -326,13 +326,10 @@ fn parse_profile(payload: &[u8]) -> Result<ProfilingEvent, ProfileError> {
 
 pub fn parse_sample_profile(
     payload: &[u8],
-    client_sdk: Option<ClientSdk>,
     transaction_metadata: BTreeMap<String, String>,
     transaction_tags: BTreeMap<String, String>,
 ) -> Result<Vec<u8>, ProfileError> {
     let mut profile = parse_profile(payload)?;
-
-    profile.metadata.client_sdk = client_sdk;
 
     if let Some(transaction_name) = transaction_metadata.get("transaction") {
         if let Some(ref mut transaction) = profile.metadata.transaction {
@@ -361,6 +358,16 @@ pub fn parse_sample_profile(
         }
     }
 
+    profile.metadata.client_sdk = match (
+        transaction_metadata.get("client_sdk.name"),
+        transaction_metadata.get("client_sdk.version"),
+    ) {
+        (Some(name), Some(version)) => Some(ClientSdk {
+            name: name.to_owned(),
+            version: version.to_owned(),
+        }),
+        _ => None,
+    };
     profile.metadata.transaction_metadata = transaction_metadata;
     profile.metadata.transaction_tags = transaction_tags;
 
@@ -384,7 +391,7 @@ mod tests {
     #[test]
     fn test_expand() {
         let payload = include_bytes!("../../tests/fixtures/sample/v1/valid.json");
-        let profile = parse_sample_profile(payload, None, BTreeMap::new(), BTreeMap::new());
+        let profile = parse_sample_profile(payload, BTreeMap::new(), BTreeMap::new());
         assert!(profile.is_ok());
     }
 
@@ -601,7 +608,7 @@ mod tests {
         ]);
 
         let payload = serde_json::to_vec(&profile).unwrap();
-        let data = parse_sample_profile(&payload[..], None, BTreeMap::new(), BTreeMap::new());
+        let data = parse_sample_profile(&payload[..], BTreeMap::new(), BTreeMap::new());
 
         assert!(data.is_err());
     }
@@ -881,8 +888,7 @@ mod tests {
         )]);
 
         let payload = include_bytes!("../../tests/fixtures/sample/v1/valid.json");
-        let profile_json =
-            parse_sample_profile(payload, None, transaction_metadata, BTreeMap::new());
+        let profile_json = parse_sample_profile(payload, transaction_metadata, BTreeMap::new());
         assert!(profile_json.is_ok());
 
         let payload = profile_json.unwrap();
