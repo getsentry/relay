@@ -905,6 +905,10 @@ pub fn hardcoded_span_metrics() -> Vec<(GroupKey, Vec<MetricSpec>, Vec<TagMappin
                         Tag::with_key("trace.status")
                             .from_field("span.sentry_tags.trace.status")
                             .when(is_queue_op.clone()),
+                        // database module
+                        Tag::with_key("span.system")
+                            .from_field("span.sentry_tags.system")
+                            .when(is_db.clone()),
                     ],
                 },
                 TagMapping {
