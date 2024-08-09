@@ -3,7 +3,7 @@ mod resource;
 mod sql;
 use once_cell::sync::Lazy;
 use psl;
-use serde_json::{Map, Value};
+use serde_json::Value;
 #[cfg(test)]
 pub use sql::{scrub_queries, Mode};
 
@@ -567,35 +567,39 @@ fn scrub_mongodb_query(query: &str, command: &str, collection: &str) -> Option<S
         Ok(v) => v,
         Err(_) => return None,
     };
+    let mut map = original.as_object()?.to_owned();
 
-    let mut scrubbed_map: Map<String, Value> = Map::new();
-    original.as_object()?.iter().for_each(|(key, value)| {
-        scrubbed_map.insert(key.clone(), scrub_mongodb_leaf_nodes(value));
+    map.iter_mut().for_each(|(_, value)| {
+        *value = scrub_mongodb_leaf_nodes(value, 3);
     });
 
-    scrubbed_map.insert(command.to_owned(), Value::String(collection.to_owned()));
+    map.insert(command.to_owned(), Value::String(collection.to_owned()));
 
-    let scrubbed_query = Value::Object(scrubbed_map).to_string();
+    let scrubbed_query = Value::Object(map).to_string();
     Some(scrubbed_query)
 }
 
-fn scrub_mongodb_leaf_nodes(value: &Value) -> Value {
+fn scrub_mongodb_leaf_nodes(value: &Value, recursion_limit: i32) -> Value {
+    if recursion_limit <= 0 {
+        return Value::String("?".to_owned());
+    }
+
     match value {
         Value::Object(map) => {
-            let mut scrubbed_map = Map::new();
-            map.iter().for_each(|(key, value)| {
-                scrubbed_map.insert(key.clone(), scrub_mongodb_leaf_nodes(value));
-            });
-            Value::Object(scrubbed_map.to_owned())
+            let mut map = map.to_owned();
+            for (_, value) in map.iter_mut() {
+                *value = scrub_mongodb_leaf_nodes(value, recursion_limit - 1);
+            }
+            Value::Object(map)
         }
         Value::Array(arr) => {
-            let mut scrubbed_arr = Vec::new();
-            arr.iter().for_each(|value| {
-                scrubbed_arr.push(scrub_mongodb_leaf_nodes(value));
-            });
-            Value::Array(scrubbed_arr.to_owned())
+            let mut arr = arr.to_owned();
+            for value in arr.iter_mut() {
+                *value = scrub_mongodb_leaf_nodes(value, recursion_limit - 1);
+            }
+            Value::Array(arr)
         }
-        _ => Value::String("?".to_string()),
+        _ => Value::String("?".to_owned()),
     }
 }
 
@@ -1499,5 +1503,13 @@ mod tests {
         "",
         "documents",
         ""
+    );
+
+    mongodb_scrubbing_test!(
+        mongodb_max_depth,
+        "{\"insert\": \"coll\", \"documents\": [{\"foo\": {\"bar\": {\"baz\": \"quux\"}}}]}",
+        "insert",
+        "coll",
+        "{\"documents\":[{\"foo\":{\"bar\":\"?\"}}],\"insert\":\"coll\"}"
     );
 }
