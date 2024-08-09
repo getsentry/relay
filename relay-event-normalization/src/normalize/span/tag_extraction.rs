@@ -1,5 +1,6 @@
 //! Logic for persisting items into `span.sentry_tags` and `span.measurements` fields.
 //! These are then used for metrics extraction.
+use core::num;
 use std::borrow::Cow;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write;
@@ -18,7 +19,7 @@ use sqlparser::ast::Visit;
 use sqlparser::ast::{ObjectName, Visitor};
 use url::{Host, Url};
 
-use crate::span::country_subregion::get_country_to_subregion;
+use crate::span::country_subregion::Subregion;
 use crate::span::description::{
     concatenate_host_and_port, scrub_domain_name, scrub_span_description,
 };
@@ -315,9 +316,11 @@ fn extract_shared_tags(event: &Event) -> BTreeMap<SpanTagKey, String> {
         }
         if let Some(country_code) = user.geo.value().and_then(|geo| geo.country_code.value()) {
             tags.insert(SpanTagKey::UserCountryCode, country_code.to_owned());
-            let country_to_subregion = get_country_to_subregion();
-            if let Some(subregion) = country_to_subregion.get(country_code.as_str()) {
-                tags.insert(SpanTagKey::UserSubregion, subregion.to_string().to_owned());
+            if let Some(subregion) = Subregion::from_iso2(&country_code.as_str()) {
+                let numerical_subregion = subregion as u8;
+                tags.insert(SpanTagKey::UserSubregion, numerical_subregion.to_string());
+            } else {
+                tags.insert(SpanTagKey::UserSubregion, "-1".to_owned()); // fallback incase of unknown region
             }
         }
     }
@@ -2587,10 +2590,7 @@ LIMIT 1
             "admin@sentry.io"
         );
         assert_eq!(get_value!(span.sentry_tags["user.geo.country_code"]!), "US");
-        assert_eq!(
-            get_value!(span.sentry_tags["user.geo.subregion"]!),
-            "Northern America"
-        );
+        assert_eq!(get_value!(span.sentry_tags["user.geo.subregion"]!), "21");
     }
 
     #[test]
