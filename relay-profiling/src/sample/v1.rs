@@ -255,6 +255,15 @@ pub struct ProfileMetadata {
 
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     transaction_tags: BTreeMap<String, String>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub client_sdk: Option<ClientSdk>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ClientSdk {
+    name: String,
+    version: String,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -354,6 +363,16 @@ pub fn parse_sample_profile(
         }
     }
 
+    profile.metadata.client_sdk = match (
+        transaction_metadata.get("client_sdk.name"),
+        transaction_metadata.get("client_sdk.version"),
+    ) {
+        (Some(name), Some(version)) => Some(ClientSdk {
+            name: name.to_owned(),
+            version: version.to_owned(),
+        }),
+        _ => None,
+    };
     profile.metadata.transaction_metadata = transaction_metadata;
     profile.metadata.transaction_tags = transaction_tags;
 
@@ -410,6 +429,7 @@ mod tests {
                 dist: "9999".to_string(),
                 transaction_metadata: BTreeMap::new(),
                 transaction_tags: BTreeMap::new(),
+                client_sdk: None,
             },
             profile: SampleProfile {
                 queue_metadata: Some(HashMap::new()),

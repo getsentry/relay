@@ -57,7 +57,8 @@ impl RedisMetricMetaStore {
             let expire_at = meta.timestamp.as_secs() + self.expiry.as_secs();
             pipe.cmd("EXPIREAT").arg(key).arg(expire_at).ignore();
         }
-        pipe.query(&mut connection).map_err(RedisError::Redis)?;
+        pipe.query::<()>(&mut connection)
+            .map_err(RedisError::Redis)?;
 
         relay_statsd::metric!(counter(MetricCounters::MetaRedisUpdate) += redis_updates);
 
