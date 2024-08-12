@@ -1626,18 +1626,6 @@
 <a href="#1626" id="1626">1626</a>
 <a href="#1627" id="1627">1627</a>
 <a href="#1628" id="1628">1628</a>
-<a href="#1629" id="1629">1629</a>
-<a href="#1630" id="1630">1630</a>
-<a href="#1631" id="1631">1631</a>
-<a href="#1632" id="1632">1632</a>
-<a href="#1633" id="1633">1633</a>
-<a href="#1634" id="1634">1634</a>
-<a href="#1635" id="1635">1635</a>
-<a href="#1636" id="1636">1636</a>
-<a href="#1637" id="1637">1637</a>
-<a href="#1638" id="1638">1638</a>
-<a href="#1639" id="1639">1639</a>
-<a href="#1640" id="1640">1640</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module contains the service that forwards events and attachments to the Sentry store.
 //! The service uses Kafka topics to forward data to Sentry
 
@@ -1676,7 +1664,7 @@
 <span class="kw">use </span><span class="kw">crate</span>::services::outcome::{DiscardReason, Outcome, TrackOutcome};
 <span class="kw">use </span><span class="kw">crate</span>::services::processor::Processed;
 <span class="kw">use </span><span class="kw">crate</span>::statsd::{RelayCounters, RelayTimers};
-<span class="kw">use </span><span class="kw">crate</span>::utils::{is_rolled_out, FormDataIter, ThreadPool, TypedEnvelope, WorkerGroup};
+<span class="kw">use </span><span class="kw">crate</span>::utils::{FormDataIter, ThreadPool, TypedEnvelope, WorkerGroup};
 
 <span class="doccomment">/// Fallback name used for attachment items without a `filename` header.
 </span><span class="kw">const </span>UNNAMED_ATTACHMENT: <span class="kw-2">&amp;</span>str = <span class="string">"Unnamed Attachment"</span>;
@@ -1897,7 +1885,6 @@
                     <span class="self">self</span>.produce_user_report_v2(
                         event_id.ok_or(StoreError::NoEventId)<span class="question-mark">?</span>,
                         scoping.project_id,
-                        scoping.organization_id,
                         start_time,
                         item,
                         remote_addr,
@@ -2297,21 +2284,10 @@
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         event_id: EventId,
         project_id: ProjectId,
-        organization_id: u64,
         start_time: Instant,
         item: <span class="kw-2">&amp;</span>Item,
         remote_addr: <span class="prelude-ty">Option</span>&lt;String&gt;,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), StoreError&gt; {
-        <span class="comment">// check rollout rate option (effectively a FF) to determine whether to produce to new infra
-        </span><span class="kw">let </span>global_config = <span class="self">self</span>.global_config.current();
-        <span class="kw">let </span>feedback_ingest_topic_rollout_rate =
-            global_config.options.feedback_ingest_topic_rollout_rate;
-        <span class="kw">let </span>topic = <span class="kw">if </span>is_rolled_out(organization_id, feedback_ingest_topic_rollout_rate) {
-            KafkaTopic::Feedback
-        } <span class="kw">else </span>{
-            KafkaTopic::Events
-        };
-
         <span class="kw">let </span>message = KafkaMessage::Event(EventKafkaMessage {
             project_id,
             event_id,
@@ -2320,7 +2296,7 @@
             remote_addr,
             attachments: <span class="macro">vec!</span>[],
         });
-        <span class="self">self</span>.produce(topic, message)
+        <span class="self">self</span>.produce(KafkaTopic::Feedback, message)
     }
 
     <span class="kw">fn </span>send_metric_message(
