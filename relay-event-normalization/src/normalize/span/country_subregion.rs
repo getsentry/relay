@@ -2,7 +2,7 @@
 use std::collections::HashMap;
 use std::fmt;
 
-/** Subregions regions as defined by UN M49 standards, the enum value corresponds to the region code */
+/// Subregions regions as defined by UN M49 standards, the enum value corresponds to the region code.
 pub enum Subregion {
     NorthernAmerica = 021,
     CentralAmerica = 013,
