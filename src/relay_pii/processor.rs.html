@@ -2085,7 +2085,7 @@
         // string. If we decide that we need to preserve anything other than suffixes all PII
         // tooltips/annotations are potentially wrong.
 
-        </span><span class="kw">if let </span><span class="prelude-val">Some</span>(index) = value.rfind(|c| c == <span class="string">'/' </span>|| c == <span class="string">'\\'</span>) {
+        </span><span class="kw">if let </span><span class="prelude-val">Some</span>(index) = value.rfind([<span class="string">'/'</span>, <span class="string">'\\'</span>]) {
             <span class="kw">let </span>basename = value.split_off(index);
             <span class="kw">match </span><span class="self">self</span>.process_string(value, meta, state) {
                 <span class="prelude-val">Ok</span>(()) =&gt; value.push_str(<span class="kw-2">&amp;</span>basename),

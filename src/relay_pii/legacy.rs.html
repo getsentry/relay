@@ -81,7 +81,6 @@
 <a href="#81" id="81">81</a>
 <a href="#82" id="82">82</a>
 <a href="#83" id="83">83</a>
-<a href="#84" id="84">84</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Legacy datascrubbing coniguration
 //!
 //! All these configuration options are ignored by the new data scrubbers which operate
@@ -157,12 +156,11 @@
     <span class="doccomment">/// Like [`pii_config`](Self::pii_config) but without internal caching.
     </span><span class="attr">#[inline]
     </span><span class="kw">pub fn </span>pii_config_uncached(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;PiiConfig&gt;, PiiConfigError&gt; {
-        convert::to_pii_config(<span class="self">self</span>).map_err(|e| {
+        convert::to_pii_config(<span class="self">self</span>).inspect_err(|e| {
             <span class="macro">relay_log::error!</span>(
-                error = <span class="kw-2">&amp;</span>e <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>std::error::Error,
+                error = e <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>std::error::Error,
                 <span class="string">"failed to convert datascrubbing config"
             </span>);
-            e
         })
     }
 }

@@ -1444,7 +1444,7 @@
 
     <span class="doccomment">/// Scrub a filepath, preserving the basename.
     </span><span class="kw">pub fn </span>scrub_utf8_filepath(<span class="kw-2">&amp;</span><span class="self">self</span>, path: <span class="kw-2">&amp;mut </span>str, state: <span class="kw-2">&amp;</span>ProcessingState&lt;<span class="lifetime">'_</span>&gt;) -&gt; bool {
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(index) = path.rfind(|c| c == <span class="string">'/' </span>|| c == <span class="string">'\\'</span>) {
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(index) = path.rfind([<span class="string">'/'</span>, <span class="string">'\\'</span>]) {
             <span class="kw">let </span>data = <span class="kw">unsafe </span>{ <span class="kw-2">&amp;mut </span>path.as_bytes_mut()[..index] };
             <span class="self">self</span>.scrub_bytes(data, state, ScrubEncodings::Utf8)
         } <span class="kw">else </span>{

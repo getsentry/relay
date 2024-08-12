@@ -91,7 +91,7 @@
     relay_redis::redis::cmd(<span class="string">"EXPIRE"</span>)
         .arg(key.as_str())
         .arg(expiry_time - now)
-        .query(redis_connection)<span class="question-mark">?</span>;
+        .query::&lt;()&gt;(redis_connection)<span class="question-mark">?</span>;
     <span class="prelude-val">Ok</span>(())
 }
 </code></pre></div></section></main></body></html>
