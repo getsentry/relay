@@ -174,7 +174,7 @@ impl<'a> Processor for PiiProcessor<'a> {
         // string. If we decide that we need to preserve anything other than suffixes all PII
         // tooltips/annotations are potentially wrong.
 
-        if let Some(index) = value.rfind(|c| c == '/' || c == '\\') {
+        if let Some(index) = value.rfind(['/', '\\']) {
             let basename = value.split_off(index);
             match self.process_string(value, meta, state) {
                 Ok(()) => value.push_str(&basename),
