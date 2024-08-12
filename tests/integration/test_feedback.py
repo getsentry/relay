@@ -1,4 +1,3 @@
-import pytest
 import json
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 
@@ -88,26 +87,18 @@ def assert_expected_feedback(parsed_feedback, sent_feedback):
     }
 
 
-@pytest.mark.parametrize("use_feedback_topic", (False, True))
 def test_feedback_event_with_processing(
     mini_sentry,
     relay_with_processing,
     events_consumer,
     feedback_consumer,
-    use_feedback_topic,
 ):
     mini_sentry.add_basic_project_config(
         42, extra={"config": {"features": ["organizations:user-feedback-ingest"]}}
     )
 
-    if use_feedback_topic:
-        mini_sentry.set_global_config_option("feedback.ingest-topic.rollout-rate", 1.0)
-        consumer = feedback_consumer(timeout=20)
-        other_consumer = events_consumer(timeout=20)
-    else:
-        mini_sentry.set_global_config_option("feedback.ingest-topic.rollout-rate", 0.0)
-        consumer = events_consumer(timeout=20)
-        other_consumer = feedback_consumer(timeout=20)
+    consumer = feedback_consumer(timeout=20)
+    other_consumer = events_consumer(timeout=20)
 
     feedback = generate_feedback_sdk_event()
     relay = relay_with_processing()
@@ -124,17 +115,11 @@ def test_feedback_event_with_processing(
     other_consumer.assert_empty()
 
 
-@pytest.mark.parametrize("use_feedback_topic", (False, True))
-def test_feedback_events_without_processing(
-    mini_sentry, relay_chain, use_feedback_topic
-):
+def test_feedback_events_without_processing(mini_sentry, relay_chain):
     project_id = 42
     mini_sentry.add_basic_project_config(
         project_id,
         extra={"config": {"features": ["organizations:user-feedback-ingest"]}},
-    )
-    mini_sentry.set_global_config_option(
-        "feedback.ingest-topic.rollout-rate", 1.0 if use_feedback_topic else 0.0
     )
 
     replay_item = generate_feedback_sdk_event()
@@ -148,27 +133,19 @@ def test_feedback_events_without_processing(
     assert userfeedback.type == "feedback"
 
 
-@pytest.mark.parametrize("use_feedback_topic", (False, True))
 def test_feedback_with_attachment_in_same_envelope(
     mini_sentry,
     relay_with_processing,
     feedback_consumer,
     events_consumer,
     attachments_consumer,
-    use_feedback_topic,
 ):
     mini_sentry.add_basic_project_config(
         42, extra={"config": {"features": ["organizations:user-feedback-ingest"]}}
     )
 
-    if use_feedback_topic:
-        mini_sentry.set_global_config_option("feedback.ingest-topic.rollout-rate", 1.0)
-        other_consumer = events_consumer(timeout=20)
-        feedback_consumer = feedback_consumer(timeout=20)
-    else:
-        mini_sentry.set_global_config_option("feedback.ingest-topic.rollout-rate", 0.0)
-        other_consumer = feedback_consumer(timeout=20)
-        feedback_consumer = events_consumer(timeout=20)
+    other_consumer = events_consumer(timeout=20)
+    feedback_consumer = feedback_consumer(timeout=20)
     attachments_consumer = attachments_consumer(timeout=20)
 
     feedback = generate_feedback_sdk_event()
