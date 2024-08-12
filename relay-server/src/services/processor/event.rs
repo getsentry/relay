@@ -117,9 +117,8 @@ pub fn extract<G: EventProcessing>(
         })?
     } else if let Some(item) = nel_item {
         relay_log::trace!("processing nel report");
-        event_from_nel_item(item, envelope.meta()).map_err(|error| {
-            relay_log::error!(error = &error as &dyn Error, "failed to extract NEL report");
-            error
+        event_from_nel_item(item, envelope.meta()).inspect_err(|error| {
+            relay_log::error!(error = error as &dyn Error, "failed to extract NEL report");
         })?
     } else if attachment_item.is_some() || breadcrumbs1.is_some() || breadcrumbs2.is_some() {
         relay_log::trace!("extracting attached event data");
