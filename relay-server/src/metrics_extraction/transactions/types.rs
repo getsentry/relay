@@ -232,6 +232,7 @@ pub enum CommonTag {
     BrowserName,
     OsName,
     GeoCountryCode,
+    UserSubregion,
     DeviceClass,
     Custom(String),
 }
@@ -251,6 +252,7 @@ impl Display for CommonTag {
             CommonTag::BrowserName => "browser.name",
             CommonTag::OsName => "os.name",
             CommonTag::GeoCountryCode => "geo.country_code",
+            CommonTag::UserSubregion => "user.geo.subregion",
             CommonTag::DeviceClass => "device.class",
             CommonTag::Custom(s) => s,
         };
