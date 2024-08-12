@@ -62,6 +62,15 @@ pub fn extract_transaction_metadata(event: &Event) -> BTreeMap<String, String> {
         }
     }
 
+    if let Some(client_sdk) = event.client_sdk.value() {
+        if let Some(sdk_name) = client_sdk.name.value() {
+            tags.insert("client_sdk.name".to_owned(), sdk_name.to_owned());
+        }
+        if let Some(sdk_version) = client_sdk.version.value() {
+            tags.insert("client_sdk.version".to_owned(), sdk_version.to_owned());
+        }
+    }
+
     tags
 }
 
@@ -125,14 +134,20 @@ mod tests {
                 },
                 "timestamp": "2011-05-02T17:41:36Z",
                 "start_timestamp": "2011-05-02T17:40:36Z",
+                "sdk": {
+                    "name": "sentry.python",
+                    "version": "2.10.7",
+                },
             })
             .into(),
         );
 
         let metadata = extract_transaction_metadata(&event.0.unwrap());
-        insta::assert_debug_snapshot!(metadata, @r#"
+        insta::assert_debug_snapshot!(metadata, @r###"
         {
             "app.identifier": "io.sentry.myexample",
+            "client_sdk.name": "sentry.python",
+            "client_sdk.version": "2.10.7",
             "dist": "mydist",
             "environment": "myenvironment",
             "http.method": "GET",
@@ -143,6 +158,6 @@ mod tests {
             "transaction.start": "2011-05-02T17:40:36.000000000+00:00",
             "transaction.status": "ok",
         }
-        "#);
+        "###);
     }
 }
