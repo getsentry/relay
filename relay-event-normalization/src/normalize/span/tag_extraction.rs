@@ -315,7 +315,7 @@ fn extract_shared_tags(event: &Event) -> BTreeMap<SpanTagKey, String> {
         }
         if let Some(country_code) = user.geo.value().and_then(|geo| geo.country_code.value()) {
             tags.insert(SpanTagKey::UserCountryCode, country_code.to_owned());
-            if let Some(subregion) = Subregion::from_iso2(&country_code.as_str()) {
+            if let Some(subregion) = Subregion::from_iso2(country_code.as_str()) {
                 let numerical_subregion = subregion as u8;
                 tags.insert(SpanTagKey::UserSubregion, numerical_subregion.to_string());
             }
