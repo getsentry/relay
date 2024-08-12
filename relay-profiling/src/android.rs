@@ -14,7 +14,6 @@ use data_encoding::BASE64_NOPAD;
 use relay_event_schema::protocol::{EventId, SpanId};
 use serde::{Deserialize, Serialize};
 
-use crate::client_sdk::ClientSdk;
 use crate::measurements::Measurement;
 use crate::native_debug_image::NativeDebugImage;
 use crate::sample::v1::SampleProfile;
@@ -95,6 +94,12 @@ pub struct ProfileMetadata {
 
     #[serde(skip_serializing_if = "Option::is_none")]
     client_sdk: Option<ClientSdk>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ClientSdk {
+    name: String,
+    version: String,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

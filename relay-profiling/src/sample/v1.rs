@@ -12,7 +12,6 @@ use itertools::Itertools;
 use relay_event_schema::protocol::{EventId, SpanId};
 use serde::{Deserialize, Serialize};
 
-use crate::client_sdk::ClientSdk;
 use crate::error::ProfileError;
 use crate::measurements::Measurement;
 use crate::sample::{DebugMeta, Frame, ThreadMetadata, Version};
@@ -259,6 +258,12 @@ pub struct ProfileMetadata {
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub client_sdk: Option<ClientSdk>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ClientSdk {
+    name: String,
+    version: String,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

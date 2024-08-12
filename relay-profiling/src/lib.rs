@@ -53,7 +53,6 @@ pub use crate::error::ProfileError;
 pub use crate::outcomes::discard_reason;
 
 mod android;
-mod client_sdk;
 mod error;
 mod extract_from_transaction;
 mod measurements;
