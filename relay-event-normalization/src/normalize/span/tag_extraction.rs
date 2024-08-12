@@ -1,6 +1,5 @@
 //! Logic for persisting items into `span.sentry_tags` and `span.measurements` fields.
 //! These are then used for metrics extraction.
-use core::num;
 use std::borrow::Cow;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write;
@@ -319,8 +318,6 @@ fn extract_shared_tags(event: &Event) -> BTreeMap<SpanTagKey, String> {
             if let Some(subregion) = Subregion::from_iso2(&country_code.as_str()) {
                 let numerical_subregion = subregion as u8;
                 tags.insert(SpanTagKey::UserSubregion, numerical_subregion.to_string());
-            } else {
-                tags.insert(SpanTagKey::UserSubregion, "-1".to_owned()); // fallback incase of unknown region
             }
         }
     }
