@@ -83,12 +83,9 @@ pub(crate) fn scrub_span_description(
                     .and_then(|data| data.db_collection_name.value())
                     .and_then(|collection| collection.as_str());
 
-                match (command, collection) {
-                    (Some(command), Some(collection)) => {
-                        scrub_mongodb_query(description, command, collection)
-                    }
-                    _ => None,
-                }
+                command.zip(collection).and_then(|(command, collection)| {
+                    scrub_mongodb_query(description, command.to_owned(), collection.to_owned())
+                })
             }
             ("db", sub) => {
                 if sub.contains("clickhouse")
@@ -562,44 +559,47 @@ fn scrub_function(string: &str) -> Option<String> {
     Some(FUNCTION_NORMALIZER_REGEX.replace_all(string, "*").into())
 }
 
-fn scrub_mongodb_query(query: &str, command: &str, collection: &str) -> Option<String> {
-    let original: Value = match serde_json::from_str(query) {
-        Ok(v) => v,
-        Err(_) => return None,
-    };
-    let mut map = original.as_object()?.to_owned();
+fn scrub_mongodb_query(query: &str, command: String, collection: String) -> Option<String> {
+    let mut query: Value = serde_json::from_str(query).ok()?;
 
-    map.iter_mut().for_each(|(_, value)| {
-        *value = scrub_mongodb_leaf_nodes(value, 3);
-    });
+    let root = query.as_object_mut()?;
 
-    map.insert(command.to_owned(), Value::String(collection.to_owned()));
+    for value in root.values_mut() {
+        scrub_mongodb_visit_node(value, 3);
+    }
+    root.insert(command, Value::String(collection));
 
-    let scrubbed_query = Value::Object(map).to_string();
-    Some(scrubbed_query)
+    Some(query.to_string())
 }
 
-fn scrub_mongodb_leaf_nodes(value: &Value, recursion_limit: i32) -> Value {
-    if recursion_limit <= 0 {
-        return Value::String("?".to_owned());
+fn scrub_mongodb_visit_node(value: &mut Value, recursion_limit: usize) {
+    if recursion_limit == 0 {
+        match value {
+            Value::String(str) => {
+                str.clear();
+                str.push('?');
+            }
+            value => *value = Value::String("?".to_owned()),
+        }
+        return;
     }
 
     match value {
         Value::Object(map) => {
-            let mut map = map.to_owned();
-            for (_, value) in map.iter_mut() {
-                *value = scrub_mongodb_leaf_nodes(value, recursion_limit - 1);
+            for value in map.values_mut() {
+                scrub_mongodb_visit_node(value, recursion_limit - 1);
             }
-            Value::Object(map)
         }
         Value::Array(arr) => {
-            let mut arr = arr.to_owned();
             for value in arr.iter_mut() {
-                *value = scrub_mongodb_leaf_nodes(value, recursion_limit - 1);
+                scrub_mongodb_visit_node(value, recursion_limit - 1);
             }
-            Value::Array(arr)
         }
-        _ => Value::String("?".to_owned()),
+        Value::String(str) => {
+            str.clear();
+            str.push('?');
+        }
+        value => *value = Value::String("?".to_owned()),
     }
 }
 
