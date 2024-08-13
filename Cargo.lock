@@ -3620,6 +3620,7 @@ version = "0.9.1"
 dependencies = [
  "anyhow",
  "chrono",
+ "globset",
  "json-forensics",
  "lru",
  "once_cell",
@@ -3670,9 +3671,7 @@ version = "24.7.1"
 dependencies = [
  "chrono",
  "globset",
- "lru",
  "once_cell",
- "parking_lot",
  "regex",
  "sentry-types",
  "serde",

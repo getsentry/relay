@@ -8,7 +8,6 @@
 
 mod macros;
 
-pub mod glob;
 pub mod glob2;
 pub mod glob3;
 pub mod time;
