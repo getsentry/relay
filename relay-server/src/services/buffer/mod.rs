@@ -215,23 +215,28 @@ mod tests {
 
     use relay_common::Dsn;
 
-    use crate::extractors::RequestMeta;
-
     use super::*;
+    use crate::extractors::RequestMeta;
+    use crate::utils::MemoryStat;
 
     fn new_buffer() -> Arc<GuardedEnvelopeBuffer> {
-        GuardedEnvelopeBuffer::from_config(
-            &Config::from_json_value(serde_json::json!({
+        let config = Arc::new(
+            Config::from_json_value(serde_json::json!({
                 "spool": {
                     "envelopes": {
-                        "version": "experimental"
+                        "version": "experimental",
+                        "max_memory_percent": 1.0
                     }
                 }
             }))
             .unwrap(),
-        )
-        .unwrap()
-        .into()
+        );
+
+        let memory_checker = MemoryChecker::new(MemoryStat::default(), config.clone());
+
+        GuardedEnvelopeBuffer::from_config(&config, memory_checker)
+            .unwrap()
+            .into()
     }
 
     fn new_envelope() -> Box<Envelope> {

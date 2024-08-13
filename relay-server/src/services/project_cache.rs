@@ -1583,7 +1583,8 @@ mod tests {
         .unwrap()
         .into();
         let memory_checker = MemoryChecker::new(MemoryStat::default(), config.clone());
-        let envelope_buffer = GuardedEnvelopeBuffer::from_config(&config).map(Arc::new);
+        let envelope_buffer =
+            GuardedEnvelopeBuffer::from_config(&config, memory_checker.clone()).map(Arc::new);
         let buffer_services = spooler::Services {
             outcome_aggregator: services.outcome_aggregator.clone(),
             project_cache: services.project_cache.clone(),

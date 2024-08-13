@@ -270,7 +270,7 @@ where
     }
 
     pub fn has_capacity(&self) -> bool {
-        matches!(self.stack_provider.capacity(), Capacity::FREE);
+        matches!(self.stack_provider.capacity(), Capacity::FREE)
     }
 
     fn pop_stack(&mut self, stack_key: StackKey) {
@@ -407,16 +407,16 @@ impl Readiness {
 #[cfg(test)]
 mod tests {
     use std::str::FromStr;
-
+    use std::sync::Arc;
     use uuid::Uuid;
 
     use relay_common::Dsn;
     use relay_sampling::DynamicSamplingContext;
 
+    use super::*;
     use crate::envelope::{Item, ItemType};
     use crate::extractors::RequestMeta;
-
-    use super::*;
+    use crate::utils::MemoryStat;
 
     fn new_envelope(project_key: ProjectKey, sampling_key: Option<ProjectKey>) -> Box<Envelope> {
         let mut envelope = Envelope::from_request(
@@ -441,9 +441,23 @@ mod tests {
         envelope
     }
 
+    fn mock_memory_checker() -> MemoryChecker {
+        let config: Arc<_> = Config::from_json_value(serde_json::json!({
+            "spool": {
+                "health": {
+                    "max_memory_percent": 1.0
+                }
+            }
+        }))
+        .unwrap()
+        .into();
+
+        MemoryChecker::new(MemoryStat::default(), config.clone())
+    }
+
     #[tokio::test]
     async fn insert_pop() {
-        let mut buffer = EnvelopeBuffer::<MemoryStacksManager>::new();
+        let mut buffer = EnvelopeBuffer::<MemoryStacksManager>::new(mock_memory_checker());
 
         let project_key1 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
         let project_key2 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
@@ -518,7 +532,7 @@ mod tests {
 
     #[tokio::test]
     async fn project_internal_order() {
-        let mut buffer = EnvelopeBuffer::<MemoryStacksManager>::new();
+        let mut buffer = EnvelopeBuffer::<MemoryStacksManager>::new(mock_memory_checker());
 
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
 
@@ -545,7 +559,7 @@ mod tests {
 
     #[tokio::test]
     async fn sampling_projects() {
-        let mut buffer = EnvelopeBuffer::<MemoryStacksManager>::new();
+        let mut buffer = EnvelopeBuffer::<MemoryStacksManager>::new(mock_memory_checker());
 
         let project_key1 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
         let project_key2 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fef").unwrap();
@@ -623,7 +637,7 @@ mod tests {
 
         assert_ne!(stack_key1, stack_key2);
 
-        let mut buffer = EnvelopeBuffer::<MemoryStacksManager>::new();
+        let mut buffer = EnvelopeBuffer::<MemoryStacksManager>::new(mock_memory_checker());
         buffer
             .push(new_envelope(project_key1, Some(project_key2)))
             .await

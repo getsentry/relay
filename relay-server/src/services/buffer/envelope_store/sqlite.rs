@@ -344,7 +344,7 @@ impl EnvelopeStore for SqliteEnvelopeStore {
                 .is_err()
             {
                 relay_log::error!("failed to update the disk usage");
-            }
+            };
         });
 
         self.last_known_usage.load(Ordering::Relaxed)
@@ -557,5 +557,13 @@ mod tests {
             project_key_pairs.into_iter().last().unwrap(),
             (own_key, sampling_key)
         );
+    }
+
+    #[tokio::test]
+    async fn test_estimate_disk_usage() {
+        let db = setup_db(true).await;
+        let mut envelope_store = SqliteEnvelopeStore::new(db);
+
+        println!("{:?}", envelope_store.usage());
     }
 }

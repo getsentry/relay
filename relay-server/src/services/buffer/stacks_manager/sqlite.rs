@@ -3,7 +3,6 @@ use relay_config::Config;
 use crate::services::buffer::envelope_store::sqlite::{
     SqliteEnvelopeStore, SqliteEnvelopeStoreError,
 };
-use crate::services::buffer::envelope_store::EnvelopeStore;
 use crate::services::buffer::stacks_manager::{Capacity, StacksManager};
 use crate::{Envelope, SqliteEnvelopeStack};
 
@@ -48,5 +47,6 @@ impl StacksManager for SqliteStacksManager {
     fn capacity(&self) -> Capacity {
         // TODO: how to we make the check async or sync.
         // self.envelope_store.usage()
+        Capacity::FREE
     }
 }
