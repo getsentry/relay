@@ -18,6 +18,7 @@ use sqlparser::ast::Visit;
 use sqlparser::ast::{ObjectName, Visitor};
 use url::{Host, Url};
 
+use crate::span::country_subregion::Subregion;
 use crate::span::description::{
     concatenate_host_and_port, scrub_domain_name, scrub_span_description,
 };
@@ -86,6 +87,7 @@ pub enum SpanTagKey {
     ThreadId,
     ProfilerId,
     UserCountryCode,
+    UserSubregion,
 }
 
 impl SpanTagKey {
@@ -100,6 +102,7 @@ impl SpanTagKey {
             SpanTagKey::UserUsername => "user.username",
             SpanTagKey::UserEmail => "user.email",
             SpanTagKey::UserCountryCode => "user.geo.country_code",
+            SpanTagKey::UserSubregion => "user.geo.subregion",
             SpanTagKey::Environment => "environment",
             SpanTagKey::Transaction => "transaction",
             SpanTagKey::TransactionMethod => "transaction.method",
@@ -312,6 +315,10 @@ fn extract_shared_tags(event: &Event) -> BTreeMap<SpanTagKey, String> {
         }
         if let Some(country_code) = user.geo.value().and_then(|geo| geo.country_code.value()) {
             tags.insert(SpanTagKey::UserCountryCode, country_code.to_owned());
+            if let Some(subregion) = Subregion::from_iso2(country_code.as_str()) {
+                let numerical_subregion = subregion as u8;
+                tags.insert(SpanTagKey::UserSubregion, numerical_subregion.to_string());
+            }
         }
     }
 
@@ -2580,6 +2587,7 @@ LIMIT 1
             "admin@sentry.io"
         );
         assert_eq!(get_value!(span.sentry_tags["user.geo.country_code"]!), "US");
+        assert_eq!(get_value!(span.sentry_tags["user.geo.subregion"]!), "21");
     }
 
     #[test]
