@@ -595,6 +595,28 @@
 <a href="#595" id="595">595</a>
 <a href="#596" id="596">596</a>
 <a href="#597" id="597">597</a>
+<a href="#598" id="598">598</a>
+<a href="#599" id="599">599</a>
+<a href="#600" id="600">600</a>
+<a href="#601" id="601">601</a>
+<a href="#602" id="602">602</a>
+<a href="#603" id="603">603</a>
+<a href="#604" id="604">604</a>
+<a href="#605" id="605">605</a>
+<a href="#606" id="606">606</a>
+<a href="#607" id="607">607</a>
+<a href="#608" id="608">608</a>
+<a href="#609" id="609">609</a>
+<a href="#610" id="610">610</a>
+<a href="#611" id="611">611</a>
+<a href="#612" id="612">612</a>
+<a href="#613" id="613">613</a>
+<a href="#614" id="614">614</a>
+<a href="#615" id="615">615</a>
+<a href="#616" id="616">616</a>
+<a href="#617" id="617">617</a>
+<a href="#618" id="618">618</a>
+<a href="#619" id="619">619</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::cmp::Ordering;
 <span class="kw">use </span>std::collections::BTreeSet;
 <span class="kw">use </span>std::convert::Infallible;
@@ -602,7 +624,6 @@
 
 <span class="kw">use </span>relay_base_schema::project::ProjectKey;
 <span class="kw">use </span>relay_config::Config;
-<span class="kw">use </span>stack_key::StackKey;
 
 <span class="kw">use </span><span class="kw">crate</span>::envelope::Envelope;
 <span class="kw">use </span><span class="kw">crate</span>::services::buffer::envelope_stack::sqlite::SqliteEnvelopeStackError;
@@ -810,10 +831,13 @@
                 <span class="self">self</span>.priority_queue.change_priority_by(stack_key, |stack| {
                     <span class="kw">let </span><span class="kw-2">mut </span>found = <span class="bool-val">false</span>;
                     <span class="kw">for </span>(subkey, readiness) <span class="kw">in </span>[
-                        (stack_key.lesser(), <span class="kw-2">&amp;mut </span>stack.readiness.<span class="number">0</span>),
-                        (stack_key.greater(), <span class="kw-2">&amp;mut </span>stack.readiness.<span class="number">1</span>),
+                        (stack_key.own_key, <span class="kw-2">&amp;mut </span>stack.readiness.own_project_ready),
+                        (
+                            stack_key.sampling_key,
+                            <span class="kw-2">&amp;mut </span>stack.readiness.sampling_project_ready,
+                        ),
                     ] {
-                        <span class="kw">if </span>subkey == project {
+                        <span class="kw">if </span>subkey == <span class="kw-2">*</span>project {
                             found = <span class="bool-val">true</span>;
                             <span class="kw">if </span><span class="kw-2">*</span>readiness != is_ready {
                                 changed = <span class="bool-val">true</span>;
@@ -858,46 +882,38 @@
                 .remove(<span class="kw-2">&amp;</span>stack_key);
         }
         <span class="self">self</span>.priority_queue.remove(<span class="kw-2">&amp;</span>stack_key);
+
         <span class="macro">relay_statsd::metric!</span>(
             gauge(RelayGauges::BufferStackCount) = <span class="self">self</span>.priority_queue.len() <span class="kw">as </span>u64
         );
     }
 }
 
-<span class="kw">mod </span>stack_key {
-    <span class="kw">use super</span>::<span class="kw-2">*</span>;
-    <span class="doccomment">/// Sorted stack key.
-    ///
-    /// Contains a pair of project keys. The lower key is always the first
-    /// element in the pair, such that `(k1, k2)` and `(k2, k1)` map to the same
-    /// stack key.
-    </span><span class="attr">#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
-    </span><span class="kw">pub struct </span>StackKey(ProjectKey, ProjectKey);
+<span class="attr">#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
+</span><span class="kw">pub struct </span>StackKey {
+    own_key: ProjectKey,
+    sampling_key: ProjectKey,
+}
 
-    <span class="kw">impl </span>StackKey {
-        <span class="kw">pub fn </span>from_envelope(envelope: <span class="kw-2">&amp;</span>Envelope) -&gt; <span class="self">Self </span>{
-            <span class="kw">let </span>own_key = envelope.meta().public_key();
-            <span class="kw">let </span>sampling_key = envelope.sampling_key().unwrap_or(own_key);
-            <span class="self">Self</span>::new(own_key, sampling_key)
-        }
+<span class="kw">impl </span>StackKey {
+    <span class="kw">pub fn </span>from_envelope(envelope: <span class="kw-2">&amp;</span>Envelope) -&gt; <span class="self">Self </span>{
+        <span class="kw">let </span>own_key = envelope.meta().public_key();
+        <span class="kw">let </span>sampling_key = envelope.sampling_key().unwrap_or(own_key);
+        <span class="self">Self</span>::new(own_key, sampling_key)
+    }
 
-        <span class="kw">pub fn </span>lesser(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>ProjectKey {
-            <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0
-        </span>}
+    <span class="kw">pub fn </span>iter(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw">impl </span>Iterator&lt;Item = ProjectKey&gt; {
+        <span class="kw">let </span><span class="self">Self </span>{
+            own_key,
+            sampling_key,
+        } = <span class="self">self</span>;
+        std::iter::once(<span class="kw-2">*</span>own_key).chain((own_key != sampling_key).then_some(<span class="kw-2">*</span>sampling_key))
+    }
 
-        <span class="kw">pub fn </span>greater(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>ProjectKey {
-            <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">1
-        </span>}
-
-        <span class="kw">pub fn </span>iter(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw">impl </span>Iterator&lt;Item = ProjectKey&gt; {
-            std::iter::once(<span class="self">self</span>.<span class="number">0</span>).chain((<span class="self">self</span>.<span class="number">0 </span>!= <span class="self">self</span>.<span class="number">1</span>).then_some(<span class="self">self</span>.<span class="number">1</span>))
-        }
-
-        <span class="kw">fn </span>new(<span class="kw-2">mut </span>key1: ProjectKey, <span class="kw-2">mut </span>key2: ProjectKey) -&gt; <span class="self">Self </span>{
-            <span class="kw">if </span>key2 &lt; key1 {
-                std::mem::swap(<span class="kw-2">&amp;mut </span>key1, <span class="kw-2">&amp;mut </span>key2);
-            }
-            <span class="self">Self</span>(key1, key2)
+    <span class="kw">fn </span>new(own_key: ProjectKey, sampling_key: ProjectKey) -&gt; <span class="self">Self </span>{
+        <span class="self">Self </span>{
+            own_key,
+            sampling_key,
         }
     }
 }
@@ -971,16 +987,22 @@
 }
 
 <span class="attr">#[derive(Debug)]
-</span><span class="kw">struct </span>Readiness(bool, bool);
+</span><span class="kw">struct </span>Readiness {
+    own_project_ready: bool,
+    sampling_project_ready: bool,
+}
 
 <span class="kw">impl </span>Readiness {
     <span class="kw">fn </span>new() -&gt; <span class="self">Self </span>{
-        <span class="self">Self</span>(<span class="bool-val">false</span>, <span class="bool-val">false</span>)
+        <span class="self">Self </span>{
+            own_project_ready: <span class="bool-val">false</span>,
+            sampling_project_ready: <span class="bool-val">false</span>,
+        }
     }
 
     <span class="kw">fn </span>ready(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
-        <span class="self">self</span>.<span class="number">0 </span>&amp;&amp; <span class="self">self</span>.<span class="number">1
-    </span>}
+        <span class="self">self</span>.own_project_ready &amp;&amp; <span class="self">self</span>.sampling_project_ready
+    }
 }
 
 <span class="attr">#[cfg(test)]
@@ -1190,6 +1212,28 @@
         );
 
         <span class="macro">assert!</span>(buffer.pop().<span class="kw">await</span>.unwrap().is_none());
+    }
+
+    <span class="attr">#[tokio::test]
+    </span><span class="kw">async fn </span>project_keys_distinct() {
+        <span class="kw">let </span>project_key1 = ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fed"</span>).unwrap();
+        <span class="kw">let </span>project_key2 = ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fef"</span>).unwrap();
+
+        <span class="kw">let </span>stack_key1 = StackKey::new(project_key1, project_key2);
+        <span class="kw">let </span>stack_key2 = StackKey::new(project_key2, project_key1);
+
+        <span class="macro">assert_ne!</span>(stack_key1, stack_key2);
+
+        <span class="kw">let </span><span class="kw-2">mut </span>buffer = EnvelopeBuffer::&lt;MemoryStackProvider&gt;::new();
+        buffer
+            .push(new_envelope(project_key1, <span class="prelude-val">Some</span>(project_key2)))
+            .<span class="kw">await
+            </span>.unwrap();
+        buffer
+            .push(new_envelope(project_key2, <span class="prelude-val">Some</span>(project_key1)))
+            .<span class="kw">await
+            </span>.unwrap();
+        <span class="macro">assert_eq!</span>(buffer.priority_queue.len(), <span class="number">2</span>);
     }
 }
 </code></pre></div></section></main></body></html>
