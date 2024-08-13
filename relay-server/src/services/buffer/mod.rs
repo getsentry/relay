@@ -8,18 +8,18 @@ use relay_config::Config;
 use tokio::sync::MutexGuard;
 
 use crate::envelope::Envelope;
-use crate::utils::ManagedEnvelope;
+use crate::utils::{ManagedEnvelope, MemoryChecker};
 
 pub use envelope_buffer::EnvelopeBufferError;
 pub use envelope_buffer::PolymorphicEnvelopeBuffer;
 pub use envelope_stack::sqlite::SqliteEnvelopeStack; // pub for benchmarks
 pub use envelope_stack::EnvelopeStack; // pub for benchmarks
-pub use sqlite_envelope_store::SqliteEnvelopeStore; // pub for benchmarks // pub for benchmarks
+pub use envelope_store::sqlite::SqliteEnvelopeStore; // pub for benchmarks // pub for benchmarks
 
 mod envelope_buffer;
 mod envelope_stack;
-mod sqlite_envelope_store;
-mod stack_provider;
+mod envelope_store;
+mod stacks_manager;
 mod testutils;
 
 /// Async envelope buffering interface.
@@ -51,11 +51,11 @@ impl GuardedEnvelopeBuffer {
     ///
     /// NOTE: until the V1 spooler implementation is removed, this function returns `None`
     /// if V2 spooling is not configured.
-    pub fn from_config(config: &Config) -> Option<Self> {
+    pub fn from_config(config: &Config, memory_checker: MemoryChecker) -> Option<Self> {
         if config.spool_v2() {
             Some(Self {
                 inner: tokio::sync::Mutex::new(Inner {
-                    backend: PolymorphicEnvelopeBuffer::from_config(config),
+                    backend: PolymorphicEnvelopeBuffer::from_config(config, memory_checker),
                     changed: true,
                 }),
                 notify: tokio::sync::Notify::new(),
@@ -135,6 +135,12 @@ impl GuardedEnvelopeBuffer {
         guard.backend.push(envelope).await?;
         self.notify(&mut guard);
         Ok(())
+    }
+
+    /// Returns `true` if the buffer has capacity to accept more [`Envelope`]s.
+    pub fn has_capacity(&self) -> bool {
+        let guard = self.inner.blocking_lock();
+        guard.backend.has_capacity()
     }
 
     fn notify(&self, guard: &mut MutexGuard<Inner>) {

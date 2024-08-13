@@ -1,32 +1,35 @@
 use relay_config::Config;
 
-use crate::services::buffer::envelope_stack::StackProvider;
-use crate::services::buffer::sqlite_envelope_store::{
+use crate::services::buffer::envelope_store::sqlite::{
     SqliteEnvelopeStore, SqliteEnvelopeStoreError,
 };
+use crate::services::buffer::envelope_store::EnvelopeStore;
+use crate::services::buffer::stacks_manager::{Capacity, StacksManager};
 use crate::{Envelope, SqliteEnvelopeStack};
 
 #[derive(Debug)]
-pub struct SqliteStackProvider {
+pub struct SqliteStacksManager {
     envelope_store: SqliteEnvelopeStore,
     disk_batch_size: usize,
     max_batches: usize,
+    max_disk_size: usize,
 }
 
 #[warn(dead_code)]
-impl SqliteStackProvider {
-    /// Creates a new [`SqliteStackProvider`] from the provided path to the SQLite database file.
+impl SqliteStacksManager {
+    /// Creates a new [`SqliteStacksManager`] from the provided path to the SQLite database file.
     pub async fn new(config: &Config) -> Result<Self, SqliteEnvelopeStoreError> {
         let envelope_store = SqliteEnvelopeStore::prepare(config).await?;
         Ok(Self {
             envelope_store,
             disk_batch_size: config.spool_envelopes_stack_disk_batch_size(),
             max_batches: config.spool_envelopes_stack_max_batches(),
+            max_disk_size: config.spool_envelopes_max_disk_size(),
         })
     }
 }
 
-impl StackProvider for SqliteStackProvider {
+impl StacksManager for SqliteStacksManager {
     type Stack = SqliteEnvelopeStack;
 
     fn create_stack(&self, envelope: Box<Envelope>) -> Self::Stack {
@@ -40,5 +43,10 @@ impl StackProvider for SqliteStackProvider {
             own_key,
             sampling_key,
         )
+    }
+
+    fn capacity(&self) -> Capacity {
+        // TODO: how to we make the check async or sync.
+        // self.envelope_store.usage()
     }
 }

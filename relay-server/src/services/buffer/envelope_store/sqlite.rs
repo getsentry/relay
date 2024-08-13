@@ -1,7 +1,3 @@
-use std::error::Error;
-use std::path::Path;
-use std::pin::pin;
-
 use futures::stream::StreamExt;
 use hashbrown::HashSet;
 use relay_base_schema::project::{ParseProjectKeyError, ProjectKey};
@@ -13,10 +9,16 @@ use sqlx::sqlite::{
     SqliteRow, SqliteSynchronous,
 };
 use sqlx::{Pool, QueryBuilder, Row, Sqlite};
+use std::error::Error;
+use std::path::Path;
+use std::pin::pin;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
 use tokio::fs::DirBuilder;
 
 use crate::envelope::EnvelopeError;
 use crate::extractors::StartTime;
+use crate::services::buffer::envelope_store::EnvelopeStore;
 use crate::Envelope;
 
 /// Struct that contains all the fields of an [`Envelope`] that are mapped to the database columns.
@@ -95,12 +97,16 @@ pub enum SqliteEnvelopeStoreError {
 #[derive(Debug, Clone)]
 pub struct SqliteEnvelopeStore {
     db: Pool<Sqlite>,
+    last_known_usage: Arc<AtomicUsize>,
 }
 
 impl SqliteEnvelopeStore {
     /// Initializes the [`SqliteEnvelopeStore`] with a supplied [`Pool`].
     pub fn new(db: Pool<Sqlite>) -> Self {
-        Self { db }
+        Self {
+            db,
+            last_known_usage: Arc::new(AtomicUsize::new(0)),
+        }
     }
 
     /// Prepares the [`SqliteEnvelopeStore`] by running all the necessary migrations and preparing
@@ -132,7 +138,7 @@ impl SqliteEnvelopeStore {
             .synchronous(SqliteSynchronous::Normal)
             // The freelist pages are moved to the end of the database file and the database file is truncated to remove the freelist pages at every
             // transaction commit. Note, however, that auto-vacuum only truncates the freelist pages from the file.
-            // Auto-vacuum does not defragment the database nor repack individual database pages the way that the VACUUM command does.
+            // Auto-vacuum does not de-fragment the database nor repack individual database pages the way that the VACUUM command does.
             //
             // This will help us to keep the file size under some control.
             .auto_vacuum(SqliteAutoVacuum::Full)
@@ -148,7 +154,14 @@ impl SqliteEnvelopeStore {
             .await
             .map_err(SqliteEnvelopeStoreError::SqlxSetupFailed)?;
 
-        Ok(SqliteEnvelopeStore { db })
+        // We estimate the usage of the database during preparation, so that we have a first
+        // estimate.
+        let usage = Self::estimate_usage(&db).await?;
+
+        Ok(SqliteEnvelopeStore {
+            db,
+            last_known_usage: Arc::new(AtomicUsize::new(usage as usize)),
+        })
     }
 
     /// Set up the database and return the current number of envelopes.
@@ -194,11 +207,26 @@ impl SqliteEnvelopeStore {
         Ok(())
     }
 
+    /// Estimates the size of the disk.
+    async fn estimate_usage(db: &Pool<Sqlite>) -> Result<i64, SqliteEnvelopeStoreError> {
+        build_estimate_size()
+            .fetch_one(db)
+            .await
+            .and_then(|r| r.try_get(0))
+            .map_err(SqliteEnvelopeStoreError::FileSizeReadFailed)
+    }
+}
+
+impl EnvelopeStore for SqliteEnvelopeStore {
+    type Envelope = InsertEnvelope;
+
+    type Error = SqliteEnvelopeStoreError;
+
     /// Inserts one or more envelopes into the database.
-    pub async fn insert_many(
-        &self,
-        envelopes: impl IntoIterator<Item = InsertEnvelope>,
-    ) -> Result<(), SqliteEnvelopeStoreError> {
+    async fn insert_many(
+        &mut self,
+        envelopes: impl IntoIterator<Item = Self::Envelope>,
+    ) -> Result<(), Self::Error> {
         if let Err(err) = build_insert_many_envelopes(envelopes.into_iter())
             .build()
             .execute(&self.db)
@@ -216,12 +244,12 @@ impl SqliteEnvelopeStore {
     }
 
     /// Deletes and returns at most `limit` [`Envelope`]s from the database.
-    pub async fn delete_many(
-        &self,
+    async fn delete_many(
+        &mut self,
         own_key: ProjectKey,
         sampling_key: ProjectKey,
         limit: i64,
-    ) -> Result<Vec<Box<Envelope>>, SqliteEnvelopeStoreError> {
+    ) -> Result<Vec<Box<Envelope>>, Self::Error> {
         let envelopes = build_delete_and_fetch_many_envelopes(own_key, sampling_key, limit)
             .fetch(&self.db)
             .peekable();
@@ -279,9 +307,7 @@ impl SqliteEnvelopeStore {
 
     /// Returns a set of project key pairs, representing all the unique combinations of
     /// `own_key` and `project_key` that are found in the database.
-    pub async fn project_key_pairs(
-        &self,
-    ) -> Result<HashSet<(ProjectKey, ProjectKey)>, SqliteEnvelopeStoreError> {
+    async fn project_key_pairs(&self) -> Result<HashSet<(ProjectKey, ProjectKey)>, Self::Error> {
         let project_key_pairs = build_get_project_key_pairs()
             .fetch_all(&self.db)
             .await
@@ -296,13 +322,32 @@ impl SqliteEnvelopeStore {
         Ok(project_key_pairs)
     }
 
-    /// Returns an approximate measure of the size of the database.
-    pub async fn used_size(&self) -> Result<i64, SqliteEnvelopeStoreError> {
-        build_estimate_size()
-            .fetch_one(&self.db)
-            .await
-            .and_then(|r| r.try_get(0))
-            .map_err(SqliteEnvelopeStoreError::FileSizeReadFailed)
+    /// Returns an approximate measure of the used size of the database.
+    fn usage(&self) -> usize {
+        let db = self.db.clone();
+        let last_known_usage = self.last_known_usage.clone();
+        tokio::spawn(async move {
+            let usage = Self::estimate_usage(&db).await;
+            let Ok(usage) = usage else {
+                relay_log::error!("failed to update the disk usage");
+                return;
+            };
+
+            let current = last_known_usage.load(Ordering::Relaxed);
+            if last_known_usage
+                .compare_exchange_weak(
+                    current,
+                    usage as usize,
+                    Ordering::Relaxed,
+                    Ordering::Relaxed,
+                )
+                .is_err()
+            {
+                relay_log::error!("failed to update the disk usage");
+            }
+        });
+
+        self.last_known_usage.load(Ordering::Relaxed)
     }
 }
 
@@ -464,7 +509,7 @@ mod tests {
     #[tokio::test]
     async fn test_insert_and_delete_envelopes() {
         let db = setup_db(true).await;
-        let envelope_store = SqliteEnvelopeStore::new(db);
+        let mut envelope_store = SqliteEnvelopeStore::new(db);
 
         let own_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
         let sampling_key = ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap();
@@ -492,7 +537,7 @@ mod tests {
     #[tokio::test]
     async fn test_insert_and_get_project_keys_pairs() {
         let db = setup_db(true).await;
-        let envelope_store = SqliteEnvelopeStore::new(db);
+        let mut envelope_store = SqliteEnvelopeStore::new(db);
 
         let own_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
         let sampling_key = ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap();

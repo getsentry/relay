@@ -879,7 +879,7 @@ pub struct EnvelopeSpool {
     min_connections: u32,
     /// The maximum size of the buffer to keep, in bytes.
     ///
-    /// If not set the befault is 524288000 bytes (500MB).
+    /// If not set the default is 524288000 bytes (500MB).
     #[serde(default = "spool_envelopes_max_disk_size")]
     max_disk_size: ByteSize,
     /// The maximum bytes to keep in the memory buffer before spooling envelopes to disk, in bytes.
