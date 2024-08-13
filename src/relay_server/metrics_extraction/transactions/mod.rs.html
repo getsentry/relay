@@ -2287,11 +2287,32 @@
 <a href="#2287" id="2287">2287</a>
 <a href="#2288" id="2288">2288</a>
 <a href="#2289" id="2289">2289</a>
+<a href="#2290" id="2290">2290</a>
+<a href="#2291" id="2291">2291</a>
+<a href="#2292" id="2292">2292</a>
+<a href="#2293" id="2293">2293</a>
+<a href="#2294" id="2294">2294</a>
+<a href="#2295" id="2295">2295</a>
+<a href="#2296" id="2296">2296</a>
+<a href="#2297" id="2297">2297</a>
+<a href="#2298" id="2298">2298</a>
+<a href="#2299" id="2299">2299</a>
+<a href="#2300" id="2300">2300</a>
+<a href="#2301" id="2301">2301</a>
+<a href="#2302" id="2302">2302</a>
+<a href="#2303" id="2303">2303</a>
+<a href="#2304" id="2304">2304</a>
+<a href="#2305" id="2305">2305</a>
+<a href="#2306" id="2306">2306</a>
+<a href="#2307" id="2307">2307</a>
+<a href="#2308" id="2308">2308</a>
+<a href="#2309" id="2309">2309</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
 
 <span class="kw">use </span>relay_base_schema::events::EventType;
 <span class="kw">use </span>relay_common::time::UnixTimestamp;
 <span class="kw">use </span>relay_dynamic_config::{CombinedMetricExtractionConfig, TransactionMetricsConfig};
+<span class="kw">use </span>relay_event_normalization::span::country_subregion::Subregion;
 <span class="kw">use </span>relay_event_normalization::utils <span class="kw">as </span>normalize_utils;
 <span class="kw">use </span>relay_event_schema::protocol::{
     AsPair, BrowserContext, Event, OsContext, PerformanceScoreContext, TraceContext,
@@ -2318,10 +2339,11 @@
 <span class="doccomment">/// Tags we set on metrics for performance score measurements (e.g. `score.lcp.weight`).
 ///
 /// These are a subset of "universal" tags.
-</span><span class="kw">const </span>PERFORMANCE_SCORE_TAGS: [CommonTag; <span class="number">6</span>] = [
+</span><span class="kw">const </span>PERFORMANCE_SCORE_TAGS: [CommonTag; <span class="number">7</span>] = [
     CommonTag::BrowserName,
     CommonTag::Environment,
     CommonTag::GeoCountryCode,
+    CommonTag::UserSubregion,
     CommonTag::Release,
     CommonTag::Transaction,
     CommonTag::TransactionOp,
@@ -2480,6 +2502,16 @@
 
     <span class="kw">if let </span><span class="prelude-val">Some</span>(geo_country_code) = extract_geo_country_code(event) {
         tags.insert(CommonTag::GeoCountryCode, geo_country_code);
+    }
+
+    <span class="comment">// The product only uses the subregion for web data at the moment
+    </span><span class="kw">if let </span><span class="prelude-val">Some</span>(_browser_name) = extract_browser_name(event) {
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(geo_country_code) = extract_geo_country_code(event) {
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(subregion) = Subregion::from_iso2(geo_country_code.as_str()) {
+                <span class="kw">let </span>numerical_subregion = subregion <span class="kw">as </span>u8;
+                tags.insert(CommonTag::UserSubregion, numerical_subregion.to_string());
+            }
+        }
     }
 
     <span class="kw">if let </span><span class="prelude-val">Some</span>(status_code) = normalize_utils::extract_http_status_code(event) {
@@ -2961,6 +2993,7 @@
                     "transaction": "gEt /api/:version/users/",
                     "transaction.op": "mYOp",
                     "transaction.status": "ok",
+                    "user.geo.subregion": "21",
                 },
                 metadata: BucketMetadata {
                     merges: 1,
@@ -2995,6 +3028,7 @@
                     "transaction": "gEt /api/:version/users/",
                     "transaction.op": "mYOp",
                     "transaction.status": "ok",
+                    "user.geo.subregion": "21",
                 },
                 metadata: BucketMetadata {
                     merges: 1,
@@ -3023,6 +3057,7 @@
                     "sentry.score_profile_version": "alpha",
                     "transaction": "gEt /api/:version/users/",
                     "transaction.op": "mYOp",
+                    "user.geo.subregion": "21",
                 },
                 metadata: BucketMetadata {
                     merges: 1,
@@ -3051,6 +3086,7 @@
                     "sentry.score_profile_version": "alpha",
                     "transaction": "gEt /api/:version/users/",
                     "transaction.op": "mYOp",
+                    "user.geo.subregion": "21",
                 },
                 metadata: BucketMetadata {
                     merges: 1,
@@ -3079,6 +3115,7 @@
                     "sentry.score_profile_version": "alpha",
                     "transaction": "gEt /api/:version/users/",
                     "transaction.op": "mYOp",
+                    "user.geo.subregion": "21",
                 },
                 metadata: BucketMetadata {
                     merges: 1,
@@ -3112,6 +3149,7 @@
                     "transaction": "gEt /api/:version/users/",
                     "transaction.op": "mYOp",
                     "transaction.status": "ok",
+                    "user.geo.subregion": "21",
                 },
                 metadata: BucketMetadata {
                     merges: 1,
@@ -3163,6 +3201,7 @@
                     "transaction": "gEt /api/:version/users/",
                     "transaction.op": "mYOp",
                     "transaction.status": "ok",
+                    "user.geo.subregion": "21",
                 },
                 metadata: BucketMetadata {
                     merges: 1,
@@ -3219,6 +3258,7 @@
                     "transaction": "gEt /api/:version/users/",
                     "transaction.op": "mYOp",
                     "transaction.status": "ok",
+                    "user.geo.subregion": "21",
                 },
                 metadata: BucketMetadata {
                     merges: 1,

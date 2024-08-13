@@ -272,6 +272,8 @@
 <a href="#272" id="272">272</a>
 <a href="#273" id="273">273</a>
 <a href="#274" id="274">274</a>
+<a href="#275" id="275">275</a>
+<a href="#276" id="276">276</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::fmt::Display;
@@ -506,6 +508,7 @@
     BrowserName,
     OsName,
     GeoCountryCode,
+    UserSubregion,
     DeviceClass,
     Custom(String),
 }
@@ -525,6 +528,7 @@
             CommonTag::BrowserName =&gt; <span class="string">"browser.name"</span>,
             CommonTag::OsName =&gt; <span class="string">"os.name"</span>,
             CommonTag::GeoCountryCode =&gt; <span class="string">"geo.country_code"</span>,
+            CommonTag::UserSubregion =&gt; <span class="string">"user.geo.subregion"</span>,
             CommonTag::DeviceClass =&gt; <span class="string">"device.class"</span>,
             CommonTag::Custom(s) =&gt; s,
         };

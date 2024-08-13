@@ -958,6 +958,29 @@
 <a href="#958" id="958">958</a>
 <a href="#959" id="959">959</a>
 <a href="#960" id="960">960</a>
+<a href="#961" id="961">961</a>
+<a href="#962" id="962">962</a>
+<a href="#963" id="963">963</a>
+<a href="#964" id="964">964</a>
+<a href="#965" id="965">965</a>
+<a href="#966" id="966">966</a>
+<a href="#967" id="967">967</a>
+<a href="#968" id="968">968</a>
+<a href="#969" id="969">969</a>
+<a href="#970" id="970">970</a>
+<a href="#971" id="971">971</a>
+<a href="#972" id="972">972</a>
+<a href="#973" id="973">973</a>
+<a href="#974" id="974">974</a>
+<a href="#975" id="975">975</a>
+<a href="#976" id="976">976</a>
+<a href="#977" id="977">977</a>
+<a href="#978" id="978">978</a>
+<a href="#979" id="979">979</a>
+<a href="#980" id="980">980</a>
+<a href="#981" id="981">981</a>
+<a href="#982" id="982">982</a>
+<a href="#983" id="983">983</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_base_schema::data_category::DataCategory;
 <span class="kw">use </span>relay_common::glob2::LazyGlob;
 <span class="kw">use </span>relay_event_normalization::utils::MAX_DURATION_MOBILE_MS;
@@ -1145,6 +1168,8 @@
     <span class="kw">let </span>is_app_start = RuleCondition::glob(<span class="string">"span.op"</span>, <span class="string">"app.start.*"</span>)
         &amp; RuleCondition::eq(<span class="string">"span.description"</span>, APP_START_ROOT_SPAN_DESCRIPTIONS);
 
+    <span class="kw">let </span>should_extract_geo = is_allowed_browser.clone() | is_mobile.clone() | is_resource.clone();
+
     <span class="comment">// Metrics for addon modules are only extracted if the feature flag is enabled:
     </span><span class="kw">let </span>is_addon = is_ai.clone() | is_queue_op.clone() | is_cache.clone();
 
@@ -1319,6 +1344,9 @@
                         Tag::with_key(<span class="string">"browser.name"</span>)
                             .from_field(<span class="string">"span.browser.name"</span>)
                             .always(), <span class="comment">// already guarded by condition on metric
+                        </span>Tag::with_key(<span class="string">"user.geo.subregion"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.user.geo.subregion"</span>)
+                            .always(), <span class="comment">// already guarded by condition on metric
                     </span>],
                 },
                 MetricSpec {
@@ -1341,6 +1369,9 @@
                             .always(),
                         Tag::with_key(<span class="string">"browser.name"</span>)
                             .from_field(<span class="string">"span.sentry_tags.browser.name"</span>)
+                            .always(), <span class="comment">// already guarded by condition on metric
+                        </span>Tag::with_key(<span class="string">"user.geo.subregion"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.user.geo.subregion"</span>)
                             .always(), <span class="comment">// already guarded by condition on metric
                     </span>],
                 },
@@ -1365,6 +1396,9 @@
                         Tag::with_key(<span class="string">"browser.name"</span>)
                             .from_field(<span class="string">"span.sentry_tags.browser.name"</span>)
                             .always(), <span class="comment">// already guarded by condition on metric
+                        </span>Tag::with_key(<span class="string">"user.geo.subregion"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.user.geo.subregion"</span>)
+                            .always(), <span class="comment">// already guarded by condition on metric
                     </span>],
                 },
                 MetricSpec {
@@ -1387,6 +1421,9 @@
                             .always(),
                         Tag::with_key(<span class="string">"browser.name"</span>)
                             .from_field(<span class="string">"span.sentry_tags.browser.name"</span>)
+                            .always(), <span class="comment">// already guarded by condition on metric
+                        </span>Tag::with_key(<span class="string">"user.geo.subregion"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.user.geo.subregion"</span>)
                             .always(), <span class="comment">// already guarded by condition on metric
                     </span>],
                 },
@@ -1590,7 +1627,10 @@
                                 </span>&amp; duration_condition.clone(),
                             ),
                         <span class="comment">// Know modules:
-                        </span>Tag::with_key(<span class="string">"transaction.method"</span>)
+                        </span>Tag::with_key(<span class="string">"user.geo.subregion"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.user.geo.subregion"</span>)
+                            .when(should_extract_geo.clone()),
+                        Tag::with_key(<span class="string">"transaction.method"</span>)
                             .from_field(<span class="string">"span.sentry_tags.transaction.method"</span>)
                             .when(is_db.clone() | is_mobile.clone() | is_http.clone()), <span class="comment">// groups by method + txn, e.g. `GET /users`
                         </span>Tag::with_key(<span class="string">"span.action"</span>)
@@ -1675,6 +1715,9 @@
                         Tag::with_key(<span class="string">"span.op"</span>)
                             .from_field(<span class="string">"span.sentry_tags.op"</span>)
                             .always(),
+                        Tag::with_key(<span class="string">"user.geo.subregion"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.user.geo.subregion"</span>)
+                            .when(should_extract_geo.clone()),
                         <span class="comment">// Mobile:
                         </span>Tag::with_key(<span class="string">"device.class"</span>)
                             .from_field(<span class="string">"span.sentry_tags.device.class"</span>)
@@ -1911,6 +1954,9 @@
                         .always(),
                     Tag::with_key(<span class="string">"browser.name"</span>)
                         .from_field(<span class="string">"span.browser.name"</span>)
+                        .always(), <span class="comment">// already guarded by condition on metric
+                    </span>Tag::with_key(<span class="string">"user.geo.subregion"</span>)
+                        .from_field(<span class="string">"span.sentry_tags.user.geo.subregion"</span>)
                         .always(), <span class="comment">// already guarded by condition on metric
                 </span>],
             }],

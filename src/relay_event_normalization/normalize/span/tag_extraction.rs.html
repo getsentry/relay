@@ -2678,6 +2678,14 @@
 <a href="#2678" id="2678">2678</a>
 <a href="#2679" id="2679">2679</a>
 <a href="#2680" id="2680">2680</a>
+<a href="#2681" id="2681">2681</a>
+<a href="#2682" id="2682">2682</a>
+<a href="#2683" id="2683">2683</a>
+<a href="#2684" id="2684">2684</a>
+<a href="#2685" id="2685">2685</a>
+<a href="#2686" id="2686">2686</a>
+<a href="#2687" id="2687">2687</a>
+<a href="#2688" id="2688">2688</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Logic for persisting items into `span.sentry_tags` and `span.measurements` fields.
 //! These are then used for metrics extraction.
 </span><span class="kw">use </span>std::borrow::Cow;
@@ -2698,6 +2706,7 @@
 <span class="kw">use </span>sqlparser::ast::{ObjectName, Visitor};
 <span class="kw">use </span>url::{Host, Url};
 
+<span class="kw">use </span><span class="kw">crate</span>::span::country_subregion::Subregion;
 <span class="kw">use </span><span class="kw">crate</span>::span::description::{
     concatenate_host_and_port, scrub_domain_name, scrub_span_description,
 };
@@ -2766,6 +2775,7 @@
     ThreadId,
     ProfilerId,
     UserCountryCode,
+    UserSubregion,
 }
 
 <span class="kw">impl </span>SpanTagKey {
@@ -2780,6 +2790,7 @@
             SpanTagKey::UserUsername =&gt; <span class="string">"user.username"</span>,
             SpanTagKey::UserEmail =&gt; <span class="string">"user.email"</span>,
             SpanTagKey::UserCountryCode =&gt; <span class="string">"user.geo.country_code"</span>,
+            SpanTagKey::UserSubregion =&gt; <span class="string">"user.geo.subregion"</span>,
             SpanTagKey::Environment =&gt; <span class="string">"environment"</span>,
             SpanTagKey::Transaction =&gt; <span class="string">"transaction"</span>,
             SpanTagKey::TransactionMethod =&gt; <span class="string">"transaction.method"</span>,
@@ -2992,6 +3003,10 @@
         }
         <span class="kw">if let </span><span class="prelude-val">Some</span>(country_code) = user.geo.value().and_then(|geo| geo.country_code.value()) {
             tags.insert(SpanTagKey::UserCountryCode, country_code.to_owned());
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(subregion) = Subregion::from_iso2(country_code.as_str()) {
+                <span class="kw">let </span>numerical_subregion = subregion <span class="kw">as </span>u8;
+                tags.insert(SpanTagKey::UserSubregion, numerical_subregion.to_string());
+            }
         }
     }
 
@@ -5260,6 +5275,7 @@ LIMIT 1
             <span class="string">"admin@sentry.io"
         </span>);
         <span class="macro">assert_eq!</span>(<span class="macro">get_value!</span>(span.sentry_tags[<span class="string">"user.geo.country_code"</span>]!), <span class="string">"US"</span>);
+        <span class="macro">assert_eq!</span>(<span class="macro">get_value!</span>(span.sentry_tags[<span class="string">"user.geo.subregion"</span>]!), <span class="string">"21"</span>);
     }
 
     <span class="attr">#[test]
