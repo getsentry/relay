@@ -57,7 +57,7 @@ struct Inner {
     refresh_frequency_ms: u64,
 }
 
-/// Wrapper around [`Inner`] which hides the [`Arc`] and exposes utils method to make working with
+/// Wrapper which hides the [`Arc`] and exposes utils method to make working with
 /// [`MemoryStat`] as opaque as possible.
 #[derive(Clone)]
 pub struct MemoryStat(Arc<Inner>);
@@ -77,7 +77,7 @@ impl MemoryStat {
         }))
     }
 
-    /// Returns a copy of the most up to date [`Memory`] data.
+    /// Returns a copy of the most up-to-date memory data.
     pub fn memory(&self) -> Memory {
         self.try_update();
         **self.0.memory.load()
