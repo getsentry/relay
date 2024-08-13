@@ -562,8 +562,15 @@ mod tests {
     #[tokio::test]
     async fn test_estimate_disk_usage() {
         let db = setup_db(true).await;
-        let mut envelope_store = SqliteEnvelopeStore::new(db);
+        let mut store = SqliteEnvelopeStore::new(db.clone());
 
-        println!("{:?}", envelope_store.usage());
+        let envelopes = mock_envelopes(10);
+        store
+            .insert_many(envelopes.iter().map(|e| e.as_ref().try_into().unwrap()))
+            .await
+            .unwrap();
+
+        let usage = SqliteEnvelopeStore::estimate_usage(&db).await.unwrap();
+        assert!(usage > 0);
     }
 }

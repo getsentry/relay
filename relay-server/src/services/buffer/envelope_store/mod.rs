@@ -28,9 +28,9 @@ pub trait EnvelopeStore {
         limit: i64,
     ) -> impl Future<Output = Result<Vec<Box<Envelope>>, Self::Error>>;
 
-    #[allow(dead_code)]
     /// Returns a set of project key pairs, representing all the unique combinations of
     /// `own_key` and `project_key` that are found in the store.
+    #[allow(dead_code)]
     fn project_key_pairs(
         &self,
     ) -> impl Future<Output = Result<HashSet<(ProjectKey, ProjectKey)>, Self::Error>>;
