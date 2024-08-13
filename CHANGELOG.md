@@ -20,6 +20,7 @@
 - Extract `user.geo.country_code` into span indexed. ([#3911](https://github.com/getsentry/relay/pull/3911))
 - Add `span.system` tag to span metrics ([#3913](https://github.com/getsentry/relay/pull/3913))
 - Extract client sdk from transaction into profiles. ([#3915](https://github.com/getsentry/relay/pull/3915))
+- Add `last_peek` field to the `Priority` struct. ([#3922](https://github.com/getsentry/relay/pull/3922))
 
 ## 24.7.1
 
