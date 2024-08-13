@@ -1,3 +1,9 @@
+use std::error::Error;
+use std::path::Path;
+use std::pin::pin;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
+
 use futures::stream::StreamExt;
 use hashbrown::HashSet;
 use relay_base_schema::project::{ParseProjectKeyError, ProjectKey};
@@ -9,11 +15,6 @@ use sqlx::sqlite::{
     SqliteRow, SqliteSynchronous,
 };
 use sqlx::{Pool, QueryBuilder, Row, Sqlite};
-use std::error::Error;
-use std::path::Path;
-use std::pin::pin;
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::Arc;
 use tokio::fs::DirBuilder;
 
 use crate::envelope::EnvelopeError;

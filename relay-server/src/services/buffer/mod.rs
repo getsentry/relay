@@ -215,9 +215,10 @@ mod tests {
 
     use relay_common::Dsn;
 
-    use super::*;
     use crate::extractors::RequestMeta;
     use crate::utils::MemoryStat;
+
+    use super::*;
 
     fn new_buffer() -> Arc<GuardedEnvelopeBuffer> {
         let config = Arc::new(

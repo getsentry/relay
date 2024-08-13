@@ -408,15 +408,16 @@ impl Readiness {
 mod tests {
     use std::str::FromStr;
     use std::sync::Arc;
-    use uuid::Uuid;
 
     use relay_common::Dsn;
     use relay_sampling::DynamicSamplingContext;
+    use uuid::Uuid;
 
-    use super::*;
     use crate::envelope::{Item, ItemType};
     use crate::extractors::RequestMeta;
     use crate::utils::MemoryStat;
+
+    use super::*;
 
     fn new_envelope(project_key: ProjectKey, sampling_key: Option<ProjectKey>) -> Box<Envelope> {
         let mut envelope = Envelope::from_request(
