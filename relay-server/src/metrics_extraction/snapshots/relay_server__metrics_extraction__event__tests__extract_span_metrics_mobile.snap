@@ -44,6 +44,10 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "transaction.method": "GET",
                 "transaction.op": "ui.load",
                 "ttid": "ttid",
+                "user": "id:user123",
+                "user.geo.country_code": "US",
+                "user.geo.subregion": "21",
+                "user.id": "user123",
             },
             received: ~,
             measurements: ~,
@@ -151,6 +155,10 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "transaction.method": "GET",
                 "transaction.op": "ui.load",
                 "ttid": "ttid",
+                "user": "id:user123",
+                "user.geo.country_code": "US",
+                "user.geo.subregion": "21",
+                "user.id": "user123",
             },
             received: ~,
             measurements: Measurements(
@@ -222,6 +230,10 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "transaction.method": "GET",
                 "transaction.op": "ui.load",
                 "ttid": "ttid",
+                "user": "id:user123",
+                "user.geo.country_code": "US",
+                "user.geo.subregion": "21",
+                "user.id": "user123",
             },
             received: ~,
             measurements: ~,
@@ -269,6 +281,10 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "transaction.method": "GET",
                 "transaction.op": "ui.load",
                 "ttid": "ttid",
+                "user": "id:user123",
+                "user.geo.country_code": "US",
+                "user.geo.subregion": "21",
+                "user.id": "user123",
             },
             received: ~,
             measurements: ~,
@@ -318,6 +334,10 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "transaction.method": "GET",
                 "transaction.op": "ui.load",
                 "ttid": "ttid",
+                "user": "id:user123",
+                "user.geo.country_code": "US",
+                "user.geo.subregion": "21",
+                "user.id": "user123",
             },
             received: ~,
             measurements: ~,
@@ -367,6 +387,10 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "transaction.method": "GET",
                 "transaction.op": "ui.load",
                 "ttid": "ttid",
+                "user": "id:user123",
+                "user.geo.country_code": "US",
+                "user.geo.subregion": "21",
+                "user.id": "user123",
             },
             received: ~,
             measurements: ~,
@@ -470,6 +494,10 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "transaction.method": "GET",
                 "transaction.op": "ui.load",
                 "ttid": "ttid",
+                "user": "id:user123",
+                "user.geo.country_code": "US",
+                "user.geo.subregion": "21",
+                "user.id": "user123",
             },
             received: ~,
             measurements: ~,
@@ -571,6 +599,10 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "transaction.method": "GET",
                 "transaction.op": "ui.load",
                 "ttid": "ttid",
+                "user": "id:user123",
+                "user.geo.country_code": "US",
+                "user.geo.subregion": "21",
+                "user.id": "user123",
             },
             received: ~,
             measurements: ~,
@@ -621,6 +653,10 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "transaction.method": "GET",
                 "transaction.op": "ui.load",
                 "ttid": "ttid",
+                "user": "id:user123",
+                "user.geo.country_code": "US",
+                "user.geo.subregion": "21",
+                "user.id": "user123",
             },
             received: ~,
             measurements: ~,
@@ -724,6 +760,10 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "transaction.method": "GET",
                 "transaction.op": "ui.load",
                 "ttid": "ttid",
+                "user": "id:user123",
+                "user.geo.country_code": "US",
+                "user.geo.subregion": "21",
+                "user.id": "user123",
             },
             received: ~,
             measurements: ~,
@@ -827,6 +867,10 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "transaction.method": "GET",
                 "transaction.op": "ui.load",
                 "ttid": "ttid",
+                "user": "id:user123",
+                "user.geo.country_code": "US",
+                "user.geo.subregion": "21",
+                "user.id": "user123",
             },
             received: ~,
             measurements: ~,
@@ -877,6 +921,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "transaction": "gEt /api/:version/users/",
                 "transaction.method": "GET",
                 "transaction.op": "ui.load",
+                "user.geo.subregion": "21",
             },
             metadata: BucketMetadata {
                 merges: 1,
@@ -905,6 +950,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "span.group": "368c4046e9831b12",
                 "span.op": "ui.load",
                 "transaction.op": "ui.load",
+                "user.geo.subregion": "21",
             },
             metadata: BucketMetadata {
                 merges: 1,
@@ -936,6 +982,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "transaction": "gEt /api/:version/users/",
                 "transaction.method": "GET",
                 "transaction.op": "ui.load",
+                "user.geo.subregion": "21",
             },
             metadata: BucketMetadata {
                 merges: 1,
@@ -964,6 +1011,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "span.group": "368c4046e9831b12",
                 "span.op": "ui.load",
                 "transaction.op": "ui.load",
+                "user.geo.subregion": "21",
             },
             metadata: BucketMetadata {
                 merges: 1,
@@ -1013,6 +1061,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "transaction.method": "GET",
                 "transaction.op": "ui.load",
                 "ttid": "ttid",
+                "user.geo.subregion": "21",
             },
             metadata: BucketMetadata {
                 merges: 1,
@@ -1040,6 +1089,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "span.category": "app",
                 "span.op": "app.start.cold",
                 "transaction.op": "ui.load",
+                "user.geo.subregion": "21",
             },
             metadata: BucketMetadata {
                 merges: 1,
@@ -1071,6 +1121,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "transaction.method": "GET",
                 "transaction.op": "ui.load",
                 "ttid": "ttid",
+                "user.geo.subregion": "21",
             },
             metadata: BucketMetadata {
                 merges: 1,
@@ -1098,6 +1149,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "span.category": "app",
                 "span.op": "app.start.cold",
                 "transaction.op": "ui.load",
+                "user.geo.subregion": "21",
             },
             metadata: BucketMetadata {
                 merges: 1,
@@ -1146,6 +1198,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "transaction.method": "GET",
                 "transaction.op": "ui.load",
                 "ttid": "ttid",
+                "user.geo.subregion": "21",
             },
             metadata: BucketMetadata {
                 merges: 1,
@@ -1172,6 +1225,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "release": "1.2.3",
                 "span.op": "ui.load.initial_display",
                 "transaction.op": "ui.load",
+                "user.geo.subregion": "21",
             },
             metadata: BucketMetadata {
                 merges: 1,
@@ -1202,6 +1256,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "transaction.method": "GET",
                 "transaction.op": "ui.load",
                 "ttid": "ttid",
+                "user.geo.subregion": "21",
             },
             metadata: BucketMetadata {
                 merges: 1,
@@ -1228,6 +1283,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "release": "1.2.3",
                 "span.op": "ui.load.initial_display",
                 "transaction.op": "ui.load",
+                "user.geo.subregion": "21",
             },
             metadata: BucketMetadata {
                 merges: 1,
@@ -1259,6 +1315,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "span.op": "ui.load.initial_display",
                 "transaction": "gEt /api/:version/users/",
                 "transaction.op": "ui.load",
+                "user.geo.subregion": "21",
             },
             metadata: BucketMetadata {
                 merges: 1,
@@ -1290,6 +1347,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "span.op": "ui.load.initial_display",
                 "transaction": "gEt /api/:version/users/",
                 "transaction.op": "ui.load",
+                "user.geo.subregion": "21",
             },
             metadata: BucketMetadata {
                 merges: 1,
@@ -1321,6 +1379,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "span.op": "ui.load.initial_display",
                 "transaction": "gEt /api/:version/users/",
                 "transaction.op": "ui.load",
+                "user.geo.subregion": "21",
             },
             metadata: BucketMetadata {
                 merges: 1,
@@ -1352,6 +1411,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "span.op": "ui.load.initial_display",
                 "transaction": "gEt /api/:version/users/",
                 "transaction.op": "ui.load",
+                "user.geo.subregion": "21",
             },
             metadata: BucketMetadata {
                 merges: 1,
@@ -1403,6 +1463,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "transaction.method": "GET",
                 "transaction.op": "ui.load",
                 "ttid": "ttid",
+                "user.geo.subregion": "21",
             },
             metadata: BucketMetadata {
                 merges: 1,
@@ -1432,6 +1493,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "span.group": "2d675185edfeb30c",
                 "span.op": "app.start.cold",
                 "transaction.op": "ui.load",
+                "user.geo.subregion": "21",
             },
             metadata: BucketMetadata {
                 merges: 1,
@@ -1465,6 +1527,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "transaction.method": "GET",
                 "transaction.op": "ui.load",
                 "ttid": "ttid",
+                "user.geo.subregion": "21",
             },
             metadata: BucketMetadata {
                 merges: 1,
@@ -1494,6 +1557,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "span.group": "2d675185edfeb30c",
                 "span.op": "app.start.cold",
                 "transaction.op": "ui.load",
+                "user.geo.subregion": "21",
             },
             metadata: BucketMetadata {
                 merges: 1,
@@ -1610,6 +1674,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "transaction.method": "GET",
                 "transaction.op": "ui.load",
                 "ttid": "ttid",
+                "user.geo.subregion": "21",
             },
             metadata: BucketMetadata {
                 merges: 1,
@@ -1638,6 +1703,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "span.group": "cfb484dec50a18c9",
                 "span.op": "contentprovider.load",
                 "transaction.op": "ui.load",
+                "user.geo.subregion": "21",
             },
             metadata: BucketMetadata {
                 merges: 1,
@@ -1670,6 +1736,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "transaction.method": "GET",
                 "transaction.op": "ui.load",
                 "ttid": "ttid",
+                "user.geo.subregion": "21",
             },
             metadata: BucketMetadata {
                 merges: 1,
@@ -1698,6 +1765,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "span.group": "cfb484dec50a18c9",
                 "span.op": "contentprovider.load",
                 "transaction.op": "ui.load",
+                "user.geo.subregion": "21",
             },
             metadata: BucketMetadata {
                 merges: 1,
@@ -1748,6 +1816,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "transaction.method": "GET",
                 "transaction.op": "ui.load",
                 "ttid": "ttid",
+                "user.geo.subregion": "21",
             },
             metadata: BucketMetadata {
                 merges: 1,
@@ -1776,6 +1845,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "span.group": "a928f42bab6aff5b",
                 "span.op": "application.load",
                 "transaction.op": "ui.load",
+                "user.geo.subregion": "21",
             },
             metadata: BucketMetadata {
                 merges: 1,
@@ -1808,6 +1878,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "transaction.method": "GET",
                 "transaction.op": "ui.load",
                 "ttid": "ttid",
+                "user.geo.subregion": "21",
             },
             metadata: BucketMetadata {
                 merges: 1,
@@ -1836,6 +1907,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "span.group": "a928f42bab6aff5b",
                 "span.op": "application.load",
                 "transaction.op": "ui.load",
+                "user.geo.subregion": "21",
             },
             metadata: BucketMetadata {
                 merges: 1,
@@ -1886,6 +1958,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "transaction.method": "GET",
                 "transaction.op": "ui.load",
                 "ttid": "ttid",
+                "user.geo.subregion": "21",
             },
             metadata: BucketMetadata {
                 merges: 1,
@@ -1914,6 +1987,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "span.group": "6d931be5b5897006",
                 "span.op": "activity.load",
                 "transaction.op": "ui.load",
+                "user.geo.subregion": "21",
             },
             metadata: BucketMetadata {
                 merges: 1,
@@ -1946,6 +2020,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "transaction.method": "GET",
                 "transaction.op": "ui.load",
                 "ttid": "ttid",
+                "user.geo.subregion": "21",
             },
             metadata: BucketMetadata {
                 merges: 1,
@@ -1974,6 +2049,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "span.group": "6d931be5b5897006",
                 "span.op": "activity.load",
                 "transaction.op": "ui.load",
+                "user.geo.subregion": "21",
             },
             metadata: BucketMetadata {
                 merges: 1,
@@ -2022,6 +2098,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "transaction.method": "GET",
                 "transaction.op": "ui.load",
                 "ttid": "ttid",
+                "user.geo.subregion": "21",
             },
             metadata: BucketMetadata {
                 merges: 1,
@@ -2048,6 +2125,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "release": "1.2.3",
                 "span.op": "process.load",
                 "transaction.op": "ui.load",
+                "user.geo.subregion": "21",
             },
             metadata: BucketMetadata {
                 merges: 1,
@@ -2078,6 +2156,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "transaction.method": "GET",
                 "transaction.op": "ui.load",
                 "ttid": "ttid",
+                "user.geo.subregion": "21",
             },
             metadata: BucketMetadata {
                 merges: 1,
@@ -2104,6 +2183,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "release": "1.2.3",
                 "span.op": "process.load",
                 "transaction.op": "ui.load",
+                "user.geo.subregion": "21",
             },
             metadata: BucketMetadata {
                 merges: 1,
@@ -2155,6 +2235,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "transaction.method": "GET",
                 "transaction.op": "ui.load",
                 "ttid": "ttid",
+                "user.geo.subregion": "21",
             },
             metadata: BucketMetadata {
                 merges: 1,
@@ -2184,6 +2265,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "span.group": "3389dae361af79b0",
                 "span.op": "file.read",
                 "transaction.op": "ui.load",
+                "user.geo.subregion": "21",
             },
             metadata: BucketMetadata {
                 merges: 1,
@@ -2217,6 +2299,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "transaction.method": "GET",
                 "transaction.op": "ui.load",
                 "ttid": "ttid",
+                "user.geo.subregion": "21",
             },
             metadata: BucketMetadata {
                 merges: 1,
@@ -2246,6 +2329,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "span.group": "3389dae361af79b0",
                 "span.op": "file.read",
                 "transaction.op": "ui.load",
+                "user.geo.subregion": "21",
             },
             metadata: BucketMetadata {
                 merges: 1,
@@ -2296,6 +2380,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "transaction.method": "GET",
                 "transaction.op": "ui.load",
                 "ttid": "ttid",
+                "user.geo.subregion": "21",
             },
             metadata: BucketMetadata {
                 merges: 1,
@@ -2324,6 +2409,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "span.op": "http.client",
                 "span.status_code": "200",
                 "transaction.op": "ui.load",
+                "user.geo.subregion": "21",
             },
             metadata: BucketMetadata {
                 merges: 1,
@@ -2356,6 +2442,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "transaction.method": "GET",
                 "transaction.op": "ui.load",
                 "ttid": "ttid",
+                "user.geo.subregion": "21",
             },
             metadata: BucketMetadata {
                 merges: 1,
@@ -2384,6 +2471,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "span.op": "http.client",
                 "span.status_code": "200",
                 "transaction.op": "ui.load",
+                "user.geo.subregion": "21",
             },
             metadata: BucketMetadata {
                 merges: 1,
@@ -2434,6 +2522,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "transaction.method": "GET",
                 "transaction.op": "ui.load",
                 "ttid": "ttid",
+                "user.geo.subregion": "21",
             },
             metadata: BucketMetadata {
                 merges: 1,
@@ -2462,6 +2551,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "span.op": "http.client",
                 "span.status_code": "200",
                 "transaction.op": "ui.load",
+                "user.geo.subregion": "21",
             },
             metadata: BucketMetadata {
                 merges: 1,
@@ -2494,6 +2584,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "transaction.method": "GET",
                 "transaction.op": "ui.load",
                 "ttid": "ttid",
+                "user.geo.subregion": "21",
             },
             metadata: BucketMetadata {
                 merges: 1,
@@ -2522,6 +2613,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "span.op": "http.client",
                 "span.status_code": "200",
                 "transaction.op": "ui.load",
+                "user.geo.subregion": "21",
             },
             metadata: BucketMetadata {
                 merges: 1,
