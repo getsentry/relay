@@ -110,6 +110,8 @@
 <a href="#110" id="110">110</a>
 <a href="#111" id="111">111</a>
 <a href="#112" id="112">112</a>
+<a href="#113" id="113">113</a>
+<a href="#114" id="114">114</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This package contains the C-ABI of Relay. It builds a C header file and
 //! associated library that can be linked to any C or C++ program. Note that the
 //! header is C only. Primarily, this package is meant to be consumed by
@@ -214,6 +216,7 @@
 <span class="kw">mod </span>constants;
 <span class="kw">mod </span>core;
 <span class="kw">mod </span>ffi;
+<span class="kw">mod </span>glob;
 <span class="kw">mod </span>processing;
 
 <span class="kw">pub use </span><span class="kw">crate</span>::auth::<span class="kw-2">*</span>;
@@ -221,5 +224,6 @@
 <span class="kw">pub use </span><span class="kw">crate</span>::constants::<span class="kw-2">*</span>;
 <span class="kw">pub use </span><span class="kw">crate</span>::core::<span class="kw-2">*</span>;
 <span class="kw">pub use </span><span class="kw">crate</span>::ffi::<span class="kw-2">*</span>;
+<span class="kw">pub use </span><span class="kw">crate</span>::glob::<span class="kw-2">*</span>;
 <span class="kw">pub use </span><span class="kw">crate</span>::processing::<span class="kw-2">*</span>;
 </code></pre></div></section></main></body></html>

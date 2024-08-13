@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-common/src/glob.rs`."><title>glob.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-46f98efaafac5295.ttf.woff2,FiraSans-Regular-018c141bf0843ffd.woff2,FiraSans-Medium-8f9a781e4970d388.woff2,SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2,SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-dd39b87e5fcfba68.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="relay_common" data-themes="" data-resource-suffix="" data-rustdoc-version="1.80.1 (3f5fd8dd4 2024-08-06)" data-channel="1.80.1" data-search-js="search-d52510db62a78183.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../static.files/storage-118b08c4c78b968e.js"></script><script defer src="../../static.files/src-script-e66d777a5a92e9b2.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-20a3ad099b048cf2.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-df360f571f6edeae.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer"></div><main><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-cabi/src/glob.rs`."><title>glob.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-46f98efaafac5295.ttf.woff2,FiraSans-Regular-018c141bf0843ffd.woff2,FiraSans-Medium-8f9a781e4970d388.woff2,SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2,SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-dd39b87e5fcfba68.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="relay_cabi" data-themes="" data-resource-suffix="" data-rustdoc-version="1.80.1 (3f5fd8dd4 2024-08-06)" data-channel="1.80.1" data-search-js="search-d52510db62a78183.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../static.files/storage-118b08c4c78b968e.js"></script><script defer src="../../static.files/src-script-e66d777a5a92e9b2.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-20a3ad099b048cf2.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-df360f571f6edeae.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer"></div><main><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -118,6 +118,42 @@
 <a href="#118" id="118">118</a>
 <a href="#119" id="119">119</a>
 <a href="#120" id="120">120</a>
+<a href="#121" id="121">121</a>
+<a href="#122" id="122">122</a>
+<a href="#123" id="123">123</a>
+<a href="#124" id="124">124</a>
+<a href="#125" id="125">125</a>
+<a href="#126" id="126">126</a>
+<a href="#127" id="127">127</a>
+<a href="#128" id="128">128</a>
+<a href="#129" id="129">129</a>
+<a href="#130" id="130">130</a>
+<a href="#131" id="131">131</a>
+<a href="#132" id="132">132</a>
+<a href="#133" id="133">133</a>
+<a href="#134" id="134">134</a>
+<a href="#135" id="135">135</a>
+<a href="#136" id="136">136</a>
+<a href="#137" id="137">137</a>
+<a href="#138" id="138">138</a>
+<a href="#139" id="139">139</a>
+<a href="#140" id="140">140</a>
+<a href="#141" id="141">141</a>
+<a href="#142" id="142">142</a>
+<a href="#143" id="143">143</a>
+<a href="#144" id="144">144</a>
+<a href="#145" id="145">145</a>
+<a href="#146" id="146">146</a>
+<a href="#147" id="147">147</a>
+<a href="#148" id="148">148</a>
+<a href="#149" id="149">149</a>
+<a href="#150" id="150">150</a>
+<a href="#151" id="151">151</a>
+<a href="#152" id="152">152</a>
+<a href="#153" id="153">153</a>
+<a href="#154" id="154">154</a>
+<a href="#155" id="155">155</a>
+<a href="#156" id="156">156</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Binary glob pattern matching for the C-ABI.
 
 </span><span class="kw">use </span>std::borrow::Cow;
@@ -126,8 +162,50 @@
 <span class="kw">use </span>globset::GlobBuilder;
 <span class="kw">use </span>lru::LruCache;
 <span class="kw">use </span>once_cell::sync::Lazy;
-<span class="kw">use </span>parking_lot::Mutex;
 <span class="kw">use </span>regex::bytes::{Regex, RegexBuilder};
+<span class="kw">use </span>std::sync::{Mutex, PoisonError};
+
+<span class="kw">use crate</span>::{RelayBuf, RelayStr};
+
+<span class="doccomment">/// Controls the globbing behaviors.
+</span><span class="attr">#[repr(u32)]
+</span><span class="kw">pub enum </span>GlobFlags {
+    <span class="doccomment">/// When enabled `**` matches over path separators and `*` does not.
+    </span>DoubleStar = <span class="number">1</span>,
+    <span class="doccomment">/// Enables case insensitive path matching.
+    </span>CaseInsensitive = <span class="number">2</span>,
+    <span class="doccomment">/// Enables path normalization.
+    </span>PathNormalize = <span class="number">4</span>,
+    <span class="doccomment">/// Allows newlines.
+    </span>AllowNewline = <span class="number">8</span>,
+}
+
+<span class="doccomment">/// Performs a glob operation on bytes.
+///
+/// Returns `true` if the glob matches, `false` otherwise.
+</span><span class="attr">#[no_mangle]
+#[relay_ffi::catch_unwind]
+</span><span class="kw">pub unsafe extern </span><span class="string">"C" </span><span class="kw">fn </span>relay_is_glob_match(
+    value: <span class="kw-2">*const </span>RelayBuf,
+    pat: <span class="kw-2">*const </span>RelayStr,
+    flags: GlobFlags,
+) -&gt; bool {
+    <span class="kw">let </span><span class="kw-2">mut </span>options = GlobOptions::default();
+    <span class="kw">let </span>flags = flags <span class="kw">as </span>u32;
+    <span class="kw">if </span>(flags &amp; GlobFlags::DoubleStar <span class="kw">as </span>u32) != <span class="number">0 </span>{
+        options.double_star = <span class="bool-val">true</span>;
+    }
+    <span class="kw">if </span>(flags &amp; GlobFlags::CaseInsensitive <span class="kw">as </span>u32) != <span class="number">0 </span>{
+        options.case_insensitive = <span class="bool-val">true</span>;
+    }
+    <span class="kw">if </span>(flags &amp; GlobFlags::PathNormalize <span class="kw">as </span>u32) != <span class="number">0 </span>{
+        options.path_normalize = <span class="bool-val">true</span>;
+    }
+    <span class="kw">if </span>(flags &amp; GlobFlags::AllowNewline <span class="kw">as </span>u32) != <span class="number">0 </span>{
+        options.allow_newline = <span class="bool-val">true</span>;
+    }
+    glob_match_bytes((<span class="kw-2">*</span>value).as_bytes(), (<span class="kw-2">*</span>pat).as_str(), options)
+}
 
 <span class="doccomment">/// LRU cache for [`Regex`]s in relation to [`GlobOptions`] and the provided string pattern.
 </span><span class="kw">static </span>GLOB_CACHE: Lazy&lt;Mutex&lt;LruCache&lt;(GlobOptions, String), Regex&gt;&gt;&gt; =
@@ -135,7 +213,7 @@
 
 <span class="doccomment">/// Controls the options of the globber.
 </span><span class="attr">#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
-</span><span class="kw">pub struct </span>GlobOptions {
+</span><span class="kw">struct </span>GlobOptions {
     <span class="doccomment">/// When enabled `**` matches over path separators and `*` does not.
     </span><span class="kw">pub </span>double_star: bool,
     <span class="doccomment">/// Enables case insensitive path matching.
@@ -160,7 +238,7 @@
 <span class="doccomment">/// Performs a glob operation on bytes.
 ///
 /// Returns `true` if the glob matches, `false` otherwise.
-</span><span class="kw">pub fn </span>glob_match_bytes(value: <span class="kw-2">&amp;</span>[u8], pat: <span class="kw-2">&amp;</span>str, options: GlobOptions) -&gt; bool {
+</span><span class="kw">fn </span>glob_match_bytes(value: <span class="kw-2">&amp;</span>[u8], pat: <span class="kw-2">&amp;</span>str, options: GlobOptions) -&gt; bool {
     <span class="kw">let </span>(value, pat) = <span class="kw">if </span>options.path_normalize {
         (
             Cow::Owned(
@@ -175,7 +253,7 @@
         (Cow::Borrowed(value), pat.to_string())
     };
     <span class="kw">let </span>key = (options, pat);
-    <span class="kw">let </span><span class="kw-2">mut </span>cache = GLOB_CACHE.lock();
+    <span class="kw">let </span><span class="kw-2">mut </span>cache = GLOB_CACHE.lock().unwrap_or_else(PoisonError::into_inner);
 
     <span class="kw">if let </span><span class="prelude-val">Some</span>(pattern) = cache.get(<span class="kw-2">&amp;</span>key) {
         pattern.is_match(<span class="kw-2">&amp;</span>value)
@@ -188,19 +266,13 @@
     </span>}
 }
 
-<span class="doccomment">/// Performs a glob operation.
-///
-/// Returns `true` if the glob matches.
-///
-/// Note that even though this accepts strings, the case insensitivity here is only
-/// applied on ASCII characters as the underlying globber matches on bytes exclusively.
-</span><span class="kw">pub fn </span>glob_match(value: <span class="kw-2">&amp;</span>str, pat: <span class="kw-2">&amp;</span>str, options: GlobOptions) -&gt; bool {
-    glob_match_bytes(value.as_bytes(), pat, options)
-}
-
 <span class="attr">#[cfg(test)]
 </span><span class="kw">mod </span>tests {
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
+
+    <span class="kw">fn </span>glob_match(value: <span class="kw-2">&amp;</span>str, pat: <span class="kw-2">&amp;</span>str, options: GlobOptions) -&gt; bool {
+        glob_match_bytes(value.as_bytes(), pat, options)
+    }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_globs() {
