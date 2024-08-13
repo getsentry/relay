@@ -177,7 +177,7 @@ impl MemoryCheck {
 /// decides how memory readings are interpreted.
 #[derive(Clone, Debug)]
 pub struct MemoryChecker {
-    pub memory_stat: MemoryStat,
+    memory_stat: MemoryStat,
     config: Arc<Config>,
 }
 

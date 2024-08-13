@@ -23,9 +23,9 @@ impl StacksManager for MemoryStacksManager {
 
     fn capacity(&self) -> Capacity {
         if self.memory_checker.check_memory().has_capacity() {
-            Capacity::FREE
+            Capacity::Free
         } else {
-            Capacity::FULL
+            Capacity::Full
         }
     }
 }

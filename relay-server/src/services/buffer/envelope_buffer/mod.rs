@@ -270,7 +270,7 @@ where
     }
 
     pub fn has_capacity(&self) -> bool {
-        matches!(self.stack_provider.capacity(), Capacity::FREE)
+        matches!(self.stack_provider.capacity(), Capacity::Free)
     }
 
     fn pop_stack(&mut self, stack_key: StackKey) {

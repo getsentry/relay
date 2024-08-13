@@ -5,8 +5,8 @@ pub mod sqlite;
 
 /// Enum representing the current capacity of the [`StacksManager`] to accept new [`Envelope`]s.
 pub enum Capacity {
-    FREE,
-    FULL,
+    Free,
+    Full,
 }
 
 /// A provider of [`EnvelopeStack`] instances that is responsible for creating them.
