@@ -6,8 +6,50 @@ use std::num::NonZeroUsize;
 use globset::GlobBuilder;
 use lru::LruCache;
 use once_cell::sync::Lazy;
-use parking_lot::Mutex;
 use regex::bytes::{Regex, RegexBuilder};
+use std::sync::{Mutex, PoisonError};
+
+use crate::{RelayBuf, RelayStr};
+
+/// Controls the globbing behaviors.
+#[repr(u32)]
+pub enum GlobFlags {
+    /// When enabled `**` matches over path separators and `*` does not.
+    DoubleStar = 1,
+    /// Enables case insensitive path matching.
+    CaseInsensitive = 2,
+    /// Enables path normalization.
+    PathNormalize = 4,
+    /// Allows newlines.
+    AllowNewline = 8,
+}
+
+/// Performs a glob operation on bytes.
+///
+/// Returns `true` if the glob matches, `false` otherwise.
+#[no_mangle]
+#[relay_ffi::catch_unwind]
+pub unsafe extern "C" fn relay_is_glob_match(
+    value: *const RelayBuf,
+    pat: *const RelayStr,
+    flags: GlobFlags,
+) -> bool {
+    let mut options = GlobOptions::default();
+    let flags = flags as u32;
+    if (flags & GlobFlags::DoubleStar as u32) != 0 {
+        options.double_star = true;
+    }
+    if (flags & GlobFlags::CaseInsensitive as u32) != 0 {
+        options.case_insensitive = true;
+    }
+    if (flags & GlobFlags::PathNormalize as u32) != 0 {
+        options.path_normalize = true;
+    }
+    if (flags & GlobFlags::AllowNewline as u32) != 0 {
+        options.allow_newline = true;
+    }
+    glob_match_bytes((*value).as_bytes(), (*pat).as_str(), options)
+}
 
 /// LRU cache for [`Regex`]s in relation to [`GlobOptions`] and the provided string pattern.
 static GLOB_CACHE: Lazy<Mutex<LruCache<(GlobOptions, String), Regex>>> =
@@ -15,7 +57,7 @@ static GLOB_CACHE: Lazy<Mutex<LruCache<(GlobOptions, String), Regex>>> =
 
 /// Controls the options of the globber.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
-pub struct GlobOptions {
+struct GlobOptions {
     /// When enabled `**` matches over path separators and `*` does not.
     pub double_star: bool,
     /// Enables case insensitive path matching.
@@ -40,7 +82,7 @@ fn translate_pattern(pat: &str, options: GlobOptions) -> Option<Regex> {
 /// Performs a glob operation on bytes.
 ///
 /// Returns `true` if the glob matches, `false` otherwise.
-pub fn glob_match_bytes(value: &[u8], pat: &str, options: GlobOptions) -> bool {
+fn glob_match_bytes(value: &[u8], pat: &str, options: GlobOptions) -> bool {
     let (value, pat) = if options.path_normalize {
         (
             Cow::Owned(
@@ -55,7 +97,7 @@ pub fn glob_match_bytes(value: &[u8], pat: &str, options: GlobOptions) -> bool {
         (Cow::Borrowed(value), pat.to_string())
     };
     let key = (options, pat);
-    let mut cache = GLOB_CACHE.lock();
+    let mut cache = GLOB_CACHE.lock().unwrap_or_else(PoisonError::into_inner);
 
     if let Some(pattern) = cache.get(&key) {
         pattern.is_match(&value)
@@ -68,19 +110,13 @@ pub fn glob_match_bytes(value: &[u8], pat: &str, options: GlobOptions) -> bool {
     }
 }
 
-/// Performs a glob operation.
-///
-/// Returns `true` if the glob matches.
-///
-/// Note that even though this accepts strings, the case insensitivity here is only
-/// applied on ASCII characters as the underlying globber matches on bytes exclusively.
-pub fn glob_match(value: &str, pat: &str, options: GlobOptions) -> bool {
-    glob_match_bytes(value.as_bytes(), pat, options)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn glob_match(value: &str, pat: &str, options: GlobOptions) -> bool {
+        glob_match_bytes(value.as_bytes(), pat, options)
+    }
 
     #[test]
     fn test_globs() {
