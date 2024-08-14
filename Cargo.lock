@@ -3676,7 +3676,9 @@ name = "relay-common"
 version = "24.7.1"
 dependencies = [
  "chrono",
+ "criterion",
  "globset",
+ "memchr",
  "once_cell",
  "regex-lite",
  "sentry-types",

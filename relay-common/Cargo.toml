@@ -15,6 +15,7 @@ workspace = true
 [dependencies]
 chrono = { workspace = true }
 globset = { workspace = true }
+memchr = { workspace = true }
 once_cell = { workspace = true }
 regex-lite = { workspace = true }
 sentry-types = { workspace = true }
@@ -22,3 +23,8 @@ serde = { workspace = true }
 
 [dev-dependencies]
 serde_test = { workspace = true }
+criterion = { workspace = true }
+
+[[bench]]
+name = "benches"
+harness = false
