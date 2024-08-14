@@ -50,6 +50,8 @@
 <a href="#50" id="50">50</a>
 <a href="#51" id="51">51</a>
 <a href="#52" id="52">52</a>
+<a href="#53" id="53">53</a>
+<a href="#54" id="54">54</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! User agent parser with built-in rules.
 //!
 //! # Test Performance
@@ -69,7 +71,9 @@
 /// For usage, see [`Parser`].
 </span><span class="kw">static </span>UA_PARSER: Lazy&lt;UserAgentParser&gt; = Lazy::new(|| {
     <span class="kw">let </span>ua_regexes = <span class="macro">include_bytes!</span>(<span class="string">"../uap-core/regexes.yaml"</span>);
-    UserAgentParser::from_bytes(ua_regexes)
+    UserAgentParser::builder()
+        .with_unicode_support(<span class="bool-val">false</span>)
+        .build_from_bytes(ua_regexes)
         .expect(<span class="string">"Could not create UserAgent. You are probably using a bad build of relay."</span>)
 });
 
