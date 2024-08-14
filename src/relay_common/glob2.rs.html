@@ -429,7 +429,7 @@
 </span><span class="kw">use </span>std::sync::OnceLock;
 <span class="kw">use </span>std::{fmt, str};
 
-<span class="kw">use </span>regex::Regex;
+<span class="kw">use </span>regex_lite::Regex;
 
 <span class="doccomment">/// Glob options represent the underlying regex emulating the globs.
 </span><span class="attr">#[derive(Debug)]
@@ -496,7 +496,7 @@
         <span class="kw">let </span>regex = GLOB_RE.get_or_init(|| Regex::new(<span class="string">r"\\\?|\\\*\\\*|\\\*|\?|\*\*|\*"</span>).unwrap());
 
         <span class="kw">for </span>m <span class="kw">in </span>regex.find_iter(<span class="self">self</span>.value) {
-            pattern.push_str(<span class="kw-2">&amp;</span>regex::escape(<span class="kw-2">&amp;</span><span class="self">self</span>.value[last..m.start()]));
+            pattern.push_str(<span class="kw-2">&amp;</span>regex_lite::escape(<span class="kw-2">&amp;</span><span class="self">self</span>.value[last..m.start()]));
             <span class="kw">match </span>m.as_str() {
                 <span class="string">"?" </span>=&gt; pattern.push_str(<span class="self">self</span>.groups.question_mark),
                 <span class="string">"**" </span>=&gt; pattern.push_str(<span class="self">self</span>.groups.double_star),
@@ -505,7 +505,7 @@
             }
             last = m.end();
         }
-        pattern.push_str(<span class="kw-2">&amp;</span>regex::escape(<span class="kw-2">&amp;</span><span class="self">self</span>.value[last..]));
+        pattern.push_str(<span class="kw-2">&amp;</span>regex_lite::escape(<span class="kw-2">&amp;</span><span class="self">self</span>.value[last..]));
         pattern.push(<span class="string">'$'</span>);
 
         Glob {

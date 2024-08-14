@@ -197,12 +197,12 @@
 <span class="kw">use </span>std::sync::OnceLock;
 
 <span class="kw">use </span>globset::GlobBuilder;
-<span class="kw">use </span>regex::bytes::{Regex, RegexBuilder};
+<span class="kw">use </span>regex_lite::{Regex, RegexBuilder};
 <span class="kw">use </span>serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 <span class="doccomment">/// Returns `true` if any of the patterns match the given message.
-</span><span class="kw">fn </span>is_match(globs: <span class="kw-2">&amp;</span>[Regex], message: <span class="kw-2">&amp;</span>[u8]) -&gt; bool {
-    globs.iter().any(|regex| regex.is_match(message.as_ref()))
+</span><span class="kw">fn </span>is_match(globs: <span class="kw-2">&amp;</span>[Regex], message: <span class="kw-2">&amp;</span>str) -&gt; bool {
+    globs.iter().any(|regex| regex.is_match(message))
 }
 
 <span class="doccomment">/// A list of patterns for glob matching.
@@ -231,7 +231,7 @@
     <span class="doccomment">/// Returns `true` if any of the patterns match the given message.
     </span><span class="kw">pub fn </span>is_match&lt;S&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, message: S) -&gt; bool
     <span class="kw">where
-        </span>S: AsRef&lt;[u8]&gt;,
+        </span>S: AsRef&lt;str&gt;,
     {
         <span class="kw">let </span>message = message.as_ref();
         <span class="kw">if </span>message.is_empty() {
