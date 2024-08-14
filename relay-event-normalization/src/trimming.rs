@@ -697,7 +697,7 @@ mod tests {
 
         let contexts = contexts.value().unwrap();
         for i in 1..2 {
-            let other = match contexts.get_key(&format!("despacito{i}")).unwrap() {
+            let other = match contexts.get_key(format!("despacito{i}")).unwrap() {
                 Context::Other(ref x) => x,
                 _ => panic!("Context has changed type!"),
             };
