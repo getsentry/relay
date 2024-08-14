@@ -282,6 +282,7 @@ where
 
     /// Evicts the least recently used stacks.
     pub fn evict(&mut self) {
+        #[derive(Debug, Copy, Clone)]
         struct LRUItem(StackKey, Readiness, Instant);
 
         impl PartialEq for LRUItem {
@@ -303,24 +304,28 @@ where
                 match (self.1.ready(), other.1.ready()) {
                     (true, false) => Ordering::Greater,
                     (false, true) => Ordering::Less,
-                    _ => self.2.cmp(&other.2),
+                    _ => self.2.cmp(&other.2).reverse(),
                 }
             }
         }
 
         let mut lru: BinaryHeap<LRUItem> = BinaryHeap::new();
         for (queue_item, priority) in self.priority_queue.iter() {
+            let lru_item = LRUItem(queue_item.key, priority.readiness, queue_item.last_update);
+
             // If we exceed the size, we want to pop the greatest element, so that we end up with
             // the smallest elements which are the ones with the lowest priority.
             if lru.len() >= self.max_evictable_stacks {
-                lru.pop();
+                let Some(top_lru_item) = lru.peek() else {
+                    continue;
+                };
+
+                if lru_item < *top_lru_item {
+                    lru.pop();
+                }
             }
 
-            lru.push(LRUItem(
-                queue_item.key,
-                priority.readiness,
-                queue_item.last_update,
-            ));
+            lru.push(lru_item);
         }
 
         // We go over each element and remove it from the stack. The removal will call the `drop`
@@ -509,6 +514,8 @@ impl Readiness {
 #[cfg(test)]
 mod tests {
     use std::str::FromStr;
+    use std::time::Duration;
+    use tokio::time::sleep;
     use uuid::Uuid;
 
     use relay_common::Dsn;
@@ -798,12 +805,20 @@ mod tests {
             new_envelope(project_key_3, Some(project_key_1), None),
         ];
 
-        for envelope in envelopes {
+        for envelope in envelopes.clone() {
             buffer.push(envelope).await.unwrap();
+            sleep(Duration::from_millis(1)).await;
         }
+
+        buffer.mark_ready(&project_key_1, true);
+        buffer.mark_ready(&project_key_2, true);
 
         buffer.evict();
 
         assert_eq!(buffer.priority_queue.len(), 1);
+        assert_eq!(
+            buffer.peek().await.unwrap().unwrap().event_id(),
+            envelopes[0].event_id()
+        );
     }
 }
