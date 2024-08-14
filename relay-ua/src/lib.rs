@@ -17,7 +17,9 @@ pub use uaparser::{Device, UserAgent, OS};
 /// For usage, see [`Parser`].
 static UA_PARSER: Lazy<UserAgentParser> = Lazy::new(|| {
     let ua_regexes = include_bytes!("../uap-core/regexes.yaml");
-    UserAgentParser::from_bytes(ua_regexes)
+    UserAgentParser::builder()
+        .with_unicode_support(false)
+        .build_from_bytes(ua_regexes)
         .expect("Could not create UserAgent. You are probably using a bad build of relay.")
 });
 
