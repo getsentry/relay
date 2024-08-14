@@ -46,7 +46,7 @@ impl StacksManager for SqliteStacksManager {
     }
 
     fn capacity(&self) -> Capacity {
-        if self.envelope_store.usage() < self.max_disk_size {
+        if (self.envelope_store.usage() as usize) < self.max_disk_size {
             Capacity::Free
         } else {
             Capacity::Full

@@ -129,18 +129,18 @@ impl GuardedEnvelopeBuffer {
         }
     }
 
+    /// Returns `true` if the buffer has capacity to accept more [`Envelope`]s.
+    pub async fn has_capacity(&self) -> bool {
+        let guard = self.inner.lock().await;
+        guard.backend.has_capacity()
+    }
+
     /// Adds an envelope to the buffer and wakes any waiting consumers.
     async fn push(&self, envelope: Box<Envelope>) -> Result<(), EnvelopeBufferError> {
         let mut guard = self.inner.lock().await;
         guard.backend.push(envelope).await?;
         self.notify(&mut guard);
         Ok(())
-    }
-
-    /// Returns `true` if the buffer has capacity to accept more [`Envelope`]s.
-    pub fn has_capacity(&self) -> bool {
-        let guard = self.inner.blocking_lock();
-        guard.backend.has_capacity()
     }
 
     fn notify(&self, guard: &mut MutexGuard<Inner>) {

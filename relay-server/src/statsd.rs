@@ -34,6 +34,8 @@ pub enum RelayGauges {
     ///
     /// Per combination of `(own_key, sampling_key)`, a new stack is created.
     BufferStackCount,
+    /// The used disk for the buffer.
+    BufferDiskUsed,
     /// The currently used memory by the entire system.
     ///
     /// Relay uses the same value for its memory health check.
@@ -60,6 +62,7 @@ impl GaugeMetric for RelayGauges {
             RelayGauges::BufferPeriodicUnspool => "buffer.unspool.periodic",
             RelayGauges::BufferPushInFlight => "buffer.push_inflight",
             RelayGauges::BufferStackCount => "buffer.stack_count",
+            RelayGauges::BufferDiskUsed => "buffer.disk_used",
             RelayGauges::SystemMemoryUsed => "health.system_memory.used",
             RelayGauges::SystemMemoryTotal => "health.system_memory.total",
             #[cfg(feature = "processing")]

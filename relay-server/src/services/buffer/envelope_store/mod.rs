@@ -36,5 +36,5 @@ pub trait EnvelopeStore {
     ) -> impl Future<Output = Result<HashSet<(ProjectKey, ProjectKey)>, Self::Error>>;
 
     /// Returns the usage of the store where the definition of usage depends on the implementation.
-    fn usage(&self) -> usize;
+    fn usage(&self) -> u64;
 }

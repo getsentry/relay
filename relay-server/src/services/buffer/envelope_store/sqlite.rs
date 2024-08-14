@@ -1,13 +1,20 @@
 use std::error::Error;
 use std::path::Path;
 use std::pin::pin;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use std::time::Duration;
 
+use crate::envelope::EnvelopeError;
+use crate::extractors::StartTime;
+use crate::services::buffer::envelope_store::EnvelopeStore;
+use crate::statsd::RelayGauges;
+use crate::Envelope;
 use futures::stream::StreamExt;
 use hashbrown::HashSet;
 use relay_base_schema::project::{ParseProjectKeyError, ProjectKey};
 use relay_config::Config;
+use relay_statsd::metric;
 use sqlx::migrate::MigrateError;
 use sqlx::query::Query;
 use sqlx::sqlite::{
@@ -16,11 +23,7 @@ use sqlx::sqlite::{
 };
 use sqlx::{Pool, QueryBuilder, Row, Sqlite};
 use tokio::fs::DirBuilder;
-
-use crate::envelope::EnvelopeError;
-use crate::extractors::StartTime;
-use crate::services::buffer::envelope_store::EnvelopeStore;
-use crate::Envelope;
+use tokio::time::sleep;
 
 /// Struct that contains all the fields of an [`Envelope`] that are mapped to the database columns.
 pub struct InsertEnvelope {
@@ -91,6 +94,85 @@ pub enum SqliteEnvelopeStoreError {
     FileSizeReadFailed(sqlx::Error),
 }
 
+#[derive(Debug, Clone)]
+struct DiskUsage {
+    db: Pool<Sqlite>,
+    last_known_usage: Arc<AtomicU64>,
+    refresh_frequency_ms: u64,
+}
+
+impl DiskUsage {
+    /// Creates a new empty [`DiskUsage`].
+    pub fn new(db: Pool<Sqlite>, refresh_frequency_ms: u64) -> Self {
+        Self {
+            db,
+            last_known_usage: Arc::new(AtomicU64::new(0)),
+            refresh_frequency_ms,
+        }
+    }
+
+    /// Prepares a [`DiskUsage`] instance with an initial reading of the database usage and fails
+    /// if not reading can be made.
+    pub async fn prepare(
+        db: Pool<Sqlite>,
+        refresh_frequency_ms: u64,
+    ) -> Result<Self, SqliteEnvelopeStoreError> {
+        let usage = Self::estimate_usage(&db).await?;
+
+        let disk_usage = Self::new(db, refresh_frequency_ms);
+        disk_usage.last_known_usage.store(usage, Ordering::Relaxed);
+        disk_usage.start_background_refresh();
+
+        Ok(disk_usage)
+    }
+
+    /// Returns the disk usage and asynchronously updates it in case a `refresh_frequency_ms`
+    /// elapsed.
+    fn usage(&self) -> u64 {
+        self.last_known_usage.load(Ordering::Relaxed)
+    }
+
+    /// Starts a background tokio task to update the database usage.
+    fn start_background_refresh(&self) {
+        let db = self.db.clone();
+        let last_known_usage = self.last_known_usage.clone();
+        let refresh_frequency_ms = self.refresh_frequency_ms;
+
+        tokio::spawn(async move {
+            loop {
+                let usage = Self::estimate_usage(&db).await;
+                let Ok(usage) = usage else {
+                    relay_log::error!("failed to update the disk usage asynchronously");
+                    return;
+                };
+
+                let current = last_known_usage.load(Ordering::Relaxed);
+                if last_known_usage
+                    .compare_exchange_weak(current, usage, Ordering::Relaxed, Ordering::Relaxed)
+                    .is_err()
+                {
+                    relay_log::error!("failed to update the disk usage asynchronously");
+                };
+
+                sleep(Duration::from_millis(refresh_frequency_ms)).await;
+            }
+        });
+    }
+
+    /// Estimates the disk usage of the SQLite database.
+    async fn estimate_usage(db: &Pool<Sqlite>) -> Result<u64, SqliteEnvelopeStoreError> {
+        let usage: i64 = build_estimate_size()
+            .fetch_one(db)
+            .await
+            .and_then(|r| r.try_get(0))
+            .map_err(SqliteEnvelopeStoreError::FileSizeReadFailed)?;
+
+        metric!(gauge(RelayGauges::BufferDiskUsed) = usage as u64);
+
+        Ok(usage as u64)
+    }
+}
+
 /// Struct that offers access to a SQLite-based store of [`Envelope`]s.
 ///
 /// The goal of this struct is to hide away all the complexity of dealing with the database for
@@ -98,15 +180,15 @@ pub enum SqliteEnvelopeStoreError {
 #[derive(Debug, Clone)]
 pub struct SqliteEnvelopeStore {
     db: Pool<Sqlite>,
-    last_known_usage: Arc<AtomicUsize>,
+    disk_usage: DiskUsage,
 }
 
 impl SqliteEnvelopeStore {
     /// Initializes the [`SqliteEnvelopeStore`] with a supplied [`Pool`].
-    pub fn new(db: Pool<Sqlite>) -> Self {
+    pub fn new(db: Pool<Sqlite>, refresh_frequency_ms: u64) -> Self {
         Self {
-            db,
-            last_known_usage: Arc::new(AtomicUsize::new(0)),
+            db: db.clone(),
+            disk_usage: DiskUsage::new(db, refresh_frequency_ms),
         }
     }
 
@@ -155,13 +237,11 @@ impl SqliteEnvelopeStore {
             .await
             .map_err(SqliteEnvelopeStoreError::SqlxSetupFailed)?;
 
-        // We estimate the usage of the database during preparation, so that we have a first
-        // estimate.
-        let usage = Self::estimate_usage(&db).await?;
-
         Ok(SqliteEnvelopeStore {
-            db,
-            last_known_usage: Arc::new(AtomicUsize::new(usage as usize)),
+            db: db.clone(),
+            // TODO: maybe we want to have a different refresh frequency, specifically for the disk
+            //  usage.
+            disk_usage: DiskUsage::prepare(db, config.memory_stat_refresh_frequency_ms()).await?,
         })
     }
 
@@ -206,15 +286,6 @@ impl SqliteEnvelopeStore {
         }
 
         Ok(())
-    }
-
-    /// Estimates the size of the disk.
-    async fn estimate_usage(db: &Pool<Sqlite>) -> Result<i64, SqliteEnvelopeStoreError> {
-        build_estimate_size()
-            .fetch_one(db)
-            .await
-            .and_then(|r| r.try_get(0))
-            .map_err(SqliteEnvelopeStoreError::FileSizeReadFailed)
     }
 }
 
@@ -324,31 +395,8 @@ impl EnvelopeStore for SqliteEnvelopeStore {
     }
 
     /// Returns an approximate measure of the used size of the database.
-    fn usage(&self) -> usize {
-        let db = self.db.clone();
-        let last_known_usage = self.last_known_usage.clone();
-        tokio::spawn(async move {
-            let usage = Self::estimate_usage(&db).await;
-            let Ok(usage) = usage else {
-                relay_log::error!("failed to update the disk usage");
-                return;
-            };
-
-            let current = last_known_usage.load(Ordering::Relaxed);
-            if last_known_usage
-                .compare_exchange_weak(
-                    current,
-                    usage as usize,
-                    Ordering::Relaxed,
-                    Ordering::Relaxed,
-                )
-                .is_err()
-            {
-                relay_log::error!("failed to update the disk usage");
-            };
-        });
-
-        self.last_known_usage.load(Ordering::Relaxed)
+    fn usage(&self) -> u64 {
+        self.disk_usage.usage()
     }
 }
 
@@ -455,6 +503,7 @@ mod tests {
     use hashbrown::HashSet;
     use std::collections::BTreeMap;
     use std::time::{Duration, Instant};
+    use tokio::time::sleep;
     use uuid::Uuid;
 
     use relay_base_schema::project::ProjectKey;
@@ -510,7 +559,7 @@ mod tests {
     #[tokio::test]
     async fn test_insert_and_delete_envelopes() {
         let db = setup_db(true).await;
-        let mut envelope_store = SqliteEnvelopeStore::new(db);
+        let mut envelope_store = SqliteEnvelopeStore::new(db, 100);
 
         let own_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
         let sampling_key = ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap();
@@ -538,7 +587,7 @@ mod tests {
     #[tokio::test]
     async fn test_insert_and_get_project_keys_pairs() {
         let db = setup_db(true).await;
-        let mut envelope_store = SqliteEnvelopeStore::new(db);
+        let mut envelope_store = SqliteEnvelopeStore::new(db, 100);
 
         let own_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
         let sampling_key = ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap();
@@ -563,15 +612,25 @@ mod tests {
     #[tokio::test]
     async fn test_estimate_disk_usage() {
         let db = setup_db(true).await;
-        let mut store = SqliteEnvelopeStore::new(db.clone());
+        let mut store = SqliteEnvelopeStore::new(db.clone(), 1);
+        let disk_usage = DiskUsage::prepare(db, 1).await.unwrap();
 
+        // We read the disk usage without envelopes stored.
+        let usage_1 = disk_usage.usage();
+        assert!(usage_1 > 0);
+
+        // We write 10 envelopes to increase the disk usage.
         let envelopes = mock_envelopes(10);
         store
             .insert_many(envelopes.iter().map(|e| e.as_ref().try_into().unwrap()))
             .await
             .unwrap();
 
-        let usage = SqliteEnvelopeStore::estimate_usage(&db).await.unwrap();
-        assert!(usage > 0);
+        // We wait for the refresh timeout of the disk usage task.
+        sleep(Duration::from_millis(2)).await;
+
+        // We now expect to read more disk usage because of the 10 elements.
+        let usage_2 = disk_usage.usage();
+        assert!(usage_2 > usage_1);
     }
 }
