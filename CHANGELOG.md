@@ -24,6 +24,7 @@
 - Extract client sdk from transaction into profiles. ([#3915](https://github.com/getsentry/relay/pull/3915))
 - Extract `user.geo.subregion` into span metrics/indexed. ([#3914](https://github.com/getsentry/relay/pull/3914))
 - Add `last_peek` field to the `Priority` struct. ([#3922](https://github.com/getsentry/relay/pull/3922))
+- Add `EnvelopeStore` trait and implement `DiskUsage` for tracking disk usage. ([#3925](https://github.com/getsentry/relay/pull/3925))
 
 ## 24.7.1
 
