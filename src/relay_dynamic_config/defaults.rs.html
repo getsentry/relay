@@ -981,6 +981,18 @@
 <a href="#981" id="981">981</a>
 <a href="#982" id="982">982</a>
 <a href="#983" id="983">983</a>
+<a href="#984" id="984">984</a>
+<a href="#985" id="985">985</a>
+<a href="#986" id="986">986</a>
+<a href="#987" id="987">987</a>
+<a href="#988" id="988">988</a>
+<a href="#989" id="989">989</a>
+<a href="#990" id="990">990</a>
+<a href="#991" id="991">991</a>
+<a href="#992" id="992">992</a>
+<a href="#993" id="993">993</a>
+<a href="#994" id="994">994</a>
+<a href="#995" id="995">995</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_base_schema::data_category::DataCategory;
 <span class="kw">use </span>relay_common::glob2::LazyGlob;
 <span class="kw">use </span>relay_event_normalization::utils::MAX_DURATION_MOBILE_MS;
@@ -1454,6 +1466,9 @@
                         Tag::with_key(<span class="string">"span.group"</span>)
                             .from_field(<span class="string">"span.sentry_tags.group"</span>)
                             .always(),
+                        Tag::with_key(<span class="string">"user.geo.subregion"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.user.geo.subregion"</span>)
+                            .always(),
                         Tag::with_key(<span class="string">"device.class"</span>)
                             .from_field(<span class="string">"span.sentry_tags.device.class"</span>)
                             .always(),
@@ -1488,6 +1503,9 @@
                             .always(),
                         Tag::with_key(<span class="string">"span.group"</span>)
                             .from_field(<span class="string">"span.sentry_tags.group"</span>)
+                            .always(),
+                        Tag::with_key(<span class="string">"user.geo.subregion"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.user.geo.subregion"</span>)
                             .always(),
                         Tag::with_key(<span class="string">"device.class"</span>)
                             .from_field(<span class="string">"span.sentry_tags.device.class"</span>)
@@ -1524,6 +1542,9 @@
                         Tag::with_key(<span class="string">"span.group"</span>)
                             .from_field(<span class="string">"span.sentry_tags.group"</span>)
                             .always(),
+                        Tag::with_key(<span class="string">"user.geo.subregion"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.user.geo.subregion"</span>)
+                            .always(),
                         Tag::with_key(<span class="string">"device.class"</span>)
                             .from_field(<span class="string">"span.sentry_tags.device.class"</span>)
                             .always(),
@@ -1558,6 +1579,9 @@
                             .always(),
                         Tag::with_key(<span class="string">"span.group"</span>)
                             .from_field(<span class="string">"span.sentry_tags.group"</span>)
+                            .always(),
+                        Tag::with_key(<span class="string">"user.geo.subregion"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.user.geo.subregion"</span>)
                             .always(),
                         Tag::with_key(<span class="string">"device.class"</span>)
                             .from_field(<span class="string">"span.sentry_tags.device.class"</span>)
