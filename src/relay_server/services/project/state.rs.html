@@ -103,6 +103,17 @@
 <a href="#103" id="103">103</a>
 <a href="#104" id="104">104</a>
 <a href="#105" id="105">105</a>
+<a href="#106" id="106">106</a>
+<a href="#107" id="107">107</a>
+<a href="#108" id="108">108</a>
+<a href="#109" id="109">109</a>
+<a href="#110" id="110">110</a>
+<a href="#111" id="111">111</a>
+<a href="#112" id="112">112</a>
+<a href="#113" id="113">113</a>
+<a href="#114" id="114">114</a>
+<a href="#115" id="115">115</a>
+<a href="#116" id="116">116</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Types that represent the current project state.
 </span><span class="kw">use </span>std::sync::Arc;
 
@@ -155,6 +166,17 @@
         <span class="kw">match </span><span class="self">self </span>{
             ProjectState::Enabled(info) =&gt; <span class="prelude-val">Some</span>(info),
             ProjectState::Disabled | ProjectState::Pending =&gt; <span class="prelude-val">None</span>,
+        }
+    }
+
+    <span class="doccomment">/// Returns the revision of the contained project info.
+    ///
+    /// `None` if the revision is missing or not available.
+    </span><span class="kw">pub fn </span>revision(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt; {
+        <span class="kw">match </span><span class="kw-2">&amp;</span><span class="self">self </span>{
+            ProjectState::Enabled(info) =&gt; info.rev.as_deref(),
+            ProjectState::Disabled =&gt; <span class="prelude-val">None</span>,
+            ProjectState::Pending =&gt; <span class="prelude-val">None</span>,
         }
     }
 

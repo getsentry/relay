@@ -907,6 +907,11 @@
 <a href="#907" id="907">907</a>
 <a href="#908" id="908">908</a>
 <a href="#909" id="909">909</a>
+<a href="#910" id="910">910</a>
+<a href="#911" id="911">911</a>
+<a href="#912" id="912">912</a>
+<a href="#913" id="913">913</a>
+<a href="#914" id="914">914</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric, TimerMetric};
 <span class="attr">#[cfg(doc)]
 </span><span class="kw">use </span>tokio::runtime::RuntimeMetrics;
@@ -1556,8 +1561,13 @@
     </span>ProjectStateNoCache,
     <span class="doccomment">/// Number of times a project state is requested from the central Redis cache.
     ///
-    /// This has a tag `hit` with values `true` or `false`.  If false the request will be
-    /// sent to the sentry endpoint.
+    /// This metric is tagged with:
+    ///  - `hit`: One of:
+    ///     - `revision`: the cached version was validated to be up to date using its revision.
+    ///     - `project_config`: the request was handled by the cache.
+    ///     - `project_config_revision`: the request was handled by the cache and the revision did
+    ///        not change.
+    ///     - `false`: the request will be sent to the sentry endpoint.
     </span><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
     </span>ProjectStateRedis,
     <span class="doccomment">/// Number of times a project is looked up from the cache.
