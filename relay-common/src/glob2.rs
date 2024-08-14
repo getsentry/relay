@@ -3,7 +3,7 @@
 use std::sync::OnceLock;
 use std::{fmt, str};
 
-use regex::Regex;
+use regex_lite::Regex;
 
 /// Glob options represent the underlying regex emulating the globs.
 #[derive(Debug)]
@@ -70,7 +70,7 @@ impl<'g> GlobBuilder<'g> {
         let regex = GLOB_RE.get_or_init(|| Regex::new(r"\\\?|\\\*\\\*|\\\*|\?|\*\*|\*").unwrap());
 
         for m in regex.find_iter(self.value) {
-            pattern.push_str(&regex::escape(&self.value[last..m.start()]));
+            pattern.push_str(&regex_lite::escape(&self.value[last..m.start()]));
             match m.as_str() {
                 "?" => pattern.push_str(self.groups.question_mark),
                 "**" => pattern.push_str(self.groups.double_star),
@@ -79,7 +79,7 @@ impl<'g> GlobBuilder<'g> {
             }
             last = m.end();
         }
-        pattern.push_str(&regex::escape(&self.value[last..]));
+        pattern.push_str(&regex_lite::escape(&self.value[last..]));
         pattern.push('$');
 
         Glob {

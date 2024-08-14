@@ -136,6 +136,7 @@ rdkafka-sys = "4.3.0"
 # Git revision until https://github.com/redis-rs/redis-rs/pull/1097 (merged) and https://github.com/redis-rs/redis-rs/pull/1253 are released.
 redis = { git = "https://github.com/getsentry/redis-rs.git", rev = "939e5df6f9cc976b0a53987f6eb3f76b2c398bd6", default-features = false }
 regex = "1.10.2"
+regex-lite = "0.1.6"
 reqwest = "0.11.1"
 rmp-serde = "1.1.1"
 rust-embed = "8.0.0"

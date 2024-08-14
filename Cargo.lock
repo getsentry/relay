@@ -3555,6 +3555,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "regex-lite"
+version = "0.1.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "53a49587ad06b26609c52e423de037e7f57f20d53535d66e08c695f347df952a"
+
+[[package]]
 name = "regex-syntax"
 version = "0.6.28"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3620,6 +3626,7 @@ version = "0.9.1"
 dependencies = [
  "anyhow",
  "chrono",
+ "globset",
  "json-forensics",
  "lru",
  "once_cell",
@@ -3670,10 +3677,8 @@ version = "24.7.1"
 dependencies = [
  "chrono",
  "globset",
- "lru",
  "once_cell",
- "parking_lot",
- "regex",
+ "regex-lite",
  "sentry-types",
  "serde",
  "serde_test",
