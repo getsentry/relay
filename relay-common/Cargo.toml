@@ -15,10 +15,8 @@ workspace = true
 [dependencies]
 chrono = { workspace = true }
 globset = { workspace = true }
-lru = { workspace = true }
 once_cell = { workspace = true }
-parking_lot = { workspace = true }
-regex = { workspace = true }
+regex-lite = { workspace = true }
 sentry-types = { workspace = true }
 serde = { workspace = true }
 

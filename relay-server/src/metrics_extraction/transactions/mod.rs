@@ -3,6 +3,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use relay_base_schema::events::EventType;
 use relay_common::time::UnixTimestamp;
 use relay_dynamic_config::{CombinedMetricExtractionConfig, TransactionMetricsConfig};
+use relay_event_normalization::span::country_subregion::Subregion;
 use relay_event_normalization::utils as normalize_utils;
 use relay_event_schema::protocol::{
     AsPair, BrowserContext, Event, OsContext, PerformanceScoreContext, TraceContext,
@@ -29,10 +30,11 @@ const PLACEHOLDER_UNPARAMETERIZED: &str = "<< unparameterized >>";
 /// Tags we set on metrics for performance score measurements (e.g. `score.lcp.weight`).
 ///
 /// These are a subset of "universal" tags.
-const PERFORMANCE_SCORE_TAGS: [CommonTag; 6] = [
+const PERFORMANCE_SCORE_TAGS: [CommonTag; 7] = [
     CommonTag::BrowserName,
     CommonTag::Environment,
     CommonTag::GeoCountryCode,
+    CommonTag::UserSubregion,
     CommonTag::Release,
     CommonTag::Transaction,
     CommonTag::TransactionOp,
@@ -191,6 +193,16 @@ fn extract_universal_tags(event: &Event, config: &TransactionMetricsConfig) -> C
 
     if let Some(geo_country_code) = extract_geo_country_code(event) {
         tags.insert(CommonTag::GeoCountryCode, geo_country_code);
+    }
+
+    // The product only uses the subregion for web data at the moment
+    if let Some(_browser_name) = extract_browser_name(event) {
+        if let Some(geo_country_code) = extract_geo_country_code(event) {
+            if let Some(subregion) = Subregion::from_iso2(geo_country_code.as_str()) {
+                let numerical_subregion = subregion as u8;
+                tags.insert(CommonTag::UserSubregion, numerical_subregion.to_string());
+            }
+        }
     }
 
     if let Some(status_code) = normalize_utils::extract_http_status_code(event) {
@@ -672,6 +684,7 @@ mod tests {
                     "transaction": "gEt /api/:version/users/",
                     "transaction.op": "mYOp",
                     "transaction.status": "ok",
+                    "user.geo.subregion": "21",
                 },
                 metadata: BucketMetadata {
                     merges: 1,
@@ -706,6 +719,7 @@ mod tests {
                     "transaction": "gEt /api/:version/users/",
                     "transaction.op": "mYOp",
                     "transaction.status": "ok",
+                    "user.geo.subregion": "21",
                 },
                 metadata: BucketMetadata {
                     merges: 1,
@@ -734,6 +748,7 @@ mod tests {
                     "sentry.score_profile_version": "alpha",
                     "transaction": "gEt /api/:version/users/",
                     "transaction.op": "mYOp",
+                    "user.geo.subregion": "21",
                 },
                 metadata: BucketMetadata {
                     merges: 1,
@@ -762,6 +777,7 @@ mod tests {
                     "sentry.score_profile_version": "alpha",
                     "transaction": "gEt /api/:version/users/",
                     "transaction.op": "mYOp",
+                    "user.geo.subregion": "21",
                 },
                 metadata: BucketMetadata {
                     merges: 1,
@@ -790,6 +806,7 @@ mod tests {
                     "sentry.score_profile_version": "alpha",
                     "transaction": "gEt /api/:version/users/",
                     "transaction.op": "mYOp",
+                    "user.geo.subregion": "21",
                 },
                 metadata: BucketMetadata {
                     merges: 1,
@@ -823,6 +840,7 @@ mod tests {
                     "transaction": "gEt /api/:version/users/",
                     "transaction.op": "mYOp",
                     "transaction.status": "ok",
+                    "user.geo.subregion": "21",
                 },
                 metadata: BucketMetadata {
                     merges: 1,
@@ -874,6 +892,7 @@ mod tests {
                     "transaction": "gEt /api/:version/users/",
                     "transaction.op": "mYOp",
                     "transaction.status": "ok",
+                    "user.geo.subregion": "21",
                 },
                 metadata: BucketMetadata {
                     merges: 1,
@@ -930,6 +949,7 @@ mod tests {
                     "transaction": "gEt /api/:version/users/",
                     "transaction.op": "mYOp",
                     "transaction.status": "ok",
+                    "user.geo.subregion": "21",
                 },
                 metadata: BucketMetadata {
                     merges: 1,
