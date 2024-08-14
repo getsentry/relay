@@ -7,7 +7,7 @@ use relay_base_schema::project::ProjectKey;
 use crate::envelope::Envelope;
 use crate::services::buffer::envelope_stack::EnvelopeStack;
 use crate::services::buffer::sqlite_envelope_store::{
-    SqliteEnvelopeStore, SqliteEnvelopeStoreError,
+    EnvelopesOrder, SqliteEnvelopeStore, SqliteEnvelopeStoreError,
 };
 use crate::statsd::RelayCounters;
 
@@ -31,6 +31,8 @@ pub struct SqliteEnvelopeStack {
     spool_threshold: NonZeroUsize,
     /// Size of a batch of envelopes that is written to disk.
     batch_size: NonZeroUsize,
+    /// Maximum number of envelopes that can be evicted.
+    max_evictable_envelopes: NonZeroUsize,
     /// The project key of the project to which all the envelopes belong.
     own_key: ProjectKey,
     /// The project key of the root project of the trace to which all the envelopes belong.
@@ -60,6 +62,9 @@ impl SqliteEnvelopeStack {
                 .expect("the spool threshold must be > 0"),
             batch_size: NonZeroUsize::new(disk_batch_size)
                 .expect("the disk batch size must be > 0"),
+            // TODO: add configurable parameter.
+            max_evictable_envelopes: NonZeroUsize::new(100)
+                .expect("the max evictable envelopes must be > 0"),
             own_key,
             sampling_key,
             batches_buffer: VecDeque::with_capacity(max_batches),
@@ -125,6 +130,7 @@ impl SqliteEnvelopeStack {
                 self.own_key,
                 self.sampling_key,
                 self.batch_size.get() as i64,
+                EnvelopesOrder::MostRecent,
             )
             .await
             .map_err(SqliteEnvelopeStackError::EnvelopeStoreError)?;
@@ -225,6 +231,30 @@ impl EnvelopeStack for SqliteEnvelopeStack {
         }
 
         Ok(result)
+    }
+}
+
+impl Drop for SqliteEnvelopeStack {
+    fn drop(&mut self) {
+        let own_key = self.own_key;
+        let sampling_key = self.sampling_key;
+        let max_evictable_envelopes = self.max_evictable_envelopes;
+        let envelope_store = self.envelope_store.clone();
+
+        tokio::spawn(async move {
+            if envelope_store
+                .delete_many(
+                    own_key,
+                    sampling_key,
+                    max_evictable_envelopes.get() as i64,
+                    EnvelopesOrder::Oldest,
+                )
+                .await
+                .is_err()
+            {
+                relay_log::error!("failed to evict envelopes from disk");
+            };
+        });
     }
 }
 

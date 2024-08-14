@@ -88,6 +88,14 @@ pub enum SqliteEnvelopeStoreError {
     FileSizeReadFailed(sqlx::Error),
 }
 
+/// Enum representing the order in which [`Envelope`]s are fetched or deleted from the
+/// database.
+#[derive(Debug, Copy, Clone)]
+pub enum EnvelopesOrder {
+    MostRecent,
+    Oldest,
+}
+
 /// Struct that offers access to a SQLite-based store of [`Envelope`]s.
 ///
 /// The goal of this struct is to hide away all the complexity of dealing with the database for
@@ -221,10 +229,17 @@ impl SqliteEnvelopeStore {
         own_key: ProjectKey,
         sampling_key: ProjectKey,
         limit: i64,
+        envelopes_order: EnvelopesOrder,
     ) -> Result<Vec<Box<Envelope>>, SqliteEnvelopeStoreError> {
-        let envelopes = build_delete_and_fetch_many_envelopes(own_key, sampling_key, limit)
-            .fetch(&self.db)
-            .peekable();
+        let query = match envelopes_order {
+            EnvelopesOrder::MostRecent => {
+                build_delete_and_fetch_many_recent_envelopes(own_key, sampling_key, limit)
+            }
+            EnvelopesOrder::Oldest => {
+                build_delete_and_fetch_many_old_envelopes(own_key, sampling_key, limit)
+            }
+        };
+        let envelopes = query.fetch(&self.db).peekable();
 
         let mut envelopes = pin!(envelopes);
         if envelopes.as_mut().peek().await.is_none() {
@@ -370,8 +385,8 @@ fn build_insert_many_envelopes<'a>(
     builder
 }
 
-/// Builds a query that deletes many [`Envelope`] from the database.
-pub fn build_delete_and_fetch_many_envelopes<'a>(
+/// Builds a query that deletes many new [`Envelope`]s from the database.
+pub fn build_delete_and_fetch_many_recent_envelopes<'a>(
     own_key: ProjectKey,
     project_key: ProjectKey,
     batch_size: i64,
@@ -381,6 +396,25 @@ pub fn build_delete_and_fetch_many_envelopes<'a>(
             envelopes
          WHERE id IN (SELECT id FROM envelopes WHERE own_key = ? AND sampling_key = ?
             ORDER BY received_at DESC LIMIT ?)
+         RETURNING
+            received_at, own_key, sampling_key, envelope",
+    )
+    .bind(own_key.to_string())
+    .bind(project_key.to_string())
+    .bind(batch_size)
+}
+
+/// Builds a query that deletes many old [`Envelope`]s from the database.
+pub fn build_delete_and_fetch_many_old_envelopes<'a>(
+    own_key: ProjectKey,
+    project_key: ProjectKey,
+    batch_size: i64,
+) -> Query<'a, Sqlite, SqliteArguments<'a>> {
+    sqlx::query(
+        "DELETE FROM
+            envelopes
+         WHERE id IN (SELECT id FROM envelopes WHERE own_key = ? AND sampling_key = ?
+            ORDER BY received_at ASC LIMIT ?)
          RETURNING
             received_at, own_key, sampling_key, envelope",
     )
@@ -480,7 +514,7 @@ mod tests {
 
         // We check that if we load more than the limit, we still get back at most 10.
         let extracted_envelopes = envelope_store
-            .delete_many(own_key, sampling_key, 15)
+            .delete_many(own_key, sampling_key, 15, EnvelopesOrder::MostRecent)
             .await
             .unwrap();
         assert_eq!(envelopes.len(), 10);

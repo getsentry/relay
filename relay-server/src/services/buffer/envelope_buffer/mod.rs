@@ -1,5 +1,5 @@
 use std::cmp::Ordering;
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, BinaryHeap};
 use std::convert::Infallible;
 use std::time::Instant;
 
@@ -38,7 +38,8 @@ impl PolymorphicEnvelopeBuffer {
         if config.spool_envelopes_path().is_some() {
             panic!("Disk backend not yet supported for spool V2");
         }
-        Self::InMemory(EnvelopeBuffer::<MemoryStackProvider>::new())
+        // TODO: use configuration.
+        Self::InMemory(EnvelopeBuffer::<MemoryStackProvider>::new(100))
     }
 
     /// Adds an envelope to the buffer.
@@ -105,15 +106,18 @@ struct EnvelopeBuffer<P: StackProvider> {
     /// This indirection is needed because different stack implementations might need different
     /// initialization (e.g. a database connection).
     stack_provider: P,
+    /// The maximum number of stacks that can be evicted when low on memory.
+    max_evictable_stacks: usize,
 }
 
 impl EnvelopeBuffer<MemoryStackProvider> {
     /// Creates an empty buffer.
-    pub fn new() -> Self {
+    pub fn new(max_evictable_stacks: usize) -> Self {
         Self {
             stacks_by_project: Default::default(),
             priority_queue: Default::default(),
             stack_provider: MemoryStackProvider,
+            max_evictable_stacks,
         }
     }
 }
@@ -126,15 +130,17 @@ impl EnvelopeBuffer<SqliteStackProvider> {
             stacks_by_project: Default::default(),
             priority_queue: Default::default(),
             stack_provider: SqliteStackProvider::new(config).await?,
+            // TODO: add configuration.
+            max_evictable_stacks: 10,
         })
     }
 }
 
 impl<P: StackProvider> EnvelopeBuffer<P>
 where
-    EnvelopeBufferError: std::convert::From<<P::Stack as EnvelopeStack>::Error>,
+    EnvelopeBufferError: From<<P::Stack as EnvelopeStack>::Error>,
 {
-    /// Pushes an envelope to the appropriate envelope stack and reprioritizes the stack.
+    /// Pushes an envelope to the appropriate envelope stack and re-prioritizes the stack.
     ///
     /// If the envelope stack does not exist, a new stack is pushed to the priority queue.
     /// The priority of the stack is updated with the envelope's received_at time.
@@ -145,10 +151,12 @@ where
             QueueItem {
                 key: _,
                 value: stack,
+                last_update,
             },
             _,
         )) = self.priority_queue.get_mut(&stack_key)
         {
+            *last_update = Instant::now();
             stack.push(envelope).await?;
         } else {
             self.push_stack(envelope);
@@ -166,13 +174,13 @@ where
             QueueItem {
                 key: stack_key,
                 value: _,
+                last_update: _,
             },
             _,
         )) = self.priority_queue.peek()
         else {
             return Ok(None);
         };
-
         let stack_key = *stack_key;
 
         self.priority_queue.change_priority_by(&stack_key, |prio| {
@@ -183,6 +191,7 @@ where
             QueueItem {
                 key: _,
                 value: stack,
+                last_update: _,
             },
             _,
         )) = self.priority_queue.get_mut(&stack_key)
@@ -198,16 +207,25 @@ where
     /// The priority of the envelope's stack is updated with the next envelope's received_at
     /// time. If the stack is empty after popping, it is removed from the priority queue.
     pub async fn pop(&mut self) -> Result<Option<Box<Envelope>>, EnvelopeBufferError> {
-        let Some((QueueItem { key, value: stack }, _)) = self.priority_queue.peek_mut() else {
+        let Some((
+            QueueItem {
+                key: stack_key,
+                value: stack,
+                last_update: _,
+            },
+            _,
+        )) = self.priority_queue.peek_mut()
+        else {
             return Ok(None);
         };
-        let stack_key = *key;
+        let stack_key = *stack_key;
         let envelope = stack.pop().await.unwrap().expect("found an empty stack");
 
         let next_received_at = stack
             .peek()
             .await?
             .map(|next_envelope| next_envelope.meta().start_time());
+
         match next_received_at {
             None => {
                 self.pop_stack(stack_key);
@@ -218,14 +236,26 @@ where
                 });
             }
         }
+
         Ok(Some(envelope))
     }
 
-    /// Reprioritizes all stacks that involve the given project key by setting it to "ready".
+    /// Re-prioritizes all stacks that involve the given project key by setting it to "ready".
     pub fn mark_ready(&mut self, project: &ProjectKey, is_ready: bool) -> bool {
         let mut changed = false;
         if let Some(stack_keys) = self.stacks_by_project.get(project) {
             for stack_key in stack_keys {
+                if let Some((
+                    QueueItem {
+                        key: _,
+                        value: _,
+                        last_update,
+                    },
+                    _,
+                )) = self.priority_queue.get_mut(stack_key)
+                {
+                    *last_update = Instant::now();
+                };
                 self.priority_queue.change_priority_by(stack_key, |stack| {
                     let mut found = false;
                     for (subkey, readiness) in [
@@ -250,6 +280,56 @@ where
         changed
     }
 
+    /// Evicts the least recently used stacks.
+    pub fn evict(&mut self) {
+        struct LRUItem(StackKey, Readiness, Instant);
+
+        impl PartialEq for LRUItem {
+            fn eq(&self, other: &Self) -> bool {
+                self.0 == other.0
+            }
+        }
+
+        impl PartialOrd for LRUItem {
+            fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+                Some(self.cmp(other))
+            }
+        }
+
+        impl Eq for LRUItem {}
+
+        impl Ord for LRUItem {
+            fn cmp(&self, other: &Self) -> Ordering {
+                match (self.1.ready(), other.1.ready()) {
+                    (true, false) => Ordering::Greater,
+                    (false, true) => Ordering::Less,
+                    _ => self.2.cmp(&other.2),
+                }
+            }
+        }
+
+        let mut lru: BinaryHeap<LRUItem> = BinaryHeap::new();
+        for (queue_item, priority) in self.priority_queue.iter() {
+            // If we exceed the size, we want to pop the greatest element, so that we end up with
+            // the smallest elements which are the ones with the lowest priority.
+            if lru.len() >= self.max_evictable_stacks {
+                lru.pop();
+            }
+
+            lru.push(LRUItem(
+                queue_item.key,
+                priority.readiness,
+                queue_item.last_update,
+            ));
+        }
+
+        // We go over each element and remove it from the stack. The removal will call the `drop`
+        // method of the `EnvelopeStack` which will have a specific behavior.
+        for lru_item in lru {
+            self.pop_stack(lru_item.0);
+        }
+    }
+
     fn push_stack(&mut self, envelope: Box<Envelope>) {
         let received_at = envelope.meta().start_time();
         let stack_key = StackKey::from_envelope(&envelope);
@@ -257,6 +337,7 @@ where
             QueueItem {
                 key: stack_key,
                 value: self.stack_provider.create_stack(envelope),
+                last_update: Instant::now(),
             },
             Priority::new(received_at),
         );
@@ -274,10 +355,17 @@ where
 
     fn pop_stack(&mut self, stack_key: StackKey) {
         for project_key in stack_key.iter() {
-            self.stacks_by_project
+            let stack_keys = self
+                .stacks_by_project
                 .get_mut(&project_key)
-                .expect("project_key is missing from lookup")
-                .remove(&stack_key);
+                .expect("project_key is missing from lookup");
+
+            // If there is only one stack key, we can directly remove the entry to save some memory.
+            if stack_keys.len() == 1 {
+                self.stacks_by_project.remove(&project_key);
+            } else {
+                stack_keys.remove(&stack_key);
+            };
         }
         self.priority_queue.remove(&stack_key);
 
@@ -320,6 +408,7 @@ impl StackKey {
 struct QueueItem<K, V> {
     key: K,
     value: V,
+    last_update: Instant,
 }
 
 impl<K, V> std::borrow::Borrow<K> for QueueItem<K, V> {
@@ -398,7 +487,7 @@ impl Ord for Priority {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 struct Readiness {
     own_project_ready: bool,
     sampling_project_ready: bool,
@@ -432,13 +521,13 @@ mod tests {
     use super::*;
 
     fn new_envelope(
-        project_key: ProjectKey,
+        own_key: ProjectKey,
         sampling_key: Option<ProjectKey>,
         event_id: Option<EventId>,
     ) -> Box<Envelope> {
         let mut envelope = Envelope::from_request(
             None,
-            RequestMeta::new(Dsn::from_str(&format!("http://{project_key}@localhost/1")).unwrap()),
+            RequestMeta::new(Dsn::from_str(&format!("http://{own_key}@localhost/1")).unwrap()),
         );
         if let Some(sampling_key) = sampling_key {
             envelope.set_dsc(DynamicSamplingContext {
@@ -463,7 +552,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_insert_pop() {
-        let mut buffer = EnvelopeBuffer::<MemoryStackProvider>::new();
+        let mut buffer = EnvelopeBuffer::<MemoryStackProvider>::new(10);
 
         let project_key1 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
         let project_key2 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
@@ -547,7 +636,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_project_internal_order() {
-        let mut buffer = EnvelopeBuffer::<MemoryStackProvider>::new();
+        let mut buffer = EnvelopeBuffer::<MemoryStackProvider>::new(10);
 
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
 
@@ -574,7 +663,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_sampling_projects() {
-        let mut buffer = EnvelopeBuffer::<MemoryStackProvider>::new();
+        let mut buffer = EnvelopeBuffer::<MemoryStackProvider>::new(10);
 
         let project_key1 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
         let project_key2 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fef").unwrap();
@@ -652,7 +741,7 @@ mod tests {
 
         assert_ne!(stack_key1, stack_key2);
 
-        let mut buffer = EnvelopeBuffer::<MemoryStackProvider>::new();
+        let mut buffer = EnvelopeBuffer::<MemoryStackProvider>::new(10);
         buffer
             .push(new_envelope(project_key1, Some(project_key2), None))
             .await
@@ -666,7 +755,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_last_peek_internal_order() {
-        let mut buffer = EnvelopeBuffer::<MemoryStackProvider>::new();
+        let mut buffer = EnvelopeBuffer::<MemoryStackProvider>::new(10);
 
         let project_key_1 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
         let event_id_1 = EventId::new();
@@ -692,5 +781,29 @@ mod tests {
             buffer.peek().await.unwrap().unwrap().event_id().unwrap(),
             event_id_1
         );
+    }
+
+    #[tokio::test]
+    async fn test_eviction() {
+        let mut buffer = EnvelopeBuffer::<MemoryStackProvider>::new(3);
+
+        let project_key_1 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
+        let project_key_2 = ProjectKey::parse("b56ae32be2584e0bbd7a4cbb95971fed").unwrap();
+        let project_key_3 = ProjectKey::parse("e23ae32be2584e0bbd7a4cbb95971fed").unwrap();
+
+        let envelopes = [
+            new_envelope(project_key_1, Some(project_key_2), None),
+            new_envelope(project_key_2, Some(project_key_1), None),
+            new_envelope(project_key_1, Some(project_key_3), None),
+            new_envelope(project_key_3, Some(project_key_1), None),
+        ];
+
+        for envelope in envelopes {
+            buffer.push(envelope).await.unwrap();
+        }
+
+        buffer.evict();
+
+        assert_eq!(buffer.priority_queue.len(), 1);
     }
 }
