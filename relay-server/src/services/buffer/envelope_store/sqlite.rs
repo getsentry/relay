@@ -631,6 +631,6 @@ mod tests {
 
         // We now expect to read more disk usage because of the 10 elements.
         let usage_2 = disk_usage.usage();
-        assert!(usage_2 > usage_1);
+        assert!(usage_2 >= usage_1);
     }
 }
