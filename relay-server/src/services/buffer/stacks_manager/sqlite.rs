@@ -17,7 +17,7 @@ pub struct SqliteStacksManager {
 
 #[warn(dead_code)]
 impl SqliteStacksManager {
-    /// Creates a new [`SqliteStacksManager`] from the provided path to the SQLite database file.
+    /// Creates a new [`SqliteStacksManager`] from the provided [`Config`].
     pub async fn new(config: &Config) -> Result<Self, SqliteEnvelopeStoreError> {
         let envelope_store = SqliteEnvelopeStore::prepare(config).await?;
         Ok(Self {

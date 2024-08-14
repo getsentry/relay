@@ -9,6 +9,8 @@ pub struct MemoryStacksManager {
 }
 
 impl MemoryStacksManager {
+    /// Creates a new [`MemoryStacksManager`] with a given [`MemoryChecker`] that is used to
+    /// estimate the [`Capacity`].
     pub fn new(memory_checker: MemoryChecker) -> Self {
         Self { memory_checker }
     }

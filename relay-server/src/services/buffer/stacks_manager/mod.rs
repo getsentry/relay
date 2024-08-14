@@ -13,7 +13,10 @@ pub enum Capacity {
 pub trait StacksManager: std::fmt::Debug {
     type Stack: EnvelopeStack;
 
+    /// Creates an [`EnvelopeStack`].
     fn create_stack(&self, envelope: Box<Envelope>) -> Self::Stack;
 
+    /// Returns the [`Capacity`] that the manager has to create new stacks or push elements to
+    /// existing stacks.
     fn capacity(&self) -> Capacity;
 }

@@ -9,8 +9,10 @@ pub mod sqlite;
 
 /// Trait that models a store of [`Envelope`]s.
 pub trait EnvelopeStore {
+    /// The type that is inserted in the store.
     type Envelope;
 
+    /// The error type that is returned when an error occurs in the store.
     type Error;
 
     /// Inserts one or more envelopes into the store.

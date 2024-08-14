@@ -74,7 +74,7 @@ impl PolymorphicEnvelopeBuffer {
 
     /// Marks a project as ready or not ready.
     ///
-    /// The buffer reprioritizes its envelopes based on this information.
+    /// The buffer re-prioritizes its envelopes based on this information.
     pub fn mark_ready(&mut self, project: &ProjectKey, is_ready: bool) -> bool {
         match self {
             Self::Sqlite(buffer) => buffer.mark_ready(project, is_ready),
@@ -235,7 +235,7 @@ where
         Ok(Some(envelope))
     }
 
-    /// Reprioritizes all stacks that involve the given project key by setting it to "ready".
+    /// Re-prioritizes all stacks that involve the given project key by setting it to "ready".
     pub fn mark_ready(&mut self, project: &ProjectKey, is_ready: bool) -> bool {
         let mut changed = false;
         if let Some(stack_keys) = self.stacks_by_project.get(project) {
