@@ -4,12 +4,12 @@ use std::fmt;
 use std::sync::OnceLock;
 
 use globset::GlobBuilder;
-use regex::bytes::{Regex, RegexBuilder};
+use regex_lite::{Regex, RegexBuilder};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 /// Returns `true` if any of the patterns match the given message.
-fn is_match(globs: &[Regex], message: &[u8]) -> bool {
-    globs.iter().any(|regex| regex.is_match(message.as_ref()))
+fn is_match(globs: &[Regex], message: &str) -> bool {
+    globs.iter().any(|regex| regex.is_match(message))
 }
 
 /// A list of patterns for glob matching.
@@ -38,7 +38,7 @@ impl GlobPatterns {
     /// Returns `true` if any of the patterns match the given message.
     pub fn is_match<S>(&self, message: S) -> bool
     where
-        S: AsRef<[u8]>,
+        S: AsRef<str>,
     {
         let message = message.as_ref();
         if message.is_empty() {
