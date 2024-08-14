@@ -1755,7 +1755,7 @@
 
         <span class="kw">let </span>contexts = contexts.value().unwrap();
         <span class="kw">for </span>i <span class="kw">in </span><span class="number">1</span>..<span class="number">2 </span>{
-            <span class="kw">let </span>other = <span class="kw">match </span>contexts.get_key(<span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">"despacito{i}"</span>)).unwrap() {
+            <span class="kw">let </span>other = <span class="kw">match </span>contexts.get_key(<span class="macro">format!</span>(<span class="string">"despacito{i}"</span>)).unwrap() {
                 Context::Other(<span class="kw-2">ref </span>x) =&gt; x,
                 <span class="kw">_ </span>=&gt; <span class="macro">panic!</span>(<span class="string">"Context has changed type!"</span>),
             };
