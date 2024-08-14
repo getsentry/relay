@@ -304,7 +304,7 @@ where
                 match (self.1.ready(), other.1.ready()) {
                     (true, false) => Ordering::Greater,
                     (false, true) => Ordering::Less,
-                    _ => self.2.cmp(&other.2).reverse(),
+                    _ => self.2.cmp(&other.2),
                 }
             }
         }
@@ -799,10 +799,10 @@ mod tests {
         let project_key_3 = ProjectKey::parse("e23ae32be2584e0bbd7a4cbb95971fed").unwrap();
 
         let envelopes = [
-            new_envelope(project_key_1, Some(project_key_2), None),
-            new_envelope(project_key_2, Some(project_key_1), None),
-            new_envelope(project_key_1, Some(project_key_3), None),
-            new_envelope(project_key_3, Some(project_key_1), None),
+            new_envelope(project_key_1, Some(project_key_2), Some(EventId::new())),
+            new_envelope(project_key_2, Some(project_key_1), Some(EventId::new())),
+            new_envelope(project_key_1, Some(project_key_3), Some(EventId::new())),
+            new_envelope(project_key_3, Some(project_key_1), Some(EventId::new())),
         ];
 
         for envelope in envelopes.clone() {
@@ -816,9 +816,11 @@ mod tests {
         buffer.evict();
 
         assert_eq!(buffer.priority_queue.len(), 1);
+        // We expect that only the 2nd envelope is kept, since the last 2 have non-ready projects
+        // and the first one is the oldest of the ones that are ready.
         assert_eq!(
             buffer.peek().await.unwrap().unwrap().event_id(),
-            envelopes[0].event_id()
+            envelopes[1].event_id()
         );
     }
 }
