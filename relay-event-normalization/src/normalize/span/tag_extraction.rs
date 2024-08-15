@@ -492,6 +492,7 @@ fn extract_segment_tags(event: &Event) -> BTreeMap<SpanTagKey, String> {
 /// [span operations](https://develop.sentry.dev/sdk/performance/span-operations/) and
 /// existing [span data](https://develop.sentry.dev/sdk/performance/span-data-conventions/) fields,
 /// and rely on Sentry conventions and heuristics.
+#[allow(clippy::too_many_arguments)]
 pub fn extract_tags(
     span: &Span,
     max_tag_value_size: usize,
