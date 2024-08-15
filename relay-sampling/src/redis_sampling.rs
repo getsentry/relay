@@ -43,6 +43,6 @@ pub fn set_redis_expiry(
     relay_redis::redis::cmd("EXPIRE")
         .arg(key.as_str())
         .arg(expiry_time - now)
-        .query(redis_connection)?;
+        .query::<()>(redis_connection)?;
     Ok(())
 }

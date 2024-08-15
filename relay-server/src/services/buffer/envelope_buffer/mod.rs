@@ -5,7 +5,6 @@ use std::time::Instant;
 
 use relay_base_schema::project::ProjectKey;
 use relay_config::Config;
-use stack_key::StackKey;
 
 use crate::envelope::Envelope;
 use crate::services::buffer::envelope_stack::sqlite::SqliteEnvelopeStackError;
@@ -165,11 +164,28 @@ where
     pub async fn peek(&mut self) -> Result<Option<&Envelope>, EnvelopeBufferError> {
         let Some((
             QueueItem {
+                key: stack_key,
+                value: _,
+            },
+            _,
+        )) = self.priority_queue.peek()
+        else {
+            return Ok(None);
+        };
+
+        let stack_key = *stack_key;
+
+        self.priority_queue.change_priority_by(&stack_key, |prio| {
+            prio.last_peek = Instant::now();
+        });
+
+        let Some((
+            QueueItem {
                 key: _,
                 value: stack,
             },
             _,
-        )) = self.priority_queue.peek_mut()
+        )) = self.priority_queue.get_mut(&stack_key)
         else {
             return Ok(None);
         };
@@ -213,10 +229,13 @@ where
                 self.priority_queue.change_priority_by(stack_key, |stack| {
                     let mut found = false;
                     for (subkey, readiness) in [
-                        (stack_key.lesser(), &mut stack.readiness.0),
-                        (stack_key.greater(), &mut stack.readiness.1),
+                        (stack_key.own_key, &mut stack.readiness.own_project_ready),
+                        (
+                            stack_key.sampling_key,
+                            &mut stack.readiness.sampling_project_ready,
+                        ),
                     ] {
-                        if subkey == project {
+                        if subkey == *project {
                             found = true;
                             if *readiness != is_ready {
                                 changed = true;
@@ -261,46 +280,38 @@ where
                 .remove(&stack_key);
         }
         self.priority_queue.remove(&stack_key);
+
         relay_statsd::metric!(
             gauge(RelayGauges::BufferStackCount) = self.priority_queue.len() as u64
         );
     }
 }
 
-mod stack_key {
-    use super::*;
-    /// Sorted stack key.
-    ///
-    /// Contains a pair of project keys. The lower key is always the first
-    /// element in the pair, such that `(k1, k2)` and `(k2, k1)` map to the same
-    /// stack key.
-    #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
-    pub struct StackKey(ProjectKey, ProjectKey);
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
+pub struct StackKey {
+    own_key: ProjectKey,
+    sampling_key: ProjectKey,
+}
 
-    impl StackKey {
-        pub fn from_envelope(envelope: &Envelope) -> Self {
-            let own_key = envelope.meta().public_key();
-            let sampling_key = envelope.sampling_key().unwrap_or(own_key);
-            Self::new(own_key, sampling_key)
-        }
+impl StackKey {
+    pub fn from_envelope(envelope: &Envelope) -> Self {
+        let own_key = envelope.meta().public_key();
+        let sampling_key = envelope.sampling_key().unwrap_or(own_key);
+        Self::new(own_key, sampling_key)
+    }
 
-        pub fn lesser(&self) -> &ProjectKey {
-            &self.0
-        }
+    pub fn iter(&self) -> impl Iterator<Item = ProjectKey> {
+        let Self {
+            own_key,
+            sampling_key,
+        } = self;
+        std::iter::once(*own_key).chain((own_key != sampling_key).then_some(*sampling_key))
+    }
 
-        pub fn greater(&self) -> &ProjectKey {
-            &self.1
-        }
-
-        pub fn iter(&self) -> impl Iterator<Item = ProjectKey> {
-            std::iter::once(self.0).chain((self.0 != self.1).then_some(self.1))
-        }
-
-        fn new(mut key1: ProjectKey, mut key2: ProjectKey) -> Self {
-            if key2 < key1 {
-                std::mem::swap(&mut key1, &mut key2);
-            }
-            Self(key1, key2)
+    fn new(own_key: ProjectKey, sampling_key: ProjectKey) -> Self {
+        Self {
+            own_key,
+            sampling_key,
         }
     }
 }
@@ -335,6 +346,7 @@ impl<K: PartialEq, V> Eq for QueueItem<K, V> {}
 struct Priority {
     readiness: Readiness,
     received_at: Instant,
+    last_peek: Instant,
 }
 
 impl Priority {
@@ -342,13 +354,16 @@ impl Priority {
         Self {
             readiness: Readiness::new(),
             received_at,
+            last_peek: Instant::now(),
         }
     }
 }
 
 impl PartialEq for Priority {
     fn eq(&self, other: &Self) -> bool {
-        self.readiness.ready() == other.readiness.ready() && self.received_at == other.received_at
+        self.readiness.ready() == other.readiness.ready()
+            && self.received_at == other.received_at
+            && self.last_peek == other.last_peek
     }
 }
 
@@ -363,36 +378,52 @@ impl Eq for Priority {}
 impl Ord for Priority {
     fn cmp(&self, other: &Self) -> Ordering {
         match (self.readiness.ready(), other.readiness.ready()) {
-            (true, true) => self.received_at.cmp(&other.received_at),
+            // Assuming that two priorities differ only w.r.t. the `last_peek`, we want to prioritize
+            // stacks that were the least recently peeked. The rationale behind this is that we want
+            // to keep cycling through different stacks while peeking.
+            (true, true) => self
+                .received_at
+                .cmp(&other.received_at)
+                .then(self.last_peek.cmp(&other.last_peek).reverse()),
             (true, false) => Ordering::Greater,
             (false, true) => Ordering::Less,
             // For non-ready stacks, we invert the priority, such that projects that are not
             // ready and did not receive envelopes recently can be evicted.
-            (false, false) => self.received_at.cmp(&other.received_at).reverse(),
+            (false, false) => self
+                .received_at
+                .cmp(&other.received_at)
+                .reverse()
+                .then(self.last_peek.cmp(&other.last_peek).reverse()),
         }
     }
 }
 
 #[derive(Debug)]
-struct Readiness(bool, bool);
+struct Readiness {
+    own_project_ready: bool,
+    sampling_project_ready: bool,
+}
 
 impl Readiness {
     fn new() -> Self {
-        Self(false, false)
+        Self {
+            own_project_ready: false,
+            sampling_project_ready: false,
+        }
     }
 
     fn ready(&self) -> bool {
-        self.0 && self.1
+        self.own_project_ready && self.sampling_project_ready
     }
 }
 
 #[cfg(test)]
 mod tests {
     use std::str::FromStr;
-
     use uuid::Uuid;
 
     use relay_common::Dsn;
+    use relay_event_schema::protocol::EventId;
     use relay_sampling::DynamicSamplingContext;
 
     use crate::envelope::{Item, ItemType};
@@ -400,7 +431,11 @@ mod tests {
 
     use super::*;
 
-    fn new_envelope(project_key: ProjectKey, sampling_key: Option<ProjectKey>) -> Box<Envelope> {
+    fn new_envelope(
+        project_key: ProjectKey,
+        sampling_key: Option<ProjectKey>,
+        event_id: Option<EventId>,
+    ) -> Box<Envelope> {
         let mut envelope = Envelope::from_request(
             None,
             RequestMeta::new(Dsn::from_str(&format!("http://{project_key}@localhost/1")).unwrap()),
@@ -420,11 +455,14 @@ mod tests {
             });
             envelope.add_item(Item::new(ItemType::Transaction));
         }
+        if let Some(event_id) = event_id {
+            envelope.set_event_id(event_id);
+        }
         envelope
     }
 
     #[tokio::test]
-    async fn insert_pop() {
+    async fn test_insert_pop() {
         let mut buffer = EnvelopeBuffer::<MemoryStackProvider>::new();
 
         let project_key1 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
@@ -434,20 +472,29 @@ mod tests {
         assert!(buffer.pop().await.unwrap().is_none());
         assert!(buffer.peek().await.unwrap().is_none());
 
-        buffer.push(new_envelope(project_key1, None)).await.unwrap();
+        buffer
+            .push(new_envelope(project_key1, None, None))
+            .await
+            .unwrap();
         assert_eq!(
             buffer.peek().await.unwrap().unwrap().meta().public_key(),
             project_key1
         );
 
-        buffer.push(new_envelope(project_key2, None)).await.unwrap();
+        buffer
+            .push(new_envelope(project_key2, None, None))
+            .await
+            .unwrap();
         // Both projects are not ready, so project 1 is on top (has the oldest envelopes):
         assert_eq!(
             buffer.peek().await.unwrap().unwrap().meta().public_key(),
             project_key1
         );
 
-        buffer.push(new_envelope(project_key3, None)).await.unwrap();
+        buffer
+            .push(new_envelope(project_key3, None, None))
+            .await
+            .unwrap();
         // All projects are not ready, so project 1 is on top (has the oldest envelopes):
         assert_eq!(
             buffer.peek().await.unwrap().unwrap().meta().public_key(),
@@ -499,14 +546,14 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn project_internal_order() {
+    async fn test_project_internal_order() {
         let mut buffer = EnvelopeBuffer::<MemoryStackProvider>::new();
 
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
 
-        let envelope1 = new_envelope(project_key, None);
+        let envelope1 = new_envelope(project_key, None, None);
         let instant1 = envelope1.meta().start_time();
-        let envelope2 = new_envelope(project_key, None);
+        let envelope2 = new_envelope(project_key, None, None);
         let instant2 = envelope2.meta().start_time();
 
         assert!(instant2 > instant1);
@@ -526,21 +573,21 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn sampling_projects() {
+    async fn test_sampling_projects() {
         let mut buffer = EnvelopeBuffer::<MemoryStackProvider>::new();
 
         let project_key1 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
         let project_key2 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fef").unwrap();
 
-        let envelope1 = new_envelope(project_key1, None);
+        let envelope1 = new_envelope(project_key1, None, None);
         let instant1 = envelope1.meta().start_time();
         buffer.push(envelope1).await.unwrap();
 
-        let envelope2 = new_envelope(project_key2, None);
+        let envelope2 = new_envelope(project_key2, None, None);
         let instant2 = envelope2.meta().start_time();
         buffer.push(envelope2).await.unwrap();
 
-        let envelope3 = new_envelope(project_key1, Some(project_key2));
+        let envelope3 = new_envelope(project_key1, Some(project_key2), None);
         let instant3 = envelope3.meta().start_time();
         buffer.push(envelope3).await.unwrap();
 
@@ -593,5 +640,57 @@ mod tests {
         );
 
         assert!(buffer.pop().await.unwrap().is_none());
+    }
+
+    #[tokio::test]
+    async fn test_project_keys_distinct() {
+        let project_key1 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
+        let project_key2 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fef").unwrap();
+
+        let stack_key1 = StackKey::new(project_key1, project_key2);
+        let stack_key2 = StackKey::new(project_key2, project_key1);
+
+        assert_ne!(stack_key1, stack_key2);
+
+        let mut buffer = EnvelopeBuffer::<MemoryStackProvider>::new();
+        buffer
+            .push(new_envelope(project_key1, Some(project_key2), None))
+            .await
+            .unwrap();
+        buffer
+            .push(new_envelope(project_key2, Some(project_key1), None))
+            .await
+            .unwrap();
+        assert_eq!(buffer.priority_queue.len(), 2);
+    }
+
+    #[tokio::test]
+    async fn test_last_peek_internal_order() {
+        let mut buffer = EnvelopeBuffer::<MemoryStackProvider>::new();
+
+        let project_key_1 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
+        let event_id_1 = EventId::new();
+        let envelope1 = new_envelope(project_key_1, None, Some(event_id_1));
+
+        let project_key_2 = ProjectKey::parse("b56ae32be2584e0bbd7a4cbb95971fed").unwrap();
+        let event_id_2 = EventId::new();
+        let mut envelope2 = new_envelope(project_key_2, None, Some(event_id_2));
+        envelope2.set_start_time(envelope1.meta().start_time());
+
+        buffer.push(envelope1).await.unwrap();
+        buffer.push(envelope2).await.unwrap();
+
+        assert_eq!(
+            buffer.peek().await.unwrap().unwrap().event_id().unwrap(),
+            event_id_1
+        );
+        assert_eq!(
+            buffer.peek().await.unwrap().unwrap().event_id().unwrap(),
+            event_id_2
+        );
+        assert_eq!(
+            buffer.peek().await.unwrap().unwrap().event_id().unwrap(),
+            event_id_1
+        );
     }
 }

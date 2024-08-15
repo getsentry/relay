@@ -11,7 +11,6 @@ use std::sync::OnceLock;
 
 use chrono::{DateTime, Utc};
 use relay_cardinality::CardinalityLimit;
-use relay_common::glob::{glob_match_bytes, GlobOptions};
 use relay_dynamic_config::{normalize_json, GlobalConfig, ProjectConfig};
 use relay_event_normalization::span::description::ScrubMongoDescription;
 use relay_event_normalization::{
@@ -29,7 +28,7 @@ use relay_sampling::SamplingConfig;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::core::{RelayBuf, RelayStr};
+use crate::core::RelayStr;
 
 /// Configuration for the store step -- validation and normalization.
 #[derive(Serialize, Deserialize, Debug, Default)]
@@ -369,46 +368,6 @@ pub unsafe extern "C" fn relay_pii_selector_suggestions_from_event(
 #[allow(clippy::diverging_sub_expression)]
 pub unsafe extern "C" fn relay_test_panic() -> () {
     panic!("this is a test panic")
-}
-
-/// Controls the globbing behaviors.
-#[repr(u32)]
-pub enum GlobFlags {
-    /// When enabled `**` matches over path separators and `*` does not.
-    DoubleStar = 1,
-    /// Enables case insensitive path matching.
-    CaseInsensitive = 2,
-    /// Enables path normalization.
-    PathNormalize = 4,
-    /// Allows newlines.
-    AllowNewline = 8,
-}
-
-/// Performs a glob operation on bytes.
-///
-/// Returns `true` if the glob matches, `false` otherwise.
-#[no_mangle]
-#[relay_ffi::catch_unwind]
-pub unsafe extern "C" fn relay_is_glob_match(
-    value: *const RelayBuf,
-    pat: *const RelayStr,
-    flags: GlobFlags,
-) -> bool {
-    let mut options = GlobOptions::default();
-    let flags = flags as u32;
-    if (flags & GlobFlags::DoubleStar as u32) != 0 {
-        options.double_star = true;
-    }
-    if (flags & GlobFlags::CaseInsensitive as u32) != 0 {
-        options.case_insensitive = true;
-    }
-    if (flags & GlobFlags::PathNormalize as u32) != 0 {
-        options.path_normalize = true;
-    }
-    if (flags & GlobFlags::AllowNewline as u32) != 0 {
-        options.allow_newline = true;
-    }
-    glob_match_bytes((*value).as_bytes(), (*pat).as_str(), options)
 }
 
 /// Parse a sentry release structure from a string.

@@ -17,6 +17,9 @@ use crate::{FiniteF64, MetricNamespace, ParseMetricError};
 
 const VALUE_SEPARATOR: char = ':';
 
+/// Type of [`Bucket::tags`].
+pub type MetricTags = BTreeMap<String, String>;
+
 /// A snapshot of values within a [`Bucket`].
 #[derive(Clone, Copy, Debug, PartialEq, Deserialize, Serialize)]
 pub struct GaugeValue {
@@ -401,8 +404,8 @@ fn parse_gauge(string: &str) -> Option<GaugeValue> {
 /// Parses tags in the format `tag1,tag2:value`.
 ///
 /// Tag values are optional. For tags with missing values, an empty `""` value is assumed.
-fn parse_tags(string: &str) -> Option<BTreeMap<String, String>> {
-    let mut map = BTreeMap::new();
+fn parse_tags(string: &str) -> Option<MetricTags> {
+    let mut map = MetricTags::new();
 
     for pair in string.split(',') {
         let mut name_value = pair.splitn(2, ':');
@@ -606,8 +609,8 @@ pub struct Bucket {
     /// ```text
     /// endpoint.hits:1|c|#route:user_index,environment:production,release:1.4.0
     /// ```
-    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
-    pub tags: BTreeMap<String, String>,
+    #[serde(default, skip_serializing_if = "MetricTags::is_empty")]
+    pub tags: MetricTags,
 
     /// Relay internal metadata for a metric bucket.
     ///

@@ -2190,14 +2190,24 @@ impl EnvelopeProcessorService {
         let clock_drift_processor =
             ClockDriftProcessor::new(sent_at, received).at_least(MINIMUM_CLOCK_DRIFT);
 
-        for bucket in &mut buckets {
+        buckets.retain_mut(|bucket| {
+            if let Err(error) = relay_metrics::normalize_bucket(bucket) {
+                relay_log::debug!(error = &error as &dyn Error, "dropping bucket {bucket:?}");
+                return false;
+            }
+
+            if !self::metrics::is_valid_namespace(bucket, source) {
+                return false;
+            }
+
             clock_drift_processor.process_timestamp(&mut bucket.timestamp);
+
             if !matches!(source, BucketSource::Internal) {
                 bucket.metadata = BucketMetadata::new(received_timestamp);
             }
-        }
 
-        let buckets = self::metrics::filter_namespaces(buckets, source);
+            true
+        });
 
         // Best effort check to filter and rate limit buckets, if there is no project state
         // available at the current time, we will check again after flushing.

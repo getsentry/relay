@@ -159,7 +159,7 @@ mod tests {
             "user": {
                 "id": "user123",
                 "geo": {
-                    "country_code": "US"
+                    "country_code": "FR"
                 }
             },
             "tags": {
@@ -1242,6 +1242,15 @@ mod tests {
     const MOBILE_EVENT: &str = r#"
         {
             "type": "transaction",
+            "user": {
+                "id": "user123",
+                "geo": {
+                    "country_code": "US",
+                    "city": "Washington",
+                    "subdivision": "Virginia",
+                    "region": "United States"
+                }
+            },
             "sdk": {"name": "sentry.javascript.react-native"},
             "start_timestamp": "2021-04-26T07:59:01+0100",
             "timestamp": "2021-04-26T08:00:00+0100",

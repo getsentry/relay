@@ -91,6 +91,15 @@ pub struct ProfileMetadata {
 
     #[serde(skip_serializing_if = "Option::is_none")]
     debug_meta: Option<DebugMeta>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    client_sdk: Option<ClientSdk>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ClientSdk {
+    name: String,
+    version: String,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -237,6 +246,16 @@ pub fn parse_android_profile(
         }
     }
 
+    profile.metadata.client_sdk = match (
+        transaction_metadata.get("client_sdk.name"),
+        transaction_metadata.get("client_sdk.version"),
+    ) {
+        (Some(name), Some(version)) => Some(ClientSdk {
+            name: name.to_owned(),
+            version: version.to_owned(),
+        }),
+        _ => None,
+    };
     profile.metadata.transaction_metadata = transaction_metadata;
     profile.metadata.transaction_tags = transaction_tags;
 
