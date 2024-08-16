@@ -1,5 +1,6 @@
 use std::collections::btree_map::Entry;
 use std::collections::HashMap;
+use std::fmt;
 use std::fs::File;
 use std::io::BufReader;
 use std::path::Path;
@@ -220,7 +221,7 @@ pub struct Options {
     /// At this point, it doesn't accept IP addresses in CIDR format.. yet.
     #[serde(
         rename = "relay.span-normalization.allowed_hosts",
-        deserialize_with = "default_on_error",
+        deserialize_with = "deserialize_host",
         skip_serializing_if = "Vec::is_empty"
     )]
     pub http_span_allowed_hosts: Vec<Host>,
@@ -370,6 +371,41 @@ where
             Ok(T::default())
         }
     }
+}
+
+fn deserialize_host<'de, D>(deserializer: D) -> Result<Vec<Host>, D::Error>
+where
+    D: serde::de::Deserializer<'de>,
+{
+    // Stolen from https://users.rust-lang.org/t/need-help-with-serde-deserialize-with/18374
+    struct HostVisitor;
+
+    impl<'de> de::Visitor<'de> for HostVisitor {
+        type Value = Vec<Host>;
+
+        fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+            formatter.write_str("a vector containing string of host data")
+        }
+
+        fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
+        where
+            A: de::SeqAccess<'de>,
+        {
+            let mut values = Vec::<Host>::new();
+            while let Some(value) = seq.next_element()? {
+                let this = Host::parse(value);
+                let op = de::Error::custom;
+                match this {
+                    Ok(t) => values.push(t),
+                    Err(e) => return Err(op(e)),
+                }
+            }
+
+            Ok(values)
+        }
+    }
+
+    deserializer.deserialize_any(HostVisitor)
 }
 
 fn is_ok_and_empty(value: &ErrorBoundary<MetricExtractionGroups>) -> bool {
@@ -547,5 +583,28 @@ mod tests {
         let o: Options = serde_json::from_str(&s).unwrap();
         assert_eq!(o.metric_bucket_set_encodings, original);
         assert_eq!(o.metric_bucket_dist_encodings, original);
+    }
+
+    #[test]
+    fn test_http_span_allowed_hosts_deserialization() {
+        let input = r###"{
+            "relay.span-normalization.allowed_hosts": [
+                "foo.bar.internal",
+                "baz.qux.internal",
+                "192.168.1.1",
+                "[fd45:7aa3:7ae4::/48]"
+            ]
+        }"###;
+
+        let options: Options = serde_json::from_str(input).unwrap();
+        assert_eq!(
+            options.http_span_allowed_hosts,
+            vec![
+                Host::parse("foo.bar.internal").unwrap(),
+                Host::parse("baz.qux.internal").unwrap(),
+                Host::parse("192.168.1.1").unwrap(),
+                Host::parse("[fd45:7aa3:7ae4::/48]").unwrap(),
+            ]
+        );
     }
 }
