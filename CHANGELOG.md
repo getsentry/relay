@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Bug Fixes**:
+
+- Use custom `Vec<Host>` deserialize method for parsing dynamic config ([#3939](https://github.com/getsentry/relay/pull/3939))
+
 ## 24.8.0
 
 **Bug Fixes**:
