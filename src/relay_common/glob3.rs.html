@@ -182,48 +182,20 @@
 <a href="#182" id="182">182</a>
 <a href="#183" id="183">183</a>
 <a href="#184" id="184">184</a>
-<a href="#185" id="185">185</a>
-<a href="#186" id="186">186</a>
-<a href="#187" id="187">187</a>
-<a href="#188" id="188">188</a>
-<a href="#189" id="189">189</a>
-<a href="#190" id="190">190</a>
-<a href="#191" id="191">191</a>
-<a href="#192" id="192">192</a>
-<a href="#193" id="193">193</a>
-<a href="#194" id="194">194</a>
-<a href="#195" id="195">195</a>
-<a href="#196" id="196">196</a>
-<a href="#197" id="197">197</a>
-<a href="#198" id="198">198</a>
-<a href="#199" id="199">199</a>
-<a href="#200" id="200">200</a>
-<a href="#201" id="201">201</a>
-<a href="#202" id="202">202</a>
-<a href="#203" id="203">203</a>
-<a href="#204" id="204">204</a>
-<a href="#205" id="205">205</a>
-<a href="#206" id="206">206</a>
-<a href="#207" id="207">207</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Alternative implementation of serializable glob patterns.
 
 </span><span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::sync::OnceLock;
 
-<span class="kw">use </span>globset::GlobBuilder;
-<span class="kw">use </span>regex_lite::{Regex, RegexBuilder};
 <span class="kw">use </span>serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-<span class="doccomment">/// Returns `true` if any of the patterns match the given message.
-</span><span class="kw">fn </span>is_match(globs: <span class="kw-2">&amp;</span>[Regex], message: <span class="kw-2">&amp;</span>str) -&gt; bool {
-    globs.iter().any(|regex| regex.is_match(message))
-}
+<span class="kw">use </span>relay_pattern::Pattern;
 
 <span class="doccomment">/// A list of patterns for glob matching.
 </span><span class="attr">#[derive(Clone, Default)]
 </span><span class="kw">pub struct </span>GlobPatterns {
     patterns: Vec&lt;String&gt;,
-    globs: OnceLock&lt;Vec&lt;Regex&gt;&gt;,
+    compiled: OnceLock&lt;Vec&lt;Pattern&gt;&gt;,
 }
 
 <span class="kw">impl </span>GlobPatterns {
@@ -231,7 +203,7 @@
     </span><span class="kw">pub fn </span>new(patterns: Vec&lt;String&gt;) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{
             patterns,
-            globs: OnceLock::new(),
+            compiled: OnceLock::new(),
         }
     }
 
@@ -252,32 +224,14 @@
             <span class="kw">return </span><span class="bool-val">false</span>;
         }
 
-        <span class="kw">let </span>globs = <span class="self">self</span>.globs.get_or_init(|| <span class="self">self</span>.parse_globs());
-        is_match(globs, message)
-    }
+        <span class="kw">let </span>compiled = <span class="self">self</span>.compiled.get_or_init(|| {
+            <span class="self">self</span>.patterns
+                .iter()
+                .filter_map(|p| Pattern::builder(p).case_insensitive(<span class="bool-val">true</span>).build().ok())
+                .collect()
+        });
 
-    <span class="doccomment">/// Parses valid patterns from the list.
-    </span><span class="kw">fn </span>parse_globs(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Vec&lt;Regex&gt; {
-        <span class="kw">let </span><span class="kw-2">mut </span>globs = Vec::with_capacity(<span class="self">self</span>.patterns.len());
-
-        <span class="kw">for </span>pattern <span class="kw">in </span><span class="kw-2">&amp;</span><span class="self">self</span>.patterns {
-            <span class="kw">let </span>glob_result = GlobBuilder::new(pattern)
-                .case_insensitive(<span class="bool-val">true</span>)
-                .backslash_escape(<span class="bool-val">true</span>)
-                .build();
-
-            <span class="kw">if let </span><span class="prelude-val">Ok</span>(glob) = glob_result {
-                <span class="kw">let </span>regex_result = RegexBuilder::new(glob.regex())
-                    .dot_matches_new_line(<span class="bool-val">true</span>)
-                    .build();
-
-                <span class="kw">if let </span><span class="prelude-val">Ok</span>(regex) = regex_result {
-                    globs.push(regex);
-                }
-            }
-        }
-
-        globs
+        compiled.iter().any(|pattern| pattern.is_match(message))
     }
 }
 

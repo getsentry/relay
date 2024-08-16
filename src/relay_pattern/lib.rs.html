@@ -1412,7 +1412,7 @@
 }
 
 <span class="doccomment">/// `Pattern` represents a successfully parsed Relay pattern.
-</span><span class="attr">#[derive(Debug)]
+</span><span class="attr">#[derive(Debug, Clone)]
 </span><span class="kw">pub struct </span>Pattern {
     pattern: String,
     options: Options,
@@ -1501,7 +1501,7 @@
 ///
 /// Certain patterns can be matched more efficiently while the complex
 /// patterns fallback to a regex.
-</span><span class="attr">#[derive(Debug)]
+</span><span class="attr">#[derive(Debug, Clone)]
 </span><span class="kw">enum </span>MatchStrategy {
     <span class="doccomment">/// The pattern is a single literal string.
     ///
