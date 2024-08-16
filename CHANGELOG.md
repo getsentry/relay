@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 24.8.0
 
 **Bug Fixes**:
 
@@ -25,6 +25,7 @@
 - Extract `user.geo.subregion` into span metrics/indexed. ([#3914](https://github.com/getsentry/relay/pull/3914))
 - Add `last_peek` field to the `Priority` struct. ([#3922](https://github.com/getsentry/relay/pull/3922))
 - Extract `user.geo.subregion` for mobile spans. ([#3927](https://github.com/getsentry/relay/pull/3927))
+- Rename `Peek` to `EnvelopeBufferGuard`. ([#3930](https://github.com/getsentry/relay/pull/3930))
 - Tag `user.geo.subregion` for resource metrics. ([#3934](https://github.com/getsentry/relay/pull/3934))
 
 ## 24.7.1
