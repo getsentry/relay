@@ -358,8 +358,8 @@ impl fmt::Display for RelayMode {
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub enum RelayEnvironment {
-    /// This Relay is run in a production environment.
-    Production,
+    /// This Relay is run in a default environment.
+    Default,
 
     /// This Relay is run in a canary environment where experiments can be run.
     Canary,
@@ -368,7 +368,7 @@ pub enum RelayEnvironment {
 impl fmt::Display for RelayEnvironment {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            RelayEnvironment::Production => write!(f, "production"),
+            RelayEnvironment::Default => write!(f, "default"),
             RelayEnvironment::Canary => write!(f, "canary"),
         }
     }
@@ -380,7 +380,7 @@ impl FromStr for RelayEnvironment {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
             "canary" => Ok(RelayEnvironment::Canary),
-            _ => Ok(RelayEnvironment::Production),
+            _ => Ok(RelayEnvironment::Default),
         }
     }
 }
