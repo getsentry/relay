@@ -5,6 +5,7 @@
 **Internal**:
 
 - Bumped `sentry-native` submodule to v0.7.8. ([#3940](https://github.com/getsentry/relay/pull/3940))
+- Bumped arm64 cross compile image to `edge` tag. ([#3943](https://github.com/getsentry/relay/pull/3943))
 
 ## 24.8.0
 
