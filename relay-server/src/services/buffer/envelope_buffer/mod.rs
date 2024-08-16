@@ -814,6 +814,7 @@ mod tests {
 
         for envelope in envelopes.clone() {
             buffer.push(envelope).await.unwrap();
+            // We sleep to make sure that the `last_update` of `QueueItem` is different.
             sleep(Duration::from_millis(1)).await;
         }
 

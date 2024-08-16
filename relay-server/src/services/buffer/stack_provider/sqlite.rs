@@ -11,6 +11,7 @@ pub struct SqliteStackProvider {
     envelope_store: SqliteEnvelopeStore,
     disk_batch_size: usize,
     max_batches: usize,
+    max_evictable_envelopes: usize,
 }
 
 #[warn(dead_code)]
@@ -22,6 +23,7 @@ impl SqliteStackProvider {
             envelope_store,
             disk_batch_size: config.spool_envelopes_stack_disk_batch_size(),
             max_batches: config.spool_envelopes_stack_max_batches(),
+            max_evictable_envelopes: config.spool_envelopes_stack_max_evictable_envelopes(),
         })
     }
 }
@@ -37,6 +39,7 @@ impl StackProvider for SqliteStackProvider {
             self.envelope_store.clone(),
             self.disk_batch_size,
             self.max_batches,
+            self.max_evictable_envelopes,
             own_key,
             sampling_key,
         )

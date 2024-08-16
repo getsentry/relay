@@ -547,9 +547,4 @@ mod tests {
             (own_key, sampling_key)
         );
     }
-
-    #[tokio::test]
-    async fn test_drop_envelope_stack() {
-        // TODO: test that dropping the envelope stack cleans up the db.
-    }
 }
