@@ -23,6 +23,7 @@
 //! * `[!abc]` matches one character that is not in the given bracket.
 //! * `[a-z]` matches one character in the given range.
 //! * `[!a-z]` matches one character that is not in the given range.
+//! * `{a,b}` matches any pattern within the alternation group.
 //! * `\` escapes any of the above special characters and treats it as a literal.
 
 use std::fmt;
@@ -39,10 +40,14 @@ enum ErrorKind {
     /// The specified range is invalid. The `end` character is lexicographically
     /// after the `start` character.
     InvalidRange(char, char),
-    /// Unbalanced character class. The pattern contains unbalanced `[`, `]` characters .
+    /// Unbalanced character class. The pattern contains unbalanced `[`, `]` characters.
     UnbalancedCharacterClass,
     /// Character class is invalid and cannot be parsed.
     InvalidCharacterClass,
+    /// Nested alternates are not valid.
+    NestedAlternates,
+    /// Unbalanced alternates. The pattern contains unbalanced `{`, `}` characters.
+    UnbalancedAlternates,
     /// Dangling escape character.
     DanglingEscape,
     /// The pattern produced an invalid regex pattern which couldn't be compiled.
@@ -60,6 +65,8 @@ impl fmt::Display for Error {
             }
             ErrorKind::UnbalancedCharacterClass => write!(f, "Unbalanced character class"),
             ErrorKind::InvalidCharacterClass => write!(f, "Invalid character class"),
+            ErrorKind::NestedAlternates => write!(f, "Nested alternates"),
+            ErrorKind::UnbalancedAlternates => write!(f, "Unbalanced alternates"),
             ErrorKind::DanglingEscape => write!(f, "Dangling escape"),
             ErrorKind::Regex(s) => f.write_str(s),
         }
@@ -230,54 +237,75 @@ fn to_regex(tokens: &[Token], options: Options) -> Result<regex_lite::Regex, Err
         }
     }
 
+    fn tokens_to_regex(re: &mut String, tokens: &[Token]) {
+        for token in tokens {
+            match token {
+                Token::Literal(literal) => re.push_str(&regex_lite::escape(literal)),
+                Token::Any(n) => match n {
+                    0 => debug_assert!(false, "empty any token"),
+                    1 => re.push('.'),
+                    // The simple case with a 'few' any matchers.
+                    &i @ 2..=20 => {
+                        re.reserve(i);
+                        for _ in 0..i {
+                            re.push('.');
+                        }
+                    }
+                    // The generic case with a 'a lot of' any matchers.
+                    i => {
+                        re.push('.');
+                        re.push('{');
+                        re.push_str(&i.to_string());
+                        re.push('}')
+                    }
+                },
+                Token::Wildcard => re.push_str(".*"),
+                Token::Class { negated, ranges } => {
+                    if ranges.is_empty() {
+                        continue;
+                    }
+
+                    re.push('[');
+                    if *negated {
+                        re.push('^');
+                    }
+                    for range in ranges.iter() {
+                        push_class_escaped(re, range.start);
+                        if range.start != range.end {
+                            re.push('-');
+                            push_class_escaped(re, range.end);
+                        }
+                    }
+                    re.push(']');
+                }
+                Token::Alternates(alternates) => {
+                    if alternates.is_empty() {
+                        continue;
+                    }
+
+                    re.push_str("(?:");
+                    let mut first = true;
+                    for alternate in alternates {
+                        if !first {
+                            re.push('|');
+                        }
+                        first = false;
+
+                        tokens_to_regex(re, alternate.as_slice());
+                    }
+                    re.push(')');
+                }
+            }
+        }
+    }
+
     let mut re = String::new();
     re.push_str("(?-u)");
     if options.case_insensitive {
         re.push_str("(?i)");
     }
     re.push('^');
-    for token in tokens {
-        match token {
-            Token::Literal(literal) => re.push_str(&regex_lite::escape(literal)),
-            Token::Any(n) => match n {
-                0 => debug_assert!(false, "empty any token"),
-                1 => re.push('.'),
-                // The simple case with a 'few' any matchers.
-                &i @ 2..=20 => {
-                    re.reserve(i);
-                    for _ in 0..i {
-                        re.push('.');
-                    }
-                }
-                // The generic case with a 'a lot of' any matchers.
-                i => {
-                    re.push('.');
-                    re.push('{');
-                    re.push_str(&i.to_string());
-                    re.push('}')
-                }
-            },
-            Token::Wildcard => re.push_str(".*"),
-            Token::Class { negated, ranges } => {
-                if ranges.is_empty() {
-                    continue;
-                }
-
-                re.push('[');
-                if *negated {
-                    re.push('^');
-                }
-                for range in ranges.iter() {
-                    push_class_escaped(&mut re, range.start);
-                    if range.start != range.end {
-                        re.push('-');
-                        push_class_escaped(&mut re, range.end);
-                    }
-                }
-                re.push(']');
-            }
-        }
-    }
+    tokens_to_regex(&mut re, tokens);
     re.push('$');
 
     regex_lite::RegexBuilder::new(&re)
@@ -368,6 +396,7 @@ fn match_contains(contains: &str, haystack: &str, options: Options) -> bool {
 struct Parser<'a> {
     chars: std::iter::Peekable<std::str::Chars<'a>>,
     tokens: Tokens,
+    alternates: Option<Vec<Tokens>>,
     current_literal: Option<String>,
 }
 
@@ -376,6 +405,7 @@ impl<'a> Parser<'a> {
         Self {
             chars: pattern.chars().peekable(),
             tokens: Default::default(),
+            alternates: None,
             current_literal: None,
         }
     }
@@ -387,17 +417,42 @@ impl<'a> Parser<'a> {
                 '*' => self.push_token(Token::Wildcard),
                 '[' => self.parse_class()?,
                 ']' => return Err(ErrorKind::UnbalancedCharacterClass),
+                '{' => self.start_alternates()?,
+                '}' => self.end_alternates()?,
                 '\\' => match self.advance() {
                     Some(c) => self.push_literal(c),
                     None => return Err(ErrorKind::DanglingEscape),
                 },
+                ',' if self.alternates.is_some() => {
+                    self.finish_literal();
+                    // safe to unwrap, we just checked for `some`.
+                    let alternates = self.alternates.as_mut().unwrap();
+                    alternates.push(Tokens::default());
+                }
                 c => self.push_literal(c),
             }
         }
 
         // Finish off the parsing with creating a token for any remaining literal buffered.
-        if let Some(literal) = self.current_literal.take() {
-            self.push_token(Token::Literal(literal));
+        self.finish_literal();
+
+        Ok(())
+    }
+
+    fn start_alternates(&mut self) -> Result<(), ErrorKind> {
+        if self.alternates.is_some() {
+            return Err(ErrorKind::NestedAlternates);
+        }
+        self.finish_literal();
+        self.alternates = Some(Vec::new());
+        Ok(())
+    }
+
+    fn end_alternates(&mut self) -> Result<(), ErrorKind> {
+        self.finish_literal();
+        match self.alternates.take() {
+            None => return Err(ErrorKind::UnbalancedAlternates),
+            Some(alternates) => self.push_token(Token::Alternates(alternates)),
         }
 
         Ok(())
@@ -462,17 +517,34 @@ impl<'a> Parser<'a> {
         Ok(())
     }
 
+    /// Pushes a new character into the currently active literal token.
+    ///
+    /// Starts a new literal token if there is none already.
     fn push_literal(&mut self, c: char) {
         self.current_literal.get_or_insert_with(String::new).push(c);
     }
 
-    /// Pushes the passed `token` and finishes the currently in progress token.
-    fn push_token(&mut self, token: Token) {
-        // Finish the currently active literal token if there is one.
+    /// Finishes and pushes the currently in progress literal token.
+    fn finish_literal(&mut self) {
         if let Some(literal) = self.current_literal.take() {
-            self.tokens.push(Token::Literal(literal));
+            self.push_token(Token::Literal(literal));
         }
-        self.tokens.push(token);
+    }
+
+    /// Pushes the passed `token` and finishes the currently in progress literal token.
+    fn push_token(&mut self, token: Token) {
+        self.finish_literal();
+        match self.alternates.as_mut() {
+            Some(alternates) => match alternates.last_mut() {
+                Some(tokens) => tokens.push(token),
+                None => {
+                    let mut tokens = Tokens::default();
+                    tokens.push(token);
+                    alternates.push(tokens);
+                }
+            },
+            None => self.tokens.push(token),
+        }
     }
 
     fn advance(&mut self) -> Option<char> {
@@ -500,7 +572,30 @@ impl<'a> Parser<'a> {
 struct Tokens(Vec<Token>);
 
 impl Tokens {
-    fn push(&mut self, token: Token) {
+    fn push(&mut self, mut token: Token) {
+        // Normalize / clean the token.
+        if let Token::Alternates(alternates) = &mut token {
+            let mut contains_wildcard = false;
+            alternates.retain_mut(|alternate| {
+                // Empty groups can just be ignored and skipped.
+                if alternate.0.is_empty() {
+                    return false;
+                }
+
+                if matches!(alternate.0.as_slice(), [Token::Wildcard]) {
+                    contains_wildcard = true;
+                }
+
+                true
+            });
+
+            // If any of the alternations contains a wildcard, we can fold the entire
+            // alternation into a single wildcard.
+            if contains_wildcard {
+                token = Token::Wildcard;
+            }
+        }
+
         let Some(last) = self.0.last_mut() else {
             self.0.push(token);
             return;
@@ -526,6 +621,10 @@ impl Tokens {
     fn as_mut_slice(&mut self) -> &mut [Token] {
         self.0.as_mut_slice()
     }
+
+    fn as_slice(&self) -> &[Token] {
+        self.0.as_slice()
+    }
 }
 
 /// Represents a token in a Relay pattern.
@@ -539,6 +638,8 @@ enum Token {
     Wildcard,
     /// A class token `[abc]` or its negated variant `[!abc]`.
     Class { negated: bool, ranges: Ranges },
+    /// A list of nested alternate tokens `{a,b}`.
+    Alternates(Vec<Tokens>),
 }
 
 /// A [`Range`] contains whatever is contained between `[` and `]` of
@@ -727,10 +828,10 @@ mod tests {
         assert_pattern!("foo", "foo");
         assert_pattern!("foo", NOT "fOo");
         assert_pattern!("foo", NOT "FOO");
-        assert_pattern!("f{}o", "f{}o");
-        assert_pattern!("f}o", "f}o");
-        assert_pattern!("f{o", "f{o");
-        assert_pattern!("f{b,a,r}o", "f{b,a,r}o");
+        assert_pattern!(r"f\{\}o", "f{}o");
+        assert_pattern!(r"f\}o", "f}o");
+        assert_pattern!(r"f\{o", "f{o");
+        assert_pattern!(r"f\{b,a,r\}o", "f{b,a,r}o");
         assert_pattern!(r"f\\o", r"f\o");
         assert_pattern!("fඞo", "fඞo");
     }
@@ -747,7 +848,7 @@ mod tests {
     #[test]
     fn test_literal_strategy() {
         assert_strategy!("foo", Literal);
-        assert_strategy!("f{b,a,r}o", Literal);
+        assert_strategy!(r"f\{b,a,r\}o", Literal);
         assert_strategy!(r"f\\o", Literal);
         assert_strategy!("fඞo", Literal);
     }
@@ -933,6 +1034,11 @@ mod tests {
     #[test]
     fn test_wildcard_strategy() {
         assert_strategy!("*", Static);
+        assert_strategy!("{*}", Static);
+        assert_strategy!("{*,}", Static);
+        assert_strategy!("{foo,*}", Static);
+        assert_strategy!("{foo,*}?{*,bar}", Static);
+        assert_strategy!("{*,}?{*,}", Static);
     }
 
     #[test]
@@ -1139,6 +1245,74 @@ mod tests {
         assert_pattern!("[!ab]", NOT "B", i);
         assert_pattern!("[!ab]", "c", i);
         assert_pattern!("[!ab]", "C", i);
+    }
+
+    #[test]
+    fn test_alternates() {
+        assert_pattern!("{foo,bar}", "foo");
+        assert_pattern!("{foo,bar}", "bar");
+        assert_pattern!("{foo,bar}", NOT "Foo");
+        assert_pattern!("{foo,bar}", NOT "fOo");
+        assert_pattern!("{foo,bar}", NOT "BAR");
+        assert_pattern!("{foo,bar}", NOT "fooo");
+        assert_pattern!("{foo,bar}", NOT "baar");
+        assert_pattern!("{[fb][oa][or]}", "foo");
+        assert_pattern!("{[fb][oa][or]}", "bar");
+        assert_pattern!("{[fb][oa][or],baz}", "foo");
+        assert_pattern!("{[fb][oa][or],baz}", "bar");
+        assert_pattern!("{[fb][oa][or],baz}", "baz");
+        assert_pattern!("{baz,[fb][oa][or]}", "baz");
+        assert_pattern!("{baz,[fb][oa][or]}", "foo");
+        assert_pattern!("{baz,[fb][oa][or]}", "bar");
+        assert_pattern!("{baz,[fb][oa][or]}", "bor");
+        assert_pattern!("{baz,[fb][oa][or]}", NOT "barr");
+        assert_pattern!("{baz,[fb][oa][or]}", NOT "boz");
+        assert_pattern!("{baz,[fb][oa][or]}", NOT "fbar");
+        assert_pattern!("{baz,[fb][oa][or]}", NOT "bAr");
+        assert_pattern!("{baz,[fb][oa][or]}", NOT "Foo");
+        assert_pattern!("{baz,[fb][oa][or]}", NOT "Bar");
+        assert_pattern!("{baz,b[aA]r}", NOT "bAz");
+        assert_pattern!("{baz,b[!aA]r}", NOT "bar");
+        assert_pattern!("{baz,b[!aA]r}", "bXr");
+        assert_pattern!("{[a-z],[0-9]}", "a");
+        assert_pattern!("{[a-z],[0-9]}", "3");
+        assert_pattern!("a{[a-z],[0-9]}a", "a3a");
+        assert_pattern!("a{[a-z],[0-9]}a", "aba");
+        assert_pattern!("a{[a-z],[0-9]}a", NOT "aAa");
+        assert_pattern!("a{[a-z],?}a", "aXa");
+        assert_pattern!(r"a{[a-z],\?}a", "a?a");
+        assert_pattern!(r"a{[a-z],\?}a", NOT "aXa");
+        assert_pattern!(r"a{[a-z],\?}a", NOT r"a\a");
+        assert_pattern!(r"a{\[\],\{\}}a", "a[]a");
+        assert_pattern!(r"a{\[\],\{\}}a", "a{}a");
+        assert_pattern!(r"a{\[\],\{\}}a", NOT "a[}a");
+        assert_pattern!(r"a{\[\],\{\}}a", NOT "a{]a");
+        assert_pattern!(r"a{\[\],\{\}}a", NOT "a[a");
+        assert_pattern!(r"a{\[\],\{\}}a", NOT "a]a");
+        assert_pattern!(r"a{\[\],\{\}}a", NOT "a{a");
+        assert_pattern!(r"a{\[\],\{\}}a", NOT "a}a");
+    }
+
+    #[test]
+    fn test_alternates_case_insensitive() {
+        assert_pattern!("{foo,bar}", "foo", i);
+        assert_pattern!("{foo,bar}", "bar", i);
+        assert_pattern!("{foo,bar}", "Foo", i);
+        assert_pattern!("{foo,bar}", "fOo", i);
+        assert_pattern!("{foo,bar}", "BAR", i);
+        assert_pattern!("{f[o0-9]o,b[a]r}", "foo", i);
+        assert_pattern!("{f[o0-9]o,b[a]r}", "fOo", i);
+        assert_pattern!("{f[o0-9]o,b[a]r}", "f1o", i);
+        assert_pattern!("{f[o0-9]o,b[a]r}", "foO", i);
+        assert_pattern!("{f[o0-9]o,b[a]r}", "FOO", i);
+        assert_pattern!("{f[o0-9]o,b[a]r}", "bar", i);
+        assert_pattern!("{f[o0-9]o,b[a]r}", "bAr", i);
+        assert_pattern!("{f[o0-9]o,b[a]r}", "baR", i);
+        assert_pattern!("{f[o0-9]o,b[a]r}", "BAR", i);
+        assert_pattern!("{f[o0-9]o,b[!a]r}", "foo", i);
+        assert_pattern!("{f[o0-9]o,b[!a]r}", "bXr", i);
+        assert_pattern!("{f[o0-9]o,b[!a]r}", NOT "bar", i);
+        assert_pattern!("{f[o0-9]o,b[!a]r}", NOT "bAr", i);
     }
 
     #[test]
