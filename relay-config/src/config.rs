@@ -1,12 +1,3 @@
-use std::collections::{BTreeMap, HashMap};
-use std::error::Error;
-use std::io::Write;
-use std::net::{IpAddr, SocketAddr, ToSocketAddrs};
-use std::path::{Path, PathBuf};
-use std::str::FromStr;
-use std::time::Duration;
-use std::{env, fmt, fs, io};
-
 use anyhow::Context;
 use relay_auth::{generate_key_pair, generate_relay_id, PublicKey, RelayId, SecretKey};
 use relay_common::Dsn;
@@ -18,6 +9,15 @@ use relay_metrics::aggregator::{AggregatorConfig, FlushBatching};
 use relay_metrics::MetricNamespace;
 use serde::de::{DeserializeOwned, Unexpected, Visitor};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use std::collections::{BTreeMap, HashMap};
+use std::error::Error;
+use std::io::Write;
+use std::net::{IpAddr, SocketAddr, ToSocketAddrs};
+use std::os::unix::raw::mode_t;
+use std::path::{Path, PathBuf};
+use std::str::FromStr;
+use std::time::Duration;
+use std::{env, fmt, fs, io};
 use uuid::Uuid;
 
 use crate::aggregator::{AggregatorServiceConfig, ScopedAggregatorConfig};
@@ -222,6 +222,8 @@ trait ConfigObject: DeserializeOwned + Serialize {
 pub struct OverridableConfig {
     /// The operation mode of this relay.
     pub mode: Option<String>,
+    /// The environment in which Relay is run.
+    pub environment: Option<String>,
     /// The log level of this relay.
     pub log_level: Option<String>,
     /// The upstream relay or sentry instance.
@@ -352,6 +354,37 @@ impl fmt::Display for RelayMode {
     }
 }
 
+/// The environment of a Relay.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum RelayEnvironment {
+    /// This Relay is run in a production environment.
+    Production,
+
+    /// This Relay is run in a canary environment where experiments can be run.
+    Canary,
+}
+
+impl fmt::Display for RelayEnvironment {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            RelayEnvironment::Production => write!(f, "production"),
+            RelayEnvironment::Canary => write!(f, "canary"),
+        }
+    }
+}
+
+impl FromStr for RelayEnvironment {
+    type Err = fmt::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "canary" => Ok(RelayEnvironment::Canary),
+            _ => Ok(RelayEnvironment::Production),
+        }
+    }
+}
+
 /// Error returned when parsing an invalid [`RelayMode`].
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct ParseRelayModeError;
@@ -436,6 +469,8 @@ impl Default for ReadinessCondition {
 pub struct Relay {
     /// The operation mode of this relay.
     pub mode: RelayMode,
+    /// The environment of this relay.
+    pub environment: RelayEnvironment,
     /// The upstream relay or sentry instance.
     pub upstream: UpstreamDescriptor<'static>,
     /// The host the relay should bind to (network interface).
@@ -1605,6 +1640,12 @@ impl Config {
             relay.mode = mode
                 .parse::<RelayMode>()
                 .with_context(|| ConfigError::field("mode"))?;
+        }
+
+        if let Some(environment) = overrides.environment {
+            relay.environment = environment
+                .parse::<RelayEnvironment>()
+                .with_context(|| ConfigError::field("environment"))?;
         }
 
         if let Some(log_level) = overrides.log_level {
