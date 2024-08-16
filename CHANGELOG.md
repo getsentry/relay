@@ -6,6 +6,10 @@
 
 - Use custom `Vec<Host>` deserialize method for parsing dynamic config ([#3939](https://github.com/getsentry/relay/pull/3939))
 
+**Internal**:
+
+- Bumped `sentry-native` submodule to v0.7.8. ([#3940](https://github.com/getsentry/relay/pull/3940))
+
 ## 24.8.0
 
 **Bug Fixes**:
