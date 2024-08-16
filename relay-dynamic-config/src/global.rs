@@ -394,10 +394,8 @@ where
             let mut values = Vec::<Host>::new();
             while let Some(value) = seq.next_element()? {
                 let this = Host::parse(value);
-                let op = de::Error::custom;
-                match this {
-                    Ok(t) => values.push(t),
-                    Err(e) => return Err(op(e)),
+                if let Ok(t) = this {
+                    values.push(t)
                 }
             }
 
@@ -592,7 +590,13 @@ mod tests {
                 "foo.bar.internal",
                 "baz.qux.internal",
                 "192.168.1.1",
-                "[fd45:7aa3:7ae4::]"
+                "[fd45:7aa3:7ae4::]",
+                "",
+                "[fdec:3625:8ec3::/48]",
+                "./foo/bar",
+                "fdec:3625:8ec3::/48",
+                "127.0.0.0.0.1",
+                "127.0.0.1:100000000000"
             ]
         }"###;
 
