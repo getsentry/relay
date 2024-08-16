@@ -1,11 +1,5 @@
 # Changelog
 
-## Unreleased
-
-**Internal**:
-
-- Bumped `sentry-native` submodule to v0.7.8. ([#3940](https://github.com/getsentry/relay/pull/3940))
-
 ## 24.8.0
 
 **Bug Fixes**:
