@@ -1755,13 +1755,16 @@
 <a href="#1755" id="1755">1755</a>
 <a href="#1756" id="1756">1756</a>
 <a href="#1757" id="1757">1757</a>
+<a href="#1758" id="1758">1758</a>
+<a href="#1759" id="1759">1759</a>
+<a href="#1760" id="1760">1760</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
 <span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::sync::Arc;
 <span class="kw">use </span>std::time::Duration;
 
 <span class="kw">use </span><span class="kw">crate</span>::extractors::RequestMeta;
-<span class="kw">use </span><span class="kw">crate</span>::services::buffer::{EnvelopeBufferError, GuardedEnvelopeBuffer, Peek};
+<span class="kw">use </span><span class="kw">crate</span>::services::buffer::{EnvelopeBufferError, EnvelopeBufferGuard, GuardedEnvelopeBuffer};
 <span class="kw">use </span><span class="kw">crate</span>::services::processor::{
     EncodeMetrics, EnvelopeProcessor, MetricData, ProcessEnvelope, ProcessingGroup, ProjectMetrics,
 };
@@ -2826,7 +2829,10 @@
         }
     }
 
-    <span class="kw">async fn </span>peek_at_envelope(<span class="kw-2">&amp;mut </span><span class="self">self</span>, <span class="kw-2">mut </span>peek: Peek&lt;<span class="lifetime">'_</span>&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;(), EnvelopeBufferError&gt; {
+    <span class="kw">async fn </span>peek_at_envelope(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        <span class="kw-2">mut </span>peek: EnvelopeBufferGuard&lt;<span class="lifetime">'_</span>&gt;,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), EnvelopeBufferError&gt; {
         <span class="kw">let </span>envelope = peek.get().<span class="kw">await</span><span class="question-mark">?</span>;
         <span class="kw">if </span>envelope.meta().start_time().elapsed() &gt; <span class="self">self</span>.config.spool_envelopes_max_age() {
             <span class="kw">let </span>popped_envelope = peek.remove().<span class="kw">await</span><span class="question-mark">?</span>;
@@ -3231,7 +3237,7 @@
                     }
                     <span class="kw">_ </span>= report_ticker.tick() =&gt; {
                         <span class="kw">if let </span><span class="prelude-val">Some</span>(envelope_buffer) = <span class="kw-2">&amp;</span>envelope_buffer {
-                            <span class="macro">relay_statsd::metric!</span>(gauge(RelayGauges::BufferPushInFlight) = envelope_buffer.inflight_push_count());
+                            <span class="macro">metric!</span>(gauge(RelayGauges::BufferPushInFlight) = envelope_buffer.inflight_push_count());
                         }
                     }
                     <span class="kw">else </span>=&gt; <span class="kw">break</span>,
@@ -3243,8 +3249,8 @@
     }
 }
 
-<span class="doccomment">/// Temporary helper function while V1 spool eixsts.
-</span><span class="kw">async fn </span>peek_buffer(buffer: <span class="kw-2">&amp;</span><span class="prelude-ty">Option</span>&lt;Arc&lt;GuardedEnvelopeBuffer&gt;&gt;) -&gt; Peek {
+<span class="doccomment">/// Temporary helper function while V1 spool exists.
+</span><span class="kw">async fn </span>peek_buffer(buffer: <span class="kw-2">&amp;</span><span class="prelude-ty">Option</span>&lt;Arc&lt;GuardedEnvelopeBuffer&gt;&gt;) -&gt; EnvelopeBufferGuard {
     <span class="kw">match </span>buffer {
         <span class="prelude-val">Some</span>(buffer) =&gt; buffer.peek().<span class="kw">await</span>,
         <span class="prelude-val">None </span>=&gt; std::future::pending().<span class="kw">await</span>,

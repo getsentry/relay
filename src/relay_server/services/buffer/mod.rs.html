@@ -308,6 +308,14 @@
 <a href="#308" id="308">308</a>
 <a href="#309" id="309">309</a>
 <a href="#310" id="310">310</a>
+<a href="#311" id="311">311</a>
+<a href="#312" id="312">312</a>
+<a href="#313" id="313">313</a>
+<a href="#314" id="314">314</a>
+<a href="#315" id="315">315</a>
+<a href="#316" id="316">316</a>
+<a href="#317" id="317">317</a>
+<a href="#318" id="318">318</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Types for buffering envelopes.
 
 </span><span class="kw">use </span>std::sync::atomic::{AtomicU64, Ordering};
@@ -332,6 +340,16 @@
 <span class="kw">mod </span>stack_provider;
 <span class="kw">mod </span>testutils;
 
+<span class="doccomment">/// Struct that wraps the envelope buffer backend with a boolean flag to signal whether
+/// the contents of the buffer have changed.
+</span><span class="attr">#[derive(Debug)]
+</span><span class="kw">struct </span>Inner {
+    <span class="doccomment">/// The buffer that we are writing to and reading from.
+    </span>backend: PolymorphicEnvelopeBuffer,
+    <span class="doccomment">/// Used to notify callers of `peek()` of any changes in the buffer.
+    </span>should_peek: bool,
+}
+
 <span class="doccomment">/// Async envelope buffering interface.
 ///
 /// Access to the buffer is synchronized by a tokio lock.
@@ -351,7 +369,6 @@
     </span>inner: tokio::sync::Mutex&lt;Inner&gt;,
     <span class="doccomment">/// Used to notify callers of `peek()` of any changes in the buffer.
     </span>notify: tokio::sync::Notify,
-
     <span class="doccomment">/// Metric that counts how many push operations are waiting.
     </span>inflight_push_count: AtomicU64,
 }
@@ -366,7 +383,7 @@
             <span class="prelude-val">Some</span>(<span class="self">Self </span>{
                 inner: tokio::sync::Mutex::new(Inner {
                     backend: PolymorphicEnvelopeBuffer::from_config(config),
-                    changed: <span class="bool-val">true</span>,
+                    should_peek: <span class="bool-val">true</span>,
                 }),
                 notify: tokio::sync::Notify::new(),
                 inflight_push_count: AtomicU64::new(<span class="number">0</span>),
@@ -393,23 +410,19 @@
         });
     }
 
-    <span class="kw">pub fn </span>inflight_push_count(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; u64 {
-        <span class="self">self</span>.inflight_push_count.load(Ordering::Relaxed)
-    }
-
     <span class="doccomment">/// Returns a reference to the next-in-line envelope.
     ///
     /// If the buffer is empty or has not changed since the last peek, this function will sleep
     /// until something changes in the buffer.
-    </span><span class="kw">pub async fn </span>peek(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Peek {
+    </span><span class="kw">pub async fn </span>peek(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; EnvelopeBufferGuard {
         <span class="kw">loop </span>{
             <span class="kw">let </span><span class="kw-2">mut </span>guard = <span class="self">self</span>.inner.lock().<span class="kw">await</span>;
-            <span class="kw">if </span>guard.changed {
+            <span class="kw">if </span>guard.should_peek {
                 <span class="kw">match </span>guard.backend.peek().<span class="kw">await </span>{
                     <span class="prelude-val">Ok</span>(envelope) =&gt; {
                         <span class="kw">if </span>envelope.is_some() {
-                            guard.changed = <span class="bool-val">false</span>;
-                            <span class="kw">return </span>Peek {
+                            guard.should_peek = <span class="bool-val">false</span>;
+                            <span class="kw">return </span>EnvelopeBufferGuard {
                                 guard,
                                 notify: <span class="kw-2">&amp;</span><span class="self">self</span>.notify,
                             };
@@ -423,20 +436,28 @@
                     }
                 };
             }
-            drop(guard); <span class="comment">// release the lock
+            <span class="comment">// Release the lock before waiting for new notifications, otherwise we will indefinitely
+            // block.
+            </span>drop(guard);
+            <span class="comment">// We wait to get notified for any changes in the buffer.
             </span><span class="self">self</span>.notify.notified().<span class="kw">await</span>;
         }
     }
 
     <span class="doccomment">/// Marks a project as ready or not ready.
     ///
-    /// The buffer reprioritizes its envelopes based on this information.
+    /// The buffer re-prioritizes its envelopes based on this information.
     </span><span class="kw">pub async fn </span>mark_ready(<span class="kw-2">&amp;</span><span class="self">self</span>, project_key: <span class="kw-2">&amp;</span>ProjectKey, ready: bool) {
         <span class="kw">let </span><span class="kw-2">mut </span>guard = <span class="self">self</span>.inner.lock().<span class="kw">await</span>;
         <span class="kw">let </span>changed = guard.backend.mark_ready(project_key, ready);
         <span class="kw">if </span>changed {
             <span class="self">self</span>.notify(<span class="kw-2">&amp;mut </span>guard);
         }
+    }
+
+    <span class="doccomment">/// Returns the count of how many pushes are in flight and not been finished.
+    </span><span class="kw">pub fn </span>inflight_push_count(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; u64 {
+        <span class="self">self</span>.inflight_push_count.load(Ordering::Relaxed)
     }
 
     <span class="doccomment">/// Adds an envelope to the buffer and wakes any waiting consumers.
@@ -447,8 +468,9 @@
         <span class="prelude-val">Ok</span>(())
     }
 
-    <span class="kw">fn </span>notify(<span class="kw-2">&amp;</span><span class="self">self</span>, guard: <span class="kw-2">&amp;mut </span>MutexGuard&lt;Inner&gt;) {
-        guard.changed = <span class="bool-val">true</span>;
+    <span class="doccomment">/// Notifies the waiting tasks that a change has happened in the buffer.
+    </span><span class="kw">fn </span>notify(<span class="kw-2">&amp;</span><span class="self">self</span>, guard: <span class="kw-2">&amp;mut </span>MutexGuard&lt;Inner&gt;) {
+        guard.should_peek = <span class="bool-val">true</span>;
         <span class="self">self</span>.notify.notify_waiters();
     }
 }
@@ -456,12 +478,12 @@
 <span class="doccomment">/// A view onto the next envelope in the buffer.
 ///
 /// Objects of this type can only exist if the buffer is not empty.
-</span><span class="kw">pub struct </span>Peek&lt;<span class="lifetime">'a</span>&gt; {
+</span><span class="kw">pub struct </span>EnvelopeBufferGuard&lt;<span class="lifetime">'a</span>&gt; {
     guard: MutexGuard&lt;<span class="lifetime">'a</span>, Inner&gt;,
     notify: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>tokio::sync::Notify,
 }
 
-<span class="kw">impl </span>Peek&lt;<span class="lifetime">'_</span>&gt; {
+<span class="kw">impl </span>EnvelopeBufferGuard&lt;<span class="lifetime">'_</span>&gt; {
     <span class="doccomment">/// Returns a reference to the next envelope.
     </span><span class="kw">pub async fn </span>get(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="kw-2">&amp;</span>Envelope, EnvelopeBufferError&gt; {
         <span class="prelude-val">Ok</span>(<span class="self">self
@@ -474,7 +496,7 @@
 
     <span class="doccomment">/// Pops the next envelope from the buffer.
     ///
-    /// This functions consumes the [`Peek`].
+    /// This functions consumes the [`EnvelopeBufferGuard`].
     </span><span class="kw">pub async fn </span>remove(<span class="kw-2">mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;Box&lt;Envelope&gt;, EnvelopeBufferError&gt; {
         <span class="self">self</span>.notify();
         <span class="prelude-val">Ok</span>(<span class="self">self
@@ -487,7 +509,7 @@
 
     <span class="doccomment">/// Sync version of [`GuardedEnvelopeBuffer::mark_ready`].
     ///
-    /// Since [`Peek`] already has exclusive access to the buffer, it can mark projects as ready
+    /// Since [`EnvelopeBufferGuard`] already has exclusive access to the buffer, it can mark projects as ready
     /// without awaiting the lock.
     </span><span class="kw">pub fn </span>mark_ready(<span class="kw-2">&amp;mut </span><span class="self">self</span>, project_key: <span class="kw-2">&amp;</span>ProjectKey, ready: bool) {
         <span class="kw">let </span>changed = <span class="self">self</span>.guard.backend.mark_ready(project_key, ready);
@@ -496,17 +518,11 @@
         }
     }
 
-    <span class="kw">fn </span>notify(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
-        <span class="self">self</span>.guard.changed = <span class="bool-val">true</span>;
+    <span class="doccomment">/// Notifies the waiting tasks that a change has happened in the buffer.
+    </span><span class="kw">fn </span>notify(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
+        <span class="self">self</span>.guard.should_peek = <span class="bool-val">true</span>;
         <span class="self">self</span>.notify.notify_waiters();
     }
-}
-
-<span class="attr">#[derive(Debug)]
-</span><span class="kw">struct </span>Inner {
-    backend: PolymorphicEnvelopeBuffer,
-    <span class="doccomment">/// Used to notify callers of `peek()` of any changes in the buffer.
-    </span>changed: bool,
 }
 
 <span class="attr">#[cfg(test)]
