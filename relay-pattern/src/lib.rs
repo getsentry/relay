@@ -385,7 +385,7 @@ impl<'a> Parser<'a> {
             match c {
                 '?' => self.push_token(Token::Any(1)),
                 '*' => self.push_token(Token::Wildcard),
-                '[' => self.parse_class()?, // TODO escapes in classes
+                '[' => self.parse_class()?,
                 ']' => return Err(ErrorKind::UnbalancedCharacterClass),
                 '\\' => match self.advance() {
                     Some(c) => self.push_literal(c),
