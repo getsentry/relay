@@ -7,7 +7,7 @@ pre-build = [
     # Enable multiarch and install the necessary dependencies
     "dpkg --add-architecture $CROSS_DEB_ARCH",
     "apt-get update",
-    "apt-get -y install libclang-8-dev clang-8 zlib1g-dev:$CROSS_DEB_ARCH",
+    "apt-get -y install libclang-8-dev zlib1g-dev:$CROSS_DEB_ARCH",
 
     "curl -sL https://sentry.io/get-cli/ | sh",
 ]
@@ -15,8 +15,4 @@ pre-build = [
 [target.aarch64-unknown-linux-gnu]
 # We're using a nightly `cross`, let's still use a stable image.
 image = "ghcr.io/cross-rs/aarch64-unknown-linux-gnu:edge"
-env.passthrough = [
-    "CMAKE_TOOLCHAIN_FILE_aarch64_unknown_linux_gnu=",
-    "CXX=/usr/aarch64-linux-gnu/bin/g++",
-    "CC=/usr/aarch64-linux-gnu/bin/gcc",
-]
+env.passthrough = ["CMAKE_TOOLCHAIN_FILE_aarch64_unknown_linux_gnu="]
