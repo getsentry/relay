@@ -38,8 +38,8 @@ impl PolymorphicEnvelopeBuffer {
         if config.spool_envelopes_path().is_some() {
             panic!("Disk backend not yet supported for spool V2");
         }
-        // TODO: use configuration.
-        Self::InMemory(EnvelopeBuffer::<MemoryStackProvider>::new(100))
+
+        Self::InMemory(EnvelopeBuffer::<MemoryStackProvider>::new(config))
     }
 
     /// Adds an envelope to the buffer.
@@ -72,7 +72,7 @@ impl PolymorphicEnvelopeBuffer {
 
     /// Marks a project as ready or not ready.
     ///
-    /// The buffer reprioritizes its envelopes based on this information.
+    /// The buffer re-prioritizes its envelopes based on this information.
     pub fn mark_ready(&mut self, project: &ProjectKey, is_ready: bool) -> bool {
         match self {
             Self::Sqlite(buffer) => buffer.mark_ready(project, is_ready),
@@ -93,7 +93,7 @@ pub enum EnvelopeBufferError {
 
 /// An envelope buffer that holds an individual stack for each project/sampling project combination.
 ///
-/// Envelope stacks are organized in a priority queue, and are reprioritized every time an envelope
+/// Envelope stacks are organized in a priority queue, and are re-prioritized every time an envelope
 /// is pushed, popped, or when a project becomes ready.
 #[derive(Debug)]
 struct EnvelopeBuffer<P: StackProvider> {
@@ -112,12 +112,12 @@ struct EnvelopeBuffer<P: StackProvider> {
 
 impl EnvelopeBuffer<MemoryStackProvider> {
     /// Creates an empty buffer.
-    pub fn new(max_evictable_stacks: usize) -> Self {
+    pub fn new(config: &Config) -> Self {
         Self {
             stacks_by_project: Default::default(),
             priority_queue: Default::default(),
             stack_provider: MemoryStackProvider,
-            max_evictable_stacks,
+            max_evictable_stacks: config.spool_envelopes_stack_max_evictable_stacks(),
         }
     }
 }
