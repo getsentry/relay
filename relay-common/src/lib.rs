@@ -10,7 +10,6 @@ mod macros;
 
 pub mod glob2;
 pub mod glob3;
-pub mod pattern;
 pub mod time;
 
 pub use sentry_types::{Auth, Dsn, ParseAuthError, ParseDsnError, Scheme};

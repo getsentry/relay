@@ -3678,7 +3678,6 @@ dependencies = [
  "chrono",
  "criterion",
  "globset",
- "memchr",
  "once_cell",
  "regex-lite",
  "sentry-types",
@@ -3940,6 +3939,15 @@ dependencies = [
  "similar-asserts",
  "thiserror",
  "uuid",
+]
+
+[[package]]
+name = "relay-pattern"
+version = "24.7.1"
+dependencies = [
+ "criterion",
+ "memchr",
+ "regex-lite",
 ]
 
 [[package]]

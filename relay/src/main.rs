@@ -51,7 +51,8 @@
 //!  - [`relay-log`]: Error reporting and logging.
 //!  - [`relay-metrics`]: Metrics protocol and processing.
 //!  - [`relay-monitors`]: Monitors protocol and processing for Sentry.
-//!  - [`relay-pii`]: Scrubbing of personally identifiable information (PII) from events
+//!  - [`relay-pattern`]: A glob like pattern used throughout Relay.
+//!  - [`relay-pii`]: Scrubbing of personally identifiable information (PII) from events.
 //!  - [`relay-profiling`]: Profiling protocol and processing.
 //!  - [`relay-protocol`]: Types and traits for building JSON-based protocols and schemas.
 //!  - [`relay-protocol-derive`]: Derives for Relay's protocol traits.
@@ -96,6 +97,7 @@
 //! [`relay-log`]: ../relay_log/index.html
 //! [`relay-metrics`]: ../relay_metrics/index.html
 //! [`relay-monitors`]: ../relay_monitors/index.html
+//! [`relay-pattern`]: ../relay_pattern/index.html
 //! [`relay-pii`]: ../relay_pii/index.html
 //! [`relay-profiling`]: ../relay_profiling/index.html
 //! [`relay-protocol`]: ../relay_protocol/index.html
