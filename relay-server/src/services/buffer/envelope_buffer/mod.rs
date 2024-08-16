@@ -130,8 +130,7 @@ impl EnvelopeBuffer<SqliteStackProvider> {
             stacks_by_project: Default::default(),
             priority_queue: Default::default(),
             stack_provider: SqliteStackProvider::new(config).await?,
-            // TODO: add configuration.
-            max_evictable_stacks: 10,
+            max_evictable_stacks: config.spool_envelopes_stack_max_evictable_stacks(),
         })
     }
 }

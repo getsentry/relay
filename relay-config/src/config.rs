@@ -865,6 +865,11 @@ fn spool_envelopes_max_envelope_delay_secs() -> u64 {
     24 * 60 * 60
 }
 
+/// Default maximum number of stacks that can be evicted.
+fn spool_envelopes_max_evictable_stacks() -> usize {
+    100
+}
+
 /// Default maximum number of envelopes that can be evicted for each stack.
 fn spool_envelopes_max_evictable_envelopes() -> usize {
     100
@@ -909,6 +914,9 @@ pub struct EnvelopeSpool {
     /// they are dropped. Defaults to 24h.
     #[serde(default = "spool_envelopes_max_envelope_delay_secs")]
     max_envelope_delay_secs: u64,
+    /// Maximum number of stacks that can be evicted.
+    #[serde(default = "spool_envelopes_max_evictable_stacks")]
+    max_evictable_stacks: usize,
     /// Maximum number of envelopes that can be evicted for each stack.
     #[serde(default = "spool_envelopes_max_evictable_envelopes")]
     max_evictable_envelopes: usize,
@@ -947,6 +955,7 @@ impl Default for EnvelopeSpool {
             disk_batch_size: spool_envelopes_stack_disk_batch_size(),
             max_batches: spool_envelopes_stack_max_batches(),
             max_envelope_delay_secs: spool_envelopes_max_envelope_delay_secs(),
+            max_evictable_stacks: spool_envelopes_max_evictable_stacks(),
             max_evictable_envelopes: spool_envelopes_max_evictable_envelopes(),
             version: EnvelopeSpoolVersion::default(),
         }
@@ -2157,6 +2166,11 @@ impl Config {
     /// flushing one batch to disk.
     pub fn spool_envelopes_stack_max_batches(&self) -> usize {
         self.values.spool.envelopes.max_batches
+    }
+
+    /// Maximum number of stacks that can be evicted.
+    pub fn spool_envelopes_stack_max_evictable_stacks(&self) -> usize {
+        self.values.spool.envelopes.max_evictable_stacks
     }
 
     /// Maximum number of envelopes that can be evicted per stack.
