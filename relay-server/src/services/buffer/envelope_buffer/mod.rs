@@ -563,9 +563,21 @@ mod tests {
         envelope
     }
 
+    fn mock_config() -> Config {
+        Config::from_json_value(serde_json::json!({
+            "spool": {
+                "envelopes": {
+                    "version": "experimental",
+                    "max_evictable_stacks": 3
+                }
+            }
+        }))
+        .unwrap()
+    }
+
     #[tokio::test]
     async fn test_insert_pop() {
-        let mut buffer = EnvelopeBuffer::<MemoryStackProvider>::new(10);
+        let mut buffer = EnvelopeBuffer::<MemoryStackProvider>::new(&mock_config());
 
         let project_key1 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
         let project_key2 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
@@ -649,7 +661,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_project_internal_order() {
-        let mut buffer = EnvelopeBuffer::<MemoryStackProvider>::new(10);
+        let mut buffer = EnvelopeBuffer::<MemoryStackProvider>::new(&mock_config());
 
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
 
@@ -676,7 +688,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_sampling_projects() {
-        let mut buffer = EnvelopeBuffer::<MemoryStackProvider>::new(10);
+        let mut buffer = EnvelopeBuffer::<MemoryStackProvider>::new(&mock_config());
 
         let project_key1 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
         let project_key2 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fef").unwrap();
@@ -754,7 +766,7 @@ mod tests {
 
         assert_ne!(stack_key1, stack_key2);
 
-        let mut buffer = EnvelopeBuffer::<MemoryStackProvider>::new(10);
+        let mut buffer = EnvelopeBuffer::<MemoryStackProvider>::new(&mock_config());
         buffer
             .push(new_envelope(project_key1, Some(project_key2), None))
             .await
@@ -768,7 +780,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_last_peek_internal_order() {
-        let mut buffer = EnvelopeBuffer::<MemoryStackProvider>::new(10);
+        let mut buffer = EnvelopeBuffer::<MemoryStackProvider>::new(&mock_config());
 
         let project_key_1 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
         let event_id_1 = EventId::new();
@@ -798,7 +810,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_eviction() {
-        let mut buffer = EnvelopeBuffer::<MemoryStackProvider>::new(3);
+        let mut buffer = EnvelopeBuffer::<MemoryStackProvider>::new(&mock_config());
 
         let project_key_1 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
         let project_key_2 = ProjectKey::parse("b56ae32be2584e0bbd7a4cbb95971fed").unwrap();
