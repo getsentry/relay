@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 24.8.0
 
 **Bug Fixes**:
 
@@ -24,6 +24,7 @@
 - Extract client sdk from transaction into profiles. ([#3915](https://github.com/getsentry/relay/pull/3915))
 - Extract `user.geo.subregion` into span metrics/indexed. ([#3914](https://github.com/getsentry/relay/pull/3914))
 - Add `last_peek` field to the `Priority` struct. ([#3922](https://github.com/getsentry/relay/pull/3922))
+- Extract `user.geo.subregion` for mobile spans. ([#3927](https://github.com/getsentry/relay/pull/3927))
 - Rename `Peek` to `EnvelopeBufferGuard`. ([#3930](https://github.com/getsentry/relay/pull/3930))
 
 ## 24.7.1
