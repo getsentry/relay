@@ -3948,6 +3948,7 @@ dependencies = [
  "criterion",
  "memchr",
  "regex-lite",
+ "relay-common",
 ]
 
 [[package]]

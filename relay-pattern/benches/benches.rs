@@ -2,7 +2,7 @@ use criterion::measurement::WallTime;
 use criterion::{criterion_group, criterion_main, BenchmarkGroup, Criterion};
 
 use relay_common::glob3::GlobPatterns;
-use relay_common::pattern::Pattern;
+use relay_pattern::Pattern;
 
 fn bench(group: &mut BenchmarkGroup<'_, WallTime>, haystack: &str, needle: &str) {
     group.bench_function("pattern", |b| {

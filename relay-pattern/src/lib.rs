@@ -147,17 +147,9 @@ impl<'a> PatternBuilder<'a> {
 }
 
 /// Options to influence [`Pattern`] matching behaviour.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Default)]
 struct Options {
     case_insensitive: bool,
-}
-
-impl Default for Options {
-    fn default() -> Self {
-        Self {
-            case_insensitive: true,
-        }
-    }
 }
 
 /// Matching strategy for a [`Pattern`].
@@ -733,6 +725,8 @@ mod tests {
     #[test]
     fn test_literal() {
         assert_pattern!("foo", "foo");
+        assert_pattern!("foo", NOT "fOo");
+        assert_pattern!("foo", NOT "FOO");
         assert_pattern!("f{}o", "f{}o");
         assert_pattern!("f}o", "f}o");
         assert_pattern!("f{o", "f{o");
@@ -774,6 +768,8 @@ mod tests {
         assert_pattern!("foo*", NOT "fo");
         assert_pattern!("foo*", NOT "fob");
         assert_pattern!("foo*", NOT "boo");
+        assert_pattern!("foo*", NOT "Foo");
+        assert_pattern!("foo*", NOT "FOO___");
 
         // No special slash handling
         assert_pattern!("foo/bar*", "foo/bar___");
@@ -822,6 +818,8 @@ mod tests {
         assert_pattern!("*foo", NOT "fo");
         assert_pattern!("*foo", NOT "fob");
         assert_pattern!("*foo", NOT "boo");
+        assert_pattern!("*foo", NOT "Foo");
+        assert_pattern!("*foo", NOT "___FOO");
 
         // No special slash handling
         assert_pattern!("*foo/bar", "___foo/bar");
@@ -864,6 +862,8 @@ mod tests {
         assert_pattern!("*foo*", NOT "oo___");
         assert_pattern!("*foo*", NOT "___fo___");
         assert_pattern!("*foo*", NOT "fඞo");
+        assert_pattern!("*foo*", NOT "___fOo___");
+        assert_pattern!("*foo*", NOT "___FOO___");
 
         // No special slash handling
         assert_pattern!("*foo*", "foo");
@@ -949,6 +949,7 @@ mod tests {
         assert_pattern!("a?a?a", "aaaaa");
         assert_pattern!("a?a?a", "abaca");
         assert_pattern!("a?a?a", NOT "ab_ca");
+        assert_pattern!("a?a?a", NOT "aaAaa");
         assert_pattern!("???????????x???????????", "???????????x???????????");
         assert_pattern!("???????????x???????????", "??______???x?????_?????");
         assert_pattern!("???????????x???????????", NOT "?______???x?????_?????");
@@ -998,6 +999,7 @@ mod tests {
         assert_pattern!("[a]", "a");
         assert_pattern!("[a]", NOT "[a]");
         assert_pattern!("[a]", NOT "b");
+        assert_pattern!("[a]", NOT "A");
         assert_pattern!("[ඞ]", "ඞ");
         assert_pattern!("[ඞ]", NOT "a");
         assert_pattern!("[ඞa]", "a");
@@ -1008,6 +1010,7 @@ mod tests {
         assert_pattern!("[ab]", NOT "c");
         assert_pattern!("x[ab]x", "xax");
         assert_pattern!("x[ab]x", "xbx");
+        assert_pattern!("x[ab]x", NOT "xBx");
         assert_pattern!("x[ab]x", NOT "xcx");
         assert_pattern!("x[ab]x", NOT "aax");
         assert_pattern!("x[ab]x", NOT "xaa");
@@ -1083,19 +1086,21 @@ mod tests {
 
     #[test]
     fn test_classes_case_insensitive() {
-        assert_pattern!("[a]", "a");
-        assert_pattern!("[a]", "A");
-        assert_pattern!("x[ab]x", "xAX");
-        assert_pattern!("x[ab]x", "XBx");
-        assert_pattern!("x[ab]x", NOT "Xcx");
-        assert_pattern!("x[ab]x", NOT "aAx");
-        assert_pattern!("x[ab]x", NOT "xAa");
+        assert_pattern!("[a]", "a", i);
+        assert_pattern!("[a]", "A", i);
+        assert_pattern!("x[ab]x", "xAX", i);
+        assert_pattern!("x[ab]x", "XBx", i);
+        assert_pattern!("x[ab]x", NOT "Xcx", i);
+        assert_pattern!("x[ab]x", NOT "aAx", i);
+        assert_pattern!("x[ab]x", NOT "xAa", i);
     }
 
     #[test]
     fn test_classes_negated() {
         assert_pattern!("[!]", "");
         assert_pattern!("[!a]", "b");
+        assert_pattern!("[!a]", "A");
+        assert_pattern!("[!a]", "B");
         assert_pattern!("[!b]", NOT "b");
         assert_pattern!("[!ab]", NOT "a");
         assert_pattern!("[!ab]", NOT "b");
@@ -1112,6 +1117,7 @@ mod tests {
         assert_pattern!("[!a-c]", NOT "b");
         assert_pattern!("[!a-c]", NOT "c");
         assert_pattern!("[!a-c]", "d");
+        assert_pattern!("[!a-c]", "A");
         assert_pattern!("[!a-c]", "ඞ");
         assert_pattern!(r"[!a-c\\]", "d");
         assert_pattern!(r"[!a-c\\]", NOT r"\");
@@ -1123,16 +1129,16 @@ mod tests {
 
     #[test]
     fn test_classes_negated_case_insensitive() {
-        assert_pattern!("[!a]", "b");
-        assert_pattern!("[!a]", "B");
-        assert_pattern!("[!b]", NOT "b");
-        assert_pattern!("[!b]", NOT "B");
-        assert_pattern!("[!ab]", NOT "a");
-        assert_pattern!("[!ab]", NOT "A");
-        assert_pattern!("[!ab]", NOT "b");
-        assert_pattern!("[!ab]", NOT "B");
-        assert_pattern!("[!ab]", "c");
-        assert_pattern!("[!ab]", "C");
+        assert_pattern!("[!a]", "b", i);
+        assert_pattern!("[!a]", "B", i);
+        assert_pattern!("[!b]", NOT "b", i);
+        assert_pattern!("[!b]", NOT "B", i);
+        assert_pattern!("[!ab]", NOT "a", i);
+        assert_pattern!("[!ab]", NOT "A", i);
+        assert_pattern!("[!ab]", NOT "b", i);
+        assert_pattern!("[!ab]", NOT "B", i);
+        assert_pattern!("[!ab]", "c", i);
+        assert_pattern!("[!ab]", "C", i);
     }
 
     #[test]
