@@ -3677,9 +3677,9 @@ version = "24.8.0"
 dependencies = [
  "chrono",
  "criterion",
- "globset",
  "once_cell",
  "regex-lite",
+ "relay-pattern",
  "sentry-types",
  "serde",
  "serde_test",
@@ -3948,7 +3948,6 @@ dependencies = [
  "criterion",
  "memchr",
  "regex-lite",
- "relay-common",
 ]
 
 [[package]]

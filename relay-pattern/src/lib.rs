@@ -74,7 +74,7 @@ impl fmt::Display for Error {
 }
 
 /// `Pattern` represents a successfully parsed Relay pattern.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Pattern {
     pattern: String,
     options: Options,
@@ -163,7 +163,7 @@ struct Options {
 ///
 /// Certain patterns can be matched more efficiently while the complex
 /// patterns fallback to a regex.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 enum MatchStrategy {
     /// The pattern is a single literal string.
     ///

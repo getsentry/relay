@@ -18,7 +18,6 @@ regex-lite = { workspace = true }
 
 [dev-dependencies]
 criterion = { workspace = true }
-relay-common = { workspace = true }
 
 [[bench]]
 name = "benches"

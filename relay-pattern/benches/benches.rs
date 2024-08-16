@@ -1,19 +1,12 @@
 use criterion::measurement::WallTime;
 use criterion::{criterion_group, criterion_main, BenchmarkGroup, Criterion};
 
-use relay_common::glob3::GlobPatterns;
 use relay_pattern::Pattern;
 
 fn bench(group: &mut BenchmarkGroup<'_, WallTime>, haystack: &str, needle: &str) {
     group.bench_function("pattern", |b| {
         let pattern = Pattern::new(needle).unwrap();
         b.iter(|| assert!(pattern.is_match(haystack)))
-    });
-
-    group.bench_function("glob3", |b| {
-        let glob = GlobPatterns::new(vec![needle.to_owned()]);
-        assert!(glob.is_match(haystack)); // Force initialization
-        b.iter(|| assert!(glob.is_match(haystack)))
     });
 }
 

@@ -14,9 +14,9 @@ workspace = true
 
 [dependencies]
 chrono = { workspace = true }
-globset = { workspace = true }
 once_cell = { workspace = true }
 regex-lite = { workspace = true }
+relay-pattern = { workspace = true }
 sentry-types = { workspace = true }
 serde = { workspace = true }
 
