@@ -118,6 +118,13 @@ mod tests {
     }
 
     #[test]
+    fn test_match_empty() {
+        let globs = globs!("");
+        assert!(!globs.is_match("foo"));
+        assert!(!globs.is_match(""));
+    }
+
+    #[test]
     fn test_match_literal() {
         let globs = globs!("foo");
         assert!(globs.is_match("foo"));
@@ -189,5 +196,12 @@ mod tests {
         let globs = globs!("!1.18.4.*");
         assert!(!globs.is_match("1.18.4.2153-2aa83397b"));
         assert!(!globs.is_match("1.18.5.2153-2aa83397b"));
+    }
+
+    #[test]
+    fn test_match_escape_brace() {
+        let globs = globs!(r"/api/0/organizations/\{organization_slug\}/event*");
+        assert!(globs.is_match("/api/0/organizations/{organization_slug}/event/foobar"));
+        assert!(!globs.is_match(r"/api/0/organizations/\{organization_slug\}/event/foobar"));
     }
 }

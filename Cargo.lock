@@ -3676,6 +3676,7 @@ name = "relay-common"
 version = "24.8.0"
 dependencies = [
  "chrono",
+ "criterion",
  "globset",
  "once_cell",
  "regex-lite",
@@ -3938,6 +3939,16 @@ dependencies = [
  "similar-asserts",
  "thiserror",
  "uuid",
+]
+
+[[package]]
+name = "relay-pattern"
+version = "24.7.1"
+dependencies = [
+ "criterion",
+ "memchr",
+ "regex-lite",
+ "relay-common",
 ]
 
 [[package]]
