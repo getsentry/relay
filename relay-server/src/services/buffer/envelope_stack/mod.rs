@@ -21,8 +21,14 @@ pub trait EnvelopeStack: Send + std::fmt::Debug {
     fn pop(&mut self) -> impl Future<Output = Result<Option<Box<Envelope>>, Self::Error>>;
 }
 
+/// An object that can support eviction.
+pub trait Evictable: Send + std::fmt::Debug {
+    /// Evicts data from an [`Evictable`].
+    fn evict(&mut self) -> impl Future<Output = ()>;
+}
+
 pub trait StackProvider: std::fmt::Debug {
-    type Stack: EnvelopeStack;
+    type Stack: EnvelopeStack + Evictable;
 
     fn create_stack(&self, envelope: Box<Envelope>) -> Self::Stack;
 }

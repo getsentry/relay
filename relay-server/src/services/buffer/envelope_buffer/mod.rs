@@ -8,7 +8,7 @@ use relay_config::Config;
 
 use crate::envelope::Envelope;
 use crate::services::buffer::envelope_stack::sqlite::SqliteEnvelopeStackError;
-use crate::services::buffer::envelope_stack::{EnvelopeStack, StackProvider};
+use crate::services::buffer::envelope_stack::{EnvelopeStack, Evictable, StackProvider};
 use crate::services::buffer::sqlite_envelope_store::SqliteEnvelopeStoreError;
 use crate::services::buffer::stack_provider::memory::MemoryStackProvider;
 use crate::services::buffer::stack_provider::sqlite::SqliteStackProvider;
@@ -281,7 +281,8 @@ where
     }
 
     /// Evicts the least recently used stacks.
-    pub fn evict(&mut self) {
+    #[allow(dead_code)]
+    pub async fn evict(&mut self) {
         #[derive(Debug, Copy, Clone)]
         struct LRUItem(StackKey, Readiness, Instant);
 
@@ -313,8 +314,9 @@ where
         for (queue_item, priority) in self.priority_queue.iter() {
             let lru_item = LRUItem(queue_item.key, priority.readiness, queue_item.last_update);
 
-            // If we exceed the size, we want to pop the greatest element, so that we end up with
-            // the smallest elements which are the ones with the lowest priority.
+            // If we exceed the size, we want to pop the greatest element only if we have a smaller
+            // element, so that we end up with the smallest elements which are the ones with the
+            // lowest priority.
             if lru.len() >= self.max_evictable_stacks {
                 let Some(top_lru_item) = lru.peek() else {
                     continue;
@@ -328,10 +330,12 @@ where
             lru.push(lru_item);
         }
 
-        // We go over each element and remove it from the stack. The removal will call the `drop`
-        // method of the `EnvelopeStack` which will have a specific behavior.
+        // We go over each element and remove it from the stack. After removal, we will evict
+        // elements from each popped stack.
         for lru_item in lru {
-            self.pop_stack(lru_item.0);
+            if let Some(mut stack) = self.pop_stack(lru_item.0) {
+                stack.evict().await;
+            }
         }
     }
 
@@ -358,7 +362,7 @@ where
         );
     }
 
-    fn pop_stack(&mut self, stack_key: StackKey) {
+    fn pop_stack(&mut self, stack_key: StackKey) -> Option<P::Stack> {
         for project_key in stack_key.iter() {
             let stack_keys = self
                 .stacks_by_project
@@ -372,11 +376,14 @@ where
                 stack_keys.remove(&stack_key);
             };
         }
-        self.priority_queue.remove(&stack_key);
+
+        let stack = self.priority_queue.remove(&stack_key);
 
         relay_statsd::metric!(
             gauge(RelayGauges::BufferStackCount) = self.priority_queue.len() as u64
         );
+
+        stack.map(|(q, _)| q.value)
     }
 }
 
@@ -813,7 +820,7 @@ mod tests {
         buffer.mark_ready(&project_key_1, true);
         buffer.mark_ready(&project_key_2, true);
 
-        buffer.evict();
+        buffer.evict().await;
 
         assert_eq!(buffer.priority_queue.len(), 1);
         // We expect that only the 2nd envelope is kept, since the last 2 have non-ready projects

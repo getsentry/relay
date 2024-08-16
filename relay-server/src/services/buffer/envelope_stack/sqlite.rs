@@ -5,7 +5,7 @@ use std::num::NonZeroUsize;
 use relay_base_schema::project::ProjectKey;
 
 use crate::envelope::Envelope;
-use crate::services::buffer::envelope_stack::EnvelopeStack;
+use crate::services::buffer::envelope_stack::{EnvelopeStack, Evictable};
 use crate::services::buffer::sqlite_envelope_store::{
     EnvelopesOrder, SqliteEnvelopeStore, SqliteEnvelopeStoreError,
 };
@@ -234,27 +234,25 @@ impl EnvelopeStack for SqliteEnvelopeStack {
     }
 }
 
-impl Drop for SqliteEnvelopeStack {
-    fn drop(&mut self) {
-        let own_key = self.own_key;
-        let sampling_key = self.sampling_key;
-        let max_evictable_envelopes = self.max_evictable_envelopes;
-        let envelope_store = self.envelope_store.clone();
+impl Evictable for SqliteEnvelopeStack {
+    async fn evict(&mut self) {
+        // We want to evict all elements in memory.
+        self.batches_buffer.clear();
+        self.batches_buffer_size = 0;
 
-        tokio::spawn(async move {
-            if envelope_store
-                .delete_many(
-                    own_key,
-                    sampling_key,
-                    max_evictable_envelopes.get() as i64,
-                    EnvelopesOrder::Oldest,
-                )
-                .await
-                .is_err()
-            {
-                relay_log::error!("failed to evict envelopes from disk");
-            };
-        });
+        if self
+            .envelope_store
+            .delete_many(
+                self.own_key,
+                self.sampling_key,
+                self.max_evictable_envelopes.get() as i64,
+                EnvelopesOrder::Oldest,
+            )
+            .await
+            .is_err()
+        {
+            relay_log::error!("failed to evict envelopes from disk");
+        };
     }
 }
 

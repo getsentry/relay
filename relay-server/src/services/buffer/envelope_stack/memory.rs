@@ -1,8 +1,7 @@
+use crate::Envelope;
 use std::convert::Infallible;
 
-use crate::Envelope;
-
-use super::EnvelopeStack;
+use super::{EnvelopeStack, Evictable};
 
 #[derive(Debug)]
 pub struct MemoryEnvelopeStack(#[allow(clippy::vec_box)] Vec<Box<Envelope>>);
@@ -27,5 +26,11 @@ impl EnvelopeStack for MemoryEnvelopeStack {
 
     async fn pop(&mut self) -> Result<Option<Box<Envelope>>, Self::Error> {
         Ok(self.0.pop())
+    }
+}
+
+impl Evictable for MemoryEnvelopeStack {
+    async fn evict(&mut self) {
+        self.0.clear()
     }
 }
