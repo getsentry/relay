@@ -592,7 +592,7 @@ mod tests {
                 "foo.bar.internal",
                 "baz.qux.internal",
                 "192.168.1.1",
-                "[fd45:7aa3:7ae4::/48]"
+                "[fd45:7aa3:7ae4::]"
             ]
         }"###;
 
@@ -603,7 +603,7 @@ mod tests {
                 Host::parse("foo.bar.internal").unwrap(),
                 Host::parse("baz.qux.internal").unwrap(),
                 Host::parse("192.168.1.1").unwrap(),
-                Host::parse("[fd45:7aa3:7ae4::/48]").unwrap(),
+                Host::parse("[fd45:7aa3:7ae4::]").unwrap(),
             ]
         );
     }
