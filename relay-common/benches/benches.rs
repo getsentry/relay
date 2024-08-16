@@ -21,6 +21,7 @@ fn literal_match(c: &mut Criterion) {
     let mut group = c.benchmark_group("prefix_match");
 
     const HAYSTACK: &str = "foobarwithacrazylongprefixandanditactuallymatches";
+
     bench(&mut group, HAYSTACK, HAYSTACK);
 
     group.finish();

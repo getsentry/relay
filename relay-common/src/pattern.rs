@@ -11,6 +11,8 @@
 //! in a [`Pattern`] `*` matches all characters. Optional support for a single separator character
 //! is available.
 //!
+//! The empty glob `""` never matches.
+//!
 //! # Syntax
 //!
 //! Basic glob like syntax is supported with Unix style negations.
@@ -68,6 +70,7 @@ impl fmt::Display for Error {
 #[derive(Debug)]
 pub struct Pattern {
     pattern: String,
+    options: Options,
     strategy: MatchStrategy,
 }
 
@@ -80,12 +83,22 @@ impl Pattern {
     /// Create a new [`PatternBuilder`]. The builder can be used to adjust the
     /// pattern settings.
     pub fn builder(pattern: &str) -> PatternBuilder {
-        PatternBuilder { pattern }
+        PatternBuilder {
+            pattern,
+            options: Options::default(),
+        }
     }
 
     /// Returns `true` if the pattern matches the passed string.
-    pub fn is_match(&self, s: &str) -> bool {
-        self.strategy.is_match(s)
+    pub fn is_match(&self, haystack: &str) -> bool {
+        match &self.strategy {
+            MatchStrategy::Literal(literal) => match_literal(literal, haystack, self.options),
+            MatchStrategy::Prefix(prefix) => match_prefix(prefix, haystack, self.options),
+            MatchStrategy::Suffix(suffix) => match_suffix(suffix, haystack, self.options),
+            MatchStrategy::Contains(contains) => match_contains(contains, haystack, self.options),
+            MatchStrategy::Static(matches) => *matches,
+            MatchStrategy::Regex(re) => re.is_match(haystack),
+        }
     }
 }
 
@@ -99,9 +112,18 @@ impl fmt::Display for Pattern {
 #[derive(Debug)]
 pub struct PatternBuilder<'a> {
     pattern: &'a str,
+    options: Options,
 }
 
 impl<'a> PatternBuilder<'a> {
+    /// If enabled matches the pattern case insensitive.
+    ///
+    /// This is disabled by default.
+    pub fn case_insensitive(&mut self, enabled: bool) -> &mut Self {
+        self.options.case_insensitive = enabled;
+        self
+    }
+
     /// build a new [`Pattern`] from the passed pattern and configured options.
     pub fn build(&self) -> Result<Pattern, Error> {
         let mut parser = Parser::new(self.pattern);
@@ -110,15 +132,31 @@ impl<'a> PatternBuilder<'a> {
             kind,
         })?;
 
-        let strategy = MatchStrategy::from_tokens(parser.tokens).map_err(|kind| Error {
-            pattern: self.pattern.to_owned(),
-            kind,
-        })?;
+        let strategy =
+            MatchStrategy::from_tokens(parser.tokens, self.options).map_err(|kind| Error {
+                pattern: self.pattern.to_owned(),
+                kind,
+            })?;
 
         Ok(Pattern {
             pattern: self.pattern.to_owned(),
+            options: self.options,
             strategy,
         })
+    }
+}
+
+/// Options to influence [`Pattern`] matching behaviour.
+#[derive(Debug, Clone, Copy)]
+struct Options {
+    case_insensitive: bool,
+}
+
+impl Default for Options {
+    fn default() -> Self {
+        Self {
+            case_insensitive: true,
+        }
     }
 }
 
@@ -130,22 +168,30 @@ impl<'a> PatternBuilder<'a> {
 enum MatchStrategy {
     /// The pattern is a single literal string.
     ///
-    /// Example: `foobar`.
+    /// The stored string is converted to lowercase for case insensitive patterns.
+    ///
+    /// Example pattern: `foobar`.
     Literal(String),
     /// The pattern only has a single wildcard in the end and can be
     /// matched with a simple prefix check.
     ///
-    /// Example: `foobar*`.
+    /// The stored string is converted to lowercase for case insensitive patterns.
+    ///
+    /// Example pattern: `foobar*`.
     Prefix(String),
     /// The pattern only has a single wildcard at the start and can be
     /// matched with a simple suffix check.
     ///
-    /// Example: `*foobar`.
+    /// The stored string is converted to lowercase for case insensitive patterns.
+    ///
+    /// Example pattern: `*foobar`.
     Suffix(String),
     /// The pattern is surrounded with wildcards and contains a literal in the middle
     /// and can be matched with a simple contains check.
     ///
-    /// Example: `*foobar*`.
+    /// The stored string is converted to lowercase for case insensitive patterns.
+    ///
+    /// Example pattern: `*foobar*`.
     Contains(String),
     /// The pattern always evaluates to a static boolean.
     ///
@@ -153,47 +199,36 @@ enum MatchStrategy {
     Static(bool),
     /// The pattern is complex and compiled to a [`regex_lite::Regex`].
     Regex(regex_lite::Regex),
-    // TODO: LazyRegex
-
     // Possible future optimizations for `Any` variations:
     // Examples: `??`. `??suffix`, `prefix??` and `?contains?`.
 }
 
 impl MatchStrategy {
     /// Create a [`MatchStrategy`] from [`Tokens`].
-    fn from_tokens(mut tokens: Tokens) -> Result<Self, ErrorKind> {
+    fn from_tokens(mut tokens: Tokens, options: Options) -> Result<Self, ErrorKind> {
+        let take_case = |s: &mut String| match options.case_insensitive {
+            true => std::mem::take(s).to_lowercase(),
+            false => std::mem::take(s),
+        };
+
         let s = match tokens.as_mut_slice() {
-            [] => Self::Static(true), // TODO empty glob matches everything or nothing?
+            [] => Self::Static(false),
             [Token::Wildcard] => Self::Static(true),
-            [Token::Literal(literal)] => Self::Literal(std::mem::take(literal)),
-            [Token::Literal(literal), Token::Wildcard] => Self::Prefix(std::mem::take(literal)),
-            [Token::Wildcard, Token::Literal(literal)] => Self::Suffix(std::mem::take(literal)),
+            [Token::Literal(literal)] => Self::Literal(take_case(literal)),
+            [Token::Literal(literal), Token::Wildcard] => Self::Prefix(take_case(literal)),
+            [Token::Wildcard, Token::Literal(literal)] => Self::Suffix(take_case(literal)),
             [Token::Wildcard, Token::Literal(literal), Token::Wildcard] => {
-                Self::Contains(std::mem::take(literal))
+                Self::Contains(take_case(literal))
             }
-            tokens => Self::Regex(to_regex(tokens)?),
+            tokens => Self::Regex(to_regex(tokens, options)?),
         };
 
         Ok(s)
     }
-
-    /// Returns `true` if the strategy matches the passed string.
-    fn is_match(&self, s: &str) -> bool {
-        match self {
-            Self::Literal(lit) => lit == s,
-            Self::Prefix(prefix) => s.starts_with(prefix),
-            Self::Suffix(suffix) => s.ends_with(suffix),
-            Self::Contains(contains) => {
-                memchr::memmem::find(s.as_bytes(), contains.as_bytes()).is_some()
-            }
-            Self::Static(matches) => *matches,
-            Self::Regex(re) => re.is_match(s),
-        }
-    }
 }
 
 /// Convert a list of tokens to a [`regex_lite::Regex`].
-fn to_regex(tokens: &[Token]) -> Result<regex_lite::Regex, ErrorKind> {
+fn to_regex(tokens: &[Token], options: Options) -> Result<regex_lite::Regex, ErrorKind> {
     fn push_class_escaped(sink: &mut String, c: char) {
         match c {
             '\\' => sink.push_str(r"\\"),
@@ -205,6 +240,9 @@ fn to_regex(tokens: &[Token]) -> Result<regex_lite::Regex, ErrorKind> {
 
     let mut re = String::new();
     re.push_str("(?-u)");
+    if options.case_insensitive {
+        re.push_str("(?i)");
+    }
     re.push('^');
     for token in tokens {
         match token {
@@ -256,11 +294,88 @@ fn to_regex(tokens: &[Token]) -> Result<regex_lite::Regex, ErrorKind> {
         .map_err(|err| ErrorKind::Regex(err.to_string()))
 }
 
+#[inline(always)]
+fn match_literal(literal: &str, haystack: &str, options: Options) -> bool {
+    if options.case_insensitive {
+        // Can't do an explicit len compare first here `literal.len() == haystack.len()`,
+        // the amount of characters can change when converting case.
+        debug_assert!(literal.to_lowercase() == literal);
+        let mut literal = literal.chars();
+        let mut haystack = haystack.chars().flat_map(|c| c.to_lowercase());
+
+        loop {
+            match (literal.next(), haystack.next()) {
+                // Both iterators exhausted -> literal matches.
+                (None, None) => break true,
+                // Either iterator exhausted while the other one is not -> no match.
+                (None, _) | (_, None) => break false,
+                (Some(p), Some(h)) if p != h => break false,
+                _ => {}
+            }
+        }
+    } else {
+        literal == haystack
+    }
+}
+
+#[inline(always)]
+fn match_prefix(prefix: &str, haystack: &str, options: Options) -> bool {
+    if options.case_insensitive {
+        debug_assert!(prefix.to_lowercase() == prefix);
+        let mut prefix = prefix.chars();
+        let mut haystack = haystack.chars().flat_map(|c| c.to_lowercase());
+
+        loop {
+            match (prefix.next(), haystack.next()) {
+                // If the prefix is exhausted it matched.
+                (None, _) => break true,
+                // If the haystack is exhausted, but the pattern is not -> no match.
+                (Some(_), None) => break false,
+                (Some(p), Some(h)) if p != h => break false,
+                _ => {}
+            }
+        }
+    } else {
+        haystack.starts_with(prefix)
+    }
+}
+
+#[inline(always)]
+fn match_suffix(suffix: &str, haystack: &str, options: Options) -> bool {
+    if options.case_insensitive {
+        debug_assert!(suffix.to_lowercase() == suffix);
+        let mut suffix = suffix.chars().rev();
+        let mut haystack = haystack.chars().flat_map(|c| c.to_lowercase()).rev();
+
+        loop {
+            match (suffix.next(), haystack.next()) {
+                // If the prefix is exhausted it matched.
+                (None, _) => break true,
+                // If the haystack is exhausted, but the pattern is not -> no match.
+                (Some(_), None) => break false,
+                (Some(s), Some(h)) if s != h => break false,
+                _ => {}
+            }
+        }
+    } else {
+        haystack.ends_with(suffix)
+    }
+}
+
+#[inline(always)]
+fn match_contains(contains: &str, haystack: &str, options: Options) -> bool {
+    if options.case_insensitive {
+        debug_assert!(contains.to_lowercase() == contains);
+        let haystack = haystack.to_lowercase();
+        memchr::memmem::find(haystack.as_bytes(), contains.as_bytes()).is_some()
+    } else {
+        memchr::memmem::find(haystack.as_bytes(), contains.as_bytes()).is_some()
+    }
+}
+
 struct Parser<'a> {
     chars: std::iter::Peekable<std::str::Chars<'a>>,
     tokens: Tokens,
-    current: Option<char>,
-    /// Literal start index as a byte offset in the [`Self::pattern`].
     current_literal: Option<String>,
 }
 
@@ -269,7 +384,6 @@ impl<'a> Parser<'a> {
         Self {
             chars: pattern.chars().peekable(),
             tokens: Default::default(),
-            current: None,
             current_literal: None,
         }
     }
@@ -370,8 +484,7 @@ impl<'a> Parser<'a> {
     }
 
     fn advance(&mut self) -> Option<char> {
-        self.current = self.chars.next();
-        self.current
+        self.chars.next()
     }
 
     fn advance_if(&mut self, matcher: impl FnOnce(char) -> bool) -> bool {
@@ -544,8 +657,15 @@ mod tests {
     use super::*;
 
     macro_rules! assert_pattern {
-        ($pattern:expr, $s:expr) => {{
-            let pattern = Pattern::new($pattern).unwrap();
+        ($pattern:expr, $s:expr $(,$options:tt)?) => {{
+            let mut pattern = Pattern::builder($pattern);
+            for opt in stringify!($($options)?).chars() {
+                match opt {
+                    'i' => { pattern.case_insensitive(true); }
+                    _ => {}
+                }
+            }
+            let pattern = pattern.build().unwrap();
             assert!(
                 pattern.is_match($s),
                 "expected pattern '{}' to match '{}' - {pattern:?}",
@@ -553,8 +673,15 @@ mod tests {
                 $s
             );
         }};
-        ($pattern:expr, NOT $s:expr) => {{
-            let pattern = Pattern::new($pattern).unwrap();
+        ($pattern:expr, NOT $s:expr $(,$options:tt)?) => {{
+            let mut pattern = Pattern::builder($pattern);
+            for opt in stringify!($($options)?).chars() {
+                match opt {
+                    'i' => { pattern.case_insensitive(true); }
+                    _ => {}
+                }
+            }
+            let pattern = pattern.build().unwrap();
             assert!(
                 !pattern.is_match($s),
                 "expected pattern '{}' to not match '{}' - {pattern:?}",
@@ -598,6 +725,12 @@ mod tests {
     }
 
     #[test]
+    fn test_empty() {
+        assert_pattern!("", NOT "");
+        assert_pattern!("", NOT "foo");
+    }
+
+    #[test]
     fn test_literal() {
         assert_pattern!("foo", "foo");
         assert_pattern!("f{}o", "f{}o");
@@ -606,6 +739,15 @@ mod tests {
         assert_pattern!("f{b,a,r}o", "f{b,a,r}o");
         assert_pattern!(r"f\\o", r"f\o");
         assert_pattern!("fඞo", "fඞo");
+    }
+
+    #[test]
+    fn test_literal_case_insensitive() {
+        assert_pattern!("foo", "foo", i);
+        assert_pattern!("foo", "fOo", i);
+        assert_pattern!("fOo", "Foo", i);
+        assert_pattern!("İ", "i\u{307}", i);
+        assert_pattern!("İ", "i̇", i);
     }
 
     #[test]
@@ -637,6 +779,21 @@ mod tests {
         assert_pattern!("foo/bar*", "foo/bar___");
         assert_pattern!("foo*", "foo/bar___");
         assert_pattern!("foo*", NOT "/foo");
+    }
+
+    #[test]
+    fn test_prefix_case_insensitive() {
+        assert_pattern!("foo*", "foo___", i);
+        assert_pattern!("foo*", "fOo___", i);
+        assert_pattern!("foo*", "FOO___", i);
+        assert_pattern!("fOo*", "FOO___", i);
+        assert_pattern!("fOo*", "Foo___", i);
+
+        assert_pattern!("İ*", "İ___", i);
+        assert_pattern!("İ*", "İ", i);
+        assert_pattern!("İ*", "i̇", i);
+        assert_pattern!("İ*", "i\u{307}___", i);
+        assert_pattern!("İ*", NOT "i____", i);
     }
 
     #[test]
@@ -673,6 +830,21 @@ mod tests {
     }
 
     #[test]
+    fn test_suffix_case_insensitive() {
+        assert_pattern!("foo*", "foo___", i);
+        assert_pattern!("foo*", "fOo___", i);
+        assert_pattern!("foo*", "FOO___", i);
+        assert_pattern!("fOo*", "FOO___", i);
+        assert_pattern!("fOo*", "Foo___", i);
+
+        assert_pattern!("*İ", "___İ", i);
+        assert_pattern!("*İ", "İ", i);
+        assert_pattern!("*İ", "i̇", i);
+        assert_pattern!("*İ", "___i\u{307}", i);
+        assert_pattern!("*İ", NOT "___i", i);
+    }
+
+    #[test]
     fn test_suffix_strategy() {
         assert_strategy!("*foo", Suffix);
         assert_strategy!("*?foo", Suffix);
@@ -699,6 +871,35 @@ mod tests {
         assert_pattern!("*foo*", "_/_foo");
         assert_pattern!("*foo*", "_/_foo_/_");
         assert_pattern!("*f/o*", "_/_f/o_/_");
+    }
+
+    #[test]
+    fn test_contains_case_insensitive() {
+        assert_pattern!("*foo*", "foo", i);
+        assert_pattern!("*foo*", "fOo", i);
+        assert_pattern!("*fOo*", "Foo", i);
+        assert_pattern!("*foo*", "___foo___", i);
+        assert_pattern!("*foo*", "___fOo___", i);
+        assert_pattern!("*foo*", "___FOO___", i);
+        assert_pattern!("*fOo*", "___FOO___", i);
+        assert_pattern!("*fOo*", "___Foo___", i);
+
+        assert_pattern!("*İ*", "___İ___", i);
+        assert_pattern!("*İ*", "İ", i);
+        assert_pattern!("*İ*", "___İ", i);
+        assert_pattern!("*İ*", "İ___", i);
+        assert_pattern!("*İ*", "___İ___", i);
+        assert_pattern!("*İ*", "i̇", i);
+        assert_pattern!("*İ*", "___i̇", i);
+        assert_pattern!("*İ*", "i̇___", i);
+        assert_pattern!("*İ*", "___i̇___", i);
+        assert_pattern!("*İ*", "___i\u{307}", i);
+        assert_pattern!("*İ*", "i\u{307}___", i);
+        assert_pattern!("*İ*", "___i\u{307}___", i);
+        assert_pattern!("*İ*", NOT "i", i);
+        assert_pattern!("*İ*", NOT "i___", i);
+        assert_pattern!("*İ*", NOT "___i", i);
+        assert_pattern!("*İ*", NOT "___i___", i);
     }
 
     #[test]
@@ -878,6 +1079,17 @@ mod tests {
     }
 
     #[test]
+    fn test_classes_case_insensitive() {
+        assert_pattern!("[a]", "a");
+        assert_pattern!("[a]", "A");
+        assert_pattern!("x[ab]x", "xAX");
+        assert_pattern!("x[ab]x", "XBx");
+        assert_pattern!("x[ab]x", NOT "Xcx");
+        assert_pattern!("x[ab]x", NOT "aAx");
+        assert_pattern!("x[ab]x", NOT "xAa");
+    }
+
+    #[test]
     fn test_classes_negated() {
         assert_pattern!("[!]", "");
         assert_pattern!("[!a]", "b");
@@ -904,6 +1116,20 @@ mod tests {
         assert_pattern!(r"[!\]]", NOT "]");
         assert_pattern!(r"[!!]", "a");
         assert_pattern!(r"[!!]", NOT "!");
+    }
+
+    #[test]
+    fn test_classes_negated_case_insensitive() {
+        assert_pattern!("[!a]", "b");
+        assert_pattern!("[!a]", "B");
+        assert_pattern!("[!b]", NOT "b");
+        assert_pattern!("[!b]", NOT "B");
+        assert_pattern!("[!ab]", NOT "a");
+        assert_pattern!("[!ab]", NOT "A");
+        assert_pattern!("[!ab]", NOT "b");
+        assert_pattern!("[!ab]", NOT "B");
+        assert_pattern!("[!ab]", "c");
+        assert_pattern!("[!ab]", "C");
     }
 
     #[test]

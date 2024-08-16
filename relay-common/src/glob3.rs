@@ -118,6 +118,13 @@ mod tests {
     }
 
     #[test]
+    fn test_match_empty() {
+        let globs = globs!("");
+        assert!(!globs.is_match("foo"));
+        assert!(!globs.is_match(""));
+    }
+
+    #[test]
     fn test_match_literal() {
         let globs = globs!("foo");
         assert!(globs.is_match("foo"));
