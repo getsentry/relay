@@ -993,6 +993,15 @@
 <a href="#993" id="993">993</a>
 <a href="#994" id="994">994</a>
 <a href="#995" id="995">995</a>
+<a href="#996" id="996">996</a>
+<a href="#997" id="997">997</a>
+<a href="#998" id="998">998</a>
+<a href="#999" id="999">999</a>
+<a href="#1000" id="1000">1000</a>
+<a href="#1001" id="1001">1001</a>
+<a href="#1002" id="1002">1002</a>
+<a href="#1003" id="1003">1003</a>
+<a href="#1004" id="1004">1004</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_base_schema::data_category::DataCategory;
 <span class="kw">use </span>relay_common::glob2::LazyGlob;
 <span class="kw">use </span>relay_event_normalization::utils::MAX_DURATION_MOBILE_MS;
@@ -1263,6 +1272,9 @@
                         </span>Tag::with_key(<span class="string">"transaction"</span>)
                             .from_field(<span class="string">"span.sentry_tags.transaction"</span>)
                             .always(), <span class="comment">// already guarded by condition on metric
+                        </span>Tag::with_key(<span class="string">"user.geo.subregion"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.user.geo.subregion"</span>)
+                            .always(), <span class="comment">// already guarded by condition on metric
                     </span>],
                 },
                 MetricSpec {
@@ -1298,6 +1310,9 @@
                         </span>Tag::with_key(<span class="string">"span.op"</span>)
                             .from_field(<span class="string">"span.sentry_tags.op"</span>)
                             .always(), <span class="comment">// already guarded by condition on metric
+                        </span>Tag::with_key(<span class="string">"user.geo.subregion"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.user.geo.subregion"</span>)
+                            .always(), <span class="comment">// already guarded by condition on metric
                     </span>],
                 },
                 MetricSpec {
@@ -1329,6 +1344,9 @@
                             .always(), <span class="comment">// already guarded by condition on metric
                         </span>Tag::with_key(<span class="string">"span.op"</span>)
                             .from_field(<span class="string">"span.sentry_tags.op"</span>)
+                            .always(), <span class="comment">// already guarded by condition on metric
+                        </span>Tag::with_key(<span class="string">"user.geo.subregion"</span>)
+                            .from_field(<span class="string">"span.sentry_tags.user.geo.subregion"</span>)
                             .always(), <span class="comment">// already guarded by condition on metric
                     </span>],
                 },
