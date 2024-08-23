@@ -1,8 +1,10 @@
 use std::borrow::Cow;
+use std::collections::HashMap;
 use std::env;
 use std::fmt::{self, Display};
 use std::path::PathBuf;
 use std::str::FromStr;
+use std::sync::Arc;
 
 use relay_common::impl_str_serde;
 use sentry::types::Dsn;
@@ -174,6 +176,9 @@ pub struct SentryConfig {
     /// Sets the environment for this service.
     pub environment: Option<Cow<'static, str>>,
 
+    /// Add custom tags to the events produced by Relay
+    pub tags: Option<HashMap<String, String>>,
+
     /// Internal. Enables crash handling and sets the absolute path to where minidumps should be
     /// cached on disk. The path is created if it doesn't exist. Path must be UTF-8.
     pub _crash_db: Option<PathBuf>,
@@ -194,6 +199,7 @@ impl Default for SentryConfig {
                 .ok(),
             enabled: false,
             environment: None,
+            tags: None,
             _crash_db: None,
         }
     }
@@ -289,7 +295,7 @@ pub fn init(config: &LogConfig, sentry: &SentryConfig) {
     logs_subscriber.init();
 
     if let Some(dsn) = sentry.enabled_dsn() {
-        let guard = sentry::init(sentry::ClientOptions {
+        let mut options = sentry::ClientOptions {
             dsn: Some(dsn).cloned(),
             in_app_include: vec!["relay"],
             release: Some(RELEASE.into()),
@@ -297,7 +303,23 @@ pub fn init(config: &LogConfig, sentry: &SentryConfig) {
             environment: sentry.environment.clone(),
             traces_sample_rate: config.traces_sample_rate,
             ..Default::default()
-        });
+        };
+
+        // If `tags` is set in Sentry configuration install the before_send hook
+        // in order to inject said tags into each event
+        if let Some(tags) = sentry.tags.as_ref() {
+            // We need an object that will outlive `sentry` lifetime
+            let tags = tags.clone();
+            // Install hook
+            options.before_send = Some(Arc::new(move |mut event| {
+                event
+                    .tags
+                    .extend(tags.iter().map(|(k, v)| (k.to_owned(), v.to_owned())));
+                Some(event)
+            }));
+        }
+
+        let guard = sentry::init(options);
 
         // Keep the client initialized. The client is flushed manually in `main`.
         std::mem::forget(guard);
