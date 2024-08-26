@@ -1,6 +1,7 @@
 use std::borrow::Cow;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
+use std::collections::HashSet;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -17,7 +18,9 @@ use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc;
 use tokio::time::Instant;
 
-use crate::services::project::{ParsedProjectState, ProjectFetchState};
+use crate::services::project::state::UpstreamProjectState;
+use crate::services::project::ParsedProjectState;
+use crate::services::project::ProjectState;
 use crate::services::project_cache::FetchProjectState;
 use crate::services::upstream::{
     Method, RequestPriority, SendQuery, UpstreamQuery, UpstreamRelay, UpstreamRequestError,
@@ -33,6 +36,7 @@ use crate::utils::{RetryBackoff, SleepHandle};
 #[serde(rename_all = "camelCase")]
 pub struct GetProjectStates {
     public_keys: Vec<ProjectKey>,
+    revisions: Vec<Option<String>>,
     full_config: bool,
     no_cache: bool,
 }
@@ -49,7 +53,9 @@ pub struct GetProjectStatesResponse {
     configs: HashMap<ProjectKey, ErrorBoundary<Option<ParsedProjectState>>>,
     /// The [`ProjectKey`]'s that couldn't be immediately retrieved from the upstream.
     #[serde(default)]
-    pending: Vec<ProjectKey>,
+    pending: HashSet<ProjectKey>,
+    #[serde(default)]
+    unchanged: HashSet<ProjectKey>,
 }
 
 impl UpstreamQuery for GetProjectStates {
@@ -79,7 +85,8 @@ impl UpstreamQuery for GetProjectStates {
 /// The wrapper struct for the incoming external requests which also keeps addition information.
 #[derive(Debug)]
 struct ProjectStateChannel {
-    channel: BroadcastChannel<ProjectFetchState>,
+    channel: BroadcastChannel<UpstreamProjectState>,
+    revision: Option<String>,
     deadline: Instant,
     no_cache: bool,
     attempts: u64,
@@ -91,7 +98,8 @@ struct ProjectStateChannel {
 
 impl ProjectStateChannel {
     pub fn new(
-        sender: BroadcastSender<ProjectFetchState>,
+        sender: BroadcastSender<UpstreamProjectState>,
+        revision: Option<String>,
         timeout: Duration,
         no_cache: bool,
     ) -> Self {
@@ -99,6 +107,7 @@ impl ProjectStateChannel {
         Self {
             no_cache,
             channel: sender.into_channel(),
+            revision,
             deadline: now + timeout,
             attempts: 0,
             errors: 0,
@@ -110,11 +119,23 @@ impl ProjectStateChannel {
         self.no_cache = true;
     }
 
-    pub fn attach(&mut self, sender: BroadcastSender<ProjectFetchState>) {
+    pub fn attach(&mut self, sender: BroadcastSender<UpstreamProjectState>) {
         self.channel.attach(sender)
     }
 
-    pub fn send(self, state: ProjectFetchState) {
+    /// Updates the revision in the current channel.
+    ///
+    /// If the new revision is equal to the contained revision this is a no-op.
+    /// If the new revision is different from the contained revision this clears the revision.
+    /// To not have multiple fetches per revision per batch, we need to find a common denominator
+    /// for requests with different revisions, which is always to fetch the full project config.
+    pub fn sync_revision(&mut self, new_revision: Option<String>) {
+        if self.revision != new_revision {
+            self.revision = None;
+        }
+    }
+
+    pub fn send(self, state: UpstreamProjectState) {
         self.channel.send(state)
     }
 
@@ -132,16 +153,16 @@ type ProjectStateChannels = HashMap<ProjectKey, ProjectStateChannel>;
 /// Internally it maintains the buffer queue of the incoming requests, which got scheduled to fetch the
 /// state and takes care of the backoff in case there is a problem with the requests.
 #[derive(Debug)]
-pub struct UpstreamProjectSource(FetchProjectState, BroadcastSender<ProjectFetchState>);
+pub struct UpstreamProjectSource(FetchProjectState, BroadcastSender<UpstreamProjectState>);
 
 impl Interface for UpstreamProjectSource {}
 
 impl FromMessage<FetchProjectState> for UpstreamProjectSource {
-    type Response = BroadcastResponse<ProjectFetchState>;
+    type Response = BroadcastResponse<UpstreamProjectState>;
 
     fn from_message(
         message: FetchProjectState,
-        sender: BroadcastSender<ProjectFetchState>,
+        sender: BroadcastSender<UpstreamProjectState>,
     ) -> Self {
         Self(message, sender)
     }
@@ -301,6 +322,10 @@ impl UpstreamProjectSourceService {
 
             let query = GetProjectStates {
                 public_keys: channels_batch.keys().copied().collect(),
+                revisions: channels_batch
+                    .values()
+                    .map(|c| c.revision.clone())
+                    .collect(),
                 full_config: config.processing_enabled() || config.request_full_project_config(),
                 no_cache: channels_batch.values().any(|c| c.no_cache),
             };
@@ -371,25 +396,34 @@ impl UpstreamProjectSourceService {
                             response.configs.len() as u64
                     );
                     for (key, mut channel) in channels_batch {
-                        let mut result = "ok";
                         if response.pending.contains(&key) {
                             channel.pending += 1;
                             self.state_channels.insert(key, channel);
                             continue;
                         }
-                        let state = response
-                            .configs
-                            .remove(&key)
-                            .unwrap_or(ErrorBoundary::Ok(None));
-                        let state = match state {
-                            ErrorBoundary::Err(error) => {
-                                result = "invalid";
-                                let error = &error as &dyn std::error::Error;
-                                relay_log::error!(error, "error fetching project state {key}");
-                                ProjectFetchState::pending()
-                            }
-                            ErrorBoundary::Ok(None) => ProjectFetchState::disabled(),
-                            ErrorBoundary::Ok(Some(state)) => ProjectFetchState::new(state.into()),
+
+                        let mut result = "ok";
+                        let state = if response.unchanged.contains(&key) {
+                            result = "ok_unchanged";
+                            UpstreamProjectState::Unchanged
+                        } else {
+                            let state = response
+                                .configs
+                                .remove(&key)
+                                .unwrap_or(ErrorBoundary::Ok(None));
+
+                            let state = match state {
+                                ErrorBoundary::Err(error) => {
+                                    result = "invalid";
+                                    let error = &error as &dyn std::error::Error;
+                                    relay_log::error!(error, "error fetching project state {key}");
+                                    ProjectState::Pending
+                                }
+                                ErrorBoundary::Ok(None) => ProjectState::Disabled,
+                                ErrorBoundary::Ok(Some(state)) => state.into(),
+                            };
+
+                            UpstreamProjectState::New(state)
                         };
 
                         metric!(
@@ -401,7 +435,7 @@ impl UpstreamProjectSourceService {
                             result = result,
                         );
 
-                        channel.send(state.sanitized());
+                        channel.send(state);
                     }
                 }
                 Err(err) => {
@@ -503,6 +537,7 @@ impl UpstreamProjectSourceService {
         let UpstreamProjectSource(
             FetchProjectState {
                 project_key,
+                current_revision,
                 no_cache,
             },
             sender,
@@ -514,11 +549,17 @@ impl UpstreamProjectSourceService {
         // otherwise create a new one.
         match self.state_channels.entry(project_key) {
             Entry::Vacant(entry) => {
-                entry.insert(ProjectStateChannel::new(sender, query_timeout, no_cache));
+                entry.insert(ProjectStateChannel::new(
+                    sender,
+                    current_revision,
+                    query_timeout,
+                    no_cache,
+                ));
             }
             Entry::Occupied(mut entry) => {
                 let channel = entry.get_mut();
                 channel.attach(sender);
+                channel.sync_revision(current_revision);
                 // Ensure upstream skips caches if one of the recipients requests an uncached response. This
                 // operation is additive across requests.
                 if no_cache {

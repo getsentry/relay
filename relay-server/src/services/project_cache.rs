@@ -8,6 +8,7 @@ use crate::services::buffer::{EnvelopeBufferError, EnvelopeBufferGuard, GuardedE
 use crate::services::processor::{
     EncodeMetrics, EnvelopeProcessor, MetricData, ProcessEnvelope, ProcessingGroup, ProjectMetrics,
 };
+use crate::services::project::state::UpstreamProjectState;
 use chrono::{DateTime, Utc};
 use hashbrown::HashSet;
 use relay_base_schema::project::ProjectKey;
@@ -459,7 +460,7 @@ impl ProjectSource {
         self,
         project_key: ProjectKey,
         no_cache: bool,
-        _cached_state: ProjectFetchState,
+        cached_state: ProjectFetchState,
     ) -> Result<ProjectFetchState, ()> {
         let state_opt = self
             .local_source
@@ -478,13 +479,14 @@ impl ProjectSource {
             RelayMode::Managed => (), // Proceed with loading the config from redis or upstream
         }
 
+        let current_revision = cached_state.revision().map(String::from);
         #[cfg(feature = "processing")]
         if let Some(redis_source) = self.redis_source {
-            let revision = _cached_state.revision().map(String::from);
+            let current_revision = current_revision.clone();
 
             let redis_permit = self.redis_semaphore.acquire().await.map_err(|_| ())?;
             let state_fetch_result = tokio::task::spawn_blocking(move || {
-                redis_source.get_config_if_changed(project_key, revision.as_deref())
+                redis_source.get_config_if_changed(project_key, current_revision.as_deref())
             })
             .await
             .map_err(|_| ())?;
@@ -492,7 +494,7 @@ impl ProjectSource {
 
             match state_fetch_result {
                 // New state fetched from Redis, possibly pending.
-                Ok(Some(state)) => {
+                Ok(UpstreamProjectState::New(state)) => {
                     let state = state.sanitized();
                     if !state.is_pending() {
                         return Ok(ProjectFetchState::new(state));
@@ -500,7 +502,9 @@ impl ProjectSource {
                 }
                 // Redis reported that we're holding an up-to-date version of the state already,
                 // refresh the state and return the old cached state again.
-                Ok(None) => return Ok(ProjectFetchState::refresh(_cached_state)),
+                Ok(UpstreamProjectState::Unchanged) => {
+                    return Ok(ProjectFetchState::refresh(cached_state))
+                }
                 Err(error) => {
                     relay_log::error!(
                         error = &error as &dyn Error,
@@ -510,13 +514,20 @@ impl ProjectSource {
             };
         };
 
-        self.upstream_source
+        let state = self
+            .upstream_source
             .send(FetchProjectState {
                 project_key,
+                current_revision,
                 no_cache,
             })
             .await
-            .map_err(|_| ())
+            .map_err(|_| ())?;
+
+        match state {
+            UpstreamProjectState::New(state) => Ok(ProjectFetchState::new(state.sanitized())),
+            UpstreamProjectState::Unchanged => Ok(ProjectFetchState::refresh(cached_state)),
+        }
     }
 }
 
@@ -1501,6 +1512,16 @@ async fn peek_buffer(buffer: &Option<Arc<GuardedEnvelopeBuffer>>) -> EnvelopeBuf
 pub struct FetchProjectState {
     /// The public key to fetch the project by.
     pub project_key: ProjectKey,
+
+    /// Currently cached revision if available.
+    ///
+    /// The upstream is allowed to omit full project configs
+    /// for requests for which the requester already has the most
+    /// recent revision.
+    ///
+    /// Settings this to `None` will essentially always re-fetch
+    /// the project config.
+    pub current_revision: Option<String>,
 
     /// If true, all caches should be skipped and a fresh state should be computed.
     pub no_cache: bool,

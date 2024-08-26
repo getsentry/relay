@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Features:**
+
+- Extend project config API to be revision aware. ([#3947](https://github.com/getsentry/relay/pull/3947)).
+
 **Bug Fixes**:
 
 - Keep frames from both ends of the stacktrace when trimming frames. ([#3905](https://github.com/getsentry/relay/pull/3905))

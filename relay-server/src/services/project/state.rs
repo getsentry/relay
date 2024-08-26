@@ -114,3 +114,13 @@ pub struct LimitedParsedProjectState {
     #[serde(flatten)]
     pub info: ProjectInfo,
 }
+
+/// Response indicating whether a project state needs to be updated
+/// or the upstream does not have a newer version.
+#[derive(Debug, Clone)]
+pub enum UpstreamProjectState {
+    /// The upstream sent a [`ProjectState`].
+    New(ProjectState),
+    /// The upstream indicated that there is no newer version of the state available.
+    Unchanged,
+}
