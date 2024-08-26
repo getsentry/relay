@@ -1336,6 +1336,17 @@
 <a href="#1336" id="1336">1336</a>
 <a href="#1337" id="1337">1337</a>
 <a href="#1338" id="1338">1338</a>
+<a href="#1339" id="1339">1339</a>
+<a href="#1340" id="1340">1340</a>
+<a href="#1341" id="1341">1341</a>
+<a href="#1342" id="1342">1342</a>
+<a href="#1343" id="1343">1343</a>
+<a href="#1344" id="1344">1344</a>
+<a href="#1345" id="1345">1345</a>
+<a href="#1346" id="1346">1346</a>
+<a href="#1347" id="1347">1347</a>
+<a href="#1348" id="1348">1348</a>
+<a href="#1349" id="1349">1349</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! A glob like pattern used throught Relay and its APIs.
 //!
 //! # Behaviour
@@ -2398,6 +2409,10 @@
         <span class="macro">assert_pattern!</span>(<span class="string">"???????????x???????????"</span>, <span class="string">"??______???x?????_?????"</span>);
         <span class="macro">assert_pattern!</span>(<span class="string">"???????????x???????????"</span>, NOT <span class="string">"?______???x?????_?????"</span>);
         <span class="macro">assert_pattern!</span>(<span class="string">"???????????x???????????"</span>, NOT <span class="string">"??______???_?????_?????"</span>);
+        <span class="macro">assert_pattern!</span>(
+            <span class="string">"??????????????????????????????????????????????????"</span>,
+            <span class="string">"?????????????????????????????????????????????????!"
+        </span>);
 
         <span class="comment">// No special slash handling
         </span><span class="macro">assert_pattern!</span>(<span class="string">"?"</span>, <span class="string">"/"</span>);
@@ -2587,6 +2602,9 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_alternates() {
+        <span class="macro">assert_pattern!</span>(<span class="string">"{foo}"</span>, <span class="string">"foo"</span>);
+        <span class="macro">assert_pattern!</span>(<span class="string">"{foo}"</span>, NOT <span class="string">"fOo"</span>);
+        <span class="macro">assert_pattern!</span>(<span class="string">"{foo}"</span>, NOT <span class="string">"bar"</span>);
         <span class="macro">assert_pattern!</span>(<span class="string">"{foo,bar}"</span>, <span class="string">"foo"</span>);
         <span class="macro">assert_pattern!</span>(<span class="string">"{foo,bar}"</span>, <span class="string">"bar"</span>);
         <span class="macro">assert_pattern!</span>(<span class="string">"{foo,bar}"</span>, NOT <span class="string">"Foo"</span>);
@@ -2633,11 +2651,15 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_alternates_case_insensitive() {
+        <span class="macro">assert_pattern!</span>(<span class="string">"{foo}"</span>, <span class="string">"foo"</span>, i);
+        <span class="macro">assert_pattern!</span>(<span class="string">"{foo}"</span>, <span class="string">"fOo"</span>, i);
+        <span class="macro">assert_pattern!</span>(<span class="string">"{foo}"</span>, NOT <span class="string">"bar"</span>, i);
         <span class="macro">assert_pattern!</span>(<span class="string">"{foo,bar}"</span>, <span class="string">"foo"</span>, i);
         <span class="macro">assert_pattern!</span>(<span class="string">"{foo,bar}"</span>, <span class="string">"bar"</span>, i);
         <span class="macro">assert_pattern!</span>(<span class="string">"{foo,bar}"</span>, <span class="string">"Foo"</span>, i);
         <span class="macro">assert_pattern!</span>(<span class="string">"{foo,bar}"</span>, <span class="string">"fOo"</span>, i);
         <span class="macro">assert_pattern!</span>(<span class="string">"{foo,bar}"</span>, <span class="string">"BAR"</span>, i);
+        <span class="macro">assert_pattern!</span>(<span class="string">"{foo,bar}"</span>, NOT <span class="string">"bao"</span>, i);
         <span class="macro">assert_pattern!</span>(<span class="string">"{f[o0-9]o,b[a]r}"</span>, <span class="string">"foo"</span>, i);
         <span class="macro">assert_pattern!</span>(<span class="string">"{f[o0-9]o,b[a]r}"</span>, <span class="string">"fOo"</span>, i);
         <span class="macro">assert_pattern!</span>(<span class="string">"{f[o0-9]o,b[a]r}"</span>, <span class="string">"f1o"</span>, i);
