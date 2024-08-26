@@ -365,6 +365,13 @@ pub enum RelayDeployment {
     Canary,
 }
 
+impl RelayDeployment {
+    /// Returns `true` if the [`RelayDeployment`] is of type [`RelayDeployment::Canary`].
+    pub fn is_canary(&self) -> bool {
+        matches!(self, RelayDeployment::Canary)
+    }
+}
+
 impl fmt::Display for RelayDeployment {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
