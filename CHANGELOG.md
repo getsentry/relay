@@ -4,6 +4,12 @@
 
 **Bug Fixes**:
 
+- Keep frames from both ends of the stacktrace when trimming frames. ([#3905](https://github.com/getsentry/relay/pull/3905))
+
+## 24.8.0
+
+**Bug Fixes**:
+
 - Allow metrics summaries with only `count` (for sets). ([#3864](https://github.com/getsentry/relay/pull/3864))
 - Do not trim any span field. Remove entire span instead. ([#3890](https://github.com/getsentry/relay/pull/3890))
 - Do not drop replays, profiles and standalone spans in proxy Relays. ([#3888](https://github.com/getsentry/relay/pull/3888))
@@ -26,6 +32,8 @@
 - Extract `user.geo.subregion` into span metrics/indexed. ([#3914](https://github.com/getsentry/relay/pull/3914))
 - Add `last_peek` field to the `Priority` struct. ([#3922](https://github.com/getsentry/relay/pull/3922))
 - Extract `user.geo.subregion` for mobile spans. ([#3927](https://github.com/getsentry/relay/pull/3927))
+- Rename `Peek` to `EnvelopeBufferGuard`. ([#3930](https://github.com/getsentry/relay/pull/3930))
+- Tag `user.geo.subregion` for resource metrics. ([#3934](https://github.com/getsentry/relay/pull/3934))
 
 ## 24.7.1
 

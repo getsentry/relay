@@ -4379,6 +4379,7 @@ expression: metrics
             "span.group": "d744fa0716ef1142",
             "span.op": "resource.css",
             "transaction": "gEt /api/:version/users/",
+            "user.geo.subregion": "155",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -4407,6 +4408,7 @@ expression: metrics
             "span.domain": "*.domain.com",
             "span.group": "d744fa0716ef1142",
             "span.op": "resource.css",
+            "user.geo.subregion": "155",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -4435,6 +4437,7 @@ expression: metrics
             "span.domain": "*.domain.com",
             "span.group": "d744fa0716ef1142",
             "span.op": "resource.css",
+            "user.geo.subregion": "155",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -4606,6 +4609,7 @@ expression: metrics
             "span.group": "89bda2e660f6236c",
             "span.op": "resource.script",
             "transaction": "gEt /api/:version/users/",
+            "user.geo.subregion": "155",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -4634,6 +4638,7 @@ expression: metrics
             "span.domain": "*.example.com:5688",
             "span.group": "89bda2e660f6236c",
             "span.op": "resource.script",
+            "user.geo.subregion": "155",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -4662,6 +4667,7 @@ expression: metrics
             "span.domain": "*.example.com:5688",
             "span.group": "89bda2e660f6236c",
             "span.op": "resource.script",
+            "user.geo.subregion": "155",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -8346,6 +8352,7 @@ expression: metrics
             "span.group": "7f402250846262be",
             "span.op": "resource.css",
             "transaction": "gEt /api/:version/users/",
+            "user.geo.subregion": "155",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -8374,6 +8381,7 @@ expression: metrics
             "span.domain": "*.domain.com",
             "span.group": "7f402250846262be",
             "span.op": "resource.css",
+            "user.geo.subregion": "155",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -8402,6 +8410,7 @@ expression: metrics
             "span.domain": "*.domain.com",
             "span.group": "7f402250846262be",
             "span.op": "resource.css",
+            "user.geo.subregion": "155",
         },
         metadata: BucketMetadata {
             merges: 1,

@@ -9,7 +9,7 @@
     // Python including Pylance
     "ms-python.python",
     // Crates.io dependency versions
-    "serayuzgur.crates",
+    "fill-labs.dependi",
     // Debugger support for Rust and native
     "vadimcn.vscode-lldb",
     // Snapshot tests integration

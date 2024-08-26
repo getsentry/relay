@@ -41,6 +41,7 @@ relay-kafka = { path = "relay-kafka" }
 relay-log = { path = "relay-log" }
 relay-metrics = { path = "relay-metrics" }
 relay-monitors = { path = "relay-monitors" }
+relay-pattern = { path = "relay-pattern" }
 relay-pii = { path = "relay-pii" }
 relay-profiling = { path = "relay-profiling" }
 relay-protocol = { path = "relay-protocol" }
@@ -108,6 +109,7 @@ itertools = "0.10.5"
 json-forensics = "0.1.1"
 lru = "0.9.0"
 maxminddb = "0.23.0"
+memchr = "2.7.4"
 md5 = "0.7.0"
 mime = "0.3.16"
 mime_guess = "2.0.4"
