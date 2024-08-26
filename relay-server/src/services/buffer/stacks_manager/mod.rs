@@ -5,12 +5,13 @@ pub mod sqlite;
 
 /// Enum representing the current capacity of the [`StacksManager`] to accept new [`Envelope`]s.
 pub enum Capacity {
-    Free,
+    Available,
     Full,
 }
 
 /// A provider of [`EnvelopeStack`] instances that is responsible for creating them.
 pub trait StacksManager: std::fmt::Debug {
+    /// The implementation of [`EnvelopeStack`] that this manager creates.
     type Stack: EnvelopeStack;
 
     /// Creates an [`EnvelopeStack`].

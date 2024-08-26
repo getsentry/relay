@@ -103,7 +103,7 @@ struct DiskUsage {
 
 impl DiskUsage {
     /// Creates a new empty [`DiskUsage`].
-    pub fn new(db: Pool<Sqlite>, refresh_frequency_ms: u64) -> Self {
+    fn new(db: Pool<Sqlite>, refresh_frequency_ms: u64) -> Self {
         Self {
             db,
             last_known_usage: Arc::new(AtomicU64::new(0)),
@@ -135,11 +135,19 @@ impl DiskUsage {
     /// Starts a background tokio task to update the database usage.
     fn start_background_refresh(&self) {
         let db = self.db.clone();
-        let last_known_usage = self.last_known_usage.clone();
+        // We get a weak reference, to make sure that if `DiskUsage` is dropped, the reference can't
+        // be upgraded, causing the loop in the tokio task to exit.
+        let last_known_usage_weak = Arc::downgrade(&self.last_known_usage);
         let refresh_frequency_ms = self.refresh_frequency_ms;
 
         tokio::spawn(async move {
             loop {
+                // When our `Weak` reference can't be upgraded to an `Arc`, it means that the value
+                // is not referenced anymore by self, meaning that `DiskUsage` was dropped.
+                let Some(last_known_usage) = last_known_usage_weak.upgrade() else {
+                    break;
+                };
+
                 let usage = Self::estimate_usage(&db).await;
                 let Ok(usage) = usage else {
                     relay_log::error!("failed to update the disk usage asynchronously");

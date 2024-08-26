@@ -114,11 +114,11 @@ struct EnvelopeBuffer<P: StacksManager> {
     priority_queue: priority_queue::PriorityQueue<QueueItem<StackKey, P::Stack>, Priority>,
     /// A lookup table to find all stacks involving a project.
     stacks_by_project: hashbrown::HashMap<ProjectKey, BTreeSet<StackKey>>,
-    /// A helper to create new stacks.
+    /// A manager of stacks that provides utilities to create stacks, check their capacity...
     ///
     /// This indirection is needed because different stack implementations might need different
     /// initialization (e.g. a database connection).
-    stack_provider: P,
+    stacks_manager: P,
 }
 
 impl EnvelopeBuffer<MemoryStacksManager> {
@@ -127,7 +127,7 @@ impl EnvelopeBuffer<MemoryStacksManager> {
         Self {
             stacks_by_project: Default::default(),
             priority_queue: Default::default(),
-            stack_provider: MemoryStacksManager::new(memory_checker),
+            stacks_manager: MemoryStacksManager::new(memory_checker),
         }
     }
 }
@@ -139,7 +139,7 @@ impl EnvelopeBuffer<SqliteStacksManager> {
         Ok(Self {
             stacks_by_project: Default::default(),
             priority_queue: Default::default(),
-            stack_provider: SqliteStacksManager::new(config).await?,
+            stacks_manager: SqliteStacksManager::new(config).await?,
         })
     }
 }
@@ -270,7 +270,7 @@ where
         let previous_entry = self.priority_queue.push(
             QueueItem {
                 key: stack_key,
-                value: self.stack_provider.create_stack(envelope),
+                value: self.stacks_manager.create_stack(envelope),
             },
             Priority::new(received_at),
         );
@@ -287,7 +287,7 @@ where
     }
 
     pub fn has_capacity(&self) -> bool {
-        matches!(self.stack_provider.capacity(), Capacity::Free)
+        matches!(self.stacks_manager.capacity(), Capacity::Available)
     }
 
     fn pop_stack(&mut self, stack_key: StackKey) {
