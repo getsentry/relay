@@ -1862,6 +1862,11 @@ impl Config {
         self.values.relay.mode
     }
 
+    /// Returns the relay environment.
+    pub fn relay_environment(&self) -> RelayEnvironment {
+        self.values.relay.environment
+    }
+
     /// Returns the upstream target as descriptor.
     pub fn upstream_descriptor(&self) -> &UpstreamDescriptor<'_> {
         &self.values.relay.upstream
