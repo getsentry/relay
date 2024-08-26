@@ -6,6 +6,10 @@
 
 - Keep frames from both ends of the stacktrace when trimming frames. ([#3905](https://github.com/getsentry/relay/pull/3905))
 
+**Features**:
+
+- Add configuration option to specify the deployment type of Relay. ([#3938](https://github.com/getsentry/relay/pull/3938))
+
 ## 24.8.0
 
 **Bug Fixes**:
