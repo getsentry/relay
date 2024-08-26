@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Bug Fixes**:
+
+- Keep frames from both ends of the stacktrace when trimming frames. ([#3905](https://github.com/getsentry/relay/pull/3905))
+
 ## 24.8.0
 
 **Bug Fixes**:
@@ -26,6 +32,7 @@
 - Add `last_peek` field to the `Priority` struct. ([#3922](https://github.com/getsentry/relay/pull/3922))
 - Extract `user.geo.subregion` for mobile spans. ([#3927](https://github.com/getsentry/relay/pull/3927))
 - Rename `Peek` to `EnvelopeBufferGuard`. ([#3930](https://github.com/getsentry/relay/pull/3930))
+- Tag `user.geo.subregion` for resource metrics. ([#3934](https://github.com/getsentry/relay/pull/3934))
 
 ## 24.7.1
 
