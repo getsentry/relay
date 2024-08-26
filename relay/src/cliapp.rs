@@ -142,9 +142,9 @@ pub fn make_app() -> Command {
                         ),
                 )
                 .arg(
-                    Arg::new("environment")
-                        .long("environment")
-                        .help("The environment in which Relay is run.")
+                    Arg::new("deployment")
+                        .long("deployment")
+                        .help("The deployment type of this Relay.")
                 )
         )
         .subcommand(

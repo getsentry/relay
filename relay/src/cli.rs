@@ -97,7 +97,7 @@ pub fn extract_config_args(matches: &ArgMatches) -> OverridableConfig {
         secret_key: matches.get_one("secret_key").cloned(),
         outcome_source: matches.get_one("source_id").cloned(),
         shutdown_timeout: matches.get_one("shutdown_timeout").cloned(),
-        deployment: matches.get_one("environment").cloned(),
+        deployment: matches.get_one("deployment").cloned(),
     }
 }
 
