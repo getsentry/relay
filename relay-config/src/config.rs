@@ -222,8 +222,8 @@ trait ConfigObject: DeserializeOwned + Serialize {
 pub struct OverridableConfig {
     /// The operation mode of this relay.
     pub mode: Option<String>,
-    /// The environment in which Relay is run.
-    pub environment: Option<String>,
+    /// The deployment of this relay.
+    pub deployment: Option<String>,
     /// The log level of this relay.
     pub log_level: Option<String>,
     /// The upstream relay or sentry instance.
@@ -354,33 +354,33 @@ impl fmt::Display for RelayMode {
     }
 }
 
-/// The environment of a Relay.
+/// The deployment type of Relay.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub enum RelayEnvironment {
-    /// This Relay is run in a default environment.
+pub enum RelayDeployment {
+    /// This Relay is run in a default deployment.
     Default,
 
-    /// This Relay is run in a canary environment where experiments can be run.
+    /// This Relay is run in a canary deployment where experiments can be run.
     Canary,
 }
 
-impl fmt::Display for RelayEnvironment {
+impl fmt::Display for RelayDeployment {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            RelayEnvironment::Default => write!(f, "default"),
-            RelayEnvironment::Canary => write!(f, "canary"),
+            RelayDeployment::Default => write!(f, "default"),
+            RelayDeployment::Canary => write!(f, "canary"),
         }
     }
 }
 
-impl FromStr for RelayEnvironment {
+impl FromStr for RelayDeployment {
     type Err = fmt::Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            "canary" => Ok(RelayEnvironment::Canary),
-            _ => Ok(RelayEnvironment::Default),
+            "canary" => Ok(RelayDeployment::Canary),
+            _ => Ok(RelayDeployment::Default),
         }
     }
 }
@@ -469,8 +469,8 @@ impl Default for ReadinessCondition {
 pub struct Relay {
     /// The operation mode of this relay.
     pub mode: RelayMode,
-    /// The environment of this relay.
-    pub environment: RelayEnvironment,
+    /// The deployment of this relay.
+    pub deployment: RelayDeployment,
     /// The upstream relay or sentry instance.
     pub upstream: UpstreamDescriptor<'static>,
     /// The host the relay should bind to (network interface).
@@ -498,7 +498,7 @@ impl Default for Relay {
     fn default() -> Self {
         Relay {
             mode: RelayMode::Managed,
-            environment: RelayEnvironment::Default,
+            deployment: RelayDeployment::Default,
             upstream: "https://sentry.io/".parse().unwrap(),
             host: default_host(),
             port: 3000,
@@ -1643,10 +1643,10 @@ impl Config {
                 .with_context(|| ConfigError::field("mode"))?;
         }
 
-        if let Some(environment) = overrides.environment {
-            relay.environment = environment
-                .parse::<RelayEnvironment>()
-                .with_context(|| ConfigError::field("environment"))?;
+        if let Some(deployment) = overrides.deployment {
+            relay.deployment = deployment
+                .parse::<RelayDeployment>()
+                .with_context(|| ConfigError::field("deployment"))?;
         }
 
         if let Some(log_level) = overrides.log_level {
@@ -1862,9 +1862,9 @@ impl Config {
         self.values.relay.mode
     }
 
-    /// Returns the relay environment.
-    pub fn relay_environment(&self) -> RelayEnvironment {
-        self.values.relay.environment
+    /// Returns the relay deployment.
+    pub fn relay_deployment(&self) -> RelayDeployment {
+        self.values.relay.deployment
     }
 
     /// Returns the upstream target as descriptor.
