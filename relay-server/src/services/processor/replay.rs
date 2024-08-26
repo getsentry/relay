@@ -3,7 +3,7 @@ use std::error::Error;
 use std::net::IpAddr;
 
 use bytes::Bytes;
-use relay_base_schema::project::{self, ProjectId};
+use relay_base_schema::project::ProjectId;
 use relay_dynamic_config::{Feature, GlobalConfig, ProjectConfig};
 use relay_event_normalization::replay::{self, ReplayError};
 use relay_event_normalization::RawUserAgentInfo;
