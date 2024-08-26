@@ -12,7 +12,7 @@ use crate::services::buffer::envelope_stack::{EnvelopeStack, Evictable, StackPro
 use crate::services::buffer::sqlite_envelope_store::SqliteEnvelopeStoreError;
 use crate::services::buffer::stack_provider::memory::MemoryStackProvider;
 use crate::services::buffer::stack_provider::sqlite::SqliteStackProvider;
-use crate::statsd::{RelayCounters, RelayGauges};
+use crate::statsd::{RelayCounters, RelayGauges, RelayTimers};
 
 /// Polymorphic envelope buffering interface.
 ///
@@ -310,32 +310,36 @@ where
         }
 
         let mut lru: BinaryHeap<LRUItem> = BinaryHeap::new();
-        for (queue_item, priority) in self.priority_queue.iter() {
-            let lru_item = LRUItem(queue_item.key, priority.readiness, queue_item.last_update);
+        relay_statsd::metric!(timer(RelayTimers::BufferEvictLRUConstruction), {
+            for (queue_item, priority) in self.priority_queue.iter() {
+                let lru_item = LRUItem(queue_item.key, priority.readiness, queue_item.last_update);
 
-            // If we exceed the size, we want to pop the greatest element only if we have a smaller
-            // element, so that we end up with the smallest elements which are the ones with the
-            // lowest priority.
-            if lru.len() >= self.max_evictable_stacks {
-                let Some(top_lru_item) = lru.peek() else {
-                    continue;
-                };
+                // If we exceed the size, we want to pop the greatest element only if we have a smaller
+                // element, so that we end up with the smallest elements which are the ones with the
+                // lowest priority.
+                if lru.len() >= self.max_evictable_stacks {
+                    let Some(top_lru_item) = lru.peek() else {
+                        continue;
+                    };
 
-                if lru_item < *top_lru_item {
-                    lru.pop();
+                    if lru_item < *top_lru_item {
+                        lru.pop();
+                    }
                 }
-            }
 
-            lru.push(lru_item);
-        }
+                lru.push(lru_item);
+            }
+        });
 
         // We go over each element and remove it from the stack. After removal, we will evict
         // elements from each popped stack.
-        for lru_item in lru {
-            if let Some(mut stack) = self.pop_stack(lru_item.0) {
-                stack.evict().await;
+        relay_statsd::metric!(timer(RelayTimers::BufferEvictStacksEviction), {
+            for lru_item in lru {
+                if let Some(mut stack) = self.pop_stack(lru_item.0) {
+                    stack.evict().await;
+                }
             }
-        }
+        });
     }
 
     fn push_stack(&mut self, envelope: Box<Envelope>) {

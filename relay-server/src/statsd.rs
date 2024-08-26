@@ -514,6 +514,10 @@ pub enum RelayTimers {
     ///  - `message`: The type of message that was processed.
     #[cfg(feature = "processing")]
     StoreServiceDuration,
+    /// Timing in milliseconds for constructing the LRU list of stacks.
+    BufferEvictLRUConstruction,
+    /// Timing in milliseconds to evict all the stacks determined by the LRU algorithm.
+    BufferEvictStacksEviction,
 }
 
 impl TimerMetric for RelayTimers {
@@ -555,6 +559,8 @@ impl TimerMetric for RelayTimers {
             RelayTimers::MetricRouterServiceDuration => "metrics.router.message.duration",
             #[cfg(feature = "processing")]
             RelayTimers::StoreServiceDuration => "store.message.duration",
+            RelayTimers::BufferEvictLRUConstruction => "buffer.evict.lru_construction",
+            RelayTimers::BufferEvictStacksEviction => "buffer.evict.stacks_eviction",
         }
     }
 }
