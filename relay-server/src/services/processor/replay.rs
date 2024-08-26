@@ -120,6 +120,7 @@ pub fn process(
 
 // Replay Event Processing.
 
+#[allow(clippy::too_many_arguments)]
 fn handle_replay_event_item(
     payload: Bytes,
     event_id: &Option<EventId>,
