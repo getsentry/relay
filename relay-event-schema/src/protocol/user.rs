@@ -81,7 +81,7 @@ pub struct User {
     /// This field is computed by concatenating the name of specific fields of the `User`
     /// struct with their value. For example, if `id` is set, `sentry_user` will be equal to
     /// `"id:id-of-the-user".
-    #[metastructure(skip_serialization = "empty")]
+    #[metastructure(pii = "true", skip_serialization = "empty")]
     pub sentry_user: Annotated<String>,
 
     /// Additional arbitrary fields, as stored in the database (and sometimes as sent by clients).
