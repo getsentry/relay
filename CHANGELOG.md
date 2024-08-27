@@ -8,7 +8,7 @@
 
 **Features**:
 
-- Add configuration option to specify the deployment type of Relay. ([#3938](https://github.com/getsentry/relay/pull/3938))
+- Add configuration option to specify the instance type of Relay. ([#3938](https://github.com/getsentry/relay/pull/3938))
 
 ## 24.8.0
 
