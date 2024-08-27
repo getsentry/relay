@@ -132,18 +132,19 @@ impl ProjectStateChannel {
         self.no_cache = true;
     }
 
-    pub fn attach(&mut self, sender: BroadcastSender<UpstreamProjectState>) {
-        self.channel.attach(sender)
-    }
-
-    /// Updates the revision in the current channel.
+    /// Attaches a new sender to the same channel.
     ///
-    /// If the new revision is equal to the contained revision this is a no-op.
+    /// Also makes sure the new sender's revision matches the already requested revision.
     /// If the new revision is different from the contained revision this clears the revision.
     /// To not have multiple fetches per revision per batch, we need to find a common denominator
     /// for requests with different revisions, which is always to fetch the full project config.
-    pub fn sync_revision(&mut self, new_revision: Option<String>) {
-        if self.revision != new_revision {
+    pub fn attach(
+        &mut self,
+        sender: BroadcastSender<UpstreamProjectState>,
+        revision: Option<String>,
+    ) {
+        self.channel.attach(sender);
+        if self.revision != revision {
             self.revision = None;
         }
     }
@@ -418,7 +419,7 @@ impl UpstreamProjectSourceService {
                         let mut result = "ok";
                         let state = if response.unchanged.contains(&key) {
                             result = "ok_unchanged";
-                            UpstreamProjectState::Unchanged
+                            UpstreamProjectState::NotModified
                         } else {
                             let state = response
                                 .configs
@@ -571,8 +572,7 @@ impl UpstreamProjectSourceService {
             }
             Entry::Occupied(mut entry) => {
                 let channel = entry.get_mut();
-                channel.attach(sender);
-                channel.sync_revision(current_revision);
+                channel.attach(sender, current_revision);
                 // Ensure upstream skips caches if one of the recipients requests an uncached response. This
                 // operation is additive across requests.
                 if no_cache {

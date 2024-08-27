@@ -80,7 +80,7 @@ impl RedisProjectSource {
                     counter(RelayCounters::ProjectStateRedis) += 1,
                     hit = "revision",
                 );
-                return Ok(UpstreamProjectState::Unchanged);
+                return Ok(UpstreamProjectState::NotModified);
             }
         }
 
@@ -111,7 +111,7 @@ impl RedisProjectSource {
                 counter(RelayCounters::ProjectStateRedis) += 1,
                 hit = "project_config_revision"
             );
-            Ok(UpstreamProjectState::Unchanged)
+            Ok(UpstreamProjectState::NotModified)
         } else {
             metric!(
                 counter(RelayCounters::ProjectStateRedis) += 1,

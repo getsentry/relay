@@ -122,5 +122,5 @@ pub enum UpstreamProjectState {
     /// The upstream sent a [`ProjectState`].
     New(ProjectState),
     /// The upstream indicated that there is no newer version of the state available.
-    Unchanged,
+    NotModified,
 }

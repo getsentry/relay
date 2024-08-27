@@ -114,7 +114,18 @@ fn into_valid_keys(
     public_keys: Vec<ErrorBoundary<ProjectKey>>,
     revisions: Option<ErrorBoundary<Vec<Option<String>>>>,
 ) -> impl Iterator<Item = (ProjectKey, Option<String>)> {
-    let revisions = revisions.and_then(|e| e.ok()).unwrap_or_default();
+    let mut revisions = revisions.and_then(|e| e.ok()).unwrap_or_default();
+    if !revisions.is_empty() && revisions.len() != public_keys.len() {
+        // The downstream sent us a different amount of revisions than project keys,
+        // this indicates an error in the downstream code. Just to be safe, discard
+        // all revisions and carry on as if the downstream never sent any revisions.
+        relay_log::warn!(
+            "downstream sent {} project keys but {} revisions, discarding all revisions",
+            public_keys.len(),
+            revisions.len()
+        );
+        revisions.clear();
+    }
     let revisions = revisions.into_iter().chain(std::iter::repeat(None));
 
     std::iter::zip(public_keys, revisions).filter_map(|(public_key, revision)| {

@@ -502,7 +502,7 @@ impl ProjectSource {
                 }
                 // Redis reported that we're holding an up-to-date version of the state already,
                 // refresh the state and return the old cached state again.
-                Ok(UpstreamProjectState::Unchanged) => {
+                Ok(UpstreamProjectState::NotModified) => {
                     return Ok(ProjectFetchState::refresh(cached_state))
                 }
                 Err(error) => {
@@ -526,7 +526,7 @@ impl ProjectSource {
 
         match state {
             UpstreamProjectState::New(state) => Ok(ProjectFetchState::new(state.sanitized())),
-            UpstreamProjectState::Unchanged => Ok(ProjectFetchState::refresh(cached_state)),
+            UpstreamProjectState::NotModified => Ok(ProjectFetchState::refresh(cached_state)),
         }
     }
 }
