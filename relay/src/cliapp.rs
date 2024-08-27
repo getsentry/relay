@@ -142,9 +142,9 @@ pub fn make_app() -> Command {
                         ),
                 )
                 .arg(
-                    Arg::new("deployment")
-                        .long("deployment")
-                        .help("The deployment type of this Relay.")
+                    Arg::new("instance")
+                        .long("instance")
+                        .help("The instance type of this Relay.")
                 )
         )
         .subcommand(
