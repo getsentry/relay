@@ -333,6 +333,9 @@
 <a href="#333" id="333">333</a>
 <a href="#334" id="334">334</a>
 <a href="#335" id="335">335</a>
+<a href="#336" id="336">336</a>
+<a href="#337" id="337">337</a>
+<a href="#338" id="338">338</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Replay related processor code.
 </span><span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::net::IpAddr;
@@ -512,6 +515,9 @@
                 }
                 ReplayError::InvalidPayload(<span class="kw">_</span>) =&gt; {
                     ProcessingError::InvalidReplay(DiscardReason::InvalidReplayEvent)
+                }
+                ReplayError::TooLong =&gt; {
+                    ProcessingError::InvalidReplay(DiscardReason::ReplayExceededSegmentLimit)
                 }
             })
         }
