@@ -141,6 +141,11 @@ pub fn make_app() -> Command {
                             "Maximum number of seconds to wait for pending envelopes on shutdown.",
                         ),
                 )
+                .arg(
+                    Arg::new("instance")
+                        .long("instance")
+                        .help("The instance type of this Relay.")
+                )
         )
         .subcommand(
             Command::new("credentials")
