@@ -152,7 +152,6 @@ async fn inner(
         })
         .collect();
 
-    // Skip unparsable public keys. The downstream Relay will consider them `ProjectState::missing`.
     let (global, global_status) = if inner.global {
         match state.global_config().send(global_config::Get).await? {
             global_config::Status::Ready(config) => (Some(config), Some(StatusResponse::Ready)),

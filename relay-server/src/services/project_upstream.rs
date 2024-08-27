@@ -35,9 +35,18 @@ use crate::utils::{RetryBackoff, SleepHandle};
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GetProjectStates {
+    /// List of requested project keys.
     public_keys: Vec<ProjectKey>,
+    /// List of revisions for each project key.
+    ///
+    /// The revisions are mapped by index to the project key,
+    /// this is a separate field to keep the API compatible.
     revisions: Vec<Option<String>>,
+    /// If `true` the upstream should return a full configuration.
+    ///
+    /// Upstreams will ignore this for non-internal Relays.
     full_config: bool,
+    /// If `true` the upstream should not serve from cache.
     no_cache: bool,
 }
 
@@ -54,6 +63,10 @@ pub struct GetProjectStatesResponse {
     /// The [`ProjectKey`]'s that couldn't be immediately retrieved from the upstream.
     #[serde(default)]
     pending: HashSet<ProjectKey>,
+    /// The [`ProjectKey`]'s that the upstream has no updates for.
+    ///
+    /// List is only populated when the request contains revision information
+    /// for all requested configurations.
     #[serde(default)]
     unchanged: HashSet<ProjectKey>,
 }
