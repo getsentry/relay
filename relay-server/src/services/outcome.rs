@@ -501,7 +501,7 @@ impl DiscardReason {
             DiscardReason::InvalidReplayEventPii => "invalid_replay_pii_scrubber_failed",
             DiscardReason::InvalidReplayRecordingEvent => "invalid_replay_recording",
             DiscardReason::InvalidReplayVideoEvent => "invalid_replay_video",
-            DiscardReason::ReplayExceededSegmentLimit => "replay_too_long",
+            DiscardReason::ReplayExceededSegmentLimit => "replay_segment_limit_exceeded",
             DiscardReason::Profiling(reason) => reason,
             DiscardReason::InvalidSpan => "invalid_span",
             DiscardReason::FeatureDisabled(_) => "feature_disabled",
