@@ -53,8 +53,6 @@ Event {
         },
         username: ~,
         name: ~,
-        geo: ~,
-        segment: ~,
         sentry_user: Annotated(
             "ip:[ip]",
             Meta {
@@ -77,6 +75,8 @@ Event {
                 original_value: None,
             },
         ),
+        geo: ~,
+        segment: ~,
         data: ~,
         other: {},
     },
