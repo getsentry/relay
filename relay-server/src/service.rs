@@ -4,6 +4,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use crate::metrics::{MetricOutcomes, MetricStats};
+use crate::services::buffer::{EnvelopeBuffer, EnvelopeBufferService};
 use crate::services::stats::RelayStats;
 use anyhow::{Context, Result};
 use axum::extract::FromRequestParts;
@@ -59,6 +60,7 @@ pub struct Registry {
     pub global_config: Addr<GlobalConfigManager>,
     pub project_cache: Addr<ProjectCache>,
     pub upstream_relay: Addr<UpstreamRelay>,
+    pub envelope_buffer: Option<Addr<EnvelopeBuffer>>,
 }
 
 impl fmt::Debug for Registry {
@@ -252,11 +254,11 @@ impl ServiceState {
             upstream_relay.clone(),
             global_config.clone(),
         );
-        let envelope_buffer = GuardedEnvelopeBuffer::from_config(&config).map(Arc::new);
+        let envelope_buffer = EnvelopeBufferService::from_config(&config).map(Service::start);
         ProjectCacheService::new(
             config.clone(),
             MemoryChecker::new(memory_stat.clone(), config.clone()),
-            envelope_buffer.clone(),
+            // envelope_buffer.clone(),
             project_cache_services,
             redis_pools
                 .as_ref()
@@ -294,12 +296,12 @@ impl ServiceState {
             global_config,
             project_cache,
             upstream_relay,
+            envelope_buffer,
         };
 
         let state = StateInner {
             config: config.clone(),
             memory_checker: MemoryChecker::new(memory_stat, config.clone()),
-            envelope_buffer,
             registry,
         };
 
@@ -321,10 +323,8 @@ impl ServiceState {
     }
 
     /// Returns the V2 envelope buffer, if present.
-    ///
-    /// Clones the inner Arc.
-    pub fn envelope_buffer(&self) -> Option<Arc<GuardedEnvelopeBuffer>> {
-        self.inner.envelope_buffer.clone()
+    pub fn envelope_buffer(&self) -> Option<&Addr<EnvelopeBuffer>> {
+        self.inner.registry.envelope_buffer.as_ref()
     }
 
     /// Returns the address of the [`ProjectCache`] service.

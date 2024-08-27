@@ -38,7 +38,8 @@ impl FromMessage<Box<Envelope>> for EnvelopeBuffer {
     }
 }
 
-struct EnvelopeBufferService {
+/// TODO: docs
+pub struct EnvelopeBufferService {
     buffer: GuardedEnvelopeBuffer,
     project_cache: Addr<ProjectCache>,
 }
@@ -102,7 +103,7 @@ impl GuardedEnvelopeBuffer {
     /// Schedules a task to push an envelope to the buffer.
     ///
     /// Once the envelope is pushed, waiters will be notified.
-    async fn push(&mut self, envelope: Envelope) {
+    async fn push(&mut self, envelope: Box<Envelope>) {
         if let Err(e) = self.backend.push(envelope).await {
             relay_log::error!(
                 error = &e as &dyn std::error::Error,
@@ -160,15 +161,16 @@ impl EnvelopeBufferGuard<'_> {
     pub async fn get(&mut self) -> Result<&Envelope, EnvelopeBufferError> {
         Ok(self
             .0
+            .backend
             .peek()
-            .await
+            .await?
             .expect("element disappeared during exclusive access"))
     }
 
     /// Pops the next envelope from the buffer.
     ///
     /// This functions consumes the [`EnvelopeBufferGuard`].
-    pub async fn remove(mut self) -> Result<Box<Envelope>, EnvelopeBufferError> {
+    pub async fn remove(self) -> Result<Box<Envelope>, EnvelopeBufferError> {
         self.0.notify.notify_waiters();
         Ok(self
             .0

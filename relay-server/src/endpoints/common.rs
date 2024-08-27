@@ -313,7 +313,7 @@ fn queue_envelope(
 
                 // TODO: Sync-check whether the buffer has capacity.
                 // Otherwise return `QueueFailed`.
-                buffer.defer_push(envelope);
+                buffer.send(envelope.into_envelope());
             }
             None => {
                 relay_log::trace!("Sending envelope to project cache for V1 buffer");

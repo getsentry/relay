@@ -4,7 +4,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use crate::extractors::RequestMeta;
-use crate::services::buffer::{EnvelopeBufferError, EnvelopeBufferGuard, GuardedEnvelopeBuffer};
+use crate::services::buffer::{EnvelopeBufferError, EnvelopeBufferGuard};
 use crate::services::processor::{
     EncodeMetrics, EnvelopeProcessor, MetricData, ProcessEnvelope, ProcessingGroup, ProjectMetrics,
 };
@@ -577,7 +577,7 @@ struct ProjectCacheBroker {
     config: Arc<Config>,
     memory_checker: MemoryChecker,
     // TODO: Make non-optional when spool_v1 is removed.
-    envelope_buffer: Option<Arc<GuardedEnvelopeBuffer>>,
+    // envelope_buffer: Option<Arc<GuardedEnvelopeBuffer>>,
     services: Services,
     // Need hashbrown because extract_if is not stable in std yet.
     projects: hashbrown::HashMap<ProjectKey, Project>,
@@ -1300,7 +1300,7 @@ impl ProjectCacheBroker {
 pub struct ProjectCacheService {
     config: Arc<Config>,
     memory_checker: MemoryChecker,
-    envelope_buffer: Option<Arc<GuardedEnvelopeBuffer>>,
+    // envelope_buffer: Option<Arc<GuardedEnvelopeBuffer>>,
     services: Services,
     redis: Option<RedisPool>,
 }
@@ -1310,14 +1310,14 @@ impl ProjectCacheService {
     pub fn new(
         config: Arc<Config>,
         memory_checker: MemoryChecker,
-        envelope_buffer: Option<Arc<GuardedEnvelopeBuffer>>,
+        // envelope_buffer: Option<Arc<GuardedEnvelopeBuffer>>,
         services: Services,
         redis: Option<RedisPool>,
     ) -> Self {
         Self {
             config,
             memory_checker,
-            envelope_buffer,
+            // envelope_buffer,
             services,
             redis,
         }
@@ -1331,7 +1331,7 @@ impl Service for ProjectCacheService {
         let Self {
             config,
             memory_checker,
-            envelope_buffer,
+            // envelope_buffer,
             services,
             redis,
         } = self;
@@ -1412,7 +1412,7 @@ impl Service for ProjectCacheService {
             let mut broker = ProjectCacheBroker {
                 config: config.clone(),
                 memory_checker,
-                envelope_buffer: envelope_buffer.clone(),
+                // envelope_buffer: envelope_buffer.clone(),
                 projects: hashbrown::HashMap::new(),
                 garbage_disposal: GarbageDisposal::new(),
                 source: ProjectSource::start(
@@ -1490,12 +1490,12 @@ impl Service for ProjectCacheService {
 }
 
 /// Temporary helper function while V1 spool exists.
-async fn peek_buffer(buffer: &Option<Arc<GuardedEnvelopeBuffer>>) -> EnvelopeBufferGuard {
-    match buffer {
-        Some(buffer) => buffer.peek().await,
-        None => std::future::pending().await,
-    }
-}
+// async fn peek_buffer(buffer: &Option<Arc<GuardedEnvelopeBuffer>>) -> EnvelopeBufferGuard {
+//     match buffer {
+//         Some(buffer) => buffer.peek().await,
+//         None => std::future::pending().await,
+//     }
+// }
 
 #[derive(Clone, Debug)]
 pub struct FetchProjectState {
