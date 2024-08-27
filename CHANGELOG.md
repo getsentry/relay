@@ -10,6 +10,11 @@
 
 - Add `EnvelopeStore` trait and implement `DiskUsage` for tracking disk usage. ([#3925](https://github.com/getsentry/relay/pull/3925))
 
+**Features**:
+
+- Add configuration option to specify the instance type of Relay. ([#3938](https://github.com/getsentry/relay/pull/3938))
+- Update definitions for user agent parsing. ([#3951](https://github.com/getsentry/relay/pull/3951))
+
 ## 24.8.0
 
 **Bug Fixes**:
