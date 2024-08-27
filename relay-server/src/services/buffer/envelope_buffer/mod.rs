@@ -12,7 +12,7 @@ use crate::services::buffer::envelope_stack::EnvelopeStack;
 use crate::services::buffer::envelope_store::sqlite::SqliteEnvelopeStoreError;
 use crate::services::buffer::stack_provider::memory::MemoryStackProvider;
 use crate::services::buffer::stack_provider::sqlite::SqliteStackProvider;
-use crate::services::buffer::stack_provider::{Capacity, StackProvider};
+use crate::services::buffer::stack_provider::StackProvider;
 use crate::statsd::{RelayCounters, RelayGauges};
 use crate::utils::MemoryChecker;
 
@@ -287,10 +287,7 @@ where
     }
 
     pub fn has_capacity(&self) -> bool {
-        matches!(
-            self.stack_provider.has_store_capacity(),
-            Capacity::Available
-        )
+        self.stack_provider.has_store_capacity()
     }
 
     fn pop_stack(&mut self, stack_key: StackKey) {

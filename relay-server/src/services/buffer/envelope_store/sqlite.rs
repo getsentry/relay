@@ -193,10 +193,10 @@ pub struct SqliteEnvelopeStore {
 
 impl SqliteEnvelopeStore {
     /// Initializes the [`SqliteEnvelopeStore`] with a supplied [`Pool`].
-    pub fn new(db: Pool<Sqlite>, refresh_frequency_ms: u64) -> Self {
+    pub fn new(db: Pool<Sqlite>, refresh_frequency: Duration) -> Self {
         Self {
             db: db.clone(),
-            disk_usage: DiskUsage::new(db, refresh_frequency_ms),
+            disk_usage: DiskUsage::new(db, refresh_frequency),
         }
     }
 
@@ -566,7 +566,7 @@ mod tests {
     #[tokio::test]
     async fn test_insert_and_delete_envelopes() {
         let db = setup_db(true).await;
-        let mut envelope_store = SqliteEnvelopeStore::new(db, 100);
+        let mut envelope_store = SqliteEnvelopeStore::new(db, Duration::from_millis(100));
 
         let own_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
         let sampling_key = ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap();
@@ -594,7 +594,7 @@ mod tests {
     #[tokio::test]
     async fn test_insert_and_get_project_keys_pairs() {
         let db = setup_db(true).await;
-        let mut envelope_store = SqliteEnvelopeStore::new(db, 100);
+        let mut envelope_store = SqliteEnvelopeStore::new(db, Duration::from_millis(100));
 
         let own_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
         let sampling_key = ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap();
@@ -619,8 +619,10 @@ mod tests {
     #[tokio::test]
     async fn test_estimate_disk_usage() {
         let db = setup_db(true).await;
-        let mut store = SqliteEnvelopeStore::new(db.clone(), 1);
-        let disk_usage = DiskUsage::prepare(db, 1).await.unwrap();
+        let mut store = SqliteEnvelopeStore::new(db.clone(), Duration::from_millis(1));
+        let disk_usage = DiskUsage::prepare(db, Duration::from_millis(1))
+            .await
+            .unwrap();
 
         // We read the disk usage without envelopes stored.
         let usage_1 = disk_usage.usage();

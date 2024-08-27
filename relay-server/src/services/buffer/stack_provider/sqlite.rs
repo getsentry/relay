@@ -4,7 +4,7 @@ use crate::services::buffer::envelope_store::sqlite::{
     SqliteEnvelopeStore, SqliteEnvelopeStoreError,
 };
 use crate::services::buffer::envelope_store::EnvelopeStore;
-use crate::services::buffer::stack_provider::{Capacity, StackProvider};
+use crate::services::buffer::stack_provider::StackProvider;
 use crate::{Envelope, SqliteEnvelopeStack};
 
 #[derive(Debug)]
