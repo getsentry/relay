@@ -311,6 +311,14 @@
     </span><span class="attr">#[metastructure(pii = <span class="string">"true"</span>, max_chars = <span class="number">128</span>, skip_serialization = <span class="string">"empty"</span>)]
     </span><span class="kw">pub </span>name: Annotated&lt;String&gt;,
 
+    <span class="doccomment">/// The user string representation as handled in Sentry.
+    ///
+    /// This field is computed by concatenating the name of specific fields of the `User`
+    /// struct with their value. For example, if `id` is set, `sentry_user` will be equal to
+    /// `"id:id-of-the-user".
+    </span><span class="attr">#[metastructure(pii = <span class="string">"true"</span>, skip_serialization = <span class="string">"empty"</span>)]
+    </span><span class="kw">pub </span>sentry_user: Annotated&lt;String&gt;,
+
     <span class="doccomment">/// Approximate geographical location of the end user or device.
     </span><span class="attr">#[metastructure(skip_serialization = <span class="string">"empty"</span>)]
     </span><span class="kw">pub </span>geo: Annotated&lt;Geo&gt;,
@@ -318,14 +326,6 @@
     <span class="doccomment">/// The user segment, for apps that divide users in user segments.
     </span><span class="attr">#[metastructure(skip_serialization = <span class="string">"empty"</span>)]
     </span><span class="kw">pub </span>segment: Annotated&lt;String&gt;,
-
-    <span class="doccomment">/// The user string representation as handled in Sentry.
-    ///
-    /// This field is computed by concatenating the name of specific fields of the `User`
-    /// struct with their value. For example, if `id` is set, `sentry_user` will be equal to
-    /// `"id:id-of-the-user".
-    </span><span class="attr">#[metastructure(skip_serialization = <span class="string">"empty"</span>)]
-    </span><span class="kw">pub </span>sentry_user: Annotated&lt;String&gt;,
 
     <span class="doccomment">/// Additional arbitrary fields, as stored in the database (and sometimes as sent by clients).
     /// All data from `self.other` should end up here after store normalization.

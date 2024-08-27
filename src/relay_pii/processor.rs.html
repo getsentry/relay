@@ -1909,6 +1909,33 @@
 <a href="#1909" id="1909">1909</a>
 <a href="#1910" id="1910">1910</a>
 <a href="#1911" id="1911">1911</a>
+<a href="#1912" id="1912">1912</a>
+<a href="#1913" id="1913">1913</a>
+<a href="#1914" id="1914">1914</a>
+<a href="#1915" id="1915">1915</a>
+<a href="#1916" id="1916">1916</a>
+<a href="#1917" id="1917">1917</a>
+<a href="#1918" id="1918">1918</a>
+<a href="#1919" id="1919">1919</a>
+<a href="#1920" id="1920">1920</a>
+<a href="#1921" id="1921">1921</a>
+<a href="#1922" id="1922">1922</a>
+<a href="#1923" id="1923">1923</a>
+<a href="#1924" id="1924">1924</a>
+<a href="#1925" id="1925">1925</a>
+<a href="#1926" id="1926">1926</a>
+<a href="#1927" id="1927">1927</a>
+<a href="#1928" id="1928">1928</a>
+<a href="#1929" id="1929">1929</a>
+<a href="#1930" id="1930">1930</a>
+<a href="#1931" id="1931">1931</a>
+<a href="#1932" id="1932">1932</a>
+<a href="#1933" id="1933">1933</a>
+<a href="#1934" id="1934">1934</a>
+<a href="#1935" id="1935">1935</a>
+<a href="#1936" id="1936">1936</a>
+<a href="#1937" id="1937">1937</a>
+<a href="#1938" id="1938">1938</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
 <span class="kw">use </span>std::mem;
@@ -2514,6 +2541,33 @@
                     </span><span class="string">"ip_address"</span>: <span class="string">"is this an ip address? 73.133.27.120"</span>, <span class="comment">//  &lt;--------
                 </span>},
                 <span class="string">"hpkp"</span>:<span class="string">"invalid data my ip address is  74.133.27.120 and my credit card number is  4571234567890111 "</span>,
+            })
+            .into(),
+        );
+
+        <span class="kw">let </span>scrubbing_config = DataScrubbingConfig {
+            scrub_data: <span class="bool-val">true</span>,
+            scrub_ip_addresses: <span class="bool-val">true</span>,
+            scrub_defaults: <span class="bool-val">true</span>,
+            ..Default::default()
+        };
+
+        <span class="kw">let </span>pii_config = to_pii_config(<span class="kw-2">&amp;</span>scrubbing_config).unwrap();
+        <span class="kw">let </span><span class="kw-2">mut </span>pii_processor = PiiProcessor::new(pii_config.compiled());
+
+        process_value(<span class="kw-2">&amp;mut </span>data, <span class="kw-2">&amp;mut </span>pii_processor, ProcessingState::root()).unwrap();
+
+        <span class="macro">assert_debug_snapshot!</span>(<span class="kw-2">&amp;</span>data);
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_sentry_user() {
+        <span class="kw">let </span><span class="kw-2">mut </span>data = Event::from_value(
+            <span class="macro">json!</span>({
+                <span class="string">"user"</span>: {
+                    <span class="string">"ip_address"</span>: <span class="string">"73.133.27.120"</span>,
+                    <span class="string">"sentry_user"</span>: <span class="string">"ip:73.133.27.120"</span>,
+                },
             })
             .into(),
         );
