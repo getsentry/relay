@@ -286,6 +286,7 @@ where
         );
     }
 
+    /// Returns `true` if the underlying storage has the capacity to store more envelopes.
     pub fn has_capacity(&self) -> bool {
         self.stack_provider.has_store_capacity()
     }
