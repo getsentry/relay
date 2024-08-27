@@ -151,7 +151,7 @@ pub struct ServiceState {
 
 impl ServiceState {
     /// Starts all services and returns addresses to all of them.
-    pub fn start(config: Arc<Config>) -> Result<Self> {
+    pub async fn start(config: Arc<Config>) -> Result<Self> {
         let upstream_relay = UpstreamRelayService::new(config.clone()).start();
         let test_store = TestStoreService::new(config.clone()).start();
 
@@ -259,6 +259,9 @@ impl ServiceState {
             MemoryChecker::new(memory_stat.clone(), config.clone()),
         )
         .map(Arc::new);
+        if let Some(envelope_buffer) = &envelope_buffer {
+            envelope_buffer.defer_initialize();
+        }
         ProjectCacheService::new(
             config.clone(),
             MemoryChecker::new(memory_stat.clone(), config.clone()),

@@ -301,7 +301,7 @@ pub fn run(config: Config) -> anyhow::Result<()> {
     // information on all services.
     main_runtime.block_on(async {
         Controller::start(config.shutdown_timeout());
-        let service = ServiceState::start(config.clone())?;
+        let service = ServiceState::start(config.clone()).await?;
         HttpServer::new(config, service.clone())?.start();
         Controller::shutdown_handle().finished().await;
         anyhow::Ok(())

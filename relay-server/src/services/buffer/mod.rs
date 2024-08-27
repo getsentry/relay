@@ -68,7 +68,8 @@ impl GuardedEnvelopeBuffer {
         if config.spool_v2() {
             Some(Self {
                 inner: tokio::sync::Mutex::new(Inner {
-                    backend: PolymorphicEnvelopeBuffer::from_config(config, memory_checker),
+                    // TODO: properly handle error.
+                    backend: PolymorphicEnvelopeBuffer::from_config(config, memory_checker).ok()?,
                     should_peek: true,
                 }),
                 notify: tokio::sync::Notify::new(),
@@ -78,6 +79,20 @@ impl GuardedEnvelopeBuffer {
         } else {
             None
         }
+    }
+
+    pub fn defer_initialize(self: Arc<self>) {
+        let this = self.clone();
+        tokio::spawn(async move {
+            this.initialize();
+        });
+    }
+
+    /// Initializes the envelope buffer.
+    async fn initialize(&self) {
+        let mut guard = self.inner.lock().await;
+        guard.backend.initialize().await;
+        self.notify(&mut guard);
     }
 
     /// Schedules a task to push an envelope to the buffer.

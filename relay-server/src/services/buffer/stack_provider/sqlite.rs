@@ -1,10 +1,13 @@
+use hashbrown::HashSet;
 use relay_config::Config;
+use std::future::Future;
 
 use crate::services::buffer::envelope_store::sqlite::{
     SqliteEnvelopeStore, SqliteEnvelopeStoreError,
 };
-use crate::services::buffer::stack_provider::StackProvider;
-use crate::{Envelope, SqliteEnvelopeStack};
+use crate::services::buffer::envelope_store::EnvelopeProjectKeys;
+use crate::services::buffer::stack_provider::{InitializationState, StackProvider};
+use crate::{Envelope, EnvelopeStack, SqliteEnvelopeStack};
 
 #[derive(Debug)]
 pub struct SqliteStackProvider {
@@ -31,16 +34,21 @@ impl SqliteStackProvider {
 impl StackProvider for SqliteStackProvider {
     type Stack = SqliteEnvelopeStack;
 
-    fn create_stack(&self, envelope: Box<Envelope>) -> Self::Stack {
-        let own_key = envelope.meta().public_key();
-        let sampling_key = envelope.sampling_key().unwrap_or(own_key);
+    async fn initialize(&self) -> InitializationState {
+        let Ok(envelopes_project_keys) = self.envelope_store.project_key_pairs().await else {
+            return InitializationState::empty();
+        };
 
+        InitializationState::new(envelopes_project_keys)
+    }
+
+    fn create_stack(&self, envelope_project_keys: EnvelopeProjectKeys) -> Self::Stack {
         SqliteEnvelopeStack::new(
             self.envelope_store.clone(),
             self.disk_batch_size,
             self.max_batches,
-            own_key,
-            sampling_key,
+            envelope_project_keys.own_key,
+            envelope_project_keys.sampling_key,
         )
     }
 
