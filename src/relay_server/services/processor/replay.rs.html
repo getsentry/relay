@@ -317,11 +317,28 @@
 <a href="#317" id="317">317</a>
 <a href="#318" id="318">318</a>
 <a href="#319" id="319">319</a>
+<a href="#320" id="320">320</a>
+<a href="#321" id="321">321</a>
+<a href="#322" id="322">322</a>
+<a href="#323" id="323">323</a>
+<a href="#324" id="324">324</a>
+<a href="#325" id="325">325</a>
+<a href="#326" id="326">326</a>
+<a href="#327" id="327">327</a>
+<a href="#328" id="328">328</a>
+<a href="#329" id="329">329</a>
+<a href="#330" id="330">330</a>
+<a href="#331" id="331">331</a>
+<a href="#332" id="332">332</a>
+<a href="#333" id="333">333</a>
+<a href="#334" id="334">334</a>
+<a href="#335" id="335">335</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Replay related processor code.
 </span><span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::net::IpAddr;
 
 <span class="kw">use </span>bytes::Bytes;
+<span class="kw">use </span>relay_base_schema::project::ProjectId;
 <span class="kw">use </span>relay_dynamic_config::{Feature, GlobalConfig, ProjectConfig};
 <span class="kw">use </span>relay_event_normalization::replay::{<span class="self">self</span>, ReplayError};
 <span class="kw">use </span>relay_event_normalization::RawUserAgentInfo;
@@ -347,6 +364,8 @@
     <span class="kw">let </span>replays_disabled = state.should_filter(Feature::SessionReplay);
     <span class="kw">let </span>scrubbing_enabled = project_state.has_feature(Feature::SessionReplayRecordingScrubbing);
     <span class="kw">let </span>replay_video_disabled = project_state.has_feature(Feature::SessionReplayVideoDisabled);
+    <span class="kw">let </span>project_id = project_state.project_id;
+    <span class="kw">let </span>organization_id = project_state.organization_id;
 
     <span class="kw">let </span>meta = state.envelope().meta().clone();
     <span class="kw">let </span>client_addr = meta.client_addr();
@@ -398,6 +417,8 @@
                     global_config,
                     client_addr,
                     user_agent,
+                    project_id,
+                    organization_id,
                 )<span class="question-mark">?</span>;
                 item.set_payload(ContentType::Json, replay_event);
             }
@@ -420,6 +441,8 @@
                     user_agent,
                     scrubbing_enabled,
                     <span class="kw-2">&amp;mut </span>scrubber,
+                    project_id,
+                    organization_id,
                 )<span class="question-mark">?</span>;
                 item.set_payload(ContentType::OctetStream, replay_video);
             }
@@ -432,6 +455,7 @@
 
 <span class="comment">// Replay Event Processing.
 
+</span><span class="attr">#[allow(clippy::too_many_arguments)]
 </span><span class="kw">fn </span>handle_replay_event_item(
     payload: Bytes,
     event_id: <span class="kw-2">&amp;</span><span class="prelude-ty">Option</span>&lt;EventId&gt;,
@@ -439,6 +463,8 @@
     global_config: <span class="kw-2">&amp;</span>GlobalConfig,
     client_ip: <span class="prelude-ty">Option</span>&lt;IpAddr&gt;,
     user_agent: <span class="kw-2">&amp;</span>RawUserAgentInfo&lt;<span class="kw-2">&amp;</span>str&gt;,
+    project_id: <span class="prelude-ty">Option</span>&lt;ProjectId&gt;,
+    organization_id: <span class="prelude-ty">Option</span>&lt;u64&gt;,
 ) -&gt; <span class="prelude-ty">Result</span>&lt;Bytes, ProcessingError&gt; {
     <span class="kw">let </span>filter_settings = <span class="kw-2">&amp;</span>config.filter_settings;
 
@@ -470,6 +496,8 @@
             <span class="macro">relay_log::warn!</span>(
                 error = <span class="kw-2">&amp;</span>error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error,
                 <span class="question-mark">?</span>event_id,
+                project_id = project_id.map(|v| v.value()),
+                organization_id = organization_id,
                 <span class="string">"invalid replay event"
             </span>);
             <span class="prelude-val">Err</span>(<span class="kw">match </span>error {
@@ -578,6 +606,8 @@
     user_agent: <span class="kw-2">&amp;</span>RawUserAgentInfo&lt;<span class="kw-2">&amp;</span>str&gt;,
     scrubbing_enabled: bool,
     scrubber: <span class="kw-2">&amp;mut </span>RecordingScrubber,
+    project_id: <span class="prelude-ty">Option</span>&lt;ProjectId&gt;,
+    organization_id: <span class="prelude-ty">Option</span>&lt;u64&gt;,
 ) -&gt; <span class="prelude-ty">Result</span>&lt;Bytes, ProcessingError&gt; {
     <span class="kw">let </span>ReplayVideoEvent {
         replay_event,
@@ -601,6 +631,8 @@
         global_config,
         client_ip,
         user_agent,
+        project_id,
+        organization_id,
     )<span class="question-mark">?</span>;
 
     <span class="comment">// Process as a replay-recording envelope item.
