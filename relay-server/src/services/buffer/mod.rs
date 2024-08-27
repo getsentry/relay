@@ -22,6 +22,16 @@ mod envelope_store;
 mod stack_provider;
 mod testutils;
 
+/// Struct that wraps the envelope buffer backend with a boolean flag to signal whether
+/// the contents of the buffer have changed.
+#[derive(Debug)]
+struct Inner {
+    /// The buffer that we are writing to and reading from.
+    backend: PolymorphicEnvelopeBuffer,
+    /// Used to notify callers of `peek()` of any changes in the buffer.
+    should_peek: bool,
+}
+
 /// Async envelope buffering interface.
 ///
 /// Access to the buffer is synchronized by a tokio lock.
@@ -41,7 +51,6 @@ pub struct GuardedEnvelopeBuffer {
     inner: tokio::sync::Mutex<Inner>,
     /// Used to notify callers of `peek()` of any changes in the buffer.
     notify: tokio::sync::Notify,
-
     /// Metric that counts how many push operations are waiting.
     inflight_push_count: AtomicU64,
 }
@@ -56,7 +65,7 @@ impl GuardedEnvelopeBuffer {
             Some(Self {
                 inner: tokio::sync::Mutex::new(Inner {
                     backend: PolymorphicEnvelopeBuffer::from_config(config, memory_checker),
-                    changed: true,
+                    should_peek: true,
                 }),
                 notify: tokio::sync::Notify::new(),
                 inflight_push_count: AtomicU64::new(0),
@@ -83,23 +92,19 @@ impl GuardedEnvelopeBuffer {
         });
     }
 
-    pub fn inflight_push_count(&self) -> u64 {
-        self.inflight_push_count.load(Ordering::Relaxed)
-    }
-
     /// Returns a reference to the next-in-line envelope.
     ///
     /// If the buffer is empty or has not changed since the last peek, this function will sleep
     /// until something changes in the buffer.
-    pub async fn peek(&self) -> Peek {
+    pub async fn peek(&self) -> EnvelopeBufferGuard {
         loop {
             let mut guard = self.inner.lock().await;
-            if guard.changed {
+            if guard.should_peek {
                 match guard.backend.peek().await {
                     Ok(envelope) => {
                         if envelope.is_some() {
-                            guard.changed = false;
-                            return Peek {
+                            guard.should_peek = false;
+                            return EnvelopeBufferGuard {
                                 guard,
                                 notify: &self.notify,
                             };
@@ -113,14 +118,17 @@ impl GuardedEnvelopeBuffer {
                     }
                 };
             }
-            drop(guard); // release the lock
+            // Release the lock before waiting for new notifications, otherwise we will indefinitely
+            // block.
+            drop(guard);
+            // We wait to get notified for any changes in the buffer.
             self.notify.notified().await;
         }
     }
 
     /// Marks a project as ready or not ready.
     ///
-    /// The buffer reprioritizes its envelopes based on this information.
+    /// The buffer re-prioritizes its envelopes based on this information.
     pub async fn mark_ready(&self, project_key: &ProjectKey, ready: bool) {
         let mut guard = self.inner.lock().await;
         let changed = guard.backend.mark_ready(project_key, ready);
@@ -135,6 +143,11 @@ impl GuardedEnvelopeBuffer {
         guard.backend.has_capacity()
     }
 
+    /// Returns the count of how many pushes are in flight and not been finished.
+    pub fn inflight_push_count(&self) -> u64 {
+        self.inflight_push_count.load(Ordering::Relaxed)
+    }
+
     /// Adds an envelope to the buffer and wakes any waiting consumers.
     async fn push(&self, envelope: Box<Envelope>) -> Result<(), EnvelopeBufferError> {
         let mut guard = self.inner.lock().await;
@@ -143,8 +156,9 @@ impl GuardedEnvelopeBuffer {
         Ok(())
     }
 
+    /// Notifies the waiting tasks that a change has happened in the buffer.
     fn notify(&self, guard: &mut MutexGuard<Inner>) {
-        guard.changed = true;
+        guard.should_peek = true;
         self.notify.notify_waiters();
     }
 }
@@ -152,12 +166,12 @@ impl GuardedEnvelopeBuffer {
 /// A view onto the next envelope in the buffer.
 ///
 /// Objects of this type can only exist if the buffer is not empty.
-pub struct Peek<'a> {
+pub struct EnvelopeBufferGuard<'a> {
     guard: MutexGuard<'a, Inner>,
     notify: &'a tokio::sync::Notify,
 }
 
-impl Peek<'_> {
+impl EnvelopeBufferGuard<'_> {
     /// Returns a reference to the next envelope.
     pub async fn get(&mut self) -> Result<&Envelope, EnvelopeBufferError> {
         Ok(self
@@ -170,7 +184,7 @@ impl Peek<'_> {
 
     /// Pops the next envelope from the buffer.
     ///
-    /// This functions consumes the [`Peek`].
+    /// This functions consumes the [`EnvelopeBufferGuard`].
     pub async fn remove(mut self) -> Result<Box<Envelope>, EnvelopeBufferError> {
         self.notify();
         Ok(self
@@ -183,7 +197,7 @@ impl Peek<'_> {
 
     /// Sync version of [`GuardedEnvelopeBuffer::mark_ready`].
     ///
-    /// Since [`Peek`] already has exclusive access to the buffer, it can mark projects as ready
+    /// Since [`EnvelopeBufferGuard`] already has exclusive access to the buffer, it can mark projects as ready
     /// without awaiting the lock.
     pub fn mark_ready(&mut self, project_key: &ProjectKey, ready: bool) {
         let changed = self.guard.backend.mark_ready(project_key, ready);
@@ -192,17 +206,11 @@ impl Peek<'_> {
         }
     }
 
+    /// Notifies the waiting tasks that a change has happened in the buffer.
     fn notify(&mut self) {
-        self.guard.changed = true;
+        self.guard.should_peek = true;
         self.notify.notify_waiters();
     }
-}
-
-#[derive(Debug)]
-struct Inner {
-    backend: PolymorphicEnvelopeBuffer,
-    /// Used to notify callers of `peek()` of any changes in the buffer.
-    changed: bool,
 }
 
 #[cfg(test)]

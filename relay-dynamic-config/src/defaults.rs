@@ -268,6 +268,9 @@ pub fn hardcoded_span_metrics() -> Vec<(GroupKey, Vec<MetricSpec>, Vec<TagMappin
                         Tag::with_key("transaction")
                             .from_field("span.sentry_tags.transaction")
                             .always(), // already guarded by condition on metric
+                        Tag::with_key("user.geo.subregion")
+                            .from_field("span.sentry_tags.user.geo.subregion")
+                            .always(), // already guarded by condition on metric
                     ],
                 },
                 MetricSpec {
@@ -303,6 +306,9 @@ pub fn hardcoded_span_metrics() -> Vec<(GroupKey, Vec<MetricSpec>, Vec<TagMappin
                         Tag::with_key("span.op")
                             .from_field("span.sentry_tags.op")
                             .always(), // already guarded by condition on metric
+                        Tag::with_key("user.geo.subregion")
+                            .from_field("span.sentry_tags.user.geo.subregion")
+                            .always(), // already guarded by condition on metric
                     ],
                 },
                 MetricSpec {
@@ -334,6 +340,9 @@ pub fn hardcoded_span_metrics() -> Vec<(GroupKey, Vec<MetricSpec>, Vec<TagMappin
                             .always(), // already guarded by condition on metric
                         Tag::with_key("span.op")
                             .from_field("span.sentry_tags.op")
+                            .always(), // already guarded by condition on metric
+                        Tag::with_key("user.geo.subregion")
+                            .from_field("span.sentry_tags.user.geo.subregion")
                             .always(), // already guarded by condition on metric
                     ],
                 },
@@ -471,6 +480,9 @@ pub fn hardcoded_span_metrics() -> Vec<(GroupKey, Vec<MetricSpec>, Vec<TagMappin
                         Tag::with_key("span.group")
                             .from_field("span.sentry_tags.group")
                             .always(),
+                        Tag::with_key("user.geo.subregion")
+                            .from_field("span.sentry_tags.user.geo.subregion")
+                            .always(),
                         Tag::with_key("device.class")
                             .from_field("span.sentry_tags.device.class")
                             .always(),
@@ -505,6 +517,9 @@ pub fn hardcoded_span_metrics() -> Vec<(GroupKey, Vec<MetricSpec>, Vec<TagMappin
                             .always(),
                         Tag::with_key("span.group")
                             .from_field("span.sentry_tags.group")
+                            .always(),
+                        Tag::with_key("user.geo.subregion")
+                            .from_field("span.sentry_tags.user.geo.subregion")
                             .always(),
                         Tag::with_key("device.class")
                             .from_field("span.sentry_tags.device.class")
@@ -541,6 +556,9 @@ pub fn hardcoded_span_metrics() -> Vec<(GroupKey, Vec<MetricSpec>, Vec<TagMappin
                         Tag::with_key("span.group")
                             .from_field("span.sentry_tags.group")
                             .always(),
+                        Tag::with_key("user.geo.subregion")
+                            .from_field("span.sentry_tags.user.geo.subregion")
+                            .always(),
                         Tag::with_key("device.class")
                             .from_field("span.sentry_tags.device.class")
                             .always(),
@@ -575,6 +593,9 @@ pub fn hardcoded_span_metrics() -> Vec<(GroupKey, Vec<MetricSpec>, Vec<TagMappin
                             .always(),
                         Tag::with_key("span.group")
                             .from_field("span.sentry_tags.group")
+                            .always(),
+                        Tag::with_key("user.geo.subregion")
+                            .from_field("span.sentry_tags.user.geo.subregion")
                             .always(),
                         Tag::with_key("device.class")
                             .from_field("span.sentry_tags.device.class")

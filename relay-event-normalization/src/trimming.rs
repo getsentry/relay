@@ -283,7 +283,7 @@ impl Processor for TrimmingProcessor {
         }
 
         processor::apply(&mut stacktrace.frames, |frames, meta| {
-            enforce_frame_hard_limit(frames, meta, 250);
+            enforce_frame_hard_limit(frames, meta, 200, 50);
             Ok(())
         })?;
 
@@ -359,12 +359,26 @@ fn trim_string(value: &mut String, meta: &mut Meta, max_chars: usize, max_chars_
     });
 }
 
-fn enforce_frame_hard_limit(frames: &mut Array<Frame>, meta: &mut Meta, limit: usize) {
-    // Trim down the frame list to a hard limit. Prioritize the last frames.
+/// Trim down the frame list to a hard limit.
+///
+/// The total limit is `recent_frames` + `old_frames`.
+/// `recent_frames` is the number of frames to keep from the beginning of the list,
+/// the most recent stack frames, `old_frames` is the last at the end of the list of frames,
+/// the oldest frames up the stack.
+///
+/// It makes sense to keep some of the old frames in recursion cases to see what actually caused
+/// the recursion.
+fn enforce_frame_hard_limit(
+    frames: &mut Array<Frame>,
+    meta: &mut Meta,
+    recent_frames: usize,
+    old_frames: usize,
+) {
     let original_length = frames.len();
+    let limit = recent_frames + old_frames;
     if original_length > limit {
         meta.set_original_length(Some(original_length));
-        let _ = frames.drain(0..original_length - limit);
+        let _ = frames.drain(old_frames..original_length - recent_frames);
     }
 }
 
@@ -697,7 +711,7 @@ mod tests {
 
         let contexts = contexts.value().unwrap();
         for i in 1..2 {
-            let other = match contexts.get_key(&format!("despacito{i}")).unwrap() {
+            let other = match contexts.get_key(format!("despacito{i}")).unwrap() {
                 Context::Other(ref x) => x,
                 _ => panic!("Context has changed type!"),
             };
@@ -823,7 +837,13 @@ mod tests {
         ]);
 
         processor::apply(&mut frames, |f, m| {
-            enforce_frame_hard_limit(f, m, 3);
+            enforce_frame_hard_limit(f, m, 3, 0);
+            Ok(())
+        })
+        .unwrap();
+
+        processor::apply(&mut frames, |f, m| {
+            enforce_frame_hard_limit(f, m, 1, 2);
             Ok(())
         })
         .unwrap();
@@ -850,7 +870,7 @@ mod tests {
         ]);
 
         processor::apply(&mut frames, |f, m| {
-            enforce_frame_hard_limit(f, m, 3);
+            enforce_frame_hard_limit(f, m, 3, 0);
             Ok(())
         })
         .unwrap();
@@ -863,6 +883,45 @@ mod tests {
             Annotated(
                 Some(vec![
                     create_frame("foo3.py"),
+                    create_frame("foo4.py"),
+                    create_frame("foo5.py"),
+                ]),
+                expected_meta
+            )
+        );
+    }
+
+    #[test]
+    fn test_frame_hard_limit_recent_old() {
+        fn create_frame(filename: &str) -> Annotated<Frame> {
+            Annotated::new(Frame {
+                filename: Annotated::new(filename.into()),
+                ..Default::default()
+            })
+        }
+
+        let mut frames = Annotated::new(vec![
+            create_frame("foo1.py"),
+            create_frame("foo2.py"),
+            create_frame("foo3.py"),
+            create_frame("foo4.py"),
+            create_frame("foo5.py"),
+        ]);
+
+        processor::apply(&mut frames, |f, m| {
+            enforce_frame_hard_limit(f, m, 2, 1);
+            Ok(())
+        })
+        .unwrap();
+
+        let mut expected_meta = Meta::default();
+        expected_meta.set_original_length(Some(5));
+
+        assert_eq!(
+            frames,
+            Annotated(
+                Some(vec![
+                    create_frame("foo1.py"),
                     create_frame("foo4.py"),
                     create_frame("foo5.py"),
                 ]),

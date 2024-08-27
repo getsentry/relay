@@ -4,7 +4,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use crate::extractors::RequestMeta;
-use crate::services::buffer::{EnvelopeBufferError, GuardedEnvelopeBuffer, Peek};
+use crate::services::buffer::{EnvelopeBufferError, EnvelopeBufferGuard, GuardedEnvelopeBuffer};
 use crate::services::processor::{
     EncodeMetrics, EnvelopeProcessor, MetricData, ProcessEnvelope, ProcessingGroup, ProjectMetrics,
 };
@@ -1069,7 +1069,10 @@ impl ProjectCacheBroker {
         }
     }
 
-    async fn peek_at_envelope(&mut self, mut peek: Peek<'_>) -> Result<(), EnvelopeBufferError> {
+    async fn peek_at_envelope(
+        &mut self,
+        mut peek: EnvelopeBufferGuard<'_>,
+    ) -> Result<(), EnvelopeBufferError> {
         let envelope = peek.get().await?;
         if envelope.meta().start_time().elapsed() > self.config.spool_envelopes_max_age() {
             let popped_envelope = peek.remove().await?;
@@ -1474,7 +1477,7 @@ impl Service for ProjectCacheService {
                     }
                     _ = report_ticker.tick() => {
                         if let Some(envelope_buffer) = &envelope_buffer {
-                            relay_statsd::metric!(gauge(RelayGauges::BufferPushInFlight) = envelope_buffer.inflight_push_count());
+                            metric!(gauge(RelayGauges::BufferPushInFlight) = envelope_buffer.inflight_push_count());
                         }
                     }
                     else => break,
@@ -1486,8 +1489,8 @@ impl Service for ProjectCacheService {
     }
 }
 
-/// Temporary helper function while V1 spool eixsts.
-async fn peek_buffer(buffer: &Option<Arc<GuardedEnvelopeBuffer>>) -> Peek {
+/// Temporary helper function while V1 spool exists.
+async fn peek_buffer(buffer: &Option<Arc<GuardedEnvelopeBuffer>>) -> EnvelopeBufferGuard {
     match buffer {
         Some(buffer) => buffer.peek().await,
         None => std::future::pending().await,

@@ -1,10 +1,10 @@
 [package]
-name = "relay-common"
+name = "relay-pattern"
 authors = ["Sentry <oss@sentry.io>"]
-description = "Common utilities and crate re-exports for Relay"
+description = "A glob like pattern used throughout Relay"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "24.8.0"
+version = "24.7.1"
 edition = "2021"
 license-file = "../LICENSE.md"
 publish = false
@@ -13,13 +13,12 @@ publish = false
 workspace = true
 
 [dependencies]
-chrono = { workspace = true }
-once_cell = { workspace = true }
+memchr = { workspace = true }
 regex-lite = { workspace = true }
-relay-pattern = { workspace = true }
-sentry-types = { workspace = true }
-serde = { workspace = true }
 
 [dev-dependencies]
-serde_test = { workspace = true }
 criterion = { workspace = true }
+
+[[bench]]
+name = "benches"
+harness = false

@@ -3,20 +3,15 @@
 use std::fmt;
 use std::sync::OnceLock;
 
-use globset::GlobBuilder;
-use regex_lite::{Regex, RegexBuilder};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-/// Returns `true` if any of the patterns match the given message.
-fn is_match(globs: &[Regex], message: &str) -> bool {
-    globs.iter().any(|regex| regex.is_match(message))
-}
+use relay_pattern::Pattern;
 
 /// A list of patterns for glob matching.
 #[derive(Clone, Default)]
 pub struct GlobPatterns {
     patterns: Vec<String>,
-    globs: OnceLock<Vec<Regex>>,
+    compiled: OnceLock<Vec<Pattern>>,
 }
 
 impl GlobPatterns {
@@ -24,7 +19,7 @@ impl GlobPatterns {
     pub fn new(patterns: Vec<String>) -> Self {
         Self {
             patterns,
-            globs: OnceLock::new(),
+            compiled: OnceLock::new(),
         }
     }
 
@@ -45,32 +40,14 @@ impl GlobPatterns {
             return false;
         }
 
-        let globs = self.globs.get_or_init(|| self.parse_globs());
-        is_match(globs, message)
-    }
+        let compiled = self.compiled.get_or_init(|| {
+            self.patterns
+                .iter()
+                .filter_map(|p| Pattern::builder(p).case_insensitive(true).build().ok())
+                .collect()
+        });
 
-    /// Parses valid patterns from the list.
-    fn parse_globs(&self) -> Vec<Regex> {
-        let mut globs = Vec::with_capacity(self.patterns.len());
-
-        for pattern in &self.patterns {
-            let glob_result = GlobBuilder::new(pattern)
-                .case_insensitive(true)
-                .backslash_escape(true)
-                .build();
-
-            if let Ok(glob) = glob_result {
-                let regex_result = RegexBuilder::new(glob.regex())
-                    .dot_matches_new_line(true)
-                    .build();
-
-                if let Ok(regex) = regex_result {
-                    globs.push(regex);
-                }
-            }
-        }
-
-        globs
+        compiled.iter().any(|pattern| pattern.is_match(message))
     }
 }
 
@@ -115,6 +92,13 @@ mod tests {
                 $($pattern.to_string()),*
             ])
         };
+    }
+
+    #[test]
+    fn test_match_empty() {
+        let globs = globs!("");
+        assert!(!globs.is_match("foo"));
+        assert!(!globs.is_match(""));
     }
 
     #[test]
@@ -189,5 +173,12 @@ mod tests {
         let globs = globs!("!1.18.4.*");
         assert!(!globs.is_match("1.18.4.2153-2aa83397b"));
         assert!(!globs.is_match("1.18.5.2153-2aa83397b"));
+    }
+
+    #[test]
+    fn test_match_escape_brace() {
+        let globs = globs!(r"/api/0/organizations/\{organization_slug\}/event*");
+        assert!(globs.is_match("/api/0/organizations/{organization_slug}/event/foobar"));
+        assert!(!globs.is_match(r"/api/0/organizations/\{organization_slug\}/event/foobar"));
     }
 }
