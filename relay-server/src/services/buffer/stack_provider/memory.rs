@@ -10,7 +10,7 @@ pub struct MemoryStackProvider {
 
 impl MemoryStackProvider {
     /// Creates a new [`MemoryStackProvider`] with a given [`MemoryChecker`] that is used to
-    /// estimate the [`Capacity`].
+    /// estimate the capacity.
     pub fn new(memory_checker: MemoryChecker) -> Self {
         Self { memory_checker }
     }
