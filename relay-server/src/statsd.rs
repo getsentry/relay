@@ -464,6 +464,7 @@ pub enum RelayTimers {
     /// This metric is tagged with:
     ///
     ///  - `message`: The type of message that was processed.
+    #[allow(dead_code)] // TODO: Temporarily disabled for a performance measurement.
     ProcessMessageDuration,
     /// Timing in milliseconds for handling a project cache message.
     ///
@@ -503,11 +504,13 @@ pub enum RelayTimers {
     ///
     /// This metric is tagged with:
     ///  - `message`: The type of message that was processed.
+    #[allow(dead_code)] // TODO: Temporarily disabled for a performance measurement.
     AggregatorServiceDuration,
     /// Timing in milliseconds for processing a message in the metric router service.
     ///
     /// This metric is tagged with:
     ///  - `message`: The type of message that was processed.
+    #[allow(dead_code)] // TODO: Temporarily disabled for a performance measurement.
     MetricRouterServiceDuration,
     /// Timing in milliseconds for processing a message in the metric store service.
     ///

@@ -9,7 +9,7 @@ use relay_metrics::aggregator::AggregateMetricsError;
 use relay_metrics::{aggregator, Bucket, UnixTimestamp};
 use relay_system::{Controller, FromMessage, Interface, NoResponse, Recipient, Service, Shutdown};
 
-use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
+use crate::statsd::{RelayCounters, RelayHistograms};
 
 /// Aggregator for metric buckets.
 ///
@@ -29,17 +29,6 @@ pub enum Aggregator {
     /// Message is used only for tests to get the current number of buckets in `AggregatorService`.
     #[cfg(test)]
     BucketCountInquiry(BucketCountInquiry, relay_system::Sender<usize>),
-}
-
-impl Aggregator {
-    /// Returns the name of the message variant.
-    pub fn variant(&self) -> &'static str {
-        match self {
-            Aggregator::MergeBuckets(_) => "MergeBuckets",
-            #[cfg(test)]
-            Aggregator::BucketCountInquiry(_, _) => "BucketCountInquiry",
-        }
-    }
 }
 
 impl Interface for Aggregator {}

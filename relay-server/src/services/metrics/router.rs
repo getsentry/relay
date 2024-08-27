@@ -9,7 +9,6 @@ use relay_system::{Addr, NoResponse, Recipient, Service};
 use crate::services::metrics::{
     Aggregator, AggregatorHandle, AggregatorService, FlushBuckets, MergeBuckets,
 };
-use crate::statsd::RelayTimers;
 use crate::utils;
 
 /// Service that routes metrics & metric buckets to the appropriate aggregator.
