@@ -2604,6 +2604,60 @@
 <a href="#2604" id="2604">2604</a>
 <a href="#2605" id="2605">2605</a>
 <a href="#2606" id="2606">2606</a>
+<a href="#2607" id="2607">2607</a>
+<a href="#2608" id="2608">2608</a>
+<a href="#2609" id="2609">2609</a>
+<a href="#2610" id="2610">2610</a>
+<a href="#2611" id="2611">2611</a>
+<a href="#2612" id="2612">2612</a>
+<a href="#2613" id="2613">2613</a>
+<a href="#2614" id="2614">2614</a>
+<a href="#2615" id="2615">2615</a>
+<a href="#2616" id="2616">2616</a>
+<a href="#2617" id="2617">2617</a>
+<a href="#2618" id="2618">2618</a>
+<a href="#2619" id="2619">2619</a>
+<a href="#2620" id="2620">2620</a>
+<a href="#2621" id="2621">2621</a>
+<a href="#2622" id="2622">2622</a>
+<a href="#2623" id="2623">2623</a>
+<a href="#2624" id="2624">2624</a>
+<a href="#2625" id="2625">2625</a>
+<a href="#2626" id="2626">2626</a>
+<a href="#2627" id="2627">2627</a>
+<a href="#2628" id="2628">2628</a>
+<a href="#2629" id="2629">2629</a>
+<a href="#2630" id="2630">2630</a>
+<a href="#2631" id="2631">2631</a>
+<a href="#2632" id="2632">2632</a>
+<a href="#2633" id="2633">2633</a>
+<a href="#2634" id="2634">2634</a>
+<a href="#2635" id="2635">2635</a>
+<a href="#2636" id="2636">2636</a>
+<a href="#2637" id="2637">2637</a>
+<a href="#2638" id="2638">2638</a>
+<a href="#2639" id="2639">2639</a>
+<a href="#2640" id="2640">2640</a>
+<a href="#2641" id="2641">2641</a>
+<a href="#2642" id="2642">2642</a>
+<a href="#2643" id="2643">2643</a>
+<a href="#2644" id="2644">2644</a>
+<a href="#2645" id="2645">2645</a>
+<a href="#2646" id="2646">2646</a>
+<a href="#2647" id="2647">2647</a>
+<a href="#2648" id="2648">2648</a>
+<a href="#2649" id="2649">2649</a>
+<a href="#2650" id="2650">2650</a>
+<a href="#2651" id="2651">2651</a>
+<a href="#2652" id="2652">2652</a>
+<a href="#2653" id="2653">2653</a>
+<a href="#2654" id="2654">2654</a>
+<a href="#2655" id="2655">2655</a>
+<a href="#2656" id="2656">2656</a>
+<a href="#2657" id="2657">2657</a>
+<a href="#2658" id="2658">2658</a>
+<a href="#2659" id="2659">2659</a>
+<a href="#2660" id="2660">2660</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::io::Write;
@@ -2828,6 +2882,8 @@
 </span><span class="kw">pub struct </span>OverridableConfig {
     <span class="doccomment">/// The operation mode of this relay.
     </span><span class="kw">pub </span>mode: <span class="prelude-ty">Option</span>&lt;String&gt;,
+    <span class="doccomment">/// The instance type of this relay.
+    </span><span class="kw">pub </span>instance: <span class="prelude-ty">Option</span>&lt;String&gt;,
     <span class="doccomment">/// The log level of this relay.
     </span><span class="kw">pub </span>log_level: <span class="prelude-ty">Option</span>&lt;String&gt;,
     <span class="doccomment">/// The upstream relay or sentry instance.
@@ -2958,6 +3014,44 @@
     }
 }
 
+<span class="doccomment">/// The instance type of Relay.
+</span><span class="attr">#[derive(Clone, Copy, Debug, Eq, PartialEq, Deserialize, Serialize)]
+#[serde(rename_all = <span class="string">"camelCase"</span>)]
+</span><span class="kw">pub enum </span>RelayInstance {
+    <span class="doccomment">/// This Relay is run as a default instance.
+    </span>Default,
+
+    <span class="doccomment">/// This Relay is run as a canary instance where experiments can be run.
+    </span>Canary,
+}
+
+<span class="kw">impl </span>RelayInstance {
+    <span class="doccomment">/// Returns `true` if the [`RelayInstance`] is of type [`RelayInstance::Canary`].
+    </span><span class="kw">pub fn </span>is_canary(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="macro">matches!</span>(<span class="self">self</span>, RelayInstance::Canary)
+    }
+}
+
+<span class="kw">impl </span>fmt::Display <span class="kw">for </span>RelayInstance {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter) -&gt; fmt::Result {
+        <span class="kw">match </span><span class="self">self </span>{
+            RelayInstance::Default =&gt; <span class="macro">write!</span>(f, <span class="string">"default"</span>),
+            RelayInstance::Canary =&gt; <span class="macro">write!</span>(f, <span class="string">"canary"</span>),
+        }
+    }
+}
+
+<span class="kw">impl </span>FromStr <span class="kw">for </span>RelayInstance {
+    <span class="kw">type </span><span class="prelude-val">Err </span>= fmt::Error;
+
+    <span class="kw">fn </span>from_str(s: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, <span class="self">Self</span>::Err&gt; {
+        <span class="kw">match </span>s {
+            <span class="string">"canary" </span>=&gt; <span class="prelude-val">Ok</span>(RelayInstance::Canary),
+            <span class="kw">_ </span>=&gt; <span class="prelude-val">Ok</span>(RelayInstance::Default),
+        }
+    }
+}
+
 <span class="doccomment">/// Error returned when parsing an invalid [`RelayMode`].
 </span><span class="attr">#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 </span><span class="kw">pub struct </span>ParseRelayModeError;
@@ -3042,6 +3136,8 @@
 </span><span class="kw">pub struct </span>Relay {
     <span class="doccomment">/// The operation mode of this relay.
     </span><span class="kw">pub </span>mode: RelayMode,
+    <span class="doccomment">/// The instance type of this relay.
+    </span><span class="kw">pub </span>instance: RelayInstance,
     <span class="doccomment">/// The upstream relay or sentry instance.
     </span><span class="kw">pub </span>upstream: UpstreamDescriptor&lt;<span class="lifetime">'static</span>&gt;,
     <span class="doccomment">/// The host the relay should bind to (network interface).
@@ -3069,6 +3165,7 @@
     <span class="kw">fn </span>default() -&gt; <span class="self">Self </span>{
         Relay {
             mode: RelayMode::Managed,
+            instance: RelayInstance::Default,
             upstream: <span class="string">"https://sentry.io/"</span>.parse().unwrap(),
             host: default_host(),
             port: <span class="number">3000</span>,
@@ -4213,6 +4310,12 @@
                 .with_context(|| ConfigError::field(<span class="string">"mode"</span>))<span class="question-mark">?</span>;
         }
 
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(deployment) = overrides.instance {
+            relay.instance = deployment
+                .parse::&lt;RelayInstance&gt;()
+                .with_context(|| ConfigError::field(<span class="string">"deployment"</span>))<span class="question-mark">?</span>;
+        }
+
         <span class="kw">if let </span><span class="prelude-val">Some</span>(log_level) = overrides.log_level {
             <span class="self">self</span>.values.logging.level = log_level.parse()<span class="question-mark">?</span>;
         }
@@ -4424,6 +4527,11 @@
     <span class="doccomment">/// Returns the relay mode.
     </span><span class="kw">pub fn </span>relay_mode(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; RelayMode {
         <span class="self">self</span>.values.relay.mode
+    }
+
+    <span class="doccomment">/// Returns the instance type of relay.
+    </span><span class="kw">pub fn </span>relay_instance(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; RelayInstance {
+        <span class="self">self</span>.values.relay.instance
     }
 
     <span class="doccomment">/// Returns the upstream target as descriptor.

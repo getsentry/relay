@@ -391,6 +391,8 @@
 <a href="#391" id="391">391</a>
 <a href="#392" id="392">392</a>
 <a href="#393" id="393">393</a>
+<a href="#394" id="394">394</a>
+<a href="#395" id="395">395</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::io::BufRead;
 <span class="kw">use </span>std::path::{Path, PathBuf};
 <span class="kw">use </span>std::{env, io};
@@ -490,6 +492,7 @@
         secret_key: matches.get_one(<span class="string">"secret_key"</span>).cloned(),
         outcome_source: matches.get_one(<span class="string">"source_id"</span>).cloned(),
         shutdown_timeout: matches.get_one(<span class="string">"shutdown_timeout"</span>).cloned(),
+        instance: matches.get_one(<span class="string">"instance"</span>).cloned(),
     }
 }
 
@@ -510,6 +513,7 @@
         secret_key: env::var(<span class="string">"RELAY_SECRET_KEY"</span>).ok(),
         outcome_source: <span class="prelude-val">None</span>, <span class="comment">//already extracted in params
         </span>shutdown_timeout: env::var(<span class="string">"SHUTDOWN_TIMEOUT"</span>).ok(),
+        instance: env::var(<span class="string">"RELAY_INSTANCE"</span>).ok(),
     }
 }
 

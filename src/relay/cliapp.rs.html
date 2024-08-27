@@ -329,6 +329,11 @@
 <a href="#329" id="329">329</a>
 <a href="#330" id="330">330</a>
 <a href="#331" id="331">331</a>
+<a href="#332" id="332">332</a>
+<a href="#333" id="333">333</a>
+<a href="#334" id="334">334</a>
+<a href="#335" id="335">335</a>
+<a href="#336" id="336">336</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module implements the definition of the command line app.
 
 </span><span class="kw">use </span>clap::builder::ValueParser;
@@ -471,6 +476,11 @@
                         .help(
                             <span class="string">"Maximum number of seconds to wait for pending envelopes on shutdown."</span>,
                         ),
+                )
+                .arg(
+                    Arg::new(<span class="string">"instance"</span>)
+                        .long(<span class="string">"instance"</span>)
+                        .help(<span class="string">"The instance type of this Relay."</span>)
                 )
         )
         .subcommand(
