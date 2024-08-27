@@ -217,11 +217,7 @@ impl ServiceState {
             })
             .transpose()?;
 
-        let cogs = CogsService::new(
-            &config,
-            #[cfg(feature = "processing")]
-            store.clone(),
-        );
+        let cogs = CogsService::new(&config);
         let cogs = Cogs::new(CogsServiceRecorder::new(&config, cogs.start()));
 
         EnvelopeProcessorService::new(

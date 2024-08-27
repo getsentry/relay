@@ -11,6 +11,10 @@
 - Add configuration option to specify the instance type of Relay. ([#3938](https://github.com/getsentry/relay/pull/3938))
 - Update definitions for user agent parsing. ([#3951](https://github.com/getsentry/relay/pull/3951))
 
+**Internal**:
+
+- No longer send COGS data to dedicated Kafka topic. ([#3953](https://github.com/getsentry/relay/pull/3953))
+
 ## 24.8.0
 
 **Bug Fixes**:
