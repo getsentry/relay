@@ -161,7 +161,7 @@ fn handle_replay_event_item(
             relay_log::warn!(
                 error = &error as &dyn Error,
                 ?event_id,
-                project_id = project_id.map(|v| v.to_string()),
+                project_id = project_id.map(|v| v.value()),
                 organization_id = organization_id,
                 "invalid replay event"
             );
