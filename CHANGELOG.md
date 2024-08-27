@@ -8,7 +8,7 @@
 
 **Internal**:
 
-- Record too long discard reason. ([#3950](https://github.com/getsentry/relay/pull/3950))
+- Record too long discard reason for session replays. ([#3950](https://github.com/getsentry/relay/pull/3950))
 
 ## 24.8.0
 
