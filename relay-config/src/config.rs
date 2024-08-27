@@ -222,6 +222,8 @@ trait ConfigObject: DeserializeOwned + Serialize {
 pub struct OverridableConfig {
     /// The operation mode of this relay.
     pub mode: Option<String>,
+    /// The instance type of this relay.
+    pub instance: Option<String>,
     /// The log level of this relay.
     pub log_level: Option<String>,
     /// The upstream relay or sentry instance.
@@ -352,6 +354,44 @@ impl fmt::Display for RelayMode {
     }
 }
 
+/// The instance type of Relay.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum RelayInstance {
+    /// This Relay is run as a default instance.
+    Default,
+
+    /// This Relay is run as a canary instance where experiments can be run.
+    Canary,
+}
+
+impl RelayInstance {
+    /// Returns `true` if the [`RelayInstance`] is of type [`RelayInstance::Canary`].
+    pub fn is_canary(&self) -> bool {
+        matches!(self, RelayInstance::Canary)
+    }
+}
+
+impl fmt::Display for RelayInstance {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            RelayInstance::Default => write!(f, "default"),
+            RelayInstance::Canary => write!(f, "canary"),
+        }
+    }
+}
+
+impl FromStr for RelayInstance {
+    type Err = fmt::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "canary" => Ok(RelayInstance::Canary),
+            _ => Ok(RelayInstance::Default),
+        }
+    }
+}
+
 /// Error returned when parsing an invalid [`RelayMode`].
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct ParseRelayModeError;
@@ -436,6 +476,8 @@ impl Default for ReadinessCondition {
 pub struct Relay {
     /// The operation mode of this relay.
     pub mode: RelayMode,
+    /// The instance type of this relay.
+    pub instance: RelayInstance,
     /// The upstream relay or sentry instance.
     pub upstream: UpstreamDescriptor<'static>,
     /// The host the relay should bind to (network interface).
@@ -463,6 +505,7 @@ impl Default for Relay {
     fn default() -> Self {
         Relay {
             mode: RelayMode::Managed,
+            instance: RelayInstance::Default,
             upstream: "https://sentry.io/".parse().unwrap(),
             host: default_host(),
             port: 3000,
@@ -1607,6 +1650,12 @@ impl Config {
                 .with_context(|| ConfigError::field("mode"))?;
         }
 
+        if let Some(deployment) = overrides.instance {
+            relay.instance = deployment
+                .parse::<RelayInstance>()
+                .with_context(|| ConfigError::field("deployment"))?;
+        }
+
         if let Some(log_level) = overrides.log_level {
             self.values.logging.level = log_level.parse()?;
         }
@@ -1818,6 +1867,11 @@ impl Config {
     /// Returns the relay mode.
     pub fn relay_mode(&self) -> RelayMode {
         self.values.relay.mode
+    }
+
+    /// Returns the instance type of relay.
+    pub fn relay_instance(&self) -> RelayInstance {
+        self.values.relay.instance
     }
 
     /// Returns the upstream target as descriptor.
