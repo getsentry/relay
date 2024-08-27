@@ -6,6 +6,10 @@
 
 - Keep frames from both ends of the stacktrace when trimming frames. ([#3905](https://github.com/getsentry/relay/pull/3905))
 
+**Internal**:
+
+- Record too long discard reason for session replays. ([#3950](https://github.com/getsentry/relay/pull/3950))
+
 **Features**:
 
 - Add configuration option to specify the instance type of Relay. ([#3938](https://github.com/getsentry/relay/pull/3938))
