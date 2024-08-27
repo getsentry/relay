@@ -1,6 +1,6 @@
 //! Types for buffering envelopes.
 
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 
 use relay_base_schema::project::ProjectKey;
@@ -10,11 +10,13 @@ use tokio::sync::MutexGuard;
 use crate::envelope::Envelope;
 use crate::utils::{ManagedEnvelope, MemoryChecker};
 
+use crate::statsd::RelayCounters;
 pub use envelope_buffer::EnvelopeBufferError;
 pub use envelope_buffer::PolymorphicEnvelopeBuffer;
 pub use envelope_stack::sqlite::SqliteEnvelopeStack; // pub for benchmarks
 pub use envelope_stack::EnvelopeStack; // pub for benchmarks
-pub use envelope_store::sqlite::SqliteEnvelopeStore; // pub for benchmarks // pub for benchmarks
+pub use envelope_store::sqlite::SqliteEnvelopeStore;
+// pub for benchmarks // pub for benchmarks
 
 mod envelope_buffer;
 mod envelope_stack;
@@ -53,6 +55,8 @@ pub struct GuardedEnvelopeBuffer {
     notify: tokio::sync::Notify,
     /// Metric that counts how many push operations are waiting.
     inflight_push_count: AtomicU64,
+    /// Last known capacity check result.
+    cached_capacity: AtomicBool,
 }
 
 impl GuardedEnvelopeBuffer {
@@ -69,6 +73,7 @@ impl GuardedEnvelopeBuffer {
                 }),
                 notify: tokio::sync::Notify::new(),
                 inflight_push_count: AtomicU64::new(0),
+                cached_capacity: AtomicBool::new(true),
             })
         } else {
             None
@@ -138,9 +143,31 @@ impl GuardedEnvelopeBuffer {
     }
 
     /// Returns `true` if the buffer has capacity to accept more [`Envelope`]s.
-    pub async fn has_capacity(&self) -> bool {
-        let guard = self.inner.lock().await;
-        guard.backend.has_capacity()
+    ///
+    /// This method tries to acquire the lock and read the latest capacity, but doesn't
+    /// guarantee that the returned value will be up to date, since lock contention could lead to
+    /// this method never acquiring the lock, thus returning the last known capacity value.
+    pub fn has_capacity(&self) -> bool {
+        match self.inner.try_lock() {
+            Ok(guard) => {
+                relay_statsd::metric!(
+                    counter(RelayCounters::BufferCapacityCheck) += 1,
+                    lock_aquired = "true"
+                );
+
+                let has_capacity = guard.backend.has_capacity();
+                self.cached_capacity.store(has_capacity, Ordering::Relaxed);
+                has_capacity
+            }
+            Err(_) => {
+                relay_statsd::metric!(
+                    counter(RelayCounters::BufferCapacityCheck) += 1,
+                    lock_aquired = "false"
+                );
+
+                self.cached_capacity.load(Ordering::Relaxed)
+            }
+        }
     }
 
     /// Returns the count of how many pushes are in flight and not been finished.

@@ -259,7 +259,7 @@ pub fn event_id_from_items(items: &Items) -> Result<Option<EventId>, BadStoreReq
 ///
 /// Queueing can fail if the queue exceeds `envelope_buffer_size`. In this case, `Err` is
 /// returned and the envelope is not queued.
-async fn queue_envelope(
+fn queue_envelope(
     state: &ServiceState,
     mut managed_envelope: ManagedEnvelope,
 ) -> Result<(), BadStoreRequest> {
@@ -307,7 +307,7 @@ async fn queue_envelope(
 
         match state.envelope_buffer() {
             Some(buffer) => {
-                if !buffer.has_capacity().await {
+                if !buffer.has_capacity() {
                     return Err(BadStoreRequest::QueueFailed);
                 }
 
@@ -388,7 +388,7 @@ pub async fn handle_envelope(
         return Err(BadStoreRequest::Overflow(offender));
     }
 
-    queue_envelope(state, managed_envelope).await?;
+    queue_envelope(state, managed_envelope)?;
 
     if checked.rate_limits.is_limited() {
         // Even if some envelope items have been queued, there might be active rate limits on

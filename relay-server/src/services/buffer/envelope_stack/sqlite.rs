@@ -9,7 +9,6 @@ use crate::services::buffer::envelope_stack::EnvelopeStack;
 use crate::services::buffer::envelope_store::sqlite::{
     SqliteEnvelopeStore, SqliteEnvelopeStoreError,
 };
-use crate::services::buffer::envelope_store::EnvelopeStore;
 use crate::statsd::RelayCounters;
 
 /// An error returned when doing an operation on [`SqliteEnvelopeStack`].

@@ -7,7 +7,6 @@ use std::time::Duration;
 
 use crate::envelope::EnvelopeError;
 use crate::extractors::StartTime;
-use crate::services::buffer::envelope_store::EnvelopeStore;
 use crate::statsd::RelayGauges;
 use crate::Envelope;
 use futures::stream::StreamExt;
@@ -294,18 +293,12 @@ impl SqliteEnvelopeStore {
 
         Ok(())
     }
-}
-
-impl EnvelopeStore for SqliteEnvelopeStore {
-    type Envelope = InsertEnvelope;
-
-    type Error = SqliteEnvelopeStoreError;
 
     /// Inserts one or more envelopes into the database.
-    async fn insert_many(
+    pub async fn insert_many(
         &mut self,
-        envelopes: impl IntoIterator<Item = Self::Envelope>,
-    ) -> Result<(), Self::Error> {
+        envelopes: impl IntoIterator<Item = InsertEnvelope>,
+    ) -> Result<(), SqliteEnvelopeStoreError> {
         if let Err(err) = build_insert_many_envelopes(envelopes.into_iter())
             .build()
             .execute(&self.db)
@@ -323,12 +316,12 @@ impl EnvelopeStore for SqliteEnvelopeStore {
     }
 
     /// Deletes and returns at most `limit` [`Envelope`]s from the database.
-    async fn delete_many(
+    pub async fn delete_many(
         &mut self,
         own_key: ProjectKey,
         sampling_key: ProjectKey,
         limit: i64,
-    ) -> Result<Vec<Box<Envelope>>, Self::Error> {
+    ) -> Result<Vec<Box<Envelope>>, SqliteEnvelopeStoreError> {
         let envelopes = build_delete_and_fetch_many_envelopes(own_key, sampling_key, limit)
             .fetch(&self.db)
             .peekable();
@@ -386,7 +379,9 @@ impl EnvelopeStore for SqliteEnvelopeStore {
 
     /// Returns a set of project key pairs, representing all the unique combinations of
     /// `own_key` and `project_key` that are found in the database.
-    async fn project_key_pairs(&self) -> Result<HashSet<(ProjectKey, ProjectKey)>, Self::Error> {
+    pub async fn project_key_pairs(
+        &self,
+    ) -> Result<HashSet<(ProjectKey, ProjectKey)>, SqliteEnvelopeStoreError> {
         let project_key_pairs = build_get_project_key_pairs()
             .fetch_all(&self.db)
             .await
@@ -402,7 +397,7 @@ impl EnvelopeStore for SqliteEnvelopeStore {
     }
 
     /// Returns an approximate measure of the used size of the database.
-    fn usage(&self) -> u64 {
+    pub fn usage(&self) -> u64 {
         self.disk_usage.usage()
     }
 }
