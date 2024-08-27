@@ -3,6 +3,7 @@ use std::future::Future;
 use hashbrown::HashSet;
 use relay_base_schema::project::ProjectKey;
 
+use crate::services::buffer::stack_provider::StackProvider;
 use crate::Envelope;
 
 pub mod sqlite;

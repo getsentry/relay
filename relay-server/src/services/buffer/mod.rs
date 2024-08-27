@@ -19,7 +19,7 @@ pub use envelope_store::sqlite::SqliteEnvelopeStore; // pub for benchmarks // pu
 mod envelope_buffer;
 mod envelope_stack;
 mod envelope_store;
-mod stacks_manager;
+mod stack_provider;
 mod testutils;
 
 /// Async envelope buffering interface.

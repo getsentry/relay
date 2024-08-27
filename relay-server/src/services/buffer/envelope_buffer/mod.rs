@@ -10,9 +10,9 @@ use crate::envelope::Envelope;
 use crate::services::buffer::envelope_stack::sqlite::SqliteEnvelopeStackError;
 use crate::services::buffer::envelope_stack::EnvelopeStack;
 use crate::services::buffer::envelope_store::sqlite::SqliteEnvelopeStoreError;
-use crate::services::buffer::stacks_manager::memory::MemoryStacksManager;
-use crate::services::buffer::stacks_manager::sqlite::SqliteStacksManager;
-use crate::services::buffer::stacks_manager::{Capacity, StacksManager};
+use crate::services::buffer::stack_provider::memory::MemoryStackProvider;
+use crate::services::buffer::stack_provider::sqlite::SqliteStackProvider;
+use crate::services::buffer::stack_provider::{Capacity, StackProvider};
 use crate::statsd::{RelayCounters, RelayGauges};
 use crate::utils::MemoryChecker;
 
@@ -27,10 +27,10 @@ use crate::utils::MemoryChecker;
 #[allow(private_interfaces)]
 pub enum PolymorphicEnvelopeBuffer {
     /// An enveloper buffer that uses in-memory envelopes stacks.
-    InMemory(EnvelopeBuffer<MemoryStacksManager>),
+    InMemory(EnvelopeBuffer<MemoryStackProvider>),
     /// An enveloper buffer that uses sqlite envelopes stacks.
     #[allow(dead_code)]
-    Sqlite(EnvelopeBuffer<SqliteStacksManager>),
+    Sqlite(EnvelopeBuffer<SqliteStackProvider>),
 }
 
 impl PolymorphicEnvelopeBuffer {
@@ -41,7 +41,7 @@ impl PolymorphicEnvelopeBuffer {
             panic!("Disk backend not yet supported for spool V2");
         }
 
-        Self::InMemory(EnvelopeBuffer::<MemoryStacksManager>::new(memory_checker))
+        Self::InMemory(EnvelopeBuffer::<MemoryStackProvider>::new(memory_checker))
     }
 
     /// Adds an envelope to the buffer.
@@ -109,42 +109,42 @@ pub enum EnvelopeBufferError {
 /// Envelope stacks are organized in a priority queue, and are reprioritized every time an envelope
 /// is pushed, popped, or when a project becomes ready.
 #[derive(Debug)]
-struct EnvelopeBuffer<P: StacksManager> {
+struct EnvelopeBuffer<P: StackProvider> {
     /// The central priority queue.
     priority_queue: priority_queue::PriorityQueue<QueueItem<StackKey, P::Stack>, Priority>,
     /// A lookup table to find all stacks involving a project.
     stacks_by_project: hashbrown::HashMap<ProjectKey, BTreeSet<StackKey>>,
-    /// A manager of stacks that provides utilities to create stacks, check their capacity...
+    /// A provider of stacks that provides utilities to create stacks, check their capacity...
     ///
     /// This indirection is needed because different stack implementations might need different
     /// initialization (e.g. a database connection).
-    stacks_manager: P,
+    stack_provider: P,
 }
 
-impl EnvelopeBuffer<MemoryStacksManager> {
+impl EnvelopeBuffer<MemoryStackProvider> {
     /// Creates an empty memory-based buffer.
     pub fn new(memory_checker: MemoryChecker) -> Self {
         Self {
             stacks_by_project: Default::default(),
             priority_queue: Default::default(),
-            stacks_manager: MemoryStacksManager::new(memory_checker),
+            stack_provider: MemoryStackProvider::new(memory_checker),
         }
     }
 }
 
 #[allow(dead_code)]
-impl EnvelopeBuffer<SqliteStacksManager> {
+impl EnvelopeBuffer<SqliteStackProvider> {
     /// Creates an empty sqlite-based buffer.
     pub async fn new(config: &Config) -> Result<Self, SqliteEnvelopeStoreError> {
         Ok(Self {
             stacks_by_project: Default::default(),
             priority_queue: Default::default(),
-            stacks_manager: SqliteStacksManager::new(config).await?,
+            stack_provider: SqliteStackProvider::new(config).await?,
         })
     }
 }
 
-impl<P: StacksManager> EnvelopeBuffer<P>
+impl<P: StackProvider> EnvelopeBuffer<P>
 where
     EnvelopeBufferError: From<<P::Stack as EnvelopeStack>::Error>,
 {
@@ -270,7 +270,7 @@ where
         let previous_entry = self.priority_queue.push(
             QueueItem {
                 key: stack_key,
-                value: self.stacks_manager.create_stack(envelope),
+                value: self.stack_provider.create_stack(envelope),
             },
             Priority::new(received_at),
         );
@@ -287,7 +287,10 @@ where
     }
 
     pub fn has_capacity(&self) -> bool {
-        matches!(self.stacks_manager.capacity(), Capacity::Available)
+        matches!(
+            self.stack_provider.has_store_capacity(),
+            Capacity::Available
+        )
     }
 
     fn pop_stack(&mut self, stack_key: StackKey) {
@@ -497,7 +500,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_insert_pop() {
-        let mut buffer = EnvelopeBuffer::<MemoryStacksManager>::new(mock_memory_checker());
+        let mut buffer = EnvelopeBuffer::<MemoryStackProvider>::new(mock_memory_checker());
 
         let project_key1 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
         let project_key2 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
@@ -581,7 +584,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_project_internal_order() {
-        let mut buffer = EnvelopeBuffer::<MemoryStacksManager>::new(mock_memory_checker());
+        let mut buffer = EnvelopeBuffer::<MemoryStackProvider>::new(mock_memory_checker());
 
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
 
@@ -608,7 +611,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_sampling_projects() {
-        let mut buffer = EnvelopeBuffer::<MemoryStacksManager>::new(mock_memory_checker());
+        let mut buffer = EnvelopeBuffer::<MemoryStackProvider>::new(mock_memory_checker());
 
         let project_key1 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
         let project_key2 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fef").unwrap();
@@ -686,7 +689,7 @@ mod tests {
 
         assert_ne!(stack_key1, stack_key2);
 
-        let mut buffer = EnvelopeBuffer::<MemoryStacksManager>::new(mock_memory_checker());
+        let mut buffer = EnvelopeBuffer::<MemoryStackProvider>::new(mock_memory_checker());
         buffer
             .push(new_envelope(project_key1, Some(project_key2), None))
             .await
@@ -700,7 +703,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_last_peek_internal_order() {
-        let mut buffer = EnvelopeBuffer::<MemoryStacksManager>::new(mock_memory_checker());
+        let mut buffer = EnvelopeBuffer::<MemoryStackProvider>::new(mock_memory_checker());
 
         let project_key_1 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
         let event_id_1 = EventId::new();

@@ -1,33 +1,29 @@
 use crate::services::buffer::envelope_stack::memory::MemoryEnvelopeStack;
-use crate::services::buffer::stacks_manager::{Capacity, StacksManager};
+use crate::services::buffer::stack_provider::StackProvider;
 use crate::utils::MemoryChecker;
 use crate::Envelope;
 
 #[derive(Debug)]
-pub struct MemoryStacksManager {
+pub struct MemoryStackProvider {
     memory_checker: MemoryChecker,
 }
 
-impl MemoryStacksManager {
-    /// Creates a new [`MemoryStacksManager`] with a given [`MemoryChecker`] that is used to
+impl MemoryStackProvider {
+    /// Creates a new [`MemoryStackProvider`] with a given [`MemoryChecker`] that is used to
     /// estimate the [`Capacity`].
     pub fn new(memory_checker: MemoryChecker) -> Self {
         Self { memory_checker }
     }
 }
 
-impl StacksManager for MemoryStacksManager {
+impl StackProvider for MemoryStackProvider {
     type Stack = MemoryEnvelopeStack;
 
     fn create_stack(&self, envelope: Box<Envelope>) -> Self::Stack {
         MemoryEnvelopeStack::new(envelope)
     }
 
-    fn capacity(&self) -> Capacity {
-        if self.memory_checker.check_memory().has_capacity() {
-            Capacity::Available
-        } else {
-            Capacity::Full
-        }
+    fn has_store_capacity(&self) -> bool {
+        self.memory_checker.check_memory().has_capacity()
     }
 }

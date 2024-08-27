@@ -4,11 +4,11 @@ use crate::services::buffer::envelope_store::sqlite::{
     SqliteEnvelopeStore, SqliteEnvelopeStoreError,
 };
 use crate::services::buffer::envelope_store::EnvelopeStore;
-use crate::services::buffer::stacks_manager::{Capacity, StacksManager};
+use crate::services::buffer::stack_provider::{Capacity, StackProvider};
 use crate::{Envelope, SqliteEnvelopeStack};
 
 #[derive(Debug)]
-pub struct SqliteStacksManager {
+pub struct SqliteStackProvider {
     envelope_store: SqliteEnvelopeStore,
     disk_batch_size: usize,
     max_batches: usize,
@@ -16,8 +16,8 @@ pub struct SqliteStacksManager {
 }
 
 #[warn(dead_code)]
-impl SqliteStacksManager {
-    /// Creates a new [`SqliteStacksManager`] from the provided [`Config`].
+impl SqliteStackProvider {
+    /// Creates a new [`SqliteStackProvider`] from the provided [`Config`].
     pub async fn new(config: &Config) -> Result<Self, SqliteEnvelopeStoreError> {
         let envelope_store = SqliteEnvelopeStore::prepare(config).await?;
         Ok(Self {
@@ -29,7 +29,7 @@ impl SqliteStacksManager {
     }
 }
 
-impl StacksManager for SqliteStacksManager {
+impl StackProvider for SqliteStackProvider {
     type Stack = SqliteEnvelopeStack;
 
     fn create_stack(&self, envelope: Box<Envelope>) -> Self::Stack {
@@ -45,11 +45,7 @@ impl StacksManager for SqliteStacksManager {
         )
     }
 
-    fn capacity(&self) -> Capacity {
-        if (self.envelope_store.usage() as usize) < self.max_disk_size {
-            Capacity::Available
-        } else {
-            Capacity::Full
-        }
+    fn has_store_capacity(&self) -> bool {
+        (self.envelope_store.usage() as usize) < self.max_disk_size
     }
 }
