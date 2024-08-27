@@ -152,7 +152,7 @@ impl GuardedEnvelopeBuffer {
             Ok(guard) => {
                 relay_statsd::metric!(
                     counter(RelayCounters::BufferCapacityCheck) += 1,
-                    lock_aquired = "true"
+                    lock_acquired = "true"
                 );
 
                 let has_capacity = guard.backend.has_capacity();
@@ -162,7 +162,7 @@ impl GuardedEnvelopeBuffer {
             Err(_) => {
                 relay_statsd::metric!(
                     counter(RelayCounters::BufferCapacityCheck) += 1,
-                    lock_aquired = "false"
+                    lock_acquired = "false"
                 );
 
                 self.cached_capacity.load(Ordering::Relaxed)
