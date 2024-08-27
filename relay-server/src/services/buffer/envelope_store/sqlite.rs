@@ -98,16 +98,16 @@ pub enum SqliteEnvelopeStoreError {
 struct DiskUsage {
     db: Pool<Sqlite>,
     last_known_usage: Arc<AtomicU64>,
-    refresh_frequency_ms: u64,
+    refresh_frequency: Duration,
 }
 
 impl DiskUsage {
     /// Creates a new empty [`DiskUsage`].
-    fn new(db: Pool<Sqlite>, refresh_frequency_ms: u64) -> Self {
+    fn new(db: Pool<Sqlite>, refresh_frequency: Duration) -> Self {
         Self {
             db,
             last_known_usage: Arc::new(AtomicU64::new(0)),
-            refresh_frequency_ms,
+            refresh_frequency,
         }
     }
 
@@ -115,11 +115,11 @@ impl DiskUsage {
     /// if not reading can be made.
     pub async fn prepare(
         db: Pool<Sqlite>,
-        refresh_frequency_ms: u64,
+        refresh_frequency: Duration,
     ) -> Result<Self, SqliteEnvelopeStoreError> {
         let usage = Self::estimate_usage(&db).await?;
 
-        let disk_usage = Self::new(db, refresh_frequency_ms);
+        let disk_usage = Self::new(db, refresh_frequency);
         disk_usage.last_known_usage.store(usage, Ordering::Relaxed);
         disk_usage.start_background_refresh();
 
@@ -138,7 +138,7 @@ impl DiskUsage {
         // We get a weak reference, to make sure that if `DiskUsage` is dropped, the reference can't
         // be upgraded, causing the loop in the tokio task to exit.
         let last_known_usage_weak = Arc::downgrade(&self.last_known_usage);
-        let refresh_frequency_ms = self.refresh_frequency_ms;
+        let refresh_frequency = self.refresh_frequency;
 
         tokio::spawn(async move {
             loop {
@@ -162,7 +162,7 @@ impl DiskUsage {
                     relay_log::error!("failed to update the disk usage asynchronously");
                 };
 
-                sleep(Duration::from_millis(refresh_frequency_ms)).await;
+                sleep(refresh_frequency).await;
             }
         });
     }
@@ -247,9 +247,8 @@ impl SqliteEnvelopeStore {
 
         Ok(SqliteEnvelopeStore {
             db: db.clone(),
-            // TODO: maybe we want to have a different refresh frequency, specifically for the disk
-            //  usage.
-            disk_usage: DiskUsage::prepare(db, config.memory_stat_refresh_frequency_ms()).await?,
+            disk_usage: DiskUsage::prepare(db, config.spool_disk_usage_refresh_frequency_ms())
+                .await?,
         })
     }
 

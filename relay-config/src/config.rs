@@ -864,6 +864,11 @@ fn spool_envelopes_max_envelope_delay_secs() -> u64 {
     24 * 60 * 60
 }
 
+/// Default refresh frequency in ms for the disk usage monitoring.
+fn spool_disk_usage_refresh_frequency_ms() -> u64 {
+    100
+}
+
 /// Persistent buffering configuration for incoming envelopes.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct EnvelopeSpool {
@@ -903,6 +908,10 @@ pub struct EnvelopeSpool {
     /// they are dropped. Defaults to 24h.
     #[serde(default = "spool_envelopes_max_envelope_delay_secs")]
     max_envelope_delay_secs: u64,
+    /// The refresh frequency in ms of how frequently disk usage is updated by querying SQLite
+    /// internal page stats.
+    #[serde(default = "spool_disk_usage_refresh_frequency_ms")]
+    disk_usage_refresh_frequency_ms: u64,
     /// Version of the spooler.
     #[serde(default)]
     version: EnvelopeSpoolVersion,
@@ -938,6 +947,7 @@ impl Default for EnvelopeSpool {
             disk_batch_size: spool_envelopes_stack_disk_batch_size(),
             max_batches: spool_envelopes_stack_max_batches(),
             max_envelope_delay_secs: spool_envelopes_max_envelope_delay_secs(),
+            disk_usage_refresh_frequency_ms: spool_disk_usage_refresh_frequency_ms(),
             version: EnvelopeSpoolVersion::default(),
         }
     }
@@ -2160,6 +2170,11 @@ impl Config {
     /// Returns the time after which we drop envelopes as a [`Duration`] object.
     pub fn spool_envelopes_max_age(&self) -> Duration {
         Duration::from_secs(self.values.spool.envelopes.max_envelope_delay_secs)
+    }
+
+    /// Returns the refresh frequency for disk usage monitoring as a [`Duration`] object.
+    pub fn spool_disk_usage_refresh_frequency_ms(&self) -> Duration {
+        Duration::from_millis(self.values.spool.envelopes.disk_usage_refresh_frequency_ms)
     }
 
     /// Returns the maximum size of an event payload in bytes.
