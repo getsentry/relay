@@ -220,10 +220,11 @@ impl AggregatorService {
     }
 
     fn handle_message(&mut self, message: Aggregator) {
-        let ty = message.variant();
-        relay_statsd::metric!(
-            timer(RelayTimers::AggregatorServiceDuration),
-            message = ty,
+        // let ty = message.variant();
+        // relay_statsd::metric!(
+        //     timer(RelayTimers::AggregatorServiceDuration),
+        //     message = ty,
+        {
             {
                 match message {
                     Aggregator::MergeBuckets(msg) => self.handle_merge_buckets(msg),
@@ -233,7 +234,8 @@ impl AggregatorService {
                     }
                 }
             }
-        )
+        }
+        // )
     }
 
     fn handle_shutdown(&mut self, message: Shutdown) {

@@ -105,10 +105,11 @@ impl StartedRouter {
     }
 
     fn handle_message(&mut self, message: Aggregator) {
-        let ty = message.variant();
-        relay_statsd::metric!(
-            timer(RelayTimers::MetricRouterServiceDuration),
-            message = ty,
+        // let ty = message.variant();
+        // relay_statsd::metric!(
+        //     timer(RelayTimers::MetricRouterServiceDuration),
+        //     message = ty,
+        {
             {
                 match message {
                     Aggregator::MergeBuckets(msg) => self.handle_merge_buckets(msg),
@@ -116,7 +117,8 @@ impl StartedRouter {
                     Aggregator::BucketCountInquiry(_, _sender) => (), // not supported
                 }
             }
-        )
+        }
+        // )
     }
 
     fn handle_merge_buckets(&mut self, message: MergeBuckets) {
