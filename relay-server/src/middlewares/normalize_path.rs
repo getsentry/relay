@@ -4,25 +4,7 @@ use std::task::{Context, Poll};
 use axum::http::{Request, Response, Uri};
 use once_cell::sync::Lazy;
 use regex::Regex;
-use tower::{Layer, Service};
-
-/// Layer that applies [`NormalizePath`], which normalizes paths.
-#[derive(Clone, Copy, Debug)]
-pub struct NormalizePathLayer;
-
-impl NormalizePathLayer {
-    pub fn new() -> Self {
-        Self
-    }
-}
-
-impl<S> Layer<S> for NormalizePathLayer {
-    type Service = NormalizePath<S>;
-
-    fn layer(&self, inner: S) -> Self::Service {
-        NormalizePath::new(inner)
-    }
-}
+use tower::Service;
 
 /// Normalizes URLs with redundant slashes.
 ///

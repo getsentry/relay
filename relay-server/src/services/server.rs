@@ -3,6 +3,7 @@ use std::net::{SocketAddr, TcpListener};
 use std::sync::Arc;
 use std::time::Duration;
 
+use axum::extract::Request;
 use axum::http::{header, HeaderName, HeaderValue};
 use axum::ServiceExt;
 use axum_server::accept::Accept;
@@ -171,16 +172,18 @@ impl Service for HttpServer {
     fn spawn_handler(self, _rx: relay_system::Receiver<Self::Interface>) {
         let Self { config, service } = self;
 
+        let app = make_app(service);
+        let handle = Handle::new();
+
         // Bundle middlewares that need to run _before_ routing, which need to wrap the router.
         // ConnectInfo is special as it needs to last.
-        let app = make_app(service).into_make_service_with_connect_info::<SocketAddr>();
-        let handle = Handle::new();
+        let service = ServiceExt::<Request>::into_make_service_with_connect_info::<SocketAddr>(app);
 
         match create_listener(config.listen_addr(), config.tcp_listen_backlog()) {
             Ok(listener) => {
                 listener.set_nonblocking(true).ok();
-                let server = axum_server::from_tcp(listener)
-                    // .addr_incoming_config(addr_config)
+                let mut server = axum_server::from_tcp(listener)
+                    .acceptor(KeepAliveAcceptor::new(&config))
                     .handle(handle.clone());
 
                 server
@@ -198,7 +201,7 @@ impl Service for HttpServer {
                 relay_log::info!("spawning http server");
                 relay_log::info!("  listening on http://{}/", config.listen_addr());
                 relay_statsd::metric!(counter(RelayCounters::ServerStarting) += 1);
-                tokio::spawn(server.serve(app));
+                tokio::spawn(server.serve(service));
             }
             Err(err) => {
                 relay_log::error!("Failed to start the HTTP server: {err}");
