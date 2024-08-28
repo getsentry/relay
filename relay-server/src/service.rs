@@ -254,7 +254,11 @@ impl ServiceState {
             upstream_relay.clone(),
             global_config.clone(),
         );
-        let envelope_buffer = GuardedEnvelopeBuffer::from_config(&config).map(Arc::new);
+        let envelope_buffer = GuardedEnvelopeBuffer::from_config(
+            &config,
+            MemoryChecker::new(memory_stat.clone(), config.clone()),
+        )
+        .map(Arc::new);
         ProjectCacheService::new(
             config.clone(),
             MemoryChecker::new(memory_stat.clone(), config.clone()),

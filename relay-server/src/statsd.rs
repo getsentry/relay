@@ -34,6 +34,8 @@ pub enum RelayGauges {
     ///
     /// Per combination of `(own_key, sampling_key)`, a new stack is created.
     BufferStackCount,
+    /// The used disk for the buffer.
+    BufferDiskUsed,
     /// The currently used memory by the entire system.
     ///
     /// Relay uses the same value for its memory health check.
@@ -60,6 +62,7 @@ impl GaugeMetric for RelayGauges {
             RelayGauges::BufferPeriodicUnspool => "buffer.unspool.periodic",
             RelayGauges::BufferPushInFlight => "buffer.push_inflight",
             RelayGauges::BufferStackCount => "buffer.stack_count",
+            RelayGauges::BufferDiskUsed => "buffer.disk_used",
             RelayGauges::SystemMemoryUsed => "health.system_memory.used",
             RelayGauges::SystemMemoryTotal => "health.system_memory.total",
             #[cfg(feature = "processing")]
@@ -606,6 +609,12 @@ pub enum RelayCounters {
     ///  - `state_out`: The new state. `memory`, `memory_file_standby`, or `disk`.
     ///  - `reason`: Why a transition was made (or not made).
     BufferStateTransition,
+    /// Number of times the capacity is of the buffer is checked.
+    ///
+    /// This metric is tagged with:
+    /// - `lock_acquired`: Whether the capacity check was done by acquiring the lock or using the
+    ///     old value.
+    BufferCapacityCheck,
     ///
     /// Number of outcomes and reasons for rejected Envelopes.
     ///
@@ -820,6 +829,7 @@ impl CounterMetric for RelayCounters {
             RelayCounters::BufferEnvelopesWritten => "buffer.envelopes_written",
             RelayCounters::BufferEnvelopesRead => "buffer.envelopes_read",
             RelayCounters::BufferStateTransition => "buffer.state.transition",
+            RelayCounters::BufferCapacityCheck => "buffer.capacity_check",
             RelayCounters::Outcomes => "events.outcomes",
             RelayCounters::ProjectStateGet => "project_state.get",
             RelayCounters::ProjectStateRequest => "project_state.request",

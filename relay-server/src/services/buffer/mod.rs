@@ -1,6 +1,6 @@
 //! Types for buffering envelopes.
 
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 
 use relay_base_schema::project::ProjectKey;
@@ -8,17 +8,18 @@ use relay_config::Config;
 use tokio::sync::MutexGuard;
 
 use crate::envelope::Envelope;
-use crate::utils::ManagedEnvelope;
+use crate::utils::{ManagedEnvelope, MemoryChecker};
 
+use crate::statsd::RelayCounters;
 pub use envelope_buffer::EnvelopeBufferError;
 pub use envelope_buffer::PolymorphicEnvelopeBuffer;
 pub use envelope_stack::sqlite::SqliteEnvelopeStack; // pub for benchmarks
 pub use envelope_stack::EnvelopeStack; // pub for benchmarks
-pub use sqlite_envelope_store::SqliteEnvelopeStore; // pub for benchmarks // pub for benchmarks
+pub use envelope_store::sqlite::SqliteEnvelopeStore; // pub for benchmarks
 
 mod envelope_buffer;
 mod envelope_stack;
-mod sqlite_envelope_store;
+mod envelope_store;
 mod stack_provider;
 mod testutils;
 
@@ -53,6 +54,8 @@ pub struct GuardedEnvelopeBuffer {
     notify: tokio::sync::Notify,
     /// Metric that counts how many push operations are waiting.
     inflight_push_count: AtomicU64,
+    /// Last known capacity check result.
+    cached_capacity: AtomicBool,
 }
 
 impl GuardedEnvelopeBuffer {
@@ -60,15 +63,16 @@ impl GuardedEnvelopeBuffer {
     ///
     /// NOTE: until the V1 spooler implementation is removed, this function returns `None`
     /// if V2 spooling is not configured.
-    pub fn from_config(config: &Config) -> Option<Self> {
+    pub fn from_config(config: &Config, memory_checker: MemoryChecker) -> Option<Self> {
         if config.spool_v2() {
             Some(Self {
                 inner: tokio::sync::Mutex::new(Inner {
-                    backend: PolymorphicEnvelopeBuffer::from_config(config),
+                    backend: PolymorphicEnvelopeBuffer::from_config(config, memory_checker),
                     should_peek: true,
                 }),
                 notify: tokio::sync::Notify::new(),
                 inflight_push_count: AtomicU64::new(0),
+                cached_capacity: AtomicBool::new(true),
             })
         } else {
             None
@@ -134,6 +138,34 @@ impl GuardedEnvelopeBuffer {
         let changed = guard.backend.mark_ready(project_key, ready);
         if changed {
             self.notify(&mut guard);
+        }
+    }
+
+    /// Returns `true` if the buffer has capacity to accept more [`Envelope`]s.
+    ///
+    /// This method tries to acquire the lock and read the latest capacity, but doesn't
+    /// guarantee that the returned value will be up to date, since lock contention could lead to
+    /// this method never acquiring the lock, thus returning the last known capacity value.
+    pub fn has_capacity(&self) -> bool {
+        match self.inner.try_lock() {
+            Ok(guard) => {
+                relay_statsd::metric!(
+                    counter(RelayCounters::BufferCapacityCheck) += 1,
+                    lock_acquired = "true"
+                );
+
+                let has_capacity = guard.backend.has_capacity();
+                self.cached_capacity.store(has_capacity, Ordering::Relaxed);
+                has_capacity
+            }
+            Err(_) => {
+                relay_statsd::metric!(
+                    counter(RelayCounters::BufferCapacityCheck) += 1,
+                    lock_acquired = "false"
+                );
+
+                self.cached_capacity.load(Ordering::Relaxed)
+            }
         }
     }
 
@@ -218,22 +250,28 @@ mod tests {
     use relay_common::Dsn;
 
     use crate::extractors::RequestMeta;
+    use crate::utils::MemoryStat;
 
     use super::*;
 
     fn new_buffer() -> Arc<GuardedEnvelopeBuffer> {
-        GuardedEnvelopeBuffer::from_config(
-            &Config::from_json_value(serde_json::json!({
+        let config = Arc::new(
+            Config::from_json_value(serde_json::json!({
                 "spool": {
                     "envelopes": {
-                        "version": "experimental"
+                        "version": "experimental",
+                        "max_memory_percent": 1.0
                     }
                 }
             }))
             .unwrap(),
-        )
-        .unwrap()
-        .into()
+        );
+
+        let memory_checker = MemoryChecker::new(MemoryStat::default(), config.clone());
+
+        GuardedEnvelopeBuffer::from_config(&config, memory_checker)
+            .unwrap()
+            .into()
     }
 
     fn new_envelope() -> Box<Envelope> {
