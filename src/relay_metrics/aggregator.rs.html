@@ -2088,13 +2088,13 @@
     <span class="kw">let </span>initial_flush = bucket_key.timestamp + config.bucket_interval() + config.initial_delay();
     <span class="kw">let </span>backdated = initial_flush &lt;= now;
 
-    <span class="comment">// let delay = now.as_secs() as i64 - bucket_key.timestamp.as_secs() as i64;
-    // relay_statsd::metric!(
-    //     histogram(MetricHistograms::BucketsDelay) = delay as f64,
-    //     backdated = if backdated { "true" } else { "false" },
-    // );
+    <span class="kw">let </span>delay = now.as_secs() <span class="kw">as </span>i64 - bucket_key.timestamp.as_secs() <span class="kw">as </span>i64;
+    <span class="macro">relay_statsd::metric!</span>(
+        histogram(MetricHistograms::BucketsDelay) = delay <span class="kw">as </span>f64,
+        backdated = <span class="kw">if </span>backdated { <span class="string">"true" </span>} <span class="kw">else </span>{ <span class="string">"false" </span>},
+    );
 
-    </span><span class="kw">let </span>flush_timestamp = <span class="kw">if </span>backdated {
+    <span class="kw">let </span>flush_timestamp = <span class="kw">if </span>backdated {
         <span class="comment">// If the initial flush time has passed or can't be represented, we want to treat the
         // flush of the bucket as if it came in with the timestamp of current bucket based on
         // the now timestamp.

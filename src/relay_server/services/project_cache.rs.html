@@ -1780,8 +1780,6 @@
 <a href="#1780" id="1780">1780</a>
 <a href="#1781" id="1781">1781</a>
 <a href="#1782" id="1782">1782</a>
-<a href="#1783" id="1783">1783</a>
-<a href="#1784" id="1784">1784</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
 <span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::sync::Arc;
@@ -3058,11 +3056,10 @@
     }
 
     <span class="kw">fn </span>handle_message(<span class="kw-2">&amp;mut </span><span class="self">self</span>, message: ProjectCache) {
-        <span class="comment">// let ty = message.variant();
-        // metric!(
-        //     timer(RelayTimers::ProjectCacheMessageDuration),
-        //     message = ty,
-        </span>{
+        <span class="kw">let </span>ty = message.variant();
+        <span class="macro">metric!</span>(
+            timer(RelayTimers::ProjectCacheMessageDuration),
+            message = ty,
             {
                 <span class="kw">match </span>message {
                     ProjectCache::RequestUpdate(message) =&gt; <span class="self">self</span>.handle_request_update(message),
@@ -3087,9 +3084,8 @@
                     }
                 }
             }
-        }
-        <span class="comment">// )
-    </span>}
+        )
+    }
 }
 
 <span class="doccomment">/// Service implementing the [`ProjectCache`] interface.

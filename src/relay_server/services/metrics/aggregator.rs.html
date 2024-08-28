@@ -415,6 +415,15 @@
 <a href="#415" id="415">415</a>
 <a href="#416" id="416">416</a>
 <a href="#417" id="417">417</a>
+<a href="#418" id="418">418</a>
+<a href="#419" id="419">419</a>
+<a href="#420" id="420">420</a>
+<a href="#421" id="421">421</a>
+<a href="#422" id="422">422</a>
+<a href="#423" id="423">423</a>
+<a href="#424" id="424">424</a>
+<a href="#425" id="425">425</a>
+<a href="#426" id="426">426</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::sync::atomic::{AtomicBool, Ordering};
 <span class="kw">use </span>std::sync::Arc;
 <span class="kw">use </span>std::time::Duration;
@@ -426,7 +435,7 @@
 <span class="kw">use </span>relay_metrics::{aggregator, Bucket, UnixTimestamp};
 <span class="kw">use </span>relay_system::{Controller, FromMessage, Interface, NoResponse, Recipient, Service, Shutdown};
 
-<span class="kw">use </span><span class="kw">crate</span>::statsd::{RelayCounters, RelayHistograms};
+<span class="kw">use </span><span class="kw">crate</span>::statsd::{RelayCounters, RelayHistograms, RelayTimers};
 
 <span class="doccomment">/// Aggregator for metric buckets.
 ///
@@ -446,6 +455,17 @@
     <span class="doccomment">/// Message is used only for tests to get the current number of buckets in `AggregatorService`.
     </span><span class="attr">#[cfg(test)]
     </span>BucketCountInquiry(BucketCountInquiry, relay_system::Sender&lt;usize&gt;),
+}
+
+<span class="kw">impl </span>Aggregator {
+    <span class="doccomment">/// Returns the name of the message variant.
+    </span><span class="kw">pub fn </span>variant(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
+        <span class="kw">match </span><span class="self">self </span>{
+            Aggregator::MergeBuckets(<span class="kw">_</span>) =&gt; <span class="string">"MergeBuckets"</span>,
+            <span class="attr">#[cfg(test)]
+            </span>Aggregator::BucketCountInquiry(<span class="kw">_</span>, <span class="kw">_</span>) =&gt; <span class="string">"BucketCountInquiry"</span>,
+        }
+    }
 }
 
 <span class="kw">impl </span>Interface <span class="kw">for </span>Aggregator {}
@@ -626,11 +646,10 @@
     }
 
     <span class="kw">fn </span>handle_message(<span class="kw-2">&amp;mut </span><span class="self">self</span>, message: Aggregator) {
-        <span class="comment">// let ty = message.variant();
-        // relay_statsd::metric!(
-        //     timer(RelayTimers::AggregatorServiceDuration),
-        //     message = ty,
-        </span>{
+        <span class="kw">let </span>ty = message.variant();
+        <span class="macro">relay_statsd::metric!</span>(
+            timer(RelayTimers::AggregatorServiceDuration),
+            message = ty,
             {
                 <span class="kw">match </span>message {
                     Aggregator::MergeBuckets(msg) =&gt; <span class="self">self</span>.handle_merge_buckets(msg),
@@ -640,9 +659,8 @@
                     }
                 }
             }
-        }
-        <span class="comment">// )
-    </span>}
+        )
+    }
 
     <span class="kw">fn </span>handle_shutdown(<span class="kw-2">&amp;mut </span><span class="self">self</span>, message: Shutdown) {
         <span class="kw">if </span>message.timeout.is_some() {
