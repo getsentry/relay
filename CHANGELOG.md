@@ -6,6 +6,21 @@
 
 - Keep frames from both ends of the stacktrace when trimming frames. ([#3905](https://github.com/getsentry/relay/pull/3905))
 
+**Features**:
+
+- Add configuration option to specify the instance type of Relay. ([#3938](https://github.com/getsentry/relay/pull/3938))
+- Update definitions for user agent parsing. ([#3951](https://github.com/getsentry/relay/pull/3951))
+- Extend project config API to be revision aware. ([#3947](https://github.com/getsentry/relay/pull/3947))
+
+**Internal**:
+
+- Record too long discard reason for session replays. ([#3950](https://github.com/getsentry/relay/pull/3950))
+- Add `EnvelopeStore` trait and implement `DiskUsage` for tracking disk usage. ([#3925](https://github.com/getsentry/relay/pull/3925))
+
+**Internal**:
+
+- No longer send COGS data to dedicated Kafka topic. ([#3953](https://github.com/getsentry/relay/pull/3953))
+
 ## 24.8.0
 
 **Bug Fixes**:
