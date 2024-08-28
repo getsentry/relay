@@ -1801,6 +1801,7 @@ impl EnvelopeProcessorService {
         attachment::scrub(state);
 
         if_processing!(self.inner.config, {
+            let global_config = self.inner.global_config.current();
             // Process profiles before extracting metrics, to make sure they are removed if they are invalid.
             let profile_id = profile::process(state);
             profile::transfer_id(state, profile_id);
