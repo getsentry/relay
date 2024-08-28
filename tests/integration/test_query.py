@@ -294,3 +294,55 @@ def test_processing_redis_query_with_revision(
     relay.send_event(project_id)
     event, _ = events_consumer.get_event()
     assert event["logentry"] == {"formatted": "Hello, World!"}
+
+
+@pytest.mark.parametrize("with_revision_support", [True, False])
+def test_project_fetch_revision(mini_sentry, relay, with_revision_support):
+    project_config_fetch = threading.Event()
+    with_rev = threading.Event()
+
+    get_project_config_original = mini_sentry.app.view_functions["get_project_config"]
+
+    @mini_sentry.app.endpoint("get_project_config")
+    def get_project_config():
+        if not flask_request.json.get("global"):
+            project_config_fetch.set()
+        if flask_request.json.get("revisions") == ["123"]:
+            with_rev.set()
+
+        return get_project_config_original()
+
+    mini_sentry.project_config_ignore_revision = not with_revision_support
+    config = mini_sentry.add_basic_project_config(42)
+    config["rev"] = "123"
+
+    relay = relay(
+        mini_sentry,
+        {
+            "cache": {
+                "miss_expiry": 1,
+                "project_expiry": 1,
+                "project_grace_period": 0,
+            }
+        },
+    )
+
+    relay.send_event(42)
+
+    assert project_config_fetch.wait(timeout=1)
+    project_config_fetch.clear()
+    assert not with_rev.is_set()
+
+    event = mini_sentry.captured_events.get(timeout=1).get_event()
+    assert event["logentry"] == {"formatted": "Hello, World!"}
+
+    # Wait for project config to expire.
+    time.sleep(2)
+
+    relay.send_event(42)
+
+    assert project_config_fetch.wait(timeout=1)
+    assert with_rev.wait(timeout=1)
+
+    event = mini_sentry.captured_events.get(timeout=1).get_event()
+    assert event["logentry"] == {"formatted": "Hello, World!"}
