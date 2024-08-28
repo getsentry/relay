@@ -336,10 +336,6 @@
 <a href="#336" id="336">336</a>
 <a href="#337" id="337">337</a>
 <a href="#338" id="338">338</a>
-<a href="#339" id="339">339</a>
-<a href="#340" id="340">340</a>
-<a href="#341" id="341">341</a>
-<a href="#342" id="342">342</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Configuration primitives to configure the kafka producer and properly set up the connection.
 //!
 //! The configuration can be either;
@@ -391,8 +387,6 @@
     </span>Spans,
     <span class="doccomment">/// Summary for metrics collected during a span.
     </span>MetricsSummaries,
-    <span class="doccomment">/// COGS measurements topic.
-    </span>Cogs,
     <span class="doccomment">/// Feedback events topic.
     </span>Feedback,
 }
@@ -402,7 +396,7 @@
     /// It will have to be adjusted if the new variants are added.
     </span><span class="kw">pub fn </span>iter() -&gt; std::slice::Iter&lt;<span class="lifetime">'static</span>, <span class="self">Self</span>&gt; {
         <span class="kw">use </span>KafkaTopic::<span class="kw-2">*</span>;
-        <span class="kw">static </span>TOPICS: [KafkaTopic; <span class="number">15</span>] = [
+        <span class="kw">static </span>TOPICS: [KafkaTopic; <span class="number">14</span>] = [
             Events,
             Attachments,
             Transactions,
@@ -416,7 +410,6 @@
             Monitors,
             Spans,
             MetricsSummaries,
-            Cogs,
             Feedback,
         ];
         TOPICS.iter()
@@ -479,7 +472,6 @@
     monitors: (KafkaTopic::Monitors, <span class="string">"ingest-monitors"</span>, <span class="string">"Monitor check-ins."</span>),
     spans: (KafkaTopic::Spans, <span class="string">"snuba-spans"</span>, <span class="string">"Standalone spans without a transaction."</span>),
     metrics_summaries: (KafkaTopic::MetricsSummaries, <span class="string">"snuba-metrics-summaries"</span>, <span class="string">"Summary for metrics collected during a span."</span>),
-    cogs: (KafkaTopic::Cogs, <span class="string">"shared-resources-usage"</span>, <span class="string">"COGS measurements."</span>),
     feedback: (KafkaTopic::Feedback, <span class="string">"ingest-feedback-events"</span>, <span class="string">"Feedback events topic."</span>),
 }
 

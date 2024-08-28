@@ -128,75 +128,12 @@
 <a href="#128" id="128">128</a>
 <a href="#129" id="129">129</a>
 <a href="#130" id="130">130</a>
-<a href="#131" id="131">131</a>
-<a href="#132" id="132">132</a>
-<a href="#133" id="133">133</a>
-<a href="#134" id="134">134</a>
-<a href="#135" id="135">135</a>
-<a href="#136" id="136">136</a>
-<a href="#137" id="137">137</a>
-<a href="#138" id="138">138</a>
-<a href="#139" id="139">139</a>
-<a href="#140" id="140">140</a>
-<a href="#141" id="141">141</a>
-<a href="#142" id="142">142</a>
-<a href="#143" id="143">143</a>
-<a href="#144" id="144">144</a>
-<a href="#145" id="145">145</a>
-<a href="#146" id="146">146</a>
-<a href="#147" id="147">147</a>
-<a href="#148" id="148">148</a>
-<a href="#149" id="149">149</a>
-<a href="#150" id="150">150</a>
-<a href="#151" id="151">151</a>
-<a href="#152" id="152">152</a>
-<a href="#153" id="153">153</a>
-<a href="#154" id="154">154</a>
-<a href="#155" id="155">155</a>
-<a href="#156" id="156">156</a>
-<a href="#157" id="157">157</a>
-<a href="#158" id="158">158</a>
-<a href="#159" id="159">159</a>
-<a href="#160" id="160">160</a>
-<a href="#161" id="161">161</a>
-<a href="#162" id="162">162</a>
-<a href="#163" id="163">163</a>
-<a href="#164" id="164">164</a>
-<a href="#165" id="165">165</a>
-<a href="#166" id="166">166</a>
-<a href="#167" id="167">167</a>
-<a href="#168" id="168">168</a>
-<a href="#169" id="169">169</a>
-<a href="#170" id="170">170</a>
-<a href="#171" id="171">171</a>
-<a href="#172" id="172">172</a>
-<a href="#173" id="173">173</a>
-<a href="#174" id="174">174</a>
-<a href="#175" id="175">175</a>
-<a href="#176" id="176">176</a>
-<a href="#177" id="177">177</a>
-<a href="#178" id="178">178</a>
-<a href="#179" id="179">179</a>
-<a href="#180" id="180">180</a>
-<a href="#181" id="181">181</a>
-<a href="#182" id="182">182</a>
-<a href="#183" id="183">183</a>
-<a href="#184" id="184">184</a>
-<a href="#185" id="185">185</a>
-<a href="#186" id="186">186</a>
-<a href="#187" id="187">187</a>
-<a href="#188" id="188">188</a>
-<a href="#189" id="189">189</a>
-<a href="#190" id="190">190</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::sync::atomic::{AtomicBool, Ordering};
 
 <span class="kw">use </span>relay_cogs::{CogsMeasurement, CogsRecorder, ResourceId};
 <span class="kw">use </span>relay_config::Config;
-<span class="kw">use </span>relay_system::{Addr, Controller, FromMessage, Interface, Service};
-<span class="kw">use </span>sentry_usage_accountant::{Producer, UsageAccountant, UsageUnit};
+<span class="kw">use </span>relay_system::{Addr, FromMessage, Interface, Service};
 
-<span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-</span><span class="kw">use </span><span class="kw">crate</span>::services::store::{Store, StoreCogs};
 <span class="kw">use </span><span class="kw">crate</span>::statsd::RelayCounters;
 
 <span class="kw">pub struct </span>CogsReport(CogsMeasurement);
@@ -211,52 +148,15 @@
     }
 }
 
-<span class="doccomment">/// Relay [accountant producer](Producer) which produces to a dynamic
-/// upstram.
-</span><span class="kw">enum </span>RelayProducer {
-    <span class="doccomment">/// Produces to Kafka via the store service.
-    </span><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-    </span>Store(Addr&lt;Store&gt;),
-    <span class="doccomment">/// Discards all measurements.
-    </span>Noop,
-}
-
-<span class="kw">impl </span>Producer <span class="kw">for </span>RelayProducer {
-    <span class="kw">type </span>Error = std::convert::Infallible;
-
-    <span class="kw">fn </span>send(<span class="kw-2">&amp;mut </span><span class="self">self</span>, _message: Vec&lt;u8&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;(), <span class="self">Self</span>::Error&gt; {
-        <span class="kw">match </span><span class="self">self </span>{
-            <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-            </span><span class="self">Self</span>::Store(addr) =&gt; addr.send(StoreCogs(_message)),
-            <span class="self">Self</span>::Noop =&gt; {}
-        }
-
-        <span class="prelude-val">Ok</span>(())
-    }
-}
-
 <span class="doccomment">/// Service implementing the [`CogsReport`] interface.
 </span><span class="kw">pub struct </span>CogsService {
     relay_resource_id: String,
-    usage_accountant: UsageAccountant&lt;RelayProducer&gt;,
 }
 
 <span class="kw">impl </span>CogsService {
-    <span class="kw">pub fn </span>new(config: <span class="kw-2">&amp;</span>Config, <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)] </span>store: <span class="prelude-ty">Option</span>&lt;Addr&lt;Store&gt;&gt;) -&gt; <span class="self">Self </span>{
-        <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-        </span><span class="kw">let </span>producer = store
-            .map(RelayProducer::Store)
-            .filter(|<span class="kw">_</span>| config.cogs_enabled())
-            .unwrap_or(RelayProducer::Noop);
-
-        <span class="attr">#[cfg(not(feature = <span class="string">"processing"</span>))]
-        </span><span class="kw">let </span>producer = RelayProducer::Noop;
-
-        <span class="kw">let </span>granularity = chrono::Duration::from_std(config.cogs_granularity()).ok();
-
+    <span class="kw">pub fn </span>new(config: <span class="kw-2">&amp;</span>Config) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{
             relay_resource_id: config.cogs_relay_resource_id().to_owned(),
-            usage_accountant: UsageAccountant::new(producer, granularity),
         }
     }
 
@@ -267,28 +167,17 @@
             ResourceId::Relay =&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.relay_resource_id,
         };
 
-        <span class="kw">let </span>(amount, unit) = <span class="kw">match </span>measurement.value {
-            relay_cogs::Value::Time(duration) =&gt; (
-                duration.as_micros().try_into().unwrap_or(u64::MAX),
-                UsageUnit::Milliseconds,
-            ),
+        <span class="kw">let </span>amount = <span class="kw">match </span>measurement.value {
+            relay_cogs::Value::Time(duration) =&gt; {
+                duration.as_micros().try_into().unwrap_or(i64::MAX)
+            }
         };
 
         <span class="macro">relay_statsd::metric!</span>(
-            counter(RelayCounters::CogsUsage) += amount <span class="kw">as </span>i64,
+            counter(RelayCounters::CogsUsage) += amount,
             resource_id = resource_id,
             app_feature = measurement.feature.as_str()
         );
-
-        <span class="self">self</span>.usage_accountant
-            .record(resource_id, measurement.feature.as_str(), amount, unit)
-            .unwrap_or_else(|err| <span class="kw">match </span>err {});
-    }
-
-    <span class="kw">fn </span>handle_shutdown(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
-        <span class="self">self</span>.usage_accountant
-            .flush()
-            .unwrap_or_else(|err| <span class="kw">match </span>err {});
     }
 }
 
@@ -297,17 +186,8 @@
 
     <span class="kw">fn </span>spawn_handler(<span class="kw-2">mut </span><span class="self">self</span>, <span class="kw-2">mut </span>rx: relay_system::Receiver&lt;<span class="self">Self</span>::Interface&gt;) {
         tokio::spawn(<span class="kw">async move </span>{
-            <span class="kw">let </span><span class="kw-2">mut </span>shutdown = Controller::shutdown_handle();
-
-            <span class="kw">loop </span>{
-                <span class="macro">tokio::select!</span> {
-                    biased;
-
-                    <span class="prelude-val">Some</span>(message) = rx.recv() =&gt; <span class="self">self</span>.handle_report(message),
-                    <span class="kw">_ </span>= shutdown.notified() =&gt; <span class="self">self</span>.handle_shutdown(),
-
-                    <span class="kw">else </span>=&gt; <span class="kw">break</span>,
-                }
+            <span class="kw">while let </span><span class="prelude-val">Some</span>(message) = rx.recv().<span class="kw">await </span>{
+                <span class="self">self</span>.handle_report(message);
             }
         });
     }
