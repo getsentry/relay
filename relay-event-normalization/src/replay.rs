@@ -57,8 +57,8 @@ pub fn validate(replay: &Replay) -> Result<(), ReplayError> {
         .value()
         .ok_or_else(|| ReplayError::InvalidPayload("missing segment_id".to_string()))?;
 
-    // Each segment is expected to be 5 seconds in length. 1440 segments means we cap the limit
-    // to two hours.
+    // Each segment is expected to be 5 seconds in length. A cap of 1440 segments means we
+    // allow a replay to be up to 2 hours in length.
     const MAX_SEGMENT_ID: u64 = 1440;
 
     if segment_id > MAX_SEGMENT_ID {
