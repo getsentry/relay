@@ -1274,10 +1274,11 @@ impl ProjectCacheBroker {
     }
 
     fn handle_message(&mut self, message: ProjectCache) {
-        let ty = message.variant();
-        metric!(
-            timer(RelayTimers::ProjectCacheMessageDuration),
-            message = ty,
+        // let ty = message.variant();
+        // metric!(
+        //     timer(RelayTimers::ProjectCacheMessageDuration),
+        //     message = ty,
+        {
             {
                 match message {
                     ProjectCache::RequestUpdate(message) => self.handle_request_update(message),
@@ -1302,7 +1303,8 @@ impl ProjectCacheBroker {
                     }
                 }
             }
-        )
+        }
+        // )
     }
 }
 

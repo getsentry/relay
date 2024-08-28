@@ -98,6 +98,7 @@ pub enum MetricHistograms {
     /// This metric is tagged with:
     ///  - `backdated`: A flag indicating whether the metric was reported within the `initial_delay`
     ///    time period (`false`) or after the initial delay has expired (`true`).
+    #[allow(dead_code)] // TODO: Temporarily disabled for a performance measurement.
     BucketsDelay,
 
     /// Distribution of invalid bucket timestamps observed, relative to the time of observation.
