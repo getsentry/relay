@@ -9,7 +9,7 @@ use relay_system::{Addr, FromMessage, Interface, NoResponse, Receiver, Service};
 use tokio::sync::MutexGuard;
 
 use crate::envelope::Envelope;
-use crate::services::project_cache::ProjectCache;
+use crate::services::project_cache::{FetchProjectState, ProjectCache};
 use crate::utils::ManagedEnvelope;
 
 pub use envelope_buffer::EnvelopeBufferError;
@@ -26,7 +26,17 @@ mod testutils;
 
 /// TODO: docs
 #[derive(Debug)]
-pub struct EnvelopeBuffer(Box<Envelope>);
+pub struct Readiness {
+    project_key: ProjectKey,
+    ready: bool,
+}
+
+/// TODO: docs
+#[derive(Debug)]
+pub enum EnvelopeBuffer {
+    Push(Box<Envelope>),
+    MarkReady(Readiness),
+}
 
 impl Interface for EnvelopeBuffer {}
 
@@ -34,165 +44,98 @@ impl FromMessage<Box<Envelope>> for EnvelopeBuffer {
     type Response = NoResponse;
 
     fn from_message(message: Box<Envelope>, _: ()) -> Self {
-        Self(message)
+        Self::Push(message)
+    }
+}
+
+impl FromMessage<Readiness> for EnvelopeBuffer {
+    type Response = NoResponse;
+
+    fn from_message(message: Readiness, _: ()) -> Self {
+        Self::MarkReady(message)
     }
 }
 
 /// TODO: docs
 pub struct EnvelopeBufferService {
-    buffer: GuardedEnvelopeBuffer,
+    buffer: PolymorphicEnvelopeBuffer,
+    changes: tokio::sync::Notify,
     project_cache: Addr<ProjectCache>,
+}
+
+impl EnvelopeBufferService {
+    async fn try_pop(&mut self) {
+        match self.buffer.peek().await {
+            Ok(Some(envelope, assume_ready)) => match assume_ready {
+                true => {
+                    let envelope = peek.remove();
+                    self.project_cache.send(ProcessEnvelope2(envelope));
+                    self.changes.notify_waiters();
+                }
+                false => self
+                    .project_cache
+                    .send(Prefetch(envelope.project_key(), envelope.sampling_key())),
+            },
+            Ok(None) => {
+                // There's nothing in the buffer.
+            }
+            Err(error) => {
+                relay_log::error!(
+                    error = &error as &dyn std::error::Error,
+                    "failed to peek at envelope"
+                );
+            }
+        };
+    }
+
+    async fn handle_message(&mut self, message: EnvelopeBuffer) {
+        let changed;
+        match message {
+            EnvelopeBuffer::Push(envelope) => {
+                // NOTE: This function assumes that a project state update for the relevant
+                // projects was already triggered (see XXX).
+                // For better separation of concerns, this prefetch should be triggered from here
+                // once buffer V1 has been removed.
+                if let Err(e) = self.buffer.push(envelope).await {
+                    relay_log::error!(
+                        error = &e as &dyn std::error::Error,
+                        "failed to push envelope"
+                    );
+                }
+                changed = true;
+            }
+            EnvelopeBuffer::MarkReady(Readiness { project_key, ready }) => {
+                changed = self.buffer.mark_ready(&project_key, ready);
+            }
+        };
+        if changed {
+            self.changes.notify_waiters();
+        }
+    }
 }
 
 impl Service for EnvelopeBufferService {
     type Interface = EnvelopeBuffer;
 
-    fn spawn_handler(self, mut rx: Receiver<Self::Interface>) {
+    fn spawn_handler(mut self, mut rx: Receiver<Self::Interface>) {
         tokio::spawn(async move {
             loop {
                 tokio::select! {
                     biased;
-
                     // Prefer dequeing over enqueing so we do not exceed the buffer capacity
                     // by starving the dequeue.
-                    guard = self.buffer.peek() => {
-                        // TODO: get stuff from project cache here, then send envelope to project cache
-                        todo!();
+                    () = self.changes.notified() => {
+                        self.try_pop().await;
                     }
-                    Some(EnvelopeBuffer(envelope)) = rx.recv() => {
-                        self.buffer.push(envelope).await;
+                    Some(message) = rx.recv() => {
+                        self.handle_message(message).await;
                     }
 
                     else => break,
-
                 }
             }
         });
     }
-}
-
-/// TODO: docs
-// TODO: rename
-#[derive(Debug)]
-struct GuardedEnvelopeBuffer {
-    /// The buffer that we are writing to and reading from.
-    backend: PolymorphicEnvelopeBuffer,
-    /// Used to notify callers of `peek()` of any changes in the buffer.
-    should_peek: bool,
-    /// Used to notify callers of `peek()` of any changes in the buffer.
-    notify: tokio::sync::Notify,
-}
-
-impl GuardedEnvelopeBuffer {
-    /// Creates a memory or disk based [`GuardedEnvelopeBuffer`], depending on the given config.
-    ///
-    /// NOTE: until the V1 spooler implementation is removed, this function returns `None`
-    /// if V2 spooling is not configured.
-    fn from_config(config: &Config) -> Option<Self> {
-        if config.spool_v2() {
-            Some(Self {
-                backend: PolymorphicEnvelopeBuffer::from_config(config),
-                should_peek: true,
-                notify: tokio::sync::Notify::new(),
-            })
-        } else {
-            None
-        }
-    }
-
-    /// Schedules a task to push an envelope to the buffer.
-    ///
-    /// Once the envelope is pushed, waiters will be notified.
-    async fn push(&mut self, envelope: Box<Envelope>) {
-        if let Err(e) = self.backend.push(envelope).await {
-            relay_log::error!(
-                error = &e as &dyn std::error::Error,
-                "failed to push envelope"
-            );
-        }
-        self.notify.notify_waiters();
-    }
-
-    /// Returns a reference to the next-in-line envelope.
-    ///
-    /// If the buffer is empty or has not changed since the last peek, this function will sleep
-    /// until something changes in the buffer.
-    async fn peek(&mut self) -> EnvelopeBufferGuard {
-        loop {
-            if self.should_peek {
-                match self.backend.peek().await {
-                    Ok(envelope) => {
-                        if envelope.is_some() {
-                            self.should_peek = false;
-                            return EnvelopeBufferGuard(self);
-                        }
-                    }
-                    Err(error) => {
-                        relay_log::error!(
-                            error = &error as &dyn std::error::Error,
-                            "failed to peek envelope"
-                        );
-                    }
-                };
-            }
-            // We wait to get notified for any changes in the buffer.
-            self.notify.notified().await;
-        }
-    }
-
-    /// Marks a project as ready or not ready.
-    ///
-    /// The buffer re-prioritizes its envelopes based on this information.
-    async fn mark_ready(&mut self, project_key: &ProjectKey, ready: bool) {
-        let changed = self.backend.mark_ready(project_key, ready);
-        if changed {
-            self.notify.notify_waiters();
-        }
-    }
-}
-
-/// A view onto the next envelope in the buffer.
-///
-/// Objects of this type can only exist if the buffer is not empty.
-pub struct EnvelopeBufferGuard<'a>(&'a mut GuardedEnvelopeBuffer);
-
-impl EnvelopeBufferGuard<'_> {
-    /// Returns a reference to the next envelope.
-    pub async fn get(&mut self) -> Result<&Envelope, EnvelopeBufferError> {
-        Ok(self
-            .0
-            .backend
-            .peek()
-            .await?
-            .expect("element disappeared during exclusive access"))
-    }
-
-    /// Pops the next envelope from the buffer.
-    ///
-    /// This functions consumes the [`EnvelopeBufferGuard`].
-    pub async fn remove(self) -> Result<Box<Envelope>, EnvelopeBufferError> {
-        self.0.notify.notify_waiters();
-        Ok(self
-            .0
-            .backend
-            .pop()
-            .await?
-            .expect("element disappeared during exclusive access"))
-    }
-
-    /// Sync version of [`GuardedEnvelopeBuffer::mark_ready`].
-    ///
-    /// Since [`EnvelopeBufferGuard`] already has exclusive access to the buffer, it can mark projects as ready
-    /// without awaiting the lock.
-    pub fn mark_ready(&mut self, project_key: &ProjectKey, ready: bool) {
-        self.0.mark_ready(project_key, ready);
-    }
-
-    // /// Notifies the waiting tasks that a change has happened in the buffer.
-    // fn notify(&mut self) {
-    //     self.guard.should_peek = true;
-    //     self.notify.notify_waiters();
-    // }
 }
 
 #[cfg(test)]
