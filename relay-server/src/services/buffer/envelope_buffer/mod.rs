@@ -1,9 +1,10 @@
-use relay_base_schema::project::ProjectKey;
-use relay_config::Config;
 use std::cmp::Ordering;
 use std::collections::BTreeSet;
 use std::convert::Infallible;
 use std::time::Instant;
+
+use relay_base_schema::project::ProjectKey;
+use relay_config::Config;
 
 use crate::envelope::Envelope;
 use crate::services::buffer::envelope_stack::sqlite::SqliteEnvelopeStackError;
