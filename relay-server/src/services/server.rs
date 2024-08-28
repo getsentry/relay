@@ -5,10 +5,12 @@ use std::time::Duration;
 
 use axum::http::{header, HeaderName, HeaderValue};
 use axum::ServiceExt;
+use axum_server::accept::Accept;
 use axum_server::Handle;
 use relay_config::Config;
 use relay_system::{Controller, Service, Shutdown};
-use tokio::net::TcpSocket;
+use socket2::TcpKeepalive;
+use tokio::net::{TcpSocket, TcpStream};
 use tower::ServiceBuilder;
 use tower_http::compression::predicate::SizeAbove;
 use tower_http::compression::{CompressionLayer, DefaultPredicate, Predicate};
@@ -84,6 +86,62 @@ fn make_app(service: ServiceState) -> App {
     NormalizePath::new(router)
 }
 
+fn build_keepalive(config: &Config) -> Option<TcpKeepalive> {
+    let ka_timeout = config.keepalive_timeout();
+    if ka_timeout.is_zero() {
+        return None;
+    }
+
+    let mut ka = TcpKeepalive::new().with_time(ka_timeout);
+    #[cfg(not(any(target_os = "openbsd", target_os = "redox", target_os = "solaris")))]
+    {
+        ka = ka.with_interval(ka_timeout);
+    }
+
+    #[cfg(not(any(
+        target_os = "openbsd",
+        target_os = "redox",
+        target_os = "solaris",
+        target_os = "windows"
+    )))]
+    {
+        ka = ka.with_retries(KEEPALIVE_RETRIES);
+    }
+
+    Some(ka)
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct KeepAliveAcceptor(Option<TcpKeepalive>);
+
+impl KeepAliveAcceptor {
+    /// Create a new acceptor that sets TCP_NODELAY and keep-alive.
+    pub fn new(config: &Config) -> Self {
+        Self(build_keepalive(config))
+    }
+}
+
+impl<S> Accept<TcpStream, S> for KeepAliveAcceptor {
+    type Stream = TcpStream;
+    type Service = S;
+    type Future = std::future::Ready<io::Result<(Self::Stream, Self::Service)>>;
+
+    fn accept(&self, stream: TcpStream, service: S) -> Self::Future {
+        if let Self(Some(ref tcp_keepalive)) = self {
+            let sock_ref = socket2::SockRef::from(&stream);
+            if let Err(e) = sock_ref.set_tcp_keepalive(tcp_keepalive) {
+                relay_log::trace!("error trying to set TCP keepalive: {e}");
+            }
+        }
+
+        if let Err(e) = stream.set_nodelay(true) {
+            relay_log::trace!("failed to set TCP_NODELAY: {e}");
+        }
+
+        std::future::ready(Ok((stream, service)))
+    }
+}
+
 /// HTTP server service.
 ///
 /// This is the main HTTP server of Relay which hosts all [services](ServiceState) and dispatches
@@ -116,14 +174,6 @@ impl Service for HttpServer {
         // Bundle middlewares that need to run _before_ routing, which need to wrap the router.
         // ConnectInfo is special as it needs to last.
         let app = make_app(service).into_make_service_with_connect_info::<SocketAddr>();
-
-        // TODO(ja): Bring these back
-        // let addr_config = AddrIncomingConfig::new()
-        //     .tcp_keepalive(Some(config.keepalive_timeout()).filter(|d| !d.is_zero()))
-        //     .tcp_keepalive_interval(Some(config.keepalive_timeout()).filter(|d| !d.is_zero()))
-        //     .tcp_keepalive_retries(Some(KEEPALIVE_RETRIES))
-        //     .build();
-
         let handle = Handle::new();
 
         match create_listener(config.listen_addr(), config.tcp_listen_backlog()) {

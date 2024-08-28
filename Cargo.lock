@@ -4439,6 +4439,7 @@ dependencies = [
  "serde_path_to_error",
  "similar-asserts",
  "smallvec",
+ "socket2 0.5.7",
  "sqlx",
  "symbolic-common",
  "symbolic-unreal",
