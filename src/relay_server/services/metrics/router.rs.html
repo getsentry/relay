@@ -156,6 +156,7 @@
 <a href="#156" id="156">156</a>
 <a href="#157" id="157">157</a>
 <a href="#158" id="158">158</a>
+<a href="#159" id="159">159</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Routing logic for metrics. Metrics from different namespaces may be routed to different aggregators,
 //! with their own limits, bucket intervals, etc.
 
@@ -167,7 +168,6 @@
 <span class="kw">use </span><span class="kw">crate</span>::services::metrics::{
     Aggregator, AggregatorHandle, AggregatorService, FlushBuckets, MergeBuckets,
 };
-<span class="kw">use </span><span class="kw">crate</span>::statsd::RelayTimers;
 <span class="kw">use </span><span class="kw">crate</span>::utils;
 
 <span class="doccomment">/// Service that routes metrics &amp; metric buckets to the appropriate aggregator.
@@ -263,10 +263,11 @@
     }
 
     <span class="kw">fn </span>handle_message(<span class="kw-2">&amp;mut </span><span class="self">self</span>, message: Aggregator) {
-        <span class="kw">let </span>ty = message.variant();
-        <span class="macro">relay_statsd::metric!</span>(
-            timer(RelayTimers::MetricRouterServiceDuration),
-            message = ty,
+        <span class="comment">// let ty = message.variant();
+        // relay_statsd::metric!(
+        //     timer(RelayTimers::MetricRouterServiceDuration),
+        //     message = ty,
+        </span>{
             {
                 <span class="kw">match </span>message {
                     Aggregator::MergeBuckets(msg) =&gt; <span class="self">self</span>.handle_merge_buckets(msg),
@@ -274,8 +275,9 @@
                     </span>Aggregator::BucketCountInquiry(<span class="kw">_</span>, _sender) =&gt; (), <span class="comment">// not supported
                 </span>}
             }
-        )
-    }
+        }
+        <span class="comment">// )
+    </span>}
 
     <span class="kw">fn </span>handle_merge_buckets(<span class="kw-2">&amp;mut </span><span class="self">self</span>, message: MergeBuckets) {
         <span class="kw">let </span>MergeBuckets {

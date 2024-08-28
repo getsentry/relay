@@ -4126,6 +4126,8 @@
 <a href="#4126" id="4126">4126</a>
 <a href="#4127" id="4127">4127</a>
 <a href="#4128" id="4128">4128</a>
+<a href="#4129" id="4129">4129</a>
+<a href="#4130" id="4130">4130</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeMap, BTreeSet, HashMap};
 <span class="kw">use </span>std::error::Error;
@@ -7032,10 +7034,11 @@
     }
 
     <span class="kw">fn </span>handle_message(<span class="kw-2">&amp;</span><span class="self">self</span>, message: EnvelopeProcessor) {
-        <span class="kw">let </span>ty = message.variant();
-        <span class="kw">let </span>feature_weights = <span class="self">self</span>.feature_weights(<span class="kw-2">&amp;</span>message);
+        <span class="comment">// let ty = message.variant();
+        </span><span class="kw">let </span>feature_weights = <span class="self">self</span>.feature_weights(<span class="kw-2">&amp;</span>message);
 
-        <span class="macro">metric!</span>(timer(RelayTimers::ProcessMessageDuration), message = ty, {
+        <span class="comment">// metric!(timer(RelayTimers::ProcessMessageDuration), message = ty, {
+        </span>{
             <span class="kw">let </span><span class="kw-2">mut </span>cogs = <span class="self">self</span>.inner.cogs.timed(ResourceId::Relay, feature_weights);
 
             <span class="kw">match </span>message {
@@ -7052,8 +7055,9 @@
                 EnvelopeProcessor::SubmitEnvelope(m) =&gt; <span class="self">self</span>.handle_submit_envelope(<span class="kw-2">*</span>m),
                 EnvelopeProcessor::SubmitClientReports(m) =&gt; <span class="self">self</span>.handle_submit_client_reports(<span class="kw-2">*</span>m),
             }
-        });
-    }
+        }
+        <span class="comment">// });
+    </span>}
 
     <span class="kw">fn </span>feature_weights(<span class="kw-2">&amp;</span><span class="self">self</span>, message: <span class="kw-2">&amp;</span>EnvelopeProcessor) -&gt; FeatureWeights {
         <span class="kw">match </span>message {

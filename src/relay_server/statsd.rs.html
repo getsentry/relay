@@ -912,6 +912,12 @@
 <a href="#912" id="912">912</a>
 <a href="#913" id="913">913</a>
 <a href="#914" id="914">914</a>
+<a href="#915" id="915">915</a>
+<a href="#916" id="916">916</a>
+<a href="#917" id="917">917</a>
+<a href="#918" id="918">918</a>
+<a href="#919" id="919">919</a>
+<a href="#920" id="920">920</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric, TimerMetric};
 <span class="attr">#[cfg(doc)]
 </span><span class="kw">use </span>tokio::runtime::RuntimeMetrics;
@@ -1378,11 +1384,13 @@
     /// This metric is tagged with:
     ///
     ///  - `message`: The type of message that was processed.
+    </span><span class="attr">#[allow(dead_code)] </span><span class="comment">// TODO: Temporarily disabled for a performance measurement.
     </span>ProcessMessageDuration,
     <span class="doccomment">/// Timing in milliseconds for handling a project cache message.
     ///
     /// This metric is tagged with:
     ///  - `message`: The type of message that was processed.
+    </span><span class="attr">#[allow(dead_code)] </span><span class="comment">// TODO: Temporarily disabled for a performance measurement.
     </span>ProjectCacheMessageDuration,
     <span class="doccomment">/// Timing in milliseconds for processing a message in the buffer service.
     ///
@@ -1416,11 +1424,13 @@
     ///
     /// This metric is tagged with:
     ///  - `message`: The type of message that was processed.
+    </span><span class="attr">#[allow(dead_code)] </span><span class="comment">// TODO: Temporarily disabled for a performance measurement.
     </span>AggregatorServiceDuration,
     <span class="doccomment">/// Timing in milliseconds for processing a message in the metric router service.
     ///
     /// This metric is tagged with:
     ///  - `message`: The type of message that was processed.
+    </span><span class="attr">#[allow(dead_code)] </span><span class="comment">// TODO: Temporarily disabled for a performance measurement.
     </span>MetricRouterServiceDuration,
     <span class="doccomment">/// Timing in milliseconds for processing a message in the metric store service.
     ///
@@ -1465,8 +1475,10 @@
             RelayTimers::HealthCheckDuration =&gt; <span class="string">"health.message.duration"</span>,
             <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
             </span>RelayTimers::RateLimitBucketsDuration =&gt; <span class="string">"processor.rate_limit_buckets"</span>,
-            RelayTimers::AggregatorServiceDuration =&gt; <span class="string">"metrics.aggregator.message.duration"</span>,
-            RelayTimers::MetricRouterServiceDuration =&gt; <span class="string">"metrics.router.message.duration"</span>,
+            <span class="attr">#[allow(dead_code)] </span><span class="comment">// TODO: Temporarily disabled for a performance measurement.
+            </span>RelayTimers::AggregatorServiceDuration =&gt; <span class="string">"metrics.aggregator.message.duration"</span>,
+            <span class="attr">#[allow(dead_code)] </span><span class="comment">// TODO: Temporarily disabled for a performance measurement.
+            </span>RelayTimers::MetricRouterServiceDuration =&gt; <span class="string">"metrics.router.message.duration"</span>,
             <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
             </span>RelayTimers::StoreServiceDuration =&gt; <span class="string">"store.message.duration"</span>,
         }

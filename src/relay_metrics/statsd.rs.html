@@ -144,6 +144,7 @@
 <a href="#144" id="144">144</a>
 <a href="#145" id="145">145</a>
 <a href="#146" id="146">146</a>
+<a href="#147" id="147">147</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric, SetMetric, TimerMetric};
 
 <span class="doccomment">/// Set metrics for Relay Metrics.
@@ -244,6 +245,7 @@
     /// This metric is tagged with:
     ///  - `backdated`: A flag indicating whether the metric was reported within the `initial_delay`
     ///    time period (`false`) or after the initial delay has expired (`true`).
+    </span><span class="attr">#[allow(dead_code)] </span><span class="comment">// TODO: Temporarily disabled for a performance measurement.
     </span>BucketsDelay,
 
     <span class="doccomment">/// Distribution of invalid bucket timestamps observed, relative to the time of observation.
