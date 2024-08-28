@@ -42,8 +42,12 @@ const COMPRESSION_MIN_SIZE: u16 = 128;
 
 /// Indicates the type of failure of the server.
 #[allow(clippy::enum_variant_names)]
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, thiserror::Error)]
+#[derive(Debug, thiserror::Error)]
 pub enum ServerError {
+    /// Binding failed.
+    #[error("bind to interface failed")]
+    BindFailed(#[from] io::Error),
+
     /// TLS support was not compiled in.
     #[error("SSL is no longer supported by Relay, please use a proxy in front")]
     TlsNotSupported,
@@ -85,6 +89,25 @@ fn make_app(service: ServiceState) -> App {
     // Add middlewares that need to run _before_ routing, which need to wrap the router. This are
     // especially middlewares that modify the request path for the router:
     NormalizePath::new(router)
+}
+
+fn listen(config: &Config) -> Result<TcpListener, ServerError> {
+    // Inform the user about a removed feature.
+    if config.tls_listen_addr().is_some()
+        || config.tls_identity_password().is_some()
+        || config.tls_identity_path().is_some()
+    {
+        return Err(ServerError::TlsNotSupported);
+    }
+
+    let addr = config.listen_addr();
+    let socket = match addr {
+        SocketAddr::V4(_) => TcpSocket::new_v4(),
+        SocketAddr::V6(_) => TcpSocket::new_v6(),
+    }?;
+
+    socket.bind(addr)?;
+    Ok(socket.listen(config.tcp_listen_backlog())?.into_std()?)
 }
 
 fn build_keepalive(config: &Config) -> Option<TcpKeepalive> {
@@ -143,6 +166,41 @@ impl<S> Accept<TcpStream, S> for KeepAliveAcceptor {
     }
 }
 
+fn serve(listener: TcpListener, app: App, config: Arc<Config>) {
+    let handle = Handle::new();
+
+    let mut server = axum_server::from_tcp(listener)
+        .acceptor(KeepAliveAcceptor::new(&config))
+        .handle(handle.clone());
+
+    server
+        .http_builder()
+        .http1()
+        .half_close(true)
+        .header_read_timeout(CLIENT_HEADER_TIMEOUT)
+        .writev(true);
+
+    server
+        .http_builder()
+        .http2()
+        .keep_alive_timeout(config.keepalive_timeout());
+
+    // Bundle middlewares that need to run _before_ routing, which need to wrap the router.
+    // ConnectInfo is special as it needs to last.
+    let service = ServiceExt::<Request>::into_make_service_with_connect_info::<SocketAddr>(app);
+    tokio::spawn(server.serve(service));
+
+    tokio::spawn(async move {
+        let Shutdown { timeout } = Controller::shutdown_handle().notified().await;
+        relay_log::info!("Shutting down HTTP server");
+
+        match timeout {
+            Some(timeout) => handle.graceful_shutdown(Some(timeout)),
+            None => handle.shutdown(),
+        }
+    });
+}
+
 /// HTTP server service.
 ///
 /// This is the main HTTP server of Relay which hosts all [services](ServiceState) and dispatches
@@ -150,19 +208,18 @@ impl<S> Accept<TcpStream, S> for KeepAliveAcceptor {
 pub struct HttpServer {
     config: Arc<Config>,
     service: ServiceState,
+    listener: TcpListener,
 }
 
 impl HttpServer {
     pub fn new(config: Arc<Config>, service: ServiceState) -> Result<Self, ServerError> {
-        // Inform the user about a removed feature.
-        if config.tls_listen_addr().is_some()
-            || config.tls_identity_password().is_some()
-            || config.tls_identity_path().is_some()
-        {
-            return Err(ServerError::TlsNotSupported);
-        }
+        let listener = listen(&config)?;
 
-        Ok(Self { config, service })
+        Ok(Self {
+            config,
+            service,
+            listener,
+        })
     }
 }
 
@@ -170,63 +227,17 @@ impl Service for HttpServer {
     type Interface = ();
 
     fn spawn_handler(self, _rx: relay_system::Receiver<Self::Interface>) {
-        let Self { config, service } = self;
+        let Self {
+            config,
+            service,
+            listener,
+        } = self;
+
+        relay_log::info!("spawning http server");
+        relay_log::info!("  listening on http://{}/", config.listen_addr());
+        relay_statsd::metric!(counter(RelayCounters::ServerStarting) += 1);
 
         let app = make_app(service);
-        let handle = Handle::new();
-
-        // Bundle middlewares that need to run _before_ routing, which need to wrap the router.
-        // ConnectInfo is special as it needs to last.
-        let service = ServiceExt::<Request>::into_make_service_with_connect_info::<SocketAddr>(app);
-
-        match create_listener(config.listen_addr(), config.tcp_listen_backlog()) {
-            Ok(listener) => {
-                listener.set_nonblocking(true).ok();
-                let mut server = axum_server::from_tcp(listener)
-                    .acceptor(KeepAliveAcceptor::new(&config))
-                    .handle(handle.clone());
-
-                server
-                    .http_builder()
-                    .http1()
-                    .half_close(true)
-                    .header_read_timeout(CLIENT_HEADER_TIMEOUT)
-                    .writev(true);
-
-                server
-                    .http_builder()
-                    .http2()
-                    .keep_alive_timeout(config.keepalive_timeout());
-
-                relay_log::info!("spawning http server");
-                relay_log::info!("  listening on http://{}/", config.listen_addr());
-                relay_statsd::metric!(counter(RelayCounters::ServerStarting) += 1);
-                tokio::spawn(server.serve(service));
-            }
-            Err(err) => {
-                relay_log::error!("Failed to start the HTTP server: {err}");
-                std::process::exit(1);
-            }
-        }
-
-        tokio::spawn(async move {
-            let Shutdown { timeout } = Controller::shutdown_handle().notified().await;
-            relay_log::info!("Shutting down HTTP server");
-
-            match timeout {
-                Some(timeout) => handle.graceful_shutdown(Some(timeout)),
-                None => handle.shutdown(),
-            }
-        });
+        serve(listener, app, config);
     }
-}
-
-fn create_listener(addr: SocketAddr, backlog: u32) -> io::Result<TcpListener> {
-    let socket = match addr {
-        SocketAddr::V4(_) => TcpSocket::new_v4(),
-        SocketAddr::V6(_) => TcpSocket::new_v6(),
-    }?;
-    socket.bind(addr)?;
-
-    socket.listen(backlog)?.into_std()
 }
