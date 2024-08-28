@@ -248,6 +248,8 @@ mod tests {
     use std::time::Duration;
 
     use relay_common::Dsn;
+    use relay_event_schema::protocol::EventId;
+    use uuid::Uuid;
 
     use crate::extractors::RequestMeta;
     use crate::utils::MemoryStat;
@@ -274,12 +276,10 @@ mod tests {
             .into()
     }
 
-    fn new_envelope() -> Box<Envelope> {
+    fn new_envelope(project_key: &str) -> Box<Envelope> {
         Envelope::from_request(
-            None,
-            RequestMeta::new(
-                Dsn::from_str("http://a94ae32be2584e0bbd7a4cbb95971fed@localhost/1").unwrap(),
-            ),
+            Some(EventId(Uuid::new_v4())),
+            RequestMeta::new(Dsn::from_str(&format!("http://{project_key}@localhost/1")).unwrap()),
         )
     }
 
@@ -305,14 +305,20 @@ mod tests {
         assert_eq!(call_count.load(Ordering::Relaxed), 0);
 
         // State after push: one call
-        buffer.push(new_envelope()).await.unwrap();
+        buffer
+            .push(new_envelope("a94ae32be2584e0bbd7a4cbb95971fed"))
+            .await
+            .unwrap();
         tokio::time::advance(Duration::from_nanos(1)).await;
         assert_eq!(call_count.load(Ordering::Relaxed), 1);
         tokio::time::advance(Duration::from_nanos(1)).await;
         assert_eq!(call_count.load(Ordering::Relaxed), 1);
 
         // State after second push: two calls
-        buffer.push(new_envelope()).await.unwrap();
+        buffer
+            .push(new_envelope("a94ae32be2584e0bbd7a4cbb95971fed"))
+            .await
+            .unwrap();
         tokio::time::advance(Duration::from_nanos(1)).await;
         assert_eq!(call_count.load(Ordering::Relaxed), 2);
         tokio::time::advance(Duration::from_nanos(1)).await;
@@ -335,7 +341,10 @@ mod tests {
             }
         });
 
-        buffer.push(new_envelope()).await.unwrap();
+        buffer
+            .push(new_envelope("a94ae32be2584e0bbd7a4cbb95971fed"))
+            .await
+            .unwrap();
 
         // Initial state: no calls
         assert_eq!(call_count.load(Ordering::Relaxed), 0);
@@ -349,8 +358,32 @@ mod tests {
         assert_eq!(call_count.load(Ordering::Relaxed), 1);
 
         // State after second push: two calls
-        buffer.push(new_envelope()).await.unwrap();
+        buffer
+            .push(new_envelope("a94ae32be2584e0bbd7a4cbb95971fed"))
+            .await
+            .unwrap();
         tokio::time::advance(Duration::from_nanos(1)).await;
         assert_eq!(call_count.load(Ordering::Relaxed), 2);
+    }
+
+    #[tokio::test]
+    async fn peek_remove_gets_same_element() {
+        let buffer = new_buffer();
+
+        let envelope1 = new_envelope("a94ae32be2584e0bbd7a4cbb95971fed");
+        let mut envelope2 = new_envelope("b94ae32be2584e0bbd7a4cbb95971fed");
+        envelope2.set_start_time(envelope1.meta().start_time());
+
+        assert!(envelope1.event_id().is_some());
+        assert!(envelope2.event_id().is_some());
+        assert_ne!(envelope1.event_id(), envelope2.event_id());
+
+        buffer.push(envelope1).await.unwrap();
+        buffer.push(envelope2).await.unwrap();
+
+        let mut guard = buffer.peek().await;
+        let expected_event_id = guard.get().await.unwrap().event_id();
+        let popped_event_id = guard.remove().await.unwrap().event_id();
+        assert_eq!(popped_event_id, expected_event_id);
     }
 }
